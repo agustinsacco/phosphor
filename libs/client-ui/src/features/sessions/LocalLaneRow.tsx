@@ -152,10 +152,13 @@ export function SessionRow({
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => openSidebarConversation(workspacePath, meta)
+  const activity =
+    isStreaming || delegated ? 'working' : opening ? 'opening' : booting ? 'starting' : undefined
   const actions = useLocalLaneActions({
     meta,
     workspacePath,
     livePhosphorId,
+    working: activity !== undefined,
     title,
     unseen,
     pinned: isPinned,
@@ -169,8 +172,6 @@ export function SessionRow({
   const menu = useMenuTriggers(actions.items, { title })
 
   const subtitle = sessionSubtitle(meta, git)
-  const activity =
-    isStreaming || delegated ? 'working' : opening ? 'opening' : booting ? 'starting' : undefined
   const indicatorState = activity
     ? 'streaming'
     : unseen

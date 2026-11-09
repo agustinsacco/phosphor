@@ -112,8 +112,12 @@ stay until you rename or delete one.
 
 ## Moving a lane
 
-Desktop's row menus offer **Move to…** for stopped lanes, local and remote. Pick
-This Mac or a connected Host, then one of its workspaces. A checked plan explains
+Desktop's row menus offer **Move to…** on lanes, local and remote, that are not
+working. A move copies the saved transcript, so an idle open lane is stopped
+first (the item says "stops it first"); a lane mid-turn, running delegated
+work, starting, or waiting on a Host question says to wait. Main and the Host
+still refuse to export a live lane. Pick This Mac or a connected Host, then one
+of its workspaces. A checked plan explains
 what will land there and any blockers. The browser cannot relay transfers.
 
 A move is a snapshot copy. The original is untouched, keeps its row, and is

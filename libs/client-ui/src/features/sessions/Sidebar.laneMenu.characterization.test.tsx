@@ -47,19 +47,20 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Element.prototype.scrollIntoView = vi.fn()
   stubSidebarPhosphor(invoke)
-  invoke
-    .mockReset()
-    .mockImplementation(async (channel: string) =>
-      channel === 'app:getPrefs'
-        ? { seenSessions: useSessionsStore.getState().seenSessions }
-        : channel === 'routines:laneIndex'
-          ? {}
-          : channel === 'git:listWorktrees'
-            ? []
-            : channel === 'sessions:list'
-              ? (useSessionsStore.getState().disk['/repo'] ?? [])
-              : null,
-    )
+  invoke.mockReset().mockImplementation(async (channel: string) =>
+    channel === 'app:getPrefs'
+      ? {
+          seenSessions: useSessionsStore.getState().seenSessions,
+          pinnedSessions: useSessionsStore.getState().pinned,
+        }
+      : channel === 'routines:laneIndex'
+        ? {}
+        : channel === 'git:listWorktrees'
+          ? []
+          : channel === 'sessions:list'
+            ? (useSessionsStore.getState().disk['/repo'] ?? [])
+            : null,
+  )
   resetSidebarStores()
   useChatStore.setState({ sessions: {} })
   useLaneMoveStore.setState({ draft: null })
@@ -204,7 +205,9 @@ it('stops an idle live lane before opening Move to… for it', async () => {
     b.textContent?.startsWith('Move to…'),
   ) as HTMLButtonElement
   await act(async () => item.click())
-  await act(async () => {})
+  await vi.waitFor(() => expect(useLaneMoveStore.getState().draft).not.toBeNull(), {
+    timeout: 5000,
+  })
   expect(invoke).toHaveBeenCalledWith('pi:disposeSession', 'live1')
   expect(useLaneMoveStore.getState().draft?.source).toEqual({
     machine: 'local',

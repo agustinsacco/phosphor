@@ -14,7 +14,7 @@ import { openPullRequest } from './PrBadge'
 import { copySessionDebugInfo, copySpend, exportSessionHtml } from './sessionActions'
 import { useSessionOrderActions } from './SessionList'
 import { cloneSession, exportSidebarSession, moveSidebarSession } from './sidebarActions'
-import { STOP_BEFORE_MOVE } from './remoteLaneActions'
+import { MOVE_STOPS_LANE, WAIT_BEFORE_MOVE } from './remoteLaneActions'
 
 // Keep the full emoji catalog out of startup and marker-disabled sessions.
 const MarkerPickerModal = lazy(() =>
@@ -26,6 +26,8 @@ interface LocalLane {
   meta: SessionMeta
   workspacePath: string
   livePhosphorId?: string
+  /** The row shows it working: a turn, delegated work, or a start in progress. */
+  working: boolean
   title: string
   unseen: boolean
   pinned: boolean
@@ -42,7 +44,7 @@ function localContext(
   markers: LaneActionContext['markers'],
   bulkDeleteRunning: boolean,
 ): LaneActionContext {
-  const { meta, livePhosphorId, unseen, pinned, pullRequest, deleting } = lane
+  const { meta, livePhosphorId, working, unseen, pinned, pullRequest, deleting } = lane
   return {
     pinned,
     markers,
@@ -55,9 +57,13 @@ function localContext(
     busy: deleting,
     refusals: {
       delete: bulkDeleteRunning ? 'another delete is running' : undefined,
-      moveTo: livePhosphorId ? STOP_BEFORE_MOVE : undefined,
+      moveTo: working ? WAIT_BEFORE_MOVE : undefined,
     },
-    hints: { stop: '~200 MB', delete: 'to trash' },
+    hints: {
+      stop: '~200 MB',
+      delete: 'to trash',
+      moveTo: livePhosphorId ? MOVE_STOPS_LANE : undefined,
+    },
   }
 }
 
@@ -116,7 +122,7 @@ export function useLocalLaneActions(lane: LocalLane): LaneActions {
         markRead: () => store().markRead(meta.path, livePhosphorId),
         fork: () => void store().createSession(workspacePath, { forkFrom: meta.path }),
         clone: () => void cloneSession(workspacePath, meta, livePhosphorId),
-        moveTo: () => moveSidebarSession(meta, git?.branch),
+        moveTo: () => void moveSidebarSession(meta, git?.branch, livePhosphorId),
         exportHtml: () => void exportSidebarSession(workspacePath, meta, livePhosphorId),
         copyDebugInfo: () => void copySessionDebugInfo(meta, livePhosphorId),
         copySpend: () => void copySpend(meta.cost),

@@ -108,8 +108,8 @@ describe('hostLaneContext', () => {
   })
 
   it('offers Move to… on a capable Host unless the lane is working', () => {
-    const lane = (activity: RemoteLaneActionState['lane']['activity']) => ({
-      ...state().lane,
+    const lane = (activity: RemoteLaneActionState['lane']['activity'], self = true) => ({
+      ...state({}, self).lane,
       activity,
     })
     const move = (edit: Partial<RemoteLaneActionState>, self = true) =>
@@ -136,7 +136,7 @@ describe('hostLaneContext', () => {
         hint: WAIT_BEFORE_MOVE,
       })
     // Stopping it needs control, as Stop does.
-    expect(move({ caps: transfer, lane: lane('idle') }, false)).toMatchObject({
+    expect(move({ caps: transfer, lane: lane('idle', false) }, false)).toMatchObject({
       disabled: true,
       hint: TAKE_CONTROL_FIRST,
     })
