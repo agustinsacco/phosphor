@@ -72,7 +72,8 @@ const HALF_LIFE_DAYS: Record<BrainMemoryType, number> = {
   preference: 365,
 }
 export function freshness(memory: BrainMemory, now: number): number {
-  const days = Math.max(0, now - memory.observedAt) / 86_400_000
+  const effective = memory.validFrom !== null && memory.validFrom <= now ? memory.validFrom : 0
+  const days = Math.max(0, now - Math.max(memory.observedAt, effective)) / 86_400_000
   return 0.5 + 0.5 * 2 ** (-days / HALF_LIFE_DAYS[memory.type])
 }
 function boundedLimit(limit: number | undefined, fallback: number): number {

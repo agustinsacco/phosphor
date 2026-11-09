@@ -3,9 +3,10 @@ import type { BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore, RawExtraction } from '@phosphor/memory-engine/types'
 import type { BrainServiceOptions } from './types'
 import { readLane, type LaneMeta } from './lane'
-import { readEntries, transcriptSegments } from './transcript'
+import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
 import { runFork } from './fork'
 import { forkThinking } from './fork-trace'
+import { ExtractionRecord } from './extraction-record'
 import { ExtractionLog } from './extraction-log'
 import { extractionPrompt } from './prompt'
 import { parseExtraction } from './extraction'
@@ -18,6 +19,7 @@ interface ExtractionContext {
   store: BrainStore
   options: BrainServiceOptions
   log: ExtractionLog
+  record: ExtractionRecord
 }
 
 export async function extractJob(
@@ -27,16 +29,19 @@ export async function extractJob(
   options: BrainServiceOptions,
 ): Promise<void> {
   const log = new ExtractionLog(job, options)
+  const record = new ExtractionRecord(job, store, options.now ?? Date.now)
   try {
     signal.throwIfAborted()
-    await runExtraction({ job, signal, store, options, log })
+    await runExtraction({ job, signal, store, options, log, record })
   } catch (error) {
-    throw log.failed(error, signal)
+    const failure = log.failed(error, signal)
+    record.failed(failure)
+    throw failure
   }
 }
 
 async function runExtraction(context: ExtractionContext): Promise<void> {
-  const { job, signal, store, options, log } = context
+  const { job, signal, store, options, log, record } = context
   log.laneBytes = (await stat(job.sessionPath)).size
   const lane = await readLane(job.sessionPath)
   log.model = lane.model
@@ -49,31 +54,44 @@ async function runExtraction(context: ExtractionContext): Promise<void> {
   log.phase = 'launch'
   const launch = await options.lanes.launch(job.sessionPath)
   log.phase = 'fork'
+  const prompt = extractionPrompt(known)
+  record.start(lane, prompt)
   const fork = await runFork({
     directory: options.directory,
     job,
     lane,
     launch,
     guardExtension: options.guardExtension,
-    prompt: extractionPrompt(known),
+    prompt,
     signal,
+    onAnswer: (answer) => record.answer(answer),
     onTrace: (trace, diagnostic) => {
+      record.fork(trace)
       log.trace = trace
       log.diagnostic = diagnostic
       log.step('Brain extraction fork finished')
     },
   })
+  record.answer(fork.text)
   signal.throwIfAborted()
   store.updateJob(job.id, { usage: fork.usage })
   log.phase = 'parse'
-  const raw = parseExtraction(fork.text, { existingEntities: known.entities })
+  const raw = parseExtraction(fork.text, {
+    existingEntities: known.entities,
+    onCandidate: (candidate, memory, summary, reason) =>
+      record.parsed(candidate, memory, summary, reason),
+  })
   log.step('Brain extraction parsed', {
     entities: raw.entities.length,
     memories: raw.memories.length,
   })
   log.phase = 'quote'
-  const segments = transcriptSegments(await readEntries(job.sessionPath))
-  const verified = verifyQuotes(raw, segments)
+  const segments = transcriptSegments(
+    transcriptAtLeaf(await readEntries(job.sessionPath), lane.leafId),
+  )
+  const verified = verifyQuotes(raw, segments, {
+    onVerified: (index, kept) => record.verified(index, kept),
+  })
   log.step('Brain extraction quotes verified', {
     verified: verified.memories.length,
     dropped: verified.dropped.length,
@@ -93,7 +111,7 @@ async function runExtraction(context: ExtractionContext): Promise<void> {
 }
 
 function propose(
-  { job, store, options, log }: ExtractionContext,
+  { job, store, options, log, record }: ExtractionContext,
   lane: LaneMeta,
   raw: RawExtraction,
   verified: VerifiedQuotes,
@@ -111,10 +129,12 @@ function propose(
     evidence: verified.evidence,
     vectors: vectors.map((v) => new Float32Array(v)),
   })
-  log.step('Brain extraction proposed', result)
+  record.proposed(result)
+  const { outcomes: _outcomes, ...counts } = result
+  log.step('Brain extraction proposed', counts)
   store.updateJob(job.id, { finishedAt: (options.now ?? Date.now)() })
   log.phase = 'review'
-  if (result.kept && !store.snapshot().prefs.review)
+  if ((result.kept || result.reconfirmed) && !store.snapshot().prefs.review)
     store.review(
       job.id,
       Array.from({ length: result.kept }, (_, i) => i),
@@ -124,6 +144,7 @@ function propose(
     forkMs: log.trace?.totalMs ?? null,
     kept: result.kept,
     duplicates: result.duplicates,
+    reconfirmed: result.reconfirmed,
     dropped: verified.dropped.length,
   })
 }

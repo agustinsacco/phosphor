@@ -1,4 +1,3 @@
-import type { PrintModeFailure } from '@phosphor/session-runtime/pi/print-mode'
 import { scrubExcerpt } from './secrets'
 
 export const FORK_TIMEOUT_MS = 300_000
@@ -32,40 +31,11 @@ export interface ForkEvent {
   willRetry?: boolean
   source?: string
 }
-interface TraceEvent {
-  type: string
-  atMs: number
-  source?: string
-  attempt?: number
-  delayMs?: number
-  errorMessage?: string
-  success?: boolean
-  reason?: string
-  aborted?: boolean
-  willRetry?: boolean
-}
-export interface ForkTrace {
-  firstStdoutMs: number | null
-  firstMessageStartMs: number | null
-  firstMessageUpdateMs: number | null
-  agentStarts: number
-  turns: number
-  messageUpdates: number
-  retries: TraceEvent[]
-  compactions: TraceEvent[]
-  stopReason: string | null
-  usage: {
-    tokens: number
-    cost: number
-    input: number
-    output: number
-    cacheRead: number
-    cacheWrite: number
-  }
-  providerError?: string
-  totalMs: number
-  reason: PrintModeFailure | 'completed' | 'error' | 'no-text'
-}
+export type { BrainForkTrace as ForkTrace } from '@phosphor/shared/brain-extraction'
+import type {
+  BrainForkTrace as ForkTrace,
+  BrainTraceEvent as TraceEvent,
+} from '@phosphor/shared/brain-extraction'
 
 /** Scrub before clipping so truncation cannot expose part of a credential. */
 export function traceDiagnostic(text: string): string {

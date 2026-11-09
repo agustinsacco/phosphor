@@ -16,9 +16,11 @@ export function elapsedTime(ms: number): string {
 export function BrainReview({
   jobId,
   onClose,
+  onExtraction,
 }: {
   jobId: string
   onClose: () => void
+  onExtraction: (jobId: string) => void
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:proposal', jobId), [jobId])
   const { data, error, retry } = useBrainResource(load)
@@ -28,21 +30,32 @@ export function BrainReview({
         {error || 'Loading review…'}
         {error && <Button onClick={retry}>Retry</Button>}
         <Button onClick={onClose}>Back to graph</Button>
+        <Button onClick={() => onExtraction(jobId)}>View extraction</Button>
       </div>
     )
-  return <ReviewProposal key={`${jobId}:${data.revision}`} proposal={data} onClose={onClose} />
+  return (
+    <ReviewProposal
+      key={`${jobId}:${data.revision}`}
+      proposal={data}
+      onClose={onClose}
+      onExtraction={onExtraction}
+    />
+  )
 }
 
 function ReviewProposal({
   proposal,
   onClose,
+  onExtraction,
 }: {
   proposal: BrainProposalView
   onClose: () => void
+  onExtraction: (jobId: string) => void
 }): React.JSX.Element {
   const [keep, setKeep] = useState(() => proposal.memories.map((_, index) => index))
   const saving = useBrain((s) => s.saving)
-  const { job, memories } = proposal
+  const { job, memories, confirmations = [] } = proposal
+  const confirmationsOnly = memories.length === 0 && confirmations.length > 0
   const review = (indexes: number[] | null): void => {
     void useBrain
       .getState()
@@ -56,6 +69,9 @@ function ReviewProposal({
       <Button size="sm" onClick={onClose}>
         Back to graph
       </Button>
+      <Button size="sm" onClick={() => onExtraction(job.id)}>
+        View extraction
+      </Button>
       <header>
         <h2 className="text-xl font-semibold">{job.title}</h2>
         <p className="text-text-tertiary mt-1 text-sm">
@@ -64,19 +80,28 @@ function ReviewProposal({
         </p>
       </header>
       <p>{proposal.summary}</p>
+      <ConfirmationSummary confirmations={confirmations} only={confirmationsOnly} />
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" disabled={saving || !keep.length} onClick={() => review(keep)}>
-          Approve {keep.length}
+        <Button
+          variant="primary"
+          disabled={saving || (!keep.length && !confirmationsOnly)}
+          onClick={() => review(keep)}
+        >
+          {confirmationsOnly ? 'Approve confirmations' : `Approve ${keep.length}`}
         </Button>
         <Button disabled={saving} onClick={() => review(null)}>
           Reject all
         </Button>
-        <Button
-          disabled={saving}
-          onClick={() => setKeep(keep.length === memories.length ? [] : memories.map((_, i) => i))}
-        >
-          {keep.length === memories.length ? 'Uncheck all' : 'Check all'}
-        </Button>
+        {memories.length > 0 && (
+          <Button
+            disabled={saving}
+            onClick={() =>
+              setKeep(keep.length === memories.length ? [] : memories.map((_, i) => i))
+            }
+          >
+            {keep.length === memories.length ? 'Uncheck all' : 'Check all'}
+          </Button>
+        )}
       </div>
       <p className="text-text-tertiary text-sm">Nothing is searchable until you approve it.</p>
       <ProposalMemories
@@ -91,6 +116,29 @@ function ReviewProposal({
           )
         }
       />
+    </section>
+  )
+}
+
+function ConfirmationSummary({
+  confirmations,
+  only,
+}: {
+  confirmations: BrainProposalView['confirmations']
+  only: boolean
+}): React.JSX.Element | null {
+  if (!confirmations.length) return null
+  return (
+    <section className="space-y-2">
+      <p>
+        {only ? 'Confirms' : 'Also confirms'}{' '}
+        {formatCount(confirmations.length, 'existing memory', 'existing memories')}
+      </p>
+      <ul className="text-text-secondary text-sm">
+        {confirmations.map((memory) => (
+          <li key={memory.id}>{memory.summary}</li>
+        ))}
+      </ul>
     </section>
   )
 }

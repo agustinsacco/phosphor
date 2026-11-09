@@ -6,11 +6,12 @@ import type {
 } from '@phosphor/shared/brain'
 import { all, one, run, transaction, type Context } from './database'
 import { cleanOrphans, entities, referencedEntities } from './entities'
+import { pruneExtractions } from './extractions'
 import { bumpRevision } from './prefs'
 import type { KnownContext, EvidenceExcerpt } from './types'
 
 const columns = `id, scope, subject_id AS subjectId, predicate, object_id AS objectId, literal,
- summary, type, kind, branch, valid_from AS validFrom, recorded_at AS recordedAt,
+ job_id AS jobId, summary, type, kind, branch, valid_from AS validFrom, recorded_at AS recordedAt,
  COALESCE(NULLIF(said.at, 0), recorded_at) AS observedAt,
  origin_session AS originSession, origin_title AS originTitle`
 /** Each memory's latest cited transcript time, computed in one pass over citations. */
@@ -69,6 +70,7 @@ export function forget(ctx: Context, id: string): void {
     run(ctx, 'DELETE FROM memories WHERE id=?', id)
     cleanOrphans(ctx)
     bumpRevision(ctx)
+    pruneExtractions(ctx)
   })
 }
 export function known(ctx: Context, sessionId: string, scope: string, limit: number): KnownContext {

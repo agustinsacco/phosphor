@@ -101,7 +101,7 @@ describe('Brain proposal review', () => {
       },
     ]
     data.vectors = [vector(1)]
-    expect(store.propose(data)).toEqual({ kept: 1, duplicates: 0 })
+    expect(store.propose(data)).toMatchObject({ kept: 1, duplicates: 0 })
     store.review(job.id, [0], store.snapshot().revision)
     expect(store.knowledge().memories.map((item) => item.id)).not.toContain(old.id)
     expect(db.prepare('SELECT state FROM memories WHERE id=?').get(old.id)).toEqual({

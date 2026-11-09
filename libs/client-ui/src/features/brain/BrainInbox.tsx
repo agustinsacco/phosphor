@@ -29,9 +29,11 @@ function jobLine(job: BrainJob, ahead: number, now: number): string {
 export function BrainInbox({
   jobs,
   onReview,
+  onExtraction,
 }: {
   jobs: BrainJob[]
   onReview: (id: string) => void
+  onExtraction: (id: string) => void
 }): React.JSX.Element | null {
   const [now, setNow] = useState(Date.now())
   const running = jobs.some((job) => job.state === 'running')
@@ -63,6 +65,11 @@ export function BrainInbox({
               )}
             </p>
           </div>
+          {(job.state === 'empty' || job.state === 'failed') && (
+            <Button size="xs" onClick={() => onExtraction(job.id)}>
+              View extraction
+            </Button>
+          )}
           <Button
             size="xs"
             disabled={saving}

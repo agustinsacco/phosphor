@@ -16,6 +16,7 @@ export function mockBrainData(): { entities: BrainEntity[]; details: BrainMemory
   ]
   const common = {
     kind: 'reported' as const,
+    jobId: null,
     scope: '/demo/Harbor',
     branch: null,
     validFrom: null,

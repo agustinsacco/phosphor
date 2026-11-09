@@ -99,6 +99,14 @@
     "./types": {
       "types": "./src/types.ts",
       "default": "./src/types.ts"
+    },
+    "./extraction-record": {
+      "types": "./src/extraction-record.ts",
+      "default": "./src/extraction-record.ts"
+    },
+    "./extraction-view": {
+      "types": "./src/extraction-view.ts",
+      "default": "./src/extraction-view.ts"
     }
   },
   "nx": {

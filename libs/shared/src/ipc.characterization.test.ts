@@ -73,6 +73,7 @@ const baselineScope = {
   'brain:removeModel': 'app',
   'brain:queue': 'app',
   'brain:cancel': 'app',
+  'brain:extraction': 'app',
   'brain:proposal': 'app',
   'brain:review': 'app',
   'brain:knowledge': 'app',
