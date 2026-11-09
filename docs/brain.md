@@ -101,7 +101,15 @@ active memory, or to an earlier memory in the same proposal, is 0.86 or more.
 The Brain page is one view. Its left pane lists the inbox (waiting, queued,
 running, to review, nothing new, failed) and then approved memories grouped by
 type, with a search box. Its right pane shows the open review, otherwise a
-draggable graph of the approved entities with the selected memory below it.
+live force graph of the approved entities with the selected memory below it.
+The graph uses kind-coloured circles sized by relationship count and short labels;
+hovering reveals connected predicates and dims unrelated entities. Isolated entities
+remain in a loose cloud. Dragging pins and reheats a node so its neighbours follow;
+release lets it settle. Refreshes preserve existing positions. The graph fits its
+measured pane after the first layout settles; Fit, zoom controls, modifier-wheel
+zoom and background dragging adjust the view. An About chip centres its entity
+with a short pan. Reduced motion settles layouts and centres entities without
+animation; otherwise frames stop once the simulation cools.
 A review lists every proposed memory, checked, with its quotes; **Approve N**
 stores the checked ones in one transaction and **Reject all** stores none. Nothing
 is searchable until it is approved. A review opened before another change to Brain
