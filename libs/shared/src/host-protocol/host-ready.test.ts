@@ -125,6 +125,16 @@ describe('host-ready.ts parseReadyFrame', () => {
   })
 })
 
+describe('file bytes support marker', () => {
+  it('carries the additive fileBytes marker only as a boolean', () => {
+    expect(parseReadyFrame({ ...READY, fileBytes: true })).toStrictEqual({
+      ...READY,
+      fileBytes: true,
+    })
+    expect(parseReadyFrame({ ...READY, fileBytes: 'yes' })).toBeNull()
+  })
+})
+
 describe('lane marks support marker', () => {
   it('carries the additive laneMarks marker only as a boolean', () => {
     expect(parseReadyFrame({ ...READY, laneMarks: true })).toStrictEqual({

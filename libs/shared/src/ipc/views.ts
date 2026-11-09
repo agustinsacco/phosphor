@@ -65,6 +65,8 @@ export interface HostConnectionView {
   laneMarks?: boolean
   /** Host can send and receive lanes (`laneTransfer.*`). */
   laneTransfer?: boolean
+  /** Host serves raw file bytes (`files.readBytes`): downloads and media previews. */
+  fileBytes?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]
@@ -112,6 +114,13 @@ export interface RemoteLaneCreate {
   provider?: string
   model?: string
   thinkingLevel?: string
+}
+
+/** How far one `hosts:fileDownload` has got, pushed while it runs. */
+export interface FileDownloadProgress {
+  id: string
+  received: number
+  size: number
 }
 
 /** An attention event from any Host, for in-app and OS notifications (49). */

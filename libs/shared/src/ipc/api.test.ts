@@ -4,6 +4,7 @@ import type {
   IpcInvokeMap,
   IpcInvokeChannel,
   HostAttention,
+  FileDownloadProgress,
   PhosphorApi,
   PhosphorPlatform,
 } from '../ipc'
@@ -82,6 +83,7 @@ export interface BaselinePhosphorApi {
   onHostsChanged(listener: () => void): () => void
   /** Attention from any Host (49). */
   onHostAttention(listener: (event: HostAttention) => void): () => void
+  onFileDownloadProgress(listener: (progress: FileDownloadProgress) => void): () => void
   /** A notification was clicked: open this remote lane. */
   onHostOpenLane(listener: (target: { hostId: string; laneId: string }) => void): () => void
   /** Voice prefs, download progress and readiness; returns unsubscribe. */

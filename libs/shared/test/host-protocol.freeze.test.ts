@@ -19,6 +19,7 @@ import {
   type HostFrame,
 } from '@phosphor/shared/host-protocol'
 import { FILE_METHODS } from '@phosphor/shared/host-protocol-files'
+import { FILE_BYTES_LIMITS, FILE_BYTES_METHOD } from '@phosphor/shared/host-protocol-file-bytes'
 import { ROUTINE_OPS } from '@phosphor/shared/host-protocol-routines'
 import {
   CLIENT_FRAMES,
@@ -336,6 +337,8 @@ describe('Host API constants and op lists', () => {
       'git.diff',
       'git.show',
     ])
+    expect(FILE_BYTES_METHOD).toBe('files.readBytes')
+    expect(FILE_BYTES_LIMITS).toStrictEqual({ fileBytes: 1073741824, chunkBytes: 1048576 })
     expect(LANE_PI_OPS).toStrictEqual([
       'prompt',
       'steer',

@@ -77,6 +77,7 @@ function createEvents() {
     onHostsChanged: createEvent<'onHostsChanged'>(),
     onHostAttention: createEvent<'onHostAttention'>(),
     onHostOpenLane: createEvent<'onHostOpenLane'>(),
+    onFileDownloadProgress: createEvent<'onFileDownloadProgress'>(),
     onVoiceStatus: createEvent<'onVoiceStatus'>(),
   }
 }
@@ -120,6 +121,7 @@ function createApi(
     onHostsChanged: events.onHostsChanged.subscribe,
     onHostAttention: events.onHostAttention.subscribe,
     onHostOpenLane: events.onHostOpenLane.subscribe,
+    onFileDownloadProgress: events.onFileDownloadProgress.subscribe,
     onVoiceStatus: events.onVoiceStatus.subscribe,
     pathForFile: options.pathForFile ?? (() => ''),
     spellingSuggestions: options.spellingSuggestions ?? (() => null),

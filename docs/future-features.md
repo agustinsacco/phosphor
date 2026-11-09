@@ -10,15 +10,15 @@ and is deleted here. [Remote access](remote-access.md) owns what exists now.
 These operations are not implemented remotely. Their controls are hidden or
 refuse with the fixed unavailable hint; they never run against This Mac instead.
 
-| Surface         | Missing capability                                                                                                                                 |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, rules/MCP toggles inside a Host lane, worktree Merge into main                                 |
-| Files           | Content search, media/PDF previews, quick look, external imports, open-in-app, per-file Revert in Changes, Host file-list truncation flags         |
-| Skills          | Catalogue install, upload, discovery and in-place edits                                                                                            |
-| Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync |
-| Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                               |
-| Clients         | Web Push to a closed browser or installed PWA                                                                                                      |
-| Portability     | Larger lane transfers, submodule/LFS support, browser relay, primitive copy/sync and sharing Desktop's local runtime                               |
+| Surface         | Missing capability                                                                                                                                               |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, rules/MCP toggles inside a Host lane, worktree Merge into main                                               |
+| Files           | Content search, browser media/PDF previews, downloads and open-in-app, quick look, external imports, per-file Revert in Changes, Host file-list truncation flags |
+| Skills          | Catalogue install, upload, discovery and in-place edits                                                                                                          |
+| Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync               |
+| Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                                             |
+| Clients         | Web Push to a closed browser or installed PWA                                                                                                                    |
+| Portability     | Larger lane transfers, submodule/LFS support, browser relay, primitive copy/sync and sharing Desktop's local runtime                                             |
 
 ## PWA attention and Web Push
 

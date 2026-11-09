@@ -8,7 +8,7 @@ import type {
   SessionPush,
   UpdateState,
 } from '../models'
-import type { HostAttention } from './views'
+import type { FileDownloadProgress, HostAttention } from './views'
 import type { IpcInvokeMap, IpcInvokeChannel } from '../ipc'
 
 /** The API surface exposed on window.phosphor by the preload script. */
@@ -75,6 +75,8 @@ export interface PhosphorApi {
   onHostsChanged(listener: () => void): () => void
   /** Attention from any Host (49). */
   onHostAttention(listener: (event: HostAttention) => void): () => void
+  /** Progress of this window's `hosts:fileDownload` calls. */
+  onFileDownloadProgress(listener: (progress: FileDownloadProgress) => void): () => void
   /** A notification was clicked: open this remote lane. */
   onHostOpenLane(listener: (target: { hostId: string; laneId: string }) => void): () => void
   /** Voice prefs, download progress and readiness; returns unsubscribe. */

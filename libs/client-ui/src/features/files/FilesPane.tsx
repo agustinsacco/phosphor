@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useRef } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { FileExplorer } from './FileExplorer'
 import { EditorPane } from './EditorPane'
+import { DownloadsBar } from './DownloadsBar'
 import { WorkspaceSearch } from './WorkspaceSearch'
 import { useWorkspaceSearchStore, workspaceSearch } from './workspaceSearchStore'
 import { attachFilesSource, useFilesStore, workspaceFiles } from '@/stores/files'
@@ -70,6 +71,7 @@ export const FilesPane = memo(function FilesPane({
           <EditorPane source={source} />
         </Panel>
       </PanelGroup>
+      <DownloadsBar />
     </div>
   )
 })

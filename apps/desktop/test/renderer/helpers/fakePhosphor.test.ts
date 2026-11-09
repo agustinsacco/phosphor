@@ -38,6 +38,7 @@ describe('createFakePhosphor', () => {
         'onHostsChanged',
         'onHostAttention',
         'onHostOpenLane',
+        'onFileDownloadProgress',
         'onVoiceStatus',
       ].sort(),
     )

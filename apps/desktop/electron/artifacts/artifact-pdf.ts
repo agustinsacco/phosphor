@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron'
-import { access, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { writeFile } from 'node:fs/promises'
+import { uniqueDownloadPath } from '../fs/downloads'
 import { stageArtifactHtml } from './artifact-protocol'
 
 /**
@@ -94,20 +94,6 @@ export function pdfFileName(title: string): string {
     .slice(0, 60)
     .trim()
   return `${cleaned || 'artifact'}.pdf`
-}
-
-/** `name.pdf`, `name (2).pdf`, … — an export never overwrites an earlier one. */
-export async function uniqueDownloadPath(dir: string, fileName: string): Promise<string> {
-  const stem = fileName.replace(/\.pdf$/i, '')
-  for (let n = 1; n < 100; n++) {
-    const candidate = join(dir, n === 1 ? `${stem}.pdf` : `${stem} (${n}).pdf`)
-    try {
-      await access(candidate)
-    } catch {
-      return candidate
-    }
-  }
-  return join(dir, `${stem} (${Date.now()}).pdf`)
 }
 
 /** Resolve once the document has loaded, or reject with what went wrong. */

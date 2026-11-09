@@ -89,6 +89,12 @@ function piFailure(args: unknown[], error: string) {
   const command = args[1] as IpcInvokeMap['pi:command']['args'][1]
   return { type: 'response', command: command.type, id: command.id, success: false, error }
 }
+/** Desktop's native hooks, which a page answers with nothing. */
+const NATIVE_ONLY = {
+  pathForFile: () => '',
+  spellingSuggestions: () => null,
+  onFileDownloadProgress: () => () => undefined,
+} satisfies Partial<PhosphorApi>
 /** Install api on window BEFORE importing the shared UI; call start after installation. */
 export function createBrowserApi(options: BrowserApiOptions = {}): {
   api: PhosphorApi
@@ -259,8 +265,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     onPiLoginState: (listener) => events.on('pi-login', listener),
     onClaudeLoginState: (listener) => events.on('claude-login', listener),
     onVoiceStatus: (listener) => events.on('voice', listener),
-    pathForFile: () => '',
-    spellingSuggestions: () => null,
+    ...NATIVE_ONLY,
   }
   const refreshQuietly = () => void refresh().catch(() => {})
   function refresh() {

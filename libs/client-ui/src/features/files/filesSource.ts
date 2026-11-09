@@ -4,6 +4,7 @@ import { FILE_LIMITS } from '@shared/host-protocol-files'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
+import { usePlatform } from '@/platform/Platform'
 import { useLaneWriteRefusal } from './laneWriteRefusal'
 
 /** What a lane's machine offers the Files pane beyond reading and writing its files. */
@@ -22,10 +23,16 @@ export interface FilesFeatures {
   clipboardFiles: boolean
   /** Revert a changed file to the session's start. */
   revert: boolean
+  /** Save a file into this device's Downloads folder, through `sessionId`. */
+  download: boolean
+  /** Images, media and PDFs streamed from a Host over `phosphor-file://`, through `sessionId`. */
+  streamPreview: boolean
 }
 
 /** One lane's files, as the Files pane reads and writes them. */
 export interface FilesSource {
+  /** A Host lane's handle, which downloads name; absent for a folder on this device. */
+  sessionId?: string
   /** The files store key: a local folder or a Host lane's `host:` key; IPC routes by it. */
   workspacePath: string
   /** The folder the lane's tools name paths in: the folder itself, or the Host lane's cwd. */
@@ -51,6 +58,8 @@ const LOCAL_FEATURES: FilesFeatures = {
   listOptions: true,
   clipboardFiles: true,
   revert: true,
+  download: false,
+  streamPreview: false,
 }
 
 // Revert needs a session baseline the Host does not keep yet (E6).
@@ -62,7 +71,10 @@ const HOST_FEATURES: FilesFeatures = {
   listOptions: false,
   clipboardFiles: false,
   revert: false,
-}
+  download: false,
+  streamPreview: false,
+} // A Host that serves file bytes, to a device that saves files natively.
+const HOST_BYTES_FEATURES: FilesFeatures = { ...HOST_FEATURES, download: true, streamPreview: true }
 
 /** A folder on this device; it holds no state, so it is not a hook. */
 export function localFilesSource(workspacePath: string): FilesSource {
@@ -98,8 +110,12 @@ export function useHostFilesSource(sessionId: string, workspacePath: string): Fi
     return JSON.stringify([laneOf(s), host?.state, host?.connectionToken, host?.cursor?.epoch])
   })
   const writeRefusal = useLaneWriteRefusal(sessionId) ?? null
+  const native = usePlatform().nativeFiles
+  const served = useRemoteLanesStore((s) => hostOf(s)?.fileBytes === true)
+  const bytes = native && served
   return useMemo(
     () => ({
+      sessionId,
       workspacePath,
       pathRoot,
       unavailable,
@@ -107,9 +123,9 @@ export function useHostFilesSource(sessionId: string, workspacePath: string): Fi
       listing: 'flat',
       refreshKey,
       textLimitBytes: FILE_LIMITS.textBytes,
-      features: HOST_FEATURES,
+      features: bytes ? HOST_BYTES_FEATURES : HOST_FEATURES,
     }),
-    [workspacePath, pathRoot, unavailable, writeRefusal, refreshKey],
+    [sessionId, workspacePath, pathRoot, unavailable, writeRefusal, refreshKey, bytes],
   )
 }
 

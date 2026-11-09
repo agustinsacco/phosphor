@@ -30,6 +30,14 @@ import {
 import { artifactLibrary } from '../artifacts/artifact-sync'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
 import { routeRemoteRead } from '@phosphor/host-client/read-features'
+import { laneFileReader } from '@phosphor/host-client/file-bytes'
+import {
+  cancelHostDownload,
+  downloadHostFile,
+  parseDownloadRequest,
+  parseLaneFile,
+} from '../fs/host-download'
+import { grantRemotePreview } from '../fs/file-protocol'
 import { createRemoteLanes } from '../hosts/remote-lanes'
 import type { RemoteLanes } from '@phosphor/host-client/remote-lanes'
 import {
@@ -82,6 +90,28 @@ function registerLaneReadHandlers(): void {
   handle('hosts:exportLaneHtml', (event, sessionId) =>
     remoteLanes().onLane(event.sender.id, sessionId, exportLaneHtml),
   )
+  handle('hosts:fileDownload', (event, value) => {
+    const request = parseDownloadRequest(value)
+    if (!request) throw new Error(REMOTE_UNAVAILABLE)
+    return remoteLanes().onLane(event.sender.id, request.sessionId, (c, laneId) =>
+      downloadHostFile(event.sender, request, laneFileReader(c, laneId, request.path)),
+    )
+  })
+  handle('hosts:fileDownloadCancel', (event, id) => cancelHostDownload(event.sender.id, id))
+  handle('hosts:filePreviewUrl', (event, value) => {
+    const file = parseLaneFile(value)
+    if (!file) throw new Error(REMOTE_UNAVAILABLE)
+    const windowId = event.sender.id
+    // Every chunk goes through the lane handle again: a closed lane or window stops the stream.
+    return grantRemotePreview(
+      `${windowId}:${file.sessionId}:${file.path}`,
+      file.path,
+      async (at, length) =>
+        remoteLanes().onLane(windowId, file.sessionId, (c, laneId) =>
+          laneFileReader(c, laneId, file.path)(at, length),
+        ),
+    )
+  })
   handle('hosts:subagentHistory', (event, sessionId) =>
     remoteLanes().onLane(event.sender.id, sessionId, laneSubagentHistory),
   )

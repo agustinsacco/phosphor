@@ -91,6 +91,8 @@ if (!app.isPackaged && process.env.PHOSPHOR_TEST_USER_DATA) {
   // spawns otherwise rotate the real log within hours, erasing the evidence
   // (pi's argv, budget compactions) of the sessions it was meant to explain.
   app.setAppLogsPath(join(dir, 'logs'))
+  // Downloads and PDF exports land in the scratch dir, never the user's Downloads folder.
+  app.setPath('downloads', join(dir, 'Downloads'))
 }
 
 // Chromium reads password-store before ready. Logging waits for the log to open.
