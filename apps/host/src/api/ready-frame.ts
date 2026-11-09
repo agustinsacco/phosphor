@@ -48,6 +48,7 @@ export function readyFrame(options: {
     machineShell: hello.capabilities.includes('terminal'),
     laneMarks: true,
     laneTransfer: true,
+    fileBytes: true,
     proof: hostProof(hello, options.challenge, options.key),
     connectionId: options.connectionId,
     grantExpiresAt: options.grantExpiresAt,

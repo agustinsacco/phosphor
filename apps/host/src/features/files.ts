@@ -3,6 +3,7 @@ import { join, relative, resolve, sep } from 'node:path'
 import { walkFiles } from '@phosphor/session-runtime/files/walk'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import { FILE_LIMITS, isFilePath, type FileRead } from '@phosphor/shared/host-protocol-files'
+import { FILE_BYTES_METHOD } from '@phosphor/shared/host-protocol-file-bytes'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import type { FeatureContext, FeatureOutcome, HostFeature } from './feature'
 import { errnoIs, isInside } from '../fs-safety'
@@ -153,7 +154,7 @@ export function createFilesFeature(context: FeatureContext): HostFeature {
   }
   return {
     capability: 'workspaces.read',
-    methods: ['files.list', 'files.read'],
+    methods: ['files.list', 'files.read', FILE_BYTES_METHOD],
     call: (method, params) => queryFiles(context, method, params, ports),
   }
 }

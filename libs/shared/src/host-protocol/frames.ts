@@ -76,6 +76,8 @@ export type HostFrame =
       readonly laneMarks?: boolean
       /** Additive support marker: the Host exports and imports lanes (`laneTransfer.*`). */
       readonly laneTransfer?: boolean
+      /** Additive support marker: the Host serves raw file bytes (`files.readBytes`). */
+      readonly fileBytes?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }

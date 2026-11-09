@@ -1,9 +1,10 @@
 import { realpath, stat } from 'node:fs/promises'
 import { sep } from 'node:path'
 import { parseFileParams, type FileParams } from '@phosphor/shared/host-protocol-files'
+import { FILE_BYTES_METHOD, parseFileBytesParams } from '@phosphor/shared/host-protocol-file-bytes'
 import { errnoIs } from '../../fs-safety'
 import type { FeatureContext, FeatureOutcome } from '../feature'
-import { guardedRead, type ReadPorts } from './read'
+import { guardedBytes, guardedRead, type ReadPorts } from './read'
 
 export interface QueryPorts extends ReadPorts {
   laneRoot(context: FeatureContext, laneId: string): Promise<string>
@@ -42,17 +43,29 @@ async function queryRoot(context: FeatureContext, p: FileParams, ports: QueryPor
   return { root, recheck }
 }
 
+function parseQuery(method: string, params: unknown) {
+  if (method === FILE_BYTES_METHOD) {
+    const bytes = parseFileBytesParams(params)
+    return bytes && { target: bytes, bytes }
+  }
+  const target = ['files.list', 'files.read'].includes(method)
+    ? parseFileParams(method, params)
+    : null
+  return target && { target, bytes: null }
+}
+
 export async function queryFiles(
   context: FeatureContext,
   method: string,
   params: unknown,
   ports: QueryPorts,
 ): Promise<FeatureOutcome> {
-  const p = parseFileParams(method, params)
-  if (!p || !['files.list', 'files.read'].includes(method))
-    return ports.failure(ports.error('bad-request'))
+  const query = parseQuery(method, params)
+  if (!query) return ports.failure(ports.error('bad-request'))
+  const p = query.target
   try {
     const { root, recheck } = await queryRoot(context, p, ports)
+    if (query.bytes) return await guardedBytes(root, query.bytes, recheck, ports)
     if (method === 'files.list') {
       const files = await ports.filePaths(root)
       recheck()

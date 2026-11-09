@@ -209,7 +209,7 @@ the unchanged production `.ts.net` rule, and uses plaintext WebSocket only for
 that endpoint's `/v1/stream`. Other origins retain TLS. No Host test hook or
 renderer network access is added.
 
-The focused suites `remote-access`, `remote-chat`, `remote-files`, `remote-lanes`,
+The focused suites `remote-access`, `remote-chat`, `remote-files`, `remote-file-bytes`, `remote-lanes`,
 `remote-lifecycle`, `remote-pages` and `remote-switching` cover the remaining
 machine-scoped flows. Pass their `.spec.ts` filenames to `npm run test:e2e --`.
 `tools/scripts/site-repo-links.test.ts` checks repository links used by the site.

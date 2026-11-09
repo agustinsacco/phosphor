@@ -42,6 +42,7 @@ export type {
   TrafficPage,
   RemoteLaneCreate,
   HostAttention,
+  FileDownloadProgress,
 } from './ipc/views'
 export type { PhosphorApi, PhosphorPlatform } from './ipc/api'
 

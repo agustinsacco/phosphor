@@ -7,6 +7,7 @@ import { showContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
 import { revealLabel } from '@/lib/reveal'
 import { ChevronIcon } from '@/components/icons'
 import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
+import { downloadEntry } from './download'
 import { useExplorer } from './useExplorer'
 import { ExplorerToolbar } from './ExplorerToolbar'
 import type { FilesSource } from './filesSource'
@@ -133,6 +134,12 @@ function rowMenu(
       label: 'Copy relative path',
       onClick: () => void navigator.clipboard.writeText(entry.relativePath),
     },
+    ...(features.download && !entry.isDirectory
+      ? [
+          { label: 'Download', hint: 'to Downloads', onClick: () => downloadEntry(source, entry) },
+          { label: 'Open in default app', onClick: () => downloadEntry(source, entry, 'open') },
+        ]
+      : []),
     ...createItems(source, entry),
     ...controls.menu(entry),
     ...(writeRefusal

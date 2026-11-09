@@ -1657,7 +1657,7 @@ unit tests, the bundle's included, run with every other suite in `npm test`.
 
 `run` registers the read features and file mutations only when the machine is usable.
 `workspaces.read` covers `files.list` (tracked and non-ignored untracked paths),
-`files.read` (text or binary size), `git.status` (per-path status, branch, ahead
+`files.read` (text or binary size), `files.readBytes` (raw bytes in chunks), `git.status` (per-path status, branch, ahead
 and behind), `git.diff` (working or staged unified diff), and `git.show` (a file
 at `HEAD` or a hex commit, including a session baseline).
 
@@ -1679,6 +1679,9 @@ passes the lane's path checks. Text and diffs are capped at
 without a NUL in that sample return `too-large`. Git blobs over 2 MiB return
 `too-large` before reading content, including binary blobs. Smaller binary
 blobs return their size without content. Errors contain no paths or tool output.
+`files.readBytes` reads any file of at most 1 GiB, a 1 MiB chunk per call, through
+the same checks and the same no-follow open as `files.read`
+([Host protocol](remote-protocol.md#file-bytes)).
 Git runs with inherited `GIT_*` variables dropped, no pager, fsmonitor, external
 diff or textconv, and no lazy fetch of missing objects. Clean filters that the
 machine owner configured (Git LFS, for example) still run during `git.status` and
