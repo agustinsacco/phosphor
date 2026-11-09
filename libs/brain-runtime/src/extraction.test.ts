@@ -108,3 +108,11 @@ describe('parseExtraction', () => {
     expect(JSON.stringify(parsed)).not.toMatch(/example\.test|abc123|hunter2/)
   })
 })
+
+it('accounts for candidate memories even when their answer envelope is invalid', () => {
+  const outcomes: { candidate: number; reason: string | undefined }[] = []
+  parseExtraction(JSON.stringify({ entities: null, memories: [RAW_EXTRACTION.memories[0], null] }), {
+    onCandidate: (candidate, _memory, _summary, reason) => outcomes.push({ candidate, reason }),
+  })
+  expect(outcomes).toEqual([{ candidate: 0, reason: 'invalid shape' }, { candidate: 1, reason: 'invalid shape' }])
+})
