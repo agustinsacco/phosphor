@@ -18,14 +18,16 @@ const stopwords = new Set(
     'about my me i we you that this as at from there their our know tell'
   ).split(' '),
 )
-export function lexicalIds(ctx: Context, query: string): string[] {
+/** Ranking reads the best 50; counting what was left out passes -1, no cap. */
+export function lexicalIds(ctx: Context, query: string, limit = 50): string[] {
   const words = [...new Set(tokens(query).filter((word) => !stopwords.has(word)))]
   if (!words.length) return []
   const match = words.map((word) => `"${word}"`).join(' OR ')
   return all<{ id: string }>(
     ctx,
-    'SELECT id FROM memory_fts WHERE memory_fts MATCH ? ORDER BY bm25(memory_fts), rowid LIMIT 50',
+    'SELECT id FROM memory_fts WHERE memory_fts MATCH ? ORDER BY bm25(memory_fts), rowid LIMIT ?',
     match,
+    limit,
   ).map((row) => row.id)
 }
 function semanticIds(ctx: Context, vector: Float32Array): string[] {
@@ -59,8 +61,9 @@ export function freshness(memory: BrainMemory, now: number): number {
 function boundedLimit(limit: number | undefined, fallback: number): number {
   return Number.isFinite(limit) ? Math.min(20, Math.max(0, Math.floor(limit!))) : fallback
 }
+/** Quotes, brackets and sentence marks around a query; never + or # inside a name. */
 const trimEdges = (text: string): string =>
-  text.trim().replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '')
+  text.trim().replace(/^[\s"'“”‘’`([{]+|[\s"'“”‘’`)\]}.,;:!?]+$/gu, '')
 /**
  * Entities the query names, or that hold the whole query in their name: "Rina" names
  * Rina Okafor, and "NRS" names every NRS project. Whole words only, never substrings.
@@ -119,7 +122,7 @@ export function search(ctx: Context, input: SearchInput): BrainRecall {
   const focusIds = new Set(focus.map((item) => item.id))
   const exact = about(memories, focusIds)
   const lexical = lexicalIds(ctx, input.query)
-  const strong = new Set([...exact, ...lexical])
+  const strong = new Set([...exact, ...lexicalIds(ctx, input.query, -1)])
   const { links, neighbours } = hop(memories, focusIds)
   const linked = about(memories, neighbours).filter((id) => !exact.includes(id))
   const scores = fuse([
