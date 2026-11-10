@@ -1,8 +1,8 @@
 import { basename, relative, isAbsolute } from 'node:path'
 import type { BrainEntity, BrainHit, BrainMemoryType, BrainRecall } from '@phosphor/shared/brain'
 
-const escape = (text: string): string =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+/** Only angle brackets could close or fake the wrapper; names like S&T stay as written. */
+const escape = (text: string): string => text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const clip = (text: string, max: number): string =>
   text.length <= max ? text : `${text.slice(0, max - 1)}…`
 
@@ -36,9 +36,11 @@ function inProject(scope: string, cwd: string | undefined): boolean {
 }
 function memoryLine({ memory }: BrainHit, cwd: string | undefined): string {
   const local = inProject(memory.scope, cwd) ? ' (this project)' : ''
-  const since = memory.validFrom === null ? '' : `, since ${day(memory.validFrom)}`
+  const said = day(memory.observedAt)
+  const since = memory.validFrom === null ? '' : day(memory.validFrom)
+  const effective = since && since !== said ? `, since ${since}` : ''
   return escape(
-    `- ${clip(memory.summary.replace(/\s+/gu, ' '), 1200)} · ${basename(memory.scope)}${local} · ${day(memory.observedAt)}${since}`,
+    `- ${clip(memory.summary.replace(/\s+/gu, ' '), 1200)} · ${basename(memory.scope)}${local} · ${said}${effective}`,
   )
 }
 /** Header and footer lines are escaped first, so a clip can never reopen markup. */

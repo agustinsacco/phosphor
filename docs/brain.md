@@ -271,9 +271,11 @@ Decisions: / Facts: / How things are done: / Preferences:
 See also: Rina Okafor, Tom Lee. Search a name to see what Brain holds about it.
 ```
 
-Each line gives the project, the date said and any effective date. Sections come
-in that order, so what to watch for comes first; empty ones are left out. It is
-wrapped in `<background-data authority="none">`, with `&`, `<` and `>` escaped. Each
+Each line gives the project, the date said and the effective date when it is a
+different day. Sections come in that order, so what to watch for comes first; empty
+ones are left out. It is wrapped in `<background-data authority="none">`, with `<`
+and `>` escaped so stored text cannot close it; `&` stays, so names like S&T read
+as written. Each
 delivery is recorded, so a later extraction of that lane skips what it recalled.
 The skill tells agents to search by name or short topic before "what do we know
 about…" answers, in unfamiliar areas, before settled decisions and before writing
