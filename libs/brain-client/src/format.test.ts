@@ -81,3 +81,26 @@ it('adds the date a memory took effect when its lane named one', () => {
   )
   expect(text).toContain('· harbor (this project) · 2026-11-06, since 2025-03-01')
 })
+
+it('keeps names like S&T readable and drops an effective date said the same day', () => {
+  const hit = HARBOR_RECALL.hits[0]!
+  const text = formatBrainRecall(
+    {
+      ...HARBOR_RECALL,
+      entities: [{ ...HARBOR_RECALL.entities[0]!, label: 'S&T' }, HARBOR_RECALL.entities[1]!],
+      hits: [
+        {
+          ...hit,
+          memory: {
+            ...hit.memory,
+            summary: 'S&T owns <Harbor>.',
+            validFrom: hit.memory.observedAt + 3_600_000,
+          },
+        },
+      ],
+    },
+    '/projects/harbor',
+  )
+  expect(text).toContain('\nLinks: S&T owns Harbor\n')
+  expect(text).toContain('\n- S&T owns &lt;Harbor&gt;. · harbor (this project) · 2026-11-06\n')
+})
