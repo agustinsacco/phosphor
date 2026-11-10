@@ -89,17 +89,14 @@ it.each([
   }
 })
 
-it('only eligible releases share concurrency or enter the release guard', () => {
-  const eligible = `(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-    (github.event.workflow_run.conclusion == 'success' &&
-     github.event.workflow_run.event == 'push' &&
-     github.event.workflow_run.head_branch == 'main' &&
-     github.event.workflow_run.head_repository.full_name == github.repository)`
-  const compact = (value: string) => value.replace(/\s/g, '')
-  const guard = workflow.match(/ {4}if: >\n([\s\S]*?) {4}outputs:/)?.[1] ?? ''
+it('only main runs share concurrency or enter the release guard', () => {
+  expect(workflow).toContain('on:\n  push:\n    branches: [main]\n  workflow_dispatch:\n')
+  expect(workflow).not.toContain('github.event.workflow_run')
+  expect(workflow).not.toMatch(/^\s+workflow_run:/m)
+  const guard = workflow.slice(workflow.indexOf('  guard:'), workflow.indexOf('    outputs:'))
+  expect(guard).toContain("    if: github.ref == 'refs/heads/main'\n")
   const group = workflow.match(/ {2}group: release-\$\{\{ (.*?) \}\}/)?.[1] ?? ''
-  expect(compact(guard)).toBe(compact(eligible))
-  expect(compact(group)).toBe(compact(`(${eligible}) && 'main' || github.run_id`))
+  expect(group).toBe("github.ref == 'refs/heads/main' && 'main' || github.run_id")
 })
 
 it.each([
@@ -141,7 +138,7 @@ it.each([
   }
 })
 
-it('a CI-verified manual release skips only the desktop affected check', () => {
+it('a manual release skips only the desktop affected check', () => {
   const compact = (value: string) => value.replace(/\s/g, '')
   const gate =
     "steps.decide.outputs.should_release == 'true' && steps.scope.outputs.desktop != 'false'"
@@ -152,7 +149,7 @@ it('a CI-verified manual release skips only the desktop affected check', () => {
     compact(`- name: Pre-create the draft release\n        if: ${gate}`),
   )
   expect(workflow).toContain(
-    "id: scope\n        if: steps.decide.outputs.should_release == 'true' && github.event_name == 'workflow_run'",
+    "id: scope\n        if: steps.decide.outputs.should_release == 'true' && github.event_name == 'push'",
   )
 })
 
@@ -171,6 +168,9 @@ function block(name: string, key: string): string {
 }
 
 const sha = 'a'.repeat(40)
+// One look at CI, no sleeping: anything not yet green times out at once.
+vi.stubEnv('CI_POLL_SECONDS', '0')
+vi.stubEnv('CI_WAIT_MINUTES', '0')
 const repo = { owner: 'owner', repo: 'repo' }
 const ci = { id: 42, path: '.github/workflows/ci.yml', name: 'CI' }
 const green = {
@@ -202,7 +202,7 @@ it.each([
   { conclusion: 'failure' },
   { conclusion: 'cancelled' },
   { conclusion: 'skipped' },
-])('manual release verifies the actual CI identity and result: %j', async (overrides) => {
+])('publishing waits for the actual CI identity and result: %j', async (overrides) => {
   const actions = {
     getWorkflow: vi.fn(async () => ({ data: ci })),
     listWorkflowRuns: vi.fn(async () => ({
@@ -214,7 +214,7 @@ it.each([
     'context',
     'github',
     'require',
-    block('Verify manual release CI', 'script'),
+    block('Wait for exact-SHA main CI', 'script'),
   )
   const result = verify({ ref: 'refs/heads/main', sha, repo }, { rest: { actions } }, () => ({
     execFileSync: () => sha,
@@ -231,13 +231,13 @@ it.each([
   })
 })
 
-it('manual release rejects missing CI, stale green attempts, wrong refs/checkouts and API errors', async () => {
+it('publishing rejects missing CI, stale green attempts, wrong refs/checkouts and API errors', async () => {
   const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
   const verify = new AsyncFunction(
     'context',
     'github',
     'require',
-    block('Verify manual release CI', 'script'),
+    block('Wait for exact-SHA main CI', 'script'),
   )
   for (const fixture of [
     { runs: [] },
@@ -263,13 +263,55 @@ it('manual release rejects missing CI, stale green attempts, wrong refs/checkout
   }
 })
 
-it('pins all checkouts, filters main completions, and keeps failed builds unpublished', () => {
-  expect(workflow).toContain('workflows: [CI]\n    branches: [main]')
-  expect(
-    workflow.match(/ref: \$\{\{ github.event.workflow_run.head_sha \|\| github.sha \}\}/g),
-  ).toHaveLength(3)
+it('waits while CI runs, then publishes once it is green', async () => {
+  vi.stubEnv('CI_WAIT_MINUTES', '1')
+  try {
+    const states = [[], [{ ...green, status: 'in_progress', conclusion: null }], [green]]
+    const listWorkflowRuns = vi.fn(async () => ({
+      data: { workflow_runs: states.shift() ?? [green] },
+    }))
+    const actions = { getWorkflow: async () => ({ data: ci }), listWorkflowRuns }
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+    const wait = new AsyncFunction(
+      'context',
+      'github',
+      'require',
+      block('Wait for exact-SHA main CI', 'script'),
+    )
+    await expect(
+      wait({ ref: 'refs/heads/main', sha, repo }, { rest: { actions } }, () => ({
+        execFileSync: () => sha,
+      })),
+    ).resolves.toBeUndefined()
+    expect(listWorkflowRuns).toHaveBeenCalledTimes(3)
+    // A finished red run stops the wait at once.
+    const red = vi.fn(async () => ({
+      data: { workflow_runs: [{ ...green, conclusion: 'failure' }] },
+    }))
+    await expect(
+      wait(
+        { ref: 'refs/heads/main', sha, repo },
+        { rest: { actions: { getWorkflow: async () => ({ data: ci }), listWorkflowRuns: red } } },
+        () => ({ execFileSync: () => sha }),
+      ),
+    ).rejects.toThrow('CI ended failure')
+    expect(red).toHaveBeenCalledOnce()
+  } finally {
+    vi.stubEnv('CI_WAIT_MINUTES', '0')
+  }
+})
+
+it('pins all checkouts, packages beside CI, and publishes only after CI and every build', () => {
+  expect(workflow.match(/ref: \$\{\{ github.sha \}\}/g)).toHaveLength(4)
   expect(workflow).toContain('--config.publish.releaseType=draft')
-  expect(workflow).toContain("if: ${{ success() && needs.guard.outputs.should_release == 'true' }}")
+  const finalize = workflow.slice(workflow.indexOf('  finalize:'))
+  expect(finalize).toContain('needs: [guard, ci, build]')
+  expect(finalize).toContain("if: ${{ success() && needs.guard.outputs.should_release == 'true' }}")
+  const build = workflow.slice(workflow.indexOf('  build:'), workflow.indexOf('  finalize:'))
+  expect(build).toContain('needs: guard\n')
+  const discard = workflow.slice(workflow.indexOf('  discard:'))
+  expect(discard).toContain("needs.ci.result != 'success'")
+  expect(discard).toContain('.isDraft == true and .targetCommitish == $sha')
   expect(block('Publish checksums', 'run')).not.toContain('|| true')
 })
 
@@ -284,7 +326,7 @@ it.each([
   try {
     const shell = block('Pre-create the draft release', 'run')
       .replaceAll('${{ steps.decide.outputs.tag }}', 'v0.1.123')
-      .replaceAll('${{ github.event.workflow_run.head_sha || github.sha }}', sha)
+      .replaceAll('${{ github.sha }}', sha)
     const mock = `gh() { case "$2" in
       view) printf '%s' "$DRAFT"; return ${fixture.exists ? 0 : 1};;
       create) return ${fixture.create};;
@@ -337,7 +379,7 @@ it.each([
   const dir = mkdtempSync(join(tmpdir(), 'release-notes-'))
   try {
     const shell = block('Publish the release', 'run')
-      .replaceAll('${{ github.event.workflow_run.head_sha || github.sha }}', sha)
+      .replaceAll('${{ github.sha }}', sha)
       .replaceAll('${{ needs.guard.outputs.version }}', '0.1.123')
       .replaceAll('${{ needs.guard.outputs.tag }}', 'v0.1.123')
       .replaceAll('${{ github.repository }}', 'owner/repo')

@@ -1,28 +1,28 @@
 name: Continuous Release
 
-# Every green CI run on main that changes the Desktop app (Nx `desktop`
-# affected since the last published release) publishes an installable release.
+# Every main push that changes the Desktop app (Nx `desktop` affected since the
+# last published release) and passes CI publishes an installable release.
 #
-# Triggered by `workflow_run` rather than `push` so this can NEVER publish from
-# a red build: the job is only reachable once the CI workflow has already
-# reported success. It also means the test matrix is not duplicated here.
+# Packaging starts on the push, beside CI, into a draft release users cannot
+# see. Only `finalize` publishes, and it needs `ci`, which waits for successful
+# CI on this exact SHA: a red build is never published, and a merge ships in
+# max(CI, packaging) instead of CI + packaging. A failed or cancelled CI deletes
+# the draft. The test matrix is not duplicated here.
 #
-# Manual retries also require successful exact-SHA main CI. This is the only
-# release entry point; pushing a tag does not start another packaging pipeline.
+# Manual retries wait for the same exact-SHA main CI. This is the only release
+# entry point; pushing a tag does not start another packaging pipeline.
 on:
-  workflow_run:
-    workflows: [CI]
+  push:
     branches: [main]
-    types: [completed]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  # Only eligible main runs may cancel a release. Concurrency is evaluated
-  # before the job guard; failed CI and rejected manual refs need unique groups.
-  group: release-${{ ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) && 'main' || github.run_id }}
+  # Only main runs may cancel a release. Concurrency is evaluated before the
+  # job guard; rejected manual refs need unique groups.
+  group: release-${{ github.ref == 'refs/heads/main' && 'main' || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -32,12 +32,7 @@ jobs:
     permissions:
       contents: write
       actions: read
-    if: >
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+    if: github.ref == 'refs/heads/main'
     outputs:
       version: ${{ steps.decide.outputs.version }}
       tag: ${{ steps.decide.outputs.tag }}
@@ -45,45 +40,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # workflow_run events check out the default branch by default; pin to
-          # the exact commit CI validated so the release matches what was tested.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Pin to the pushed commit, the one `ci` waits for.
+          ref: ${{ github.sha }}
           # `git rev-list --count` needs real history, not a depth-1 clone.
           fetch-depth: 0
-
-      - name: Verify manual release CI
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { execFileSync } = require('node:child_process')
-            if (context.ref !== 'refs/heads/main' ||
-                execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== context.sha) {
-              throw new Error('Manual releases require the exact main checkout')
-            }
-            const request = { ...context.repo, workflow_id: 'ci.yml' }
-            const { data: workflow } = await github.rest.actions.getWorkflow(request)
-            if (workflow.path !== '.github/workflows/ci.yml' || workflow.name !== 'CI' || !Number.isInteger(workflow.id)) {
-              throw new Error('Cannot verify CI workflow identity')
-            }
-            const { data } = await github.rest.actions.listWorkflowRuns({
-              ...request, branch: 'main', event: 'push', head_sha: context.sha, per_page: 100,
-            })
-            const repository = `${context.repo.owner}/${context.repo.repo}`
-            const runs = data.workflow_runs.filter(run =>
-              run.workflow_id === workflow.id && run.path === workflow.path && run.name === 'CI' &&
-              run.repository?.full_name === repository && run.head_repository?.full_name === repository &&
-              run.event === 'push' && run.head_branch === 'main' && run.head_sha === context.sha)
-            runs.sort((a, b) => b.run_number - a.run_number || b.run_attempt - a.run_attempt)
-            if (runs[0]?.status !== 'completed' || runs[0]?.conclusion !== 'success') {
-              throw new Error('Wait for successful exact-SHA main CI before retrying the release')
-            }
 
       - name: Compute version and check for an existing tag
         id: decide
         env:
           # A `Skip-Release: true` trailer merges without shipping.
-          HEAD_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          HEAD_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
 
@@ -134,14 +100,14 @@ jobs:
       # newer push cancelling this run cannot strand a Desktop change. Every
       # doubt releases. An explicit workflow_dispatch always releases.
       - uses: actions/setup-node@v4
-        if: steps.decide.outputs.should_release == 'true' && github.event_name == 'workflow_run'
+        if: steps.decide.outputs.should_release == 'true' && github.event_name == 'push'
         with:
           node-version: 22
           cache: npm
 
       - name: Release only when Desktop changed since the last release
         id: scope
-        if: steps.decide.outputs.should_release == 'true' && github.event_name == 'workflow_run'
+        if: steps.decide.outputs.should_release == 'true' && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -172,12 +138,67 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.decide.outputs.tag }}"
-          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          SHA="${{ github.sha }}"
           if gh release view "$TAG" --json isDraft,targetCommitish > "$RUNNER_TEMP/release.json"; then
             jq -e --arg sha "$SHA" '.isDraft == true and .targetCommitish == $sha' "$RUNNER_TEMP/release.json"
           else
             gh release create "$TAG" --draft --target "$SHA" --title "$TAG" --notes "Building…"
           fi
+
+  # Waits for CI on this exact SHA. Packaging runs meanwhile; publishing needs it.
+  ci:
+    name: Wait for CI on this commit
+    needs: guard
+    if: needs.guard.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Wait for exact-SHA main CI
+        uses: actions/github-script@v7
+        env:
+          # Polling cadence and the most to wait (tests set both to 0).
+          CI_POLL_SECONDS: '20'
+          CI_WAIT_MINUTES: '55'
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process')
+            if (context.ref !== 'refs/heads/main' ||
+                execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== context.sha) {
+              throw new Error('Releases require the exact main checkout')
+            }
+            const request = { ...context.repo, workflow_id: 'ci.yml' }
+            const { data: workflow } = await github.rest.actions.getWorkflow(request)
+            if (workflow.path !== '.github/workflows/ci.yml' || workflow.name !== 'CI' || !Number.isInteger(workflow.id)) {
+              throw new Error('Cannot verify CI workflow identity')
+            }
+            const repository = `${context.repo.owner}/${context.repo.repo}`
+            const deadline = Date.now() + Number(process.env.CI_WAIT_MINUTES) * 60_000
+            for (;;) {
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                ...request, branch: 'main', event: 'push', head_sha: context.sha, per_page: 100,
+              })
+              const runs = data.workflow_runs.filter(run =>
+                run.workflow_id === workflow.id && run.path === workflow.path && run.name === 'CI' &&
+                run.repository?.full_name === repository && run.head_repository?.full_name === repository &&
+                run.event === 'push' && run.head_branch === 'main' && run.head_sha === context.sha)
+              // The newest attempt wins: a green first attempt does not outvote a red rerun.
+              runs.sort((a, b) => b.run_number - a.run_number || b.run_attempt - a.run_attempt)
+              const latest = runs[0]
+              if (latest?.status === 'completed') {
+                if (latest.conclusion === 'success') return
+                throw new Error(`CI ended ${latest.conclusion} for ${context.sha}; not publishing`)
+              }
+              if (Date.now() >= deadline) {
+                throw new Error('Timed out waiting for successful exact-SHA main CI')
+              }
+              await new Promise((done) => setTimeout(done, Number(process.env.CI_POLL_SECONDS) * 1000))
+            }
 
   build:
     name: Build and publish ${{ matrix.name }}
@@ -205,7 +226,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -348,7 +369,7 @@ jobs:
 
   finalize:
     name: Attach installer script and notes
-    needs: [guard, build]
+    needs: [guard, ci, build]
     # Never replace a complete latest release with a partial or unverified one.
     if: ${{ success() && needs.guard.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
@@ -359,7 +380,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
 
       # install.sh verifies its download against this file. Without it every
       # install prints "checksums.txt not published — continuing without
@@ -427,7 +448,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          SHA="${{ github.sha }}"
           VERSION="${{ needs.guard.outputs.version }}"
           TAG="${{ needs.guard.outputs.tag }}"
           REPO="${{ github.repository }}"
@@ -476,3 +497,24 @@ jobs:
           # resolve to it — which is exactly what the updater and install.sh use.
           gh release edit "${TAG}" \
             --draft=false --latest --notes "${NOTES}"
+
+  # CI failed or was cancelled: drop this SHA's draft so it never lingers.
+  discard:
+    name: Delete the draft when CI did not pass
+    needs: [guard, ci, build]
+    if: ${{ always() && needs.guard.outputs.should_release == 'true' && needs.ci.result != 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Delete this SHA's draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.guard.outputs.tag }}"
+          if gh release view "$TAG" --json isDraft,targetCommitish > "$RUNNER_TEMP/release.json" &&
+            jq -e --arg sha "${{ github.sha }}" '.isDraft == true and .targetCommitish == $sha' "$RUNNER_TEMP/release.json"; then
+            gh release delete "$TAG" --yes
+          fi

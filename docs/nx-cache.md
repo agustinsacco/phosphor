@@ -109,15 +109,17 @@ env overrides; cache remains disabled and graph/install boundaries stay intact.
 
 ## Per-app releases and deploys
 
-- **Desktop** (`release-continuous.yml`): after CI passes on a `main` push, the
-  guard publishes only if Nx `desktop` is affected between the last published
-  release tag and the validated commit (`tools/scripts/release-scope.mjs`). It
+- **Desktop** (`release-continuous.yml`): on a `main` push, the guard releases
+  only if Nx `desktop` is affected between the last published release tag and
+  the pushed commit (`tools/scripts/release-scope.mjs`). Packaging starts at
+  once, beside CI, into a draft; `finalize` publishes only after the `ci` job
+  sees successful push CI for that exact SHA (the newest attempt wins), and a
+  failed or cancelled CI deletes the draft. It
   compares against the last release, not the previous commit, so a Desktop
   change still ships when a newer push cancels its release run. A missing
   release, a tag off this history, or any git/Nx/install failure releases.
-  Manual `workflow_dispatch` is main-only and verifies successful push CI for
-  the exact SHA (the newest attempt wins); it bypasses only affected selection,
-  never CI or `Skip-Release: true`. Every checkout is pinned to that SHA.
+  Manual `workflow_dispatch` is main-only and waits for the same exact-SHA CI;
+  it bypasses only affected selection, never CI or `Skip-Release: true`. Every checkout is pinned to that SHA.
   This is the only release workflow; tag pushes do not build another release.
   One release builds macOS and Linux into a draft (Windows is paused; see
   [future-features.md](future-features.md#windows-builds)). All platform jobs,
