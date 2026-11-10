@@ -494,6 +494,17 @@ html {
   border-bottom: 1px solid var(--px-border);
   padding: 6px 12px;
   text-align: left;
+  /* .md-content's break-word lets every word shrink to one letter, so auto
+     layout starved short columns ("Ass/ess/men/t"). Keep words whole; the
+     wrapper scrolls sideways when the columns need more room. */
+  word-break: normal;
+  overflow-wrap: break-word;
+  min-width: 8em;
+}
+/* A URL may break anywhere, so one long link cannot widen the whole table.
+   The cell's min-width keeps that column from collapsing to a few letters. */
+.md-table a {
+  overflow-wrap: anywhere;
 }
 .md-table thead th {
   background: var(--px-bg-secondary);
