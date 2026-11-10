@@ -19,12 +19,49 @@ env:
 # runner instances is what buys back parallelism. The Linux runners share one
 # 32-core machine, so no job may assume it has all the cores.
 jobs:
-  # Linux runs the whole Desktop suite on every event. macOS runs the whole suite
-  # on main, which gates every release (release-continuous.yml waits for this
-  # workflow), and on a PR only the tests tagged @macos: native quit, undo,
-  # context menus, Meta shortcuts, the system clipboard and the login shell.
+  # What a pull request needs. typecheck, lint, format and unit tests always
+  # run; the e2e, web, Supabase and site jobs run only when Nx says the PR
+  # affects their app (tools/scripts/ci-scope.mjs). A main push, a workflow edit
+  # and every doubt run them all.
+  changes:
+    name: What this change affects
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    outputs:
+      e2e: ${{ steps.scope.outputs.e2e }}
+      web: ${{ steps.scope.outputs.web }}
+      control: ${{ steps.scope.outputs.control }}
+      site: ${{ steps.scope.outputs.site }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The PR merge commit and its base, its first parent.
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Decide which jobs run
+        id: scope
+        run: |
+          # Root install only: Nx reads project.json files. A failed install runs everything.
+          if npm ci --ignore-scripts --no-audit --no-fund > /dev/null; then
+            node tools/scripts/ci-scope.mjs "${{ github.event_name }}" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s=true\n' e2e web control site >> "$GITHUB_OUTPUT"
+          fi
+
+  # Linux runs the whole Desktop suite on every event. macOS runs only the tests
+  # tagged @macos (native quit, undo, context menus, Meta shortcuts, the system
+  # clipboard and the login shell), on PRs and on main alike. The whole suite
+  # on macOS runs nightly in the "macOS nightly" workflow, off the release
+  # path: the one Mac runner takes one job at a time, and a serial full run
+  # there held every release for 15-30 minutes, or hours when the Mac was busy.
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shard }})
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 45
     strategy:
@@ -33,7 +70,9 @@ jobs:
         # One leg per OS: with two Linux runners a split only repeats install
         # and build. The suite has no cross-test ordering or shared state
         # (fullyParallel, workers 1), so more runners can shard it with --shard.
-        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"linux","shard":"1/1"},{"os":"macos","shard":"1/1"}]' || '[{"os":"linux","shard":"1/1"},{"os":"macos","shard":"1/1","grep":"@macos"}]') }}
+        include:
+          - { os: linux, shard: 1/1 }
+          - { os: macos, shard: 1/1, grep: '@macos' }
     env:
       # Map the windows. Chromium barely renders a window that was never
       # shown, which made every test 2-5x slower. The windows land on xvfb or
@@ -71,10 +110,19 @@ jobs:
         if: runner.os == 'macOS' && startsWith(matrix.shard, '1/')
         run: npx vitest run apps/desktop/scripts/__tests__/adhoc-sign-mac.test.ts
 
-      # The Electron window needs a display server on Linux runners.
+      # The Electron window needs a display server on Linux runners. Tests run
+      # four at a time: each has its own userData, pi agent dir, Host build,
+      # ports and Xvfb display (one display has one focused window). The
+      # @system-clipboard tests share one clipboard, so they run afterwards,
+      # one at a time, into their own output folder.
       - name: E2E (Linux, xvfb)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shard }}
+        run: |
+          e2e() { xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shard }} "$@"; }
+          failed=0
+          tools/scripts/xvfb-workers.sh 4 npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shard }} --workers=4 --grep-invert @system-clipboard || failed=1
+          e2e --workers=1 --grep @system-clipboard --reporter=list --output apps/desktop/test-results/clipboard || failed=1
+          exit $failed
 
       - name: E2E (macOS)
         if: runner.os == 'macOS'
@@ -162,6 +210,8 @@ jobs:
 
   web-e2e:
     name: Web · ${{ matrix.browser }}
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     strategy:
@@ -199,6 +249,8 @@ jobs:
 
   control-schema:
     name: Control schema · local Supabase · RLS
+    needs: changes
+    if: needs.changes.outputs.control == 'true'
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
     env:
@@ -223,7 +275,15 @@ jobs:
           npm run db:stop --silent > /dev/null 2>&1 || true
           trap 'echo "::group::Remove only this test stack"; npm run db:stop; echo "::endgroup::"' EXIT
           # Suppress the CLI's development-key output; startup errors still reach stderr.
-          npm run db:start --silent > /dev/null
+          # The stack's fixed ports sit in Linux's ephemeral range, so another job's
+          # outgoing socket can hold one for a moment: stop and retry, three tries.
+          for attempt in 1 2 3; do
+            if npm run db:start --silent > /dev/null; then break; fi
+            [ "$attempt" -lt 3 ] || exit 1
+            echo "::warning::Supabase did not start (attempt $attempt); retrying"
+            npm run db:stop --silent > /dev/null 2>&1 || true
+            sleep 10
+          done
           echo "::group::Database authorization tests"
           npm run test:control-db
           echo "::endgroup::"
@@ -239,6 +299,8 @@ jobs:
     # phosphor.saccolabs.com is deployed from main by deploy-site.yml, which
     # only runs after a merge — this catches a broken page on the PR instead.
     name: Site · astro check · build · browser checks
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     steps:
@@ -276,12 +338,16 @@ jobs:
   result:
     name: CI result
     if: always()
-    needs: [e2e, checks, unit, web-e2e, control-schema, site]
+    needs: [changes, e2e, checks, unit, web-e2e, control-schema, site]
     runs-on: [self-hosted, Linux, X64]
     steps:
-      - name: Every required job succeeded
+      # A job is skipped only when `changes` succeeded and said it is not
+      # needed; if `changes` fails, its dependants skip, so it must succeed.
+      - name: Every required job succeeded or was not needed
         env:
+          SCOPE: ${{ needs.changes.result }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "$RESULTS"
-          for r in $RESULTS; do [ "$r" = success ] || { echo "::error::a required job ended $r"; exit 1; }; done
+          [ "$SCOPE" = success ] || { echo "::error::the changes job ended $SCOPE"; exit 1; }
+          for r in $RESULTS; do case "$r" in success|skipped) ;; *) echo "::error::a required job ended $r"; exit 1;; esac; done

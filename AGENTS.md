@@ -30,14 +30,17 @@ npm test             # vitest unit tests
 npm run test:e2e     # builds, then Playwright-Electron against the pi stub
 npm run test:e2e:web # the PWA in Chromium and WebKit
 npm run validate     # all of the above, quiet: PASS/FAIL summary + a log file
+npm run check:pr     # before a PR: CI's checks + unit tests + the e2e specs you changed
 ```
 
 Install with `npm ci` and `npm ci --prefix apps/site`. [Testing](docs/testing.md)
 owns the commands, frozen-test rules, coverage evidence, size budgets and lint
-ratchets. CI runs typecheck, lint, `prettier --check .`, unit tests, the size
-ratchet, builds and both e2e suites. Run typecheck + lint + test before calling a
-change done. Run Desktop e2e when touching IPC, session lifecycle or a visible UI
-flow, and web e2e when touching `libs/client-ui` or `libs/host-client`.
+ratchets. CI always runs typecheck, lint, `prettier --check .`, unit tests and
+the size ratchet; on a PR it runs the e2e suites, Supabase and site only for the
+apps the PR affects. Run `npm run check:pr` before opening or updating a PR: it
+runs those checks and the e2e spec files you changed. Also run the Desktop e2e
+specs for what you touched (IPC, session lifecycle or a visible UI flow) and web
+e2e when touching `libs/client-ui` or `libs/host-client`.
 `SKIP_E2E=1 npm run validate` stops before the slow part. E2E windows never
 appear on your screen.
 

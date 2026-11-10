@@ -116,6 +116,9 @@ describe('foundation CI wiring', () => {
     expect(leftovers).toBeGreaterThan(lock)
     expect(start).toBeGreaterThan(leftovers)
     expect(control.slice(lock, start)).toMatch(/trap '.*npm run db:stop.*' EXIT/)
+    // Its fixed ports sit in the ephemeral range: a failed start stops and retries.
+    expect(control).toContain('for attempt in 1 2 3; do')
+    expect(control).toContain('if npm run db:start --silent > /dev/null; then break; fi')
     for (const suite of ['test:control-db', 'test:auth-stack', 'test:control-stack'])
       expect(control.indexOf(`npm run ${suite}`)).toBeGreaterThan(start)
     expect(control.match(/^ {6}- name: /gm)).toHaveLength(2)
@@ -140,21 +143,30 @@ describe('foundation CI wiring', () => {
     expect(warmUp).toContain('requestAnimationFrame')
   })
 
-  it('maps Desktop e2e windows and limits only PR macOS legs to @macos', () => {
+  it('maps Desktop e2e windows and limits every macOS leg to @macos', () => {
     const e2e = job('e2e')
     expect(e2e).toContain("PHOSPHOR_E2E_SHOW: ${{ matrix.os == 'linux' && '1' || '0' }}")
-    const [push, pr] = [...e2e.matchAll(/'(\[\{"os".*?\])'/g)].map(
-      (match) => JSON.parse(match[1]!) as { os: string; shard: string; grep?: string }[],
+    expect(e2e).not.toContain('github.event_name')
+    // One Xvfb display per parallel worker: a display has one focused window.
+    expect(e2e).toContain('tools/scripts/xvfb-workers.sh 4 npx playwright test')
+    expect(read('apps/desktop/playwright.config.ts')).toContain(
+      'process.env.DISPLAY = displays[worker % displays.length]',
     )
-    expect(e2e).toContain("github.event_name == 'push' &&")
-    expect(push).toEqual([
-      { os: 'linux', shard: '1/1' },
-      { os: 'macos', shard: '1/1' },
-    ])
-    expect(pr).toEqual([
-      { os: 'linux', shard: '1/1' },
-      { os: 'macos', shard: '1/1', grep: '@macos' },
-    ])
+    expect(e2e).toContain('- { os: linux, shard: 1/1 }')
+    expect(e2e).toContain("- { os: macos, shard: 1/1, grep: '@macos' }")
+  })
+
+  it('runs the whole macOS suite nightly, off the release path, and reports failures', () => {
+    const nightly = read('.github/workflows/macos-nightly.yml')
+    expect(nightly).toMatch(/schedule:\n\s+- cron:/)
+    expect(nightly).toContain('runs-on: [self-hosted, macOS, ARM64]')
+    expect(nightly).toContain(
+      'run: npx playwright test --config apps/desktop/playwright.config.ts\n',
+    )
+    expect(nightly).not.toContain('--grep')
+    expect(nightly).toContain("labels: label, state: 'open'")
+    // Releases wait only for CI, never for the nightly run.
+    expect(read('.github/workflows/release-continuous.yml')).not.toContain('macOS nightly')
   })
 
   it('uses the comprehensive runner including its all-file audit, Host, Control and site', () => {
@@ -214,7 +226,7 @@ describe('foundation CI wiring', () => {
   it('runs every job on the project runners, selected by OS and architecture', () => {
     const runsOn = [...workflow.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1])
     const linux = '[self-hosted, Linux, X64]'
-    expect(runsOn.filter((value) => value === linux)).toHaveLength(6)
+    expect(runsOn.filter((value) => value === linux)).toHaveLength(7)
     expect(runsOn.filter((value) => value !== linux)).toEqual([
       `\${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}`,
     ])
@@ -222,24 +234,44 @@ describe('foundation CI wiring', () => {
     expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-|macos-/m)
   })
 
-  it('gates no job on affected projects', () => {
-    expect(workflow).not.toMatch(/affected|shadowSelection/)
-    // Only the aggregator waits on other jobs; everything else starts at once.
-    expect(workflow.match(/^ {4}needs:/gm)).toHaveLength(1)
-    expect(job('result')).toMatch(/^ {4}needs:/m)
+  it('narrows only the app jobs, by the changes job, and always runs the checks', () => {
+    for (const [name, output] of [
+      ['e2e', 'e2e'],
+      ['web-e2e', 'web'],
+      ['control-schema', 'control'],
+      ['site', 'site'],
+    ] as const) {
+      expect(job(name)).toContain('    needs: changes\n')
+      expect(job(name)).toContain(`    if: needs.changes.outputs.${output} == 'true'\n`)
+    }
+    for (const name of ['checks', 'unit']) expect(job(name)).not.toMatch(/^ {4}(needs|if):/m)
+    const changes = job('changes')
+    expect(changes).toContain('node tools/scripts/ci-scope.mjs "${{ github.event_name }}"')
+    // A failed install runs everything rather than skipping.
+    expect(changes).toContain("printf '%s=true\\n' e2e web control site")
   })
 
-  it('aggregates every required job and rejects all non-success results', () => {
+  it('aggregates every required job and accepts a skip only behind a successful scope', () => {
     const jobs = [...workflow.split('\njobs:\n')[1]!.matchAll(/^ {2}([\w-]+):$/gm)].map(
       (match) => match[1],
     )
-    expect(jobs).toEqual(['e2e', 'checks', 'unit', 'web-e2e', 'control-schema', 'site', 'result'])
+    expect(jobs).toEqual([
+      'changes',
+      'e2e',
+      'checks',
+      'unit',
+      'web-e2e',
+      'control-schema',
+      'site',
+      'result',
+    ])
     const result = job('result')
     expect(result).toContain('name: CI result')
     expect(result).toContain('if: always()')
-    expect(result).toContain('needs: [e2e, checks, unit, web-e2e, control-schema, site]')
+    expect(result).toContain('needs: [changes, e2e, checks, unit, web-e2e, control-schema, site]')
     expect(result).toContain("RESULTS: ${{ join(needs.*.result, ' ') }}")
-    expect(result).toContain('for r in $RESULTS; do [ "$r" = success ] ||')
+    expect(result).toContain('[ "$SCOPE" = success ] ||')
+    expect(result).toContain('case "$r" in success|skipped) ;; *)')
     expect(result).toContain('exit 1;')
   })
 })

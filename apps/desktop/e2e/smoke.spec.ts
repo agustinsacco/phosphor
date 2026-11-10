@@ -1181,60 +1181,56 @@ test('Codex context popover reads account usage and refreshes through main', asy
   }
 })
 
-// Once as a plain pi session and once as a Claude Code one: pi owns
-// compaction on every provider, and most Claude models have a 1M window.
-for (const provider of ['stub', 'pi-claude-cli'] as const) {
-  test(`a large-window ${provider} session over the context budget compacts, holding the next prompt`, async () => {
-    // A 1M-window model whose context holds 250k after each turn: over the
-    // default 200k budget, far under pi's own ~984k line. pi rejects a prompt
-    // sent during a requested compaction, so the second message only runs if
-    // `pi:command` held it until the compaction finished.
-    const workspace = await scratchDir('phosphor-budget-')
-    const log = join(workspace, 'commands.jsonl')
-    const harness = await launch({
-      workspace,
-      env: {
-        PHOSPHOR_E2E_COMMAND_LOG: log,
-        PHOSPHOR_E2E_CONTEXT_WINDOW: '1000000',
-        PHOSPHOR_E2E_CONTEXT_TOKENS: '250000',
-        PHOSPHOR_E2E_COMPACT_MS: '2000',
-        PHOSPHOR_E2E_MODEL_PROVIDER: provider,
-      },
-    })
-    const { page } = harness
-    const sent = async (): Promise<string[]> =>
-      (await readFile(log, 'utf8'))
-        .trim()
-        .split('\n')
-        .map((line) => (JSON.parse(line) as { type: string }).type)
-        .filter((type) => type === 'prompt' || type === 'compact')
-    try {
-      await openWorkspace(page)
-      await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-      await page.getByRole('button', { name: /Start lane/i }).click()
-      await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-
-      // The budget check runs once the turn settles.
-      await expect(page.getByText('compacting…')).toBeVisible()
-      await expect.poll(sent).toEqual(['prompt', 'compact'])
-
-      // Sent mid-compaction: held, not rejected.
-      const chat = page.getByRole('textbox', { name: 'Chat message' })
-      await chat.fill('and again')
-      await chat.press('Enter')
-      await expect(
-        page.getByText(/Context compacted — 250k tokens summarized/).first(),
-      ).toBeVisible()
-      await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toHaveCount(2, {
-        timeout: 30_000,
-      })
-      await expect(page.getByText(/Cannot submit a prompt/)).toHaveCount(0)
-      expect((await sent()).slice(0, 3)).toEqual(['prompt', 'compact', 'prompt'])
-    } finally {
-      await shutdown(harness)
-    }
+// Provider-blindness (pi owns compaction for pi-claude-cli too) is pinned by
+// electron/pi/context-budget.test.ts; this checks the whole path once.
+test('a large-window session over the context budget compacts, holding the next prompt', async () => {
+  // A 1M-window model whose context holds 250k after each turn: over the
+  // default 200k budget, far under pi's own ~984k line. pi rejects a prompt
+  // sent during a requested compaction, so the second message only runs if
+  // `pi:command` held it until the compaction finished.
+  const workspace = await scratchDir('phosphor-budget-')
+  const log = join(workspace, 'commands.jsonl')
+  const harness = await launch({
+    workspace,
+    env: {
+      PHOSPHOR_E2E_COMMAND_LOG: log,
+      PHOSPHOR_E2E_CONTEXT_WINDOW: '1000000',
+      PHOSPHOR_E2E_CONTEXT_TOKENS: '250000',
+      PHOSPHOR_E2E_COMPACT_MS: '2000',
+      PHOSPHOR_E2E_MODEL_PROVIDER: 'stub',
+    },
   })
-}
+  const { page } = harness
+  const sent = async (): Promise<string[]> =>
+    (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => (JSON.parse(line) as { type: string }).type)
+      .filter((type) => type === 'prompt' || type === 'compact')
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start lane/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    // The budget check runs once the turn settles.
+    await expect(page.getByText('compacting…')).toBeVisible()
+    await expect.poll(sent).toEqual(['prompt', 'compact'])
+
+    // Sent mid-compaction: held, not rejected.
+    const chat = page.getByRole('textbox', { name: 'Chat message' })
+    await chat.fill('and again')
+    await chat.press('Enter')
+    await expect(page.getByText(/Context compacted — 250k tokens summarized/).first()).toBeVisible()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toHaveCount(2, {
+      timeout: 30_000,
+    })
+    await expect(page.getByText(/Cannot submit a prompt/)).toHaveCount(0)
+    expect((await sent()).slice(0, 3)).toEqual(['prompt', 'compact', 'prompt'])
+  } finally {
+    await shutdown(harness)
+  }
+})
 
 test('a session within its window and the budget is never compacted by Phosphor', async () => {
   // The stub's default 200k window is no larger than the budget, so pi's own

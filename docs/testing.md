@@ -50,12 +50,16 @@ npx vitest run tools/scripts/test/foundation-wiring.test.ts
 npx vitest run tools/scripts/validate.test.ts
 npm run test:e2e
 SKIP_E2E=1 npm run validate
+npm run check:pr
 ```
 
 Use `--maxWorkers=2` for broad Vitest runs. Re-run a timeout alone before calling
 it a regression. `npm run validate` runs typecheck, lint, formatting, unit tests,
 Desktop/Host/Control/Web builds and Desktop/browser e2e, with a PASS/FAIL summary and log file.
-`SKIP_E2E=1` skips only e2e, never builds. E2E exercises the Electron app against
+`SKIP_E2E=1` skips only e2e, never builds. `npm run check:pr` is the pre-PR
+check: typecheck, lint, formatting, the size ratchet and unit tests, then only the
+Desktop and Web e2e spec files the branch changes against `origin/main`
+(committed, uncommitted or new); `SKIP_E2E=1` skips those too. E2E exercises the Electron app against
 the pi stub; packaging builds are not part of unit validation.
 
 E2E windows never appear on your screen, so a background agent running the
@@ -249,13 +253,17 @@ the code imports now, or delete the mock.
 
 ## CI boundary
 
-CI runs on the project's own runners, two Linux (x64) and one macOS (ARM64),
+CI runs on the project's own runners, three Linux (x64) and one macOS (ARM64),
 selected by their `[self-hosted, Linux, X64]` and `[self-hosted, macOS, ARM64]`
 labels. Each runner takes one job
 at a time, so jobs on the same OS queue and a split pays only when there is a
 runner instance to take it. Each job installs what it needs and runs each
 mandatory command exactly once:
 
+- `changes`: on a pull request, which app jobs (`e2e`, `web-e2e`,
+  `control-schema`, `site`) the PR affects, from Nx
+  (`tools/scripts/ci-scope.mjs`). Main pushes, workflow edits and any doubt run
+  them all; `checks` and `unit` never wait on it.
 - `checks`: root and site installs, comprehensive typecheck (including the
   all-file audit), `npm run lint` (ESLint, typed oxlint, dead mocks),
   `npx prettier --check .`, then the size ratchet.
@@ -269,11 +277,19 @@ mandatory command exactly once:
   failed test once on CI and reports it as flaky. It sets Node's heap to 4 GB:
   Node otherwise sizes it from the runner's cgroup memory limit, and the Web
   build in its global setup outgrew the result.
-- `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs the whole suite
-  on main, which gates every release, and on a PR only the tests tagged
-  `@macos` (native quit, undo, context menus, Meta shortcuts, the system
-  clipboard and the login shell). A test whose macOS behaviour differs from
-  Linux beyond the modifier key carries the tag. Linux sets `PHOSPHOR_E2E_SHOW=1`:
+- `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs only the tests
+  tagged `@macos` (native quit, undo, context menus, Meta shortcuts, the system
+  clipboard and the login shell), on PRs and main alike. A test whose macOS
+  behaviour differs from Linux beyond the modifier key carries the tag. The
+  whole suite runs on macOS nightly (`macos-nightly.yml`), off the release
+  path: a failure opens an issue labelled `macos-nightly` (or comments on the
+  open one) and the next green run closes it. The one Mac runner takes one job
+  at a time, and a serial full run there used to hold every release. Linux runs
+  four tests at a time: each has its own userData, pi agent dir, ports, Xvfb display
+  (`tools/scripts/xvfb-workers.sh`; one display has one focused window) and Host
+  build (the remote fixture builds the Host into a per-worker temp folder, never
+  the shared `apps/host/dist`). Its `@system-clipboard` tests share the
+  display's one clipboard, so they run afterwards, one at a time. Linux sets `PHOSPHOR_E2E_SHOW=1`:
   windows that are never mapped barely render there, which made the suite several
   times slower. macOS keeps the windows hidden, as local runs do, so nothing
   appears on the Mac runner's screen. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)
@@ -285,7 +301,9 @@ mandatory command exactly once:
   The stack's project id and ports are fixed and the Linux runners share one
   Docker daemon, so `control-schema` runs it in one step under a machine-wide
   `flock` (`/tmp/phosphor-control-supabase.lock`), held from start to stop. A
-  stack a cancelled job left behind is stopped first.
+  stack a cancelled job left behind is stopped first. The stack's fixed ports
+  sit in Linux's ephemeral range, where another job's outgoing socket can hold
+  one briefly, so a failed start is stopped and retried, up to three tries.
 
 There is no separate build job: each app is built by the job that tests it.
 Desktop in `e2e`, Web and Host in the web suite's global setup
@@ -307,7 +325,8 @@ a maintainer approves it. Approve outside contributors' runs only after reading
 the diff.
 
 The audit's own tests also run in `npm test`; there is no redundant standalone
-audit step. No job is skipped by affected projects. Inventory artifacts,
+audit step. On a pull request the app jobs run only when the PR affects their
+app ([nx-cache.md](nx-cache.md#what-ci-selects)); main runs every job. Inventory artifacts,
 coverage comparisons and unit-gate evidence belong to the trusted per-unit
 pipeline, not CI's untrusted PR input.
 
