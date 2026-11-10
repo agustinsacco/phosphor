@@ -109,7 +109,7 @@ async function respond(
       typeof input.token !== 'string' ||
       input.token.length !== token.length ||
       !timingSafeEqual(Buffer.from(input.token), Buffer.from(token)) ||
-      (input.method !== 'search' && input.method !== 'related')
+      input.method !== 'search'
     )
       throw new Error('Denied')
     const params = validateBrainRequest(input.method, input.params)

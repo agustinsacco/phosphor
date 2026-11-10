@@ -42,7 +42,15 @@ describe('createBrainClient', () => {
   it('accepts no-match and unavailable without confusing them', async () => {
     for (const status of ['no_match', 'unavailable'] as const)
       expect(
-        await setup({ status, hits: [], entities: [], degradation: [] }).client.search({
+        await setup({
+          status,
+          hits: [],
+          entities: [],
+          focus: [],
+          links: [],
+          more: 0,
+          degradation: [],
+        }).client.search({
           query: 'Harbor',
         }),
       ).toMatchObject({ status })

@@ -99,7 +99,15 @@ describe('Brain meaning-first hybrid search', () => {
     expect(result.hits.map((hit) => hit.memory.summary)).toEqual(['Daily settlement.'])
     expect(
       store.search({ query: 'unseenword', vector: vector(-1), scope: null, limit: 6 }),
-    ).toEqual({ status: 'no_match', hits: [], entities: [], degradation: [] })
+    ).toEqual({
+      status: 'no_match',
+      hits: [],
+      entities: [],
+      focus: [],
+      links: [],
+      more: 0,
+      degradation: [],
+    })
   })
   it('boosts the asking project by 1.25 without excluding other projects', () => {
     const { store } = fixture()

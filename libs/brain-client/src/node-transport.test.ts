@@ -71,7 +71,7 @@ describe('createNodeBrainTransport', () => {
     expect(brain.requests[0]!.endsWith('\n')).toBe(true)
     expect(brain.requests[0]!.indexOf('\n')).toBe(brain.requests[0]!.length - 1)
     expect(JSON.parse(brain.requests[0]!)).toEqual({
-      version: 2,
+      version: 3,
       token: TOKEN,
       method: 'search',
       params: { query: 'Harbor' },
@@ -85,7 +85,7 @@ describe('createNodeBrainTransport', () => {
       setTimeout(() => socket.write(bytes.subarray(21)), 5)
     })
     const transport = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
-    await expect(transport.request('related', { entity: 'Harbor' })).resolves.toBe('naïve – ✓')
+    await expect(transport.request('search', { query: 'Harbor' })).resolves.toBe('naïve – ✓')
   })
 
   it('surfaces a remote error with the capability token redacted', async () => {

@@ -23,10 +23,9 @@ export function validateBrainRequest<M extends BrainAgentMethod>(
   method: M,
   input: unknown,
 ): BrainAgentMap[M]['request'] {
-  if (!record(input)) throw new Error('Invalid Brain request.')
-  const key = method === 'search' ? 'query' : 'entity'
-  const text = input[key]
-  const keys = new Set([key, 'limit', 'sessionId', 'cwd'])
+  if (method !== 'search' || !record(input)) throw new Error('Invalid Brain request.')
+  const text = input.query
+  const keys = new Set(['query', 'limit', 'sessionId', 'cwd'])
   if (
     Object.keys(input).some((k) => !keys.has(k)) ||
     typeof text !== 'string' ||
@@ -79,8 +78,19 @@ export function isBrainRecall(v: unknown): v is BrainRecall {
         memory(hit.memory) &&
         number(hit.score) &&
         strings(hit.reasons) &&
-        hit.reasons.every((r) => ['exact', 'lexical', 'semantic'].includes(r)),
+        hit.reasons.every((r) => ['exact', 'lexical', 'semantic', 'linked'].includes(r)),
     ) &&
+    strings(v.focus) &&
+    Array.isArray(v.links) &&
+    v.links.every(
+      (link: unknown) =>
+        record(link) &&
+        hasStrings(link, ['subjectId', 'objectId']) &&
+        member(link.predicate, BRAIN_PREDICATES),
+    ) &&
+    number(v.more) &&
+    Number.isInteger(v.more) &&
+    v.more >= 0 &&
     Array.isArray(v.entities) &&
     v.entities.every(
       (e: unknown) =>

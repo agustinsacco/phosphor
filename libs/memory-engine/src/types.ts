@@ -152,7 +152,6 @@ export interface BrainStore {
   known(sessionId: string, scope: string, limit: number): KnownContext
 
   search(input: SearchInput): BrainRecall
-  related(entity: string, limit: number, scope: string | null): BrainRecall
   recordDelivery(sessionId: string, memoryIds: string[]): void
   close(): void
 }

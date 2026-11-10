@@ -3,7 +3,7 @@
  * of the lane extracts memories, the user approves them, and every lane can recall them.
  * No credentials or database paths cross this contract.
  */
-export const BRAIN_PROTOCOL = 2
+export const BRAIN_PROTOCOL = 3
 /** Pinned local embedding model. No hosted embedding or silent model fallback. */
 export const BRAIN_EMBEDDING_MODEL = {
   id: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
@@ -56,7 +56,7 @@ export type BrainEpistemicKind = 'observed' | 'reported' | 'inferred'
 
 export interface BrainPrefs {
   enabled: boolean
-  /** Lane agents get brain_search and brain_related. */
+  /** Lane agents get brain_search. */
   recall: boolean
   /** Extracted memories wait for approval; off saves them as soon as extraction ends. */
   review: boolean
@@ -182,21 +182,32 @@ export interface BrainQuery {
 export interface BrainHit {
   memory: BrainMemory
   score: number
-  reasons: ('exact' | 'lexical' | 'semantic')[]
+  /** `exact`: about an entity the query names. `linked`: about one linked to it. */
+  reasons: ('exact' | 'lexical' | 'semantic' | 'linked')[]
+}
+/** A subject→object memory, drawn as one line of the graph. */
+export interface BrainLink {
+  subjectId: string
+  predicate: BrainPredicate
+  objectId: string
 }
 export interface BrainRecall {
   status: 'ok' | 'no_match' | 'unavailable'
   hits: BrainHit[]
-  /** Entities the hits reference, so tools can print names. */
+  /** Every entity the hits, focus and links reference, so tools can print names. */
   entities: BrainEntity[]
+  /** Entity ids the query named, or sits inside: "NRS" names every NRS project. */
+  focus: string[]
+  /** Links between a focus entity and another entity, one hop out. */
+  links: BrainLink[]
+  /** Strong matches (a named entity or shared words) the limit left out. */
+  more: number
   degradation: string[]
 }
 export type { BrainInvokeMap } from './ipc/brain'
 /** Lane agents can only read. Approval, queueing and forgetting stay with the user. */
 export interface BrainAgentMap {
   search: { request: BrainQuery; result: BrainRecall }
-  /** Memories about one entity (by id or name) and the entities linked to it. */
-  related: { request: Omit<BrainQuery, 'query'> & { entity: string }; result: BrainRecall }
 }
 export type BrainAgentMethod = keyof BrainAgentMap
 export interface BrainAgentRequest {
