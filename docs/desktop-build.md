@@ -7,6 +7,9 @@ and the application manifest. Root npm commands remain the tooling facade.
 `out/preload/preload.cjs` and `out/renderer` relative to that application.
 Sandboxed preload remains CommonJS. Development `app.getAppPath()` is the
 Desktop directory; packaged `app.getAppPath()` is the application asar.
+The renderer build needs more than Node's default 2 GB heap on machines with
+less than 16 GB of memory, so the release build sets
+`NODE_OPTIONS=--max-old-space-size=4096`; do the same locally if it runs out.
 
 ## Installation domains
 

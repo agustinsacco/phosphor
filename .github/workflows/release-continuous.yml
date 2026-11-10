@@ -250,6 +250,10 @@ jobs:
 
       - name: Build renderer and main
         run: npm run build
+        env:
+          # Node sizes its default heap from the runner's memory. macos-15 has
+          # 7 GB, which leaves about 2 GB: too little for the renderer build.
+          NODE_OPTIONS: --max-old-space-size=4096
 
       # electron-builder's own GitHub publisher, not a hand-rolled upload: it is
       # what generates latest-mac.yml / latest-linux.yml (the version + sha512
