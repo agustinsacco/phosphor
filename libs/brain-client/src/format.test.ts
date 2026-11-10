@@ -104,3 +104,14 @@ it('keeps names like S&T readable and drops an effective date said the same day'
   expect(text).toContain('\nLinks: S&T owns Harbor\n')
   expect(text).toContain('\n- S&T owns &lt;Harbor&gt;. · harbor (this project) · 2026-11-06\n')
 })
+
+it('fits the header and footer inside a small budget too, keeping the wrapper whole', () => {
+  for (const maxChars of [250, 400, 600, 900]) {
+    const text = formatBrainRecall(HARBOR_BRIEFING, '/projects/harbor', maxChars)
+    expect(text.length).toBeLessThanOrEqual(maxChars)
+    expect(text.match(/<\/background-data>/g)).toHaveLength(1)
+  }
+  expect(formatBrainRecall(HARBOR_BRIEFING, '/projects/harbor', 600)).toContain(
+    'more matches not shown',
+  )
+})
