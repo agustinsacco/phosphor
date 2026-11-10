@@ -275,7 +275,15 @@ jobs:
           npm run db:stop --silent > /dev/null 2>&1 || true
           trap 'echo "::group::Remove only this test stack"; npm run db:stop; echo "::endgroup::"' EXIT
           # Suppress the CLI's development-key output; startup errors still reach stderr.
-          npm run db:start --silent > /dev/null
+          # The stack's fixed ports sit in Linux's ephemeral range, so another job's
+          # outgoing socket can hold one for a moment: stop and retry, three tries.
+          for attempt in 1 2 3; do
+            if npm run db:start --silent > /dev/null; then break; fi
+            [ "$attempt" -lt 3 ] || exit 1
+            echo "::warning::Supabase did not start (attempt $attempt); retrying"
+            npm run db:stop --silent > /dev/null 2>&1 || true
+            sleep 10
+          done
           echo "::group::Database authorization tests"
           npm run test:control-db
           echo "::endgroup::"

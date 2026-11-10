@@ -301,7 +301,9 @@ mandatory command exactly once:
   The stack's project id and ports are fixed and the Linux runners share one
   Docker daemon, so `control-schema` runs it in one step under a machine-wide
   `flock` (`/tmp/phosphor-control-supabase.lock`), held from start to stop. A
-  stack a cancelled job left behind is stopped first.
+  stack a cancelled job left behind is stopped first. The stack's fixed ports
+  sit in Linux's ephemeral range, where another job's outgoing socket can hold
+  one briefly, so a failed start is stopped and retried, up to three tries.
 
 There is no separate build job: each app is built by the job that tests it.
 Desktop in `e2e`, Web and Host in the web suite's global setup

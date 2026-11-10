@@ -116,6 +116,9 @@ describe('foundation CI wiring', () => {
     expect(leftovers).toBeGreaterThan(lock)
     expect(start).toBeGreaterThan(leftovers)
     expect(control.slice(lock, start)).toMatch(/trap '.*npm run db:stop.*' EXIT/)
+    // Its fixed ports sit in the ephemeral range: a failed start stops and retries.
+    expect(control).toContain('for attempt in 1 2 3; do')
+    expect(control).toContain('if npm run db:start --silent > /dev/null; then break; fi')
     for (const suite of ['test:control-db', 'test:auth-stack', 'test:control-stack'])
       expect(control.indexOf(`npm run ${suite}`)).toBeGreaterThan(start)
     expect(control.match(/^ {6}- name: /gm)).toHaveLength(2)
