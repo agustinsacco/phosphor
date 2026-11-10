@@ -258,10 +258,15 @@ function laneHandlers({
     makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
+    // The Host exports only a stopped lane; the menu allows this only while it is idle.
     moveTo: () =>
-      openLaneMove({ machine: hostId, laneId: lane.laneId }, title, {
-        pinned: lane.pinned === true,
-        marker: remoteLaneMarker(lane, useLanePrefsStore.getState().lanes.markers),
+      void act(async () => {
+        if (lane.activity !== 'stopped' && lane.activity !== 'failed')
+          await window.phosphor.invoke('hosts:stopLane', hostId, lane.laneId)
+        openLaneMove({ machine: hostId, laneId: lane.laneId }, title, {
+          pinned: lane.pinned === true,
+          marker: remoteLaneMarker(lane, useLanePrefsStore.getState().lanes.markers),
+        })
       }),
     copyDebugInfo: () =>
       void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, sessionId))),

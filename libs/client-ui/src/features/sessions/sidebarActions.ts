@@ -2,6 +2,7 @@ import type { LaneMoveMarks } from '@shared/host-protocol-lane-transfer'
 import type { LaneMoveSource } from '@shared/lane-move'
 import type { SessionMeta } from '@shared/models'
 import { laneMarker } from '@/lib/laneMarker'
+import { useChatStore } from '@/stores/chat'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { useLaneMoveStore } from '@/stores/laneMove'
 import { useSessionsStore } from '@/stores/sessions'
@@ -53,8 +54,23 @@ export function openLaneMove(source: LaneMoveSource, title: string, marks: LaneM
   useLaneMoveStore.getState().open({ source, title, marks })
 }
 
-/** Carry the visible marker explicitly so a new folder or branch cannot change it. */
-export function moveSidebarSession(meta: SessionMeta, branch: string | null | undefined): void {
+/**
+ * Open "Move to…" for a This Mac lane, stopping its idle session first: the
+ * move copies the saved transcript, and main refuses a live one. A turn that
+ * began since the menu opened, or a stop that fails, leaves it live; the
+ * dialog's check then says why.
+ * Carry the visible marker explicitly so a new folder or branch cannot change it.
+ */
+export async function moveSidebarSession(
+  meta: SessionMeta,
+  branch: string | null | undefined,
+  livePhosphorId?: string,
+): Promise<void> {
+  if (livePhosphorId && !useChatStore.getState().sessions[livePhosphorId]?.isStreaming)
+    await useSessionsStore
+      .getState()
+      .suspendSession(livePhosphorId)
+      .catch(() => undefined)
   const { pinned, laneMarkers } = useSessionsStore.getState()
   openLaneMove({ machine: 'local', sessionPath: meta.path }, meta.name ?? 'Lane', {
     pinned: pinned.includes(meta.path),

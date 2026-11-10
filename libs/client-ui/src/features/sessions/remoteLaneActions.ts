@@ -10,7 +10,9 @@ export const ONLY_WHILE_RUNNING = 'Only while running.'
 /** A Host older than `laneMarks` cannot keep pins or markers, and only that Host can. */
 export const LANE_MARKS_NEED_UPDATE = 'Update this Host to pin and mark lanes.'
 export const LANE_MOVE_NEEDS_UPDATE = 'Update this Host to move lanes.'
-export const STOP_BEFORE_MOVE = 'Stop this lane first.'
+/** A move copies the saved transcript, so a lane mid-turn waits; an idle one is stopped first. */
+export const WAIT_BEFORE_MOVE = 'Wait for this lane to finish working.'
+export const MOVE_STOPS_LANE = 'stops it first'
 
 /**
  * Why a controller-only row action is disabled, or undefined when control is
@@ -101,17 +103,26 @@ export function hostLaneContext(state: RemoteLaneActionState): LaneActionContext
       markRead: notReady,
       // A read: any reader of the lane may keep a copy, as with Copy debug info.
       exportHtml: notReady,
-      moveTo: notReady ?? moveHint(state, running),
+      moveTo: notReady ?? moveHint(state, running, controlHint),
       copySpend: notReady ?? whileRunning,
       delete: controlHint ?? (canWrite ? undefined : featureNotOffered('workspaces.write')),
     },
+    hints: { moveTo: running ? MOVE_STOPS_LANE : undefined },
   }
 }
 
 /** Why a saved Host lane cannot be copied from this client right now. */
-function moveHint(state: RemoteLaneActionState, running: boolean): string | undefined {
+function moveHint(
+  state: RemoteLaneActionState,
+  running: boolean,
+  controlHint: string | undefined,
+): string | undefined {
   if (state.moveBlocked) return state.moveBlocked
   if (!state.caps.laneTransfer) return LANE_MOVE_NEEDS_UPDATE
   if (!state.caps.granted('sessions.control')) return featureNotOffered('sessions.control')
-  return running ? STOP_BEFORE_MOVE : undefined
+  if (!running) return undefined
+  const { activity } = state.lane
+  if (activity === 'working' || activity === 'needs-input') return WAIT_BEFORE_MOVE
+  // Moving stops the idle session first, which Stop's own rules govern.
+  return controlHint ?? state.stopBlocked ?? undefined
 }
