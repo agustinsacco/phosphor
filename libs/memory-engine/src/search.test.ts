@@ -99,7 +99,15 @@ describe('Brain meaning-first hybrid search', () => {
     expect(result.hits.map((hit) => hit.memory.summary)).toEqual(['Daily settlement.'])
     expect(
       store.search({ query: 'unseenword', vector: vector(-1), scope: null, limit: 6 }),
-    ).toEqual({ status: 'no_match', hits: [], entities: [], degradation: [] })
+    ).toEqual({
+      status: 'no_match',
+      hits: [],
+      entities: [],
+      focus: [],
+      links: [],
+      more: 0,
+      degradation: [],
+    })
   })
   it('boosts the asking project by 1.25 without excluding other projects', () => {
     const { store } = fixture()
@@ -165,7 +173,7 @@ describe('Brain meaning-first hybrid search', () => {
     })
     expect(alias.hits[0]?.reasons).toContain('exact')
   })
-  it('defaults to six hits and caps search at twenty', () => {
+  it('defaults to eight hits and caps search at twenty', () => {
     const { store } = fixture()
     seed(
       store,
@@ -181,50 +189,131 @@ describe('Brain meaning-first hybrid search', () => {
       scope: null,
       limit: undefined as unknown as number,
     }
-    expect(store.search(input).hits).toHaveLength(6)
+    expect(store.search(input).hits).toHaveLength(8)
     expect(store.search({ ...input, limit: 200 }).hits).toHaveLength(20)
   })
 })
 
-describe('Brain related', () => {
-  it('resolves id, folded label and alias, returning neighbours with exact reasons', () => {
-    const { store } = fixture()
-    approve(store)
-    const harbor = store.knowledge().entities.find((item) => item.label === 'Harbor')!
-    for (const query of [harbor.id, ' ＨＡＲＢＯＲ ', 'Harbor billing service']) {
-      const result = store.related(query, 12, null)
-      expect(result.hits).toHaveLength(2)
-      expect(result.entities.map((item) => item.label).sort()).toEqual([
-        'Harbor',
-        'Rina Okafor',
-        'Tom Lee',
-      ])
-      expect(result.hits.every((hit) => hit.reasons.join() === 'exact')).toBe(true)
-    }
+/** Harbor billing and Harbor ledger share a word; Harborview only looks like them. */
+function harborGraph(store: BrainStore): Map<string, string> {
+  const base = extraction('graph')
+  const memory = (
+    subject: string,
+    object: string | null,
+    summary: string,
+    type: BrainMemoryType,
+  ): Extraction['memories'][number] => ({
+    ...base.memories[0]!,
+    subject,
+    object,
+    predicate: object ? 'owns' : 'about',
+    summary,
+    type,
   })
-  it('falls back to names with shared words and refuses unrelated words', () => {
+  const memories = [
+    memory('rina', 'billing', 'Rina Okafor owns Harbor billing.', 'fact'),
+    memory('billing', null, 'Invoices retry three times before paging.', 'risk'),
+    memory('ledger', null, 'The ledger closes every night at two.', 'fact'),
+    memory('view', null, 'Harborview is a separate product.', 'fact'),
+    memory('rina', null, 'Rina is away until December.', 'open'),
+    memory('tom', null, 'Tom Lee prefers small reviews.', 'preference'),
+  ]
+  approve(store, {
+    jobId: 'graph',
+    entities: [
+      { key: 'billing', label: 'Harbor billing', kind: 'project', aliases: ['SKT-100'] },
+      { key: 'ledger', label: 'Harbor ledger', kind: 'component', aliases: [] },
+      { key: 'view', label: 'Harborview', kind: 'concept', aliases: [] },
+      { key: 'rina', label: 'Rina Okafor', kind: 'person', aliases: [] },
+      { key: 'tom', label: 'Tom Lee', kind: 'person', aliases: [] },
+    ],
+    memories,
+    vectors: memories.map((_, index) => direction(0, index + 1)),
+  })
+  return new Map(store.knowledge().entities.map((item) => [item.label, item.id]))
+}
+const lexical = (query: string, limit = 8) => ({ query, vector: null, scope: null, limit })
+
+describe('Brain search briefing', () => {
+  it('names every entity the query names or sits inside, and finds what they hold', () => {
     const { store } = fixture()
-    approve(store)
-    expect(store.related('Okafor biography', 12, null).hits[0]?.memory.summary).toContain(
-      'Rina Okafor',
+    const ids = harborGraph(store)
+    const result = store.search(lexical('Harbor'))
+    expect(result.focus).toEqual([ids.get('Harbor billing'), ids.get('Harbor ledger')])
+    const summaries = result.hits.map((hit) => hit.memory.summary)
+    expect(summaries).toEqual(
+      expect.arrayContaining([
+        'Rina Okafor owns Harbor billing.',
+        'Invoices retry three times before paging.',
+        'The ledger closes every night at two.',
+      ]),
     )
-    expect(store.related('unrelatedword', 12, null)).toEqual({
+    expect(summaries).not.toContain('Harborview is a separate product.')
+    expect(summaries).not.toContain('Tom Lee prefers small reviews.')
+    expect(store.search(lexical('What is SKT-100 waiting on?')).focus).toEqual([
+      ids.get('Harbor billing'),
+    ])
+    expect(store.search(lexical('the')).focus).toEqual([])
+  })
+  it('keeps punctuation that is part of a name when the query sits inside one', () => {
+    const { store } = fixture()
+    seed(
+      store,
+      ['C++', 'C#', 'C framework'].map((label, index) => ({
+        label,
+        summary: `Note ${index}.`,
+        vector: direction(0, index + 1),
+      })),
+    )
+    const labels = (query: string): string[] => {
+      const { entities, focus } = store.search(lexical(query))
+      return entities.filter((item) => focus.includes(item.id)).map((item) => item.label)
+    }
+    expect(labels('C++')).toEqual(['C++'])
+    expect(labels('"C#"?')).toEqual(['C#'])
+  })
+  it('follows links one hop out and ranks what a neighbour holds below the named entities', () => {
+    const { store } = fixture()
+    const ids = harborGraph(store)
+    const result = store.search(lexical('Harbor'))
+    expect(result.links).toEqual([
+      { subjectId: ids.get('Rina Okafor'), predicate: 'owns', objectId: ids.get('Harbor billing') },
+    ])
+    expect(result.entities.map((item) => item.label).sort()).toEqual([
+      'Harbor billing',
+      'Harbor ledger',
+      'Rina Okafor',
+    ])
+    expect(result.hits.at(-1)).toMatchObject({
+      memory: { summary: 'Rina is away until December.' },
+      reasons: ['linked'],
+    })
+  })
+  it('counts strong matches the limit left out, never neighbours or loose meaning', () => {
+    const { store } = fixture()
+    harborGraph(store)
+    expect(store.search(lexical('Harbor', 2))).toMatchObject({ more: 1 })
+    expect(store.search(lexical('Harbor', 2)).hits).toHaveLength(2)
+    expect(store.search(lexical('Harbor'))).toMatchObject({ more: 0 })
+    const many = fixture().store
+    seed(
+      many,
+      Array.from({ length: 60 }, (_, index) => ({
+        label: `Thing ${index}`,
+        summary: `Invoice retry note ${index}.`,
+        vector: direction(0, index + 1),
+      })),
+    )
+    expect(many.search(lexical('retry'))).toMatchObject({ more: 52 })
+    expect(store.search(lexical('Marina'))).toEqual({
       status: 'no_match',
       hits: [],
       entities: [],
-      degradation: [],
+      focus: [],
+      links: [],
+      more: 0,
+      degradation: ['semantic search unavailable'],
     })
-  })
-  it('ranks scope first, then newest, and respects the requested limit', () => {
-    const { store } = fixture()
-    seed(store, [
-      { label: 'Harbor', summary: 'Older local note.', vector: vector(1) },
-      { label: 'Harbor', summary: 'Newer other note.', vector: vector(0, 1), scope: '/other' },
-    ])
-    expect(
-      store.related('Harbor', 12, '/projects/harbor').hits.map((hit) => hit.memory.summary),
-    ).toEqual(['Older local note.', 'Newer other note.'])
-    expect(store.related('Harbor', 1, null).hits[0]?.memory.summary).toBe('Newer other note.')
   })
 })
 

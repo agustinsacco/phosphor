@@ -8,7 +8,7 @@ import { prefs, revision, setPrefs } from './prefs'
 import { proposal, propose } from './proposals'
 import { review } from './review'
 import { initialize } from './schema'
-import { related, search } from './search'
+import { search } from './search'
 import type { BrainStore, OpenStoreOptions } from './types'
 
 function snapshot(ctx: Context): BrainSnapshot {
@@ -61,7 +61,6 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     forget: (id) => knowledge.forget(ctx, id),
     known: (session, scope, limit) => knowledge.known(ctx, session, scope, limit),
     search: (input) => search(ctx, input),
-    related: (entity, limit, scope) => related(ctx, entity, limit, scope),
     recordDelivery: (session, ids) => knowledge.recordDelivery(ctx, session, ids),
     close: () => ctx.db.close(),
   }

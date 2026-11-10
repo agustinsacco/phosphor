@@ -35,8 +35,15 @@ export class FakeBrainStore implements BrainStore {
   details: BrainMemoryDetail[] = []
   deliveries: { sessionId: string; memoryIds: string[] }[] = []
   searches: SearchInput[] = []
-  relations: { entity: string; limit: number; scope: string | null }[] = []
-  recall: BrainRecall = { status: 'no_match', hits: [], entities: [], degradation: [] }
+  recall: BrainRecall = {
+    status: 'no_match',
+    hits: [],
+    entities: [],
+    focus: [],
+    links: [],
+    more: 0,
+    degradation: [],
+  }
   closed = false
   private next = 0
 
@@ -149,10 +156,6 @@ export class FakeBrainStore implements BrainStore {
   }
   search(input: SearchInput): BrainRecall {
     this.searches.push(input)
-    return this.recall
-  }
-  related(entity: string, limit: number, scope: string | null): BrainRecall {
-    this.relations.push({ entity, limit, scope })
     return this.recall
   }
   recordDelivery(sessionId: string, memoryIds: string[]): void {

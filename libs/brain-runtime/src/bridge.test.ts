@@ -18,7 +18,7 @@ function request(endpoint: string, input: unknown): Promise<unknown> {
   })
 }
 
-it('accepts only versioned, authenticated search/related with validated requests', async () => {
+it('accepts only versioned, authenticated search with validated requests', async () => {
   const invoke = vi.fn(async () => ({
     status: 'no_match',
     hits: [],
@@ -26,15 +26,16 @@ it('accepts only versioned, authenticated search/related with validated requests
     degradation: [],
   }))
   const bridge = await createBrainBridge(invoke)
-  const input = { version: 2, token: bridge.token, method: 'search', params: { query: 'Harbor' } }
+  const input = { version: 3, token: bridge.token, method: 'search', params: { query: 'Harbor' } }
   try {
     expect(await request(bridge.endpoint, input)).toMatchObject({ ok: true })
     expect(invoke).toHaveBeenCalledWith('search', { query: 'Harbor' })
     invoke.mockClear()
     for (const patch of [
       { token: 'x'.repeat(64) },
-      { version: 1 },
+      { version: 2 },
       { method: 'propose' },
+      { method: 'related', params: { entity: 'Harbor' } },
       { params: { query: '' } },
       { params: { query: 'Harbor', scope: '/another-project' } },
     ])

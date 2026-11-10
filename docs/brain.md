@@ -12,8 +12,8 @@ on downloads the pinned local embedding model, EmbeddingGemma 300M Q4
 (`BRAIN_EMBEDDING_MODEL`, 208.6 MB), with a progress bar; the switch's description
 links the Gemma Terms of Use. Once on, three rows appear:
 
-- **Recall in lanes** (default on): new lanes get `brain_search` and `brain_related`
-  and the bundled `brain` skill. Lanes already running pick it up when restarted.
+- **Recall in lanes** (default on): new lanes get the `brain_search` tool and the
+  bundled `brain` skill. Lanes already running pick it up when restarted.
 - **Review before saving** (default on): extracted memories wait for approval.
   Off approves them as soon as extraction finishes.
 - **Knowledge**: counts and an Open Brain button.
@@ -91,8 +91,8 @@ outside the vocabulary. A link between two entities stays only when the sentence
 names both; otherwise it becomes a plain fact about the subject.
 `quotes.ts` verifies each memory's one or two quotes against the lane's transcript
 (messages, tool output, tool call arguments and summaries): exact, then
-whitespace-tolerant, then normalised. Results from `brain_search` and `brain_related`
-are excluded: recalled memories cannot serve as their own fresh evidence. The
+whitespace-tolerant, then normalised. Results from `brain_search` (and
+`brain_related` in lanes from before it was folded in) are excluded: recalled memories cannot serve as their own fresh evidence. The
 instruction asks for an existing memory again only when the lane independently
 states or relies on it, backed by a fresh lane quote; changed facts use
 `supersedes`. A memory with no verified quote is dropped.
@@ -166,7 +166,7 @@ proposal, not necessarily approved.
 recorded clone leaf, including that leaf and excluding later entries; where parent
 links exist it follows that leaf's ancestry. It returns the last 300 segments,
 each scrubbed and clipped to 4,000 characters. This uses the evidence reader,
-so `brain_search` and `brain_related` tool results are omitted here too. **Open lane** uses current sidebar
+so Brain tool results are omitted here too. **Open lane** uses current sidebar
 metadata/navigation, including retained-history handling for removed worktrees.
 A deleted lane has no segments and no Open action; the extraction and stored
 quotes still work.
@@ -224,12 +224,21 @@ When Brain and recall are on, lane startup (`SessionStartupRuntime.recall`) adds
 `PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN`, `-e brain-ext/brain.mjs` and
 `--skill skills/brain`. The endpoint is a local socket; the token is random per
 app run. Recall never blocks a lane: any failure starts it without Brain. The
-tools only read:
+one tool only reads.
 
-- `brain_search(query, limit?)` ranks meaning first. Semantic matches need cosine
-  0.35 or more; word matches use BM25 without common words; a query naming an
-  entity matches its memories. Reciprocal rank fusion weighs them 2, 1 and 1, and
-  the lane's own project counts 1.25 times. Age then reorders: a memory's score
+`brain_search(query, limit?)` returns 8 memories by default, up to 20:
+
+- **Named entities.** An entity is named when its name or an alias appears in the
+  query as whole words, or the query appears in its name: "NRS" names every NRS
+  project, "Rina" names Rina Okafor, and "Harbor" never names Harborview. Common
+  words alone name nothing. Every memory about a named entity is a match.
+- **One hop out.** Subject→object memories that touch a named entity are its
+  links, up to eight. Memories about the entity at the other end match at half
+  weight, so they rank below the named ones.
+- **Ranking** is meaning first. Semantic matches need cosine 0.35 or more; word
+  matches use BM25 without common words. Reciprocal rank fusion weighs meaning,
+  words, named entities and neighbours 2, 1, 1 and 0.5, and the lane's own project
+  counts 1.25 times. Age then reorders: a memory's score
   falls toward half its weight as the later of its latest cited time (`observedAt`)
   and effective date (`validFrom`) gets older; a future effective date is ignored
   for aging. It
@@ -238,19 +247,39 @@ tools only read:
   expires: an old memory is still found when nothing newer matches. No match
   returns nothing. Without the model, search falls back to words and names and
   says so.
-- `brain_related(entity, limit?)` returns everything about one entity and its
-  neighbours.
+- **What was left out.** `more` counts strong matches (a named entity or shared
+  words) beyond the limit, not loose semantic matches or neighbours. The briefing
+  adds any hit its 6,000-character budget dropped.
 
 Every memory carries three dates: `observedAt`, when its lane said it (its latest
 cited transcript entry, else the approval time); `recordedAt`, when it was
 approved; and `validFrom`, when it took effect, only if the lane named one. The
 Brain page shows how long ago each was said.
 
-Results are sentences with type, project, the date said and any effective date,
-never evidence text. Each
+The tool returns one briefing, never evidence text:
+
+```text
+About: Harbor billing (project, also SKT-100)
+Links: Rina Okafor owns Harbor billing
+Risks:
+- Invoices retry three times before paging. · harbor (this project) · 2026-11-07
+Open, may have changed since:
+- …
+Decisions: / Facts: / How things are done: / Preferences:
+- …
+3 more matches not shown. Search again with a higher limit (up to 20) or a narrower query.
+See also: Rina Okafor, Tom Lee. Search a name to see what Brain holds about it.
+```
+
+Each line gives the project, the date said and the effective date when it is a
+different day. Sections come in that order, so what to watch for comes first; empty
+ones are left out. It is wrapped in `<background-data authority="none">`, with `<`
+and `>` escaped so stored text cannot close it; `&` stays, so names like S&T read
+as written. Each
 delivery is recorded, so a later extraction of that lane skips what it recalled.
-The skill tells agents to search before "what do we know about…" answers, in
-unfamiliar areas and before settled decisions, to treat another project's
+The skill tells agents to search by name or short topic before "what do we know
+about…" answers, in unfamiliar areas, before settled decisions and before writing
+to someone about a project, to follow See also when it matters, to treat another project's
 memories as context, not rules, and to trust the newer memory when two disagree.
 
 ## Limits

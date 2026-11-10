@@ -9,7 +9,7 @@ function setup(result: unknown = HARBOR_RECALL) {
 }
 
 describe('createBrainClient', () => {
-  it('exposes only search and related, preserving session, cwd and cancellation', async () => {
+  it('exposes only search, preserving session, cwd and cancellation', async () => {
     const { client, request } = setup()
     const signal = new AbortController().signal
     const query = {
@@ -19,12 +19,8 @@ describe('createBrainClient', () => {
       cwd: '/projects/harbor',
     }
     expect(await client.search(query, signal)).toEqual(HARBOR_RECALL)
-    await client.related({ entity: 'Rina Okafor' })
-    expect(request.mock.calls).toEqual([
-      ['search', query, signal],
-      ['related', { entity: 'Rina Okafor' }, undefined],
-    ])
-    expect(Object.keys(client)).toEqual(['search', 'related'])
+    expect(request.mock.calls).toEqual([['search', query, signal]])
+    expect(Object.keys(client)).toEqual(['search'])
   })
 
   it.each([
@@ -33,6 +29,10 @@ describe('createBrainClient', () => {
     { ...HARBOR_RECALL, hits: [{ memory: {} }] },
     { ...HARBOR_RECALL, status: 'partial' },
     { ...HARBOR_RECALL, entities: [{}] },
+    { ...HARBOR_RECALL, focus: [1] },
+    { ...HARBOR_RECALL, links: [{ subjectId: 'rina', predicate: 'likes', objectId: 'harbor' }] },
+    { ...HARBOR_RECALL, more: -1 },
+    { ...HARBOR_RECALL, more: undefined },
   ])('rejects malformed results %j', async (result) => {
     await expect(setup(result).client.search({ query: 'Harbor' })).rejects.toMatchObject({
       code: 'malformed',
@@ -42,7 +42,15 @@ describe('createBrainClient', () => {
   it('accepts no-match and unavailable without confusing them', async () => {
     for (const status of ['no_match', 'unavailable'] as const)
       expect(
-        await setup({ status, hits: [], entities: [], degradation: [] }).client.search({
+        await setup({
+          status,
+          hits: [],
+          entities: [],
+          focus: [],
+          links: [],
+          more: 0,
+          degradation: [],
+        }).client.search({
           query: 'Harbor',
         }),
       ).toMatchObject({ status })

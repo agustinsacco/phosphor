@@ -41,7 +41,7 @@ export function BrainTab(): React.JSX.Element {
         <>
           <Row
             title="Recall in lanes"
-            description="Agents in every lane can look up what you approved when it helps. They get two tools, brain_search and brain_related, and a skill that says when to use them. New lanes pick this up."
+            description="Agents in every lane can look up what you approved when it helps. They get one tool, brain_search, and a skill that says when to use it. New lanes pick this up."
           >
             <Toggle
               on={status.prefs.recall}

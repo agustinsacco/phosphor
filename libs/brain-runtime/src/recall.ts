@@ -1,4 +1,4 @@
-import type { BrainAgentMap, BrainAgentMethod, BrainRecall } from '@phosphor/shared/brain'
+import type { BrainAgentMethod, BrainQuery, BrainRecall } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
 import type { BrainServiceOptions, BrainRecallLaunch } from './types'
@@ -18,36 +18,37 @@ function scopeResolver(): (cwd?: string) => Promise<string | null> {
   }
 }
 
+const unavailable = (): BrainRecall => ({
+  status: 'unavailable',
+  hits: [],
+  entities: [],
+  focus: [],
+  links: [],
+  more: 0,
+  degradation: [],
+})
+
 export function createRecall(store: BrainStore, options: BrainServiceOptions) {
   const scope = scopeResolver()
   let bridge: ReturnType<typeof createBrainBridge> | undefined
   let disposed = false
   const enabled = (): boolean =>
     !disposed && store.snapshot().prefs.enabled && store.snapshot().prefs.recall
-  async function agent<M extends BrainAgentMethod>(
-    method: M,
-    input: BrainAgentMap[M]['request'],
-  ): Promise<BrainRecall> {
-    if (!enabled()) return { status: 'unavailable', hits: [], entities: [], degradation: [] }
+  async function agent(method: BrainAgentMethod, input: BrainQuery): Promise<BrainRecall> {
+    if (!enabled()) return unavailable()
     const params = validateBrainRequest(method, input)
     const project = await scope(params.cwd)
-    let result: BrainRecall
-    if (method === 'search') {
-      const query = (params as BrainAgentMap['search']['request']).query
-      const vector = await options.embeddings
-        .embed([query], 'query')
-        .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
-        .catch(() => null)
-      if (!enabled()) return { status: 'unavailable', hits: [], entities: [], degradation: [] }
-      result = store.search({ query, vector, scope: project, limit: params.limit ?? 6 })
-    } else {
-      if (!enabled()) return { status: 'unavailable', hits: [], entities: [], degradation: [] }
-      result = store.related(
-        (params as BrainAgentMap['related']['request']).entity,
-        params.limit ?? 12,
-        project,
-      )
-    }
+    const vector = await options.embeddings
+      .embed([params.query], 'query')
+      .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
+      .catch(() => null)
+    if (!enabled()) return unavailable()
+    const result = store.search({
+      query: params.query,
+      vector,
+      scope: project,
+      limit: params.limit ?? 8,
+    })
     if (params.sessionId)
       store.recordDelivery(
         params.sessionId,

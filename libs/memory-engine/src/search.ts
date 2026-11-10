@@ -1,12 +1,13 @@
 import type {
   BrainEntity,
   BrainHit,
+  BrainLink,
   BrainMemory,
   BrainMemoryType,
   BrainRecall,
 } from '@phosphor/shared/brain'
 import { all, type Context } from './database'
-import { entities, fold, referencedEntities, tokens, wholePhrase } from './entities'
+import { entities, tokens, wholePhrase } from './entities'
 import { activeMemories } from './knowledge'
 import type { SearchInput } from './types'
 import { cosine, decodeVector } from './vectors'
@@ -17,14 +18,16 @@ const stopwords = new Set(
     'about my me i we you that this as at from there their our know tell'
   ).split(' '),
 )
-export function lexicalIds(ctx: Context, query: string): string[] {
+/** Ranking reads the best 50; counting what was left out passes -1, no cap. */
+export function lexicalIds(ctx: Context, query: string, limit = 50): string[] {
   const words = [...new Set(tokens(query).filter((word) => !stopwords.has(word)))]
   if (!words.length) return []
   const match = words.map((word) => `"${word}"`).join(' OR ')
   return all<{ id: string }>(
     ctx,
-    'SELECT id FROM memory_fts WHERE memory_fts MATCH ? ORDER BY bm25(memory_fts), rowid LIMIT 50',
+    'SELECT id FROM memory_fts WHERE memory_fts MATCH ? ORDER BY bm25(memory_fts), rowid LIMIT ?',
     match,
+    limit,
   ).map((row) => row.id)
 }
 function semanticIds(ctx: Context, vector: Float32Array): string[] {
@@ -36,27 +39,6 @@ function semanticIds(ctx: Context, vector: Float32Array): string[] {
     .filter((row) => row.score >= 0.35)
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
     .map((row) => row.id)
-}
-function exactIds(items: BrainEntity[], memories: BrainMemory[], query: string): string[] {
-  const ids = new Set(
-    items
-      .filter((item) => [item.label, ...item.aliases].some((name) => wholePhrase(query, name)))
-      .map((item) => item.id),
-  )
-  return memories
-    .filter((item) => ids.has(item.subjectId) || (item.objectId && ids.has(item.objectId)))
-    .map((item) => item.id)
-}
-function recall(ctx: Context, hits: BrainHit[], degradation: string[] = []): BrainRecall {
-  return {
-    status: hits.length ? 'ok' : 'no_match',
-    hits,
-    entities: referencedEntities(
-      ctx,
-      hits.map((hit) => hit.memory),
-    ),
-    degradation,
-  }
 }
 /**
  * Days until a memory ranks at three quarters of its weight. Open questions and risks
@@ -79,18 +61,46 @@ export function freshness(memory: BrainMemory, now: number): number {
 function boundedLimit(limit: number | undefined, fallback: number): number {
   return Number.isFinite(limit) ? Math.min(20, Math.max(0, Math.floor(limit!))) : fallback
 }
-export function search(ctx: Context, input: SearchInput): BrainRecall {
-  const memories = activeMemories(ctx)
+/** Quotes, brackets and sentence marks around a query; never + or # inside a name. */
+const trimEdges = (text: string): string =>
+  text.trim().replace(/^[\s"'“”‘’`([{]+|[\s"'“”‘’`)\]}.,;:!?]+$/gu, '')
+/**
+ * Entities the query names, or that hold the whole query in their name: "Rina" names
+ * Rina Okafor, and "NRS" names every NRS project. Whole words only, never substrings.
+ */
+function named(items: BrainEntity[], query: string): BrainEntity[] {
+  if (tokens(query).every((word) => stopwords.has(word))) return []
+  const phrase = trimEdges(query)
+  return items.filter((item) =>
+    [item.label, ...item.aliases].some(
+      (name) => wholePhrase(query, name) || wholePhrase(name, phrase),
+    ),
+  )
+}
+function about(memories: BrainMemory[], ids: Set<string>): string[] {
+  return memories
+    .filter((item) => ids.has(item.subjectId) || (item.objectId !== null && ids.has(item.objectId)))
+    .map((item) => item.id)
+}
+const MAX_LINKS = 8
+/** The graph one hop out: links that touch a named entity, and who is at the other end. */
+function hop(memories: BrainMemory[], focus: Set<string>) {
+  const links = new Map<string, BrainLink>()
+  for (const { subjectId, predicate, objectId } of memories) {
+    if (objectId === null || (!focus.has(subjectId) && !focus.has(objectId))) continue
+    links.set(`${subjectId} ${predicate} ${objectId}`, { subjectId, predicate, objectId })
+  }
+  const all = [...links.values()]
+  const ends = all.flatMap((link) => [link.subjectId, link.objectId])
+  return {
+    links: all.slice(0, MAX_LINKS),
+    neighbours: new Set(ends.filter((id) => !focus.has(id))),
+  }
+}
+type Ranking = { ids: string[]; reason: BrainHit['reasons'][number]; weight: number }
+/** Reciprocal-rank fusion: each list adds weight / (60 + rank). */
+function fuse(ranks: Ranking[]): Map<string, { score: number; reasons: BrainHit['reasons'] }> {
   const scores = new Map<string, { score: number; reasons: BrainHit['reasons'] }>()
-  const ranks: { ids: string[]; reason: BrainHit['reasons'][number]; weight: number }[] = [
-    {
-      ids: input.vector === null ? [] : semanticIds(ctx, input.vector),
-      reason: 'semantic',
-      weight: 2,
-    },
-    { ids: lexicalIds(ctx, input.query), reason: 'lexical', weight: 1 },
-    { ids: exactIds(entities(ctx), memories, input.query), reason: 'exact', weight: 1 },
-  ]
   for (const { ids, reason, weight } of ranks) {
     ids.forEach((id, index) => {
       const entry = scores.get(id) ?? { score: 0, reasons: [] }
@@ -99,6 +109,32 @@ export function search(ctx: Context, input: SearchInput): BrainRecall {
       scores.set(id, entry)
     })
   }
+  return scores
+}
+/**
+ * One call answers what a lane agent asks: memories that match, about the entities the
+ * query names, and about whatever those link to (at half weight, so they rank below).
+ */
+export function search(ctx: Context, input: SearchInput): BrainRecall {
+  const memories = activeMemories(ctx)
+  const known = entities(ctx)
+  const focus = named(known, input.query)
+  const focusIds = new Set(focus.map((item) => item.id))
+  const exact = about(memories, focusIds)
+  const lexical = lexicalIds(ctx, input.query)
+  const strong = new Set([...exact, ...lexicalIds(ctx, input.query, -1)])
+  const { links, neighbours } = hop(memories, focusIds)
+  const linked = about(memories, neighbours).filter((id) => !exact.includes(id))
+  const scores = fuse([
+    {
+      ids: input.vector === null ? [] : semanticIds(ctx, input.vector),
+      reason: 'semantic',
+      weight: 2,
+    },
+    { ids: lexical, reason: 'lexical', weight: 1 },
+    { ids: exact, reason: 'exact', weight: 1 },
+    { ids: linked, reason: 'linked', weight: 0.5 },
+  ])
   const now = ctx.now()
   const hits = memories
     .flatMap((memory): BrainHit[] => {
@@ -109,48 +145,20 @@ export function search(ctx: Context, input: SearchInput): BrainRecall {
         : []
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, boundedLimit(input.limit, 6))
-  return recall(ctx, hits, input.vector === null ? ['semantic search unavailable'] : [])
-}
-/** Small global entity sets do not need another FTS index for name fallback. */
-function resolveRelated(items: BrainEntity[], query: string): BrainEntity | undefined {
-  const exact =
-    items.find((item) => item.id === query) ??
-    items.find((item) => [item.label, ...item.aliases].some((name) => fold(name) === fold(query)))
-  if (exact) return exact
-  const words = new Set(tokens(query))
-  const ranked = items
-    .map((item) => ({
-      item,
-      score: Math.max(
-        ...[item.label, ...item.aliases].map((name) => {
-          const shared = tokens(name).filter((word) => words.has(word)).length
-          if (!shared) return 0
-          const contains = fold(name).includes(fold(query)) || fold(query).includes(fold(name))
-          return shared + (contains ? 1000 : 0)
-        }),
-      ),
-    }))
-    .filter((row) => row.score > 0)
-    .sort((a, b) => b.score - a.score)
-  return ranked[0]?.item
-}
-export function related(
-  ctx: Context,
-  query: string,
-  limit = 12,
-  scope: string | null,
-): BrainRecall {
-  const found = resolveRelated(entities(ctx), query)
-  if (!found) return recall(ctx, [])
-  const memories = activeMemories(ctx)
-    .filter((item) => item.subjectId === found.id || item.objectId === found.id)
-    .sort((a, b) => Number(b.scope === scope) - Number(a.scope === scope))
-    .slice(0, Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 12)
-  const result = recall(
-    ctx,
-    memories.map((memory, index) => ({ memory, score: 1 / (61 + index), reasons: ['exact'] })),
-  )
-  if (!result.entities.some((item) => item.id === found.id)) result.entities.unshift(found)
-  return result
+    .slice(0, boundedLimit(input.limit, 8))
+  const shown = new Set(hits.map((hit) => hit.memory.id))
+  const referenced = new Set([
+    ...focusIds,
+    ...links.flatMap((link) => [link.subjectId, link.objectId]),
+    ...hits.flatMap(({ memory }) => [memory.subjectId, memory.objectId]),
+  ])
+  return {
+    status: hits.length ? 'ok' : 'no_match',
+    hits,
+    entities: known.filter((item) => referenced.has(item.id)),
+    focus: [...focusIds],
+    links,
+    more: memories.filter((item) => strong.has(item.id) && !shown.has(item.id)).length,
+    degradation: input.vector === null ? ['semantic search unavailable'] : [],
+  }
 }

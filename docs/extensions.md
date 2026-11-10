@@ -622,7 +622,7 @@ See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 
 ### Brain's bundles
 
-`brain.mjs` registers the read-only `brain_search` and `brain_related` tools only
+`brain.mjs` registers the one read-only `brain_search` tool only
 when lane startup gave it `PHOSPHOR_BRAIN_ENDPOINT` and `PHOSPHOR_BRAIN_TOKEN`;
 without them it registers nothing. `brain-fork-guard.mjs` loads only into a
 knowledge fork and blocks every tool call. No raw Brain TypeScript ships in

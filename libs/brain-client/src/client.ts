@@ -1,9 +1,4 @@
-import type {
-  BrainAgentMap,
-  BrainAgentMethod,
-  BrainQuery,
-  BrainRecall,
-} from '@phosphor/shared/brain'
+import type { BrainQuery, BrainRecall } from '@phosphor/shared/brain'
 import type { BrainTransport } from './port'
 import { isBrainRecall, validateBrainRequest } from './validate'
 
@@ -23,26 +18,19 @@ export class BrainClientError extends Error {
 }
 export interface BrainClient {
   search(query: BrainQuery, signal?: AbortSignal): Promise<BrainRecall>
-  related(query: BrainAgentMap['related']['request'], signal?: AbortSignal): Promise<BrainRecall>
 }
 export function createBrainClient(transport: BrainTransport): BrainClient {
-  async function call<M extends BrainAgentMethod>(
-    method: M,
-    params: BrainAgentMap[M]['request'],
-    signal?: AbortSignal,
-  ): Promise<BrainRecall> {
-    try {
-      validateBrainRequest(method, params)
-    } catch {
-      throw new BrainClientError('malformed', `Brain ${method} request is invalid`)
-    }
-    const data: unknown = await transport.request(method, params, signal)
-    if (!isBrainRecall(data))
-      throw new BrainClientError('malformed', `Brain ${method} returned an invalid result`)
-    return data
-  }
   return {
-    search: (query, signal) => call('search', query, signal),
-    related: (query, signal) => call('related', query, signal),
+    async search(query, signal) {
+      try {
+        validateBrainRequest('search', query)
+      } catch {
+        throw new BrainClientError('malformed', 'Brain search request is invalid')
+      }
+      const data: unknown = await transport.request('search', query, signal)
+      if (!isBrainRecall(data))
+        throw new BrainClientError('malformed', 'Brain search returned an invalid result')
+      return data
+    },
   }
 }

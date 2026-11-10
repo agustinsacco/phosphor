@@ -13,9 +13,9 @@ it('starts off, with recall and review on for when it is enabled', () => {
   expect(DEFAULT_BRAIN_PREFS).toEqual({ enabled: false, recall: true, review: true })
 })
 
-it('gives lane agents read-only recall and never approval, queueing or forgetting', () => {
-  expect(BRAIN_PROTOCOL).toBe(2)
-  expectTypeOf<BrainAgentMethod>().toEqualTypeOf<'search' | 'related'>()
+it('gives lane agents one read-only search and never approval, queueing or forgetting', () => {
+  expect(BRAIN_PROTOCOL).toBe(3)
+  expectTypeOf<BrainAgentMethod>().toEqualTypeOf<'search'>()
 })
 
 it('pins the graph schema the extractor, engine and UI share', () => {
