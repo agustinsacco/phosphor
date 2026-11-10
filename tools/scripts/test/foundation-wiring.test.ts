@@ -140,21 +140,25 @@ describe('foundation CI wiring', () => {
     expect(warmUp).toContain('requestAnimationFrame')
   })
 
-  it('maps Desktop e2e windows and limits only PR macOS legs to @macos', () => {
+  it('maps Desktop e2e windows and limits every macOS leg to @macos', () => {
     const e2e = job('e2e')
     expect(e2e).toContain("PHOSPHOR_E2E_SHOW: ${{ matrix.os == 'linux' && '1' || '0' }}")
-    const [push, pr] = [...e2e.matchAll(/'(\[\{"os".*?\])'/g)].map(
-      (match) => JSON.parse(match[1]!) as { os: string; shard: string; grep?: string }[],
+    expect(e2e).not.toContain('github.event_name')
+    expect(e2e).toContain('- { os: linux, shard: 1/1 }')
+    expect(e2e).toContain("- { os: macos, shard: 1/1, grep: '@macos' }")
+  })
+
+  it('runs the whole macOS suite nightly, off the release path, and reports failures', () => {
+    const nightly = read('.github/workflows/macos-nightly.yml')
+    expect(nightly).toMatch(/schedule:\n\s+- cron:/)
+    expect(nightly).toContain('runs-on: [self-hosted, macOS, ARM64]')
+    expect(nightly).toContain(
+      'run: npx playwright test --config apps/desktop/playwright.config.ts\n',
     )
-    expect(e2e).toContain("github.event_name == 'push' &&")
-    expect(push).toEqual([
-      { os: 'linux', shard: '1/1' },
-      { os: 'macos', shard: '1/1' },
-    ])
-    expect(pr).toEqual([
-      { os: 'linux', shard: '1/1' },
-      { os: 'macos', shard: '1/1', grep: '@macos' },
-    ])
+    expect(nightly).not.toContain('--grep')
+    expect(nightly).toContain("labels: label, state: 'open'")
+    // Releases wait only for CI, never for the nightly run.
+    expect(read('.github/workflows/release-continuous.yml')).not.toContain('macOS nightly')
   })
 
   it('uses the comprehensive runner including its all-file audit, Host, Control and site', () => {
