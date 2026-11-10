@@ -83,6 +83,16 @@ function footer(result: BrainRecall, names: Map<string, BrainEntity>, more: numb
   return lines.map(plain)
 }
 const size = (lines: string[]): number => lines.reduce((sum, line) => sum + line.length + 1, 0)
+/** Lines in order while they fit, so no part of the briefing grows past its budget. */
+function fit(lines: string[], room: number): string[] {
+  const kept: string[] = []
+  for (const line of lines) {
+    if (line.length + 1 > room) continue
+    kept.push(line)
+    room -= line.length + 1
+  }
+  return kept
+}
 
 /**
  * One briefing per search: what the query names and links to, then memories grouped by
@@ -93,9 +103,10 @@ export function formatBrainRecall(result: BrainRecall, cwd?: string, maxChars = 
     return 'Brain is unavailable right now. This is not a no-match result.'
   if (result.status === 'no_match') return 'No approved Brain memories matched.'
   const names = new Map(result.entities.map((entity) => [entity.id, entity]))
-  const head = header(result, names)
-  const reserve = footer(result, names, result.more + result.hits.length)
-  let remaining = maxChars - OPEN.length - CLOSE.length - size(head) - size(reserve)
+  const room = maxChars - OPEN.length - CLOSE.length
+  const head = fit(header(result, names), room)
+  const reserve = fit(footer(result, names, result.more + result.hits.length), room - size(head))
+  let remaining = room - size(head) - size(reserve)
   const body: string[] = []
   for (const [type, title] of SECTIONS) {
     let titled = false
@@ -110,6 +121,7 @@ export function formatBrainRecall(result: BrainRecall, cwd?: string, maxChars = 
     }
   }
   const shown = body.filter((line) => line.startsWith('- ')).length
-  const tail = footer(result, names, result.more + result.hits.length - shown)
+  const left = result.more + result.hits.length - shown
+  const tail = fit(footer(result, names, left), remaining + size(reserve))
   return OPEN + [...head, ...body, ...tail].join('\n') + CLOSE
 }
