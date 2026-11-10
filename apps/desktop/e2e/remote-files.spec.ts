@@ -262,9 +262,14 @@ test('A revoked save fence keeps an unconfirmed draft without automatic retry', 
       await expect(h.page.getByText('Controlled by Second client', { exact: true })).toBeVisible()
       restoreConnection = h.severConnection()
       restoreConnection()
-      await expect(h.page.getByTestId('right-pane').getByRole('alert')).toContainText(
-        'Save not confirmed.',
-      )
+      // The tree may also show its own list error while the Host reconnects; that one clears
+      // after reconnect, which the final count below checks.
+      await expect(
+        h.page
+          .getByTestId('right-pane')
+          .getByRole('alert')
+          .filter({ hasText: 'Save not confirmed.' }),
+      ).toBeVisible()
       await takeControl(h)
       await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY unknown save')
       // An uncertain save is never sent again, even when asked.
