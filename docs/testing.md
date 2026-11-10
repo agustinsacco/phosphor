@@ -282,8 +282,12 @@ mandatory command exactly once:
   clipboard and the login shell), on PRs and main alike. A test whose macOS
   behaviour differs from Linux beyond the modifier key carries the tag. The
   whole suite runs on macOS nightly (`macos-nightly.yml`), off the release
-  path: a failure opens an issue labelled `macos-nightly` (or comments on the
-  open one) and the next green run closes it. The one Mac runner takes one job
+  path: a failed or cancelled run opens an issue labelled `macos-nightly` (or
+  comments on the open one) and the next green run closes it. GitHub drops
+  scheduled runs, so the suite has three daily slots (07:00, 09:00, 11:00 UTC)
+  and runs in the first that fires. Every main push checks, without the Mac,
+  that the suite finished in the last 30 hours, and opens the issue when it
+  has not. The decisions are in `tools/scripts/macos-nightly.mjs`. The one Mac runner takes one job
   at a time, and a serial full run there used to hold every release. Linux runs
   four tests at a time: each has its own userData, pi agent dir, ports, Xvfb display
   (`tools/scripts/xvfb-workers.sh`; one display has one focused window) and Host

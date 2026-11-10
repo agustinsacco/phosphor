@@ -1,30 +1,77 @@
 name: macOS nightly
 
-# The whole Desktop e2e suite on the macOS runner, once a night against main.
+# The whole Desktop e2e suite on the macOS runner, once a day against main.
 # CI runs only the @macos tests there (ci.yml), so a release never waits on the
 # one Mac runner for a serial full run. A Mac-only regression is caught here
-# within a day instead: a failure opens an issue labelled `macos-nightly`, or
-# comments on the open one, and a later green run closes it.
+# within a day instead. The decisions live in tools/scripts/macos-nightly.mjs.
+#
+# - GitHub drops scheduled runs under load, so there are three daily slots and
+#   the suite runs in the first one that fires, at most once a day.
+# - A failed or cancelled suite opens an issue labelled `macos-nightly`, or
+#   comments on the open one; a green run closes it. Manual runs report too.
+# - Every main push checks, without touching the Mac, that the suite finished
+#   in the last 30 hours, and opens the issue when it has not: a nightly that
+#   silently stops running is a failure too.
 on:
   schedule:
     - cron: '0 7 * * *'
+    - cron: '0 9 * * *'
+    - cron: '0 11 * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   issues: write
 
 concurrency:
-  group: macos-nightly
-  cancel-in-progress: false
+  # A push check must never replace a queued nightly, or the reverse.
+  group: macos-nightly-${{ github.event_name == 'push' && 'check' || 'run' }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
   ELECTRON_BUILDER_SKIP_REBUILD: '1'
   PHOSPHOR_E2E_SHOW: '0'
 
 jobs:
+  decide:
+    name: Decide whether to run
+    # GitHub-hosted: a few API calls should not queue behind CI on our runners.
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      stale: ${{ steps.decide.outputs.stale }}
+      last: ${{ steps.decide.outputs.last }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/scripts/macos-nightly.mjs
+          sparse-checkout-cone-mode: false
+      - id: decide
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const nightly = await import(`${process.env.GITHUB_WORKSPACE}/tools/scripts/macos-nightly.mjs`)
+            const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: context.runId })
+            const { data: workflow } = await github.rest.actions.getWorkflow({ ...context.repo, workflow_id: run.workflow_id })
+            const now = Date.now()
+            const history = await nightly.nightlyHistory(github, context.repo, {
+              workflowId: run.workflow_id, currentRunId: context.runId, now,
+            })
+            const verdict = nightly.decide({
+              event: context.eventName, now, history, since: Date.parse(workflow.created_at),
+            })
+            core.info(JSON.stringify({ history, verdict }))
+            core.setOutput('run', String(verdict.run))
+            core.setOutput('stale', String(verdict.stale))
+            core.setOutput('last', history.finished ? String(history.finished.at) : '')
+
   e2e:
     name: E2E full suite (macOS)
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 60
     steps:
@@ -59,33 +106,29 @@ jobs:
 
   report:
     name: Open or close the nightly issue
-    needs: e2e
-    if: always() && github.event_name == 'schedule'
-    # GitHub-hosted: a one-call script should not queue behind CI on our runners.
+    needs: [decide, e2e]
+    if: always()
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/scripts/macos-nightly.mjs
+          sparse-checkout-cone-mode: false
       - uses: actions/github-script@v7
         env:
-          RESULT: ${{ needs.e2e.result }}
+          DECIDED: ${{ needs.decide.result }}
+          E2E: ${{ needs.e2e.result }}
+          STALE: ${{ needs.decide.outputs.stale }}
+          LAST: ${{ needs.decide.outputs.last }}
         with:
           script: |
-            const label = 'macos-nightly'
-            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
-            const { data: open } = await github.rest.issues.listForRepo({
-              ...context.repo, labels: label, state: 'open', per_page: 1,
+            const nightly = await import(`${process.env.GITHUB_WORKSPACE}/tools/scripts/macos-nightly.mjs`)
+            const outcome = await nightly.report(github, context.repo, {
+              decided: process.env.DECIDED,
+              e2e: process.env.E2E,
+              stale: process.env.STALE === 'true',
+              lastAt: process.env.LAST ? Number(process.env.LAST) : null,
+              runUrl: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              sha: context.sha,
             })
-            const issue = open[0]
-            if (process.env.RESULT === 'success') {
-              if (issue) {
-                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: `Green again: ${run}` })
-                await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed' })
-              }
-              return
-            }
-            if (process.env.RESULT !== 'failure') return
-            const body = `The macOS nightly e2e run failed on main (${context.sha.slice(0, 9)}): ${run}`
-            if (issue) {
-              await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body })
-            } else {
-              await github.rest.issues.create({ ...context.repo, title: 'macOS nightly e2e is failing', labels: [label], body })
-            }
+            core.info(outcome)

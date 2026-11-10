@@ -164,7 +164,15 @@ describe('foundation CI wiring', () => {
       'run: npx playwright test --config apps/desktop/playwright.config.ts\n',
     )
     expect(nightly).not.toContain('--grep')
-    expect(nightly).toContain("labels: label, state: 'open'")
+    // Three daily slots, since GitHub drops scheduled runs, and a push check that never takes the Mac.
+    expect(nightly.match(/^ {4}- cron: /gm)).toHaveLength(3)
+    expect(nightly).toContain("    if: needs.decide.outputs.run == 'true'\n")
+    expect(nightly).toContain('on:\n  schedule:')
+    expect(nightly).toContain('  push:\n    branches: [main]\n')
+    // Every run reports, manual and push ones included.
+    const report = nightly.slice(nightly.indexOf('  report:'))
+    expect(report).toContain('needs: [decide, e2e]\n    if: always()\n')
+    expect(report).toContain('nightly.report(github, context.repo')
     // Releases wait only for CI, never for the nightly run.
     expect(read('.github/workflows/release-continuous.yml')).not.toContain('macOS nightly')
   })
