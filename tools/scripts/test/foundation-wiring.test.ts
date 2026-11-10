@@ -144,6 +144,11 @@ describe('foundation CI wiring', () => {
     const e2e = job('e2e')
     expect(e2e).toContain("PHOSPHOR_E2E_SHOW: ${{ matrix.os == 'linux' && '1' || '0' }}")
     expect(e2e).not.toContain('github.event_name')
+    // One Xvfb display per parallel worker: a display has one focused window.
+    expect(e2e).toContain('tools/scripts/xvfb-workers.sh 4 npx playwright test')
+    expect(read('apps/desktop/playwright.config.ts')).toContain(
+      'process.env.DISPLAY = displays[worker % displays.length]',
+    )
     expect(e2e).toContain('- { os: linux, shard: 1/1 }')
     expect(e2e).toContain("- { os: macos, shard: 1/1, grep: '@macos' }")
   })

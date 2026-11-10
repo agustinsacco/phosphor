@@ -1,5 +1,13 @@
 import { defineConfig } from '@playwright/test'
 
+// Linux CI gives each worker its own Xvfb display (tools/scripts/xvfb-workers.sh):
+// a display has one focused window, and parallel windows on a shared one take
+// focus from each other's tests. Workers load this file, so set it here.
+const displays = process.env.PHOSPHOR_E2E_DISPLAYS?.split(',').filter(Boolean)
+const worker = Number(process.env.TEST_PARALLEL_INDEX)
+if (displays?.length && Number.isInteger(worker))
+  process.env.DISPLAY = displays[worker % displays.length]
+
 export default defineConfig({
   testDir: './e2e',
   // Linux: absorb Electron's first launch, which never paints (see the file).

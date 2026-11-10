@@ -285,7 +285,8 @@ mandatory command exactly once:
   path: a failure opens an issue labelled `macos-nightly` (or comments on the
   open one) and the next green run closes it. The one Mac runner takes one job
   at a time, and a serial full run there used to hold every release. Linux runs
-  four tests at a time: each has its own userData, pi agent dir, ports and Host
+  four tests at a time: each has its own userData, pi agent dir, ports, Xvfb display
+  (`tools/scripts/xvfb-workers.sh`; one display has one focused window) and Host
   build (the remote fixture builds the Host into a per-worker temp folder, never
   the shared `apps/host/dist`). Its `@system-clipboard` tests share the
   display's one clipboard, so they run afterwards, one at a time. Linux sets `PHOSPHOR_E2E_SHOW=1`:
