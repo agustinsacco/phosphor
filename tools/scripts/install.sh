@@ -119,6 +119,9 @@ if [ "$PLATFORM" = "mac" ]; then
   if [ -z "${PHOSPHOR_APP_DIR:-}" ] && [ ! -w "$DEST" ]; then
     DEST="$HOME/Applications"
     warn "/Applications is not writable by $(id -un); installing to $DEST"
+    if [ -d "/Applications/Phosphor.app" ]; then
+      warn "an older /Applications/Phosphor.app stays in place; ask an admin to delete it so only the new copy runs"
+    fi
   fi
   mkdir -p "$DEST" 2>/dev/null || true
   if [ ! -w "$DEST" ] || { [ -e "$DEST/Phosphor.app" ] && [ ! -w "$DEST/Phosphor.app" ]; }; then
