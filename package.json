@@ -40,6 +40,7 @@
     "test:control-stack": "node tools/scripts/control-stack.mjs",
     "test:e2e": "npm run test:e2e --prefix apps/desktop --",
     "validate": "./tools/scripts/validate.sh",
+    "check:pr": "./tools/scripts/validate.sh --pr",
     "shots": "node tools/scripts/capture-readme-shots.mjs",
     "shots:live": "node tools/scripts/capture-live-shots.mjs",
     "pack": "npm run pack --prefix apps/desktop --",

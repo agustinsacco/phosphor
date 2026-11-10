@@ -53,3 +53,59 @@ it.each([
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+it.each([
+  { desktop: true, web: true, skip: '0' },
+  { desktop: false, web: false, skip: '0' },
+  { desktop: true, web: true, skip: '1' },
+])('--pr runs the CI checks and only the changed e2e specs: %j', ({ desktop, web, skip }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'validator-pr-'))
+  try {
+    const calls = join(dir, 'calls')
+    const command = `#!/bin/sh\nprintf '%s\\n' "$*" >> "$CALLS"\n`
+    for (const name of ['npm', 'npx', 'node']) {
+      writeFileSync(join(dir, name), command)
+      chmodSync(join(dir, name), 0o755)
+    }
+    // A changed spec, a deleted one (skipped) and an untracked one, per suite.
+    writeFileSync(
+      join(dir, 'git'),
+      `#!/bin/sh
+case "$1 $5" in
+  "diff apps/desktop/e2e/*.spec.ts") ${desktop ? "printf 'apps/desktop/e2e/smoke.spec.ts\\napps/desktop/e2e/gone.spec.ts\\n'" : ':'} ;;
+  "diff apps/web/e2e/*.spec.ts") ${web ? "printf 'apps/web/e2e/icons.spec.ts\\n'" : ':'} ;;
+esac
+case "$1 $5" in
+  "ls-files apps/desktop/e2e/*.spec.ts") ${desktop ? "printf 'apps/desktop/e2e/brain.spec.ts\\n'" : ':'} ;;
+esac
+`,
+    )
+    chmodSync(join(dir, 'git'), 0o755)
+    const result = spawnSync('bash', [resolve(import.meta.dirname, 'validate.sh'), '--pr'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH}`,
+        CALLS: calls,
+        SKIP_E2E: skip,
+        VALIDATE_BASE: 'base',
+        VALIDATE_LOG: join(dir, 'log'),
+      },
+    })
+    expect(result.status, result.stderr).toBe(0)
+    const expected = [
+      'run typecheck',
+      'run lint',
+      'prettier --check .',
+      'tools/scripts/size-budget.mjs check',
+      'test',
+    ]
+    if (desktop && skip !== '1')
+      expected.push('run test:e2e -- --reporter=dot brain.spec.ts smoke.spec.ts')
+    if (web && skip !== '1') expected.push('run test:e2e:web -- --reporter=dot icons.spec.ts')
+    expect(readFileSync(calls, 'utf8').trim().split('\n')).toEqual(expected)
+    expect(result.stderr).toContain('all green')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

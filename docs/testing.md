@@ -50,12 +50,16 @@ npx vitest run tools/scripts/test/foundation-wiring.test.ts
 npx vitest run tools/scripts/validate.test.ts
 npm run test:e2e
 SKIP_E2E=1 npm run validate
+npm run check:pr
 ```
 
 Use `--maxWorkers=2` for broad Vitest runs. Re-run a timeout alone before calling
 it a regression. `npm run validate` runs typecheck, lint, formatting, unit tests,
 Desktop/Host/Control/Web builds and Desktop/browser e2e, with a PASS/FAIL summary and log file.
-`SKIP_E2E=1` skips only e2e, never builds. E2E exercises the Electron app against
+`SKIP_E2E=1` skips only e2e, never builds. `npm run check:pr` is the pre-PR
+check: typecheck, lint, formatting, the size ratchet and unit tests, then only the
+Desktop and Web e2e spec files the branch changes against `origin/main`
+(committed, uncommitted or new); `SKIP_E2E=1` skips those too. E2E exercises the Electron app against
 the pi stub; packaging builds are not part of unit validation.
 
 E2E windows never appear on your screen, so a background agent running the
