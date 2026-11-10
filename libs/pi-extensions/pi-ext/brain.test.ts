@@ -9,32 +9,25 @@ interface Context {
   sessionManager: { getSessionId(): string }
 }
 interface Params {
-  query?: string
-  entity?: string
+  query: string
   limit?: number
 }
 afterEach(() => vi.unstubAllEnvs())
 
-it('is inert without connection env and installs two explicit tools with no turn hooks', () => {
+it('is inert without connection env and installs one explicit tool with no turn hooks', () => {
   vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', '')
   vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', '')
   const pi = { registerTool: vi.fn(), on: vi.fn() }
   brainExtension(pi)
   expect(pi.registerTool).not.toHaveBeenCalled()
-  registerBrain(pi, { search: vi.fn(), related: vi.fn() })
-  expect(pi.registerTool.mock.calls.map(([tool]) => tool.name)).toEqual([
-    'brain_search',
-    'brain_related',
-  ])
+  registerBrain(pi, { search: vi.fn() })
+  expect(pi.registerTool.mock.calls.map(([tool]) => tool.name)).toEqual(['brain_search'])
   expect(pi.on).not.toHaveBeenCalled()
 })
 
-it('tools send cwd and session identity and format approved sentences without evidence', async () => {
+it('sends cwd and session identity and returns the formatted briefing without evidence', async () => {
   const tools: ToolDefinition<Params, Context, unknown>[] = []
-  const client: BrainClient = {
-    search: vi.fn(async () => HARBOR_RECALL),
-    related: vi.fn(async () => HARBOR_RECALL),
-  }
+  const client: BrainClient = { search: vi.fn(async () => HARBOR_RECALL) }
   registerBrain(
     { registerTool: (tool) => tools.push(tool as ToolDefinition<Params, Context, unknown>) },
     client,
@@ -48,22 +41,16 @@ it('tools send cwd and session identity and format approved sentences without ev
     undefined,
     ctx,
   )
-  const related = await tools[1]!.execute('two', { entity: 'Rina Okafor' }, signal, undefined, ctx)
   expect(client.search).toHaveBeenCalledWith(
     { query: 'Who owns Harbor?', limit: 2, sessionId: 'harbor-lane', cwd: '/projects/harbor' },
     signal,
   )
-  expect(client.related).toHaveBeenCalledWith(
-    { entity: 'Rina Okafor', sessionId: 'harbor-lane', cwd: '/projects/harbor' },
-    signal,
-  )
   expect(search.content[0]).toMatchObject({
     type: 'text',
-    text: expect.stringContaining(
-      '[fact] Rina Okafor owns Harbor billing. · harbor (this project) · 2026-11-06',
-    ),
+    text: expect.stringContaining('Links: Rina Okafor owns Harbor'),
   })
-  expect(related.details).toEqual({ status: 'ok', memories: 1 })
+  expect(search.details).toEqual({ status: 'ok', memories: 1 })
+  expect(tools[0]!.description).toMatch(/person, team, system or ticket/)
 })
 
 it('surfaces transport failures instead of inventing a no-match', async () => {
@@ -72,7 +59,6 @@ it('surfaces transport failures instead of inventing a no-match', async () => {
     search: vi.fn(async () => {
       throw new Error('Brain unavailable')
     }),
-    related: vi.fn(),
   }
   registerBrain(
     { registerTool: (tool) => tools.push(tool as ToolDefinition<Params, Context, unknown>) },

@@ -34,7 +34,7 @@ it('launches read-only recall only when enabled, sends session identity, and rev
     ).toEqual(HARBOR_RECALL)
     expect(store.deliveries).toEqual([{ sessionId: 'tom-lane', memoryIds: ['ownership'] }])
     store.prefs.recall = false
-    expect(await client.related({ entity: 'Rina' })).toMatchObject({
+    expect(await client.search({ query: 'Rina' })).toMatchObject({
       status: 'unavailable',
       hits: [],
     })
@@ -44,7 +44,7 @@ it('launches read-only recall only when enabled, sends session identity, and rev
   }
 })
 
-it('embeds search as a query, falls back to lexical, resolves related and records delivered ids only', async () => {
+it('embeds search as a query, falls back to lexical and records delivered ids only', async () => {
   const store = new FakeBrainStore()
   store.prefs.enabled = true
   store.recall = HARBOR_RECALL
@@ -61,20 +61,17 @@ it('embeds search as a query, falls back to lexical, resolves related and record
     expect(store.searches[0]).toEqual({
       query: 'Harbor',
       vector: new Float32Array([1, 0]),
-      limit: 6,
+      limit: 8,
       scope: '/projects/harbor',
     })
     embed.mockRejectedValueOnce(new Error('Model unavailable'))
     await recall.agent('search', { query: 'Harbor', limit: 2 })
     expect(store.searches[1]).toMatchObject({ vector: null, limit: 2, scope: null })
-    await recall.agent('related', {
-      entity: 'Rina Okafor',
+    await recall.agent('search', {
+      query: 'Rina Okafor',
       cwd: '/projects/harbor',
       sessionId: 'tom-lane',
     })
-    expect(store.relations).toEqual([
-      { entity: 'Rina Okafor', limit: 12, scope: '/projects/harbor' },
-    ])
     expect(store.deliveries).toEqual([
       { sessionId: 'rina-lane', memoryIds: ['ownership'] },
       { sessionId: 'tom-lane', memoryIds: ['ownership'] },
