@@ -255,6 +255,23 @@ describe('Brain search briefing', () => {
     ])
     expect(store.search(lexical('the')).focus).toEqual([])
   })
+  it('keeps punctuation that is part of a name when the query sits inside one', () => {
+    const { store } = fixture()
+    seed(
+      store,
+      ['C++', 'C#', 'C framework'].map((label, index) => ({
+        label,
+        summary: `Note ${index}.`,
+        vector: direction(0, index + 1),
+      })),
+    )
+    const labels = (query: string): string[] => {
+      const { entities, focus } = store.search(lexical(query))
+      return entities.filter((item) => focus.includes(item.id)).map((item) => item.label)
+    }
+    expect(labels('C++')).toEqual(['C++'])
+    expect(labels('"C#"?')).toEqual(['C#'])
+  })
   it('follows links one hop out and ranks what a neighbour holds below the named entities', () => {
     const { store } = fixture()
     const ids = harborGraph(store)
@@ -278,6 +295,16 @@ describe('Brain search briefing', () => {
     expect(store.search(lexical('Harbor', 2))).toMatchObject({ more: 1 })
     expect(store.search(lexical('Harbor', 2)).hits).toHaveLength(2)
     expect(store.search(lexical('Harbor'))).toMatchObject({ more: 0 })
+    const many = fixture().store
+    seed(
+      many,
+      Array.from({ length: 60 }, (_, index) => ({
+        label: `Thing ${index}`,
+        summary: `Invoice retry note ${index}.`,
+        vector: direction(0, index + 1),
+      })),
+    )
+    expect(many.search(lexical('retry'))).toMatchObject({ more: 52 })
     expect(store.search(lexical('Marina'))).toEqual({
       status: 'no_match',
       hits: [],
