@@ -8,6 +8,9 @@
 #   PHOSPHOR_REPO     owner/repo               (default agustinsacco/Phosphor)
 #   PHOSPHOR_VERSION  vX.Y.Z                   (default: latest release)
 #   PHOSPHOR_PREFIX   install prefix on Linux  (default $HOME/.local)
+#   PHOSPHOR_APP_DIR  app folder on macOS      (default /Applications, or
+#                                               ~/Applications when the
+#                                               account cannot write there)
 
 set -eu
 
@@ -109,22 +112,36 @@ if [ "$PLATFORM" = "mac" ]; then
     hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
     die "no .app bundle found inside the disk image"
   fi
-  info "Installing to /Applications..."
-  rm -rf "/Applications/Phosphor.app"
+  # A standard (non-admin) account cannot write /Applications. Install into
+  # ~/Applications instead of failing: the in-app updater swaps the bundle
+  # wherever it lives, so a per-user copy keeps updating without sudo.
+  DEST="${PHOSPHOR_APP_DIR:-/Applications}"
+  if [ -z "${PHOSPHOR_APP_DIR:-}" ] && [ ! -w "$DEST" ]; then
+    DEST="$HOME/Applications"
+    warn "/Applications is not writable by $(id -un); installing to $DEST"
+  fi
+  mkdir -p "$DEST" 2>/dev/null || true
+  if [ ! -w "$DEST" ] || { [ -e "$DEST/Phosphor.app" ] && [ ! -w "$DEST/Phosphor.app" ]; }; then
+    hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
+    die "cannot write to $DEST - rerun with PHOSPHOR_APP_DIR=\$HOME/Applications, or as an admin"
+  fi
+  info "Installing to $DEST..."
+  rm -rf "$DEST/Phosphor.app"
   # Upgrade path: the app was named pidex until 2026-09-08. Retire the old
   # bundle so Spotlight does not keep two copies of the same product.
-  if [ -d "/Applications/pidex.app" ]; then
+  if [ -d "$DEST/pidex.app" ]; then
     info "Removing the old pidex.app (renamed to Phosphor)..."
-    rm -rf "/Applications/pidex.app"
+    rm -rf "$DEST/pidex.app"
   fi
-  cp -R "$APP" /Applications/ || {
+  # ditto keeps the symlinks and xattrs the bundle's signature covers.
+  ditto "$APP" "$DEST/Phosphor.app" || {
     hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
-    die "copy to /Applications failed (try: sudo)"
+    die "copy to $DEST failed"
   }
   hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
   # Unsigned builds are quarantined; clear it so the app opens.
-  xattr -dr com.apple.quarantine /Applications/Phosphor.app 2>/dev/null || true
-  INSTALLED="/Applications/Phosphor.app"
+  xattr -dr com.apple.quarantine "$DEST/Phosphor.app" 2>/dev/null || true
+  INSTALLED="$DEST/Phosphor.app"
 else
   mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" "$PREFIX/share/icons/hicolor/512x512/apps"
   install -m 755 "$TMP/$ASSET" "$PREFIX/bin/phosphor"
@@ -161,6 +178,9 @@ if command -v pi >/dev/null 2>&1; then
   info "Found pi $PI_VERSION (Phosphor requires >= $MIN_PI_VERSION)"
 else
   warn "The pi coding agent was not found on your PATH."
+  if ! command -v npm >/dev/null 2>&1; then
+    printf '         pi needs Node.js >= 22.19 and npm. Install Node first: https://nodejs.org\n'
+  fi
   printf '         Install it with: npm install -g @earendil-works/pi-coding-agent\n'
   printf '         Phosphor will show a setup screen until pi is available.\n'
 fi
