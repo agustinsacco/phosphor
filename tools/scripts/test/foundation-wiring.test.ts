@@ -218,7 +218,7 @@ describe('foundation CI wiring', () => {
   it('runs every job on the project runners, selected by OS and architecture', () => {
     const runsOn = [...workflow.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1])
     const linux = '[self-hosted, Linux, X64]'
-    expect(runsOn.filter((value) => value === linux)).toHaveLength(6)
+    expect(runsOn.filter((value) => value === linux)).toHaveLength(7)
     expect(runsOn.filter((value) => value !== linux)).toEqual([
       `\${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}`,
     ])
@@ -226,24 +226,44 @@ describe('foundation CI wiring', () => {
     expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-|macos-/m)
   })
 
-  it('gates no job on affected projects', () => {
-    expect(workflow).not.toMatch(/affected|shadowSelection/)
-    // Only the aggregator waits on other jobs; everything else starts at once.
-    expect(workflow.match(/^ {4}needs:/gm)).toHaveLength(1)
-    expect(job('result')).toMatch(/^ {4}needs:/m)
+  it('narrows only the app jobs, by the changes job, and always runs the checks', () => {
+    for (const [name, output] of [
+      ['e2e', 'e2e'],
+      ['web-e2e', 'web'],
+      ['control-schema', 'control'],
+      ['site', 'site'],
+    ] as const) {
+      expect(job(name)).toContain('    needs: changes\n')
+      expect(job(name)).toContain(`    if: needs.changes.outputs.${output} == 'true'\n`)
+    }
+    for (const name of ['checks', 'unit']) expect(job(name)).not.toMatch(/^ {4}(needs|if):/m)
+    const changes = job('changes')
+    expect(changes).toContain('node tools/scripts/ci-scope.mjs "${{ github.event_name }}"')
+    // A failed install runs everything rather than skipping.
+    expect(changes).toContain("printf '%s=true\\n' e2e web control site")
   })
 
-  it('aggregates every required job and rejects all non-success results', () => {
+  it('aggregates every required job and accepts a skip only behind a successful scope', () => {
     const jobs = [...workflow.split('\njobs:\n')[1]!.matchAll(/^ {2}([\w-]+):$/gm)].map(
       (match) => match[1],
     )
-    expect(jobs).toEqual(['e2e', 'checks', 'unit', 'web-e2e', 'control-schema', 'site', 'result'])
+    expect(jobs).toEqual([
+      'changes',
+      'e2e',
+      'checks',
+      'unit',
+      'web-e2e',
+      'control-schema',
+      'site',
+      'result',
+    ])
     const result = job('result')
     expect(result).toContain('name: CI result')
     expect(result).toContain('if: always()')
-    expect(result).toContain('needs: [e2e, checks, unit, web-e2e, control-schema, site]')
+    expect(result).toContain('needs: [changes, e2e, checks, unit, web-e2e, control-schema, site]')
     expect(result).toContain("RESULTS: ${{ join(needs.*.result, ' ') }}")
-    expect(result).toContain('for r in $RESULTS; do [ "$r" = success ] ||')
+    expect(result).toContain('[ "$SCOPE" = success ] ||')
+    expect(result).toContain('case "$r" in success|skipped) ;; *)')
     expect(result).toContain('exit 1;')
   })
 })

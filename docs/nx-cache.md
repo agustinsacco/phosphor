@@ -2,7 +2,9 @@
 
 All targets are explicitly **uncached**, including lint, typecheck, unit and
 unsigned Desktop compilation. `nx:run-commands` defaults to `cache: false`.
-CI never skips a check because of affected projects. Affected does gate one thing: the Desktop release (see
+On a pull request, affected projects decide which app jobs run (e2e, web,
+Supabase, site); typecheck, lint, format and unit tests always run. Affected
+also gates the Desktop release (see
 [Per-app releases and deploys](#per-app-releases-and-deploys)). The original npm
 commands and full validator do not depend on Nx.
 
@@ -73,11 +75,17 @@ session/pi/browser homes or DB data are cache outputs.
 
 ## What CI selects
 
-Nothing by project: every CI job runs on every push, behind the single required
-`CI result` job, and workflow edits select only `tooling`. The one cut is by
-platform: a PR runs only the `@macos` Desktop e2e tests on macOS, and main runs
-them all ([testing.md](testing.md#ci-boundary)). Any future skipping must run
-everything when `tooling` is affected.
+A main push runs every job. A pull request runs `checks` and `unit` always,
+and each app job only when the PR affects its project, as
+`tools/scripts/ci-scope.mjs` decides from Nx: `e2e` for `desktop`, `web-e2e`
+for `web`, `control-schema` for `control` or `schema`, `site` for `site`.
+`tooling`, which nearly every change selects, owns no app job: its tests run in
+`checks` and `unit`. A change under `.github/`, a failed install or Nx query,
+and an unknown project run everything. Main is never narrowed: a newer push
+cancels the older one's CI, so a skip there could release an untested change.
+The required `CI result` job accepts a skipped job only when `changes`
+succeeded. By platform, macOS runs only the `@macos` Desktop e2e tests in CI
+and the whole suite nightly ([testing.md](testing.md#ci-boundary)).
 
 The Control → Desktop test edge participates in the per-file matrix,
 including explicit cases for `gotrue.ts` and `loopback.ts`. It conservatively
@@ -142,9 +150,8 @@ Schema, docs and CI-only merges ship nothing.
 
 ## GitHub retention
 
-Full CI still runs on every PR update and main push. `Continuous Release`
-listens only to main CI completions and retains its push/success/repository
-checks. These policies do not introduce affected-only checks or build caching.
+`Continuous Release` starts on the main push and publishes only after exact-SHA
+CI succeeds. These policies do not introduce build caching.
 
 - Site browser evidence uploads only on job failure or when the PR event carries
   the `keep-ci-artifacts` label. Add the label **before the next push**; rerunning

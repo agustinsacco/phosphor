@@ -256,6 +256,10 @@ at a time, so jobs on the same OS queue and a split pays only when there is a
 runner instance to take it. Each job installs what it needs and runs each
 mandatory command exactly once:
 
+- `changes`: on a pull request, which app jobs (`e2e`, `web-e2e`,
+  `control-schema`, `site`) the PR affects, from Nx
+  (`tools/scripts/ci-scope.mjs`). Main pushes, workflow edits and any doubt run
+  them all; `checks` and `unit` never wait on it.
 - `checks`: root and site installs, comprehensive typecheck (including the
   all-file audit), `npm run lint` (ESLint, typed oxlint, dead mocks),
   `npx prettier --check .`, then the size ratchet.
@@ -314,7 +318,8 @@ a maintainer approves it. Approve outside contributors' runs only after reading
 the diff.
 
 The audit's own tests also run in `npm test`; there is no redundant standalone
-audit step. No job is skipped by affected projects. Inventory artifacts,
+audit step. On a pull request the app jobs run only when the PR affects their
+app ([nx-cache.md](nx-cache.md#what-ci-selects)); main runs every job. Inventory artifacts,
 coverage comparisons and unit-gate evidence belong to the trusted per-unit
 pipeline, not CI's untrusted PR input.
 
