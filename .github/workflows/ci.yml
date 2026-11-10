@@ -19,10 +19,12 @@ env:
 # runner instances is what buys back parallelism. The Linux runners share one
 # 32-core machine, so no job may assume it has all the cores.
 jobs:
-  # Linux runs the whole Desktop suite on every event. macOS runs the whole suite
-  # on main, which gates every release (release-continuous.yml waits for this
-  # workflow), and on a PR only the tests tagged @macos: native quit, undo,
-  # context menus, Meta shortcuts, the system clipboard and the login shell.
+  # Linux runs the whole Desktop suite on every event. macOS runs only the tests
+  # tagged @macos (native quit, undo, context menus, Meta shortcuts, the system
+  # clipboard and the login shell), on PRs and on main alike. The whole suite
+  # on macOS runs nightly in the "macOS nightly" workflow, off the release
+  # path: the one Mac runner takes one job at a time, and a serial full run
+  # there held every release for 15-30 minutes, or hours when the Mac was busy.
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shard }})
     runs-on: ${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}
@@ -33,7 +35,9 @@ jobs:
         # One leg per OS: with two Linux runners a split only repeats install
         # and build. The suite has no cross-test ordering or shared state
         # (fullyParallel, workers 1), so more runners can shard it with --shard.
-        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"linux","shard":"1/1"},{"os":"macos","shard":"1/1"}]' || '[{"os":"linux","shard":"1/1"},{"os":"macos","shard":"1/1","grep":"@macos"}]') }}
+        include:
+          - { os: linux, shard: 1/1 }
+          - { os: macos, shard: 1/1, grep: '@macos' }
     env:
       # Map the windows. Chromium barely renders a window that was never
       # shown, which made every test 2-5x slower. The windows land on xvfb or

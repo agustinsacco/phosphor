@@ -249,7 +249,7 @@ the code imports now, or delete the mock.
 
 ## CI boundary
 
-CI runs on the project's own runners, two Linux (x64) and one macOS (ARM64),
+CI runs on the project's own runners, three Linux (x64) and one macOS (ARM64),
 selected by their `[self-hosted, Linux, X64]` and `[self-hosted, macOS, ARM64]`
 labels. Each runner takes one job
 at a time, so jobs on the same OS queue and a split pays only when there is a
@@ -269,15 +269,18 @@ mandatory command exactly once:
   failed test once on CI and reports it as flaky. It sets Node's heap to 4 GB:
   Node otherwise sizes it from the runner's cgroup memory limit, and the Web
   build in its global setup outgrew the result.
-- `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs the whole suite
-  on main, which gates every release, and on a PR only the tests tagged
-  `@macos` (native quit, undo, context menus, Meta shortcuts, the system
-  clipboard and the login shell). A test whose macOS behaviour differs from
-  Linux beyond the modifier key carries the tag. Linux runs four tests at a
-  time: each has its own userData, pi agent dir, ports and Host build (the
-  remote fixture builds the Host into a per-worker temp folder, never the shared
-  `apps/host/dist`). Its `@system-clipboard` tests share the display's one
-  clipboard, so they run afterwards, one at a time. Linux sets `PHOSPHOR_E2E_SHOW=1`:
+- `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs only the tests
+  tagged `@macos` (native quit, undo, context menus, Meta shortcuts, the system
+  clipboard and the login shell), on PRs and main alike. A test whose macOS
+  behaviour differs from Linux beyond the modifier key carries the tag. The
+  whole suite runs on macOS nightly (`macos-nightly.yml`), off the release
+  path: a failure opens an issue labelled `macos-nightly` (or comments on the
+  open one) and the next green run closes it. The one Mac runner takes one job
+  at a time, and a serial full run there used to hold every release. Linux runs
+  four tests at a time: each has its own userData, pi agent dir, ports and Host
+  build (the remote fixture builds the Host into a per-worker temp folder, never
+  the shared `apps/host/dist`). Its `@system-clipboard` tests share the
+  display's one clipboard, so they run afterwards, one at a time. Linux sets `PHOSPHOR_E2E_SHOW=1`:
   windows that are never mapped barely render there, which made the suite several
   times slower. macOS keeps the windows hidden, as local runs do, so nothing
   appears on the Mac runner's screen. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)
