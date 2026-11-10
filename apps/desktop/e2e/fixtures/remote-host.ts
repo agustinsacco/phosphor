@@ -7,7 +7,7 @@ import { createServer } from 'node:http'
 import { createServer as createProxy, connect, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
 import { Receiver, WebSocket } from 'ws'
-import { watch } from 'node:fs'
+import { rmSync, watch } from 'node:fs'
 import { Transform } from 'node:stream'
 import { encodeGrant } from '../../../../libs/shared/src/host-grant'
 import type { RoutineInput } from '../../../../libs/shared/src/routines-types'
@@ -21,18 +21,23 @@ import {
 } from '../../../../libs/shared/src/host-protocol'
 import { MACHINE } from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 import { accountControlFixture } from './account-control'
-import { scratchDir } from './scratch'
+import { scratchDir, scratchDirSync } from './scratch'
 import { withHostNative } from './host-native.mjs'
 import { createHostFixtureBuilder } from './remote-host-build'
 import { installFixtureClaude } from './remote-host-claude'
 import { attachHostDiagnostics } from './remote-host-logs'
 
 const hostProject = resolve(import.meta.dirname, '../../../..')
+// One Host build per Playwright worker: parallel workers must not rebuild a shared
+// apps/host/dist under a Host another worker is running.
+const hostDist = scratchDirSync('phosphor-e2e-host-')
+process.once('exit', () => rmSync(hostDist, { recursive: true, force: true }))
 const buildHostFixture = createHostFixtureBuilder({
   build: (native) => {
+    const build = join(hostProject, 'apps/host/scripts/build.mjs')
     execFileSync(
       process.execPath,
-      [join(hostProject, 'apps/host/scripts/build.mjs'), ...(native ? ['--native', native] : [])],
+      [build, '--out', hostDist, ...(native ? ['--native', native] : [])],
       { cwd: hostProject, stdio: 'pipe' },
     )
   },
@@ -392,19 +397,15 @@ export async function remoteHostFixture(
     const startHost = async () => {
       if (child && child.exitCode === null && child.signalCode === null)
         throw new Error('Host already running')
-      child = spawn(
-        process.execPath,
-        [join(project, 'apps/host/dist/phosphor.mjs'), 'run', '--config', config],
-        {
-          env: {
-            HOME: root,
-            PATH: `${join(root, 'bin')}:${process.env.PATH ?? ''}`,
-            XDG_STATE_HOME: join(root, 'state'),
-            PI_CODING_AGENT_DIR: agent,
-          },
-          stdio: ['ignore', 'pipe', 'pipe'],
+      child = spawn(process.execPath, [join(hostDist, 'phosphor.mjs'), 'run', '--config', config], {
+        env: {
+          HOME: root,
+          PATH: `${join(root, 'bin')}:${process.env.PATH ?? ''}`,
+          XDG_STATE_HOME: join(root, 'state'),
+          PI_CODING_AGENT_DIR: agent,
         },
-      )
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
       let output = ''
       child.on('exit', (code, signal) => {
         hostOutput += `\nHost exit code=${code} signal=${signal}\n`

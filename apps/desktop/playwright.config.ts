@@ -6,9 +6,8 @@ export default defineConfig({
   globalSetup: './e2e/warm-up.ts',
   timeout: 120_000,
   expect: { timeout: 15_000 },
-  // Only affects CI: lets `--shard` split individual tests (not just files)
-  // across shard jobs. workers stays 1, so execution within a shard is
-  // still fully serial — this doesn't change local runs.
+  // Lets `--shard` and `--workers` split individual tests, not just files. Local
+  // runs stay serial (workers 1); Linux CI passes --workers (see ci.yml).
   fullyParallel: true,
   workers: 1,
   // Hidden windows still share the OS clipboard with the person using this

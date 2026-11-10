@@ -273,7 +273,11 @@ mandatory command exactly once:
   on main, which gates every release, and on a PR only the tests tagged
   `@macos` (native quit, undo, context menus, Meta shortcuts, the system
   clipboard and the login shell). A test whose macOS behaviour differs from
-  Linux beyond the modifier key carries the tag. Linux sets `PHOSPHOR_E2E_SHOW=1`:
+  Linux beyond the modifier key carries the tag. Linux runs four tests at a
+  time: each has its own userData, pi agent dir, ports and Host build (the
+  remote fixture builds the Host into a per-worker temp folder, never the shared
+  `apps/host/dist`). Its `@system-clipboard` tests share the display's one
+  clipboard, so they run afterwards, one at a time. Linux sets `PHOSPHOR_E2E_SHOW=1`:
   windows that are never mapped barely render there, which made the suite several
   times slower. macOS keeps the windows hidden, as local runs do, so nothing
   appears on the Mac runner's screen. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)

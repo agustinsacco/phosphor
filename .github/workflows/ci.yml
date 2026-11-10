@@ -71,10 +71,18 @@ jobs:
         if: runner.os == 'macOS' && startsWith(matrix.shard, '1/')
         run: npx vitest run apps/desktop/scripts/__tests__/adhoc-sign-mac.test.ts
 
-      # The Electron window needs a display server on Linux runners.
+      # The Electron window needs a display server on Linux runners. Tests run
+      # four at a time: each has its own userData, pi agent dir, Host build and
+      # ports. The @system-clipboard tests share the display's one clipboard,
+      # so they run afterwards, one at a time, into their own output folder.
       - name: E2E (Linux, xvfb)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shard }}
+        run: |
+          e2e() { xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shard }} "$@"; }
+          failed=0
+          e2e --workers=4 --grep-invert @system-clipboard || failed=1
+          e2e --workers=1 --grep @system-clipboard --reporter=list --output apps/desktop/test-results/clipboard || failed=1
+          exit $failed
 
       - name: E2E (macOS)
         if: runner.os == 'macOS'
