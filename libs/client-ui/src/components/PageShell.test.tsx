@@ -81,3 +81,16 @@ it('a phone page is a tab root, so it has no close button', () => {
 })
 
 import { NavigationProvider } from '@/navigation/Navigation'
+
+it('lets a wide page put its header across the full width', () => {
+  act(() =>
+    root.render(
+      <PlatformProvider value={DESKTOP_PLATFORM}>
+        <PageShell title="Brain" wide>
+          <section />
+        </PageShell>
+      </PlatformProvider>,
+    ),
+  )
+  expect(container.querySelector('.page-shell')?.classList).toContain('page-shell--wide')
+})

@@ -9,6 +9,11 @@
   container-type: inline-size;
 }
 
+/* Full-width content (Brain): the header spans the page, not the reading width. */
+.page-shell--wide {
+  --page-width: none;
+}
+
 .page-shell-header {
   display: flex;
   flex-wrap: wrap;

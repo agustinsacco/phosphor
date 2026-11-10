@@ -15,11 +15,14 @@ export const PageShell = memo(function PageShell({
   actions,
   children,
   dismissible = true,
+  wide = false,
 }: {
   title: React.ReactNode
   actions?: React.ReactNode
   children: React.ReactNode
   dismissible?: boolean
+  /** The header spans the page instead of the reading width, for full-width content. */
+  wide?: boolean
 }): React.JSX.Element {
   const { localLanes, formFactor } = usePlatform()
   const { location, navigate } = useNavigation()
@@ -28,7 +31,7 @@ export const PageShell = memo(function PageShell({
     else navigate({ to: 'lanes', ...('machine' in location && { machine: location.machine }) })
   }
   return (
-    <div className="page-shell">
+    <div className={wide ? 'page-shell page-shell--wide' : 'page-shell'}>
       <header className="page-shell-header">
         <h1 className="page-shell-title">{title}</h1>
         <div className="page-shell-actions">{actions}</div>

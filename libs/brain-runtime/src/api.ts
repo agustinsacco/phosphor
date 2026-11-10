@@ -2,6 +2,7 @@ import type { BrainLaneRef, BrainPrefs, BrainStatus } from '@phosphor/shared/bra
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { BrainApi, BrainServiceOptions } from './types'
 import type { ExtractionQueue } from './queue'
+import { extractionView } from './extraction-view'
 import { readLane } from './lane'
 
 interface ApiContext {
@@ -79,6 +80,7 @@ export function createApi(context: ApiContext): BrainApi {
       queue.cancel(id)
       return status()
     },
+    extraction: async (id) => extractionView(store, id),
     proposal: async (id) => store.proposal(id),
     review: async (id, keep, revision) => mutate(() => store.review(id, keep, revision)),
     knowledge: async () => store.knowledge(),

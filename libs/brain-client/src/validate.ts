@@ -56,11 +56,13 @@ function memory(v: unknown): v is BrainMemory {
     member(v.type, BRAIN_MEMORY_TYPES) &&
     member(v.kind, ['observed', 'reported', 'inferred']) &&
     member(v.predicate, BRAIN_PREDICATES) &&
+    nullableString(v.jobId) &&
     nullableString(v.objectId) &&
     nullableString(v.literal) &&
     nullableString(v.branch) &&
     (v.validFrom === null || number(v.validFrom)) &&
     number(v.recordedAt) &&
+    number(v.observedAt) &&
     (v.origin === null || (record(v.origin) && hasStrings(v.origin, ['sessionId', 'title'])))
   )
 }

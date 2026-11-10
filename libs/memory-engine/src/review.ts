@@ -1,5 +1,6 @@
-import { run, transaction, type Context } from './database'
+import { one, run, transaction, type Context } from './database'
 import { cleanOrphans, entity, rebuildFts, resolveEntity } from './entities'
+import { linkOutcome, pruneExtractions } from './extractions'
 import { updateJob } from './jobs'
 import { bumpRevision, revision } from './prefs'
 import { readProposal } from './proposals'
@@ -26,13 +27,16 @@ export function review(
     const resolve = entityResolver(ctx, extraction)
     const evidence = new Map<number, string>()
     for (const index of indexes) insertMemory(ctx, extraction, index, resolve, evidence)
-    if (indexes.length) {
+    const confirms = keep !== null && (indexes.length > 0 || extraction.memories.length === 0)
+    if (confirms) applyConfirmations(ctx, extraction)
+    if (indexes.length || (confirms && extraction.confirmations?.length)) {
       cleanOrphans(ctx)
       rebuildFts(ctx)
       bumpRevision(ctx)
     }
     updateJob(ctx, jobId, { state: 'done', memories: indexes.length, finishedAt: ctx.now() })
     run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
+    pruneExtractions(ctx)
   })
 }
 function entityResolver(ctx: Context, extraction: Extraction): (key: string) => string {
@@ -60,7 +64,7 @@ function insertMemory(
   const id = ctx.id()
   run(
     ctx,
-    `INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'active',?,?)`,
+    `INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'active',?,?,?)`,
     id,
     extraction.scope,
     subject,
@@ -75,12 +79,32 @@ function insertMemory(
     ctx.now(),
     extraction.origin.sessionId,
     extraction.origin.title,
+    extraction.jobId,
   )
   run(ctx, 'INSERT INTO vectors VALUES (?,?)', id, encodeVector(extraction.vectors[index]!))
-  for (const citation of item.citations) {
+  linkOutcome(ctx, extraction.jobId, index, id)
+  insertCitations(ctx, id, item.citations, extraction.evidence, evidence)
+  if (item.supersedes) {
+    run(
+      ctx,
+      "UPDATE memories SET state='superseded' WHERE id=? AND state='active'",
+      item.supersedes,
+    )
+    run(ctx, 'DELETE FROM vectors WHERE memory_id=?', item.supersedes)
+    run(ctx, 'DELETE FROM memory_fts WHERE id=?', item.supersedes)
+  }
+}
+function insertCitations(
+  ctx: Context,
+  id: string,
+  citations: Extraction['memories'][number]['citations'],
+  excerpts: Extraction['evidence'],
+  evidence: Map<number, string>,
+): void {
+  for (const citation of citations) {
     let evidenceId = evidence.get(citation.evidence)
     if (!evidenceId) {
-      const excerpt = extraction.evidence[citation.evidence]
+      const excerpt = excerpts[citation.evidence]
       if (!excerpt) throw new Error('Brain citation evidence not found.')
       evidenceId = ctx.id()
       run(
@@ -97,13 +121,22 @@ function insertMemory(
     }
     run(ctx, 'INSERT INTO citations VALUES (?,?,?)', id, evidenceId, citation.quote)
   }
-  if (item.supersedes) {
-    run(
-      ctx,
-      "UPDATE memories SET state='superseded' WHERE id=? AND state='active'",
-      item.supersedes,
+}
+function applyConfirmations(ctx: Context, extraction: Extraction): void {
+  for (const confirmation of extraction.confirmations ?? []) {
+    if (!one(ctx, "SELECT id FROM memories WHERE id=? AND state='active'", confirmation.memoryId))
+      continue
+    // A requeued lane can confirm a memory with a quote it already cites.
+    const fresh = confirmation.citations.filter(
+      (citation) =>
+        !one(
+          ctx,
+          'SELECT 1 FROM citations c JOIN evidence e ON e.id=c.evidence_id WHERE c.memory_id=? AND e.entry_id=? AND c.quote=?',
+          confirmation.memoryId,
+          confirmation.evidence[citation.evidence]?.entryId ?? '',
+          citation.quote,
+        ),
     )
-    run(ctx, 'DELETE FROM vectors WHERE memory_id=?', item.supersedes)
-    run(ctx, 'DELETE FROM memory_fts WHERE id=?', item.supersedes)
+    insertCitations(ctx, confirmation.memoryId, fresh, confirmation.evidence, new Map())
   }
 }

@@ -96,9 +96,10 @@ it('forks privately with lane args/env, parses streaming LF records and removes 
     ],
     expect.objectContaining({
       cwd: forkDir,
-      timeoutMs: 150000,
+      timeoutMs: 300000,
       maxOutputBytes: 0,
-      stderr: 'ignore',
+      stderr: 'capture',
+      maxStderrBytes: 4096,
       signal: args.signal,
       env: {
         HARBOR_ACCOUNT: 'fake-account',
@@ -131,7 +132,9 @@ it('uses an existing lane cwd and preserves low thinking, but fails absent text 
   expect(run.mock.calls[0]![1]).toContain('minimal')
   expect(run.mock.calls[0]![2].cwd).toBe(args.directory)
   run.mockResolvedValue({ stdout: '', reason: 'timeout', error: 'sensitive provider details' })
-  await expect(runFork(args, run)).rejects.toThrow('Knowledge extraction timeout.')
+  await expect(runFork(args, run)).rejects.toThrow(
+    'Timed out after 300 s waiting for example/fast (no reply yet)',
+  )
   args.signal = AbortSignal.abort()
   await expect(runFork(args, run)).rejects.toThrow()
 })
@@ -148,4 +151,106 @@ it('runs as a one-shot even when the lane parks its Claude process', async () =>
     PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
     PI_CLAUDE_CLI_EPHEMERAL: '1',
   })
+})
+
+it('traces retries without answer text and explains a timeout with scrubbed diagnostics', async () => {
+  const args = await input()
+  const onTrace = vi.fn()
+  const run = vi.fn<typeof runPrintMode>().mockImplementation(async (_binary, _args, options) => {
+    for (const record of [
+      { type: 'agent_start' },
+      { type: 'turn_start' },
+      { type: 'message_start', message: { role: 'assistant', content: [] } },
+      { type: 'message_update', assistantMessageEvent: { delta: 'private Harbor answer' } },
+      {
+        type: 'auto_retry_start',
+        attempt: 1,
+        delayMs: 2000,
+        errorMessage: '429 token=harbor-secret',
+      },
+    ])
+      options.onStdout?.(JSON.stringify(record) + '\n')
+    return { stdout: '', reason: 'timeout', error: 'timeout', stderr: 'Bearer harbor-secret' }
+  })
+  await expect(runFork({ ...args, onTrace }, run)).rejects.toThrow(
+    'Timed out after 300 s waiting for example/fast (retrying: 429 [redacted])',
+  )
+  expect(run.mock.calls[0]![2]).toMatchObject({
+    timeoutMs: 300000,
+    stderr: 'capture',
+    maxStderrBytes: 4096,
+  })
+  expect(onTrace).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      firstStdoutMs: expect.any(Number),
+      firstMessageStartMs: expect.any(Number),
+      firstMessageUpdateMs: expect.any(Number),
+      messageUpdates: 1,
+      turns: 1,
+      retries: [
+        expect.objectContaining({ attempt: 1, delayMs: 2000, errorMessage: '429 [redacted]' }),
+      ],
+      reason: 'timeout',
+      totalMs: expect.any(Number),
+    }),
+    '[redacted]',
+  )
+  expect(JSON.stringify(onTrace.mock.calls)).not.toMatch(/private Harbor answer|harbor-secret/)
+  expect(await stat(join(args.directory, 'forks', args.job.id)).catch(() => null)).toBeNull()
+})
+
+it.each(['spawn', 'exit', 'aborted'] as const)(
+  'traces transport %s once and always removes the private copy',
+  async (reason) => {
+    const args = await input()
+    const onTrace = vi.fn()
+    const run: typeof runPrintMode = async () => ({
+      stdout: '',
+      reason,
+      error: 'Bearer harbor-secret',
+    })
+    await expect(runFork({ ...args, onTrace }, run)).rejects.toThrow(
+      `Knowledge extraction ${reason}.`,
+    )
+    expect(onTrace).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ reason }),
+      '[redacted]',
+    )
+    expect(await stat(join(args.directory, 'forks', args.job.id)).catch(() => null)).toBeNull()
+  },
+)
+
+it('traces successful assistant completion and zero-exit assistant failure, with scrubbed stderr separate from the trace', async () => {
+  const args = await input()
+  const onTrace = vi.fn()
+  const run: typeof runPrintMode = async (_binary, _args, options) => {
+    options.onStdout?.('diagnostic, not JSON\n' + event('private Harbor answer') + '\n')
+    return { stdout: '', stderr: 'Bearer harbor-secret' }
+  }
+  expect(await runFork({ ...args, onTrace }, run)).toEqual({
+    text: 'private Harbor answer',
+    usage: { tokens: 120, cost: 0.001 },
+  })
+  expect(onTrace).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      reason: 'completed',
+      stopReason: 'stop',
+      usage: { tokens: 120, cost: 0.001, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    }),
+    '[redacted]',
+  )
+  expect(JSON.stringify(onTrace.mock.calls)).not.toMatch(
+    /private Harbor answer|harbor-secret|diagnostic, not JSON/,
+  )
+  onTrace.mockClear()
+  const failed: typeof runPrintMode = async (_binary, _args, options) => {
+    options.onStdout?.(event('private failed answer', 'error'))
+    return { stdout: '', stderr: 'token=harbor-secret' }
+  }
+  await expect(runFork({ ...args, onTrace }, failed)).rejects.toThrow('Knowledge extraction error.')
+  expect(onTrace).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ reason: 'error', stopReason: 'error' }),
+    '[redacted]',
+  )
+  expect(await stat(join(args.directory, 'forks', args.job.id)).catch(() => null)).toBeNull()
 })

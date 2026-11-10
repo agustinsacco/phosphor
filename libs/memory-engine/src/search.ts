@@ -1,4 +1,10 @@
-import type { BrainEntity, BrainHit, BrainMemory, BrainRecall } from '@phosphor/shared/brain'
+import type {
+  BrainEntity,
+  BrainHit,
+  BrainMemory,
+  BrainMemoryType,
+  BrainRecall,
+} from '@phosphor/shared/brain'
 import { all, type Context } from './database'
 import { entities, fold, referencedEntities, tokens, wholePhrase } from './entities'
 import { activeMemories } from './knowledge'
@@ -52,6 +58,24 @@ function recall(ctx: Context, hits: BrainHit[], degradation: string[] = []): Bra
     degradation,
   }
 }
+/**
+ * Days until a memory ranks at three quarters of its weight. Open questions and risks
+ * go stale first; how things are done lasts longest. Age only reorders: it never
+ * drops below half, so an old memory is still found when nothing newer matches.
+ */
+const HALF_LIFE_DAYS: Record<BrainMemoryType, number> = {
+  open: 30,
+  risk: 60,
+  decision: 180,
+  fact: 180,
+  procedure: 365,
+  preference: 365,
+}
+export function freshness(memory: BrainMemory, now: number): number {
+  const effective = memory.validFrom !== null && memory.validFrom <= now ? memory.validFrom : 0
+  const days = Math.max(0, now - Math.max(memory.observedAt, effective)) / 86_400_000
+  return 0.5 + 0.5 * 2 ** (-days / HALF_LIFE_DAYS[memory.type])
+}
 function boundedLimit(limit: number | undefined, fallback: number): number {
   return Number.isFinite(limit) ? Math.min(20, Math.max(0, Math.floor(limit!))) : fallback
 }
@@ -75,11 +99,13 @@ export function search(ctx: Context, input: SearchInput): BrainRecall {
       scores.set(id, entry)
     })
   }
+  const now = ctx.now()
   const hits = memories
     .flatMap((memory): BrainHit[] => {
       const entry = scores.get(memory.id)
+      const scope = memory.scope === input.scope ? 1.25 : 1
       return entry
-        ? [{ memory, ...entry, score: entry.score * (memory.scope === input.scope ? 1.25 : 1) }]
+        ? [{ memory, ...entry, score: entry.score * scope * freshness(memory, now) }]
         : []
     })
     .sort((a, b) => b.score - a.score)

@@ -457,6 +457,7 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
         () => window.phosphor.invoke('brain:knowledge'),
         () => window.phosphor.invoke('brain:queue', lane),
         () => window.phosphor.invoke('brain:review', 'synthetic-job', null, 0),
+        () => window.phosphor.invoke('brain:extraction', 'synthetic-job'),
         () => window.phosphor.invoke('brain:forget', 'synthetic-memory'),
       ].map(async (request) => {
         try {
@@ -468,6 +469,6 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       }),
     )
   })
-  expect(failures).toHaveLength(5)
+  expect(failures).toHaveLength(6)
   for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
 })

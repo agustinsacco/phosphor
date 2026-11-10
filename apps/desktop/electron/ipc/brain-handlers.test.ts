@@ -25,6 +25,7 @@ it('registers every Brain channel', () => {
   expect([...handlers.keys()].sort()).toEqual([
     'brain:cancel',
     'brain:download',
+    'brain:extraction',
     'brain:forget',
     'brain:knowledge',
     'brain:memory',
@@ -66,4 +67,10 @@ it('checks review selections and revisions before the service sees them', async 
   await expect(call('brain:review', 'job-1', [0], 3)).resolves.toBe('reviewed')
   expect(api.review).toHaveBeenCalledWith('job-1', [0], 3)
   await expect(call('brain:review', 'job-1', [0], -1)).rejects.toThrow('Invalid Brain revision.')
+})
+
+it('registers extraction inspection and rejects invalid job ids', async () => {
+  expect(handlers.has('brain:extraction')).toBe(true)
+  for (const id of ['', null, 'x'.repeat(201)])
+    await expect(call('brain:extraction', id)).rejects.toThrow('Invalid Brain request.')
 })

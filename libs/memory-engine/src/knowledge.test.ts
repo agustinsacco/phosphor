@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ACTIVE_MEMORIES } from './knowledge'
 import { approve, extraction, fixture, lane, vector } from './test-support'
 
 describe('Brain knowledge', () => {
@@ -84,5 +85,24 @@ describe('Brain knowledge', () => {
     expect(
       context.entities.filter((item) => ['Harbor', 'Rina Okafor', 'Tom Lee'].includes(item.label)),
     ).toHaveLength(3)
+  })
+  it('dates a memory by when its lane said it, not when it was approved', () => {
+    const { store } = fixture()
+    approve(store)
+    const memories = store.knowledge().memories
+    const said = memories.find((item) => item.summary.startsWith('Rina'))!
+    expect(said.observedAt).toBe(10)
+    expect(said.recordedAt).toBeGreaterThan(1000)
+    expect(store.memory(said.id).memory.observedAt).toBe(10)
+    const { store: undated } = fixture()
+    approve(undated, {
+      evidence: extraction('x').evidence.map((item) => ({ ...item, observedAt: 0 })),
+    })
+    for (const item of undated.knowledge().memories) expect(item.observedAt).toBe(item.recordedAt)
+  })
+  it('dates every memory with one pass over citations, not one scan per memory', () => {
+    const { db } = fixture()
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${ACTIVE_MEMORIES}`).all() as { detail: string }[]
+    expect(plan.map((row) => row.detail).join('\n')).not.toMatch(/CORRELATED/)
   })
 })

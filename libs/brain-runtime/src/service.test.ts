@@ -203,3 +203,81 @@ it('removes the prototype files it cannot read on startup and keeps the model', 
   for (const name of legacy) expect(await stat(join(directory, name)).catch(() => null)).toBeNull()
   expect(await stat(join(directory, 'embeddings'))).toBeTruthy()
 })
+
+it('logs one phased failure with lane metadata when parsing fails, without logging the answer', async () => {
+  const s = await setup()
+  vi.mocked(runFork).mockResolvedValue({
+    text: 'private Harbor answer',
+    usage: { tokens: 12, cost: 0.002 },
+  })
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('failed'))
+  const failures = s.options.log.mock.calls.filter(
+    ([message]) => message === 'Brain extraction failed',
+  )
+  expect(failures).toEqual([
+    [
+      'Brain extraction failed',
+      expect.objectContaining({
+        jobId: s.store.jobs[0]!.id,
+        model: 'example/fast',
+        thinking: 'low',
+        laneBytes: (await stat(s.file)).size,
+        phase: 'parse',
+        error: 'The extraction returned no JSON.',
+      }),
+    ],
+  ])
+  expect(JSON.stringify(s.options.log.mock.calls)).not.toContain('private Harbor answer')
+})
+
+it('logs waiting cancellation without an extraction failure or trace, and stores a model-specific timeout', async () => {
+  const s = await setup()
+  vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  const waiting = s.store.jobs[0]!
+  await s.service.api.cancel(waiting.id)
+  expect(s.options.log).toHaveBeenCalledExactlyOnceWith('Brain job cancelled', {
+    jobId: waiting.id,
+    model: 'example/fast',
+    phase: 'waiting',
+  })
+  vi.spyOn(s.options.lanes, 'busy').mockReturnValue(false)
+  const message = 'Timed out after 300 s waiting for example/fast (no reply yet)'
+  vi.mocked(runFork).mockRejectedValue(new Error(message))
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('failed'))
+  expect(s.store.jobs[0]!.error).toBe(message)
+  expect(
+    s.options.log.mock.calls.filter(([name]) => name === 'Brain extraction failed'),
+  ).toHaveLength(1)
+})
+
+it('reads the source only on demand, bounded at the clone leaf, and tolerates a deleted lane', async () => {
+  const s = await setup()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  await reviewed(s.service)
+  const job = s.store.snapshot().jobs[0]!
+  await writeFile(
+    s.file,
+    [
+      ...s.entries,
+      {
+        type: 'message',
+        id: 'later',
+        message: { role: 'user', content: 'Tom Lee wrote this after extraction.' },
+      },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n'),
+  )
+  const view = await s.service.api.extraction(job.id)
+  expect(view.source).toMatchObject({ exists: true, leafId: 'custom', sessionPath: s.file })
+  expect(view.source.segments.at(-1)?.entryId).toBe('custom')
+  expect(JSON.stringify(view.source)).not.toContain('after extraction')
+  await rm(s.file)
+  expect((await s.service.api.extraction(job.id)).source).toMatchObject({
+    exists: false,
+    segments: [],
+  })
+})

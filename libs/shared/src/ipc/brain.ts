@@ -1,4 +1,5 @@
 import type {
+  BrainExtractionView,
   BrainKnowledge,
   BrainLaneRef,
   BrainMemoryDetail,
@@ -18,6 +19,7 @@ export interface BrainInvokeMap {
   'brain:queue': { args: [lane: BrainLaneRef]; result: BrainStatus }
   /** Cancels a waiting, queued or running job, or dismisses an empty or failed one. */
   'brain:cancel': { args: [jobId: string]; result: BrainStatus }
+  'brain:extraction': { args: [jobId: string]; result: BrainExtractionView }
   'brain:proposal': { args: [jobId: string]; result: BrainProposalView }
   /** `keep` lists proposal memory indexes to approve; null rejects the whole proposal. */
   'brain:review': {

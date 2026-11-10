@@ -7,6 +7,11 @@ const clip = (text: string, max: number): string =>
   text.length <= max ? text : `${text.slice(0, max - 1)}…`
 
 /** Approved notes are background data, not instructions or fresh findings. */
+function day(ms: number): string {
+  const date = new Date(ms)
+  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : 'date unknown'
+}
+
 export function formatBrainRecall(result: BrainRecall, cwd?: string, maxChars = 6000): string {
   if (result.status === 'unavailable')
     return 'Brain is unavailable right now. This is not a no-match result.'
@@ -23,10 +28,9 @@ export function formatBrainRecall(result: BrainRecall, cwd?: string, maxChars = 
       !isAbsolute(rel) &&
       rel !== '..' &&
       !rel.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
-    const date = new Date(memory.validFrom ?? memory.recordedAt)
-    const day = Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : 'date unknown'
+    const since = memory.validFrom === null ? '' : `, since ${day(memory.validFrom)}`
     const line = escape(
-      `- [${memory.type}] ${clip(memory.summary.replace(/\s+/gu, ' '), 1200)} · ${basename(memory.scope)}${local ? ' (this project)' : ''} · ${day}`,
+      `- [${memory.type}] ${clip(memory.summary.replace(/\s+/gu, ' '), 1200)} · ${basename(memory.scope)}${local ? ' (this project)' : ''} · ${day(memory.observedAt)}${since}`,
     )
     if (line.length + 1 > remaining) break
     lines.push(line)

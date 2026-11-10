@@ -1,5 +1,6 @@
 import type { BrainJob } from '@phosphor/shared/brain'
 import { all, one, run, transaction, type Context } from './database'
+import { pruneExtractions } from './extractions'
 import type { JobPatch, NewJob } from './types'
 
 const columns = `id, session_id AS sessionId, session_path AS sessionPath, title, scope, branch,
@@ -99,11 +100,13 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
       updated.sessionId,
       id,
     )
+    pruneExtractions(ctx)
   }
   return updated
 }
 export function removeJob(ctx: Context, id: string): void {
   run(ctx, 'DELETE FROM jobs WHERE id=?', id)
+  pruneExtractions(ctx)
 }
 export function requeueInterrupted(ctx: Context): void {
   run(

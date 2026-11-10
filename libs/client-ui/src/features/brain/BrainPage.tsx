@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BRAIN_MEMORY_TYPES, type BrainKnowledge } from '@shared/brain'
+import { BRAIN_MEMORY_TYPES, type BrainKnowledge, type BrainMemory } from '@shared/brain'
 import { PageShell } from '@/components/PageShell'
 import { ListDetail } from '@/components/ListDetail'
 import { Button, TextInput } from '@/components/form'
@@ -9,10 +9,14 @@ import { usePlatform } from '@/platform/Platform'
 import { useBrain, useBrainSync } from './useBrain'
 import { useBrainResource } from './useBrainResource'
 import { BrainInbox } from './BrainInbox'
+import { useBrainSelection } from './useBrainSelection'
+import { BrainExtraction } from './BrainExtraction'
 import { BrainReview } from './BrainReview'
-import { BrainGraph } from './BrainGraph'
+import { BrainGraph3D } from './BrainGraph3D'
+import { useMemorySearch } from './useMemorySearch'
 import { BrainMemoryDetail, MEMORY_LABELS, memoryRelation } from './BrainMemory'
 import { formatCount } from '@/lib/format'
+import { relativeTimeShort } from '@/lib/time'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 
 export function BrainPage(): React.JSX.Element {
@@ -23,6 +27,7 @@ export function BrainPage(): React.JSX.Element {
   const openSettings = useOpenSettings()
   return (
     <PageShell
+      wide
       title={
         <span>
           Brain{' '}
@@ -66,96 +71,166 @@ const loadKnowledge = (): Promise<BrainKnowledge> => window.phosphor.invoke('bra
 function BrainContent({ revision }: { revision: number }): React.JSX.Element {
   const { data, error, retry } = useBrainResource(loadKnowledge, revision)
   const jobs = useBrain((s) => s.status?.jobs ?? [])
-  const [review, setReview] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const {
+    review,
+    selected,
+    extraction,
+    showReview,
+    showMemory,
+    showExtraction,
+    closeReview,
+    closeMemory,
+    closeExtraction,
+    back,
+  } = useBrainSelection()
   const [focus, setFocus] = useState<string | null>(null)
+  const { query, setQuery, memories: searched, matches } = useMemorySearch(data)
   if (!data)
     return (
       <BrainEmpty title={error || 'Loading knowledge…'}>
         {error && <Button onClick={retry}>Retry</Button>}
       </BrainEmpty>
     )
-  if (!jobs.length && !data.memories.length)
-    return (
-      <BrainEmpty title="No knowledge yet">
-        Right-click a lane and choose Queue for knowledge extraction. Brain reads a private copy of
-        it and proposes memories for you to approve.
-      </BrainEmpty>
-    )
+  if (!jobs.length && !data.memories.length) return <BrainWelcome />
   const reviewing =
     review && jobs.some((job) => job.id === review && job.state === 'review') ? review : null
   return (
     <ListDetail
       listLabel="Brain inbox and memories"
       detailLabel="Brain detail"
-      open={!!reviewing || !!selected}
-      onBack={() => {
-        setReview(null)
-        setSelected(null)
-      }}
+      open={!!extraction || !!reviewing || !!selected}
+      onBack={back}
       backLabel="Brain"
       list={
         <>
-          <BrainInbox jobs={jobs} onReview={setReview} />
+          <BrainInbox jobs={jobs} onReview={showReview} onExtraction={showExtraction} />
           <MemoryList
             knowledge={data}
+            searched={searched}
+            query={query}
+            onQuery={setQuery}
             selected={selected}
             focus={focus}
             onClearFocus={() => setFocus(null)}
-            onSelect={(id) => {
-              setSelected(id)
-              setReview(null)
-            }}
+            onSelect={showMemory}
           />
         </>
       }
       detail={(back) => (
         <div className="h-full overflow-auto">
           {back}
-          {reviewing ? (
-            <BrainReview key={reviewing} jobId={reviewing} onClose={() => setReview(null)} />
-          ) : !data.memories.length ? (
-            <BrainEmpty title="Nothing approved yet">
-              Approved memories, and a graph of what they connect, show up here.
-            </BrainEmpty>
-          ) : (
-            <KnowledgeView
-              data={data}
-              selected={selected}
-              focus={focus}
-              onFocus={setFocus}
-              onForget={() => setSelected(null)}
-            />
-          )}
+          <BrainDetail
+            data={data}
+            extraction={extraction}
+            reviewing={reviewing}
+            selected={selected}
+            matches={matches}
+            focus={focus}
+            onFocus={setFocus}
+            onMemory={showMemory}
+            onExtraction={showExtraction}
+            onCloseExtraction={closeExtraction}
+            onCloseReview={closeReview}
+            onForget={closeMemory}
+          />
         </div>
       )}
     />
   )
 }
 
+function BrainDetail({
+  data,
+  extraction,
+  reviewing,
+  selected,
+  matches,
+  focus,
+  onFocus,
+  onMemory,
+  onExtraction,
+  onCloseExtraction,
+  onCloseReview,
+  onForget,
+}: {
+  data: BrainKnowledge
+  extraction: string | null
+  reviewing: string | null
+  selected: string | null
+  matches: ReturnType<typeof useMemorySearch>['matches']
+  focus: string | null
+  onFocus: (id: string | null) => void
+  onMemory: (id: string) => void
+  onExtraction: (jobId: string) => void
+  onCloseExtraction: () => void
+  onCloseReview: () => void
+  onForget: () => void
+}): React.JSX.Element {
+  return extraction ? (
+    <BrainExtraction
+      key={extraction}
+      jobId={extraction}
+      onBack={onCloseExtraction}
+      onMemory={onMemory}
+    />
+  ) : reviewing ? (
+    <BrainReview
+      key={reviewing}
+      jobId={reviewing}
+      onClose={onCloseReview}
+      onExtraction={onExtraction}
+    />
+  ) : !data.memories.length && !selected ? (
+    <BrainEmpty title="Nothing approved yet">
+      Approved memories, and a graph of what they connect, show up here.
+    </BrainEmpty>
+  ) : (
+    <KnowledgeView
+      data={data}
+      matches={matches}
+      selected={selected}
+      focus={focus}
+      onFocus={onFocus}
+      onForget={onForget}
+      onExtraction={onExtraction}
+    />
+  )
+}
+
+function BrainWelcome(): React.JSX.Element {
+  return (
+    <BrainEmpty title="No knowledge yet">
+      Right-click a lane and choose Queue for knowledge extraction. Brain reads a private copy of it
+      and proposes memories for you to approve.
+    </BrainEmpty>
+  )
+}
+
 function MemoryList({
+  searched,
+  query,
+  onQuery,
   knowledge,
   selected,
   focus,
   onClearFocus,
   onSelect,
 }: {
+  searched: BrainMemory[]
+  query: string
+  onQuery: (query: string) => void
   knowledge: BrainKnowledge
   selected: string | null
   focus: string | null
   onClearFocus: () => void
   onSelect: (id: string) => void
 }): React.JSX.Element | null {
-  const [query, setQuery] = useState('')
   if (!knowledge.memories.length) return null
   const focused = knowledge.entities.find((entity) => entity.id === focus)
-  const memories = knowledge.memories.filter(
-    (memory) =>
-      (!focused || memory.subjectId === focus || memory.objectId === focus) &&
-      `${memory.summary} ${memoryRelation(memory, knowledge.entities)}`
-        .toLocaleLowerCase()
-        .includes(query.toLocaleLowerCase()),
+  const memories = searched.filter(
+    (memory) => !focused || memory.subjectId === focus || memory.objectId === focus,
   )
+
   return (
     <section aria-label="Memories" className="space-y-3 p-3">
       <TextInput
@@ -163,7 +238,7 @@ function MemoryList({
         placeholder="Search memories"
         className="w-full"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => onQuery(event.target.value)}
       />
       {focused && (
         <Button size="xs" className="bg-accent-soft" onClick={onClearFocus}>
@@ -192,7 +267,8 @@ function MemoryList({
                 >
                   <span className="line-clamp-2 text-base">{memory.summary}</span>
                   <span className="text-text-tertiary mt-1 block truncate text-sm">
-                    {memoryRelation(memory, knowledge.entities)}
+                    {memoryRelation(memory, knowledge.entities)} ·{' '}
+                    {relativeTimeShort(memory.observedAt)}
                   </span>
                 </TooltipButton>
               ))}
@@ -220,35 +296,41 @@ function BrainEmpty({
 }
 
 function KnowledgeView({
+  matches,
   data,
   selected,
   focus,
   onFocus,
   onForget,
+  onExtraction,
 }: {
   data: BrainKnowledge
+  matches: Set<string> | null
   selected: string | null
   focus: string | null
   onFocus: (id: string) => void
   onForget: () => void
+  onExtraction: (jobId: string) => void
 }): React.JSX.Element {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-3">
       {data.entities.length > 0 && (
-        <BrainGraph
+        <BrainGraph3D
+          matches={matches}
           entities={data.entities}
           memories={data.memories}
           focus={focus}
           onFocus={onFocus}
         />
       )}
-      {selected && data.memories.some((memory) => memory.id === selected) && (
+      {selected && (
         <BrainMemoryDetail
           key={selected}
           id={selected}
           entities={data.entities}
           onFocus={onFocus}
           onForget={onForget}
+          onExtraction={onExtraction}
         />
       )}
     </div>

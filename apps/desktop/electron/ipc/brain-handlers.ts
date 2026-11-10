@@ -55,6 +55,7 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
   handle('brain:removeModel', async () => (await api()).removeModel())
   handle('brain:queue', async (_event, lane) => (await api()).queue(checkLane(lane)))
   handle('brain:cancel', async (_event, id) => (await api()).cancel(text(id, 200)))
+  handle('brain:extraction', async (_event, id) => (await api()).extraction(text(id, 200)))
   handle('brain:proposal', async (_event, id) => (await api()).proposal(text(id, 200)))
   handle('brain:review', async (_event, id, keep, revision) =>
     (await api()).review(text(id, 200), checkKeep(keep), revisionOf(revision)),

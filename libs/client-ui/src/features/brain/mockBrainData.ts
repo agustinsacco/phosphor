@@ -16,10 +16,12 @@ export function mockBrainData(): { entities: BrainEntity[]; details: BrainMemory
   ]
   const common = {
     kind: 'reported' as const,
+    jobId: null,
     scope: '/demo/Harbor',
     branch: null,
     validFrom: null,
     recordedAt: 1793966400000,
+    observedAt: 1793880000000,
     literal: null,
     origin: { sessionId: 'harbor-lane', title: 'Harbor billing decisions' },
   }

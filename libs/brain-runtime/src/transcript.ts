@@ -5,6 +5,7 @@ import type { TranscriptSegment } from '@phosphor/memory-engine/types'
 export interface LaneEntry {
   type?: string
   id?: string
+  parentId?: string | null
   cwd?: string
   timestamp?: string | number
   provider?: string
@@ -77,6 +78,8 @@ export function transcriptSegments(entries: LaneEntry[]): TranscriptSegment[] {
       entry.type === 'custom_message' ? { role: 'custom', content: entry.content } : entry.message
     if (!message) continue
     const role = message.role
+    if (role === 'toolResult' && ['brain_search', 'brain_related'].includes(message.toolName ?? ''))
+      continue
     const content =
       typeof message.content === 'string'
         ? [{ type: 'text', text: message.content }]
@@ -101,4 +104,24 @@ export function transcriptSegments(entries: LaneEntry[]): TranscriptSegment[] {
     else if (role === 'custom') add('context', 'Context', text)
   }
   return segments
+}
+
+/** Follow the clone point's ancestry when present; legacy flat lanes retain file order. */
+export function transcriptAtLeaf(entries: LaneEntry[], leafId: string | null): LaneEntry[] {
+  const end = entries.findIndex((entry) => entry.id === leafId)
+  if (end < 0) return []
+  const prefix = entries.slice(0, end + 1)
+  if (!prefix.some((entry) => entry.parentId !== undefined)) return prefix
+  const byId = new Map(prefix.filter((entry) => entry.id).map((entry) => [entry.id, entry]))
+  const path: LaneEntry[] = []
+  const seen = new Set<string>()
+  let id = leafId
+  while (id && !seen.has(id)) {
+    seen.add(id)
+    const entry = byId.get(id)
+    if (!entry) break
+    path.push(entry)
+    id = entry.parentId ?? null
+  }
+  return path.reverse()
 }

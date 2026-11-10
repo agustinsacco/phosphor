@@ -52,9 +52,17 @@
       "types": "./src/extraction.ts",
       "default": "./src/extraction.ts"
     },
+    "./extraction-log": {
+      "types": "./src/extraction-log.ts",
+      "default": "./src/extraction-log.ts"
+    },
     "./fork": {
       "types": "./src/fork.ts",
       "default": "./src/fork.ts"
+    },
+    "./fork-trace": {
+      "types": "./src/fork-trace.ts",
+      "default": "./src/fork-trace.ts"
     },
     "./lane": {
       "types": "./src/lane.ts",
@@ -91,6 +99,14 @@
     "./types": {
       "types": "./src/types.ts",
       "default": "./src/types.ts"
+    },
+    "./extraction-record": {
+      "types": "./src/extraction-record.ts",
+      "default": "./src/extraction-record.ts"
+    },
+    "./extraction-view": {
+      "types": "./src/extraction-view.ts",
+      "default": "./src/extraction-view.ts"
     }
   },
   "nx": {

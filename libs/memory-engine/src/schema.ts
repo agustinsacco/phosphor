@@ -4,8 +4,16 @@ import { all, one, transaction } from './database'
 export function initialize(ctx: Context): void {
   ctx.db.exec('PRAGMA foreign_keys = ON')
   const version = one<{ user_version: number }>(ctx, 'PRAGMA user_version')!.user_version
-  if (version === 2) return
-  if (version > 2) throw new Error('This Brain database requires a newer application.')
+  if (version === 3) return
+  if (version === 2) {
+    transaction(ctx, () => {
+      ctx.db.exec('ALTER TABLE memories ADD COLUMN job_id TEXT')
+      ctx.db.exec(extractionsSchema)
+      ctx.db.exec('PRAGMA user_version = 3')
+    })
+    return
+  }
+  if (version > 3) throw new Error('This Brain database requires a newer application.')
   ctx.db.exec('PRAGMA foreign_keys = OFF')
   try {
     transaction(ctx, () => {
@@ -22,6 +30,12 @@ export function initialize(ctx: Context): void {
   }
 }
 
+const extractionsSchema = `
+CREATE TABLE extractions(job_id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
+ session_path TEXT NOT NULL, title TEXT NOT NULL, leaf_id TEXT, model TEXT NOT NULL,
+ thinking TEXT NOT NULL, prompt TEXT NOT NULL, answer TEXT NOT NULL, trace TEXT NOT NULL,
+ outcomes TEXT NOT NULL, error TEXT, started_at INTEGER NOT NULL, finished_at INTEGER NOT NULL);
+`
 const schema = `
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 INSERT INTO meta VALUES ('revision', '0');
@@ -31,7 +45,7 @@ CREATE TABLE memories(id TEXT PRIMARY KEY, scope TEXT NOT NULL, subject_id TEXT 
   predicate TEXT NOT NULL, object_id TEXT, literal TEXT, summary TEXT NOT NULL,
   type TEXT NOT NULL, kind TEXT NOT NULL, branch TEXT, valid_from INTEGER,
   recorded_at INTEGER NOT NULL, state TEXT NOT NULL CHECK(state IN ('active','superseded')),
-  origin_session TEXT, origin_title TEXT);
+  origin_session TEXT, origin_title TEXT, job_id TEXT);
 CREATE VIRTUAL TABLE memory_fts USING fts5(id UNINDEXED, text);
 CREATE TABLE vectors(memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
   vector BLOB NOT NULL);
@@ -51,5 +65,6 @@ CREATE TABLE proposal_vectors(job_id TEXT NOT NULL REFERENCES proposals(job_id) 
 CREATE TABLE deliveries(session_id TEXT NOT NULL,
   memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE, delivered_at INTEGER NOT NULL,
   PRIMARY KEY(session_id, memory_id));
-PRAGMA user_version = 2;
+${extractionsSchema}
+PRAGMA user_version = 3;
 `

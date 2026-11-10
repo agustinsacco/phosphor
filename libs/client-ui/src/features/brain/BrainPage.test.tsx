@@ -18,6 +18,7 @@ const sample = mockBrainData()
 const invoke = vi.fn()
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   status = { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } }
   knowledge = { entities: [], memories: [], truncated: false }
   useBrain.setState({ status: null, saving: false, error: '' })
@@ -54,6 +55,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 async function render(): Promise<void> {
@@ -101,7 +103,7 @@ it('shows inbox only with waiting, queued, running, empty and failed states', as
   expect(container.textContent).toContain('Nothing new worth keeping')
   expect(container.textContent).toContain('Demo fork failed')
   expect(container.textContent).toContain('Nothing approved yet')
-  expect(container.querySelector('svg[aria-label="Memory relationships"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Memory relationships"]')).toBeNull()
   await click('Cancel')
   expect(invoke).toHaveBeenCalledWith('brain:cancel', 'wait')
   await click('Dismiss')
@@ -155,7 +157,7 @@ it('shows grouped memories, graph, entity focus, detail quotes and forget', asyn
   expect(container.textContent).toContain('2 memories · 3 things')
   expect(container.textContent).toContain('Decisions · 1')
   expect(container.textContent).toContain('Facts · 1')
-  expect(container.querySelector('svg[aria-label="Memory relationships"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="Memory relationships"]')).not.toBeNull()
   await act(async () =>
     container
       .querySelector('[aria-label="Focus Rina Okafor"]')!
@@ -278,4 +280,151 @@ it('recovers a failed first memory load and focuses an entity from its detail', 
   await click('Retry')
   await click('PostgreSQL')
   expect(container.textContent).toContain('About PostgreSQL ×')
+})
+
+it('narrows graph highlights to entities mentioned by memory search matches', async () => {
+  approved()
+  await render()
+  const input = container.querySelector<HTMLInputElement>('[aria-label="Search memories"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      'PostgreSQL',
+    )
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(
+    container.querySelector('[aria-label="Focus Rina Okafor"]')?.getAttribute('data-highlighted'),
+  ).toBe('false')
+  expect(
+    container.querySelector('[aria-label="Focus Harbor"]')?.getAttribute('data-highlighted'),
+  ).toBe('true')
+})
+
+function extractionView() {
+  const job = mockBrainJob()
+  return {
+    jobId: job.id,
+    sessionId: job.sessionId,
+    sessionPath: job.sessionPath,
+    title: job.title,
+    leafId: job.leafId,
+    model: job.model,
+    thinking: 'low',
+    prompt: 'Harbor instruction',
+    answer: '{ "Harbor": "Rina Okafor owns billing" }',
+    trace: null,
+    error: null,
+    startedAt: job.startedAt!,
+    finishedAt: job.finishedAt!,
+    outcomes: [
+      {
+        candidate: 0,
+        summary: 'Rina Okafor owns Harbor billing.',
+        status: 'kept',
+        memoryId: 'harbor-db',
+      },
+    ],
+    memories: [{ id: 'harbor-db', summary: sample.details[0]!.memory.summary }],
+    source: {
+      sessionPath: job.sessionPath,
+      title: job.title,
+      leafId: job.leafId,
+      exists: false,
+      segments: [],
+    },
+  }
+}
+
+it.each([
+  ['{ "Harbor": "Rina Okafor owns billing" }', '{\n  "Harbor": "Rina Okafor owns billing"\n}'],
+  [
+    'Harbor agent stopped before JSON.\nPlease retry.',
+    'Harbor agent stopped before JSON.\nPlease retry.',
+  ],
+])(
+  'opens failed-job extraction, formats %s, retries and returns to its inbox',
+  async (answer, expected) => {
+    status.jobs = [mockBrainJob({ state: 'failed', error: 'Harbor timeout' })]
+    const normal = invoke.getMockImplementation()!
+    let failed = false
+    invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
+      if (channel === 'brain:extraction') {
+        if (!failed) {
+          failed = true
+          throw new Error('Harbor record unavailable')
+        }
+        return { ...extractionView(), answer }
+      }
+      return normal(channel, ...args)
+    })
+    await render()
+    expect(invoke.mock.calls.some(([channel]) => channel === 'brain:extraction')).toBe(false)
+    await click('View extraction')
+    expect(container.textContent).toContain('Harbor record unavailable')
+    await click('Retry')
+    expect(container.querySelector('[aria-label="Extraction detail"]')).not.toBeNull()
+    expect(container.textContent).toContain('Harbor instruction')
+    expect(container.textContent).toContain('Source lane is no longer available')
+    expect(container.querySelector('pre')?.textContent).toBe(expected)
+    await click('Back')
+    expect(container.querySelector('[aria-label="Extraction detail"]')).toBeNull()
+    expect(container.textContent).toContain('Harbor timeout')
+  },
+)
+
+it('opens an extraction from review and Back restores that review', async () => {
+  status.jobs = [mockBrainJob()]
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...args: unknown[]) =>
+    channel === 'brain:extraction' ? extractionView() : normal(channel, ...args),
+  )
+  await render()
+  await click('Review')
+  await click('View extraction')
+  expect(invoke).toHaveBeenCalledWith('brain:extraction', 'harbor-job')
+  await click('Back')
+  expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
+})
+
+it('links memory detail to its extraction and candidate links return to the produced memory', async () => {
+  approved()
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
+    if (channel === 'brain:extraction') return extractionView()
+    const value = await normal(channel, ...args)
+    return channel === 'brain:memory'
+      ? { ...value, memory: { ...value.memory, jobId: 'harbor-job' } }
+      : value
+  })
+  await render()
+  const row = [
+    ...container.querySelectorAll<HTMLButtonElement>('[aria-label=Memories] button'),
+  ].find((button) => button.textContent?.includes(sample.details[0]!.memory.summary))!
+  await act(async () => row.click())
+  await click('View extraction')
+  await click('Rina Okafor owns Harbor billing.')
+  expect(container.querySelector('[aria-label="Memory detail"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="Extraction detail"]')).toBeNull()
+})
+
+it('shows confirmation-only review with an approval action and summaries', async () => {
+  status.jobs = [mockBrainJob({ memories: 0 })]
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
+    const value = await normal(channel, ...args)
+    return channel === 'brain:proposal'
+      ? {
+          ...value,
+          memories: [],
+          confirmations: [{ id: 'harbor-db', summary: sample.details[0]!.memory.summary }],
+        }
+      : value
+  })
+  await render()
+  await click('Review')
+  expect(container.textContent).toContain('Confirms 1 existing memory')
+  expect(container.textContent).toContain(sample.details[0]!.memory.summary)
+  await click('Approve confirmations')
+  expect(invoke).toHaveBeenCalledWith('brain:review', 'harbor-job', [], 0)
 })
