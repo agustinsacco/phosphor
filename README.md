@@ -45,13 +45,20 @@ a live run. [Case study and capture provenance](https://phosphor.saccolabs.com/g
 
 ## Quick start
 
-```bash
-# 1. pi is the agent. Phosphor needs it on your PATH (Node ≥ 22.19)
-npm install -g @earendil-works/pi-coding-agent
+1. Install pi, the agent. Phosphor needs it on your PATH. It needs
+   [Node.js](https://nodejs.org) 22.19 or later, so install that first if
+   `npm` is missing.
 
-# 2. Install Phosphor (macOS / Linux)
-curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh
-```
+   ```bash
+   npm install -g @earendil-works/pi-coding-agent
+   ```
+
+2. Install Phosphor (macOS / Linux). On a Mac account without admin rights it
+   installs to `~/Applications`.
+
+   ```bash
+   curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh
+   ```
 
 Launch Phosphor, open a folder, sign in to a provider (run `pi` in the built-in
 terminal and use `/login`, or put API keys / a local endpoint in
