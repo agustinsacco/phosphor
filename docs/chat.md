@@ -733,6 +733,8 @@ also offers Retry for failed message-list requests, including transport errors.
 - GFM (`remark-gfm`): headings, tables (hover → Copy MD / Copy CSV), task
   lists, footnotes, autolinks, blockquotes. GitHub's `[!NOTE]` syntax is not
   special-cased.
+- Table cells never break a word mid-word. Each column keeps at least 8em, only
+  links break anywhere, and a table wider than the panel scrolls sideways.
 - Code: Shiki, language badge, the three hover actions, horizontal scroll
   contained in the block. One highlighter carries both themes, so a theme
   switch re-paints from CSS variables and never re-highlights. Unknown
