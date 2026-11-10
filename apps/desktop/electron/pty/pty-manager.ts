@@ -1,4 +1,6 @@
-import { spawn, type IPty } from 'node-pty'
+import type * as NodePtyModule from 'node-pty'
+import type { IPty } from 'node-pty'
+import { createRequire } from 'node:module'
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { homedir } from 'node:os'
@@ -81,7 +83,7 @@ class PtyManager {
 
     let pty: IPty
     try {
-      pty = spawn(file, args, {
+      pty = loadNodePty().spawn(file, args, {
         name: 'xterm-256color',
         cwd: workspacePath,
         cols,
@@ -221,6 +223,33 @@ function broadcast(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send(channel, payload)
   }
+}
+
+type NodePty = typeof NodePtyModule
+let nodePty: NodePty | undefined
+
+/**
+ * Load node-pty on first use, not at import. A native module that cannot load
+ * (v0.1.608: pty.node built against a newer glibc than the user's) used to
+ * throw while main.ts imported this file, killing the app before any window.
+ * Now only terminals fail, with the loader's real error attached.
+ */
+export function loadNodePty(load: () => NodePty = defaultLoad): NodePty {
+  if (nodePty) return nodePty
+  try {
+    nodePty = load()
+    return nodePty
+  } catch (error) {
+    throw new Error(
+      `The terminal is unavailable: node-pty failed to load (${errorText(error)}). ` +
+        'On Linux this usually means the build needs a newer glibc than this system has.',
+      { cause: error },
+    )
+  }
+}
+
+function defaultLoad(): NodePty {
+  return createRequire(import.meta.url)('node-pty') as NodePty
 }
 
 /** Turn node-pty's opaque spawn errors into something a user can act on. */

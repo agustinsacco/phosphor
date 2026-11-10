@@ -16,6 +16,8 @@
   ],
   "namedInputs": {
     "release": [
+      "{workspaceRoot}/tools/scripts/check-glibc-floor.mjs",
+      "{workspaceRoot}/tools/scripts/check-glibc-floor.mjs",
       "{workspaceRoot}/tools/scripts/fix-node-pty.mjs",
       "{workspaceRoot}/tools/scripts/install.sh",
       "{workspaceRoot}/tools/scripts/should-skip-release.sh",

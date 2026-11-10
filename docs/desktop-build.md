@@ -112,3 +112,25 @@ runners. Local packaging must override `directories.output` to an absolute
 managed scratch path, never a checkout `release/` directory. Do not install or
 launch that scratch bundle against real user data. Signing/update behavior is
 owned by [updates.md](updates.md).
+
+## Native modules and the glibc floor
+
+Native modules (node-pty above all) are compiled on the build machine by
+`npmRebuild` and `electron-builder install-app-deps`, so they link against
+that machine's system libraries. node-pty ships no Linux prebuild, so the
+compiled `build/Release/pty.node` is the only one a Linux user gets.
+glibc is backward- but not forward-compatible: a binary built on a newer
+glibc does not load on an older one. The runner image therefore sets the
+oldest OS a release runs on.
+
+- Release build jobs use pinned runner images, never `*-latest`
+  (`tools/scripts/release-workflow.test.ts` enforces it). Linux builds on
+  `ubuntu-22.04`, which makes the floor **glibc 2.35** (Ubuntu 22.04,
+  Debian 12). Moving the runner moves the floor; change both together.
+- After packaging, `tools/scripts/check-glibc-floor.mjs` fails the release
+  if any ELF `.node`/`.so` needs a newer `GLIBC_x.y` than `GLIBC_FLOOR`, and
+  the job loads node-pty inside the packaged Electron.
+- `apps/desktop/electron/pty/pty-manager.ts` loads node-pty on first use, so a
+  module that cannot load disables terminals with its real error instead of
+  killing the app before its first window. v0.1.608 did exactly that: its
+  `pty.node` needed GLIBC_2.42 after `ubuntu-latest` moved.

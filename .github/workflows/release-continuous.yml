@@ -189,13 +189,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          # Pinned images, never *-latest: native modules (node-pty) compile on
+          # this runner and link against its system libraries, so the image
+          # sets the oldest OS a release runs on. ubuntu-latest moving to
+          # glibc 2.42 shipped v0.1.608 with a pty.node Ubuntu 22.04 could not
+          # load. See docs/desktop-build.md#native-modules-and-the-glibc-floor.
+          - os: macos-15
             name: macOS
             # BOTH mac arches in ONE electron-builder invocation. Splitting them
             # across jobs makes the second upload clobber the first's
             # latest-mac.yml, which silently breaks auto-update.
             args: --mac
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             name: Linux
             args: --linux
           # Windows (NSIS x64 installer + latest.yml, `args: --win`) is paused to
@@ -306,6 +311,19 @@ jobs:
             --config.extraMetadata.phosphorSigned="${SIGNED}" \
             --config.publish.provider=github \
             --config.publish.releaseType=draft
+
+      # A native module built against a newer glibc than users have makes the
+      # app die before its first window (v0.1.608: pty.node needed 2.42).
+      # Fail here, while the release is still a draft, then prove pty.node
+      # really loads in the packaged Electron.
+      - name: Verify the Linux glibc floor
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          node tools/scripts/check-glibc-floor.mjs apps/desktop/release/linux-unpacked
+          ELECTRON_RUN_AS_NODE=1 apps/desktop/release/linux-unpacked/phosphor -e \
+            "require(process.argv[1] + '/node_modules/node-pty'); console.log('node-pty loads')" \
+            "$PWD/apps/desktop/release/linux-unpacked/resources/app.asar.unpacked"
 
       # A malformed signature must fail the build that produced it. v0.1.90
       # shipped a bundle whose signature claimed sealed resources it did not
