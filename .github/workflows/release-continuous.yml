@@ -241,12 +241,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # AppImage/deb tooling and arm64 cross-build support.
-      - name: Install Linux build deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libarchive-tools rpm
+      # No apt step: AppImage and deb use only electron-builder's own tools
+      # (mksquashfs, fpm), so an Ubuntu mirror outage cannot fail a release.
 
       - name: Build renderer and main
         run: npm run build
