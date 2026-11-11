@@ -505,10 +505,14 @@ close it; focus moves into the sheet and returns to the element on close.
   It keeps what a toast leaves behind: lane notices, anything you can open,
   and every warning or error (a one-line "Copied" only toasts). One entry per
   lane, updated in place, which makes it new again and moves it to the top.
+  A lane receipt shows the same parts as its toast (`notifications/LaneReceipt.tsx`):
+  the row carries the reply's line and the facts, and clicking it opens in
+  place to the machine, repository and branch and to Open lane / View changes
+  / Retry. Other rows open what they point at.
   New entries sit under **New** in the accent colour; they become seen when
-  you dismiss or open their toast, open the row, go to their lane, use Mark
-  all seen, or close the drawer, and then move to **Earlier** in a muted
-  tone. Rows can be removed one at a time and Earlier can be cleared. Seen
+  you dismiss or open their toast, open the row or act on its receipt, go to
+  their lane, use Mark all seen, or close the drawer, and then move to
+  **Earlier** in a muted tone. Expanding a receipt does not count. Rows can be removed one at a time and Earlier can be cleared. Seen
   entries age out 24h after they arrived, new ones after 72h, and the list
   holds at most 50. Entries are memory only and leave when their lane closes.
 - **Status strip** — the bottom of the chat pane, only while a session has

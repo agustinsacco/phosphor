@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { Toast } from '@/stores/extensionUi'
-import { LaneReceiptCard, openReceiptAction } from './LaneReceiptCard'
+import { LaneReceiptCard, openReceiptAction } from './LaneReceipt'
 const mocks = vi.hoisted(() => ({
   activeSessionId: 'lane',
   live: {},

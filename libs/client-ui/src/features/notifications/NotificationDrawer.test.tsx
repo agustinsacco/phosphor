@@ -63,3 +63,53 @@ it('shows new and seen notices apart, opens one, and removes one', () => {
   )
   expect(rows()).toHaveLength(1)
 })
+
+it('shows a receipt row with its facts, and opens it in place to where it ran and its actions', () => {
+  const onOpen = vi.fn()
+  act(() => {
+    useExtensionUiStore.getState().notify({
+      message: 'Stopped: rate limit',
+      title: 'Memory lane',
+      kind: 'error',
+      sessionId: 's1',
+      onOpen,
+      receipt: {
+        machine: 'This Mac',
+        at: new Date().toISOString(),
+        facts: {
+          title: 'Memory lane',
+          repository: 'phosphor',
+          branch: 'agustin/memory',
+          settledAt: null,
+          durationMs: 3000,
+          files: 2,
+          added: 4,
+          removed: 1,
+          tests: 'failed',
+          artifacts: 0,
+          excerpt: 'rate limit',
+          outcome: 'error',
+        },
+      },
+    })
+    root.render(<NotificationDrawer />)
+  })
+  const toggle = rows()[0]!.querySelector<HTMLButtonElement>('button[aria-expanded]')!
+  expect(container.textContent).toContain('2 files')
+  expect(container.textContent).toContain('tests failed')
+  expect(container.textContent).not.toContain('⎇ agustin/memory')
+  expect(container.textContent).not.toContain('View changes')
+
+  act(() => toggle.click())
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  expect(onOpen).not.toHaveBeenCalled()
+  for (const text of ['This Mac', 'phosphor · ⎇ agustin/memory', 'View changes', 'Retry'])
+    expect(container.textContent).toContain(text)
+  expect(rows()[0]!.hasAttribute('data-seen')).toBe(false)
+
+  act(() =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Open lane')!.click(),
+  )
+  expect(onOpen).toHaveBeenCalledOnce()
+  expect(rows()[0]!.hasAttribute('data-seen')).toBe(true)
+})

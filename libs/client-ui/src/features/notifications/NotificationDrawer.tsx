@@ -12,6 +12,13 @@ import {
   type Notification,
 } from '@/stores/notifications'
 import { NoticeGlyph } from './NoticeGlyph'
+import {
+  NoticeLine,
+  ReceiptActions,
+  ReceiptFacts,
+  ReceiptOrigin,
+  ReceiptPlace,
+} from './LaneReceipt'
 import { setNotificationsOpen } from './NotificationsButton'
 
 const HOURS = 60 * 60 * 1000
@@ -95,44 +102,44 @@ function NotificationList({ items }: { items: Notification[] }): React.JSX.Eleme
   )
 }
 
-/** One notice as a sidebar-style row: marker, title and time, then its line. */
+/**
+ * One notice as a sidebar-style row: marker, title and time, then its line.
+ * A lane receipt adds its facts and opens in place to where it ran and what
+ * you can do about it; any other notice goes where it points. Expanding is
+ * reading, not acting, so the row stays put (and new) until you act on it or
+ * close the drawer.
+ */
 function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false)
   const isNew = !item.seenAt
   const { markSeen, remove } = useNotificationsStore.getState()
   const open = (): void => {
     markSeen([item.id])
     void Promise.resolve(item.onOpen?.()).catch(() => undefined)
   }
+  const receipt = expanded ? item.receipt : undefined
   const heading = item.title ?? stripAnsi(item.message)
   return (
     <li
       data-testid="notification-row"
       data-seen={isNew ? undefined : ''}
       data-kind={item.kind}
-      className="group relative flex items-start"
+      className={clsx(
+        'hover:bg-sidebar-hover group relative flex items-start gap-1.5 rounded-md px-2 py-1.5 transition-colors',
+        isNew && 'bg-[color-mix(in_srgb,var(--px-accent)_7%,transparent)]',
+      )}
     >
-      <TooltipButton
-        onClick={open}
-        aria-label={item.openLabel ? `${item.openLabel}: ${heading}` : heading}
-        className={clsx(
-          'flex min-w-0 flex-1 items-start gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors',
-          isNew
-            ? 'hover:bg-sidebar-hover bg-[color-mix(in_srgb,var(--px-accent)_7%,transparent)]'
-            : 'hover:bg-sidebar-hover',
-        )}
-      >
-        <span className="flex size-5 shrink-0 items-center justify-center">
-          <span
-            className={clsx(
-              'h-2 w-2 rounded-full',
-              isNew ? 'bg-accent' : 'border-border-strong border',
-            )}
-            data-tooltip={isNew ? 'New' : 'Seen'}
-          />
-        </span>
-        <NoticeGlyph toast={item} ground="bg-sidebar" />
-        <span className="min-w-0 flex-1 pl-0.5">
-          <span className="flex min-w-0 items-baseline gap-2">
+      <SeenDot isNew={isNew} />
+      <NoticeGlyph toast={item} ground="bg-sidebar" />
+      <div className="min-w-0 flex-1 pl-0.5">
+        {/* Stretched over the whole row, so the marker and gutter click too. */}
+        <TooltipButton
+          onClick={item.receipt ? () => setExpanded(!expanded) : open}
+          aria-expanded={item.receipt ? expanded : undefined}
+          aria-label={item.openLabel && !item.receipt ? `${item.openLabel}: ${heading}` : heading}
+          className="block w-full min-w-0 text-left outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-[var(--px-accent)]/40"
+        >
+          <span className="flex min-w-0 items-baseline gap-1.5">
             <span
               className={clsx(
                 'min-w-0 flex-1 truncate text-base font-medium leading-5',
@@ -149,30 +156,46 @@ function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
               {relativeTimeShort(item.at)}
             </time>
           </span>
-          {item.title && (
-            <span
-              className={clsx(
-                'line-clamp-2 text-sm leading-4 break-words',
-                item.kind === 'error'
-                  ? 'text-danger'
-                  : isNew
-                    ? 'text-text-secondary'
-                    : 'text-text-tertiary',
-              )}
-            >
-              {stripAnsi(item.message)}
+          {receipt && (
+            <span className="text-text-secondary mt-0.5 flex min-w-0 items-center gap-1.5">
+              <ReceiptOrigin receipt={receipt} />
+              <ReceiptPlace facts={receipt.facts} />
             </span>
           )}
-        </span>
-      </TooltipButton>
+          {(item.title || item.receipt) && (
+            <NoticeLine
+              notice={item}
+              muted={!isNew}
+              className={clsx('leading-4', !expanded && 'line-clamp-2')}
+            />
+          )}
+          <ReceiptFacts facts={item.receipt?.facts} className="mt-1" />
+        </TooltipButton>
+        {receipt && <ReceiptActions notice={item} open={open} className="relative mt-1.5" />}
+      </div>
       <TooltipButton
         onClick={() => remove(item.id)}
         aria-label="Remove notification"
-        className="text-text-tertiary hover:text-text absolute right-1 top-1.5 hidden p-1 group-hover:block focus-visible:block"
+        className="text-text-tertiary hover:text-text absolute right-1 top-1.5 z-10 hidden p-1 group-hover:block focus-visible:block"
       >
         <CloseIcon size={10} strokeWidth={2.5} />
       </TooltipButton>
     </li>
+  )
+}
+
+/** New or seen, in the sidebar's indicator slot: filled accent, then a hollow ring. */
+function SeenDot({ isNew }: { isNew: boolean }): React.JSX.Element {
+  return (
+    <span className="flex size-5 shrink-0 items-center justify-center">
+      <span
+        className={clsx(
+          'h-2 w-2 rounded-full',
+          isNew ? 'bg-accent' : 'border-border-strong border',
+        )}
+        data-tooltip={isNew ? 'New' : 'Seen'}
+      />
+    </span>
   )
 }
 

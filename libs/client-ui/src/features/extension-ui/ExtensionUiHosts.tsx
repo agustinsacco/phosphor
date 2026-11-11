@@ -1,4 +1,4 @@
-import { LaneReceiptCard } from './LaneReceiptCard'
+import { LaneReceiptCard } from '@/features/notifications/LaneReceipt'
 import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
 import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
