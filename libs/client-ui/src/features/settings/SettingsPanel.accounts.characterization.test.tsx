@@ -11,6 +11,7 @@ import type {
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsPatch, mockSettingsRead } from '@/dev/mockMachineSettings'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { machineCatalogueKey, useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { useSessionsStore } from '@/stores/sessions'
 import { prepareHostSettings, showHostSettings } from './__fixtures__/hostSettingsSurface'
 import { SETTINGS_SECTIONS } from './sections/registry'
@@ -335,5 +336,31 @@ describe('A Host › Accounts and Claude Code', () => {
     expect(calls('hosts:providerLogin')).toEqual([
       [HOST.id, 'claude', { accountId: 'd8736746-ea12-452b-a492-411a74fba4f8', configure: true }],
     ])
+  })
+
+  it('reads the Host’s models again once a sign-in closes, so its pickers stop asking to sign in', async () => {
+    useMachineCataloguesStore.setState({
+      catalogues: {
+        [machineCatalogueKey(HOST.id)]: {
+          models: [
+            {
+              id: 'claude-fable-5-1',
+              name: 'Claude Fable 5.1',
+              provider: 'pi-claude-cli',
+              reasoning: true,
+            },
+          ],
+          providers: [{ id: 'pi-claude-cli', name: 'Claude CLI', status: 'not_ready' }],
+          error: null,
+          status: 'ready',
+        },
+      },
+    })
+    await showHostSettings(root, HOST.id, claudeTab())
+    await settle(() => expect(text()).toContain('work@bee1.example'))
+    await click(button('Add account'))
+    expect(calls('hosts:providers')).toEqual([])
+    await click(button('Cancel and close'))
+    await settle(() => expect(calls('hosts:providers')).toEqual([[HOST.id]]))
   })
 })
