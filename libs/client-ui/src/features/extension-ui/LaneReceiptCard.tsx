@@ -4,7 +4,7 @@ import { platformName } from '@shared/platform-name'
 import { localMachineLabel } from '@/lib/localMachine'
 import { useMachinesStore } from '@/stores/machines'
 import { TooltipButton } from '@/components/Tooltip'
-import { useExtensionUiStore, type Toast } from '@/stores/extensionUi'
+import { acknowledgeToast, useExtensionUiStore, type Toast } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
 import { machineColour } from '@/features/sessions/laneReceipt'
@@ -46,7 +46,7 @@ export function LaneReceiptCard({
   const stopped = facts?.outcome === 'error' || toast.kind === 'error'
   const dismiss = () => {
     useExtensionUiStore.getState().setToastsPaused('hover', false)
-    useExtensionUiStore.getState().dismissToast(toast.id)
+    acknowledgeToast(toast)
   }
   return (
     <div

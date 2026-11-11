@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/stores/sessions', () => ({ useSessionsStore: { getState: () => mocks } }))
 vi.mock('@/stores/layout', () => ({ useLayoutStore: { getState: () => mocks } }))
-vi.mock('@/stores/extensionUi', () => ({ useExtensionUiStore: { getState: () => mocks } }))
+vi.mock('@/stores/extensionUi', () => ({
+  useExtensionUiStore: { getState: () => mocks },
+  acknowledgeToast: (toast: Toast) => mocks.dismissToast(toast.id),
+}))
 vi.mock('@/stores/machines', () => ({
   useMachinesStore: (selector: (s: { machines: typeof mocks.machines }) => unknown) =>
     selector({ machines: mocks.machines }),

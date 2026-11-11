@@ -498,7 +498,19 @@ close it; focus moves into the sheet and returns to the element on close.
   (with a small bump), not three. Timers pause while a card is hovered or
   focused and while the window is blurred, so a notice that lands while you
   are in another app is still there when you come back. Errors stay 9s, cards
-  you can open 7s, the rest 5s.
+  you can open 7s, the rest 5s. While the notification drawer is open, a
+  notice it keeps lands there instead, and other toasts stack beside it.
+- **Notification drawer** — the bell at the right end of the top bar counts
+  new notices and opens a right-hand column styled like the left navigation.
+  It keeps what a toast leaves behind: lane notices, anything you can open,
+  and every warning or error (a one-line "Copied" only toasts). One entry per
+  lane, updated in place, which makes it new again and moves it to the top.
+  New entries sit under **New** in the accent colour; they become seen when
+  you dismiss or open their toast, open the row, go to their lane, use Mark
+  all seen, or close the drawer, and then move to **Earlier** in a muted
+  tone. Rows can be removed one at a time and Earlier can be cleared. Seen
+  entries age out 24h after they arrived, new ones after 72h, and the list
+  holds at most 50. Entries are memory only and leave when their lane closes.
 - **Status strip** — the bottom of the chat pane, only while a session has
   something to say: an MCP chip (`connected/enabled`, tool count, "N need
   attention"; opens Settings → MCP Connectors), a sub-agent chip (background

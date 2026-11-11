@@ -649,6 +649,11 @@ html {
     transform: scale(1.025);
   }
 }
+/* The notification drawer's width. The toast stack reads it to sit beside
+ * the open drawer instead of over it. */
+:root {
+  --px-drawer-width: 18rem;
+}
 /* `minmax(0, 1fr)` pins the column to the stack's width. The implicit `auto`
  * column sizes to the card's min-content instead, which a nowrap title or an
  * unbreakable path or URL stretches past the window's right edge. */

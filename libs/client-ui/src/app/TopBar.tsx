@@ -26,6 +26,7 @@ import { useNameTransition } from '@/features/sessions/nameTransition'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useCurrentWork } from '@/features/chat/currentWork'
 import { LaneLinks } from '@/features/sessions/LaneLinks'
+import { NotificationsButton } from '@/features/notifications/NotificationsButton'
 
 /**
  * The window's one and only title bar.
@@ -96,6 +97,7 @@ export function TopBar({
           )}
         </>
       )}
+      <NotificationsButton />
     </header>
   )
 }

@@ -5,8 +5,15 @@ import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
-import { useExtensionUiStore, type PendingDialog, type Toast } from '@/stores/extensionUi'
-import { CheckIcon, CloseIcon, WarningIcon } from '@/components/icons'
+import {
+  acknowledgeToast,
+  useExtensionUiStore,
+  type PendingDialog,
+  type Toast,
+} from '@/stores/extensionUi'
+import { useNotificationsStore } from '@/stores/notifications'
+import { NoticeGlyph } from '@/features/notifications/NoticeGlyph'
+import { CloseIcon } from '@/components/icons'
 import { ignoreShortcut } from '@/lib/shortcutContext'
 import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
@@ -245,6 +252,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
  */
 export function ToastHost(): React.JSX.Element {
   const toasts = useExtensionUiStore((s) => s.toasts)
+  const drawerOpen = useNotificationsStore((s) => s.open)
   useEffect(() => {
     const { setToastsPaused } = useExtensionUiStore.getState()
     const onBlur = (): void => setToastsPaused('blur', true)
@@ -265,7 +273,11 @@ export function ToastHost(): React.JSX.Element {
       aria-label="Notifications"
       aria-live="polite"
       data-testid="toast-stack"
-      className="pointer-events-none fixed top-12 right-2 z-[60] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col"
+      className={clsx(
+        'pointer-events-none fixed top-12 z-[60] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col',
+        // Beside the open drawer, not over its first rows.
+        drawerOpen ? 'right-[calc(var(--px-drawer-width)+0.5rem)]' : 'right-2',
+      )}
     >
       {toasts.map((toast) => (
         <ToastCard key={toast.id} toast={toast} />
@@ -276,19 +288,19 @@ export function ToastHost(): React.JSX.Element {
 }
 
 function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
-  const { dismissToast, setToastsPaused } = useExtensionUiStore.getState()
+  const { setToastsPaused } = useExtensionUiStore.getState()
   const hold = (): void => setToastsPaused('hover', true)
   const release = (): void => setToastsPaused('hover', false)
   const open = toast.onOpen
     ? (): void => {
         release()
         toast.onOpen?.()
-        dismissToast(toast.id)
+        acknowledgeToast(toast)
       }
     : undefined
   const body = (
     <>
-      <ToastGlyph toast={toast} />
+      <NoticeGlyph toast={toast} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         {toast.title && (
           <span className="flex min-w-0 items-baseline gap-2">
@@ -365,7 +377,7 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
           )}
           <TooltipButton
             type="button"
-            onClick={() => dismissToast(toast.id)}
+            onClick={() => acknowledgeToast(toast)}
             aria-label="Dismiss"
             className="text-text-tertiary hover:text-text shrink-0 px-3 py-3"
           >
@@ -375,41 +387,6 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
       </div>
     </li>
   )
-}
-
-/**
- * The card's leading mark. A lane notice leads with the lane's own marker —
- * the same emoji as its sidebar row, which is how you recognise it — with the
- * outcome as a small badge on it; everything else leads with the outcome.
- */
-function ToastGlyph({ toast }: { toast: Toast }): React.JSX.Element {
-  const badge =
-    toast.kind === 'success' ? (
-      <span className="bg-success text-bg flex h-full w-full items-center justify-center rounded-full">
-        <CheckIcon size={toast.marker ? 7 : 10} />
-      </span>
-    ) : toast.kind === 'error' || toast.kind === 'warning' ? (
-      <WarningIcon
-        size={toast.marker ? 10 : 14}
-        className={toast.kind === 'error' ? 'text-danger' : 'text-warning'}
-      />
-    ) : null
-  if (toast.marker) {
-    return (
-      <span className="relative mt-px flex h-5 w-5 shrink-0 items-center justify-center text-base leading-none">
-        {toast.marker}
-        {badge && (
-          <span className="bg-surface-raised absolute -right-1 -bottom-1 flex h-3 w-3 items-center justify-center rounded-full">
-            {badge}
-          </span>
-        )}
-      </span>
-    )
-  }
-  if (badge) {
-    return <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">{badge}</span>
-  }
-  return <span className="bg-info mt-1.5 h-2 w-2 shrink-0 rounded-full" />
 }
 
 /**
