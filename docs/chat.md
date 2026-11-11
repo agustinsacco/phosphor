@@ -924,6 +924,20 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   the thinking level (with a caret) as the right. The provider is not on the
   chip: it is in the chip's tooltip and, in a session, in the strip, named only
   when pi does not ship it (`namedProvider`).
+- **When a machine's list is read again.** Nothing polls; opening a picker is
+  when the list matters. This Mac's list is read at boot, and opening the start
+  picker asks main again in the background (`modelCatalogue.revalidate`). Main
+  answers from its five-minute cache unless a sign-in, a package change or a pi
+  config change dropped it. A Host's list (`machineCatalogues`: its models and
+  which providers are signed in) is read once per connection, then again in the
+  background when the start picker or a Host lane's model menu opens on a read
+  older than 30 seconds (`MACHINE_CATALOGUE_FRESH_MS`), and at once when a Host
+  section of Settings refreshes or a sign-in or setup task on that Host closes.
+  Each Host read spawns pi and checks the Claude sign-in there, hence the 30
+  seconds. The models in hand stay listed while it reads; the start picker says
+  "Checking <machine> for new sign-ins and models…", and a failed re-read keeps
+  them. A model newer than the machine's pi is not in any list until that pi is
+  updated ([extensions.md](extensions.md#updating-the-cli-does-not-add-new-models)).
 - **Context meter**: % of window from `get_session_stats` (polled after each
   `agent_end` and on demand), shown in the strip as `36% of 200k` with the
   ring, warn state near the compaction threshold, and the popover below. The denominator is pi's context window, or the

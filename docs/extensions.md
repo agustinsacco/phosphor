@@ -839,7 +839,8 @@ both layouts.
 The model list under the `pi-claude-cli` provider does **not** come from the
 CLI. The package builds it from `getBuiltinModels("anthropic")`, pi's own
 bundled catalogue. A model Anthropic shipped yesterday appears in the picker
-when **pi** updates, not when Claude Code does.
+when **pi** updates, not when Claude Code does. On a Host that is the Host
+user's own pi: `phosphor update` updates the provider package, not pi.
 
 There is no user-side override. In pi's provider composer, an extension that
 registers a `models` array **replaces** the list outright, so a `models.json`

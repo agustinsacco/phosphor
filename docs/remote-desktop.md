@@ -200,7 +200,10 @@ skills and model/provider catalogues do not require an open lane. Main validates
 results, gates on `skills.read` before and after the call, and rejects replies
 from replaced connections or incarnations. Page stores ignore late replies after
 selection or connection changes. Remote machines show models and providers on
-Skills; This Mac shows them in Settings.
+Skills; This Mac shows them in Settings. A model picker that opens on an old
+read, a Settings refresh and a closed sign-in read a Host's models and providers
+again ([Chat](chat.md#session-controls-per-session), "When a machine's list is
+read again").
 
 ## Remote read panes
 

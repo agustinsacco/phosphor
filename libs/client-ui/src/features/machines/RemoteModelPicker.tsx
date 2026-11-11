@@ -36,7 +36,12 @@ function hostStartModel(
     thinking: selection.thinking,
     choose: selection.choose,
     setThinking: selection.setThinking,
-    menu: { emptyText: selection.hint, unavailable: selection.unavailable },
+    onOpen: () => void selection.revalidate(),
+    menu: {
+      emptyText: selection.hint,
+      notice: selection.notice,
+      unavailable: selection.unavailable,
+    },
     actions,
   }
 }

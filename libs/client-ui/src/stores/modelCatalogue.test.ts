@@ -234,3 +234,33 @@ it("shares its sign-in read with This Mac's other readers", async () => {
   expect(await lastLocalSubscriptionAuth()).toEqual(signedIn)
   expect(invoke.mock.calls.filter(([channel]) => channel === 'pi:subscriptionAuth')).toHaveLength(1)
 })
+
+describe('revalidate, as a picker opens', () => {
+  const FABLE = { id: 'claude-fable-5-2', name: 'Claude Fable 5.2', provider: 'anthropic' }
+
+  it('swaps in main’s newer answer while the list in hand stays ready', async () => {
+    stubOk()
+    const { useModelCatalogueStore } = await import('./modelCatalogue')
+    await useModelCatalogueStore.getState().hydrate()
+    stubOk([MODEL, FABLE])
+    const pending = useModelCatalogueStore.getState().revalidate()
+    expect(useModelCatalogueStore.getState()).toMatchObject({ status: 'ready', models: [MODEL] })
+    await pending
+    expect(useModelCatalogueStore.getState().models).toEqual([MODEL, FABLE])
+  })
+
+  it('keeps pi’s list over a degraded or failed answer', async () => {
+    stubOk()
+    const { useModelCatalogueStore } = await import('./modelCatalogue')
+    await useModelCatalogueStore.getState().hydrate()
+    stubOk([FABLE], 'config')
+    await useModelCatalogueStore.getState().revalidate()
+    invoke.mockRejectedValue(new Error('main is gone'))
+    await useModelCatalogueStore.getState().revalidate()
+    expect(useModelCatalogueStore.getState()).toMatchObject({
+      status: 'ready',
+      source: 'pi',
+      models: [MODEL],
+    })
+  })
+})

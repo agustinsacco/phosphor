@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { SubscriptionProviderStatus } from '@shared/models'
 import type { ModelCost, ThinkingLevelMap } from '@shared/rpc'
-import { readLocalSubscriptionAuth } from './localSubscriptionAuth'
+import { lastLocalSubscriptionAuth, readLocalSubscriptionAuth } from './localSubscriptionAuth'
 
 /**
  * The model catalogue every session-less picker reads.
@@ -59,12 +59,36 @@ interface ModelCatalogueState {
   hydrate: () => Promise<void>
   /** Re-fetch unconditionally, e.g. after a sign-in or a settings change. */
   refresh: () => Promise<void>
+  /**
+   * Ask main again while the list in hand stays listed, as a picker opens. Main
+   * answers from its cache unless a sign-in, a package or a config change
+   * dropped it, so this costs an IPC round trip. A failed or degraded answer
+   * never replaces pi's list, and the sign-ins are the last read's.
+   */
+  revalidate: () => Promise<void>
   /** Look up a model the same way both pickers do: provider AND id. */
   find: (provider: string | null, id: string | null) => CatalogueModel | undefined
 }
 
 /** Shared across concurrent hydrate calls so two pickers cause one fetch. */
 let inFlight: Promise<void> | null = null
+
+/** `revalidate`'s read: main's answer and the last sign-in read, or null to keep the list in hand. */
+async function askMainAgain(
+  source: ModelCatalogueState['source'],
+  providers: SubscriptionProviderStatus[],
+): Promise<Pick<ModelCatalogueState, 'models' | 'source' | 'providers'> | null> {
+  try {
+    const [catalogue, signIns] = await Promise.all([
+      window.phosphor.invoke('pi:catalogueModels'),
+      lastLocalSubscriptionAuth().catch(() => providers),
+    ])
+    if (catalogue.source === 'config' && source === 'pi') return null
+    return { models: catalogue.models, source: catalogue.source, providers: signIns }
+  } catch {
+    return null
+  }
+}
 
 export const useModelCatalogueStore = create<ModelCatalogueState>((set, get) => ({
   status: 'idle',
@@ -116,6 +140,19 @@ export const useModelCatalogueStore = create<ModelCatalogueState>((set, get) => 
     // assignment above lands, so an inline `finally` would clear the slot
     // first and then leave the settled promise parked in it forever — every
     // later refresh would return that same dead promise.
+    void run.finally(() => {
+      if (inFlight === run) inFlight = null
+    })
+    return run
+  },
+
+  revalidate: async () => {
+    if (get().status !== 'ready') return get().hydrate()
+    if (inFlight) return inFlight
+    const run = askMainAgain(get().source, get().providers).then((next) => {
+      if (next) set(next)
+    })
+    inFlight = run
     void run.finally(() => {
       if (inFlight === run) inFlight = null
     })

@@ -72,6 +72,11 @@ export function useRemoteModel(hostId: string) {
       catalogue.status !== 'loading' &&
       !model,
     retry: () => useMachineCataloguesStore.getState().load(hostId, undefined, true),
+    /** Opening the picker: an old read is read again, its models listed meanwhile. */
+    revalidate: () => useMachineCataloguesStore.getState().revalidate(hostId),
+    notice: catalogue.refreshing
+      ? `Checking ${machineLabel(hostId)} for new sign-ins and models…`
+      : undefined,
     thinking: model
       ? clampThinkingLevel(model, rememberedThinking ?? defaults.thinking)
       : ('off' as const),

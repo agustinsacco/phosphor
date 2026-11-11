@@ -1,9 +1,10 @@
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRemoteLanesStore } from './remoteLanes'
 import {
   useMachineCataloguesStore,
   machineCatalogueKey,
   EMPTY_MACHINE_CATALOGUE,
+  MACHINE_CATALOGUE_FRESH_MS,
 } from './machineCatalogues'
 import { useSkillsStore } from './skills'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
@@ -187,3 +188,49 @@ function catalogue() {
     EMPTY_MACHINE_CATALOGUE
   )
 }
+
+describe('revalidate', () => {
+  const T0 = 1_000_000
+  const newer = [...models, { id: 'n', name: 'Newer model', provider: 'p', reasoning: true }]
+  const channels = () => invoke.mock.calls.map(([channel]) => channel)
+  beforeEach(async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(T0)
+    await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
+    invoke.mockClear()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('leaves a fresh read alone and re-reads an old one, listing its models meanwhile', async () => {
+    await useMachineCataloguesStore.getState().revalidate(MOCK_HOST_ID)
+    expect(invoke).not.toHaveBeenCalled()
+    vi.mocked(Date.now).mockReturnValue(T0 + MACHINE_CATALOGUE_FRESH_MS)
+    let answer!: (value: unknown) => void
+    invoke.mockImplementationOnce(() => new Promise((done) => (answer = done)))
+    const pending = useMachineCataloguesStore.getState().revalidate(MOCK_HOST_ID)
+    void useMachineCataloguesStore.getState().revalidate(MOCK_HOST_ID, 0)
+    expect(catalogue()).toMatchObject({ status: 'ready', models, refreshing: true })
+    answer(newer)
+    await pending
+    expect(channels()).toEqual(['hosts:models', 'hosts:providers'])
+    expect(catalogue()).toEqual({
+      models: newer,
+      providers: [{ id: 'p', name: 'Provider', status: 'ready' }],
+      error: null,
+      status: 'ready',
+      readAt: T0 + MACHINE_CATALOGUE_FRESH_MS,
+    })
+  })
+
+  it('keeps the old read when a re-read fails, and retries a failed first read', async () => {
+    invoke.mockRejectedValueOnce(new Error('Connection closed.'))
+    await useMachineCataloguesStore.getState().revalidate(MOCK_HOST_ID, 0)
+    expect(catalogue()).toMatchObject({ status: 'ready', models, error: null, readAt: T0 })
+    expect(catalogue().refreshing).toBeUndefined()
+    useMachineCataloguesStore.setState({ catalogues: {} })
+    invoke.mockRejectedValueOnce(new Error('Connection closed.'))
+    await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
+    expect(catalogue().status).toBe('error')
+    await useMachineCataloguesStore.getState().revalidate(MOCK_HOST_ID)
+    expect(catalogue()).toMatchObject({ status: 'ready', models })
+  })
+})

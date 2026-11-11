@@ -71,10 +71,12 @@ export function useLocalStartModel({
       patchPiDefaults({ defaultThinkingLevel: level })
     },
     // Opening the picker is when the list matters, so a degraded one gets one
-    // more attempt at pi. Cheap: main serves a good answer from its cache and
-    // only re-spawns pi when what it holds is the fallback.
+    // more attempt at pi, and a good one asks main again in the background: a
+    // sign-in or package change since boot dropped main's cache. Cheap: main
+    // serves an unchanged answer from its cache.
     onOpen: () => {
-      if (source === 'config') void useModelCatalogueStore.getState().refresh()
+      const store = useModelCatalogueStore.getState()
+      void (source === 'config' ? store.refresh() : store.revalidate())
     },
     menu: {
       emptyText: catalogueEmptyText(status, providers),

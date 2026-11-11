@@ -3,6 +3,7 @@ import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import type { MachineSettingsSection } from '@shared/machine-settings'
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
+import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { useSettingsUiStore } from '../settingsUiStore'
 import { HostProgramDialog } from './HostProgramDialog'
 import { useHostSettings } from './useHostSettings'
@@ -65,9 +66,14 @@ function useHostSectionState(
     readable: reads === 'connection' ? connection?.state === 'ready' : allowed,
     /**
      * Reads the section again: its settings, or the link's folders, through the
-     * remote-lanes listener, the only writer of the Host snapshot.
+     * remote-lanes listener, the only writer of the Host snapshot. The Host's
+     * models and sign-ins too: Refresh, and a sign-in or install closing, run
+     * this, and each can change what the Host's model pickers offer.
      */
-    refresh: reads === 'connection' ? refreshHostsSnapshot : settings.refresh,
+    refresh: () => {
+      void useMachineCataloguesStore.getState().revalidate(machine.id, 0)
+      return reads === 'connection' ? refreshHostsSnapshot() : settings.refresh()
+    },
     ...programs,
     accessBusy,
     access,
