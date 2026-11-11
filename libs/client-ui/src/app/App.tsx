@@ -19,6 +19,8 @@ import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
 import { OPENING_LANE_EXIT_MS, OpeningLane } from '@/features/sessions/OpeningLane'
 import { Sidebar } from '@/features/sessions/Sidebar'
+import { NotificationDrawer } from '@/features/notifications/NotificationDrawer'
+import { useNotificationsStore } from '@/stores/notifications'
 import { TopBar } from './TopBar'
 import { RightPane } from '@/features/files/RightPane'
 import { FuzzyFinder } from '@/features/files/FuzzyFinder'
@@ -44,6 +46,7 @@ export function App(): React.JSX.Element {
   // Held for its exit so the overlay fades into the lane instead of cutting.
   const openingShown = useLingering(opening, OPENING_LANE_EXIT_MS)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
+  const notificationsOpen = useNotificationsStore((s) => s.open)
   const { location } = useNavigation()
   const page = location.to === 'page' && location.page !== 'settings' ? location.page : null
   const currentWorkspaceGit = useSessionsStore((s) =>
@@ -285,6 +288,7 @@ export function App(): React.JSX.Element {
               <MachineFilesPane hostId={machineFiles.hostId} />
             </aside>
           )}
+          {notificationsOpen && <NotificationDrawer />}
         </div>
         {currentWorkspace && <FuzzyFinder workspacePath={currentWorkspace} />}
         <AppOverlays workspacePath={currentWorkspace ?? ''} ready={initialDataReady && !loading} />

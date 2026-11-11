@@ -1,5 +1,6 @@
 import type { ToastReceipt } from '@/features/sessions/laneReceipt'
 import { create } from 'zustand'
+import { useNotificationsStore, type NoticeFields } from './notifications'
 import type { ExtensionUIRequest } from '@shared/rpc'
 import {
   parseFleetWidget,
@@ -38,6 +39,8 @@ export interface Toast {
   leaving: boolean
   /** Raised when a newer notice replaces this one in place, to replay a pulse. */
   bump: number
+  /** Its entry in the notification drawer, when it is worth keeping. */
+  noticeId?: number
 }
 
 export type ToastOptions = Pick<
@@ -65,6 +68,27 @@ export function toastDuration(options: Pick<ToastOptions, 'kind' | 'onOpen'>): n
   if (options.kind === 'error') return 9000
   if (options.onOpen || options.kind === 'warning') return 7000
   return 5000
+}
+
+/** The card's content, without its clock. Picked, so no stray option reaches a card. */
+function noticeFields(options: ToastOptions): NoticeFields {
+  const { receipt, message, title, sessionId, marker, onOpen, openLabel } = options
+  return {
+    receipt,
+    message,
+    kind: options.kind ?? 'info',
+    title,
+    sessionId,
+    marker,
+    onOpen,
+    openLabel,
+  }
+}
+
+/** The user closed or opened this card, so its drawer entry is no longer new. */
+export function acknowledgeToast(toast: Pick<Toast, 'id' | 'noticeId'>): void {
+  if (toast.noticeId) useNotificationsStore.getState().markSeen([toast.noticeId])
+  useExtensionUiStore.getState().dismissToast(toast.id)
 }
 
 interface ExtensionUiState {
@@ -239,18 +263,12 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
   pushToast: (message, kind = 'info') => get().notify({ message, kind }),
 
   notify: (options) => {
-    const kind = options.kind ?? 'info'
-    const durationMs = options.durationMs ?? toastDuration({ ...options, kind })
-    const fields = {
-      receipt: options.receipt,
-      message: options.message,
-      kind,
-      title: options.title,
-      sessionId: options.sessionId,
-      marker: options.marker,
-      onOpen: options.onOpen,
-      openLabel: options.openLabel,
-    }
+    const durationMs = options.durationMs ?? toastDuration(options)
+    const inbox = useNotificationsStore.getState()
+    const notice = inbox.record(noticeFields(options))
+    // With the drawer open the notice lands in it, not on top of it.
+    if (notice && inbox.open) return toastId++
+    const fields = { ...noticeFields(options), noticeId: notice?.id }
     // One notice per session: the newer one takes the older one's place (and
     // its clock restarts) rather than stacking a second card for one lane.
     const existing = options.sessionId
@@ -293,6 +311,7 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
   },
 
   dismissSessionToast: (sessionId) => {
+    useNotificationsStore.getState().markSessionSeen(sessionId)
     for (const toast of get().toasts) {
       if (toast.sessionId === sessionId) get().dismissToast(toast.id)
     }
@@ -312,6 +331,7 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
 
   clearSession: (sessionId) => {
     get().dismissSessionToast(sessionId)
+    useNotificationsStore.getState().forgetSession(sessionId)
     get().forgetSubagents(sessionId)
     set((s) => {
       const statuses = { ...s.statuses }

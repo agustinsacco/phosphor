@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { Toast } from '@/stores/extensionUi'
-import { LaneReceiptCard, openReceiptAction } from './LaneReceiptCard'
+import { LaneReceiptCard, openReceiptAction } from './LaneReceipt'
 const mocks = vi.hoisted(() => ({
   activeSessionId: 'lane',
   live: {},
@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/stores/sessions', () => ({ useSessionsStore: { getState: () => mocks } }))
 vi.mock('@/stores/layout', () => ({ useLayoutStore: { getState: () => mocks } }))
-vi.mock('@/stores/extensionUi', () => ({ useExtensionUiStore: { getState: () => mocks } }))
+vi.mock('@/stores/extensionUi', () => ({
+  useExtensionUiStore: { getState: () => mocks },
+  acknowledgeToast: (toast: Toast) => mocks.dismissToast(toast.id),
+}))
 vi.mock('@/stores/machines', () => ({
   useMachinesStore: (selector: (s: { machines: typeof mocks.machines }) => unknown) =>
     selector({ machines: mocks.machines }),
