@@ -120,9 +120,26 @@ it('does not propose after cancellation while embedding, and scrubs failed call 
   expect(JSON.stringify(t.store.extraction(t.job.id))).not.toContain('harbor-secret')
 })
 
-it('keeps an outcome for each validated claim when a later stage fails',async()=>{
-  const s=await setup()
+it('keeps an outcome for each validated claim when a later stage fails', async () => {
+  const s = await setup()
   vi.mocked(s.options.embeddings.embed).mockRejectedValueOnce(new Error('Fake embedding failure'))
-  await expect(extractJob(s.job,signal(),s.store,s.options,s.search)).rejects.toThrow('Fake embedding failure')
-  expect(s.store.extraction(s.job.id).outcomes).toContainEqual(expect.objectContaining({candidate:'w1:c1',status:'dropped',reason:'Run failed before proposal'}))
+  await expect(extractJob(s.job, signal(), s.store, s.options, s.search)).rejects.toThrow(
+    'Fake embedding failure',
+  )
+  expect(s.store.extraction(s.job.id).outcomes).toContainEqual(
+    expect.objectContaining({
+      candidate: 'w1:c1',
+      status: 'dropped',
+      reason: 'Run failed before proposal',
+    }),
+  )
+})
+
+it('publishes extract progress before the first model call begins',async()=>{
+  const s=await setup()
+  s.runner.mockImplementation(async input=>{
+    if(input.stage==='extract')expect(s.store.job(s.job.id)?.progress).toEqual({stage:'extract',done:0,total:1})
+    return {text:answerFor(input),usage:{tokens:1,cost:0}}
+  })
+  await extractJob(s.job,signal(),s.store,s.options,s.search)
 })
