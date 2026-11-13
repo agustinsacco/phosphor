@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
+import { VectorIndex } from './vector-index'
 import { approve, extraction, searchFixture, vector } from './test-support'
 import { freshness } from './recall'
 import { named } from './seeds'
@@ -117,5 +118,19 @@ it('find ranks exact keys and exact names ahead of word and trigram candidates',
     expect(search.find('ticket Kestrel', null, 5).entities[0]?.id).toBe('kestrel')
   } finally {
     db.close()
+  }
+})
+
+it('find does not scan vectors whose results would be truncated behind a full lexical page', async () => {
+  const { store, search } = searchFixture()
+  approve(store)
+  await search.refresh()
+  const lexical = search.find('Harbor', null, 1)
+  const nearest = vi.spyOn(VectorIndex.prototype, 'nearest')
+  try {
+    expect(search.find('Harbor', vector(), 1)).toEqual(lexical)
+    expect(nearest).not.toHaveBeenCalled()
+  } finally {
+    nearest.mockRestore()
   }
 })
