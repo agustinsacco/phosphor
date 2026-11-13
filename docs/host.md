@@ -1689,6 +1689,28 @@ machine owner configured (Git LFS, for example) still run during `git.status` an
 filtered files, including Git LFS files, as modified. A caller cannot choose or
 change the command.
 
+`workspaces.read` also covers the GitHub reads, on the Host's own `gh` and
+credentials. `github.prs {repositoryId, options?}` finds the PRs of a configured
+repository's branches ([Lanes](lanes.md#pr-status)). `github.prSummaries {refs,
+options?}` and `github.prDetail {ref, options?}` read PRs by number with the
+readers This Mac uses (`libs/session-runtime/src/git/github-pr-status.ts`,
+`github-pr-detail.ts`), running `gh` in the Host account's home
+([Host protocol](remote-protocol.md#pr-status-by-number)). All three share one
+`GithubGate` per Host: one serialized queue and one rate-limit pause, and PR
+reads by number reach only `github.com` and hosts a configured repository's origin
+resolved to.
+
+Lane summaries carry `pullRequests`, the PRs each lane's session file and its
+subagent runs point at. `createHostLiveLanes` folds them with Desktop's session
+fold and `withSubagentPrs` (`src/lanes/live/lane-pr-fold.ts`). Summaries are
+built synchronously, so `src/lanes/live/lane-prs.ts` answers from the last read
+and reads again in the background: once per lane per 5 seconds at most, a later
+read when asked inside that window, four lanes at a time. A file that only grew
+continues the last fold, proven by its bytes as the scan proves it; answers stay
+cached by file size and mtime (1,024 files, 16 resumable folds), and a session file
+over 64 MiB is not folded. A changed answer publishes the lane's summary again,
+batched over 200 ms; a failed read keeps the last answer.
+
 The `skills.read` feature answers `machine.models` with the Host pi's model
 catalogue and `machine.providers` with provider names and readiness only. It
 never returns credentials or provider diagnostic text. Probes use the Host's

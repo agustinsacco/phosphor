@@ -1,6 +1,7 @@
 import { FILE_LIMITS, parseFileParams } from '@phosphor/shared/host-protocol-files'
 import type { FeatureContext, HostFeature } from './feature'
 import { githubReader } from './git/github'
+import { githubPrStatus, hostGithubGate } from './git/pr-status'
 import { loadGitStatus } from './git/status'
 import { readGitObject } from './git/show'
 import { checkedPath, failure, FileFailure, laneRoot, listedPaths, safeGit } from './files'
@@ -10,12 +11,24 @@ function bounded(text: string): string {
   return text
 }
 export function createGitFeature(context: FeatureContext): HostFeature {
-  const prs = githubReader(context)
+  // Branch discovery and PR status by number share one gh queue and rate-limit pause.
+  const gate = hostGithubGate(context)
+  const prs = githubReader(context, gate)
+  const status = githubPrStatus(context, gate)
   return {
     capability: 'workspaces.read',
-    methods: ['git.status', 'git.diff', 'git.show', 'github.prs'],
+    methods: [
+      'git.status',
+      'git.diff',
+      'git.show',
+      'github.prs',
+      'github.prSummaries',
+      'github.prDetail',
+    ],
     async call(method, params) {
       if (method === 'github.prs') return prs(params)
+      if (method === 'github.prSummaries') return status.summaries(params)
+      if (method === 'github.prDetail') return status.detail(params)
       const p = parseFileParams(method, params)
       if (!p || !p.laneId || !['git.status', 'git.diff', 'git.show'].includes(method))
         return failure(new FileFailure('bad-request'))

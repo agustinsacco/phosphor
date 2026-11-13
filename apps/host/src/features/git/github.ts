@@ -1,6 +1,7 @@
 import { ghPrsForRepo, type GhRunner } from '@phosphor/session-runtime/git/github'
 import { createGithubReader } from '@phosphor/session-runtime/git/github-reader'
 import { runGithubCommand } from '@phosphor/session-runtime/git/github-command'
+import type { GithubGate } from '@phosphor/session-runtime/git/github-gate'
 import {
   parsePrParams,
   parsePrReadOptions,
@@ -40,10 +41,14 @@ async function legacyRead(context: FeatureContext, cwd: string): Promise<Feature
   }
 }
 
-/** One machine-owned reader shared by all clients; no GitHub credentials cross the wire. */
-export function githubReader(context: FeatureContext) {
+/**
+ * One machine-owned reader shared by all clients; no GitHub credentials cross the wire.
+ * `gate` is the queue and rate-limit pause it shares with PR status by number.
+ */
+export function githubReader(context: FeatureContext, gate?: GithubGate) {
   const reader = createGithubReader({
     run: (cwd, args, signal) => runGithubCommand(cwd, args, context.env, signal),
+    ...(gate ? { gate } : {}),
   })
   const paths = new Set<string>()
   const legacy = new Map<

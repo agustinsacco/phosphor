@@ -3,11 +3,13 @@ import { createLiveLanes } from './live'
 import type { LiveOptions } from './live/state'
 import { createUnattachedSnapshots } from './transcript'
 import { gitTracking } from './worktree'
+import { createLanePrReader } from './live/lane-pr-fold'
 
 /**
  * The Host's live lanes as `run` wires them: snapshots of stopped lanes read from
- * their transcripts, and repositories that say whether git tracks them. Unit
- * suites call `createLiveLanes` directly and so never spawn git.
+ * their transcripts, repositories that say whether git tracks them, and lane
+ * summaries that carry the PRs their session files point at. Unit suites call
+ * `createLiveLanes` directly and so never spawn git or fold session files.
  */
 export function createHostLiveLanes(
   options: Pick<LiveOptions, 'epoch' | 'store' | 'runtime' | 'now'> & {
@@ -22,6 +24,7 @@ export function createHostLiveLanes(
     ...rest,
     log,
     gitTracking,
+    lanePrs: createLanePrReader(),
     unattached: (id) => unattached(id),
   })
   unattached = createUnattachedSnapshots({

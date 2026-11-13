@@ -300,6 +300,14 @@
       "types": "./src/host-protocol-files.ts",
       "default": "./src/host-protocol-files.ts"
     },
+    "./host-protocol-pr-status": {
+      "types": "./src/host-protocol-pr-status.ts",
+      "default": "./src/host-protocol-pr-status.ts"
+    },
+    "./host-protocol-pr-results": {
+      "types": "./src/host-protocol-pr-results.ts",
+      "default": "./src/host-protocol-pr-results.ts"
+    },
     "./host-protocol-file-bytes": {
       "types": "./src/host-protocol-file-bytes.ts",
       "default": "./src/host-protocol-file-bytes.ts"

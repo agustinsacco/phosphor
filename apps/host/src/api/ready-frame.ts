@@ -49,6 +49,7 @@ export function readyFrame(options: {
     laneMarks: true,
     laneTransfer: true,
     fileBytes: true,
+    prStatus: true,
     proof: hostProof(hello, options.challenge, options.key),
     connectionId: options.connectionId,
     grantExpiresAt: options.grantExpiresAt,

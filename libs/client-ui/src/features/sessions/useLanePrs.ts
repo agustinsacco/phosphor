@@ -10,7 +10,7 @@ import { usePrStatusStore } from '@/stores/prStatus'
 import { laneStatusRefs, resolveLanePrs, type LanePrs } from './lanePrs'
 import { usePrStatusRefresh, useRepoPrRefresh } from './repoPrRefresh'
 // Also installs Host-owned cache eviction, independent of sidebar visibility.
-import './remotePullRequests'
+import { useHostPrRoutes } from './remotePullRequests'
 
 type LaneMeta = Pick<SessionMeta, 'cwd' | 'pullRequests'>
 type LaneGit = Pick<GitInfo, 'mainRepoPath' | 'branch'> | undefined
@@ -74,8 +74,10 @@ export function useLanePullRequests(sessionId: string, options: { all?: boolean 
   const branch = (remote ? lane?.branch : git?.branch) ?? undefined
   const slice = usePullRequestsStore((s) => repoPullRequests(s, repoPath))
   const status = usePrStatusStore((s) => s.byKey)
-  // A Host lane has no local session file and no local gh: its checkout branch only.
-  const signals = remote ? undefined : meta?.pullRequests
+  // A Host lane's file and gh are on its Host, which folds the one and reads through
+  // the other. An older Host does neither: the lane keeps its checkout branch's PR only.
+  const byNumber = remote ? ready && host?.prStatus === true : true
+  const signals = remote ? lane?.pullRequests : meta?.pullRequests
   const prs = useMemo(
     () => resolveLanePrs({ signals, branch, slice, status }),
     [signals, branch, slice, status],
@@ -85,7 +87,9 @@ export function useLanePullRequests(sessionId: string, options: { all?: boolean 
     [sessionId, streaming, host?.lanes],
   )
   useRepoPrRefresh(ready && repoPath ? [repoPath] : [], revision)
-  usePrStatusRefresh(remote ? [] : laneStatusRefs(prs, options.all), true)
+  const refs = byNumber ? laneStatusRefs(prs, options.all) : []
+  useHostPrRoutes(remote ? hostLane.hostId : undefined, refs)
+  usePrStatusRefresh(refs, true)
   useLaneGitInfo(remote ? undefined : entry?.workspacePath, streaming)
   return { repoPath, ready, slice, prs, lead: prs.owned[0], branch, remote }
 }

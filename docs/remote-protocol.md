@@ -174,6 +174,36 @@ an opaque hash of the file's identity, size and change times, so a client readin
 many chunks refuses a file that changed under it, and a short chunk is refused
 as torn.
 
+## PR status by number
+
+Hosts that read PRs by number announce `prStatus: true` in `ready`. Both calls
+need `workspaces.read`, like `github.prs`, and run on the Host's own `gh`
+(`libs/shared/src/host-protocol-pr-status.ts`):
+
+- `github.prSummaries {refs, options?}` answers a `GhPrRead`: summaries by PR key
+  and each ref's coverage. `refs` holds 1 to 20 distinct exact refs
+  (`{host, owner, repo, number}`); `options` is `{force?}`.
+- `github.prDetail {ref, options?}` answers one `GhPrDetail` (threads, checks with
+  workflow and annotations, reviewers who only commented, activity) or `null` when
+  there is none.
+
+Any other key is `bad-request`. Clients parse both answers
+(`libs/shared/src/host-protocol-pr-results.ts`): every field bounded, only the PRs
+asked for, the PR link https without credentials, and a check or thread link that
+is not one dropped. Desktop and the browser reach them through `gh:prSummaries`
+and `gh:prDetail` with a third `machine` argument, `host:<hostId>`
+(`libs/host-client/src/pr-status-reads.ts`). A Host without the marker is never
+called and reads as unavailable, so its lanes keep their checkout branch's PR.
+
+`LaneSummary.pullRequests` carries the PRs a lane's session file points at, in
+`LanePrSignals` form: `opened`, `branches`, `reviewing`, `reviewingHere`,
+`mentioned`, `pinned` and `hidden`. It is absent while unread, when the lane points
+at none, and from older Hosts. A lanes frame carries every lane's signals, so the
+wire keeps fewer than the fold (`LANE_PR_WIRE_LIMITS`): the first 20 opened and 20
+branches, 10 reviewing, 10 reviewed numbers and 10 mentioned, and the latest 20 pins
+and 20 hides. Branches pass the same guard as a lane's branch. The parser drops
+invalid signals without refusing the summary; older clients ignore the field.
+
 ## Lane pins and markers
 
 A Host keeps each lane's pin and marker, so every client shows the same ones.
@@ -255,6 +285,10 @@ rather than send an op the Host would forbid.
 The additive `laneMarks` boolean in `ready` says the Host keeps lane pins and
 markers ([Lane pins and markers](#lane-pins-and-markers)). Clients project it as
 `HostConnectionView.laneMarks`.
+
+The additive `prStatus` boolean in `ready` says the Host reads PRs by number and
+sends lane PR signals ([PR status by number](#pr-status-by-number)). Clients
+project it as `HostConnectionView.prStatus`.
 
 ### Machine configuration operations
 

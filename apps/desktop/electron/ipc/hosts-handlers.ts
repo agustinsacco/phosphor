@@ -172,7 +172,7 @@ export function registerHostsHandlers(): void {
       }),
   })
   registerManagementHandlers(manager.connection)
-  const { repositories, catalogues } = registerHostReadHandlers(manager.connection)
+  const { github, catalogues } = registerHostReadHandlers(manager.connection)
   remote = createRemoteLanes({
     connection: manager.connection,
     present: manager.present,
@@ -211,11 +211,9 @@ export function registerHostsHandlers(): void {
   setRemoteReadRouter((windowId, channel, args) => {
     const terminal = terminals.route(windowId, channel, args)
     if (terminal) return terminal
-    const routine = routines?.route(channel, args)
-    if (routine) return routine
+    const routed = routines?.route(channel, args) ?? github(channel, args)
+    if (routed) return routed
     const key = args[0]
-    if (channel === 'gh:prsForRepo' && typeof key === 'string' && key.startsWith('host:'))
-      return { result: repositories.pullRequests(key, args[1]) }
     if (typeof key === 'string' && /^host:[^/]+\/machine(?:\/|$)/.test(key))
       return routeRemoteRead(channel, args, () => catalogues.lane(hostIdOfPath(key) ?? ''))
     if (

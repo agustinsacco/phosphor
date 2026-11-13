@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { prKey } from '@shared/github-pr-refs'
 import type { GhPrDetail, GhPrKey, GhPrRef } from '@shared/models'
+import { prRouteOf } from './prRoutes'
 
 /**
  * One PR's inspector detail (`gh:prDetail`): unresolved threads, every check
  * with its workflow and annotations, and the recent timeline. Read only for
- * the PR the inspector shows, never on a background clock.
+ * the PR the inspector shows, never on a background clock. A PR a Host lane
+ * registered (`prRoutes.ts`) is read through that Host.
  *
  * A failed read keeps the last detail and says so; nothing here raises a toast.
  */
@@ -50,14 +52,14 @@ export const usePrDetailStore = create<PrDetailState>((set, get) => ({
     patch({ loading: true })
     const work = (async () => {
       let detail: GhPrDetail | null = null
+      const opts = options.force ? { force: true } : undefined
+      const machine = prRouteOf(key)
       try {
-        detail = await window.phosphor.invoke(
-          'gh:prDetail',
-          { ...ref },
-          options.force ? { force: true } : undefined,
-        )
+        detail = await (machine
+          ? window.phosphor.invoke('gh:prDetail', { ...ref }, opts, machine)
+          : window.phosphor.invoke('gh:prDetail', { ...ref }, opts))
       } catch {
-        // Unavailable here (a browser shell, or gh missing): keep what is known.
+        // Unavailable here (a browser shell, gh missing, a Host gone): keep what is known.
       }
       const previous = get().byKey[key]?.detail
       patch({
