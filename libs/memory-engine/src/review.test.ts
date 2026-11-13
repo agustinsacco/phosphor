@@ -139,3 +139,15 @@ it('scrubs all persisted proposal and extraction free text again at the store bo
   })
   expect(store.extraction(job.id).calls[0]?.answer).toBe('[redacted]')
 })
+
+it('deduplicates evidence within the commit without a global evidence lookup', () => {
+  const { store, db } = fixture()
+  const statements: string[] = []
+  const prepare = db.prepare.bind(db)
+  db.prepare = (sql) => {
+    statements.push(sql)
+    return prepare(sql)
+  }
+  approve(store)
+  expect(statements.some((sql) => /SELECT n FROM evidence WHERE session_id/u.test(sql))).toBe(false)
+})

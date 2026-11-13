@@ -1,3 +1,4 @@
+import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { approve, extraction, searchFixture, vector } from './test-support'
 import { freshness } from './recall'
@@ -75,4 +76,21 @@ it('freshness ignores future effective dates and retains old memories', () => {
   expect(freshness({ ...memory, validFrom: now + 1 }, now)).toBe(
     freshness({ ...memory, validFrom: null }, now),
   )
+})
+
+it('refresh reads maintained counts instead of scanning all bit rows', () => {
+  const { store, search, path } = searchFixture()
+  approve(store)
+  search.refresh()
+  const db = new DatabaseSync(path)
+  try {
+    expect(db.prepare("SELECT value FROM meta WHERE key='entity_bits'").get()).toEqual({
+      value: '3',
+    })
+    expect(db.prepare("SELECT value FROM meta WHERE key='memory_bits'").get()).toEqual({
+      value: '2',
+    })
+  } finally {
+    db.close()
+  }
 })
