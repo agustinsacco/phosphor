@@ -28,6 +28,36 @@ describe('Brain v4 proposals', () => {
       )[0],
     ).toContain(old.id)
   })
+  it("ignores a job's new entity refs but still finds owners of an existing object", () => {
+    const { store } = fixture()
+    expect(
+      store.memoryMatches(
+        [
+          {
+            entityIds: ['w1:n1'],
+            links: [{ subjectId: 'w1:n1', predicate: 'owns', objectId: 'w1:n2' }],
+          },
+        ],
+        5,
+      ),
+    ).toEqual([[]])
+    approve(store)
+    const harbor = store.overview(300).nodes.find((item) => item.label === 'Harbor')!.id
+    const owned = store
+      .entityMemories(harbor, {}, null)
+      .memories.find((item) => item.summary.includes('owns'))!
+    expect(
+      store.memoryMatches(
+        [
+          {
+            entityIds: ['w1:n1'],
+            links: [{ subjectId: 'w1:n1', predicate: 'owns', objectId: harbor }],
+          },
+        ],
+        5,
+      )[0],
+    ).toContain(owned.id)
+  })
   it('replaces proposals and both vector kinds without old rows', () => {
     const { store, db } = fixture()
     const job = store.enqueue(lane(), 'queued')
