@@ -71,22 +71,27 @@ function named(entity: BrainEntity): string {
   return `${entity.label} (${entity.kind}${aliases.length ? `, also ${aliases.join(', ')}` : ''})`
 }
 function hop(link: BrainLink, label: (id: string) => string, refs: Map<string, number>): string {
-  const ref = refs.get(link.memoryId)
   const words = BRAIN_PREDICATE_LABELS[link.predicate].out.toLowerCase()
-  return `${label(link.subjectId)} ${words} ${label(link.objectId)}${ref ? ` [${ref}]` : ''}`
+  return `${label(link.subjectId)} ${words} ${label(link.objectId)} [${refs.get(link.memoryId)}]`
 }
 function header(
   result: BrainRecall,
   names: Map<string, BrainEntity>,
+  paths: BrainLink[][],
   refs: Map<string, number>,
 ): string[] {
   const label = (id: string): string => names.get(id)?.label ?? 'unknown'
   const focus = result.focus.flatMap((id) => names.get(id) ?? []).slice(0, MAX_NAMES)
   const lines: string[] = []
   if (focus.length) lines.push(`About: ${focus.map(named).join('; ')}`)
-  const paths = result.paths.filter((path) => path.length).slice(0, MAX_PATHS)
   for (const path of paths) lines.push(`Path: ${path.map((l) => hop(l, label, refs)).join(' → ')}`)
   return lines.map(plain)
+}
+/** Paths whose every step cites a memory in `refs`, so no step loses its supporting sentence. */
+function cited(result: BrainRecall, refs: Map<string, number>): BrainLink[][] {
+  return result.paths
+    .filter((path) => path.length && path.every((link) => refs.has(link.memoryId)))
+    .slice(0, MAX_PATHS)
 }
 function footer(result: BrainRecall, names: Map<string, BrainEntity>, more: number): string[] {
   const lines: string[] = []
@@ -121,8 +126,9 @@ function fit(lines: string[], room: number): string[] {
   }
   return kept
 }
-/** Hits in display order, numbered, so path steps can cite them. */
-function ordered(result: BrainRecall, now: number): (readonly [Section, BrainHit])[] {
+type Entry = readonly [Section, BrainHit]
+/** Hits grouped by section, in display order. */
+function ordered(result: BrainRecall, now: number): Entry[] {
   const bySection = new Map<Section, BrainHit[]>()
   for (const hit of result.hits) {
     const key = section(hit.memory, result.branch, now)
@@ -130,11 +136,37 @@ function ordered(result: BrainRecall, now: number): (readonly [Section, BrainHit
   }
   return SECTIONS.flatMap(([key]) => (bySection.get(key) ?? []).map((hit) => [key, hit] as const))
 }
+const TITLES = new Map(SECTIONS)
+const numbered = (entries: Entry[]): Map<string, number> =>
+  new Map(entries.map(([, hit], index) => [hit.memory.id, index + 1]))
+/** Memories in display order while they fit, counting each section title once. */
+function pick(order: Entry[], room: number, cwd: string | undefined): Entry[] {
+  const refs = numbered(order)
+  const titled = new Set<Section>()
+  const kept: Entry[] = []
+  for (const entry of order) {
+    const [key, hit] = entry
+    const line = memoryLine(hit.memory, refs.get(hit.memory.id)!, cwd)
+    const cost = line.length + 1 + (titled.has(key) ? 0 : TITLES.get(key)!.length + 1)
+    if (cost > room) continue
+    titled.add(key)
+    kept.push(entry)
+    room -= cost
+  }
+  return kept
+}
+function body(entries: Entry[], refs: Map<string, number>, cwd: string | undefined): string[] {
+  return entries.flatMap(([key, hit], index) => [
+    ...(index && entries[index - 1]![0] === key ? [] : [TITLES.get(key)!]),
+    memoryLine(hit.memory, refs.get(hit.memory.id)!, cwd),
+  ])
+}
 
 /**
  * One briefing per search: what the query names, the supported paths out of it, then memories
  * grouped by what they are for (disputed ones first, planned and other-branch ones last), then
- * how many matches were left out and which names to try next.
+ * how many matches were left out and which names to try next. Memories are chosen first and
+ * numbered in display order; a path is shown only when every step cites one of them.
  */
 export function formatBrainRecall(
   result: BrainRecall,
@@ -147,26 +179,19 @@ export function formatBrainRecall(
   if (result.status === 'no_match') return 'No approved Brain memories matched.'
   const names = new Map(result.entities.map((entity) => [entity.id, entity]))
   const order = ordered(result, now)
-  const refs = new Map(order.map(([, hit], index) => [hit.memory.id, index + 1]))
   const room = maxChars - OPEN.length - CLOSE.length
-  const head = fit(header(result, names, refs), room)
-  const reserve = fit(footer(result, names, result.more + result.hits.length), room - size(head))
-  let remaining = room - size(head) - size(reserve)
-  const body: string[] = []
-  const titles = new Map(SECTIONS)
-  const titled = new Set<Section>()
-  for (const [key, hit] of order) {
-    const line = memoryLine(hit.memory, refs.get(hit.memory.id)!, cwd)
-    const title = titles.get(key)!
-    const cost = line.length + 1 + (titled.has(key) ? 0 : title.length + 1)
-    if (cost > remaining) continue
-    if (!titled.has(key)) body.push(title)
-    titled.add(key)
-    body.push(line)
-    remaining -= cost
-  }
-  const shown = body.filter((line) => line.startsWith('- ')).length
-  const left = result.more + result.hits.length - shown
-  const tail = fit(footer(result, names, left), remaining + size(reserve))
-  return OPEN + [...head, ...body, ...tail].join('\n') + CLOSE
+  const draft = numbered(order)
+  const reserved = fit(header(result, names, cited(result, draft), draft), room)
+  const reserve = fit(
+    footer(result, names, result.more + result.hits.length),
+    room - size(reserved),
+  )
+  const shown = pick(order, room - size(reserved) - size(reserve), cwd)
+  // Renumbering never lengthens a line, and fewer paths never need more room than the draft.
+  const refs = numbered(shown)
+  const head = fit(header(result, names, cited(result, refs), refs), size(reserved))
+  const lines = body(shown, refs, cwd)
+  const left = result.more + result.hits.length - shown.length
+  const tail = fit(footer(result, names, left), room - size(head) - size(lines))
+  return OPEN + [...head, ...lines, ...tail].join('\n') + CLOSE
 }
