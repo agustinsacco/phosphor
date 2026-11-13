@@ -2,6 +2,10 @@ import { vi } from 'vitest'
 
 export function createGraphMock() {
   const names = [
+    'numDimensions',
+    'linkDirectionalArrowLength',
+    'linkDirectionalArrowRelPos',
+    'onLinkHover',
     'backgroundColor',
     'showNavInfo',
     'nodeLabel',
@@ -87,4 +91,57 @@ export function installGraphEnvironment(): {
   }))
     document.documentElement.style.setProperty(`--px-${name}`, color)
   return { resize: () => resize(), disconnect }
+}
+
+import type { BrainEntity, BrainGraph, BrainMemory } from '@shared/brain'
+import { mockBrainData } from '../mockBrainData'
+export function graphFixture(): { entities: BrainEntity[]; memories: BrainMemory[] } {
+  const entity = (id: string, label: string, kind: BrainEntity['kind']): BrainEntity => ({
+    id,
+    label,
+    kind,
+    aliases: [],
+    description: '',
+  })
+  const base = mockBrainData().details[0]!.memory
+  const memory = (
+    id: string,
+    subjectId: string,
+    objectId: string,
+    predicate: 'uses' | 'owns',
+  ): BrainMemory => ({
+    ...base,
+    id,
+    entityIds: [subjectId, objectId],
+    links: [{ id: `link-${id}`, memoryId: id, subjectId, objectId, predicate }],
+  })
+  return {
+    entities: [
+      entity('harbor', 'Harbor', 'project'),
+      entity('postgres', 'PostgreSQL', 'component'),
+      entity('rina', 'Rina Okafor', 'person'),
+    ],
+    memories: [
+      memory('db', 'harbor', 'postgres', 'uses'),
+      memory('owner', 'rina', 'harbor', 'owns'),
+    ],
+  }
+}
+export function boundedGraph(entities: BrainEntity[], memories: BrainMemory[]): BrainGraph {
+  return {
+    centerId: null,
+    truncated: false,
+    nodes: entities.map((e) => ({
+      ...e,
+      memories: memories.filter((m) => m.entityIds.includes(e.id)).length,
+      connections: new Set(
+        memories
+          .flatMap((m) => m.links)
+          .flatMap((l) =>
+            l.subjectId === e.id ? [l.objectId] : l.objectId === e.id ? [l.subjectId] : [],
+          ),
+      ).size,
+    })),
+    links: memories.flatMap((m) => m.links),
+  }
 }

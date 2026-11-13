@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { GraphModel } from './graphModel'
+import type { GraphLink, GraphModel } from './graphModel'
 import type { GraphScene, GraphSelection } from './graphScene'
 
 function hasWebGL(): boolean {
@@ -18,10 +18,14 @@ export function useGraphScene(
   model: GraphModel,
   selection: GraphSelection,
   onFocus: (id: string) => void,
+  onEdge: (link: GraphLink | null) => void,
+  dimensions: 2 | 3,
 ): { scene: GraphScene | null; unavailable: boolean } {
   const [scene, setScene] = useState<GraphScene | null>(null)
   const [unavailable, setUnavailable] = useState(false)
   const focus = useRef(onFocus)
+  const edge = useRef(onEdge)
+  edge.current = onEdge
   const instance = useRef<GraphScene | null>(null)
   useEffect(() => {
     focus.current = onFocus
@@ -36,7 +40,11 @@ export function useGraphScene(
     import('./graphScene')
       .then(({ createGraphScene }) => {
         if (disposed) return
-        instance.current = createGraphScene(element, (id) => focus.current(id))
+        instance.current = createGraphScene(
+          element,
+          (id) => focus.current(id),
+          (link) => edge.current(link),
+        )
         setScene(instance.current)
       })
       .catch(() => {
@@ -54,7 +62,11 @@ export function useGraphScene(
   }, [container])
   useEffect(() => {
     try {
-      scene?.update(model, { focus: selection.focus, matches: selection.matches })
+      scene?.update(model, {
+        focus: selection.focus,
+        matches: selection.matches,
+        path: selection.path,
+      })
     } catch {
       instance.current?.dispose()
       instance.current = null
@@ -62,6 +74,9 @@ export function useGraphScene(
       container.current?.replaceChildren()
       setUnavailable(true)
     }
-  }, [scene, model, selection.focus, selection.matches, container])
+  }, [scene, model, selection.focus, selection.matches, selection.path, container])
+  useEffect(() => {
+    scene?.dimensions(dimensions)
+  }, [scene, dimensions])
   return { scene, unavailable }
 }

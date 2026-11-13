@@ -7,13 +7,14 @@ import { useBrain } from './useBrain'
 import { formatCount } from '@/lib/format'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 
-function jobLine(job: BrainJob, ahead: number, now: number): string {
+export function jobLine(job: BrainJob, ahead: number, now: number): string {
   switch (job.state) {
     case 'waiting':
       return 'Waits until the lane is idle'
     case 'queued':
       return ahead ? `Queued · ${ahead} ahead` : 'Queued · starting'
     case 'running':
+      if (job.progress) return progressLine(job.progress)
       return `Reading a private copy · ${elapsedTime(now - (job.startedAt ?? now))}`
     case 'review':
       return `${formatCount(job.memories, 'memory', 'memories')} to review`
@@ -65,6 +66,17 @@ export function BrainInbox({
               )}
             </p>
           </div>
+          {job.state === 'failed' && (
+            <Button
+              size="xs"
+              disabled={saving}
+              onClick={() => {
+                void useBrain.getState().retry(job.id)
+              }}
+            >
+              Retry
+            </Button>
+          )}
           {(job.state === 'empty' || job.state === 'failed') && (
             <Button size="xs" onClick={() => onExtraction(job.id)}>
               View extraction
@@ -89,4 +101,16 @@ export function BrainInbox({
       ))}
     </section>
   )
+}
+
+function progressLine(progress: NonNullable<BrainJob['progress']>): string {
+  const labels = {
+    prepare: 'Preparing lane',
+    extract: 'Reading window',
+    identity: 'Matching entities',
+    parents: 'Finding parents',
+    reconcile: 'Reconciling memories',
+    embed: 'Indexing memories',
+  }
+  return `${labels[progress.stage]} ${progress.done} of ${progress.total}`
 }

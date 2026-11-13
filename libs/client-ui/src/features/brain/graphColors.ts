@@ -8,6 +8,7 @@ export const GRAPH_COLORS: Record<BrainEntityKind, string> = {
   component: '--px-text-secondary',
   document: '--px-danger',
   concept: '--px-text-tertiary',
+  ticket: '--px-warning',
   event: '--px-border-strong',
 }
 

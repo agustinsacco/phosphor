@@ -19,7 +19,12 @@ function colorOpacity(color: string, bright: boolean): string {
 
 export function graphAppearance(graph: BrainForceGraph): {
   data: (model: GraphModel) => void
-  paint: (hover: string | null, matches: Set<string> | null, theme: GraphTheme) => void
+  paint: (
+    hover: string | null,
+    matches: Set<string> | null,
+    theme: GraphTheme,
+    path?: Set<string> | null,
+  ) => void
 } {
   let model: GraphModel = { nodes: [], links: [] }
   let largest = new Set<string>()
@@ -50,9 +55,12 @@ export function graphAppearance(graph: BrainForceGraph): {
         labels.set(node.id, sprite)
       }
       for (const link of model.links)
-        predicates.set(link, new SpriteText(link.predicates.join(', '), 3))
+        predicates.set(
+          link,
+          new SpriteText(link.predicates.map((p) => p.replaceAll('_', ' ')).join(', '), 3),
+        )
     },
-    paint: (hover, matches, theme) => {
+    paint: (hover, matches, theme, path) => {
       const neighbors = graphNeighbors(model, hover)
       const bright = (node: GraphNode): boolean =>
         (!matches || matches.has(node.id)) && (!hover || neighbors.has(node.id))
@@ -62,8 +70,9 @@ export function graphAppearance(graph: BrainForceGraph): {
         .nodeColor((node) => colorOpacity(theme.kinds[node.kind], bright(node)))
         .linkColor((link) =>
           colorOpacity(
-            connected(link) ? theme.accent : theme.edge,
-            (!hover || connected(link)) &&
+            connected(link) || path?.has(link.id) ? theme.accent : theme.edge,
+            (!path || path.has(link.id)) &&
+              (!hover || connected(link)) &&
               (!matches ||
                 (matches.has(graphEndpoint(link.source)) &&
                   matches.has(graphEndpoint(link.target)))),
@@ -77,7 +86,7 @@ export function graphAppearance(graph: BrainForceGraph): {
       }
       for (const link of model.links) {
         const label = predicates.get(link)!
-        label.visible = connected(link)
+        label.visible = connected(link) || !!path?.has(link.id)
         label.color = theme.accent
       }
     },

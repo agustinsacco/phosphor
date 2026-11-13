@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
-import type { BrainLaneRef, BrainPrefs, BrainStatus } from '@shared/brain'
+import type { BrainLaneRef, BrainPrefs, BrainStatus, BrainReviewDecision } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { usePlatform } from '@/platform/Platform'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -19,7 +19,10 @@ interface BrainState {
   removeModel: () => Promise<boolean>
   queue: (lane: BrainLaneRef) => Promise<boolean>
   cancel: (id: string) => Promise<boolean>
-  review: (id: string, keep: number[] | null, revision: number) => Promise<boolean>
+  review: (id: string, keep: BrainReviewDecision | null, revision: number) => Promise<boolean>
+  retry: (id: string) => Promise<boolean>
+  reset: () => Promise<boolean>
+  merge: (source: string, target: string) => Promise<boolean>
   forget: (id: string) => Promise<boolean>
 }
 
@@ -81,6 +84,9 @@ export const useBrain = create<BrainState>(() => ({
     update(() => window.phosphor.invoke('brain:cancel', id), 'Cancelled knowledge extraction'),
   review: (id, keep, revision) =>
     update(() => window.phosphor.invoke('brain:review', id, keep, revision)),
+  retry: (id) => update(() => window.phosphor.invoke('brain:retry', id)),
+  reset: () => update(() => window.phosphor.invoke('brain:reset'), 'Brain knowledge reset'),
+  merge: (source, target) => update(() => window.phosphor.invoke('brain:merge', source, target)),
   forget: (id) => update(() => window.phosphor.invoke('brain:forget', id), 'Memory forgotten'),
 }))
 
