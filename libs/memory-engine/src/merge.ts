@@ -128,9 +128,10 @@ function repointRelations(
       if (duplicate)
         run(
           ctx,
-          'INSERT OR IGNORE INTO relation_support SELECT ?,evidence,quote FROM relation_support WHERE relation=?',
+          `INSERT OR IGNORE INTO relation_support SELECT ?,s.evidence,s.quote FROM relation_support s JOIN evidence e ON e.n=s.evidence WHERE s.relation=? AND NOT EXISTS(SELECT 1 FROM relation_support t JOIN evidence te ON te.n=t.evidence WHERE t.relation=? AND t.quote=s.quote AND te.entry_id=e.entry_id)`,
           duplicate.n,
           row.n,
+          duplicate.n,
         )
       else {
         run(ctx, 'UPDATE relations SET subject=?,object=? WHERE n=?', subject, object, row.n)
