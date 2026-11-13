@@ -14,6 +14,7 @@ import {
   readSignature,
   type FoldState,
 } from '@phosphor/session-runtime/pi/session-fold'
+import { withSubagentPrs } from '@phosphor/session-runtime/pi/lane-pr-runs'
 
 export { piAgentDir, piSessionsRoot, sessionDirForCwd, sessionDirNameForCwd } from './pi-paths'
 
@@ -217,6 +218,10 @@ async function remember(
 ): Promise<SessionMeta | null> {
   const meta = metaFromFold(state, path, mtimeMs)
   if (!meta) return null
+  // Only when the lane's own file changed: a subagent's progress lands there
+  // too, so a cold lane never re-reads its runs.
+  const pullRequests = await withSubagentPrs(path, meta.parentSession, state.prs)
+  if (pullRequests) meta.pullRequests = pullRequests
   const signature = await readSignature(path, consumedBytes)
   if (signature !== null) {
     touch(resumeCache, path, { consumedBytes, signature, state }, RESUMES_CACHED)

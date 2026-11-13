@@ -11,7 +11,6 @@ import { sessionTitle } from '@/lib/sessionTitle'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { localLanePullRequest, usePullRequestsStore } from '@/stores/pullRequests'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { openSidebarConversation } from './completionActions'
 import { committedRename } from './inlineRename'
@@ -23,6 +22,7 @@ import { sessionSubtitle } from './sessionSubtitle'
 import { renameSidebarSession } from './sidebarActions'
 import { LaneRow, SubtitleSegments } from './SidebarPrimitives'
 import { useLocalLaneActions } from './useLocalLaneActions'
+import { useLocalLanePrs } from './useLanePrs'
 
 /**
  * What a row says it is doing, in the subtitle's time slot.
@@ -106,7 +106,8 @@ export function SessionRow({
   )
   // Derived here rather than threaded through `rowProps` so a Pinned row — which
   // may belong to a different project than the one on screen — resolves its own.
-  const pullRequest = usePullRequestsStore((s) => localLanePullRequest(s, meta, git))
+  const prs = useLocalLanePrs(meta, git)
+  const pullRequest = prs.owned[0]?.pr
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
@@ -242,7 +243,7 @@ export function SessionRow({
             </span>
           )}
           <SubtitleSegments segments={subtitle} activity={activity} />
-          {showPrStatus && pullRequest && <PrBadge pr={pullRequest} />}
+          {showPrStatus && pullRequest && <PrBadge pr={pullRequest} more={prs.owned.length - 1} />}
         </span>
       </span>
       {deleting && (

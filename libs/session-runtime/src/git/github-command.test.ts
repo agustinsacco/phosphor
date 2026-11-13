@@ -54,6 +54,22 @@ it('retains a rate-limit retry budget but never exposes stderr', async () => {
   expect(await run()).toEqual({ ok: false, reason: 'rate-limited', retryAfterMs: 180000 })
 })
 
+it('keeps a GraphQL answer whose only errors say a PR does not exist', async () => {
+  const body = JSON.stringify({
+    data: { repository: { a: { number: 1 }, b: null } },
+    errors: [{ type: 'NOT_FOUND', path: ['repository', 'b'] }],
+  })
+  exec.mockImplementation((_file, _args, _opts, cb) =>
+    cb(Object.assign(new Error('failed'), { stdout: `HTTP/2.0 200 OK\r\n\r\n${body}` })),
+  )
+  expect(await run()).toEqual({ ok: true, stdout: body })
+  const forbidden = JSON.stringify({ data: null, errors: [{ type: 'FORBIDDEN' }] })
+  exec.mockImplementation((_file, _args, _opts, cb) =>
+    cb(Object.assign(new Error('failed'), { stdout: forbidden })),
+  )
+  expect(await run()).toMatchObject({ ok: false, reason: 'unavailable' })
+})
+
 it('only resource failures request the lighter detail retry', async () => {
   exec.mockImplementation((_file, _args, _opts, cb) =>
     cb(

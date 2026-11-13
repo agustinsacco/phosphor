@@ -1,4 +1,5 @@
 import type { HostTarget } from '../remote-host'
+import type { LanePrSignals } from './pull-requests'
 import type { ExtensionUIRequest, PiEvent } from '../rpc'
 import { compareVersions } from '../version'
 
@@ -124,6 +125,8 @@ export interface SessionMeta {
   branchCount: number
   mtimeMs: number
   lastActivityAt: string
+  /** Pull requests the lane opened, pushed, pinned or pointed at. Absent when none. */
+  pullRequests?: LanePrSignals
 }
 
 /**

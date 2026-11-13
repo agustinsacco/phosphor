@@ -10,6 +10,9 @@ import type {
   GhPullRequest,
   GhRepoPullRequests,
   GhPrReadOptions,
+  GhPrRead,
+  GhPrRef,
+  GhPrSummaryOptions,
   GitInfo,
   PullResult,
   SessionMeta,
@@ -152,6 +155,14 @@ export interface GhInvokeMap {
   'gh:prsForRepo': {
     args: [repoPath: string, options?: GhPrReadOptions]
     result: GhRepoPullRequests | null
+  }
+  /**
+   * PR status by number, for every PR a lane owns: its checkout's, its other
+   * branches', its subagents' and other repositories'. null means unavailable.
+   */
+  'gh:prSummaries': {
+    args: [refs: GhPrRef[], options?: GhPrSummaryOptions]
+    result: GhPrRead | null
   }
   'gh:available': { args: []; result: boolean }
 }

@@ -96,6 +96,18 @@
       "types": "./src/git/github-command.ts",
       "default": "./src/git/github-command.ts"
     },
+    "./git/github-gate": {
+      "types": "./src/git/github-gate.ts",
+      "default": "./src/git/github-gate.ts"
+    },
+    "./git/github-pr-summary": {
+      "types": "./src/git/github-pr-summary.ts",
+      "default": "./src/git/github-pr-summary.ts"
+    },
+    "./git/github-pr-status": {
+      "types": "./src/git/github-pr-status.ts",
+      "default": "./src/git/github-pr-status.ts"
+    },
     "./git/github-queries": {
       "types": "./src/git/github-queries.ts",
       "default": "./src/git/github-queries.ts"
@@ -263,6 +275,18 @@
     "./pi/session-fold": {
       "types": "./src/pi/session-fold.ts",
       "default": "./src/pi/session-fold.ts"
+    },
+    "./pi/lane-pr-commands": {
+      "types": "./src/pi/lane-pr-commands.ts",
+      "default": "./src/pi/lane-pr-commands.ts"
+    },
+    "./pi/lane-pr-signals": {
+      "types": "./src/pi/lane-pr-signals.ts",
+      "default": "./src/pi/lane-pr-signals.ts"
+    },
+    "./pi/lane-pr-runs": {
+      "types": "./src/pi/lane-pr-runs.ts",
+      "default": "./src/pi/lane-pr-runs.ts"
     },
     "./pi/session-content": {
       "types": "./src/pi/session-content.ts",

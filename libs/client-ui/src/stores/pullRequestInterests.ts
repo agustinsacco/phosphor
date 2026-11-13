@@ -31,6 +31,14 @@ export function pullRequestInterests(repoPath: string): {
       if (active?.target?.kind !== 'remote' && active?.workspacePath === cwd)
         activeBranch = git.branch
     }
+    // Branches lanes created or pushed, in sibling worktrees or by subagents.
+    for (const metas of Object.values(sessions.disk))
+      for (const meta of metas) {
+        const git = sessions.gitByCwd[meta.cwd]
+        if (!meta.pullRequests?.branches.length || !git?.isRepo) continue
+        if ((git.mainRepoPath ?? meta.cwd) !== repoPath) continue
+        for (const branch of meta.pullRequests.branches) branches.add(branch)
+      }
   }
   return { branches: [...branches].filter((branch) => branch.length <= 4096), activeBranch }
 }

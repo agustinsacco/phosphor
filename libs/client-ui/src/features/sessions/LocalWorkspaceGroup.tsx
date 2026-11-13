@@ -4,7 +4,8 @@ import type { SessionMeta } from '@shared/models'
 import { PlusIcon, Spinner } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { sessionTitle } from '@/lib/sessionTitle'
-import { localLanePullRequest, usePullRequestsStore } from '@/stores/pullRequests'
+import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
+import { usePrStatusStore } from '@/stores/prStatus'
 import { useSessionsStore } from '@/stores/sessions'
 import { setGroupCollapsed } from './groupCollapse'
 import { useGroupSearch } from './groupSearch'
@@ -28,6 +29,8 @@ import { SessionList } from './SessionList'
 import { SessionRowSkeletons } from './SidebarPrimitives'
 import { isUnseen } from './unseen'
 import { useLiveSessionNames } from './useLiveSessionNames'
+import { lanePrsAllMerged, localLanePrs } from './useLanePrs'
+import { resolveLanePrs } from './lanePrs'
 
 /**
  * One This Mac workspace group on the shared `LaneGroup`: the folder ⋯ menu,
@@ -252,10 +255,10 @@ function selectLocalLanes(
     )
 }
 
-/** A lane whose pull request merged: what "Select merged lanes" picks, as on a Host. */
+/** A lane whose pull requests all merged: what "Select merged lanes" picks, as on a Host. */
 function isMerged(meta: SessionMeta, workspacePath: string): boolean {
   const git = useSessionsStore.getState().gitByCwd[meta.cwd || workspacePath]
-  return localLanePullRequest(usePullRequestsStore.getState(), meta, git)?.state === 'MERGED'
+  return lanePrsAllMerged(localLanePrs(meta, git))
 }
 
 /**
@@ -292,6 +295,7 @@ function LocalGroupScanState({ group }: { group: GroupedSessions }): React.JSX.E
  */
 function useLocalLaneFields(applied: boolean, workspacePath: string) {
   const prByRepo = usePullRequestsStore((s) => s.byRepo)
+  const prStatus = usePrStatusStore((s) => s.byKey)
   const live = useSessionsStore((s) => s.live)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
   const liveNames = useLiveSessionNames(applied)
@@ -307,7 +311,12 @@ function useLocalLaneFields(applied: boolean, workspacePath: string) {
           { elide: false },
         ) ?? '',
       branch: git?.branch,
-      pr: localLanePullRequest({ byRepo: prByRepo }, meta, git),
+      prs: resolveLanePrs({
+        signals: meta.pullRequests,
+        branch: git?.branch,
+        slice: repoPullRequests({ byRepo: prByRepo }, git?.mainRepoPath ?? meta.cwd),
+        status: prStatus,
+      }).owned.flatMap((lane) => (lane.pr ? [lane.pr] : [])),
     }
   }
 }

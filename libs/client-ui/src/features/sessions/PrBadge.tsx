@@ -22,17 +22,19 @@ import { prChip, PR_CHIP_CLASSES } from './prChip'
  * is the accessible route. Changing one without the other regresses it.
  *
  * A lane without a PR renders no chip at all: callers pass only a real PR.
+ * `pr` is the lane's most urgent one; `more` counts the rest.
  */
-export function PrBadge({ pr }: { pr: GhPullRequest }): React.JSX.Element {
+export function PrBadge({ pr, more = 0 }: { pr: GhPullRequest; more?: number }): React.JSX.Element {
   const chip = prChip(pr)
+  const others = more > 0 ? ` and ${more} more pull request${more === 1 ? '' : 's'}` : ''
   return (
     <span
       data-testid="session-pr-badge"
       data-variant={chip.variant}
       role="link"
       tabIndex={-1}
-      aria-label={`${chip.title}. Open on GitHub`}
-      data-tooltip={`${chip.title}\nClick to open on GitHub`}
+      aria-label={`${chip.title}${others}. Open on GitHub`}
+      data-tooltip={`${chip.title}${others}\nClick to open on GitHub`}
       onClick={(event) => {
         // The row underneath opens the session. Without this, one click both
         // opens the PR in a browser and switches the session out from under it.
@@ -53,6 +55,7 @@ export function PrBadge({ pr }: { pr: GhPullRequest }): React.JSX.Element {
     >
       {chip.label}
       {chip.glyph && <span aria-hidden>{chip.glyph}</span>}
+      {more > 0 && <span className="opacity-70">+{more}</span>}
     </span>
   )
 }
