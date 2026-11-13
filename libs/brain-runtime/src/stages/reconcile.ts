@@ -260,7 +260,9 @@ function applyDecision(
         reason:
           action === 'resolve_open'
             ? 'resolved later in this lane'
-            : 'superseded later in this lane',
+            : action === 'conflict'
+              ? 'contradicted later in this lane'
+              : 'superseded later in this lane',
       })
     }
   } else if (target && action === 'confirm') {
