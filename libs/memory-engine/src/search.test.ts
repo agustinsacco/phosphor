@@ -94,3 +94,28 @@ it('refresh reads maintained counts instead of scanning all bit rows', () => {
     db.close()
   }
 })
+
+it('find ranks exact keys and exact names ahead of word and trigram candidates', () => {
+  const { search, path } = searchFixture()
+  const db = new DatabaseSync(path)
+  try {
+    for (let n = 1; n <= 11; n++) {
+      db.prepare("INSERT INTO entities(n,id,label,kind,created_at) VALUES (?,?,?,'ticket',1)").run(
+        n,
+        `ticket-${n}`,
+        `Ticket ${n}`,
+      )
+      db.prepare('INSERT INTO entity_words(rowid,text) VALUES (?,?)').run(n, `Ticket ${n}`)
+    }
+    db.exec(`
+      INSERT INTO entities(n,id,label,kind,created_at) VALUES (12,'kestrel','Kestrel','project',1);
+      INSERT INTO entity_keys VALUES ('ticket','27',12);
+      INSERT INTO entity_names(entity,name,folded) VALUES (12,'Kestrel','kestrel');
+      INSERT INTO entity_words(rowid,text) VALUES (12,'Kestrel');
+    `)
+    expect(search.find('ticket:27', null, 5).entities[0]?.id).toBe('kestrel')
+    expect(search.find('ticket Kestrel', null, 5).entities[0]?.id).toBe('kestrel')
+  } finally {
+    db.close()
+  }
+})
