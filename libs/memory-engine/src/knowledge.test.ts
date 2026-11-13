@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { memoryCard, memoryCards } from './knowledge'
 import { approve, extraction, fixture, lane } from './test-support'
 
 describe('Brain memory details, dates and deletion', () => {
@@ -73,4 +74,29 @@ it('uses the exact approval timestamp when source evidence is undated', () => {
     const memory = store.memory(id).memory
     expect(memory.observedAt).toBe(memory.recordedAt)
   }
+})
+
+it('batches memory cards without changing order, duplicate removal, links, mentions or missing-id errors', () => {
+  const { store, db } = fixture()
+  const queries: string[] = []
+  const prepare = db.prepare.bind(db)
+  vi.spyOn(db, 'prepare').mockImplementation((sql) => {
+    const statement = prepare(sql)
+    for (const method of ['all', 'get'] as const) {
+      const call = statement[method].bind(statement)
+      vi.spyOn(statement, method).mockImplementation((...args) => {
+        queries.push(sql)
+        return call(...args)
+      })
+    }
+    return statement
+  })
+  const ids = approve(store)
+  const ctx = { db, now: () => 1, id: () => 'unused' }
+  const expected = ids.map((id) => memoryCard(ctx, id)).toReversed()
+  queries.length = 0
+  expect(memoryCards(ctx, [...ids.toReversed(), ids[0]!])).toEqual(expected)
+  expect(queries).toHaveLength(3)
+  expect(memoryCards(ctx, [])).toEqual([])
+  expect(() => memoryCards(ctx, [ids[0]!, 'missing'])).toThrow('Brain memory not found.')
 })
