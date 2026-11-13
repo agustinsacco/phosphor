@@ -67,3 +67,17 @@ it('stops loading on close without accessing the closed database or becoming rea
   await expect(loading).resolves.toBeUndefined()
   expect(search.ready()).toBe(false)
 })
+
+it('includes every commit whose refresh joined a load already in progress', async () => {
+  const { store, search } = searchFixture()
+  approve(store)
+  await search.refresh()
+  let latest = Promise.resolve()
+  for (let i = 0; i < 8; i++) {
+    approve(store, { jobId: `join-${i}` })
+    latest = search.refresh()
+    await setImmediate()
+  }
+  await latest
+  expect(search.nearestMemories([vector()], 50)[0]).toHaveLength(store.snapshot().counts.memories)
+})
