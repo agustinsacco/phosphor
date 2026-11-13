@@ -60,7 +60,7 @@ The [Web client](web-client.md) contract covers the compact PWA, shared renderer
 | [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control                          |
 | [settings.md](settings.md)   | The shared Settings surface, its sections and what each one writes     |
 | [feedback.md](feedback.md)   | In-app rating and feedback, filed as a labelled GitHub issue           |
-| [brain.md](brain.md)         | Opt-in local knowledge: queued lanes, private forks, review and recall |
+| [brain.md](brain.md)         | Opt-in local knowledge graph: queued lanes, review, explore and recall |
 | [voice.md](voice.md)         | Dictation with a local speech model: download, processes, privacy      |
 
 ## What Phosphor talks to

@@ -32,17 +32,30 @@ export interface BrainForkTrace {
   totalMs: number
   reason: 'spawn' | 'exit' | 'timeout' | 'aborted' | 'overflow' | 'completed' | 'error' | 'no-text'
 }
+/** What happened to one claim or link the model proposed. */
 export interface BrainExtractionOutcome {
-  /** Index in the agent's answer, before validation and deduplication. */
-  candidate: number
+  /** Window and claim ref in the model's answer, e.g. "w2:c4". */
+  candidate: string
   summary: string
-  status: 'kept' | 'reconfirms' | 'duplicate' | 'dropped'
+  status: 'kept' | 'folded' | 'reconfirms' | 'enriches' | 'held' | 'dropped'
   proposalIndex?: number
-  /** Existing memory for a reconfirmation, or the approved kept memory. */
+  /** Existing memory it confirms or enriches, or the approved memory. */
   memoryId?: string
-  /** Earlier proposal index for a duplicate within this answer. */
-  duplicateOf?: number
+  /** Why a claim or one of its links was dropped or held, e.g. "quote not found in s4". */
   reason?: string
+}
+/** One private model call. The prompt is not stored: it is rebuilt from the lane on demand. */
+export interface BrainExtractionCall {
+  stage: 'extract' | 'identity' | 'parents' | 'reconcile' | 'repair'
+  /** Window index for extract calls, batch index otherwise. */
+  part: number
+  /** Lane entries the call read. */
+  entryIds: string[]
+  inputHash: string
+  /** Scrubbed, bounded answer; truncation is explicitly marked. */
+  answer: string
+  trace: BrainForkTrace | null
+  error: string | null
 }
 export interface BrainExtractionRecord {
   jobId: string
@@ -52,10 +65,7 @@ export interface BrainExtractionRecord {
   leafId: string | null
   model: string
   thinking: string
-  prompt: string
-  /** Scrubbed, bounded raw final answer; truncation is explicitly marked. */
-  answer: string
-  trace: BrainForkTrace | null
+  calls: BrainExtractionCall[]
   outcomes: BrainExtractionOutcome[]
   error: string | null
   startedAt: number
@@ -69,6 +79,8 @@ export interface BrainSourceSegment {
   text: string
 }
 export interface BrainExtractionView extends BrainExtractionRecord {
+  /** Each call's prompt, rebuilt from the lane file; empty when the lane is gone. */
+  prompts: string[]
   memories: { id: string; summary: string }[]
   source: {
     sessionPath: string

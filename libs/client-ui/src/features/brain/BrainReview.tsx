@@ -1,17 +1,13 @@
-import { useCallback, useState } from 'react'
-import { BRAIN_MEMORY_TYPES, type BrainProposalView, type BrainMemoryDetail } from '@shared/brain'
+import { useCallback, useEffect, useState } from 'react'
+import type { BrainProposalView, BrainReviewDecision } from '@shared/brain'
 import { Button } from '@/components/form'
+import { ipcErrorText } from '@shared/errors'
+import { jobLine } from './jobProgress'
 import { TooltipSummary } from '@/components/Tooltip'
-import { basename } from '@/lib/path'
 import { useBrain } from './useBrain'
 import { useBrainResource } from './useBrainResource'
-import { MEMORY_LABELS, MemoryQuotes, MemoryTags } from './BrainMemory'
-import { formatCount } from '@/lib/format'
-
-export function elapsedTime(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1000))
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-}
+import { buildReviewDecision } from './reviewDecision'
+import { ReviewGroups, ReviewIdentities, ReviewMemories, ReviewPage } from './ReviewSections'
 
 export function BrainReview({
   jobId,
@@ -22,177 +18,131 @@ export function BrainReview({
   onClose: () => void
   onExtraction: (jobId: string) => void
 }): React.JSX.Element {
-  const load = useCallback(() => window.phosphor.invoke('brain:proposal', jobId), [jobId])
-  const { data, error, retry } = useBrainResource(load)
-  if (!data)
-    return (
-      <div className="p-4" role="status">
-        {error || 'Loading review…'}
-        {error && <Button onClick={retry}>Retry</Button>}
-        <Button onClick={onClose}>Back to graph</Button>
-        <Button onClick={() => onExtraction(jobId)}>View extraction</Button>
-      </div>
-    )
+  const job = useBrain((s) => s.status?.jobs.find((job) => job.id === jobId))
+  const ready = job?.state === 'review'
+  const [stale, setStale] = useState(false)
+  const load = useCallback(async () => {
+    try {
+      return await window.phosphor.invoke('brain:proposal', jobId)
+    } catch (cause) {
+      if (ipcErrorText(cause).startsWith('Brain changed')) {
+        setStale(true)
+        await useBrain.getState().refresh()
+      }
+      throw cause
+    }
+  }, [jobId])
+  const { data, error, retry } = useBrainResource(load, ready)
+  useEffect(() => {
+    if (data) setStale(false)
+  }, [data])
   return (
-    <ReviewProposal
-      key={`${jobId}:${data.revision}`}
-      proposal={data}
-      onClose={onClose}
-      onExtraction={onExtraction}
-    />
+    <section className="space-y-3 p-3">
+      <div className="flex gap-2">
+        <Button size="sm" onClick={onClose}>
+          Back to graph
+        </Button>
+        <Button size="sm" onClick={() => onExtraction(jobId)}>
+          View extraction
+        </Button>
+      </div>
+      {stale ? (
+        <div role="status">
+          <p>Brain changed; refreshing this review</p>
+          {job && !ready && <p>{jobLine(job, 0, Date.now())}</p>}
+          {ready && <Button onClick={retry}>Retry</Button>}
+        </div>
+      ) : !data || !ready ? (
+        <p role="status">
+          {error ||
+            (ready
+              ? 'Loading review…'
+              : 'Brain changed; refreshing this review. Waiting for the job to return to review…')}
+          {error && <Button onClick={retry}>Retry</Button>}
+        </p>
+      ) : (
+        <ReviewProposal
+          key={`${jobId}:${data.revision}`}
+          proposal={data}
+          onClose={onClose}
+          onStale={async () => {
+            setStale(true)
+            await useBrain.getState().refresh()
+            retry()
+          }}
+        />
+      )}
+    </section>
   )
 }
 
 function ReviewProposal({
   proposal,
   onClose,
-  onExtraction,
+  onStale,
 }: {
   proposal: BrainProposalView
   onClose: () => void
-  onExtraction: (jobId: string) => void
+  onStale: () => Promise<void>
 }): React.JSX.Element {
-  const [keep, setKeep] = useState(() => proposal.memories.map((_, index) => index))
+  const [keep, setKeep] = useState(() => proposal.memories.map((m) => m.index))
+  const [identities, setIdentities] = useState<Record<string, string>>({})
+  const [groups, setGroups] = useState<number[]>([])
   const saving = useBrain((s) => s.saving)
-  const { job, memories, confirmations = [] } = proposal
-  const confirmationsOnly = memories.length === 0 && confirmations.length > 0
-  const review = (indexes: number[] | null): void => {
-    void useBrain
-      .getState()
-      .review(job.id, indexes, proposal.revision)
-      .then((ok) => {
-        if (ok) onClose()
-      })
+  const [error, setError] = useState('')
+  const review = async (decision: BrainReviewDecision | null): Promise<void> => {
+    setError('')
+    if (await useBrain.getState().review(proposal.job.id, decision, proposal.revision)) onClose()
+    else {
+      const message = useBrain.getState().error
+      setError(message)
+      if (message.startsWith('Brain changed')) await onStale()
+    }
   }
+  const confirmationsOnly = !proposal.memories.length && proposal.confirmations.length > 0
   return (
-    <section aria-label="Review memories" className="space-y-4 p-4">
-      <Button size="sm" onClick={onClose}>
-        Back to graph
-      </Button>
-      <Button size="sm" onClick={() => onExtraction(job.id)}>
-        View extraction
-      </Button>
-      <header>
-        <h2 className="text-xl font-semibold">{job.title}</h2>
-        <p className="text-text-tertiary mt-1 text-sm">
-          {basename(job.scope)} · read by {job.model} in{' '}
-          {elapsedTime((job.finishedAt ?? Date.now()) - (job.startedAt ?? job.queuedAt))}
-        </p>
-      </header>
-      <p>{proposal.summary}</p>
-      <ConfirmationSummary confirmations={confirmations} only={confirmationsOnly} />
-      <div className="flex flex-wrap gap-2">
+    <section aria-label="Review memories" className="space-y-4">
+      <h2 className="text-xl font-semibold">{proposal.job.title}</h2>
+      {error && <p role="alert">{error}</p>}
+      <p className="text-text-tertiary text-sm">Nothing is searchable until you approve it.</p>
+      {proposal.held > 0 && <p>{proposal.held} held back · inspect the extraction for reasons</p>}
+      <div className="flex gap-2">
         <Button
           variant="primary"
-          disabled={saving || (!keep.length && !confirmationsOnly)}
-          onClick={() => review(keep)}
+          disabled={saving || (!keep.length && !confirmationsOnly && !groups.length)}
+          onClick={() => {
+            void review(buildReviewDecision(keep, identities, groups))
+          }}
         >
           {confirmationsOnly ? 'Approve confirmations' : `Approve ${keep.length}`}
         </Button>
-        <Button disabled={saving} onClick={() => review(null)}>
+        <Button
+          disabled={saving}
+          onClick={() => {
+            void review(null)
+          }}
+        >
           Reject all
         </Button>
-        {memories.length > 0 && (
-          <Button
-            disabled={saving}
-            onClick={() =>
-              setKeep(keep.length === memories.length ? [] : memories.map((_, i) => i))
-            }
-          >
-            {keep.length === memories.length ? 'Uncheck all' : 'Check all'}
-          </Button>
-        )}
       </div>
-      <p className="text-text-tertiary text-sm">Nothing is searchable until you approve it.</p>
-      <ProposalMemories
-        memories={memories}
-        keep={keep}
-        saving={saving}
-        onToggle={(index, checked) =>
-          setKeep((previous) =>
-            checked
-              ? [...previous, index].sort((a, b) => a - b)
-              : previous.filter((i) => i !== index),
-          )
-        }
-      />
+      <fieldset disabled={saving} className="space-y-4">
+        <ReviewIdentities proposal={proposal} overrides={identities} onChange={setIdentities} />
+        <ReviewGroups proposal={proposal} selected={groups} onChange={setGroups} />
+        <ReviewMemories proposal={proposal} selected={keep} onChange={setKeep} />
+      </fieldset>
+      {proposal.confirmations.length > 0 && (
+        <details>
+          <TooltipSummary>
+            {confirmationsOnly ? 'Confirms' : 'Also confirms'} {proposal.confirmations.length}{' '}
+            existing memories
+          </TooltipSummary>
+          <ReviewPage>
+            {proposal.confirmations.map((m) => (
+              <p key={m.id}>{m.summary}</p>
+            ))}
+          </ReviewPage>
+        </details>
+      )}
     </section>
-  )
-}
-
-function ConfirmationSummary({
-  confirmations,
-  only,
-}: {
-  confirmations: BrainProposalView['confirmations']
-  only: boolean
-}): React.JSX.Element | null {
-  if (!confirmations.length) return null
-  return (
-    <section className="space-y-2">
-      <p>
-        {only ? 'Confirms' : 'Also confirms'}{' '}
-        {formatCount(confirmations.length, 'existing memory', 'existing memories')}
-      </p>
-      <ul className="text-text-secondary text-sm">
-        {confirmations.map((memory) => (
-          <li key={memory.id}>{memory.summary}</li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
-function ProposalMemories({
-  memories,
-  keep,
-  saving,
-  onToggle,
-}: {
-  memories: BrainMemoryDetail[]
-  keep: number[]
-  saving: boolean
-  onToggle: (index: number, checked: boolean) => void
-}): React.JSX.Element {
-  return (
-    <>
-      {BRAIN_MEMORY_TYPES.map((type) => {
-        const group = memories
-          .map((detail, index) => ({ ...detail, index }))
-          .filter((item) => item.memory.type === type)
-        return (
-          group.length > 0 && (
-            <section key={type} className="space-y-3">
-              <h3 className="text-text-secondary text-sm font-medium">
-                {MEMORY_LABELS[type]} · {group.length}
-              </h3>
-              {group.map(({ memory, quotes, index }) => (
-                <article key={index} className="border-border space-y-2 rounded-lg border p-3">
-                  <label className="flex items-start gap-3">
-                    <input
-                      className="mt-1"
-                      type="checkbox"
-                      checked={keep.includes(index)}
-                      disabled={saving}
-                      onChange={(event) => onToggle(index, event.target.checked)}
-                    />
-                    <span>{memory.summary}</span>
-                  </label>
-                  <MemoryTags memory={memory} />
-                  <details>
-                    <TooltipSummary className="text-text-tertiary cursor-pointer text-sm">
-                      {formatCount(quotes.length, 'quote')}
-                    </TooltipSummary>
-                    <div className="mt-2">
-                      <MemoryQuotes quotes={quotes} />
-                    </div>
-                  </details>
-                </article>
-              ))}
-            </section>
-          )
-        )
-      })}
-    </>
   )
 }

@@ -74,7 +74,7 @@ it('answers each delegated channel group from its owning mock module', async () 
   })
 })
 
-it('dispatches the Brain v2 queue, review and knowledge channels', async () => {
+it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
   vi.useFakeTimers()
   const { DEFAULT_BRAIN_PREFS } = await import('@shared/brain')
   await window.phosphor.invoke('brain:setPrefs', { ...DEFAULT_BRAIN_PREFS, enabled: true })
@@ -83,17 +83,26 @@ it('dispatches the Brain v2 queue, review and knowledge channels', async () => {
     sessionPath: '/demo/Harbor/dispatch.jsonl',
     title: 'Harbor billing',
   })
-  const id = queued.jobs[0]!.id
-  expect((await window.phosphor.invoke('brain:status')).jobs[0]?.state).toBe('running')
+  const id = queued.jobs.at(-1)!.id
+  expect((await window.phosphor.invoke('brain:status')).jobs.at(-1)?.state).toBe('running')
   await vi.advanceTimersByTimeAsync(5000)
   const proposal = await window.phosphor.invoke('brain:proposal', id)
   expect(proposal.memories.length).toBeGreaterThan(0)
-  await window.phosphor.invoke('brain:review', id, [0], proposal.revision)
-  const knowledge = await window.phosphor.invoke('brain:knowledge')
-  expect(knowledge.memories).toHaveLength(1)
+  await window.phosphor.invoke(
+    'brain:review',
+    id,
+    { memories: [0], identities: {}, groups: [] },
+    proposal.revision,
+  )
+  const knowledge = await window.phosphor.invoke('brain:entityMemories', 'ledger', {}, null)
+  expect(knowledge.memories.length).toBeGreaterThan(0)
   expect(
     (await window.phosphor.invoke('brain:memory', knowledge.memories[0]!.id)).quotes,
   ).toHaveLength(1)
   await window.phosphor.invoke('brain:forget', knowledge.memories[0]!.id)
-  expect((await window.phosphor.invoke('brain:knowledge')).memories).toEqual([])
+  expect(
+    (await window.phosphor.invoke('brain:entityMemories', 'ledger', {}, null)).memories.map(
+      (m) => m.id,
+    ),
+  ).not.toContain(knowledge.memories[0]!.id)
 })

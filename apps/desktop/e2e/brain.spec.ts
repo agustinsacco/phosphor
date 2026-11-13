@@ -1,125 +1,115 @@
-import { test, expect } from '@playwright/test'
-import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { test, expect, type Page } from '@playwright/test'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { launch, shutdown, privateAgentDir } from './fixtures/local-app'
-import { scratchDir } from './fixtures/scratch'
+import { launch, shutdown } from './fixtures/local-app'
+import { seedBrainLanes } from './fixtures/brain-lanes'
+import {
+  approveLane,
+  enableBrain,
+  exploreBrain,
+  inbox,
+  queueLane,
+  resetBrain,
+  status,
+} from './fixtures/brain-flow'
 
-const id = '01a0272a-7be5-76ed-b420-36b363924633'
-const fact = 'Rina Okafor owns the Harbor ledger export.'
-
-const sessionDir = (agent: string, cwd: string) =>
-  join(agent, 'sessions', `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`)
-
-/** A stopped lane on disk: the knowledge fork reads it, Brain never writes to it. */
-async function seedLane() {
-  const workspace = await realpath(await scratchDir('phosphor-e2e-brain-'))
-  const profile = join(workspace, 'profile')
-  const agent = privateAgentDir()
-  const source = join(sessionDir(agent, workspace), `2026-11-06T12-00-00-000Z_${id}.jsonl`)
-  await mkdir(profile)
-  await mkdir(sessionDir(agent, workspace), { recursive: true })
-  const at = (second: number) => `2026-11-06T12:00:0${second}Z`
-  const original =
-    [
-      { type: 'session', version: 3, id, cwd: workspace, timestamp: at(0) },
-      {
-        type: 'session_info',
-        id: 'name0001',
-        parentId: null,
-        name: 'Harbor ledger',
-        timestamp: at(1),
-      },
-      {
-        type: 'message',
-        id: 'ask00001',
-        parentId: 'name0001',
-        timestamp: at(2),
-        message: { role: 'user', content: `Note for later: ${fact} Exports run nightly.` },
-      },
-      {
-        type: 'message',
-        id: 'ans00001',
-        parentId: 'ask00001',
-        timestamp: at(3),
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Noted.' }],
-          provider: 'stub',
-          model: 'stub-model',
-        },
-      },
-    ]
-      .map((entry) => JSON.stringify(entry))
-      .join('\n') + '\n'
-  await writeFile(source, original)
-  await writeFile(
-    join(profile, 'config.json'),
-    JSON.stringify({
-      lastWorkspacePath: workspace,
-      recentWorkspaces: [{ path: workspace, name: 'Harbor' }],
-    }),
-  )
-  return { workspace, profile, agent, source, original }
-}
-
-test('Brain learns only from a queued lane, after approval, and keeps the lane untouched', async () => {
-  const { workspace, profile, agent, source, original } = await seedLane()
+test('Brain v4 reviews directed links, explores across lanes, retries and resets without changing lane files', async () => {
+  const seed = await seedBrainLanes()
   const h = await launch({
-    workspace,
-    agentDir: agent,
-    userDataDir: profile,
-    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1' },
+    workspace: seed.workspace,
+    agentDir: seed.agent,
+    userDataDir: seed.profile,
+    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
   })
   const { page } = h
   try {
-    const row = page.getByTestId('session-row').filter({ hasText: 'Harbor ledger' }).first()
-    await expect(row).toBeVisible({ timeout: 30_000 })
-    const nav = page.getByRole('navigation', { name: 'Main navigation' })
-    await expect(nav.getByRole('button', { name: 'Brain' })).toHaveCount(0)
-    await row.click({ button: 'right' })
-    await expect(page.getByText('Queue for knowledge extraction')).toHaveCount(0)
-    await page.keyboard.press('Escape')
+    await enableBrain(page, seed.harbor)
+    await queueLane(page, seed.harbor)
+    await expect(inbox(page, seed.harbor).getByText(/Reading window \d+ of \d+/)).toBeVisible()
+    await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
+    expect((await status(page)).counts).toEqual({ memories: 0, entities: 0 })
+    const firstJob = await approveLane(page, seed.harbor)
+    await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 2, entities: 3 })
+    const harbor = await directedGraph(page, firstJob)
+    await exploreBrain(page)
 
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
-    await page.getByRole('button', { name: 'Brain', exact: true }).click()
-    await page.getByRole('switch', { name: 'Brain', exact: true }).click()
-    await expect(page.getByRole('switch', { name: 'Brain', exact: true })).toBeChecked()
-    await expect(page.getByRole('switch', { name: 'Review before saving' })).toBeChecked()
-    await expect(page.getByText('EmbeddingGemma is ready.', { exact: false })).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(nav.getByRole('button', { name: 'Brain' })).toBeVisible()
-
-    await row.click({ button: 'right' })
-    await page.getByText('Queue for knowledge extraction', { exact: true }).click()
-    await nav.getByRole('button', { name: 'Brain' }).click()
-    await expect(page.getByText('1 memory to review')).toBeVisible({ timeout: 30_000 })
-    await page.getByRole('button', { name: 'Review', exact: true }).click()
-    await expect(page.getByText('The lane named who owns what.')).toBeVisible()
-    await expect(page.getByText('Nothing is searchable until you approve it.')).toBeVisible()
-    await page.getByRole('button', { name: 'Approve 1', exact: true }).click()
-
-    await expect(page.getByText(fact).first()).toBeVisible()
-    await expect(page.getByLabel('Memory relationships')).toBeVisible()
-    const knowledge = await page.evaluate(() => window.phosphor.invoke('brain:knowledge'))
-    expect(knowledge.memories.map((memory) => memory.summary)).toEqual([fact])
-    expect(knowledge.entities.map((entity) => entity.label).sort()).toEqual([
-      'Harbor ledger export',
-      'Rina Okafor',
-    ])
-
-    await row.click({ button: 'right' })
-    await page.getByText('Queue for knowledge extraction', { exact: true }).click()
+    await writeFile(seed.armed, 'armed\n')
+    await queueLane(page, seed.ledger)
+    await expect(
+      inbox(page, seed.ledger).getByRole('button', { name: 'Retry', exact: true }),
+    ).toBeVisible()
+    const failedJob = (await status(page)).jobs.find(
+      (job) => job.sessionPath === seed.ledger.source,
+    )!
+    expect(failedJob.state).toBe('failed')
+    expect(await readFile(join(seed.failureDirectory, 'failed-once'), 'utf8')).toBe('extract\n')
+    await inbox(page, seed.ledger).getByRole('button', { name: 'Retry', exact: true }).click()
+    expect(await approveLane(page, seed.ledger)).toBe(failedJob.id)
+    await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 4, entities: 5 })
+    const combined = await page.evaluate(() => window.phosphor.invoke('brain:overview'))
+    expect(combined.nodes.filter((e) => e.label === 'Harbor').map((e) => e.id)).toEqual([harbor.id])
+    const bridge = combined.nodes.find((e) => e.label === 'Ledger bridge')!
+    expect(combined.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subjectId: bridge.id,
+          predicate: 'part_of',
+          objectId: harbor.id,
+        }),
+      ]),
+    )
+    await queueLane(page, seed.harbor)
     await expect(
       page.getByText('Nothing new in this lane since its last extraction.'),
     ).toBeVisible()
-
-    await page.getByText(fact).first().click()
-    await page.getByRole('button', { name: 'Forget', exact: true }).click()
-    await expect
-      .poll(async () => (await page.evaluate(() => window.phosphor.invoke('brain:status'))).counts)
-      .toEqual({ memories: 0, entities: 0 })
-    expect(await readFile(source, 'utf8')).toBe(original)
+    await resetBrain(page)
+    for (const lane of [seed.harbor, seed.ledger])
+      expect(await readFile(lane.source, 'utf8')).toBe(lane.original)
+  } catch (error) {
+    const snapshot = await status(page)
+    const records = await page.evaluate(
+      async (ids) =>
+        Promise.all(ids.map((id) => window.phosphor.invoke('brain:extraction', id).catch(String))),
+      snapshot.jobs.map((job) => job.id),
+    )
+    await test.info().attach('brain-failure.json', {
+      body: JSON.stringify({ snapshot, records }, null, 2),
+      contentType: 'application/json',
+    })
+    throw error
   } finally {
     await shutdown(h)
   }
 })
+
+async function directedGraph(page: Page, firstJob: string) {
+  const extraction = await page.evaluate(
+    (id) => window.phosphor.invoke('brain:extraction', id),
+    firstJob,
+  )
+  expect(extraction.calls.map((call) => call.stage)).toEqual([
+    'extract',
+    'identity',
+    'parents',
+    'reconcile',
+  ])
+  const graph = await page.evaluate(() => window.phosphor.invoke('brain:overview'))
+  const harbor = graph.nodes.find((e) => e.label === 'Harbor')!
+  const rina = graph.nodes.find((e) => e.label === 'Rina Okafor')!
+  const ledger = graph.nodes.find((e) => e.label === 'Harbor ledger')!
+  const neighbourhood = await page.evaluate(
+    (id) => window.phosphor.invoke('brain:neighbourhood', id, 2),
+    rina.id,
+  )
+  expect(neighbourhood.links).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ subjectId: rina.id, predicate: 'owns', objectId: ledger.id }),
+      expect.objectContaining({
+        subjectId: ledger.id,
+        predicate: 'part_of',
+        objectId: harbor.id,
+      }),
+    ]),
+  )
+  return harbor
+}

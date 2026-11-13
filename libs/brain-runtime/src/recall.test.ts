@@ -1,81 +1,54 @@
-import { expect, it, vi } from 'vitest'
-import { createBrainClient } from '@phosphor/brain-client/client'
-import { createNodeBrainTransport } from '@phosphor/brain-client/node-transport'
+import { afterEach, expect, it, vi } from 'vitest'
 import { createRecall } from './recall'
-import { FakeBrainStore } from './__fixtures__/fake-store'
-import { HARBOR_RECALL } from '../../brain-client/src/__fixtures__/recall'
+import { projectContext } from './lane'
+import { FakeBrainStore, FakeBrainSearch } from './__fixtures__/fake-store'
 import { recallOptions } from './__fixtures__/options'
-
-it('launches read-only recall only when enabled, sends session identity, and revokes on prefs changes', async () => {
-  const store = new FakeBrainStore()
-  const recall = createRecall(store, recallOptions(store))
-  expect(await recall.recallLaunch()).toBeUndefined()
-  store.prefs.enabled = true
-  store.prefs.recall = false
-  expect(await recall.recallLaunch()).toBeUndefined()
-  store.prefs.recall = true
-  store.recall = HARBOR_RECALL
-  const launch = await recall.recallLaunch()
-  expect(launch).toMatchObject({ extensions: ['/brain.mjs'], skills: ['/brain/SKILL.md'] })
-  expect((await recall.recallLaunch())!.env).toEqual(launch!.env)
-  const client = createBrainClient(
-    createNodeBrainTransport({
-      endpoint: launch!.env.PHOSPHOR_BRAIN_ENDPOINT!,
-      token: launch!.env.PHOSPHOR_BRAIN_TOKEN!,
-    }),
-  )
+vi.mock('./lane', () => ({
+  projectContext: vi.fn(async () => ({ scope: '/harbor', branch: 'main' })),
+}))
+afterEach(() => vi.clearAllMocks())
+it('enables and revokes read-only recall launch without allowing a disabled search', async () => {
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch(),
+    options = recallOptions(store),
+    recall = createRecall(store, options, search)
   try {
-    expect(
-      await client.search({
-        query: 'Who owns Harbor?',
-        sessionId: 'tom-lane',
-        cwd: '/projects/harbor',
-      }),
-    ).toEqual(HARBOR_RECALL)
-    expect(store.deliveries).toEqual([{ sessionId: 'tom-lane', memoryIds: ['ownership'] }])
+    expect(await recall.recallLaunch()).toBeUndefined()
+    expect((await recall.agent('search', { query: 'Harbor' })).status).toBe('unavailable')
+    store.prefs.enabled = true
+    const launch = await recall.recallLaunch()
+    expect(launch).toMatchObject({ extensions: ['/brain.mjs'], skills: ['/brain/SKILL.md'] })
+    expect(launch!.env.PHOSPHOR_BRAIN_TOKEN).toBeTruthy()
     store.prefs.recall = false
-    expect(await client.search({ query: 'Rina' })).toMatchObject({
-      status: 'unavailable',
-      hits: [],
-    })
     expect(await recall.recallLaunch()).toBeUndefined()
   } finally {
     await recall.dispose()
   }
 })
-
-it('embeds search as a query, falls back to lexical and records delivered ids only', async () => {
-  const store = new FakeBrainStore()
+it('resolves scope and branch on each request, embeds query, falls back lexically and never writes deliveries', async () => {
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch(),
+    options = recallOptions(store)
   store.prefs.enabled = true
-  store.recall = HARBOR_RECALL
-  const options = recallOptions(store)
-  const embed = vi.spyOn(options.embeddings, 'embed')
-  const recall = createRecall(store, options)
+  const recall = createRecall(store, options, search)
   try {
-    await recall.agent('search', {
-      query: 'Harbor',
-      cwd: '/projects/harbor',
-      sessionId: 'rina-lane',
-    })
-    expect(embed).toHaveBeenCalledWith(['Harbor'], 'query')
-    expect(store.searches[0]).toEqual({
-      query: 'Harbor',
-      vector: new Float32Array([1, 0]),
+    await recall.agent('search', { query: 'Harbor', cwd: '/harbor', sessionId: 'lane' })
+    expect(options.embeddings.embed).toHaveBeenCalledWith(['Harbor'], 'query')
+    expect(search.searches[0]).toMatchObject({
+      scope: '/harbor',
+      branch: 'main',
       limit: 8,
-      scope: '/projects/harbor',
+      vector: expect.any(Float32Array),
     })
-    embed.mockRejectedValueOnce(new Error('Model unavailable'))
-    await recall.agent('search', { query: 'Harbor', limit: 2 })
-    expect(store.searches[1]).toMatchObject({ vector: null, limit: 2, scope: null })
-    await recall.agent('search', {
-      query: 'Rina Okafor',
-      cwd: '/projects/harbor',
-      sessionId: 'tom-lane',
-    })
-    expect(store.deliveries).toEqual([
-      { sessionId: 'rina-lane', memoryIds: ['ownership'] },
-      { sessionId: 'tom-lane', memoryIds: ['ownership'] },
-    ])
+    expect(Array.from(search.searches[0]!.vector!.slice(0, 2))).toEqual([1, 0])
+    expect(search.searches[0]!.vector).toHaveLength(768)
+    vi.mocked(projectContext).mockResolvedValueOnce({ scope: '/harbor', branch: 'billing' })
+    vi.mocked(options.embeddings.embed).mockRejectedValueOnce(new Error('Fake embedding failure'))
+    await recall.agent('search', { query: 'Ledger', cwd: '/harbor' })
+    expect(projectContext).toHaveBeenCalledTimes(2)
+    expect(search.searches[1]).toMatchObject({ branch: 'billing', vector: null })
+    expect(store.rev).toBe(0)
+    expect(store.jobs).toEqual([])
   } finally {
     await recall.dispose()
   }

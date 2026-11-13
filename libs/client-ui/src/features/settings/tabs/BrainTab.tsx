@@ -4,6 +4,7 @@ import { useBrain, useBrainSync } from '@/features/brain/useBrain'
 import { formatBytes, formatCount } from '@/lib/format'
 import { useNavigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
+import { promptText } from '@/stores/prompt'
 import { useSettingsUiStore } from '../settingsUiStore'
 
 export function BrainTab(): React.JSX.Element {
@@ -72,6 +73,7 @@ export function BrainTab(): React.JSX.Element {
         </>
       )}
       <BrainModelState />
+      <BrainReset saving={saving} />
     </div>
   )
 }
@@ -157,8 +159,8 @@ function BrainToggleRow({
       title="Brain"
       description={
         <>
-          Learns from lanes you queue and lets agents recall what you approve. Each lane is read by
-          a private copy of itself on its own model, which sends the conversation once more. Turning
+          Learns from lanes you queue and lets agents recall what you approve. Each queued lane is
+          read in private windows on its own model, which can make several provider calls. Turning
           this on downloads EmbeddingGemma for search on this computer (
           <a
             className="text-accent underline"
@@ -177,6 +179,36 @@ function BrainToggleRow({
         disabled={saving}
         onChange={(enabled) => save({ enabled })}
       />
+    </Row>
+  )
+}
+
+async function resetKnowledge(): Promise<void> {
+  const answer = await promptText({
+    title: 'Reset Brain knowledge?',
+    message:
+      'Deletes all memories, entities, jobs and extraction records. Keeps settings and the embedding model; review is turned back on. This cannot be undone. Type RESET to confirm.',
+    placeholder: 'RESET',
+    submitLabel: 'Reset knowledge',
+  })
+  if (answer === 'RESET') await useBrain.getState().reset()
+}
+
+function BrainReset({ saving }: { saving: boolean }): React.JSX.Element {
+  return (
+    <Row
+      title="Reset Brain knowledge"
+      description="Deletes all memories, entities, jobs and extraction records. Keeps your settings and embedding model; review is turned back on."
+    >
+      <Button
+        variant="danger"
+        disabled={saving}
+        onClick={() => {
+          void resetKnowledge()
+        }}
+      >
+        Reset Brain knowledge
+      </Button>
     </Row>
   )
 }

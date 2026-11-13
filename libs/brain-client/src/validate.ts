@@ -48,18 +48,29 @@ export function validateBrainRequest<M extends BrainAgentMethod>(
   return input as unknown as BrainAgentMap[M]['request']
 }
 
+function link(v: unknown): boolean {
+  return (
+    record(v) &&
+    hasStrings(v, ['id', 'subjectId', 'objectId', 'memoryId']) &&
+    member(v.predicate, BRAIN_PREDICATES)
+  )
+}
+const date = (v: unknown): boolean => v === null || number(v)
+
 function memory(v: unknown): v is BrainMemory {
   return (
     record(v) &&
-    hasStrings(v, ['id', 'summary', 'subjectId', 'scope']) &&
+    hasStrings(v, ['id', 'summary', 'scope']) &&
     member(v.type, BRAIN_MEMORY_TYPES) &&
     member(v.kind, ['observed', 'reported', 'inferred']) &&
-    member(v.predicate, BRAIN_PREDICATES) &&
+    member(v.state, ['active', 'superseded', 'disputed']) &&
+    strings(v.entityIds) &&
+    Array.isArray(v.links) &&
+    v.links.every(link) &&
     nullableString(v.jobId) &&
-    nullableString(v.objectId) &&
-    nullableString(v.literal) &&
     nullableString(v.branch) &&
-    (v.validFrom === null || number(v.validFrom)) &&
+    date(v.validFrom) &&
+    date(v.validTo) &&
     number(v.recordedAt) &&
     number(v.observedAt) &&
     (v.origin === null || (record(v.origin) && hasStrings(v.origin, ['sessionId', 'title'])))
@@ -81,13 +92,9 @@ export function isBrainRecall(v: unknown): v is BrainRecall {
         hit.reasons.every((r) => ['exact', 'lexical', 'semantic', 'linked'].includes(r)),
     ) &&
     strings(v.focus) &&
-    Array.isArray(v.links) &&
-    v.links.every(
-      (link: unknown) =>
-        record(link) &&
-        hasStrings(link, ['subjectId', 'objectId']) &&
-        member(link.predicate, BRAIN_PREDICATES),
-    ) &&
+    Array.isArray(v.paths) &&
+    v.paths.every((path: unknown) => Array.isArray(path) && path.every(link)) &&
+    nullableString(v.branch) &&
     number(v.more) &&
     Number.isInteger(v.more) &&
     v.more >= 0 &&
@@ -97,7 +104,8 @@ export function isBrainRecall(v: unknown): v is BrainRecall {
         record(e) &&
         hasStrings(e, ['id', 'label']) &&
         member(e.kind, BRAIN_ENTITY_KINDS) &&
-        strings(e.aliases),
+        strings(e.aliases) &&
+        typeof e.description === 'string',
     )
   )
 }

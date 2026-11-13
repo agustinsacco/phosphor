@@ -14,7 +14,7 @@ it('starts off, with recall and review on for when it is enabled', () => {
 })
 
 it('gives lane agents one read-only search and never approval, queueing or forgetting', () => {
-  expect(BRAIN_PROTOCOL).toBe(3)
+  expect(BRAIN_PROTOCOL).toBe(4)
   expectTypeOf<BrainAgentMethod>().toEqualTypeOf<'search'>()
 })
 
@@ -26,6 +26,7 @@ it('pins the graph schema the extractor, engine and UI share', () => {
     'project',
     'component',
     'document',
+    'ticket',
     'concept',
     'event',
   ])
@@ -34,6 +35,8 @@ it('pins the graph schema the extractor, engine and UI share', () => {
     'works_on',
     'member_of',
     'part_of',
+    'for_customer',
+    'documents',
     'depends_on',
     'uses',
     'decided',
@@ -41,7 +44,6 @@ it('pins the graph schema the extractor, engine and UI share', () => {
     'blocks',
     'affects',
     'related_to',
-    'about',
   ])
   expect(BRAIN_MEMORY_TYPES).toEqual([
     'decision',

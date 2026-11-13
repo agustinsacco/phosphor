@@ -1,0 +1,282 @@
+import { mkdtemp, rm, stat, readFile, mkdir, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, expect, it, vi } from 'vitest'
+import type { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
+import { runModelCall, type ModelCallInput } from './model-call'
+import { FakeBrainStore, HARBOR_JOB } from './__fixtures__/fake-store'
+
+const directories: string[] = []
+afterEach(async () => {
+  await Promise.all(directories.map((dir) => rm(dir, { recursive: true, force: true })))
+})
+async function input(): Promise<ModelCallInput> {
+  const directory = await mkdtemp(join(tmpdir(), 'harbor-fork-'))
+  directories.push(directory)
+  return {
+    directory,
+    stage: 'extract',
+    part: 1,
+    systemPrompt: 'System rules',
+    job: new FakeBrainStore().enqueue(HARBOR_JOB, 'queued'),
+    lane: {
+      sessionId: 'harbor-lane',
+      cwd: '/made-up/harbor',
+      model: 'example/fast',
+      thinking: 'high',
+      scope: '/projects/harbor',
+      branch: 'billing',
+      leafId: 'leaf',
+    },
+    launch: {
+      binaryPath: '/binary/pi',
+      prefixArgs: ['entry.js'],
+      env: { HARBOR_ACCOUNT: 'fake-account' },
+    },
+    guardExtension: '/extensions/brain-fork-guard.mjs',
+    prompt: 'Extract Harbor knowledge.',
+    signal: new AbortController().signal,
+  }
+}
+const event = (text: string, stopReason = 'stop') =>
+  JSON.stringify({
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      stopReason,
+      content: [
+        { type: 'thinking', thinking: 'not an answer' },
+        { type: 'text', text },
+      ],
+      usage: { totalTokens: 120, cost: { total: 0.001 } },
+    },
+  })
+
+it('calls privately with lane args/env, parses streaming LF records and removes its isolated directory', async () => {
+  const args = await input()
+  const run = vi.fn<typeof runPrintMode>().mockImplementation(async (_binary, _args, options) => {
+    expect(await stat(options.cwd)).toBeTruthy()
+    expect(await readFile(join(options.cwd, 'system.md'), 'utf8')).toBe('System rules')
+    // A megabyte of deltas must not be captured by the transport or mistaken for the final answer.
+    for (let i = 0; i < 100; i++)
+      options.onStdout?.(
+        JSON.stringify({ type: 'message_update', delta: 'x'.repeat(10000) }) + '\n',
+      )
+    const stream = event('earlier') + '\n' + event('Harbor\u2028billing')
+    for (let at = 0; at < stream.length; at += 13) options.onStdout?.(stream.slice(at, at + 13))
+    return { stdout: 'Never parse this capture.' }
+  })
+  expect(await runModelCall(args, run)).toEqual({
+    text: 'Harbor\u2028billing',
+    usage: { tokens: 120, cost: 0.001 },
+  })
+  const forkDir = join(args.directory, 'calls', args.job.id, 'extract-1')
+  expect(run.mock.calls[0]).toEqual([
+    '/binary/pi',
+    [
+      'entry.js',
+      '-p',
+      '--mode',
+      'json',
+      '--no-session',
+      '--model',
+      'example/fast',
+      '--thinking',
+      'low',
+      '--no-tools',
+      '--no-mcp',
+      '--no-skills',
+      '--no-prompt-templates',
+      '--no-context-files',
+      '--no-themes',
+      '--no-approve',
+      '--offline',
+      '-e',
+      '/extensions/brain-fork-guard.mjs',
+      '--system-prompt',
+      join(forkDir, 'system.md'),
+    ],
+    expect.objectContaining({
+      cwd: forkDir,
+      input: 'Extract Harbor knowledge.',
+      timeoutMs: 300000,
+      maxOutputBytes: 0,
+      stderr: 'capture',
+      maxStderrBytes: 4096,
+      signal: args.signal,
+      env: {
+        HARBOR_ACCOUNT: 'fake-account',
+        PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
+        PI_OFFLINE: '1',
+        PI_CLAUDE_CLI_EPHEMERAL: '1',
+        PI_CLAUDE_CLI_STATE_DIR: join(forkDir, 'provider'),
+      },
+    }),
+  ])
+  expect(await stat(forkDir).catch(() => null)).toBeNull()
+})
+
+it.each(['error', 'aborted'])('fails on assistant stop reason %s and cleans up', async (reason) => {
+  const args = await input()
+  const run: typeof runPrintMode = async (_binary, _args, options) => {
+    options.onStdout?.(event('not saved', reason) + '\n')
+    return { stdout: '' }
+  }
+  await expect(runModelCall(args, run)).rejects.toThrow(reason)
+  expect(
+    await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
+  ).toBeNull()
+})
+
+it('ignores the lane cwd and preserves low thinking, but fails absent text and transport errors', async () => {
+  const args = await input()
+  args.lane.cwd = args.directory
+  args.lane.thinking = 'minimal'
+  const run = vi.fn<typeof runPrintMode>().mockResolvedValue({ stdout: '' })
+  await expect(runModelCall(args, run)).rejects.toThrow('no text')
+  expect(run.mock.calls[0]![1]).toContain('minimal')
+  expect(run.mock.calls[0]![2].cwd).toBe(join(args.directory, 'calls', args.job.id, 'extract-1'))
+  run.mockResolvedValue({ stdout: '', reason: 'timeout', error: 'sensitive provider details' })
+  await expect(runModelCall(args, run)).rejects.toThrow(
+    'Timed out after 300 s waiting for example/fast (no reply yet)',
+  )
+  args.signal = AbortSignal.abort()
+  await expect(runModelCall(args, run)).rejects.toThrow()
+})
+
+it('runs as a one-shot even when the lane parks its Claude process', async () => {
+  const args = await input()
+  args.launch.env = { PI_CLAUDE_CLI_KEEPALIVE_MS: '3600000', PI_CLAUDE_CLI_EPHEMERAL: '0' }
+  const run = vi.fn<typeof runPrintMode>().mockImplementation(async (_binary, _args, options) => {
+    options.onStdout?.(event('Harbor') + '\n')
+    return { stdout: '' }
+  })
+  await runModelCall(args, run)
+  expect(run.mock.calls[0]![2].env).toMatchObject({
+    PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
+    PI_CLAUDE_CLI_EPHEMERAL: '1',
+  })
+})
+
+it('traces retries without answer text and explains a timeout with scrubbed diagnostics', async () => {
+  const args = await input()
+  const onTrace = vi.fn()
+  const run = vi.fn<typeof runPrintMode>().mockImplementation(async (_binary, _args, options) => {
+    for (const record of [
+      { type: 'agent_start' },
+      { type: 'turn_start' },
+      { type: 'message_start', message: { role: 'assistant', content: [] } },
+      { type: 'message_update', assistantMessageEvent: { delta: 'private Harbor answer' } },
+      {
+        type: 'auto_retry_start',
+        attempt: 1,
+        delayMs: 2000,
+        errorMessage: '429 token=harbor-secret',
+      },
+    ])
+      options.onStdout?.(JSON.stringify(record) + '\n')
+    return { stdout: '', reason: 'timeout', error: 'timeout', stderr: 'Bearer harbor-secret' }
+  })
+  await expect(runModelCall({ ...args, onTrace }, run)).rejects.toThrow(
+    'Timed out after 300 s waiting for example/fast (retrying: 429 [redacted])',
+  )
+  expect(run.mock.calls[0]![2]).toMatchObject({
+    timeoutMs: 300000,
+    stderr: 'capture',
+    maxStderrBytes: 4096,
+  })
+  expect(onTrace).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      firstStdoutMs: expect.any(Number),
+      firstMessageStartMs: expect.any(Number),
+      firstMessageUpdateMs: expect.any(Number),
+      messageUpdates: 1,
+      turns: 1,
+      retries: [
+        expect.objectContaining({ attempt: 1, delayMs: 2000, errorMessage: '429 [redacted]' }),
+      ],
+      reason: 'timeout',
+      totalMs: expect.any(Number),
+    }),
+    '[redacted]',
+  )
+  expect(JSON.stringify(onTrace.mock.calls)).not.toMatch(/private Harbor answer|harbor-secret/)
+  expect(
+    await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
+  ).toBeNull()
+})
+
+it.each(['spawn', 'exit', 'aborted'] as const)(
+  'traces transport %s once and always removes the private copy',
+  async (reason) => {
+    const args = await input()
+    const onTrace = vi.fn()
+    const run: typeof runPrintMode = async () => ({
+      stdout: '',
+      reason,
+      error: 'Bearer harbor-secret',
+    })
+    await expect(runModelCall({ ...args, onTrace }, run)).rejects.toThrow(
+      `Knowledge extraction ${reason}.`,
+    )
+    expect(onTrace).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ reason }),
+      '[redacted]',
+    )
+    expect(
+      await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
+    ).toBeNull()
+  },
+)
+
+it('traces successful assistant completion and zero-exit assistant failure, with scrubbed stderr separate from the trace', async () => {
+  const args = await input()
+  const onTrace = vi.fn()
+  const run: typeof runPrintMode = async (_binary, _args, options) => {
+    options.onStdout?.('diagnostic, not JSON\n' + event('private Harbor answer') + '\n')
+    return { stdout: '', stderr: 'Bearer harbor-secret' }
+  }
+  expect(await runModelCall({ ...args, onTrace }, run)).toEqual({
+    text: 'private Harbor answer',
+    usage: { tokens: 120, cost: 0.001 },
+  })
+  expect(onTrace).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      reason: 'completed',
+      stopReason: 'stop',
+      usage: { tokens: 120, cost: 0.001, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    }),
+    '[redacted]',
+  )
+  expect(JSON.stringify(onTrace.mock.calls)).not.toMatch(
+    /private Harbor answer|harbor-secret|diagnostic, not JSON/,
+  )
+  onTrace.mockClear()
+  const failed: typeof runPrintMode = async (_binary, _args, options) => {
+    options.onStdout?.(event('private failed answer', 'error'))
+    return { stdout: '', stderr: 'token=harbor-secret' }
+  }
+  await expect(runModelCall({ ...args, onTrace }, failed)).rejects.toThrow(
+    'Knowledge extraction error.',
+  )
+  expect(onTrace).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ reason: 'error', stopReason: 'error' }),
+    '[redacted]',
+  )
+  expect(
+    await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
+  ).toBeNull()
+})
+
+it('removes an interrupted call directory before reusing its ordinal', async () => {
+  const args = await input(),
+    directory = join(args.directory, 'calls', args.job.id, 'extract-1')
+  await mkdir(join(directory, 'provider'), { recursive: true })
+  await writeFile(join(directory, 'provider', 'stale'), 'do not reuse')
+  const run: typeof runPrintMode = async (_binary, _args, options) => {
+    expect(await stat(join(options.cwd, 'provider', 'stale')).catch(() => null)).toBeNull()
+    options.onStdout?.(event('Harbor') + '\n')
+    return { stdout: '' }
+  }
+  await runModelCall(args, run)
+})

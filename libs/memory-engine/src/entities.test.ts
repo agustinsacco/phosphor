@@ -1,64 +1,80 @@
+import { wordRows } from './candidates'
 import { describe, expect, it } from 'vitest'
 import { approve, extraction, fixture, vector } from './test-support'
+import { fold, mentions, wholePhrase } from './text'
 
-describe('Brain entity resolution', () => {
-  it('resolves by folded label or alias and kind, merges aliases, and reindexes earlier memories', () => {
+describe('Brain entity identities and indexed candidates', () => {
+  it('folds unicode and preserves whole-word punctuation', () => {
+    expect(fold(' ＨＡＲＢＯＲ  Service ')).toBe('harbor service')
+    expect(wholePhrase('Use C++.', 'C++')).toBe(true)
+    expect(mentions('Harborview', ['Harbor'])).toBe(false)
+  })
+  it('returns exact keys, names, word and trigram candidates without resolving by kind', () => {
     const { store } = fixture()
-    approve(store)
-    const original = store.knowledge().entities.find((item) => item.label === 'Harbor')!
     const base = extraction('unused')
+    base.entities[0]!.keys = [{ namespace: 'ticket', value: 'H-27' }]
+    approve(store, base)
+    const matches = store.entityMatches(
+      [
+        {
+          label: 'Harbor billing service',
+          aliases: [],
+          keys: [{ namespace: 'ticket', value: 'H-27' }],
+        },
+      ],
+      20,
+    )[0]!
+    const harbor = store.overview(300).nodes.find((item) => item.label === 'Harbor')!
+    expect(
+      matches.filter((item) => item.entityId === harbor.id).map((item) => item.channel),
+    ).toEqual(expect.arrayContaining(['key', 'name', 'words', 'trigram']))
+    expect(store.entityCards([harbor.id])[0]?.neighbours).toHaveLength(2)
+  })
+  it('reuse adds aliases without touching memory FTS; uncertain and same-name people create new identities', () => {
+    const { store, db } = fixture()
+    approve(store)
+    const original = store.overview(300).nodes.find((item) => item.label === 'Harbor')!
+    const before = db.prepare('SELECT rowid,summary FROM memory_words').all()
+    const base = extraction('next')
     approve(store, {
       jobId: 'next',
       entities: [
-        {
-          key: 'service',
-          label: ' ＨＡＲＢＯＲ   BILLING SERVICE ',
-          kind: 'component',
-          aliases: ['Invoicing Gateway', 'harbor'],
-        },
+        { ...base.entities[0]!, label: 'Gateway', decision: 'reuse', entityId: original.id },
       ],
+      entityVectors: [vector()],
       memories: [
         {
           ...base.memories[0]!,
-          subject: 'service',
-          object: null,
-          predicate: 'about',
+          entities: ['harbor'],
+          links: [],
           summary: 'Daily settlement is final.',
         },
       ],
-      vectors: [vector(0, 0, 1)],
+      memoryVectors: [vector()],
     })
-    const merged = store.knowledge().entities.find((item) => item.id === original.id)!
-    expect(merged.aliases).toEqual(['Harbor billing service', 'Invoicing Gateway'])
-    expect(store.snapshot().counts.entities).toBe(3)
-    const result = store.search({ query: 'Invoicing Gateway', vector: null, scope: null, limit: 6 })
-    expect(result.hits).toHaveLength(3)
-    expect(
-      result.hits.every((hit) => hit.reasons.includes('lexical') && hit.reasons.includes('exact')),
-    ).toBe(true)
-  })
-  it('does not merge equal names with different kinds, and accepts existing entity ids', () => {
-    const { store } = fixture()
-    approve(store)
-    const harbor = store.knowledge().entities.find((item) => item.label === 'Harbor')!
-    const base = extraction('unused')
+    expect(store.entity(original.id).entity.aliases).toContain('Gateway')
+    expect(db.prepare('SELECT rowid,summary FROM memory_words WHERE rowid<=2').all()).toEqual(
+      before,
+    )
+    const tom = base.entities[2]!
     approve(store, {
-      jobId: 'next',
-      entities: [{ key: 'harbor-team', label: 'Harbor', kind: 'team', aliases: [] }],
-      memories: [
-        {
-          ...base.memories[0]!,
-          subject: 'harbor-team',
-          object: harbor.id,
-          predicate: 'owns',
-          summary: 'Harbor team owns Harbor.',
-        },
-      ],
-      vectors: [vector(0, 0, 1)],
+      jobId: 'third',
+      entities: [{ ...tom, decision: 'uncertain' }],
+      entityVectors: [vector()],
+      memories: [{ ...base.memories[0]!, entities: ['tom'], links: [] }],
+      memoryVectors: [vector()],
     })
-    expect(store.knowledge().entities.filter((item) => item.label === 'Harbor')).toHaveLength(2)
-    const latest = store.knowledge().memories[0]!
-    expect(latest.objectId).toBe(harbor.id)
-    expect(latest.subjectId).not.toBe(harbor.id)
+    expect(store.overview(300).nodes.filter((item) => item.label === 'Tom Lee')).toHaveLength(2)
   })
+})
+
+it('uses actual word document frequencies when picking six OR fallback terms', () => {
+  const { db } = fixture()
+  const insert = db.prepare('INSERT INTO memory_words(rowid,summary) VALUES (?,?)')
+  for (let n = 1; n <= 150; n++) insert.run(n, 'amber birch cedar dune elm fir')
+  for (let n = 151; n <= 251; n++) insert.run(n, 'garnet')
+  const ctx = { db, now: Date.now, id: () => 'unused' }
+  expect(wordRows(ctx, 'memory_words', 'amber birch cedar dune elm fir garnet', 300)).toHaveLength(
+    251,
+  )
 })
