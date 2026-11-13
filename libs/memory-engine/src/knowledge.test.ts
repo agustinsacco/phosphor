@@ -62,3 +62,15 @@ describe('Brain memory details, dates and deletion', () => {
     ).toBeUndefined()
   })
 })
+
+it('uses the exact approval timestamp when source evidence is undated', () => {
+  const { store } = fixture()
+  const data = extraction('undated')
+  const ids = approve(store, {
+    evidence: data.evidence.map((entry) => ({ ...entry, observedAt: 0 })),
+  })
+  for (const id of ids) {
+    const memory = store.memory(id).memory
+    expect(memory.observedAt).toBe(memory.recordedAt)
+  }
+})

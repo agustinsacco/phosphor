@@ -182,3 +182,49 @@ it('does not duplicate relation evidence when enriching the same link from the s
   })
   expect(store.memory(id!).linkQuotes[link.id]).toHaveLength(1)
 })
+
+it('rolls back all created rows when a later identity collides with a stable key', () => {
+  const { store, db } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  const data = extraction(job.id)
+  data.entities[0]!.keys = [{ namespace: 'ledger', value: '27' }]
+  data.entities[2]!.keys = [{ namespace: 'ledger', value: '27' }]
+  store.propose(data)
+  expect(() => store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, 0)).toThrow(
+    'identifier already belongs',
+  )
+  expect(store.snapshot().counts).toEqual({ memories: 0, entities: 0 })
+  expect(db.prepare('SELECT * FROM evidence').all()).toEqual([])
+  expect(store.storedProposal(job.id)).toBeDefined()
+})
+
+it('resolve_open closes the old question and superseding one dispute reactivates its partner', () => {
+  const { store } = fixture()
+  const base = extraction('first')
+  const [open] = approve(store, {
+    memories: [{ ...base.memories[0]!, type: 'open' }],
+    memoryVectors: [vector()],
+  })
+  const resolved = approve(store, {
+    jobId: 'resolved',
+    memories: [{ ...base.memories[0]!, action: 'resolve_open', target: open! }],
+    memoryVectors: [vector()],
+  })
+  expect(store.memory(open!).memory.state).toBe('superseded')
+  const answer = resolved.find((id) =>
+    store.memory(id).related.some((item) => item.kind === 'resolves'),
+  )!
+  const conflicted = approve(store, {
+    jobId: 'dispute',
+    memories: [{ ...base.memories[0]!, action: 'conflict', target: answer }],
+    memoryVectors: [vector()],
+  })
+  const other = conflicted.find((id) => id !== answer)!
+  approve(store, {
+    jobId: 'superseded',
+    memories: [{ ...base.memories[0]!, action: 'supersede', target: other }],
+    memoryVectors: [vector()],
+  })
+  expect(store.memory(answer).memory.state).toBe('active')
+  expect(store.memory(other).memory.state).toBe('superseded')
+})
