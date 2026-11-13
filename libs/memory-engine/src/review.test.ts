@@ -100,3 +100,42 @@ describe('Brain v4 review transaction', () => {
     expect(store.memory(id!).memory.state).toBe('active')
   })
 })
+
+it('scrubs all persisted proposal and extraction free text again at the store boundary', () => {
+  const { store, db } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  const data = extraction(job.id)
+  data.entities[0]!.description = 'token=harbor-secret'
+  data.memories[0]!.summary = 'Write to tom@example.com'
+  data.evidence[0]!.text = 'Bearer harbor-private'
+  data.memories[0]!.citations[0]!.quote = 'Bearer harbor-private'
+  store.propose(data)
+  expect(String(db.prepare('SELECT payload FROM proposals').get()?.payload)).not.toContain(
+    'harbor-private',
+  )
+  store.saveExtraction({
+    jobId: job.id,
+    sessionId: job.sessionId,
+    sessionPath: job.sessionPath,
+    title: job.title,
+    leafId: null,
+    model: job.model,
+    thinking: 'low',
+    calls: [
+      {
+        stage: 'extract',
+        part: 0,
+        entryIds: [],
+        inputHash: 'a',
+        answer: 'Bearer harbor-private',
+        trace: null,
+        error: null,
+      },
+    ],
+    outcomes: [],
+    error: null,
+    startedAt: 1,
+    finishedAt: 2,
+  })
+  expect(store.extraction(job.id).calls[0]?.answer).toBe('[redacted]')
+})
