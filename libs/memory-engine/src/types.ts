@@ -61,6 +61,8 @@ export interface JobPart {
   part: string
   inputHash: string
   output: string
+  /** First prepare checkpoint: persisted atomically with the job metadata. */
+  prepare?: Pick<BrainJob, 'leafId' | 'model' | 'branch'>
 }
 
 /** The single writer: queue, proposals, review and the Explorer's indexed reads. Synchronous. */

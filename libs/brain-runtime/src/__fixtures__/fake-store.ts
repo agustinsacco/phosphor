@@ -86,6 +86,9 @@ export class FakeBrainStore implements BrainStore {
   updateJob(id: string, patch: JobPatch): BrainJob {
     const job = this.job(id)
     if (!job) throw new Error('No job')
+    for (const field of ['leafId', 'model', 'branch'] as const)
+      if (patch[field] !== undefined && patch[field] !== job[field])
+        throw new Error('Brain job metadata is frozen outside its first prepare checkpoint.')
     Object.assign(job, patch)
     return job
   }
@@ -105,6 +108,20 @@ export class FakeBrainStore implements BrainStore {
     return this.parts.get(`${id}:${part}:${hash}`)
   }
   savePart(id: string, part: JobPart): void {
+    if (part.part === 'prepare') {
+      if (!part.prepare || part.inputHash !== 'frozen-v4')
+        throw new Error('Prepare metadata required')
+      const saved = this.part(id, 'prepare', 'frozen-v4')
+      if (
+        saved &&
+        (saved.output !== part.output ||
+          Object.entries(part.prepare).some(
+            ([key, v]) => this.job(id)?.[key as keyof BrainJob] !== v,
+          ))
+      )
+        throw new Error('Brain job metadata is frozen.')
+      Object.assign(this.job(id)!, part.prepare)
+    } else if (part.prepare) throw new Error('Only prepare can freeze metadata')
     this.parts.set(`${id}:${part.part}:${part.inputHash}`, structuredClone(part))
   }
   entityMatches(

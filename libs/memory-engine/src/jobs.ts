@@ -91,12 +91,12 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
   const existing = job(ctx, id)
   if (!existing) throw new Error('Brain job not found.')
   if (
-    existing.startedAt !== null &&
-    existing.leafId !== null &&
-    patch.leafId !== undefined &&
-    patch.leafId !== existing.leafId
+    ['leafId', 'model', 'branch'].some((key) => {
+      const field = key as 'leafId' | 'model' | 'branch'
+      return patch[field] !== undefined && patch[field] !== existing[field]
+    })
   )
-    throw new Error('Brain job leaf is frozen.')
+    throw new Error('Brain job metadata is frozen outside its first prepare checkpoint.')
   const updated = { ...existing, ...patch }
   // Updating columns rather than REPLACE preserves proposal foreign keys.
   run(
@@ -153,12 +153,38 @@ export function part(
   )
 }
 export function savePart(ctx: Context, jobId: string, value: JobPart): void {
-  run(
-    ctx,
-    "INSERT OR REPLACE INTO job_parts VALUES (?,?,?,'done',?)",
-    jobId,
-    value.part,
-    value.inputHash,
-    value.output,
-  )
+  transaction(ctx, () => {
+    const saved = part(ctx, jobId, 'prepare', 'frozen-v4')
+    if (value.part === 'prepare') {
+      if (value.inputHash !== 'frozen-v4' || !value.prepare)
+        throw new Error('Brain prepare metadata is required.')
+      if (saved) {
+        if (
+          saved.output !== value.output ||
+          Object.entries(value.prepare).some(
+            ([key, v]) => job(ctx, jobId)?.[key as keyof BrainJob] !== v,
+          )
+        )
+          throw new Error('Brain job metadata is frozen.')
+        return
+      }
+      if (!job(ctx, jobId)) throw new Error('Brain job not found.')
+      run(
+        ctx,
+        'UPDATE jobs SET leaf_id=?,model=?,branch=? WHERE id=?',
+        value.prepare.leafId,
+        value.prepare.model,
+        value.prepare.branch,
+        jobId,
+      )
+    } else if (value.prepare) throw new Error('Only prepare can freeze Brain job metadata.')
+    run(
+      ctx,
+      "INSERT OR REPLACE INTO job_parts VALUES (?,?,?,'done',?)",
+      jobId,
+      value.part,
+      value.inputHash,
+      value.output,
+    )
+  })
 }
