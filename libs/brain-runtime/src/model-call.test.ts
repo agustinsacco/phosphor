@@ -1,20 +1,23 @@
-import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { mkdtemp, rm, stat, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
-import { runFork, type ForkInput } from './fork'
+import { runModelCall, type ModelCallInput } from './model-call'
 import { FakeBrainStore, HARBOR_JOB } from './__fixtures__/fake-store'
 
 const directories: string[] = []
 afterEach(async () => {
   await Promise.all(directories.map((dir) => rm(dir, { recursive: true, force: true })))
 })
-async function input(): Promise<ForkInput> {
+async function input(): Promise<ModelCallInput> {
   const directory = await mkdtemp(join(tmpdir(), 'harbor-fork-'))
   directories.push(directory)
   return {
     directory,
+    stage: 'extract',
+    part: 1,
+    systemPrompt: 'System rules',
     job: new FakeBrainStore().enqueue(HARBOR_JOB, 'queued'),
     lane: {
       sessionId: 'harbor-lane',
@@ -49,10 +52,11 @@ const event = (text: string, stopReason = 'stop') =>
     },
   })
 
-it('forks privately with lane args/env, parses streaming LF records and removes its isolated directory', async () => {
+it('calls privately with lane args/env, parses streaming LF records and removes its isolated directory', async () => {
   const args = await input()
   const run = vi.fn<typeof runPrintMode>().mockImplementation(async (_binary, _args, options) => {
     expect(await stat(options.cwd)).toBeTruthy()
+    expect(await readFile(join(options.cwd, 'system.md'), 'utf8')).toBe('System rules')
     // A megabyte of deltas must not be captured by the transport or mistaken for the final answer.
     for (let i = 0; i < 100; i++)
       options.onStdout?.(
@@ -62,11 +66,11 @@ it('forks privately with lane args/env, parses streaming LF records and removes 
     for (let at = 0; at < stream.length; at += 13) options.onStdout?.(stream.slice(at, at + 13))
     return { stdout: 'Never parse this capture.' }
   })
-  expect(await runFork(args, run)).toEqual({
+  expect(await runModelCall(args, run)).toEqual({
     text: 'Harbor\u2028billing',
     usage: { tokens: 120, cost: 0.001 },
   })
-  const forkDir = join(args.directory, 'forks', args.job.id)
+  const forkDir = join(args.directory, 'calls', args.job.id, 'extract-1')
   expect(run.mock.calls[0]).toEqual([
     '/binary/pi',
     [
@@ -74,10 +78,7 @@ it('forks privately with lane args/env, parses streaming LF records and removes 
       '-p',
       '--mode',
       'json',
-      '--fork',
-      HARBOR_JOB.sessionPath,
-      '--session-dir',
-      forkDir,
+      '--no-session',
       '--model',
       'example/fast',
       '--thinking',
@@ -92,10 +93,12 @@ it('forks privately with lane args/env, parses streaming LF records and removes 
       '--offline',
       '-e',
       '/extensions/brain-fork-guard.mjs',
-      'Extract Harbor knowledge.',
+      '--system-prompt',
+      join(forkDir, 'system.md'),
     ],
     expect.objectContaining({
       cwd: forkDir,
+      input: 'Extract Harbor knowledge.',
       timeoutMs: 300000,
       maxOutputBytes: 0,
       stderr: 'capture',
@@ -119,24 +122,26 @@ it.each(['error', 'aborted'])('fails on assistant stop reason %s and cleans up',
     options.onStdout?.(event('not saved', reason) + '\n')
     return { stdout: '' }
   }
-  await expect(runFork(args, run)).rejects.toThrow(reason)
-  expect(await stat(join(args.directory, 'forks', args.job.id)).catch(() => null)).toBeNull()
+  await expect(runModelCall(args, run)).rejects.toThrow(reason)
+  expect(
+    await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
+  ).toBeNull()
 })
 
-it('uses an existing lane cwd and preserves low thinking, but fails absent text and transport errors', async () => {
+it('ignores the lane cwd and preserves low thinking, but fails absent text and transport errors', async () => {
   const args = await input()
   args.lane.cwd = args.directory
   args.lane.thinking = 'minimal'
   const run = vi.fn<typeof runPrintMode>().mockResolvedValue({ stdout: '' })
-  await expect(runFork(args, run)).rejects.toThrow('no text')
+  await expect(runModelCall(args, run)).rejects.toThrow('no text')
   expect(run.mock.calls[0]![1]).toContain('minimal')
-  expect(run.mock.calls[0]![2].cwd).toBe(args.directory)
+  expect(run.mock.calls[0]![2].cwd).toBe(join(args.directory, 'calls', args.job.id, 'extract-1'))
   run.mockResolvedValue({ stdout: '', reason: 'timeout', error: 'sensitive provider details' })
-  await expect(runFork(args, run)).rejects.toThrow(
+  await expect(runModelCall(args, run)).rejects.toThrow(
     'Timed out after 300 s waiting for example/fast (no reply yet)',
   )
   args.signal = AbortSignal.abort()
-  await expect(runFork(args, run)).rejects.toThrow()
+  await expect(runModelCall(args, run)).rejects.toThrow()
 })
 
 it('runs as a one-shot even when the lane parks its Claude process', async () => {
@@ -146,7 +151,7 @@ it('runs as a one-shot even when the lane parks its Claude process', async () =>
     options.onStdout?.(event('Harbor') + '\n')
     return { stdout: '' }
   })
-  await runFork(args, run)
+  await runModelCall(args, run)
   expect(run.mock.calls[0]![2].env).toMatchObject({
     PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
     PI_CLAUDE_CLI_EPHEMERAL: '1',
@@ -172,7 +177,7 @@ it('traces retries without answer text and explains a timeout with scrubbed diag
       options.onStdout?.(JSON.stringify(record) + '\n')
     return { stdout: '', reason: 'timeout', error: 'timeout', stderr: 'Bearer harbor-secret' }
   })
-  await expect(runFork({ ...args, onTrace }, run)).rejects.toThrow(
+  await expect(runModelCall({ ...args, onTrace }, run)).rejects.toThrow(
     'Timed out after 300 s waiting for example/fast (retrying: 429 [redacted])',
   )
   expect(run.mock.calls[0]![2]).toMatchObject({
@@ -196,7 +201,9 @@ it('traces retries without answer text and explains a timeout with scrubbed diag
     '[redacted]',
   )
   expect(JSON.stringify(onTrace.mock.calls)).not.toMatch(/private Harbor answer|harbor-secret/)
-  expect(await stat(join(args.directory, 'forks', args.job.id)).catch(() => null)).toBeNull()
+  expect(
+    await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
+  ).toBeNull()
 })
 
 it.each(['spawn', 'exit', 'aborted'] as const)(
@@ -209,14 +216,16 @@ it.each(['spawn', 'exit', 'aborted'] as const)(
       reason,
       error: 'Bearer harbor-secret',
     })
-    await expect(runFork({ ...args, onTrace }, run)).rejects.toThrow(
+    await expect(runModelCall({ ...args, onTrace }, run)).rejects.toThrow(
       `Knowledge extraction ${reason}.`,
     )
     expect(onTrace).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ reason }),
       '[redacted]',
     )
-    expect(await stat(join(args.directory, 'forks', args.job.id)).catch(() => null)).toBeNull()
+    expect(
+      await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
+    ).toBeNull()
   },
 )
 
@@ -227,7 +236,7 @@ it('traces successful assistant completion and zero-exit assistant failure, with
     options.onStdout?.('diagnostic, not JSON\n' + event('private Harbor answer') + '\n')
     return { stdout: '', stderr: 'Bearer harbor-secret' }
   }
-  expect(await runFork({ ...args, onTrace }, run)).toEqual({
+  expect(await runModelCall({ ...args, onTrace }, run)).toEqual({
     text: 'private Harbor answer',
     usage: { tokens: 120, cost: 0.001 },
   })
@@ -247,10 +256,14 @@ it('traces successful assistant completion and zero-exit assistant failure, with
     options.onStdout?.(event('private failed answer', 'error'))
     return { stdout: '', stderr: 'token=harbor-secret' }
   }
-  await expect(runFork({ ...args, onTrace }, failed)).rejects.toThrow('Knowledge extraction error.')
+  await expect(runModelCall({ ...args, onTrace }, failed)).rejects.toThrow(
+    'Knowledge extraction error.',
+  )
   expect(onTrace).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({ reason: 'error', stopReason: 'error' }),
     '[redacted]',
   )
-  expect(await stat(join(args.directory, 'forks', args.job.id)).catch(() => null)).toBeNull()
+  expect(
+    await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
+  ).toBeNull()
 })

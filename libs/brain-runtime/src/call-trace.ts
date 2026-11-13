@@ -1,7 +1,7 @@
 import { scrubExcerpt } from './secrets'
 
-export const FORK_TIMEOUT_MS = 300_000
-export const FORK_STDERR_BYTES = 4096
+export const CALL_TIMEOUT_MS = 300_000
+export const CALL_STDERR_BYTES = 4096
 
 export interface AssistantMessage {
   role?: string
@@ -59,12 +59,14 @@ function traceUsage(usage?: AssistantMessage['usage']): ForkTrace['usage'] {
     cacheWrite: numeric(usage?.cacheWrite),
   }
 }
-export function forkThinking(thinking: string): string {
-  return ['off', 'minimal', 'low'].includes(thinking) ? thinking : 'low'
+export function callThinking(thinking: string, stage: string): string {
+  const levels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
+  const cap = stage === 'extract' ? 2 : 3
+  return levels[Math.min(Math.max(0, levels.indexOf(thinking)), cap)]!
 }
 
 /** Only explicitly selected metadata enters the trace, never message bodies or deltas. */
-export class ForkTracer {
+export class CallTracer {
   readonly trace: ForkTrace = {
     firstStdoutMs: null,
     firstMessageStartMs: null,
@@ -160,7 +162,7 @@ export class ForkTracer {
         : this.trace.firstMessageUpdateMs === null
           ? 'no reply yet'
           : 'reply started'
-    return `Timed out after ${FORK_TIMEOUT_MS / 1000} s waiting for ${model} (${progress})`
+    return `Timed out after ${CALL_TIMEOUT_MS / 1000} s waiting for ${model} (${progress})`
   }
 
   finish(reason: ForkTrace['reason']): void {

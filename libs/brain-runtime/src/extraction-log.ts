@@ -1,7 +1,7 @@
 import type { BrainJob } from '@phosphor/shared/brain'
 import type { BrainServiceOptions } from './types'
-import type { ForkTrace } from './fork-trace'
-import { traceDiagnostic } from './fork-trace'
+import type { ForkTrace } from './call-trace'
+import { traceDiagnostic } from './call-trace'
 
 /** One job context follows failures through preparation, fork and local processing. */
 export class ExtractionLog {

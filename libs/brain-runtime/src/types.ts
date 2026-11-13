@@ -1,6 +1,13 @@
 import type { BrainAgentMap, BrainAgentMethod, BrainInvokeMap } from '@phosphor/shared/brain'
-import type { BrainStore } from '@phosphor/memory-engine/types'
+import type { BrainSearch, BrainStore } from '@phosphor/memory-engine/types'
+import type { runModelCall } from './model-call'
 import type { BrainEmbeddings } from './embedding/embedding-port'
+
+export type BrainSearchPort = {
+  [K in keyof BrainSearch]: (
+    ...args: Parameters<BrainSearch[K]>
+  ) => Promise<Awaited<ReturnType<BrainSearch[K]>>>
+}
 
 /** The IPC commands without their `brain:` prefix. Desktop's handlers call these. */
 export type BrainApi = {
@@ -28,6 +35,9 @@ export interface BrainServiceOptions {
   directory: string
   /** Opens `<directory>/brain.sqlite`; Desktop passes `openBrainStore` with its SQLite. */
   openStore: (path: string) => BrainStore
+  openSearch: (path: string) => BrainSearchPort
+  /** Injectable model runner; tests never launch a provider. */
+  runModelCall?: typeof runModelCall
   embeddings: BrainEmbeddings
   lanes: BrainLanes
   /** The guard extension every fork loads: it refuses all tool calls. */

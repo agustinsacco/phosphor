@@ -1,8 +1,12 @@
-import type { BrainExtractionView } from '@phosphor/shared/brain'
-import type { BrainStore } from '@phosphor/memory-engine/types'
+import type { BrainExtractionView, BrainExtractionCall } from '@phosphor/shared/brain'
+import type { BrainStore, TranscriptSegment } from '@phosphor/memory-engine/types'
 import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
 import { scrubExcerpt } from './secrets'
+import { rebuildPrompt } from './stage-input'
+import { repairPrompt } from './stage-call'
+import type { StageInput } from './stage-types'
 
+const UNAVAILABLE = 'Prompt not available: the inputs for this step are no longer stored.'
 export async function extractionView(
   store: BrainStore,
   jobId: string,
@@ -15,21 +19,45 @@ export async function extractionView(
     exists: true,
     segments: [],
   }
+  let segments: TranscriptSegment[] = []
   try {
-    source.segments = transcriptSegments(
+    segments = transcriptSegments(
       transcriptAtLeaf(await readEntries(record.sessionPath), record.leafId),
     )
-      .slice(-300)
-      .map((segment) => {
-        const text = scrubExcerpt(segment.text)
-        return {
-          ...segment,
-          text: text.length > 4000 ? text.slice(0, 4000) + '\n[segment clipped]' : text,
-        }
-      })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     source.exists = false
   }
-  return { ...record, source }
+  source.segments = segments
+    .slice(-300)
+    .map((s) => ({ ...s, text: scrubExcerpt(s.text).slice(0, 4000) }))
+  const prompts = record.calls.map((call, index) => {
+    if (!source.exists) return UNAVAILABLE
+    try {
+      return promptFor(store, jobId, call, segments, record.calls[index - 1])
+    } catch {
+      return UNAVAILABLE
+    }
+  })
+  return { ...record, prompts, source }
+}
+function promptFor(
+  store: BrainStore,
+  jobId: string,
+  call: BrainExtractionCall,
+  source: TranscriptSegment[],
+  previous: BrainExtractionCall | undefined,
+): string {
+  const saved = store.part(jobId, `input:${call.stage}:${call.part}`, call.inputHash)
+  if (!saved) return UNAVAILABLE
+  if (call.stage !== 'repair')
+    return rebuildPrompt(call.stage, JSON.parse(saved.output) as StageInput, source)
+  const repair = JSON.parse(saved.output) as { stage: string; hash: string; error: string }
+  const original = store.part(jobId, `input:${repair.stage}:${call.part}`, repair.hash)
+  if (!original || !previous) return UNAVAILABLE
+  return repairPrompt(
+    rebuildPrompt(repair.stage, JSON.parse(original.output) as StageInput, source),
+    previous.answer,
+    repair.error,
+  )
 }

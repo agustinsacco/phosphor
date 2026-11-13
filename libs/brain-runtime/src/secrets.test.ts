@@ -11,6 +11,8 @@ it('scrubs a long unbroken made-up answer without quadratic URL-prefix rescannin
 })
 
 it('redacts conservative international and formatted phone numbers, not dates or ticket ids', () => {
-  expect(scrubExcerpt('Call +1 (415) 555-0123 or (212) 555-0199.')).toBe('Call [redacted] or [redacted].')
+  expect(scrubExcerpt('Call +1 (415) 555-0123 or (212) 555-0199.')).toBe(
+    'Call [redacted] or [redacted].',
+  )
   expect(scrubExcerpt('2026-11-06 Harbor-1234')).toBe('2026-11-06 Harbor-1234')
 })

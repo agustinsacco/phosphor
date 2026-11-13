@@ -12,6 +12,14 @@
       "types": "./src/bridge.ts",
       "default": "./src/bridge.ts"
     },
+    "./call-trace": {
+      "types": "./src/call-trace.ts",
+      "default": "./src/call-trace.ts"
+    },
+    "./constants": {
+      "types": "./src/constants.ts",
+      "default": "./src/constants.ts"
+    },
     "./embedding/embedding-client": {
       "types": "./src/embedding/embedding-client.ts",
       "default": "./src/embedding/embedding-client.ts"
@@ -48,41 +56,37 @@
       "types": "./src/extract.ts",
       "default": "./src/extract.ts"
     },
-    "./extraction": {
-      "types": "./src/extraction.ts",
-      "default": "./src/extraction.ts"
-    },
     "./extraction-log": {
       "types": "./src/extraction-log.ts",
       "default": "./src/extraction-log.ts"
     },
-    "./fork": {
-      "types": "./src/fork.ts",
-      "default": "./src/fork.ts"
+    "./extraction-record": {
+      "types": "./src/extraction-record.ts",
+      "default": "./src/extraction-record.ts"
     },
-    "./fork-trace": {
-      "types": "./src/fork-trace.ts",
-      "default": "./src/fork-trace.ts"
+    "./extraction-view": {
+      "types": "./src/extraction-view.ts",
+      "default": "./src/extraction-view.ts"
     },
     "./lane": {
       "types": "./src/lane.ts",
       "default": "./src/lane.ts"
     },
-    "./prompt": {
-      "types": "./src/prompt.ts",
-      "default": "./src/prompt.ts"
+    "./model-call": {
+      "types": "./src/model-call.ts",
+      "default": "./src/model-call.ts"
     },
     "./queue": {
       "types": "./src/queue.ts",
       "default": "./src/queue.ts"
     },
-    "./quotes": {
-      "types": "./src/quotes.ts",
-      "default": "./src/quotes.ts"
-    },
     "./recall": {
       "types": "./src/recall.ts",
       "default": "./src/recall.ts"
+    },
+    "./search-client": {
+      "types": "./src/search-client.ts",
+      "default": "./src/search-client.ts"
     },
     "./secrets": {
       "types": "./src/secrets.ts",
@@ -92,6 +96,62 @@
       "types": "./src/service.ts",
       "default": "./src/service.ts"
     },
+    "./stage-call": {
+      "types": "./src/stage-call.ts",
+      "default": "./src/stage-call.ts"
+    },
+    "./stage-input": {
+      "types": "./src/stage-input.ts",
+      "default": "./src/stage-input.ts"
+    },
+    "./stage-parse": {
+      "types": "./src/stage-parse.ts",
+      "default": "./src/stage-parse.ts"
+    },
+    "./stage-prompts/extract": {
+      "types": "./src/stage-prompts/extract.ts",
+      "default": "./src/stage-prompts/extract.ts"
+    },
+    "./stage-prompts/identity": {
+      "types": "./src/stage-prompts/identity.ts",
+      "default": "./src/stage-prompts/identity.ts"
+    },
+    "./stage-prompts/parents": {
+      "types": "./src/stage-prompts/parents.ts",
+      "default": "./src/stage-prompts/parents.ts"
+    },
+    "./stage-prompts/reconcile": {
+      "types": "./src/stage-prompts/reconcile.ts",
+      "default": "./src/stage-prompts/reconcile.ts"
+    },
+    "./stage-types": {
+      "types": "./src/stage-types.ts",
+      "default": "./src/stage-types.ts"
+    },
+    "./stages/extract": {
+      "types": "./src/stages/extract.ts",
+      "default": "./src/stages/extract.ts"
+    },
+    "./stages/fold": {
+      "types": "./src/stages/fold.ts",
+      "default": "./src/stages/fold.ts"
+    },
+    "./stages/identity": {
+      "types": "./src/stages/identity.ts",
+      "default": "./src/stages/identity.ts"
+    },
+    "./stages/parents": {
+      "types": "./src/stages/parents.ts",
+      "default": "./src/stages/parents.ts"
+    },
+    "./stages/reconcile": {
+      "types": "./src/stages/reconcile.ts",
+      "default": "./src/stages/reconcile.ts"
+    },
+    "./text": {
+      "types": "./src/text.ts",
+      "default": "./src/text.ts"
+    },
     "./transcript": {
       "types": "./src/transcript.ts",
       "default": "./src/transcript.ts"
@@ -100,13 +160,9 @@
       "types": "./src/types.ts",
       "default": "./src/types.ts"
     },
-    "./extraction-record": {
-      "types": "./src/extraction-record.ts",
-      "default": "./src/extraction-record.ts"
-    },
-    "./extraction-view": {
-      "types": "./src/extraction-view.ts",
-      "default": "./src/extraction-view.ts"
+    "./windows": {
+      "types": "./src/windows.ts",
+      "default": "./src/windows.ts"
     }
   },
   "nx": {
