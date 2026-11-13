@@ -52,3 +52,42 @@ it('refuses methods outside the search contract, including close as a call', () 
   expect(open.close).toHaveBeenCalledTimes(1)
   expect(posted.at(-1)).toEqual({ type: 'error', id: 3, error: 'Brain search is closed.' })
 })
+
+it('serves lexical calls with loading degradation while open loads the index', async () => {
+  const posted: FromSearchWorker[] = []
+  let finish!: () => void
+  let ready = false
+  const opened = search()
+  opened.refresh = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = () => {
+          ready = true
+          resolve()
+        }
+      }),
+  )
+  opened.ready = () => ready
+  opened.find = () => ({
+    entities: [],
+    memories: [],
+    referenced: [],
+    degradation: ready ? [] : ['Semantic index loading; words and names only.'],
+  })
+  const handle = createSearchWorkerHandler({ post: (m) => posted.push(m), open: () => opened })
+  handle({ type: 'open', path: 'a.sqlite' })
+  expect(opened.refresh).toHaveBeenCalledTimes(1)
+  handle({ type: 'call', id: 1, method: 'find', args: ['Harbor', null, 5] })
+  expect(posted.at(-1)).toMatchObject({
+    type: 'result',
+    id: 1,
+    value: { degradation: ['Semantic index loading; words and names only.'] },
+  })
+  handle({ type: 'call', id: 2, method: 'refresh', args: [] })
+  expect(posted.some((m) => m.id === 2)).toBe(false)
+  finish()
+  await Promise.resolve()
+  await Promise.resolve()
+  handle({ type: 'call', id: 3, method: 'ready', args: [] })
+  expect(posted.at(-1)).toEqual({ type: 'result', id: 3, value: true })
+})

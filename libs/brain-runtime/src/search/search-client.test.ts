@@ -138,3 +138,30 @@ it('closes the search in the process and refuses calls afterwards', async () => 
   await expect(client.ready()).rejects.toThrow('closed')
   expect(spawn).toHaveBeenCalledTimes(1)
 })
+
+it('loads a readiness-faithful index on first open and again after a process restart', async () => {
+  const opened: BrainSearch[] = []
+  const { spawn, processes } = host(() => {
+    let ready = false
+    const search = fakeSearch({
+      ready: () => ready,
+      refresh: vi.fn(async () => {
+        ready = true
+      }),
+      nearestMemories: () => (ready ? [[{ id: 'semantic-harbor', score: 1 }]] : [[]]),
+    })
+    opened.push(search)
+    return search
+  })
+  const client = createSearchClient({ path: 'brain.sqlite', spawn })
+  await expect(client.nearestMemories([Float32Array.of(1)], 5)).resolves.toEqual([
+    [{ id: 'semantic-harbor', score: 1 }],
+  ])
+  expect(opened[0]!.refresh).toHaveBeenCalledTimes(1)
+  processes[0]!.exit()
+  await expect(client.nearestMemories([Float32Array.of(1)], 5)).resolves.toEqual([
+    [{ id: 'semantic-harbor', score: 1 }],
+  ])
+  expect(opened[1]!.refresh).toHaveBeenCalledTimes(1)
+  await client.close()
+})
