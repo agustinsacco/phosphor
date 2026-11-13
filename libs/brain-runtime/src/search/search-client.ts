@@ -30,6 +30,15 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>
 }
 
+function settle(pending: Map<number, Pending>, message: FromSearchWorker): void {
+  const entry = pending.get(message.id)
+  if (!entry) return
+  clearTimeout(entry.timer)
+  pending.delete(message.id)
+  if (message.type === 'result') entry.resolve(message.value)
+  else entry.reject(new Error(message.error))
+}
+
 const RESTARTS = 3
 const RESTART_WINDOW_MS = 60_000
 
@@ -70,14 +79,7 @@ export function createSearchClient(options: SearchClientOptions): BrainSearchPor
     starts.splice(0, starts.length, ...recent, now())
     const spawned = options.spawn()
     child = spawned
-    spawned.onMessage((message) => {
-      const entry = pending.get(message.id)
-      if (!entry) return
-      clearTimeout(entry.timer)
-      pending.delete(message.id)
-      if (message.type === 'result') entry.resolve(message.value)
-      else entry.reject(new Error(message.error))
-    })
+    spawned.onMessage((message) => settle(pending, message))
     spawned.onExit(() => {
       if (child !== spawned) return
       options.log?.('Brain search process exited')
