@@ -19,10 +19,12 @@ function find(
 ): BrainFindResult {
   const cap = Math.min(50, Math.max(0, limit))
   if (!query.trim()) return { entities: [], memories: [], referenced: [], degradation }
+  const entityLexical = entitySeeds(ctx, query, cap)
+  const memoryLexical = lexicalIds(ctx, query, cap)
   const entityIds = [
     ...new Set([
-      ...entitySeeds(ctx, query, cap),
-      ...(vector
+      ...entityLexical,
+      ...(vector && entityLexical.length < cap
         ? entitiesIndex
             .nearest(vector, cap)
             .filter((item) => item.score >= 0.35)
@@ -32,8 +34,8 @@ function find(
   ].slice(0, cap)
   const memoryIds = [
     ...new Set([
-      ...lexicalIds(ctx, query, cap),
-      ...(vector
+      ...memoryLexical,
+      ...(vector && memoryLexical.length < cap
         ? memoriesIndex
             .nearest(vector, cap)
             .filter((item) => item.score >= 0.35)
