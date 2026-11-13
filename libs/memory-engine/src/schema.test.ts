@@ -62,6 +62,34 @@ describe('Brain v4 SQLite schema and preferences', () => {
     })
     expect(store.snapshot().generation).not.toBe(generation)
   })
+  it('upgrades and resets under defensive SQLite, which refuses to drop FTS shadow tables', () => {
+    // Electron's node:sqlite runs in defensive mode; Node 22's ignores the option, so emulate it.
+    class Defensive extends DatabaseSync {
+      override exec(sql: string): void {
+        for (const [, name] of sql.matchAll(/DROP TABLE (?:IF EXISTS )?"?([\w]+)"?/giu)) {
+          const row = this.prepare('SELECT type FROM pragma_table_list WHERE name=?').get(name)
+          if (row?.type === 'shadow') throw new Error(`table ${name} may not be dropped`)
+        }
+        super.exec(sql)
+      }
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'brain-v4-'))
+    const path = join(dir, 'brain.sqlite')
+    try {
+      const old = new DatabaseSync(path)
+      old.exec(readFileSync(new URL('./__fixtures__/schema-v3.sql', import.meta.url), 'utf8'))
+      old.exec("INSERT INTO memory_fts VALUES ('old','discard'); PRAGMA user_version=3;")
+      old.close()
+      const store = openBrainStore({ path, Database: Defensive })
+      approve(store)
+      expect(store.snapshot().counts.memories).toBeGreaterThan(0)
+      store.reset()
+      expect(store.snapshot().counts).toMatchObject({ memories: 0, entities: 0 })
+      store.close()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
   it('merges persisted partial preferences with defaults without revision changes', () => {
     const { store, db } = fixture()
     db.prepare("INSERT OR REPLACE INTO meta VALUES ('prefs', ?)").run(
