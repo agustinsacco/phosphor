@@ -44,9 +44,17 @@ export function recall(
   const lexical = lexicalIds(ctx, input.query)
   const exact = about(ctx, focus)
   const routes = walk(ctx, seeds, new Set(focus))
-  const linked = [...new Set([...routes.memories, ...about(ctx, [...routes.entities])])].filter(
-    (id) => !exact.includes(id),
-  )
+  const linked = [
+    ...new Set([
+      ...routes.memories,
+      ...about(
+        ctx,
+        [...routes.entities].filter(
+          (id) => focus.includes(id) || entity(ctx, id)!.connections <= 200,
+        ),
+      ),
+    ]),
+  ].filter((id) => !exact.includes(id))
   const ranks: { ids: string[]; reason: BrainHit['reasons'][number]; weight: number }[] = [
     { ids: semantic, reason: 'semantic', weight: 2 },
     { ids: lexical, reason: 'lexical', weight: 1 },
