@@ -128,18 +128,20 @@ export async function reconcile(
     )
     for (const d of result) selected.set(d.ref, d)
   }
+  // Only state-changing actions compete for a target; confirmations add evidence and never do.
   const winners = new Map<string, ReturnType<typeof decisions>[number]>()
   for (const row of rows) {
     const d = selected.get(row.claim.ref)
-    if (!d?.target || d.target.local) continue
+    if (!d?.target || d.target.local || d.action === 'confirm') continue
     const previous = winners.get(d.target.id)
     if (!previous || priority(d.action) > priority(previous.action)) winners.set(d.target.id, d)
   }
   for (const row of rows) {
     const d = selected.get(row.claim.ref)
     if (!d) continue
-    if (d.target && !d.target.local && winners.get(d.target.id) !== d) {
-      const reason = `Another claim has a higher-priority action on target ${d.target.id}`
+    const winner = d.target && !d.target.local ? winners.get(d.target.id) : undefined
+    if (winner && winner !== d) {
+      const reason = `Another claim has a higher-priority action on target ${winner.target!.id}`
       if (d.action === 'confirm') {
         removed.add(row.claim.ref)
         job.outcomes.push({
