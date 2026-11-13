@@ -13,7 +13,7 @@ export function fixture(start = 1000): { store: BrainStore; db: DatabaseSync } {
   let time = start
   class Database extends DatabaseSync {
     constructor(path: string, options?: { timeout?: number }) {
-      super(path, options)
+      super(path, options ?? {})
       databases.push(this)
     }
   }
