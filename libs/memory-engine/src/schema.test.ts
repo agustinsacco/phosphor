@@ -66,7 +66,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
     // Electron's node:sqlite runs in defensive mode; Node 22's ignores the option, so emulate it.
     class Defensive extends DatabaseSync {
       override exec(sql: string): void {
-        for (const [, name] of sql.matchAll(/DROP TABLE (?:IF EXISTS )?"?([\w]+)"?/giu)) {
+        for (const [, name = ''] of sql.matchAll(/DROP TABLE (?:IF EXISTS )?"?([\w]+)"?/giu)) {
           const row = this.prepare('SELECT type FROM pragma_table_list WHERE name=?').get(name)
           if (row?.type === 'shadow') throw new Error(`table ${name} may not be dropped`)
         }

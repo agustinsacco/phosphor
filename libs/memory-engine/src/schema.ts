@@ -13,7 +13,12 @@ export function reset(ctx: Context): void {
   ctx.db.exec('PRAGMA foreign_keys = OFF')
   try {
     transaction(ctx, () => {
-      const tables = all<{ name: string }>(ctx, "SELECT name FROM sqlite_master WHERE type='table'")
+      // Defensive SQLite (Electron) refuses to drop FTS shadow tables; dropping each virtual
+      // table first removes its own, so only virtual and ordinary tables are dropped here.
+      const tables = all<{ name: string; type: string }>(
+        ctx,
+        "SELECT name,type FROM pragma_table_list WHERE schema='main' AND type IN ('virtual','table') ORDER BY type='table'",
+      )
       for (const { name } of tables) {
         if (!name.startsWith('sqlite_'))
           ctx.db.exec(`DROP TABLE IF EXISTS "${name.replaceAll('"', '""')}"`)
