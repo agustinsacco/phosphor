@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { PR_SUMMARY_BATCH_SIZE, prKey } from '@shared/github-pr-refs'
 import type { GhBranchCoverage, GhPrKey, GhPrRead, GhPrRef, GhPrSummary } from '@shared/models'
+import { prRouteOf } from './prRoutes'
 
 /**
  * Pull-request status by PR, read by number (`gh:prSummaries`). Branch
@@ -9,7 +10,8 @@ import type { GhBranchCoverage, GhPrKey, GhPrRead, GhPrRef, GhPrSummary } from '
  *
  * Same rules as discovery: a failure keeps the last known status and marks it
  * stale, only GitHub saying a PR does not exist removes it, and nothing here
- * raises a toast.
+ * raises a toast. A PR a Host lane registered (`prRoutes.ts`) is read through
+ * that Host.
  */
 export interface PrStatusEntry {
   summary?: GhPrSummary
@@ -61,6 +63,35 @@ function merge(
   return { summary, coverage, attemptedAt: now, fetchedAt: now, failed: false }
 }
 
+type SetState = (fn: (s: PrStatusState) => Partial<PrStatusState>) => void
+
+async function readPage(
+  page: GhPrRef[],
+  force: boolean | undefined,
+  machine: string | undefined,
+  set: SetState,
+): Promise<void> {
+  const keys = page.map(prKey)
+  for (const key of keys) inFlight.add(key)
+  let read: GhPrRead | null = null
+  try {
+    const options = force ? { force: true } : undefined
+    read = await (machine
+      ? window.phosphor.invoke('gh:prSummaries', page, options, machine)
+      : window.phosphor.invoke('gh:prSummaries', page, options))
+  } catch {
+    // Unavailable here (a browser shell, gh missing, a Host gone): keep what is known.
+  } finally {
+    for (const key of keys) inFlight.delete(key)
+  }
+  const at = Date.now()
+  set((s) => {
+    const byKey = { ...s.byKey }
+    for (const key of keys) byKey[key] = merge(s.byKey[key], key, read, at)
+    return { byKey }
+  })
+}
+
 export const usePrStatusStore = create<PrStatusState>((set, get) => ({
   byKey: {},
 
@@ -68,37 +99,22 @@ export const usePrStatusStore = create<PrStatusState>((set, get) => ({
     const now = Date.now()
     const staleMs = options.staleMs ?? PR_STATUS_STALE_MS
     const seen = new Set<GhPrKey>()
-    const due = refs
-      .filter((ref) => {
-        const key = prKey(ref)
-        if (seen.has(key) || inFlight.has(key)) return false
-        seen.add(key)
-        return options.force || prStatusDue(get().byKey[key], staleMs, now)
-      })
-      // Keep one repository's PRs together: main reads each repository in one query.
-      .sort((a, b) => prKey(a).localeCompare(prKey(b)))
-    for (let i = 0; i < due.length; i += PR_SUMMARY_BATCH_SIZE) {
-      const page = due.slice(i, i + PR_SUMMARY_BATCH_SIZE)
-      const keys = page.map(prKey)
-      for (const key of keys) inFlight.add(key)
-      let read: GhPrRead | null = null
-      try {
-        read = await window.phosphor.invoke(
-          'gh:prSummaries',
-          page,
-          options.force ? { force: true } : undefined,
-        )
-      } catch {
-        // Unavailable here (a browser shell, or gh missing): keep what is known.
-      } finally {
-        for (const key of keys) inFlight.delete(key)
-      }
-      const at = Date.now()
-      set((s) => {
-        const byKey = { ...s.byKey }
-        for (const key of keys) byKey[key] = merge(s.byKey[key], key, read, at)
-        return { byKey }
-      })
+    const due = refs.filter((ref) => {
+      const key = prKey(ref)
+      if (seen.has(key) || inFlight.has(key)) return false
+      seen.add(key)
+      return options.force || prStatusDue(get().byKey[key], staleMs, now)
+    })
+    // One page per machine. Keep one repository's PRs together: each reads it in one query.
+    const byMachine = new Map<string | undefined, GhPrRef[]>()
+    for (const ref of due) {
+      const machine = prRouteOf(prKey(ref))
+      byMachine.set(machine, [...(byMachine.get(machine) ?? []), ref])
+    }
+    for (const [machine, refsThere] of byMachine) {
+      refsThere.sort((a, b) => prKey(a).localeCompare(prKey(b)))
+      for (let i = 0; i < refsThere.length; i += PR_SUMMARY_BATCH_SIZE)
+        await readPage(refsThere.slice(i, i + PR_SUMMARY_BATCH_SIZE), options.force, machine, set)
     }
   },
 }))

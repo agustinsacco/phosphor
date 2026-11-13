@@ -263,3 +263,39 @@ describe('lane marks on a summary', () => {
     expect(delta({ upsert: [marked] })).toMatchObject({ ok: true, value: { upsert: [marked] } })
   })
 })
+
+describe('PR signals on a summary', () => {
+  const ref = { host: 'github.com', owner: 'acme', repo: 'app', number: 7 }
+  const signals = {
+    opened: [ref],
+    branches: ['feature/topic'],
+    reviewing: [],
+    reviewingHere: [12],
+    mentioned: [{ ...ref, number: 8 }],
+    pinned: [],
+    hidden: [{ ...ref, number: 9 }],
+  }
+
+  it('keeps valid signals through lanes and lanes-delta frames', () => {
+    const lane = { ...SUMMARY, pullRequests: signals }
+    expect(parseLaneSummary(lane)).toStrictEqual(lane)
+    expect(lanes({ lanes: [lane] })).toMatchObject({ ok: true, value: { lanes: [lane] } })
+    expect(delta({ upsert: [lane] })).toMatchObject({ ok: true, value: { upsert: [lane] } })
+  })
+
+  it('drops invalid signals without refusing the summary', () => {
+    for (const pullRequests of [
+      null,
+      [],
+      { ...signals, opened: [{ ...ref, host: 'not a host' }] },
+      { ...signals, branches: ['a\nb'] },
+      { ...signals, reviewingHere: [0] },
+      { ...signals, mentioned: Array.from({ length: 11 }, (_, i) => ({ ...ref, number: i + 1 })) },
+      { ...signals, opened: [ref, ref] },
+    ])
+      expect(
+        parseLaneSummary({ ...SUMMARY, pullRequests }),
+        JSON.stringify(pullRequests),
+      ).toStrictEqual(SUMMARY)
+  })
+})

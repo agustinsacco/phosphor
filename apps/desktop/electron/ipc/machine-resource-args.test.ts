@@ -113,7 +113,7 @@ describe('refusesMachineResourceArgs', () => {
           )
       }
     }
-    expect(positions).toBe(135)
+    expect(positions).toBe(137)
   })
 
   it('refuses the named option and array positions', () => {

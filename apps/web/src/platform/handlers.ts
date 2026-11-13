@@ -12,6 +12,7 @@ import { zipSkillBundle } from '@phosphor/shared/zip-store'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
 import { routeRemoteWrite } from '@phosphor/host-client/write-features'
 import { uploadAttachments } from '@phosphor/host-client/attachments'
+import { prStatusReads } from '@phosphor/host-client/pr-status-reads'
 import type { RemoteLanes, RemoteWindow } from '@phosphor/host-client/remote-lanes'
 import type { BrowserControl } from './control'
 import type { BrowserHosts } from './hosts'
@@ -60,6 +61,18 @@ function folderHandlers(folders: ReturnType<typeof createBrowserResources>['fold
     'hosts:addRepository': folders.add,
     'hosts:removeRepository': folders.remove,
     'hosts:orderRepositories': folders.order,
+  } satisfies Partial<BrowserHandlers>
+}
+/** A Host's GitHub reads: PRs by branch per repository, and by number on a `host:` machine. */
+function githubHandlers(
+  repositories: ReturnType<typeof createBrowserResources>['repositories'],
+  hosts: BrowserHosts,
+) {
+  const prStatus = prStatusReads(hosts.connection)
+  return {
+    'gh:prsForRepo': repositories.pullRequests,
+    'gh:prSummaries': prStatus.summaries,
+    'gh:prDetail': prStatus.detail,
   } satisfies Partial<BrowserHandlers>
 }
 /** Host shells: lane terminals, the Machine page's shell and provider sign-in. */
@@ -184,7 +197,7 @@ export function createBrowserHandlers(ports: {
     ...folderHandlers(resources.folders),
     ...terminalHandlers(ports.terminals),
     ...settingsHandlers(() => ports.settings),
-    'gh:prsForRepo': resources.repositories.pullRequests,
+    ...githubHandlers(resources.repositories, hosts),
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
     'hosts:snapshot': hosts.snapshot,

@@ -67,6 +67,8 @@ export interface HostConnectionView {
   laneTransfer?: boolean
   /** Host serves raw file bytes (`files.readBytes`): downloads and media previews. */
   fileBytes?: boolean
+  /** Host reads PRs by number (`github.prSummaries`, `github.prDetail`) and sends lane PR signals. */
+  prStatus?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]
