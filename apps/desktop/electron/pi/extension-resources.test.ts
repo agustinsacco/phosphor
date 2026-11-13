@@ -37,6 +37,7 @@ const shippedFiles = [
   'context-files.ts',
   'global-context.ts',
   'headroom.ts',
+  'lane-prs.ts',
   'lane-reload.ts',
   'main-checkout.ts',
   'message-ledger.ts',

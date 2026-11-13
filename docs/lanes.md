@@ -212,10 +212,20 @@ the metadata) records `SessionMeta.pullRequests`:
 | Opened    | PR URLs in the result of a `gh pr create` (or a GitHub MCP create-PR tool) call                                        | yes                    |
 | Branches  | `git worktree add -b`, `checkout -b`, `switch -c`, `git push <remote> <branch>`, `gh pr create --head`; trunk excluded | yes, through discovery |
 | Checkout  | the worktree's current branch                                                                                          | yes                    |
-| Pinned    | a `phosphor-prs` custom entry in the session file                                                                      | yes                    |
+| Pinned    | Track: a `phosphor-prs` `pin` entry in the session file, the last one per PR winning                                   | yes                    |
 | Reviewing | `gh pr checkout/diff/review/comment` with a URL, `-R owner/repo N`, or a bare number in the lane's own repository      | no, listed apart       |
 | Mentioned | PR links in the lane's prompts and replies                                                                             | no, a suggestion       |
-| Hidden    | a `phosphor-prs` custom entry                                                                                          | removes it             |
+| Hidden    | Hide: a `phosphor-prs` `hide` entry; `clear` undoes either                                                             | removes it             |
+
+Track and Hide write through the lane's own pi, the one writer of its file:
+`setLanePrOverride` (`features/sessions/lanePrOverrides.ts`) sends
+`/phosphor-prs pin|hide|clear <url>`, which the bundled `lane-prs.ts` turns into
+one custom entry, `{ action, ref }`. It runs no model and adds nothing to the
+context, and pi runs it at once, even mid-turn. Only a live This Mac lane that
+lists the command can write; a closed lane, a Host lane or an older pi gets a
+message saying so. The scan lags the write, so `stores/lanePrOverrides.ts` holds
+each write by session file and merges it into the scanned signals until the
+scan agrees, or for two minutes.
 
 Commands are read from tool calls, outside heredoc bodies, so a PR description
 that quotes `git push` adds nothing. `gh pr view` and `gh pr checks` are status
