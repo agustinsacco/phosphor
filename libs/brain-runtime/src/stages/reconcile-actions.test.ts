@@ -80,3 +80,50 @@ it.each([
     } else expect(job.claims.filter((c) => c.memory.action === 'add')).toHaveLength(1)
   },
 )
+
+it('keeps the evidence of every confirmation of one target, since confirming changes no state', async () => {
+  const { store } = fixture()
+  const [target] = approve(store)
+  const old = store.memory(target!).memory
+  const base = extraction('').memories[0]!
+  const claims = ['Paraphrase one', 'Paraphrase two'].map((quote, i) => ({
+    ref: `c${i + 1}`,
+    memory: {
+      ...base,
+      summary: `${quote} of the stored fact.`,
+      citations: [{ evidence: 0, quote }],
+      entities: old.entityIds,
+      links: [],
+    },
+  }))
+  const job: FoldedJob = { entities: [], claims, parents: [], evidence: [], outcomes: [] }
+  const ask: StageAsk = async (_s, _p, prompt, validate) => {
+    const rows = JSON.parse(prompt.slice(prompt.indexOf('\n') + 1)) as {
+      claim: { ref: string }
+      candidates: { id: string; handle: string }[]
+    }[]
+    return validate(
+      JSON.stringify({
+        decisions: rows.map((r) => ({
+          ref: r.claim.ref,
+          action: 'confirm',
+          target: r.candidates.find((c) => c.id === target)!.handle,
+          reason: 'Same fact',
+        })),
+      }),
+    )
+  }
+  const confirmations = await reconcile(
+    job,
+    [],
+    store,
+    new FakeBrainSearch(),
+    [vector(), vector()],
+    ask,
+  )
+  expect(job.claims).toEqual([])
+  expect(confirmations.map((c) => [c.memoryId, c.claim.citations[0]!.quote])).toEqual([
+    [target, 'Paraphrase one'],
+    [target, 'Paraphrase two'],
+  ])
+})
