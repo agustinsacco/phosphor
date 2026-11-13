@@ -131,6 +131,12 @@ export interface BrainStore {
   path(fromId: string, toId: string): BrainPaths
   merge(sourceId: string, targetId: string): void
   forget(memoryId: string): void
+  /**
+   * Drops all knowledge, jobs, proposals and records in one transaction, recreates the schema,
+   * keeps prefs (review forced on) and starts a new generation. Opening a v3 or older file does
+   * the same. Search connections notice the generation change on `refresh`.
+   */
+  reset(): void
   close(): void
 }
 
