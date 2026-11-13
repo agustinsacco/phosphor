@@ -82,13 +82,16 @@ it('batches memory cards without changing order, duplicate removal, links, menti
   const prepare = db.prepare.bind(db)
   vi.spyOn(db, 'prepare').mockImplementation((sql) => {
     const statement = prepare(sql)
-    for (const method of ['all', 'get'] as const) {
-      const call = statement[method].bind(statement)
-      vi.spyOn(statement, method).mockImplementation((...args) => {
-        queries.push(sql)
-        return call(...args)
-      })
-    }
+    const all = statement.all.bind(statement)
+    const get = statement.get.bind(statement)
+    vi.spyOn(statement, 'all').mockImplementation((...args) => {
+      queries.push(sql)
+      return all(...args)
+    })
+    vi.spyOn(statement, 'get').mockImplementation((...args) => {
+      queries.push(sql)
+      return get(...args)
+    })
     return statement
   })
   const ids = approve(store)
