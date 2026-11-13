@@ -444,3 +444,30 @@ it('cancels a merge without changing entities or navigating', async () => {
   expect(invokes.mock.calls.some(([channel]) => channel === 'brain:merge')).toBe(false)
   expect(container.querySelector('[aria-label="Entity detail"] h2')!.textContent).toBe('Harbor')
 })
+
+it('refreshes status after a stale proposal load and recovers automatically when recomputation finishes', async () => {
+  status.jobs = [mockBrainJob()]
+  proposalRead.mockImplementationOnce(async () => {
+    status = {
+      ...status,
+      jobs: [
+        mockBrainJob({
+          state: 'running',
+          progress: { stage: 'identity', done: 1, total: 2 },
+        }),
+      ],
+    }
+    throw new Error('Brain changed; refreshing this review')
+  })
+  await render()
+  await click('Review')
+  expect(useBrain.getState().status?.jobs[0]?.state).toBe('running')
+  expect(container.textContent).toContain('Brain changed; refreshing this review')
+  expect(container.textContent).toContain('Matching entities 1 of 2')
+  expect(container.querySelector('[aria-label="Review memories"]')).toBeNull()
+  status = { ...status, jobs: [mockBrainJob()] }
+  await act(async () => vi.advanceTimersByTimeAsync(2000))
+  expect(proposalRead).toHaveBeenCalledTimes(2)
+  expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
+  expect(container.textContent).not.toContain('Brain changed; refreshing this review')
+})

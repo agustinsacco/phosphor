@@ -141,3 +141,24 @@ it('can extract and approve again after resetting every entity and memory', asyn
     call('brain:review', [id, { memories: [0], identities: {}, groups: [] }, proposal.revision]),
   ).resolves.toMatchObject({ counts: { memories: 1, entities: 2 } })
 })
+
+it('requeues a stale proposal and returns it to review after recomputing', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ enabled: true, review: true, recall: true }])
+  now = 6000
+  await call('brain:status', [])
+  const id = 'harbor-demo-review'
+  await call('brain:merge', ['tom', 'rina'])
+  await expect(call('brain:proposal', [id])).rejects.toThrow(
+    'Brain changed; refreshing this review',
+  )
+  expect(await call('brain:status', [])).toMatchObject({
+    jobs: expect.arrayContaining([expect.objectContaining({ id, state: 'running' })]),
+  })
+  now += 4000
+  expect(await call('brain:proposal', [id])).toMatchObject({
+    revision: 1,
+    job: { state: 'review' },
+  })
+})
