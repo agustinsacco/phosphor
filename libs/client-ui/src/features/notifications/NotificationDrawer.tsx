@@ -152,7 +152,7 @@ function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
               <ReceiptPlace facts={receipt.facts} />
             </span>
           )}
-          {item.pr && <PrNoticeLines notice={item.pr} place={item.message} muted={!isNew} />}
+          {item.pr && <PrNoticeLines notice={item.pr} muted={!isNew} />}
           {!item.pr && (item.title || item.receipt) && (
             <NoticeLine
               notice={item}

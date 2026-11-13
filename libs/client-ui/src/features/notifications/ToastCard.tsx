@@ -207,7 +207,7 @@ function PrToastBody({
           <span className="text-text line-clamp-2 text-base leading-5 font-medium break-words">
             {title}
           </span>
-          <PrNoticeLines notice={pr} place={toast.message} />
+          <PrNoticeLines notice={pr} />
         </span>
       </TooltipButton>
       <PrNoticeActions notice={pr} done={done} className="pl-6" />

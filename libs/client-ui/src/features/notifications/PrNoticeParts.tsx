@@ -101,19 +101,26 @@ export function PrToneGlyph({
   )
 }
 
-/** Where it is (lane · repo#n), then what changed since you looked. */
+/**
+ * Where it is, then what changed since you looked. The lane's name gives way
+ * first: `repo#n` always shows whole.
+ */
 export function PrNoticeLines({
   notice,
-  place,
   muted = false,
 }: {
-  notice: Pick<PrNotice, 'changes'>
-  place: string
+  notice: Pick<PrNotice, 'changes' | 'lane' | 'ref'>
   muted?: boolean
 }): React.JSX.Element {
   return (
     <>
-      <span className="text-text-tertiary block truncate text-sm leading-4">{place}</span>
+      <span className="text-text-tertiary flex min-w-0 text-sm leading-4">
+        <span className="min-w-0 truncate">{notice.lane.title}</span>
+        <span className="shrink-0 whitespace-pre">
+          {' · '}
+          {notice.ref.repo}#{notice.ref.number}
+        </span>
+      </span>
       <PrNoticeSince notice={notice} muted={muted} className="mt-0.5 leading-4" />
     </>
   )

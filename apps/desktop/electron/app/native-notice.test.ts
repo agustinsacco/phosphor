@@ -43,9 +43,9 @@ beforeEach(() => {
 })
 
 it('shows only while the window is in the background, and a click brings it forward', async () => {
-  expect(await showNativeNotice(fakeWindow(true) as unknown as Win, { title: 't', body: 'b' })).toBe(
-    false,
-  )
+  expect(
+    await showNativeNotice(fakeWindow(true) as unknown as Win, { title: 't', body: 'b' }),
+  ).toBe(false)
   expect(mocks.shown).toHaveLength(0)
 
   const win = fakeWindow()
