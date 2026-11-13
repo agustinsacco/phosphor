@@ -84,6 +84,26 @@ const SUMMARIES: Record<number, () => GhPrSummary> = {
       reviewDecision: 'APPROVED',
       threads: { total: 3, unresolved: 0 },
     }),
+  // Branch discovery's PR for the worktree's checkout (`gh:prsForRepo` in mockPhosphor).
+  42: () =>
+    prSummary({
+      ref: prRef(42),
+      number: 42,
+      title: 'Composer attachments and worktree controls',
+      headRefName: 'fix/phase0-chat-ux',
+      reviewDecision: 'APPROVED',
+      mergeStateStatus: 'BLOCKED',
+      checks: { passed: 3, failed: 0, pending: 1, total: 4 },
+      checkRuns: [
+        prCheck('build', 'success', true),
+        prCheck('unit', 'success', true),
+        prCheck('lint', 'success', true),
+        prCheck('e2e (macos)', 'pending', true),
+      ],
+      approvedBy: ['mara'],
+      waitingOn: [],
+      threads: { total: 1, unresolved: 0 },
+    }),
   63: () =>
     prSummary({
       ref: prRef(63),

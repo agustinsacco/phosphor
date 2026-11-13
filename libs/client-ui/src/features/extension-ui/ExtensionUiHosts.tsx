@@ -260,14 +260,14 @@ export function ToastHost(): React.JSX.Element {
     }
   }, [])
   return createPortal(
-    // `pointer-events-none` so the gaps between cards never swallow a click
-    // meant for the pane underneath; each card opts back in.
+    // Gaps never swallow a click (each card opts back in). Above anchored popups
+    // (`useAnchoredMenu`, z 100), so a notice never lands under an open inspector.
     <ol
       aria-label="Notifications"
       aria-live="polite"
       data-testid="toast-stack"
       className={clsx(
-        'pointer-events-none fixed top-12 z-[60] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col',
+        'pointer-events-none fixed top-12 z-[110] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col',
         // Beside the open drawer, not over its first rows.
         drawerOpen ? 'right-[calc(var(--px-drawer-width)+0.5rem)]' : 'right-2',
       )}
