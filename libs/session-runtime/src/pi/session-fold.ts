@@ -2,6 +2,13 @@ import { createReadStream } from 'node:fs'
 import { open } from 'node:fs/promises'
 import type { SessionMeta } from '@phosphor/shared/models'
 import { extractText } from './session-content'
+import {
+  clonePrSignals,
+  emptyPrSignals,
+  foldPrEntry,
+  prSignalsOf,
+  type PrSignalState,
+} from './lane-pr-signals'
 
 /**
  * The fold behind session metadata, split out so it can be run twice: once
@@ -56,6 +63,8 @@ export interface FoldState {
    * stay reachable. It is why resumable state is capped to a few sessions.
    */
   seenParents: Set<string>
+  /** Pull requests the lane points at; bounded (`lane-pr-signals.ts`). */
+  prs: PrSignalState
 }
 
 export function emptyFold(): FoldState {
@@ -74,12 +83,13 @@ export function emptyFold(): FoldState {
     entryCount: 0,
     branchCount: 0,
     seenParents: new Set(),
+    prs: emptyPrSignals(),
   }
 }
 
 /** Deep enough copy to survive a failed incremental fold. */
 export function cloneFold(state: FoldState): FoldState {
-  return { ...state, seenParents: new Set(state.seenParents) }
+  return { ...state, seenParents: new Set(state.seenParents), prs: clonePrSignals(state.prs) }
 }
 
 /**
@@ -111,6 +121,7 @@ export function foldLine(state: FoldState, line: string): void {
     if (state.seenParents.has(parentId)) state.branchCount++
     state.seenParents.add(parentId)
   }
+  foldPrEntry(state.prs, entry, line, { mentions: true })
 
   if (type === 'session_info') {
     state.name = (entry.name as string | undefined) || undefined
@@ -169,6 +180,7 @@ export function foldLine(state: FoldState, line: string): void {
 export function metaFromFold(state: FoldState, path: string, mtimeMs: number): SessionMeta | null {
   const header = state.header
   if (!header?.id) return null
+  const pullRequests = prSignalsOf(state.prs)
   return {
     path,
     sessionId: header.id,
@@ -192,6 +204,7 @@ export function metaFromFold(state: FoldState, path: string, mtimeMs: number): S
     branchCount: state.branchCount,
     mtimeMs,
     lastActivityAt: state.lastTimestamp ?? header.timestamp ?? '',
+    ...(pullRequests ? { pullRequests } : {}),
   }
 }
 

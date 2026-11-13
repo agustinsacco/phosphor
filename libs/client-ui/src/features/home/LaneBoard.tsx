@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type { SessionMeta, WorktreeInfo } from '@shared/models'
+import type { GhPrRef, SessionMeta, WorktreeInfo } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useLayoutStore } from '@/stores/layout'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
-import { useRepoPrRefresh } from '@/features/sessions/repoPrRefresh'
+import { usePullRequestsStore, repoPullRequests } from '@/stores/pullRequests'
+import { usePrStatusStore } from '@/stores/prStatus'
+import { usePrStatusRefresh, useRepoPrRefresh } from '@/features/sessions/repoPrRefresh'
+import { laneStatusRefs, resolveLanePrs } from '@/features/sessions/lanePrs'
 import { useWorktreesStore, repoWorktrees } from '@/stores/worktrees'
 import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/subagentRuns'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
@@ -40,8 +42,9 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
   const chatSessions = useChatStore((s) => s.sessions)
   const dialogs = useExtensionUiStore((s) => s.dialogs)
   const widgets = useExtensionUiStore((s) => s.widgets)
-  const prByRepo = usePullRequestsStore((s) => s.byRepo)
   const projectRoot = gitByCwd[workspacePath]?.mainRepoPath ?? workspacePath
+  const prSlice = usePullRequestsStore((s) => repoPullRequests(s, projectRoot))
+  const prStatus = usePrStatusStore((s) => s.byKey)
 
   const covered = useLayoutStore((s) => s.page !== null)
   useRepoPrRefresh(covered ? [] : [projectRoot])
@@ -54,7 +57,8 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
     return out
   }, [disk, gitByCwd, projectRoot])
 
-  const board = useMemo(() => {
+  const { board, refs } = useMemo(() => {
+    const refs: GhPrRef[] = []
     const liveByDisk = new Map<string, string>()
     for (const entry of Object.values(live)) {
       if (entry.diskPath) liveByDisk.set(entry.diskPath, entry.phosphorId)
@@ -63,11 +67,18 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
     const input = (meta: LaneInput['meta'], phosphorId?: string): LaneInput => {
       const git = gitByCwd[meta.cwd]
       const chat = phosphorId ? chatSessions[phosphorId] : undefined
+      const prs = resolveLanePrs({
+        signals: 'pullRequests' in meta ? (meta as SessionMeta).pullRequests : undefined,
+        branch: git?.branch,
+        slice: prSlice,
+        status: prStatus,
+      })
+      refs.push(...laneStatusRefs(prs))
       return {
         meta: { ...meta, name: chat?.meta?.sessionName ?? meta.name },
         git,
         phosphorId,
-        pr: pullRequestFor({ byRepo: prByRepo }, projectRoot, git?.branch) ?? undefined,
+        pr: prs.owned[0]?.pr,
         isStreaming: !!(chat?.isStreaming || chat?.promptSentAt),
         hasPendingQuestion: phosphorId ? asking.has(phosphorId) : false,
         hasDelegatedWork: phosphorId
@@ -97,8 +108,9 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
         ),
       )
     }
-    return buildLaneBoard(inputs)
-  }, [lanes, gitByCwd, live, chatSessions, dialogs, widgets, prByRepo, projectRoot])
+    return { board: buildLaneBoard(inputs), refs }
+  }, [lanes, gitByCwd, live, chatSessions, dialogs, widgets, prSlice, prStatus, projectRoot])
+  usePrStatusRefresh(covered ? [] : refs)
 
   const metaByPath = useMemo(() => new Map(lanes.map((m) => [m.path, m])), [lanes])
   return { board, metaByPath, projectRoot, lanes }

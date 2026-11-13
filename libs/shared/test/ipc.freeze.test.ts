@@ -117,6 +117,7 @@ const expectedEntries = [
   ['fs:writeFile', 'machine'],
   ['gh:available', 'machine'],
   ['gh:prForBranch', 'machine'],
+  ['gh:prSummaries', 'machine'],
   ['gh:prsForRepo', 'machine'],
   ['git:addWorktree', 'machine'],
   ['git:checkoutBranch', 'machine'],

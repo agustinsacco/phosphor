@@ -4,7 +4,7 @@ import { laneMarker } from '@/lib/laneMarker'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useChatStore } from '@/stores/chat'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { localLanePullRequest, usePullRequestsStore } from '@/stores/pullRequests'
+import { localLanePrs } from './useLanePrs'
 import { useSessionsStore } from '@/stores/sessions'
 import type { DeleteSessionTarget } from './DeleteSessionModal'
 import { liveByDiskPath } from './groupSessions'
@@ -40,7 +40,6 @@ export function confirmSessionDelete(session: DeleteSessionTarget | null): void 
 export function buildLaneDelete(paths: string[], workspacePath: string): PreflightSummary {
   const chat = useChatStore.getState()
   const sessions = useSessionsStore.getState()
-  const prState = usePullRequestsStore.getState()
   const markerPrefMode = useLanePrefsStore.getState().lanes.markers
   const allMetas = Object.values(sessions.disk).flat()
   const metaByPath = new Map(allMetas.map((meta) => [meta.path, meta] as const))
@@ -74,7 +73,7 @@ export function buildLaneDelete(paths: string[], workspacePath: string): Preflig
           }) ?? 'Untitled session',
         marker: laneMarker(explicit, git?.branch, meta.cwd, markerPrefMode),
         git,
-        pr: localLanePullRequest(prState, meta, git),
+        pr: localLanePrs(meta, git).owned[0]?.pr,
         isLive: Boolean(livePhosphorId),
         isStreaming: livePhosphorId ? (chat.sessions[livePhosphorId]?.isStreaming ?? false) : false,
         ownsWorktree: owners.has(path),

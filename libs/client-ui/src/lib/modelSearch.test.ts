@@ -95,6 +95,27 @@ describe('searchModels', () => {
     expect(new Set(keysFor('OPUS 5'))).toEqual(expected)
   })
 
+  it('finds a dotted version, however the id spells it', () => {
+    // `5.2` squashes to two characters, under the infix floor, and no single
+    // token equals it, so it used to match nothing and empty the whole query.
+    const fable = [
+      model('pi-claude-cli', 'claude-fable-5', 'Claude Fable 5'),
+      model('pi-claude-cli', 'claude-fable-5-1', 'Claude Fable 5.1'),
+      model('pi-claude-cli', 'claude-fable-5-2', 'Claude Fable 5.2'),
+      model('amazon-bedrock', 'us.anthropic.claude-fable-5-2', 'Claude Fable 5.2 (US)'),
+      model('openrouter', 'anthropic/claude-fable-5.2', 'Anthropic: Claude Fable 5.2'),
+    ]
+    const expected = [
+      'pi-claude-cli/claude-fable-5-2',
+      'amazon-bedrock/us.anthropic.claude-fable-5-2',
+      'openrouter/anthropic/claude-fable-5.2',
+    ]
+    for (const query of ['fable 5.2', 'fable 5-2', '5.2 fable', 'FABLE 5.2', 'id:5-2']) {
+      expect(new Set(keysFor(query, fable))).toEqual(new Set(expected))
+    }
+    expect(keysFor('opus 5.2', fable)).toEqual([])
+  })
+
   it('requires every term to match', () => {
     expect(keysFor('opus gpt')).toEqual([])
   })

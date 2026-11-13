@@ -201,6 +201,42 @@ Desktop's `apps/desktop/electron/fs/gh-cli.ts` and the Host's
 `libs/session-runtime/src/git/github-reader.ts`. It runs **read-only** `gh`
 queries: no push or PR creation, and no credentials in the renderer.
 
+### Which PRs belong to a lane
+
+A lane's PRs come from its session file, not only its checkout. The session
+scan (`libs/session-runtime/src/pi/lane-pr-signals.ts`, folded with the rest of
+the metadata) records `SessionMeta.pullRequests`:
+
+| Signal    | From                                                                                                                   | Part of the lane       |
+| --------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Opened    | PR URLs in the result of a `gh pr create` (or a GitHub MCP create-PR tool) call                                        | yes                    |
+| Branches  | `git worktree add -b`, `checkout -b`, `switch -c`, `git push <remote> <branch>`, `gh pr create --head`; trunk excluded | yes, through discovery |
+| Checkout  | the worktree's current branch                                                                                          | yes                    |
+| Pinned    | a `phosphor-prs` custom entry in the session file                                                                      | yes                    |
+| Reviewing | `gh pr checkout/diff/review/comment` with a URL, `-R owner/repo N`, or a bare number in the lane's own repository      | no, listed apart       |
+| Mentioned | PR links in the lane's prompts and replies                                                                             | no, a suggestion       |
+| Hidden    | a `phosphor-prs` custom entry                                                                                          | removes it             |
+
+Commands are read from tool calls, outside heredoc bodies, so a PR description
+that quotes `git push` adds nothing. `gh pr view` and `gh pr checks` are status
+peeks and never count. Each list is bounded (50 opened, 50 branches, 20
+reviewing and mentioned).
+
+Subagents open PRs too. pi-subagents writes each run to
+`<session>/<runId>/run-<n>/session.jsonl` beside the lane's file, and the
+lane's entries name the run ids. `lane-pr-runs.ts` folds the lane's own run
+folders, and the folders of its ancestors (`parentSession`, same directory,
+four levels) for the run ids its copied entries name, so a fork or rewind keeps
+its parent's subagent PRs. A child adds only opened, branch and reviewing
+signals, never mentions. Runs are read when the lane's own file changes, cached
+by size and mtime, capped at 100 per lane and 32 MB each; symlinks are refused.
+
+The renderer joins this with discovery in `features/sessions/lanePrs.ts`:
+branch signals and the checkout become PRs through branch discovery, and the
+result is the lane's **owned** list, ordered by `prVerdict.ts` so the PR that
+needs you most leads. A lane whose PRs all merged is what "Select merged lanes"
+picks; search matches any of its PRs.
+
 Discovery and status refresh are separate:
 
 - The client derives relevant branches from existing Git/lane projections,
@@ -215,8 +251,8 @@ Discovery and status refresh are separate:
 - Once discovered, a PR is refreshed by its canonical repository and number.
   Branch discovery and repository identity are rechecked every five minutes,
   so reused branches and changed remotes can recover. Negative discoveries are
-  retried after 60 seconds. Associations are an in-memory inference from the
-  current checkout, not a persisted claim that this session created that PR.
+  retried after 60 seconds. Branches lanes pushed join the checkout branches as
+  discovery interests.
 - Details are fetched only for those PRs. A resource-limit failure retries once
   without details. Check contexts are capped at 100 per PR; truncated or omitted
   details stay unavailable, never a green checkmark. No checks also earns no
@@ -231,8 +267,32 @@ respect backoff and a five-second minimum. Cache state is bounded to 64 recent
 repositories and 1,000 branches per repository; the pending-read limit is 64.
 
 `stores/pullRequests.ts` is keyed by **repo path**, not session: a sidebar
-group is exactly one repo, because worktrees fold into their main checkout. A
-lane's PR is joined at render time through its cwd's branch.
+group is exactly one repo, because worktrees fold into their main checkout.
+
+### Status by number
+
+Every PR a lane owns is also read by number through `gh:prSummaries`
+(`libs/session-runtime/src/git/github-pr-status.ts`), so a PR on another branch
+or in another repository reads like the checkout's. One GraphQL query per
+repository reads up to 20 PRs: state, merge state, review decision, approvals,
+changes requested, pending reviewers (code owners first), unresolved threads,
+size, and every check context with `isRequired` for that PR. It costs about one
+GitHub point. A NOT_FOUND alias is GitHub saying that number does not exist;
+only that removes a PR. A resource-limit failure retries without checks, which
+then read as unknown.
+
+The status reader shares the branch reader's gate (`github-gate.ts`): one
+serialized queue and one rate-limit pause. It connects only to `github.com` and
+hosts a checkout's origin resolved to. A read within 15 seconds is reused, a
+forced one respects a five-second floor, failures back off from one to 15
+minutes, and a merged or closed PR is not read again for 30 minutes.
+
+`stores/prStatus.ts` holds the results keyed by PR (`host/owner/repo#n`). A
+failed read keeps the last summary and marks it stale. The same refresh clock
+reads a visible row's PRs every 60 seconds, the active lane's every 30 seconds
+while its checks run, and a merged or closed PR once per app run. Rows and the
+pill read only owned PRs. Host lanes keep their checkout branch only: their
+session files and `gh` live on the Host.
 
 One shared refresh clock checks relevant repositories about every 60 seconds:
 **visible expanded** groups, the visible Home board, and the active lane's own
@@ -250,9 +310,10 @@ Only explicit absence removes it. Missing gh, auth, network and deadline failure
 are normal unavailable states, without toasts. Desktop runs gh through
 `piProcessEnv` for the login-shell PATH; the Host uses its own environment.
 
-**Absence shows nothing.** A lane whose branch has no PR gets no chip and no
-header pill; absent coverage only removes a previously known PR. A targeted
-reply never claims repository-wide completeness.
+**Absence shows nothing.** A lane with no PR gets no chip and no header pill,
+and a PR the lane opened elsewhere shows once its first read answers; absent
+coverage only removes a previously known PR. A targeted reply never claims
+repository-wide completeness.
 
 Remote groups use the same store, keyed by opaque Host/repository identity.
 `github.prs` requires `workspaces.read` and resolves only configured repository

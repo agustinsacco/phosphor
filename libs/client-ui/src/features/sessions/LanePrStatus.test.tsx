@@ -13,6 +13,7 @@ import { useChatStore } from '@/stores/chat'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { useLayoutStore } from '@/stores/layout'
 import { usePullRequestsStore } from '@/stores/pullRequests'
+import { usePrStatusStore } from '@/stores/prStatus'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { LanePrStatus } from './LanePrStatus'
@@ -70,6 +71,7 @@ beforeEach(() => {
   useLayoutStore.setState({ sidebarVisible: false })
   useLanePrefsStore.getState().applyLanePrefs({ prStatus: true })
   usePullRequestsStore.setState({ byRepo: {}, available: true })
+  usePrStatusStore.setState({ byKey: {} })
   useRemoteLanesStore.setState({ hosts: {}, filter: 'local' })
   read.mockReset().mockResolvedValue({ byBranch: { feature: pr }, complete: true })
   external.mockReset().mockResolvedValue(undefined)

@@ -1930,6 +1930,9 @@ export function installMockPhosphor(): void {
           return Promise.resolve(undefined)
         case 'gh:available':
           return Promise.resolve(true)
+        case 'gh:prSummaries':
+          // No by-number reads in the harness: chips fall back to branch discovery.
+          return Promise.resolve(null)
         case 'gh:prForBranch':
           return Promise.resolve({
             number: 42,

@@ -305,6 +305,7 @@ const baselineScope = {
   'sessions:forkClaudeLedger': 'machine',
   'gh:prForBranch': 'machine',
   'gh:prsForRepo': 'machine',
+  'gh:prSummaries': 'machine',
   'gh:available': 'machine',
   'git:info': 'machine',
   'git:infoBatch': 'machine',

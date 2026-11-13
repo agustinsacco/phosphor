@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { scratchDir, scratchDirSync } from './scratch'
 import { configureTestTeardown } from './shutdown'
+import { quietGithub } from './github'
 
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '../..')
 const piStub = join(repoRoot, 'e2e', 'fixtures', 'pi-stub.cjs')
@@ -96,6 +97,8 @@ export async function launch(
   configureTestTeardown(app)
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  // After the window: main registers its own handlers before it opens one.
+  await quietGithub(app)
   return { app, page, workspace }
 }
 

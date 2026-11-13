@@ -21,6 +21,29 @@ export class GithubFailure extends Error {
 }
 
 const exec = promisify(execFile)
+const HEADERS = /^HTTP\/[\s\S]*?\r?\n\r?\n/
+
+/**
+ * gh exits 1 when any alias in a GraphQL query fails, even when the rest
+ * answered. A reply whose only errors are NOT_FOUND is still an answer: it is
+ * how GitHub says one PR number does not exist. Callers that reject `errors`
+ * keep doing so.
+ */
+function notFoundOnly(args: string[], stdout: string | undefined): string | null {
+  if (args[0] !== 'api' || args[1] !== 'graphql' || !stdout) return null
+  const body = stdout.replace(HEADERS, '')
+  try {
+    const value = JSON.parse(body) as { data?: unknown; errors?: { type?: unknown }[] }
+    return value?.data &&
+      Array.isArray(value.errors) &&
+      value.errors.length > 0 &&
+      value.errors.every((error) => error?.type === 'NOT_FOUND')
+      ? body
+      : null
+  } catch {
+    return null
+  }
+}
 /** One machine-side adapter. No stderr, credentials or provider messages cross the wire. */
 export async function runGithubCommand(
   cwd: string,
@@ -39,9 +62,7 @@ export async function runGithubCommand(
     // `gh api --include` exposes retry headers on failures; successful payloads
     // still enter the same JSON parser as repo-view responses.
     // Only `gh api --include` emits HTTP headers. Ordinary gh JSON may be an array.
-    const body = args.includes('--include')
-      ? stdout.replace(/^HTTP\/[\s\S]*?\r?\n\r?\n/, '')
-      : stdout
+    const body = args.includes('--include') ? stdout.replace(HEADERS, '') : stdout
     return { ok: true, stdout: body }
   } catch (error) {
     const e = error as { stdout?: string; stderr?: string; killed?: boolean }
@@ -59,6 +80,8 @@ export async function runGithubCommand(
             : 60_000,
       }
     }
+    const partial = signal.aborted ? null : notFoundOnly(args, e.stdout)
+    if (partial) return { ok: true, stdout: partial }
     return {
       ok: false,
       reason: signal.aborted || e.killed ? 'timeout' : 'unavailable',

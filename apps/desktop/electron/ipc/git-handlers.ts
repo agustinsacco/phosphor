@@ -2,7 +2,7 @@ import { handle } from './handle'
 import { removeReviewedWorktree } from '../maintenance/removal'
 import { withWorkspace } from '../maintenance/history'
 import { gitDisplayInfo, gitInfoBatch } from '@phosphor/session-runtime/git/git-info'
-import { ghAvailable, readRepositoryPrs } from '../fs/gh-cli'
+import { ghAvailable, readPrSummaries, readRepositoryPrs } from '../fs/gh-cli'
 import { createSessionBaseline, gitStatusMap, restoreFileTo, showFileAt } from '../fs/git-service'
 import {
   addWorktree,
@@ -27,6 +27,8 @@ export function registerGitHandlers(): void {
   )
 
   handle('gh:prsForRepo', (_event, repoPath, options) => readRepositoryPrs(repoPath, options))
+
+  handle('gh:prSummaries', (_event, refs, options) => readPrSummaries(refs, options))
 
   handle('git:info', (_event, workspacePath, options) => gitDisplayInfo(workspacePath, options))
 

@@ -3,6 +3,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from '@
 import { mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { scratchDir } from './fixtures/scratch'
 import { configureTestTeardown } from './fixtures/shutdown'
+import { quietGithub } from './fixtures/github'
 import { join, resolve } from 'node:path'
 
 async function launch(theme: 'light' | 'dark' | 'system', extraEnv: Record<string, string> = {}) {
@@ -32,6 +33,7 @@ async function launch(theme: 'light' | 'dark' | 'system', extraEnv: Record<strin
   })
   configureTestTeardown(app)
   const page = await app.firstWindow()
+  await quietGithub(app)
   await expect(page.getByTestId('app-shell')).toBeVisible()
   return {
     app,
