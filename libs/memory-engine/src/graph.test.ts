@@ -71,7 +71,7 @@ it('reads ordinary entities in only two indexed relation queries', () => {
   edges(ctx, 'harbor')
   expect(queries).toHaveLength(2)
   for (const sql of queries) {
-    const plans = ctx.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(1)
+    const plans = prepare(`EXPLAIN QUERY PLAN ${sql}`).all(1)
     expect(plans.some((row) => String(row.detail).includes('USING INDEX relations_'))).toBe(true)
     expect(plans.some((row) => String(row.detail).includes('SCAN r'))).toBe(false)
   }

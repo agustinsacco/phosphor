@@ -16,30 +16,30 @@ export function named(items: BrainEntity[], query: string): BrainEntity[] {
   )
 }
 export function entitySeeds(ctx: Context, query: string, limit: number): string[] {
-  const probes = [query, ...tokens(query).filter((word) => !STOPWORDS.has(word))].slice(0, 33)
-  const ids = new Set(
-    entityMatches(
-      ctx,
-      probes.map((label) => ({ label, aliases: [], keys: [] })),
-      limit,
-    )
-      .flat()
-      .map((item) => item.entityId),
+  const probes = [
+    ...new Set([query, ...tokens(query).filter((word) => !STOPWORDS.has(word))]),
+  ].slice(0, 33)
+  const keys = query
+    .split(/\s+/u)
+    .slice(0, 32)
+    .filter((token) => token.includes(':'))
+    .map((token) => {
+      const separator = token.lastIndexOf(':')
+      return { namespace: token.slice(0, separator), value: token.slice(separator + 1) }
+    })
+  const priority = { key: 0, name: 1, words: 2, trigram: 3 }
+  const matches = entityMatches(
+    ctx,
+    probes.map((label, index) => ({
+      label,
+      aliases: [],
+      keys: index === 0 ? keys : [],
+    })),
+    limit,
   )
-  // Namespace keys remain queryable without parsing caller text as SQL or FTS syntax.
-  for (const token of query.split(/\s+/u).slice(0, 32))
-    for (const row of all<{ id: string }>(
-      ctx,
-      'SELECT e.id FROM entity_keys k JOIN entities e ON e.n=k.entity WHERE k.namespace=? AND k.value=? LIMIT ?',
-      ...splitKey(token),
-      limit,
-    ))
-      ids.add(row.id)
-  return [...ids].slice(0, 200)
-}
-function splitKey(token: string): [string, string] {
-  const separator = token.lastIndexOf(':')
-  return [token.slice(0, separator), token.slice(separator + 1)]
+    .flat()
+    .sort((a, b) => priority[a.channel] - priority[b.channel])
+  return [...new Set(matches.map((item) => item.entityId))].slice(0, 200)
 }
 export function lexicalIds(ctx: Context, query: string, limit = 50): string[] {
   return wordRows(ctx, 'memory_words', query, limit).flatMap((row) => {

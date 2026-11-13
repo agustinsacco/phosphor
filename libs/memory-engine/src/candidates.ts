@@ -13,7 +13,18 @@ export const STOPWORDS = new Set(
 function terms(query: string): string[] {
   return [...new Set(tokens(query).filter((word) => !STOPWORDS.has(word)))].slice(0, 32)
 }
-/** Quoting every token prevents user text from becoming FTS syntax. AND first, rare OR fallback. */
+/** At most 1% of a large corpus, with a 5k floor for small stores: broad terms add no signal. */
+function commonnessCap(ctx: Context, table: 'memory_words' | 'entity_words'): number {
+  const count = Number(
+    one<{ value: string }>(
+      ctx,
+      'SELECT value FROM meta WHERE key=?',
+      table === 'memory_words' ? 'memories' : 'entities',
+    )?.value ?? 0,
+  )
+  return Math.max(5000, Math.floor(count * 0.01))
+}
+/** Quoted tokens cannot become FTS syntax. Only a rare term may drive a ranked scan. */
 export function wordRows(
   ctx: Context,
   table: 'memory_words' | 'entity_words',
@@ -22,7 +33,24 @@ export function wordRows(
 ): { rowid: number; score: number }[] {
   const words = terms(query)
   if (!words.length || limit <= 0) return []
+  const cap = commonnessCap(ctx, table)
+  // Dictionary lookups read document counts, not the potentially million-row postings.
+  const rare = words
+    .map((word) => ({
+      word,
+      count:
+        one<{ doc: number }>(ctx, `SELECT doc FROM ${table}_vocab WHERE term=?`, word)?.doc ?? 0,
+    }))
+    .filter(({ count }) => count <= cap)
+    .sort((a, b) => a.count - b.count)
   const quoted = (word: string): string => `"${word.replaceAll('"', '""')}"`
+  if (!rare.length)
+    return all(
+      ctx,
+      `SELECT rowid,0 AS score FROM ${table} WHERE ${table} MATCH ? ORDER BY rowid DESC LIMIT ?`,
+      words.map(quoted).join(' AND '),
+      limit,
+    )
   const search = (expression: string, cap: number) =>
     all<{ rowid: number; score: number }>(
       ctx,
@@ -32,22 +60,30 @@ export function wordRows(
     )
   const result = search(words.map(quoted).join(' AND '), limit)
   if (result.length >= limit) return result
-  // FTS dictionary lookups provide exact document frequencies without scanning postings.
-  const rare = words
-    .map((word) => ({
-      word,
-      count:
-        one<{ doc: number }>(ctx, `SELECT doc FROM ${table}_vocab WHERE term=?`, word)?.doc ?? 0,
-    }))
-    .sort((a, b) => a.count - b.count)
-    .slice(0, 6)
   const seen = new Set(result.map((row) => row.rowid))
-  for (const row of search(rare.map(({ word }) => quoted(word)).join(' OR '), limit))
+  for (const row of search(
+    rare
+      .slice(0, 6)
+      .map(({ word }) => quoted(word))
+      .join(' OR '),
+    limit,
+  ))
     if (!seen.has(row.rowid)) {
       result.push(row)
       seen.add(row.rowid)
     }
   return result.slice(0, limit)
+}
+function usefulTrigram(ctx: Context, name: string): boolean {
+  if (fold(name).length < 3) return false
+  const cap = commonnessCap(ctx, 'entity_words')
+  const count = one<{ count: number }>(
+    ctx,
+    'SELECT COUNT(*) AS count FROM (SELECT rowid FROM entity_grams WHERE entity_grams MATCH ? LIMIT ?)',
+    `"${fold(name).replaceAll('"', '""')}"`,
+    cap + 1,
+  )!.count
+  return count > 0 && count <= cap
 }
 export function entityMatches(
   ctx: Context,
@@ -90,7 +126,7 @@ export function entityMatches(
         })),
         'words',
       )
-      if (fold(name).length >= 3)
+      if (usefulTrigram(ctx, name))
         add(
           all(
             ctx,

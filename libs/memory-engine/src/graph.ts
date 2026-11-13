@@ -4,12 +4,19 @@ import {
   type BrainLink,
   type BrainPaths,
 } from '@phosphor/shared/brain'
-import { all, type Context } from './database'
+import { all, one, type Context } from './database'
 import { entity, entityNumber, referencedEntities } from './entities'
 import { memoryCards } from './knowledge'
 
 export function edges(ctx: Context, id: string, perPredicate = 8): BrainLink[] {
-  const n = entityNumber(ctx, id)
+  const row = one<{ n: number; connections: number }>(
+    ctx,
+    'SELECT n,connections FROM entities WHERE id=?',
+    id,
+  )
+  if (!row) throw new Error('Brain entity not found.')
+  const { n, connections } = row
+  if (connections <= 200) return ordinaryEdges(ctx, n, perPredicate)
   return BRAIN_PREDICATES.flatMap((predicate) =>
     (['subject', 'object'] as const).flatMap((column) =>
       all<BrainLink>(
@@ -20,6 +27,25 @@ export function edges(ctx: Context, id: string, perPredicate = 8): BrainLink[] {
         perPredicate,
       ),
     ),
+  )
+}
+/** Low-degree nodes need two indexed reads, not one for every predicate and direction. */
+function ordinaryEdges(ctx: Context, n: number, perPredicate: number): BrainLink[] {
+  const directions = (['subject', 'object'] as const).map((column) => {
+    const groups = new Map<string, BrainLink[]>()
+    for (const link of all<BrainLink>(
+      ctx,
+      `SELECT CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id AS objectId,m.id AS memoryId FROM relations r JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory WHERE r.${column}=? AND r.live=1 ORDER BY r.observed_at DESC,r.n DESC`,
+      n,
+    )) {
+      const group = groups.get(link.predicate) ?? []
+      if (group.length < perPredicate) group.push(link)
+      groups.set(link.predicate, group)
+    }
+    return groups
+  })
+  return BRAIN_PREDICATES.flatMap((predicate) =>
+    directions.flatMap((groups) => groups.get(predicate) ?? []),
   )
 }
 export function graph(
