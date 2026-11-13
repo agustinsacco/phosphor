@@ -166,8 +166,8 @@ async function runBrain(argv) {
     for await (const chunk of process.stdin) prompt += chunk
     const input = stageInput(system, prompt)
     if (failOnce(input.stage)) throw new Error('Brain stub extract failed once')
-    // Keep the reading-window progress visible long enough for the real inbox to paint.
-    if (input.stage === 'extract') await new Promise((resolve) => setTimeout(resolve, 1000))
+    // The inbox polls every two seconds: keep this stage visible across one real poll.
+    if (input.stage === 'extract') await new Promise((resolve) => setTimeout(resolve, 3000))
     const { fold } = await import('@phosphor/memory-engine/text')
     emit(answer(input, fold))
   } catch (error) {
