@@ -176,3 +176,37 @@ it('records a dropped local conflict as contradicted, not superseded', async () 
     }),
   )
 })
+
+it('folds a later exact duplicate even when many earlier claims share its entities', async () => {
+  const claim = (summary: string, entities: string[]): ProposalMemory => ({
+    ...memory(summary),
+    entities,
+  })
+  const j = job([
+    claim('Kestrel is part of Harbor.', ['kestrel', 'harbor']),
+    ...[1, 2, 3, 4, 5, 6].map((i) => claim(`Kestrel fact ${i}.`, ['kestrel', `thing-${i}`])),
+    claim('Kestrel is part of Harbor.', ['kestrel', 'harbor']),
+  ])
+  const offered: string[] = []
+  const ask = trackAsk(async (_s, _p, _prompt, validate, _ids, input) => {
+    const rows = (input as { rows: { claim: { ref: string } }[] }).rows
+    offered.push(...rows.map((row) => row.claim.ref))
+    return validate(
+      JSON.stringify({
+        decisions: rows.map((row) => ({
+          ref: row.claim.ref,
+          action: 'add',
+          target: null,
+          reason: 'New',
+        })),
+      }),
+    )
+  })
+  const vectors = j.claims.map(() => new Float32Array([1]))
+  await reconcile(j, [], new FakeBrainStore(), new FakeBrainSearch(), vectors, ask.ask)
+  expect(offered).not.toContain('c8')
+  expect(j.claims.map((c) => c.ref)).not.toContain('c8')
+  expect(j.outcomes).toContainEqual(
+    expect.objectContaining({ candidate: 'c8', status: 'folded', reason: 'merged into c1' }),
+  )
+})
