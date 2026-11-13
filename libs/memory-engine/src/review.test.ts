@@ -154,7 +154,7 @@ it('deduplicates evidence within the commit without a global evidence lookup', (
 
 it('does not duplicate relation evidence when enriching the same link from the same entry again', () => {
   const { store } = fixture()
-  const [id] = approve(store)
+  const id = approve(store).find((id) => store.memory(id).memory.summary.includes('owns'))
   const memory = store.memory(id!).memory
   const link = memory.links[0]!
   const base = extraction('repeat')
