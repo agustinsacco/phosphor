@@ -270,3 +270,25 @@ describe('boardHeadline', () => {
     expect(boardHeadline(two)).toBe('2 need a push')
   })
 })
+
+describe('known issue R1: the board reads a PR the way the sidebar does', () => {
+  const green = { passed: 2, failed: 0, pending: 0, total: 2 }
+
+  it('never offers merge for a PR that conflicts with its base, even approved and green', () => {
+    const conflicting = pr({ mergeable: 'CONFLICTING', reviewDecision: 'APPROVED', checks: green })
+    expect(classifyLane(lane({ pr: conflicting }))).toMatchObject({
+      state: 'attention',
+      action: 'open',
+    })
+  })
+
+  it('never calls a PR with no CI "checks green" or ready to merge', () => {
+    for (const reviewDecision of ['APPROVED', 'REVIEW_REQUIRED', undefined] as const) {
+      for (const checks of [undefined, { passed: 0, failed: 0, pending: 0, total: 0 }]) {
+        const out = classifyLane(lane({ pr: pr({ reviewDecision, checks }) }))
+        expect(out?.state).not.toBe('ready')
+        expect(out?.detail).not.toMatch(/checks green/)
+      }
+    }
+  })
+})
