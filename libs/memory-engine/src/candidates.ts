@@ -13,7 +13,7 @@ export const STOPWORDS = new Set(
 function terms(query: string): string[] {
   return [...new Set(tokens(query).filter((word) => !STOPWORDS.has(word)))].slice(0, 32)
 }
-/** At most 1% of a large corpus, with a 5k floor for small stores: broad terms add no signal. */
+/** Above 1% (with a 5k floor), a term is context, not a selective ranked-scan driver. */
 function commonnessCap(ctx: Context, table: 'memory_words' | 'entity_words'): number {
   const count = Number(
     one<{ value: string }>(
@@ -51,14 +51,23 @@ export function wordRows(
       words.map(quoted).join(' AND '),
       limit,
     )
+  const common = words.filter((word) => !rare.some((term) => term.word === word))
+  const textColumn = table === 'memory_words' ? 'summary' : 'text'
   const search = (expression: string, cap: number) =>
-    all<{ rowid: number; score: number }>(
+    all<{ rowid: number; score: number; text: string }>(
       ctx,
-      `SELECT rowid,bm25(${table}) AS score FROM ${table} WHERE ${table} MATCH ? ORDER BY score LIMIT ?`,
+      `SELECT rowid,bm25(${table}) AS score,${textColumn} AS text FROM ${table} WHERE ${table} MATCH ? ORDER BY score LIMIT ?`,
       expression,
-      cap,
+      Math.min(400, cap * 4),
     )
-  const result = search(words.map(quoted).join(' AND '), limit)
+      .map(({ rowid, score, text }) => {
+        const present = new Set(tokens(text))
+        return { rowid, score, common: common.filter((word) => present.has(word)).length }
+      })
+      .sort((a, b) => b.common - a.common || a.score - b.score)
+      .slice(0, cap)
+      .map(({ rowid, score }) => ({ rowid, score }))
+  const result = search(rare.map(({ word }) => quoted(word)).join(' AND '), limit)
   if (result.length >= limit) return result
   const seen = new Set(result.map((row) => row.rowid))
   for (const row of search(
