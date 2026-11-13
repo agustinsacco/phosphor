@@ -14,6 +14,8 @@ import { review } from './review'
 import { initialize, reset } from './schema'
 import type { BrainStore, OpenStoreOptions } from './types'
 
+export { BRAIN_EXTRACTOR_VERSION } from './jobs'
+
 function snapshot(ctx: Context): BrainSnapshot {
   const meta = Object.fromEntries(
     all<{ key: string; value: string }>(ctx, 'SELECT key,value FROM meta').map((row) => [
