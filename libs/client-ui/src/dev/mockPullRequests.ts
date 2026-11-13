@@ -1,5 +1,13 @@
-import { prKey } from '@shared/github-pr-refs'
-import type { GhPrDetail, GhPrRead, GhPrRef, GhPrSummary, LanePrSignals } from '@shared/models'
+import { parsePrUrl, prKey } from '@shared/github-pr-refs'
+import type {
+  GhPrDetail,
+  GhPrRead,
+  GhPrRef,
+  GhPrSummary,
+  LanePrSignals,
+  SessionMeta,
+} from '@shared/models'
+import { applyLanePrOverride } from '../stores/lanePrOverrides'
 import {
   blockedOnOwners,
   prCheck,
@@ -122,4 +130,29 @@ export function mockPrDetail(ref: GhPrRef): Promise<GhPrDetail> {
     checks: (summary.checkRuns ?? []).map((c) => ({ ...c, workflow: 'Checks', annotations: [] })),
     commented: [],
   })
+}
+
+const LANE_PRS_PROMPT = /^\/phosphor-prs (pin|hide|clear) (\S+)$/
+
+/**
+ * `/phosphor-prs` in the harness, sent to the lane opened from `path`: pi
+ * would append the entry, and the next scan would fold it into the lane's
+ * PRs. Returns false for any other prompt.
+ */
+export function mockLanePrOverride(
+  sessions: SessionMeta[],
+  path: string | undefined,
+  message: string,
+): boolean {
+  const match = LANE_PRS_PROMPT.exec(message)
+  if (!match) return false
+  const ref = parsePrUrl(match[2]!)
+  const index = sessions.findIndex((meta) => meta.path === path)
+  const meta = sessions[index]
+  if (!ref || !meta) return true
+  const action = match[1] as 'pin' | 'hide' | 'clear'
+  const pullRequests = applyLanePrOverride(meta.pullRequests, action, ref)
+  sessions[index] = { ...meta, pullRequests }
+  MOCK_LANE_PRS[meta.sessionId] = pullRequests
+  return true
 }

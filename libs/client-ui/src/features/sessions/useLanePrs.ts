@@ -7,21 +7,37 @@ import { machineCaps } from '@/stores/machineCaps'
 import { useSessionHostLane } from '@/stores/remoteLanes'
 import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
 import { usePrStatusStore } from '@/stores/prStatus'
+import { mergeLanePrOverrides, useLanePrOverridesStore } from '@/stores/lanePrOverrides'
 import { laneStatusRefs, resolveLanePrs, type LanePrs } from './lanePrs'
 import { usePrStatusRefresh, useRepoPrRefresh } from './repoPrRefresh'
 // Also installs Host-owned cache eviction, independent of sidebar visibility.
 import { useHostPrRoutes } from './remotePullRequests'
 
-type LaneMeta = Pick<SessionMeta, 'cwd' | 'pullRequests'>
+type LaneMeta = Pick<SessionMeta, 'path' | 'cwd' | 'pullRequests'>
 type LaneGit = Pick<GitInfo, 'mainRepoPath' | 'branch'> | undefined
 
 /** A worktree's PRs are discovered under its main repository. */
 const repoOf = (meta: LaneMeta, git: LaneGit) => git?.mainRepoPath ?? meta.cwd
 
+/**
+ * The scanned signals with Track and Hide writes the scan has not read yet, and
+ * the writes it has read dropped from the overlay.
+ */
+function useTrackedSignals(path: string | undefined, scanned: SessionMeta['pullRequests']) {
+  const marks = useLanePrOverridesStore((s) => (path ? s.byPath[path] : undefined))
+  useEffect(() => {
+    if (path && marks) useLanePrOverridesStore.getState().settle(path, scanned)
+  }, [path, marks, scanned])
+  return useMemo(() => mergeLanePrOverrides(scanned, marks), [scanned, marks])
+}
+
 /** A This Mac lane's pull requests, read from the stores now: for one-off decisions. */
 export function localLanePrs(meta: LaneMeta, git: LaneGit): LanePrs {
   return resolveLanePrs({
-    signals: meta.pullRequests,
+    signals: mergeLanePrOverrides(
+      meta.pullRequests,
+      useLanePrOverridesStore.getState().byPath[meta.path],
+    ),
     branch: git?.branch,
     slice: repoPullRequests(usePullRequestsStore.getState(), repoOf(meta, git)),
     status: usePrStatusStore.getState().byKey,
@@ -37,9 +53,10 @@ export function lanePrsAllMerged(prs: LanePrs): boolean {
 export function useLocalLanePrs(meta: LaneMeta, git: LaneGit): LanePrs {
   const slice = usePullRequestsStore((s) => repoPullRequests(s, repoOf(meta, git)))
   const status = usePrStatusStore((s) => s.byKey)
+  const signals = useTrackedSignals(meta.path, meta.pullRequests)
   const prs = useMemo(
-    () => resolveLanePrs({ signals: meta.pullRequests, branch: git?.branch, slice, status }),
-    [meta.pullRequests, git?.branch, slice, status],
+    () => resolveLanePrs({ signals, branch: git?.branch, slice, status }),
+    [signals, git?.branch, slice, status],
   )
   usePrStatusRefresh(laneStatusRefs(prs))
   return prs
@@ -77,7 +94,9 @@ export function useLanePullRequests(sessionId: string, options: { all?: boolean 
   // A Host lane's file and gh are on its Host, which folds the one and reads through
   // the other. An older Host does neither: the lane keeps its checkout branch's PR only.
   const byNumber = remote ? ready && host?.prStatus === true : true
-  const signals = remote ? lane?.pullRequests : meta?.pullRequests
+  // A This Mac lane's own Track and Hide writes show before the scan reads them.
+  const tracked = useTrackedSignals(remote ? undefined : entry?.diskPath, meta?.pullRequests)
+  const signals = remote ? lane?.pullRequests : tracked
   const prs = useMemo(
     () => resolveLanePrs({ signals, branch, slice, status }),
     [signals, branch, slice, status],

@@ -8,7 +8,7 @@ const root = resolve(import.meta.dirname, '../../..')
 describe('bundledExtensions', () => {
   it('includes production extension entry points, without helpers, tests or optional packages', () => {
     // Modules imported by an extension, not loaded separately with -e:
-    // Budget/files/global/ledger helpers belong to context-breakdown; store/snapshot helpers to artifacts;
+    // Budget/files/global/ledger/swarm/lane-prs helpers belong to context-breakdown; store/snapshot helpers to artifacts;
     // main-checkout is the worktree detector shared by worktree-paths and context-files;
     // status-keys is the shared wire vocabulary, imported by producers and consumers;
     // subagent-children is context-breakdown's, and what pi-subagents children load.
@@ -19,6 +19,7 @@ describe('bundledExtensions', () => {
       'global-context.ts',
       'message-ledger.ts',
       'swarm.ts',
+      'lane-prs.ts',
       'artifact-store.ts',
       'subagent-snapshot.ts',
       'status-keys.ts',

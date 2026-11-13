@@ -22,7 +22,6 @@
     "src/components/search/domFind.ts::file": 417,
     "src/components/search/useDomFind.ts::useDomFind[1]": 82,
     "src/dev/mockPhosphor.ts::file": 2573,
-    "src/dev/mockPhosphor.ts::respond[1]": 90,
     "src/dev/mockPhosphor.ts::mockTree[1]": 90,
     "src/dev/mockPhosphor.ts::installMockPhosphor[1]": 1608,
     "src/dev/mockPhosphor.ts::installMockPhosphor[1]/invoke[1]": 1500,
