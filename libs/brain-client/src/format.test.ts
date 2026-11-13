@@ -160,3 +160,19 @@ it('says 50+ when more matches were cut than the search counted', () => {
     '50+ more matches not shown',
   )
 })
+
+it('shows a path only when every step cites a memory shown in the briefing', () => {
+  const gone = { ...HARBOR_RECALL.paths[0]![0]!, id: 'gone', memoryId: 'missing' }
+  const text = formatBrainRecall(
+    { ...HARBOR_BRIEFING, paths: [[gone], ...HARBOR_BRIEFING.paths] },
+    '/projects/harbor',
+  )
+  expect(text.match(/^Path:/gmu)).toEqual(['Path:'])
+  for (let maxChars = 300; maxChars <= 1200; maxChars += 25) {
+    const out = formatBrainRecall(HARBOR_BRIEFING, '/projects/harbor', maxChars)
+    const shown = [...out.matchAll(/^- \[(\d+)\]/gmu)].map((match) => match[1])
+    expect(shown).toEqual(shown.map((_, index) => String(index + 1)))
+    for (const line of out.split('\n').filter((item) => item.startsWith('Path:')))
+      for (const [, ref] of line.matchAll(/\[(\d+)\]/gu)) expect(shown).toContain(ref)
+  }
+})
