@@ -68,8 +68,8 @@ export interface BrainProposalView {
   identities: BrainIdentity[]
   groups: BrainGroupQuestion[]
   memories: BrainProposedMemory[]
-  /** Existing memories this lane says again; saved with any approval. */
-  confirmations: { id: string; summary: string }[]
+  /** Saved with any approval; identity overrides turn dependent claims into new memories. */
+  confirmations: { id: string; summary: string; claim: Omit<BrainProposedMemory, 'index'> }[]
   /** Claims over the per-job budget, held back and listed in the extraction record. */
   held: number
 }

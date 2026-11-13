@@ -108,7 +108,7 @@ it('confirms only equal folded text and links without a model call', async () =>
   const j = job([m]),
     ask = trackAsk()
   expect(await reconcile(j, identities, store, search, [new Float32Array([1])], ask.ask)).toEqual([
-    { memoryId: 'old', citations: m.citations },
+    { memoryId: 'old', claim: m, vector: new Float32Array([1]) },
   ])
   expect(j.claims).toEqual([])
   expect(ask.spy).not.toHaveBeenCalled()

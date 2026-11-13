@@ -4,6 +4,7 @@ import type {
   ProposalEntity,
   ProposalMemory,
   Citation,
+  Proposal,
 } from '@phosphor/memory-engine/types'
 import type { StageAsk } from '../stage-types'
 import type { BrainSearchPort } from '../types'
@@ -21,6 +22,7 @@ interface Card {
 }
 interface Row {
   claim: FoldedClaim
+  vector: Float32Array
   comparison: ProposalMemory
   candidates: Card[]
 }
@@ -91,9 +93,9 @@ export async function reconcile(
   search: BrainSearchPort,
   vectors: Float32Array[],
   ask: StageAsk,
-): Promise<{ memoryId: string; citations: Citation[] }[]> {
+): Promise<Proposal['confirmations']> {
   const rows = await candidateRows(job, entities, store, search, vectors)
-  const confirmations: { memoryId: string; citations: Citation[] }[] = [],
+  const confirmations: Proposal['confirmations'] = [],
     removed = new Set<string>(),
     pending: Row[] = []
   const state = { job, confirmations, removed }
@@ -209,6 +211,7 @@ async function candidateRows(
     return {
       claim,
       comparison: normalized[index]!,
+      vector: vectors[index]!,
       candidates: [...ids.flatMap((id) => (old.has(id) ? [old.get(id)!] : [])), ...prior].slice(
         0,
         5,
@@ -223,7 +226,7 @@ function applyDecision(
     removed,
   }: {
     job: FoldedJob
-    confirmations: { memoryId: string; citations: Citation[] }[]
+    confirmations: Proposal['confirmations']
     removed: Set<string>
   },
   row: Row,
@@ -261,7 +264,7 @@ function applyDecision(
       })
     }
   } else if (target && action === 'confirm') {
-    confirmations.push({ memoryId: target.id, citations: m.citations })
+    confirmations.push({ memoryId: target.id, claim: structuredClone(m), vector: row.vector })
     removed.add(row.claim.ref)
     job.outcomes.push({
       candidate: row.claim.ref,

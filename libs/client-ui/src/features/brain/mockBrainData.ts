@@ -165,7 +165,33 @@ export function mockBrainProposal(job = mockBrainJob(), revision = 0): BrainProp
       reason: index ? 'Adds a supported ownership link.' : 'New assertion.',
       quotes,
     })),
-    confirmations: [{ id: 'memory-2', summary: sample.details[2]!.memory.summary }],
+    confirmations: [
+      {
+        id: 'memory-2',
+        summary: sample.details[2]!.memory.summary,
+        claim: {
+          summary: sample.details[2]!.memory.summary,
+          type: 'fact',
+          kind: 'reported',
+          entities: ['tom', 'ledger'],
+          links: [
+            {
+              subject: 'tom',
+              object: 'ledger',
+              predicate: 'works_on',
+              quote: sample.details[2]!.quotes[0]!.quote,
+            },
+          ],
+          branch: false,
+          validFrom: null,
+          validTo: null,
+          action: 'add',
+          target: null,
+          reason: 'Same assertion and links',
+          quotes: sample.details[2]!.quotes,
+        },
+      },
+    ],
     held: 2,
   }
 }

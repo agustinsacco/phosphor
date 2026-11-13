@@ -173,7 +173,21 @@ export class FakeBrainStore implements BrainStore {
         links: [],
         target: m.target ? { id: m.target, summary: '' } : null,
       })),
-      confirmations: p.confirmations.map((c) => ({ id: c.memoryId, summary: '' })),
+      confirmations: p.confirmations.map((c) => ({
+        id: c.memoryId,
+        summary: '',
+        claim: {
+          ...c.claim,
+          target: null,
+          links: c.claim.links.map((l) => ({ ...l, quote: l.citation.quote })),
+          quotes: c.claim.citations.map((q) => ({
+            quote: q.quote,
+            before: '',
+            after: '',
+            label: p.evidence[q.evidence]!.label,
+          })),
+        },
+      })),
       held: p.held,
     }
   }

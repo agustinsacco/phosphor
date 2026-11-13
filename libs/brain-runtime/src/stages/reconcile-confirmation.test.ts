@@ -14,7 +14,7 @@ async function confirmationFixture() {
   const identities: ProposalEntity[] = sample.entities
     .map((e) => ({
       ...e,
-      decision: 'reuse',
+      decision: 'reuse' as const,
       entityId: before.entities.find((old) => old.label === e.label)?.id ?? null,
     }))
     .filter((e) => e.entityId !== null)

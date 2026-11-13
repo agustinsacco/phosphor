@@ -90,7 +90,12 @@ export interface Proposal {
   memories: ProposalMemory[]
   groups: ProposalGroup[]
   /** Existing memories this lane says again, with the fresh quotes. */
-  confirmations: { memoryId: string; citations: Citation[] }[]
+  confirmations: {
+    memoryId: string
+    /** Original claim, retained so an identity override can save it as a new memory. */
+    claim: ProposalMemory
+    vector: Float32Array
+  }[]
   evidence: EvidenceExcerpt[]
   /** Claims over the per-job budget, not proposed. */
   held: number

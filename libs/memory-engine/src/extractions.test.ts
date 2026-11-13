@@ -1,6 +1,6 @@
 import type { BrainExtractionRecord } from '@phosphor/shared/brain'
 import { expect, it } from 'vitest'
-import { extraction, fixture, lane } from './test-support'
+import { extraction, fixture, lane, vector } from './test-support'
 
 it('links approved outcomes to memories and retains records until last memory is forgotten', () => {
   const { store } = fixture()
@@ -42,7 +42,7 @@ it('applies explicit confirmations without duplicate quotes and moves observedAt
     computedRevision: store.revision(),
     memories: [],
     memoryVectors: [],
-    confirmations: [{ memoryId: id, citations: [{ evidence: 0, quote: 'Rina owns Harbor.' }] }],
+    confirmations: [{ memoryId: id, claim: extraction('').memories[0]!, vector: vector() }],
   })
   data.evidence[0]!.observedAt = 9000
   store.propose(data)

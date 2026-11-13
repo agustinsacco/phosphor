@@ -57,7 +57,13 @@ it('skips a confirmation whose target was retired earlier in the approval', () =
   p.memoryVectors = [vector()]
   p.evidence[1]!.entryId = 'new-evidence'
   p.evidence[1]!.observedAt = 100000
-  p.confirmations = [{ memoryId: target!, citations: [{ evidence: 1, quote: 'fresh quote' }] }]
+  p.confirmations = [
+    {
+      memoryId: target!,
+      claim: { ...extraction('').memories[0]!, citations: [{ evidence: 1, quote: 'fresh quote' }] },
+      vector: vector(),
+    },
+  ]
   store.propose(p)
   store.review(job.id, { memories: [0], identities: {}, groups: [] }, p.computedRevision)
   expect(store.memory(target!).quotes).toEqual(before.quotes)

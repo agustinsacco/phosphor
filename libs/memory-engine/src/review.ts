@@ -13,7 +13,7 @@ import { linkOutcome, pruneExtractions } from './extractions'
 import { updateJob } from './jobs'
 import { bumpRevision, revision } from './prefs'
 import { readProposal } from './proposals'
-import type { Proposal } from './types'
+import type { Proposal, ProposalMemory } from './types'
 
 function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDecision): void {
   for (const [indexes, length] of [
@@ -123,30 +123,25 @@ export function review(
       }
       for (const index of new Set(decision.memories)) {
         const item = value.memories[index]!
-        // An identity override invalidates reconciliation involving that ref.
-        const refs = [
-          ...item.entities,
-          ...item.links.flatMap((link) => [link.subject, link.object]),
-        ]
-        const changed = refs.some((ref) => {
-          const override = decision.identities[ref]
-          const old = value.entities.find((entity) => entity.ref === ref)
-          return (
-            override !== undefined &&
-            override !== (old?.decision === 'reuse' ? old.entityId : 'new')
-          )
-        })
         const id = applyMemory(
           commit,
-          changed ? { ...item, action: 'add', target: null } : item,
+          identityChanged(item, value, decision) ? { ...item, action: 'add', target: null } : item,
           value.memoryVectors[index],
         )
         linkOutcome(ctx, jobId, index, id)
       }
       applyGroups(commit, decision.groups)
       for (const confirmation of value.confirmations) {
-        const target = activeMemoryNumber(ctx, confirmation.memoryId)
-        if (target !== undefined) insertCitations(commit, target, confirmation.citations)
+        if (identityChanged(confirmation.claim, value, decision)) {
+          applyMemory(
+            commit,
+            { ...confirmation.claim, action: 'add', target: null },
+            confirmation.vector,
+          )
+        } else {
+          const target = activeMemoryNumber(ctx, confirmation.memoryId)
+          if (target !== undefined) insertCitations(commit, target, confirmation.claim.citations)
+        }
       }
       cleanOrphans(ctx, touched)
       recountEntities(ctx, touched)
@@ -161,4 +156,20 @@ export function review(
     run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
     pruneExtractions(ctx)
   })
+}
+
+function identityChanged(
+  item: ProposalMemory,
+  value: Proposal,
+  decision: BrainReviewDecision,
+): boolean {
+  return [...item.entities, ...item.links.flatMap((link) => [link.subject, link.object])].some(
+    (ref) => {
+      const override = decision.identities[ref]
+      const old = value.entities.find((entity) => entity.ref === ref)
+      return (
+        override !== undefined && override !== (old?.decision === 'reuse' ? old.entityId : 'new')
+      )
+    },
+  )
 }
