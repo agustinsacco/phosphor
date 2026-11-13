@@ -76,7 +76,7 @@ function extract({ registry, segments }, fold) {
       ...[...segment[3].matchAll(/([A-Z][a-z]+ [A-Z][a-z]+) owns (?:the )?([^.\n]+)\./g)].map(
         (m) => ({ m, predicate: 'owns', subjectKind: 'person', objectKind: 'component' }),
       ),
-      ...[...segment[3].matchAll(/([A-Z][^.\n]*?) is part of ([^.\n]+)\./g)].map((m) => ({
+      ...[...segment[3].matchAll(/([^.!?\n]+?) is part of ([^.\n]+)\./g)].map((m) => ({
         m,
         predicate: 'part_of',
         subjectKind: 'component',
@@ -84,12 +84,13 @@ function extract({ registry, segments }, fold) {
       })),
     ].sort((a, b) => a.m.index - b.m.index)
     for (const { m, predicate, subjectKind, objectKind } of sentences) {
-      const subject = entity(m[1], subjectKind),
-        object = entity(m[2], objectKind)
-      const quote = { segment: segment[1], quote: m[0] }
+      const subject = entity(m[1].trim(), subjectKind),
+        object = entity(m[2].trim(), objectKind)
+      const sentence = m[0].trim()
+      const quote = { segment: segment[1], quote: sentence }
       claims.push({
         ref: `c${claims.length + 1}`,
-        text: m[0],
+        text: sentence,
         type: 'fact',
         epistemic: 'reported',
         mentions: [subject, object],
