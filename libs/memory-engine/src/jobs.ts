@@ -1,14 +1,21 @@
 import type { BrainJob } from '@phosphor/shared/brain'
 import { all, one, run, transaction, type Context } from './database'
 import { pruneExtractions } from './extractions'
-import type { JobPatch, NewJob } from './types'
+import type { JobPart, JobPatch, NewJob } from './types'
 
 const columns = `id, session_id AS sessionId, session_path AS sessionPath, title, scope, branch,
  model, state, memories, leaf_id AS leafId, error, queued_at AS queuedAt,
- started_at AS startedAt, finished_at AS finishedAt, usage`
-type JobRow = Omit<BrainJob, 'usage'> & { usage: string | null }
+ started_at AS startedAt, finished_at AS finishedAt, usage, progress`
+type JobRow = Omit<BrainJob, 'usage' | 'progress'> & {
+  usage: string | null
+  progress: string | null
+}
 function decode(row: JobRow): BrainJob {
-  return { ...row, usage: row.usage ? (JSON.parse(row.usage) as BrainJob['usage']) : null }
+  return {
+    ...row,
+    progress: row.progress ? (JSON.parse(row.progress) as BrainJob['progress']) : null,
+    usage: row.usage ? (JSON.parse(row.usage) as BrainJob['usage']) : null,
+  }
 }
 export function job(ctx: Context, id: string): BrainJob | undefined {
   const row = one<JobRow>(ctx, `SELECT ${columns} FROM jobs WHERE id=?`, id)
@@ -23,7 +30,7 @@ export function jobs(ctx: Context): BrainJob[] {
 function save(ctx: Context, value: BrainJob): void {
   run(
     ctx,
-    `INSERT OR REPLACE INTO jobs VALUES (${Array(15).fill('?').join(',')})`,
+    `INSERT INTO jobs VALUES (${Array(18).fill('?').join(',')})`,
     value.id,
     value.sessionId,
     value.sessionPath,
@@ -39,8 +46,13 @@ function save(ctx: Context, value: BrainJob): void {
     value.startedAt,
     value.finishedAt,
     value.usage ? JSON.stringify(value.usage) : null,
+    BRAIN_EXTRACTOR_VERSION,
+    value.progress ? JSON.stringify(value.progress) : null,
+    null,
   )
 }
+export const BRAIN_EXTRACTOR_VERSION = 4
+
 export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'): BrainJob {
   return transaction(ctx, () => {
     const unfinished = one(
@@ -52,8 +64,9 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
     if (unfinished) throw new Error('This lane is already queued.')
     const last = one<{ leaf_id: string | null }>(
       ctx,
-      "SELECT leaf_id FROM jobs WHERE session_id=? AND state='done'",
+      "SELECT leaf_id FROM jobs WHERE session_id=? AND state IN ('done','empty') AND extractor=? ORDER BY queued_at DESC LIMIT 1",
       value.sessionId,
+      BRAIN_EXTRACTOR_VERSION,
     )
     if (last && last.leaf_id === value.leafId) {
       throw new Error('Nothing new in this lane since its last extraction.')
@@ -68,6 +81,7 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
       startedAt: null,
       finishedAt: null,
       usage: null,
+      progress: null,
     }
     save(ctx, result)
     return result
@@ -76,12 +90,19 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
 export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
   const existing = job(ctx, id)
   if (!existing) throw new Error('Brain job not found.')
+  if (
+    existing.startedAt !== null &&
+    existing.leafId !== null &&
+    patch.leafId !== undefined &&
+    patch.leafId !== existing.leafId
+  )
+    throw new Error('Brain job leaf is frozen.')
   const updated = { ...existing, ...patch }
   // Updating columns rather than REPLACE preserves proposal foreign keys.
   run(
     ctx,
     `UPDATE jobs SET state=?, error=?, started_at=?, finished_at=?, usage=?, memories=?,
-      leaf_id=?, model=?, branch=? WHERE id=?`,
+      leaf_id=?, model=?, branch=?, progress=? WHERE id=?`,
     updated.state,
     updated.error,
     updated.startedAt,
@@ -91,6 +112,7 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
     updated.leafId,
     updated.model,
     updated.branch,
+    updated.progress ? JSON.stringify(updated.progress) : null,
     id,
   )
   if (updated.state === 'done') {
@@ -109,8 +131,34 @@ export function removeJob(ctx: Context, id: string): void {
   pruneExtractions(ctx)
 }
 export function requeueInterrupted(ctx: Context): void {
+  run(ctx, "UPDATE jobs SET state='queued', finished_at=NULL, error=NULL WHERE state='running'")
+}
+
+export function retry(ctx: Context, id: string): BrainJob {
+  if (job(ctx, id)?.state !== 'failed') throw new Error('Only failed Brain jobs can be retried.')
+  return updateJob(ctx, id, { state: 'queued', error: null, finishedAt: null, progress: null })
+}
+export function part(
+  ctx: Context,
+  jobId: string,
+  name: string,
+  inputHash: string,
+): JobPart | undefined {
+  return one(
+    ctx,
+    "SELECT part,input_hash AS inputHash,output FROM job_parts WHERE job_id=? AND part=? AND input_hash=? AND state='done'",
+    jobId,
+    name,
+    inputHash,
+  )
+}
+export function savePart(ctx: Context, jobId: string, value: JobPart): void {
   run(
     ctx,
-    "UPDATE jobs SET state='queued', started_at=NULL, finished_at=NULL, error=NULL WHERE state='running'",
+    "INSERT OR REPLACE INTO job_parts VALUES (?,?,?,'done',?)",
+    jobId,
+    value.part,
+    value.inputHash,
+    value.output,
   )
 }

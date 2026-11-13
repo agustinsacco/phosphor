@@ -14,7 +14,7 @@ export function pruneExtractions(ctx: Context): void {
 export function saveExtraction(ctx: Context, record: BrainExtractionRecord): void {
   run(
     ctx,
-    `INSERT OR REPLACE INTO extractions VALUES (${Array(14).fill('?').join(',')})`,
+    `INSERT OR REPLACE INTO extractions VALUES (${Array(12).fill('?').join(',')})`,
     record.jobId,
     record.sessionId,
     record.sessionPath,
@@ -22,9 +22,7 @@ export function saveExtraction(ctx: Context, record: BrainExtractionRecord): voi
     record.leafId,
     record.model,
     record.thinking,
-    record.prompt,
-    record.answer,
-    JSON.stringify(record.trace),
+    JSON.stringify(record.calls),
     JSON.stringify(record.outcomes),
     record.error,
     record.startedAt,
@@ -38,20 +36,19 @@ export function extraction(
 ): BrainExtractionRecord & {
   memories: { id: string; summary: string }[]
 } {
-  pruneExtractions(ctx)
   const row = one<
-    Omit<BrainExtractionRecord, 'trace' | 'outcomes'> & { trace: string; outcomes: string }
+    Omit<BrainExtractionRecord, 'calls' | 'outcomes'> & { calls: string; outcomes: string }
   >(
     ctx,
     `SELECT job_id AS jobId, session_id AS sessionId, session_path AS sessionPath, title,
-     leaf_id AS leafId, model, thinking, prompt, answer, trace, outcomes, error,
+     leaf_id AS leafId, model, thinking, calls, outcomes, error,
      started_at AS startedAt, finished_at AS finishedAt FROM extractions WHERE job_id=?`,
     jobId,
   )
   if (!row) throw new Error('Brain extraction not found (dismissed or expired).')
   return {
     ...row,
-    trace: JSON.parse(row.trace) as BrainExtractionRecord['trace'],
+    calls: JSON.parse(row.calls) as BrainExtractionRecord['calls'],
     outcomes: JSON.parse(row.outcomes) as BrainExtractionOutcome[],
     memories: all(ctx, 'SELECT id, summary FROM memories WHERE job_id=?', jobId),
   }
@@ -71,11 +68,7 @@ export function linkOutcome(
   if (!row) return
   const outcomes = JSON.parse(row.outcomes) as BrainExtractionOutcome[]
   for (const outcome of outcomes) {
-    if (
-      (outcome.status === 'kept' && outcome.proposalIndex === proposalIndex) ||
-      (outcome.status === 'duplicate' && outcome.duplicateOf === proposalIndex)
-    )
-      outcome.memoryId = memoryId
+    if (outcome.proposalIndex === proposalIndex) outcome.memoryId = memoryId
   }
   run(ctx, 'UPDATE extractions SET outcomes=? WHERE job_id=?', JSON.stringify(outcomes), jobId)
 }

@@ -10,8 +10,16 @@ describe('Brain graph regressions', () => {
     const ids = nodes.map((node) => store.entityMemories(node.id, {}, null).memories).flat()
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
     const next = extraction(job.id, { computedRevision: store.revision() })
-    next.entities = next.entities.map((entity) => ({ ...entity, decision: 'reuse', entityId: nodes.find((node) => node.label === entity.label)!.id }))
-    next.memories = next.memories.map((memory) => ({ ...memory, action: 'enrich', target: ids.find((old) => old.summary === memory.summary)!.id }))
+    next.entities = next.entities.map((entity) => ({
+      ...entity,
+      decision: 'reuse',
+      entityId: nodes.find((node) => node.label === entity.label)!.id,
+    }))
+    next.memories = next.memories.map((memory) => ({
+      ...memory,
+      action: 'enrich',
+      target: ids.find((old) => old.summary === memory.summary)!.id,
+    }))
     store.propose(next)
     store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, store.revision())
     for (const id of new Set(ids.map((memory) => memory.id))) {
@@ -30,7 +38,14 @@ describe('Brain graph regressions', () => {
     const next = extraction(job.id, { computedRevision: store.revision() })
     next.entities = next.entities.filter((entity) => entity.ref !== 'tom')
     next.entityVectors = next.entityVectors.slice(0, 2)
-    next.memories = [{ ...next.memories[0]!, summary: 'Rina maintains the archive now.', action: 'supersede', target: old.id }]
+    next.memories = [
+      {
+        ...next.memories[0]!,
+        summary: 'Rina maintains the archive now.',
+        action: 'supersede',
+        target: old.id,
+      },
+    ]
     next.memoryVectors = next.memoryVectors.slice(0, 1)
     store.propose(next)
     store.review(job.id, { memories: [0], identities: {}, groups: [] }, store.revision())

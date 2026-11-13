@@ -1,164 +1,99 @@
-import type {
-  BrainEntity,
-  BrainHit,
-  BrainLink,
-  BrainMemory,
-  BrainMemoryType,
-  BrainRecall,
-} from '@phosphor/shared/brain'
+import { randomUUID } from 'node:crypto'
+import type { BrainFindResult } from '@phosphor/shared/brain'
 import { all, type Context } from './database'
-import { entities, tokens, wholePhrase } from './entities'
-import { activeMemories } from './knowledge'
-import type { SearchInput } from './types'
-import { cosine, decodeVector } from './vectors'
+import { entity, referencedEntities } from './entities'
+import { memoryCards } from './knowledge'
+import { recall } from './recall'
+import { entitySeeds, lexicalIds } from './seeds'
+import { VectorIndex } from './vector-index'
+import type { BrainSearch, OpenStoreOptions } from './types'
 
-const stopwords = new Set(
-  (
-    'a an the is it to of in on for and or what who how why do does did can be by with ' +
-    'about my me i we you that this as at from there their our know tell'
-  ).split(' '),
-)
-/** Ranking reads the best 50; counting what was left out passes -1, no cap. */
-export function lexicalIds(ctx: Context, query: string, limit = 50): string[] {
-  const words = [...new Set(tokens(query).filter((word) => !stopwords.has(word)))]
-  if (!words.length) return []
-  const match = words.map((word) => `"${word}"`).join(' OR ')
-  return all<{ id: string }>(
-    ctx,
-    'SELECT id FROM memory_fts WHERE memory_fts MATCH ? ORDER BY bm25(memory_fts), rowid LIMIT ?',
-    match,
-    limit,
-  ).map((row) => row.id)
-}
-function semanticIds(ctx: Context, vector: Float32Array): string[] {
-  return all<{ memory_id: string; vector: Uint8Array }>(
-    ctx,
-    "SELECT v.* FROM vectors v JOIN memories m ON m.id=v.memory_id WHERE m.state='active'",
-  )
-    .map((row) => ({ id: row.memory_id, score: cosine(vector, decodeVector(row.vector)) }))
-    .filter((row) => row.score >= 0.35)
-    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
-    .map((row) => row.id)
-}
-/**
- * Days until a memory ranks at three quarters of its weight. Open questions and risks
- * go stale first; how things are done lasts longest. Age only reorders: it never
- * drops below half, so an old memory is still found when nothing newer matches.
- */
-const HALF_LIFE_DAYS: Record<BrainMemoryType, number> = {
-  open: 30,
-  risk: 60,
-  decision: 180,
-  fact: 180,
-  procedure: 365,
-  preference: 365,
-}
-export function freshness(memory: BrainMemory, now: number): number {
-  const effective = memory.validFrom !== null && memory.validFrom <= now ? memory.validFrom : 0
-  const days = Math.max(0, now - Math.max(memory.observedAt, effective)) / 86_400_000
-  return 0.5 + 0.5 * 2 ** (-days / HALF_LIFE_DAYS[memory.type])
-}
-function boundedLimit(limit: number | undefined, fallback: number): number {
-  return Number.isFinite(limit) ? Math.min(20, Math.max(0, Math.floor(limit!))) : fallback
-}
-/** Quotes, brackets and sentence marks around a query; never + or # inside a name. */
-const trimEdges = (text: string): string =>
-  text.trim().replace(/^[\s"'“”‘’`([{]+|[\s"'“”‘’`)\]}.,;:!?]+$/gu, '')
-/**
- * Entities the query names, or that hold the whole query in their name: "Rina" names
- * Rina Okafor, and "NRS" names every NRS project. Whole words only, never substrings.
- */
-function named(items: BrainEntity[], query: string): BrainEntity[] {
-  if (tokens(query).every((word) => stopwords.has(word))) return []
-  const phrase = trimEdges(query)
-  return items.filter((item) =>
-    [item.label, ...item.aliases].some(
-      (name) => wholePhrase(query, name) || wholePhrase(name, phrase),
-    ),
-  )
-}
-function about(memories: BrainMemory[], ids: Set<string>): string[] {
-  return memories
-    .filter((item) => ids.has(item.subjectId) || (item.objectId !== null && ids.has(item.objectId)))
-    .map((item) => item.id)
-}
-const MAX_LINKS = 8
-/** The graph one hop out: links that touch a named entity, and who is at the other end. */
-function hop(memories: BrainMemory[], focus: Set<string>) {
-  const links = new Map<string, BrainLink>()
-  for (const { subjectId, predicate, objectId } of memories) {
-    if (objectId === null || (!focus.has(subjectId) && !focus.has(objectId))) continue
-    links.set(`${subjectId} ${predicate} ${objectId}`, { subjectId, predicate, objectId })
-  }
-  const all = [...links.values()]
-  const ends = all.flatMap((link) => [link.subjectId, link.objectId])
+function find(
+  ctx: Context,
+  query: string,
+  vector: Float32Array | null,
+  limit: number,
+  entitiesIndex: VectorIndex,
+  memoriesIndex: VectorIndex,
+  degradation: string[],
+): BrainFindResult {
+  const cap = Math.min(50, Math.max(0, limit))
+  if (!query.trim()) return { entities: [], memories: [], referenced: [], degradation }
+  const entityIds = [
+    ...new Set([
+      ...entitySeeds(ctx, query, cap),
+      ...(vector
+        ? entitiesIndex
+            .nearest(vector, cap)
+            .filter((item) => item.score >= 0.35)
+            .map((item) => item.id)
+        : []),
+    ]),
+  ].slice(0, cap)
+  const memoryIds = [
+    ...new Set([
+      ...lexicalIds(ctx, query, cap),
+      ...(vector
+        ? memoriesIndex
+            .nearest(vector, cap)
+            .filter((item) => item.score >= 0.35)
+            .map((item) => item.id)
+        : []),
+    ]),
+  ].slice(0, cap)
+  const memories = memoryCards(ctx, memoryIds)
   return {
-    links: all.slice(0, MAX_LINKS),
-    neighbours: new Set(ends.filter((id) => !focus.has(id))),
+    entities: entityIds.map((id) => entity(ctx, id)!).filter(Boolean),
+    memories,
+    referenced: referencedEntities(ctx, memories).filter((item) => !entityIds.includes(item.id)),
+    degradation,
   }
 }
-type Ranking = { ids: string[]; reason: BrainHit['reasons'][number]; weight: number }
-/** Reciprocal-rank fusion: each list adds weight / (60 + rank). */
-function fuse(ranks: Ranking[]): Map<string, { score: number; reasons: BrainHit['reasons'] }> {
-  const scores = new Map<string, { score: number; reasons: BrainHit['reasons'] }>()
-  for (const { ids, reason, weight } of ranks) {
-    ids.forEach((id, index) => {
-      const entry = scores.get(id) ?? { score: 0, reasons: [] }
-      entry.score += weight / (60 + index + 1)
-      entry.reasons.push(reason)
-      scores.set(id, entry)
-    })
+export function openBrainSearch(options: Pick<OpenStoreOptions, 'path' | 'Database'>): BrainSearch {
+  const ctx: Context = {
+    db: new options.Database(options.path, { readOnly: true, timeout: 2000 }),
+    now: Date.now,
+    id: randomUUID,
   }
-  return scores
-}
-/**
- * One call answers what a lane agent asks: memories that match, about the entities the
- * query names, and about whatever those link to (at half weight, so they rank below).
- */
-export function search(ctx: Context, input: SearchInput): BrainRecall {
-  const memories = activeMemories(ctx)
-  const known = entities(ctx)
-  const focus = named(known, input.query)
-  const focusIds = new Set(focus.map((item) => item.id))
-  const exact = about(memories, focusIds)
-  const lexical = lexicalIds(ctx, input.query)
-  const strong = new Set([...exact, ...lexicalIds(ctx, input.query, -1)])
-  const { links, neighbours } = hop(memories, focusIds)
-  const linked = about(memories, neighbours).filter((id) => !exact.includes(id))
-  const scores = fuse([
-    {
-      ids: input.vector === null ? [] : semanticIds(ctx, input.vector),
-      reason: 'semantic',
-      weight: 2,
+  const entities = new VectorIndex(ctx, 'entity')
+  const memories = new VectorIndex(ctx, 'memory')
+  let loaded = false
+  let generation: string | undefined
+  let revision: string | undefined
+  const degradation = () => (loaded ? [] : ['Semantic index loading; words and names only.'])
+  return {
+    refresh: () => {
+      const meta = Object.fromEntries(
+        all<{ key: string; value: string }>(
+          ctx,
+          "SELECT key,value FROM meta WHERE key IN ('generation','revision')",
+        ).map((row) => [row.key, row.value]),
+      )
+      if (loaded && generation === meta.generation && revision === meta.revision) return
+      const rebuild = generation !== meta.generation
+      entities.refresh(rebuild || entities.stale())
+      memories.refresh(rebuild || memories.stale())
+      generation = meta.generation
+      revision = meta.revision
+      loaded = true
     },
-    { ids: lexical, reason: 'lexical', weight: 1 },
-    { ids: exact, reason: 'exact', weight: 1 },
-    { ids: linked, reason: 'linked', weight: 0.5 },
-  ])
-  const now = ctx.now()
-  const hits = memories
-    .flatMap((memory): BrainHit[] => {
-      const entry = scores.get(memory.id)
-      const scope = memory.scope === input.scope ? 1.25 : 1
-      return entry
-        ? [{ memory, ...entry, score: entry.score * scope * freshness(memory, now) }]
-        : []
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, boundedLimit(input.limit, 8))
-  const shown = new Set(hits.map((hit) => hit.memory.id))
-  const referenced = new Set([
-    ...focusIds,
-    ...links.flatMap((link) => [link.subjectId, link.objectId]),
-    ...hits.flatMap(({ memory }) => [memory.subjectId, memory.objectId]),
-  ])
-  return {
-    status: hits.length ? 'ok' : 'no_match',
-    hits,
-    entities: known.filter((item) => referenced.has(item.id)),
-    focus: [...focusIds],
-    links,
-    more: memories.filter((item) => strong.has(item.id) && !shown.has(item.id)).length,
-    degradation: input.vector === null ? ['semantic search unavailable'] : [],
+    ready: () => loaded,
+    nearestEntities: (vectors, k) =>
+      vectors.map((vector) => (loaded ? entities.nearest(vector, k) : [])),
+    nearestMemories: (vectors, k) =>
+      vectors.map((vector) => (loaded ? memories.nearest(vector, k) : [])),
+    recall: (input) =>
+      recall(
+        ctx,
+        input,
+        {
+          entities: loaded && input.vector ? entities.nearest(input.vector, 20) : [],
+          memories: loaded && input.vector ? memories.nearest(input.vector, 50) : [],
+        },
+        degradation(),
+      ),
+    find: (query, vector, limit) =>
+      find(ctx, query, loaded ? vector : null, limit, entities, memories, degradation()),
+    close: () => ctx.db.close(),
   }
 }
