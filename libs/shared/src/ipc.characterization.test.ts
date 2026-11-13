@@ -188,6 +188,7 @@ const baselineScope = {
   'app:saveDialog': 'machine',
   'app:revealPath': 'machine',
   'app:openExternal': 'app',
+  'app:notify': 'app',
   'clipboard:writeImage': 'app',
   'clipboard:readImage': 'app',
   'clipboard:writeFiles': 'app',

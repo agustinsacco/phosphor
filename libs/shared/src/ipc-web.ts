@@ -185,6 +185,7 @@ export const IPC_WEB = {
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
   'app:openExternal': browser,
+  'app:notify': unsupported('Native notifications require Desktop.'),
   'clipboard:writeImage': unsupported(
     'Native file and image clipboard integration is unavailable in the browser.',
   ),

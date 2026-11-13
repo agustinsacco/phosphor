@@ -173,6 +173,8 @@ export interface BaselineAppInvokeMap {
   'app:revealPath': { args: [string]; result: void }
 
   'app:openExternal': { args: [string]; result: void }
+
+  'app:notify': { args: [notice: { title: string; body: string }]; result: boolean }
 }
 it('freezes app channel tuples and results through ipc.ts', () => {
   expectTypeOf<

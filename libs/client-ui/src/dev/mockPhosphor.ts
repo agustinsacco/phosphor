@@ -1908,6 +1908,9 @@ export function installMockPhosphor(): void {
         }
         case 'app:openExternal':
           return Promise.resolve(undefined)
+        case 'app:notify':
+          // A browser tab has no native notification centre: never clicked.
+          return Promise.resolve(false)
         case 'clipboard:readFiles':
           return Promise.resolve(mockFileClipboard)
         case 'clipboard:writeFiles':
