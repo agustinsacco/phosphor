@@ -66,8 +66,8 @@
       return at > 0 ? bare.slice(0, at) : bare
     }
 
-    if (argv.includes('-p') && argv.includes('--fork')) {
-      require('./pi-stub-fork.cjs').runFork(argv)
+    if (require('./pi-stub-brain.cjs').isBrainCall(argv)) {
+      require('./pi-stub-brain.cjs').runBrain(argv)
       return
     }
     if (argv.includes('-p')) {
