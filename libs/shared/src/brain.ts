@@ -80,7 +80,8 @@ export const BRAIN_MEMORY_TYPES = [
 export type BrainMemoryType = (typeof BRAIN_MEMORY_TYPES)[number]
 export type BrainEpistemicKind = 'observed' | 'reported' | 'inferred'
 /** `superseded` was replaced by a later memory; `disputed` conflicts with another one. */
-export type BrainMemoryState = 'active' | 'superseded' | 'disputed'
+export const BRAIN_MEMORY_STATES = ['active', 'superseded', 'disputed'] as const
+export type BrainMemoryState = (typeof BRAIN_MEMORY_STATES)[number]
 
 export interface BrainPrefs {
   enabled: boolean
