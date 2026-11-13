@@ -8,10 +8,9 @@ import {
   entityNumber,
   recountEntities,
 } from './entities'
-import { applyMemory, insertCitations, type CommitContext } from './commit'
+import { applyMemory, activeMemoryNumber, insertCitations, type CommitContext } from './commit'
 import { linkOutcome, pruneExtractions } from './extractions'
 import { updateJob } from './jobs'
-import { memoryNumber } from './knowledge'
 import { bumpRevision, revision } from './prefs'
 import { readProposal } from './proposals'
 import type { Proposal } from './types'
@@ -145,8 +144,10 @@ export function review(
         linkOutcome(ctx, jobId, index, id)
       }
       applyGroups(commit, decision.groups)
-      for (const confirmation of value.confirmations)
-        insertCitations(commit, memoryNumber(ctx, confirmation.memoryId), confirmation.citations)
+      for (const confirmation of value.confirmations) {
+        const target = activeMemoryNumber(ctx, confirmation.memoryId)
+        if (target !== undefined) insertCitations(commit, target, confirmation.citations)
+      }
       cleanOrphans(ctx, touched)
       recountEntities(ctx, touched)
       if (decision.memories.length || decision.groups.length || value.confirmations.length)

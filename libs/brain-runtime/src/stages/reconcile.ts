@@ -97,10 +97,17 @@ export async function reconcile(
     removed = new Set<string>(),
     pending: Row[] = []
   const state = { job, confirmations, removed }
+  const selected = new Map<string, ReturnType<typeof decisions>[number]>()
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!,
       equal = row.candidates.find((c) => same(row.comparison, c))
-    if (equal) applyDecision(state, row, 'confirm', equal, 'Equal folded text and links')
+    if (equal)
+      selected.set(row.claim.ref, {
+        ref: row.claim.ref,
+        action: 'confirm',
+        target: equal,
+        reason: 'Equal folded text and links',
+      })
     else if (row.candidates.length) pending.push(row)
   }
   for (let i = 0; i < pending.length; i += 20) {
@@ -117,21 +124,37 @@ export async function reconcile(
       [],
       { rows },
     )
-    for (const d of result.sort(
-      (a, b) =>
-        batch.findIndex((r) => r.claim.ref === a.ref) -
-        batch.findIndex((r) => r.claim.ref === b.ref),
-    ))
-      applyDecision(
-        state,
-        batch.find((r) => r.claim.ref === d.ref)!,
-        d.action,
-        d.target,
-        d.reason,
-      )
+    for (const d of result) selected.set(d.ref, d)
+  }
+  const winners = new Map<string, ReturnType<typeof decisions>[number]>()
+  for (const row of rows) {
+    const d = selected.get(row.claim.ref)
+    if (!d?.target || d.target.local) continue
+    const previous = winners.get(d.target.id)
+    if (!previous || priority(d.action) > priority(previous.action)) winners.set(d.target.id, d)
+  }
+  for (const row of rows) {
+    const d = selected.get(row.claim.ref)
+    if (!d) continue
+    if (d.target && !d.target.local && winners.get(d.target.id) !== d) {
+      const reason = `Another claim has a higher-priority action on target ${d.target.id}`
+      if (d.action === 'confirm') {
+        removed.add(row.claim.ref)
+        job.outcomes.push({
+          candidate: row.claim.ref,
+          summary: row.claim.memory.summary,
+          status: 'dropped',
+          reason,
+        })
+      } else applyDecision(state, row, 'add', undefined, reason)
+    } else applyDecision(state, row, d.action, d.target, d.reason)
   }
   job.claims = job.claims.filter((c) => !removed.has(c.ref))
   return confirmations
+}
+
+function priority(action: ProposalMemory['action'] | 'confirm'): number {
+  return { add: 0, confirm: 1, enrich: 2, conflict: 3, supersede: 4, resolve_open: 4 }[action]
 }
 
 async function candidateRows(

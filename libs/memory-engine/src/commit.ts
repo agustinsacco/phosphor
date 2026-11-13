@@ -186,12 +186,21 @@ export function reactivatePartners(ctx: Context, n: number): void {
       partner.n,
     )
 }
+export function activeMemoryNumber(ctx: Context, id: string): number | undefined {
+  return one<{ n: number }>(
+    ctx,
+    "SELECT n FROM memories WHERE id=? AND state IN ('active','disputed')",
+    id,
+  )?.n
+}
 export function applyMemory(
   commit: CommitContext,
   item: ProposalMemory,
   vector?: Float32Array,
 ): string {
   const { ctx } = commit
+  if (item.target && activeMemoryNumber(ctx, item.target) === undefined)
+    item = { ...item, action: 'add', target: null }
   const current =
     item.action === 'enrich'
       ? { n: memoryNumber(ctx, item.target!), id: item.target! }
