@@ -28,6 +28,7 @@ import {
   sweepComposerDrafts,
 } from '../app/draft-service'
 import { resolveResumeTarget } from '../app/resume-target'
+import { showNativeNotice } from '../app/native-notice'
 import {
   getPrefs,
   markSessionSeen,
@@ -222,6 +223,10 @@ function registerDialogHandlers(): void {
     const external = externalUrl(url)
     if (external) await shell.openExternal(external)
   })
+
+  handle('app:notify', (event, notice) =>
+    showNativeNotice(BrowserWindow.fromWebContents(event.sender), notice),
+  )
 }
 
 function registerSandboxHandlers(): void {

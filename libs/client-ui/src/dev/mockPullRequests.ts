@@ -103,7 +103,19 @@ const SUMMARIES: Record<number, () => GhPrSummary> = {
     }),
 }
 
+/** #63's running checks finish red after its first read, so the harness shows a PR notice. */
+let reads63 = 0
+const finished63 = (pr: GhPrSummary): GhPrSummary => ({
+  ...pr,
+  checks: { passed: 5, failed: 1, pending: 0, total: 6 },
+  checkRuns: (pr.checkRuns ?? []).map((c) =>
+    c.state !== 'pending' ? c : { ...c, state: c.name === 'e2e (macos)' ? 'failure' : 'success' },
+  ),
+})
+
 const summaryFor = (ref: GhPrRef): GhPrSummary => {
+  if (ref.number === 63 && reads63++ > 0)
+    return { ...finished63(SUMMARIES[63]!()), ref: { ...ref } }
   const make = SUMMARIES[ref.number]
   return make
     ? { ...make(), ref: { ...ref } }

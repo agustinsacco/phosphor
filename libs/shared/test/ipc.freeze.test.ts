@@ -17,6 +17,7 @@ const expectedEntries = [
   ['app:getPrefs', 'app'],
   ['app:listSandboxes', 'machine'],
   ['app:markSessionSeen', 'app'],
+  ['app:notify', 'app'],
   ['app:openExternal', 'app'],
   ['app:readDraftBlob', 'app'],
   ['app:recordWorkspace', 'app'],

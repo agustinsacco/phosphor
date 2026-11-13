@@ -79,11 +79,6 @@
       "count": 1
     }
   },
-  "libs/client-ui/src/features/extension-ui/ExtensionUiHosts.tsx": {
-    "typescript/no-floating-promises": {
-      "count": 1
-    }
-  },
   "libs/client-ui/src/features/files/FuzzyFinder.test.tsx": {
     "typescript/no-floating-promises": {
       "count": 2

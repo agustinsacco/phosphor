@@ -8,6 +8,8 @@ import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
 import { FeedbackModal } from '@/features/feedback/FeedbackModal'
 import { useBrainSync } from '@/features/brain/useBrain'
+import { attachPrTransitions } from '@/stores/prTransitions'
+import { useEffect } from 'react'
 
 /** Shell-owned overlays survive sidebar visibility changes. */
 export function AppOverlays({
@@ -18,6 +20,8 @@ export function AppOverlays({
   ready: boolean
 }): React.JSX.Element {
   useBrainSync(ready)
+  // PR change notices: the toast, the drawer and, in the background, macOS.
+  useEffect(() => attachPrTransitions(), [])
   return (
     <>
       <ContextMenuHost />
