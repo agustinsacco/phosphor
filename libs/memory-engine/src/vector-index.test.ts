@@ -1,8 +1,9 @@
 import { DatabaseSync } from 'node:sqlite'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { buildBenchmark, clusteredVector } from './benchmark-fixture'
 import { cosine } from './vectors'
-import { searchFixture } from './test-support'
+import { VectorIndex } from './vector-index'
+import { fixture, searchFixture } from './test-support'
 
 it('staged sign-bit candidates retain exact top ten on deterministic clustered fixtures', async () => {
   const { search, path } = searchFixture()
@@ -26,4 +27,32 @@ it('staged sign-bit candidates retain exact top ten on deterministic clustered f
   } finally {
     db.close()
   }
+})
+
+it('reranks a shortlist with one indexed vector read, in primary-key order', async () => {
+  const { db } = fixture()
+  buildBenchmark(db, 250, 2500)
+  const ctx = { db, now: () => 1, id: () => 'unused' }
+  const index = (await new VectorIndex(ctx, 'memory').refresh(true, () => true))!
+  const calls: unknown[][] = []
+  const prepare = db.prepare.bind(db)
+  vi.spyOn(db, 'prepare').mockImplementation((sql) => {
+    const statement = prepare(sql)
+    if (!sql.includes('memory_vectors')) return statement
+    const all = statement.all.bind(statement)
+    const get = statement.get.bind(statement)
+    vi.spyOn(statement, 'all').mockImplementation((...args) => {
+      calls.push(args)
+      return all(...args)
+    })
+    vi.spyOn(statement, 'get').mockImplementation((...args) => {
+      calls.push(args)
+      return get(...args)
+    })
+    return statement
+  })
+  expect(index.nearest(clusteredVector(37), 10)).toHaveLength(10)
+  expect(calls).toHaveLength(1)
+  const numbers = JSON.parse(calls[0]![0] as string) as number[]
+  expect(numbers).toEqual(numbers.toSorted((a, b) => a - b))
 })
