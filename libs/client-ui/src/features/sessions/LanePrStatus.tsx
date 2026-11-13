@@ -1,194 +1,136 @@
-import { useEffect, useState } from 'react'
-import type { GhPullRequest } from '@shared/models'
-import { MenuRow } from '@/components/PopupMenu'
+import { useEffect, useRef, useState } from 'react'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { usePullRequestsStore, type RepoPullRequests } from '@/stores/pullRequests'
-import { usePrStatusStore } from '@/stores/prStatus'
+import { usePrInspectorStore } from '@/stores/prInspector'
 import { useLanePullRequests } from './useLanePrs'
-import { laneStatusRefs, type LanePr, type LanePrs } from './lanePrs'
-import { prChip, PR_CHIP_CLASSES } from './prChip'
+import type { LanePr, LanePrs } from './lanePrs'
 import { LaneHeaderPill } from './LaneHeaderPill'
+import { LanePrInspector, type InspectorLane } from './pr-inspector/LanePrInspector'
+import { lanePrLabel } from './pr-inspector/PrList'
+import { TONE_CHIP } from './pr-inspector/PrIcons'
+import { PrRail } from './pr-inspector/PrStageRail'
+import type { InspectorFocus } from './pr-inspector/usePrInspector'
 
 /**
- * A real tab stop in the title bar; sidebar row chips deliberately are not.
- * A lane without a pull request shows nothing: no placeholder, no "no PR".
- * The listing keeps refreshing underneath, so a PR opened later appears.
+ * The lane header's pull-request pill: the lead PR's number, its four-stage
+ * rail and `+N` for the lane's other PRs. A real tab stop that opens the
+ * lane's PR inspector; sidebar beads deliberately are not.
+ *
+ * A lane without a PR whose status is known shows nothing: no placeholder,
+ * no "no PR". The listing keeps refreshing underneath, so a PR opened later
+ * appears.
  */
 export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const { repoPath, ready, slice, prs, lead, branch } = useLanePullRequests(sessionId)
+  // Keyed by lane: switching lanes never carries an open inspector across.
+  const [openFor, setOpenFor] = useState<string | null>(null)
+  const [lane, setLane] = useState(sessionId)
+  if (lane !== sessionId) {
+    setLane(sessionId)
+    setOpenFor(null)
+  }
+  const open = openFor === sessionId
+  const { repoPath, ready, slice, prs, lead, branch, remote } = useLanePullRequests(sessionId, {
+    all: open,
+  })
   const enabled = useLanePrefsStore((s) => s.lanes.prStatus)
-  // A PR the lane opened elsewhere has no status until its first read: no placeholder.
-  if (!enabled || !repoPath || !lead?.pr) return null
+  const shown = enabled && !!repoPath && !!lead?.pr
+  useEffect(() => {
+    if (!shown) setOpenFor(null)
+  }, [shown])
+  if (!shown) return null
   return (
     <LanePrPill
       key={`${sessionId}:${repoPath}`}
-      repoPath={repoPath}
-      ready={ready}
-      slice={slice}
-      prs={prs}
+      sessionId={sessionId}
       lead={lead}
-      pr={lead.pr}
-      branch={lead.source === 'checkout' ? branch : undefined}
+      open={open}
+      onOpenChange={(next) => setOpenFor(next ? sessionId : null)}
+      lane={{ repoPath, ready, slice, prs, branch, remote }}
     />
   )
 }
 
-interface LanePrProps {
-  repoPath: string
-  ready: boolean
-  slice: RepoPullRequests
-  prs: LanePrs
-  lead: LanePr
-  pr: GhPullRequest
-  branch?: string
+/** "Pull request #57: Rocky review failed (not required). 1 more pull request." */
+export function lanePrPillLabel(lead: LanePr, prs: LanePrs): string {
+  const more = prs.owned.length - 1
+  const others = more > 0 ? ` ${more} more pull request${more === 1 ? '' : 's'}.` : ''
+  return `Pull request ${lanePrLabel(lead, prs)}: ${lead.verdict.headline}.${others}`
 }
 
-function LanePrPill(props: LanePrProps): React.JSX.Element {
-  const chip = prChip(props.pr)
-  const more = props.prs.owned.length - 1
+function LanePrPill({
+  sessionId,
+  lead,
+  open,
+  onOpenChange,
+  lane,
+}: {
+  sessionId: string
+  lead: LanePr
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  lane: InspectorLane
+}): React.JSX.Element {
+  const prompting = useRef(false)
+  const [focus, setFocus] = useState<InspectorFocus>()
+  useInspectorRequest(sessionId, (request) => {
+    setFocus(request)
+    onOpenChange(true)
+  })
+  const more = lane.prs.owned.length - 1
   return (
     <LaneHeaderPill
-      label={`Pull request: ${chip.title}${more > 0 ? `, and ${more} more` : ''}`}
+      label={lanePrPillLabel(lead, lane.prs)}
       testId="lane-pr-status"
-      variant={chip.variant}
-      className={PR_CHIP_CLASSES[chip.variant]}
+      variant={lead.verdict.tone}
+      className={TONE_CHIP[lead.verdict.tone]}
       face={
         <>
-          {`${chip.label} ${chip.glyph}`.trim()}
-          {more > 0 && <span className="opacity-70">+{more}</span>}
+          <span className="whitespace-nowrap">{lanePrLabel(lead, lane.prs)}</span>
+          {lead.pr && <PrRail pr={lead.pr} />}
+          {more > 0 && (
+            <span className="text-text-secondary ml-px border-l border-current/20 pl-1.5">
+              +{more}
+            </span>
+          )}
         </>
       }
       region="Pull request details"
+      popupClassName="w-[720px]"
+      open={open}
+      onOpenChange={(next) => {
+        // A manual open starts on the lead PR, not on the last request's.
+        if (!next) setFocus(undefined)
+        onOpenChange(next)
+      }}
+      holdOpen={() => prompting.current}
     >
-      {() => <LanePrContent {...props} />}
+      {(close) => (
+        <LanePrInspector
+          sessionId={sessionId}
+          lane={lane}
+          focus={focus}
+          onClose={close}
+          onPrompting={(value) => {
+            prompting.current = value
+          }}
+        />
+      )}
     </LaneHeaderPill>
   )
 }
 
-function refreshAll(repoPath: string, prs: LanePrs): void {
-  void usePullRequestsStore.getState().refresh(repoPath, { force: true })
-  void usePrStatusStore.getState().refresh(laneStatusRefs(prs), { force: true })
-}
-
-function LanePrContent({
-  repoPath,
-  ready,
-  slice,
-  prs,
-  pr,
-  branch,
-}: LanePrProps): React.JSX.Element {
-  const [linkError, setLinkError] = useState(false)
-  return (
-    <>
-      <div className="space-y-2 px-3 pb-2 text-sm">
-        <PrDetails pr={pr} />
-        <RefreshAge slice={slice} branch={branch} />
-        {prs.owned.length > 1 && (
-          <p>
-            Also in this lane:{' '}
-            {prs.owned
-              .slice(1)
-              .map((lane) => `#${lane.number}`)
-              .join(', ')}
-          </p>
-        )}
-        {!ready && <p>Repository unavailable. Reconnect to refresh.</p>}
-        {!slice.coverage && repoPath.startsWith('host:') && (
-          <p>The Host may reuse its repository cache for up to 60 seconds.</p>
-        )}
-        {linkError && <p role="alert">Could not open GitHub. Try again.</p>}
-      </div>
-      <MenuRow
-        active={false}
-        onClick={() => {
-          setLinkError(false)
-          void window.phosphor.invoke('app:openExternal', pr.url).catch(() => setLinkError(true))
-        }}
-      >
-        Open on GitHub ↗
-      </MenuRow>
-      <MenuRow
-        active={false}
-        disabled={!ready || slice.loading}
-        onClick={() => refreshAll(repoPath, prs)}
-      >
-        {slice.loading ? 'Refreshing…' : 'Refresh'}
-      </MenuRow>
-    </>
+/**
+ * Answer "open this lane's inspector" (a notice, the sidebar menu, Home):
+ * open, select the asked-for PR, and clear the request.
+ */
+function useInspectorRequest(sessionId: string, onRequest: (focus: InspectorFocus) => void): void {
+  const request = usePrInspectorStore((s) =>
+    s.request?.sessionId === sessionId ? s.request : null,
   )
-}
-
-function PrDetails({ pr }: { pr: GhPullRequest }): React.JSX.Element {
-  const checks = pr.checks
-  return (
-    <>
-      <p className="font-semibold">
-        #{pr.number} {pr.title}
-      </p>
-      <p>State: {pr.state.toLowerCase()}</p>
-      <p>
-        Checks:{' '}
-        {checks
-          ? `${checks.passed} passed · ${checks.failed} failed · ${checks.pending} running · ${checks.total} total`
-          : 'unavailable'}
-      </p>
-      <p>
-        Review:{' '}
-        {pr.reviewDecision === 'APPROVED'
-          ? 'approved'
-          : pr.reviewDecision === 'CHANGES_REQUESTED'
-            ? 'changes requested'
-            : pr.reviewDecision === 'REVIEW_REQUIRED'
-              ? 'required'
-              : 'unavailable'}
-      </p>
-      <p>
-        Conflicts:{' '}
-        {pr.mergeable === 'CONFLICTING'
-          ? 'has merge conflicts'
-          : pr.mergeable === 'MERGEABLE'
-            ? 'none reported'
-            : 'unavailable'}
-      </p>
-    </>
-  )
-}
-
-function RefreshAge({
-  slice,
-  branch,
-}: {
-  slice: RepoPullRequests
-  branch?: string
-}): React.JSX.Element {
-  const coverage = branch ? slice.coverage?.[branch] : undefined
-  const [now, setNow] = useState(Date.now)
+  const answer = useRef(onRequest)
+  answer.current = onRequest
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1_000)
-    return () => clearInterval(timer)
-  }, [])
-  const age = (at: number): string => `${Math.max(0, Math.floor((now - at) / 1_000))}s ago`
-  return (
-    <div>
-      {slice.loading && <p role="status">Refreshing repository…</p>}
-      {slice.coverage
-        ? coverage?.state === 'unavailable' && (
-            <p>
-              Last upstream attempt failed ({age(coverage.attemptedAt)}).{' '}
-              {coverage.checkedAt > 0 ? 'Showing stale status.' : 'Status unavailable.'}
-            </p>
-          )
-        : slice.failed && <p>Last app attempt failed ({age(slice.attemptedAt)}).</p>}
-      <p>
-        {slice.coverage
-          ? coverage?.checkedAt
-            ? `Last upstream check: ${age(coverage.checkedAt)}`
-            : 'No successful upstream check yet.'
-          : slice.fetchedAt
-            ? `Last successful app refresh: ${age(slice.fetchedAt)}`
-            : 'No successful app refresh yet.'}
-      </p>
-    </div>
-  )
+    if (!request) return
+    const taken = usePrInspectorStore.getState().take(sessionId)
+    if (taken) answer.current({ key: taken.key, at: taken.at })
+  }, [request, sessionId])
 }

@@ -1,0 +1,83 @@
+/*
+ * The PR stage rail and the inspector's one-column layout. Colours are theme
+ * tokens; nothing here is a hex value.
+ */
+
+/* A running stage: a warning dash that drifts, still when motion is reduced. */
+.pr-rail-run {
+  background: repeating-linear-gradient(90deg, var(--px-warning) 0 3px, transparent 3px 5px);
+  background-size: 10px 100%;
+  animation: pr-rail-drift 1.2s linear infinite;
+}
+@keyframes pr-rail-drift {
+  to {
+    background-position: 10px 0;
+  }
+}
+.pr-rail-part {
+  background: linear-gradient(90deg, var(--px-success) 0 50%, var(--px-border-strong) 50%);
+}
+.pr-lrail-run {
+  border-top-style: dashed;
+}
+.pr-lrail-part {
+  border-image: linear-gradient(90deg, var(--px-success) 50%, var(--px-border-strong) 50%) 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-rail-run {
+    animation: none;
+  }
+}
+
+/* A long title clamps; the full text is in its tooltip. */
+.pr-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/*
+ * The inspector is two columns when there is room. Narrow, its list becomes a
+ * row of chips above the body. A phone's popup sheet is always this narrow.
+ */
+.pr-inspector {
+  container-type: inline-size;
+}
+.pr-inspector-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+@container (max-width: 620px) {
+  .pr-inspector-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .pr-inspector-list {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--px-border);
+    padding: 6px;
+  }
+  .pr-inspector-list [data-pr-group-label],
+  .pr-inspector-list [data-pr-item-headline] {
+    display: none;
+  }
+  .pr-inspector-list [role='option'] {
+    flex: none;
+    width: 180px;
+    margin: 0;
+  }
+  .pr-inspector-list .pr-clamp-2 {
+    -webkit-line-clamp: 1;
+  }
+  .pr-inspector-list [data-pr-track] {
+    flex: none;
+    align-self: center;
+    white-space: nowrap;
+  }
+}
