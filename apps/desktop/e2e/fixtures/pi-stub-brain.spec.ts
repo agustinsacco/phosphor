@@ -196,3 +196,69 @@ test('Brain stub fails the first extract once, then succeeds from the same marke
     await rm(directory, { recursive: true, force: true })
   }
 })
+
+test('Brain stub reuses registry handles for lower-case component sentences', async () => {
+  const source = makeWindow([
+    {
+      entryId: 'source',
+      role: 'user',
+      label: 'You',
+      observedAt: 0,
+      text: 'ledger export is part of Harbor.',
+    },
+  ])
+  const registry = [
+    {
+      ref: 'r1',
+      label: 'ledger export',
+      kind: 'component' as const,
+      aliases: [],
+      description: '',
+      keys: [],
+    },
+    {
+      ref: 'r2',
+      label: 'Harbor',
+      kind: 'project' as const,
+      aliases: [],
+      description: '',
+      keys: [],
+    },
+  ]
+  const result = await call(EXTRACTION_SYSTEM, extractPrompt(source, registry))
+  const answer = parseStageExtraction(result.message.content[0].text, source, registry)
+  expect(answer.entities).toEqual([])
+  expect(answer.claims).toHaveLength(1)
+  expect(answer.claims[0]!.links).toEqual([
+    {
+      subject: 'r1',
+      predicate: 'part_of',
+      object: 'r2',
+      segment: 's1',
+      quote: source.segments[0]!.text,
+    },
+  ])
+})
+
+for (const [stage, system, prompt] of [
+  [
+    'identity',
+    IDENTITY_SYSTEM,
+    identityPrompt([{ entity: { ref: 'w1:n1', label: 'Harbor' }, candidates: [] }]),
+  ],
+  ['parents', PARENTS_SYSTEM, parentsPrompt([{ ref: 'r1', label: 'Harbor' }], [], '')],
+  [
+    'reconcile',
+    RECONCILE_SYSTEM,
+    reconcilePrompt([
+      { claim: { ref: 'w1:c1', memory: { summary: 'Harbor exists.' } }, candidates: [] },
+    ]),
+  ],
+]) {
+  test(`Brain stub repairs ${stage} with its original system prompt`, async () => {
+    const normal = await call(system!, prompt!)
+    const repaired = await call(system!, repairPrompt(prompt!, '{}', 'Missing decisions'))
+    expect(repaired.code).toBe(0)
+    expect(repaired.message.content).toEqual(normal.message.content)
+  })
+}
