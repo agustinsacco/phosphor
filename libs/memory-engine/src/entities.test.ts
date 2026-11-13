@@ -1,3 +1,4 @@
+import { wordRows } from './candidates'
 import { describe, expect, it } from 'vitest'
 import { approve, extraction, fixture, vector } from './test-support'
 import { fold, mentions, wholePhrase } from './text'
@@ -65,4 +66,15 @@ describe('Brain entity identities and indexed candidates', () => {
     })
     expect(store.overview(300).nodes.filter((item) => item.label === 'Tom Lee')).toHaveLength(2)
   })
+})
+
+it('uses actual word document frequencies when picking six OR fallback terms', () => {
+  const { db } = fixture()
+  const insert = db.prepare('INSERT INTO memory_words(rowid,summary) VALUES (?,?)')
+  for (let n = 1; n <= 150; n++) insert.run(n, 'amber birch cedar dune elm fir')
+  for (let n = 151; n <= 251; n++) insert.run(n, 'garnet')
+  const ctx = { db, now: Date.now, id: () => 'unused' }
+  expect(wordRows(ctx, 'memory_words', 'amber birch cedar dune elm fir garnet', 300)).toHaveLength(
+    251,
+  )
 })
