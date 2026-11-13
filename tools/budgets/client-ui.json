@@ -164,7 +164,7 @@
     "src/features/worktrees/BranchPicker.tsx::BranchPicker[1]": 368,
     "src/features/worktrees/MergeWorktreeModal.tsx::MergeWorktreeModal[1]": 168,
     "src/features/worktrees/RemoveWorktreeModal.tsx::RemoveWorktreeModal[1]": 122,
-    "src/lib/modelSearch.ts::file": 640,
+    "src/lib/modelSearch.ts::file": 562,
     "src/lib/monaco.ts::loadMonaco[1]": 97,
     "src/lib/writing/predictor.ts::createPredictor[1]": 134,
     "src/stores/artifacts.ts::useArtifactsStore[1]": 139,
