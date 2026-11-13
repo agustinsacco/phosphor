@@ -29,7 +29,7 @@ describe('Brain jobs', () => {
     const fourth = store.enqueue(lane({ sessionId: 'other' }), 'queued')
     expect(store.snapshot().jobs.map((job) => job.id)).toEqual([third.id, fourth.id])
   })
-  it.each(['empty', 'failed'] as const)(
+  it.each(['failed'] as const)(
     'permits retries of a %s job and dismissal deletes its proposal',
     (state) => {
       const { store, db } = fixture()
@@ -57,7 +57,7 @@ describe('Brain jobs', () => {
     store.requeueInterrupted()
     expect(store.job(running.id)).toMatchObject({
       state: 'queued',
-      startedAt: null,
+      startedAt: 50,
       error: null,
       finishedAt: null,
     })
@@ -81,4 +81,25 @@ describe('Brain jobs', () => {
     const { store } = fixture()
     expect(() => store.updateJob('absent', { state: 'running' })).toThrow('Brain job not found.')
   })
+})
+
+it('retries the same failed job with frozen leaf and hash-keyed checkpoints', () => {
+  const { store, db } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  store.updateJob(job.id, { state: 'running', startedAt: 10, leafId: 'frozen' })
+  store.savePart(job.id, { part: 'window-1', inputHash: 'a', output: 'answer' })
+  store.updateJob(job.id, { state: 'failed', error: 'stopped' })
+  expect(store.retry(job.id)).toMatchObject({ id: job.id, state: 'queued', leafId: 'frozen' })
+  expect(store.part(job.id, 'window-1', 'a')?.output).toBe('answer')
+  expect(store.part(job.id, 'window-1', 'b')).toBeUndefined()
+  expect(() => store.updateJob(job.id, { leafId: 'moved' })).toThrow('frozen')
+  store.removeJob(job.id)
+  expect(db.prepare('SELECT * FROM job_parts').all()).toEqual([])
+})
+it('allows unchanged finished leaves only when their extractor version changed', () => {
+  const { store, db } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  store.updateJob(job.id, { state: 'done' })
+  db.prepare('UPDATE jobs SET extractor=3 WHERE id=?').run(job.id)
+  expect(store.enqueue(lane(), 'queued').id).not.toBe(job.id)
 })

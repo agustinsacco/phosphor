@@ -1,75 +1,56 @@
 import { describe, expect, it } from 'vitest'
 import { approve, extraction, fixture, lane, vector } from './test-support'
-import { cosine } from './vectors'
 
-describe('Brain proposal deduplication', () => {
-  it('keeps the first within a proposal at cosine >= 0.86 and retains a just-below candidate', () => {
-    const { store } = fixture()
-    const job = store.enqueue(lane(), 'queued')
-    const data = extraction(job.id)
-    const at = vector(0.86, Math.sqrt(1 - 0.86 ** 2))
-    const below = vector(0.8599, 0, Math.sqrt(1 - 0.8599 ** 2))
-    expect(cosine(vector(1), at)).toBeGreaterThanOrEqual(0.86)
-    expect(cosine(vector(1), below)).toBeLessThan(0.86)
-    data.memories = [
-      data.memories[0]!,
-      { ...data.memories[0]!, summary: 'Reworded ownership.' },
-      data.memories[1]!,
-    ]
-    data.vectors = [vector(1), at, below]
-    expect(store.propose(data)).toMatchObject({ kept: 2, duplicates: 1 })
-    expect(store.proposal(job.id).memories.map((item) => item.memory.summary)).toEqual([
-      data.memories[0]!.summary,
-      data.memories[2]!.summary,
-    ])
-    store.review(job.id, [0, 1], 0)
-    expect(store.knowledge().memories).toHaveLength(2)
-  })
-  it('reconfirms active memories and keeps confirmation-only proposals reviewable', () => {
+describe('Brain v4 proposals', () => {
+  it('does not auto-confirm high cosine with different endpoints or negation', () => {
     const { store } = fixture()
     approve(store)
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
-    expect(store.propose(extraction(job.id))).toMatchObject({
-      kept: 0,
-      duplicates: 0,
-      reconfirmed: 2,
-    })
-    expect(store.job(job.id)).toMatchObject({ state: 'review', memories: 0 })
-    expect(store.proposal(job.id).confirmations).toHaveLength(2)
+    const data = extraction(job.id, { computedRevision: store.revision() })
+    data.memories[0]!.summary = 'Rina does not own Harbor.'
+    data.memoryVectors = [vector(1), vector(1)]
+    expect(store.propose(data)).toMatchObject({ memories: 2, confirmations: 0 })
+    expect(store.proposal(job.id).memories[0]?.summary).toBe('Rina does not own Harbor.')
   })
-  it('does not dedup against superseded memories, but an exemption only covers its named target', () => {
-    const { store, db } = fixture()
+  it('surfaces same-link, shared-entity and changed-owner candidates', () => {
+    const { store } = fixture()
     approve(store)
-    const old = store.knowledge().memories.find((item) => item.summary.includes('owns'))!
-    const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
-    const data = extraction(job.id)
-    data.memories = [{ ...data.memories[0]!, supersedes: old.id }]
-    data.vectors = [vector(0, 1)]
-    expect(store.propose(data)).toMatchObject({ kept: 0, duplicates: 0, reconfirmed: 1 })
-    db.prepare("UPDATE memories SET state='superseded' WHERE id=?").run(old.id)
-    data.vectors = [vector(1)]
-    data.memories[0]!.supersedes = null
-    expect(store.propose(data)).toMatchObject({ kept: 1, duplicates: 0 })
+    const nodes = store.overview(300).nodes
+    const harbor = nodes.find((item) => item.label === 'Harbor')!.id
+    const tom = nodes.find((item) => item.label === 'Tom Lee')!.id
+    const old = store
+      .entityMemories(harbor, {}, null)
+      .memories.find((item) => item.summary.includes('owns'))!
+    expect(
+      store.memoryMatches(
+        [{ entityIds: [tom], links: [{ subjectId: tom, predicate: 'owns', objectId: harbor }] }],
+        5,
+      )[0],
+    ).toContain(old.id)
   })
-  it('replaces a proposal and its vectors without leaving old rows', () => {
+  it('replaces proposals and both vector kinds without old rows', () => {
     const { store, db } = fixture()
     const job = store.enqueue(lane(), 'queued')
     store.propose(extraction(job.id))
-    const data = extraction(job.id)
-    data.memories = [data.memories[1]!]
-    data.vectors = [vector(0, 1)]
-    store.propose(data)
-    expect(store.proposal(job.id).memories[0]?.memory.summary).toContain('Tom Lee')
-    expect(db.prepare('SELECT COUNT(*) AS n FROM proposal_vectors').get()).toEqual({ n: 1 })
+    const next = extraction(job.id)
+    next.memories = next.memories.slice(1)
+    next.memoryVectors = [vector()]
+    store.propose(next)
+    expect(store.proposal(job.id).memories[0]?.summary).toContain('Tom Lee')
+    expect(db.prepare('SELECT COUNT(*) AS n FROM proposal_vectors').get()).toEqual({ n: 4 })
+    expect(store.storedProposal(job.id)?.memoryVectors[0]).toEqual(vector())
   })
-  it('validates vectors before changing the proposal', () => {
+  it('validates vector counts, refs, targets and link evidence before writing', () => {
     const { store } = fixture()
     const job = store.enqueue(lane(), 'queued')
     const data = extraction(job.id)
-    data.vectors = [new Float32Array(3), vector(0, 1)]
-    expect(() => store.propose(data)).toThrow('768 finite values')
+    data.memoryVectors = []
+    expect(() => store.propose(data)).toThrow('vector count')
+    data.memoryVectors = [new Float32Array(3), vector()]
+    expect(() => store.propose(data)).toThrow('768 finite')
+    data.memoryVectors = [vector(), vector()]
+    data.memories[0]!.links[0]!.subject = 'absent'
+    expect(() => store.propose(data)).toThrow('entity not found')
     expect(store.job(job.id)?.state).toBe('queued')
-    data.vectors = []
-    expect(() => store.propose(data)).toThrow('missing a vector')
   })
 })
