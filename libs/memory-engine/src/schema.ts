@@ -24,6 +24,8 @@ export function reset(ctx: Context): void {
         generation: ctx.id(),
         memories: '0',
         entities: '0',
+        entity_bits: '0',
+        memory_bits: '0',
       })) {
         run(ctx, 'INSERT INTO meta VALUES (?,?)', key, value)
       }
@@ -87,6 +89,10 @@ CREATE TABLE memory_vectors(memory INTEGER PRIMARY KEY REFERENCES memories(n) ON
 CREATE TABLE memory_bits(memory INTEGER PRIMARY KEY REFERENCES memories(n) ON DELETE CASCADE, bits BLOB NOT NULL);
 CREATE TABLE entity_vectors(entity INTEGER PRIMARY KEY REFERENCES entities(n) ON DELETE CASCADE, vector BLOB NOT NULL);
 CREATE TABLE entity_bits(entity INTEGER PRIMARY KEY REFERENCES entities(n) ON DELETE CASCADE, bits BLOB NOT NULL);
+CREATE TRIGGER entity_bits_insert AFTER INSERT ON entity_bits BEGIN UPDATE meta SET value=CAST(value AS INTEGER)+(1) WHERE key='entity_bits'; END;
+CREATE TRIGGER entity_bits_delete AFTER DELETE ON entity_bits BEGIN UPDATE meta SET value=CAST(value AS INTEGER)+(-1) WHERE key='entity_bits'; END;
+CREATE TRIGGER memory_bits_insert AFTER INSERT ON memory_bits BEGIN UPDATE meta SET value=CAST(value AS INTEGER)+(1) WHERE key='memory_bits'; END;
+CREATE TRIGGER memory_bits_delete AFTER DELETE ON memory_bits BEGIN UPDATE meta SET value=CAST(value AS INTEGER)+(-1) WHERE key='memory_bits'; END;
 CREATE TABLE jobs(id TEXT PRIMARY KEY, session_id TEXT NOT NULL, session_path TEXT NOT NULL, title TEXT NOT NULL,
   scope TEXT NOT NULL, branch TEXT, model TEXT NOT NULL, state TEXT NOT NULL, memories INTEGER NOT NULL,
   leaf_id TEXT, error TEXT, queued_at INTEGER NOT NULL, started_at INTEGER, finished_at INTEGER, usage TEXT,

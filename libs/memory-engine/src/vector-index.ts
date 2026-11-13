@@ -37,11 +37,10 @@ export class VectorIndex {
     this.bits = bits
   }
   stale(): boolean {
-    const table = this.kind === 'entity' ? 'entities' : 'memories'
-    const actual = one<{ total: number }>(
-      this.ctx,
-      `SELECT COUNT(*) AS total FROM ${this.kind}_bits b JOIN ${table} t ON t.n=b.${this.kind}`,
-    )!.total
+    const actual = Number(
+      one<{ value: string }>(this.ctx, 'SELECT value FROM meta WHERE key=?', `${this.kind}_bits`)
+        ?.value ?? 0,
+    )
     return this.numbers.length > 0 && actual < this.numbers.length * 0.8
   }
   nearest(vector: Float32Array, k: number): Neighbour[] {

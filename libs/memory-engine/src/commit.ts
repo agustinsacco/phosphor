@@ -11,32 +11,25 @@ export interface CommitContext {
   ctx: Context
   proposal: Proposal
   resolve: (ref: string) => string
-  evidence: Map<number, number>
+  evidence: Map<string, number>
   touched: Set<number>
 }
 export function insertEvidence(commit: CommitContext, index: number): number {
-  const cached = commit.evidence.get(index)
-  if (cached !== undefined) return cached
   const { ctx, proposal } = commit
   const e = proposal.evidence[index]!
   const clean = scrubExcerpt(e.text)
-  let n = one<{ n: number }>(
-    ctx,
-    'SELECT n FROM evidence WHERE session_id=? AND entry_id=? AND text=? LIMIT 1',
-    e.sessionId,
-    e.entryId,
-    clean,
-  )?.n
-  if (n === undefined)
-    n = Number(
-      ctx.db
-        .prepare(
-          'INSERT INTO evidence(session_id,entry_id,role,label,observed_at,text) VALUES (?,?,?,?,?,?)',
-        )
-        .run(e.sessionId, e.entryId, e.role, scrubExcerpt(e.label), e.observedAt, clean)
-        .lastInsertRowid,
-    )
-  commit.evidence.set(index, n)
+  const key = JSON.stringify([e.sessionId, e.entryId, clean])
+  const cached = commit.evidence.get(key)
+  if (cached !== undefined) return cached
+  const n = Number(
+    ctx.db
+      .prepare(
+        'INSERT INTO evidence(session_id,entry_id,role,label,observed_at,text) VALUES (?,?,?,?,?,?)',
+      )
+      .run(e.sessionId, e.entryId, e.role, scrubExcerpt(e.label), e.observedAt, clean)
+      .lastInsertRowid,
+  )
+  commit.evidence.set(key, n)
   return n
 }
 export function insertCitations(
@@ -211,6 +204,7 @@ export function applyMemory(
       )
       run(ctx, 'UPDATE relations SET live=0 WHERE memory=?', target)
       run(ctx, 'DELETE FROM memory_words WHERE rowid=?', target)
+      run(ctx, 'DELETE FROM memory_bits WHERE memory=?', target)
       adjustCount(ctx, 'memories', -1)
     }
     run(
