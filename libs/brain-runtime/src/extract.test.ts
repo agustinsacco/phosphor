@@ -119,3 +119,10 @@ it('does not propose after cancellation while embedding, and scrubs failed call 
   await expect(extractJob(t.job, signal(), t.store, t.options, t.search)).rejects.toThrow()
   expect(JSON.stringify(t.store.extraction(t.job.id))).not.toContain('harbor-secret')
 })
+
+it('keeps an outcome for each validated claim when a later stage fails',async()=>{
+  const s=await setup()
+  vi.mocked(s.options.embeddings.embed).mockRejectedValueOnce(new Error('Fake embedding failure'))
+  await expect(extractJob(s.job,signal(),s.store,s.options,s.search)).rejects.toThrow('Fake embedding failure')
+  expect(s.store.extraction(s.job.id).outcomes).toContainEqual(expect.objectContaining({candidate:'w1:c1',status:'dropped',reason:'Run failed before proposal'}))
+})

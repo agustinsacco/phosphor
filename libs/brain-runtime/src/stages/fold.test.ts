@@ -38,3 +38,12 @@ it('folds equal claims and links across overlapping windows with merged evidence
   expect(job.evidence).toHaveLength(1)
   expect(job.outcomes.some((o) => o.candidate === 'w2:c1' && o.status === 'folded')).toBe(true)
 })
+
+it('records every link rejected because folded endpoints became the same entity',()=>{
+  const extraction=structuredClone(RAW_EXTRACTION)
+  extraction.entities[0]={...extraction.entities[1]!,ref:'n1'}
+  const window=makeWindow([{entryId:'u',role:'user',label:'You',observedAt:0,text:RAW_EXTRACTION.claims[0]!.text}])
+  const job=foldParts([{key:'w1',window,extraction,truncated:false}],'lane')
+  expect(job.claims[0]!.memory.links).toEqual([])
+  expect(job.outcomes).toContainEqual(expect.objectContaining({candidate:'c1:link:1',status:'dropped',reason:'Identity folding made both link endpoints the same entity'}))
+})
