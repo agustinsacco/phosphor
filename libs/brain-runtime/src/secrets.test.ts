@@ -18,6 +18,8 @@ it('redacts conservative international and formatted phone numbers, not dates or
 })
 
 it('redacts international formatted phone numbers without treating long plain ids as contacts', () => {
-  expect(scrubExcerpt('Call +44 20 7946 0958 or (415)5550123.')).toBe('Call [redacted] or [redacted].')
+  expect(scrubExcerpt('Call +44 20 7946 0958 or (415)5550123.')).toBe(
+    'Call [redacted] or [redacted].',
+  )
   expect(scrubExcerpt('Ledger id 123456789012')).toBe('Ledger id 123456789012')
 })

@@ -107,7 +107,10 @@ export class FakeBrainStore implements BrainStore {
   savePart(id: string, part: JobPart): void {
     this.parts.set(`${id}:${part.part}:${part.inputHash}`, structuredClone(part))
   }
-  entityMatches(probes: unknown[], _limit: number): EntityMatch[][] {
+  entityMatches(
+    probes: Parameters<BrainStore['entityMatches']>[0],
+    _limit: number,
+  ): EntityMatch[][] {
     return probes.map((_p, i) => this.matches[i] ?? [])
   }
   entityCards(ids: string[]): EntityCard[] {

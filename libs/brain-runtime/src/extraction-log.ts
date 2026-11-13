@@ -1,6 +1,6 @@
 import type { BrainJob } from '@phosphor/shared/brain'
 import type { BrainServiceOptions } from './types'
-import type { ForkTrace } from './call-trace'
+import type { CallTrace } from './call-trace'
 import { traceDiagnostic } from './call-trace'
 
 /** One job context follows failures through preparation, fork and local processing. */
@@ -9,7 +9,7 @@ export class ExtractionLog {
   model: string
   thinking: string | null = null
   laneBytes: number | null = null
-  trace: ForkTrace | null = null
+  trace: CallTrace | null = null
   diagnostic: string | undefined
   private readonly started: number
   private readonly now: () => number

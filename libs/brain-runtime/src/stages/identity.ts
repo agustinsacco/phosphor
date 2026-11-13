@@ -36,6 +36,8 @@ async function candidates(
   store: BrainStore,
   search: BrainSearchPort,
   vectors: Float32Array[],
+  pool: StageEntity[],
+  anchors: ProposalEntity[],
 ): Promise<Row[]> {
   const matches = store.entityMatches(job.entities, 20)
   const semantic = await search.nearestEntities(vectors, 20)
@@ -43,6 +45,7 @@ async function candidates(
     store
       .entityCards([
         ...new Set([
+          ...anchors.flatMap((e) => (e.entityId ? [e.entityId] : [])),
           ...matches.flatMap((m) => m.map((v) => v.entityId)),
           ...semantic.flatMap((m) => m.map((v) => v.id)),
         ]),
@@ -80,22 +83,7 @@ async function candidates(
           local: false,
         })
     }
-    for (const other of job.entities) {
-      if (other.ref === entity.ref) continue
-      const score = overlap(entity, other)
-      const sharedKey = entity.keys.some((k) =>
-        other.keys.some((o) => k.namespace === o.namespace && k.value === o.value),
-      )
-      if (score || sharedKey)
-        byId.set(other.ref, {
-          id: other.ref,
-          card: localCard(other),
-          score: sharedKey ? 1000 : score,
-          key: sharedKey,
-          exact: exact(entity, localCard(other)),
-          local: true,
-        })
-    }
+    addJobCandidates(entity, pool, anchors, cards, byId)
     return {
       entity,
       candidates: [...byId.values()]
@@ -104,7 +92,40 @@ async function candidates(
     }
   })
 }
-function automatic(row: Row, job: FoldedJob, resolved: Map<string, string>): Candidate | undefined {
+function addJobCandidates(
+  entity: StageEntity,
+  pool: StageEntity[],
+  anchors: ProposalEntity[],
+  cards: Map<string, EntityCard>,
+  byId: Map<string, Candidate>,
+): void {
+  for (const other of pool) {
+    if (other.ref === entity.ref) continue
+    const score = overlap(entity, other)
+    const sharedKey = entity.keys.some((k) =>
+      other.keys.some((o) => k.namespace === o.namespace && k.value === o.value),
+    )
+    if (!score && !sharedKey) continue
+    const anchor = anchors.find((e) => e.ref === other.ref)?.entityId
+    const id = anchor ?? other.ref,
+      card = anchor ? (cards.get(anchor) ?? { ...localCard(other), id: anchor }) : localCard(other)
+    const previous = byId.get(id)
+    byId.set(id, {
+      id,
+      card,
+      score: Math.max(previous?.score ?? 0, sharedKey ? 1000 : score),
+      key: sharedKey || previous?.key === true,
+      exact: exact(entity, card),
+      local: !anchor,
+    })
+  }
+}
+function automatic(
+  row: Row,
+  job: FoldedJob,
+  resolved: Map<string, string>,
+  pool: StageEntity[],
+): Candidate | undefined {
   const keys = row.candidates.filter((c) => c.key)
   if (keys.length === 1) return keys[0]
   const neighbourLabels = job.claims
@@ -114,7 +135,7 @@ function automatic(row: Row, job: FoldedJob, resolved: Map<string, string>): Can
       ),
     )
     .filter((id) => resolved.has(id))
-    .flatMap((id) => job.entities.filter((e) => e.ref === id).map((e) => fold(e.label)))
+    .flatMap((id) => pool.filter((e) => e.ref === id).map((e) => fold(e.label)))
   const names = row.candidates.filter(
     (c) => c.exact && neighbourLabels.some((n) => c.card.neighbours.some((v) => fold(v) === n)),
   )
@@ -150,46 +171,30 @@ export async function resolveIdentities(
   search: BrainSearchPort,
   vectors: Float32Array[],
   ask: StageAsk,
+  pool: StageEntity[] = job.entities,
+  anchors: ProposalEntity[] = [],
 ): Promise<IdentityResult> {
-  const rows = await candidates(job, store, search, vectors),
+  const rows = await candidates(job, store, search, vectors, pool, anchors),
     entities: ProposalEntity[] = [],
     redirects = new Map<string, string>(),
-    resolved = new Map<string, string>(),
+    resolved = new Map<string, string>(
+      anchors.flatMap((e) => (e.entityId ? [[e.ref, e.entityId]] : [])),
+    ),
     ambiguous: Row[] = []
-  const add = (
-    row: Row,
-    decision: ProposalEntity['decision'],
-    candidate: Candidate | undefined,
-    reason: string,
-    auto: boolean,
-  ) => {
-    if (candidate?.local) {
-      const target = redirect(candidate.id, redirects)
-      if (target !== row.entity.ref) redirects.set(row.entity.ref, target)
-      job.outcomes.push({
-        candidate: row.entity.ref,
-        summary: row.entity.label,
-        status: 'folded',
-        reason: `Identity reuse of job entity ${target}: ${reason}`,
-      })
-    }
-    if (candidate && !candidate.local) resolved.set(row.entity.ref, candidate.id)
-    entities.push({
-      ...row.entity,
-      decision: candidate?.local ? 'new' : decision,
-      entityId: candidate && !candidate.local ? candidate.id : null,
-      candidates: row.candidates
-        .filter((c) => !c.local)
-        .slice(0, 8)
-        .map((c) => c.id),
-      reason,
-      auto,
-    })
-  }
+  const state = { job, entities, redirects, resolved }
   for (const row of rows) {
-    const chosen = automatic(row, job, resolved)
-    if (chosen) add(row, 'reuse', chosen, 'Unique key or exact name with resolved neighbour', true)
-    else if (!row.candidates.length) add(row, 'new', undefined, 'No identity candidates', true)
+    const chosen = automatic(row, job, resolved, pool)
+    if (chosen)
+      addDecision(
+        state,
+        row,
+        'reuse',
+        chosen,
+        'Unique key or exact name with resolved neighbour',
+        true,
+      )
+    else if (!row.candidates.length)
+      addDecision(state, row, 'new', undefined, 'No identity candidates', true)
     else ambiguous.push(row)
   }
   for (let i = 0; i < ambiguous.length; i += 8) {
@@ -207,7 +212,8 @@ export async function resolveIdentities(
       { rows },
     )
     for (const d of decisions)
-      add(
+      addDecision(
+        state,
         batch.find((r) => r.entity.ref === d.ref)!,
         d.action,
         d.candidate,
@@ -216,7 +222,9 @@ export async function resolveIdentities(
       )
   }
   for (const [source] of redirects) {
-    const target = entities.find((e) => e.ref === redirect(source, redirects)),
+    const target =
+        entities.find((e) => e.ref === redirect(source, redirects)) ??
+        pool.find((e) => e.ref === redirect(source, redirects)),
       from = entities.find((e) => e.ref === source)
     if (target && from) mergeEntity(target, from)
   }
@@ -224,4 +232,48 @@ export async function resolveIdentities(
   job.parents = job.parents.map((p) => ({ ...p, entity: redirect(p.entity, redirects) }))
   job.entities = entities.filter((e) => !redirects.has(e.ref))
   return { entities: entities.filter((e) => !redirects.has(e.ref)), redirects }
+}
+
+function addDecision(
+  {
+    job,
+    entities,
+    redirects,
+    resolved,
+  }: {
+    job: FoldedJob
+    entities: ProposalEntity[]
+    redirects: Map<string, string>
+    resolved: Map<string, string>
+  },
+  row: Row,
+  decision: ProposalEntity['decision'],
+  candidate: Candidate | undefined,
+  reason: string,
+  auto: boolean,
+): void {
+  if (candidate?.local) {
+    const target = redirect(candidate.id, redirects)
+    if (target !== row.entity.ref) {
+      redirects.set(row.entity.ref, target)
+      job.outcomes.push({
+        candidate: row.entity.ref,
+        summary: row.entity.label,
+        status: 'folded',
+        reason: `Identity reuse of job entity ${target}: ${reason}`,
+      })
+    }
+  }
+  if (candidate && !candidate.local) resolved.set(row.entity.ref, candidate.id)
+  entities.push({
+    ...row.entity,
+    decision: candidate?.local ? 'new' : decision,
+    entityId: candidate && !candidate.local ? candidate.id : null,
+    candidates: row.candidates
+      .filter((c) => !c.local)
+      .slice(0, 8)
+      .map((c) => c.id),
+    reason,
+    auto,
+  })
 }

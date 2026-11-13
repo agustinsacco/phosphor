@@ -104,7 +104,7 @@ function messageSegments(
         add(
           'assistant',
           `Agent · ${block.name ?? 'tool'} call`,
-          truncateTool(JSON.stringify(block.arguments ?? {}), TOOL_ARGS_CHARS),
+          truncateTool(scrubExcerpt(JSON.stringify(block.arguments ?? {})), TOOL_ARGS_CHARS),
         )
     }
   } else if (role === 'toolResult')
@@ -112,7 +112,7 @@ function messageSegments(
       'toolResult',
       `Tool output · ${message.toolName ?? 'tool'}`,
       truncateTool(
-        text,
+        scrubExcerpt(text),
         /read|fetch|document|browse|web/i.test(message.toolName ?? '')
           ? DOCUMENT_TOOL_CHARS
           : undefined,

@@ -128,6 +128,10 @@
       "types": "./src/stage-types.ts",
       "default": "./src/stage-types.ts"
     },
+    "./stages/budget": {
+      "types": "./src/stages/budget.ts",
+      "default": "./src/stages/budget.ts"
+    },
     "./stages/extract": {
       "types": "./src/stages/extract.ts",
       "default": "./src/stages/extract.ts"

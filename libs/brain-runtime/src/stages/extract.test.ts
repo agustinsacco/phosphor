@@ -24,9 +24,7 @@ it('restart after window two resumes at window three under the same job id', asy
   await expect(extractWindows(job.id, windows, store, ask, () => {}, segments)).rejects.toThrow(
     'Killed',
   )
-  const resumed = trackAsk(async (_s, _p, _prompt, validate) =>
-    validate(JSON.stringify(empty)),
-  )
+  const resumed = trackAsk(async (_s, _p, _prompt, validate) => validate(JSON.stringify(empty)))
   const parts = await extractWindows(job.id, windows, store, resumed.ask, () => {}, segments)
   expect(parts).toHaveLength(4)
   expect(resumed.spy).toHaveBeenCalledTimes(2)

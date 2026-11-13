@@ -1,5 +1,10 @@
 import type { BrainJob, BrainJobStage } from '@phosphor/shared/brain'
-import type { BrainStore, Proposal } from '@phosphor/memory-engine/types'
+import type {
+  BrainStore,
+  Proposal,
+  ProposalEntity,
+  TranscriptSegment,
+} from '@phosphor/memory-engine/types'
 import type { BrainServiceOptions, BrainSearchPort } from './types'
 import { readLane, type LaneMeta } from './lane'
 import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
@@ -8,12 +13,12 @@ import { callThinking } from './call-trace'
 import { ExtractionRecord } from './extraction-record'
 import { stageCaller } from './stage-call'
 import { extractWindows } from './stages/extract'
-import { foldParts } from './stages/fold'
+import { foldParts, type FoldedJob } from './stages/fold'
 import { resolveIdentities } from './stages/identity'
 import { findParents, prefixGroups } from './stages/parents'
 import { reconcile } from './stages/reconcile'
-import { CLAIM_BUDGET } from './constants'
-import { BRAIN_STRUCTURAL_PREDICATES } from '@phosphor/shared/brain'
+import { applyClaimBudget } from './stages/budget'
+import type { StageAsk } from './stage-types'
 
 async function frozenLane(job: BrainJob, store: BrainStore): Promise<LaneMeta> {
   const saved = store.part(job.id, 'prepare', 'frozen-v4')
@@ -66,97 +71,10 @@ export async function extractJob(
         status: 'held',
         reason: 'Extraction may be truncated at 40 claims/entities',
       })
-    const computedRevision = store.revision()
-    progress('identity', 0, 1)
-    const entityVectors = await options.embeddings.embed(
-      folded.entities.map((e) => `${e.label} (${e.kind}): ${e.description}`),
-      'document',
-      signal,
-    )
-    const identity = await resolveIdentities(
+    await finishExtraction(
+      { job, lane, store, options, signal, search, record, progress, segments, ask },
       folded,
-      store,
-      search,
-      entityVectors.map((v) => new Float32Array(v)),
-      ask,
     )
-    progress('identity', 1, 1)
-    progress('parents', 0, 1)
-    await findParents(folded, identity.entities, segments, store, ask)
-    progress('parents', 1, 1)
-    const groups = prefixGroups(folded, identity.entities)
-    const held = applyBudget(folded)
-    progress('reconcile', 0, 1)
-    const vectors = await options.embeddings.embed(
-      folded.claims.map((c) => c.memory.summary),
-      'document',
-      signal,
-    )
-    const confirmations = await reconcile(
-      folded,
-      identity.entities,
-      store,
-      search,
-      vectors.map((v) => new Float32Array(v)),
-      ask,
-    )
-    progress('reconcile', 1, 1)
-    progress('embed', 0, 1)
-    const memoryVectors = await options.embeddings.embed(
-      folded.claims.map((c) => c.memory.summary),
-      'document',
-      signal,
-    )
-    const finalEntityVectors = await options.embeddings.embed(
-      identity.entities.map((e) => `${e.label} (${e.kind}): ${e.description}`),
-      'document',
-      signal,
-    )
-    signal.throwIfAborted()
-    if (!store.job(job.id)) throw new Error('Knowledge extraction job removed.')
-    const proposal: Proposal = {
-      jobId: job.id,
-      origin: { sessionId: lane.sessionId, title: job.title },
-      scope: lane.scope,
-      branch: lane.branch,
-      computedRevision,
-      entities: identity.entities,
-      memories: folded.claims.map((c) => c.memory),
-      groups,
-      confirmations,
-      evidence: folded.evidence,
-      held,
-      memoryVectors: memoryVectors.map((v) => new Float32Array(v)),
-      entityVectors: finalEntityVectors.map((v) => new Float32Array(v)),
-    }
-    store.propose(proposal)
-    record.outcomes([
-      ...folded.outcomes,
-      ...folded.claims.map((c, i) => ({
-        candidate: c.ref,
-        summary: c.memory.summary,
-        status: c.memory.action === 'enrich' ? ('enriches' as const) : ('kept' as const),
-        proposalIndex: i,
-      })),
-    ])
-    store.updateJob(job.id, {
-      finishedAt: (options.now ?? Date.now)(),
-      progress: { stage: 'embed', done: 1, total: 1 },
-    })
-    if (!store.snapshot().prefs.review && store.job(job.id)?.state === 'review') {
-      store.review(
-        job.id,
-        { memories: proposal.memories.map((_m, i) => i), identities: {}, groups: [] },
-        computedRevision,
-      )
-      await search.refresh()
-    }
-    options.log?.('Brain extraction finished', {
-      jobId: job.id,
-      calls: record.record.calls.length,
-      memories: proposal.memories.length,
-      held,
-    })
   } catch (error) {
     record?.failed(error)
     options.log?.('Brain extraction failed', {
@@ -166,24 +84,159 @@ export async function extractJob(
     throw error
   }
 }
-function applyBudget(job: ReturnType<typeof foldParts>): number {
-  const priority = (c: (typeof job.claims)[number]): number =>
-    c.memory.links.some((l) => BRAIN_STRUCTURAL_PREDICATES.some((p) => p === l.predicate))
-      ? 0
-      : ['decision', 'risk', 'open'].includes(c.memory.type)
-        ? 1
-        : 2
-  const selected = new Set(
-    [...job.claims].sort((a, b) => priority(a) - priority(b)).slice(0, CLAIM_BUDGET),
+
+interface ExtractionContext {
+  job: BrainJob
+  lane: LaneMeta
+  store: BrainStore
+  options: BrainServiceOptions
+  signal: AbortSignal
+  search: BrainSearchPort
+  record: ExtractionRecord
+  segments: TranscriptSegment[]
+  ask: StageAsk
+  progress(stage: BrainJobStage, done: number, total: number): void
+}
+async function finishExtraction(context: ExtractionContext, folded: FoldedJob): Promise<void> {
+  const { store, options, signal, search, ask, segments, progress } = context
+  const computedRevision = store.revision()
+  progress('identity', 0, 1)
+  const entityVectors = await options.embeddings.embed(
+    folded.entities.map((e) => `${e.label} (${e.kind}): ${e.description}`),
+    'document',
+    signal,
   )
-  const held = job.claims.filter((c) => !selected.has(c))
-  for (const c of held)
-    job.outcomes.push({
+  const identity = await resolveIdentities(
+    folded,
+    store,
+    search,
+    entityVectors.map((v) => new Float32Array(v)),
+    ask,
+  )
+  progress('identity', 1, 1)
+  progress('parents', 0, 1)
+  const priorRefs = new Set(identity.entities.map((e) => e.ref))
+  await findParents(folded, identity.entities, segments, store, ask)
+  await resolveParentIdentities(context, folded, identity.entities, priorRefs)
+  progress('parents', 1, 1)
+  const groups = prefixGroups(folded, identity.entities)
+  const held = applyClaimBudget(folded)
+  progress('reconcile', 0, 1)
+  const vectors = await options.embeddings.embed(
+    folded.claims.map((c) => c.memory.summary),
+    'document',
+    signal,
+  )
+  const confirmations = await reconcile(
+    folded,
+    identity.entities,
+    store,
+    search,
+    vectors.map((v) => new Float32Array(v)),
+    ask,
+  )
+  progress('reconcile', 1, 1)
+  await embedAndPropose(context, folded, identity.entities, {
+    computedRevision,
+    groups,
+    held,
+    confirmations,
+  })
+}
+async function embedAndPropose(
+  context: ExtractionContext,
+  folded: FoldedJob,
+  entities: ProposalEntity[],
+  fields: Pick<Proposal, 'computedRevision' | 'groups' | 'held' | 'confirmations'>,
+): Promise<void> {
+  const { job, lane, store, options, signal, search, record, progress } = context
+  const { computedRevision, groups, held, confirmations } = fields
+  progress('embed', 0, 1)
+  const memoryVectors = await options.embeddings.embed(
+    folded.claims.map((c) => c.memory.summary),
+    'document',
+    signal,
+  )
+  const finalEntityVectors = await options.embeddings.embed(
+    entities.map((e) => `${e.label} (${e.kind}): ${e.description}`),
+    'document',
+    signal,
+  )
+  signal.throwIfAborted()
+  if (!store.job(job.id)) throw new Error('Knowledge extraction job removed.')
+  const proposal: Proposal = {
+    jobId: job.id,
+    origin: { sessionId: lane.sessionId, title: job.title },
+    scope: lane.scope,
+    branch: lane.branch,
+    computedRevision,
+    entities: entities,
+    memories: folded.claims.map((c) => c.memory),
+    groups,
+    confirmations,
+    evidence: folded.evidence,
+    held,
+    memoryVectors: memoryVectors.map((v) => new Float32Array(v)),
+    entityVectors: finalEntityVectors.map((v) => new Float32Array(v)),
+  }
+  store.propose(proposal)
+  record.outcomes([
+    ...folded.outcomes,
+    ...folded.claims.map((c, i) => ({
       candidate: c.ref,
       summary: c.memory.summary,
-      status: 'held',
-      reason: 'Per-job 300 claim budget',
-    })
-  job.claims = job.claims.filter((c) => selected.has(c))
-  return held.length
+      status: c.memory.action === 'enrich' ? ('enriches' as const) : ('kept' as const),
+      proposalIndex: i,
+    })),
+  ])
+  store.updateJob(job.id, {
+    finishedAt: (options.now ?? Date.now)(),
+    progress: { stage: 'embed', done: 1, total: 1 },
+  })
+  if (!store.snapshot().prefs.review && store.job(job.id)?.state === 'review') {
+    store.review(
+      job.id,
+      { memories: proposal.memories.map((_m, i) => i), identities: {}, groups: [] },
+      computedRevision,
+    )
+    await search.refresh()
+  }
+  options.log?.('Brain extraction finished', {
+    jobId: job.id,
+    calls: record.record.calls.length,
+    memories: proposal.memories.length,
+    held,
+  })
+}
+
+async function resolveParentIdentities(
+  context: ExtractionContext,
+  job: FoldedJob,
+  identities: ProposalEntity[],
+  prior: Set<string>,
+): Promise<void> {
+  const introduced = job.entities.filter((e) => !prior.has(e.ref))
+  if (!introduced.length) return
+  const anchors = identities.filter((e) => prior.has(e.ref))
+  const subset = { ...job, entities: introduced, outcomes: job.outcomes }
+  const vectors = await context.options.embeddings.embed(
+    introduced.map((e) => `${e.label} (${e.kind}): ${e.description}`),
+    'document',
+    context.signal,
+  )
+  const ask: StageAsk = (stage, part, prompt, validate, entryIds, input) =>
+    context.ask(stage, part, prompt, validate, entryIds, { ...input, pass: 'parents' })
+  const result = await resolveIdentities(
+    subset,
+    context.store,
+    context.search,
+    vectors.map((v) => new Float32Array(v)),
+    ask,
+    job.entities,
+    anchors,
+  )
+  identities.splice(0, identities.length, ...anchors, ...result.entities)
+  job.entities = identities
+  job.claims = subset.claims
+  job.parents = subset.parents
 }

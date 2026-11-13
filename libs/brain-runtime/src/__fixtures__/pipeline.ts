@@ -9,7 +9,14 @@ import { LANE_ENTRIES, RAW_EXTRACTION } from './lane'
 
 export function answerFor(input: ModelCallInput): string {
   if (input.stage === 'extract' || input.stage === 'repair') return JSON.stringify(RAW_EXTRACTION)
-  if (input.stage === 'parents') return JSON.stringify({ entities: [], claims: [], parents: [] })
+  if (input.stage === 'parents') {
+    const requested = JSON.parse(input.prompt.match(/Requested:(.*)\n/)![1]!) as { ref: string }[]
+    return JSON.stringify({
+      entities: [],
+      claims: [],
+      parents: requested.map((e) => ({ entity: e.ref, status: 'not_stated', claim: null })),
+    })
+  }
   if (input.stage === 'identity') {
     const rows = JSON.parse(input.prompt.slice(input.prompt.indexOf('\n') + 1)) as {
       entity: { ref: string }

@@ -44,7 +44,7 @@ async function enqueue(ref: BrainLaneRef, { store, options, queue }: ApiContext)
   )
 }
 export function createApi(context: ApiContext): BrainApi {
-  const { store, options, search, queue, changed, startModel } = context
+  const { store, options, search, queue, changed } = context
   const status = (): BrainStatus => {
     const embedding = options.embeddings.status()
     return { ...store.snapshot(), supported: embedding.phase !== 'unsupported', embedding }
@@ -57,34 +57,15 @@ export function createApi(context: ApiContext): BrainApi {
     return status()
   }
   const current = (id: string): void => {
-    if (store.storedProposal(id)?.computedRevision !== store.revision()) {
+    const proposal = store.storedProposal(id)
+    if (proposal && proposal.computedRevision !== store.revision()) {
       queue.recompute(id)
       throw new Error('Brain changed; refreshing this review')
     }
   }
   return {
     status: async () => status(),
-    setPrefs: async (prefs) => {
-      checkPrefs(prefs)
-      const previous = store.snapshot().prefs
-      store.setPrefs(prefs)
-      if (previous.enabled !== prefs.enabled)
-        startModel(() => options.embeddings.setEnabled(prefs.enabled))
-      changed()
-      queue.kick()
-      return status()
-    },
-    download: async () => {
-      startModel(() => options.embeddings.download())
-      return status()
-    },
-    removeModel: async () => {
-      if (store.snapshot().prefs.enabled)
-        throw new Error('Turn off Brain before removing its model.')
-      await options.embeddings.remove()
-      changed()
-      return status()
-    },
+    ...modelApi(context, status),
     queue: async (ref) => {
       await enqueue(ref, context)
       changed()
@@ -125,6 +106,57 @@ export function createApi(context: ApiContext): BrainApi {
       }
     },
     merge: async (source, target) => mutate(() => store.merge(source, target)),
+    ...readApi(context),
+    forget: async (id) => mutate(() => store.forget(id)),
+  }
+}
+
+function modelApi(
+  context: ApiContext,
+  status: () => BrainStatus,
+): Pick<BrainApi, 'setPrefs' | 'download' | 'removeModel'> {
+  const { store, options, changed, queue, startModel } = context
+  return {
+    setPrefs: async (prefs) => {
+      checkPrefs(prefs)
+      const previous = store.snapshot().prefs
+      store.setPrefs(prefs)
+      if (previous.enabled !== prefs.enabled)
+        startModel(() => options.embeddings.setEnabled(prefs.enabled))
+      changed()
+      queue.kick()
+      return status()
+    },
+    download: async () => {
+      startModel(() => options.embeddings.download())
+      return status()
+    },
+    removeModel: async () => {
+      if (store.snapshot().prefs.enabled)
+        throw new Error('Turn off Brain before removing its model.')
+      await options.embeddings.remove()
+      changed()
+      return status()
+    },
+  }
+}
+
+function readApi({
+  store,
+  options,
+  search,
+}: ApiContext): Pick<
+  BrainApi,
+  | 'find'
+  | 'overview'
+  | 'neighbourhood'
+  | 'entity'
+  | 'connections'
+  | 'entityMemories'
+  | 'memory'
+  | 'path'
+> {
+  return {
     find: async (query, limit) => {
       const rows = await options.embeddings.embed([query], 'query').catch(() => [])
       return search.find(
@@ -141,6 +173,5 @@ export function createApi(context: ApiContext): BrainApi {
     entityMemories: async (id, filter, cursor) => store.entityMemories(id, filter, cursor),
     memory: async (id) => store.memory(id),
     path: async (from, to) => store.path(from, to),
-    forget: async (id) => mutate(() => store.forget(id)),
   }
 }

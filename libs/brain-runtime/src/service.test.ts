@@ -141,3 +141,33 @@ it('deletes only the obsolete prototype artifacts on startup', async () => {
   expect(await stat(join(s.directory, 'sessions')).catch(() => null)).toBeNull()
   expect(await stat(join(s.directory, 'embeddings'))).toBeTruthy()
 })
+
+it('reset stops admission and waits for an active cancelled call before clearing the store', async () => {
+  const s = await setup()
+  let exited = false
+  s.runner.mockImplementation(
+    (input) =>
+      new Promise((resolve) => {
+        input.signal.addEventListener(
+          'abort',
+          () => {
+            setTimeout(() => {
+              exited = true
+              resolve({ text: '{}', usage: { tokens: 0, cost: 0 } })
+            }, 20)
+          },
+          { once: true },
+        )
+      }),
+  )
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await vi.waitFor(() => expect(s.runner).toHaveBeenCalledOnce())
+  const pending = s.service.api.reset()
+  await expect(s.service.api.queue({ sessionPath: s.file, title: 'Ledger' })).rejects.toThrow(
+    'resetting',
+  )
+  expect(exited).toBe(false)
+  expect((await pending).jobs).toEqual([])
+  expect(exited).toBe(true)
+  expect(s.search.refreshes).toBe(1)
+})

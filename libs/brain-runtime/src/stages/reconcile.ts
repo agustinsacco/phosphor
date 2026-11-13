@@ -21,6 +21,7 @@ interface Card {
 }
 interface Row {
   claim: FoldedClaim
+  comparison: ProposalMemory
   candidates: Card[]
 }
 const uniqueCitations = (items: Citation[]): Citation[] => [
@@ -91,6 +92,55 @@ export async function reconcile(
   vectors: Float32Array[],
   ask: StageAsk,
 ): Promise<{ memoryId: string; citations: Citation[] }[]> {
+  const rows = await candidateRows(job, entities, store, search, vectors)
+  const confirmations: { memoryId: string; citations: Citation[] }[] = [],
+    removed = new Set<string>(),
+    pending: Row[] = []
+  const state = { job, confirmations, removed }
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!,
+      equal = row.candidates.find((c) => same(row.comparison, c))
+    if (equal) applyDecision(state, row, 'confirm', equal, 'Equal folded text and links')
+    else if (row.candidates.length) pending.push(row)
+  }
+  for (let i = 0; i < pending.length; i += 20) {
+    const batch = pending.slice(i, i + 20)
+    const rows = batch.map((r) => ({
+      claim: { ...r.claim, memory: r.comparison },
+      candidates: r.candidates.map((c, j) => ({ ...c, handle: `M${j + 1}` })),
+    }))
+    const result = await ask(
+      'reconcile',
+      i / 20 + 1,
+      reconcilePrompt(rows),
+      (a) => decisions(a, batch),
+      [],
+      { rows },
+    )
+    for (const d of result.sort(
+      (a, b) =>
+        batch.findIndex((r) => r.claim.ref === a.ref) -
+        batch.findIndex((r) => r.claim.ref === b.ref),
+    ))
+      applyDecision(
+        state,
+        batch.find((r) => r.claim.ref === d.ref)!,
+        d.action,
+        d.target,
+        d.reason,
+      )
+  }
+  job.claims = job.claims.filter((c) => !removed.has(c.ref))
+  return confirmations
+}
+
+async function candidateRows(
+  job: FoldedJob,
+  entities: ProposalEntity[],
+  store: BrainStore,
+  search: BrainSearchPort,
+  vectors: Float32Array[],
+): Promise<Row[]> {
   const normalized = job.claims.map((c) => resolvedMemory(c.memory, entities))
   const matches = store.memoryMatches(
     normalized.map((m) => ({
@@ -114,7 +164,7 @@ export async function reconcile(
       ])
       .map((m) => [m.id, card(m)]),
   )
-  const rows = job.claims.map((claim, index): Row => {
+  return job.claims.map((claim, index): Row => {
     const ids = [
       ...new Set([
         ...(matches[index] ?? []),
@@ -135,93 +185,70 @@ export async function reconcile(
       })
     return {
       claim,
+      comparison: normalized[index]!,
       candidates: [...ids.flatMap((id) => (old.has(id) ? [old.get(id)!] : [])), ...prior].slice(
         0,
         5,
       ),
     }
   })
-  const confirmations: { memoryId: string; citations: Citation[] }[] = [],
-    removed = new Set<string>(),
-    pending: Row[] = []
-  const apply = (
-    row: Row,
-    action: ProposalMemory['action'] | 'confirm',
-    target: Card | undefined,
-    reason: string,
-  ) => {
-    const m = row.claim.memory
-    if (target?.local) {
-      const previous = job.claims.find((c) => c.ref === target.id)
-      if (!previous || removed.has(previous.ref)) return
-      if (action === 'confirm' || action === 'enrich') {
-        previous.memory.citations = uniqueCitations([...previous.memory.citations, ...m.citations])
-        if (action === 'enrich') {
-          previous.memory.links.push(...m.links)
-          previous.memory.entities = [...new Set([...previous.memory.entities, ...m.entities])]
-        }
-        removed.add(row.claim.ref)
-        job.outcomes.push({
-          candidate: row.claim.ref,
-          summary: m.summary,
-          status: 'folded',
-          reason: `merged into ${previous.ref}`,
-        })
-      } else if (action !== 'add') {
-        removed.add(previous.ref)
-        job.outcomes.push({
-          candidate: previous.ref,
-          summary: previous.memory.summary,
-          status: 'dropped',
-          reason:
-            action === 'resolve_open'
-              ? 'resolved later in this lane'
-              : 'superseded later in this lane',
-        })
+}
+function applyDecision(
+  {
+    job,
+    confirmations,
+    removed,
+  }: {
+    job: FoldedJob
+    confirmations: { memoryId: string; citations: Citation[] }[]
+    removed: Set<string>
+  },
+  row: Row,
+  action: ProposalMemory['action'] | 'confirm',
+  target: Card | undefined,
+  reason: string,
+): void {
+  const m = row.claim.memory
+  if (target?.local) {
+    const previous = job.claims.find((c) => c.ref === target.id)
+    if (!previous || removed.has(previous.ref)) return
+    if (action === 'confirm' || action === 'enrich') {
+      previous.memory.citations = uniqueCitations([...previous.memory.citations, ...m.citations])
+      if (action === 'enrich') {
+        previous.memory.links.push(...m.links)
+        previous.memory.entities = [...new Set([...previous.memory.entities, ...m.entities])]
       }
-    } else if (target && action === 'confirm') {
-      confirmations.push({ memoryId: target.id, citations: m.citations })
       removed.add(row.claim.ref)
       job.outcomes.push({
         candidate: row.claim.ref,
         summary: m.summary,
-        status: 'reconfirms',
-        memoryId: target.id,
+        status: 'folded',
+        reason: `merged into ${previous.ref}`,
       })
-    } else {
-      m.action = action === 'confirm' ? 'add' : action
-      m.target = target?.id ?? null
-      m.reason = reason
+    } else if (action !== 'add') {
+      removed.add(previous.ref)
+      job.outcomes.push({
+        candidate: previous.ref,
+        summary: previous.memory.summary,
+        status: 'dropped',
+        reason:
+          action === 'resolve_open'
+            ? 'resolved later in this lane'
+            : 'superseded later in this lane',
+      })
     }
+  } else if (target && action === 'confirm') {
+    confirmations.push({ memoryId: target.id, citations: m.citations })
+    removed.add(row.claim.ref)
+    job.outcomes.push({
+      candidate: row.claim.ref,
+      summary: m.summary,
+      status: 'reconfirms',
+      memoryId: target.id,
+    })
+  } else {
+    m.action = action === 'confirm' ? 'add' : action
+    m.target = target?.id ?? null
+    m.reason = reason
   }
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]!,
-      equal = row.candidates.find((c) => same(normalized[i]!, c))
-    if (equal) apply(row, 'confirm', equal, 'Equal folded text and links')
-    else if (row.candidates.length) pending.push(row)
-  }
-  for (let i = 0; i < pending.length; i += 20) {
-    const batch = pending.slice(i, i + 20)
-    const rows = batch.map((r) => ({
-      claim: r.claim,
-      candidates: r.candidates.map((c, j) => ({ ...c, handle: `M${j + 1}` })),
-    }))
-    const result = await ask(
-      'reconcile',
-      i / 20 + 1,
-      reconcilePrompt(rows),
-      (a) => decisions(a, batch),
-      [],
-      { rows },
-    )
-    for (const d of result)
-      apply(
-        batch.find((r) => r.claim.ref === d.ref)!,
-        d.action,
-        d.target,
-        d.reason,
-      )
-  }
-  job.claims = job.claims.filter((c) => !removed.has(c.ref))
-  return confirmations
 }

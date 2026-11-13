@@ -17,7 +17,7 @@ export interface AssistantMessage {
     cost?: { total?: number }
   }
 }
-export interface ForkEvent {
+export interface CallEvent {
   type?: string
   message?: AssistantMessage
   usage?: AssistantMessage['usage']
@@ -31,9 +31,9 @@ export interface ForkEvent {
   willRetry?: boolean
   source?: string
 }
-export type { BrainForkTrace as ForkTrace } from '@phosphor/shared/brain-extraction'
+export type { BrainForkTrace as CallTrace } from '@phosphor/shared/brain-extraction'
 import type {
-  BrainForkTrace as ForkTrace,
+  BrainForkTrace as CallTrace,
   BrainTraceEvent as TraceEvent,
 } from '@phosphor/shared/brain-extraction'
 
@@ -47,10 +47,10 @@ function numeric(value: unknown): number {
 }
 export function assistantUsage(
   usage?: AssistantMessage['usage'],
-): Pick<ForkTrace['usage'], 'tokens' | 'cost'> {
+): Pick<CallTrace['usage'], 'tokens' | 'cost'> {
   return { tokens: numeric(usage?.totalTokens), cost: numeric(usage?.cost?.total) }
 }
-function traceUsage(usage?: AssistantMessage['usage']): ForkTrace['usage'] {
+function traceUsage(usage?: AssistantMessage['usage']): CallTrace['usage'] {
   return {
     ...assistantUsage(usage),
     input: numeric(usage?.input),
@@ -67,7 +67,7 @@ export function callThinking(thinking: string, stage: string): string {
 
 /** Only explicitly selected metadata enters the trace, never message bodies or deltas. */
 export class CallTracer {
-  readonly trace: ForkTrace = {
+  readonly trace: CallTrace = {
     firstStdoutMs: null,
     firstMessageStartMs: null,
     firstMessageUpdateMs: null,
@@ -92,7 +92,7 @@ export class CallTracer {
     this.trace.firstStdoutMs ??= this.now() - this.started
   }
 
-  event(event: ForkEvent): void {
+  event(event: CallEvent): void {
     const atMs = this.now() - this.started
     const trace = this.trace
     if (event.type === 'agent_start') trace.agentStarts++
@@ -118,7 +118,7 @@ export class CallTracer {
     this.lifecycle(event, atMs)
   }
 
-  private lifecycle(event: ForkEvent, atMs: number): void {
+  private lifecycle(event: CallEvent, atMs: number): void {
     if (
       [
         'auto_retry_start',
@@ -165,7 +165,7 @@ export class CallTracer {
     return `Timed out after ${CALL_TIMEOUT_MS / 1000} s waiting for ${model} (${progress})`
   }
 
-  finish(reason: ForkTrace['reason']): void {
+  finish(reason: CallTrace['reason']): void {
     this.trace.reason = reason
     this.trace.totalMs = this.now() - this.started
   }

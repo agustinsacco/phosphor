@@ -4,5 +4,5 @@ export function parentsPrompt(
   candidates: unknown[],
   segments: string,
 ): string {
-  return `One round: for each requested project/component/document/team, determine who owns it, what project/customer/team it belongs to or what it documents. Return Call 1 shape {entities:[],claims:[],parents:[{entity:"r1",status:"not_stated",claim:null}]}; if stated, claim must have a supported structural link whose subject is that entity. All existing entities use the offered r handles; new n refs allowed. Quotes require s handles.\nRequested:${JSON.stringify(entities)}\nRegistry / candidate parents:${JSON.stringify(candidates)}\n${segments}`
+  return `One round: for each requested project/component/document/team, determine who owns it, what project/customer/team it belongs to or what it documents. Return Call 1 shape {entities:[],claims:[],parents:[{entity:"r1",status:"not_stated",claim:null}]}; if stated, claim must have a supported structural link whose subject is that entity. All existing entities use the offered r handles; Use an offered ref whenever one fits. New n refs are allowed only when no offered entity fits. Quotes require s handles.\nRequested:${JSON.stringify(entities)}\nRegistry / candidate parents:${JSON.stringify(candidates)}\n${segments}`
 }

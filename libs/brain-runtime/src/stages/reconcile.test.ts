@@ -57,7 +57,14 @@ it('high cosine with negation is not deterministic confirmation', async () => {
       }),
     ),
   )
-  const confirmations = await reconcile(j, identities, store, search, [new Float32Array([1])], ask.ask)
+  const confirmations = await reconcile(
+    j,
+    identities,
+    store,
+    search,
+    [new Float32Array([1])],
+    ask.ask,
+  )
   expect(ask.spy).toHaveBeenCalledOnce()
   expect(confirmations).toEqual([])
   expect(j.claims[0]!.memory.action).toBe('conflict')

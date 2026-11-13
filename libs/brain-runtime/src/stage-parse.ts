@@ -76,7 +76,8 @@ function entity(value: unknown): StageEntity {
       const key = object(value)
       const namespace = text(key.namespace),
         v = text(key.value)
-      if (scrubExcerpt(v) !== v) throw new Error('Sensitive entity key')
+      if (scrubExcerpt(v) !== v || scrubExcerpt(namespace) !== namespace)
+        throw new Error('Sensitive entity key')
       return { namespace, value: v }
     }),
   }
@@ -157,17 +158,37 @@ export function parseStageExtraction(
   registry: Registry = [],
 ): StageExtraction {
   const data = jsonAnswer(answer)
-  const entities = array(data.entities).map(entity)
+  const errors: string[] = []
+  const entities = validated(array(data.entities), entity, 'entity', errors)
   unique(entities.map((e) => e.ref))
   const refs = new Set([...registry.map((e) => ref(e.ref, 'r')), ...entities.map((e) => e.ref)])
-  const claims = array(data.claims).map((c) => claim(c, refs, window))
+  const claims = validated(array(data.claims), (c) => claim(c, refs, window), 'claim', errors)
   unique(claims.map((c) => c.ref))
-  const parents = array(data.parents).map((p) => parent(p, refs, claims))
+  const parents = validated(array(data.parents), (p) => parent(p, refs, claims), 'parent', errors)
   unique(parents.map((p) => p.entity))
   for (const e of entities.filter((e) =>
     ['project', 'component', 'document', 'team'].includes(e.kind),
   ))
     if (!parents.some((p) => p.entity === e.ref))
-      throw new Error(`Missing parent assessment for ${e.ref}`)
+      errors.push(`Missing parent assessment for ${e.ref}`)
+  if (errors.length) throw new Error(errors.join('\n'))
   return { entities, claims, parents }
+}
+
+function validated<T>(
+  values: unknown[],
+  parse: (value: unknown) => T,
+  label: string,
+  errors: string[],
+): T[] {
+  return values.flatMap((value, index) => {
+    try {
+      return [parse(value)]
+    } catch (error) {
+      errors.push(
+        `${label}[${index + 1}]: ${error instanceof Error ? error.message : String(error)}`,
+      )
+      return []
+    }
+  })
 }

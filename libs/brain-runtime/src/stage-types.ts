@@ -75,6 +75,7 @@ export interface SegmentInput {
   end: number
 }
 export interface StageInput {
+  pass?: 'parents'
   registry?: Registry
   requested?: unknown[]
   rows?: unknown[]

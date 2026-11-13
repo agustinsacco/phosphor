@@ -52,8 +52,13 @@ function promptFor(
   if (!saved) return UNAVAILABLE
   if (call.stage !== 'repair')
     return rebuildPrompt(call.stage, JSON.parse(saved.output) as StageInput, source)
-  const repair = JSON.parse(saved.output) as { stage: string; hash: string; error: string }
-  const original = store.part(jobId, `input:${repair.stage}:${call.part}`, repair.hash)
+  const repair = JSON.parse(saved.output) as {
+    stage: string
+    part: number
+    hash: string
+    error: string
+  }
+  const original = store.part(jobId, `input:${repair.stage}:${repair.part}`, repair.hash)
   if (!original || !previous) return UNAVAILABLE
   return repairPrompt(
     rebuildPrompt(repair.stage, JSON.parse(original.output) as StageInput, source),

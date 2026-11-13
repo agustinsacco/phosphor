@@ -5,12 +5,14 @@ import type { LaneMeta } from './lane'
 import type { StageAsk, StageInput } from './stage-types'
 import { runModelCall } from './model-call'
 import { inputHash } from './windows'
-import { ExtractionRecord, extractionAnswer } from './extraction-record'
+import { extractionAnswer } from './extraction-record'
+import type { ExtractionRecord } from './extraction-record'
 import { EXTRACTION_SYSTEM } from './stage-prompts/extract'
 import { IDENTITY_SYSTEM } from './stage-prompts/identity'
 import { PARENTS_SYSTEM } from './stage-prompts/parents'
 import { RECONCILE_SYSTEM } from './stage-prompts/reconcile'
 import { scrubExcerpt } from './secrets'
+import { callThinking } from './call-trace'
 import { ANSWER_BYTES } from './constants'
 
 const SYSTEM = {
@@ -30,10 +32,10 @@ interface CallContext {
   signal: AbortSignal
   record: ExtractionRecord
 }
-export async function stageCaller(context: CallContext): Promise<StageAsk> {
+async function callExecutor(context: CallContext) {
   const { job, lane, store, options, signal, record } = context
   const launch = await options.lanes.launch(job.sessionPath)
-  const usage = { tokens: 0, cost: 0 }
+  const usage = { ...(store.job(job.id)?.usage ?? { tokens: 0, cost: 0 }) }
   const run = options.runModelCall ?? runModelCall
   const execute = async (
     stage: BrainExtractionCall['stage'],
@@ -64,6 +66,10 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
         part,
         prompt,
         systemPrompt,
+        thinking: callThinking(
+          lane.thinking,
+          systemPrompt === EXTRACTION_SYSTEM ? 'extract' : stage,
+        ),
         onAnswer: (answer) => {
           call.answer = extractionAnswer(answer)
         },
@@ -78,12 +84,26 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
       return result.text
     } catch (error) {
       call.error = scrubExcerpt(error instanceof Error ? error.message : String(error))
+      if (call.trace && store.job(job.id)) {
+        usage.tokens += call.trace.usage.tokens
+        usage.cost += call.trace.usage.cost
+        store.updateJob(job.id, { usage: { ...usage } })
+      }
       throw error
     } finally {
       record.call(call)
     }
   }
-  return async (stage, part, prompt, validate, entryIds = [], metadata: StageInput = {}) => {
+  return execute
+}
+
+export async function stageCaller(context: CallContext): Promise<StageAsk> {
+  const { job, store, record } = context
+  const execute = await callExecutor(context)
+  const nextPart = (stage: BrainExtractionCall['stage']): number =>
+    Math.max(0, ...record.record.calls.filter((c) => c.stage === stage).map((c) => c.part)) + 1
+  return async (stage, _part, prompt, validate, entryIds = [], metadata: StageInput = {}) => {
+    const part = nextPart(stage)
     const hash = inputHash(prompt),
       encoded = scrubExcerpt(JSON.stringify(metadata))
     if (Buffer.byteLength(encoded) <= ANSWER_BYTES)
@@ -93,25 +113,41 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
       return validate(answer)
     } catch (error) {
       const message = scrubExcerpt(error instanceof Error ? error.message : String(error))
-      const invalid = record.record.calls.at(-1)
-      if (invalid) {
-        invalid.error = message
-        record.save()
-      }
+      rejected(record, stage, part, message)
       const repair = repairPrompt(prompt, answer, message)
+      const repairPart = nextPart('repair')
       store.savePart(job.id, {
-        part: `input:repair:${part}`,
+        part: `input:repair:${repairPart}`,
         inputHash: inputHash(repair),
-        output: JSON.stringify({ stage, hash, error: message }),
+        output: JSON.stringify({ stage, part, hash, error: message }),
       })
-      const corrected = await execute('repair', part, repair, SYSTEM[stage], entryIds)
+      const corrected = await execute('repair', repairPart, repair, SYSTEM[stage], entryIds)
       try {
         return validate(corrected)
       } catch (second) {
+        rejected(
+          record,
+          'repair',
+          repairPart,
+          scrubExcerpt(second instanceof Error ? second.message : String(second)),
+        )
         throw new Error(
           `Brain ${stage} validation failed after repair: ${second instanceof Error ? second.message : String(second)}`,
+          { cause: second },
         )
       }
     }
   }
+}
+
+function rejected(record: ExtractionRecord, stage: string, part: number, message: string): void {
+  const invalid = record.record.calls.at(-1)
+  if (invalid) invalid.error = message
+  const rejected = message.split('\n').map((reason, index) => ({
+    candidate: `${stage}-${part}:rejected-${index + 1}`,
+    summary: `Rejected ${stage} output`,
+    status: 'dropped' as const,
+    reason,
+  }))
+  record.outcomes([...record.record.outcomes, ...rejected])
 }

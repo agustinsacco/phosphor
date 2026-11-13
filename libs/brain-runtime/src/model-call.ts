@@ -4,7 +4,7 @@ import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
 import { claudeOneShotEnv } from '@phosphor/session-runtime/pi/provider-detect'
 import type { BrainJob, BrainExtractionCall } from '@phosphor/shared/brain'
-import type { ForkLaunch } from './types'
+import type { ModelLaunch } from './types'
 import type { LaneMeta } from './lane'
 import {
   assistantUsage,
@@ -14,8 +14,8 @@ import {
   CALL_TIMEOUT_MS,
   traceDiagnostic,
   type AssistantMessage,
-  type ForkEvent,
-  type ForkTrace,
+  type CallEvent,
+  type CallTrace,
 } from './call-trace'
 
 export interface ModelCallInput {
@@ -26,12 +26,12 @@ export interface ModelCallInput {
   systemPrompt: string
   thinking?: string
   lane: LaneMeta
-  launch: ForkLaunch
+  launch: ModelLaunch
   guardExtension: string
   prompt: string
   signal: AbortSignal
   /** Called once after cleanup; the caller must log diagnostics only on job failure. */
-  onTrace?: (trace: ForkTrace, diagnostic?: string) => void
+  onTrace?: (trace: CallTrace, diagnostic?: string) => void
   /** Raw final text, including on transport or assistant failure; never diagnostics. */
   onAnswer?: (answer: string) => void
 }
@@ -85,7 +85,7 @@ function callStream(tracer: CallTracer) {
   const consume = (lines: string[]): void => {
     for (const line of lines) {
       try {
-        const event = JSON.parse(line) as ForkEvent
+        const event = JSON.parse(line) as CallEvent
         tracer.event(event)
         if (event?.type === 'message_end' && event.message?.role === 'assistant')
           last = answer(event.message)
@@ -114,7 +114,7 @@ export async function runModelCall(
   const directory = join(input.directory, 'calls', job.id, `${input.stage}-${input.part}`)
   const tracer = new CallTracer()
   const stream = callStream(tracer)
-  let reason: ForkTrace['reason'] = 'error'
+  let reason: CallTrace['reason'] = 'error'
   let diagnostic: string | undefined
   let finalText = ''
   try {
@@ -126,7 +126,7 @@ export async function runModelCall(
       input: input.prompt,
       env: {
         ...launch.env,
-        // A lane parks its Claude process for an hour; a parked fork would never exit.
+        // A lane parks its Claude process for an hour; a parked model call would never exit.
         ...claudeOneShotEnv(),
         PI_OFFLINE: '1',
         PI_CLAUDE_CLI_STATE_DIR: join(directory, 'provider'),

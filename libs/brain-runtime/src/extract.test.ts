@@ -30,7 +30,11 @@ it('extracts windows, resolves, embeds and proposes with progress, summed usage 
     usage: { tokens: 30, cost: 0 },
     progress: { stage: 'embed', done: 1, total: 1 },
   })
-  expect(s.store.extraction(s.job.id).calls.map((c) => c.stage)).toEqual(['extract', 'identity', 'parents'])
+  expect(s.store.extraction(s.job.id).calls.map((c) => c.stage)).toEqual([
+    'extract',
+    'identity',
+    'parents',
+  ])
   expect(s.store.extraction(s.job.id).outcomes).toContainEqual(
     expect.objectContaining({ candidate: 'w1:c1', status: 'kept' }),
   )
@@ -45,7 +49,12 @@ it('unknown ref triggers one repair, never an about link; a second invalid answe
     usage: { tokens: 7, cost: 0 },
   }))
   await extractJob(s.job, signal(), s.store, s.options, s.search)
-  expect(s.runner.mock.calls.map(([c]) => c.stage)).toEqual(['extract', 'repair', 'identity', 'parents'])
+  expect(s.runner.mock.calls.map(([c]) => c.stage)).toEqual([
+    'extract',
+    'repair',
+    'identity',
+    'parents',
+  ])
   expect(s.runner.mock.calls[1]![0].prompt).toContain('Unknown entity ref: missing')
   expect(s.store.storedProposal(s.job.id)!.memories[0]!.links[0]!.predicate).toBe('owns')
   expect(s.store.extraction(s.job.id).calls[0]!.error).toContain('Unknown entity ref')
