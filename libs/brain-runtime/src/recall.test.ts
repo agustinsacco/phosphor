@@ -38,8 +38,10 @@ it('resolves scope and branch on each request, embeds query, falls back lexicall
       scope: '/harbor',
       branch: 'main',
       limit: 8,
-      vector: new Float32Array([1, 0]),
+      vector: expect.any(Float32Array),
     })
+    expect(Array.from(search.searches[0]!.vector!.slice(0, 2))).toEqual([1, 0])
+    expect(search.searches[0]!.vector).toHaveLength(768)
     vi.mocked(projectContext).mockResolvedValueOnce({ scope: '/harbor', branch: 'billing' })
     vi.mocked(options.embeddings.embed).mockRejectedValueOnce(new Error('Fake embedding failure'))
     await recall.agent('search', { query: 'Ledger', cwd: '/harbor' })
