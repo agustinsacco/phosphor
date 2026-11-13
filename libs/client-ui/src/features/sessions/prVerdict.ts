@@ -180,7 +180,9 @@ export function prVerdict(pr: AnyPr | undefined): PrVerdict {
     return { tone, rank: top.rank, word, headline: top.text, blockers }
   }
   const checks = checkFacts(pr)
-  if (pr.reviewDecision === 'APPROVED' && checks.known) {
+  // No CI is not green CI: an empty rollup never reads as ready (known issue R1).
+  const ran = checks.known && checks.total > 0
+  if (pr.reviewDecision === 'APPROVED' && ran) {
     const queued = isSummary(pr) && pr.inMergeQueue
     return {
       tone: 'ready',
@@ -191,7 +193,11 @@ export function prVerdict(pr: AnyPr | undefined): PrVerdict {
     }
   }
   const headline =
-    pr.reviewDecision === 'APPROVED' ? 'Approved; checks unknown' : 'Waiting for review'
+    pr.reviewDecision !== 'APPROVED'
+      ? 'Waiting for review'
+      : checks.known
+        ? 'Approved; no checks reported'
+        : 'Approved; checks unknown'
   return { tone: 'review', rank: 5, word: 'In review', headline, blockers }
 }
 

@@ -109,6 +109,29 @@ describe('prVerdict', () => {
     expect(prStages(summary({ checkRuns: null, checks: null }))[1]?.state).toBe('unknown')
   })
 
+  it('never calls a PR with no CI ready to merge', () => {
+    const approved: Partial<GhPrSummary> = {
+      reviewDecision: 'APPROVED',
+      waitingOn: [],
+      threads: null,
+    }
+    expect(prVerdict(summary({ ...approved, checkRuns: [], checks: undefined }))).toMatchObject({
+      tone: 'review',
+      headline: 'Approved; no checks reported',
+    })
+    const counted = {
+      number: 3,
+      title: 'x',
+      state: 'OPEN' as const,
+      url: 'u',
+      reviewDecision: 'APPROVED' as const,
+    }
+    expect(
+      prVerdict({ ...counted, checks: { passed: 0, failed: 0, pending: 0, total: 0 } }).tone,
+    ).toBe('review')
+    expect(prVerdict(counted).headline).toBe('Approved; checks unknown')
+  })
+
   it('reads branch discovery’s counts without claiming which checks are required', () => {
     const pr = {
       number: 2,

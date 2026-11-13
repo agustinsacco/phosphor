@@ -1,66 +1,90 @@
 import clsx from 'clsx'
 import type { GhPullRequest } from '@shared/models'
-import { prChip, PR_CHIP_CLASSES } from './prChip'
+import type { LanePr } from './lanePrs'
+import { lanePrUrl, prBeads } from './prBeads'
+import { PR_TONE_BEAD_CLASSES, PrToneGlyph } from './PrToneGlyph'
 
 /**
- * The PR chip on a lane row, and the shortcut to the PR itself.
+ * A lane's own PRs as beads: one verdict-coloured circle with a glyph per PR,
+ * lead first, at most three, then `+N`. One tooltip lists every PR.
  *
- * Right-aligned (`ml-auto`) on purpose: down a sidebar the chips form a
+ * Right-aligned (`ml-auto`) on purpose: down a sidebar the beads form a
  * scannable column instead of floating after a branch name whose width varies
- * per lane. `shrink-0` keeps it whole — the branch segment is the one allowed
+ * per lane. `shrink-0` keeps them whole — the branch segment is the one allowed
  * to truncate.
  *
- * **Deliberately a `span`, not a `button`.** The whole row is already a
- * `<button>` (see `SessionRow`), and a button inside a button is invalid HTML —
- * the same trap the inline rename editor documents. So this is a `role="link"`
- * span with `tabIndex={-1}`: it is a mouse target, and it is explicitly NOT a
- * tab stop, because adding one interactive child per row would put a second
- * stop on every lane in the sidebar.
+ * **Each bead is deliberately a `span`, not a `button`.** The whole row is
+ * already a `<button>` (see `SessionRow`), and a button inside a button is
+ * invalid HTML — the same trap the inline rename editor documents. So a bead
+ * is a `role="link"` span with `tabIndex={-1}`: a mouse target, and explicitly
+ * NOT a tab stop, because one interactive child per PR would put more stops on
+ * every lane in the sidebar.
  *
- * That leaves keyboard users without a path to the PR, so the row's context
- * menu carries an "Open pull request" item. The chip is the shortcut; the menu
- * is the accessible route. Changing one without the other regresses it.
+ * That leaves keyboard users without a path to the PRs, so the row's context
+ * menu carries a "Pull requests" submenu with the same targets. The beads are
+ * the shortcut; the menu is the accessible route. Changing one without the
+ * other regresses it.
  *
- * A lane without a PR renders no chip at all: callers pass only a real PR.
- * `pr` is the lane's most urgent one; `more` counts the rest.
+ * A lane without a PR renders nothing.
  */
-export function PrBadge({ pr, more = 0 }: { pr: GhPullRequest; more?: number }): React.JSX.Element {
-  const chip = prChip(pr)
-  const others = more > 0 ? ` and ${more} more pull request${more === 1 ? '' : 's'}` : ''
+export function PrBadge({ prs }: { prs: LanePr[] }): React.JSX.Element | null {
+  if (prs.length === 0) return null
+  const view = prBeads(prs)
   return (
     <span
       data-testid="session-pr-badge"
-      data-variant={chip.variant}
+      data-variant={view.tone}
+      role="group"
+      aria-label={`Pull requests: ${view.lines.join('. ')}`}
+      data-tooltip={view.lines.join('\n')}
+      data-tooltip-description="Click a bead to open it on GitHub"
+      className="ml-auto flex shrink-0 items-center gap-1"
+    >
+      {view.shown.map((lane) => (
+        <PrBead key={lane.key} lane={lane} />
+      ))}
+      {view.more > 0 && (
+        <span className="text-text-secondary font-mono text-2xs font-semibold leading-4">
+          +{view.more}
+        </span>
+      )}
+    </span>
+  )
+}
+
+function PrBead({ lane }: { lane: LanePr }): React.JSX.Element {
+  const url = lanePrUrl(lane)
+  const tone = lane.verdict.tone
+  return (
+    <span
+      data-testid="session-pr-bead"
+      data-tone={tone}
       role="link"
       tabIndex={-1}
-      aria-label={`${chip.title}${others}. Open on GitHub`}
-      data-tooltip={`${chip.title}${others}\nClick to open on GitHub`}
+      aria-label={`Open #${lane.number} on GitHub`}
       onClick={(event) => {
         // The row underneath opens the session. Without this, one click both
         // opens the PR in a browser and switches the session out from under it.
         event.stopPropagation()
         event.preventDefault()
-        void openPullRequest(pr)
+        if (url) void openPullRequest({ url })
       }}
       className={clsx(
-        'ml-auto flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 font-mono text-2xs font-semibold',
-        // Hover derives from the chip's OWN colour (`border-current`) rather
+        'flex size-4 shrink-0 items-center justify-center rounded-full border',
+        // Hover derives from the bead's OWN colour (`border-current`) rather
         // than a `dark:` variant: Phosphor themes via a `.dark` CLASS, but no
         // `@custom-variant dark` is defined, so Tailwind's `dark:` would key
-        // off the OS preference and be wrong whenever the two disagree. No
-        // other component in the renderer uses `dark:` either.
-        'cursor-pointer hover:border-current hover:underline hover:underline-offset-2',
-        PR_CHIP_CLASSES[chip.variant],
+        // off the OS preference and be wrong whenever the two disagree.
+        url && 'cursor-pointer hover:border-current',
+        PR_TONE_BEAD_CLASSES[tone],
       )}
     >
-      {chip.label}
-      {chip.glyph && <span aria-hidden>{chip.glyph}</span>}
-      {more > 0 && <span className="opacity-70">+{more}</span>}
+      <PrToneGlyph tone={tone} />
     </span>
   )
 }
 
-/** Open a PR in the user's browser. Shared by the chip and the context menu. */
-export function openPullRequest(pr: GhPullRequest): Promise<void> {
+/** Open a PR in the user's browser. Shared by the beads and the row menus. */
+export function openPullRequest(pr: Pick<GhPullRequest, 'url'>): Promise<void> {
   return window.phosphor.invoke('app:openExternal', pr.url)
 }

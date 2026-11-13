@@ -39,7 +39,8 @@ export interface RemoteLaneActionState {
   busy: boolean
   /** Why the Host would refuse Stop right now, if it would. */
   stopBlocked: string | null
-  pr: { number: number; state?: string } | null
+  /** The lane's own PRs, lead first, as its menu names them. */
+  prs: LaneActionContext['prs']
   /** The marker preference: `off` drops the marker slot and its menu item, as on This Mac. */
   markers: LanePrefs['markers']
   /** Desktop relays bundles; the browser cannot. */
@@ -83,7 +84,7 @@ export function hostLaneContext(state: RemoteLaneActionState): LaneActionContext
   return {
     pinned: lane.pinned === true,
     markers: state.markers,
-    pr: state.pr,
+    prs: state.prs,
     unseen: lane.attention > lane.read,
     running,
     spend: {},

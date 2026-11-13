@@ -4,7 +4,7 @@ import { MenuGesture } from '@/components/menuGesture'
 import { usePlatform } from '@/platform/Platform'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import clsx from 'clsx'
+import { CONTEXT_MENU_PANEL_CLASS, MenuRows, useOpenSubmenu } from './ContextMenuRows'
 
 export interface ContextMenuItem {
   /** A verb or a noun, never a sentence — qualifiers go in `hint`. */
@@ -20,6 +20,12 @@ export interface ContextMenuItem {
   separatorAbove?: boolean
   disabled?: boolean
   onClick: () => void
+  /**
+   * Items shown beside this one (desktop) or in its place (the phone sheet).
+   * A surface that cannot nest runs `onClick` instead, so it must still do
+   * something sensible on its own.
+   */
+  submenu?: ContextMenuItem[]
 }
 
 export interface ContextMenuOptions {
@@ -156,6 +162,12 @@ export function ContextMenuHost(): React.JSX.Element | null {
   )
 }
 
+interface SheetLevel {
+  from: ContextMenuState
+  title?: string
+  items: ContextMenuItem[]
+}
+
 /** The phone's menu: the same rows as a bottom sheet, separators as group gaps. */
 function ContextMenuSheet({
   state,
@@ -164,15 +176,20 @@ function ContextMenuSheet({
   state: ContextMenuState
   onClose: () => void
 }): React.JSX.Element {
+  // A submenu replaces the sheet's rows, the phone's own way to nest.
+  const [nested, setNested] = useState<SheetLevel | null>(null)
+  // A new menu opened while the sheet is up starts again at its top level.
+  const level = nested?.from === state ? nested : state
+  const setLevel = (next: Omit<SheetLevel, 'from'>): void => setNested({ ...next, from: state })
   const groups: ContextMenuItem[][] = []
-  for (const item of state.items) {
+  for (const item of level.items) {
     if (item.separatorAbove || groups.length === 0) groups.push([])
     groups[groups.length - 1]!.push(item)
   }
   return (
     <ActionSheet
       label={state.title ?? 'Menu'}
-      head={state.title && <strong className="truncate">{state.title}</strong>}
+      head={level.title && <strong className="truncate">{level.title}</strong>}
       returnFocus={state.trigger}
       onClose={onClose}
     >
@@ -186,6 +203,7 @@ function ContextMenuSheet({
                 disabled={item.disabled}
                 hint={item.hint}
                 onClick={() => {
+                  if (item.submenu) return setLevel({ title: item.label, items: item.submenu })
                   onClose()
                   item.onClick()
                 }}
@@ -217,14 +235,17 @@ function ContextMenuPopover({
   onClose: () => void
 }): React.JSX.Element {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
+  const submenu = useOpenSubmenu()
+  const { back } = submenu
   const ref = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
 
   useEffect(() => {
     const close = (): void => closeRef.current()
+    // Escape steps out of an open submenu first, then closes the menu.
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape' && !back()) close()
     }
     window.addEventListener('mousedown', handleOutside)
     window.addEventListener('keydown', onKey)
@@ -237,7 +258,7 @@ function ContextMenuPopover({
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('blur', close)
     }
-  }, [])
+  }, [back])
 
   /*
    * Clamp against the menu's OWN box rather than a guessed one. The guess
@@ -259,53 +280,11 @@ function ContextMenuPopover({
     <div
       ref={ref}
       data-testid="context-menu"
-      className="border-border bg-surface-raised fixed z-50 max-h-[80vh] w-max min-w-44 max-w-72 overflow-y-auto rounded-lg border py-1 shadow-xl"
+      className={CONTEXT_MENU_PANEL_CLASS}
       style={{ left: position?.x ?? state.x, top: position?.y ?? state.y }}
     >
-      {state.items.map((item, index) => (
-        <div key={index}>
-          {item.separatorAbove && <div className="border-border my-1 border-t" />}
-          <PopoverRow item={item} onClose={onClose} />
-        </div>
-      ))}
+      <MenuRows items={state.items} onClose={onClose} submenu={submenu} />
     </div>,
     document.body,
-  )
-}
-
-function PopoverRow({
-  item,
-  onClose,
-}: {
-  item: ContextMenuItem
-  onClose: () => void
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      disabled={item.disabled}
-      tooltip={{
-        label: item.label,
-        description: item.hint,
-        shortcut: item.shortcut ? [item.shortcut] : undefined,
-      }}
-      onClick={() => {
-        onClose()
-        item.onClick()
-      }}
-      className={clsx(
-        'flex w-full items-center gap-3 px-2.5 py-1 text-left text-lg transition-colors disabled:opacity-40',
-        item.danger ? 'text-danger hover:bg-danger-soft' : 'hover:bg-bg-secondary',
-      )}
-    >
-      {/* The label never gives way to its hint: a long hint (a disabled row's reason)
-          wraps beside it, and only a label wider than the whole menu truncates. */}
-      <span className="max-w-full shrink-0 grow truncate">{item.label}</span>
-      {item.hint && (
-        <span className="text-text-tertiary min-w-0 text-right text-sm">{item.hint}</span>
-      )}
-      {item.shortcut && (
-        <span className="text-text-tertiary shrink-0 font-mono text-sm">{item.shortcut}</span>
-      )}
-    </TooltipButton>
   )
 }
