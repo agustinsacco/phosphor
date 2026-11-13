@@ -53,3 +53,9 @@ it.each(['brain_search', 'brain_related'])(
     expect(fresh.map((item) => item.entryId)).toEqual(['fresh'])
   },
 )
+
+it('scrubs a credential before truncation can cut through its body', () => {
+  const text = 'x'.repeat(580) + ' token=' + 'harborsecret'.repeat(100) + ' end'
+  const segments = transcriptSegments([{id:'u',message:{role:'toolResult',toolName:'bash',content:text}}])
+  expect(segments[0]!.text).not.toContain('harborsecret')
+})
