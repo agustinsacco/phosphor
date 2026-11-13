@@ -20,19 +20,30 @@ import type { InspectorFocus } from './pr-inspector/usePrInspector'
  * appears.
  */
 export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const [open, setOpen] = useState(false)
+  // Keyed by lane: switching lanes never carries an open inspector across.
+  const [openFor, setOpenFor] = useState<string | null>(null)
+  const [lane, setLane] = useState(sessionId)
+  if (lane !== sessionId) {
+    setLane(sessionId)
+    setOpenFor(null)
+  }
+  const open = openFor === sessionId
   const { repoPath, ready, slice, prs, lead, branch, remote } = useLanePullRequests(sessionId, {
     all: open,
   })
   const enabled = useLanePrefsStore((s) => s.lanes.prStatus)
-  if (!enabled || !repoPath || !lead?.pr) return null
+  const shown = enabled && !!repoPath && !!lead?.pr
+  useEffect(() => {
+    if (!shown) setOpenFor(null)
+  }, [shown])
+  if (!shown) return null
   return (
     <LanePrPill
       key={`${sessionId}:${repoPath}`}
       sessionId={sessionId}
       lead={lead}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => setOpenFor(next ? sessionId : null)}
       lane={{ repoPath, ready, slice, prs, branch, remote }}
     />
   )
@@ -59,7 +70,11 @@ function LanePrPill({
   lane: InspectorLane
 }): React.JSX.Element {
   const prompting = useRef(false)
-  const focus = useInspectorRequest(sessionId, onOpenChange)
+  const [focus, setFocus] = useState<InspectorFocus>()
+  useInspectorRequest(sessionId, (request) => {
+    setFocus(request)
+    onOpenChange(true)
+  })
   const more = lane.prs.owned.length - 1
   return (
     <LaneHeaderPill
@@ -81,7 +96,11 @@ function LanePrPill({
       region="Pull request details"
       popupClassName="w-[720px]"
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        // A manual open starts on the lead PR, not on the last request's.
+        if (!next) setFocus(undefined)
+        onOpenChange(next)
+      }}
       holdOpen={() => prompting.current}
     >
       {(close) => (
@@ -103,20 +122,15 @@ function LanePrPill({
  * Answer "open this lane's inspector" (a notice, the sidebar menu, Home):
  * open, select the asked-for PR, and clear the request.
  */
-function useInspectorRequest(
-  sessionId: string,
-  onOpen: (open: boolean) => void,
-): InspectorFocus | undefined {
+function useInspectorRequest(sessionId: string, onRequest: (focus: InspectorFocus) => void): void {
   const request = usePrInspectorStore((s) =>
     s.request?.sessionId === sessionId ? s.request : null,
   )
-  const [focus, setFocus] = useState<InspectorFocus>()
+  const answer = useRef(onRequest)
+  answer.current = onRequest
   useEffect(() => {
     if (!request) return
     const taken = usePrInspectorStore.getState().take(sessionId)
-    if (!taken) return
-    setFocus({ key: taken.key, at: taken.at })
-    onOpen(true)
-  }, [request, sessionId, onOpen])
-  return focus
+    if (taken) answer.current({ key: taken.key, at: taken.at })
+  }, [request, sessionId])
 }

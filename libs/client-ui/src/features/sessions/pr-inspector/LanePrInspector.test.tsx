@@ -331,4 +331,19 @@ it('answers a request to open on one PR, then clears it', async () => {
   )
   expect(details()).toBeNull()
   expect(document.activeElement).toBe(pill())
+  // Opened by hand, it starts on the lead again.
+  await act(async () => pill().click())
+  expect(selected()?.textContent).toContain('#57')
+})
+
+it('closes when the header switches to another lane', async () => {
+  useSessionsStore.setState((s) => ({
+    live: { ...s.live, b: { phosphorId: 'b', workspacePath: '/repo/wt', diskPath: meta.path } },
+  }))
+  await openInspector()
+  expect(details()).not.toBeNull()
+  await act(async () => root.render(<LanePrStatus sessionId="b" />))
+  expect(details()).toBeNull()
+  await act(async () => root.render(<LanePrStatus sessionId="a" />))
+  expect(details()).toBeNull()
 })
