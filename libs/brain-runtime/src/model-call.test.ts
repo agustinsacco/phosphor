@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, stat, readFile, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -266,4 +266,15 @@ it('traces successful assistant completion and zero-exit assistant failure, with
   expect(
     await stat(join(args.directory, 'calls', args.job.id, 'extract-1')).catch(() => null),
   ).toBeNull()
+})
+
+it('removes an interrupted call directory before reusing its ordinal',async()=>{
+  const args=await input(),directory=join(args.directory,'calls',args.job.id,'extract-1')
+  await mkdir(join(directory,'provider'),{recursive:true})
+  await writeFile(join(directory,'provider','stale'),'do not reuse')
+  const run:typeof runPrintMode=async(_binary,_args,options)=>{
+    expect(await stat(join(options.cwd,'provider','stale')).catch(()=>null)).toBeNull()
+    options.onStdout?.(event('Harbor')+'\n');return {stdout:''}
+  }
+  await runModelCall(args,run)
 })

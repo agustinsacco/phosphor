@@ -73,3 +73,16 @@ it('a changed input hash never reuses a checkpoint', async () => {
   }
   expect(ask.spy).toHaveBeenCalledTimes(2)
 })
+
+it('prioritizes registry names mentioned in the current window over recent unrelated entities', async()=>{
+  const store=new FakeBrainStore(),job=store.enqueue(HARBOR_JOB,'queued')
+  const segments=['many concepts','more concepts','Oldest concept matters'].map((text,i)=>({entryId:`e${i}`,role:'user' as const,label:'You',observedAt:0,text}))
+  let call=0
+  const ask:StageAsk=async(_stage,_part,prompt,validate)=>{
+    call++
+    if(call===3)expect(prompt).toContain('"label":"Oldest concept"')
+    const count=call===1?40:call===2?30:0
+    return validate(JSON.stringify({entities:Array.from({length:count},(_,i)=>({ref:`n${i+1}`,label:call===1&&i===0?'Oldest concept':`Concept ${call}-${i}`,kind:'concept',aliases:[],description:'',keys:[]})),claims:[],parents:[]}))
+  }
+  await extractWindows(job.id,segments.map(s=>makeWindow([s])),store,ask,()=>{},segments)
+})
