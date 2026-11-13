@@ -12,6 +12,18 @@
       "types": "./src/bridge.ts",
       "default": "./src/bridge.ts"
     },
+    "./search/search-client": {
+      "types": "./src/search/search-client.ts",
+      "default": "./src/search/search-client.ts"
+    },
+    "./search/search-protocol": {
+      "types": "./src/search/search-protocol.ts",
+      "default": "./src/search/search-protocol.ts"
+    },
+    "./search/search-worker-handler": {
+      "types": "./src/search/search-worker-handler.ts",
+      "default": "./src/search/search-worker-handler.ts"
+    },
     "./embedding/embedding-client": {
       "types": "./src/embedding/embedding-client.ts",
       "default": "./src/embedding/embedding-client.ts"
