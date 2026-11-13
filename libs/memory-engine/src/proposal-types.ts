@@ -74,6 +74,7 @@ export interface ProposalMemory {
 }
 /** "Are these part of one parent?" Members are job refs or existing entity ids. */
 export interface ProposalGroup {
+  /** `entityId` is an existing entity id or a job entity ref; null creates the parent. */
   parent: { label: string; kind: BrainEntityKind; entityId: string | null }
   members: string[]
 }

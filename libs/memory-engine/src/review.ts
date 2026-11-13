@@ -62,9 +62,9 @@ function applyGroups(commit: CommitContext, groups: number[]): void {
   const { ctx, proposal, resolve } = commit
   for (const index of new Set(groups)) {
     const group = proposal.groups[index]!
-    const parent =
-      group.parent.entityId ??
-      createEntity(ctx, { ...group.parent, aliases: [], description: '', keys: [] })
+    const parent = group.parent.entityId
+      ? resolve(group.parent.entityId)
+      : createEntity(ctx, { ...group.parent, aliases: [], description: '', keys: [] })
     for (const member of group.members) {
       const id = resolve(member)
       if (id === parent) continue

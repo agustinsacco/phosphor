@@ -73,7 +73,11 @@ function validate(ctx: Context, value: Proposal): void {
   }
   for (const group of value.groups) {
     group.members.forEach(checkEntity)
-    if (group.parent.entityId && !entity(ctx, group.parent.entityId))
+    if (
+      group.parent.entityId &&
+      !refs.has(group.parent.entityId) &&
+      !entity(ctx, group.parent.entityId)
+    )
       throw new Error('Brain group parent not found.')
   }
   value.memoryVectors.forEach(encodeVector)

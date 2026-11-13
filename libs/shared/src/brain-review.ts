@@ -32,6 +32,7 @@ export interface BrainIdentity {
 /** Entities that share a name prefix but no stated parent: "Are these part of one Harbor?" */
 export interface BrainGroupQuestion {
   index: number
+  /** `entityId` is an existing entity id or an identity ref; null means a new parent. */
   parent: { label: string; kind: BrainEntityKind; entityId: string | null }
   /** Identity refs or existing entity ids. */
   members: string[]
