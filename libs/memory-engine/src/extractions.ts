@@ -1,4 +1,5 @@
 import type { BrainExtractionRecord, BrainExtractionOutcome } from '@phosphor/shared/brain'
+import { scrubExcerpt } from './secrets'
 import { all, one, run, type Context } from './database'
 
 /** Hard expiry applies even to inbox jobs or referenced records. Never deletes knowledge. */
@@ -18,13 +19,25 @@ export function saveExtraction(ctx: Context, record: BrainExtractionRecord): voi
     record.jobId,
     record.sessionId,
     record.sessionPath,
-    record.title,
+    scrubExcerpt(record.title),
     record.leafId,
     record.model,
     record.thinking,
-    JSON.stringify(record.calls),
-    JSON.stringify(record.outcomes),
-    record.error,
+    JSON.stringify(
+      record.calls.map((call) => ({
+        ...call,
+        answer: scrubExcerpt(call.answer),
+        error: call.error && scrubExcerpt(call.error),
+      })),
+    ),
+    JSON.stringify(
+      record.outcomes.map((outcome) => ({
+        ...outcome,
+        summary: scrubExcerpt(outcome.summary),
+        reason: outcome.reason && scrubExcerpt(outcome.reason),
+      })),
+    ),
+    record.error && scrubExcerpt(record.error),
     record.startedAt,
     record.finishedAt,
   )

@@ -36,8 +36,9 @@ export function shortlist(query: Float32Array, bits: Uint32Array, count: number)
   let total = 0
   while (threshold < 768 && total + histogram[threshold]! < count) total += histogram[threshold++]!
   const selected: number[] = []
+  for (let i = 0; i < size; i++) if (distances[i]! < threshold) selected.push(i)
   for (let i = 0; i < size && selected.length < count; i++)
-    if (distances[i]! <= threshold) selected.push(i)
+    if (distances[i] === threshold) selected.push(i)
   return selected
 }
 export function asymmetric(query: Float32Array, bits: Uint32Array, offset: number): number {

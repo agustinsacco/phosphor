@@ -4,6 +4,7 @@ import { entity } from './entities'
 import { job, updateJob } from './jobs'
 import { memoryCard, quoteContext } from './knowledge'
 import type { Citation, Proposal, ProposalResult } from './types'
+import { scrubProposal } from './proposal-text'
 import { decodeVector, encodeVector } from './vectors'
 
 export function storedProposal(ctx: Context, jobId: string): Proposal | undefined {
@@ -80,6 +81,7 @@ function validate(ctx: Context, value: Proposal): void {
 }
 export function propose(ctx: Context, value: Proposal): ProposalResult {
   validate(ctx, value)
+  value = scrubProposal(value)
   transaction(ctx, () => {
     run(ctx, 'DELETE FROM proposals WHERE job_id=?', value.jobId)
     const nonempty = value.memories.length || value.confirmations.length || value.groups.length
