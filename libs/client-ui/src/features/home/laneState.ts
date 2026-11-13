@@ -136,7 +136,9 @@ export function classifyLane(input: LaneInput): BoardLane | null {
   if (pr && verdict && column) {
     // A queued PR is already landing: a local merge would race GitHub's.
     const merge = column === 'ready' && !(isSummary(pr) && pr.inMergeQueue)
-    return { ...base, state: column, detail: verdict.headline, action: merge ? 'merge' : 'open' }
+    // The lead's number leads, so a card never hides which PR it means.
+    const detail = `#${pr.number} · ${verdict.headline}`
+    return { ...base, state: column, detail, action: merge ? 'merge' : 'open' }
   }
 
   // No PR to judge, so the remaining question is whether the branch has

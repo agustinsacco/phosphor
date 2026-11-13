@@ -77,7 +77,7 @@ describe('classifyLane', () => {
     // A draft is in flight, not mergeable.
     expect(classifyLane(lane({ pr: pr({ state: 'DRAFT' }) }))).toMatchObject({
       state: 'review',
-      detail: 'Draft',
+      detail: '#1 · Draft',
     })
     // A closed or merged PR says nothing about the lane any more.
     expect(classifyLane(lane({ pr: pr({ state: 'MERGED' }) }))).toBeNull()
@@ -93,7 +93,7 @@ describe('classifyLane', () => {
     )
     expect(out).toMatchObject({
       state: 'review',
-      detail: 'Checks running, 1 left',
+      detail: '#1 · Checks running, 1 left',
       action: 'open',
     })
   })
@@ -102,7 +102,7 @@ describe('classifyLane', () => {
     const missingChecks = pr({ checks: null, reviewDecision: 'APPROVED' })
     expect(classifyLane(lane({ pr: missingChecks }))).toMatchObject({
       state: 'review',
-      detail: 'Approved; checks unknown',
+      detail: '#1 · Approved; checks unknown',
       action: 'open',
     })
   })
@@ -111,21 +111,29 @@ describe('classifyLane', () => {
     const out = classifyLane(
       lane({ pr: pr({ state: 'DRAFT', checks: { passed: 2, failed: 0, pending: 0, total: 2 } }) }),
     )
-    expect(out).toMatchObject({ state: 'review', detail: 'Draft', action: 'open' })
+    expect(out).toMatchObject({ state: 'review', detail: '#1 · Draft', action: 'open' })
   })
 
   it('names the failing checks rather than saying "attention"', () => {
     const out = classifyLane(
       lane({ pr: pr({ checks: { passed: 1, failed: 2, pending: 0, total: 3 } }) }),
     )
-    expect(out).toMatchObject({ state: 'attention', detail: '2 checks failing', action: 'open' })
+    expect(out).toMatchObject({
+      state: 'attention',
+      detail: '#1 · 2 checks failing',
+      action: 'open',
+    })
   })
 
   it('says changes requested when a human is the only blocker', () => {
     const out = classifyLane(
       lane({ pr: pr({ reviewDecision: 'CHANGES_REQUESTED', checks: green }) }),
     )
-    expect(out).toMatchObject({ state: 'attention', detail: 'Changes requested', action: 'open' })
+    expect(out).toMatchObject({
+      state: 'attention',
+      detail: '#1 · Changes requested',
+      action: 'open',
+    })
   })
 
   it('leads with the verdict the sidebar and the pill show for the same PR', () => {
@@ -135,17 +143,17 @@ describe('classifyLane', () => {
     })
     expect(classifyLane(lane({ pr: both }))).toMatchObject({
       state: 'attention',
-      detail: prVerdict(both).headline,
+      detail: `#1 · ${prVerdict(both).headline}`,
     })
   })
 
   it('waits for a review on a green PR nobody approved, and names an approval', () => {
     expect(classifyLane(lane({ pr: ready() }))?.detail).toBe(
-      'Approved, checks green: ready to merge',
+      '#1 · Approved, checks green: ready to merge',
     )
     expect(classifyLane(lane({ pr: ready({ reviewDecision: 'REVIEW_REQUIRED' }) }))).toMatchObject({
       state: 'review',
-      detail: 'Waiting for review',
+      detail: '#1 · Waiting for review',
       action: 'open',
     })
   })

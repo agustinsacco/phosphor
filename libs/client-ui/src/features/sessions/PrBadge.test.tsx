@@ -63,13 +63,26 @@ describe('PrBadge', () => {
     render(<PrBadge prs={[failing, review]} />)
     expect(beads().map((bead) => bead.dataset.tone)).toEqual(['failing', 'review'])
     expect(badge()?.dataset.variant).toBe('failing')
-    expect(badge()?.textContent).not.toMatch(/\+/)
+    // Two fit: the only count is the narrow row's.
+    expect(badge()?.textContent).toBe('+1')
   })
 
   it('caps the beads at three and counts the rest as +N', () => {
     render(<PrBadge prs={[1, 2, 3, 4, 5].map((n) => of(n))} />)
     expect(beads()).toHaveLength(3)
-    expect(badge()?.textContent).toBe('+2')
+    const counts = [...badge()!.querySelectorAll('span:not([data-testid])')]
+    const wide = counts.filter((count) => !count.className.includes('hidden '))
+    expect(wide.map((count) => count.textContent)).toEqual(['+2'])
+  })
+
+  it('keeps only the lead bead and counts the rest on a narrow row', () => {
+    render(<PrBadge prs={[1, 2, 3, 4, 5].map((n) => of(n))} />)
+    const narrowOnly = /@max-\[10\.5rem\]\/lane-line:hidden/
+    expect(beads().map((bead) => narrowOnly.test(bead.className))).toEqual([false, true, true])
+    const narrowCount = [...badge()!.querySelectorAll('span')].find((span) =>
+      span.className.includes('@max-[10.5rem]/lane-line:inline'),
+    )
+    expect(narrowCount?.textContent).toBe('+4')
   })
 
   it('lists every PR on its own line in one tooltip, and says the same to a screen reader', () => {

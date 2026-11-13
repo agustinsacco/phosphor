@@ -229,7 +229,7 @@ export function SessionRow({
         )}
         <span
           className={clsx(
-            'flex items-center gap-1 text-base leading-4',
+            '@container/lane-line flex items-center gap-1 text-base leading-4',
             active ? 'text-text' : 'text-text-secondary',
           )}
         >

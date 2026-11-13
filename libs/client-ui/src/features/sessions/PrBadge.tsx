@@ -1,6 +1,16 @@
 import clsx from 'clsx'
 import type { GhPullRequest } from '@shared/models'
 import type { LanePr } from './lanePrs'
+
+/**
+ * A row's subtitle names itself `lane-line` (`@container/lane-line`). Narrower
+ * than this, it keeps only the lead bead and counts the rest, so the beads
+ * never run past the sidebar's edge. Without that container (the Home board)
+ * the query never matches and every bead shows.
+ */
+const NARROW_ONLY = 'hidden @max-[10.5rem]/lane-line:inline'
+const WIDE_ONLY = '@max-[10.5rem]/lane-line:hidden'
+
 import { lanePrUrl, prBeads } from './prBeads'
 import { PR_TONE_BEAD_CLASSES, PrToneGlyph } from './PrToneGlyph'
 
@@ -40,19 +50,26 @@ export function PrBadge({ prs }: { prs: LanePr[] }): React.JSX.Element | null {
       data-tooltip-description="Click a bead to open it on GitHub"
       className="ml-auto flex shrink-0 items-center gap-1"
     >
-      {view.shown.map((lane) => (
-        <PrBead key={lane.key} lane={lane} />
+      {view.shown.map((lane, index) => (
+        <PrBead key={lane.key} lane={lane} className={index > 0 ? WIDE_ONLY : undefined} />
       ))}
-      {view.more > 0 && (
-        <span className="text-text-secondary font-mono text-2xs font-semibold leading-4">
-          +{view.more}
-        </span>
-      )}
+      {view.more > 0 && <MoreCount count={view.more} className={WIDE_ONLY} />}
+      {prs.length > 1 && <MoreCount count={prs.length - 1} className={NARROW_ONLY} />}
     </span>
   )
 }
 
-function PrBead({ lane }: { lane: LanePr }): React.JSX.Element {
+function MoreCount({ count, className }: { count: number; className: string }) {
+  return (
+    <span
+      className={clsx('text-text-secondary font-mono text-2xs font-semibold leading-4', className)}
+    >
+      +{count}
+    </span>
+  )
+}
+
+function PrBead({ lane, className }: { lane: LanePr; className?: string }): React.JSX.Element {
   const url = lanePrUrl(lane)
   const tone = lane.verdict.tone
   return (
@@ -77,6 +94,7 @@ function PrBead({ lane }: { lane: LanePr }): React.JSX.Element {
         // off the OS preference and be wrong whenever the two disagree.
         url && 'cursor-pointer hover:border-current',
         PR_TONE_BEAD_CLASSES[tone],
+        className,
       )}
     >
       <PrToneGlyph tone={tone} />
