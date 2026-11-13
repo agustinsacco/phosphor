@@ -2,7 +2,7 @@ import type { BrainStore, EntityCard, ProposalEntity } from '@phosphor/memory-en
 import type { BrainSearchPort } from '../types'
 import type { StageAsk, StageEntity, IdentityResult } from '../stage-types'
 import type { FoldedJob } from './fold'
-import { mergeEntity, redirect, rewriteMemory } from './fold'
+import { mergeEntity, redirect, rewriteClaim } from './fold'
 import { array, jsonAnswer, object, text } from '../stage-parse'
 import { identityPrompt } from '../stage-prompts/identity'
 import { fold, tokens } from '../text'
@@ -228,7 +228,7 @@ export async function resolveIdentities(
       from = entities.find((e) => e.ref === source)
     if (target && from) mergeEntity(target, from)
   }
-  job.claims = job.claims.map((c) => ({ ...c, memory: rewriteMemory(c.memory, redirects) }))
+  job.claims = job.claims.map((c) => rewriteClaim(c, redirects, job.outcomes))
   job.parents = job.parents.map((p) => ({ ...p, entity: redirect(p.entity, redirects) }))
   job.entities = entities.filter((e) => !redirects.has(e.ref))
   return { entities: entities.filter((e) => !redirects.has(e.ref)), redirects }

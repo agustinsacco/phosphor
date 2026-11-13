@@ -5,7 +5,7 @@ export function fold(value: string): string {
 export function tokens(value: string): string[] {
   return fold(value).match(/[\p{L}\p{N}_]+/gu) ?? []
 }
-export function mentions(text: string, name: string): boolean {
+export function wholePhrase(text: string, name: string): boolean {
   const escaped = fold(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return (
     !!escaped &&

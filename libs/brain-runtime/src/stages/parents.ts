@@ -8,12 +8,13 @@ import type { StageAsk, StageExtraction, StageEntity } from '../stage-types'
 import { parseStageExtraction } from '../stage-parse'
 import { parentsPrompt } from '../stage-prompts/parents'
 import { segmentInputs } from '../stage-input'
-import { makeWindow, type TranscriptWindow } from '../windows'
+import { makeWindow, inputHash, type TranscriptWindow } from '../windows'
 import { PARENT_CHARS } from '../constants'
-import { mentions, fold, tokens } from '../text'
+import { wholePhrase, fold, tokens } from '../text'
 import { foldParts, type FoldedJob } from './fold'
 
 export async function findParents(
+  jobId: string,
   job: FoldedJob,
   identities: ProposalEntity[],
   segments: TranscriptSegment[],
@@ -40,7 +41,7 @@ export async function findParents(
     ]
     const registry = all.map((e, index) => ({ ...e, ref: `r${index + 1}` }))
     const ranked = segments
-      .filter((s) => batch.some((e) => [e.label, ...e.aliases].some((n) => mentions(s.text, n))))
+      .filter((s) => batch.some((e) => [e.label, ...e.aliases].some((n) => wholePhrase(s.text, n))))
       .sort((a, b) => coMentions(b.text, all) - coMentions(a.text, all))
     const selected: TranscriptSegment[] = []
     for (const segment of ranked) {
@@ -50,23 +51,51 @@ export async function findParents(
     }
     if (!selected.length) continue
     const window = makeWindow(selected)
-    const requested = batch.map((e) => registry[all.findIndex((v) => v.ref === e.ref)])
-    const extraction = await ask(
-      'parents',
+    const requested = batch.map((e) => registry[all.findIndex((v) => v.ref === e.ref)]!)
+    const extraction = await parentExtraction(
+      jobId,
       i / 8 + 1,
-      parentsPrompt(requested, registry, window.text),
-      (a) => {
-        const result = parseStageExtraction(a, window, registry)
-        for (const e of requested)
-          if (e && !result.parents.some((p) => p.entity === e.ref))
-            throw new Error(`Missing parent assessment for ${e.ref}`)
-        return result
-      },
-      selected.map((s) => s.entryId),
-      { registry, requested, segments: segmentInputs(selected, segments) },
+      store,
+      ask,
+      requested,
+      registry,
+      window,
+      segments,
     )
     appendParents(job, identities, window, extraction, registry, all, i / 8 + 1)
   }
+}
+async function parentExtraction(
+  jobId: string,
+  part: number,
+  store: BrainStore,
+  ask: StageAsk,
+  requested: StageEntity[],
+  registry: StageEntity[],
+  window: TranscriptWindow,
+  source: TranscriptSegment[],
+): Promise<StageExtraction> {
+  const prompt = parentsPrompt(requested, registry, window.text),
+    hash = inputHash(prompt),
+    key = `parents:${part}`
+  const saved = store.part(jobId, key, hash)
+  if (saved) return JSON.parse(saved.output) as StageExtraction
+  const extraction = await ask(
+    'parents',
+    part,
+    prompt,
+    (answer) => {
+      const result = parseStageExtraction(answer, window, registry)
+      for (const e of requested)
+        if (!result.parents.some((p) => p.entity === e.ref))
+          throw new Error(`Missing parent assessment for ${e.ref}`)
+      return result
+    },
+    window.segments.map((s) => s.entryId),
+    { registry, requested, segments: segmentInputs(window.segments, source) },
+  )
+  store.savePart(jobId, { part: key, inputHash: hash, output: JSON.stringify(extraction) })
+  return extraction
 }
 function appendParents(
   job: FoldedJob,
@@ -130,9 +159,13 @@ function appendParents(
 }
 
 function coMentions(text: string, entities: { label: string }[]): number {
-  return entities.filter((e) => mentions(text, e.label)).length
+  return entities.filter((e) => wholePhrase(text, e.label)).length
 }
-export function prefixGroups(job: FoldedJob, entities: ProposalEntity[]): ProposalGroup[] {
+export function prefixGroups(
+  job: FoldedJob,
+  entities: ProposalEntity[],
+  store: BrainStore,
+): ProposalGroup[] {
   const groups = new Map<string, ProposalEntity[]>()
   for (const e of entities) {
     if (
@@ -145,16 +178,33 @@ export function prefixGroups(job: FoldedJob, entities: ProposalEntity[]): Propos
     list.push(e)
     groups.set(prefix, list)
   }
-  return [...groups.values()]
-    .filter((members) => members.length >= 3)
-    .map((members) => ({
+  const siblings = [...groups.values()].filter((members) => members.length >= 3)
+  const labels = siblings.map((members) => members[0]!.label.split(' ')[0]!)
+  const matches = store.entityMatches(
+    labels.map((label) => ({ label, aliases: [], keys: [] })),
+    12,
+  )
+  const cards = store.entityCards([
+    ...new Set(
+      matches.flatMap((rows) => rows.filter((m) => m.channel === 'name').map((m) => m.entityId)),
+    ),
+  ])
+  return siblings.map((members, index) => {
+    const label = labels[index]!
+    const exact = (e: { label: string; aliases: string[]; kind: string }): boolean =>
+      ['organization', 'project', 'team'].includes(e.kind) &&
+      [e.label, ...e.aliases].some((name) => fold(name) === fold(label))
+    const jobParent = entities.find(exact)
+    const candidates = cards.filter(
+      (e) => exact(e) && matches[index]!.some((m) => m.channel === 'name' && m.entityId === e.id),
+    )
+    return {
       parent: {
-        label: members[0]!.label.split(' ')[0]!,
+        label,
         kind: 'project',
-        entityId:
-          entities.find((e) => fold(e.label) === fold(members[0]!.label.split(' ')[0]!))
-            ?.entityId ?? null,
+        entityId: jobParent?.ref ?? (candidates.length === 1 ? candidates[0]!.id : null),
       },
       members: members.map((e) => e.ref),
-    }))
+    }
+  })
 }

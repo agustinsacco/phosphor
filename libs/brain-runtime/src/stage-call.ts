@@ -73,8 +73,9 @@ async function callExecutor(context: CallContext) {
         onAnswer: (answer) => {
           call.answer = extractionAnswer(answer)
         },
-        onTrace: (trace) => {
+        onTrace: (trace, diagnostic) => {
           call.trace = trace
+          if (trace.reason !== 'completed' && diagnostic) call.error = diagnostic
         },
       })
       call.answer = extractionAnswer(result.text)
@@ -83,7 +84,9 @@ async function callExecutor(context: CallContext) {
       if (store.job(job.id)) store.updateJob(job.id, { usage: { ...usage } })
       return result.text
     } catch (error) {
-      call.error = scrubExcerpt(error instanceof Error ? error.message : String(error))
+      call.error = scrubExcerpt(
+        `${error instanceof Error ? error.message : String(error)}${call.error ? `: ${call.error}` : ''}`,
+      )
       if (call.trace && store.job(job.id)) {
         usage.tokens += call.trace.usage.tokens
         usage.cost += call.trace.usage.cost
@@ -113,7 +116,7 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
       return validate(answer)
     } catch (error) {
       const message = scrubExcerpt(error instanceof Error ? error.message : String(error))
-      rejected(record, stage, part, message)
+      record.rejected(stage, part, message)
       const repair = repairPrompt(prompt, answer, message)
       const repairPart = nextPart('repair')
       store.savePart(job.id, {
@@ -125,8 +128,7 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
       try {
         return validate(corrected)
       } catch (second) {
-        rejected(
-          record,
+        record.rejected(
           'repair',
           repairPart,
           scrubExcerpt(second instanceof Error ? second.message : String(second)),
@@ -138,16 +140,4 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
       }
     }
   }
-}
-
-function rejected(record: ExtractionRecord, stage: string, part: number, message: string): void {
-  const invalid = record.record.calls.at(-1)
-  if (invalid) invalid.error = message
-  const rejected = message.split('\n').map((reason, index) => ({
-    candidate: `${stage}-${part}:rejected-${index + 1}`,
-    summary: `Rejected ${stage} output`,
-    status: 'dropped' as const,
-    reason,
-  }))
-  record.outcomes([...record.record.outcomes, ...rejected])
 }

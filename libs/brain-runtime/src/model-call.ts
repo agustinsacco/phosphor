@@ -119,6 +119,7 @@ export async function runModelCall(
   let finalText = ''
   try {
     signal.throwIfAborted()
+    await rm(directory, { recursive: true, force: true })
     await mkdir(directory, { recursive: true, mode: 0o700 })
     await writeFile(join(directory, 'system.md'), input.systemPrompt, { mode: 0o600 })
     const result = await run(launch.binaryPath, modelArgs(input, directory), {

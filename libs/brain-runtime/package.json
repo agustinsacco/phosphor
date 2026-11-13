@@ -108,6 +108,10 @@
       "types": "./src/stage-parse.ts",
       "default": "./src/stage-parse.ts"
     },
+    "./stage-prompts/contract": {
+      "types": "./src/stage-prompts/contract.ts",
+      "default": "./src/stage-prompts/contract.ts"
+    },
     "./stage-prompts/extract": {
       "types": "./src/stage-prompts/extract.ts",
       "default": "./src/stage-prompts/extract.ts"

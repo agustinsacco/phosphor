@@ -21,6 +21,7 @@ export function extractionAnswer(text: string): string {
 }
 export class ExtractionRecord {
   readonly record: BrainExtractionRecord
+  private readonly rejections: BrainExtractionOutcome[] = []
   constructor(
     job: BrainJob,
     private readonly store: BrainStore,
@@ -34,6 +35,9 @@ export class ExtractionRecord {
         return undefined
       }
     })()
+    this.rejections.push(
+      ...(previous?.outcomes.filter((o) => o.candidate.includes(':rejected-')) ?? []),
+    )
     this.record = {
       jobId: job.id,
       sessionId: job.sessionId,
@@ -43,7 +47,7 @@ export class ExtractionRecord {
       model: job.model,
       thinking,
       calls: previous?.calls ?? [],
-      outcomes: [],
+      outcomes: [...this.rejections],
       error: null,
       startedAt: job.startedAt ?? now(),
       finishedAt: now(),
@@ -54,7 +58,20 @@ export class ExtractionRecord {
     this.save()
   }
   outcomes(outcomes: BrainExtractionOutcome[]): void {
-    this.record.outcomes = outcomes
+    this.record.outcomes = [...this.rejections, ...outcomes]
+    this.save()
+  }
+  rejected(stage: string, part: number, message: string): void {
+    const invalid = this.record.calls.at(-1)
+    if (invalid) invalid.error = message
+    const outcomes = message.split('\n').map((reason, index) => ({
+      candidate: `${stage}-${part}:rejected-${index + 1}`,
+      summary: `Rejected ${stage} output`,
+      status: 'dropped' as const,
+      reason,
+    }))
+    this.rejections.push(...outcomes)
+    this.record.outcomes.push(...outcomes)
     this.save()
   }
   failed(error: unknown): void {

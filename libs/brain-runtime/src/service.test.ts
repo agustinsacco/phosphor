@@ -172,9 +172,13 @@ it('reset stops admission and waits for an active cancelled call before clearing
   expect(s.search.refreshes).toBe(1)
 })
 
-it('stale review recomputation reuses unchanged parent output as well as extraction windows',async()=>{
-  const s=await setup();await s.service.api.queue({sessionPath:s.file,title:'Harbor'});await review(s.service)
-  const id=s.store.snapshot().jobs[0]!.id;s.store.rev++
-  await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review');await review(s.service)
-  expect(s.runner.mock.calls.filter(([call])=>call.stage==='parents')).toHaveLength(1)
+it('stale review recomputation reuses unchanged parent output as well as extraction windows', async () => {
+  const s = await setup()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await review(s.service)
+  const id = s.store.snapshot().jobs[0]!.id
+  s.store.rev++
+  await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
+  await review(s.service)
+  expect(s.runner.mock.calls.filter(([call]) => call.stage === 'parents')).toHaveLength(1)
 })

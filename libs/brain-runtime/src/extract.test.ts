@@ -135,11 +135,12 @@ it('keeps an outcome for each validated claim when a later stage fails', async (
   )
 })
 
-it('publishes extract progress before the first model call begins',async()=>{
-  const s=await setup()
-  s.runner.mockImplementation(async input=>{
-    if(input.stage==='extract')expect(s.store.job(s.job.id)?.progress).toEqual({stage:'extract',done:0,total:1})
-    return {text:answerFor(input),usage:{tokens:1,cost:0}}
+it('publishes extract progress before the first model call begins', async () => {
+  const s = await setup()
+  s.runner.mockImplementation(async (input) => {
+    if (input.stage === 'extract')
+      expect(s.store.job(s.job.id)?.progress).toEqual({ stage: 'extract', done: 0, total: 1 })
+    return { text: answerFor(input), usage: { tokens: 1, cost: 0 } }
   })
-  await extractJob(s.job,signal(),s.store,s.options,s.search)
+  await extractJob(s.job, signal(), s.store, s.options, s.search)
 })

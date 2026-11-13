@@ -105,18 +105,25 @@ function claim(value: unknown, refs: Set<string>, window: TranscriptWindow): Sta
   }
   const quotes = array(c.quotes).map((q) => verifiedQuote(q, window))
   if (!quotes.length) throw new Error(`Claim ${String(c.ref)} has no quotes`)
-  const links: StageLink[] = array(c.links).map((v) => {
-    const l = object(v)
-    const subject = known(l.subject),
-      target = known(l.object)
-    if (subject === target) throw new Error('A relationship cannot link an entity to itself')
-    return {
-      subject,
-      object: target,
-      predicate: vocabulary(l.predicate, BRAIN_PREDICATES),
-      ...verifiedQuote(l, window),
-    }
-  })
+  const errors: string[] = []
+  const links: StageLink[] = validated(
+    array(c.links),
+    (v) => {
+      const l = object(v)
+      const subject = known(l.subject),
+        target = known(l.object)
+      if (subject === target) throw new Error('A relationship cannot link an entity to itself')
+      return {
+        subject,
+        object: target,
+        predicate: vocabulary(l.predicate, BRAIN_PREDICATES),
+        ...verifiedQuote(l, window),
+      }
+    },
+    `Claim ${String(c.ref)} link`,
+    errors,
+  )
+  if (errors.length) throw new Error(errors.join('\n'))
   if (typeof c.branch !== 'boolean') throw new Error('branch must be boolean')
   return {
     ref: ref(c.ref, 'c'),

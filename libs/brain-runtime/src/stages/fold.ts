@@ -40,6 +40,22 @@ export function rewriteMemory(
     links,
   }
 }
+export function rewriteClaim(
+  claim: FoldedClaim,
+  redirects: Map<string, string>,
+  outcomes: BrainExtractionOutcome[],
+): FoldedClaim {
+  claim.memory.links.forEach((link, index) => {
+    if (redirect(link.subject, redirects) !== redirect(link.object, redirects)) return
+    outcomes.push({
+      candidate: `${claim.ref}:link:${index + 1}`,
+      summary: `${link.subject} ${link.predicate} ${link.object}`,
+      status: 'dropped',
+      reason: 'Identity folding made both link endpoints the same entity',
+    })
+  })
+  return { ...claim, memory: rewriteMemory(claim.memory, redirects) }
+}
 export function mergeEntity(target: StageEntity, source: StageEntity): void {
   target.aliases = [...new Set([...target.aliases, source.label, ...source.aliases])].filter(
     (name) => fold(name) !== fold(target.label),
@@ -99,7 +115,7 @@ export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob 
   job.parents = job.parents.map((p) => ({ ...p, entity: redirect(p.entity, redirects) }))
   const byKey = new Map<string, FoldedClaim>()
   for (const claim of job.claims) {
-    claim.memory = rewriteMemory(claim.memory, redirects)
+    claim.memory = rewriteClaim(claim, redirects, job.outcomes).memory
     const previous = byKey.get(claimKey(claim.memory))
     if (!previous) {
       byKey.set(claimKey(claim.memory), claim)

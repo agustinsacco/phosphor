@@ -6,6 +6,7 @@ import type { TranscriptSegment } from '@phosphor/memory-engine/types'
 import { inputHash, splitWindow } from '../windows'
 import { EXTRACT_CAP } from '../constants'
 import { extractPrompt } from '../stage-prompts/extract'
+import { wholePhrase } from '../text'
 import { parseStageExtraction } from '../stage-parse'
 
 export async function extractWindows(
@@ -22,7 +23,15 @@ export async function extractWindows(
   let calls = 0
   while (pending.length) {
     const { window, key } = pending.shift()!
-    const offered = registry.slice(-60).map((e, i) => ({ ...e, ref: `r${i + 1}` }))
+    const selected = [...registry]
+      .reverse()
+      .sort(
+        (a, b) =>
+          Number([b.label, ...b.aliases].some((n) => wholePhrase(window.text, n))) -
+          Number([a.label, ...a.aliases].some((n) => wholePhrase(window.text, n))),
+      )
+      .slice(0, 60)
+    const offered = selected.map((e, i) => ({ ...e, ref: `r${i + 1}` }))
     const prompt = extractPrompt(window, offered)
     const hash = inputHash(prompt)
     const saved = store.part(jobId, key, hash)
@@ -45,7 +54,7 @@ export async function extractWindows(
       continue
     }
     // Registry handles map back to the prior job refs; all new refs become window-local.
-    const redirects = new Map(offered.map((e, i) => [e.ref, registry.slice(-60)[i]!.ref]))
+    const redirects = new Map(offered.map((e, i) => [e.ref, selected[i]!.ref]))
     for (const e of extraction.entities) redirects.set(e.ref, `${key}:${e.ref}`)
     const resolve = (id: string): string => redirects.get(id) ?? id
     const renamed: StageExtraction = {

@@ -30,9 +30,9 @@ it('groups at least three prefix siblings only when no parent is supported', () 
     auto: true,
   }))
   const job: FoldedJob = { entities, claims: [], parents: [], evidence: [], outcomes: [] }
-  expect(prefixGroups(job, entities)[0]!.members).toEqual(['n0', 'n1', 'n2'])
+  expect(prefixGroups(job, entities, new FakeBrainStore())[0]!.members).toEqual(['n0', 'n1', 'n2'])
   job.parents = [{ entity: 'n0', status: 'stated', claim: 'c1' }]
-  expect(prefixGroups(job, entities)).toEqual([])
+  expect(prefixGroups(job, entities, new FakeBrainStore())).toEqual([])
 })
 it('requires a parent answer for every requested entity and bounds co-mentioned segments', async () => {
   const e = entity('n1', 'Harbor workflow'),
@@ -47,10 +47,10 @@ it('requires a parent answer for every requested entity and bounds co-mentioned 
     },
   ]
   const ask: StageAsk = async (_s, _p, prompt, validate) => {
-    expect(prompt.length).toBeLessThan(26000)
+    expect(prompt.slice(prompt.indexOf('[s1]')).length).toBeLessThanOrEqual(24000)
     return validate(JSON.stringify({ entities: [], claims: [], parents: [] }))
   }
-  await expect(findParents(job, [], segments, new FakeBrainStore(), ask)).rejects.toThrow(
+  await expect(findParents('job', job, [], segments, new FakeBrainStore(), ask)).rejects.toThrow(
     'Missing parent assessment',
   )
   expect(makeWindow(segments).text.length).toBeGreaterThan(32000)
@@ -158,14 +158,39 @@ async function parentAnswer(input: ModelCallInput) {
   return { text, usage: { tokens: 1, cost: 0 } }
 }
 
-it('reuses a unique allowed prefix parent, leaves duplicates unresolved, and prefers a job ref',()=>{
-  const siblings=['Harbor CS','Harbor Ledger','Harbor Docs'].map((label,i)=>({...entity(`n${i+1}`,label),decision:'new' as const,entityId:null,candidates:[],reason:'',auto:true}))
-  const job:FoldedJob={entities:siblings,claims:[],parents:[],evidence:[],outcomes:[]},store=new FakeBrainStore()
-  store.cards=[{id:'harbor-org',label:'Harbor',kind:'organization',description:'',aliases:[],neighbours:[],memories:3}]
-  store.matches=[[{entityId:'harbor-org',channel:'name',score:1}]]
-  expect(prefixGroups(job,siblings,store)[0]!.parent.entityId).toBe('harbor-org')
-  store.cards.push({...store.cards[0]!,id:'harbor-project',kind:'project'});store.matches[0]!.push({entityId:'harbor-project',channel:'name',score:1})
-  expect(prefixGroups(job,siblings,store)[0]!.parent.entityId).toBeNull()
-  const parent={...siblings[0]!,ref:'new-parent',label:'Harbor',kind:'project' as const}
-  expect(prefixGroups(job,[...siblings,parent],store)[0]!.parent.entityId).toBe('new-parent')
+it('reuses a unique allowed prefix parent, leaves duplicates unresolved, and prefers a job ref', () => {
+  const siblings = ['Harbor CS', 'Harbor Ledger', 'Harbor Docs'].map((label, i) => ({
+    ...entity(`n${i + 1}`, label),
+    decision: 'new' as const,
+    entityId: null,
+    candidates: [],
+    reason: '',
+    auto: true,
+  }))
+  const job: FoldedJob = {
+      entities: siblings,
+      claims: [],
+      parents: [],
+      evidence: [],
+      outcomes: [],
+    },
+    store = new FakeBrainStore()
+  store.cards = [
+    {
+      id: 'harbor-org',
+      label: 'Harbor',
+      kind: 'organization',
+      description: '',
+      aliases: [],
+      neighbours: [],
+      memories: 3,
+    },
+  ]
+  store.matches = [[{ entityId: 'harbor-org', channel: 'name', score: 1 }]]
+  expect(prefixGroups(job, siblings, store)[0]!.parent.entityId).toBe('harbor-org')
+  store.cards.push({ ...store.cards[0]!, id: 'harbor-project', kind: 'project' })
+  store.matches[0]!.push({ entityId: 'harbor-project', channel: 'name', score: 1 })
+  expect(prefixGroups(job, siblings, store)[0]!.parent.entityId).toBeNull()
+  const parent = { ...siblings[0]!, ref: 'new-parent', label: 'Harbor', kind: 'project' as const }
+  expect(prefixGroups(job, [...siblings, parent], store)[0]!.parent.entityId).toBe('new-parent')
 })

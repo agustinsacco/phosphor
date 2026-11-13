@@ -55,9 +55,11 @@ export async function extractJob(
     )
     progress('prepare', 1, 1)
     const ask = await stageCaller({ job, lane, store, options, signal, record })
+    const windows = transcriptWindows(segments)
+    progress('extract', 0, windows.length)
     const parts = await extractWindows(
       job.id,
-      transcriptWindows(segments),
+      windows,
       store,
       ask,
       (done, total) => progress('extract', done, total),
@@ -71,6 +73,7 @@ export async function extractJob(
         status: 'held',
         reason: 'Extraction may be truncated at 40 claims/entities',
       })
+    recordClaims(record, folded)
     await finishExtraction(
       { job, lane, store, options, signal, search, record, progress, segments, ask },
       folded,
@@ -116,10 +119,11 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
   progress('identity', 1, 1)
   progress('parents', 0, 1)
   const priorRefs = new Set(identity.entities.map((e) => e.ref))
-  await findParents(folded, identity.entities, segments, store, ask)
+  await findParents(context.job.id, folded, identity.entities, segments, store, ask)
+  recordClaims(context.record, folded)
   await resolveParentIdentities(context, folded, identity.entities, priorRefs)
   progress('parents', 1, 1)
-  const groups = prefixGroups(folded, identity.entities)
+  const groups = prefixGroups(folded, identity.entities, store)
   const held = applyClaimBudget(folded)
   progress('reconcile', 0, 1)
   const vectors = await options.embeddings.embed(
@@ -136,6 +140,7 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
     ask,
   )
   progress('reconcile', 1, 1)
+  recordClaims(context.record, folded)
   await embedAndPropose(context, folded, identity.entities, {
     computedRevision,
     groups,
@@ -239,4 +244,16 @@ async function resolveParentIdentities(
   job.entities = identities
   job.claims = subset.claims
   job.parents = subset.parents
+}
+
+function recordClaims(record: ExtractionRecord, job: FoldedJob): void {
+  record.outcomes([
+    ...job.outcomes,
+    ...job.claims.map((c) => ({
+      candidate: c.ref,
+      summary: c.memory.summary,
+      status: 'dropped' as const,
+      reason: 'Run failed before proposal',
+    })),
+  ])
 }

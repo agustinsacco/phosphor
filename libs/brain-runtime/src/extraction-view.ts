@@ -3,6 +3,7 @@ import type { BrainStore, TranscriptSegment } from '@phosphor/memory-engine/type
 import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
 import { scrubExcerpt } from './secrets'
 import { rebuildPrompt } from './stage-input'
+import { inputHash } from './windows'
 import { repairPrompt } from './stage-call'
 import type { StageInput } from './stage-types'
 
@@ -34,7 +35,8 @@ export async function extractionView(
   const prompts = record.calls.map((call, index) => {
     if (!source.exists) return UNAVAILABLE
     try {
-      return promptFor(store, jobId, call, segments, record.calls[index - 1])
+      const prompt = promptFor(store, jobId, call, segments, record.calls[index - 1])
+      return inputHash(prompt) === call.inputHash ? prompt : UNAVAILABLE
     } catch {
       return UNAVAILABLE
     }

@@ -268,13 +268,15 @@ it('traces successful assistant completion and zero-exit assistant failure, with
   ).toBeNull()
 })
 
-it('removes an interrupted call directory before reusing its ordinal',async()=>{
-  const args=await input(),directory=join(args.directory,'calls',args.job.id,'extract-1')
-  await mkdir(join(directory,'provider'),{recursive:true})
-  await writeFile(join(directory,'provider','stale'),'do not reuse')
-  const run:typeof runPrintMode=async(_binary,_args,options)=>{
-    expect(await stat(join(options.cwd,'provider','stale')).catch(()=>null)).toBeNull()
-    options.onStdout?.(event('Harbor')+'\n');return {stdout:''}
+it('removes an interrupted call directory before reusing its ordinal', async () => {
+  const args = await input(),
+    directory = join(args.directory, 'calls', args.job.id, 'extract-1')
+  await mkdir(join(directory, 'provider'), { recursive: true })
+  await writeFile(join(directory, 'provider', 'stale'), 'do not reuse')
+  const run: typeof runPrintMode = async (_binary, _args, options) => {
+    expect(await stat(join(options.cwd, 'provider', 'stale')).catch(() => null)).toBeNull()
+    options.onStdout?.(event('Harbor') + '\n')
+    return { stdout: '' }
   }
-  await runModelCall(args,run)
+  await runModelCall(args, run)
 })
