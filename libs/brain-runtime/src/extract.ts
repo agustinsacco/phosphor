@@ -19,6 +19,7 @@ import { findParents, prefixGroups } from './stages/parents'
 import { reconcile } from './stages/reconcile'
 import { applyClaimBudget } from './stages/budget'
 import type { StageAsk } from './stage-types'
+import { EMBEDDING_MAX_TEXTS } from './embedding/model-manifest'
 
 async function frozenLane(job: BrainJob, store: BrainStore): Promise<LaneMeta> {
   const saved = store.part(job.id, 'prepare', 'frozen-v4')
@@ -108,9 +109,9 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
   const { store, options, signal, search, ask, segments, progress } = context
   const computedRevision = store.revision()
   progress('identity', 0, 1)
-  const entityVectors = await options.embeddings.embed(
+  const entityVectors = await embedDocuments(
+    options,
     folded.entities.map((e) => `${e.label} (${e.kind}): ${e.description}`),
-    'document',
     signal,
   )
   const identity = await resolveIdentities(
@@ -130,9 +131,9 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
   const groups = prefixGroups(folded, identity.entities, store)
   const held = applyClaimBudget(folded)
   progress('reconcile', 0, 1)
-  const vectors = await options.embeddings.embed(
+  const vectors = await embedDocuments(
+    options,
     folded.claims.map((c) => c.memory.summary),
-    'document',
     signal,
   )
   const confirmations = await reconcile(
@@ -161,14 +162,14 @@ async function embedAndPropose(
   const { job, lane, store, options, signal, search, record, progress } = context
   const { computedRevision, groups, held, confirmations } = fields
   progress('embed', 0, 1)
-  const memoryVectors = await options.embeddings.embed(
+  const memoryVectors = await embedDocuments(
+    options,
     folded.claims.map((c) => c.memory.summary),
-    'document',
     signal,
   )
-  const finalEntityVectors = await options.embeddings.embed(
+  const finalEntityVectors = await embedDocuments(
+    options,
     entities.map((e) => `${e.label} (${e.kind}): ${e.description}`),
-    'document',
     signal,
   )
   signal.throwIfAborted()
@@ -228,9 +229,9 @@ async function resolveParentIdentities(
   if (!introduced.length) return
   const anchors = identities.filter((e) => prior.has(e.ref))
   const subset = { ...job, entities: introduced, outcomes: job.outcomes }
-  const vectors = await context.options.embeddings.embed(
+  const vectors = await embedDocuments(
+    context.options,
     introduced.map((e) => `${e.label} (${e.kind}): ${e.description}`),
-    'document',
     context.signal,
   )
   const ask: StageAsk = (stage, part, prompt, validate, entryIds, input) =>
@@ -260,4 +261,23 @@ function recordClaims(record: ExtractionRecord, job: FoldedJob): void {
       reason: 'Run failed before proposal',
     })),
   ])
+}
+
+async function embedDocuments(
+  options: BrainServiceOptions,
+  texts: string[],
+  signal: AbortSignal,
+): Promise<number[][]> {
+  const vectors: number[][] = []
+  for (let i = 0; i < texts.length; i += EMBEDDING_MAX_TEXTS) {
+    signal.throwIfAborted()
+    vectors.push(
+      ...(await options.embeddings.embed(
+        texts.slice(i, i + EMBEDDING_MAX_TEXTS),
+        'document',
+        signal,
+      )),
+    )
+  }
+  return vectors
 }
