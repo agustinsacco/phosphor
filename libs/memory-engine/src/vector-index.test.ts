@@ -35,10 +35,12 @@ it('reranks a shortlist with one indexed vector read, in primary-key order', asy
   const ctx = { db, now: () => 1, id: () => 'unused' }
   const index = (await new VectorIndex(ctx, 'memory').refresh(true, () => true))!
   const calls: unknown[][] = []
+  let vectorQuery = ''
   const prepare = db.prepare.bind(db)
   vi.spyOn(db, 'prepare').mockImplementation((sql) => {
     const statement = prepare(sql)
     if (!sql.includes('memory_vectors')) return statement
+    vectorQuery = sql
     const all = statement.all.bind(statement)
     const get = statement.get.bind(statement)
     vi.spyOn(statement, 'all').mockImplementation((...args) => {
@@ -55,4 +57,10 @@ it('reranks a shortlist with one indexed vector read, in primary-key order', asy
   expect(calls).toHaveLength(1)
   const numbers = JSON.parse(calls[0]![0] as string) as number[]
   expect(numbers).toEqual(numbers.toSorted((a, b) => a - b))
+  const plan = prepare(`EXPLAIN QUERY PLAN ${vectorQuery}`).all(JSON.stringify(numbers))
+  expect(plan.map((row) => row.detail)).toEqual([
+    expect.stringContaining('SCAN j VIRTUAL TABLE'),
+    'SEARCH v USING INTEGER PRIMARY KEY (rowid=?)',
+    'SEARCH t USING INTEGER PRIMARY KEY (rowid=?)',
+  ])
 })
