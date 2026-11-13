@@ -1,16 +1,13 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { BrainProposalView, BrainReviewDecision } from '@shared/brain'
 import { Button } from '@/components/form'
+import { ipcErrorText } from '@shared/errors'
+import { jobLine } from './jobProgress'
 import { TooltipSummary } from '@/components/Tooltip'
 import { useBrain } from './useBrain'
 import { useBrainResource } from './useBrainResource'
 import { buildReviewDecision } from './reviewDecision'
 import { ReviewGroups, ReviewIdentities, ReviewMemories, ReviewPage } from './ReviewSections'
-
-export function elapsedTime(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1000))
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-}
 
 export function BrainReview({
   jobId,
@@ -21,11 +18,24 @@ export function BrainReview({
   onClose: () => void
   onExtraction: (jobId: string) => void
 }): React.JSX.Element {
-  const jobState = useBrain((s) => s.status?.jobs.find((job) => job.id === jobId)?.state)
-  const ready = jobState === 'review'
-  const load = useCallback(() => window.phosphor.invoke('brain:proposal', jobId), [jobId])
-  const { data, error, retry } = useBrainResource(load, ready)
+  const job = useBrain((s) => s.status?.jobs.find((job) => job.id === jobId))
+  const ready = job?.state === 'review'
   const [stale, setStale] = useState(false)
+  const load = useCallback(async () => {
+    try {
+      return await window.phosphor.invoke('brain:proposal', jobId)
+    } catch (cause) {
+      if (ipcErrorText(cause).startsWith('Brain changed')) {
+        setStale(true)
+        await useBrain.getState().refresh()
+      }
+      throw cause
+    }
+  }, [jobId])
+  const { data, error, retry } = useBrainResource(load, ready)
+  useEffect(() => {
+    if (data) setStale(false)
+  }, [data])
   return (
     <section className="space-y-3 p-3">
       <div className="flex gap-2">
@@ -36,8 +46,13 @@ export function BrainReview({
           View extraction
         </Button>
       </div>
-      {stale && <p role="alert">Brain changed; refreshing this review</p>}
-      {!data ? (
+      {stale ? (
+        <div role="status">
+          <p>Brain changed; refreshing this review</p>
+          {job && !ready && <p>{jobLine(job, 0, Date.now())}</p>}
+          {ready && <Button onClick={retry}>Retry</Button>}
+        </div>
+      ) : !data || !ready ? (
         <p role="status">
           {error ||
             (ready
@@ -50,8 +65,9 @@ export function BrainReview({
           key={`${jobId}:${data.revision}`}
           proposal={data}
           onClose={onClose}
-          onStale={() => {
+          onStale={async () => {
             setStale(true)
+            await useBrain.getState().refresh()
             retry()
           }}
         />
@@ -67,7 +83,7 @@ function ReviewProposal({
 }: {
   proposal: BrainProposalView
   onClose: () => void
-  onStale: () => void
+  onStale: () => Promise<void>
 }): React.JSX.Element {
   const [keep, setKeep] = useState(() => proposal.memories.map((m) => m.index))
   const [identities, setIdentities] = useState<Record<string, string>>({})
@@ -80,10 +96,7 @@ function ReviewProposal({
     else {
       const message = useBrain.getState().error
       setError(message)
-      if (/changed|stale|revision/i.test(message)) {
-        onStale()
-        await useBrain.getState().refresh()
-      }
+      if (message.startsWith('Brain changed')) await onStale()
     }
   }
   const confirmationsOnly = !proposal.memories.length && proposal.confirmations.length > 0

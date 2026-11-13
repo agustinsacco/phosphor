@@ -8,7 +8,7 @@ import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { formatCount } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { useBrainResource } from './useBrainResource'
-import { elapsedTime } from './BrainReview'
+import { elapsedTime } from './jobProgress'
 import { openBrainSource } from './openBrainSource'
 
 const OUTCOME = {

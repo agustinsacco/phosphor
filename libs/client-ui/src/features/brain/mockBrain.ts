@@ -3,6 +3,7 @@ import type {
   BrainLaneRef,
   BrainMemoryFilter,
   BrainPrefs,
+  BrainProposalView,
   BrainPredicate,
   BrainReviewDecision,
   BrainStatus,
@@ -17,6 +18,7 @@ class MockBrain {
   private records = new Map<string, BrainExtractionView>()
   private downloading: number | null = null
   private resets = 0
+  private computedRevisions = new Map<string, number>()
   constructor(private now: () => number) {
     this.state.jobs = [
       mockBrainJob({
@@ -32,7 +34,10 @@ class MockBrain {
         error: 'Invented provider timeout · Retry resumes the same job',
       }),
     ]
-    for (const job of this.state.jobs) this.records.set(job.id, this.extractionRecord(job.id))
+    for (const job of this.state.jobs) {
+      this.records.set(job.id, this.extractionRecord(job.id))
+      this.computedRevisions.set(job.id, this.state.revision)
+    }
   }
   private status(): BrainStatus {
     this.state.counts = {
@@ -43,13 +48,23 @@ class MockBrain {
   }
   private review(id: string, decision: BrainReviewDecision | null, revision: number): BrainStatus {
     if (this.state.revision !== revision) throw new Error('Brain changed; refreshing this review')
-    const job = this.state.jobs.find((item) => item.id === id && item.state === 'review')
-    if (!job) throw new Error('Review not found')
-    const proposal = mockBrainProposal(job, revision)
+    const proposal = this.proposal(id)
     if (decision) applyMockReview(this.explorer, proposal, decision)
     this.state.jobs = this.state.jobs.filter((item) => item.id !== id)
     this.state.revision++
     return this.status()
+  }
+  private proposal(id: string): BrainProposalView {
+    const job = this.state.jobs.find((item) => item.id === id && item.state === 'review')
+    if (!job) throw new Error('Review not found')
+    if (this.computedRevisions.get(id) !== this.state.revision) {
+      job.state = 'queued'
+      job.startedAt = null
+      job.finishedAt = null
+      job.progress = null
+      throw new Error('Brain changed; refreshing this review')
+    }
+    return mockBrainProposal(job, this.state.revision)
   }
   private tick(): void {
     if (this.downloading !== null) {
@@ -74,6 +89,7 @@ class MockBrain {
     if (this.now() - (job.startedAt ?? this.now()) < 4000) return
     this.records.set(job.id, this.extractionRecord(job.id))
     job.state = 'review'
+    this.computedRevisions.set(job.id, this.state.revision)
     job.progress = null
     job.memories = 2
     job.finishedAt = this.now()
@@ -163,6 +179,7 @@ class MockBrain {
         this.explorer.entities = []
         this.explorer.details = []
         this.records.clear()
+        this.computedRevisions.clear()
         this.state.jobs = []
         this.state.revision = 0
         this.state.generation = `mock-generation-${++this.resets}`
@@ -210,11 +227,8 @@ class MockBrain {
       case 'brain:cancel':
         this.state.jobs = this.state.jobs.filter((j) => j.id !== args[0])
         return this.status()
-      case 'brain:proposal': {
-        const job = this.state.jobs.find((j) => j.id === args[0] && j.state === 'review')
-        if (!job) throw new Error('Review not found')
-        return mockBrainProposal(job, this.state.revision)
-      }
+      case 'brain:proposal':
+        return this.proposal(args[0] as string)
       case 'brain:extraction': {
         const record = this.records.get(args[0] as string)
         if (!record) throw new Error('Brain extraction not found.')

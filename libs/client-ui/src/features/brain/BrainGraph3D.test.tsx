@@ -3,7 +3,12 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type SpriteText from 'three-spritetext'
-import type { BrainEntity, BrainMemory, BrainGraph } from '@shared/brain'
+import type { BrainEntity, BrainMemory, BrainGraph, BrainLink } from '@shared/brain'
+import {
+  createFakePhosphor,
+  installFakePhosphor,
+} from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
+import { MockExplorer } from './mockExplorer'
 import type { GraphLink, GraphModel, GraphNode } from './graphModel'
 import { BrainGraph3D } from './BrainGraph3D'
 import { boundedGraph, graphFixture, installGraphEnvironment } from './__fixtures__/graph3D'
@@ -105,7 +110,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 async function render(
-  props: { focus?: string | null; matches?: Set<string> | null } = {},
+  props: { focus?: string | null; matches?: Set<string> | null; path?: BrainLink[] | null } = {},
 ): Promise<void> {
   if (entities !== previousEntities || memories !== previousMemories) {
     projection = boundedGraph(entities, memories)
@@ -118,6 +123,7 @@ async function render(
         graph={projection}
         focus={props.focus ?? null}
         matches={props.matches ?? null}
+        path={props.path ?? null}
         onFocus={onFocus}
       />,
     ),
@@ -516,4 +522,47 @@ it('does not consume the pending fit when resuming a previously stopped engine b
   graph.cameraPosition.mockClear()
   setting<() => void>('onEngineStop')()
   expect(graph.cameraPosition).toHaveBeenCalledOnce()
+})
+
+it('highlights only the selected supported route and switches between two and three dimensions', async () => {
+  await render()
+  const route = projection.links.slice(0, 1)
+  await render({ path: route })
+  const color = setting<(link: GraphLink) => string>('linkColor')
+  expect(color(data().links[0]!)).toMatch(/,1\)$/)
+  expect(color(data().links[1]!)).toMatch(/,0\.16\)$/)
+  expect(nodeColor('rina')).toMatch(/,0\.16\)$/)
+  const label = setting<(link: GraphLink) => SpriteText>('linkThreeObject')
+  expect(label(data().links[0]!).visible).toBe(true)
+  expect(label(data().links[1]!).visible).toBe(false)
+  await click('2D')
+  expect(graph.numDimensions).toHaveBeenLastCalledWith(2)
+  await click('3D')
+  expect(graph.numDimensions).toHaveBeenLastCalledWith(3)
+})
+
+it('reads only the hovered edge support, retries an error and clears on hover exit', async () => {
+  const detail = new MockExplorer().memory('memory-0')
+  const read = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('Support unavailable'))
+    .mockResolvedValue(detail)
+  const fake = createFakePhosphor({ 'brain:memory': read })
+  const restore = installFakePhosphor(fake)
+  try {
+    await render()
+    expect(read).not.toHaveBeenCalled()
+    const hoverEdge = setting<(link: GraphLink | null) => void>('onLinkHover')
+    await act(async () => hoverEdge(data().links[0]!))
+    expect(read).toHaveBeenCalledWith(data().links[0]!.memoryId)
+    expect(container.querySelector('[role="status"]')!.textContent).toContain('uses')
+    expect(container.textContent).toContain('Support unavailable')
+    await click('Retry')
+    expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
+    await act(async () => hoverEdge(null))
+    expect(container.querySelector('[role="status"]')).toBeNull()
+  } finally {
+    restore()
+    fake.dispose()
+  }
 })

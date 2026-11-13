@@ -232,12 +232,19 @@ it('builds a v4 review with identity overrides, group yes and memory select none
 })
 it('shows a stale review error, refreshes the proposal, and can approve again', async () => {
   status.jobs = [mockBrainJob()]
-  review.mockRejectedValueOnce(new Error('Brain changed while reviewing'))
+  review.mockImplementationOnce(async () => {
+    status = { ...status, jobs: [mockBrainJob({ state: 'running' })] }
+    throw new Error('Brain changed; refreshing this review')
+  })
   await render()
   await click('Review')
   await click('Approve 2')
   expect(container.textContent).toContain('Brain changed; refreshing this review')
+  expect(container.querySelector('[aria-label="Review memories"]')).toBeNull()
+  status = { ...status, jobs: [mockBrainJob()] }
+  await act(async () => vi.advanceTimersByTimeAsync(2000))
   expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
+  expect(container.textContent).not.toContain('Brain changed; refreshing this review')
   await click('Approve 2')
   expect(review).toHaveBeenCalledTimes(2)
 })

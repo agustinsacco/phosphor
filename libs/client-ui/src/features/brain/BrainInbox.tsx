@@ -2,30 +2,10 @@ import { useEffect, useState } from 'react'
 import type { BrainJob } from '@shared/brain'
 import { Button } from '@/components/form'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
-import { elapsedTime } from './BrainReview'
+import { jobLine } from './jobProgress'
+export { jobLine } from './jobProgress'
 import { useBrain } from './useBrain'
-import { formatCount } from '@/lib/format'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
-
-export function jobLine(job: BrainJob, ahead: number, now: number): string {
-  switch (job.state) {
-    case 'waiting':
-      return 'Waits until the lane is idle'
-    case 'queued':
-      return ahead ? `Queued · ${ahead} ahead` : 'Queued · starting'
-    case 'running':
-      if (job.progress) return progressLine(job.progress)
-      return `Reading a private copy · ${elapsedTime(now - (job.startedAt ?? now))}`
-    case 'review':
-      return `${formatCount(job.memories, 'memory', 'memories')} to review`
-    case 'empty':
-      return 'Nothing new worth keeping'
-    case 'failed':
-      return job.error ?? 'Knowledge extraction failed'
-    case 'done':
-      return ''
-  }
-}
 
 export function BrainInbox({
   jobs,
@@ -101,16 +81,4 @@ export function BrainInbox({
       ))}
     </section>
   )
-}
-
-function progressLine(progress: NonNullable<BrainJob['progress']>): string {
-  const labels = {
-    prepare: 'Preparing lane',
-    extract: 'Reading window',
-    identity: 'Matching entities',
-    parents: 'Finding parents',
-    reconcile: 'Reconciling memories',
-    embed: 'Indexing memories',
-  }
-  return `${labels[progress.stage]} ${progress.done} of ${progress.total}`
 }
