@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -15,13 +15,15 @@ describe('Brain v4 SQLite schema and preferences', () => {
       const path = join(dir, 'brain.sqlite')
       try {
         const old = new DatabaseSync(path)
-        old.exec(`CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-        INSERT INTO meta VALUES ('prefs','{"enabled":true,"recall":false,"review":false}');
-        CREATE TABLE entities(id TEXT PRIMARY KEY,label TEXT,kind TEXT,aliases TEXT,created_at INTEGER);
-        CREATE TABLE memories(id TEXT PRIMARY KEY,subject_id TEXT,state TEXT,job_id TEXT);
+        const previousSchema = readFileSync(
+          new URL('./__fixtures__/schema-v3.sql', import.meta.url),
+          'utf8',
+        )
+        old.exec(previousSchema)
+        old.exec(`INSERT INTO meta VALUES ('prefs','{"enabled":true,"recall":false,"review":false}');
         INSERT INTO entities VALUES ('old','Harbor','project','[]',1);
-        INSERT INTO memories VALUES ('old','old','active',NULL);
-        CREATE VIRTUAL TABLE memory_fts USING fts5(id UNINDEXED,text);
+        INSERT INTO memories(id,scope,subject_id,predicate,summary,type,kind,recorded_at,state)
+        VALUES ('old','/made-up/harbor','old','about','Harbor fact','fact','reported',1,'active');
         INSERT INTO memory_fts VALUES ('old','discard'); PRAGMA user_version=${version};`)
         old.close()
         const store = openBrainStore({ path, Database: DatabaseSync })
