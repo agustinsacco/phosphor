@@ -1,4 +1,5 @@
 import type { ToastReceipt } from '@/features/sessions/laneReceipt'
+import type { PrNotice } from '@/features/notifications/prNotice'
 import { create } from 'zustand'
 import { useNotificationsStore, type NoticeFields } from './notifications'
 import type { ExtensionUIRequest } from '@shared/rpc'
@@ -29,6 +30,13 @@ export interface Toast {
    * opens the session or it closes.
    */
   sessionId?: string
+  /**
+   * One card and one drawer entry per key, replaced in place like a
+   * session's: a PR's notices share `pr:<prKey>`.
+   */
+  key?: string
+  /** A pull request's change notice. */
+  pr?: PrNotice
   /** The lane's marker emoji, so the notice and its sidebar row match. */
   marker?: string
   /** Clicking the card does this (and dismisses it). */
@@ -45,7 +53,7 @@ export interface Toast {
 
 export type ToastOptions = Pick<
   Toast,
-  'message' | 'title' | 'sessionId' | 'marker' | 'onOpen' | 'openLabel' | 'receipt'
+  'message' | 'title' | 'sessionId' | 'key' | 'pr' | 'marker' | 'onOpen' | 'openLabel' | 'receipt'
 > & {
   kind?: Toast['kind']
   /** Visible time before auto-dismiss. Defaults by kind; see `toastDuration`. */
@@ -72,13 +80,15 @@ export function toastDuration(options: Pick<ToastOptions, 'kind' | 'onOpen'>): n
 
 /** The card's content, without its clock. Picked, so no stray option reaches a card. */
 function noticeFields(options: ToastOptions): NoticeFields {
-  const { receipt, message, title, sessionId, marker, onOpen, openLabel } = options
+  const { receipt, message, title, sessionId, key, pr, marker, onOpen, openLabel } = options
   return {
     receipt,
     message,
     kind: options.kind ?? 'info',
     title,
     sessionId,
+    key,
+    pr,
     marker,
     onOpen,
     openLabel,
@@ -269,11 +279,13 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
     // With the drawer open the notice lands in it, not on top of it.
     if (notice && inbox.open) return toastId++
     const fields = { ...noticeFields(options), noticeId: notice?.id }
-    // One notice per session: the newer one takes the older one's place (and
-    // its clock restarts) rather than stacking a second card for one lane.
-    const existing = options.sessionId
-      ? get().toasts.find((t) => t.sessionId === options.sessionId && !t.leaving)
-      : undefined
+    // One notice per session or key: the newer one takes the older one's place
+    // (and its clock restarts) rather than stacking a second card for one lane.
+    const existing = options.key
+      ? get().toasts.find((t) => t.key === options.key && !t.leaving)
+      : options.sessionId
+        ? get().toasts.find((t) => t.sessionId === options.sessionId && !t.leaving)
+        : undefined
     if (existing) {
       stopClock(existing.id)
       toastClocks.set(existing.id, { remaining: durationMs, startedAt: Date.now() })

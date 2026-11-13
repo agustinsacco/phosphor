@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Toast } from './extensionUi'
+import type { PrNotice } from '@/features/notifications/prNotice'
 
 /**
  * The notification inbox: what a toast leaves behind once it slides away.
@@ -18,7 +19,10 @@ export interface Notification {
   at: number
   /** When the user saw it. Absent while it is new. */
   seenAt?: number
-  /** One entry per lane: a newer notice about the same lane replaces this one. */
+  /**
+   * One entry per key: a newer notice with the same key replaces this one,
+   * new again and at the top. Explicit (`pr:<prKey>`), or the lane's own.
+   */
   key?: string
   kind: Toast['kind']
   title?: string
@@ -28,9 +32,11 @@ export interface Notification {
   receipt?: Toast['receipt']
   onOpen?: Toast['onOpen']
   openLabel?: string
+  /** A pull request's change notice: what moved, on which PR, in which lane. */
+  pr?: PrNotice
 }
 
-export type NoticeFields = Omit<Notification, 'id' | 'at' | 'seenAt' | 'key'>
+export type NoticeFields = Omit<Notification, 'id' | 'at' | 'seenAt'>
 
 /** Seen notices go a day after they arrived. */
 export const SEEN_TTL_MS = 24 * 60 * 60 * 1000
@@ -46,13 +52,14 @@ export const MAX_NOTIFICATIONS = 50
  */
 export function keepsNotice(notice: NoticeFields): boolean {
   return (
-    !!(notice.sessionId || notice.receipt || notice.onOpen) ||
+    !!(notice.sessionId || notice.receipt || notice.onOpen || notice.pr) ||
     notice.kind === 'error' ||
     notice.kind === 'warning'
   )
 }
 
 function noticeKey(notice: NoticeFields): string | undefined {
+  if (notice.key) return notice.key
   if (notice.sessionId) return `session:${notice.sessionId}`
   const receipt = notice.receipt
   return receipt?.machineId && receipt.laneId
