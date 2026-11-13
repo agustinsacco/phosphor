@@ -83,6 +83,26 @@ describe('Brain v4 review transaction', () => {
     expect(store.memory(fact.id).quotes[0]?.label).toBe('Stated by you in review')
     expect(fact.links[0]?.predicate).toBe('part_of')
   })
+  it('uses a job entity as the group parent instead of creating a second one', () => {
+    const { store } = fixture()
+    const job = store.enqueue(lane(), 'queued')
+    const data = extraction(job.id, {
+      memories: [],
+      memoryVectors: [],
+      groups: [
+        {
+          parent: { label: 'Harbor', kind: 'organization', entityId: 'harbor' },
+          members: ['rina', 'tom'],
+        },
+      ],
+    })
+    store.propose(data)
+    expect(store.proposal(job.id).groups[0]?.parent.entityId).toBe('harbor')
+    store.review(job.id, { memories: [], identities: {}, groups: [0] }, 0)
+    const harbors = store.overview(300).nodes.filter((item) => item.label === 'Harbor')
+    expect(harbors).toHaveLength(1)
+    expect(store.snapshot().counts).toEqual({ memories: 2, entities: 3 })
+  })
   it('reactivates a disputed partner when its conflict is forgotten or superseded', () => {
     const { store } = fixture()
     const [id] = approve(store)
