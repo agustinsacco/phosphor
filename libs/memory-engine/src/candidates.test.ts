@@ -3,12 +3,12 @@ import { wordRows, entityMatches } from './candidates'
 import { createEntity } from './entities'
 import { fixture } from './test-support'
 
-function commonWords() {
+function commonWords(prefix = 'Ledger') {
   const { db } = fixture()
   const ctx = { db, now: () => 1, id: () => 'unused' }
   db.exec('BEGIN')
   const insert = db.prepare('INSERT INTO memory_words(rowid,summary) VALUES (?,?)')
-  for (let n = 1; n <= 6000; n++) insert.run(n, `Ledger synthetic fact ${n}`)
+  for (let n = 1; n <= 6000; n++) insert.run(n, `${prefix} synthetic fact ${n}`)
   db.prepare("UPDATE meta SET value='6000' WHERE key='memories'").run()
   db.exec('COMMIT')
   return ctx
@@ -58,4 +58,39 @@ it('skips broad trigrams but keeps rare partial names and word fallback on typos
     score: expect.any(Number),
   })
   expect(matches('Harbor exprot').some((item) => item.entityId === harbor)).toBe(true)
+})
+
+it('uses common customer terms to rerank the rare candidate pool without requiring every common term', () => {
+  const ctx = commonWords('Harbor Ledger')
+  const insert = ctx.db.prepare('INSERT INTO memory_words(rowid,summary) VALUES (?,?)')
+  insert.run(6001, 'billing retry billing retry')
+  insert.run(6002, 'Harbor billing retry keeps the export safe and recoverable')
+  expect(
+    wordRows(ctx, 'memory_words', 'Harbor Ledger billing retry', 1).map((row) => row.rowid),
+  ).toEqual([6002])
+  expect(wordRows(ctx, 'memory_words', 'Harbor billing retry', 1).map((row) => row.rowid)).toEqual([
+    6002,
+  ])
+})
+
+it('never includes common terms in a ranked AND expression, and bounds the reranking pool', () => {
+  const ctx = commonWords()
+  const expressions: unknown[][] = []
+  const prepare = ctx.db.prepare.bind(ctx.db)
+  vi.spyOn(ctx.db, 'prepare').mockImplementation((sql) => {
+    const statement = prepare(sql)
+    if (sql.includes('bm25')) {
+      const all = statement.all.bind(statement)
+      vi.spyOn(statement, 'all').mockImplementation((...args) => {
+        expressions.push(args)
+        return all(...args)
+      })
+    }
+    return statement
+  })
+  wordRows(ctx, 'memory_words', 'Ledger 27', 5)
+  expect(expressions).toEqual([
+    ['"27"', 20],
+    ['"27"', 20],
+  ])
 })
