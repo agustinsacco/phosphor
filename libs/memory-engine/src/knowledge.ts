@@ -1,4 +1,4 @@
-import type { BrainMemory, BrainMemoryDetail, BrainQuote } from '@phosphor/shared/brain'
+import type { BrainLink, BrainMemory, BrainMemoryDetail, BrainQuote } from '@phosphor/shared/brain'
 import { all, one, type Context } from './database'
 import { referencedEntities } from './entities'
 import type { EvidenceExcerpt } from './types'
@@ -8,38 +8,47 @@ export function memoryNumber(ctx: Context, id: string): number {
   if (!found) throw new Error('Brain memory not found.')
   return found.n
 }
-export function memoryCard(ctx: Context, id: string): BrainMemory {
-  const row = one<
-    Omit<BrainMemory, 'origin' | 'entityIds' | 'links'> & {
-      n: number
-      originSession: string | null
-      originTitle: string | null
-    }
-  >(
-    ctx,
-    `SELECT n,id,job_id AS jobId,summary,type,epistemic AS kind,state,scope,branch,valid_from AS validFrom,valid_to AS validTo,observed_at AS observedAt,recorded_at AS recordedAt,origin_session AS originSession,origin_title AS originTitle FROM memories WHERE id=?`,
-    id,
-  )
-  if (!row) throw new Error('Brain memory not found.')
-  const { n, originSession, originTitle, ...value } = row
-  return {
-    ...value,
-    origin: originSession ? { sessionId: originSession, title: originTitle ?? '' } : null,
-    entityIds: all<{ id: string }>(
-      ctx,
-      'SELECT e.id FROM mentions a JOIN entities e ON e.n=a.entity WHERE a.memory=?',
-      n,
-    ).map((item) => item.id),
-    links: all(
-      ctx,
-      `SELECT CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id AS objectId,? AS memoryId FROM relations r JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object WHERE r.memory=?`,
-      id,
-      n,
-    ),
-  }
+type MemoryRow = Omit<BrainMemory, 'origin' | 'entityIds' | 'links'> & {
+  originSession: string | null
+  originTitle: string | null
 }
+export function memoryCard(ctx: Context, id: string): BrainMemory {
+  return memoryCards(ctx, [id])[0]!
+}
+/** Three indexed reads for the whole ranking set, preserving caller and per-card link order. */
 export function memoryCards(ctx: Context, ids: string[]): BrainMemory[] {
-  return [...new Set(ids)].map((id) => memoryCard(ctx, id))
+  const unique = [...new Set(ids)]
+  if (!unique.length) return []
+  const selected = JSON.stringify(unique)
+  const cards = new Map(
+    all<MemoryRow>(
+      ctx,
+      `SELECT m.id,m.job_id AS jobId,m.summary,m.type,m.epistemic AS kind,m.state,m.scope,m.branch,m.valid_from AS validFrom,m.valid_to AS validTo,m.observed_at AS observedAt,m.recorded_at AS recordedAt,m.origin_session AS originSession,m.origin_title AS originTitle FROM json_each(?) j JOIN memories m ON m.id=j.value`,
+      selected,
+    ).map(({ originSession, originTitle, ...row }) => [
+      row.id,
+      {
+        ...row,
+        origin: originSession ? { sessionId: originSession, title: originTitle ?? '' } : null,
+        entityIds: [] as string[],
+        links: [] as BrainLink[],
+      },
+    ]),
+  )
+  if (cards.size !== unique.length) throw new Error('Brain memory not found.')
+  for (const row of all<{ memoryId: string; entityId: string }>(
+    ctx,
+    `SELECT m.id AS memoryId,e.id AS entityId FROM json_each(?) j JOIN memories m ON m.id=j.value JOIN mentions a ON a.memory=m.n JOIN entities e ON e.n=a.entity ORDER BY m.n,a.entity`,
+    selected,
+  ))
+    cards.get(row.memoryId)!.entityIds.push(row.entityId)
+  for (const link of all<BrainLink>(
+    ctx,
+    `SELECT CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id AS objectId,m.id AS memoryId FROM json_each(?) j JOIN memories m ON m.id=j.value JOIN relations r ON r.memory=m.n JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object ORDER BY r.memory,r.subject,r.predicate,r.object`,
+    selected,
+  ))
+    cards.get(link.memoryId)!.links.push(link)
+  return unique.map((id) => cards.get(id)!)
 }
 export function quoteContext(
   quote: string,
