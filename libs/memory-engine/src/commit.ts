@@ -145,13 +145,25 @@ export function addLinks(commit: CommitContext, memory: number, item: ProposalMe
       link.predicate,
       object,
     )!.n
-    run(
-      ctx,
-      'INSERT OR IGNORE INTO relation_support VALUES (?,?,?)',
-      relation,
-      insertEvidence(commit, link.citation.evidence),
-      scrubExcerpt(link.citation.quote),
-    )
+    const quote = scrubExcerpt(link.citation.quote)
+    const entry = commit.proposal.evidence[link.citation.evidence]!.entryId
+    if (
+      !one(
+        ctx,
+        'SELECT 1 FROM relation_support s JOIN evidence e ON e.n=s.evidence WHERE s.relation=? AND e.entry_id=? AND s.quote=? LIMIT 1',
+        relation,
+        entry,
+        quote,
+      )
+    ) {
+      run(
+        ctx,
+        'INSERT OR IGNORE INTO relation_support VALUES (?,?,?)',
+        relation,
+        insertEvidence(commit, link.citation.evidence),
+        quote,
+      )
+    }
   }
   insertCitations(commit, memory, [...item.citations, ...item.links.map((link) => link.citation)])
 }
