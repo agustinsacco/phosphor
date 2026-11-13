@@ -366,6 +366,7 @@ function scoreField(term: string, termSquashed: string, field: IndexedField): nu
     if (token.startsWith(term)) best = Math.max(best, 78)
     else if (infix && token.includes(term)) best = Math.max(best, 52)
   }
+  if (best < 100) best = Math.max(best, scoreTokenRun(term, field.tokens))
   if (best < 100 && termSquashed) {
     if (field.squashed.startsWith(termSquashed)) best = Math.max(best, 66)
     else if (infix && field.squashed.includes(termSquashed)) best = Math.max(best, 44)
@@ -375,6 +376,26 @@ function scoreField(term: string, termSquashed: string, field: IndexedField): nu
     if (density !== null) best = 20 * density
   }
   return best * field.weight
+}
+
+/**
+ * A term with separators inside (`5.2`, `4-7`) against a run of consecutive
+ * tokens, the last of which may be a prefix. Without this a dotted version
+ * squashes to two characters, under the infix floor, and matches nothing.
+ */
+function scoreTokenRun(term: string, tokens: readonly string[]): number {
+  const parts = tokenize(term)
+  if (parts.length < 2) return 0
+  const last = parts.length - 1
+  let best = 0
+  for (let start = 0; start + last < tokens.length; start++) {
+    const run = parts.every((part, i) => {
+      const token = tokens[start + i] as string
+      return i === last ? token.startsWith(part) : token === part
+    })
+    if (run) best = Math.max(best, tokens[start + last] === parts[last] ? 100 : 78)
+  }
+  return best
 }
 
 /** Below this, a term must land on a token boundary rather than mid-word. */
