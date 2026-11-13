@@ -37,8 +37,9 @@ export function inspectorItems(prs: LanePrs): LanePr[] {
 
 /**
  * Selection, detail reads and the "seen" baseline for one open inspector.
- * Remote (Host) lanes have no local GitHub reads: they show what the Host's
- * listing says and never ask for detail.
+ * `remote` means the lane cannot read by number: a lane on an older Host, which
+ * shows what the Host's listing says and never asks for detail. A Host that
+ * reads by number routes detail through `stores/prRoutes.ts`.
  */
 export function usePrInspector(
   prs: LanePrs,

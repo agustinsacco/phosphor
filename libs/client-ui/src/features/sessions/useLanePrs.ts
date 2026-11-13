@@ -110,7 +110,7 @@ export function useLanePullRequests(sessionId: string, options: { all?: boolean 
   useHostPrRoutes(remote ? hostLane.hostId : undefined, refs)
   usePrStatusRefresh(refs, true)
   useLaneGitInfo(remote ? undefined : entry?.workspacePath, streaming)
-  return { repoPath, ready, slice, prs, lead: prs.owned[0], branch, remote }
+  return { repoPath, ready, slice, prs, lead: prs.owned[0], branch, remote, byNumber }
 }
 
 function useLaneGitInfo(cwd: string | undefined, streaming: boolean): void {

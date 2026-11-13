@@ -593,7 +593,12 @@ responsive lane grid. Each tile belongs to a session in the selected project,
 including its worktrees and live sessions the disk scan has not found yet.
 Live names override scanned names. Status, PR, branch and actions reuse the
 lane board's existing classification and merge/update flows; idle is not a
-claim of success or review approval.
+claim of success or review approval. A tile's PR column comes from the lead PR's
+`prVerdict`, the verdict the sidebar beads and the header pill show, so Home
+never reads a lane differently. A conflicting PR or one with no CI never reaches
+Ready to merge, and a PR in the merge queue is opened rather than merged
+locally. Each card shows the lane's PR beads, and its line names the lead PR
+("#57 · …").
 
 On entry, actionable work comes before idle history. Positions are then stable
 while the project's home stays mounted: updates, first save and suspend/resume

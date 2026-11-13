@@ -28,9 +28,12 @@ export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.El
     setOpenFor(null)
   }
   const open = openFor === sessionId
-  const { repoPath, ready, slice, prs, lead, branch, remote } = useLanePullRequests(sessionId, {
-    all: open,
-  })
+  const { repoPath, ready, slice, prs, lead, branch, remote, byNumber } = useLanePullRequests(
+    sessionId,
+    {
+      all: open,
+    },
+  )
   const enabled = useLanePrefsStore((s) => s.lanes.prStatus)
   const shown = enabled && !!repoPath && !!lead?.pr
   useEffect(() => {
@@ -44,7 +47,9 @@ export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.El
       lead={lead}
       open={open}
       onOpenChange={(next) => setOpenFor(next ? sessionId : null)}
-      lane={{ repoPath, ready, slice, prs, branch, remote }}
+      // A Host lane whose Host reads by number gets detail like a This Mac lane;
+      // an older Host's lane shows only what its listing says.
+      lane={{ repoPath, ready, slice, prs, branch, remote: remote && !byNumber }}
     />
   )
 }

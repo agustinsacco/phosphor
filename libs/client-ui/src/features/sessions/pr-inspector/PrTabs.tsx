@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useRef } from 'react'
 import clsx from 'clsx'
 import type { GhPrDetail, GhPrSummary } from '@shared/models'
@@ -80,7 +81,7 @@ export function PrTabList({
       {tabs.map((tab) => {
         const selected = tab.id === active
         return (
-          <button
+          <TooltipButton
             key={tab.id}
             id={tabId(base, tab.id)}
             type="button"
@@ -100,7 +101,7 @@ export function PrTabList({
             {tab.count !== undefined && (
               <span className="text-text-tertiary font-mono text-sm tabular-nums">{tab.count}</span>
             )}
-          </button>
+          </TooltipButton>
         )
       })}
     </div>

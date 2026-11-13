@@ -6,10 +6,13 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { usePrInspectorStore } from '@/stores/prInspector'
 import { usePrStatusStore } from '@/stores/prStatus'
 import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
-import { alignLaneMachineFilter } from '@/stores/remoteLanes'
+import { alignLaneMachineFilter, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { machineCaps } from '@/stores/machineCaps'
 import { useSessionsStore } from '@/stores/sessions'
 import type { LaneActionPr } from './laneActions'
-import { resolveLanePrs, type LanePr } from './lanePrs'
+import { laneStatusRefs, resolveLanePrs, type LanePr } from './lanePrs'
+import { useHostPrRoutes } from './remotePullRequests'
+import { usePrStatusRefresh } from './repoPrRefresh'
 import { openPullRequest } from './PrBadge'
 import { lanePrUrl, prMenuLabel } from './prBeads'
 
@@ -42,13 +45,26 @@ export async function showLocalLanePullRequests(
 }
 
 /**
- * A Host lane's own PRs, as the lane's pill resolves them: the checkout
- * branch's PR only, since a Host lane has no session file on this machine.
+ * A Host lane's own PRs, as the lane's pill resolves them: the signals its Host
+ * folded from the lane's file, read by number through that Host. A lane on an
+ * older Host (no `prStatus`) has only its checkout branch's PR.
  */
 export function useRemoteLanePrs(hostId: string | undefined, lane: HostLaneView): LanePr[] {
   const key = hostId ? remotePrKey(hostId, lane.repositoryId) : undefined
   const slice = usePullRequestsStore((s) => repoPullRequests(s, key))
   const status = usePrStatusStore((s) => s.byKey)
+  const byNumber = useRemoteLanesStore((s) => {
+    const host = hostId ? s.hosts[hostId] : undefined
+    return host?.prStatus === true && machineCaps(host).can('workspaces.read')
+  })
+  const signals = byNumber ? lane.pullRequests : undefined
   const branch = lane.branch ?? undefined
-  return useMemo(() => resolveLanePrs({ branch, slice, status }).owned, [branch, slice, status])
+  const prs = useMemo(
+    () => resolveLanePrs({ signals, branch, slice, status }),
+    [signals, branch, slice, status],
+  )
+  const refs = byNumber ? laneStatusRefs(prs) : []
+  useHostPrRoutes(byNumber ? hostId : undefined, refs)
+  usePrStatusRefresh(refs)
+  return prs.owned
 }

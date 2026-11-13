@@ -302,8 +302,32 @@ minutes, and a merged or closed PR is not read again for 30 minutes.
 failed read keeps the last summary and marks it stale. The same refresh clock
 reads a visible row's PRs every 60 seconds, the active lane's every 30 seconds
 while its checks run, and a merged or closed PR once per app run. Rows and the
-pill read only owned PRs. Host lanes keep their checkout branch only: their
-session files and `gh` live on the Host.
+pill read only owned PRs.
+
+Host lanes read the same way through their Host. The Host folds each lane's
+session file and subagent runs into `LaneSummary.pullRequests`, and reads PRs by
+number on its own `gh` (`github.prSummaries`, `github.prDetail`) behind the same
+gate as its branch discovery. A Host lane in view, its sidebar row included,
+registers its PRs in `stores/prRoutes.ts`, so `gh:prSummaries` and `gh:prDetail`
+for them carry the machine `host:<hostId>`; status and detail stay keyed by PR.
+An older Host, one without the `prStatus` ready marker, is never asked: its
+lanes keep their checkout branch's PR, with no error.
+
+### Change notices
+
+When a PR one of your This Mac lanes owns changes in a way worth interrupting
+for (failed checks, an approval, requested changes, a conflict, ready to merge,
+merged or closed), Phosphor says so once per PR: a toast, an entry in the
+notification drawer, and, while Phosphor is not the focused app, a native
+notification. The first status read after launch is only a baseline, and a read
+that failed says nothing. Each notice names the PR and its newest change, the
+lane and `repo#n`, and lists everything that changed since you last looked.
+**Open lane** opens the lane with its inspector on that PR. A second button
+drafts the fitting hand-off for the agent (fix the checks, address the changes,
+update the branch) or opens a ready PR on GitHub. The wording comes from
+`prChanges.ts`, the same as the inspector's "Since you looked" line. Turning off
+"PR status" in Settings → Lanes silences notices too. See
+[ui-shell.md](ui-shell.md) for the drawer and toast rules.
 
 One shared refresh clock checks relevant repositories about every 60 seconds:
 **visible expanded** groups, the visible Home board, and the active lane's own
@@ -414,6 +438,10 @@ renders nothing until the transcript mentions a thread, and shows a count once
 there are several. `LaneLinks.tsx` puts both controls in all three headers, and
 both are one component, `LaneHeaderPill.tsx`, which owns the trigger, the
 anchored popup, focus on open and focus return; only their contents differ.
+Focus on open goes to the popup's `data-popup-autofocus` element when it has one
+(the PR inspector's selected PR), else its first button. A pill can be opened
+from outside (`open`/`onOpenChange`), and `holdOpen` keeps the popup open while
+a dialog it opened is on top.
 
 The popup is the shared `PopupMenu` in its anchored mode (`escapeContainer`),
 like `ChoiceMenu` and the machine header menu: portalled to `<body>` and placed by
