@@ -99,7 +99,10 @@ export interface BrainStore {
     predicate: BrainPredicate
     direction: 'out' | 'in'
   }[]
-  /** Active or disputed memories that share a link or entities with each probe. */
+  /**
+   * Active or disputed memories that share a link or entities with each probe. Ids that are not
+   * stored entities (a job's new refs) match nothing.
+   */
   memoryMatches(probes: ClaimProbe[], limit: number): string[][]
   memoryCards(ids: string[]): MemoryCard[]
 

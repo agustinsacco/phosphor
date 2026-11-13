@@ -147,40 +147,51 @@ export function entityCards(ctx: Context, ids: string[]): EntityCard[] {
       : []
   })
 }
+/** A job's new entities are refs, not rows: they match nothing, never throw. */
+function knownNumber(ctx: Context, id: string): number | undefined {
+  return one<{ n: number }>(ctx, 'SELECT n FROM entities WHERE id=?', id)?.n
+}
 export function memoryMatches(ctx: Context, probes: ClaimProbe[], limit: number): string[][] {
   return probes.map((probe) => {
     const found = new Set<string>()
     const add = (rows: { id: string }[]) => rows.forEach((row) => found.add(row.id))
     for (const link of probe.links) {
-      add(
-        all(
-          ctx,
-          `SELECT m.id FROM relations r JOIN memories m ON m.n=r.memory WHERE r.subject=? AND r.live=1 AND r.predicate=? AND r.object=? ORDER BY r.observed_at DESC LIMIT ?`,
-          entityNumber(ctx, link.subjectId),
-          link.predicate,
-          entityNumber(ctx, link.objectId),
-          limit,
-        ),
-      )
-      if (link.predicate === 'owns')
+      const subject = knownNumber(ctx, link.subjectId)
+      const object = knownNumber(ctx, link.objectId)
+      if (subject !== undefined && object !== undefined)
+        add(
+          all(
+            ctx,
+            `SELECT m.id FROM relations r JOIN memories m ON m.n=r.memory WHERE r.subject=? AND r.live=1 AND r.predicate=? AND r.object=? ORDER BY r.observed_at DESC LIMIT ?`,
+            subject,
+            link.predicate,
+            object,
+            limit,
+          ),
+        )
+      // A new owner of an existing thing may replace its old owner.
+      if (link.predicate === 'owns' && object !== undefined)
         add(
           all(
             ctx,
             `SELECT m.id FROM relations r JOIN memories m ON m.n=r.memory WHERE r.object=? AND r.live=1 AND r.predicate='owns' ORDER BY r.observed_at DESC LIMIT ?`,
-            entityNumber(ctx, link.objectId),
+            object,
             limit,
           ),
         )
     }
-    for (const id of probe.entityIds)
-      add(
-        all(
-          ctx,
-          `SELECT m.id FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed') ORDER BY m.observed_at DESC LIMIT ?`,
-          entityNumber(ctx, id),
-          limit,
-        ),
-      )
+    for (const id of probe.entityIds) {
+      const n = knownNumber(ctx, id)
+      if (n !== undefined)
+        add(
+          all(
+            ctx,
+            `SELECT m.id FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed') ORDER BY m.observed_at DESC LIMIT ?`,
+            n,
+            limit,
+          ),
+        )
+    }
     return [...found].slice(0, limit)
   })
 }
