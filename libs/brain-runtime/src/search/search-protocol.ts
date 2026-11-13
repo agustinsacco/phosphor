@@ -11,13 +11,6 @@ export const SEARCH_METHODS = [
 ] as const satisfies readonly (keyof BrainSearch)[]
 export type SearchMethod = (typeof SEARCH_METHODS)[number]
 
-/** BrainSearch as main sees it: the same methods, answered by another process. */
-export type BrainSearchPort = {
-  [K in keyof BrainSearch]: (
-    ...args: Parameters<BrainSearch[K]>
-  ) => Promise<Awaited<ReturnType<BrainSearch[K]>>>
-}
-
 export type ToSearchWorker =
   | { type: 'open'; path: string }
   | { type: 'call'; id: number; method: SearchMethod; args: unknown[] }

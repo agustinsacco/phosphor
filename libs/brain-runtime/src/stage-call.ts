@@ -11,7 +11,7 @@ import { EXTRACTION_SYSTEM } from './stage-prompts/extract'
 import { IDENTITY_SYSTEM } from './stage-prompts/identity'
 import { PARENTS_SYSTEM } from './stage-prompts/parents'
 import { RECONCILE_SYSTEM } from './stage-prompts/reconcile'
-import { scrubExcerpt } from './secrets'
+import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { callThinking } from './call-trace'
 import { ANSWER_BYTES } from './constants'
 

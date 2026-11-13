@@ -4,8 +4,8 @@ import {
   createSearchClient,
   type SearchProcess,
 } from '@phosphor/brain-runtime/search/search-client'
+import type { BrainSearchPort } from '@phosphor/brain-runtime/types'
 import type {
-  BrainSearchPort,
   FromSearchWorker,
   ToSearchWorker,
 } from '@phosphor/brain-runtime/search/search-protocol'

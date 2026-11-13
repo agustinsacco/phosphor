@@ -15,7 +15,7 @@ import type {
 } from './stage-types'
 import type { TranscriptWindow } from './windows'
 import { ELISION } from './constants'
-import { scrubExcerpt } from './secrets'
+import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 
 export function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))

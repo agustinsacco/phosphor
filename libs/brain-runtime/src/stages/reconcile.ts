@@ -10,7 +10,7 @@ import type { BrainSearchPort } from '../types'
 import { array, object, jsonAnswer, text } from '../stage-parse'
 import { reconcilePrompt } from '../stage-prompts/reconcile'
 import { type FoldedJob, type FoldedClaim, linkKey } from './fold'
-import { fold } from '../text'
+import { fold } from '@phosphor/memory-engine/text'
 
 interface Card {
   id: string

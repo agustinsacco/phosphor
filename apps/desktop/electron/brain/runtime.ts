@@ -10,6 +10,7 @@ import { prepareDesktopSessionLaunch } from '../pi/session-launch'
 import { desktopSessionPolicy } from '../pi/session-policy'
 import { setSessionRecall } from '../pi/session-runtime'
 import { createBrainEmbeddings } from './embedding-service'
+import { createDesktopSearch } from './search-service'
 import { testEmbeddings } from './test-embeddings'
 
 let pending: Promise<BrainService> | undefined
@@ -18,7 +19,7 @@ let closing = false
 const resources = (): string =>
   app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '../../libs/pi-extensions')
 
-/** A live lane is busy while its agent works; a fork of it waits until it settles. */
+/** A live lane is busy while its agent works; its extraction waits until it settles. */
 const lanes: BrainLanes = {
   busy: (sessionPath) =>
     registry.list().some((live) => {
@@ -31,11 +32,8 @@ const lanes: BrainLanes = {
     return {
       binaryPath: launch.binaryPath ?? 'pi',
       prefixArgs: launch.prefixArgs ?? [],
-      env: {
-        ...launch.env,
-        ...(launch.stub ? {} : desktopSessionPolicy.compressionEnvironment()),
-        ...account?.env,
-      },
+      // No context-compression environment: quotes must match the lane's own text.
+      env: { ...launch.env, ...account?.env },
     }
   },
 }
@@ -63,6 +61,8 @@ async function construct(): Promise<BrainService> {
     return await createBrainService({
       directory,
       openStore: (path) => openBrainStore({ path, Database: loadSqlite().DatabaseSync }),
+      openSearch: (path) =>
+        createDesktopSearch(path, join(import.meta.dirname, 'brain-search-worker.js')),
       embeddings,
       lanes,
       guardExtension: join(root, 'brain-ext/brain-fork-guard.mjs'),

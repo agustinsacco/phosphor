@@ -5,7 +5,7 @@ import type {
   BrainJob,
 } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
-import { scrubExcerpt } from './secrets'
+import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { ANSWER_BYTES } from './constants'
 import { traceDiagnostic } from './call-trace'
 

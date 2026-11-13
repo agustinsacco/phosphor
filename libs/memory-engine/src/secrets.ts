@@ -1,6 +1,8 @@
-// No shared secret scrubber exists in the portable libraries. Match on the full
+// The one secret scrubber for Brain: evidence, prompts, answers and stored text. Match on the full
 // segment before cutting excerpts so a window cannot expose part of a credential.
 const SECRETS = [
+  /(?<![\w])\+\d{1,3}(?:[ .()-]*\d){8,12}(?![\w])/g,
+  /(?<![\w])(?:\+\d{1,3}[ .-]?)?(?:\(\d{3}\)[ .-]?\d{3}[ .-]?\d{4}|\d{3}[ .-]\d{3}[ .-]\d{4})(?!\d)/g,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
   /\b(?:sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9]{8,}|xox[baprs]?-[A-Za-z0-9-]{8,}|AKIA[A-Z0-9]{16})\b/g,
   /\bBearer\s+[^\s"'<>]+/gi,

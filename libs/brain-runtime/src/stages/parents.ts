@@ -10,7 +10,7 @@ import { parentsPrompt } from '../stage-prompts/parents'
 import { segmentInputs } from '../stage-input'
 import { makeWindow, inputHash, type TranscriptWindow } from '../windows'
 import { PARENT_CHARS } from '../constants'
-import { wholePhrase, fold, tokens } from '../text'
+import { wholePhrase, fold, tokens } from '@phosphor/memory-engine/text'
 import { foldParts, type FoldedJob } from './fold'
 
 export async function findParents(

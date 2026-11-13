@@ -1,8 +1,8 @@
 import type { BrainExtractionOutcome } from '@phosphor/shared/brain'
 import type { EvidenceExcerpt, ProposalMemory } from '@phosphor/memory-engine/types'
 import type { ExtractedPart, StageEntity, StageParent } from '../stage-types'
-import { fold, tokens } from '../text'
-import { scrubExcerpt } from '../secrets'
+import { fold, tokens } from '@phosphor/memory-engine/text'
+import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 
 export interface FoldedClaim {
   ref: string

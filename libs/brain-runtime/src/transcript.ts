@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import type { TranscriptSegment } from '@phosphor/memory-engine/types'
-import { scrubExcerpt } from './secrets'
+import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { DOCUMENT_TOOL_CHARS, TOOL_ARGS_CHARS, truncateTool } from './constants'
 
 export interface LaneEntry {

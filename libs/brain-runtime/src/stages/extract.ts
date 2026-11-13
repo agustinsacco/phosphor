@@ -6,7 +6,7 @@ import type { TranscriptSegment } from '@phosphor/memory-engine/types'
 import { inputHash, splitWindow } from '../windows'
 import { EXTRACT_CAP } from '../constants'
 import { extractPrompt } from '../stage-prompts/extract'
-import { wholePhrase } from '../text'
+import { wholePhrase } from '@phosphor/memory-engine/text'
 import { parseStageExtraction } from '../stage-parse'
 
 export async function extractWindows(

@@ -1,4 +1,4 @@
-import { scrubExcerpt } from './secrets'
+import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 
 export const CALL_TIMEOUT_MS = 300_000
 export const CALL_STDERR_BYTES = 4096

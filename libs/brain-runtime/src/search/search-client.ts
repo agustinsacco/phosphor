@@ -1,6 +1,6 @@
+import type { BrainSearchPort } from '../types'
 import {
   SEARCH_METHODS,
-  type BrainSearchPort,
   type FromSearchWorker,
   type SearchMethod,
   type ToSearchWorker,

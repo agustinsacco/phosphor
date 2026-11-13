@@ -5,7 +5,7 @@ import type { FoldedJob } from './fold'
 import { mergeEntity, redirect, rewriteClaim } from './fold'
 import { array, jsonAnswer, object, text } from '../stage-parse'
 import { identityPrompt } from '../stage-prompts/identity'
-import { fold, tokens } from '../text'
+import { fold, tokens } from '@phosphor/memory-engine/text'
 
 interface Candidate {
   id: string

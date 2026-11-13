@@ -1,7 +1,7 @@
 import type { BrainExtractionView, BrainExtractionCall } from '@phosphor/shared/brain'
 import type { BrainStore, TranscriptSegment } from '@phosphor/memory-engine/types'
 import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
-import { scrubExcerpt } from './secrets'
+import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { rebuildPrompt } from './stage-input'
 import { inputHash } from './windows'
 import { repairPrompt } from './stage-call'

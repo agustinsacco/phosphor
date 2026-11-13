@@ -84,9 +84,9 @@
       "types": "./src/recall.ts",
       "default": "./src/recall.ts"
     },
-    "./search-client": {
-      "types": "./src/search-client.ts",
-      "default": "./src/search-client.ts"
+    "./search/in-process": {
+      "types": "./src/search/in-process.ts",
+      "default": "./src/search/in-process.ts"
     },
     "./search/search-client": {
       "types": "./src/search/search-client.ts",
@@ -99,10 +99,6 @@
     "./search/search-worker-handler": {
       "types": "./src/search/search-worker-handler.ts",
       "default": "./src/search/search-worker-handler.ts"
-    },
-    "./secrets": {
-      "types": "./src/secrets.ts",
-      "default": "./src/secrets.ts"
     },
     "./service": {
       "types": "./src/service.ts",
@@ -167,10 +163,6 @@
     "./stages/reconcile": {
       "types": "./src/stages/reconcile.ts",
       "default": "./src/stages/reconcile.ts"
-    },
-    "./text": {
-      "types": "./src/text.ts",
-      "default": "./src/text.ts"
     },
     "./transcript": {
       "types": "./src/transcript.ts",

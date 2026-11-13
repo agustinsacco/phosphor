@@ -1,5 +1,5 @@
 import type { BrainSearch } from '@phosphor/memory-engine/types'
-import type { BrainSearchPort } from './types'
+import type { BrainSearchPort } from '../types'
 
 /** Portable tests and non-Electron hosts can keep the reader in process. */
 export function inProcessSearch(
