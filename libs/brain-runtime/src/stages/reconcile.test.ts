@@ -150,3 +150,29 @@ it('refuses unoffered targets and malformed add decisions', async () => {
     reconcile(job([memory('Harbor')]), identities, store, search, [new Float32Array([1])], ask),
   ).rejects.toThrow('Unoffered')
 })
+
+it('records a dropped local conflict as contradicted, not superseded', async () => {
+  const j = job([memory('Harbor bills weekly.'), memory('Harbor never bills weekly.')])
+  const ask: StageAsk = async (_s, _p, _prompt, validate) =>
+    validate(
+      JSON.stringify({
+        decisions: [{ ref: 'c2', action: 'conflict', target: 'M1', reason: 'Contradiction' }],
+      }),
+    )
+  await reconcile(
+    j,
+    [],
+    new FakeBrainStore(),
+    new FakeBrainSearch(),
+    [new Float32Array([1]), new Float32Array([1])],
+    ask,
+  )
+  expect(j.claims.map((c) => c.ref)).toEqual(['c2'])
+  expect(j.outcomes).toContainEqual(
+    expect.objectContaining({
+      candidate: 'c1',
+      status: 'dropped',
+      reason: 'contradicted later in this lane',
+    }),
+  )
+})
