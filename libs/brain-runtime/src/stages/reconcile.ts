@@ -196,28 +196,41 @@ async function candidateRows(
         ...(semantic[index] ?? []).filter((m) => m.score >= 0.8).map((m) => m.id),
       ]),
     ]
+    const comparison = normalized[index]!
     const prior = job.claims
       .slice(0, index)
-      .filter(
-        (_c, j) =>
-          normalized[j]!.entities.some((e) => normalized[index]!.entities.includes(e)) ||
-          fold(normalized[j]!.summary) === fold(normalized[index]!.summary),
-      )
-      .slice(-5)
-      .map((c) => {
-        const m = normalized[job.claims.indexOf(c)]!
-        return { id: c.ref, summary: m.summary, type: m.type, links: m.links, local: true }
-      })
+      .map((c, j) => ({ c, m: normalized[j]!, rank: closeness(normalized[j]!, comparison), j }))
+      .filter((item) => item.rank >= 0)
+      .sort((a, b) => b.rank - a.rank || b.j - a.j)
+      .slice(0, 5)
+      .map(({ c, m }) => ({
+        id: c.ref,
+        summary: m.summary,
+        type: m.type,
+        links: m.links,
+        local: true,
+      }))
+    const offered = [...ids.flatMap((id) => (old.has(id) ? [old.get(id)!] : [])), ...prior]
+    // An exact duplicate is always offered, so the deterministic fold or confirm can see it.
+    const equal = offered.filter((card) => same(comparison, card))
     return {
       claim,
-      comparison: normalized[index]!,
+      comparison,
       vector: vectors[index]!,
-      candidates: [...ids.flatMap((id) => (old.has(id) ? [old.get(id)!] : [])), ...prior].slice(
-        0,
-        5,
-      ),
+      candidates: [...equal, ...offered.filter((card) => !equal.includes(card))].slice(0, 5),
     }
   })
+}
+/**
+ * How close an earlier claim in this job is to a later one: the same text, then a shared link
+ * between the same entities, then any shared entity. Unrelated claims are -1 and never offered.
+ */
+function closeness(earlier: ProposalMemory, later: ProposalMemory): number {
+  if (fold(earlier.summary) === fold(later.summary)) return 3
+  const pairs = new Set(later.links.map((l) => `${l.subject}|${l.object}`))
+  if (earlier.links.some((l) => pairs.has(`${l.subject}|${l.object}`))) return 2
+  if (earlier.entities.some((e) => later.entities.includes(e))) return 1
+  return -1
 }
 function applyDecision(
   {
