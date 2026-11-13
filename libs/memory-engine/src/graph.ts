@@ -93,6 +93,8 @@ export function path(ctx: Context, from: string, to: string): BrainPaths {
     for (const route of right) targets.set(route.node, [...(targets.get(route.node) ?? []), route])
     for (const route of left)
       for (const other of targets.get(route.node) ?? []) {
+        if (route.node !== from && route.node !== to && entity(ctx, route.node)!.connections > 200)
+          continue
         const common = [...route.visited].filter((id) => other.visited.has(id))
         if (common.length === 1) found.push([...route.links, ...other.links.toReversed()])
       }
