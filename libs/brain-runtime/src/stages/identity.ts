@@ -73,7 +73,9 @@ async function candidates(
     }
     for (const m of semantic[index] ?? []) {
       const card = cards.get(m.id)
-      if (card && !byId.has(m.id))
+      const previous = byId.get(m.id)
+      if (previous) previous.score += m.score
+      else if (card)
         byId.set(m.id, {
           id: m.id,
           card,
@@ -84,13 +86,52 @@ async function candidates(
         })
     }
     addJobCandidates(entity, pool, anchors, cards, byId)
+    const resolved = new Set([
+      ...anchors.filter((e) => e.entityId).map((e) => e.ref),
+      ...job.entities
+        .filter(
+          (_e, i) =>
+            new Set((matches[i] ?? []).filter((m) => m.channel === 'key').map((m) => m.entityId))
+              .size === 1,
+        )
+        .map((e) => e.ref),
+    ])
     return {
       entity,
-      candidates: [...byId.values()]
-        .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
-        .slice(0, 12),
+      candidates: rankCandidates(entity, [...byId.values()], job, pool, resolved).slice(0, 12),
     }
   })
+}
+function rankCandidates(
+  entity: StageEntity,
+  candidates: Candidate[],
+  job: FoldedJob,
+  pool: StageEntity[],
+  resolved: Set<string>,
+): Candidate[] {
+  const neighbouringRefs = job.claims
+    .flatMap((c) =>
+      c.memory.links.flatMap((l) =>
+        l.subject === entity.ref ? [l.object] : l.object === entity.ref ? [l.subject] : [],
+      ),
+    )
+    .filter((ref) => resolved.has(ref))
+  const labels = new Set(
+    pool
+      .filter((e) => neighbouringRefs.includes(e.ref))
+      .flatMap((e) => [e.label, ...e.aliases].map(fold)),
+  )
+  const score = (c: Candidate): number =>
+    c.score +
+    (c.card.kind === entity.kind ? 0.05 : 0) +
+    (c.card.neighbours.some((n) => labels.has(fold(n))) ? 3 : 0)
+  return candidates.sort(
+    (a, b) =>
+      Number(b.key) - Number(a.key) ||
+      Number(b.exact) - Number(a.exact) ||
+      score(b) - score(a) ||
+      a.id.localeCompare(b.id),
+  )
 }
 function addJobCandidates(
   entity: StageEntity,

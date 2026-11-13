@@ -137,13 +137,28 @@ it('folds repeated full names across windows but not a first name alone or contr
   expect(separate.entities).toHaveLength(2)
 })
 
-it('ranks an exact job-local candidate ahead of an unrelated high-scoring lexical candidate',async()=>{
-  const store=new FakeBrainStore(),search=new FakeBrainSearch(),j=job([entity('n1','Tom','person'),entity('n2','Tom','person')])
-  store.cards=[storeCard('lexical','Ledger','project')];store.matches=[[{entityId:'lexical',channel:'words',score:20}],[]]
-  const ask:StageAsk=async(_stage,_part,prompt,validate)=>{
-    const rows=JSON.parse(prompt.slice(prompt.indexOf('\n')+1)) as {entity:{ref:string};candidates:{label:string}[]}[]
-    expect(rows.find(r=>r.entity.ref==='n1')!.candidates[0]!.label).toBe('Tom')
-    return validate(JSON.stringify({decisions:rows.map(r=>({ref:r.entity.ref,action:'new',candidate:null,reason:'Separate people'}))}))
+it('ranks an exact job-local candidate ahead of an unrelated high-scoring lexical candidate', async () => {
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch(),
+    j = job([entity('n1', 'Tom', 'person'), entity('n2', 'Tom', 'person')])
+  store.cards = [storeCard('lexical', 'Ledger', 'project')]
+  store.matches = [[{ entityId: 'lexical', channel: 'words', score: 20 }], []]
+  const ask: StageAsk = async (_stage, _part, prompt, validate) => {
+    const rows = JSON.parse(prompt.slice(prompt.indexOf('\n') + 1)) as {
+      entity: { ref: string }
+      candidates: { label: string }[]
+    }[]
+    expect(rows.find((r) => r.entity.ref === 'n1')!.candidates[0]!.label).toBe('Tom')
+    return validate(
+      JSON.stringify({
+        decisions: rows.map((r) => ({
+          ref: r.entity.ref,
+          action: 'new',
+          candidate: null,
+          reason: 'Separate people',
+        })),
+      }),
+    )
   }
-  await resolveIdentities(j,store,search,[new Float32Array([1]),new Float32Array([1])],ask)
+  await resolveIdentities(j, store, search, [new Float32Array([1]), new Float32Array([1])], ask)
 })
