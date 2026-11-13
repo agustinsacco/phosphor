@@ -58,6 +58,7 @@ export async function extractWindows(
     for (const e of extraction.entities) redirects.set(e.ref, `${key}:${e.ref}`)
     const resolve = (id: string): string => redirects.get(id) ?? id
     const renamed: StageExtraction = {
+      outcomes: extraction.outcomes?.map((o) => ({ ...o, candidate: resolve(o.candidate) })),
       entities: extraction.entities.map((e) => ({ ...e, ref: resolve(e.ref) })),
       claims: extraction.claims.map((c) => ({
         ...c,

@@ -15,6 +15,7 @@ import type {
 } from './stage-types'
 import type { TranscriptWindow } from './windows'
 import { ELISION } from './constants'
+import { fold } from '@phosphor/memory-engine/text'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 
 export function object(value: unknown): Record<string, unknown> {
@@ -179,7 +180,21 @@ export function parseStageExtraction(
     if (!parents.some((p) => p.entity === e.ref))
       errors.push(`Missing parent assessment for ${e.ref}`)
   if (errors.length) throw new Error(errors.join('\n'))
-  return { entities, claims, parents }
+  const outcomes: NonNullable<StageExtraction['outcomes']> = []
+  for (const entity of entities) {
+    entity.keys = entity.keys.filter((key) => {
+      if (window.segments.some((segment) => fold(segment.text).includes(fold(key.value))))
+        return true
+      outcomes.push({
+        candidate: entity.ref,
+        summary: `Unsupported entity key ${key.namespace}: ${key.value}`,
+        status: 'dropped',
+        reason: 'Entity key value not found in the window source',
+      })
+      return false
+    })
+  }
+  return { entities, claims, parents, ...(outcomes.length ? { outcomes } : {}) }
 }
 
 function validated<T>(

@@ -96,6 +96,7 @@ export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob 
   const job: FoldedJob = { entities: [], claims: [], evidence: [], parents: [], outcomes: [] }
   const redirects = new Map<string, string>()
   for (const part of parts) {
+    job.outcomes.push(...(part.extraction.outcomes ?? []))
     for (const entity of part.extraction.entities) {
       const target = job.entities.find((e) => sameEntity(e, entity))
       if (target) {

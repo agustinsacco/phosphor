@@ -1,5 +1,6 @@
 import type {
   BrainEntityKind,
+  BrainExtractionOutcome,
   BrainMemoryType,
   BrainEpistemicKind,
   BrainPredicate,
@@ -47,6 +48,8 @@ export interface StageExtraction {
   entities: StageEntity[]
   claims: StageClaim[]
   parents: StageParent[]
+  /** Rejected source-derived metadata, retained through checkpoints for inspection. */
+  outcomes?: BrainExtractionOutcome[]
 }
 export interface ExtractedPart {
   key: string

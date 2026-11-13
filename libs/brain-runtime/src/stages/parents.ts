@@ -114,6 +114,7 @@ function appendParents(
     window,
     truncated: false,
     extraction: {
+      outcomes: extraction.outcomes?.map((o) => ({ ...o, candidate: resolve(o.candidate) })),
       entities: extraction.entities.map((e) => ({ ...e, ref: resolve(e.ref) })),
       claims: extraction.claims.map((c) => ({
         ...c,
@@ -129,6 +130,7 @@ function appendParents(
     },
   }
   const extra = foldParts([part], job.evidence[0]?.sessionId ?? '')
+  job.outcomes.push(...extra.outcomes)
   const offset = job.evidence.length
   job.evidence.push(...extra.evidence)
   job.claims.push(
