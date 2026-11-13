@@ -5,7 +5,7 @@ import { createSearchWorkerHandler } from './search-worker-handler'
 
 function search(): BrainSearch {
   return {
-    refresh: vi.fn(),
+    refresh: vi.fn(async () => {}),
     ready: vi.fn(() => false),
     recall: vi.fn(),
     find: vi.fn(),

@@ -10,7 +10,7 @@ afterEach(() => {
 
 function fakeSearch(patch: Partial<BrainSearch> = {}): BrainSearch {
   return {
-    refresh: vi.fn(),
+    refresh: vi.fn(async () => {}),
     ready: vi.fn(() => true),
     recall: vi.fn(),
     find: vi.fn(),

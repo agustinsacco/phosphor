@@ -4,7 +4,7 @@ import { approve, extraction, searchFixture, vector } from './test-support'
 import { freshness } from './recall'
 import { named } from './seeds'
 
-it('degrades during initial loading, then recalls paraphrases through vectors with no evidence text', () => {
+it('degrades during initial loading, then recalls paraphrases through vectors with no evidence text', async () => {
   const { store, search } = searchFixture()
   approve(store)
   expect(search.ready()).toBe(false)
@@ -19,27 +19,27 @@ it('degrades during initial loading, then recalls paraphrases through vectors wi
   expect(search.recall(input).degradation).toEqual([
     'Semantic index loading; words and names only.',
   ])
-  search.refresh()
+  await search.refresh()
   const result = search.recall(input)
   expect(search.ready()).toBe(true)
   expect(result.hits[0]?.reasons).toContain('semantic')
   expect(result.degradation).toEqual([])
   expect(JSON.stringify(result)).not.toContain('Rina owns Harbor.')
 })
-it('loads incrementally, filters deletions and clears all old rows on reset generation', () => {
+it('loads incrementally, filters deletions and clears all old rows on reset generation', async () => {
   const { store, search } = searchFixture()
   const ids = approve(store)
-  search.refresh()
+  await search.refresh()
   expect(search.nearestMemories([vector()], 10)[0]).toHaveLength(2)
   store.forget(ids[0]!)
-  search.refresh()
+  await search.refresh()
   expect(search.nearestMemories([vector()], 10)[0]).toHaveLength(1)
   const next = extraction('next')
   approve(store, { jobId: 'next', memories: [next.memories[0]!], memoryVectors: [vector()] })
-  search.refresh()
+  await search.refresh()
   expect(search.nearestMemories([vector()], 10)[0]).toHaveLength(2)
   store.reset()
-  search.refresh()
+  await search.refresh()
   expect(search.nearestMemories([vector()], 10)[0]).toEqual([])
   expect(search.find('Harbor', vector(), 20).entities).toEqual([])
 })
@@ -78,10 +78,10 @@ it('freshness ignores future effective dates and retains old memories', () => {
   )
 })
 
-it('refresh reads maintained counts instead of scanning all bit rows', () => {
+it('refresh reads maintained counts instead of scanning all bit rows', async () => {
   const { store, search, path } = searchFixture()
   approve(store)
-  search.refresh()
+  await search.refresh()
   const db = new DatabaseSync(path)
   try {
     expect(db.prepare("SELECT value FROM meta WHERE key='entity_bits'").get()).toEqual({

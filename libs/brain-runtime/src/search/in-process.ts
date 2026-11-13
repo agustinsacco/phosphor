@@ -8,7 +8,7 @@ export function inProcessSearch(
   return (path) => {
     const search = open(path)
     return {
-      refresh: async () => search.refresh(),
+      refresh: () => search.refresh(),
       ready: async () => search.ready(),
       recall: async (input) => search.recall(input),
       find: async (query, vector, limit) => search.find(query, vector, limit),

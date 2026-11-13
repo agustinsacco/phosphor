@@ -19,12 +19,35 @@ export function createSearchWorkerHandler(
 ): (input: ToSearchWorker) => void {
   let search: BrainSearch | null = null
   let failure = 'Brain search is not open.'
+  let loading: Promise<void> | null = null
+  let loadError: string | null = null
+  const refresh = (): Promise<void> => {
+    if (loading) return loading
+    const target = search!
+    const pending = target
+      .refresh()
+      .then(() => {
+        if (search === target) loadError = null
+      })
+      .finally(() => {
+        if (loading === pending) loading = null
+      })
+    loading = pending
+    return pending
+  }
   return (input) => {
     if (input.type === 'open') {
       search?.close()
       search = null
+      loading = null
+      loadError = null
       try {
-        search = options.open(input.path)
+        const target = options.open(input.path)
+        search = target
+        // Do not block lexical calls. A failed load is visible to callers and refresh can retry.
+        refresh().catch((error: unknown) => {
+          if (search === target) loadError = `Brain search could not load: ${message(error)}`
+        })
       } catch (error) {
         failure = `Brain search could not open: ${message(error)}`
       }
@@ -33,6 +56,7 @@ export function createSearchWorkerHandler(
     if (input.type === 'close') {
       search?.close()
       search = null
+      loading = null
       failure = 'Brain search is closed.'
       return
     }
@@ -41,6 +65,14 @@ export function createSearchWorkerHandler(
     if (!(SEARCH_METHODS as readonly string[]).includes(method))
       return options.post({ type: 'error', id, error: 'Unknown Brain search method.' })
     try {
+      if (method === 'refresh') {
+        refresh().then(
+          () => options.post({ type: 'result', id, value: undefined }),
+          (error: unknown) => options.post({ type: 'error', id, error: message(error) }),
+        )
+        return
+      }
+      if (loadError) throw new Error(loadError)
       const call = search[method] as (...values: unknown[]) => unknown
       options.post({ type: 'result', id, value: call.apply(search, args) })
     } catch (error) {

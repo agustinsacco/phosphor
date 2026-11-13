@@ -1,3 +1,4 @@
+import { setImmediate } from 'node:timers/promises'
 import { BIT_WORDS, asymmetric, shortlist } from './bits'
 import { all, one, type Context } from './database'
 import type { Neighbour } from './types'
@@ -12,29 +13,49 @@ export class VectorIndex {
     private ctx: Context,
     private kind: Kind,
   ) {}
-  refresh(rebuild: boolean): void {
+  /** Build a replacement privately. Readers keep the complete old index until publication. */
+  async refresh(rebuild: boolean, current: () => boolean): Promise<VectorIndex | null> {
+    await setImmediate()
+    if (!current()) return null
     const { ctx, kind } = this
-    if (rebuild) {
-      this.last = 0
-      this.numbers = []
-      this.bits = new Uint32Array()
+    const next = new VectorIndex(ctx, kind)
+    if (!rebuild) {
+      next.last = this.last
+      next.numbers = this.numbers.slice()
     }
-    const rows = all<{ n: number; bits: Uint8Array }>(
-      ctx,
-      `SELECT ${kind} AS n,bits FROM ${kind}_bits WHERE ${kind}>? ORDER BY ${kind}`,
-      this.last,
+    const end = one<{ n: number }>(ctx, `SELECT COALESCE(MAX(${kind}),0) AS n FROM ${kind}_bits`)!.n
+    const count = Number(
+      one<{ value: string }>(ctx, 'SELECT value FROM meta WHERE key=?', `${kind}_bits`)!.value,
     )
-    const bits = new Uint32Array(this.bits.length + rows.length * BIT_WORDS)
-    bits.set(this.bits)
-    rows.forEach((row, index) => {
-      bits.set(
-        new Uint32Array(Uint8Array.from(row.bits).buffer),
-        this.bits.length + index * BIT_WORDS,
+    const capacity = next.numbers.length + Math.min(count, Math.max(0, end - next.last))
+    next.bits = new Uint32Array(capacity * BIT_WORDS)
+    if (!rebuild) next.bits.set(this.bits)
+    while (next.last < end) {
+      if (!current()) return null
+      const rows = all<{ n: number; bits: Uint8Array }>(
+        ctx,
+        `SELECT ${kind} AS n,bits FROM ${kind}_bits WHERE ${kind}>? AND ${kind}<=? ORDER BY ${kind} LIMIT 2048`,
+        next.last,
+        end,
       )
-      this.numbers.push(row.n)
-      this.last = row.n
-    })
-    this.bits = bits
+      if (!rows.length) break
+      // Inserts between chunks can fill deleted gaps. Grow only the private replacement.
+      if ((next.numbers.length + rows.length) * BIT_WORDS > next.bits.length) {
+        const grown = new Uint32Array((next.numbers.length + rows.length) * BIT_WORDS)
+        grown.set(next.bits)
+        next.bits = grown
+      }
+      const bytes = new Uint8Array(next.bits.buffer)
+      for (const row of rows) {
+        bytes.set(row.bits, next.numbers.length * BIT_WORDS * 4)
+        next.numbers.push(row.n)
+        next.last = row.n
+      }
+      await setImmediate()
+    }
+    if (!current()) return null
+    next.bits = next.bits.subarray(0, next.numbers.length * BIT_WORDS)
+    return next
   }
   stale(): boolean {
     const actual = Number(

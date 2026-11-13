@@ -49,51 +49,106 @@ function find(
     degradation,
   }
 }
+class SearchIndexes {
+  entities: VectorIndex
+  memories: VectorIndex
+  loaded = false
+  private closed = false
+  private generation: string | undefined
+  private revision: string | undefined
+  private pending: Promise<void> | null = null
+  constructor(private ctx: Context) {
+    this.entities = new VectorIndex(ctx, 'entity')
+    this.memories = new VectorIndex(ctx, 'memory')
+  }
+  private meta(): Record<string, string> {
+    return Object.fromEntries(
+      all<{ key: string; value: string }>(
+        this.ctx,
+        "SELECT key,value FROM meta WHERE key IN ('generation','revision')",
+      ).map((row) => [row.key, row.value]),
+    )
+  }
+  refresh(): Promise<void> {
+    if (this.closed) return Promise.reject(new Error('Brain search is closed.'))
+    if (!this.pending)
+      this.pending = this.load().finally(() => {
+        this.pending = null
+      })
+    return this.pending
+  }
+  private async load(): Promise<void> {
+    // Coalesce concurrent refreshes, including one catch-up pass for commits made during loading.
+    let passes = 0
+    while (!this.closed && passes < 2) {
+      const meta = this.meta()
+      if (this.loaded && this.generation === meta.generation && this.revision === meta.revision)
+        return
+      const rebuild = this.generation !== meta.generation
+      if (rebuild) this.loaded = false
+      const current = (): boolean => {
+        if (this.closed) return false
+        if (this.meta().generation === meta.generation) return true
+        this.loaded = false
+        return false
+      }
+      const entities = await this.entities.refresh(rebuild || this.entities.stale(), current)
+      if (!entities) continue
+      const memories = await this.memories.refresh(rebuild || this.memories.stale(), current)
+      if (!memories || !current()) continue
+      this.entities = entities
+      this.memories = memories
+      this.generation = meta.generation
+      this.revision = meta.revision
+      this.loaded = true
+      passes++
+    }
+  }
+  close(): void {
+    if (this.closed) return
+    this.closed = true
+    this.loaded = false
+    this.ctx.db.close()
+  }
+}
 export function openBrainSearch(options: Pick<OpenStoreOptions, 'path' | 'Database'>): BrainSearch {
   const ctx: Context = {
     db: new options.Database(options.path, { readOnly: true, timeout: 2000 }),
     now: Date.now,
     id: randomUUID,
   }
-  const entities = new VectorIndex(ctx, 'entity')
-  const memories = new VectorIndex(ctx, 'memory')
-  let loaded = false
-  let generation: string | undefined
-  let revision: string | undefined
-  const degradation = () => (loaded ? [] : ['Semantic index loading; words and names only.'])
+  const indexes = new SearchIndexes(ctx)
+  const degradation = () =>
+    indexes.loaded ? [] : ['Semantic index loading; words and names only.']
   return {
-    refresh: () => {
-      const meta = Object.fromEntries(
-        all<{ key: string; value: string }>(
-          ctx,
-          "SELECT key,value FROM meta WHERE key IN ('generation','revision')",
-        ).map((row) => [row.key, row.value]),
-      )
-      if (loaded && generation === meta.generation && revision === meta.revision) return
-      const rebuild = generation !== meta.generation
-      entities.refresh(rebuild || entities.stale())
-      memories.refresh(rebuild || memories.stale())
-      generation = meta.generation
-      revision = meta.revision
-      loaded = true
-    },
-    ready: () => loaded,
+    refresh: () => indexes.refresh(),
+    ready: () => indexes.loaded,
     nearestEntities: (vectors, k) =>
-      vectors.map((vector) => (loaded ? entities.nearest(vector, k) : [])),
+      vectors.map((vector) => (indexes.loaded ? indexes.entities.nearest(vector, k) : [])),
     nearestMemories: (vectors, k) =>
-      vectors.map((vector) => (loaded ? memories.nearest(vector, k) : [])),
+      vectors.map((vector) => (indexes.loaded ? indexes.memories.nearest(vector, k) : [])),
     recall: (input) =>
       recall(
         ctx,
         input,
         {
-          entities: loaded && input.vector ? entities.nearest(input.vector, 20) : [],
-          memories: loaded && input.vector ? memories.nearest(input.vector, 50) : [],
+          entities:
+            indexes.loaded && input.vector ? indexes.entities.nearest(input.vector, 20) : [],
+          memories:
+            indexes.loaded && input.vector ? indexes.memories.nearest(input.vector, 50) : [],
         },
         degradation(),
       ),
     find: (query, vector, limit) =>
-      find(ctx, query, loaded ? vector : null, limit, entities, memories, degradation()),
-    close: () => ctx.db.close(),
+      find(
+        ctx,
+        query,
+        indexes.loaded ? vector : null,
+        limit,
+        indexes.entities,
+        indexes.memories,
+        degradation(),
+      ),
+    close: () => indexes.close(),
   }
 }

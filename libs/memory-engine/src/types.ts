@@ -165,7 +165,8 @@ export interface Neighbour {
  * any process; `refresh` picks up rows committed since the last call.
  */
 export interface BrainSearch {
-  refresh(): void
+  /** Coalesced, chunked load; calls keep using the previous complete index while it refreshes. */
+  refresh(): Promise<void>
   /** False while the vector index is still loading; searches then use words and names only. */
   ready(): boolean
   recall(input: SearchInput): BrainRecall

@@ -4,13 +4,13 @@ import { buildBenchmark, clusteredVector } from './benchmark-fixture'
 import { cosine } from './vectors'
 import { searchFixture } from './test-support'
 
-it('staged sign-bit candidates retain exact top ten on deterministic clustered fixtures', () => {
+it('staged sign-bit candidates retain exact top ten on deterministic clustered fixtures', async () => {
   const { search, path } = searchFixture()
   const db = new DatabaseSync(path)
   try {
     const count = 2500
     buildBenchmark(db, 250, count)
-    search.refresh()
+    await search.refresh()
     const vectors = Array.from({ length: count }, (_, i) => clusteredVector(i + 1))
     for (const index of [1, 37, 129, 991, 2301]) {
       const query = clusteredVector(index)
