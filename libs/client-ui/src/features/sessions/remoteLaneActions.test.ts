@@ -25,6 +25,7 @@ function handlers(): LaneActionHandlers {
   return {
     open: vi.fn(),
     openPullRequest: vi.fn(),
+    showPullRequests: vi.fn(),
     rename: vi.fn(),
     takeControl: vi.fn(),
     releaseControl: vi.fn(),
@@ -54,7 +55,7 @@ function state(edit: Partial<RemoteLaneActionState> = {}, self = true): RemoteLa
     ready: true,
     busy: false,
     stopBlocked: null,
-    pr: null,
+    prs: [],
     markers: 'auto',
     ...edit,
   }
@@ -66,14 +67,14 @@ const item = (items: ReturnType<typeof laneActions>, label: string) =>
 
 describe('hostLaneContext', () => {
   it("lists every action in This Mac's order, with Open and a pull request only when supplied", () => {
-    const all = hostMenu(state({ pr: { number: 7 } }), handlers())
+    const all = hostMenu(state({ prs: [{ key: 'k7', label: '#7 · Merged' }] }), handlers())
     expect(all.map((entry) => entry.label)).toEqual([
       'Open',
       'Rename…',
       'Make routine…',
       'Pin',
       'Lane marker…',
-      'Open pull request #7',
+      'Pull requests',
       'Release control',
       'Stop',
       'Mark read',
@@ -212,7 +213,10 @@ it('names the missing grant on Take control, as every refused action does', () =
   })
 })
 
-it("shows the pull request's state as its hint, as This Mac does", () => {
-  const items = hostMenu(state({ pr: { number: 7, state: 'MERGED' } }), handlers())
-  expect(item(items, 'Open pull request #7')?.hint).toBe('merged')
+it("names each pull request's verdict in its submenu, as This Mac does", () => {
+  const items = hostMenu(state({ prs: [{ key: 'k7', label: '#7 · Merged' }] }), handlers())
+  expect(item(items, 'Pull requests')?.submenu?.map((entry) => entry.label)).toEqual([
+    '#7 · Merged',
+    'Show pull requests…',
+  ])
 })

@@ -146,8 +146,10 @@ test('a lane shows the PR its subagent opened from another branch, read by numbe
     await h.page.reload()
     await openWorkspace(h.page)
     const badge = h.page.getByTestId('session-row').getByTestId('session-pr-badge')
-    await expect(badge).toHaveText(/#20244/)
+    await expect(badge).toHaveAttribute('data-tooltip', /^#20244 Failing/)
     await expect(badge).toHaveAttribute('data-variant', 'failing')
+    await expect(badge.getByTestId('session-pr-bead')).toHaveCount(1)
+    await expect(badge.getByTestId('session-pr-bead')).toHaveAttribute('data-tone', 'failing')
     const asked = await h.app.evaluate(() => (globalThis as unknown as { asked: unknown[] }).asked)
     expect(asked).toContainEqual(SUBAGENT_PR)
   } finally {

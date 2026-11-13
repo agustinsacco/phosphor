@@ -7,10 +7,11 @@ import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { makeRoutine } from '@/stores/routines'
 import { navigateToLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import type { GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
+import type { GitInfo, SessionMeta } from '@shared/models'
 import { changeCompletion, openRestoreWorktree, openSidebarConversation } from './completionActions'
 import { laneActions, type LaneActionContext, type LaneActions } from './laneActions'
-import { openPullRequest } from './PrBadge'
+import { lanePrMenuEntries, openLanePr, showLocalLanePullRequests } from './lanePrMenu'
+import type { LanePr } from './lanePrs'
 import { copySessionDebugInfo, copySpend, exportSessionHtml } from './sessionActions'
 import { useSessionOrderActions } from './SessionList'
 import { cloneSession, exportSidebarSession, moveSidebarSession } from './sidebarActions'
@@ -32,7 +33,8 @@ interface LocalLane {
   unseen: boolean
   pinned: boolean
   git?: GitInfo
-  pullRequest: GhPullRequest | undefined
+  /** The lane's own PRs, lead first. */
+  prs: LanePr[]
   deleting: boolean
   onRename: () => void
   onOpenTree: () => void
@@ -44,11 +46,11 @@ function localContext(
   markers: LaneActionContext['markers'],
   bulkDeleteRunning: boolean,
 ): LaneActionContext {
-  const { meta, livePhosphorId, working, unseen, pinned, pullRequest, deleting } = lane
+  const { meta, livePhosphorId, working, unseen, pinned, prs, deleting } = lane
   return {
     pinned,
     markers,
-    pr: pullRequest ?? null,
+    prs: lanePrMenuEntries(prs),
     unseen,
     running: livePhosphorId !== undefined,
     completed: Boolean(meta.completedAt),
@@ -73,17 +75,8 @@ function localContext(
  * how a rename is asked for (inline), the tree and the delete confirm.
  */
 export function useLocalLaneActions(lane: LocalLane): LaneActions {
-  const {
-    meta,
-    workspacePath,
-    livePhosphorId,
-    title,
-    git,
-    pullRequest,
-    onRename,
-    onOpenTree,
-    onDelete,
-  } = lane
+  const { meta, workspacePath, livePhosphorId, title, git, prs, onRename, onOpenTree, onDelete } =
+    lane
   const orderActions = useSessionOrderActions()
   const markers = useLanePrefsStore((s) => s.lanes.markers)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
@@ -112,10 +105,12 @@ export function useLocalLaneActions(lane: LocalLane): LaneActions {
         makeRoutine: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),
         pin: () => store().togglePin(meta.path),
         marker: () => setPickingMarker(true),
-        // Keyboard route for the PR chip (see PrBadge).
-        openPullRequest: () => {
-          if (pullRequest) void openPullRequest(pullRequest)
-        },
+        // Keyboard route for the PR beads (see PrBadge).
+        openPullRequest: (key) => openLanePr(prs, key),
+        // A lane whose worktree is gone opens as a saved conversation, with no pill.
+        showPullRequests: meta.worktreeRemoved
+          ? undefined
+          : () => void showLocalLanePullRequests(workspacePath, meta),
         stop: () => {
           if (livePhosphorId) void store().suspendSession(livePhosphorId)
         },
@@ -164,7 +159,7 @@ export function usePendingLaneActions({
   const context: LaneActionContext = {
     pinned: false,
     markers: 'auto',
-    pr: null,
+    prs: [],
     unseen: false,
     // A pending lane is a live process with no file yet. It gets no stop or resume
     // handler, so neither item shows whatever `running` says.

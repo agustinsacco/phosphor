@@ -175,10 +175,10 @@ test('a lane PR badge shows a lightweight result and nothing for a lane without 
     await h.page.reload()
     const row = h.page.getByTestId('session-row')
     const badge = row.getByTestId('session-pr-badge')
-    await expect(badge).toHaveText('#17006')
-    await expect(badge).toHaveAttribute('data-tooltip', /checks unavailable/)
+    await expect(badge.getByTestId('session-pr-bead')).toHaveCount(1)
+    await expect(badge).toHaveAttribute('data-tooltip', /^#17006 /)
 
-    // Unavailable, truncated and a complete listing without this branch: no chip at all.
+    // Unavailable, truncated and a complete listing without this branch: no beads at all.
     for (const result of [
       null,
       { byBranch: {}, complete: false },

@@ -43,29 +43,30 @@ dirty worktree removal rather than discarding changes.
 
 ```
 ● 🚀  Give Me The Text Here
-      9m · wt · give-me-the-text-here · ±2                  #418 ✓✓
+      9m · wt · give-me-the-text-here · ±2                  (✕)(✓)
 ```
 
 Five parts, each owned by a different module:
 
-| part          | source                      | note                                                            |
-| ------------- | --------------------------- | --------------------------------------------------------------- |
-| indicator dot | `SessionIndicator`          | derived, never stored: streaming > unseen > live > disk         |
-| marker        | `lib/laneMarker.ts`         | fixed 18px slot                                                 |
-| title         | `lib/sessionTitle.ts`       | live name beats scanned name                                    |
-| subtitle      | `sessionSubtitle.ts`        | `·`-joined segments, branch is the only one allowed to truncate |
-| PR chip       | `prChip.ts` + `PrBadge.tsx` | right-aligned trailer, **not** a subtitle segment               |
+| part          | source                       | note                                                            |
+| ------------- | ---------------------------- | --------------------------------------------------------------- |
+| indicator dot | `SessionIndicator`           | derived, never stored: streaming > unseen > live > disk         |
+| marker        | `lib/laneMarker.ts`          | fixed 18px slot                                                 |
+| title         | `lib/sessionTitle.ts`        | live name beats scanned name                                    |
+| subtitle      | `sessionSubtitle.ts`         | `·`-joined segments, branch is the only one allowed to truncate |
+| PR beads      | `prBeads.ts` + `PrBadge.tsx` | right-aligned trailer, **not** a subtitle segment               |
 
-The PR chip is `ml-auto`, so it forms a scannable column down the sidebar
-instead of floating after a branch name of varying width.
+The PR beads are `ml-auto` and `shrink-0`, so they form a scannable column down
+the sidebar instead of floating after a branch name of varying width, and the
+branch truncates before they do.
 
 **The row carries no spend.** A dollar figure is something you go looking for,
 not a way to choose a lane. It lives in the row's context menu ("Copy spend"),
 the Home ledger and the context meter's Cost row.
 
-`LanePrefs.prStatus` (default **on**) decides whether the chip renders at all,
-and a chip renders only for a lane with a known PR. A lane without one shows
-no chip, no placeholder and no "no PR" hint. Settings → Lanes → "PR status on
+`LanePrefs.prStatus` (default **on**) decides whether the beads render at all,
+and they render only for a lane that owns a PR. A lane without one shows
+no bead, no placeholder and no "no PR" hint. Settings → Lanes → "PR status on
 lanes".
 
 **Delegated work keeps a live lane working.** The sidebar activity treatment
@@ -320,7 +321,7 @@ Only explicit absence removes it. Missing gh, auth, network and deadline failure
 are normal unavailable states, without toasts. Desktop runs gh through
 `piProcessEnv` for the login-shell PATH; the Host uses its own environment.
 
-**Absence shows nothing.** A lane with no PR gets no chip and no header pill,
+**Absence shows nothing.** A lane with no PR gets no beads and no header pill,
 and a PR the lane opened elsewhere shows once its first read answers; absent
 coverage only removes a previously known PR. A targeted reply never claims
 repository-wide completeness.
@@ -397,37 +398,53 @@ is typed) and focus the composer. Opening and copying failures are shown in the
 popup, which stays open so you can try again. Enter/Space opens, focus starts on
 the first thread, and Escape closes and returns focus to the pill.
 
-### The chip is one token carrying two signals
+### PR beads
 
-Colour is PR state; the trailing glyph is the check/review verdict. A second
-chip would double the ink on the densest line in the app, and the two are read
-together anyway ("is it in, and is it green").
+A row shows its lane's own PRs as **beads** (`PrBadge.tsx`, `prBeads.ts`): one
+16px circle per PR, lead first in `compareLanePrs` order, at most three, then a
+`+N`. A bead's colour and glyph come from the PR's `prVerdict` tone, the same
+verdict the header pill, the inspector and the Home board read, so no two
+surfaces disagree. The glyph (`PrToneGlyph.tsx`) carries the verdict on its
+own, so colour is never the only signal:
 
-| variant             | meaning                                                        |
-| ------------------- | -------------------------------------------------------------- |
-| `open` / `approved` | open, checks green; `✓✓` once a human approved                 |
-| `failing`           | checks red. The only state that earns colour at rest           |
-| `pending`           | checks still running                                           |
-| `blocked`           | green, but changes requested: blocked on a person, not a build |
-| `conflict`          | ⚠ can't merge no matter what checks say — needs a rebase       |
-| `draft`             | neutral. A draft is not a claim on your attention              |
-| `merged`            | violet. The "this lane is done" signal                         |
-| `closed`            | closed unmerged                                                |
+| tone                | colour  | glyph                       |
+| ------------------- | ------- | --------------------------- |
+| `failing`           | danger  | ✕                           |
+| `conflict`          | danger  | !                           |
+| `closed`            | danger  | a slash                     |
+| `pending`           | warning | a half-filled clock, static |
+| `blocked` (changes) | warning | ↺                           |
+| `review`            | success | ✓                           |
+| `ready`             | success | ✓✓                          |
+| `draft`             | neutral | none: a dashed outline      |
+| `merged`            | merged  | the merge glyph             |
+| `unknown` (unread)  | neutral | an ellipsis                 |
 
-**Terminal states beat check state, and conflict beats check state too.** A
-merged PR whose last run was red is still merged. A conflicting PR is
-unmergeable whatever its checks say, so `conflict` outranks `failing` and
-`pending`, but loses to `draft`, which stays neutral either way.
+A failing optional check reads red: the bead says what GitHub shows, and the
+tooltip says it is not required. Merged gets its own colour because in the
+success colour "merged" and "in review" are indistinguishable, and those are
+the two states the sidebar is scanned to tell apart.
 
-Merged gets its own colour because in the success colour "merged" and "open and
-green" are indistinguishable, and those are the two states the sidebar is
-scanned to tell apart. Merged is what makes PR status and bulk delete one
-feature.
+One tooltip for the whole group lists every PR on its own line ("#57 Failing ·
+Rocky review failed (not required)"), including those behind `+N`; the group's
+`aria-label` says the same. A PR not yet read by number shows an unread bead
+rather than nothing, so the row does not shift when its status lands. A row
+subtitle is a container (`@container/lane-line`): narrower than 10.5rem it
+keeps only the lead bead and a `+N` for the rest, so the beads stay a
+right-aligned column instead of running past the sidebar's edge. The Home
+board shows the same beads on each card, and the card's line names the lead
+PR and its verdict headline ("#57 · Rocky review failed (not required)").
 
-The chip is a `role="link"` span, not a button (the row is already a button,
-and nesting one is invalid HTML), and it is out of the tab order so it does not
-double the sidebar's tab stops. The row context menu's **Open pull request** is
-the keyboard route.
+Each bead is a `role="link"` span, not a button (the row is already a button,
+and nesting one is invalid HTML), out of the tab order so it does not add tab
+stops to every lane. Clicking one opens that PR on GitHub without opening the
+lane. The row context menu's **Pull requests** submenu is the keyboard route:
+one item per owned PR ("#57 · Failing") that opens it on GitHub, then **Show
+pull requests…**, which opens the lane and asks its pill for the inspector
+(`usePrInspectorStore`). Host rows offer the same for their checkout branch's
+PR. The desktop menu opens the submenu beside its row (hover, click, Enter or
+→; ← and Escape step back); the phone sheet replaces its rows with the
+submenu's.
 
 ## Naming
 
@@ -495,7 +512,7 @@ machine's, under Settings → Agent.
 | pref                  | default | reaches                              |
 | --------------------- | ------- | ------------------------------------ |
 | `markers`             | `auto`  | the sidebar row                      |
-| `prStatus`            | `true`  | the row's PR chip                    |
+| `prStatus`            | `true`  | the row's PR beads                   |
 | `autoName`            | `true`  | both naming passes                   |
 | `branchSlugMaxLength` | 40      | `slugifyTitle`, so branch and folder |
 
