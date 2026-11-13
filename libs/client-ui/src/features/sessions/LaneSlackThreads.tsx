@@ -3,8 +3,7 @@ import { MenuRow } from '@/components/PopupMenu'
 import { TooltipButton } from '@/components/Tooltip'
 import { LinkIcon, SlackIcon } from '@/components/icons'
 import { useChatStore } from '@/stores/chat'
-import { useSessionsStore } from '@/stores/sessions'
-import { composerDraftKey, useDraftsStore } from '@/stores/drafts'
+import { appendToDraft, focusComposer } from '@/features/chat/composer/appendToDraft'
 import { slackThreadsInTranscript, type SlackThread } from './slackThread'
 import { LaneHeaderPill, type ClosePill } from './LaneHeaderPill'
 
@@ -60,14 +59,9 @@ function ThreadList({
     work.then(() => onClose()).catch(() => setError(failure))
   }
   const reference = (thread: SlackThread): void => {
-    addToDraft(sessionId, thread.url)
+    appendToDraft(sessionId, thread.url)
     onClose(false)
-    // The composer is a sibling tree; its field is the one shared hook F6 also uses.
-    requestAnimationFrame(() =>
-      document
-        .querySelector<HTMLTextAreaElement>('[data-composer-input]')
-        ?.focus({ preventScroll: true }),
-    )
+    focusComposer()
   }
   return (
     <>
@@ -168,12 +162,4 @@ function when(ts: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-/** Appends the link to the lane's unsent message, space-separated, never replacing it. */
-export function addToDraft(sessionId: string, url: string): void {
-  const key = composerDraftKey(useSessionsStore.getState().live[sessionId], sessionId)
-  const drafts = useDraftsStore.getState()
-  const text = drafts.get(key).text
-  drafts.setText(key, `${text}${text && !/\s$/.test(text) ? ' ' : ''}${url} `)
 }

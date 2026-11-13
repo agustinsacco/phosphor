@@ -88,6 +88,38 @@ describe('notification inbox', () => {
     expect(inbox().items.at(-1)?.message).toBe('n1')
   })
 
+  it('holds one entry and one card per explicit key, apart from its lane, new again on top', () => {
+    toasts().notify({ message: 'Finished.', sessionId: 's1', onOpen: vi.fn() })
+    toasts().notify({ message: 'first', key: 'pr:a', onOpen: vi.fn() })
+    toasts().notify({ message: 'other', key: 'pr:b', onOpen: vi.fn() })
+    inbox().markSeen()
+    const card = toasts().toasts.find((toast) => toast.key === 'pr:a')!
+    toasts().notify({ message: 'second', key: 'pr:a', onOpen: vi.fn() })
+    expect(inbox().items.map((item) => [item.key, item.message, !!item.seenAt])).toEqual([
+      ['pr:a', 'second', false],
+      ['pr:b', 'other', true],
+      ['session:s1', 'Finished.', true],
+    ])
+    // The same card, updated in place with a bump; the lane's card is untouched.
+    const cards = toasts().toasts
+    expect(cards).toHaveLength(3)
+    expect(cards.find((toast) => toast.id === card.id)).toMatchObject({
+      message: 'second',
+      bump: 1,
+    })
+    expect(cards.find((toast) => toast.sessionId === 's1')?.message).toBe('Finished.')
+  })
+
+  it('prunes keyed entries like any other', () => {
+    toasts().notify({ message: 'a', key: 'pr:a', onOpen: vi.fn() })
+    for (let i = 0; i < MAX_NOTIFICATIONS; i++) toasts().pushToast(`n${i}`, 'error')
+    expect(inbox().items.some((item) => item.key === 'pr:a')).toBe(false)
+    toasts().notify({ message: 'b', key: 'pr:b', onOpen: vi.fn() })
+    vi.advanceTimersByTime(NEW_TTL_MS)
+    inbox().prune()
+    expect(inbox().items).toHaveLength(0)
+  })
+
   it('removes one entry, or clears everything seen', () => {
     toasts().pushToast('a', 'error')
     toasts().pushToast('b', 'error')

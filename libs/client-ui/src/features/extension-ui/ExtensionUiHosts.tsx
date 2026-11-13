@@ -1,19 +1,12 @@
-import { LaneReceiptCard } from '@/features/notifications/LaneReceipt'
+import { ToastCard } from '@/features/notifications/ToastCard'
 import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
 import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
-import {
-  acknowledgeToast,
-  useExtensionUiStore,
-  type PendingDialog,
-  type Toast,
-} from '@/stores/extensionUi'
+import { useExtensionUiStore, type PendingDialog } from '@/stores/extensionUi'
 import { useNotificationsStore } from '@/stores/notifications'
-import { NoticeGlyph } from '@/features/notifications/NoticeGlyph'
-import { CloseIcon } from '@/components/icons'
 import { ignoreShortcut } from '@/lib/shortcutContext'
 import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
@@ -267,14 +260,14 @@ export function ToastHost(): React.JSX.Element {
     }
   }, [])
   return createPortal(
-    // `pointer-events-none` so the gaps between cards never swallow a click
-    // meant for the pane underneath; each card opts back in.
+    // Gaps never swallow a click (each card opts back in). Above anchored popups
+    // (`useAnchoredMenu`, z 100), so a notice never lands under an open inspector.
     <ol
       aria-label="Notifications"
       aria-live="polite"
       data-testid="toast-stack"
       className={clsx(
-        'pointer-events-none fixed top-12 z-[60] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col',
+        'pointer-events-none fixed top-12 z-[110] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col',
         // Beside the open drawer, not over its first rows.
         drawerOpen ? 'right-[calc(var(--px-drawer-width)+0.5rem)]' : 'right-2',
       )}
@@ -284,108 +277,6 @@ export function ToastHost(): React.JSX.Element {
       ))}
     </ol>,
     document.body,
-  )
-}
-
-function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
-  const { setToastsPaused } = useExtensionUiStore.getState()
-  const hold = (): void => setToastsPaused('hover', true)
-  const release = (): void => setToastsPaused('hover', false)
-  const open = toast.onOpen
-    ? (): void => {
-        release()
-        toast.onOpen?.()
-        acknowledgeToast(toast)
-      }
-    : undefined
-  const body = (
-    <>
-      <NoticeGlyph toast={toast} />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {toast.title && (
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span
-              className="text-text min-w-0 truncate text-base font-medium"
-              data-tooltip={toast.title}
-            >
-              {toast.title}
-            </span>
-            {toast.openLabel && (
-              <span className="toast-open-hint text-text-tertiary ml-auto shrink-0 text-sm">
-                {toast.openLabel} →
-              </span>
-            )}
-          </span>
-        )}
-        <span
-          className={clsx(
-            'line-clamp-3 text-base leading-snug break-words',
-            toast.title ? 'text-text-secondary' : 'text-text',
-          )}
-        >
-          {stripAnsi(toast.message)}
-        </span>
-      </span>
-    </>
-  )
-  return (
-    // The row collapses its own height on exit, so the cards below glide up
-    // into the gap instead of jumping. The card's bottom margin (not a flex
-    // gap, not padding on the inner box) spaces the cards: a gap would not
-    // collapse with the row, and padding cannot shrink, so the stack would
-    // snap by that much when the row unmounts.
-    <li
-      className="toast-row"
-      data-leaving={toast.leaving || undefined}
-      data-testid="toast"
-      data-kind={toast.kind}
-    >
-      <div className="toast-row-inner px-2">
-        <div
-          role={toast.kind === 'error' ? 'alert' : undefined}
-          data-bump={toast.bump % 2 === 1 ? 'odd' : toast.bump > 0 ? 'even' : undefined}
-          onMouseEnter={hold}
-          onMouseLeave={release}
-          onFocus={hold}
-          onBlur={release}
-          className={clsx(
-            'toast-card group pointer-events-auto relative mb-2 flex items-start rounded-xl border shadow-lg',
-            toast.kind === 'error'
-              ? 'bg-danger-soft border-danger/30'
-              : toast.kind === 'warning'
-                ? 'border-warning/30 bg-[color-mix(in_srgb,var(--px-warning)_10%,var(--px-surface-raised))]'
-                : 'bg-surface-raised border-border',
-            open && 'hover:border-[var(--px-border-strong)]',
-          )}
-        >
-          {toast.receipt ? (
-            <LaneReceiptCard toast={toast} open={open} />
-          ) : open ? (
-            <TooltipButton
-              type="button"
-              onClick={open}
-              aria-label={
-                toast.openLabel ? `${toast.openLabel}: ${toast.title ?? toast.message}` : undefined
-              }
-              data-testid="toast-open"
-              className="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 rounded-xl py-2.5 pl-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--px-accent)]/40"
-            >
-              {body}
-            </TooltipButton>
-          ) : (
-            <div className="flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3.5">{body}</div>
-          )}
-          <TooltipButton
-            type="button"
-            onClick={() => acknowledgeToast(toast)}
-            aria-label="Dismiss"
-            className="text-text-tertiary hover:text-text shrink-0 px-3 py-3"
-          >
-            <CloseIcon size={11} strokeWidth={2.5} />
-          </TooltipButton>
-        </div>
-      </div>
-    </li>
   )
 }
 

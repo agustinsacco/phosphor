@@ -13,6 +13,7 @@ import type {
   GhPullRequest,
   GhRepoPullRequests,
   GhPrReadOptions,
+  GhPrDetail,
   GhPrRead,
   GhPrRef,
   GhPrSummaryOptions,
@@ -185,8 +186,13 @@ export interface BaselineGhInvokeMap {
   }
 
   'gh:prSummaries': {
-    args: [refs: GhPrRef[], options?: GhPrSummaryOptions]
+    args: [refs: GhPrRef[], options?: GhPrSummaryOptions, machine?: string]
     result: GhPrRead | null
+  }
+
+  'gh:prDetail': {
+    args: [ref: GhPrRef, options?: GhPrSummaryOptions, machine?: string]
+    result: GhPrDetail | null
   }
 
   'gh:available': { args: []; result: boolean }

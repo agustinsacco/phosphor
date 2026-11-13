@@ -14,7 +14,7 @@ Desktop's Electron ABI ([Host releases](host.md#build)).
 | Control                           | `apps/control/package.json`, `apps/control/package-lock.json`                                                                                                                                                      | Hono HTTP server, bundled for plain Node                                |
 | Site                              | `apps/site/package.json`, `apps/site/package-lock.json`                                                                                                                                                            | Astro, social-image tools and site checks/browser tests                 |
 
-The Web domain uses `apps/web/package.json` and its own lock for Vite/React. It builds the compact shell from `libs/client-ui`; Desktop imports that library's expanded entry. The UI also consumes the self-contained `lane-reload`, `swarm` and `subagent-snapshot` wire helpers from `libs/pi-extensions`. The Web image builder copies only those three helper sources, not the extension runtime.
+The Web domain uses `apps/web/package.json` and its own lock for Vite/React. It builds the compact shell from `libs/client-ui`; Desktop imports that library's expanded entry. The UI also consumes the self-contained `lane-reload`, `swarm` and `subagent-snapshot` wire helpers from `libs/pi-extensions`. The Web image builder copies only those three helper sources, not the extension runtime. The UI deliberately does not import `lane-prs.ts`: `features/sessions/lanePrOverrides.ts` spells `LANE_PRS_COMMAND` itself (its test pins it to the extension's), so the list stays at three.
 
 ## Development and CI
 

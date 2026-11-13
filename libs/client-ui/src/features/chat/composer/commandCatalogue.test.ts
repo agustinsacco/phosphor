@@ -136,6 +136,14 @@ describe('buildCommandEntries', () => {
     expect(reload.description).toContain('before your next message')
   })
 
+  it('demotes the Track and Hide control, pointing at the PR menu', () => {
+    const entries = buildCommandEntries([...REAL_PI_COMMANDS, LANE_PRS], [])
+    const lanePrs = entries.find((e) => e.name === 'phosphor-prs')!
+    expect(lanePrs.demoted).toBe(true)
+    expect(lanePrs.description).toContain('pull request menu')
+    expect(byName(filterCommandEntries('', entries))).not.toContain('phosphor-prs')
+  })
+
   it('carries sourceInfo through for the tooltip', () => {
     const entries = buildCommandEntries(REAL_PI_COMMANDS, [])
     expect(entries.find((e) => e.name === 'websearch')!.sourceInfo?.source).toBe(
@@ -262,4 +270,11 @@ const RELOAD: RpcSlashCommand = {
   description: 'Host control: reload extensions between turns to pick up changed configuration',
   source: 'extension',
   sourceInfo: info('/app/pi-ext/lane-reload.ts'),
+}
+
+const LANE_PRS: RpcSlashCommand = {
+  name: 'phosphor-prs',
+  description: 'Host control: track or hide a pull request in this lane without running a model',
+  source: 'extension',
+  sourceInfo: info('/app/pi-ext/context-breakdown.ts'),
 }

@@ -1,5 +1,5 @@
 import { PrBadge } from './PrBadge'
-import { useRemotePr } from './remotePullRequests'
+import { useRemoteLanePrs } from './lanePrMenu'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import type { HostLaneView } from '@shared/ipc'
 import { useId } from 'react'
@@ -59,7 +59,7 @@ export function RemoteLanePresentation({
   select,
   ...props
 }: RemoteLanePresentationProps): React.JSX.Element {
-  const pr = useRemotePr(hostId, lane)
+  const prs = useRemoteLanePrs(hostId, lane)
   const showPr = useLanePrefsStore((s) => s.lanes.prStatus)
   const description = useId()
   const view = remoteLanePresentation(lane, ready)
@@ -95,10 +95,10 @@ export function RemoteLanePresentation({
         {marker}
         <span className="min-w-0 flex-1">
           <span className="text-text block truncate text-lg font-medium leading-5">{title}</span>
-          <span className="text-text-secondary flex items-center gap-1 text-base leading-4">
+          <span className="text-text-secondary @container/lane-line flex items-center gap-1 text-base leading-4">
             <SubtitleSegments segments={view.segments} activity={view.activity} />
             {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
-            {showPr && pr && <PrBadge pr={pr} />}
+            {showPr && <PrBadge prs={prs} />}
           </span>
         </span>
         {workspaceName && <LaneWorkspaceBadge name={workspaceName} />}

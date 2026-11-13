@@ -70,7 +70,12 @@ function search(query: string): void {
 }
 
 it('finds a Host lane by its PR number and title, normalized, as This Mac does', () => {
-  const pr = { number: 412, title: 'Rebase dance', state: 'OPEN' } as GhPullRequest
+  const pr = {
+    number: 412,
+    title: 'Rebase dance',
+    state: 'OPEN',
+    url: 'https://github.com/o/r/pull/412',
+  } as GhPullRequest
   usePullRequestsStore.setState({
     byRepo: {
       [remotePrKey(MOCK_HOST_ID, REPO)]: {

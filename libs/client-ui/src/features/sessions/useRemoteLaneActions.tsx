@@ -14,8 +14,9 @@ import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { makeRoutine } from '@/stores/routines'
 import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
-import { openPullRequest } from './PrBadge'
-import { useRemotePr } from './remotePullRequests'
+import { lanePrMenuEntries, openLanePr, useRemoteLanePrs } from './lanePrMenu'
+import type { LanePr } from './lanePrs'
+import { usePrInspectorStore } from '@/stores/prInspector'
 import { useRemoteLaneTitle } from './RemoteLanePresentation'
 import { laneActions, type LaneActionHandlers, type LaneActions } from './laneActions'
 import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from './remoteLaneActions'
@@ -77,7 +78,7 @@ export function useRemoteLaneActions({
   const runner = useLaneActionRunner(onDone)
   const [dialog, setDialog] = useState<LaneDialog>(null)
   const title = useRemoteLaneTitle(lane, hostId)
-  const { state, pr, deletingInBulk, marker } = useLaneActionState(
+  const { state, prs, deletingInBulk, marker } = useLaneActionState(
     hostId,
     lane,
     ready,
@@ -91,7 +92,7 @@ export function useRemoteLaneActions({
     hostId,
     lane,
     navigate: withOpen ? navigate : undefined,
-    pr,
+    prs,
     act: runner.act,
     sessionId: entry?.phosphorId,
     session,
@@ -151,7 +152,7 @@ function useLaneActionState(
   const unprompted = useChatStore(
     (s) => !!sessionId && !s.sessions[sessionId]?.items.some((item) => item.kind === 'user'),
   )
-  const pr = useRemotePr(hostId, lane)
+  const prs = useRemoteLanePrs(hostId, lane)
   const markers = useLanePrefsStore((s) => s.lanes.markers)
   const state: RemoteLaneActionState = {
     lane,
@@ -159,13 +160,13 @@ function useLaneActionState(
     ready,
     busy: running || deletingInBulk,
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
-    pr: pr ?? null,
+    prs: lanePrMenuEntries(prs),
     markers,
     ...(!nativeFiles ? { moveBlocked: 'Moving lanes requires Desktop.' } : {}),
   }
   /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
   const marker = markers === 'off' ? null : remoteLaneMarker(lane, markers)
-  return { state, pr, deletingInBulk, marker }
+  return { state, prs, deletingInBulk, marker }
 }
 
 /** The live session bound to a Host lane, once one has been opened. */
@@ -211,7 +212,7 @@ function laneHandlers({
   hostId,
   lane,
   navigate,
-  pr,
+  prs,
   act,
   sessionId,
   session,
@@ -223,7 +224,8 @@ function laneHandlers({
   hostId: string
   lane: HostLaneView
   navigate: Navigation['navigate'] | undefined
-  pr: Parameters<typeof openPullRequest>[0] | null | undefined
+  /** The lane's own PRs, lead first. */
+  prs: LanePr[]
   act: (action: () => Promise<unknown>) => Promise<boolean>
   /** The lane's open session, if any; `session()` opens one when absent. */
   sessionId: string | undefined
@@ -244,9 +246,13 @@ function laneHandlers({
   return {
     // No pane: Desktop keeps the lane's own pane; the browser's lane URL defaults to chat.
     open: navigate && (() => navigate({ to: 'lane', lane: { hostId, laneId: lane.laneId } })),
-    openPullRequest: () => {
-      if (pr) void openPullRequest(pr)
-    },
+    openPullRequest: (key) => openLanePr(prs, key),
+    // Opens the lane's session, asks its pill for the inspector, then shows the lane.
+    showPullRequests: () =>
+      void act(async () => {
+        usePrInspectorStore.getState().open(await session())
+        navigate?.({ to: 'lane', lane: { hostId, laneId: lane.laneId } })
+      }),
     rename: onRename,
     takeControl: send('hosts:takeControl'),
     releaseControl: send('hosts:releaseControl'),

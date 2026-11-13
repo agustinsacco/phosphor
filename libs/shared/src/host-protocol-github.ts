@@ -42,22 +42,27 @@ function record(v: unknown): v is Record<string, unknown> {
 }
 const count = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v) >= 0
 const text = (v: unknown): v is string => typeof v === 'string' && v.length <= 4096
-function parsePr(v: unknown): GhPullRequest | null {
+/** An https URL with no credentials: what a Host may hand a client to open. */
+export function isHttpsUrl(v: unknown): v is string {
+  if (!text(v)) return false
+  try {
+    const url = new URL(v)
+    return url.protocol === 'https:' && !url.username && !url.password
+  } catch {
+    return false
+  }
+}
+/** A branch-discovery PR from a Host, unknown fields dropped. */
+export function parsePullRequest(v: unknown): GhPullRequest | null {
   if (
     !record(v) ||
     !count(v.number) ||
     v.number === 0 ||
     !text(v.title) ||
-    !text(v.url) ||
+    !isHttpsUrl(v.url) ||
     !['OPEN', 'DRAFT', 'CLOSED', 'MERGED'].includes(String(v.state))
   )
     return null
-  try {
-    const url = new URL(v.url)
-    if (url.protocol !== 'https:' || url.username || url.password) return null
-  } catch {
-    return null
-  }
   if (v.mergeable !== undefined && !text(v.mergeable)) return null
   if (v.mergeStateStatus !== undefined && !text(v.mergeStateStatus)) return null
   if (
@@ -110,7 +115,7 @@ export function parseRepoPrs(v: unknown): GhRepoPullRequests | null {
   if (rows.length > 100) return null
   const byBranch: Record<string, GhPullRequest> = Object.create(null)
   for (const [branch, value] of rows) {
-    const pr = parsePr(value)
+    const pr = parsePullRequest(value)
     if (!branch || branch.length > 4096 || !pr) return null
     byBranch[branch] = pr
   }
@@ -118,24 +123,28 @@ export function parseRepoPrs(v: unknown): GhRepoPullRequests | null {
   if (!record(v.coverage) || Object.keys(v.coverage).length > 100) return null
   const coverage: Record<string, GhBranchCoverage> = Object.create(null)
   for (const [branch, value] of Object.entries(v.coverage)) {
-    if (
-      !branch ||
-      branch.length > 4096 ||
-      !record(value) ||
-      !['found', 'absent', 'unavailable'].includes(String(value.state)) ||
-      !count(value.checkedAt) ||
-      !count(value.attemptedAt) ||
-      (value.reason !== undefined &&
-        !['unavailable', 'timeout', 'rate-limited'].includes(String(value.reason)))
-    )
-      return null
-    coverage[branch] = {
-      state: value.state as GhBranchCoverage['state'],
-      checkedAt: value.checkedAt,
-      attemptedAt: value.attemptedAt,
-      ...(value.reason === undefined ? {} : { reason: value.reason as GhBranchCoverage['reason'] }),
-    }
+    const parsed = parseCoverage(value)
+    if (!branch || branch.length > 4096 || !parsed) return null
+    coverage[branch] = parsed
   }
   if (new Set([...Object.keys(byBranch), ...Object.keys(coverage)]).size > 100) return null
   return { byBranch, complete: v.complete, coverage }
+}
+/** One read's coverage: found, absent or unavailable, and when. */
+export function parseCoverage(value: unknown): GhBranchCoverage | null {
+  if (
+    !record(value) ||
+    !['found', 'absent', 'unavailable'].includes(String(value.state)) ||
+    !count(value.checkedAt) ||
+    !count(value.attemptedAt) ||
+    (value.reason !== undefined &&
+      !['unavailable', 'timeout', 'rate-limited'].includes(String(value.reason)))
+  )
+    return null
+  return {
+    state: value.state as GhBranchCoverage['state'],
+    checkedAt: value.checkedAt,
+    attemptedAt: value.attemptedAt,
+    ...(value.reason === undefined ? {} : { reason: value.reason as GhBranchCoverage['reason'] }),
+  }
 }

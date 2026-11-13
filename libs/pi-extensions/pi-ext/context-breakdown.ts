@@ -28,6 +28,7 @@
 
 import contextBudget, { type BudgetApi } from './context-budget'
 import swarm from './swarm'
+import lanePrs from './lane-prs'
 import contextFiles, { contextFilesIn, type ContextFileInfo } from './context-files'
 import globalContext from './global-context'
 import { measureMessages, type LedgerEntry } from './message-ledger'
@@ -170,9 +171,15 @@ function toolList(raw: unknown): ToolLike[] {
   return Array.isArray(raw) ? (raw as ToolLike[]) : []
 }
 
-export default function contextBreakdownExtension(pi: PiExtensionApi): void {
+/** What shares this extension's load without measuring anything. */
+function registerHostControls(pi: PiExtensionApi): void {
   contextBudget(pi)
   registerSubagentChildren(pi)
+  lanePrs(pi)
+}
+
+export default function contextBreakdownExtension(pi: PiExtensionApi): void {
+  registerHostControls(pi)
   // Before the filter: it must see the global file as it is now.
   const live = globalContext(pi)
   // A toggle runs no turn, so publish from the command itself.

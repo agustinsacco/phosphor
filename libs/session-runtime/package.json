@@ -104,6 +104,10 @@
       "types": "./src/git/github-pr-summary.ts",
       "default": "./src/git/github-pr-summary.ts"
     },
+    "./git/github-pr-detail": {
+      "types": "./src/git/github-pr-detail.ts",
+      "default": "./src/git/github-pr-detail.ts"
+    },
     "./git/github-pr-status": {
       "types": "./src/git/github-pr-status.ts",
       "default": "./src/git/github-pr-status.ts"

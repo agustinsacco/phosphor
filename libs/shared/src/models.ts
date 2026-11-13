@@ -41,14 +41,20 @@ export type {
   GhPullRequest,
 } from './models/git'
 export type {
+  GhPrAnnotation,
   GhPrCheck,
+  GhPrCheckDetail,
   GhPrCheckState,
+  GhPrDetail,
+  GhPrEvent,
+  GhPrEventKind,
   GhPrKey,
   GhPrRead,
   GhPrRef,
   GhPrReviewer,
   GhPrSummary,
   GhPrSummaryOptions,
+  GhPrThread,
   LanePrSignals,
 } from './models/pull-requests'
 export type { DirEntry, FileContent, OpenInDefaultAppResult } from './models/files'

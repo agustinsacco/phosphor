@@ -52,6 +52,10 @@
       "types": "./pi-ext/headroom.ts",
       "default": "./pi-ext/headroom.ts"
     },
+    "./lane-prs": {
+      "types": "./pi-ext/lane-prs.ts",
+      "default": "./pi-ext/lane-prs.ts"
+    },
     "./lane-reload": {
       "types": "./pi-ext/lane-reload.ts",
       "default": "./pi-ext/lane-reload.ts"
