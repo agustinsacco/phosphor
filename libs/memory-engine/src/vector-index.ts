@@ -81,15 +81,15 @@ export class VectorIndex {
     }
     const { kind, ctx } = this
     const table = kind === 'entity' ? 'entities' : 'memories'
-    const statement = ctx.db.prepare(
-      `SELECT t.id,v.vector FROM ${kind}_vectors v JOIN ${table} t ON t.n=v.${kind} WHERE v.${kind}=? ${kind === 'memory' ? "AND t.state IN ('active','disputed')" : ''}`,
+    // CROSS JOIN keeps the shortlist first: otherwise SQLite can scan every live memory.
+    // Primary-key order also avoids random similarity-ordered vector reads.
+    const numbers = indices.map((index) => this.numbers[index]!).sort((a, b) => a - b)
+    return all<{ id: string; vector: Uint8Array }>(
+      ctx,
+      `SELECT t.id,v.vector FROM json_each(?) j CROSS JOIN ${kind}_vectors v ON v.${kind}=j.value CROSS JOIN ${table} t ON t.n=v.${kind} ${kind === 'memory' ? "WHERE t.state IN ('active','disputed')" : ''}`,
+      JSON.stringify(numbers),
     )
-    return indices
-      .flatMap((index) => {
-        const row = statement.get(this.numbers[index]!) as
-          { id: string; vector: Uint8Array } | undefined
-        return row ? [{ id: row.id, score: cosine(vector, decodeVector(row.vector)) }] : []
-      })
+      .map((row) => ({ id: row.id, score: cosine(vector, decodeVector(row.vector)) }))
       .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
       .slice(0, Math.max(0, k))
   }
