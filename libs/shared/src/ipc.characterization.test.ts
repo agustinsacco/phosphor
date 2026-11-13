@@ -297,6 +297,7 @@ const baselineScope = {
   'gh:prForBranch': 'machine',
   'gh:prsForRepo': 'machine',
   'gh:prSummaries': 'machine',
+  'gh:prDetail': 'machine',
   'gh:available': 'machine',
   'git:info': 'machine',
   'git:infoBatch': 'machine',

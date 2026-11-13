@@ -11,7 +11,7 @@ import { toPullRequest } from './github'
 import { GithubFailure, type GithubCommand } from './github-command'
 
 /** A check run or a commit status, as GraphQL returns either. */
-interface RawContext {
+export interface RawContext {
   __typename?: string
   name?: string
   context?: string
@@ -23,7 +23,7 @@ interface RawContext {
   detailsUrl?: string | null
   targetUrl?: string | null
 }
-interface RawLogin {
+export interface RawLogin {
   __typename?: string
   login?: string
   slug?: string
@@ -91,7 +91,7 @@ export function summaryQuery(refs: GhPrRef[], withChecks: boolean): string {
 
 const IN_FLIGHT = new Set(['IN_PROGRESS', 'QUEUED', 'PENDING', 'WAITING', 'REQUESTED', 'EXPECTED'])
 
-function checkState(raw: RawContext): GhPrCheckState {
+export function checkState(raw: RawContext): GhPrCheckState {
   const verdict = (raw.conclusion || raw.state || '').toUpperCase()
   if (IN_FLIGHT.has((raw.status || '').toUpperCase()) || IN_FLIGHT.has(verdict) || !verdict)
     return 'pending'
@@ -101,16 +101,16 @@ function checkState(raw: RawContext): GhPrCheckState {
   return 'failure'
 }
 
-const https = (value: unknown): string | undefined =>
+export const https = (value: unknown): string | undefined =>
   typeof value === 'string' && value.startsWith('https://') && value.length <= 2048
     ? value
     : undefined
-const short = (value: unknown, max = 200): string | undefined =>
+export const short = (value: unknown, max = 200): string | undefined =>
   typeof value === 'string' && value ? value.slice(0, max) : undefined
-const nameOf = (login: RawLogin | null | undefined): string | undefined =>
+export const nameOf = (login: RawLogin | null | undefined): string | undefined =>
   short(login?.login ?? login?.slug, 100)
 
-function toCheck(raw: RawContext): GhPrCheck | null {
+export function toCheck(raw: RawContext): GhPrCheck | null {
   const name = short(raw.name ?? raw.context)
   if (!name) return null
   const check: GhPrCheck = { name, state: checkState(raw), required: raw.isRequired === true }

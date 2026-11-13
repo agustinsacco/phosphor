@@ -107,6 +107,7 @@ const expectedEntries = [
   ['fs:watchWorkspace', 'machine'],
   ['fs:writeFile', 'machine'],
   ['gh:available', 'machine'],
+  ['gh:prDetail', 'machine'],
   ['gh:prForBranch', 'machine'],
   ['gh:prSummaries', 'machine'],
   ['gh:prsForRepo', 'machine'],

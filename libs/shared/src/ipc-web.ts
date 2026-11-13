@@ -361,6 +361,7 @@ export const IPC_WEB = {
   'gh:prForBranch': unsupported('This native service requires Desktop.'),
   'gh:prsForRepo': remote,
   'gh:prSummaries': unsupported('This native service requires Desktop.'),
+  'gh:prDetail': unsupported('This native service requires Desktop.'),
   'gh:available': unsupported('This native service requires Desktop.'),
   'git:info': unsupported('Only Host-scoped read-only status and file comparisons are available.'),
   'git:infoBatch': unsupported(

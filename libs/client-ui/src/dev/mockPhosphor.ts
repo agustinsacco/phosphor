@@ -12,6 +12,7 @@ import { SKILL_SHARE_MOCK, mockSkillShareInvoke } from './mockSkillShare'
 import { INSTRUCTIONS_MOCK, mockInstructionsInvoke } from './mockInstructions'
 import { SESSION_MAINTENANCE_MOCK, mockSessionMaintenance } from './mockSessionMaintenance'
 import { MOCK_PI_COMMANDS } from './mockPiCommands'
+import { MOCK_LANE_PRS, mockPrDetail, mockPrSummaries } from './mockPullRequests'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
@@ -26,6 +27,7 @@ import { base64ToBytes, bytesToBase64 } from '@phosphor/shared/base64'
 import type {
   ConnectorAuthPush,
   ConnectorAuthState,
+  GhPrRef,
   SessionPush,
   SessionMeta,
 } from '@shared/models'
@@ -520,6 +522,7 @@ const MOCK_DISK_SESSIONS: SessionMeta[] = [
   {
     path: '/mock/sessions/a.jsonl',
     sessionId: 'a',
+    pullRequests: MOCK_LANE_PRS.a,
     cwd: '/Users/dev/projects/phosphor',
     createdAt: '2026-08-01T10:00:00.000Z',
     name: 'Refactor auth module',
@@ -542,6 +545,7 @@ const MOCK_DISK_SESSIONS: SessionMeta[] = [
   {
     path: '/mock/sessions/b.jsonl',
     sessionId: 'b',
+    pullRequests: MOCK_LANE_PRS.b,
     cwd: '/Users/dev/projects/phosphor',
     createdAt: '2026-07-28T15:00:00.000Z',
     firstUserText: 'Why is the vite build slow?',
@@ -1931,8 +1935,9 @@ export function installMockPhosphor(): void {
         case 'gh:available':
           return Promise.resolve(true)
         case 'gh:prSummaries':
-          // No by-number reads in the harness: chips fall back to branch discovery.
-          return Promise.resolve(null)
+          return mockPrSummaries(args[0] as GhPrRef[])
+        case 'gh:prDetail':
+          return mockPrDetail(args[0] as GhPrRef)
         case 'gh:prForBranch':
           return Promise.resolve({
             number: 42,

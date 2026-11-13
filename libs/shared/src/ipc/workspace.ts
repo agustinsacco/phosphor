@@ -10,6 +10,7 @@ import type {
   GhPullRequest,
   GhRepoPullRequests,
   GhPrReadOptions,
+  GhPrDetail,
   GhPrRead,
   GhPrRef,
   GhPrSummaryOptions,
@@ -163,6 +164,11 @@ export interface GhInvokeMap {
   'gh:prSummaries': {
     args: [refs: GhPrRef[], options?: GhPrSummaryOptions]
     result: GhPrRead | null
+  }
+  /** One PR's inspector detail: threads, checks with workflow and annotations, activity. */
+  'gh:prDetail': {
+    args: [ref: GhPrRef, options?: GhPrSummaryOptions]
+    result: GhPrDetail | null
   }
   'gh:available': { args: []; result: boolean }
 }
