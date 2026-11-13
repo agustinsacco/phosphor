@@ -1,283 +1,184 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
-import { runFork } from './fork'
-import { FakeBrainStore, HARBOR_JOB } from './__fixtures__/fake-store'
-import { LANE_ENTRIES, RAW_EXTRACTION } from './__fixtures__/lane'
-import { recallOptions } from './__fixtures__/options'
+import { pipelineSetup } from './__fixtures__/pipeline'
 import type { BrainService } from './types'
-
-vi.mock('./fork', () => ({ runFork: vi.fn() }))
-const cleanups: (() => Promise<void>)[] = []
+const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
-  vi.clearAllMocks()
+  for (const f of cleanup.splice(0).reverse()) await f()
 })
-
 async function setup(enabled = true) {
-  const directory = await mkdtemp(join(tmpdir(), 'harbor-service-'))
-  cleanups.push(() => rm(directory, { recursive: true, force: true }))
-  const store = new FakeBrainStore()
-  store.prefs.enabled = enabled
-  const options = {
-    ...recallOptions(store),
-    directory,
-    onChange: vi.fn(),
-    log: vi.fn(),
-    now: () => 1234,
-  }
-  const file = join(directory, 'harbor.jsonl')
-  const entries = LANE_ENTRIES.map((entry) =>
-    entry.type === 'session' ? { ...entry, cwd: directory } : entry,
-  )
-  await writeFile(file, entries.map((entry) => JSON.stringify(entry)).join('\n'))
-  vi.mocked(runFork).mockResolvedValue({
-    text: JSON.stringify(RAW_EXTRACTION),
-    usage: { tokens: 90, cost: 0.001 },
-  })
-  const openStore = vi.fn(() => store)
-  const service = await createBrainService({ ...options, openStore })
-  cleanups.push(() => service.dispose())
-  return { directory, store, options, service, file, entries, openStore }
+  const s = await pipelineSetup()
+  s.store.jobs = []
+  s.store.prefs.enabled = enabled
+  cleanup.push(s.cleanup)
+  const service = await createBrainService(s.options)
+  cleanup.push(() => service.dispose())
+  return { ...s, service }
 }
-async function reviewed(service: BrainService): Promise<void> {
-  await vi.waitFor(async () => expect((await service.api.status()).jobs[0]?.state).toBe('review'))
-}
-
-it('opens the injected store, composes status and saves preferences before asynchronous model setup', async () => {
+const review = async (service: BrainService) =>
+  vi.waitFor(async () => expect((await service.api.status()).jobs[0]?.state).toBe('review'))
+it('starts the injected reader/writer, saves prefs immediately, and awaits setup on disposal', async () => {
   const s = await setup(false)
-  expect(s.openStore).toHaveBeenCalledWith(join(s.directory, 'brain.sqlite'))
   expect(await s.service.api.status()).toMatchObject({
-    supported: true,
     prefs: { enabled: false },
-    counts: { memories: 0, entities: 0 },
+    generation: 'generation-1',
   })
   let finish!: () => void
-  const setEnabled = vi.spyOn(s.options.embeddings, 'setEnabled').mockImplementation(
+  const set = vi.spyOn(s.options.embeddings, 'setEnabled').mockImplementation(
     () =>
-      new Promise<void>((resolve) => {
+      new Promise((resolve) => {
         finish = resolve
       }),
   )
-  const status = await s.service.api.setPrefs({ enabled: true, recall: false, review: false })
-  expect(status.prefs).toEqual({ enabled: true, recall: false, review: false })
-  expect(setEnabled).toHaveBeenCalledWith(true)
-  expect(s.options.onChange).toHaveBeenCalled()
+  expect(
+    (await s.service.api.setPrefs({ enabled: true, recall: false, review: true })).prefs.enabled,
+  ).toBe(true)
+  expect(set).toHaveBeenCalledWith(true)
   finish()
   await s.service.dispose()
-})
-
-it('extracts, verifies, embeds and proposes with usage and the lane model, then approves a review', async () => {
-  const s = await setup()
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
-  await reviewed(s.service)
-  const job = s.store.snapshot().jobs[0]!
-  expect(job).toMatchObject({
-    model: 'example/fast',
-    startedAt: 1234,
-    finishedAt: 1234,
-    leafId: 'custom',
-    usage: { tokens: 90, cost: 0.001 },
-  })
-  expect(s.options.embeddings.embed).toHaveBeenCalledWith(
-    ['Rina Okafor owns Harbor billing.'],
-    'document',
-    expect.any(AbortSignal),
-  )
-  const extraction = s.store.proposals.get(job.id)!
-  expect(extraction.memories[0]!.citations).toEqual([
-    { evidence: 0, quote: 'Rina Okafor owns Harbor billing.' },
-  ])
-  expect(extraction.vectors[0]).toBeInstanceOf(Float32Array)
-  expect(await s.service.api.proposal(job.id)).toMatchObject({
-    summary: RAW_EXTRACTION.summary,
-    revision: 0,
-  })
-  expect(vi.mocked(runFork).mock.calls[0]![0].prompt).toContain('<knowledge_extraction>')
-  expect((await s.service.api.review(job.id, [0], 0)).jobs).toEqual([])
-})
-
-it('auto-approves when review is off and leaves an empty result in the inbox', async () => {
-  const s = await setup()
-  s.store.prefs.review = false
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
-  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('done'))
-  expect(s.store.jobs[0]!.memories).toBe(1)
-  vi.mocked(runFork).mockResolvedValue({
-    text: JSON.stringify({ ...RAW_EXTRACTION, memories: [] }),
-    usage: { tokens: 1, cost: 0 },
-  })
-  const next = join(s.directory, 'tom.jsonl')
-  await writeFile(
-    next,
-    s.entries
-      .map((e) => JSON.stringify(e.type === 'session' ? { ...e, id: 'tom-lane' } : e))
-      .join('\n'),
-  )
-  await s.service.api.queue({ sessionPath: next, title: 'Tom Lee review' })
-  await vi.waitFor(() => expect(s.store.jobs[1]!.state).toBe('empty'))
-})
-
-it('waits while busy, refreshes the model and leaf at start, and requeues interrupted runs', async () => {
-  const s = await setup()
-  const busy = vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
-  expect(s.store.jobs[0]!.state).toBe('waiting')
-  await writeFile(
-    s.file,
-    [...s.entries, { type: 'model_change', id: 'fresh-leaf', provider: 'other', modelId: 'quick' }]
-      .map((e) => JSON.stringify(e))
-      .join('\n'),
-  )
-  busy.mockReturnValue(false)
-  // An enqueue/finish also checks waiting lanes; a mutation kicks the same queue.
-  await s.service.api.setPrefs(s.store.prefs)
-  await reviewed(s.service)
-  expect(s.store.jobs[0]).toMatchObject({ leafId: 'fresh-leaf', model: 'other/quick' })
-  const interrupted = s.store.enqueue({ ...HARBOR_JOB, sessionId: 'interrupted' }, 'queued')
-  s.store.updateJob(interrupted.id, { state: 'running' })
-  await s.service.dispose()
   expect(s.store.closed).toBe(true)
+  expect(s.search.closed).toBe(true)
 })
-
-it('supports download retry, model removal only while off, read APIs and forget', async () => {
-  const s = await setup(false)
-  const download = vi.spyOn(s.options.embeddings, 'download')
-  const remove = vi.spyOn(s.options.embeddings, 'remove')
+it('queues a lane, completes review, refreshes search and exposes bounded explorer APIs', async () => {
+  const s = await setup()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await review(s.service)
+  const job = (await s.service.api.status()).jobs[0]!,
+    p = await s.service.api.proposal(job.id)
+  expect(p.memories).toHaveLength(1)
+  await s.service.api.review(job.id, { memories: [0], identities: {}, groups: [] }, p.revision)
+  expect(s.search.refreshes).toBe(1)
+  expect(await s.service.api.overview()).toMatchObject({ nodes: [], truncated: false })
+  expect(await s.service.api.neighbourhood('harbor', 2)).toMatchObject({ centerId: 'harbor' })
+  expect(await s.service.api.connections('harbor', 'owns', 'in', null)).toEqual({
+    items: [],
+    next: null,
+  })
+  expect(await s.service.api.entityMemories('harbor', {}, null)).toEqual({
+    memories: [],
+    entities: [],
+    next: null,
+  })
+  expect(await s.service.api.find('Harbor', 10)).toMatchObject({ entities: [], memories: [] })
+  expect(await s.service.api.path('harbor', 'ledger')).toEqual({
+    paths: [],
+    entities: [],
+    memories: [],
+  })
+  await s.service.api.merge('a', 'b')
+  await s.service.api.forget('missing')
+  expect(s.search.refreshes).toBe(3)
+})
+it.each(['proposal', 'review'] as const)(
+  'stale %s requeues identity/reconcile from extract checkpoints instead of applying',
+  async (method) => {
+    const s = await setup()
+    await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+    await review(s.service)
+    const job = (await s.service.api.status()).jobs[0]!
+    s.store.rev++
+    await expect(
+      method === 'proposal'
+        ? s.service.api.proposal(job.id)
+        : s.service.api.review(job.id, { memories: [0], identities: {}, groups: [] }, 0),
+    ).rejects.toThrow('Brain changed; refreshing this review')
+    expect(s.store.reviews).toEqual([])
+    await review(s.service)
+    expect(s.runner.mock.calls.filter(([c]) => c.stage === 'extract')).toHaveLength(1)
+    expect(s.store.storedProposal(job.id)!.computedRevision).toBe(1)
+  },
+)
+it('failed jobs retry the same id and resume validated parts', async () => {
+  const s = await setup()
+  s.runner.mockRejectedValueOnce(new Error('Fake failure'))
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await vi.waitFor(() => expect(s.store.snapshot().jobs[0]?.state).toBe('failed'))
+  const id = s.store.snapshot().jobs[0]!.id
+  await s.service.api.retry(id)
+  await review(s.service)
+  expect(s.store.snapshot().jobs[0]!.id).toBe(id)
+})
+it('reset awaits cancellation, removes calls and legacy forks, refreshes generation and preserves the model', async () => {
+  const s = await setup()
+  for (const name of ['calls', 'forks', 'embeddings']) {
+    await mkdir(join(s.directory, name))
+    await writeFile(join(s.directory, name, 'test'), 'fake')
+  }
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await review(s.service)
+  const status = await s.service.api.reset()
+  expect(status.jobs).toEqual([])
+  expect(status.generation).toBe('generation-1-reset')
+  expect(status.prefs.review).toBe(true)
+  for (const name of ['calls', 'forks'])
+    expect(await stat(join(s.directory, name)).catch(() => null)).toBeNull()
+  expect(await stat(join(s.directory, 'embeddings'))).toBeTruthy()
+  expect(s.search.refreshes).toBe(1)
+})
+it('supports download retry and removal only while off; disabled startup leaves interrupted work queued', async () => {
+  const s = await setup(false),
+    download = vi.spyOn(s.options.embeddings, 'download'),
+    remove = vi.spyOn(s.options.embeddings, 'remove')
   await s.service.api.download()
-  expect(download).toHaveBeenCalledWith()
+  expect(download).toHaveBeenCalledOnce()
   await s.service.api.removeModel()
-  expect(remove).toHaveBeenCalled()
-  expect(await s.service.api.knowledge()).toEqual({ memories: [], entities: [], truncated: false })
-  await s.service.api.forget('absent')
-  expect(s.store.revision).toBe(1)
-  await s.service.api.setPrefs({ ...s.store.prefs, enabled: true })
+  expect(remove).toHaveBeenCalledOnce()
+  await s.service.api.setPrefs({ enabled: true, recall: true, review: true })
   await expect(s.service.api.removeModel()).rejects.toThrow('Turn off Brain')
 })
-
-it('restores interrupted jobs on startup but does not run them while Brain is disabled', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'harbor-restart-'))
-  cleanups.push(() => rm(directory, { recursive: true, force: true }))
-  const store = new FakeBrainStore()
-  const job = store.enqueue(HARBOR_JOB, 'queued')
-  store.updateJob(job.id, { state: 'running' })
-  const service = await createBrainService({ ...recallOptions(store), directory })
-  cleanups.push(() => service.dispose())
-  expect((await service.api.status()).jobs[0]!.state).toBe('queued')
-  expect(runFork).not.toHaveBeenCalled()
+it('deletes only the obsolete prototype artifacts on startup', async () => {
+  const s = await pipelineSetup()
+  cleanup.push(s.cleanup)
+  s.store.jobs = []
+  await writeFile(join(s.directory, 'memory.sqlite'), 'old')
+  await mkdir(join(s.directory, 'sessions'))
+  await mkdir(join(s.directory, 'embeddings'))
+  const service = await createBrainService(s.options)
+  cleanup.push(() => service.dispose())
+  expect(await stat(join(s.directory, 'memory.sqlite')).catch(() => null)).toBeNull()
+  expect(await stat(join(s.directory, 'sessions')).catch(() => null)).toBeNull()
+  expect(await stat(join(s.directory, 'embeddings'))).toBeTruthy()
 })
 
-it('keeps fork usage when later parsing fails, and dismisses the failed job', async () => {
+it('reset stops admission and waits for an active cancelled call before clearing the store', async () => {
   const s = await setup()
-  vi.mocked(runFork).mockResolvedValue({
-    text: 'No JSON here.',
-    usage: { tokens: 12, cost: 0.002 },
-  })
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
-  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('failed'))
-  expect(s.store.jobs[0]).toMatchObject({
-    finishedAt: 1234,
-    usage: { tokens: 12, cost: 0.002 },
-    error: 'The extraction returned no JSON.',
-  })
-  expect((await s.service.api.cancel(s.store.jobs[0]!.id)).jobs).toEqual([])
-})
-
-it('removes the prototype files it cannot read on startup and keeps the model', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'harbor-legacy-'))
-  cleanups.push(() => rm(directory, { recursive: true, force: true }))
-  const legacy = ['evidence', 'learning', 'sessions', 'memory.sqlite', 'memory.sqlite-wal']
-  for (const name of legacy.slice(0, 3))
-    await mkdir(join(directory, name, 'harbor'), { recursive: true })
-  for (const name of legacy.slice(3)) await writeFile(join(directory, name), 'prototype')
-  await mkdir(join(directory, 'embeddings'))
-  const store = new FakeBrainStore()
-  const service = await createBrainService({
-    ...recallOptions(store),
-    directory,
-    openStore: () => store,
-  })
-  cleanups.push(() => service.dispose())
-  for (const name of legacy) expect(await stat(join(directory, name)).catch(() => null)).toBeNull()
-  expect(await stat(join(directory, 'embeddings'))).toBeTruthy()
-})
-
-it('logs one phased failure with lane metadata when parsing fails, without logging the answer', async () => {
-  const s = await setup()
-  vi.mocked(runFork).mockResolvedValue({
-    text: 'private Harbor answer',
-    usage: { tokens: 12, cost: 0.002 },
-  })
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
-  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('failed'))
-  const failures = s.options.log.mock.calls.filter(
-    ([message]) => message === 'Brain extraction failed',
-  )
-  expect(failures).toEqual([
-    [
-      'Brain extraction failed',
-      expect.objectContaining({
-        jobId: s.store.jobs[0]!.id,
-        model: 'example/fast',
-        thinking: 'low',
-        laneBytes: (await stat(s.file)).size,
-        phase: 'parse',
-        error: 'The extraction returned no JSON.',
+  let exited = false
+  s.runner.mockImplementation(
+    (input) =>
+      new Promise((resolve) => {
+        input.signal.addEventListener(
+          'abort',
+          () => {
+            setTimeout(() => {
+              exited = true
+              resolve({ text: '{}', usage: { tokens: 0, cost: 0 } })
+            }, 20)
+          },
+          { once: true },
+        )
       }),
-    ],
-  ])
-  expect(JSON.stringify(s.options.log.mock.calls)).not.toContain('private Harbor answer')
-})
-
-it('logs waiting cancellation without an extraction failure or trace, and stores a model-specific timeout', async () => {
-  const s = await setup()
-  vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
-  const waiting = s.store.jobs[0]!
-  await s.service.api.cancel(waiting.id)
-  expect(s.options.log).toHaveBeenCalledExactlyOnceWith('Brain job cancelled', {
-    jobId: waiting.id,
-    model: 'example/fast',
-    phase: 'waiting',
-  })
-  vi.spyOn(s.options.lanes, 'busy').mockReturnValue(false)
-  const message = 'Timed out after 300 s waiting for example/fast (no reply yet)'
-  vi.mocked(runFork).mockRejectedValue(new Error(message))
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
-  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('failed'))
-  expect(s.store.jobs[0]!.error).toBe(message)
-  expect(
-    s.options.log.mock.calls.filter(([name]) => name === 'Brain extraction failed'),
-  ).toHaveLength(1)
-})
-
-it('reads the source only on demand, bounded at the clone leaf, and tolerates a deleted lane', async () => {
-  const s = await setup()
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
-  await reviewed(s.service)
-  const job = s.store.snapshot().jobs[0]!
-  await writeFile(
-    s.file,
-    [
-      ...s.entries,
-      {
-        type: 'message',
-        id: 'later',
-        message: { role: 'user', content: 'Tom Lee wrote this after extraction.' },
-      },
-    ]
-      .map((entry) => JSON.stringify(entry))
-      .join('\n'),
   )
-  const view = await s.service.api.extraction(job.id)
-  expect(view.source).toMatchObject({ exists: true, leafId: 'custom', sessionPath: s.file })
-  expect(view.source.segments.at(-1)?.entryId).toBe('custom')
-  expect(JSON.stringify(view.source)).not.toContain('after extraction')
-  await rm(s.file)
-  expect((await s.service.api.extraction(job.id)).source).toMatchObject({
-    exists: false,
-    segments: [],
-  })
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await vi.waitFor(() => expect(s.runner).toHaveBeenCalledOnce())
+  const pending = s.service.api.reset()
+  await expect(s.service.api.queue({ sessionPath: s.file, title: 'Ledger' })).rejects.toThrow(
+    'resetting',
+  )
+  expect(exited).toBe(false)
+  expect((await pending).jobs).toEqual([])
+  expect(exited).toBe(true)
+  expect(s.search.refreshes).toBe(1)
+})
+
+it('stale review recomputation reuses unchanged parent output as well as extraction windows', async () => {
+  const s = await setup()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await review(s.service)
+  const id = s.store.snapshot().jobs[0]!.id
+  s.store.rev++
+  await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
+  await review(s.service)
+  expect(s.runner.mock.calls.filter(([call]) => call.stage === 'parents')).toHaveLength(1)
 })

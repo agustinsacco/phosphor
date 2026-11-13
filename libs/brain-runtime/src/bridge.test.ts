@@ -26,7 +26,7 @@ it('accepts only versioned, authenticated search with validated requests', async
     degradation: [],
   }))
   const bridge = await createBrainBridge(invoke)
-  const input = { version: 3, token: bridge.token, method: 'search', params: { query: 'Harbor' } }
+  const input = { version: 4, token: bridge.token, method: 'search', params: { query: 'Harbor' } }
   try {
     expect(await request(bridge.endpoint, input)).toMatchObject({ ok: true })
     expect(invoke).toHaveBeenCalledWith('search', { query: 'Harbor' })

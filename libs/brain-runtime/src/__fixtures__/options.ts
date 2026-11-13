@@ -1,11 +1,12 @@
 import { vi } from 'vitest'
 import type { BrainServiceOptions } from '../types'
-import type { FakeBrainStore } from './fake-store'
+import { FakeBrainSearch, type FakeBrainStore } from './fake-store'
 
 export function recallOptions(store: FakeBrainStore): BrainServiceOptions {
   return {
     directory: '/made-up/brain',
     openStore: () => store,
+    openSearch: () => new FakeBrainSearch(),
     embeddings: {
       status: () => ({
         phase: 'ready',
@@ -17,7 +18,7 @@ export function recallOptions(store: FakeBrainStore): BrainServiceOptions {
       setEnabled: async () => {},
       download: async () => {},
       remove: async () => {},
-      embed: vi.fn(async () => [[1, 0]]),
+      embed: vi.fn(async (texts: string[]) => texts.map(() => [1, 0])),
       dispose() {},
     },
     lanes: {

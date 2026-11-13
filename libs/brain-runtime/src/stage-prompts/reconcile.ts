@@ -1,0 +1,4 @@
+export const RECONCILE_SYSTEM = `Reconcile supported claims, not similarity scores. High cosine is never confirmation: negation and different endpoints are different assertions. Only owns is exclusive on its object. Preserve disputes rather than picking the newer assertion across lanes. Return JSON only, no tools.`
+export function reconcilePrompt(rows: unknown[]): string {
+  return `For each claim return exactly one {ref,action,target,reason} in {"decisions":[]}. action: add (target:null), confirm (same assertion and links), enrich (same assertion, adds supported links), supersede (explicit change), conflict (incompatible assertions), resolve_open (answers open question). Every non-add target must be an offered M handle for that claim. Earlier job claims are labelled local and older in this lane.\n${JSON.stringify(rows)}`
+}

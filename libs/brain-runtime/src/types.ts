@@ -1,6 +1,13 @@
 import type { BrainAgentMap, BrainAgentMethod, BrainInvokeMap } from '@phosphor/shared/brain'
-import type { BrainStore } from '@phosphor/memory-engine/types'
+import type { BrainSearch, BrainStore } from '@phosphor/memory-engine/types'
+import type { runModelCall } from './model-call'
 import type { BrainEmbeddings } from './embedding/embedding-port'
+
+export type BrainSearchPort = {
+  [K in keyof BrainSearch]: (
+    ...args: Parameters<BrainSearch[K]>
+  ) => Promise<Awaited<ReturnType<BrainSearch[K]>>>
+}
 
 /** The IPC commands without their `brain:` prefix. Desktop's handlers call these. */
 export type BrainApi = {
@@ -9,8 +16,8 @@ export type BrainApi = {
   ) => Promise<BrainInvokeMap[K]['result']>
 }
 
-/** How to start pi for a private fork of one lane: the lane's own binary, env and account. */
-export interface ForkLaunch {
+/** How to start pi for a private model call: the lane's own binary, env and account. */
+export interface ModelLaunch {
   binaryPath: string
   prefixArgs: string[]
   env: Record<string, string>
@@ -18,19 +25,22 @@ export interface ForkLaunch {
 
 /** What the host app knows about lanes that the session file does not say. */
 export interface BrainLanes {
-  /** True while the lane's agent is working; its fork waits until this turns false. */
+  /** True while the lane's agent is working; extraction waits until this turns false. */
   busy(sessionPath: string): boolean
-  launch(sessionPath: string): Promise<ForkLaunch>
+  launch(sessionPath: string): Promise<ModelLaunch>
 }
 
 export interface BrainServiceOptions {
-  /** `<userData>/brain`. Holds brain.sqlite, the model and short-lived fork directories. */
+  /** `<userData>/brain`. Holds brain.sqlite, the model and short-lived call directories. */
   directory: string
   /** Opens `<directory>/brain.sqlite`; Desktop passes `openBrainStore` with its SQLite. */
   openStore: (path: string) => BrainStore
+  openSearch: (path: string) => BrainSearchPort
+  /** Injectable model runner; tests never launch a provider. */
+  runModelCall?: typeof runModelCall
   embeddings: BrainEmbeddings
   lanes: BrainLanes
-  /** The guard extension every fork loads: it refuses all tool calls. */
+  /** The guard extension every private call loads: it refuses all tool calls. */
   guardExtension: string
   /** Recall extension and skill handed to lane agents when recall is on. */
   recall: { extension: string; skill: string }

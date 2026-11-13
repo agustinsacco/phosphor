@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest'
-import { ForkTracer, traceDiagnostic } from './fork-trace'
+import { CallTracer, traceDiagnostic } from './call-trace'
 
 it('times first assistant activity, counts turns and updates, and retains only whitelisted metadata', () => {
   let clock = 100
-  const tracer = new ForkTracer(() => clock)
+  const tracer = new CallTracer(() => clock)
   clock = 110
   tracer.stdout()
   tracer.event({
@@ -56,7 +56,7 @@ it('times first assistant activity, counts turns and updates, and retains only w
 })
 
 it('records every retry and compaction outcome, scrubbing errors before clipping', () => {
-  const tracer = new ForkTracer(() => 10)
+  const tracer = new CallTracer(() => 10)
   tracer.event({
     type: 'auto_retry_start',
     attempt: 1,
@@ -124,7 +124,7 @@ it('records every retry and compaction outcome, scrubbing errors before clipping
 })
 
 it('describes current progress, resets retry state after recovery and rejects arbitrary stop reasons', () => {
-  const tracer = new ForkTracer(() => 10)
+  const tracer = new CallTracer(() => 10)
   expect(tracer.timeoutMessage('example/fast')).toBe(
     'Timed out after 300 s waiting for example/fast (no reply yet)',
   )

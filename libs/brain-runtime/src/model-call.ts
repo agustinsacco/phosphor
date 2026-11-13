@@ -1,59 +1,59 @@
-import { existsSync } from 'node:fs'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
 import { claudeOneShotEnv } from '@phosphor/session-runtime/pi/provider-detect'
-import type { BrainJob } from '@phosphor/shared/brain'
-import type { ForkLaunch } from './types'
+import type { BrainJob, BrainExtractionCall } from '@phosphor/shared/brain'
+import type { ModelLaunch } from './types'
 import type { LaneMeta } from './lane'
 import {
   assistantUsage,
-  forkThinking,
-  ForkTracer,
-  FORK_STDERR_BYTES,
-  FORK_TIMEOUT_MS,
+  callThinking,
+  CallTracer,
+  CALL_STDERR_BYTES,
+  CALL_TIMEOUT_MS,
   traceDiagnostic,
   type AssistantMessage,
-  type ForkEvent,
-  type ForkTrace,
-} from './fork-trace'
+  type CallEvent,
+  type CallTrace,
+} from './call-trace'
 
-export interface ForkInput {
+export interface ModelCallInput {
   directory: string
   job: BrainJob
+  stage: BrainExtractionCall['stage']
+  part: string | number
+  systemPrompt: string
+  thinking?: string
   lane: LaneMeta
-  launch: ForkLaunch
+  launch: ModelLaunch
   guardExtension: string
   prompt: string
   signal: AbortSignal
   /** Called once after cleanup; the caller must log diagnostics only on job failure. */
-  onTrace?: (trace: ForkTrace, diagnostic?: string) => void
+  onTrace?: (trace: CallTrace, diagnostic?: string) => void
   /** Raw final text, including on transport or assistant failure; never diagnostics. */
   onAnswer?: (answer: string) => void
 }
-export interface ForkResult {
+export interface ModelCallResult {
   text: string
   usage: { tokens: number; cost: number }
 }
-interface ForkAnswer extends ForkResult {
+interface ModelAnswer extends ModelCallResult {
   stopReason?: string
 }
 
-function forkArgs(input: ForkInput, directory: string): string[] {
+function modelArgs(input: ModelCallInput, directory: string): string[] {
   return [
     ...input.launch.prefixArgs,
     '-p',
     '--mode',
     'json',
-    '--fork',
-    input.job.sessionPath,
-    '--session-dir',
-    directory,
+    '--no-session',
     '--model',
     input.lane.model,
     '--thinking',
-    forkThinking(input.lane.thinking),
+    callThinking(input.thinking ?? input.lane.thinking, input.stage),
     '--no-tools',
     '--no-mcp',
     '--no-skills',
@@ -64,11 +64,12 @@ function forkArgs(input: ForkInput, directory: string): string[] {
     '--offline',
     '-e',
     input.guardExtension,
-    input.prompt,
+    '--system-prompt',
+    join(directory, 'system.md'),
   ]
 }
 
-function answer(message: AssistantMessage): ForkAnswer {
+function answer(message: AssistantMessage): ModelAnswer {
   const text = Array.isArray(message.content)
     ? message.content
         .filter((b) => b?.type === 'text' && typeof b.text === 'string')
@@ -78,13 +79,13 @@ function answer(message: AssistantMessage): ForkAnswer {
   return { text, stopReason: message.stopReason, usage: assistantUsage(message.usage) }
 }
 
-function forkStream(tracer: ForkTracer) {
+function callStream(tracer: CallTracer) {
   const decoder = new JsonlDecoder()
-  let last: ForkAnswer | undefined
+  let last: ModelAnswer | undefined
   const consume = (lines: string[]): void => {
     for (const line of lines) {
       try {
-        const event = JSON.parse(line) as ForkEvent
+        const event = JSON.parse(line) as CallEvent
         tracer.event(event)
         if (event?.type === 'message_end' && event.message?.role === 'assistant')
           last = answer(event.message)
@@ -105,33 +106,37 @@ function forkStream(tracer: ForkTracer) {
   }
 }
 
-export async function runFork(
-  input: ForkInput,
+export async function runModelCall(
+  input: ModelCallInput,
   run: typeof runPrintMode = runPrintMode,
-): Promise<ForkResult> {
+): Promise<ModelCallResult> {
   const { job, lane, launch, signal } = input
-  const directory = join(input.directory, 'forks', job.id)
-  const tracer = new ForkTracer()
-  const stream = forkStream(tracer)
-  let reason: ForkTrace['reason'] = 'error'
+  const directory = join(input.directory, 'calls', job.id, `${input.stage}-${input.part}`)
+  const tracer = new CallTracer()
+  const stream = callStream(tracer)
+  let reason: CallTrace['reason'] = 'error'
   let diagnostic: string | undefined
   let finalText = ''
   try {
-    await mkdir(directory, { recursive: true })
-    const result = await run(launch.binaryPath, forkArgs(input, directory), {
-      cwd: existsSync(lane.cwd) ? lane.cwd : directory,
+    signal.throwIfAborted()
+    await rm(directory, { recursive: true, force: true })
+    await mkdir(directory, { recursive: true, mode: 0o700 })
+    await writeFile(join(directory, 'system.md'), input.systemPrompt, { mode: 0o600 })
+    const result = await run(launch.binaryPath, modelArgs(input, directory), {
+      cwd: directory,
+      input: input.prompt,
       env: {
         ...launch.env,
-        // A lane parks its Claude process for an hour; a parked fork would never exit.
+        // A lane parks its Claude process for an hour; a parked model call would never exit.
         ...claudeOneShotEnv(),
         PI_OFFLINE: '1',
         PI_CLAUDE_CLI_STATE_DIR: join(directory, 'provider'),
       },
-      timeoutMs: FORK_TIMEOUT_MS,
+      timeoutMs: CALL_TIMEOUT_MS,
       signal,
       maxOutputBytes: 0,
       stderr: 'capture',
-      maxStderrBytes: FORK_STDERR_BYTES,
+      maxStderrBytes: CALL_STDERR_BYTES,
       onStdout: stream.stdout,
     })
     const last = stream.end()
