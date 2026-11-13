@@ -91,12 +91,19 @@ node_modules/.bin/playwright test --config apps/desktop/playwright.config.ts bra
 node_modules/.bin/playwright test --config apps/web/playwright.config.ts browser.spec.ts -g Brain
 ```
 
-The Desktop case seeds a stopped lane, turns Brain on, queues the lane, approves
-the proposal, refuses an unchanged re-queue and forgets the memory, checking the
-lane file never changes. Its fork is the pi stub's `--fork` print mode
-(`e2e/fixtures/pi-stub-fork.cjs`), which answers with an error unless the run has
-`--no-tools` and the guard extension. `PHOSPHOR_BRAIN_TEST_EMBEDDINGS` swaps the
-model for word-hash vectors; like every e2e hook it is ignored in a packaged app.
+The Desktop case seeds two stopped lanes that share a project, turns Brain on,
+queues the first, watches the inbox progress, approves its review and checks the
+graph's directed links and the explorer (find, hops, back, path). The second lane
+fails once, retries, and its approval reuses the shared entity instead of
+duplicating it. It then refuses an unchanged re-queue and resets Brain, checking the
+lane files never change. Brain's model calls go to `e2e/fixtures/pi-stub-brain.cjs`,
+which `pi-stub.cjs` dispatches for session-less `-p` runs with the guard extension.
+It reads the stage from the system prompt and stdin and answers each stage
+deterministically, and it errors unless the run has `--no-tools` and the guard. The
+spec writes a small wrapper into its scratch workspace that sets the stub's
+fail-once switch and then loads the real stub; it reaches the app through the
+existing `PHOSPHOR_PI_STUB` hook. `PHOSPHOR_BRAIN_TEST_EMBEDDINGS` swaps the model
+for word-hash vectors; like every e2e hook it is ignored in a packaged app.
 The browser case checks the deep link refuses and every `brain:*` call fails.
 
 ## Layout and helpers
