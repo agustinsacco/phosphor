@@ -72,7 +72,9 @@ it('debounces, ignores stale responses, and clears with Escape', async () => {
 })
 it('supports arrows/Enter, alias matches, and slash focuses search', async () => {
   await act(async () => root.render(<BrainSearch shortcut onSelect={select} />))
-  act(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true })))
+  await act(async () => {
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
+  })
   expect(document.activeElement).toBe(container.querySelector('input'))
   await type('Harbor')
   await act(async () => vi.advanceTimersByTimeAsync(200))
