@@ -12,10 +12,9 @@ import { mockBrainJob } from './mockBrainData'
 import { jobLine } from './BrainInbox'
 
 afterEach(() => vi.unstubAllGlobals())
-it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link reasons after retry', async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+function extractionView(): BrainExtractionView {
   const job = mockBrainJob()
-  const view: BrainExtractionView = {
+  return {
     jobId: job.id,
     sessionId: job.sessionId,
     sessionPath: job.sessionPath,
@@ -65,6 +64,12 @@ it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link re
       segments: [],
     },
   }
+}
+
+it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link reasons after retry', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const job = mockBrainJob()
+  const view = extractionView()
   const extraction = vi
     .fn<() => Promise<BrainExtractionView>>()
     .mockRejectedValueOnce(new Error('Harbor record unavailable'))

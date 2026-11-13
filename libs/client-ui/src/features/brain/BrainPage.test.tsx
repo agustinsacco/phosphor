@@ -325,3 +325,122 @@ it('requires explicit merge confirmation and hops to the target', async () => {
   )
   expect(explorer.entities.some((entity) => entity.id === 'harbor')).toBe(false)
 })
+
+it('discards loaded connection pages when the entity revision changes', async () => {
+  await render()
+  await chooseHarbor()
+  await click('Show more')
+  expect(container.querySelector('[aria-label="Connections"]')!.textContent).toContain(
+    'Harbor component 25',
+  )
+  explorer.details = explorer.details.filter((d) => !d.memory.entityIds.includes('component-24'))
+  await act(async () => useBrain.setState({ status: { ...status, revision: 1 } }))
+  const connections = container.querySelector('[aria-label="Connections"]')!
+  expect(connections.textContent).not.toContain('Harbor component 25')
+  expect(connections.textContent).toContain('Contains · 23')
+})
+
+it('starts memory paging again after a revision instead of retaining deleted earlier pages', async () => {
+  await render()
+  await chooseHarbor()
+  await click('Show more memories')
+  explorer.details = explorer.details.filter((d) => d.memory.id !== 'memory-0')
+  await act(async () => useBrain.setState({ status: { ...status, revision: 1 } }))
+  const memories = container.querySelector('[aria-label="Entity memories"]')!
+  expect(memories.textContent).not.toContain('Harbor Ledger is built for Harbor.')
+  expect(memories.textContent).toContain('Harbor component 1 is part of Harbor.')
+  expect(memories.textContent).not.toContain('Harbor component 25 is part of Harbor.')
+})
+
+it('supports Alt+Right and empty-search Backspace without hijacking typing', async () => {
+  await render()
+  await chooseHarbor()
+  await click('Harbor Ledger')
+  const key = async (key: string, altKey = false, target: HTMLElement = document.body) => {
+    await act(async () =>
+      target.dispatchEvent(new KeyboardEvent('keydown', { key, altKey, bubbles: true })),
+    )
+  }
+  const input = container.querySelector<HTMLInputElement>('[role="combobox"]')!
+  await key('Backspace', false, input)
+  expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 1)
+  await key('ArrowLeft', true)
+  expect(neighbourhood).toHaveBeenLastCalledWith('harbor', 1)
+  await key('ArrowRight', true)
+  expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 1)
+  await search('Tom')
+  await key('Backspace')
+  expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 1)
+  await key('Escape', false, input)
+  await key('Backspace')
+  expect(neighbourhood).toHaveBeenLastCalledWith('harbor', 1)
+})
+
+it('includes superseded memories only on request and filters by the source lane', async () => {
+  explorer.details[0]!.memory.origin = { sessionId: 'ledger-lane', title: 'Ledger rollout' }
+  await render()
+  await chooseHarbor()
+  const memories = () => container.querySelector('[aria-label="Entity memories"]')!
+  expect(memories().textContent).not.toContain('Harbor component 2 is part of Harbor.')
+  await act(async () =>
+    memories().querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(),
+  )
+  expect(memories().textContent).toContain('Harbor component 2 is part of Harbor.')
+  const lane = container.querySelector<HTMLSelectElement>('[aria-label="Source lane"]')!
+  await act(async () => {
+    lane.value = 'ledger-lane'
+    lane.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(memories().textContent).toContain('Harbor Ledger is built for Harbor.')
+  expect(memories().textContent).not.toContain('Harbor component 1 is part of Harbor.')
+})
+
+it('shows held claims and pages groups and memories at twenty with bulk choices across pages', async () => {
+  status.jobs = [mockBrainJob()]
+  proposal.groups = Array.from({ length: 21 }, (_, index) => ({ ...proposal.groups[0]!, index }))
+  const base = proposal.memories[0]!
+  proposal.memories = Array.from({ length: 21 }, (_, index) => ({
+    ...base,
+    index,
+    summary: `Harbor decision ${index}`,
+  }))
+  await render()
+  await click('Review')
+  expect(container.textContent).toContain('2 held back')
+  for (const label of ['Possible groups', 'Proposed memories']) {
+    const section = container.querySelector(`[aria-label="${label}"]`)!
+    expect(section.querySelectorAll('input[type="checkbox"]')).toHaveLength(20)
+    const next = [...section.querySelectorAll('button')].find((b) => b.textContent === 'Next')!
+    await act(async () => next.click())
+    expect(section.querySelectorAll('input[type="checkbox"]')).toHaveLength(1)
+  }
+  await click('Select all suggestions')
+  await click('Select all groups')
+  await click('Select no groups')
+  await click('Select no memories')
+  await click('Select all memories')
+  await click('Approve 21')
+  expect(review.mock.calls[0]![1]).toEqual({
+    memories: Array.from({ length: 21 }, (_, i) => i),
+    identities: { harbor: 'harbor', ledger: 'ledger', rina: 'new', tom: 'tom' },
+    groups: [],
+  })
+})
+
+it('cancels a merge without changing entities or navigating', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const invokes = vi.spyOn(fake.api, 'invoke')
+  await render()
+  await chooseHarbor()
+  await click('Merge into…')
+  await search('Rina', '[aria-label="Find an entity"]')
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>('[aria-label="Choose entity"] [role="option"]')!
+      .click(),
+  )
+  const request = usePromptStore.getState().requests[0]!
+  await act(async () => usePromptStore.getState().dismiss(request, undefined))
+  expect(invokes.mock.calls.some(([channel]) => channel === 'brain:merge')).toBe(false)
+  expect(container.querySelector('[aria-label="Entity detail"] h2')!.textContent).toBe('Harbor')
+})
