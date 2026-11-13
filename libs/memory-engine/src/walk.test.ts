@@ -105,7 +105,9 @@ it('does not expand through a non-focus hub above 200 connections and bounds nei
     memories,
     memoryVectors: memories.map(() => vector()),
   })
-  const kestrel = store.overview(300).nodes.find((node) => node.label === 'Kestrel')!
+  const nodes = store.overview(300).nodes
+  const node = (label: string) => nodes.find((item) => item.label === label)!
+  const kestrel = node('Kestrel')
   const result = search.recall({
     query: 'Kestrel',
     vector: null,
@@ -116,10 +118,10 @@ it('does not expand through a non-focus hub above 200 connections and bounds nei
   })
   expect(result.paths.every((path) => path.length <= 1)).toBe(true)
   expect(result.hits.every((hit) => hit.memory.summary === 'Supported connection 0.')).toBe(true)
-  const hub = store.overview(300).nodes.find((node) => node.label === 'Ledger hub')!
+  const hub = node('Ledger hub')
   expect(store.neighbourhood(hub.id, 2, 9999).nodes.length).toBeLessThanOrEqual(300)
-  const a = store.overview(300).nodes.find((node) => node.label === leaves[0])!
-  const b = store.overview(300).nodes.find((node) => node.label === leaves[1])!
+  const a = node(leaves[0]!)
+  const b = node(leaves[1]!)
   expect(store.path(a.id, b.id).paths).toEqual([])
   expect(store.entity(kestrel.id).entity.connections).toBe(1)
 })
