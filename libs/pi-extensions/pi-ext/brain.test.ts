@@ -47,7 +47,7 @@ it('sends cwd and session identity and returns the formatted briefing without ev
   )
   expect(search.content[0]).toMatchObject({
     type: 'text',
-    text: expect.stringContaining('Links: Rina Okafor owns Harbor'),
+    text: expect.stringContaining('Path: Rina Okafor owns Harbor [1]'),
   })
   expect(search.details).toEqual({ status: 'ok', memories: 1 })
   expect(tools[0]!.description).toMatch(/person, team, system or ticket/)

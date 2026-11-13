@@ -7,13 +7,14 @@ Call `brain_search` before answering “what do we know about…”, when starti
 
 Search with the name itself (a project, customer, person or ticket) or a short topic. One call returns a briefing:
 
-- **About** lists what the query named. **Links** shows who owns or works on it and what it uses.
-- Memories come grouped: risks first, then open items, decisions, facts and how things are done.
+- **About** lists what the query named.
+- **Path** lines show how things connect, such as who owns a project, what it is part of and which customer it serves. Each step cites the numbered memory that supports it.
+- Memories come grouped. Disputed ones come first, with both sides shown. Then risks, open items, decisions, facts and how things are done. **Planned** memories have not taken effect yet. **Other branches only** memories hold on another git branch.
 - **See also** names linked people and systems. Search one when it matters to the task.
 - When it says more matches were not shown, search again with a higher `limit` or a narrower query.
 
 Memories are approved notes from earlier lanes. They may be out of date. Another project's memory is context, not a rule. Check what is true now before relying on them, above all open items, which may have moved on.
 
-Each memory shows the date its lane said it, and when it took effect if the lane named one. When memories disagree, trust the newer one.
+Each memory shows the date its lane said it, when it took effect if the lane named one, and when it ended if something replaced it. Replaced memories are left out. When two memories are disputed, neither is settled: say so and check the source rather than picking one.
 
 Never copy recalled memories into a final answer as new knowledge.
