@@ -6,9 +6,13 @@ import { TooltipButton, tooltipProps } from '@/components/Tooltip'
 import type { LanePr, LanePrs } from '../lanePrs'
 import { PrGlyph, stateGlyph, TONE_TEXT, verdictGlyph } from './PrIcons'
 
-/** `#57` in the lane's own repository, `other-repo#12` elsewhere. */
-export function lanePrLabel(item: LanePr, home: LanePrs['home']): string {
-  return item.ref ? prLabel(item.ref, home?.repo) : `#${item.number}`
+/**
+ * `#57` in the lane's own repository, `other-repo#12` elsewhere. Before
+ * discovery has named the lane's repository, the lead PR's stands in for it.
+ */
+export function lanePrLabel(item: LanePr, prs: LanePrs): string {
+  const home = prs.home?.repo ?? prs.owned[0]?.ref?.repo
+  return item.ref ? prLabel(item.ref, home) : `#${item.number}`
 }
 
 const GROUPS = [
@@ -81,7 +85,7 @@ export function PrList({
                 <PrListItem
                   key={item.key}
                   item={item}
-                  label={lanePrLabel(item, prs.home)}
+                  label={lanePrLabel(item, prs)}
                   selected={item.key === selected}
                   onSelect={() => onSelect(item.key)}
                   onTrack={group === 'owned' || !item.ref ? undefined : () => onTrack(item.ref!)}

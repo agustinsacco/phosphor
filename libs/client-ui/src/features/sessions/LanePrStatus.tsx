@@ -42,7 +42,7 @@ export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.El
 export function lanePrPillLabel(lead: LanePr, prs: LanePrs): string {
   const more = prs.owned.length - 1
   const others = more > 0 ? ` ${more} more pull request${more === 1 ? '' : 's'}.` : ''
-  return `Pull request ${lanePrLabel(lead, prs.home)}: ${lead.verdict.headline}.${others}`
+  return `Pull request ${lanePrLabel(lead, prs)}: ${lead.verdict.headline}.${others}`
 }
 
 function LanePrPill({
@@ -69,7 +69,7 @@ function LanePrPill({
       className={TONE_CHIP[lead.verdict.tone]}
       face={
         <>
-          <span className="whitespace-nowrap">{lanePrLabel(lead, lane.prs.home)}</span>
+          <span className="whitespace-nowrap">{lanePrLabel(lead, lane.prs)}</span>
           {lead.pr && <PrRail pr={lead.pr} />}
           {more > 0 && (
             <span className="text-text-secondary ml-px border-l border-current/20 pl-1.5">
