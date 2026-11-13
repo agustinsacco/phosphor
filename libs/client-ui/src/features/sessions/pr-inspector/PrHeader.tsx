@@ -66,15 +66,15 @@ export function PrHeader({
       >
         {item.pr?.title ?? 'Reading this pull request…'}
       </h3>
-      <p className="text-text-secondary [&>*+*]:before:text-text-tertiary mt-0.5 flex min-w-0 items-center gap-x-1.5 whitespace-nowrap text-sm leading-5 [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
+      <p className="text-text-secondary [&>*+*]:before:text-text-tertiary mt-0.5 flex min-w-0 items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-sm leading-5 [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
         {meta.map((part) => (
-          <span key={part} className="min-w-0 truncate">
+          <span key={part} className="shrink-0">
             {part}
           </span>
         ))}
         {summary && (
           <span
-            className="min-w-0 shrink-[4] truncate font-mono"
+            className="min-w-0 truncate font-mono"
             {...tooltipProps(`${summary.headRefName} into ${summary.baseRefName}`)}
           >
             {summary.headRefName} → {summary.baseRefName}
