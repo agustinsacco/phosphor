@@ -89,6 +89,7 @@ function insertRow(
   const { ctx, proposal } = commit
   const id = ctx.id()
   const n = nextNumber(ctx, 'memories')
+  const now = ctx.now()
   run(
     ctx,
     `INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -101,8 +102,8 @@ function insertRow(
     item.branch ? proposal.branch : null,
     item.validFrom,
     item.validTo,
-    observed(item, proposal.evidence, ctx.now()),
-    ctx.now(),
+    observed(item, proposal.evidence, now),
+    now,
     'active',
     proposal.origin.sessionId,
     scrubExcerpt(proposal.origin.title),
