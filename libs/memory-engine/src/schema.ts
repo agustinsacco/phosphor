@@ -51,6 +51,7 @@ CREATE TABLE entity_keys(namespace TEXT NOT NULL, value TEXT NOT NULL,
   entity INTEGER NOT NULL REFERENCES entities(n) ON DELETE CASCADE, PRIMARY KEY(namespace, value)) WITHOUT ROWID;
 CREATE INDEX entity_keys_entity ON entity_keys(entity);
 CREATE VIRTUAL TABLE entity_words USING fts5(text);
+CREATE VIRTUAL TABLE entity_words_vocab USING fts5vocab(entity_words, 'row');
 CREATE VIRTUAL TABLE entity_grams USING fts5(name, tokenize='trigram');
 CREATE TABLE merges(n INTEGER PRIMARY KEY, source_id TEXT NOT NULL, target INTEGER NOT NULL REFERENCES entities(n) ON DELETE CASCADE,
   label TEXT NOT NULL, reason TEXT NOT NULL, recorded_at INTEGER NOT NULL);
@@ -85,6 +86,7 @@ CREATE TABLE memory_links(source INTEGER NOT NULL REFERENCES memories(n) ON DELE
   PRIMARY KEY(source, target, kind)) WITHOUT ROWID;
 CREATE INDEX memory_links_target ON memory_links(target, kind);
 CREATE VIRTUAL TABLE memory_words USING fts5(summary);
+CREATE VIRTUAL TABLE memory_words_vocab USING fts5vocab(memory_words, 'row');
 CREATE TABLE memory_vectors(memory INTEGER PRIMARY KEY REFERENCES memories(n) ON DELETE CASCADE, vector BLOB NOT NULL);
 CREATE TABLE memory_bits(memory INTEGER PRIMARY KEY REFERENCES memories(n) ON DELETE CASCADE, bits BLOB NOT NULL);
 CREATE TABLE entity_vectors(entity INTEGER PRIMARY KEY REFERENCES entities(n) ON DELETE CASCADE, vector BLOB NOT NULL);

@@ -19,21 +19,19 @@ it('recalls three structural hops with memory ids, keeps planned and other-branc
   const { store, search } = searchFixture()
   const base = extraction('chain')
   const refs = ['Kestrel', 'Harbor project', 'Ledger customer', 'Rina team']
-  const memories: ProposalMemory[] = refs
-    .slice(1)
-    .map((ref, i) => ({
-      ...base.memories[0]!,
-      summary: `${refs[i]} is part of ${ref}.`,
-      entities: [refs[i]!, ref],
-      links: [
-        {
-          subject: refs[i]!,
-          predicate: 'part_of',
-          object: ref,
-          citation: base.memories[0]!.citations[0]!,
-        },
-      ],
-    }))
+  const memories: ProposalMemory[] = refs.slice(1).map((ref, i) => ({
+    ...base.memories[0]!,
+    summary: `${refs[i]} is part of ${ref}.`,
+    entities: [refs[i]!, ref],
+    links: [
+      {
+        subject: refs[i]!,
+        predicate: 'part_of',
+        object: ref,
+        citation: base.memories[0]!.citations[0]!,
+      },
+    ],
+  }))
   memories[1]!.validFrom = Date.now() + 86_400_000
   memories[2]!.branch = true
   approve(store, {

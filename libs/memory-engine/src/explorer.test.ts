@@ -21,21 +21,19 @@ it('groups both directions, pages connections and memories without duplicates an
   const { store } = fixture()
   const data = extraction('graph')
   const refs = Array.from({ length: 50 }, (_, i) => `Harbor-${i}`)
-  const memories = refs
-    .slice(1)
-    .map((ref, index) => ({
-      ...data.memories[0]!,
-      entities: [refs[0]!, ref],
-      summary: `Harbor connection ${index}.`,
-      links: [
-        {
-          subject: refs[0]!,
-          predicate: 'part_of' as const,
-          object: ref,
-          citation: data.memories[0]!.citations[0]!,
-        },
-      ],
-    }))
+  const memories = refs.slice(1).map((ref, index) => ({
+    ...data.memories[0]!,
+    entities: [refs[0]!, ref],
+    summary: `Harbor connection ${index}.`,
+    links: [
+      {
+        subject: refs[0]!,
+        predicate: 'part_of' as const,
+        object: ref,
+        citation: data.memories[0]!.citations[0]!,
+      },
+    ],
+  }))
   approve(store, {
     entities: refs.map(node),
     entityVectors: refs.map(() => vector()),

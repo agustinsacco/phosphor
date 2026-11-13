@@ -32,12 +32,12 @@ export function wordRows(
     )
   const result = search(words.map(quoted).join(' AND '), limit)
   if (result.length >= limit) return result
-  // Bounded probes estimate document frequency without unbounded counts.
+  // FTS dictionary lookups provide exact document frequencies without scanning postings.
   const rare = words
     .map((word) => ({
       word,
-      count: all(ctx, `SELECT rowid FROM ${table} WHERE ${table} MATCH ? LIMIT 100`, quoted(word))
-        .length,
+      count:
+        one<{ doc: number }>(ctx, `SELECT doc FROM ${table}_vocab WHERE term=?`, word)?.doc ?? 0,
     }))
     .sort((a, b) => a.count - b.count)
     .slice(0, 6)
