@@ -59,6 +59,7 @@ class SearchIndexes {
   private generation: string | undefined
   private revision: string | undefined
   private pending: Promise<void> | null = null
+  private again = false
   constructor(private ctx: Context) {
     this.entities = new VectorIndex(ctx, 'entity')
     this.memories = new VectorIndex(ctx, 'memory')
@@ -73,11 +74,21 @@ class SearchIndexes {
   }
   refresh(): Promise<void> {
     if (this.closed) return Promise.reject(new Error('Brain search is closed.'))
-    if (!this.pending)
-      this.pending = this.load().finally(() => {
-        this.pending = null
-      })
+    if (this.pending) {
+      // A caller that joins mid-load may have committed after this load read the revision.
+      this.again = true
+      return this.pending
+    }
+    this.pending = this.run().finally(() => {
+      this.pending = null
+    })
     return this.pending
+  }
+  private async run(): Promise<void> {
+    do {
+      this.again = false
+      await this.load()
+    } while (this.again && !this.closed)
   }
   private async load(): Promise<void> {
     // Coalesce concurrent refreshes, including one catch-up pass for commits made during loading.
