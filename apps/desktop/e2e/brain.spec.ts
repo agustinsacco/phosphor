@@ -72,12 +72,10 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
         Promise.all(ids.map((id) => window.phosphor.invoke('brain:extraction', id).catch(String))),
       snapshot.jobs.map((job) => job.id),
     )
-    await test
-      .info()
-      .attach('brain-failure.json', {
-        body: JSON.stringify({ snapshot, records }, null, 2),
-        contentType: 'application/json',
-      })
+    await test.info().attach('brain-failure.json', {
+      body: JSON.stringify({ snapshot, records }, null, 2),
+      contentType: 'application/json',
+    })
     throw error
   } finally {
     await shutdown(h)
