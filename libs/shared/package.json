@@ -359,6 +359,14 @@
     "./brain-extraction": {
       "types": "./src/brain-extraction.ts",
       "default": "./src/brain-extraction.ts"
+    },
+    "./brain-explore": {
+      "types": "./src/brain-explore.ts",
+      "default": "./src/brain-explore.ts"
+    },
+    "./brain-review": {
+      "types": "./src/brain-review.ts",
+      "default": "./src/brain-review.ts"
     }
   },
   "dependencies": {

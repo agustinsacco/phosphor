@@ -1,9 +1,9 @@
 /**
- * Brain: machine-local knowledge learned only from lanes the user queues. A private fork
- * of the lane extracts memories, the user approves them, and every lane can recall them.
+ * Brain: machine-local knowledge learned only from lanes the user queues. Private model calls
+ * read the lane in windows, the user approves what they propose, and every lane can recall it.
  * No credentials or database paths cross this contract.
  */
-export const BRAIN_PROTOCOL = 3
+export const BRAIN_PROTOCOL = 4
 /** Pinned local embedding model. No hosted embedding or silent model fallback. */
 export const BRAIN_EMBEDDING_MODEL = {
   id: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
@@ -14,7 +14,7 @@ export const BRAIN_EMBEDDING_MODEL = {
   termsUrl: 'https://ai.google.dev/gemma/terms',
   usePolicyUrl: 'https://ai.google.dev/gemma/prohibited_use_policy',
 } as const
-/** Node labels: a small fixed schema, as Neo4j's KG builder and GraphRAG recommend. */
+/** Node labels. A kind describes an entity; it is never part of its identity. */
 export const BRAIN_ENTITY_KINDS = [
   'person',
   'team',
@@ -22,16 +22,19 @@ export const BRAIN_ENTITY_KINDS = [
   'project',
   'component',
   'document',
+  'ticket',
   'concept',
   'event',
 ] as const
 export type BrainEntityKind = (typeof BRAIN_ENTITY_KINDS)[number]
-/** Relationship types between two entities. `about` attaches a literal fact to one entity. */
+/** Directed relationship types, read subject → object. A memory can state several. */
 export const BRAIN_PREDICATES = [
   'owns',
   'works_on',
   'member_of',
   'part_of',
+  'for_customer',
+  'documents',
   'depends_on',
   'uses',
   'decided',
@@ -39,9 +42,32 @@ export const BRAIN_PREDICATES = [
   'blocks',
   'affects',
   'related_to',
-  'about',
 ] as const
 export type BrainPredicate = (typeof BRAIN_PREDICATES)[number]
+/** Predicates that place an entity: recall follows them one hop further than the rest. */
+export const BRAIN_STRUCTURAL_PREDICATES = [
+  'part_of',
+  'for_customer',
+  'owns',
+  'member_of',
+  'documents',
+] as const satisfies readonly BrainPredicate[]
+/** Plain words for each predicate, from the subject's side and from the object's side. */
+export const BRAIN_PREDICATE_LABELS: Record<BrainPredicate, { out: string; in: string }> = {
+  owns: { out: 'Owns', in: 'Owned by' },
+  works_on: { out: 'Works on', in: 'Worked on by' },
+  member_of: { out: 'Member of', in: 'Members' },
+  part_of: { out: 'Part of', in: 'Contains' },
+  for_customer: { out: 'For customer', in: 'Customer of' },
+  documents: { out: 'Documents', in: 'Documented in' },
+  depends_on: { out: 'Depends on', in: 'Needed by' },
+  uses: { out: 'Uses', in: 'Used by' },
+  decided: { out: 'Decided', in: 'Decided by' },
+  prefers: { out: 'Prefers', in: 'Preferred by' },
+  blocks: { out: 'Blocks', in: 'Blocked by' },
+  affects: { out: 'Affects', in: 'Affected by' },
+  related_to: { out: 'Related to', in: 'Related to' },
+}
 /** What a memory is for; the extractor picks one and the UI groups by it, in this order. */
 export const BRAIN_MEMORY_TYPES = [
   'decision',
@@ -53,6 +79,8 @@ export const BRAIN_MEMORY_TYPES = [
 ] as const
 export type BrainMemoryType = (typeof BRAIN_MEMORY_TYPES)[number]
 export type BrainEpistemicKind = 'observed' | 'reported' | 'inferred'
+/** `superseded` was replaced by a later memory; `disputed` conflicts with another one. */
+export type BrainMemoryState = 'active' | 'superseded' | 'disputed'
 
 export interface BrainPrefs {
   enabled: boolean
@@ -68,32 +96,43 @@ export interface BrainEntity {
   label: string
   kind: BrainEntityKind
   aliases: string[]
+  /** Short evidence-derived disambiguator, at most 160 characters. */
+  description: string
 }
 /** The lane a memory was learned from. Kept after the lane is deleted. */
 export interface BrainOrigin {
   sessionId: string
   title: string
 }
-/** One approved memory: a sentence, plus the graph edge or attribute it states. */
+/** One directed relationship, stated and supported by one memory. */
+export interface BrainLink {
+  id: string
+  subjectId: string
+  predicate: BrainPredicate
+  objectId: string
+  memoryId: string
+}
+/** One approved memory: a self-contained sentence, the entities it names and the links it states. */
 export interface BrainMemory {
   id: string
   jobId: string | null
   summary: string
   type: BrainMemoryType
   kind: BrainEpistemicKind
-  subjectId: string
-  predicate: BrainPredicate
-  /** Set when the memory links two entities; otherwise `literal` holds the value. */
-  objectId: string | null
-  literal: string | null
+  state: BrainMemoryState
+  /** Every entity the memory names, linked or not. */
+  entityIds: string[]
+  links: BrainLink[]
   /** Project root the lane ran in; memories are searchable from every project. */
   scope: string
   /** Branch the memory applies to; null applies to the whole project. */
   branch: string | null
+  /** When it took effect and stopped applying, if the lane said. */
   validFrom: number | null
+  validTo: number | null
   /** When it was approved. */
   recordedAt: number
-  /** When the lane said it: its latest cited transcript entry, else `recordedAt`. Search ranks by its age. */
+  /** When a lane last said it: its latest independent citation. Search ranks by its age. */
   observedAt: number
   origin: BrainOrigin | null
 }
@@ -104,6 +143,7 @@ export interface BrainQuote {
   label: string
 }
 
+export type BrainJobStage = 'prepare' | 'extract' | 'identity' | 'parents' | 'reconcile' | 'embed'
 /** Queue entry for one lane. `done` entries stay only to refuse re-queuing an unchanged lane. */
 export interface BrainJob {
   id: string
@@ -112,19 +152,21 @@ export interface BrainJob {
   title: string
   scope: string
   branch: string | null
-  /** "provider/id" of the lane's model, which the private fork reuses. */
+  /** "provider/id" of the lane's model, which every extraction call reuses. */
   model: string
-  /** waiting: the lane's agent is working; the fork starts once it is idle. */
+  /** waiting: the lane's agent is working; extraction starts once it is idle. */
   state: 'waiting' | 'queued' | 'running' | 'review' | 'empty' | 'failed' | 'done'
   /** Memories proposed by the run, shown as the review count. */
   memories: number
-  /** Last lane entry the run read. */
+  /** Last lane entry the run reads; frozen when the job first starts. */
   leafId: string | null
   error: string | null
   queuedAt: number
   startedAt: number | null
   finishedAt: number | null
   usage: { tokens: number; cost: number } | null
+  /** Where a running job is: `done` of `total` steps in `stage`. */
+  progress: { stage: BrainJobStage; done: number; total: number } | null
 }
 export interface BrainEmbeddingStatus {
   phase: 'missing' | 'downloading' | 'verifying' | 'testing' | 'ready' | 'error' | 'unsupported'
@@ -138,6 +180,8 @@ export interface BrainSnapshot {
   prefs: BrainPrefs
   /** Bumped by every approved change; review refuses a stale revision. */
   revision: number
+  /** New after every reset, so views reload even when the revision repeats. */
+  generation: string
   counts: { memories: number; entities: number }
   /** The inbox: every job that is not done, oldest first. */
   jobs: BrainJob[]
@@ -151,28 +195,8 @@ export interface BrainLaneRef {
   sessionPath: string
   title: string
 }
-export interface BrainKnowledge {
-  entities: BrainEntity[]
-  memories: BrainMemory[]
-  truncated: boolean
-}
-export interface BrainMemoryDetail {
-  memory: BrainMemory
-  quotes: BrainQuote[]
-}
-export interface BrainProposalView {
-  job: BrainJob
-  /** The fork's one-paragraph account of the lane. */
-  summary: string
-  revision: number
-  /** Proposed and existing entities the memories reference; proposed ones use their key as id. */
-  entities: BrainEntity[]
-  /** Proposed memories in proposal order; review keeps them by index. */
-  memories: BrainMemoryDetail[]
-  confirmations: { id: string; summary: string }[]
-}
 
-/** What a lane agent sends. `cwd` ranks the lane's own project first; `sessionId` records delivery. */
+/** What a lane agent sends. `cwd` ranks the lane's own project first and picks its branch. */
 export interface BrainQuery {
   query: string
   limit?: number
@@ -182,26 +206,22 @@ export interface BrainQuery {
 export interface BrainHit {
   memory: BrainMemory
   score: number
-  /** `exact`: about an entity the query names. `linked`: about one linked to it. */
+  /** `exact`: names a queried entity. `linked`: reached by walking links from one. */
   reasons: ('exact' | 'lexical' | 'semantic' | 'linked')[]
-}
-/** A subject→object memory, drawn as one line of the graph. */
-export interface BrainLink {
-  subjectId: string
-  predicate: BrainPredicate
-  objectId: string
 }
 export interface BrainRecall {
   status: 'ok' | 'no_match' | 'unavailable'
   hits: BrainHit[]
-  /** Every entity the hits, focus and links reference, so tools can print names. */
+  /** Every entity the hits, focus and paths reference, so tools can print names. */
   entities: BrainEntity[]
   /** Entity ids the query named, or sits inside: "NRS" names every NRS project. */
   focus: string[]
-  /** Links between a focus entity and another entity, one hop out. */
-  links: BrainLink[]
-  /** Strong matches (a named entity or shared words) the limit left out. */
+  /** Supported routes out of the focus, each hop citing the memory that states it. */
+  paths: BrainLink[][]
+  /** Strong matches the limit left out, counted up to 50. */
   more: number
+  /** The asking lane's branch; memories for other branches are listed apart. */
+  branch: string | null
   degradation: string[]
 }
 export type { BrainInvokeMap } from './ipc/brain'
@@ -220,7 +240,29 @@ export type BrainAgentResponse = { ok: true; data: unknown } | { ok: false; erro
 
 export type {
   BrainSourceSegment,
+  BrainExtractionCall,
   BrainExtractionRecord,
   BrainExtractionOutcome,
   BrainExtractionView,
 } from './brain-extraction'
+export type {
+  BrainEntitySummary,
+  BrainGraph,
+  BrainConnection,
+  BrainConnectionGroup,
+  BrainConnectionPage,
+  BrainEntityView,
+  BrainMemoryFilter,
+  BrainMemoryPage,
+  BrainMemoryDetail,
+  BrainFindResult,
+  BrainPaths,
+} from './brain-explore'
+export type {
+  BrainIdentity,
+  BrainGroupQuestion,
+  BrainProposedLink,
+  BrainProposedMemory,
+  BrainProposalView,
+  BrainReviewDecision,
+} from './brain-review'

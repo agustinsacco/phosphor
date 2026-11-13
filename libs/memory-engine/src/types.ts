@@ -1,93 +1,41 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type {
-  BrainSourceSegment,
-  BrainExtractionRecord,
-  BrainExtractionOutcome,
-  BrainEntity,
+  BrainConnectionPage,
   BrainEntityKind,
-  BrainEpistemicKind,
+  BrainEntityView,
+  BrainExtractionRecord,
+  BrainFindResult,
+  BrainGraph,
   BrainJob,
-  BrainKnowledge,
-  BrainMemory,
   BrainMemoryDetail,
-  BrainMemoryType,
-  BrainOrigin,
+  BrainMemoryFilter,
+  BrainMemoryPage,
+  BrainPaths,
   BrainPredicate,
   BrainPrefs,
   BrainProposalView,
   BrainRecall,
+  BrainReviewDecision,
   BrainSnapshot,
+  BrainEntity,
 } from '@phosphor/shared/brain'
+import type {
+  ClaimProbe,
+  EntityCard,
+  EntityMatch,
+  MemoryCard,
+  Proposal,
+  ProposalResult,
+} from './proposal-types'
 
 /** `node:sqlite`'s DatabaseSync, injected so Electron and plain Node load it their own way. */
 export type SqliteDatabase = DatabaseSync
-export type SqliteConstructor = new (path: string) => SqliteDatabase
-
-/** One readable piece of a lane transcript: a message, tool output, tool call or summary. */
-export type TranscriptSegment = BrainSourceSegment
-
-/** Transcript text kept around cited quotes, so memories outlive their lane. */
-export interface EvidenceExcerpt {
-  entryId: string
-  role: TranscriptSegment['role']
-  label: string
-  observedAt: number
-  text: string
+export interface SqliteOptions {
+  readOnly?: boolean
+  /** Busy timeout in milliseconds. */
+  timeout?: number
 }
-
-/** The fork's JSON after parsing and vocabulary checks, before quotes are verified. */
-export interface RawExtraction {
-  summary: string
-  entities: RawEntity[]
-  memories: RawMemory[]
-}
-export interface RawEntity {
-  key: string
-  label: string
-  kind: BrainEntityKind
-  aliases: string[]
-}
-export interface RawMemory {
-  /** Entity key, or the id of an existing entity the prompt listed. */
-  subject: string
-  predicate: BrainPredicate
-  object: string | null
-  literal: string | null
-  summary: string
-  kind: BrainEpistemicKind
-  type: BrainMemoryType
-  /** True when the memory only holds on the lane's own branch. */
-  branch: boolean
-  validFrom: number | null
-  quotes: string[]
-  /** Id of an existing memory, from the prompt's list, that this one replaces. */
-  supersedes: string | null
-}
-
-/** A proposal ready to store: quotes verified, evidence excerpted, vectors attached. */
-export interface Extraction {
-  jobId: string
-  summary: string
-  origin: BrainOrigin
-  scope: string
-  branch: string | null
-  entities: RawEntity[]
-  memories: (Omit<RawMemory, 'quotes'> & { citations: { evidence: number; quote: string }[] })[]
-  evidence: EvidenceExcerpt[]
-  /** One vector per memory, in order. */
-  vectors: Float32Array[]
-  confirmations?: {
-    memoryId: string
-    citations: Extraction['memories'][number]['citations']
-    evidence: EvidenceExcerpt[]
-  }[]
-}
-export interface ProposalResult {
-  kept: number
-  duplicates: number
-  reconfirmed: number
-  outcomes: BrainExtractionOutcome[]
-}
+export type SqliteConstructor = new (path: string, options?: SqliteOptions) => SqliteDatabase
 
 export type NewJob = Pick<
   BrainJob,
@@ -105,13 +53,85 @@ export type JobPatch = Partial<
     | 'leafId'
     | 'model'
     | 'branch'
+    | 'progress'
   >
 >
+/** A checkpointed step of a job, reused only for identical input. */
+export interface JobPart {
+  part: string
+  inputHash: string
+  output: string
+}
 
-/** What the extraction prompt shows the fork, so it reuses entities and skips known memories. */
-export interface KnownContext {
-  entities: BrainEntity[]
-  memories: BrainMemory[]
+/** The single writer: queue, proposals, review and the Explorer's indexed reads. Synchronous. */
+export interface BrainStore {
+  snapshot(): BrainSnapshot
+  setPrefs(prefs: BrainPrefs): BrainPrefs
+  revision(): number
+
+  /** Throws when the lane already has an unfinished job, or nothing changed since the last one. */
+  enqueue(job: NewJob, state: 'waiting' | 'queued'): BrainJob
+  job(id: string): BrainJob | undefined
+  updateJob(id: string, patch: JobPatch): BrainJob
+  /** Requeues a failed job under the same id, keeping its parts and frozen leaf. */
+  retry(id: string): BrainJob
+  /** Deletes a job, its parts and its proposal. */
+  removeJob(id: string): void
+  /** Jobs left running by a previous app run go back to the queue. */
+  requeueInterrupted(): void
+  part(jobId: string, part: string, inputHash: string): JobPart | undefined
+  savePart(jobId: string, part: JobPart): void
+
+  /** Exact, word and trigram candidates for each probe, at most `limit` each. */
+  entityMatches(
+    probes: { label: string; aliases: string[]; keys: { namespace: string; value: string }[] }[],
+    limit: number,
+  ): EntityMatch[][]
+  entityCards(ids: string[]): EntityCard[]
+  /** Linked neighbours of the given entities, optionally only of some kinds. */
+  neighbours(
+    ids: string[],
+    kinds: BrainEntityKind[] | null,
+    limit: number,
+  ): {
+    entityId: string
+    neighbour: BrainEntity
+    predicate: BrainPredicate
+    direction: 'out' | 'in'
+  }[]
+  /** Active or disputed memories that share a link or entities with each probe. */
+  memoryMatches(probes: ClaimProbe[], limit: number): string[][]
+  memoryCards(ids: string[]): MemoryCard[]
+
+  /** Stores a proposal; the job moves to review, or empty when there is nothing to review. */
+  propose(proposal: Proposal): ProposalResult
+  proposal(jobId: string): BrainProposalView
+  /** Raw stored proposal, for recomputation when it went stale. */
+  storedProposal(jobId: string): Proposal | undefined
+  /** Commits a decision in one transaction; null rejects. Refuses a stale revision. */
+  review(jobId: string, decision: BrainReviewDecision | null, revision: number): void
+  saveExtraction(record: BrainExtractionRecord): void
+  extraction(jobId: string): BrainExtractionRecord & { memories: { id: string; summary: string }[] }
+
+  overview(limit: number): BrainGraph
+  neighbourhood(entityId: string, hops: 1 | 2, limit: number): BrainGraph
+  entity(entityId: string): BrainEntityView
+  connections(
+    entityId: string,
+    predicate: BrainPredicate,
+    direction: 'out' | 'in',
+    cursor: string | null,
+  ): BrainConnectionPage
+  entityMemories(
+    entityId: string,
+    filter: BrainMemoryFilter,
+    cursor: string | null,
+  ): BrainMemoryPage
+  memory(id: string): BrainMemoryDetail
+  path(fromId: string, toId: string): BrainPaths
+  merge(sourceId: string, targetId: string): void
+  forget(memoryId: string): void
+  close(): void
 }
 
 export interface SearchInput {
@@ -121,38 +141,26 @@ export interface SearchInput {
   limit: number
   /** The asking lane's project, ranked first. */
   scope: string | null
+  /** The asking lane's branch; other-branch memories are returned apart. */
+  branch: string | null
+  now: number
 }
-
-/** The one store for knowledge, the queue and proposals. All methods are synchronous. */
-export interface BrainStore {
-  snapshot(): BrainSnapshot
-  setPrefs(prefs: BrainPrefs): BrainPrefs
-
-  /** Throws when the lane already has an unfinished job, or nothing changed since the last one. */
-  enqueue(job: NewJob, state: 'waiting' | 'queued'): BrainJob
-  job(id: string): BrainJob | undefined
-  updateJob(id: string, patch: JobPatch): BrainJob
-  /** Deletes a job and its proposal. */
-  removeJob(id: string): void
-  /** Jobs left running by a previous app run go back to the queue. */
-  requeueInterrupted(): void
-
-  /** Drops near-duplicates of each other and of active memories, then stores the rest. */
-  propose(extraction: Extraction): ProposalResult
-  saveExtraction(record: BrainExtractionRecord): void
-  extraction(jobId: string): BrainExtractionRecord & { memories: { id: string; summary: string }[] }
-  proposal(jobId: string): BrainProposalView
-  /** `keep` is the proposal memory indexes to approve; null rejects all. Refuses a stale revision. */
-  review(jobId: string, keep: number[] | null, revision: number): void
-
-  knowledge(limit?: number): BrainKnowledge
-  memory(id: string): BrainMemoryDetail
-  forget(memoryId: string): void
-  /** Existing entities and memories for an extraction prompt about this lane. */
-  known(sessionId: string, scope: string, limit: number): KnownContext
-
-  search(input: SearchInput): BrainRecall
-  recordDelivery(sessionId: string, memoryIds: string[]): void
+export interface Neighbour {
+  id: string
+  score: number
+}
+/**
+ * Read-only search over its own connection, with the sign-bit vector index in memory. Runs in
+ * any process; `refresh` picks up rows committed since the last call.
+ */
+export interface BrainSearch {
+  refresh(): void
+  /** False while the vector index is still loading; searches then use words and names only. */
+  ready(): boolean
+  recall(input: SearchInput): BrainRecall
+  find(query: string, vector: Float32Array | null, limit: number): BrainFindResult
+  nearestEntities(vectors: Float32Array[], k: number): Neighbour[][]
+  nearestMemories(vectors: Float32Array[], k: number): Neighbour[][]
   close(): void
 }
 
@@ -163,4 +171,4 @@ export interface OpenStoreOptions {
   now?: () => number
   id?: () => string
 }
-export type { BrainMemory, BrainEntity }
+export type * from './proposal-types'
