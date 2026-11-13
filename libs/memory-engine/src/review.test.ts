@@ -151,3 +151,34 @@ it('deduplicates evidence within the commit without a global evidence lookup', (
   approve(store)
   expect(statements.some((sql) => /SELECT n FROM evidence WHERE session_id/u.test(sql))).toBe(false)
 })
+
+it('does not duplicate relation evidence when enriching the same link from the same entry again', () => {
+  const { store } = fixture()
+  const [id] = approve(store)
+  const memory = store.memory(id!).memory
+  const link = memory.links[0]!
+  const base = extraction('repeat')
+  approve(store, {
+    jobId: 'repeat',
+    entities: [],
+    entityVectors: [],
+    memories: [
+      {
+        ...base.memories[0]!,
+        action: 'enrich',
+        target: id!,
+        entities: memory.entityIds,
+        links: [
+          {
+            subject: link.subjectId,
+            object: link.objectId,
+            predicate: link.predicate,
+            citation: base.memories[0]!.citations[0]!,
+          },
+        ],
+      },
+    ],
+    memoryVectors: [vector()],
+  })
+  expect(store.memory(id!).linkQuotes[link.id]).toHaveLength(1)
+})
