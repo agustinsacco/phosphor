@@ -13,6 +13,9 @@ import type {
   GhPullRequest,
   GhRepoPullRequests,
   GhPrReadOptions,
+  GhPrRead,
+  GhPrRef,
+  GhPrSummaryOptions,
   GitInfo,
   PullResult,
   SessionMeta,
@@ -179,6 +182,11 @@ export interface BaselineGhInvokeMap {
   'gh:prsForRepo': {
     args: [repoPath: string, options?: GhPrReadOptions]
     result: GhRepoPullRequests | null
+  }
+
+  'gh:prSummaries': {
+    args: [refs: GhPrRef[], options?: GhPrSummaryOptions]
+    result: GhPrRead | null
   }
 
   'gh:available': { args: []; result: boolean }

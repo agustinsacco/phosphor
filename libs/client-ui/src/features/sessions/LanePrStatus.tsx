@@ -3,7 +3,9 @@ import type { GhPullRequest } from '@shared/models'
 import { MenuRow } from '@/components/PopupMenu'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, type RepoPullRequests } from '@/stores/pullRequests'
-import { useLanePullRequest } from './useLanePullRequest'
+import { usePrStatusStore } from '@/stores/prStatus'
+import { useLanePullRequests } from './useLanePrs'
+import { laneStatusRefs, type LanePr, type LanePrs } from './lanePrs'
 import { prChip, PR_CHIP_CLASSES } from './prChip'
 import { LaneHeaderPill } from './LaneHeaderPill'
 
@@ -13,17 +15,20 @@ import { LaneHeaderPill } from './LaneHeaderPill'
  * The listing keeps refreshing underneath, so a PR opened later appears.
  */
 export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const { repoPath, ready, slice, pr, branch } = useLanePullRequest(sessionId)
+  const { repoPath, ready, slice, prs, lead, branch } = useLanePullRequests(sessionId)
   const enabled = useLanePrefsStore((s) => s.lanes.prStatus)
-  if (!enabled || !repoPath || !pr) return null
+  // A PR the lane opened elsewhere has no status until its first read: no placeholder.
+  if (!enabled || !repoPath || !lead?.pr) return null
   return (
     <LanePrPill
       key={`${sessionId}:${repoPath}`}
       repoPath={repoPath}
       ready={ready}
       slice={slice}
-      pr={pr}
-      branch={branch}
+      prs={prs}
+      lead={lead}
+      pr={lead.pr}
+      branch={lead.source === 'checkout' ? branch : undefined}
     />
   )
 }
@@ -32,19 +37,27 @@ interface LanePrProps {
   repoPath: string
   ready: boolean
   slice: RepoPullRequests
+  prs: LanePrs
+  lead: LanePr
   pr: GhPullRequest
   branch?: string
 }
 
 function LanePrPill(props: LanePrProps): React.JSX.Element {
   const chip = prChip(props.pr)
+  const more = props.prs.owned.length - 1
   return (
     <LaneHeaderPill
-      label={`Pull request: ${chip.title}`}
+      label={`Pull request: ${chip.title}${more > 0 ? `, and ${more} more` : ''}`}
       testId="lane-pr-status"
       variant={chip.variant}
       className={PR_CHIP_CLASSES[chip.variant]}
-      face={`${chip.label} ${chip.glyph}`.trim()}
+      face={
+        <>
+          {`${chip.label} ${chip.glyph}`.trim()}
+          {more > 0 && <span className="opacity-70">+{more}</span>}
+        </>
+      }
       region="Pull request details"
     >
       {() => <LanePrContent {...props} />}
@@ -52,13 +65,34 @@ function LanePrPill(props: LanePrProps): React.JSX.Element {
   )
 }
 
-function LanePrContent({ repoPath, ready, slice, pr, branch }: LanePrProps): React.JSX.Element {
+function refreshAll(repoPath: string, prs: LanePrs): void {
+  void usePullRequestsStore.getState().refresh(repoPath, { force: true })
+  void usePrStatusStore.getState().refresh(laneStatusRefs(prs), { force: true })
+}
+
+function LanePrContent({
+  repoPath,
+  ready,
+  slice,
+  prs,
+  pr,
+  branch,
+}: LanePrProps): React.JSX.Element {
   const [linkError, setLinkError] = useState(false)
   return (
     <>
       <div className="space-y-2 px-3 pb-2 text-sm">
         <PrDetails pr={pr} />
         <RefreshAge slice={slice} branch={branch} />
+        {prs.owned.length > 1 && (
+          <p>
+            Also in this lane:{' '}
+            {prs.owned
+              .slice(1)
+              .map((lane) => `#${lane.number}`)
+              .join(', ')}
+          </p>
+        )}
         {!ready && <p>Repository unavailable. Reconnect to refresh.</p>}
         {!slice.coverage && repoPath.startsWith('host:') && (
           <p>The Host may reuse its repository cache for up to 60 seconds.</p>
@@ -77,7 +111,7 @@ function LanePrContent({ repoPath, ready, slice, pr, branch }: LanePrProps): Rea
       <MenuRow
         active={false}
         disabled={!ready || slice.loading}
-        onClick={() => void usePullRequestsStore.getState().refresh(repoPath, { force: true })}
+        onClick={() => refreshAll(repoPath, prs)}
       >
         {slice.loading ? 'Refreshing…' : 'Refresh'}
       </MenuRow>

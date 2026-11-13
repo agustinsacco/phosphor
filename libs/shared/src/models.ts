@@ -40,6 +40,17 @@ export type {
   GhRepoPullRequests,
   GhPullRequest,
 } from './models/git'
+export type {
+  GhPrCheck,
+  GhPrCheckState,
+  GhPrKey,
+  GhPrRead,
+  GhPrRef,
+  GhPrReviewer,
+  GhPrSummary,
+  GhPrSummaryOptions,
+  LanePrSignals,
+} from './models/pull-requests'
 export type { DirEntry, FileContent, OpenInDefaultAppResult } from './models/files'
 export type {
   ConfigFileHealth,

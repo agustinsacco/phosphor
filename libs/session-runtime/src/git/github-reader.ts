@@ -8,6 +8,7 @@ import { parsePrReadOptions } from '@phosphor/shared/host-protocol-github'
 import { git } from './git-exec'
 import { toPullRequest } from './github'
 import { GithubFailure, type GithubCommand } from './github-command'
+import { GithubGate } from './github-gate'
 import {
   discoverGithubPrs,
   githubRepository,
@@ -30,6 +31,8 @@ interface Repository {
 }
 export interface GithubReaderPorts {
   run: GithubCommand
+  /** Shared with the PR status reader; one is made from `run` when absent. */
+  gate?: GithubGate
   origin?: (cwd: string, signal: AbortSignal) => Promise<string | null>
   branches?: (cwd: string, signal: AbortSignal) => Promise<string[]>
   budgetMs?: number
@@ -96,18 +99,11 @@ function due(current: Entry | undefined, force = false): boolean {
 class GithubReader {
   private repositories = new Map<string, Repository>()
   private flights = new Map<string, Promise<GhRepoPullRequests | null>>()
-  private tail = Promise.resolve()
-  private blockedUntil = 0
-  constructor(private ports: GithubReaderPorts) {}
-
-  private run: GithubCommand = async (cwd, args, signal) => {
-    if (signal.aborted) throw new GithubFailure('timeout')
-    if (Date.now() < this.blockedUntil) throw new GithubFailure('rate-limited')
-    const result = await this.ports.run(cwd, args, signal)
-    if (signal.aborted) throw new GithubFailure('timeout')
-    if (!result.ok && result.reason === 'rate-limited')
-      this.blockedUntil = Date.now() + Math.max(TTL, result.retryAfterMs ?? TTL)
-    return result
+  private gate: GithubGate
+  private run: GithubCommand
+  constructor(private ports: GithubReaderPorts) {
+    this.gate = ports.gate ?? new GithubGate(ports.run)
+    this.run = this.gate.run
   }
 
   private async identity(cwd: string, repo: Repository, branches: string[], signal: AbortSignal) {
@@ -128,6 +124,7 @@ class GithubReader {
     }
     repo.identity = identity
     repo.identityAt = Date.now()
+    this.gate.trustHost(identity.host)
     return identity
   }
 
@@ -173,7 +170,7 @@ class GithubReader {
     const requested = branches.filter((branch) => due(repo.entries.get(branch), force))
     if (!requested.length) return
     try {
-      if (Date.now() < this.blockedUntil) throw new GithubFailure('rate-limited')
+      if (this.gate.blocked) throw new GithubFailure('rate-limited')
       const identity = await this.identity(cwd, repo, branches, signal)
       const failed = await this.discover(cwd, repo, identity, requested, signal)
       const known = requested.flatMap((branch) => {
@@ -278,8 +275,8 @@ class GithubReader {
       }, this.ports.budgetMs ?? 20_000)
       timer.unref?.()
     })
-    const work = this.tail
-      .then(async () => {
+    const work = this.gate
+      .enqueue(async () => {
         if (signal.aborted) return
         if (!options)
           branches = (await (this.ports.branches ?? localBranches)(cwd, signal)).slice(0, 20)
@@ -297,7 +294,6 @@ class GithubReader {
           if (current) fail(current)
         }
       })
-    this.tail = work
     try {
       await Promise.race([work, timeout])
       if (expired)

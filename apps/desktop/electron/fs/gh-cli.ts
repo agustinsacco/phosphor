@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 import {
   ghPrForBranch as queryBranch,
@@ -6,15 +7,23 @@ import {
 } from '@phosphor/session-runtime/git/github'
 import { piProcessEnv } from '../pi/shell-env'
 import { createGithubReader } from '@phosphor/session-runtime/git/github-reader'
-import { runGithubCommand } from '@phosphor/session-runtime/git/github-command'
+import { runGithubCommand, type GithubCommand } from '@phosphor/session-runtime/git/github-command'
+import { GithubGate } from '@phosphor/session-runtime/git/github-gate'
+import { createGithubPrStatusReader } from '@phosphor/session-runtime/git/github-pr-status'
 import { githubEvidence } from '@phosphor/session-runtime/git/branch-landed'
 import type { GhPrReadOptions } from '@shared/models'
 
-const reader = createGithubReader({
-  run: async (cwd, args, signal) => runGithubCommand(cwd, args, await ghEnv(), signal),
-})
+const command: GithubCommand = async (cwd, args, signal) =>
+  runGithubCommand(cwd, args, await ghEnv(), signal)
+// One queue and rate-limit pause for branch discovery and PR status alike.
+const gate = new GithubGate(command)
+const reader = createGithubReader({ run: command, gate })
+const prStatus = createGithubPrStatusReader({ gate, cwd: homedir() })
 export const readRepositoryPrs = (repoPath: string, options?: GhPrReadOptions) =>
   reader.read(repoPath, options)
+/** Arguments arrive from the renderer unchecked; the reader validates them. */
+export const readPrSummaries = async (refs: unknown, options?: unknown) =>
+  (await ghAvailable()) ? prStatus.read(refs, options) : null
 
 const execFileAsync = promisify(execFile)
 

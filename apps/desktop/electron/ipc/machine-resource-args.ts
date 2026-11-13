@@ -214,6 +214,7 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   'sessions:forkClaudeLedger': [{ arg: 0 }],
   'gh:prForBranch': [{ arg: 0 }],
   'gh:prsForRepo': [{ arg: 0 }],
+  'gh:prSummaries': 'none',
   'gh:available': 'none',
   'git:info': [{ arg: 0 }],
   'git:infoBatch': [{ arg: 0, each: true }],

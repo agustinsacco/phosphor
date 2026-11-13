@@ -12,6 +12,7 @@ import { useChatStore } from '@/stores/chat'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { useLayoutStore } from '@/stores/layout'
 import { usePullRequestsStore } from '@/stores/pullRequests'
+import { usePrStatusStore } from '@/stores/prStatus'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { LanePrStatus } from './LanePrStatus'
 
@@ -96,6 +97,7 @@ beforeEach(() => {
   useLayoutStore.setState({ sidebarVisible: false })
   useLanePrefsStore.getState().applyLanePrefs({ prStatus: true })
   usePullRequestsStore.setState({ byRepo: {}, available: true })
+  usePrStatusStore.setState({ byKey: {} })
   useRemoteLanesStore.setState({ hosts: {}, filter: 'local' })
   summaries.mockClear()
   const fake = createFakePhosphor({

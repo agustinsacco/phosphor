@@ -21,6 +21,8 @@ export interface LaneSearchFields {
   title: string
   branch?: string
   pr?: Pick<GhPullRequest, 'number' | 'title'>
+  /** The lane's other pull requests, found by number or title too. */
+  prs?: Pick<GhPullRequest, 'number' | 'title'>[]
 }
 
 /**
@@ -46,7 +48,8 @@ export function laneQueryTerms(raw: string): string[] {
 /** The searchable text for one lane, normalized once per render. */
 export function laneHaystack(fields: LaneSearchFields): string {
   const parts = [fields.title, fields.branch ?? '']
-  if (fields.pr) parts.push(String(fields.pr.number), fields.pr.title)
+  for (const pr of [...(fields.pr ? [fields.pr] : []), ...(fields.prs ?? [])])
+    parts.push(String(pr.number), pr.title)
   return normalize(parts.join(' '))
 }
 
