@@ -143,7 +143,6 @@ Found in a 2026-09-05 workbench review; all still reproduce.
 
 | #   | Issue                                                                                                                              | Where                                                                      |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| R1  | A conflicting PR still classifies as ready/merge, and a PR with no CI reads "checks green"                                         | `libs/client-ui/src/features/home/laneState.ts`                            |
 | R2  | The lane board's "Merge" is a local `--no-ff` merge, not a PR merge, and nothing in the label says so                              | `libs/client-ui/src/features/home/LaneBoard.tsx`, `MergeWorktreeModal.tsx` |
 | R3  | The Changes inventory is tool-call-only: every write is marked created, and counts accumulate rather than reflect                  | `libs/client-ui/src/features/files/collectTouchedFiles.ts`                 |
 | R5  | A failed worktree creation starts in the original checkout with a warning, but no retry or cancel                                  | `libs/client-ui/src/features/sessions/startChat.ts`                        |

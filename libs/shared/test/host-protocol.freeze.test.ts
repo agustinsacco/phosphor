@@ -21,6 +21,7 @@ import {
 import { FILE_METHODS } from '@phosphor/shared/host-protocol-files'
 import { FILE_BYTES_LIMITS, FILE_BYTES_METHOD } from '@phosphor/shared/host-protocol-file-bytes'
 import { ROUTINE_OPS } from '@phosphor/shared/host-protocol-routines'
+import { LANE_PR_WIRE_LIMITS, PR_STATUS_METHODS } from '@phosphor/shared/host-protocol-pr-status'
 import {
   CLIENT_FRAMES,
   HOST_FRAMES,
@@ -339,6 +340,16 @@ describe('Host API constants and op lists', () => {
     ])
     expect(FILE_BYTES_METHOD).toBe('files.readBytes')
     expect(FILE_BYTES_LIMITS).toStrictEqual({ fileBytes: 1073741824, chunkBytes: 1048576 })
+    expect(PR_STATUS_METHODS).toStrictEqual(['github.prSummaries', 'github.prDetail'])
+    expect(LANE_PR_WIRE_LIMITS).toStrictEqual({
+      opened: 20,
+      branches: 20,
+      reviewing: 10,
+      reviewingHere: 10,
+      mentioned: 10,
+      pinned: 20,
+      hidden: 20,
+    })
     expect(LANE_PI_OPS).toStrictEqual([
       'prompt',
       'steer',

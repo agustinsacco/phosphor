@@ -1,5 +1,5 @@
 /** Lane state as the Host protocol carries it: cursors, summaries, snapshots and events. */
-import type { SessionPush } from '../models'
+import type { LanePrSignals, SessionPush } from '../models'
 import type { AgentMessage, ExtensionUIRequest, PiEvent, RpcSessionState } from '../rpc'
 
 /** Last event held, or seq 0 when none. A different `epoch` means take a snapshot. */
@@ -65,6 +65,12 @@ export interface LaneSummary {
   readonly pinned?: true
   /** An explicit marker choice; '' is "no marker" on purpose. Absent: the derived auto marker. */
   readonly marker?: string
+  /**
+   * The PRs the lane's session file and its subagent runs point at, folded on
+   * the Host as This Mac's scan folds them (`LANE_PR_WIRE_LIMITS` bound them).
+   * Absent while unread, when the lane points at none, and from older Hosts.
+   */
+  readonly pullRequests?: LanePrSignals
 }
 
 /** One consistent view of a lane at `(epoch, seq)`; events continue from `seq + 1`. */

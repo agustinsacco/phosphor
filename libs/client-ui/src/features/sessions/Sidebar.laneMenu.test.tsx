@@ -261,7 +261,7 @@ it("shows a lane's PR chip from its main repository's listing, and none for a la
   await act(async () => {})
   const chips = [...container.querySelectorAll('[data-testid=session-row]')].map((row) => [
     row.textContent?.includes('Lane 1') ? 'Lane 1' : 'Lane 2',
-    row.querySelector('[data-testid=session-pr-badge]')?.textContent ?? null,
+    row.querySelector<HTMLElement>('[data-testid=session-pr-badge]')?.dataset.tooltip ?? null,
   ])
   expect(chips).toEqual([
     ['Lane 1', null],

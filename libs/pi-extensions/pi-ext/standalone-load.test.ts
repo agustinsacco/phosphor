@@ -78,6 +78,7 @@ describe('standalone extension registration', () => {
       if (file === 'context-breakdown.ts') {
         expect(registered.commands).toEqual([
           'phosphor-context-budget',
+          'phosphor-prs',
           'phosphor-context-files',
           'phosphor-swarm',
         ])

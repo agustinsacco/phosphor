@@ -89,3 +89,66 @@ export interface GhPrRead {
 export interface GhPrSummaryOptions {
   force?: boolean
 }
+
+/** An unresolved review thread, as the inspector lists it. */
+export interface GhPrThread {
+  path: string
+  line?: number
+  /** The code it commented on has changed since. */
+  outdated: boolean
+  author?: string
+  /** The first comment as plain text, cut to 500 characters. */
+  body: string
+  /** Comments after the first. */
+  replies: number
+  url?: string
+}
+
+/** One line of a check run's output: why it failed, when the run says. */
+export interface GhPrAnnotation {
+  path: string
+  line?: number
+  level: 'failure' | 'warning' | 'notice'
+  message: string
+}
+
+export interface GhPrCheckDetail extends GhPrCheck {
+  workflow?: string
+  startedAt?: string
+  completedAt?: string
+  /** The run's first three annotations. */
+  annotations: GhPrAnnotation[]
+}
+
+export type GhPrEventKind =
+  'review' | 'commit' | 'force-push' | 'requested' | 'ready' | 'merged' | 'closed' | 'reopened'
+
+/** One timeline item: who did what, when. */
+export interface GhPrEvent {
+  kind: GhPrEventKind
+  /** ISO time. */
+  at: string
+  actor?: string
+  /** A review's state: APPROVED, CHANGES_REQUESTED, COMMENTED or DISMISSED. */
+  state?: string
+  /** A commit's headline, or who was asked to review. */
+  text?: string
+}
+
+/** What the inspector shows beyond the summary: read for one PR, while it is open. */
+export interface GhPrDetail {
+  ref: GhPrRef
+  /** Unresolved threads in file order, at most 30. */
+  threads: GhPrThread[]
+  /** There are more unresolved threads than these. */
+  threadsTruncated: boolean
+  /** null when GitHub could not list them. */
+  checks: GhPrCheckDetail[] | null
+  checksTruncated: boolean
+  /** Reviewers whose latest review only commented. */
+  commented: string[]
+  /** The last 20 timeline items, oldest first. */
+  activity: GhPrEvent[]
+  /** When this was read from GitHub. */
+  checkedAt: number
+}

@@ -11,6 +11,7 @@ type ReadyView = Pick<
   | 'laneMarks'
   | 'laneTransfer'
   | 'fileBytes'
+  | 'prStatus'
   | 'capabilities'
 >
 
@@ -25,6 +26,7 @@ export function readyView(frame: Extract<HostFrame, { type: 'ready' }>): ReadyVi
     laneMarks: frame.laneMarks === true,
     laneTransfer: frame.laneTransfer === true,
     fileBytes: frame.fileBytes === true,
+    prStatus: frame.prStatus === true,
     capabilities: [...frame.capabilities],
   }
 }

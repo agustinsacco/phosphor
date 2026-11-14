@@ -12,6 +12,12 @@ import { SKILL_SHARE_MOCK, mockSkillShareInvoke } from './mockSkillShare'
 import { INSTRUCTIONS_MOCK, mockInstructionsInvoke } from './mockInstructions'
 import { SESSION_MAINTENANCE_MOCK, mockSessionMaintenance } from './mockSessionMaintenance'
 import { MOCK_PI_COMMANDS } from './mockPiCommands'
+import {
+  MOCK_LANE_PRS,
+  mockLanePrOverride,
+  mockPrDetail,
+  mockPrSummaries,
+} from './mockPullRequests'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
@@ -26,6 +32,7 @@ import { base64ToBytes, bytesToBase64 } from '@phosphor/shared/base64'
 import type {
   ConnectorAuthPush,
   ConnectorAuthState,
+  GhPrRef,
   SessionPush,
   SessionMeta,
 } from '@shared/models'
@@ -42,7 +49,7 @@ import {
   type WorkspaceSearchRequest,
   type WorkspaceSearchResult,
 } from '@shared/workspace-search'
-import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
+import type { PiEvent, RpcCommand, RpcResponse, RpcSlashCommand } from '@shared/rpc'
 import { DEFAULT_VOICE_PREFS, VOICE_MODELS, type VoiceStatus } from '@shared/voice'
 import fixtureRaw from '../features/chat/__fixtures__/real-session-events.jsonl?raw'
 
@@ -91,6 +98,8 @@ let mockStoredArtifactRemoved = false
 const listeners = new Map<string, Set<(push: SessionPush) => void>>()
 const ptyListeners = new Map<string, Set<(data: string) => void>>()
 let replaying = false
+/** The session file the harness's one live lane was opened from. */
+let mockLanePath: string | undefined
 
 function push(sessionId: string, payload: SessionPush): void {
   for (const listener of listeners.get(sessionId) ?? []) listener(payload)
@@ -415,6 +424,15 @@ const MOCK_DANGEROUS_COMMAND = [
   'sudo /tmp/reset-fixtures.sh && echo regenerated',
 ].join('\n')
 
+/** A live lane's `get_commands`, with the host controls Phosphor checks for. */
+const MOCK_LANE_COMMANDS: RpcSlashCommand[] = [
+  { name: 'session-name', description: 'Set or clear the session name', source: 'extension' },
+  { name: 'phosphor-swarm', description: 'Toggle lane authorization', source: 'extension' },
+  { name: 'phosphor-prs', description: 'Track or hide a lane PR', source: 'extension' },
+  { name: 'fix-tests', description: 'Fix failing tests', source: 'prompt' },
+  { name: 'skill:web-search', description: 'Search the web', source: 'skill' },
+]
+
 function respond(command: RpcCommand): RpcResponse {
   switch (command.type) {
     case 'get_messages':
@@ -450,22 +468,7 @@ function respond(command: RpcCommand): RpcResponse {
         type: 'response',
         command: 'get_commands',
         success: true,
-        data: {
-          commands: [
-            {
-              name: 'session-name',
-              description: 'Set or clear the session name',
-              source: 'extension',
-            },
-            {
-              name: 'phosphor-swarm',
-              description: 'Toggle lane authorization',
-              source: 'extension',
-            },
-            { name: 'fix-tests', description: 'Fix failing tests', source: 'prompt' },
-            { name: 'skill:web-search', description: 'Search the web', source: 'skill' },
-          ],
-        },
+        data: { commands: MOCK_LANE_COMMANDS },
       } as RpcResponse
     case 'get_available_thinking_levels':
       return {
@@ -520,6 +523,7 @@ const MOCK_DISK_SESSIONS: SessionMeta[] = [
   {
     path: '/mock/sessions/a.jsonl',
     sessionId: 'a',
+    pullRequests: MOCK_LANE_PRS.a,
     cwd: '/Users/dev/projects/phosphor',
     createdAt: '2026-08-01T10:00:00.000Z',
     name: 'Refactor auth module',
@@ -542,6 +546,7 @@ const MOCK_DISK_SESSIONS: SessionMeta[] = [
   {
     path: '/mock/sessions/b.jsonl',
     sessionId: 'b',
+    pullRequests: MOCK_LANE_PRS.b,
     cwd: '/Users/dev/projects/phosphor',
     createdAt: '2026-07-28T15:00:00.000Z',
     firstUserText: 'Why is the vite build slow?',
@@ -1097,6 +1102,7 @@ export function installMockPhosphor(): void {
         case 'app:deleteSandbox':
           return Promise.resolve({ ok: true })
         case 'pi:createSession':
+          mockLanePath = (args[0] as { sessionPath?: string } | undefined)?.sessionPath
           // The bundled context-breakdown extension publishes on
           // session_start; mirror that so the meter has data in the harness.
           setTimeout(() => {
@@ -1175,6 +1181,11 @@ export function installMockPhosphor(): void {
           })
         case 'pi:command': {
           const command = args[1] as RpcCommand
+          if (
+            command.type === 'prompt' &&
+            mockLanePrOverride(MOCK_DISK_SESSIONS, mockLanePath, command.message)
+          )
+            return Promise.resolve({ type: 'response', command: 'prompt', success: true })
           if (command.type === 'prompt' && /^\/phosphor-swarm (on|off)$/.test(command.message)) {
             const enabled = command.message.endsWith(' on')
             push(String(args[0]), {
@@ -1904,6 +1915,9 @@ export function installMockPhosphor(): void {
         }
         case 'app:openExternal':
           return Promise.resolve(undefined)
+        case 'app:notify':
+          // A browser tab has no native notification centre: never clicked.
+          return Promise.resolve(false)
         case 'clipboard:readFiles':
           return Promise.resolve(mockFileClipboard)
         case 'clipboard:writeFiles':
@@ -1931,8 +1945,9 @@ export function installMockPhosphor(): void {
         case 'gh:available':
           return Promise.resolve(true)
         case 'gh:prSummaries':
-          // No by-number reads in the harness: chips fall back to branch discovery.
-          return Promise.resolve(null)
+          return mockPrSummaries(args[0] as GhPrRef[])
+        case 'gh:prDetail':
+          return mockPrDetail(args[0] as GhPrRef)
         case 'gh:prForBranch':
           return Promise.resolve({
             number: 42,

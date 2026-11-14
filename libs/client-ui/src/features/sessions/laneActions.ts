@@ -12,7 +12,7 @@ export type LaneActionId =
   | 'makeRoutine'
   | 'pin'
   | 'marker'
-  | 'openPullRequest'
+  | 'pullRequests'
   | 'control'
   | 'stop'
   | 'resume'
@@ -31,7 +31,8 @@ export interface LaneActionContext {
   /** Only local persisted lanes supply a knowledge handler. */
   knowledge?: 'queue' | 'cancel'
   markers: LanePrefs['markers']
-  pr: { number: number; state?: string } | null
+  /** The lane's own PRs, lead first, as the "Pull requests" submenu names them. */
+  prs: LaneActionPr[]
   unseen: boolean
   running: boolean
   /** Undefined where the machine keeps no completion (a Host today). */
@@ -49,11 +50,22 @@ export interface LaneActionContext {
   hints?: Partial<Record<LaneActionId, string>>
 }
 
+/** One of the lane's own PRs in its menu: `#57 · Failing`. */
+export interface LaneActionPr {
+  /** `LanePr.key`, handed back to `openPullRequest`. */
+  key: string
+  label: string
+}
+
 /** A missing handler is how a machine says it lacks the action: the item is not offered. */
 export type LaneActionHandlers = Partial<
-  Record<Exclude<LaneActionId, 'control'>, () => void> & {
+  Record<Exclude<LaneActionId, 'control' | 'pullRequests'>, () => void> & {
     takeControl: () => void
     releaseControl: () => void
+    /** Opens one of `ctx.prs` on GitHub. */
+    openPullRequest: (key: string) => void
+    /** Opens the lane with its PR inspector. */
+    showPullRequests: () => void
   }
 >
 
@@ -83,7 +95,7 @@ export function laneActions(
     const disabled = ctx.busy || refusal !== undefined
     return [{ label, onClick, disabled, hint: refusal ?? hint ?? ctx.hints?.[id] }]
   }
-  const { pr, control, running } = ctx
+  const { control, running } = ctx
   const lane: ContextMenuItem[] = [
     ...offer('open', 'Open', handlers.open),
     ...order,
@@ -107,14 +119,7 @@ export function laneActions(
     ...offer('makeRoutine', 'Make routine…', handlers.makeRoutine),
     ...offer('pin', ctx.pinned ? 'Unpin' : 'Pin', handlers.pin),
     ...(ctx.markers === 'off' ? [] : offer('marker', 'Lane marker…', handlers.marker)),
-    ...(pr
-      ? offer(
-          'openPullRequest',
-          `Open pull request #${pr.number}`,
-          handlers.openPullRequest,
-          pr.state?.toLowerCase(),
-        )
-      : []),
+    ...pullRequests(ctx, handlers, offer),
     ...(!control
       ? []
       : control.self
@@ -138,6 +143,29 @@ export function laneActions(
     danger: true,
   }))
   return [...lane, ...section(copies), ...section(remove)]
+}
+
+/**
+ * The keyboard route to the row's PR beads: a "Pull requests" submenu with
+ * each PR, then the lane's inspector. Where a surface cannot nest, the item
+ * itself opens the inspector, or the lead PR when there is none.
+ */
+function pullRequests(
+  ctx: LaneActionContext,
+  handlers: LaneActionHandlers,
+  offer: (id: LaneActionId, label: string, onClick?: () => void) => ContextMenuItem[],
+): ContextMenuItem[] {
+  const { openPullRequest: open, showPullRequests: show } = handlers
+  const lead = ctx.prs[0]
+  if (!lead || !open) return []
+  const submenu: ContextMenuItem[] = [
+    ...ctx.prs.map((pr) => ({ label: pr.label, onClick: () => open(pr.key) })),
+    ...(show ? [{ label: 'Show pull requests…', onClick: show, separatorAbove: true }] : []),
+  ]
+  return offer('pullRequests', 'Pull requests', show ?? (() => open(lead.key))).map((item) => ({
+    ...item,
+    submenu,
+  }))
 }
 
 /** A section opens with a separator, whichever of its items the machine offers first. */
