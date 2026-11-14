@@ -47,7 +47,7 @@ it('repeats the answer rules after the source, where a long conversation would b
   const after = extractPrompt(window, []).split(window.text)[1]
   expect(after).toMatch(/^\n\nEnd of the segments\./)
   expect(after).toContain('one JSON object')
-  expect(after).toContain('links')
+  expect(after).toContain('add each link')
 })
 it('allows ten minutes and medium thinking for every stage', () => {
   expect(CALL_TIMEOUT_MS).toBe(600000)

@@ -87,7 +87,8 @@ input, so a retry or restart reuses it:
    Missing or invalid parent assessments mean not stated. People are humans, never agents or bots.
    Pull requests, tickets, commits, branches and files are not entities. The model is asked for
    every lasting relationship the conversation shows between a kept claim's entities. A link
-   sits on a claim that mentions both ends, and its quote may come from any segment.
+   sits on a claim that mentions both ends, and its quote may come from any segment. The answer
+   rules are repeated after the conversation, because a long one buries them.
 2. **Fold** (code). Claims with the same text and links merge their quotes; entities with the
    same name merge within the lane. A person merges this way only on a full name.
 3. **Identity.** Each new entity gets up to 12 candidates: the store's exact keys, names and
