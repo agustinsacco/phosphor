@@ -208,3 +208,25 @@ it('offers registry entities and renames links only after each part has its link
   )
   expect(stages).toEqual(['extract', 'links', 'extract', 'links'])
 })
+it('matches a flexible quote in the claim excerpt even when an earlier segment words it alike', async () => {
+  const s = await extract(
+    fixture(),
+    [{ ...link, segment: 's2', quote: 'Rina Okafor  owns Harbor billing.' }],
+    ['Rina Okafor owns\nHarbor billing. Tom Lee asked first.', quote],
+  )
+  expect(s.extraction.claims[0]!.quotes).toMatchObject([{ segment: 's2' }])
+  expect(s.extraction.outcomes ?? []).toEqual([])
+  expect(s.extraction.claims[0]!.links).toMatchObject([{ segment: 's2', quote }])
+})
+it('builds the excerpt around the quoted words, never around the same words inside an elision marker', async () => {
+  const value = fixture()
+  value.claims[0]!.quotes = [{ segment: 's1', quote: '9000 chars omitted' }]
+  const s = await extract(
+    value,
+    [],
+    [`Old notes.[… 9000 chars omitted …] Kestrel said 9000 chars omitted. ${quote}`],
+  )
+  const prompt = linksCall(s)[2] as string
+  expect(prompt).toContain(`[s1]  Kestrel said 9000 chars omitted. ${quote}`)
+  expect(prompt).not.toContain('Old notes.')
+})
