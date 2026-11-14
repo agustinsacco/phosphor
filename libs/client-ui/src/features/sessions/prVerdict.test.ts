@@ -130,6 +130,9 @@ describe('prVerdict', () => {
       prVerdict({ ...counted, checks: { passed: 0, failed: 0, pending: 0, total: 0 } }).tone,
     ).toBe('review')
     expect(prVerdict(counted).headline).toBe('Approved; checks unknown')
+    expect(
+      prStages(summary({ ...approved, checkRuns: [], checks: undefined })).map((s) => s.state),
+    ).toEqual(['done', 'none', 'done', 'wait'])
   })
 
   it('reads branch discovery’s counts without claiming which checks are required', () => {

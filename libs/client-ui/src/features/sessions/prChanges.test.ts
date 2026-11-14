@@ -67,3 +67,21 @@ it('reports conflicts, pushes and changes requested', () => {
   })
   expect(kinds(prChanges(prSummary(), after))).toEqual(['changes-requested', 'conflict', 'pushed'])
 })
+
+it('says nothing about checks when the earlier read had none (GitHub fallback)', () => {
+  const before = prSummary({ checkRuns: null, checks: null })
+  const after = prSummary({ checkRuns: [prCheck('build', 'failure', true)] })
+  expect(kinds(prChanges(before, after))).not.toContain('checks-failed')
+})
+
+it('never calls a PR with no CI ready to merge', () => {
+  const before = prSummary({ checkRuns: [], reviewDecision: 'REVIEW_REQUIRED' })
+  const after = prSummary({
+    checkRuns: [],
+    checks: { passed: 0, failed: 0, pending: 0, total: 0 },
+    reviewDecision: 'APPROVED',
+    mergeStateStatus: 'CLEAN',
+    waitingOn: [],
+  })
+  expect(kinds(prChanges(before, after))).not.toContain('ready-to-merge')
+})

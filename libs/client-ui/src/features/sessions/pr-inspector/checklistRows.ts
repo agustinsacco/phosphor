@@ -1,6 +1,6 @@
 import type { GhPrDetail, GhPrSummary } from '@shared/models'
 import type { PrHandoff } from '../prHandoff'
-import { checkFacts, mergeBlock } from '../prVerdict'
+import { checkFacts, checksRan, mergeBlock } from '../prVerdict'
 import { groupChecks, inspectorChecks, type CheckGroups } from './checkGroups'
 
 /**
@@ -163,6 +163,7 @@ function mergeRow(pr: GhPrSummary): ChecklistRow {
   if (block) return { ...row, tone: 'wait', text: `Blocked: ${block}` }
   if (!checkFacts(pr).known)
     return { ...row, tone: 'wait', text: 'Checks unknown: confirm on GitHub' }
+  if (!checksRan(pr)) return { ...row, tone: 'wait', text: 'No checks reported: confirm on GitHub' }
   if (pr.inMergeQueue) return { ...row, tone: 'ok', text: 'In the merge queue' }
   if (pr.autoMerge) return { ...row, tone: 'ok', text: 'Auto-merge is on' }
   return {

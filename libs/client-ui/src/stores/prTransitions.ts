@@ -40,6 +40,20 @@ function answered(entry: PrStatusEntry | undefined): GhPrSummary | undefined {
   return entry.summary
 }
 
+/**
+ * A read GitHub answered without checks (too costly or slow) keeps the last
+ * known checks, so the next full read is compared with real ones, not nothing.
+ */
+function withKnownChecks(summary: GhPrSummary, before: GhPrSummary | undefined): GhPrSummary {
+  if (summary.checkRuns || summary.checks || !before) return summary
+  return {
+    ...summary,
+    checkRuns: before.checkRuns,
+    checks: before.checks,
+    checksTruncated: before.checksTruncated,
+  }
+}
+
 /** Each PR just read, against its last answer. Moves the baselines it reads. */
 export function readPrTransitions(
   baselines: Map<GhPrKey, GhPrSummary>,
@@ -52,7 +66,7 @@ export function readPrTransitions(
     const summary = answered(entry)
     if (!summary) continue
     const before = baselines.get(key)
-    baselines.set(key, summary)
+    baselines.set(key, withKnownChecks(summary, before))
     if (!before || before === summary) continue
     const changes = prChanges(before, summary).filter((change) => change.important)
     if (changes.length) out.push({ key, summary, changes })

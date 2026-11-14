@@ -146,6 +146,17 @@ it('ignores reads that did not answer, and keeps the baseline across them', () =
   expect(items().map((item) => item.title)).toEqual(['#57 unit failed'])
 })
 
+it('keeps known checks across a read GitHub answered without them', () => {
+  const noChecks = { ...failing(green(57), 'unit'), checkRuns: null, checks: null }
+  answer(failing(green(57), 'unit'))
+  answer(noChecks)
+  answer(failing(green(57), 'unit'))
+  expect(items()).toHaveLength(0)
+  answer(noChecks)
+  answer(failing(failing(green(57), 'unit'), 'build'))
+  expect(items().map((item) => item.title)).toEqual(['#57 build failed'])
+})
+
 it('stays quiet with PR status off, without replaying it when turned back on', () => {
   useLanePrefsStore.getState().applyLanePrefs({ prStatus: false })
   answer(green(57))

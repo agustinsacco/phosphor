@@ -14,6 +14,7 @@ const SEGMENT: Record<StageState, string> = {
   run: 'pr-rail-run',
   part: 'pr-rail-part',
   wait: 'bg-border-strong',
+  none: 'bg-border-strong',
   unknown: 'bg-border-strong',
   ready: 'bg-success opacity-55',
 }
@@ -24,6 +25,7 @@ const BAR: Record<StageState, string> = {
   run: 'border-warning pr-lrail-run',
   part: 'pr-lrail-part',
   wait: 'border-border-strong',
+  none: 'border-border-strong',
   unknown: 'border-border-strong',
   ready: 'border-success/55',
 }

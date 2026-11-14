@@ -320,9 +320,13 @@ for (failed checks, an approval, requested changes, a conflict, ready to merge,
 merged or closed), Phosphor says so once per PR: a toast, an entry in the
 notification drawer, and, while Phosphor is not the focused app, a native
 notification. The first status read after launch is only a baseline, and a read
-that failed says nothing. Each notice names the PR and its newest change, the
+that failed says nothing. A read GitHub answered without checks (too costly or
+slow) keeps the last known checks, so the next full read never reports old
+failures as new; a PR with no CI is never "ready to merge". Each notice names the PR and its newest change, the
 lane and `repo#n`, and lists everything that changed since you last looked.
-**Open lane** opens the lane with its inspector on that PR. A second button
+**Open lane** opens the lane with its inspector on that PR (a request the
+lane's pill has not answered within 15 seconds lapses, so an inspector never
+pops open later on its own). A second button
 drafts the fitting hand-off for the agent (fix the checks, address the changes,
 update the branch) or opens a ready PR on GitHub. The wording comes from
 `prChanges.ts`, the same as the inspector's "Since you looked" line. Turning off
@@ -376,7 +380,8 @@ pill is a real tab stop, unlike the sidebar's beads.
 The pill leads with the PR that needs you most: its number (prefixed with the
 repository when it is not the lane's own), then a four-segment **stage rail**
 (Opened, Checks, Review, Merge from `prStages`), then `+N` for the lane's other
-PRs. Its tone is the lead's `prVerdict` tone, so it agrees with the beads, the
+PRs. No CI is not green CI: a PR with no checks shows Checks as "none reported"
+and Merge as waiting. Its tone is the lead's `prVerdict` tone, so it agrees with the beads, the
 inspector and Home. A running stage is a drifting warning dash that stands
 still under reduced motion. Its accessible name and tooltip say the same in
 words, for example "Pull request #57: Rocky review failed (not required). 1
@@ -411,7 +416,8 @@ moves it; only the tab panel scrolls.
   help, a button. A merged PR shows who merged it and when instead. Checks list
   failing, then running, then required passing checks (`checkGroups.ts`); the
   rest fold behind "+N passing" and skipped checks are one line. A truncated or
-  unknown list says so and never reads as green.
+  unknown list says so and never reads as green, and the Merge row of a PR with
+  no checks says to confirm on GitHub.
 
 Phosphor stays read-only on GitHub. A checklist or Threads button (Fix, Nudge,
 Address, Update) drafts `prHandoff`'s text into the lane's composer, focuses

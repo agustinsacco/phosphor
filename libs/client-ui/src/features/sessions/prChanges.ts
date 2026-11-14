@@ -1,5 +1,5 @@
 import type { GhPrSummary } from '@shared/models'
-import { checkFacts, mergeBlock } from './prVerdict'
+import { checkFacts, checksRan, mergeBlock } from './prVerdict'
 
 /**
  * What changed on one PR between two reads, in words. The inspector's
@@ -54,7 +54,8 @@ function stateChanges(before: GhPrSummary, after: GhPrSummary): PrChange[] {
 function checkChanges(before: GhPrSummary, after: GhPrSummary): PrChange[] {
   const was = checkFacts(before)
   const now = checkFacts(after)
-  if (!now.known) return []
+  // A side without check data (GitHub's no-checks fallback) can't say what changed.
+  if (!was.known || !now.known) return []
   const failedBefore = new Set(was.failing.map((c) => c.name))
   const fresh = now.failing.filter((c) => !failedBefore.has(c.name))
   if (fresh.length || (now.failed > was.failed && !now.failing.length)) {
@@ -146,7 +147,7 @@ export function prChanges(before: GhPrSummary, after: GhPrSummary): PrChange[] {
     ...reviewChanges(before, after),
     ...branchChanges(before, after),
   ]
-  if (after.state === 'OPEN' && mergeBlock(before) && !mergeBlock(after))
+  if (after.state === 'OPEN' && mergeBlock(before) && !mergeBlock(after) && checksRan(after))
     out.unshift({
       kind: 'ready-to-merge',
       text: 'Ready to merge',
