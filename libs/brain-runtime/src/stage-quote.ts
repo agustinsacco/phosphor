@@ -15,22 +15,33 @@ export function verifiedQuote(value: unknown, window: TranscriptWindow): StageQu
   if (spans[cited]?.some((span) => span.includes(quote))) return { segment, quote }
   const exact = spans.findIndex((parts) => parts.some((span) => span.includes(quote)))
   if (exact >= 0) return { segment: `s${exact + 1}`, quote }
-  const pattern = new RegExp(
-    quote
-      .split(/(\s+)/)
-      .map((part) => {
-        if (/^\s+$/.test(part)) return '\\s+'
-        return part
-          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          .replace(/["“”]/g, '["“”]')
-          .replace(/['‘’]/g, "['‘’]")
-      })
-      .join(''),
-  )
+  const wanted = folded(quote.trim()).text
   for (let i = 0; i < spans.length; i++)
     for (const span of spans[i]!) {
-      const match = pattern.exec(span)
-      if (match) return { segment: `s${i + 1}`, quote: match[0] }
+      const source = folded(span)
+      const at = source.text.indexOf(wanted)
+      if (at >= 0)
+        return {
+          segment: `s${i + 1}`,
+          quote: span.slice(source.offsets[at], source.offsets[at + wanted.length - 1]! + 1),
+        }
     }
   throw new Error(`Quote not found in ${segment}: ${quote.slice(0, 100)}`)
+}
+
+/**
+ * One space per whitespace run and straight quotation marks, with the source offset of every
+ * folded character. A plain search over this is linear; a pattern built from the quote was not.
+ */
+function folded(text: string): { text: string; offsets: number[] } {
+  const out: string[] = [],
+    offsets: number[] = []
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!
+    const space = /\s/.test(char)
+    if (space && out.at(-1) === ' ') continue
+    out.push(space ? ' ' : '“”'.includes(char) ? '"' : '‘’'.includes(char) ? "'" : char)
+    offsets.push(i)
+  }
+  return { text: out.join(''), offsets }
 }

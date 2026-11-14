@@ -170,6 +170,10 @@ it.each(['identity', 'reconcile'] as const)(
     await expect(retry(stage, 1, 'row 2', (a) => a)).resolves.toBe('second')
     expect(s.runner).toHaveBeenCalledTimes(2)
     expect(s.store.extraction(s.job.id).calls.map((c) => c.part)).toEqual([1, 2])
+    // A store that moved on makes the same prompt a new question.
+    s.store.rev++
+    await expect(retry(stage, 1, 'rows 1 and 2', (a) => a)).resolves.toBe('second')
+    expect(s.runner).toHaveBeenCalledTimes(3)
   },
 )
 it('keeps the repaired answer for a repeated prompt, never the rejected one', async () => {

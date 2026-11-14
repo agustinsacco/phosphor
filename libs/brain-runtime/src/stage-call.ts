@@ -133,9 +133,22 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
     }
   }
   return async (stage, _part, prompt, validate, entryIds = [], metadata: StageInput = {}) => {
+    // Extraction checkpoints its own parsed parts; these two stages keep the accepted answer, so
+    // a Retry never asks again for decisions it already has. A changed prompt is a new question,
+    // and so is the same prompt once the store has moved on.
+    const hash = inputHash(prompt)
+    const key = stage === 'extract' ? null : `answer:${stage}:${hash}`
+    const against = `${store.revision()}:${hash}`
+    const accept = <T>(answer: string, value: T): T => {
+      if (key && scrubExcerpt(answer) === answer)
+        store.savePart(job.id, { part: key, inputHash: against, output: answer })
+      return value
+    }
+    const accepted = key && store.part(job.id, key, against)
+    if (accepted) return validate(accepted.output)
     const { answer, part } = await run(stage, prompt, SYSTEM[stage], entryIds, metadata)
     try {
-      return validate(answer)
+      return accept(answer, validate(answer))
     } catch (error) {
       const message = scrubExcerpt(error instanceof Error ? error.message : String(error))
       record.rejected(stage, part, message)
@@ -147,7 +160,7 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
         error: message,
       })
       try {
-        return validate(corrected.answer)
+        return accept(corrected.answer, validate(corrected.answer))
       } catch (second) {
         record.rejected(
           'repair',
