@@ -138,8 +138,31 @@ class MockBrain {
           trace: null,
           error: null,
         },
+        {
+          stage: 'links',
+          part: 1,
+          entryIds: ['s1'],
+          inputHash: 'demo-links-hash',
+          answer: JSON.stringify({
+            links: [
+              {
+                claim: 'c1',
+                subject: 'ledger',
+                predicate: 'for_customer',
+                object: 'harbor',
+                segment: 's1',
+                quote: 'Harbor Ledger is built for Harbor.',
+              },
+            ],
+          }),
+          trace: null,
+          error: null,
+        },
       ],
-      prompts: ['Extract supported links from this invented Harbor planning window.'],
+      prompts: [
+        'Extract supported claims from this invented Harbor planning window.',
+        'Find lasting relationships in the kept Harbor claims and their excerpts.',
+      ],
       outcomes: [
         {
           candidate: 'w1:c1',

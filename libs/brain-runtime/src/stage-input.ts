@@ -1,6 +1,7 @@
 import type { TranscriptSegment } from '@phosphor/memory-engine/types'
-import type { StageInput } from './stage-types'
+import type { SegmentInput, StageInput } from './stage-types'
 import { extractPrompt } from './stage-prompts/extract'
+import { linksPrompt } from './stage-prompts/links'
 import { identityPrompt } from './stage-prompts/identity'
 import { reconcilePrompt } from './stage-prompts/reconcile'
 import { makeWindow } from './windows'
@@ -27,12 +28,18 @@ export function rebuildPrompt(
   input: StageInput,
   source: TranscriptSegment[],
 ): string {
-  const selected = (input.segments ?? []).map((s) => {
-    const segment = source[s.index]
-    if (!segment || segment.entryId !== s.entryId || s.end > segment.text.length)
-      throw new Error('Source segment unavailable')
-    return { ...segment, text: segment.text.slice(s.start, s.end) }
-  })
+  const selected = (input.segments ?? []).map((s) => sourceSegment(s, source))
+  if (stage === 'links' && input.links)
+    return linksPrompt(
+      input.links.entities,
+      input.links.rows.map((row) => ({
+        ...row,
+        excerpts: row.excerpts.map((s) => ({
+          segment: s.segment,
+          text: sourceSegment(s, source).text,
+        })),
+      })),
+    )
   if (stage === 'extract')
     return extractPrompt(
       makeWindow(selected),
@@ -44,4 +51,17 @@ export function rebuildPrompt(
   if (stage === 'identity') return identityPrompt(input.rows ?? [])
   if (stage === 'reconcile') return reconcilePrompt(input.rows ?? [])
   throw new Error('Unknown stage input')
+}
+
+function sourceSegment(s: SegmentInput, source: TranscriptSegment[]): TranscriptSegment {
+  const segment = source[s.index]
+  if (
+    !segment ||
+    segment.entryId !== s.entryId ||
+    s.start < 0 ||
+    s.end < s.start ||
+    s.end > segment.text.length
+  )
+    throw new Error('Source segment unavailable')
+  return { ...segment, text: segment.text.slice(s.start, s.end) }
 }

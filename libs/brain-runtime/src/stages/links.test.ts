@@ -116,7 +116,7 @@ it.each([
     { segment: 's1', quote: 'Tom Lee owns Ledger.' },
     "Link quote is not from this claim's excerpts",
   ],
-  ['sensitive invalid value', { predicate: 'Bearer harbor-secret' }, '[REDACTED]'],
+  ['sensitive invalid value', { predicate: 'Bearer harbor-secret' }, '[redacted]'],
 ] as const)('drops %s alone and records a scrubbed outcome', async (_name, patch, reason) => {
   const value = fixture()
   value.entities.push({ ...value.entities[1]!, ref: 'n3', label: 'Ledger' })

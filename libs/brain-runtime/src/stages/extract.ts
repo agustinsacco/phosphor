@@ -6,6 +6,7 @@ import type { TranscriptSegment } from '@phosphor/memory-engine/types'
 import { inputHash } from '../windows'
 import { extractPrompt } from '../stage-prompts/extract'
 import { wholePhrase } from '@phosphor/memory-engine/text'
+import { addLinks } from './links'
 import { parseStageExtraction } from '../stage-parse'
 
 export async function extractWindows(
@@ -55,35 +56,45 @@ export async function extractWindows(
         )
     if (!saved)
       store.savePart(jobId, { part: key, inputHash: hash, output: JSON.stringify(extraction) })
-    // Registry handles map back to the prior job refs; all new refs become window-local.
-    const redirects = new Map(offered.map((e, i) => [e.ref, selected[i]!.ref]))
-    for (const e of extraction.entities) redirects.set(e.ref, `${key}:${e.ref}`)
-    const resolve = (id: string): string => redirects.get(id) ?? id
-    const renamed: StageExtraction = {
-      outcomes: extraction.outcomes?.map((o) => ({
-        ...o,
-        candidate: redirects.has(o.candidate) ? resolve(o.candidate) : `${key}:${o.candidate}`,
-      })),
-      entities: extraction.entities.map((e) => ({ ...e, ref: resolve(e.ref) })),
-      claims: extraction.claims.map((c) => ({
-        ...c,
-        ref: `${key}:${c.ref}`,
-        mentions: c.mentions.map(resolve),
-        links: c.links.map((l) => ({
-          ...l,
-          subject: resolve(l.subject),
-          object: resolve(l.object),
-        })),
-      })),
-      parents: extraction.parents.map((p) => ({
-        ...p,
-        entity: resolve(p.entity),
-        claim: p.claim ? `${key}:${p.claim}` : null,
-      })),
-    }
+    const linked = await addLinks(jobId, key, extraction, offered, window, source, store, ask)
+    const renamed = renameExtraction(linked, key, offered, selected)
     registry.push(...renamed.entities)
     output.push({ key, window, extraction: renamed })
     progress(output.length, output.length + pending.length)
   }
   return output
+}
+
+function renameExtraction(
+  extraction: StageExtraction,
+  key: string,
+  offered: Registry,
+  selected: Registry,
+): StageExtraction {
+  // Registry handles map back to the prior job refs; all new refs become window-local.
+  const redirects = new Map(offered.map((e, i) => [e.ref, selected[i]!.ref]))
+  for (const e of extraction.entities) redirects.set(e.ref, `${key}:${e.ref}`)
+  const resolve = (id: string): string => redirects.get(id) ?? id
+  return {
+    outcomes: extraction.outcomes?.map((o) => ({
+      ...o,
+      candidate: redirects.has(o.candidate) ? resolve(o.candidate) : `${key}:${o.candidate}`,
+    })),
+    entities: extraction.entities.map((e) => ({ ...e, ref: resolve(e.ref) })),
+    claims: extraction.claims.map((c) => ({
+      ...c,
+      ref: `${key}:${c.ref}`,
+      mentions: c.mentions.map(resolve),
+      links: c.links.map((l) => ({
+        ...l,
+        subject: resolve(l.subject),
+        object: resolve(l.object),
+      })),
+    })),
+    parents: extraction.parents.map((p) => ({
+      ...p,
+      entity: resolve(p.entity),
+      claim: p.claim ? `${key}:${p.claim}` : null,
+    })),
+  }
 }

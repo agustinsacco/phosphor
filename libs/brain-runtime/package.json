@@ -112,6 +112,14 @@
       "types": "./src/stage-input.ts",
       "default": "./src/stage-input.ts"
     },
+    "./stage-links-input": {
+      "types": "./src/stage-links-input.ts",
+      "default": "./src/stage-links-input.ts"
+    },
+    "./stage-links-parse": {
+      "types": "./src/stage-links-parse.ts",
+      "default": "./src/stage-links-parse.ts"
+    },
     "./stage-parse": {
       "types": "./src/stage-parse.ts",
       "default": "./src/stage-parse.ts"
@@ -127,6 +135,14 @@
     "./stage-prompts/identity": {
       "types": "./src/stage-prompts/identity.ts",
       "default": "./src/stage-prompts/identity.ts"
+    },
+    "./stage-prompts/link-rules": {
+      "types": "./src/stage-prompts/link-rules.ts",
+      "default": "./src/stage-prompts/link-rules.ts"
+    },
+    "./stage-prompts/links": {
+      "types": "./src/stage-prompts/links.ts",
+      "default": "./src/stage-prompts/links.ts"
     },
     "./stage-prompts/reconcile": {
       "types": "./src/stage-prompts/reconcile.ts",
@@ -159,6 +175,10 @@
     "./stages/identity": {
       "types": "./src/stages/identity.ts",
       "default": "./src/stages/identity.ts"
+    },
+    "./stages/links": {
+      "types": "./src/stages/links.ts",
+      "default": "./src/stages/links.ts"
     },
     "./stages/reconcile": {
       "types": "./src/stages/reconcile.ts",

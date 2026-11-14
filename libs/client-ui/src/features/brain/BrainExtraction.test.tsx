@@ -35,6 +35,15 @@ function extractionView(): BrainExtractionView {
         error: null,
       },
       {
+        stage: 'links',
+        part: 1,
+        entryIds: ['entry-1'],
+        inputHash: 'links-hash',
+        answer: '{ "links": [] }',
+        trace: null,
+        error: null,
+      },
+      {
         stage: 'reconcile',
         part: 1,
         entryIds: [],
@@ -44,7 +53,11 @@ function extractionView(): BrainExtractionView {
         error: null,
       },
     ],
-    prompts: ['Read the invented Harbor window.', 'Compare the invented claims.'],
+    prompts: [
+      'Read the invented Harbor window.',
+      'Find relationships in the kept claims.',
+      'Compare the invented claims.',
+    ],
     outcomes: [
       {
         candidate: 'w1:c2',
@@ -88,6 +101,8 @@ it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link re
     const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')!
     await act(async () => retry.click())
     expect(container.textContent).toContain('extract · part 1')
+    expect(container.textContent).toContain('links · part 1')
+    expect(container.textContent).toContain('Find relationships in the kept claims.')
     expect(container.textContent).toContain('reconcile · part 1')
     expect(container.textContent).toContain('Read the invented Harbor window.')
     expect(container.textContent).toContain('Compare the invented claims.')

@@ -58,7 +58,7 @@ export interface ExtractedPart {
 }
 export type Registry = StageEntity[]
 export type StageAsk = <T>(
-  stage: 'extract' | 'identity' | 'reconcile',
+  stage: 'extract' | 'links' | 'identity' | 'reconcile',
   part: number,
   prompt: string,
   validate: (answer: string) => T,
@@ -76,7 +76,26 @@ export interface SegmentInput {
   start: number
   end: number
 }
+export type LinkEntity = Pick<StageEntity, 'ref' | 'kind' | 'label' | 'description'>
+export interface LinkRow {
+  ref: string
+  text: string
+  mentions: string[]
+  links: StageLink[]
+  excerpts: { segment: string; text: string }[]
+}
+export interface LinksInput {
+  entities: LinkEntity[]
+  rows: (Omit<LinkRow, 'excerpts'> & {
+    excerpts: (SegmentInput & { segment: string })[]
+  })[]
+}
+export interface StageLinks {
+  links: (StageLink & { claim: string })[]
+  outcomes: BrainExtractionOutcome[]
+}
 export interface StageInput {
+  links?: LinksInput
   part?: number
   total?: number
   kept?: string[]

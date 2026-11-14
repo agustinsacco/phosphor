@@ -30,7 +30,7 @@ it('rebuilds exact per-call prompts on demand at the frozen leaf; missing inputs
   await unlink(s.file)
   const missing = await extractionView(s.store, s.job.id)
   expect(missing.source.exists).toBe(false)
-  expect(missing.calls).toHaveLength(2)
+  expect(missing.calls).toHaveLength(3)
 })
 it('follows recorded ancestry, excluding abandoned branches and guarding cycles', () => {
   const entries = [
@@ -101,6 +101,12 @@ it('rebuilds both repair attempts from the original answer after a provider retr
   await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
   expect(s.store.job(s.job.id)?.state).toBe('review')
   const view = await extractionView(s.store, s.job.id)
-  expect(view.calls.map((c) => c.stage)).toEqual(['extract', 'repair', 'repair', 'identity'])
+  expect(view.calls.map((c) => c.stage)).toEqual([
+    'extract',
+    'repair',
+    'repair',
+    'links',
+    'identity',
+  ])
   expect(view.prompts).toEqual(s.runner.mock.calls.map(([call]) => call.prompt))
 })
