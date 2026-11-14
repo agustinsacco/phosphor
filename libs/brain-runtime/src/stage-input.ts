@@ -33,7 +33,14 @@ export function rebuildPrompt(
       throw new Error('Source segment unavailable')
     return { ...segment, text: segment.text.slice(s.start, s.end) }
   })
-  if (stage === 'extract') return extractPrompt(makeWindow(selected), input.registry ?? [], input.part, input.total, input.kept)
+  if (stage === 'extract')
+    return extractPrompt(
+      makeWindow(selected),
+      input.registry ?? [],
+      input.part,
+      input.total,
+      input.kept,
+    )
   if (stage === 'identity') return identityPrompt(input.rows ?? [])
   if (stage === 'reconcile') return reconcilePrompt(input.rows ?? [])
   throw new Error('Unknown stage input')

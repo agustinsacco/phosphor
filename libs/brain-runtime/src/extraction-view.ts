@@ -32,10 +32,10 @@ export async function extractionView(
   source.segments = segments
     .slice(-300)
     .map((s) => ({ ...s, text: scrubExcerpt(s.text).slice(0, 4000) }))
-  const prompts = record.calls.map((call, index) => {
+  const prompts = record.calls.map((call) => {
     if (!source.exists) return UNAVAILABLE
     try {
-      const prompt = promptFor(store, jobId, call, segments, record.calls[index - 1])
+      const prompt = promptFor(store, jobId, call, segments, record.calls)
       return inputHash(prompt) === call.inputHash ? prompt : UNAVAILABLE
     } catch {
       return UNAVAILABLE
@@ -48,7 +48,7 @@ function promptFor(
   jobId: string,
   call: BrainExtractionCall,
   source: TranscriptSegment[],
-  previous: BrainExtractionCall | undefined,
+  calls: BrainExtractionCall[],
 ): string {
   const saved = store.part(jobId, `input:${call.stage}:${call.part}`, call.inputHash)
   if (!saved) return UNAVAILABLE
@@ -61,6 +61,7 @@ function promptFor(
     error: string
   }
   const original = store.part(jobId, `input:${repair.stage}:${repair.part}`, repair.hash)
+  const previous = calls.find((c) => c.stage === repair.stage && c.part === repair.part)
   if (!original || !previous) return UNAVAILABLE
   return repairPrompt(
     rebuildPrompt(repair.stage, JSON.parse(original.output) as StageInput, source),

@@ -122,5 +122,12 @@ it('prints window and matching progress in the inbox', () => {
   ).toBe('Matching entities 1 of 2')
 })
 it('omits part counts for a single-part stage', () => {
-  for (const done of [0, 1]) expect(jobLine(mockBrainJob({ state: 'running', progress: { stage: 'extract', done, total: 1 } }), 0, 0)).toBe('Reading the conversation')
+  for (const done of [0, 1])
+    expect(
+      jobLine(
+        mockBrainJob({ state: 'running', progress: { stage: 'extract', done, total: 1 } }),
+        0,
+        0,
+      ),
+    ).toBe('Reading the conversation')
 })

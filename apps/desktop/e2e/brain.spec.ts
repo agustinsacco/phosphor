@@ -25,7 +25,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
   try {
     await enableBrain(page, seed.harbor)
     await queueLane(page, seed.harbor)
-    await expect(inbox(page, seed.harbor).getByText(/Reading window \d+ of \d+/)).toBeVisible()
+    await expect(inbox(page, seed.harbor).getByText('Reading the conversation')).toBeVisible()
     await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
     expect((await status(page)).counts).toEqual({ memories: 0, entities: 0 })
     const firstJob = await approveLane(page, seed.harbor)
@@ -42,7 +42,9 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
       (job) => job.sessionPath === seed.ledger.source,
     )!
     expect(failedJob.state).toBe('failed')
-    expect(await readFile(join(seed.failureDirectory, 'failed-once'), 'utf8')).toBe('extract\n')
+    expect(await readFile(join(seed.failureDirectory, 'failed-attempt-2'), 'utf8')).toBe(
+      'extract\n',
+    )
     await inbox(page, seed.ledger).getByRole('button', { name: 'Retry', exact: true }).click()
     expect(await approveLane(page, seed.ledger)).toBe(failedJob.id)
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 4, entities: 5 })
@@ -87,12 +89,7 @@ async function directedGraph(page: Page, firstJob: string) {
     (id) => window.phosphor.invoke('brain:extraction', id),
     firstJob,
   )
-  expect(extraction.calls.map((call) => call.stage)).toEqual([
-    'extract',
-    'identity',
-    'parents',
-    'reconcile',
-  ])
+  expect(extraction.calls.map((call) => call.stage)).toEqual(['extract', 'identity', 'reconcile'])
   const graph = await page.evaluate(() => window.phosphor.invoke('brain:overview'))
   const harbor = graph.nodes.find((e) => e.label === 'Harbor')!
   const rina = graph.nodes.find((e) => e.label === 'Rina Okafor')!

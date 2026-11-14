@@ -15,11 +15,18 @@ export function verifiedQuote(value: unknown, window: TranscriptWindow): StageQu
   if (spans[cited]?.some((span) => span.includes(quote))) return { segment, quote }
   const exact = spans.findIndex((parts) => parts.some((span) => span.includes(quote)))
   if (exact >= 0) return { segment: `s${exact + 1}`, quote }
-  const pattern = new RegExp(quote.split(/(\s+)/).map((part) => {
-    if (/^\s+$/.test(part)) return '\\s+'
-    return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/["“”]/g, '["“”]').replace(/['‘’]/g, "['‘’]")
-  }).join(''))
+  const pattern = new RegExp(
+    quote
+      .split(/(\s+)/)
+      .map((part) => {
+        if (/^\s+$/.test(part)) return '\\s+'
+        return part
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          .replace(/["“”]/g, '["“”]')
+          .replace(/['‘’]/g, "['‘’]")
+      })
+      .join(''),
+  )
   for (let i = 0; i < spans.length; i++)
     for (const span of spans[i]!) {
       const match = pattern.exec(span)

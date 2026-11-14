@@ -12,7 +12,7 @@ import { IDENTITY_SYSTEM } from './stage-prompts/identity'
 import { RECONCILE_SYSTEM } from './stage-prompts/reconcile'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { callThinking } from './call-trace'
-import { ANSWER_BYTES } from './constants'
+import { setTimeout as delay } from 'node:timers/promises'
 
 const SYSTEM = {
   extract: EXTRACTION_SYSTEM,
@@ -96,36 +96,58 @@ async function callExecutor(context: CallContext) {
 }
 
 export async function stageCaller(context: CallContext): Promise<StageAsk> {
-  const { job, store, record } = context
+  const { job, store, record, signal, options } = context
   const execute = await callExecutor(context)
   const nextPart = (stage: BrainExtractionCall['stage']): number =>
     Math.max(0, ...record.record.calls.filter((c) => c.stage === stage).map((c) => c.part)) + 1
+  const run = async (
+    stage: BrainExtractionCall['stage'],
+    prompt: string,
+    system: string,
+    entryIds: string[],
+    metadata: unknown,
+  ): Promise<{ answer: string; part: number }> => {
+    for (let attempt = 0; ; attempt++) {
+      signal.throwIfAborted()
+      const part = nextPart(stage)
+      store.savePart(job.id, {
+        part: `input:${stage}:${part}`,
+        inputHash: inputHash(prompt),
+        output: scrubExcerpt(JSON.stringify(metadata)),
+      })
+      try {
+        return { answer: await execute(stage, part, prompt, system, entryIds), part }
+      } catch (error) {
+        const reason = record.record.calls.at(-1)?.trace?.reason
+        if (attempt || (reason !== 'error' && reason !== 'no-text')) throw error
+        signal.throwIfAborted()
+        await (options.retryDelay ?? ((ms, signal) => delay(ms, undefined, { signal })))(
+          2000,
+          signal,
+        )
+      }
+    }
+  }
   return async (stage, _part, prompt, validate, entryIds = [], metadata: StageInput = {}) => {
-    const part = nextPart(stage)
-    const hash = inputHash(prompt),
-      encoded = scrubExcerpt(JSON.stringify(metadata))
-    if (Buffer.byteLength(encoded) <= ANSWER_BYTES)
-      store.savePart(job.id, { part: `input:${stage}:${part}`, inputHash: hash, output: encoded })
-    const answer = await execute(stage, part, prompt, SYSTEM[stage], entryIds)
+    const { answer, part } = await run(stage, prompt, SYSTEM[stage], entryIds, metadata)
     try {
       return validate(answer)
     } catch (error) {
       const message = scrubExcerpt(error instanceof Error ? error.message : String(error))
       record.rejected(stage, part, message)
       const repair = repairPrompt(prompt, answer, message)
-      const repairPart = nextPart('repair')
-      store.savePart(job.id, {
-        part: `input:repair:${repairPart}`,
-        inputHash: inputHash(repair),
-        output: JSON.stringify({ stage, part, hash, error: message }),
+      const corrected = await run('repair', repair, SYSTEM[stage], entryIds, {
+        stage,
+        part,
+        hash: inputHash(prompt),
+        error: message,
       })
-      const corrected = await execute('repair', repairPart, repair, SYSTEM[stage], entryIds)
       try {
-        return validate(corrected)
+        return validate(corrected.answer)
       } catch (second) {
         record.rejected(
           'repair',
-          repairPart,
+          corrected.part,
           scrubExcerpt(second instanceof Error ? second.message : String(second)),
         )
         throw new Error(

@@ -8,9 +8,10 @@ import type {
 } from '@phosphor/memory-engine/types'
 import type { StageAsk } from '../stage-types'
 import type { BrainSearchPort } from '../types'
-import { array, object, jsonAnswer, text } from '../stage-parse'
+import { validDecisions, object, text } from '../stage-parse'
 import { reconcilePrompt } from '../stage-prompts/reconcile'
 import { type FoldedJob, type FoldedClaim, linkKey } from './fold'
+import { cosine } from '@phosphor/memory-engine/vectors'
 import { fold } from '@phosphor/memory-engine/text'
 
 interface Card {
@@ -58,7 +59,7 @@ function same(memory: ProposalMemory, other: Card): boolean {
   return fold(memory.summary) === fold(other.summary) && linkKey(memory) === linkKey(other)
 }
 function decisions(answer: string, rows: Row[]) {
-  const items = array(jsonAnswer(answer).decisions).map((v) => {
+  return validDecisions(answer, (v) => {
     const d = object(v),
       ref = text(d.ref),
       row = rows.find((r) => r.claim.ref === ref)
@@ -82,9 +83,6 @@ function decisions(answer: string, rows: Row[]) {
       reason: text(d.reason),
     }
   })
-  if (items.length !== rows.length || new Set(items.map((d) => d.ref)).size !== rows.length)
-    throw new Error('Expected one reconciliation decision per claim')
-  return items
 }
 export async function reconcile(
   job: FoldedJob,
@@ -114,18 +112,7 @@ export async function reconcile(
   }
   for (let i = 0; i < pending.length; i += 20) {
     const batch = pending.slice(i, i + 20)
-    const rows = batch.map((r) => ({
-      claim: { ...r.claim, memory: r.comparison },
-      candidates: r.candidates.map((c, j) => ({ ...c, handle: `M${j + 1}` })),
-    }))
-    const result = await ask(
-      'reconcile',
-      i / 20 + 1,
-      reconcilePrompt(rows),
-      (a) => decisions(a, batch),
-      [],
-      { rows },
-    )
+    const result = await reconcileDecisions(batch, ask, i / 20 + 1)
     for (const d of result) selected.set(d.ref, d)
   }
   // Only state-changing actions compete for a target; confirmations add evidence and never do.
@@ -157,6 +144,32 @@ export async function reconcile(
   return confirmations
 }
 
+async function reconcileDecisions(batch: Row[], ask: StageAsk, part: number) {
+  const result: ReturnType<typeof decisions> = []
+  let missing = batch
+  for (let attempt = 0; attempt < 2 && missing.length; attempt++) {
+    const rows = missing.map((r) => ({
+      claim: { ...r.claim, memory: r.comparison },
+      candidates: r.candidates.map((c, j) => ({ ...c, handle: `M${j + 1}` })),
+    }))
+    result.push(
+      ...(await ask('reconcile', part, reconcilePrompt(rows), (a) => decisions(a, missing), [], {
+        rows,
+      })),
+    )
+    missing = batch.filter((r) => !result.some((d) => d.ref === r.claim.ref))
+  }
+  result.push(
+    ...missing.map((r) => ({
+      ref: r.claim.ref,
+      action: 'add' as const,
+      target: undefined,
+      reason: 'No reconciliation decision returned',
+    })),
+  )
+  return result
+}
+
 function priority(action: ProposalMemory['action'] | 'confirm'): number {
   return { add: 0, confirm: 1, enrich: 2, conflict: 3, supersede: 4, resolve_open: 4 }[action]
 }
@@ -186,7 +199,7 @@ async function candidateRows(
       .memoryCards([
         ...new Set([
           ...matches.flat(),
-          ...semantic.flatMap((m) => m.filter((v) => v.score >= 0.8).map((v) => v.id)),
+          ...semantic.flatMap((m) => m.filter((v) => v.score >= 0.7).map((v) => v.id)),
         ]),
       ])
       .map((m) => [m.id, card(m)]),
@@ -195,13 +208,18 @@ async function candidateRows(
     const ids = [
       ...new Set([
         ...(matches[index] ?? []),
-        ...(semantic[index] ?? []).filter((m) => m.score >= 0.8).map((m) => m.id),
+        ...(semantic[index] ?? []).filter((m) => m.score >= 0.7).map((m) => m.id),
       ]),
     ]
     const comparison = normalized[index]!
     const prior = job.claims
       .slice(0, index)
-      .map((c, j) => ({ c, m: normalized[j]!, rank: closeness(normalized[j]!, comparison), j }))
+      .map((c, j) => ({
+        c,
+        m: normalized[j]!,
+        rank: closeness(normalized[j]!, comparison, cosine(vectors[j]!, vectors[index]!)),
+        j,
+      }))
       .filter((item) => item.rank >= 0)
       .sort((a, b) => b.rank - a.rank || b.j - a.j)
       .slice(0, 5)
@@ -225,12 +243,13 @@ async function candidateRows(
 }
 /**
  * How close an earlier claim in this job is to a later one: the same text, then a shared link
- * between the same entities, then any shared entity. Unrelated claims are -1 and never offered.
+ * between the same entities, then semantic similarity, then any shared entity. Unrelated claims are -1 and never offered.
  */
-function closeness(earlier: ProposalMemory, later: ProposalMemory): number {
-  if (fold(earlier.summary) === fold(later.summary)) return 3
+function closeness(earlier: ProposalMemory, later: ProposalMemory, similarity: number): number {
+  if (fold(earlier.summary) === fold(later.summary)) return 4
   const pairs = new Set(later.links.map((l) => `${l.subject}|${l.object}`))
-  if (earlier.links.some((l) => pairs.has(`${l.subject}|${l.object}`))) return 2
+  if (earlier.links.some((l) => pairs.has(`${l.subject}|${l.object}`))) return 3
+  if (similarity >= 0.7) return 1 + similarity
   if (earlier.entities.some((e) => later.entities.includes(e))) return 1
   return -1
 }

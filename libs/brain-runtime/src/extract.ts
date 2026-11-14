@@ -1,9 +1,5 @@
 import type { BrainJob, BrainJobStage } from '@phosphor/shared/brain'
-import type {
-  BrainStore,
-  Proposal,
-  ProposalEntity,
-} from '@phosphor/memory-engine/types'
+import type { BrainStore, Proposal, ProposalEntity } from '@phosphor/memory-engine/types'
 import type { BrainServiceOptions, BrainSearchPort } from './types'
 import { readLane, type LaneMeta } from './lane'
 import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'

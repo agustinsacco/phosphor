@@ -3,7 +3,7 @@ import type { BrainSearchPort } from '../types'
 import type { StageAsk, StageEntity, IdentityResult } from '../stage-types'
 import type { FoldedJob } from './fold'
 import { mergeEntity, redirect, rewriteClaim } from './fold'
-import { array, jsonAnswer, object, text } from '../stage-parse'
+import { validDecisions, object, text } from '../stage-parse'
 import { identityPrompt } from '../stage-prompts/identity'
 import { fold, tokens } from '@phosphor/memory-engine/text'
 
@@ -183,7 +183,7 @@ function automatic(
   return names.length === 1 ? names[0] : undefined
 }
 function parseDecisions(answer: string, rows: Row[]) {
-  const decisions = array(jsonAnswer(answer).decisions).map((v) => {
+  return validDecisions(answer, (v) => {
     const d = object(v),
       ref = text(d.ref),
       row = rows.find((r) => r.entity.ref === ref)
@@ -202,9 +202,6 @@ function parseDecisions(answer: string, rows: Row[]) {
       reason: text(d.reason),
     }
   })
-  if (decisions.length !== rows.length || new Set(decisions.map((d) => d.ref)).size !== rows.length)
-    throw new Error('Expected one identity decision per entity')
-  return decisions
 }
 export async function resolveIdentities(
   job: FoldedJob,
@@ -240,18 +237,7 @@ export async function resolveIdentities(
   }
   for (let i = 0; i < ambiguous.length; i += 8) {
     const batch = ambiguous.slice(i, i + 8)
-    const rows = batch.map((r) => ({
-      entity: r.entity,
-      candidates: r.candidates.slice(0, 8).map((c, j) => ({ handle: `K${j + 1}`, ...c.card })),
-    }))
-    const decisions = await ask(
-      'identity',
-      i / 8 + 1,
-      identityPrompt(rows),
-      (a) => parseDecisions(a, batch),
-      [],
-      { rows },
-    )
+    const decisions = await identityDecisions(batch, ask, i / 8 + 1)
     for (const d of decisions)
       addDecision(
         state,
@@ -273,6 +259,32 @@ export async function resolveIdentities(
   job.parents = job.parents.map((p) => ({ ...p, entity: redirect(p.entity, redirects) }))
   job.entities = entities.filter((e) => !redirects.has(e.ref))
   return { entities: entities.filter((e) => !redirects.has(e.ref)), redirects }
+}
+
+async function identityDecisions(batch: Row[], ask: StageAsk, part: number) {
+  const result: ReturnType<typeof parseDecisions> = []
+  let missing = batch
+  for (let attempt = 0; attempt < 2 && missing.length; attempt++) {
+    const rows = missing.map((r) => ({
+      entity: r.entity,
+      candidates: r.candidates.slice(0, 8).map((c, j) => ({ handle: `K${j + 1}`, ...c.card })),
+    }))
+    result.push(
+      ...(await ask('identity', part, identityPrompt(rows), (a) => parseDecisions(a, missing), [], {
+        rows,
+      })),
+    )
+    missing = batch.filter((r) => !result.some((d) => d.ref === r.entity.ref))
+  }
+  result.push(
+    ...missing.map((r) => ({
+      ref: r.entity.ref,
+      action: 'uncertain' as const,
+      candidate: undefined,
+      reason: 'No identity decision returned',
+    })),
+  )
+  return result
 }
 
 function addDecision(

@@ -4,7 +4,6 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { extractPrompt, EXTRACTION_SYSTEM } from '@phosphor/brain-runtime/stage-prompts/extract'
 import { identityPrompt, IDENTITY_SYSTEM } from '@phosphor/brain-runtime/stage-prompts/identity'
-import { parentsPrompt, PARENTS_SYSTEM } from '@phosphor/brain-runtime/stage-prompts/parents'
 import { reconcilePrompt, RECONCILE_SYSTEM } from '@phosphor/brain-runtime/stage-prompts/reconcile'
 import { repairPrompt } from '@phosphor/brain-runtime/stage-call'
 import { makeWindow } from '@phosphor/brain-runtime/windows'
@@ -15,8 +14,8 @@ const stub = resolve(import.meta.dirname, 'pi-stub.cjs')
 const window = makeWindow([
   {
     entryId: 'ignored',
-    role: 'assistant',
-    label: 'Assistant',
+    role: 'toolResult',
+    label: 'Tool output',
     observedAt: 0,
     text: 'Tom Lee owns Imaginary.',
   },
@@ -25,7 +24,14 @@ const window = makeWindow([
     role: 'user',
     label: 'You',
     observedAt: 0,
-    text: 'Rina Okafor owns Harbor ledger. Harbor ledger is part of Harbor.',
+    text: 'Rina Okafor owns Harbor ledger.',
+  },
+  {
+    entryId: 'agent',
+    role: 'assistant',
+    label: 'Agent',
+    observedAt: 0,
+    text: 'Harbor ledger is part of Harbor.',
   },
 ])
 
@@ -102,7 +108,7 @@ test('Brain stub reads stdin and system file, keeps handles and directed owner/p
       subject: 'n2',
       predicate: 'part_of',
       object: 'n3',
-      segment: 's2',
+      segment: 's3',
       quote: answer.claims[1]!.text,
     },
   ])
@@ -152,16 +158,7 @@ test('Brain stub chooses only offered identity and reconciliation handles', asyn
   ])
 })
 
-test('Brain stub leaves parents unstated and repairs using the original stage', async () => {
-  const parents = await call(
-    PARENTS_SYSTEM,
-    parentsPrompt([{ ref: 'r1', label: 'Harbor' }], [], ''),
-  )
-  expect(JSON.parse(parents.message.content[0].text)).toEqual({
-    entities: [],
-    claims: [],
-    parents: [{ entity: 'r1', status: 'not_stated', claim: null }],
-  })
+test('Brain stub repairs extraction using the original stage', async () => {
   const original = extractPrompt(window, [])
   const repaired = await call(EXTRACTION_SYSTEM, repairPrompt(original, '{}', 'Missing claims'))
   const normal = await call(EXTRACTION_SYSTEM, original)
@@ -178,7 +175,7 @@ test('Brain stub refuses missing tools guard or guard extension', async () => {
   }
 })
 
-test('Brain stub fails the first extract once, then succeeds from the same marker directory', async () => {
+test('Brain stub fails both attempts of the first extract, then succeeds from the same marker directory', async () => {
   const directory = await scratchDir('brain-stub-failure-')
   const env = { PHOSPHOR_STUB_BRAIN_FAIL_ONCE: join(directory, 'fail') }
   try {
@@ -186,9 +183,11 @@ test('Brain stub fails the first extract once, then succeeds from the same marke
     const first = await call(EXTRACTION_SYSTEM, extractPrompt(window, []), { env })
     expect(first.code).not.toBe(0)
     expect(first.message.stopReason).toBe('error')
-    expect(await readFile(join(env.PHOSPHOR_STUB_BRAIN_FAIL_ONCE, 'failed-once'), 'utf8')).toBe(
-      'extract\n',
-    )
+    const retry = await call(EXTRACTION_SYSTEM, extractPrompt(window, []), { env })
+    expect(retry.code).not.toBe(0)
+    expect(
+      await readFile(join(env.PHOSPHOR_STUB_BRAIN_FAIL_ONCE, 'failed-attempt-2'), 'utf8'),
+    ).toBe('extract\n')
     const next = await call(EXTRACTION_SYSTEM, extractPrompt(window, []), { env })
     expect(next.code).toBe(0)
     expect(parseStageExtraction(next.message.content[0].text, window).claims).toHaveLength(2)
@@ -246,7 +245,6 @@ for (const [stage, system, prompt] of [
     IDENTITY_SYSTEM,
     identityPrompt([{ entity: { ref: 'w1:n1', label: 'Harbor' }, candidates: [] }]),
   ],
-  ['parents', PARENTS_SYSTEM, parentsPrompt([{ ref: 'r1', label: 'Harbor' }], [], '')],
   [
     'reconcile',
     RECONCILE_SYSTEM,

@@ -30,10 +30,7 @@ it('extracts windows, resolves, embeds and proposes with progress, summed usage 
     usage: { tokens: 20, cost: 0 },
     progress: { stage: 'embed', done: 1, total: 1 },
   })
-  expect(s.store.extraction(s.job.id).calls.map((c) => c.stage)).toEqual([
-    'extract',
-    'identity',
-  ])
+  expect(s.store.extraction(s.job.id).calls.map((c) => c.stage)).toEqual(['extract', 'identity'])
   expect(s.store.extraction(s.job.id).outcomes).toContainEqual(
     expect.objectContaining({ candidate: 'w1:c1', status: 'kept' }),
   )
@@ -48,11 +45,7 @@ it('unusable envelope triggers one repair; a second invalid answer visibly fails
     usage: { tokens: 7, cost: 0 },
   }))
   await extractJob(s.job, signal(), s.store, s.options, s.search)
-  expect(s.runner.mock.calls.map(([c]) => c.stage)).toEqual([
-    'extract',
-    'repair',
-    'identity',
-  ])
+  expect(s.runner.mock.calls.map(([c]) => c.stage)).toEqual(['extract', 'repair', 'identity'])
   expect(s.runner.mock.calls[1]![0].prompt).toContain('Expected an array')
   expect(s.store.storedProposal(s.job.id)!.memories[0]!.links[0]!.predicate).toBe('owns')
   expect(s.store.extraction(s.job.id).calls[0]!.error).toContain('Expected an array')
@@ -145,20 +138,52 @@ it('publishes extract progress before the first model call begins', async () => 
 
 it('reaches review with all 20 claims when reconciliation answers only 19 twice', async () => {
   const s = await setup()
-  const claims = Array.from({ length: 20 }, (_, i) => ({ ...RAW_EXTRACTION.claims[0]!, ref: `c${i + 1}`, text: `Harbor billing rule ${i + 1}.` }))
+  const claims = Array.from({ length: 20 }, (_, i) => ({
+    ...RAW_EXTRACTION.claims[0]!,
+    ref: `c${i + 1}`,
+    text: `Harbor billing rule ${i + 1}.`,
+  }))
   s.store.matchesMemory = claims.map(() => ['old'])
-  s.store.oldMemories = [{
-    id: 'old', jobId: null, summary: 'Harbor policy.', type: 'fact', kind: 'reported', state: 'active', entityIds: [], links: [], scope: '/harbor', branch: null, validFrom: null, validTo: null, recordedAt: 0, observedAt: 0, origin: null,
-  }]
+  s.store.oldMemories = [
+    {
+      id: 'old',
+      jobId: null,
+      summary: 'Harbor policy.',
+      type: 'fact',
+      kind: 'reported',
+      state: 'active',
+      entityIds: [],
+      links: [],
+      scope: '/harbor',
+      branch: null,
+      validFrom: null,
+      validTo: null,
+      recordedAt: 0,
+      observedAt: 0,
+      origin: null,
+    },
+  ]
   s.runner.mockImplementation(async (input) => ({
-    text: input.stage === 'extract' ? JSON.stringify({ ...RAW_EXTRACTION, claims }) : input.stage === 'reconcile' || input.stage === 'repair' ? JSON.stringify({ decisions: claims.slice(0, 19).map((c) => ({ ref: `w1:${c.ref}`, action: 'add', target: null, reason: 'New' })) }) : answerFor(input),
+    text:
+      input.stage === 'extract'
+        ? JSON.stringify({ ...RAW_EXTRACTION, claims })
+        : input.stage === 'reconcile' || input.stage === 'repair'
+          ? JSON.stringify({
+              decisions: claims
+                .slice(0, 19)
+                .map((c) => ({ ref: `w1:${c.ref}`, action: 'add', target: null, reason: 'New' })),
+            })
+          : answerFor(input),
     usage: { tokens: 1, cost: 0 },
   }))
   await expect(extractJob(s.job, signal(), s.store, s.options, s.search)).resolves.toBeUndefined()
   expect(s.store.job(s.job.id)!.state).toBe('review')
   const memories = s.store.storedProposal(s.job.id)!.memories
   expect(memories).toHaveLength(20)
-  expect(memories[19]).toMatchObject({ action: 'add', reason: 'No reconciliation decision returned' })
+  expect(memories[19]).toMatchObject({
+    action: 'add',
+    reason: 'No reconciliation decision returned',
+  })
   const calls = s.runner.mock.calls.filter(([c]) => c.stage === 'reconcile')
   expect(calls).toHaveLength(2)
   const rows = JSON.parse(calls[1]![0].prompt.split('\n')[1]!)

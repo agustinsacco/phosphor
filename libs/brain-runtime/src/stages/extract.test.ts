@@ -114,15 +114,49 @@ it('prioritizes registry names mentioned in the current window over recent unrel
 })
 
 it('tells later parts which claim sentences were already kept', async () => {
-  const store = new FakeBrainStore(), job = store.enqueue(HARBOR_JOB, 'queued')
-  const segments = [0, 1].map((i) => ({ entryId: `s${i}`, role: 'assistant' as const, label: 'Agent', observedAt: 0, text: 'Harbor requires billing approval.' }))
+  const store = new FakeBrainStore(),
+    job = store.enqueue(HARBOR_JOB, 'queued')
+  const segments = [0, 1].map((i) => ({
+    entryId: `s${i}`,
+    role: 'assistant' as const,
+    label: 'Agent',
+    observedAt: 0,
+    text: 'Harbor requires billing approval.',
+  }))
   const ask = trackAsk(async (_s, part, prompt, validate) => {
     if (part === 2) {
-      expect(prompt).toContain('Already kept from earlier parts of this conversation. Do not repeat them;')
+      expect(prompt).toContain(
+        'Already kept from earlier parts of this conversation. Do not repeat them;',
+      )
       expect(prompt).toContain('- Harbor requires billing approval.')
       expect(prompt).toContain('part 2 of 2:')
     }
-    return validate(JSON.stringify({ ...empty, claims: [{ ref: 'c1', text: segments[0]!.text, type: 'fact', epistemic: 'reported', mentions: [], links: [], validFrom: null, validTo: null, branch: false, quotes: [{ segment: 's1', quote: segments[0]!.text }] }] }))
+    return validate(
+      JSON.stringify({
+        ...empty,
+        claims: [
+          {
+            ref: 'c1',
+            text: segments[0]!.text,
+            type: 'fact',
+            epistemic: 'reported',
+            mentions: [],
+            links: [],
+            validFrom: null,
+            validTo: null,
+            branch: false,
+            quotes: [{ segment: 's1', quote: segments[0]!.text }],
+          },
+        ],
+      }),
+    )
   })
-  await extractWindows(job.id, segments.map((s) => makeWindow([s])), store, ask.ask, () => {}, segments)
+  await extractWindows(
+    job.id,
+    segments.map((s) => makeWindow([s])),
+    store,
+    ask.ask,
+    () => {},
+    segments,
+  )
 })

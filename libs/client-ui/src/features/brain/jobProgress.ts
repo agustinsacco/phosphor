@@ -29,11 +29,11 @@ export function jobLine(job: BrainJob, ahead: number, now: number): string {
 function progressLine(progress: NonNullable<BrainJob['progress']>): string {
   const labels = {
     prepare: 'Preparing lane',
-    extract: 'Reading window',
+    extract: 'Reading the conversation',
     identity: 'Matching entities',
-    parents: 'Finding parents',
     reconcile: 'Reconciling memories',
     embed: 'Indexing memories',
   }
+  if (progress.total === 1) return labels[progress.stage]
   return `${labels[progress.stage]} ${progress.done} of ${progress.total}`
 }

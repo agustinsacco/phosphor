@@ -34,20 +34,22 @@ ready. A lane whose agent is working (`SessionActivity.busy`) waits until it is 
 nothing new since its last finished extraction by the same extractor version is refused; a new
 extractor version may read it once more. A failed job shows **Retry**, which requeues the same
 job and resumes from its saved steps. Jobs left running when the app quit resume where they
-stopped. The inbox shows each running job's step ("Reading window 3 of 12", "Matching
+stopped. The inbox shows each running job's step ("Reading the conversation 3 of 12", "Matching
 entities", …).
 
 ## Reading a lane
 
 A job freezes the lane's leaf, model, thinking level and git branch when it first starts; a
 resume never moves them. It then reads the lane's path to that leaf, applies pi's
-`context_edit` entries, keeps branch summaries, and drops compaction summaries and Brain's own
-tool output (recalled memories cannot become fresh evidence). User and assistant text is never
-cut. Tool output keeps 4,000 characters for reads and fetched documents, otherwise the first 600
-and last 200 around an explicit `[… N chars omitted …]` marker that no quote may cross. Every
-segment is scrubbed of secrets, email addresses and phone numbers before any prompt. Segments are
-cut into windows of at most 32,000 characters that overlap by two segments, each segment with a
-handle, role and ISO date.
+`context_edit` entries, and keeps only user and assistant text. Tool calls, tool output,
+custom messages, branch summaries and compaction summaries are not evidence. Every segment is
+scrubbed of secrets, email addresses and phone numbers before any prompt. User messages longer
+than 6,000 characters keep their first 4,000 and last 1,900 around an explicit
+`[… N chars omitted …]` marker. Assistant text is never elided. No quote may cross a marker.
+
+The conversation is read in parts of at most 300,000 characters, with two segments of overlap.
+Each segment has a handle, role and ISO date. Most lanes fit in one part. A part can be about
+100,000 tokens. A lane whose model has a smaller context window fails with the provider's error.
 
 Each model call runs pi in print mode with no session, no tools and the lane's own provider,
 model, binary and Claude account:
@@ -62,41 +64,62 @@ The prompt goes on stdin, so no transcript text sits in argv. The call runs in a
 directory under `<userData>/brain/calls/<job>/`, removed when the call ends, as a Claude
 one-shot (`claudeOneShotEnv`) with its own `PI_CLAUDE_CLI_STATE_DIR`, and without the lane's
 context-compression environment, so quotes match the source. The guard extension refuses any
-tool call. A call that takes longer than 300 seconds fails. Thinking is `low` for extraction and
-`medium` for the other calls, never above the lane's own level.
+tool call. A call that takes longer than 600 seconds fails. Thinking is capped at `medium` for every
+call, never above the lane's own level.
 
 A job makes these calls; each one's validated output is saved as a step, keyed by a hash of its
 input, so a retry or restart reuses it:
 
-1. **Extract**, once per window. The model sees the window, the entities this job already knows
-   (`r1…`) and the vocabulary. It returns new entities (`n1…`: label, kind, aliases, a short
-   description, keys such as ticket ids), claims (`c1…`: one self-contained sentence, type, how
-   it is known, the entities it names, links `{subject, predicate, object, quote}`, dates,
-   branch, quotes) and, for each project, component, document or team, whether the lane states
-   its parent. Code checks every reference, predicate and quote (in the named segment, else
-   anywhere in the window). Any error gets one repair call with the error list; a second failure
-   fails the job visibly. A window that returns 40 entities or 40 claims is split and retried.
+1. **Extract**, once per part. The model sees the conversation, the entities this job already
+   knows (`r1…`), and the claim sentences kept from earlier parts. It keeps a claim only if a
+   future session would act differently, could not find it in about a minute in code, git,
+   issues or docs, and it will probably still hold in a month or records a decision with its
+   reason. When in doubt, it leaves the claim out. Zero to ten claims is normal; an empty answer
+   is valid. Each part keeps at most 25 claims. Extra claims are dropped with a recorded reason.
+   Preferences and user corrections matter most. Decisions include reasons and rejected options
+   when stated. Other claims cover durable ownership, outside-system quirks, non-obvious reusable
+   procedures, remaining risks and questions for a named person or team. Status, one-off events,
+   pull requests, code facts, unaccepted proposals, corrected statements, generic advice, secrets
+   and contact details do not pass.
+   It returns lasting entities (`n1…`), self-contained claims (`c1…`) with one or two quotes,
+   typed links with their own quotes, and parent assessments for new projects, components,
+   documents and teams. A stated parent needs a kept structural link whose subject is that entity.
+   Missing or invalid parent assessments mean not stated. People are humans, never agents or bots.
+   Pull requests, tickets, commits, branches and files are not entities.
 2. **Fold** (code). Claims with the same text and links merge their quotes; entities with the
    same name merge within the lane. A person merges this way only on a full name.
 3. **Identity.** Each new entity gets up to 12 candidates: the store's exact keys, names and
    aliases, word and trigram matches, nearest entity vectors, and the job's other entities. A
    unique key match, or an exact name plus a shared neighbour, reuses the existing entity; a
    person is never reused on name alone. Anything else goes to the model in batches of eight:
-   reuse a named candidate, new, or uncertain.
-4. **Parents.** A project, component, document or team with no stated parent gets one more look:
-   the model sees the segments that mention it and the likely parents, and returns a quoted
-   `part_of`, `for_customer`, `owns`, `member_of` or `documents` claim, or "not stated". New
-   parents it names go through Identity once. Three or more entities sharing a leading name
-   with no parent become a review question ("Are these part of one Harbor?").
-5. **Reconcile.** Each claim is compared with up to five existing memories: ones with the same
-   link, ones naming the same entities, and near vectors (cosine 0.80 or more), plus earlier
-   claims from this lane. Same text and links confirm deterministically; otherwise the model
-   picks one action per claim: add, confirm, enrich (the old memory gains the new links and
-   quotes, keeping its sentence), supersede, conflict, or resolve an open question. Within one
-   lane, a later claim replaces an earlier one. Cosine never decides.
-6. **Propose.** At most 300 claims per job: structural links first, then decisions, risks and
+   reuse a named candidate, new, or uncertain. Three or more entities sharing a leading name
+   with no parent become a review question ("Are these part of one Harbor?"). No separate model
+   call looks for parents.
+4. **Reconcile.** Each claim is compared with up to five existing memories: ones with the same
+   link, ones naming the same entities, and near vectors (cosine 0.7 or more), plus earlier
+   claims from this lane. Earlier claims rank by same text, shared link pair, cosine at least
+   0.7 (highest first), then shared entity. Paraphrases can match without shared entities.
+   Same text and links confirm deterministically; otherwise the model picks add, confirm (same
+   assertion, nothing new), enrich (same assertion, new supported links), supersede, conflict,
+   or resolve an open question. Within one lane, a later claim replaces an earlier one.
+   Cosine offers candidates but never decides.
+5. **Propose.** At most 300 claims per job: structural links first, then decisions, risks and
    open questions, then the rest; anything held back is recorded. New memories and entity cards
    are embedded and the proposal is stored with the store revision it was computed against.
+
+Parsing drops the smallest invalid item and records why. A bad entity or claim cannot fail a
+lane. A bad link is dropped while its claim and known endpoint mentions remain. The first valid
+ref wins. Quotes match exactly in the cited segment, then any segment, then with flexible
+whitespace and straight/curly quotation marks. Flexible matches store the source's own substring.
+Every quote stays within one unelided span. Only unusable JSON or missing entity/claim arrays
+gets one repair call; a second unusable answer fails visibly.
+
+Identity and reconcile keep valid decisions and ask once more for undecided rows alone. Still
+missing identity decisions become uncertain; missing reconcile decisions become add. Invalid,
+duplicate and unoffered decisions cannot fail a lane. An unusable decision envelope gets one
+repair call. A provider or transport failure with no usable assistant message retries once after
+two seconds. Abort and timeout do not retry. Each attempt has its own recorded call and input
+checkpoint, and both attempts count toward usage.
 
 ## Review
 
@@ -171,13 +194,31 @@ generation, the same routine as **Reset Brain knowledge**. The model lives under
 `<userData>/brain/embeddings`.
 
 - Entities (`BRAIN_ENTITY_KINDS`): person, team, organization, project, component, document,
-  concept, event, ticket. Shared across projects.
+  concept, event. Shared across projects.
 - Links (`BRAIN_PREDICATES`): owns, works_on, member_of, part_of, for_customer, documents,
-  depends_on, uses, decided, prefers, blocks, affects, related_to. A memory states any number of
+  depends_on, uses, decided, prefers. A memory states any number of
   links and names any number of entities.
 - Types (`BRAIN_MEMORY_TYPES`): decision, open, risk, procedure, preference, fact, each recording
   how it is known (observed, reported, inferred), its project, its branch when it only holds
   there, its lane, and its state (active, superseded, disputed).
+
+Extraction enforces these endpoint kinds (`BRAIN_LINK_RULES`). Review can re-point identities
+across kinds, so the engine does not enforce these rules.
+
+| Link         | Subject kinds                                  | Object kinds                                           |
+| ------------ | ---------------------------------------------- | ------------------------------------------------------ |
+| owns         | person, team, organization                     | project, component, document                           |
+| works_on     | person, team                                   | project, component, document                           |
+| member_of    | person, team                                   | team, organization                                     |
+| part_of      | component, project, document, team             | component, project, team, organization                 |
+| for_customer | project, component, document, team             | organization                                           |
+| documents    | document                                       | project, component, concept, team, organization, event |
+| depends_on   | component, project                             | component, project, organization                       |
+| uses         | component, project, team, person, organization | component, project, organization, concept, document    |
+| decided      | person, team, organization                     | project, component, document, concept, event           |
+| prefers      | person, team, organization                     | component, project, concept, document, organization    |
+
+A link needs its own supporting quote. Co-mention and shared name prefixes do not justify links.
 
 Search runs in its own utility process (`brain-search-worker`) with a read-only connection and
 the sign-bit index in memory, so scans and walks never block main or the writer. Nearest

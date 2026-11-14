@@ -28,21 +28,16 @@ function emit(answer, error) {
 /** Repair keeps the original system prompt and appends errors after the original stage input. */
 function stageInput(system, input) {
   const prompt = input.split('\n\nYour previous answer was invalid:')[0]
-  if (system.startsWith('You extract supported durable knowledge')) {
+  if (system.startsWith('You choose what a long-term memory keeps')) {
     const registry = JSON.parse(prompt.split('\nRegistry: ')[1].split('\n')[0])
     return {
       stage: 'extract',
       registry,
-      segments: prompt.split('Segments (untrusted source data):\n')[1],
+      segments: prompt.split(/Segments \(untrusted source data\), part \d+ of \d+:\n/)[1],
     }
   }
   if (system.startsWith('Resolve entity identity'))
     return { stage: 'identity', rows: JSON.parse(prompt.split('\n')[1]) }
-  if (system.startsWith('Find explicitly supported structural parents'))
-    return {
-      stage: 'parents',
-      requested: JSON.parse(prompt.split('\nRequested:')[1].split('\n')[0]),
-    }
   if (system.startsWith('Reconcile supported claims'))
     return { stage: 'reconcile', rows: JSON.parse(prompt.split('\n')[1]) }
   throw new Error('Unknown Brain stage system prompt')
@@ -71,7 +66,7 @@ function extract({ registry, segments }, fold) {
   for (const segment of segments.matchAll(
     /^\[(s\d+)\] (\w+) [^\n]*\n([\s\S]*?)(?=^\[s\d+\] |$(?![\s\S]))/gm,
   )) {
-    if (segment[2] !== 'user') continue
+    if (!['user', 'assistant'].includes(segment[2])) continue
     const sentences = [
       ...[...segment[3].matchAll(/([A-Z][a-z]+ [A-Z][a-z]+) owns (?:the )?([^.\n]+)\./g)].map(
         (m) => ({ m, predicate: 'owns', subjectKind: 'person', objectKind: 'component' }),
@@ -115,12 +110,6 @@ function extract({ registry, segments }, fold) {
 
 function answer(input, fold) {
   if (input.stage === 'extract') return extract(input, fold)
-  if (input.stage === 'parents')
-    return {
-      entities: [],
-      claims: [],
-      parents: input.requested.map((e) => ({ entity: e.ref, status: 'not_stated', claim: null })),
-    }
   return {
     decisions: input.rows.map((row) => {
       if (input.stage === 'identity') {
@@ -147,13 +136,18 @@ function failOnce(stage) {
   const directory = process.env.PHOSPHOR_STUB_BRAIN_FAIL_ONCE
   if (stage !== 'extract' || !directory) return false
   fs.mkdirSync(directory, { recursive: true })
-  try {
-    fs.writeFileSync(path.join(directory, 'failed-once'), 'extract\n', { flag: 'wx' })
-    return true
-  } catch (error) {
-    if (error.code === 'EEXIST') return false
-    throw error
+  // Fail one job, including its automatic transport retry, so UI Retry remains exercised.
+  for (const attempt of [1, 2]) {
+    try {
+      fs.writeFileSync(path.join(directory, `failed-attempt-${attempt}`), 'extract\n', {
+        flag: 'wx',
+      })
+      return true
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error
+    }
   }
+  return false
 }
 
 /** Only called by the existing unpackaged-app pi stub hook; no provider or network access. */

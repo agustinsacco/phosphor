@@ -38,6 +38,8 @@ export interface BrainServiceOptions {
   openSearch: (path: string) => BrainSearchPort
   /** Injectable model runner; tests never launch a provider. */
   runModelCall?: typeof runModelCall
+  /** Abortable wait before the single provider/transport retry. */
+  retryDelay?: (ms: number, signal: AbortSignal) => Promise<void>
   embeddings: BrainEmbeddings
   lanes: BrainLanes
   /** The guard extension every private call loads: it refuses all tool calls. */

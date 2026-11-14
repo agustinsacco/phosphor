@@ -31,7 +31,8 @@ export async function extractWindows(
       )
       .slice(0, 60)
     const offered = selected.map((e, i) => ({ ...e, ref: `r${i + 1}` }))
-    const part = output.length + 1, total = windows.length
+    const part = output.length + 1,
+      total = windows.length
     const kept = output.flatMap((p) => p.extraction.claims.map((c) => c.text))
     const prompt = extractPrompt(window, offered, part, total, kept)
     const hash = inputHash(prompt)
@@ -44,7 +45,13 @@ export async function extractWindows(
           prompt,
           (answer) => parseStageExtraction(answer, window, offered),
           window.segments.map((s) => s.entryId),
-          { part, total, kept, registry: offered, segments: segmentInputs(window.segments, source) },
+          {
+            part,
+            total,
+            kept,
+            registry: offered,
+            segments: segmentInputs(window.segments, source),
+          },
         )
     if (!saved)
       store.savePart(jobId, { part: key, inputHash: hash, output: JSON.stringify(extraction) })

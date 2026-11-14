@@ -2,32 +2,56 @@ import { expect, it } from 'vitest'
 import { parseStageExtraction, verifiedQuote } from './stage-parse'
 import { makeWindow } from './windows'
 import { RAW_EXTRACTION } from './__fixtures__/lane'
-const window = makeWindow([{ entryId: 'u', role: 'user', label: 'You', observedAt: 0, text: 'Rina Okafor owns Harbor billing.' }])
+const window = makeWindow([
+  {
+    entryId: 'u',
+    role: 'user',
+    label: 'You',
+    observedAt: 0,
+    text: 'Rina Okafor owns Harbor billing.',
+  },
+])
 const parse = (value: unknown) => parseStageExtraction(JSON.stringify(value), window)
 it.each([
-  ['bad ref', { ref: 'bad' }], ['unknown kind', { kind: 'ticket' }],
-  ['sensitive label', { label: 'rina@example.com' }], ['description', { description: 'x'.repeat(161) }],
+  ['bad ref', { ref: 'bad' }],
+  ['unknown kind', { kind: 'ticket' }],
+  ['sensitive label', { label: 'rina@example.com' }],
+  ['description', { description: 'x'.repeat(161) }],
 ])('drops an invalid entity (%s) without failing unrelated claims', (_name, invalid) => {
   const v = structuredClone(RAW_EXTRACTION)
-  v.entities.push({ ...v.entities[0]!, ref: 'n3', ...invalid } as typeof v.entities[number])
+  v.entities.push({ ...v.entities[0]!, ref: 'n3', ...invalid } as (typeof v.entities)[number])
   const result = parse(v)
   expect(result.entities).toHaveLength(2)
   expect(result.claims).toHaveLength(1)
-  expect(result.outcomes).toContainEqual(expect.objectContaining({ status: 'dropped', candidate: invalid.ref === 'bad' ? 'entity[3]' : 'n3' }))
+  expect(result.outcomes).toContainEqual(
+    expect.objectContaining({
+      status: 'dropped',
+      candidate: invalid.ref === 'bad' ? 'entity[3]' : 'n3',
+    }),
+  )
 })
 it.each([
-  { mentions: ['missing'] }, { type: 'unknown' }, { validFrom: '2026-02-30' },
-  { quotes: [{ segment: 's1', quote: 'not here' }] }, { ref: 'bad' },
+  { mentions: ['missing'] },
+  { type: 'unknown' },
+  { validFrom: '2026-02-30' },
+  { quotes: [{ segment: 's1', quote: 'not here' }] },
+  { ref: 'bad' },
 ])('drops only the invalid claim %j', (invalid) => {
   const v = structuredClone(RAW_EXTRACTION)
-  v.claims.push({ ...v.claims[0]!, ref: 'c2', ...invalid } as typeof v.claims[number])
+  v.claims.push({ ...v.claims[0]!, ref: 'c2', ...invalid } as (typeof v.claims)[number])
   const result = parse(v)
   expect(result.claims.map((c) => c.ref)).toEqual(['c1'])
-  expect(result.outcomes?.[0]).toMatchObject({ status: 'dropped', candidate: invalid.ref === 'bad' ? 'claim[2]' : 'c2' })
+  expect(result.outcomes?.[0]).toMatchObject({
+    status: 'dropped',
+    candidate: invalid.ref === 'bad' ? 'claim[2]' : 'c2',
+  })
 })
 it.each([
-  { subject: 'missing' }, { object: 'n1' }, { predicate: 'related_to' },
-  { subject: 'n2', object: 'n1' }, { quote: 'not here' },
+  { subject: 'missing' },
+  { object: 'n1' },
+  { predicate: 'related_to' },
+  { subject: 'n2', object: 'n1' },
+  { quote: 'not here' },
 ])('drops only the invalid link %j and retains endpoint mentions', (invalid) => {
   const v = structuredClone(RAW_EXTRACTION)
   v.claims[0]!.mentions = []
@@ -35,7 +59,8 @@ it.each([
   const result = parse(v)
   expect(result.claims).toHaveLength(1)
   expect(result.claims[0]!.links).toEqual([])
-  if (!('subject' in invalid) && !('object' in invalid)) expect(result.claims[0]!.mentions).toEqual(['n1', 'n2'])
+  if (!('subject' in invalid) && !('object' in invalid))
+    expect(result.claims[0]!.mentions).toEqual(['n1', 'n2'])
   expect(result.outcomes?.[0]).toMatchObject({ status: 'dropped', candidate: 'c1' })
 })
 it('keeps the first ref and defaults missing or invalid parent assessments', () => {
@@ -54,7 +79,13 @@ it('keeps at most 25 claims and reports the rest, without splitting', () => {
   v.claims = Array.from({ length: 27 }, (_, i) => ({ ...v.claims[0]!, ref: `c${i + 1}` }))
   const result = parse(v)
   expect(result.claims).toHaveLength(25)
-  expect(result.outcomes).toContainEqual(expect.objectContaining({ candidate: 'c26', status: 'dropped', reason: 'Over the 25-claim limit for one part' }))
+  expect(result.outcomes).toContainEqual(
+    expect.objectContaining({
+      candidate: 'c26',
+      status: 'dropped',
+      reason: 'Over the 25-claim limit for one part',
+    }),
+  )
 })
 it('keeps valid quotes among invalid ones and stores flexible matches verbatim', () => {
   const source = 'Rina says “keep\n  billing stable”.'

@@ -12,16 +12,24 @@ it('reads only user and assistant text, not calls, results or context', () => {
 })
 it('elides only oversized user messages after scrubbing, retaining head and tail', () => {
   const content = 'h'.repeat(4000) + 'm'.repeat(2100) + 't'.repeat(1900)
-  const segments = transcriptSegments(['user', 'assistant'].map((role) => ({
-    message: { role, content },
-  })))
+  const segments = transcriptSegments(
+    ['user', 'assistant'].map((role) => ({
+      message: { role, content },
+    })),
+  )
   expect(segments[0]!.text).toBe('h'.repeat(4000) + '[… 2100 chars omitted …]' + 't'.repeat(1900))
   expect(segments[1]!.text).toBe(content)
-  expect(transcriptSegments([{ message: { role: 'user', content: 'x'.repeat(6000) } }])[0]!.text).toHaveLength(6000)
+  expect(
+    transcriptSegments([{ message: { role: 'user', content: 'x'.repeat(6000) } }])[0]!.text,
+  ).toHaveLength(6000)
 })
 it('fits a whole 240k-character conversation in one part', () => {
   const segments = Array.from({ length: 60 }, (_, i) => ({
-    entryId: String(i), role: 'assistant' as const, label: 'Agent', observedAt: 0, text: 'x'.repeat(4000),
+    entryId: String(i),
+    role: 'assistant' as const,
+    label: 'Agent',
+    observedAt: 0,
+    text: 'x'.repeat(4000),
   }))
   expect(transcriptWindows(segments)).toHaveLength(1)
 })

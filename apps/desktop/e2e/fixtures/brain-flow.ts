@@ -43,6 +43,7 @@ export async function approveLane(page: Page, lane: BrainLane): Promise<string> 
   const review = page.getByRole('region', { name: 'Review memories', exact: true })
   await expect(review.getByRole('region', { name: 'Who/what is this?', exact: true })).toBeVisible()
   await expect(review.getByText('Nothing is searchable until you approve it.')).toBeVisible()
+  await expect(review).not.toContainText('Imaginary')
   for (const fact of lane.facts)
     await expect(review.getByText(fact, { exact: true }).first()).toBeVisible()
   const links = page.getByRole('region', { name: 'Proposed memories', exact: true })

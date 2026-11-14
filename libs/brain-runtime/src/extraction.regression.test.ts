@@ -23,6 +23,8 @@ describe('extraction link regressions', () => {
     const value = structuredClone(RAW_EXTRACTION)
     value.claims[0]!.links[0]!.object = 'missing'
     expect(parse(value).claims[0]!.links).toEqual([])
-    expect(parse(value).outcomes).toContainEqual(expect.objectContaining({ status: 'dropped', reason: 'Unknown entity ref: missing' }))
+    expect(parse(value).outcomes).toContainEqual(
+      expect.objectContaining({ status: 'dropped', reason: 'Unknown entity ref: missing' }),
+    )
   })
 })

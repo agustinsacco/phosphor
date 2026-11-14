@@ -153,12 +153,7 @@ export function entityMatches(
     )
   })
 }
-function neighbours(
-  ctx: Context,
-  ids: string[],
-  kinds: BrainEntityKind[] | null,
-  limit: number,
-) {
+function neighbours(ctx: Context, ids: string[], kinds: BrainEntityKind[] | null, limit: number) {
   return ids
     .flatMap((id) => {
       const n = entityNumber(ctx, id)

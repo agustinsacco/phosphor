@@ -38,4 +38,3 @@ it('bounds windows with two segment overlap and preserves long user text without
       .join(''),
   ).toBe('a'.repeat(500000))
 })
-
