@@ -40,6 +40,15 @@ it('uses the strict keep test before variable source data', () => {
   expect(prompt).toContain('Never return more than 25.')
   expect(prompt).toContain('Segments (untrusted source data), part 1 of 1:')
 })
+it('repeats the answer rules after the source, where a long conversation would bury them', () => {
+  const window = makeWindow([
+    { entryId: 'u', role: 'user', label: 'You', observedAt: 0, text: 'Rina Okafor owns Harbor.' },
+  ])
+  const after = extractPrompt(window, []).split(window.text)[1]
+  expect(after).toMatch(/^\n\nEnd of the segments\./)
+  expect(after).toContain('one JSON object')
+  expect(after).toContain('links')
+})
 it('allows ten minutes and medium thinking for every stage', () => {
   expect(CALL_TIMEOUT_MS).toBe(600000)
   expect(callThinking('high')).toBe('medium')
