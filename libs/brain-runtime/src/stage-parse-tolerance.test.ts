@@ -11,7 +11,11 @@ const window = makeWindow([
     text: 'Rina Okafor owns Harbor billing.',
   },
 ])
-const parse = (value: unknown) => parseStageExtraction(JSON.stringify(value), window)
+const parse = (value: unknown) => {
+  const run = () => parseStageExtraction(JSON.stringify(value), window)
+  expect(run).not.toThrow()
+  return run()
+}
 it.each([
   ['bad ref', { ref: 'bad' }],
   ['unknown kind', { kind: 'ticket' }],
@@ -90,6 +94,9 @@ it('keeps at most 25 claims and reports the rest, without splitting', () => {
 it('keeps valid quotes among invalid ones and stores flexible matches verbatim', () => {
   const source = 'Rina says “keep\n  billing stable”.'
   const w = makeWindow([{ ...window.segments[0]!, text: source }])
+  expect(() =>
+    verifiedQuote({ segment: 's9', quote: 'Rina says "keep billing stable".' }, w),
+  ).not.toThrow()
   const q = verifiedQuote({ segment: 's9', quote: 'Rina says "keep billing stable".' }, w)
   expect(q).toEqual({ segment: 's1', quote: source })
   expect(w.segments[0]!.text.includes(q.quote)).toBe(true)
@@ -99,8 +106,10 @@ it('keeps valid quotes among invalid ones and stores flexible matches verbatim',
 })
 it('still rejects an unusable envelope', () => {
   expect(() => parseStageExtraction('no answer', window)).toThrow()
-  expect(() => parse({ entities: {}, claims: [] })).toThrow()
-  expect(() => parse({ entities: [], claims: null })).toThrow()
+  expect(() => parseStageExtraction(JSON.stringify({ entities: {}, claims: [] }), window)).toThrow()
+  expect(() =>
+    parseStageExtraction(JSON.stringify({ entities: [], claims: null }), window),
+  ).toThrow()
 })
 
 it('drops a malformed link list rather than its otherwise supported claim', () => {
