@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { useArchiveChanges } from './archiveChanges'
+export { archivesChanged } from './archiveChanges'
 import { useEffect } from 'react'
 import { ARCHIVE_WARNING_BYTES, type LaneArchiveList } from '@phosphor/shared/lane-archive'
 import { machineReadGeneration } from './machineReadGeneration'
@@ -11,9 +13,8 @@ interface View {
   data?: LaneArchiveList
   error?: string
   loading: boolean
-  revision: number
 }
-const EMPTY: View = Object.freeze({ loading: false, revision: 0 })
+const EMPTY: View = Object.freeze({ loading: false })
 export const useArchivesStore = create<{ machines: Record<string, View> }>(() => ({ machines: {} }))
 const inFlight = new Map<string, Promise<LaneArchiveList | undefined>>()
 const warned = new Set<string>()
@@ -26,9 +27,6 @@ const patch = (machine: string, change: Partial<View>) =>
     machines: { ...state.machines, [machine]: { ...EMPTY, ...state.machines[machine], ...change } },
   }))
 
-export function archivesChanged(machine: string): void {
-  patch(machine, { revision: (useArchivesStore.getState().machines[machine]?.revision ?? 0) + 1 })
-}
 export function loadArchives(
   machine: string,
   measure = true,
@@ -76,6 +74,7 @@ export function loadArchives(
 export function useArchiveInventory(machine: string, available: boolean): View {
   const view = useArchivesStore((state) => state.machines[machine] ?? EMPTY)
   const generation = useRemoteLanesStore(() => identity(machine))
+  const revision = useArchiveChanges((state) => state[machine] ?? 0)
   useEffect(() => {
     let stopped = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -95,6 +94,6 @@ export function useArchiveInventory(machine: string, available: boolean): View {
       stopped = true
       clearTimeout(timer)
     }
-  }, [machine, available, generation, view.revision])
+  }, [machine, available, generation, revision])
   return view.token === generation ? view : EMPTY
 }

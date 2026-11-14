@@ -1,5 +1,5 @@
 import { remoteLaneResourceKey } from '@shared/remote-host'
-import { archivesChanged } from '@/stores/archives'
+import { archivesChanged } from '@/stores/archiveChanges'
 import { useDraftsStore } from '@/stores/drafts'
 
 /** Unsent remote file bytes are memory-only. Do not silently discard them on close. */

@@ -1,6 +1,6 @@
 import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
 import { hostResourceKey } from '@shared/remote-host'
-import { archivesChanged } from './archives'
+import { archivesChanged } from './archiveChanges'
 import { removeLaneWorktree } from './removeLaneWorktree'
 import {
   laneIsBeingDeleted,
