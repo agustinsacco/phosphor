@@ -8,6 +8,7 @@ import { reconcilePrompt, RECONCILE_SYSTEM } from '@phosphor/brain-runtime/stage
 import { repairPrompt } from '@phosphor/brain-runtime/stage-call'
 import { makeWindow } from '@phosphor/brain-runtime/windows'
 import { parseStageExtraction } from '@phosphor/brain-runtime/stage-parse'
+import { LINKS_SYSTEM, linksPrompt } from '@phosphor/brain-runtime/stage-prompts/links'
 import { scratchDir } from './scratch'
 
 const stub = resolve(import.meta.dirname, 'pi-stub.cjs')
@@ -260,3 +261,30 @@ for (const [stage, system, prompt] of [
     expect(repaired.message.content).toEqual(normal.message.content)
   })
 }
+
+test('Brain stub gets the parent link only from the small links call, including repair', async () => {
+  const extracted = await call(EXTRACTION_SYSTEM, extractPrompt(window, []))
+  const part = parseStageExtraction(extracted.message.content[0].text, window)
+  expect(part.claims[1]!.links).toEqual([])
+  const prompt = linksPrompt(
+    part.entities,
+    part.claims.map((c) => ({
+      ...c,
+      excerpts: c.quotes.map((q) => ({ segment: q.segment, text: q.quote })),
+    })),
+  )
+  const normal = await call(LINKS_SYSTEM, prompt)
+  expect(normal.code).toBe(0)
+  expect(JSON.parse(normal.message.content[0].text).links).toEqual([
+    {
+      claim: 'c2',
+      subject: 'n2',
+      predicate: 'part_of',
+      object: 'n3',
+      segment: 's3',
+      quote: 'Harbor ledger is part of Harbor.',
+    },
+  ])
+  const repaired = await call(LINKS_SYSTEM, repairPrompt(prompt, '{}', 'Expected links'))
+  expect(repaired.message.content).toEqual(normal.message.content)
+})

@@ -162,3 +162,15 @@ it('requeues a stale proposal and returns it to review after recomputing', async
     job: { state: 'review' },
   })
 })
+
+it('exposes the links call beside extraction in the invented extraction view', async () => {
+  const call = createMockBrain()
+  const view = await call('brain:extraction', ['harbor-demo-review'])
+  expect(view).toMatchObject({
+    calls: [
+      { stage: 'extract' },
+      { stage: 'links', answer: expect.stringContaining('for_customer') },
+    ],
+    prompts: [expect.any(String), expect.stringContaining('relationships')],
+  })
+})
