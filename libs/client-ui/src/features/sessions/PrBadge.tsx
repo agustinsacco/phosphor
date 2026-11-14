@@ -1,18 +1,18 @@
 import clsx from 'clsx'
 import type { GhPullRequest } from '@shared/models'
 import type { LanePr } from './lanePrs'
+import { lanePrUrl, prBeads } from './prBeads'
+import { PR_TONE_BEAD_CLASSES, PrToneGlyph } from './PrToneGlyph'
 
 /**
  * A row's subtitle names itself `lane-line` (`@container/lane-line`). Narrower
  * than this, it keeps only the lead bead and counts the rest, so the beads
  * never run past the sidebar's edge. Without that container (the Home board)
- * the query never matches and every bead shows.
+ * the query never matches and every bead shows. The `wt` segment gives way
+ * at the same width (`SubtitleSegments`).
  */
 const NARROW_ONLY = 'hidden @max-[10.5rem]/lane-line:inline'
 const WIDE_ONLY = '@max-[10.5rem]/lane-line:hidden'
-
-import { lanePrUrl, prBeads } from './prBeads'
-import { PR_TONE_BEAD_CLASSES, PrToneGlyph } from './PrToneGlyph'
 
 /**
  * A lane's own PRs as beads: one verdict-coloured circle with a glyph per PR,

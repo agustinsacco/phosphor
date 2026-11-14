@@ -58,7 +58,9 @@ Five parts, each owned by a different module:
 
 The PR beads are `ml-auto` and `shrink-0`, so they form a scannable column down
 the sidebar instead of floating after a branch name of varying width, and the
-branch truncates before they do.
+branch truncates before they do. Near the sidebar's minimum width (a subtitle
+under 10.5rem) a row keeps only the lead bead and a `+N`, and the `wt` segment
+gives way, so nothing runs past the edge.
 
 **The row carries no spend.** A dollar figure is something you go looking for,
 not a way to choose a lane. It lives in the row's context menu ("Copy spend"),
@@ -380,9 +382,9 @@ pill is a real tab stop, unlike the sidebar's beads.
 The pill leads with the PR that needs you most: its number (prefixed with the
 repository when it is not the lane's own), then a four-segment **stage rail**
 (Opened, Checks, Review, Merge from `prStages`), then `+N` for the lane's other
-PRs. No CI is not green CI: a PR with no checks shows Checks as "none reported"
-and Merge as waiting. Its tone is the lead's `prVerdict` tone, so it agrees with the beads, the
-inspector and Home. A running stage is a drifting warning dash that stands
+PRs. No CI is not green CI: a PR with no checks shows Checks as "none
+reported" and Merge as waiting. Its tone is the lead's `prVerdict` tone, so it
+agrees with the beads, the inspector and Home. A running stage is a drifting warning dash that stands
 still under reduced motion. Its accessible name and tooltip say the same in
 words, for example "Pull request #57: Rocky review failed (not required). 1
 more pull request."
