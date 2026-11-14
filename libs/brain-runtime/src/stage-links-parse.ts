@@ -23,9 +23,7 @@ export function parseStageLinks(
       for (const endpoint of [raw.subject, raw.object])
         if (typeof endpoint !== 'string' || !row.mentions.includes(endpoint))
           throw new Error('Link endpoint is not mentioned by this claim')
-      const link = parseLink(raw, kinds, window)
-      if (!row.excerpts.some((e) => e.segment === link.segment))
-        throw new Error("Link quote is not from this claim's excerpts")
+      const link = excerptLink(raw, kinds, window, new Set(row.excerpts.map((e) => e.segment)))
       if (seen.has(key(link))) throw new Error('Duplicate link in this part')
       seen.add(key(link))
       return { claim, ...link }
@@ -34,4 +32,23 @@ export function parseStageLinks(
     outcomes,
   )
   return { links, outcomes }
+}
+
+/** The quote is looked for in the claim's own excerpt segments first, so similar wording elsewhere cannot claim it. */
+function excerptLink(
+  raw: unknown,
+  kinds: Parameters<typeof parseLink>[1],
+  window: TranscriptWindow,
+  segments: ReadonlySet<string>,
+) {
+  try {
+    return parseLink(raw, kinds, window, segments)
+  } catch (error) {
+    try {
+      parseLink(raw, kinds, window)
+    } catch {
+      throw error
+    }
+    throw new Error("Link quote is not from this claim's excerpts", { cause: error })
+  }
 }

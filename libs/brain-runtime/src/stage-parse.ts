@@ -93,6 +93,7 @@ export function parseLink(
   value: unknown,
   kinds: Map<string, BrainEntityKind>,
   window: TranscriptWindow,
+  within?: ReadonlySet<string>,
 ): StageLink {
   const l = object(value)
   const subject = text(l.subject),
@@ -104,7 +105,7 @@ export function parseLink(
   const rule = BRAIN_LINK_RULES[predicate]
   if (!rule.subject.includes(kinds.get(subject)!) || !rule.object.includes(kinds.get(target)!))
     throw new Error(`Invalid endpoint kinds for ${predicate}`)
-  return { subject, object: target, predicate, ...verifiedQuote(l, window) }
+  return { subject, object: target, predicate, ...verifiedQuote(l, window, within) }
 }
 
 function claim(

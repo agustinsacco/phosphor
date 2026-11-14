@@ -9,21 +9,30 @@ interface ExcerptRange {
   start: number
   end: number
 }
+function unelided(text: string): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = []
+  let start = 0
+  for (const marker of text.matchAll(new RegExp(ELISION, 'gu'))) {
+    spans.push({ start, end: marker.index })
+    start = marker.index + marker[0].length
+  }
+  return [...spans, { start, end: text.length }]
+}
 function excerptRanges(claim: StageClaim, window: TranscriptWindow): ExcerptRange[] {
   const ranges = claim.quotes
-    .map(({ segment, quote }) => {
+    .flatMap(({ segment, quote }) => {
       const text = window.segments[Number(segment.slice(1)) - 1]!.text
-      const at = text.indexOf(quote)
-      const before = [...text.slice(0, at).matchAll(new RegExp(ELISION, 'g'))].at(-1)
-      const after = ELISION.exec(text.slice(at + quote.length))
-      return {
-        segment,
-        start: Math.max(at - 600, before ? before.index + before[0].length : 0),
-        end: Math.min(
-          at + quote.length + 600,
-          after ? at + quote.length + after.index : text.length,
-        ),
-      }
+      // A quote lives in one unelided span; the same words inside a marker are not it.
+      const span = unelided(text).find((s) => text.slice(s.start, s.end).includes(quote))
+      if (!span) return []
+      const at = text.indexOf(quote, span.start)
+      return [
+        {
+          segment,
+          start: Math.max(at - 600, span.start),
+          end: Math.min(at + quote.length + 600, span.end),
+        },
+      ]
     })
     .sort((a, b) => Number(a.segment.slice(1)) - Number(b.segment.slice(1)) || a.start - b.start)
   const merged: ExcerptRange[] = []
