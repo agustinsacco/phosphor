@@ -160,6 +160,7 @@ export function createRunAdministration(options: AdministrationOptions) {
       : undefined,
     writes: createWrites(featureContext),
     deleteLane: createLaneDeletion({
+      archiveOwnsCwd: (cwd) => archives.ownsCwd(cwd),
       store: options.store,
       stop: options.binding.deleteStop,
       remove: options.runtime.remove,

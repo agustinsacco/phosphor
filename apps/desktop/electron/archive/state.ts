@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { join } from 'node:path'
+import { isWithinFolder } from '@shared/paths'
 import { createLaneArchiveStorage } from '@phosphor/session-runtime/lane-archive/storage'
 import { createArchiveInventory } from '@phosphor/session-runtime/lane-archive/inventory'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
@@ -19,6 +20,15 @@ function createState() {
   return { storage, inventory }
 }
 export const localArchives = () => (state ??= createState())
+
+/** Moving a sandbox would invalidate archived cwd and transcript identities. */
+export async function hasArchivedFolder(path: string): Promise<boolean> {
+  const { entries, truncated } = await localArchives().storage.list()
+  return (
+    truncated ||
+    entries.some((record) => isWithinFolder(sessionPathKey(record.cwd), sessionPathKey(path)))
+  )
+}
 
 /** Shared worktrees stay protected even after archived transcripts leave normal discovery. */
 export async function assertNoArchivedOwners(cwd: string, except?: string): Promise<void> {

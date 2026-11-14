@@ -103,14 +103,17 @@ export async function branchLanded(
     ? landedViaPullRequest(run, pullRequestEvidence(root, github), branch, commit)
     : false
 }
-export function createLaneDeletion(options: {
+interface DeletionPorts {
   store: HostStore
   stop(laneId: string, allowed: () => boolean): Promise<void>
   remove(request: unknown): Promise<void>
   forget(laneId: string): void
   /** The Host's read-only gh, for the merged-PR proof. Without it only git proves a merge. */
   github?: GhRunner
-}) {
+  /** Durable manifests survive old-Host tombstone pruning. */
+  archiveOwnsCwd?: (cwd: string) => Promise<boolean>
+}
+export function createLaneDeletion(options: DeletionPorts) {
   return async (
     op: DeleteLaneOp,
     allowed: () => boolean,
@@ -120,12 +123,13 @@ export function createLaneDeletion(options: {
     const repo = options.store.listRepositories().find((r) => r.id === lane.repositoryId)
     if (!repo) return forgetUnlisted(options, lane.laneId, op, allowed)
     if (!allowed()) return { ok: false, code: 'forbidden' }
-    const shared = () =>
+    const shared = async () =>
       options.store.archives.ownsCwd(lane.cwd, lane.laneId) ||
-      options.store.listLanes().some((l) => l.laneId !== lane.laneId && l.cwd === lane.cwd)
-    if ((op.removeWorktree || op.removeBranch) && (!lane.worktree || shared()))
-      return { ok: false, code: 'busy' }
+      options.store.listLanes().some((l) => l.laneId !== lane.laneId && l.cwd === lane.cwd) ||
+      (await options.archiveOwnsCwd?.(lane.cwd)) === true
     try {
+      if ((op.removeWorktree || op.removeBranch) && (!lane.worktree || (await shared())))
+        return { ok: false, code: 'busy' }
       const root = await realpath(repo.path)
       const cwd = await realpath(lane.cwd).catch((error) => {
         if (!missing(error) || !lane.worktree) throw error
@@ -163,17 +167,17 @@ export function createLaneDeletion(options: {
         ))
       ) {
         if (
-          shared() ||
+          (await shared()) ||
           (await realpath(lane.cwd)) !== cwd ||
           dirname(await realpath(join(root, '.phosphor', 'worktrees'))) !== join(root, '.phosphor')
         )
           return { ok: false, code: 'busy' }
         if (!allowed()) return { ok: false, code: 'forbidden' }
-        if (shared()) return { ok: false, code: 'busy' }
+        if (await shared()) return { ok: false, code: 'busy' }
         await git(root, ['worktree', 'remove', '--', cwd], { isolateEnv: true })
       }
       let branchKept = op.removeBranch && lane.branch !== null
-      if (op.removeBranch && lane.branch && !shared() && allowed())
+      if (op.removeBranch && lane.branch && !(await shared()) && allowed())
         branchKept = !(await deleteLandedBranch(root, lane.branch, allowed, options.github))
       if (!allowed()) return { ok: false, code: 'forbidden' }
       options.store.markRemoved(lane.laneId)

@@ -1,3 +1,4 @@
+import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { realpath, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
@@ -68,6 +69,10 @@ export class HostArchives {
         return { ok: true, data: await this.inventory.list(measure) }
       },
     }
+  }
+  async ownsCwd(cwd: string): Promise<boolean> {
+    const { entries, truncated } = await this.storage.list()
+    return truncated || entries.some((record) => sessionPathKey(record.cwd) === sessionPathKey(cwd))
   }
   async execute(op: LaneArchiveOp, allowed: () => boolean): Promise<Outcome> {
     try {
