@@ -85,7 +85,9 @@ input, so a retry or restart reuses it:
    typed links with their own quotes, and parent assessments for new projects, components,
    documents and teams. A stated parent needs a kept structural link whose subject is that entity.
    Missing or invalid parent assessments mean not stated. People are humans, never agents or bots.
-   Pull requests, tickets, commits, branches and files are not entities.
+   Pull requests, tickets, commits, branches and files are not entities. The model is asked for
+   every lasting relationship the conversation shows between a kept claim's entities. A link
+   sits on a claim that mentions both ends, and its quote may come from any segment.
 2. **Fold** (code). Claims with the same text and links merge their quotes; entities with the
    same name merge within the lane. A person merges this way only on a full name.
 3. **Identity.** Each new entity gets up to 12 candidates: the store's exact keys, names and
@@ -110,11 +112,13 @@ input, so a retry or restart reuses it:
 Parsing drops the smallest invalid item and records why. A bad entity or claim cannot fail a
 lane. A bad link is dropped while its claim and known endpoint mentions remain. The first valid
 ref wins. Quotes match exactly in the cited segment, then any segment, then with flexible
-whitespace and straight/curly quotation marks. Flexible matches store the source's own substring.
+whitespace and straight/curly quotation marks, by a linear search. Flexible matches store the
+source's own substring.
 Every quote stays within one unelided span. Only unusable JSON or missing entity/claim arrays
 gets one repair call; a second unusable answer fails visibly.
 
-Identity and reconcile keep valid decisions and ask once more for undecided rows alone. Still
+Identity and reconcile keep valid decisions and ask once more for undecided rows alone. The
+accepted answer to each prompt is saved, so a retry asks only for rows it still lacks. Still
 missing identity decisions become uncertain; missing reconcile decisions become add. Invalid,
 duplicate and unoffered decisions cannot fail a lane. An unusable decision envelope gets one
 repair call. A call that ends without a usable answer because the provider, the transport or the process

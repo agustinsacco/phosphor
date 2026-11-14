@@ -50,7 +50,7 @@ Each claim is one self-contained sentence that a reader understands without this
 Entities are lasting things only: person (a human), team, organization (a company, customer or vendor), project (a product or initiative), component (a service, system, tool, library or environment), document (a spec, runbook or design doc), concept (a named domain term or acronym the project relies on), event (a dated milestone or incident). A person is a human, never an AI agent, model or bot. Pull requests, tickets, commits, branches and files are never entities. Create an entity only when a claim you keep mentions it. Use an offered registry ref whenever one fits.
 
 # Links
-A link states a lasting relationship between two entities, and its own quote must support it. Allowed links, as subject kinds → object kinds:
+Links turn separate memories into a graph, so they matter as much as the claims. After choosing the claims, go through their entities and add every lasting relationship the conversation shows between two of them: who owns, works on or belongs to what, and what is part of, built for, depends on or uses what. Put each link on a kept claim that mentions both entities. The claim need not be about the relationship, but the link's own quote must show it, and that quote may come from any segment. Allowed links, as subject kinds → object kinds:
 ${linkRules}
 If none fits, add no link: the claim still stands. Never link two things only because one sentence mentions both, and never from a shared name prefix.
 
