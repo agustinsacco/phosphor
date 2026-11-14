@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 const effects = vi.hoisted(() => ({
   order: [] as string[],
   live: vi.fn(),
+  archived: vi.fn(),
   plan: vi.fn(),
   resolve: vi.fn(),
   rename: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('electron', () => ({
   shell: { trashItem: effects.trash },
 }))
 vi.mock('node:fs/promises', () => ({ rename: effects.rename }))
+vi.mock('./archive/state', () => ({ hasArchivedFolder: effects.archived }))
 vi.mock('./registry', () => ({ registry: { list: effects.live } }))
 vi.mock('./sandbox', () => ({
   planSandboxRename: effects.plan,
@@ -49,6 +51,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   effects.order.length = 0
   effects.live.mockReturnValue([])
+  effects.archived.mockResolvedValue(false)
   effects.plan.mockReturnValue({ ok: true, from: '/old', to: '/new' })
   effects.resolve.mockReturnValue('/old')
   effects.rename.mockImplementation(async () => {
@@ -102,6 +105,15 @@ it('refuses a live descendant and accepts no-op rename before liveness checks', 
   expect(effects.trash).not.toHaveBeenCalled()
   effects.plan.mockReturnValue({ ok: true, from: '/old', to: '/old' })
   expect(await renameSandbox('/old', 'old')).toEqual({ ok: true, path: '/old' })
+})
+
+it('refuses sandbox rename and delete while an archived descendant owns its paths', async () => {
+  effects.archived.mockResolvedValue(true)
+  expect(await renameSandbox('/old', 'new')).toEqual({ ok: false, reason: 'in-use' })
+  expect(await deleteSandbox('/old')).toEqual({ ok: false, reason: 'in-use' })
+  expect(effects.archived).toHaveBeenCalledWith('/old')
+  expect(effects.rename).not.toHaveBeenCalled()
+  expect(effects.trash).not.toHaveBeenCalled()
 })
 
 it('maps all transcripts before Trash and prunes recents after best-effort disposal', async () => {

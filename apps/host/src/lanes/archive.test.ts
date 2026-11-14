@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { openStore, type HostStore } from './store'
 import { HostArchives } from './archive'
+import { createLaneDeletion } from './delete'
 
 let root: string, directory: string, sessionsRoot: string, transcript: string, laneId: string
 let store: HostStore, archives: HostArchives
@@ -124,6 +125,37 @@ it('permanent cleanup removes only lane-owned files and preserves shared artifac
   expect(await readFile(join(root, 'subagent-artifacts', 'shared'), 'utf8')).toBe('shared')
   expect(removed).toHaveBeenCalledWith(laneId)
 })
+it('protects shared checkouts from legacy deletion after an old Host pruned archive metadata', async () => {
+  const cwd = join(root, '.phosphor', 'worktrees', 'shared')
+  await mkdir(cwd, { recursive: true })
+  const repositoryId = store.listRepositories()[0]!.id
+  const archived = store.ensureLane({ repositoryId, cwd, sessionFile: null, worktree: true })
+  const sibling = store.ensureLane({ repositoryId, cwd, sessionFile: null, worktree: true })
+  expect(
+    await archives.execute({ type: 'lane.archive', laneId: archived.laneId }, () => true),
+  ).toEqual({ ok: true })
+  store.archives.forget(archived.laneId)
+  store.pruneRemovedLanes(Date.now() + 90 * 86400_000)
+  expect(store.getLane(archived.laneId)).toBeNull()
+  stop.mockClear()
+  const remove = vi.fn(async () => {})
+  const deletion = createLaneDeletion({
+    store,
+    stop,
+    remove,
+    forget,
+    archiveOwnsCwd: (path) => archives.ownsCwd(path),
+  })
+  expect(
+    await deletion(
+      { type: 'lane.delete', laneId: sibling.laneId, removeWorktree: true, removeBranch: true },
+      () => true,
+    ),
+  ).toEqual({ ok: false, code: 'busy' })
+  expect(stop).not.toHaveBeenCalled()
+  expect(remove).not.toHaveBeenCalled()
+})
+
 it('refuses to overwrite a replacement transcript and keeps the archive recoverable', async () => {
   await archives.execute({ type: 'lane.archive', laneId }, () => true)
   await writeFile(transcript, 'replacement')
