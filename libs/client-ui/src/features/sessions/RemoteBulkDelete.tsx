@@ -1,13 +1,10 @@
 import { useState } from 'react'
-import { remoteLaneResourceKey } from '@shared/remote-host'
 import type { HostLaneView } from '@shared/ipc'
 import { remotePrKey } from '@shared/host-protocol-github'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { pullRequestFor, usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
 import { ArchiveConfirm } from './ArchiveConfirm'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { lanesOwningWorktree, type LanePreflight, type PreflightSummary } from './deletePreflight'
 import { canArchiveRemoteLane, canDeleteRemoteLane, deleteRemoteLanes } from './deleteRemoteLanes'
 import { LaneBulkBar } from './LaneSelect'
 import { clearLaneSelection, useSelectedKeys, useSelectionOwner } from './laneSelection'
@@ -79,37 +76,4 @@ export function selectableLanes(
             'MERGED'),
     )
     .map((lane) => lane.laneId)
-}
-
-function preflight(hostId: string, lanes: HostLaneView[]): PreflightSummary {
-  const prs = usePullRequestsStore.getState()
-  const owners = lanesOwningWorktree(
-    lanes.map((l) => ({ path: l.laneId, cwd: l.cwd })),
-    (useRemoteLanesStore.getState().hosts[hostId]?.lanes ?? []).map((l) => ({
-      path: l.laneId,
-      cwd: l.cwd,
-    })),
-  )
-  const rows = lanes.map((l): LanePreflight => {
-    const pr = pullRequestFor(prs, remotePrKey(hostId, l.repositoryId), l.branch)
-    return {
-      path: remoteLaneResourceKey(hostId, l.laneId),
-      title: l.title || 'Untitled lane',
-      marker: '',
-      dirtyCount: 0,
-      pr,
-      warnings: [
-        ...(l.activity === 'working' ? ['running' as const] : []),
-        ...(pr?.state === 'OPEN' || pr?.state === 'DRAFT' ? ['open-pr' as const] : []),
-      ],
-    }
-  })
-  const warnings = [...new Set(rows.flatMap((r) => r.warnings))]
-  return {
-    lanes: rows,
-    deletable: rows,
-    warnings,
-    needsAcknowledgement: warnings.length > 0,
-    worktreeCount: lanes.filter((l) => l.worktree && owners.has(l.laneId)).length,
-  }
 }

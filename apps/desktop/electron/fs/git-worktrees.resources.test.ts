@@ -1,3 +1,4 @@
+import type * as fs from 'node:fs'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ git: vi.fn(), dirtyCount: vi.fn() }))
@@ -8,7 +9,7 @@ vi.mock('@phosphor/session-runtime/git/git-exec', () => ({
 }))
 vi.mock('./gh-cli', () => ({ ghEvidence: vi.fn() }))
 vi.mock('node:fs', async (original) => ({
-  ...(await original<typeof import('node:fs')>()),
+  ...(await original<typeof fs>()),
   existsSync: () => true,
 }))
 
