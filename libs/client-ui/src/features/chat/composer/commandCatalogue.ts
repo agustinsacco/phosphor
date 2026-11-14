@@ -53,13 +53,14 @@ export const BADGE_LABELS: Record<CommandBadge, string> = {
  * resolve when typed — the menu is a discovery surface, not a permission one.
  *
  * `/phosphor-context-files` is a host control the composer's checkboxes send,
- * and `/phosphor-reload` one main sends before a turn when a lane's MCP config
- * changed.
+ * `/phosphor-reload` one main sends before a turn when a lane's MCP config
+ * changed, and `/phosphor-prs` the one Track and Hide send.
  */
 const DEMOTED: Record<string, string> = {
   'phosphor-context-files': 'Phosphor runs this for you from the CLAUDE.md / AGENTS.md checkboxes.',
   'phosphor-reload': 'Phosphor runs this for you before your next message when connectors change.',
   'phosphor-swarm': 'Use the Swarm switch in the composer to change lane authorization.',
+  'phosphor-prs': "Use the lane's pull request menu to track or hide a PR.",
 }
 
 /**

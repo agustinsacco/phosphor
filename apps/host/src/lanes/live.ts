@@ -1,9 +1,10 @@
 import { createLaneStreams, createLanesTopic, streamLimits } from './stream'
 import type { LiveOptions, LiveState } from './live/state'
 import { invalidSummary, promptTitle, summaryFor } from './live/summary'
-import { changed, publish } from './live/publication'
+import { changed, publish, republish } from './live/publication'
 import { attach, detach, push } from './live/attachments'
 import { createRepositoryGit } from './live/repository-git'
+import { createLanePrSignals } from './live/lane-prs'
 
 export { promptTitle } from './live/summary'
 
@@ -42,6 +43,10 @@ export function createLiveLanes(options: LiveOptions) {
       }),
     }),
   }
+  if (options.lanePrs) {
+    const changed = (laneIds: string[]) => republish(state, laneIds)
+    state.lanePrs = createLanePrSignals({ read: options.lanePrs, now: options.now, changed })
+  }
   // With a probe, ask git at startup so the first snapshot a client gets already says.
   repositories()
   return {
@@ -70,6 +75,7 @@ export function createLiveLanes(options: LiveOptions) {
         .dialogs.map((d) => d.id) ?? [],
     detach: detach.bind(null, state),
     forget(laneId: string) {
+      state.lanePrs?.forget(laneId)
       detach(state, laneId)
       state.lanesTopic.delta([], [laneId])
       state.streams.forget(laneId)

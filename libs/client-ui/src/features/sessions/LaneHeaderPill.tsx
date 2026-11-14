@@ -11,7 +11,8 @@ export type ClosePill = (restoreFocus?: boolean) => void
  * popup. The PR status and Slack threads pills are both this; their contents
  * differ, their focus and dismissal must not.
  *
- * Enter/Space opens and focus starts on the popup's first button; Escape, an
+ * Enter/Space opens and focus starts on the popup's `data-popup-autofocus`
+ * element, else its first button; Escape, an
  * outside click or the pill itself closes it and returns focus to the pill.
  */
 export function LaneHeaderPill({
@@ -21,6 +22,10 @@ export function LaneHeaderPill({
   className,
   face,
   region,
+  popupClassName = 'w-80 py-2',
+  open: controlledOpen,
+  onOpenChange,
+  holdOpen,
   children,
 }: {
   label: string
@@ -31,12 +36,25 @@ export function LaneHeaderPill({
   face: React.ReactNode
   /** Accessible name of the popup's region. */
   region: string
+  /** Width and padding of the popup. */
+  popupClassName?: string
+  /** Controlled open state, for a pill something else can open. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** True while a dialog the popup opened is on top: clicks there must not close it. */
+  holdOpen?: () => boolean
   children: (close: ClosePill) => React.ReactNode
 }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
+  const [ownOpen, setOwnOpen] = useState(false)
+  const open = controlledOpen ?? ownOpen
+  const setOpen = (next: boolean): void => {
+    setOwnOpen(next)
+    onOpenChange?.(next)
+  }
   const triggerRef = useRef<HTMLButtonElement>(null)
   const id = useId()
   const close: ClosePill = (restoreFocus = true) => {
+    if (holdOpen?.()) return
     setOpen(false)
     if (restoreFocus) triggerRef.current?.focus()
   }
@@ -65,7 +83,7 @@ export function LaneHeaderPill({
           onClose={close}
           fitViewport
           escapeContainer
-          className="absolute left-0 top-full mt-1 w-80 py-2"
+          className={`absolute left-0 top-full mt-1 ${popupClassName}`}
         >
           <FocusFirst region={region}>{children(close)}</FocusFirst>
         </PopupMenu>
@@ -85,7 +103,10 @@ function FocusFirst({
   useEffect(() => {
     // The menu is fixed in the viewport by now; preventScroll keeps a later
     // regression there from dragging the whole window with it.
-    ref.current?.querySelector('button')?.focus({ preventScroll: true })
+    const first =
+      ref.current?.querySelector<HTMLElement>('[data-popup-autofocus]') ??
+      ref.current?.querySelector('button')
+    first?.focus({ preventScroll: true })
   }, [])
   return (
     <div ref={ref} role="region" aria-label={region}>

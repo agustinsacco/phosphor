@@ -78,6 +78,11 @@ export type HostFrame =
       readonly laneTransfer?: boolean
       /** Additive support marker: the Host serves raw file bytes (`files.readBytes`). */
       readonly fileBytes?: boolean
+      /**
+       * Additive support marker: the Host reads PRs by number (`github.prSummaries`,
+       * `github.prDetail`) and sends lane summaries' `pullRequests`.
+       */
+      readonly prStatus?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }

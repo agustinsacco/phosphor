@@ -8,7 +8,7 @@ import { acknowledgeToast, useExtensionUiStore, type Toast } from '@/stores/exte
 import type { Notification } from '@/stores/notifications'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
-import { machineColour, type ToastReceipt } from '@/features/sessions/laneReceipt'
+import type { ToastReceipt } from '@/features/sessions/laneReceipt'
 
 /**
  * A lane's receipt, in parts. The toast shows all of it; a drawer row shows
@@ -170,7 +170,7 @@ export function ReceiptActions({
   )
 }
 
-/** The receipt as a toast: everything at once, edged in its machine's colour. */
+/** The receipt as a toast: everything at once. The card edges it in its machine's colour. */
 export function LaneReceiptCard({
   toast,
   open,
@@ -185,26 +185,25 @@ export function LaneReceiptCard({
     acknowledgeToast(toast)
   }
   return (
-    <div
-      className="flex min-w-0 flex-1 flex-col rounded-l-xl border-l-[3px]"
-      style={{ borderLeftColor: machineColour(receipt?.machineId) }}
-    >
+    <div className="flex min-w-0 flex-1 flex-col">
       <TooltipButton
         onClick={open}
         aria-label={`Open lane: ${toast.title ?? receiptTitle(toast)}`}
         data-testid="toast-open"
-        className="min-w-0 p-3 text-left"
+        className="min-w-0 py-2 pl-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--px-accent)]/40 focus-visible:ring-inset"
       >
         <span className="text-text-secondary flex items-center justify-between text-xs">
           {receipt && <ReceiptOrigin receipt={receipt} />}
           <time dateTime={receipt?.at}>{age ? `${age}m ago` : 'Just now'}</time>
         </span>
-        <strong className="text-text mt-1 block truncate text-base">{receiptTitle(toast)}</strong>
+        <strong className="text-text mt-1 block truncate text-base leading-5 font-medium">
+          {receiptTitle(toast)}
+        </strong>
         <ReceiptPlace facts={receipt?.facts} />
         <NoticeLine notice={toast} className="truncate" />
-        <ReceiptFacts facts={receipt?.facts} className="mt-2" />
+        <ReceiptFacts facts={receipt?.facts} className="mt-1.5" />
       </TooltipButton>
-      <ReceiptActions notice={toast} open={open} done={dismiss} className="px-3 pb-3" />
+      <ReceiptActions notice={toast} open={open} done={dismiss} className="pb-2 pl-2.5" />
     </div>
   )
 }

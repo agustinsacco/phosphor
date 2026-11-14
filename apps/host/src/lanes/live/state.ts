@@ -3,6 +3,8 @@ import type { LaneProjection } from '@phosphor/session-runtime/lanes/projection'
 import type { createHostLaneProjection, SnapshotResult } from '../projection-host'
 import type { HostStore } from '../store'
 import type { GitProbe } from './repository-git'
+import type { LanePrRead } from './lane-pr-fold'
+import type { createLanePrSignals } from './lane-prs'
 import type { LaneStreams, LanesTopic, StreamLimits } from '../stream'
 
 export type Attachment = {
@@ -35,6 +37,8 @@ export type LiveOptions = {
   unattached?(laneId: string): SnapshotResult | null
   /** Asks git whether each repository is a checkout. Absent: the field stays out. */
   gitTracking?: GitProbe
+  /** Reads a lane file's PR signals. Absent: summaries carry no `pullRequests`. */
+  lanePrs?: LanePrRead
 }
 
 export type LiveState = {
@@ -46,4 +50,5 @@ export type LiveState = {
   resolvingCommand: boolean
   streams: LaneStreams
   lanesTopic: LanesTopic
+  lanePrs?: ReturnType<typeof createLanePrSignals>
 }

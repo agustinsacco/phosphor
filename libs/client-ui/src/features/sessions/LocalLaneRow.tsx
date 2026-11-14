@@ -107,7 +107,6 @@ export function SessionRow({
   // Derived here rather than threaded through `rowProps` so a Pinned row — which
   // may belong to a different project than the one on screen — resolves its own.
   const prs = useLocalLanePrs(meta, git)
-  const pullRequest = prs.owned[0]?.pr
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
@@ -164,7 +163,7 @@ export function SessionRow({
     unseen,
     pinned: isPinned,
     git,
-    pullRequest,
+    prs: prs.owned,
     deleting,
     onRename: beginRename,
     onOpenTree,
@@ -230,7 +229,7 @@ export function SessionRow({
         )}
         <span
           className={clsx(
-            'flex items-center gap-1 text-base leading-4',
+            '@container/lane-line flex items-center gap-1 text-base leading-4',
             active ? 'text-text' : 'text-text-secondary',
           )}
         >
@@ -243,7 +242,7 @@ export function SessionRow({
             </span>
           )}
           <SubtitleSegments segments={subtitle} activity={activity} />
-          {showPrStatus && pullRequest && <PrBadge pr={pullRequest} more={prs.owned.length - 1} />}
+          {showPrStatus && <PrBadge prs={prs.owned} />}
         </span>
       </span>
       {deleting && (

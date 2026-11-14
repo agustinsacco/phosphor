@@ -236,7 +236,10 @@ stays local even while a remote lane is focused.
 Repository-wide `gh:prsForRepo` instead uses an opaque `host:<id>/repo:<repositoryId>`
 key and requires ready `workspaces.read`, not an active lane or control. The Host
 runs `gh` in its configured repository with its own credentials; the client's
-local `gh` is not required. Remote rows reuse the PR/check-state chips and safe
+local `gh` is not required. `gh:prSummaries` and `gh:prDetail` route to a Host
+when their third argument names it (`host:<hostId>`); without one they stay on
+This Mac's `gh`, and the local handler refuses a `host:` machine. The router
+lives in `hosts-read-handlers.ts` beside `gh:prsForRepo`. Remote rows reuse the PR beads and safe
 links described in [Lanes](lanes.md). The active lane's header joins through its
 Host repository id and branch even with its sidebar hidden. Shared visible-repo
 polling and manual app refresh do not bypass the Host's 60-second upstream cache;

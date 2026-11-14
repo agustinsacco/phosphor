@@ -20,6 +20,7 @@ import {
   ReceiptPlace,
 } from './LaneReceipt'
 import { setNotificationsOpen } from './NotificationsButton'
+import { PrNoticeActions, PrNoticeLines, PrToneGlyph } from './PrNoticeParts'
 
 const HOURS = 60 * 60 * 1000
 
@@ -105,7 +106,8 @@ function NotificationList({ items }: { items: Notification[] }): React.JSX.Eleme
 /**
  * One notice as a sidebar-style row: marker, title and time, then its line.
  * A lane receipt adds its facts and opens in place to where it ran and what
- * you can do about it; any other notice goes where it points. Expanding is
+ * you can do about it; a PR notice adds what changed since you looked and
+ * its actions; any other notice goes where it points. Expanding is
  * reading, not acting, so the row stays put (and new) until you act on it or
  * close the drawer.
  */
@@ -130,7 +132,11 @@ function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
       )}
     >
       <SeenDot isNew={isNew} />
-      <NoticeGlyph toast={item} ground="bg-sidebar" />
+      {item.pr ? (
+        <PrToneGlyph notice={item.pr} />
+      ) : (
+        <NoticeGlyph toast={item} ground="bg-sidebar" />
+      )}
       <div className="min-w-0 flex-1 pl-0.5">
         {/* Stretched over the whole row, so the marker and gutter click too. */}
         <TooltipButton
@@ -139,30 +145,15 @@ function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
           aria-label={item.openLabel && !item.receipt ? `${item.openLabel}: ${heading}` : heading}
           className="block w-full min-w-0 text-left outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-[var(--px-accent)]/40"
         >
-          <span className="flex min-w-0 items-baseline gap-1.5">
-            <span
-              className={clsx(
-                'min-w-0 flex-1 truncate text-base font-medium leading-5',
-                isNew ? 'text-text' : 'text-text-secondary',
-              )}
-            >
-              {heading}
-            </span>
-            <time
-              dateTime={new Date(item.at).toISOString()}
-              data-tooltip={absoluteTime(item.at)}
-              className="text-text-tertiary shrink-0 text-xs tabular-nums group-hover:invisible"
-            >
-              {relativeTimeShort(item.at)}
-            </time>
-          </span>
+          <RowHeading heading={heading} at={item.at} isNew={isNew} />
           {receipt && (
             <span className="text-text-secondary mt-0.5 flex min-w-0 items-center gap-1.5">
               <ReceiptOrigin receipt={receipt} />
               <ReceiptPlace facts={receipt.facts} />
             </span>
           )}
-          {(item.title || item.receipt) && (
+          {item.pr && <PrNoticeLines notice={item.pr} muted={!isNew} />}
+          {!item.pr && (item.title || item.receipt) && (
             <NoticeLine
               notice={item}
               muted={!isNew}
@@ -172,6 +163,13 @@ function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
           <ReceiptFacts facts={item.receipt?.facts} className="mt-1" />
         </TooltipButton>
         {receipt && <ReceiptActions notice={item} open={open} className="relative mt-1.5" />}
+        {item.pr && (
+          <PrNoticeActions
+            notice={item.pr}
+            done={() => markSeen([item.id])}
+            className="relative mt-1.5"
+          />
+        )}
       </div>
       <TooltipButton
         onClick={() => remove(item.id)}
@@ -181,6 +179,37 @@ function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
         <CloseIcon size={10} strokeWidth={2.5} />
       </TooltipButton>
     </li>
+  )
+}
+
+/** The row's title and how long ago, which the remove button covers on hover. */
+function RowHeading({
+  heading,
+  at,
+  isNew,
+}: {
+  heading: string
+  at: number
+  isNew: boolean
+}): React.JSX.Element {
+  return (
+    <span className="flex min-w-0 items-baseline gap-1.5">
+      <span
+        className={clsx(
+          'min-w-0 flex-1 truncate text-base font-medium leading-5',
+          isNew ? 'text-text' : 'text-text-secondary',
+        )}
+      >
+        {heading}
+      </span>
+      <time
+        dateTime={new Date(at).toISOString()}
+        data-tooltip={absoluteTime(at)}
+        className="text-text-tertiary shrink-0 text-xs tabular-nums group-hover:invisible"
+      >
+        {relativeTimeShort(at)}
+      </time>
+    </span>
   )
 }
 

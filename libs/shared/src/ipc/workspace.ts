@@ -10,6 +10,7 @@ import type {
   GhPullRequest,
   GhRepoPullRequests,
   GhPrReadOptions,
+  GhPrDetail,
   GhPrRead,
   GhPrRef,
   GhPrSummaryOptions,
@@ -159,10 +160,16 @@ export interface GhInvokeMap {
   /**
    * PR status by number, for every PR a lane owns: its checkout's, its other
    * branches', its subagents' and other repositories'. null means unavailable.
+   * `machine` `host:<hostId>` reads through that Host's gh; absent, This Mac's.
    */
   'gh:prSummaries': {
-    args: [refs: GhPrRef[], options?: GhPrSummaryOptions]
+    args: [refs: GhPrRef[], options?: GhPrSummaryOptions, machine?: string]
     result: GhPrRead | null
+  }
+  /** One PR's inspector detail: threads, checks with workflow and annotations, activity. */
+  'gh:prDetail': {
+    args: [ref: GhPrRef, options?: GhPrSummaryOptions, machine?: string]
+    result: GhPrDetail | null
   }
   'gh:available': { args: []; result: boolean }
 }

@@ -199,7 +199,7 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   the folder, which opens the start composer with that folder chosen. Pages
   pass `density="page"` for touch-sized header buttons.
 - `RemoteLaneRow` is the one Host lane row: title, elapsed time, worktree,
-  branch, PR chip, marker and activity, as on Desktop. Unread attention is not
+  branch, PR beads, marker and activity, as on Desktop. Unread attention is not
   labelled as a request for input, and a stopped process is not presented as a
   task result. A tap opens the lane through the browser's history. Right-click,
   the ContextMenu key, Shift+F10 or a touch long-press (one short vibration

@@ -490,7 +490,12 @@ close it; focus moves into the sheet and returns to the element on close.
   main, not this page; closing it never stops the scheduler. See [routines.md](routines.md).
 - **Machines** is always available; see [below](#machines).
 - **Toasts** — a stack at the top right, under the top bar, newest first and
-  capped at four (also used by extension `notify`). A notice about a lane
+  capped at four (also used by extension `notify`). Each is a square card on
+  the drawer's grammar (`notifications/ToastCard.tsx`): the raised surface, a
+  hairline strong border, the small radius, and a tone bar down the left edge
+  (the kind's colour, a receipt's machine colour, a PR notice's verdict), then
+  the glyph, a title line, its line and any actions. Errors are `role="alert"`;
+  the stack is `aria-live="polite"`. A notice about a lane
   names it the way its sidebar row does (marker and title) and clicking it
   opens that lane; so does the lane's row, since any navigation to a lane
   dismisses its notice. A lane holds one notice at a time: a lane that comes
@@ -504,7 +509,8 @@ close it; focus moves into the sheet and returns to the element on close.
   new notices and opens a right-hand column styled like the left navigation.
   It keeps what a toast leaves behind: lane notices, anything you can open,
   and every warning or error (a one-line "Copied" only toasts). One entry per
-  lane, updated in place, which makes it new again and moves it to the top.
+  lane, or per explicit key (a PR's is `pr:<prKey>`), updated in place, which
+  makes it new again and moves it to the top.
   A lane receipt shows the same parts as its toast (`notifications/LaneReceipt.tsx`):
   the row carries the reply's line and the facts, and clicking it opens in
   place to the machine, repository and branch and to Open lane / View changes
@@ -514,7 +520,27 @@ close it; focus moves into the sheet and returns to the element on close.
   their lane, use Mark all seen, or close the drawer, and then move to
   **Earlier** in a muted tone. Expanding a receipt does not count. Rows can be removed one at a time and Earlier can be cleared. Seen
   entries age out 24h after they arrived, new ones after 72h, and the list
-  holds at most 50. Entries are memory only and leave when their lane closes.
+  holds at most 50. Entries are memory only and leave when their lane closes
+  (PR notices stay: they open the lane from its file).
+- **PR change notices** — `stores/prTransitions.ts` watches PR status and
+  speaks when a PR a This Mac lane owns (`features/sessions/prLaneIndex.ts`,
+  never a reviewed or mentioned one) changes in a way worth interrupting for
+  (the `important` changes of `prChanges`: failed checks, an approval,
+  requested changes, a conflict, ready to merge, merged or closed). The first
+  answer per PR after launch is only a baseline, a read that failed or found
+  GitHub unavailable says nothing, and the Lanes "PR status" setting silences
+  it. Each PR holds one notice: a newer change replaces it and lists every
+  change since you looked ("Since you looked: …") until you open or dismiss
+  it. The row and the toast show the PR's verdict bead, "#57 Rocky review
+  failed (not required)", the lane and `repo#57`, then **Open lane** (the
+  lane, with its PR inspector on that PR) and the one hand-off that fits:
+  Ask agent to fix (red checks), to address (changes requested), to update
+  (a conflict), or Open on GitHub (ready to merge); merged has none. A
+  hand-off drafts into that lane's composer and is never sent. While
+  Phosphor is not the focused app, the same notice also goes to the
+  operating system (`app:notify`: title "#57 …", body "lane · repo");
+  clicking it brings the window forward and opens the lane on that PR. In
+  front of you the toast says it, so there is no native one.
 - **Status strip** — the bottom of the chat pane, only while a session has
   something to say: an MCP chip (`connected/enabled`, tool count, "N need
   attention"; opens Settings → MCP Connectors), a sub-agent chip (background
@@ -567,7 +593,12 @@ responsive lane grid. Each tile belongs to a session in the selected project,
 including its worktrees and live sessions the disk scan has not found yet.
 Live names override scanned names. Status, PR, branch and actions reuse the
 lane board's existing classification and merge/update flows; idle is not a
-claim of success or review approval.
+claim of success or review approval. A tile's PR column comes from the lead PR's
+`prVerdict`, the verdict the sidebar beads and the header pill show, so Home
+never reads a lane differently. A conflicting PR or one with no CI never reaches
+Ready to merge, and a PR in the merge queue is opened rather than merged
+locally. Each card shows the lane's PR beads, and its line names the lead PR
+("#57 · …").
 
 On entry, actionable work comes before idle history. Positions are then stable
 while the project's home stays mounted: updates, first save and suspend/resume

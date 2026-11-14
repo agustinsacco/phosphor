@@ -44,6 +44,9 @@ export function SubtitleSegments({
             // `shrink-0` won, which is what pushed long branch names past
             // the sidebar edge and produced a horizontal scrollbar.
             segment.truncate ? 'min-w-0 shrink' : 'shrink-0',
+            // In a lane row's narrowest width `wt` gives way to the PR beads
+            // (`PrBadge`); rows without the `lane-line` container never match.
+            segment.key === 'worktree' && '@max-[10.5rem]/lane-line:hidden',
           )}
         >
           {(i > 0 || leadingActivity) && <span className="pr-1">·</span>}

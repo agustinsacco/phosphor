@@ -138,4 +138,10 @@ export interface AppInvokeMap {
   'app:saveDialog': { args: [SaveDialogOptions]; result: string | null }
   'app:revealPath': { args: [string]; result: void }
   'app:openExternal': { args: [string]; result: void }
+  /**
+   * A native notification. Resolves true once the user clicks it (the window
+   * comes forward first), false when it closes unclicked or cannot be shown,
+   * including while the window is focused.
+   */
+  'app:notify': { args: [notice: { title: string; body: string }]; result: boolean }
 }

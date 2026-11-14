@@ -81,6 +81,12 @@ export function checkFacts(pr: AnyPr): CheckFacts {
   }
 }
 
+/** No CI is not green CI: an empty rollup never reads as ready (known issue R1, fixed). */
+export function checksRan(pr: AnyPr): boolean {
+  const checks = checkFacts(pr)
+  return checks.known && checks.total > 0
+}
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const people = (names: string[]) => names.map((n) => `@${n}`).join(', ')
 
@@ -180,7 +186,7 @@ export function prVerdict(pr: AnyPr | undefined): PrVerdict {
     return { tone, rank: top.rank, word, headline: top.text, blockers }
   }
   const checks = checkFacts(pr)
-  if (pr.reviewDecision === 'APPROVED' && checks.known) {
+  if (pr.reviewDecision === 'APPROVED' && checksRan(pr)) {
     const queued = isSummary(pr) && pr.inMergeQueue
     return {
       tone: 'ready',
@@ -191,7 +197,11 @@ export function prVerdict(pr: AnyPr | undefined): PrVerdict {
     }
   }
   const headline =
-    pr.reviewDecision === 'APPROVED' ? 'Approved; checks unknown' : 'Waiting for review'
+    pr.reviewDecision !== 'APPROVED'
+      ? 'Waiting for review'
+      : checks.known
+        ? 'Approved; no checks reported'
+        : 'Approved; checks unknown'
   return { tone: 'review', rank: 5, word: 'In review', headline, blockers }
 }
 
@@ -214,7 +224,7 @@ export function mergeBlock(pr: AnyPr): string | null {
   return null
 }
 
-export type StageState = 'done' | 'fail' | 'run' | 'part' | 'wait' | 'ready' | 'unknown'
+export type StageState = 'done' | 'fail' | 'run' | 'part' | 'wait' | 'ready' | 'none' | 'unknown'
 export interface PrStage {
   label: 'Opened' | 'Checks' | 'Review' | 'Merge' | 'Merged'
   state: StageState
@@ -228,6 +238,7 @@ const STAGE_WORD: Record<StageState, string> = {
   part: 'in progress',
   wait: 'waiting',
   ready: 'ready',
+  none: 'none reported',
   unknown: 'unknown',
 }
 
@@ -250,9 +261,11 @@ export function prStages(pr: AnyPr): PrStage[] {
     ? 'fail'
     : facts.pending
       ? 'run'
-      : facts.known
-        ? 'done'
-        : 'unknown'
+      : !facts.known
+        ? 'unknown'
+        : facts.total
+          ? 'done'
+          : 'none'
   const summary = isSummary(pr) ? pr : undefined
   const review: StageState =
     pr.reviewDecision === 'CHANGES_REQUESTED'
