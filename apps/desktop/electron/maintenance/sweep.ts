@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 import { promisify } from 'node:util'
+import { mapLimit } from '@phosphor/session-runtime/map-limit'
 import type { MaintenancePrefs, MaintenanceReport } from '@shared/models'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import {
@@ -61,25 +62,23 @@ const PR_LOOKUPS = 4
 
 async function gatherFacts(repoPath: string, measure: boolean): Promise<WorktreeFacts[]> {
   const worktrees = await listWorktrees(repoPath)
-  const facts: WorktreeFacts[] = await Promise.all(
-    worktrees.map(async (w) => {
-      const conversations = await conversationFacts(w.path)
-      return {
-        path: w.path,
-        realPath: w.realPath,
-        branch: w.branch,
-        head: w.head,
-        isMain: w.isMain,
-        // Unknown dirty state is not permission to delete.
-        dirtyCount: w.dirtyCount < 0 ? 1 : w.dirtyCount,
-        locked: w.locked,
-        ...conversations,
-        merged: w.isMain || !w.branch ? false : await isBranchMerged(repoPath, w.branch),
-        lastWriteMs: Math.max(await lastWrite(w.path), conversations.lastWriteMs),
-        bytes: measure ? await directorySize(w.path) : null,
-      }
-    }),
-  )
+  const facts: WorktreeFacts[] = await mapLimit(worktrees, 4, async (w) => {
+    const conversations = await conversationFacts(w.path)
+    return {
+      path: w.path,
+      realPath: w.realPath,
+      branch: w.branch,
+      head: w.head,
+      isMain: w.isMain,
+      // Unknown dirty state is not permission to delete.
+      dirtyCount: w.dirtyCount < 0 ? 1 : w.dirtyCount,
+      locked: w.locked,
+      ...conversations,
+      merged: w.isMain || !w.branch ? false : await isBranchMerged(repoPath, w.branch),
+      lastWriteMs: Math.max(await lastWrite(w.path), conversations.lastWriteMs),
+      bytes: measure ? await directorySize(w.path) : null,
+    }
+  })
   // Git misses most lanes that landed as a PR (see `landedViaPullRequest`).
   // Ask GitHub only where the answer can matter: a clean lane git could not
   // prove. A dirty lane is held whatever its merge state.

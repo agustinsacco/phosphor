@@ -852,6 +852,13 @@ drops a stale Git registration of that same path first (other stale entries
 are left alone). Dependencies must be
 reinstalled. Phosphor never picks a replacement silently.
 
+Worktree listings check dirty state at most four checkouts at a time. Internal
+branch listings and new-lane preflight read only worktree metadata; creation
+checks dirtiness only for the new checkout. Maintenance also gathers facts and
+sizes for at most four worktrees at a time, rather than spawning subprocesses
+for every registered checkout together. These bounds do not queue interactive
+Git operations behind background scans.
+
 Sizes come from `du`, which Windows lacks; an unmeasured size reports "unknown"
 and the policy never depends on the number. The scheduler is a plain interval
 in main with a 5-minute warmup and a 15-minute floor, one sweep at a time.
