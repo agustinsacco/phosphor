@@ -169,7 +169,7 @@ export class LaneArchiveStorage {
     const record = await this.get(id)
     if (record.state !== 'archived' && record.state !== 'purging')
       throw new Error('Restore this incomplete archive before cleaning it up.')
-    await assertArchiveDirectory(record, this.sessionsRoot)
+    await assertArchiveDirectory(record, this.sessionsRoot, true)
     await assertPurgeIdentity(record)
     await this.save({ ...record, state: 'purging' })
     await cleanup(record)

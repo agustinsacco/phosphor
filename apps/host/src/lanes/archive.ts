@@ -159,6 +159,8 @@ export class HostArchives {
       if (restored.laneId !== record.id) throw new Error('Another lane owns this transcript.')
     }
     store.archives.restore(record.id)
+    // pi can report a filename before its first write. Resume must create, not open that missing file.
+    if (!record.transcript) store.bindSessionFile(record.id, null)
     await this.storage.finish(record.id)
     this.options.announce(record.id)
   }

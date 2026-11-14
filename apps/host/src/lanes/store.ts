@@ -252,8 +252,8 @@ export class HostStore {
       return this.requireLane(id)
     })
   }
-  bindSessionFile(id: string, file: string): void {
-    absolutePath(file)
+  bindSessionFile(id: string, file: string | null): void {
+    if (file !== null) absolutePath(file)
     this.requireLane(id)
     this.db.prepare('UPDATE lanes SET session_file=? WHERE lane_id=?').run(file, id)
   }

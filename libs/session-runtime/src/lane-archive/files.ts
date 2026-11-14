@@ -10,8 +10,15 @@ export const statIfPresent = (path: string) =>
     throw error
   })
 
-export async function assertArchiveDirectory(record: ArchiveRecord, sessionsRoot: string) {
+export async function assertArchiveDirectory(
+  record: ArchiveRecord,
+  sessionsRoot: string,
+  allowMissing = false,
+) {
   if (!record.transcript) return
+  // The Desktop adapter removes empty session folders after trashing the transcript.
+  // A dangling symlink is still present and must fail the normal realpath checks.
+  if (allowMissing && !(await statIfPresent(dirname(record.transcript)))) return
   const directory = await realpath(dirname(record.transcript))
   if (
     directory !== record.identity?.directory ||
