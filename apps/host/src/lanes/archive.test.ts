@@ -74,6 +74,19 @@ it('archives without the removal hook, survives tombstone pruning, then restores
   )
   expect(announce).toHaveBeenCalledWith(laneId)
 })
+it('restores a never-sent lane without retaining its nonexistent transcript path', async () => {
+  await rm(transcript)
+  expect(await archives.execute({ type: 'lane.archive', laneId }, () => true)).toEqual({ ok: true })
+  expect(
+    await archives.execute({ type: 'archive.restore', archiveId: laneId }, () => true),
+  ).toEqual({ ok: true })
+  expect(store.getLane(laneId)?.sessionFile).toBeNull()
+  expect(store.listLanes()[0]?.laneId).toBe(laneId)
+  expect(await readFile(join(directory, 'attachments', laneId, 'upload'), 'utf8')).toBe(
+    'attachment',
+  )
+})
+
 it('leaves everything untouched when admission is lost or stop fails', async () => {
   expect(await archives.execute({ type: 'lane.archive', laneId }, () => false)).toEqual({
     ok: false,

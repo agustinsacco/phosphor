@@ -104,6 +104,21 @@ it('refuses non-session paths and symlinked session files', async () => {
   await expect(prepare()).rejects.toThrow('regular session')
 })
 
+it('retries cleanup after the adapter removed the entire session folder', async () => {
+  await prepare()
+  await storage.archive(id)
+  await expect(
+    storage.purge(id, async () => {
+      await rm(join(sessions, 'cwd'), { recursive: true })
+      throw new Error('interrupted after transcript cleanup')
+    }),
+  ).rejects.toThrow('interrupted')
+  expect((await storage.get(id)).state).toBe('purging')
+  await expect(storage.purge(id, async () => {})).resolves.toBeUndefined()
+  await storage.finish(id)
+  expect((await storage.list()).entries).toEqual([])
+})
+
 it('keeps empty lanes recoverable without inventing a transcript', async () => {
   await storage.prepare({ id, cwd, title: 'No first message yet' })
   await storage.archive(id)
