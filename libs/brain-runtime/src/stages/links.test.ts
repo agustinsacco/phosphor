@@ -122,7 +122,7 @@ it.each([
   value.entities.push({ ...value.entities[1]!, ref: 'n3', label: 'Ledger' })
   value.claims.push({ ...structuredClone(value.claims[0]!), ref: 'c2', mentions: ['n1'] })
   const s = await extract(value, [{ ...link, ...patch }, link], [quote, 'Tom Lee owns Ledger.'])
-  expect(s.extraction.outcomes).toContainEqual(
+  expect(s.extraction.outcomes ?? []).toContainEqual(
     expect.objectContaining({ status: 'dropped', reason: expect.stringContaining(reason) }),
   )
   expect(s.extraction.claims[0]!.links).toHaveLength(1)
@@ -133,13 +133,13 @@ it('drops duplicates anywhere in the part, from extraction or earlier answer row
   const value = fixture()
   value.claims.push({ ...structuredClone(value.claims[0]!), ref: 'c2', links: [link] })
   const s = await extract(value, [link])
-  expect(s.extraction.outcomes).toContainEqual(
+  expect(s.extraction.outcomes ?? []).toContainEqual(
     expect.objectContaining({ reason: expect.stringContaining('Duplicate link') }),
   )
   expect(s.extraction.claims.map((c) => c.links.length)).toEqual([0, 1])
   const t = await extract(fixture(), [link, link])
   expect(t.extraction.claims[0]!.links).toHaveLength(1)
-  expect(t.extraction.outcomes).toContainEqual(
+  expect(t.extraction.outcomes ?? []).toContainEqual(
     expect.objectContaining({ reason: expect.stringContaining('Duplicate link') }),
   )
 })
