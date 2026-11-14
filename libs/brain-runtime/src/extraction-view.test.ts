@@ -1,6 +1,7 @@
-import { appendFile, unlink } from 'node:fs/promises'
+import { appendFile, unlink, writeFile } from 'node:fs/promises'
 import { afterEach, expect, it } from 'vitest'
-import { pipelineSetup } from './__fixtures__/pipeline'
+import { CallTracer } from './call-trace'
+import { pipelineSetup, answerFor } from './__fixtures__/pipeline'
 import { extractJob } from './extract'
 import { extractionView } from './extraction-view'
 import { extractionAnswer } from './extraction-record'
@@ -58,4 +59,48 @@ it('scrubs before the 64 KB byte cap, marks truncation and preserves small answe
   expect(answer).toContain('[answer truncated at 64 KB]')
   expect(answer).not.toContain('\uFFFD')
   expect(Buffer.byteLength(answer)).toBeLessThan(65600)
+})
+
+it('rebuilds a whole-lane prompt with 600 segments from its input checkpoint', async () => {
+  const s = await pipelineSetup()
+  cleanups.push(s.cleanup)
+  const entries = Array.from({ length: 600 }, (_, i) => ({
+    id: `made-up-${i}-${'a'.repeat(80)}`,
+    type: 'message',
+    message: {
+      role: 'assistant',
+      content: i === 0 ? 'Rina Okafor owns Harbor billing.' : `Harbor note ${i}.`,
+    },
+  }))
+  await writeFile(
+    s.file,
+    [...s.entries.slice(0, 3), ...entries].map((e) => JSON.stringify(e)).join('\n'),
+  )
+  await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
+  const view = await extractionView(s.store, s.job.id)
+  expect(view.prompts).toEqual(s.runner.mock.calls.map(([call]) => call.prompt))
+  expect(view.calls.filter((c) => c.stage === 'extract')).toHaveLength(1)
+  expect(view.calls[0]!.entryIds).toHaveLength(600)
+})
+
+it('rebuilds both repair attempts from the original answer after a provider retry', async () => {
+  const s = await pipelineSetup()
+  cleanups.push(s.cleanup)
+  s.options.retryDelay = async () => {}
+  let repairAttempts = 0
+  s.runner.mockImplementation(async (input) => {
+    if (input.stage === 'extract') return { text: '{}', usage: { tokens: 1, cost: 0 } }
+    if (input.stage === 'repair' && ++repairAttempts === 1) {
+      const trace = new CallTracer()
+      trace.finish('error')
+      input.onTrace?.(trace.trace)
+      throw new Error('Fake socket error')
+    }
+    return { text: answerFor(input), usage: { tokens: 1, cost: 0 } }
+  })
+  await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
+  expect(s.store.job(s.job.id)?.state).toBe('review')
+  const view = await extractionView(s.store, s.job.id)
+  expect(view.calls.map((c) => c.stage)).toEqual(['extract', 'repair', 'repair', 'identity'])
+  expect(view.prompts).toEqual(s.runner.mock.calls.map(([call]) => call.prompt))
 })

@@ -26,7 +26,7 @@ it.each([
   expect(result.outcomes).toContainEqual(
     expect.objectContaining({
       status: 'dropped',
-      candidate: invalid.ref === 'bad' ? 'entity[3]' : 'n3',
+      candidate: 'ref' in invalid && invalid.ref === 'bad' ? 'entity[3]' : 'n3',
     }),
   )
 })
@@ -43,7 +43,7 @@ it.each([
   expect(result.claims.map((c) => c.ref)).toEqual(['c1'])
   expect(result.outcomes?.[0]).toMatchObject({
     status: 'dropped',
-    candidate: invalid.ref === 'bad' ? 'claim[2]' : 'c2',
+    candidate: 'ref' in invalid && invalid.ref === 'bad' ? 'claim[2]' : 'c2',
   })
 })
 it.each([
@@ -101,4 +101,36 @@ it('still rejects an unusable envelope', () => {
   expect(() => parseStageExtraction('no answer', window)).toThrow()
   expect(() => parse({ entities: {}, claims: [] })).toThrow()
   expect(() => parse({ entities: [], claims: null })).toThrow()
+})
+
+it('drops a malformed link list rather than its otherwise supported claim', () => {
+  const v = structuredClone(RAW_EXTRACTION)
+  const result = parse({ ...v, claims: [{ ...v.claims[0], links: null }] })
+  expect(result.claims).toHaveLength(1)
+  expect(result.claims[0]!.links).toEqual([])
+  expect(result.outcomes).toContainEqual(
+    expect.objectContaining({ candidate: 'c1', status: 'dropped' }),
+  )
+})
+it('validates offered registry endpoint kinds as well as new entity kinds', () => {
+  const v = structuredClone(RAW_EXTRACTION)
+  v.claims[0]!.links[0]!.object = 'r1'
+  const registry = [{ ...v.entities[1]!, ref: 'r1', kind: 'person' as const }]
+  const result = parseStageExtraction(JSON.stringify(v), window, registry)
+  expect(result.claims[0]!.links).toEqual([])
+  expect(result.claims[0]!.mentions).toContain('r1')
+})
+it('prefers exact source text before flexible matching and never flexes across an elision', () => {
+  const w = makeWindow([
+    { ...window.segments[0]!, text: 'Rina says “keep   billing stable”.' },
+    { ...window.segments[0]!, text: 'Rina says "keep billing stable".' },
+  ])
+  const q = { segment: 's1', quote: 'Rina says "keep billing stable".' }
+  expect(verifiedQuote(q, w).segment).toBe('s2')
+  const elided = makeWindow([
+    { ...window.segments[0]!, text: 'keep[… 20 chars omitted …] billing' },
+  ])
+  expect(() => verifiedQuote({ segment: 's1', quote: 'keep billing' }, elided)).toThrow(
+    'Quote not found',
+  )
 })

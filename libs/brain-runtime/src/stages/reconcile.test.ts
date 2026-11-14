@@ -262,3 +262,28 @@ it('offers stored memories at cosine 0.7', async () => {
   expect(ask.spy).toHaveBeenCalledOnce()
   expect(j.claims).toHaveLength(0)
 })
+
+it('keeps the first valid reconciliation row and ignores invalid rows and later duplicates', async () => {
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch()
+  store.oldMemories = [old('Earlier Harbor policy.')]
+  store.matchesMemory = [['old']]
+  const ask = trackAsk(async (_s, _p, _prompt, validate) =>
+    validate(
+      JSON.stringify({
+        decisions: [
+          null,
+          { ref: 'unknown', action: 'add', target: null, reason: 'Unknown ref' },
+          { ref: 'c1', action: 'confirm', target: 'M99', reason: 'Unoffered' },
+          { ref: 'c1', action: 'resolve_open', target: 'M1', reason: 'Not open' },
+          { ref: 'c1', action: 'add', target: null, reason: 'First valid' },
+          { ref: 'c1', action: 'conflict', target: 'M1', reason: 'Later duplicate' },
+        ],
+      }),
+    ),
+  )
+  const j = job([memory('Harbor policy is different.')])
+  await reconcile(j, [], store, search, [new Float32Array([1])], ask.ask)
+  expect(ask.spy).toHaveBeenCalledOnce()
+  expect(j.claims[0]!.memory).toMatchObject({ action: 'add', reason: 'First valid', target: null })
+})

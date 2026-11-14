@@ -117,8 +117,9 @@ gets one repair call; a second unusable answer fails visibly.
 Identity and reconcile keep valid decisions and ask once more for undecided rows alone. Still
 missing identity decisions become uncertain; missing reconcile decisions become add. Invalid,
 duplicate and unoffered decisions cannot fail a lane. An unusable decision envelope gets one
-repair call. A provider or transport failure with no usable assistant message retries once after
-two seconds. Abort and timeout do not retry. Each attempt has its own recorded call and input
+repair call. A call that ends without a usable answer because the provider, the transport or the process
+failed retries once after two seconds (`error`, `no-text`, `exit` or `spawn`). Abort, timeout and
+output overflow do not retry. The trace keeps the actual failure reason. Each attempt has its own recorded call and input
 checkpoint, and both attempts count toward usage.
 
 ## Review

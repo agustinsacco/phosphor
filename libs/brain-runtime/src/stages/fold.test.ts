@@ -50,7 +50,7 @@ it('records every link rejected because folded endpoints became the same entity'
       text: RAW_EXTRACTION.claims[0]!.text,
     },
   ])
-  const job = foldParts([{ key: 'w1', window, extraction, truncated: false }], 'lane')
+  const job = foldParts([{ key: 'w1', window, extraction }], 'lane')
   expect(job.claims[0]!.memory.links).toEqual([])
   expect(job.outcomes).toContainEqual(
     expect.objectContaining({

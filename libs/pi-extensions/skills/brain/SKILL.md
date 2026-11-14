@@ -3,9 +3,9 @@ name: brain
 description: Search Brain for approved knowledge from earlier lanes when answering what we know, entering unfamiliar work, revisiting decisions, messaging someone about a project, or encountering unfamiliar people, systems and terms.
 ---
 
-Call `brain_search` before answering “what do we know about…”, when starting work in an unfamiliar area, before decisions that may already be settled, before writing to someone about a project, and when a person, team, system or ticket is unfamiliar.
+Call `brain_search` before answering “what do we know about…”, when starting work in an unfamiliar area, before decisions that may already be settled, before writing to someone about a project, and when a person, team, system or domain term is unfamiliar.
 
-Search with the name itself (a project, customer, person or ticket) or a short topic. One call returns a briefing:
+Search with the name itself (a project, customer, person or named concept) or a short topic. One call returns a briefing:
 
 - **About** lists what the query named.
 - **Path** lines show how things connect, such as who owns a project, what it is part of and which customer it serves. Each step cites the numbered memory that supports it.

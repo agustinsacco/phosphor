@@ -160,3 +160,26 @@ it('tells later parts which claim sentences were already kept', async () => {
     segments,
   )
 })
+
+it('keeps dropped outcome refs local to their part', async () => {
+  const store = new FakeBrainStore(),
+    job = store.enqueue(HARBOR_JOB, 'queued')
+  const segments = [
+    { entryId: 'e', role: 'user' as const, label: 'You', observedAt: 0, text: 'Harbor' },
+  ]
+  const ask = trackAsk(async (_s, _p, _prompt, validate) =>
+    validate(JSON.stringify({ ...empty, claims: [{ ref: 'c1' }] })),
+  )
+  const parts = await extractWindows(
+    job.id,
+    [makeWindow(segments)],
+    store,
+    ask.ask,
+    () => {},
+    segments,
+  )
+  expect(parts[0]!.extraction.outcomes?.[0]).toMatchObject({
+    candidate: 'w1:c1',
+    status: 'dropped',
+  })
+})

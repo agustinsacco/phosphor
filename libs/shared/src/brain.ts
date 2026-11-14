@@ -1,6 +1,6 @@
 /**
  * Brain: machine-local knowledge learned only from lanes the user queues. Private model calls
- * read the lane in windows, the user approves what they propose, and every lane can recall it.
+ * read the conversation in parts, the user approves what they propose, and every lane can recall it.
  * No credentials or database paths cross this contract.
  */
 export const BRAIN_PROTOCOL = 4

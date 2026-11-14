@@ -41,7 +41,7 @@ export interface StageClaim {
 }
 export interface StageParent {
   entity: string
-  status: 'stated' | 'not_stated' | 'unclear'
+  status: 'stated' | 'not_stated'
   claim: string | null
 }
 export interface StageExtraction {

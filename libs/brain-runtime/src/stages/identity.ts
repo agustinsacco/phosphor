@@ -36,8 +36,6 @@ async function candidates(
   store: BrainStore,
   search: BrainSearchPort,
   vectors: Float32Array[],
-  pool: StageEntity[],
-  anchors: ProposalEntity[],
 ): Promise<Row[]> {
   const matches = store.entityMatches(job.entities, 20)
   const semantic = await search.nearestEntities(vectors, 20)
@@ -45,7 +43,6 @@ async function candidates(
     store
       .entityCards([
         ...new Set([
-          ...anchors.flatMap((e) => (e.entityId ? [e.entityId] : [])),
           ...matches.flatMap((m) => m.map((v) => v.entityId)),
           ...semantic.flatMap((m) => m.map((v) => v.id)),
         ]),
@@ -85,9 +82,8 @@ async function candidates(
           local: false,
         })
     }
-    addJobCandidates(entity, pool, anchors, cards, byId)
+    addJobCandidates(entity, job.entities, byId)
     const resolved = new Set([
-      ...anchors.filter((e) => e.entityId).map((e) => e.ref),
       ...job.entities
         .filter(
           (_e, i) =>
@@ -98,7 +94,10 @@ async function candidates(
     ])
     return {
       entity,
-      candidates: rankCandidates(entity, [...byId.values()], job, pool, resolved).slice(0, 12),
+      candidates: rankCandidates(entity, [...byId.values()], job, job.entities, resolved).slice(
+        0,
+        12,
+      ),
     }
   })
 }
@@ -136,8 +135,6 @@ function rankCandidates(
 function addJobCandidates(
   entity: StageEntity,
   pool: StageEntity[],
-  anchors: ProposalEntity[],
-  cards: Map<string, EntityCard>,
   byId: Map<string, Candidate>,
 ): void {
   for (const other of pool) {
@@ -147,17 +144,14 @@ function addJobCandidates(
       other.keys.some((o) => k.namespace === o.namespace && k.value === o.value),
     )
     if (!score && !sharedKey) continue
-    const anchor = anchors.find((e) => e.ref === other.ref)?.entityId
-    const id = anchor ?? other.ref,
-      card = anchor ? (cards.get(anchor) ?? { ...localCard(other), id: anchor }) : localCard(other)
-    const previous = byId.get(id)
-    byId.set(id, {
-      id,
+    const card = localCard(other)
+    byId.set(other.ref, {
+      id: other.ref,
       card,
-      score: Math.max(previous?.score ?? 0, sharedKey ? 1000 : score),
-      key: sharedKey || previous?.key === true,
+      score: sharedKey ? 1000 : score,
+      key: sharedKey,
       exact: exact(entity, card),
-      local: !anchor,
+      local: true,
     })
   }
 }
@@ -209,19 +203,15 @@ export async function resolveIdentities(
   search: BrainSearchPort,
   vectors: Float32Array[],
   ask: StageAsk,
-  pool: StageEntity[] = job.entities,
-  anchors: ProposalEntity[] = [],
 ): Promise<IdentityResult> {
-  const rows = await candidates(job, store, search, vectors, pool, anchors),
+  const rows = await candidates(job, store, search, vectors),
     entities: ProposalEntity[] = [],
     redirects = new Map<string, string>(),
-    resolved = new Map<string, string>(
-      anchors.flatMap((e) => (e.entityId ? [[e.ref, e.entityId]] : [])),
-    ),
+    resolved = new Map<string, string>(),
     ambiguous: Row[] = []
   const state = { job, entities, redirects, resolved }
   for (const row of rows) {
-    const chosen = automatic(row, job, resolved, pool)
+    const chosen = automatic(row, job, resolved, job.entities)
     if (chosen)
       addDecision(
         state,
@@ -251,7 +241,7 @@ export async function resolveIdentities(
   for (const [source] of redirects) {
     const target =
         entities.find((e) => e.ref === redirect(source, redirects)) ??
-        pool.find((e) => e.ref === redirect(source, redirects)),
+        job.entities.find((e) => e.ref === redirect(source, redirects)),
       from = entities.find((e) => e.ref === source)
     if (target && from) mergeEntity(target, from)
   }

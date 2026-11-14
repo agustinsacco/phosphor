@@ -1,7 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainConnectionPage,
-  BrainEntityKind,
   BrainEntityView,
   BrainExtractionRecord,
   BrainFindResult,
@@ -17,7 +16,6 @@ import type {
   BrainRecall,
   BrainReviewDecision,
   BrainSnapshot,
-  BrainEntity,
 } from '@phosphor/shared/brain'
 import type {
   ClaimProbe,

@@ -1,4 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
+import { runModelCall } from './model-call'
+import type { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
 import { stageCaller } from './stage-call'
 import { pipelineSetup } from './__fixtures__/pipeline'
 import { readLane } from './lane'
@@ -28,7 +30,7 @@ async function setup() {
   })
   return { ...s, controller, delay, ask }
 }
-function failure(reason: 'error' | 'no-text' | 'aborted' | 'timeout') {
+function failure(reason: 'error' | 'no-text' | 'aborted' | 'timeout' | 'overflow') {
   const tracer = new CallTracer()
   tracer.event({
     type: 'message_end',
@@ -66,7 +68,7 @@ it('fails after two provider failures', async () => {
   expect(s.store.extraction(s.job.id).calls).toHaveLength(2)
   expect(s.store.job(s.job.id)!.usage?.tokens).toBe(10)
 })
-it.each(['aborted', 'timeout'] as const)('does not retry %s', async (reason) => {
+it.each(['aborted', 'timeout', 'overflow'] as const)('does not retry %s', async (reason) => {
   const s = await setup()
   s.runner.mockImplementation(async (input) => {
     input.onTrace?.(failure(reason))
@@ -102,3 +104,52 @@ it('checkpoints a whole part with 600 segment references', async () => {
   expect(saved).toBeDefined()
   expect(JSON.parse(saved!.output)).toEqual({ segments })
 })
+
+it.each(['exit', 'spawn'] as const)(
+  'retries a process %s and preserves its diagnostic trace reason',
+  async (reason) => {
+    const s = await setup()
+    const transport = vi
+      .fn<typeof runPrintMode>()
+      .mockImplementationOnce(async (_binary, _args, options) => {
+        if (reason === 'exit')
+          options.onStdout?.(
+            JSON.stringify({
+              type: 'message_end',
+              message: {
+                role: 'assistant',
+                stopReason: 'error',
+                errorMessage: 'Fake dropped socket',
+                content: [],
+                usage: { totalTokens: 5 },
+              },
+            }) + '\n',
+          )
+        return { stdout: '', reason, error: `Fake process ${reason}` }
+      })
+      .mockImplementationOnce(async (_binary, _args, options) => {
+        options.onStdout?.(
+          JSON.stringify({
+            type: 'message_end',
+            message: {
+              role: 'assistant',
+              stopReason: 'stop',
+              content: [{ type: 'text', text: '{}' }],
+              usage: { totalTokens: 10 },
+            },
+          }) + '\n',
+        )
+        return { stdout: '' }
+      })
+    s.runner.mockImplementation((input) => runModelCall(input, transport))
+    await expect(s.ask('extract', 1, 'source', (a) => a)).resolves.toBe('{}')
+    expect(transport).toHaveBeenCalledTimes(2)
+    const calls = s.store.extraction(s.job.id).calls
+    expect(calls.map((c) => c.trace?.reason)).toEqual([reason, 'completed'])
+    if (reason === 'exit')
+      expect(calls[0]!.trace).toMatchObject({
+        stopReason: 'error',
+        providerError: 'Fake dropped socket',
+      })
+  },
+)

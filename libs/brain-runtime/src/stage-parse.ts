@@ -110,7 +110,7 @@ function claim(
   if (!quotes.length) throw new Error(`Claim ${id} has no valid quotes`)
   const mentions = new Set(array(c.mentions).map(known))
   const links: StageLink[] = tolerant(
-    array(c.links),
+    Array.isArray(c.links) ? c.links : [c.links],
     (v) => {
       const l = object(v)
       for (const endpoint of [l.subject, l.object])
@@ -149,7 +149,7 @@ function parent(
   const p = object(value),
     id = text(p.entity)
   if (!refs.has(id)) throw new Error(`Unknown parent entity ref: ${id}`)
-  const status = vocabulary(p.status, ['stated', 'not_stated', 'unclear'])
+  const status = vocabulary(p.status, ['stated', 'not_stated'])
   const claimRef = p.claim === null ? null : text(p.claim)
   if (status === 'stated') {
     const supported = claims
@@ -248,7 +248,7 @@ function tolerant<T>(
     try {
       return [parse(value, index)]
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error)
+      const reason = scrubExcerpt(error instanceof Error ? error.message : String(error))
       outcomes.push({
         candidate: candidate(value, index),
         summary: reason,

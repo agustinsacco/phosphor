@@ -11,7 +11,7 @@ import { EXTRACTION_SYSTEM } from './stage-prompts/extract'
 import { IDENTITY_SYSTEM } from './stage-prompts/identity'
 import { RECONCILE_SYSTEM } from './stage-prompts/reconcile'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
-import { callThinking } from './call-trace'
+import { callThinking, type CallTrace } from './call-trace'
 import { setTimeout as delay } from 'node:timers/promises'
 
 const SYSTEM = {
@@ -95,6 +95,10 @@ async function callExecutor(context: CallContext) {
   return execute
 }
 
+function retryable(reason: CallTrace['reason'] | undefined): boolean {
+  return reason === 'error' || reason === 'no-text' || reason === 'exit' || reason === 'spawn'
+}
+
 export async function stageCaller(context: CallContext): Promise<StageAsk> {
   const { job, store, record, signal, options } = context
   const execute = await callExecutor(context)
@@ -119,7 +123,7 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
         return { answer: await execute(stage, part, prompt, system, entryIds), part }
       } catch (error) {
         const reason = record.record.calls.at(-1)?.trace?.reason
-        if (attempt || (reason !== 'error' && reason !== 'no-text')) throw error
+        if (attempt || !retryable(reason)) throw error
         signal.throwIfAborted()
         await (options.retryDelay ?? ((ms, signal) => delay(ms, undefined, { signal })))(
           2000,
