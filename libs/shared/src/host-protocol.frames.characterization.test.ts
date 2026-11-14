@@ -507,6 +507,9 @@ const OPS = [
   [{ type: 'routine.archive', routineId: OTHER }, { routineId: null }],
   [{ type: 'routine.delete', routineId: OTHER }, { routineId: '' }],
   [{ type: 'routine.pauseAll' }, null],
+  [{ type: 'lane.archive', laneId: OTHER }, { laneId: 'invalid' }],
+  [{ type: 'archive.restore', archiveId: OTHER }, { archiveId: 'invalid' }],
+  [{ type: 'archive.purge', archiveId: OTHER, removeWorktree: false }, { removeWorktree: 1 }],
   [{ type: 'files.write', path: 'src/a.ts', content: 'x', expected: null }, { expected: 'x' }],
   [{ type: 'files.create', path: 'src/dir', kind: 'directory' }, { kind: 'link' }],
   [{ type: 'files.rename', from: 'a', to: 'b' }, { to: '../b' }],
@@ -520,11 +523,11 @@ const OPS = [
 const everyOpType: Record<Exclude<LaneOpType, (typeof OPS)[number][0]['type']>, never> = {}
 /** Families whose parsers allow exactly their own keys, so an unknown field refuses the op. */
 const EXACT_KEY_OPS =
-  /^(lane\.delete|lane\.marks|claude\.account|machine\.|host\.repositories\.|provider\.|terminal\.|routine\.|files\.|attachments\.)/
+  /^(archive\.|lane\.archive|lane\.delete|lane\.marks|claude\.account|machine\.|host\.repositories\.|provider\.|terminal\.|routine\.|files\.|attachments\.)/
 /** Families absent from the receipt-code allowlist: an invalid one is unsupported, not bad-request. */
 const UNLISTED_OPS = /^(files|attachments)\./
 /** Families that never carry a lane id or fence. */
-const LANELESS_OPS = /^(host\.repositories|provider|routine|machine)\./
+const LANELESS_OPS = /^(archive|host\.repositories|provider|routine|machine)\./
 
 const rows = (table: Readonly<Record<string, Readonly<Record<string, Variant<object>>>>>) =>
   Object.entries(table).flatMap(([type, variants]) =>

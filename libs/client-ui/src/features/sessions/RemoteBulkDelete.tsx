@@ -5,9 +5,10 @@ import { remotePrKey } from '@shared/host-protocol-github'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { pullRequestFor, usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
-import { BulkDeleteModal } from './BulkDeleteModal'
+import { ArchiveConfirm } from './ArchiveConfirm'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { lanesOwningWorktree, type LanePreflight, type PreflightSummary } from './deletePreflight'
-import { canDeleteRemoteLane, deleteRemoteLanes } from './deleteRemoteLanes'
+import { canArchiveRemoteLane, canDeleteRemoteLane, deleteRemoteLanes } from './deleteRemoteLanes'
 import { LaneBulkBar } from './LaneSelect'
 import { clearLaneSelection, useSelectedKeys, useSelectionOwner } from './laneSelection'
 
@@ -31,7 +32,7 @@ export function RemoteBulkDelete({
   const keys = useSelectedKeys(owner)
   const running = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   if (owner === null) return null
-  const chosen = lanes.filter((l) => keys.includes(l.laneId) && canDeleteRemoteLane(hostId, l))
+  const chosen = lanes.filter((l) => keys.includes(l.laneId) && canArchiveRemoteLane(hostId, l))
   return (
     <>
       <LaneBulkBar
@@ -42,14 +43,19 @@ export function RemoteBulkDelete({
         onCancel={clearLaneSelection}
       />
       {confirming && (
-        <BulkDeleteModal
-          remote
-          summary={preflight(hostId, chosen)}
+        <ArchiveConfirm
+          titles={chosen.map((lane) => lane.title || 'Untitled lane')}
           onCancel={() => setConfirming(false)}
-          onConfirm={(options) => {
+          onConfirm={() => {
             setConfirming(false)
             clearLaneSelection()
-            void deleteRemoteLanes(hostId, chosen, options)
+            void deleteRemoteLanes(hostId, chosen, {
+              archive: true,
+              removeWorktree: false,
+              deleteBranch: false,
+            }).catch((error: unknown) =>
+              useExtensionUiStore.getState().pushToast(String(error), 'error'),
+            )
           }}
         />
       )}

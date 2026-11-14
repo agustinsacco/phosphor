@@ -91,6 +91,15 @@ export function buildLaneDelete(paths: string[], workspacePath: string): Preflig
  * install. Anything else — the main checkout, a shared worktree, a row with
  * no git info yet — keeps the transcript-only confirm.
  */
+export function archiveLocalRow(meta: SessionMeta, title: string, workspacePath: string): void {
+  confirmSessionDelete({
+    title,
+    path: meta.path,
+    workspacePath: meta.cwd || workspacePath,
+    archive: true,
+  })
+}
+
 export function deleteLocalRow(meta: SessionMeta, title: string, workspacePath: string): void {
   const summary = buildLaneDelete([meta.path], workspacePath)
   if (summary.worktreeCount > 0) confirmLaneDelete(summary)

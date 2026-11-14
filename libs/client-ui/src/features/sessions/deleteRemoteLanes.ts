@@ -1,3 +1,4 @@
+import { archiveRemoteLane } from './archiveRemoteLane'
 import type { HostLaneView } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore, type LaneDeleteResult } from '@/stores/sessions'
@@ -11,6 +12,12 @@ export function canDeleteRemoteLane(hostId: string, lane: HostLaneView): boolean
     lane.control.controller?.self === true
   )
 }
+export function canArchiveRemoteLane(hostId: string, lane: HostLaneView): boolean {
+  return (
+    useRemoteLanesStore.getState().hosts[hostId]?.laneArchive === true &&
+    canDeleteRemoteLane(hostId, lane)
+  )
+}
 async function removeLane(
   hostId: string,
   laneId: string,
@@ -18,6 +25,7 @@ async function removeLane(
   options: {
     removeWorktree: boolean
     deleteBranch: boolean
+    archive?: boolean
   },
 ): Promise<string | undefined> {
   const host = useRemoteLanesStore.getState().hosts[hostId]
@@ -29,10 +37,12 @@ async function removeLane(
     !host?.lanes.some(
       (other) => other.laneId !== laneId && other.cwd === lane.cwd && !completed.has(other.laneId),
     )
-  const result = await window.phosphor.invoke('hosts:deleteLane', hostId, laneId, {
-    removeWorktree: ownsWorktree && options.removeWorktree,
-    removeBranch: ownsWorktree && options.removeWorktree && options.deleteBranch,
-  })
+  const result = options.archive
+    ? (await archiveRemoteLane(hostId, laneId), { branchKept: false })
+    : await window.phosphor.invoke('hosts:deleteLane', hostId, laneId, {
+        removeWorktree: ownsWorktree && options.removeWorktree,
+        removeBranch: ownsWorktree && options.removeWorktree && options.deleteBranch,
+      })
   completed.add(laneId)
   const entries = Object.values(useSessionsStore.getState().live).filter(
     (e) => e.target?.kind === 'remote' && e.target.hostId === hostId && e.laneId === laneId,
@@ -47,6 +57,7 @@ export async function deleteRemoteLanes(
   options: {
     removeWorktree: boolean
     deleteBranch: boolean
+    archive?: boolean
   },
 ): Promise<void> {
   if (useSessionsStore.getState().bulkDelete?.running) return
@@ -56,6 +67,7 @@ export async function deleteRemoteLanes(
   }))
   useSessionsStore.setState({
     bulkDelete: {
+      archiving: options.archive,
       lanes: targets,
       total: targets.length,
       done: 0,
@@ -76,11 +88,14 @@ export async function deleteRemoteLanes(
       try {
         const error = await removeLane(hostId, lane.laneId, completed, options)
         result = { ...target, ok: true, ...(error ? { error } : {}) }
-      } catch {
+      } catch (error) {
         result = {
           ...target,
           ok: false,
-          error: 'The Host could not confirm deletion. Check this lane before retrying.',
+          error:
+            options.archive && error instanceof Error
+              ? error.message
+              : 'The Host could not confirm deletion. Check this lane before retrying.',
         }
       }
       const progress = useSessionsStore.getState().bulkDelete!

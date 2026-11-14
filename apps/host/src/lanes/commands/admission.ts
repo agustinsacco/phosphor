@@ -68,7 +68,7 @@ export function laneRefusal(
   if (op.type === 'control.release' && lane.control.controller === null)
     return { requestId, status: 'rejected', code: 'not-controller', control: lane.control }
   if (
-    op.type === 'lane.delete' &&
+    (op.type === 'lane.delete' || op.type === 'lane.archive') &&
     (op.laneId !== lane.laneId || lane.control.controller?.clientId !== client.id)
   )
     return refuse('not-controller')

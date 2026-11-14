@@ -1,3 +1,4 @@
+import type { LaneArchiveList } from '../lane-archive'
 import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
@@ -17,6 +18,13 @@ import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
 import type { HostsSnapshot, TrafficPage, RemoteLaneCreate } from './views'
 
 export interface HostsInvokeMap {
+  'hosts:archiveLane': { args: [hostId: string, laneId: string]; result: void }
+  'hosts:archives': { args: [hostId: string, measure?: boolean]; result: LaneArchiveList }
+  'hosts:restoreArchive': { args: [hostId: string, id: string]; result: void }
+  'hosts:purgeArchive': {
+    args: [hostId: string, id: string, removeWorktree: boolean]
+    result: void
+  }
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
   // Read-only machine catalogues, independent of an open lane.
   'hosts:models': { args: [hostId: string]; result: MachineModel[] }

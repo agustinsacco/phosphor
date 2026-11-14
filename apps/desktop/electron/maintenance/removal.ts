@@ -1,3 +1,4 @@
+import { assertNoArchivedOwners } from '../archive/state'
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
@@ -22,6 +23,7 @@ async function auditedRemoval(
   options: RemoveOptions,
   beforeRemove: (target: WorktreeInfo, record: RemovalRecord) => void,
 ): ReturnType<typeof removeWorktree> {
+  await assertNoArchivedOwners(path)
   const conversations = await conversationFacts(path)
   const id = randomUUID()
   const recoveryRef = `refs/phosphor/recovery/${id}`

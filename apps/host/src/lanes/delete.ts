@@ -121,6 +121,7 @@ export function createLaneDeletion(options: {
     if (!repo) return forgetUnlisted(options, lane.laneId, op, allowed)
     if (!allowed()) return { ok: false, code: 'forbidden' }
     const shared = () =>
+      options.store.archives.ownsCwd(lane.cwd, lane.laneId) ||
       options.store.listLanes().some((l) => l.laneId !== lane.laneId && l.cwd === lane.cwd)
     if ((op.removeWorktree || op.removeBranch) && (!lane.worktree || shared()))
       return { ok: false, code: 'busy' }

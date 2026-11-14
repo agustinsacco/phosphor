@@ -1,4 +1,8 @@
 import { join } from 'node:path'
+import { HostArchives } from '../lanes/archive'
+import { hostStateDirectory } from '../lanes/state-dir'
+import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
+import type { HostAttachments } from '../features/attachments'
 import type { RunContext } from './run'
 import type { HostMachine, HostRuntime } from '../session/runtime'
 import type { HostStore } from '../lanes/store'
@@ -36,6 +40,7 @@ interface AdministrationOptions {
   runtime: HostRuntime
   accounts: HostClaudeAccounts
   terminals?: HostTerminals
+  attachments?: HostAttachments
   binding: ReturnType<typeof createRuntimeLanes>
   live: ReturnType<typeof createLiveLanes>
   repositories: ReturnType<typeof createRepositories>
@@ -55,9 +60,11 @@ function features(
   options: AdministrationOptions,
   context: FeatureContext,
   settings: ReturnType<typeof createMachineSettings>,
+  archives: HostArchives,
 ) {
   return [
     settings.feature,
+    archives.feature,
     options.repositories.feature,
     ...(options.terminals ? [options.terminals.feature] : []),
     options.routines.feature,
@@ -117,7 +124,22 @@ export function createRunAdministration(options: AdministrationOptions) {
     authenticating: () => providerLogins?.active() ?? false,
     sessionFor: options.live.sessionFor,
   })
+  const archives = new HostArchives({
+    directory: hostStateDirectory(context.env, context.home),
+    sessionsRoot: piSessionsRoot(context.env, context.home),
+    store: options.store,
+    runtime: options.runtime,
+    stop: options.binding.deleteStop,
+    forget: options.live.forget,
+    terminals,
+    attachments: options.attachments,
+    announce: (id) => {
+      const summary = options.live.summaryFor(id)
+      if (summary) options.live.lanesTopic.delta([summary])
+    },
+  })
   return {
+    archives,
     providerLogins,
     moveClaudeAccount: createAccountMoves({
       accounts,
@@ -145,7 +167,7 @@ export function createRunAdministration(options: AdministrationOptions) {
       // The merged-PR proof asks gh with the same environment as the PR reads.
       github: githubRunner(context.env),
     }),
-    features: () => features(options, featureContext, settings),
+    features: () => features(options, featureContext, settings, archives),
   }
 }
 

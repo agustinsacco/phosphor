@@ -14,6 +14,7 @@ import { errnoIs } from '../fs-safety'
 import { openStoreDatabase } from './store/open'
 import { validateRepositoryIdentity } from './store/identity'
 import { LANE_SELECT, writeLaneMarks } from './store/marks'
+import { LaneArchiveRows, pruneRemoved } from './store/archives'
 import {
   laneFromRow,
   repositoryFromRow,
@@ -59,6 +60,7 @@ export class HostStore {
   private readonly logCorruptReceipt: (count: number) => void
   private configOrder: Record<string, number> = {} // Config positions: the listing order.
   readonly limits: Readonly<StoreLimits>
+  readonly archives: LaneArchiveRows
   constructor(
     private readonly db: DatabaseSync,
     private readonly ports: StorePorts,
@@ -82,6 +84,7 @@ export class HostStore {
       check(value <= HOST_LIMITS[key])
     }
     this.limits = Object.freeze(limits)
+    this.archives = new LaneArchiveRows(db, this.now, limits.lanesPerHost)
   }
   private transaction<T>(fn: () => T): T {
     this.db.exec('BEGIN IMMEDIATE')
@@ -186,7 +189,10 @@ export class HostStore {
     if (patch.model !== undefined) text(patch.model, 128)
     if (patch.updatedAt !== undefined) timestamp(patch.updatedAt)
   }
-  ensureLane(input: LaneInput, options: { controller?: Controller } = {}): StoredLane {
+  ensureLane(
+    input: LaneInput,
+    options: { controller?: Controller; restoreId?: string } = {},
+  ): StoredLane {
     check(/^[0-9a-f]{16}$/.test(input.repositoryId))
     absolutePath(input.cwd)
     if (input.sessionFile !== null) absolutePath(input.sessionFile)
@@ -203,7 +209,7 @@ export class HostStore {
         check(str(existing, 'repository_id') === repositoryId && str(existing, 'cwd') === cwd)
         const lane = this.laneFromRow(existing)
         check(lane !== null)
-        if (existing.removed_at === null) return lane
+        if (existing.removed_at === null || this.archives.has(lane.laneId)) return lane
       }
       check(
         this.db.prepare('SELECT id FROM repositories WHERE id=? AND active=1').get(repositoryId) !==
@@ -223,7 +229,8 @@ export class HostStore {
         return this.requireLane(str(existing, 'lane_id'))
       }
       if (options.controller !== undefined) this.validateController(options.controller)
-      const id = randomUUID()
+      const id = options.restoreId ?? randomUUID()
+      uuid(id)
       const now = this.clock()
       this.db
         .prepare(`INSERT INTO lanes VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,0,0,NULL)`)
@@ -285,15 +292,9 @@ export class HostStore {
     this.ports.onLaneRemoved?.(id)
   }
   pruneRemovedLanes(now: number = this.clock()): void {
-    integer(now)
-    this.transaction(() => {
-      this.db.prepare('DELETE FROM lanes WHERE removed_at < ?').run(now - REMOVED_LANE_TTL_MS)
-      this.db
-        .prepare(
-          `DELETE FROM lanes WHERE lane_id IN (SELECT lane_id FROM lanes WHERE removed_at IS NOT NULL ORDER BY removed_at DESC,lane_id DESC LIMIT -1 OFFSET ?)`,
-        )
-        .run(this.limits.lanesPerHost)
-    })
+    this.transaction(() =>
+      pruneRemoved(this.db, now, REMOVED_LANE_TTL_MS, this.limits.lanesPerHost),
+    )
   }
   private validateController(controller: Controller): void {
     uuid(controller.clientId)

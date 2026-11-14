@@ -197,6 +197,7 @@ it('gates input/subscription on current caps, detaches on renewal/disconnect and
   const terminals = {
     input,
     subscribe,
+    reap: vi.fn(),
     presence: vi.fn(),
     machineOp: vi.fn(),
     loginRunner: vi.fn(),
@@ -284,6 +285,7 @@ it.each(['throw', 'overflow'] as const)(
       epoch,
       capabilities: ['terminal'],
       terminals: {
+        reap: vi.fn(),
         subscribe,
         input: vi.fn(),
         presence: vi.fn(),

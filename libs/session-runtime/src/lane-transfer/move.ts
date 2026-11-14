@@ -159,7 +159,13 @@ export function sessionTaken(paths: MachinePaths) {
     for await (const dir of dirs) {
       if (!dir.isDirectory()) continue
       const names = await readdir(join(root, dir.name)).catch(() => [] as string[])
-      if (names.some((name) => name.endsWith(`_${sessionId}.jsonl`))) return true
+      if (
+        names.some(
+          (name) =>
+            name.endsWith(`_${sessionId}.jsonl`) || name.endsWith(`_${sessionId}.jsonl.archived`),
+        )
+      )
+        return true
     }
     return false
   }

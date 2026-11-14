@@ -1,5 +1,6 @@
 import type { IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
+import { laneArchives } from '@phosphor/host-client/lane-archive'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
 import {
   exportLaneHtml,
@@ -145,6 +146,15 @@ function signOut(control: BrowserControl, broadcast: () => void) {
   }
   return result
 }
+function archiveHandlers(connection: Parameters<typeof laneArchives>[0]) {
+  const archives = laneArchives(connection)
+  return {
+    'hosts:archiveLane': archives.archive,
+    'hosts:archives': archives.list,
+    'hosts:restoreArchive': archives.restore,
+    'hosts:purgeArchive': archives.purge,
+  }
+}
 export function createBrowserHandlers(ports: {
   control: BrowserControl
   hosts: BrowserHosts
@@ -199,6 +209,7 @@ export function createBrowserHandlers(ports: {
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
     ...laneHandlers(lanes),
     'hosts:setLaneMarks': marks.set,
+    ...archiveHandlers(hosts.connection),
     'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),
     'fs:listFiles': (key) => read('fs:listFiles', [key]),
     'fs:readFile': (key) => read('fs:readFile', [key]),

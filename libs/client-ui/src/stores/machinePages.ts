@@ -8,7 +8,8 @@ export const useMachinePagesStore = create<{
   skillsMachine: string | null
   routinesMachine: string
   artifactsMachine: string
-}>(() => ({ skillsMachine: null, routinesMachine: '', artifactsMachine: '' }))
+  archiveMachine: string
+}>(() => ({ skillsMachine: null, routinesMachine: '', artifactsMachine: '', archiveMachine: '' }))
 
 /**
  * Opens a global page filtered to one machine: `'local'` for This Mac, otherwise
@@ -20,6 +21,7 @@ export function openMachinePage(page: GlobalPage, machine: string | null): void 
     useMachinePagesStore.setState({
       routinesMachine: machine === null ? '' : routineScope(machine),
     })
+  if (page === 'archive') useMachinePagesStore.setState({ archiveMachine: machine ?? '' })
   if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: machine ?? '' })
   useLayoutStore.getState().setPage(page)
 }
@@ -31,6 +33,7 @@ useRemoteLanesStore.subscribe((state, previous) => {
       skillsMachine: null,
       routinesMachine: '',
       artifactsMachine: '',
+      archiveMachine: '',
     })
 })
 

@@ -1,0 +1,201 @@
+import { realpath, stat } from 'node:fs/promises'
+import { join } from 'node:path'
+import {
+  createLaneArchiveStorage,
+  type ArchiveRecord,
+} from '@phosphor/session-runtime/lane-archive/storage'
+import { createArchiveInventory } from '@phosphor/session-runtime/lane-archive/inventory'
+import { assertArchivedWorktree, statIfPresent } from '@phosphor/session-runtime/lane-archive/files'
+import { git } from '@phosphor/session-runtime/git/git-exec'
+import type { LaneArchiveOp } from '@phosphor/shared/lane-archive'
+import type { RejectCode } from '@phosphor/shared/host-protocol'
+import type { HostFeature } from '../features/feature'
+import type { HostAttachments } from '../features/attachments'
+import type { HostRuntime } from '../session/runtime'
+import type { HostTerminals } from '../terminals/service'
+import type { HostStore } from './store'
+import { inside } from '../features/files'
+import {
+  archiveAttachmentsPath,
+  attachmentIdentity,
+  moveArchiveAttachments,
+  purgeArchiveAttachments,
+} from './archive-attachments'
+
+type Options = {
+  directory: string
+  sessionsRoot: string
+  store: HostStore
+  runtime: Pick<HostRuntime, 'mutateStoppedSession'>
+  stop(id: string, allowed: () => boolean): Promise<void>
+  forget(id: string): void
+  announce(id: string): void
+  terminals?: Pick<HostTerminals, 'reap'>
+  attachments?: Pick<HostAttachments, 'abort'>
+}
+type Outcome = { ok: true; data?: unknown } | { ok: false; code: RejectCode }
+const requireAllowed = (allowed: () => boolean) => {
+  if (!allowed()) throw new Error('forbidden')
+}
+
+export class HostArchives {
+  private readonly storage
+  private readonly inventory
+  readonly feature: HostFeature
+  constructor(private readonly options: Options) {
+    this.storage = createLaneArchiveStorage(
+      join(options.directory, 'lane-archive'),
+      options.sessionsRoot,
+    )
+    this.inventory = createArchiveInventory(this.storage, (record) => [
+      archiveAttachmentsPath(options.directory, record.id),
+    ])
+    this.feature = {
+      capability: 'sessions.read',
+      methods: ['archive.list'],
+      call: async (_method, params, allowed) => {
+        if (allowed && !allowed())
+          return { ok: false, error: { code: 'forbidden', message: 'Access changed.' } }
+        if (
+          params !== undefined &&
+          (typeof params !== 'object' ||
+            params === null ||
+            Object.keys(params).some((key) => key !== 'measure') ||
+            ('measure' in params && typeof params.measure !== 'boolean'))
+        )
+          return { ok: false, error: { code: 'bad-request', message: 'Invalid archive query.' } }
+        const measure = Boolean(params && 'measure' in params && params.measure)
+        return { ok: true, data: await this.inventory.list(measure) }
+      },
+    }
+  }
+  async execute(op: LaneArchiveOp, allowed: () => boolean): Promise<Outcome> {
+    try {
+      requireAllowed(allowed)
+      if (op.type === 'lane.archive') await this.archive(op.laneId, allowed)
+      else {
+        const record = await this.storage.get(op.archiveId)
+        await this.options.runtime.mutateStoppedSession(
+          record.transcript ?? `archive:${record.id}`,
+          async () => {
+            requireAllowed(allowed)
+            if (op.type === 'archive.restore') await this.restore(record, allowed)
+            else await this.purge(record, op.removeWorktree, allowed)
+          },
+        )
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, code: allowed() ? 'bad-request' : 'forbidden' }
+    } finally {
+      this.inventory.invalidate()
+    }
+  }
+  private async archive(id: string, allowed: () => boolean) {
+    const { store, stop, runtime, directory } = this.options
+    const lane = store.getLane(id)
+    if (!lane || lane.removedAt !== null) throw new Error('unknown lane')
+    await stop(id, allowed)
+    const source = store.getLane(id)?.sessionFile ?? undefined
+    await runtime.mutateStoppedSession(source ?? `archive:${id}`, async () => {
+      requireAllowed(allowed)
+      const file = source && (await statIfPresent(source)) ? source : undefined
+      const repository = store.listRepositories().find((repo) => repo.id === lane.repositoryId)
+      const attachments = await attachmentIdentity(directory, id)
+      const record = await this.storage.prepare({
+        id,
+        cwd: lane.cwd,
+        title: lane.title ?? 'Untitled lane',
+        worktree: lane.worktree,
+        ...(file ? { transcript: file } : {}),
+        ...(repository ? { repository: repository.path } : {}),
+        metadata: {
+          repositoryId: lane.repositoryId,
+          branch: lane.branch,
+          model: lane.model,
+          ...(attachments ? { attachments } : {}),
+        },
+      })
+      requireAllowed(allowed)
+      store.archives.mark(id)
+      this.options.attachments?.abort(id)
+      try {
+        await moveArchiveAttachments(directory, record)
+        requireAllowed(allowed)
+        await this.storage.archive(id)
+      } finally {
+        this.options.forget(id)
+        this.options.terminals?.reap()
+      }
+    })
+  }
+  private async restore(record: ArchiveRecord, allowed: () => boolean) {
+    const { store, directory } = this.options
+    const repositoryId = record.metadata?.repositoryId
+    if (
+      typeof repositoryId !== 'string' ||
+      !store.listRepositories().some((repo) => repo.id === repositoryId)
+    )
+      throw new Error('Add the original repository to this Host before restoring.')
+    if (store.listLanes().length >= store.limits.lanesPerHost)
+      throw new Error('Host lane capacity reached.')
+    await stat(record.cwd)
+    requireAllowed(allowed)
+    await this.storage.restore(record.id)
+    await moveArchiveAttachments(directory, record, true)
+    requireAllowed(allowed)
+    // An old Host may have pruned the tombstone after rollback. The manifest keeps identity.
+    if (!store.getLane(record.id)) {
+      const restored = store.ensureLane(
+        {
+          repositoryId,
+          cwd: record.cwd,
+          sessionFile: record.transcript ?? null,
+          title: record.title.slice(0, 80),
+          worktree: record.worktree,
+        },
+        { restoreId: record.id },
+      )
+      if (restored.laneId !== record.id) throw new Error('Another lane owns this transcript.')
+    }
+    store.archives.restore(record.id)
+    await this.storage.finish(record.id)
+    this.options.announce(record.id)
+  }
+  private async purge(record: ArchiveRecord, removeCheckout: boolean, allowed: () => boolean) {
+    const { store, directory } = this.options
+    await this.storage.purge(record.id, async () => {
+      requireAllowed(allowed)
+      if (removeCheckout) await this.removeCheckout(record, allowed)
+      requireAllowed(allowed)
+      await purgeArchiveAttachments(directory, record)
+    })
+    requireAllowed(allowed)
+    store.markRemoved(record.id)
+    store.archives.forget(record.id)
+    await this.storage.finish(record.id)
+  }
+  private async removeCheckout(record: ArchiveRecord, allowed: () => boolean) {
+    if (!record.worktree || !record.repository)
+      throw new Error('Project folders cannot be removed.')
+    const { store } = this.options
+    const archives = await this.storage.list()
+    if (
+      archives.truncated ||
+      archives.entries.some((entry) => entry.id !== record.id && entry.cwd === record.cwd) ||
+      store.listLanes().some((lane) => lane.cwd === record.cwd)
+    )
+      throw new Error('Another lane uses this checkout.')
+    await assertArchivedWorktree(record)
+    if (!(await statIfPresent(record.cwd))) return
+    const root = await realpath(record.repository)
+    const cwd = await realpath(record.cwd)
+    if (
+      !store.listRepositories().some((repo) => repo.path === record.repository) ||
+      !inside(join(root, '.phosphor', 'worktrees'), cwd)
+    )
+      throw new Error('Checkout ownership changed.')
+    requireAllowed(allowed)
+    await git(root, ['worktree', 'remove', '--force', '--', cwd], { isolateEnv: true })
+  }
+}

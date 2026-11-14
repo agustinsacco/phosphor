@@ -63,6 +63,7 @@ export interface HostConnectionView {
   machineShell?: boolean
   /** Host keeps lane pins and markers, so every client shows the same ones. */
   laneMarks?: boolean
+  laneArchive?: boolean
   /** Host can send and receive lanes (`laneTransfer.*`). */
   laneTransfer?: boolean
   /** Host serves raw file bytes (`files.readBytes`): downloads and media previews. */

@@ -176,6 +176,10 @@ class PtyManager {
     }
   }
 
+  killForSession(sessionId: string): void {
+    for (const [id, session] of this.sessions) if (session.sessionId === sessionId) this.kill(id)
+  }
+
   killAll(): void {
     for (const ptyId of [...this.sessions.keys()]) this.kill(ptyId)
   }

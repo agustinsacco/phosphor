@@ -1,4 +1,5 @@
 import { expectTypeOf, it } from 'vitest'
+import type { LaneArchiveList } from '../lane-archive'
 import type { IpcInvokeMap, SessionTree } from '../ipc'
 import type { AgentMessage } from '../rpc'
 import type { WorkspaceSearchRequest, WorkspaceSearchResult } from '../workspace-search'
@@ -27,6 +28,13 @@ import type {
   WorktreeRecreateSource,
 } from '../models'
 export interface BaselineSessionsInvokeMap {
+  'sessions:archive': {
+    args: [workspacePath: string, path?: string, sessionId?: string]
+    result: string[]
+  }
+  'sessions:archives': { args: [measure?: boolean]; result: LaneArchiveList }
+  'sessions:restoreArchive': { args: [id: string]; result: { cwd: string; path?: string } }
+  'sessions:purgeArchive': { args: [id: string, removeWorktree: boolean]; result: void }
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
   'sessions:setCompleted': { args: [sessionFilePath: string, completed: boolean]; result: void }
   'sessions:retainedWorkspaces': { args: [repoPath: string]; result: string[] }

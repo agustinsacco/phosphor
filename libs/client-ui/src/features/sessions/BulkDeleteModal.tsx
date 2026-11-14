@@ -276,8 +276,8 @@ export function BulkDeleteProgressPopover(): React.JSX.Element | null {
   const title = running
     ? cancelled
       ? 'Stopping after current lane…'
-      : `Deleting ${Math.min(done + 1, total)} of ${total}`
-    : summaryTitle(results.length, failed.length, cancelled)
+      : `${progress.archiving ? 'Archiving' : 'Deleting'} ${Math.min(done + 1, total)} of ${total}`
+    : summaryTitle(results.length, failed.length, cancelled, progress.archiving)
   const subtitle = running
     ? current || 'Starting…'
     : failed.length > 0
@@ -413,8 +413,14 @@ export function BulkDeleteProgressPopover(): React.JSX.Element | null {
   )
 }
 
-function summaryTitle(processed: number, failed: number, cancelled: boolean): string {
-  if (failed > 0) return `${processed - failed} deleted, ${failed} kept`
+function summaryTitle(
+  processed: number,
+  failed: number,
+  cancelled: boolean,
+  archive = false,
+): string {
+  const verb = archive ? 'archived' : 'deleted'
+  if (failed > 0) return `${processed - failed} ${verb}, ${failed} kept`
   if (cancelled) return `Stopped after ${processed}`
-  return `Deleted ${processed} lane${processed === 1 ? '' : 's'}`
+  return `${archive ? 'Archived' : 'Deleted'} ${processed} lane${processed === 1 ? '' : 's'}`
 }

@@ -37,7 +37,9 @@ async function sessionCwd(path: string): Promise<string | null> {
 export async function conversationFacts(path: string) {
   let files: string[]
   try {
-    files = (await readdir(sessionDirForCwd(path))).filter((file) => file.endsWith('.jsonl'))
+    files = (await readdir(sessionDirForCwd(path))).filter(
+      (file) => file.endsWith('.jsonl') || file.endsWith('.jsonl.archived'),
+    )
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     files = []

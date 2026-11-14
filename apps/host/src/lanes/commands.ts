@@ -1,3 +1,5 @@
+import { parseLaneArchiveOp } from '@phosphor/shared/lane-archive'
+import { executeArchive } from './commands/archive'
 import { parseAttachmentOp } from '@phosphor/shared/host-protocol-attachments'
 import { parseProviderLoginOp } from '@phosphor/shared/host-protocol-providers'
 import { parseRepositoryOp } from '@phosphor/shared/host-protocol-repositories'
@@ -45,7 +47,7 @@ function capabilityFor(
     (op.type === 'provider.login' && (op.configure || op.accountId || op.addAccount))
   )
     return ['machine.configure', 'terminal', 'sessions.control']
-  if (op.type === 'lane.delete' || parseRepositoryOp(op))
+  if (op.type === 'lane.delete' || parseLaneArchiveOp(op) || parseRepositoryOp(op))
     return ['workspaces.write', 'sessions.control']
   if (parseAttachmentOp(op)) return ['workspaces.write', 'sessions.control']
   const routine = parseRoutineOp(op)
@@ -79,6 +81,8 @@ function execute(
   if (!holds(caps)) return rejected(state, ports, job, 'forbidden', true)
   if (op.type.startsWith('files.') && !ports.writes?.capabilityFor(op.type))
     return rejected(state, ports, job, 'forbidden', true)
+  const archive = executeArchive(state, ports, job, queue, allowed)
+  if (archive.handled) return archive.execution
   const repository = executeRepository(state, ports, job, queue, allowed)
   if (repository.handled) return repository.execution
   const owed = republishControl(state, ports, job, queue)

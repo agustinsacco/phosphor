@@ -1,4 +1,5 @@
 import { expectTypeOf, it } from 'vitest'
+import type { LaneArchiveList } from '../lane-archive'
 import type { IpcInvokeMap, HostsSnapshot, TrafficPage, RemoteLaneCreate } from '../ipc'
 import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
@@ -17,6 +18,13 @@ import type {
 import type { ProviderLoginOp } from '../host-protocol-providers'
 import type { SubagentInspectRequest } from '../subagent-inspect'
 export interface BaselineHostsInvokeMap {
+  'hosts:archiveLane': { args: [hostId: string, laneId: string]; result: void }
+  'hosts:archives': { args: [hostId: string, measure?: boolean]; result: LaneArchiveList }
+  'hosts:restoreArchive': { args: [hostId: string, id: string]; result: void }
+  'hosts:purgeArchive': {
+    args: [hostId: string, id: string, removeWorktree: boolean]
+    result: void
+  }
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
 
   // Read-only machine catalogues, independent of an open lane.

@@ -105,7 +105,13 @@ export function hostLaneContext(state: RemoteLaneActionState): LaneActionContext
       exportHtml: notReady,
       moveTo: notReady ?? moveHint(state, running, controlHint),
       copySpend: notReady ?? whileRunning,
-      delete: controlHint ?? (canWrite ? undefined : featureNotOffered('workspaces.write')),
+      delete:
+        controlHint ??
+        (!caps.laneArchive
+          ? 'Update this Host to archive lanes safely.'
+          : canWrite
+            ? undefined
+            : featureNotOffered('workspaces.write')),
     },
     hints: { moveTo: running ? MOVE_STOPS_LANE : undefined },
   }

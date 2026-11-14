@@ -7,18 +7,32 @@ import { deleteSession } from './session-deleter'
 import { sessionPaths } from './session-path-lock'
 import { isRoutineSession } from '@phosphor/session-runtime/routines/ownership'
 
-/** The runtime stops writers; Desktop retains its existing Trash and draft policy. */
-export const deleteLane = createSessionDeletion({
-  registry,
-  paths: sessionPaths,
-  ownsRoutine: isRoutineSession,
-  cancelRoutine: async (id) => {
-    const { cancelRoutineSession } = await import('../routines')
-    await cancelRoutineSession(id)
-  },
-  forgetAccount: forgetSpawnAccount,
-  deleteTranscript: deleteSession,
-  deleteDraft: async (path) => {
+/** Archive and permanent removal share the existing admission/disposal lock domain. */
+export function createLaneRemoval(
+  deleteTranscript: (path: string) => Promise<void> = deleteSession,
+  deleteDraft: (path: string) => Promise<void> = async (path) => {
     await deleteDraftBlobs(clearDraft(`session:${path}`))
   },
-})
+) {
+  return createSessionDeletion({
+    registry: {
+      get: registry.get.bind(registry),
+      list: registry.list.bind(registry),
+      dispose: async (id) => {
+        await registry.dispose(id)
+        const { ptyManager } = await import('../pty/pty-manager')
+        ptyManager.killForSession(id)
+      },
+    },
+    paths: sessionPaths,
+    ownsRoutine: isRoutineSession,
+    cancelRoutine: async (id) => {
+      const { cancelRoutineSession } = await import('../routines')
+      await cancelRoutineSession(id)
+    },
+    forgetAccount: forgetSpawnAccount,
+    deleteTranscript,
+    deleteDraft,
+  })
+}
+export const deleteLane = createLaneRemoval()

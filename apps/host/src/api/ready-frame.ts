@@ -47,6 +47,7 @@ export function readyFrame(options: {
     settings: hello.capabilities.includes('machine.configure'),
     machineShell: hello.capabilities.includes('terminal'),
     laneMarks: true,
+    laneArchive: true,
     laneTransfer: true,
     fileBytes: true,
     proof: hostProof(hello, options.challenge, options.key),

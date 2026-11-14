@@ -1,10 +1,11 @@
+import { ArchiveNotices } from '@/features/archive/ArchiveNotices'
 import { useBrain, useBrainSync } from '@/features/brain/useBrain'
 import { usePlatform } from '@/platform/Platform'
 import type { GlobalPage } from '@/stores/layout'
 import { NavigationItem } from './NavigationItem'
 import { SCREENS } from './screens'
 
-const GLOBAL_PAGES = ['artifacts', 'skills', 'routines', 'machines', 'brain'] as const
+const GLOBAL_PAGES = ['artifacts', 'skills', 'routines', 'machines', 'archive', 'brain'] as const
 
 /** Shared order, labels and icons. Shells only supply their navigation action. */
 export function PageLinks({
@@ -22,6 +23,7 @@ export function PageLinks({
   const localBrain = usePlatform().localBrain
   return (
     <>
+      <ArchiveNotices />
       {GLOBAL_PAGES.filter((page) => page !== 'brain' || (localBrain && enabled)).map((page) => {
         const { title, icon: Icon } = SCREENS[page]
         return (

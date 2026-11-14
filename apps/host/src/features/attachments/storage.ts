@@ -55,7 +55,7 @@ export function sweep(state: AttachmentState) {
       const path = join(base, laneId)
       const info = lstatSync(path)
       if (!laneIdPattern.test(laneId) || !info.isDirectory() || info.isSymbolicLink()) continue
-      if (!state.ports.laneExists(laneId)) {
+      if (!state.ports.laneExists(laneId) && !state.ports.laneRetained?.(laneId)) {
         remove(state, laneId)
         continue
       }

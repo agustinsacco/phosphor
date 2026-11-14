@@ -133,7 +133,7 @@ export function laneActions(
     ...offer('copyDebugInfo', 'Copy debug info', handlers.copyDebugInfo),
     ...(ctx.spend ? offer('copySpend', 'Copy spend', handlers.copySpend, ctx.spend.hint) : []),
   ]
-  const remove = offer('delete', 'Delete', handlers.delete).map((item) => ({
+  const remove = offer('delete', 'Archive', handlers.delete).map((item) => ({
     ...item,
     danger: true,
   }))
