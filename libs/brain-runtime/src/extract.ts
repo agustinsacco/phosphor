@@ -3,7 +3,6 @@ import type {
   BrainStore,
   Proposal,
   ProposalEntity,
-  TranscriptSegment,
 } from '@phosphor/memory-engine/types'
 import type { BrainServiceOptions, BrainSearchPort } from './types'
 import { readLane, type LaneMeta } from './lane'
@@ -15,7 +14,7 @@ import { stageCaller } from './stage-call'
 import { extractWindows } from './stages/extract'
 import { foldParts, type FoldedJob } from './stages/fold'
 import { resolveIdentities } from './stages/identity'
-import { findParents, prefixGroups } from './stages/parents'
+import { prefixGroups } from './stages/groups'
 import { reconcile } from './stages/reconcile'
 import { applyClaimBudget } from './stages/budget'
 import type { StageAsk } from './stage-types'
@@ -53,7 +52,7 @@ export async function extractJob(
       { ...job, leafId: lane.leafId, model: lane.model, branch: lane.branch },
       store,
       options.now ?? Date.now,
-      callThinking(lane.thinking, 'extract'),
+      callThinking(lane.thinking),
     )
     const segments = transcriptSegments(
       transcriptAtLeaf(await readEntries(job.sessionPath), lane.leafId),
@@ -71,16 +70,9 @@ export async function extractJob(
       segments,
     )
     const folded = foldParts(parts, lane.sessionId)
-    for (const part of parts.filter((p) => p.truncated))
-      folded.outcomes.push({
-        candidate: part.key,
-        summary: 'Single-segment window reached the extraction cap',
-        status: 'held',
-        reason: 'Extraction may be truncated at 40 claims/entities',
-      })
     recordClaims(record, folded)
     await finishExtraction(
-      { job, lane, store, options, signal, search, record, progress, segments, ask },
+      { job, lane, store, options, signal, search, record, progress, ask },
       folded,
     )
   } catch (error) {
@@ -101,12 +93,11 @@ interface ExtractionContext {
   signal: AbortSignal
   search: BrainSearchPort
   record: ExtractionRecord
-  segments: TranscriptSegment[]
   ask: StageAsk
   progress(stage: BrainJobStage, done: number, total: number): void
 }
 async function finishExtraction(context: ExtractionContext, folded: FoldedJob): Promise<void> {
-  const { store, options, signal, search, ask, segments, progress } = context
+  const { store, options, signal, search, ask, progress } = context
   const computedRevision = store.revision()
   progress('identity', 0, 1)
   const entityVectors = await embedDocuments(
@@ -122,12 +113,6 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
     ask,
   )
   progress('identity', 1, 1)
-  progress('parents', 0, 1)
-  const priorRefs = new Set(identity.entities.map((e) => e.ref))
-  await findParents(context.job.id, folded, identity.entities, segments, store, ask)
-  recordClaims(context.record, folded)
-  await resolveParentIdentities(context, folded, identity.entities, priorRefs)
-  progress('parents', 1, 1)
   const groups = prefixGroups(folded, identity.entities, store)
   const held = applyClaimBudget(folded)
   progress('reconcile', 0, 1)
@@ -217,38 +202,6 @@ async function embedAndPropose(
     memories: proposal.memories.length,
     held,
   })
-}
-
-async function resolveParentIdentities(
-  context: ExtractionContext,
-  job: FoldedJob,
-  identities: ProposalEntity[],
-  prior: Set<string>,
-): Promise<void> {
-  const introduced = job.entities.filter((e) => !prior.has(e.ref))
-  if (!introduced.length) return
-  const anchors = identities.filter((e) => prior.has(e.ref))
-  const subset = { ...job, entities: introduced, outcomes: job.outcomes }
-  const vectors = await embedDocuments(
-    context.options,
-    introduced.map((e) => `${e.label} (${e.kind}): ${e.description}`),
-    context.signal,
-  )
-  const ask: StageAsk = (stage, part, prompt, validate, entryIds, input) =>
-    context.ask(stage, part, prompt, validate, entryIds, { ...input, pass: 'parents' })
-  const result = await resolveIdentities(
-    subset,
-    context.store,
-    context.search,
-    vectors.map((v) => new Float32Array(v)),
-    ask,
-    job.entities,
-    anchors,
-  )
-  identities.splice(0, identities.length, ...anchors, ...result.entities)
-  job.entities = identities
-  job.claims = subset.claims
-  job.parents = subset.parents
 }
 
 function recordClaims(record: ExtractionRecord, job: FoldedJob): void {

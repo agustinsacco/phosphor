@@ -22,6 +22,7 @@ describe('extraction link regressions', () => {
   it('rejects an unknown object ref rather than silently changing it to about', () => {
     const value = structuredClone(RAW_EXTRACTION)
     value.claims[0]!.links[0]!.object = 'missing'
-    expect(() => parse(value)).toThrow(/Unknown entity ref/)
+    expect(parse(value).claims[0]!.links).toEqual([])
+    expect(parse(value).outcomes).toContainEqual(expect.objectContaining({ status: 'dropped', reason: 'Unknown entity ref: missing' }))
   })
 })

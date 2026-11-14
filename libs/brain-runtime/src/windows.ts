@@ -38,8 +38,3 @@ export function transcriptWindows(segments: TranscriptSegment[]): TranscriptWind
   }
   return windows
 }
-
-export function splitWindow(window: TranscriptWindow): TranscriptWindow[] {
-  const middle = Math.ceil(window.segments.length / 2)
-  return [makeWindow(window.segments.slice(0, middle)), makeWindow(window.segments.slice(middle))]
-}

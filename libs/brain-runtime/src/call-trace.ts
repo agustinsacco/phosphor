@@ -1,6 +1,6 @@
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 
-export const CALL_TIMEOUT_MS = 300_000
+export const CALL_TIMEOUT_MS = 600_000
 export const CALL_STDERR_BYTES = 4096
 
 export interface AssistantMessage {
@@ -59,10 +59,9 @@ function traceUsage(usage?: AssistantMessage['usage']): CallTrace['usage'] {
     cacheWrite: numeric(usage?.cacheWrite),
   }
 }
-export function callThinking(thinking: string, stage: string): string {
+export function callThinking(thinking: string): string {
   const levels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
-  const cap = stage === 'extract' ? 2 : 3
-  return levels[Math.min(Math.max(0, levels.indexOf(thinking)), cap)]!
+  return levels[Math.min(Math.max(0, levels.indexOf(thinking)), 3)]!
 }
 
 /** Only explicitly selected metadata enters the trace, never message bodies or deltas. */

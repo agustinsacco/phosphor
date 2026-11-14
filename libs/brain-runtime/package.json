@@ -128,13 +128,13 @@
       "types": "./src/stage-prompts/identity.ts",
       "default": "./src/stage-prompts/identity.ts"
     },
-    "./stage-prompts/parents": {
-      "types": "./src/stage-prompts/parents.ts",
-      "default": "./src/stage-prompts/parents.ts"
-    },
     "./stage-prompts/reconcile": {
       "types": "./src/stage-prompts/reconcile.ts",
       "default": "./src/stage-prompts/reconcile.ts"
+    },
+    "./stage-quote": {
+      "types": "./src/stage-quote.ts",
+      "default": "./src/stage-quote.ts"
     },
     "./stage-types": {
       "types": "./src/stage-types.ts",
@@ -152,13 +152,13 @@
       "types": "./src/stages/fold.ts",
       "default": "./src/stages/fold.ts"
     },
+    "./stages/groups": {
+      "types": "./src/stages/groups.ts",
+      "default": "./src/stages/groups.ts"
+    },
     "./stages/identity": {
       "types": "./src/stages/identity.ts",
       "default": "./src/stages/identity.ts"
-    },
-    "./stages/parents": {
-      "types": "./src/stages/parents.ts",
-      "default": "./src/stages/parents.ts"
     },
     "./stages/reconcile": {
       "types": "./src/stages/reconcile.ts",

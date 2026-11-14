@@ -3,8 +3,7 @@ import type { ExtractedPart, Registry, StageAsk, StageExtraction } from '../stag
 import type { TranscriptWindow } from '../windows'
 import { segmentInputs } from '../stage-input'
 import type { TranscriptSegment } from '@phosphor/memory-engine/types'
-import { inputHash, splitWindow } from '../windows'
-import { EXTRACT_CAP } from '../constants'
+import { inputHash } from '../windows'
 import { extractPrompt } from '../stage-prompts/extract'
 import { wholePhrase } from '@phosphor/memory-engine/text'
 import { parseStageExtraction } from '../stage-parse'
@@ -32,7 +31,9 @@ export async function extractWindows(
       )
       .slice(0, 60)
     const offered = selected.map((e, i) => ({ ...e, ref: `r${i + 1}` }))
-    const prompt = extractPrompt(window, offered)
+    const part = output.length + 1, total = windows.length
+    const kept = output.flatMap((p) => p.extraction.claims.map((c) => c.text))
+    const prompt = extractPrompt(window, offered, part, total, kept)
     const hash = inputHash(prompt)
     const saved = store.part(jobId, key, hash)
     const extraction = saved
@@ -43,16 +44,10 @@ export async function extractWindows(
           prompt,
           (answer) => parseStageExtraction(answer, window, offered),
           window.segments.map((s) => s.entryId),
-          { registry: offered, segments: segmentInputs(window.segments, source) },
+          { part, total, kept, registry: offered, segments: segmentInputs(window.segments, source) },
         )
     if (!saved)
       store.savePart(jobId, { part: key, inputHash: hash, output: JSON.stringify(extraction) })
-    const capped =
-      extraction.claims.length >= EXTRACT_CAP || extraction.entities.length >= EXTRACT_CAP
-    if (capped && window.segments.length > 1) {
-      pending.unshift(...splitWindow(window).map((w, i) => ({ window: w, key: `${key}.${i + 1}` })))
-      continue
-    }
     // Registry handles map back to the prior job refs; all new refs become window-local.
     const redirects = new Map(offered.map((e, i) => [e.ref, selected[i]!.ref]))
     for (const e of extraction.entities) redirects.set(e.ref, `${key}:${e.ref}`)
@@ -77,7 +72,7 @@ export async function extractWindows(
       })),
     }
     registry.push(...renamed.entities)
-    output.push({ key, window, extraction: renamed, truncated: capped })
+    output.push({ key, window, extraction: renamed })
     progress(output.length, output.length + pending.length)
   }
   return output

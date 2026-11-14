@@ -30,7 +30,7 @@ it('restart after window two resumes at window three under the same job id', asy
   expect(resumed.spy).toHaveBeenCalledTimes(2)
   expect(resumed.spy.mock.calls[0]![2]).toContain('part 2')
 })
-it('splits capped windows and accepts a capped single segment with an explicit flag', async () => {
+it('does not split parts with many entities', async () => {
   const store = new FakeBrainStore(),
     job = store.enqueue(HARBOR_JOB, 'queued')
   const segments = [0, 1].map((i) => ({
@@ -60,8 +60,7 @@ it('splits capped windows and accepts a capped single segment with an explicit f
     () => {},
     segments,
   )
-  expect(parts).toHaveLength(2)
-  expect(parts.every((p) => p.truncated)).toBe(true)
+  expect(parts).toHaveLength(1)
 })
 it('a changed input hash never reuses a checkpoint', async () => {
   const store = new FakeBrainStore(),
@@ -112,4 +111,18 @@ it('prioritizes registry names mentioned in the current window over recent unrel
     () => {},
     segments,
   )
+})
+
+it('tells later parts which claim sentences were already kept', async () => {
+  const store = new FakeBrainStore(), job = store.enqueue(HARBOR_JOB, 'queued')
+  const segments = [0, 1].map((i) => ({ entryId: `s${i}`, role: 'assistant' as const, label: 'Agent', observedAt: 0, text: 'Harbor requires billing approval.' }))
+  const ask = trackAsk(async (_s, part, prompt, validate) => {
+    if (part === 2) {
+      expect(prompt).toContain('Already kept from earlier parts of this conversation. Do not repeat them;')
+      expect(prompt).toContain('- Harbor requires billing approval.')
+      expect(prompt).toContain('part 2 of 2:')
+    }
+    return validate(JSON.stringify({ ...empty, claims: [{ ref: 'c1', text: segments[0]!.text, type: 'fact', epistemic: 'reported', mentions: [], links: [], validFrom: null, validTo: null, branch: false, quotes: [{ segment: 's1', quote: segments[0]!.text }] }] }))
+  })
+  await extractWindows(job.id, segments.map((s) => makeWindow([s])), store, ask.ask, () => {}, segments)
 })

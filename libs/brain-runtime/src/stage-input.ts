@@ -2,7 +2,6 @@ import type { TranscriptSegment } from '@phosphor/memory-engine/types'
 import type { StageInput } from './stage-types'
 import { extractPrompt } from './stage-prompts/extract'
 import { identityPrompt } from './stage-prompts/identity'
-import { parentsPrompt } from './stage-prompts/parents'
 import { reconcilePrompt } from './stage-prompts/reconcile'
 import { makeWindow } from './windows'
 
@@ -34,9 +33,7 @@ export function rebuildPrompt(
       throw new Error('Source segment unavailable')
     return { ...segment, text: segment.text.slice(s.start, s.end) }
   })
-  if (stage === 'extract') return extractPrompt(makeWindow(selected), input.registry ?? [])
-  if (stage === 'parents')
-    return parentsPrompt(input.requested ?? [], input.registry ?? [], makeWindow(selected).text)
+  if (stage === 'extract') return extractPrompt(makeWindow(selected), input.registry ?? [], input.part, input.total, input.kept)
   if (stage === 'identity') return identityPrompt(input.rows ?? [])
   if (stage === 'reconcile') return reconcilePrompt(input.rows ?? [])
   throw new Error('Unknown stage input')

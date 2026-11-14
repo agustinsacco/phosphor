@@ -126,11 +126,11 @@ it('records every retry and compaction outcome, scrubbing errors before clipping
 it('describes current progress, resets retry state after recovery and rejects arbitrary stop reasons', () => {
   const tracer = new CallTracer(() => 10)
   expect(tracer.timeoutMessage('example/fast')).toBe(
-    'Timed out after 300 s waiting for example/fast (no reply yet)',
+    'Timed out after 600 s waiting for example/fast (no reply yet)',
   )
   tracer.event({ type: 'auto_retry_start', attempt: 1, errorMessage: '429 overloaded' })
   expect(tracer.timeoutMessage('example/fast')).toBe(
-    'Timed out after 300 s waiting for example/fast (retrying: 429 overloaded)',
+    'Timed out after 600 s waiting for example/fast (retrying: 429 overloaded)',
   )
   tracer.event({ type: 'auto_retry_end', success: true, attempt: 1 })
   tracer.event({ type: 'message_update', usage: { totalTokens: NaN, cost: { total: Infinity } } })
@@ -143,7 +143,7 @@ it('describes current progress, resets retry state after recovery and rejects ar
     },
   })
   expect(tracer.timeoutMessage('example/fast')).toBe(
-    'Timed out after 300 s waiting for example/fast (reply started)',
+    'Timed out after 600 s waiting for example/fast (reply started)',
   )
   expect(tracer.trace.stopReason).toBeNull()
   expect(tracer.trace.providerError).toBe('[redacted]')

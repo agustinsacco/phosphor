@@ -19,7 +19,7 @@ it.each(['supersede', 'resolve_open', 'enrich', 'conflict'] as const)(
     }
     const link = {
       subject: old.entityIds[0]!,
-      predicate: 'related_to' as const,
+      predicate: 'uses' as const,
       object: old.entityIds[1]!,
       citation: claim.citations[0]!,
     }

@@ -53,7 +53,7 @@ function modelArgs(input: ModelCallInput, directory: string): string[] {
     '--model',
     input.lane.model,
     '--thinking',
-    callThinking(input.thinking ?? input.lane.thinking, input.stage),
+    callThinking(input.thinking ?? input.lane.thinking),
     '--no-tools',
     '--no-mcp',
     '--no-skills',

@@ -101,7 +101,7 @@ it('find ranks exact keys and exact names ahead of word and trigram candidates',
   const db = new DatabaseSync(path)
   try {
     for (let n = 1; n <= 11; n++) {
-      db.prepare("INSERT INTO entities(n,id,label,kind,created_at) VALUES (?,?,?,'ticket',1)").run(
+      db.prepare("INSERT INTO entities(n,id,label,kind,created_at) VALUES (?,?,?,'concept',1)").run(
         n,
         `ticket-${n}`,
         `Ticket ${n}`,

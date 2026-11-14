@@ -133,9 +133,7 @@ export class FakeBrainStore implements BrainStore {
   entityCards(ids: string[]): EntityCard[] {
     return this.cards.filter((c) => ids.includes(c.id))
   }
-  neighbours(): ReturnType<BrainStore['neighbours']> {
-    return []
-  }
+
   memoryMatches(probes: ClaimProbe[], _limit: number): string[][] {
     return probes.map((_p, i) => this.matchesMemory[i] ?? [])
   }

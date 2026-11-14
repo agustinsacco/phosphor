@@ -210,3 +210,27 @@ it('folds a later exact duplicate even when many earlier claims share its entiti
     expect.objectContaining({ candidate: 'c8', status: 'folded', reason: 'merged into c1' }),
   )
 })
+
+it('offers local paraphrases by meaning without shared entities and folds a confirmation', async () => {
+  const j = job([memory('Harbor invoices each organization.'), memory('Billing at Harbor is per organization.')])
+  j.claims.forEach((c, i) => { c.memory.entities = [`entity-${i}`] })
+  const ask = trackAsk(async (_s, _p, prompt, validate) => {
+    expect(prompt).toContain('Two claims that say the same thing in different words are the same assertion.')
+    const rows = JSON.parse(prompt.slice(prompt.indexOf('\n') + 1))
+    expect(rows[0].candidates[0]).toMatchObject({ id: 'c1', local: true })
+    return validate(JSON.stringify({ decisions: [{ ref: 'c2', action: 'confirm', target: 'M1', reason: 'Same assertion' }] }))
+  })
+  await reconcile(j, [], new FakeBrainStore(), new FakeBrainSearch(), [new Float32Array([1, 0]), new Float32Array([0.75, 0.6])], ask.ask)
+  expect(ask.spy).toHaveBeenCalledOnce()
+  expect(j.claims.map((c) => c.ref)).toEqual(['c1'])
+})
+it('offers stored memories at cosine 0.7', async () => {
+  const store = new FakeBrainStore(), search = new FakeBrainSearch()
+  store.oldMemories = [old('Harbor invoices each organization.')]
+  search.memoryNeighbours = [[{ id: 'old', score: 0.7 }]]
+  const ask = trackAsk(async (_s, _p, _prompt, validate) => validate(JSON.stringify({ decisions: [{ ref: 'c1', action: 'confirm', target: 'M1', reason: 'Same' }] })))
+  const j = job([memory('Billing is per organization.')])
+  await reconcile(j, [], store, search, [new Float32Array([1])], ask.ask)
+  expect(ask.spy).toHaveBeenCalledOnce()
+  expect(j.claims).toHaveLength(0)
+})

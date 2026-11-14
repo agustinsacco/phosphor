@@ -29,7 +29,7 @@ it('rebuilds exact per-call prompts on demand at the frozen leaf; missing inputs
   await unlink(s.file)
   const missing = await extractionView(s.store, s.job.id)
   expect(missing.source.exists).toBe(false)
-  expect(missing.calls).toHaveLength(3)
+  expect(missing.calls).toHaveLength(2)
 })
 it('follows recorded ancestry, excluding abandoned branches and guarding cycles', () => {
   const entries = [

@@ -5,7 +5,7 @@ import { pipelineSetup, answerFor } from './__fixtures__/pipeline'
 import { extractJob } from './extract'
 import { EMBEDDING_MAX_TEXTS } from './embedding/model-manifest'
 
-it('batches 257 distinct claims and entity cards without losing a review item', async () => {
+it('batches 257 entity cards while enforcing the per-part claim limit', async () => {
   const s = await pipelineSetup()
   afterEach(s.cleanup)
   const { store } = fixture()
@@ -17,7 +17,7 @@ it('batches 257 distinct claims and entity cards without losing a review item', 
       {
         type: 'message',
         id: 'B',
-        message: { role: 'user', content: statements.join('\n') },
+        message: { role: 'assistant', content: statements.join('\n') },
       },
     ]
       .map((e) => JSON.stringify(e))
@@ -58,8 +58,8 @@ it('batches 257 distinct claims and entity cards without losing a review item', 
   ).resolves.toBeUndefined()
   expect(store.job(job.id)?.state).toBe('review')
   const proposal = store.storedProposal(job.id)!
-  expect(proposal.memories.map((m) => m.summary)).toEqual(statements)
-  expect(proposal.memoryVectors).toHaveLength(257)
+  expect(proposal.memories.map((m) => m.summary)).toEqual(statements.slice(0, 25))
+  expect(proposal.memoryVectors).toHaveLength(25)
   expect(proposal.entities).toHaveLength(257)
   expect(proposal.entityVectors).toHaveLength(257)
   // The shared fake rejects oversize requests, just like Desktop's controller.

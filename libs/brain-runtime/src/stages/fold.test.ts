@@ -15,7 +15,6 @@ it('folds equal claims and links across overlapping windows with merged evidence
   const parts = ['w1', 'w2'].map((key) => ({
     key,
     window,
-    truncated: false,
     extraction: {
       ...structuredClone(RAW_EXTRACTION),
       entities: RAW_EXTRACTION.entities.map((e) => ({ ...e, ref: `${key}:${e.ref}` })),

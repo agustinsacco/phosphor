@@ -34,5 +34,5 @@ it('uses the strict keep test before variable source data', () => {
 })
 it('allows ten minutes and medium thinking for every stage', () => {
   expect(CALL_TIMEOUT_MS).toBe(600000)
-  expect(callThinking('high', 'extract')).toBe('medium')
+  expect(callThinking('high')).toBe('medium')
 })

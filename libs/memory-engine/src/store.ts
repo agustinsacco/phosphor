@@ -60,7 +60,6 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     saveExtraction: (record) => saveExtraction(ctx, record),
     entityMatches: (probes, limit) => candidates.entityMatches(ctx, probes, limit),
     entityCards: (ids) => candidates.entityCards(ctx, ids),
-    neighbours: (ids, kinds, limit) => candidates.neighbours(ctx, ids, kinds, limit),
     memoryMatches: (probes, limit) => candidates.memoryMatches(ctx, probes, limit),
     memoryCards: (ids) => candidates.memoryCards(ctx, ids),
     propose: (value) => propose(ctx, value),

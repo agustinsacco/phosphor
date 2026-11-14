@@ -82,7 +82,7 @@ it('calls privately with lane args/env, parses streaming LF records and removes 
       '--model',
       'example/fast',
       '--thinking',
-      'low',
+      'medium',
       '--no-tools',
       '--no-mcp',
       '--no-skills',
@@ -99,7 +99,7 @@ it('calls privately with lane args/env, parses streaming LF records and removes 
     expect.objectContaining({
       cwd: forkDir,
       input: 'Extract Harbor knowledge.',
-      timeoutMs: 300000,
+      timeoutMs: 600000,
       maxOutputBytes: 0,
       stderr: 'capture',
       maxStderrBytes: 4096,
@@ -138,7 +138,7 @@ it('ignores the lane cwd and preserves low thinking, but fails absent text and t
   expect(run.mock.calls[0]![2].cwd).toBe(join(args.directory, 'calls', args.job.id, 'extract-1'))
   run.mockResolvedValue({ stdout: '', reason: 'timeout', error: 'sensitive provider details' })
   await expect(runModelCall(args, run)).rejects.toThrow(
-    'Timed out after 300 s waiting for example/fast (no reply yet)',
+    'Timed out after 600 s waiting for example/fast (no reply yet)',
   )
   args.signal = AbortSignal.abort()
   await expect(runModelCall(args, run)).rejects.toThrow()
@@ -178,10 +178,10 @@ it('traces retries without answer text and explains a timeout with scrubbed diag
     return { stdout: '', reason: 'timeout', error: 'timeout', stderr: 'Bearer harbor-secret' }
   })
   await expect(runModelCall({ ...args, onTrace }, run)).rejects.toThrow(
-    'Timed out after 300 s waiting for example/fast (retrying: 429 [redacted])',
+    'Timed out after 600 s waiting for example/fast (retrying: 429 [redacted])',
   )
   expect(run.mock.calls[0]![2]).toMatchObject({
-    timeoutMs: 300000,
+    timeoutMs: 600000,
     stderr: 'capture',
     maxStderrBytes: 4096,
   })

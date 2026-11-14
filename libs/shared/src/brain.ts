@@ -22,7 +22,6 @@ export const BRAIN_ENTITY_KINDS = [
   'project',
   'component',
   'document',
-  'ticket',
   'concept',
   'event',
 ] as const
@@ -39,11 +38,21 @@ export const BRAIN_PREDICATES = [
   'uses',
   'decided',
   'prefers',
-  'blocks',
-  'affects',
-  'related_to',
 ] as const
 export type BrainPredicate = (typeof BRAIN_PREDICATES)[number]
+/** Extraction-only endpoint rules; review may re-point an identity across kinds. */
+export const BRAIN_LINK_RULES: Record<BrainPredicate, { subject: readonly BrainEntityKind[]; object: readonly BrainEntityKind[] }> = {
+  owns: { subject: ['person', 'team', 'organization'], object: ['project', 'component', 'document'] },
+  works_on: { subject: ['person', 'team'], object: ['project', 'component', 'document'] },
+  member_of: { subject: ['person', 'team'], object: ['team', 'organization'] },
+  part_of: { subject: ['component', 'project', 'document', 'team'], object: ['component', 'project', 'team', 'organization'] },
+  for_customer: { subject: ['project', 'component', 'document', 'team'], object: ['organization'] },
+  documents: { subject: ['document'], object: ['project', 'component', 'concept', 'team', 'organization', 'event'] },
+  depends_on: { subject: ['component', 'project'], object: ['component', 'project', 'organization'] },
+  uses: { subject: ['component', 'project', 'team', 'person', 'organization'], object: ['component', 'project', 'organization', 'concept', 'document'] },
+  decided: { subject: ['person', 'team', 'organization'], object: ['project', 'component', 'document', 'concept', 'event'] },
+  prefers: { subject: ['person', 'team', 'organization'], object: ['component', 'project', 'concept', 'document', 'organization'] },
+}
 /** Predicates that place an entity: recall follows them one hop further than the rest. */
 export const BRAIN_STRUCTURAL_PREDICATES = [
   'part_of',
@@ -64,9 +73,6 @@ export const BRAIN_PREDICATE_LABELS: Record<BrainPredicate, { out: string; in: s
   uses: { out: 'Uses', in: 'Used by' },
   decided: { out: 'Decided', in: 'Decided by' },
   prefers: { out: 'Prefers', in: 'Preferred by' },
-  blocks: { out: 'Blocks', in: 'Blocked by' },
-  affects: { out: 'Affects', in: 'Affected by' },
-  related_to: { out: 'Related to', in: 'Related to' },
 }
 /** What a memory is for; the extractor picks one and the UI groups by it, in this order. */
 export const BRAIN_MEMORY_TYPES = [
@@ -144,7 +150,7 @@ export interface BrainQuote {
   label: string
 }
 
-export type BrainJobStage = 'prepare' | 'extract' | 'identity' | 'parents' | 'reconcile' | 'embed'
+export type BrainJobStage = 'prepare' | 'extract' | 'identity' | 'reconcile' | 'embed'
 /** Queue entry for one lane. `done` entries stay only to refuse re-queuing an unchanged lane. */
 export interface BrainJob {
   id: string

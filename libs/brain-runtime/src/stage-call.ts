@@ -9,7 +9,6 @@ import { extractionAnswer } from './extraction-record'
 import type { ExtractionRecord } from './extraction-record'
 import { EXTRACTION_SYSTEM } from './stage-prompts/extract'
 import { IDENTITY_SYSTEM } from './stage-prompts/identity'
-import { PARENTS_SYSTEM } from './stage-prompts/parents'
 import { RECONCILE_SYSTEM } from './stage-prompts/reconcile'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { callThinking } from './call-trace'
@@ -18,7 +17,6 @@ import { ANSWER_BYTES } from './constants'
 const SYSTEM = {
   extract: EXTRACTION_SYSTEM,
   identity: IDENTITY_SYSTEM,
-  parents: PARENTS_SYSTEM,
   reconcile: RECONCILE_SYSTEM,
 }
 export function repairPrompt(prompt: string, answer: string, error: string): string {
@@ -66,10 +64,7 @@ async function callExecutor(context: CallContext) {
         part,
         prompt,
         systemPrompt,
-        thinking: callThinking(
-          lane.thinking,
-          systemPrompt === EXTRACTION_SYSTEM ? 'extract' : stage,
-        ),
+        thinking: callThinking(lane.thinking),
         onAnswer: (answer) => {
           call.answer = extractionAnswer(answer)
         },

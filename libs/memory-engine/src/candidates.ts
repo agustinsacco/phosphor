@@ -153,7 +153,7 @@ export function entityMatches(
     )
   })
 }
-export function neighbours(
+function neighbours(
   ctx: Context,
   ids: string[],
   kinds: BrainEntityKind[] | null,

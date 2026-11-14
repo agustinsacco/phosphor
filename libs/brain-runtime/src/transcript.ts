@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import type { TranscriptSegment } from '@phosphor/memory-engine/types'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
-import { DOCUMENT_TOOL_CHARS, TOOL_ARGS_CHARS, truncateTool } from './constants'
+import { elideUser } from './constants'
 
 export interface LaneEntry {
   type?: string
@@ -65,14 +65,11 @@ export function transcriptSegments(entries: LaneEntry[]): TranscriptSegment[] {
           role,
           label: `${label} · ${date}`,
           observedAt,
-          text: scrubExcerpt(text),
+          text: role === 'user' ? elideUser(scrubExcerpt(text)) : scrubExcerpt(text),
         })
     }
     if (entry.type === 'compaction' || entry.type === 'context_edit') continue
-    if (entry.type === 'branch_summary') {
-      add('context', 'Summary', entry.summary ?? '')
-      continue
-    }
+    if (entry.type === 'branch_summary' || entry.type === 'custom_message') continue
     messageSegments(entry, add)
   }
   return segments
@@ -82,12 +79,9 @@ function messageSegments(
   entry: LaneEntry,
   add: (role: TranscriptSegment['role'], label: string, text: string) => void,
 ): void {
-  const message =
-    entry.type === 'custom_message' ? { role: 'custom', content: entry.content } : entry.message
-  if (!message) return
+  const message = entry.message
+  if (!message || !['user', 'assistant'].includes(message.role ?? '')) return
   const role = message.role
-  if (role === 'toolResult' && ['brain_search', 'brain_related'].includes(message.toolName ?? ''))
-    return
   const content =
     typeof message.content === 'string'
       ? [{ type: 'text', text: message.content }]
@@ -97,28 +91,7 @@ function messageSegments(
     .map((block) => block.text ?? '')
     .join('\n')
   if (role === 'user') add('user', 'You', text)
-  else if (role === 'assistant') {
-    add('assistant', 'Agent', text)
-    for (const block of content) {
-      if (block.type === 'toolCall')
-        add(
-          'assistant',
-          `Agent · ${block.name ?? 'tool'} call`,
-          truncateTool(scrubExcerpt(JSON.stringify(block.arguments ?? {})), TOOL_ARGS_CHARS),
-        )
-    }
-  } else if (role === 'toolResult')
-    add(
-      'toolResult',
-      `Tool output · ${message.toolName ?? 'tool'}`,
-      truncateTool(
-        scrubExcerpt(text),
-        /read|fetch|document|browse|web/i.test(message.toolName ?? '')
-          ? DOCUMENT_TOOL_CHARS
-          : undefined,
-      ),
-    )
-  else if (role === 'custom') add('context', 'Context', text)
+  else if (role === 'assistant') add('assistant', 'Agent', text)
 }
 
 /** Context edits affect only the selected ancestry; originals are never mutated. */

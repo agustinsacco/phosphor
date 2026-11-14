@@ -90,17 +90,6 @@ export interface BrainStore {
     limit: number,
   ): EntityMatch[][]
   entityCards(ids: string[]): EntityCard[]
-  /** Linked neighbours of the given entities, optionally only of some kinds. */
-  neighbours(
-    ids: string[],
-    kinds: BrainEntityKind[] | null,
-    limit: number,
-  ): {
-    entityId: string
-    neighbour: BrainEntity
-    predicate: BrainPredicate
-    direction: 'out' | 'in'
-  }[]
   /**
    * Active or disputed memories that share a link or entities with each probe. Ids that are not
    * stored entities (a job's new refs) match nothing.

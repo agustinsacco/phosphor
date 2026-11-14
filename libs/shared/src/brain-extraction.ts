@@ -46,7 +46,7 @@ export interface BrainExtractionOutcome {
 }
 /** One private model call. The prompt is not stored: it is rebuilt from the lane on demand. */
 export interface BrainExtractionCall {
-  stage: 'extract' | 'identity' | 'parents' | 'reconcile' | 'repair'
+  stage: 'extract' | 'identity' | 'reconcile' | 'repair'
   /** Window index for extract calls, batch index otherwise. */
   part: number
   /** Lane entries the call read. */

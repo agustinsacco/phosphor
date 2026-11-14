@@ -2,6 +2,9 @@ import {
   BRAIN_ENTITY_KINDS,
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
+  BRAIN_LINK_RULES,
+  type BrainEntityKind,
+  type BrainExtractionOutcome,
   BRAIN_STRUCTURAL_PREDICATES,
 } from '@phosphor/shared/brain'
 import type {
@@ -10,11 +13,12 @@ import type {
   StageExtraction,
   StageLink,
   StageParent,
-  StageQuote,
   Registry,
 } from './stage-types'
 import type { TranscriptWindow } from './windows'
-import { ELISION } from './constants'
+import { MAX_PART_CLAIMS } from './constants'
+import { verifiedQuote } from './stage-quote'
+export { verifiedQuote } from './stage-quote'
 import { fold } from '@phosphor/memory-engine/text'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 
@@ -84,67 +88,44 @@ function entity(value: unknown): StageEntity {
   }
 }
 
-/** Verify within a single unelided span; a mistaken handle may be corrected, not invented. */
-export function verifiedQuote(value: unknown, window: TranscriptWindow): StageQuote {
-  const q = object(value),
-    quote = text(q.quote),
-    segment = ref(q.segment, 's')
-  if (ELISION.test(quote)) throw new Error('A quote cannot contain an elision marker')
-  const supports = (index: number): boolean =>
-    window.segments[index]?.text.split(ELISION).some((span) => span.includes(quote)) ?? false
-  let index = Number(segment.slice(1)) - 1
-  if (!supports(index)) index = window.segments.findIndex((_s, i) => supports(i))
-  if (index < 0) throw new Error(`Quote not found in ${segment}: ${quote.slice(0, 100)}`)
-  return { segment: `s${index + 1}`, quote }
-}
-function claim(value: unknown, refs: Set<string>, window: TranscriptWindow): StageClaim {
-  const c = object(value)
+function claim(
+  value: unknown,
+  kinds: Map<string, BrainEntityKind>,
+  window: TranscriptWindow,
+  outcomes: BrainExtractionOutcome[],
+): StageClaim {
+  const c = object(value), id = ref(c.ref, 'c')
   const known = (v: unknown): string => {
     const id = text(v)
-    if (!refs.has(id)) throw new Error(`Unknown entity ref: ${id}`)
+    if (!kinds.has(id)) throw new Error(`Unknown entity ref: ${id}`)
     return id
   }
-  const quotes = array(c.quotes).map((q) => verifiedQuote(q, window))
-  if (!quotes.length) throw new Error(`Claim ${String(c.ref)} has no quotes`)
-  const errors: string[] = []
-  const links: StageLink[] = validated(
-    array(c.links),
-    (v) => {
-      const l = object(v)
-      const subject = known(l.subject),
-        target = known(l.object)
-      if (subject === target) throw new Error('A relationship cannot link an entity to itself')
-      return {
-        subject,
-        object: target,
-        predicate: vocabulary(l.predicate, BRAIN_PREDICATES),
-        ...verifiedQuote(l, window),
-      }
-    },
-    `Claim ${String(c.ref)} link`,
-    errors,
-  )
-  if (errors.length) throw new Error(errors.join('\n'))
+  const quotes = tolerant(array(c.quotes), (q) => verifiedQuote(q, window), () => id, outcomes)
+  if (!quotes.length) throw new Error(`Claim ${id} has no valid quotes`)
+  const mentions = new Set(array(c.mentions).map(known))
+  const links: StageLink[] = tolerant(array(c.links), (v) => {
+    const l = object(v)
+    for (const endpoint of [l.subject, l.object])
+      if (typeof endpoint === 'string' && kinds.has(endpoint)) mentions.add(endpoint)
+    const subject = known(l.subject), target = known(l.object)
+    if (subject === target) throw new Error('A relationship cannot link an entity to itself')
+    const predicate = vocabulary(l.predicate, BRAIN_PREDICATES)
+    const rule = BRAIN_LINK_RULES[predicate]
+    if (!rule.subject.includes(kinds.get(subject)!) || !rule.object.includes(kinds.get(target)!))
+      throw new Error(`Invalid endpoint kinds for ${predicate}`)
+    return { subject, object: target, predicate, ...verifiedQuote(l, window) }
+  }, () => id, outcomes)
   if (typeof c.branch !== 'boolean') throw new Error('branch must be boolean')
   return {
-    ref: ref(c.ref, 'c'),
+    ref: id,
     text: scrubExcerpt(text(c.text)),
     type: vocabulary(c.type, BRAIN_MEMORY_TYPES),
     epistemic: vocabulary(c.epistemic, ['observed', 'reported', 'inferred']),
-    mentions: [
-      ...new Set([...array(c.mentions).map(known), ...links.flatMap((l) => [l.subject, l.object])]),
-    ],
-    links,
-    quotes,
-    validFrom: date(c.validFrom),
-    validTo: date(c.validTo),
-    branch: c.branch,
+    mentions: [...mentions], links, quotes,
+    validFrom: date(c.validFrom), validTo: date(c.validTo), branch: c.branch,
   }
 }
-function unique(values: string[]): void {
-  if (new Set(values).size !== values.length) throw new Error('Duplicate ref')
-}
-function parent(value: unknown, refs: Set<string>, claims: StageClaim[]): StageParent {
+function parent(value: unknown, refs: Map<string, BrainEntityKind>, claims: StageClaim[]): StageParent {
   const p = object(value),
     id = text(p.entity)
   if (!refs.has(id)) throw new Error(`Unknown parent entity ref: ${id}`)
@@ -166,21 +147,31 @@ export function parseStageExtraction(
   registry: Registry = [],
 ): StageExtraction {
   const data = jsonAnswer(answer)
-  const errors: string[] = []
-  const entities = validated(array(data.entities), entity, 'entity', errors)
-  unique(entities.map((e) => e.ref))
-  const refs = new Set([...registry.map((e) => ref(e.ref, 'r')), ...entities.map((e) => e.ref)])
-  const claims = validated(array(data.claims), (c) => claim(c, refs, window), 'claim', errors)
-  unique(claims.map((c) => c.ref))
-  const parents = validated(array(data.parents), (p) => parent(p, refs, claims), 'parent', errors)
-  unique(parents.map((p) => p.entity))
-  for (const e of entities.filter((e) =>
-    ['project', 'component', 'document', 'team'].includes(e.kind),
-  ))
-    if (!parents.some((p) => p.entity === e.ref))
-      errors.push(`Missing parent assessment for ${e.ref}`)
-  if (errors.length) throw new Error(errors.join('\n'))
-  const outcomes: NonNullable<StageExtraction['outcomes']> = []
+  const rawEntities = array(data.entities), rawClaims = array(data.claims)
+  const outcomes: BrainExtractionOutcome[] = []
+  const entityRefs = new Set<string>(), claimRefs = new Set<string>()
+  const entities = tolerant(rawEntities, (v) => {
+    const e = entity(v)
+    uniqueRef(e.ref, entityRefs)
+    return e
+  }, candidate('entity', 'n'), outcomes)
+  const kinds = new Map([...registry, ...entities].map((e) => [e.ref, e.kind]))
+  const claims = tolerant(rawClaims, (v, index) => {
+    if (index >= MAX_PART_CLAIMS) throw new Error('Over the 25-claim limit for one part')
+    const c = claim(v, kinds, window, outcomes)
+    uniqueRef(c.ref, claimRefs)
+    return c
+  }, candidate('claim', 'c'), outcomes)
+  const parents: StageParent[] = []
+  for (const value of Array.isArray(data.parents) ? data.parents : []) {
+    try {
+      const p = parent(value, kinds, claims)
+      if (!parents.some((other) => other.entity === p.entity)) parents.push(p)
+    } catch { /* Invalid parent assessments are equivalent to not stated. */ }
+  }
+  for (const e of entities)
+    if (['project', 'component', 'document', 'team'].includes(e.kind) && !parents.some((p) => p.entity === e.ref))
+      parents.push({ entity: e.ref, status: 'not_stated', claim: null })
   for (const entity of entities) {
     entity.keys = entity.keys.filter((key) => {
       if (window.segments.some((segment) => fold(segment.text).includes(fold(key.value))))
@@ -197,19 +188,25 @@ export function parseStageExtraction(
   return { entities, claims, parents, ...(outcomes.length ? { outcomes } : {}) }
 }
 
-function validated<T>(
-  values: unknown[],
-  parse: (value: unknown) => T,
-  label: string,
-  errors: string[],
+function uniqueRef(ref: string, seen: Set<string>): void {
+  if (seen.has(ref)) throw new Error('Duplicate ref')
+  seen.add(ref)
+}
+function candidate(label: string, namespace: string) {
+  return (value: unknown, index: number): string => {
+    try { return ref(object(value).ref, namespace) }
+    catch { return `${label}[${index + 1}]` }
+  }
+}
+function tolerant<T>(
+  values: unknown[], parse: (value: unknown, index: number) => T,
+  candidate: (value: unknown, index: number) => string, outcomes: BrainExtractionOutcome[],
 ): T[] {
   return values.flatMap((value, index) => {
-    try {
-      return [parse(value)]
-    } catch (error) {
-      errors.push(
-        `${label}[${index + 1}]: ${error instanceof Error ? error.message : String(error)}`,
-      )
+    try { return [parse(value, index)] }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      outcomes.push({ candidate: candidate(value, index), summary: reason, status: 'dropped', reason })
       return []
     }
   })

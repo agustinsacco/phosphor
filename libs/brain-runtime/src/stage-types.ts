@@ -55,11 +55,10 @@ export interface ExtractedPart {
   key: string
   window: TranscriptWindow
   extraction: StageExtraction
-  truncated: boolean
 }
 export type Registry = StageEntity[]
 export type StageAsk = <T>(
-  stage: 'extract' | 'identity' | 'parents' | 'reconcile',
+  stage: 'extract' | 'identity' | 'reconcile',
   part: number,
   prompt: string,
   validate: (answer: string) => T,
@@ -78,9 +77,10 @@ export interface SegmentInput {
   end: number
 }
 export interface StageInput {
-  pass?: 'parents'
+  part?: number
+  total?: number
+  kept?: string[]
   registry?: Registry
-  requested?: unknown[]
   rows?: unknown[]
   segments?: SegmentInput[]
 }

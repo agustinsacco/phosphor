@@ -114,7 +114,6 @@ it('folds repeated full names across windows but not a first name alone or contr
   const parts = entities.map((e, i) => ({
     key: `w${i}`,
     window: makeWindow([]),
-    truncated: false,
     extraction: { entities: [e], claims: [], parents: [] },
   }))
   const folded = foldParts(parts, 'lane')
@@ -124,8 +123,7 @@ it('folds repeated full names across windows but not a first name alone or contr
       {
         key: 'w1',
         window: makeWindow([]),
-        truncated: false,
-        extraction: {
+            extraction: {
           entities: [entity('n1', 'Tom', 'person'), entity('n2', 'Tom Lee', 'person')],
           claims: [],
           parents: [],
@@ -161,4 +159,27 @@ it('ranks an exact job-local candidate ahead of an unrelated high-scoring lexica
     )
   }
   await resolveIdentities(j, store, search, [new Float32Array([1]), new Float32Array([1])], ask)
+})
+
+it('keeps valid identity decisions, retries only missing rows and defaults to uncertain', async () => {
+  const store = new FakeBrainStore(), search = new FakeBrainSearch()
+  const j = job([entity('n1', 'Rina Okafor', 'person'), entity('n2', 'Tom Lee', 'person')])
+  store.cards = [storeCard('rina', 'Rina Okafor'), storeCard('tom', 'Tom Lee')]
+  store.matches = [[{ entityId: 'rina', channel: 'name', score: 1 }], [{ entityId: 'tom', channel: 'name', score: 1 }]]
+  const sizes: number[] = []
+  const ask: StageAsk = async (_s, _p, _prompt, validate, _ids, input) => {
+    sizes.push(input!.rows!.length)
+    return validate(JSON.stringify({ decisions: [
+      { ref: 'n1', action: 'reuse', candidate: 'K99', reason: 'Bad handle' },
+      { ref: 'unknown', action: 'new', candidate: null, reason: 'Not offered' },
+      { ref: 'n1', action: 'new', candidate: null, reason: 'Valid' },
+      { ref: 'n1', action: 'uncertain', candidate: null, reason: 'Duplicate' },
+    ] }))
+  }
+  const pending = resolveIdentities(j, store, search, [new Float32Array([1]), new Float32Array([1])], ask)
+  await expect(pending).resolves.toBeDefined()
+  const result = await pending
+  expect(sizes).toEqual([2, 1])
+  expect(result.entities[0]).toMatchObject({ decision: 'new', reason: 'Valid' })
+  expect(result.entities[1]).toMatchObject({ decision: 'uncertain', reason: 'No identity decision returned' })
 })
