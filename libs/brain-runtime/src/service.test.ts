@@ -172,7 +172,7 @@ it('reset stops admission and waits for an active cancelled call before clearing
   expect(s.search.refreshes).toBe(1)
 })
 
-it('stale review recomputation reuses unchanged parent output as well as extraction windows', async () => {
+it('stale review recomputation reuses extract parts and refreshes identity decisions', async () => {
   const s = await setup()
   await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
   await review(s.service)
@@ -180,5 +180,6 @@ it('stale review recomputation reuses unchanged parent output as well as extract
   s.store.rev++
   await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
   await review(s.service)
+  expect(s.runner.mock.calls.filter(([call]) => call.stage === 'extract')).toHaveLength(1)
   expect(s.runner.mock.calls.filter(([call]) => call.stage === 'identity')).toHaveLength(2)
 })

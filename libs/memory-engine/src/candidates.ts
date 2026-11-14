@@ -1,4 +1,4 @@
-import type { BrainEntityKind, BrainPredicate } from '@phosphor/shared/brain'
+import type { BrainPredicate } from '@phosphor/shared/brain'
 import { all, one, type Context } from './database'
 import { entity, entityNumber } from './entities'
 import { memoryCards } from './knowledge'
@@ -153,7 +153,7 @@ export function entityMatches(
     )
   })
 }
-function neighbours(ctx: Context, ids: string[], kinds: BrainEntityKind[] | null, limit: number) {
+function neighbours(ctx: Context, ids: string[], limit: number) {
   return ids
     .flatMap((id) => {
       const n = entityNumber(ctx, id)
@@ -165,9 +165,8 @@ function neighbours(ctx: Context, ids: string[], kinds: BrainEntityKind[] | null
           predicate: BrainPredicate
         }>(
           ctx,
-          `SELECT e.id,r.predicate FROM relations r JOIN entities e ON e.n=r.${other} WHERE r.${own}=? AND r.live=1 ${kinds?.length ? `AND e.kind IN (${kinds.map(() => '?').join(',')})` : ''} ORDER BY r.observed_at DESC LIMIT ?`,
+          `SELECT e.id,r.predicate FROM relations r JOIN entities e ON e.n=r.${other} WHERE r.${own}=? AND r.live=1 ORDER BY r.observed_at DESC LIMIT ?`,
           n,
-          ...(kinds ?? []),
           limit,
         ).map((row) => ({
           entityId: id,
@@ -183,7 +182,7 @@ export function entityCards(ctx: Context, ids: string[]): EntityCard[] {
   return ids.flatMap((id) => {
     const item = entity(ctx, id)
     return item
-      ? [{ ...item, neighbours: neighbours(ctx, [id], null, 3).map((row) => row.neighbour.label) }]
+      ? [{ ...item, neighbours: neighbours(ctx, [id], 3).map((row) => row.neighbour.label) }]
       : []
   })
 }

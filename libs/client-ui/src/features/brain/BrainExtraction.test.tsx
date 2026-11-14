@@ -105,7 +105,7 @@ it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link re
     fake.dispose()
   }
 })
-it('prints window and matching progress in the inbox', () => {
+it('prints conversation and matching progress in the inbox', () => {
   expect(
     jobLine(
       mockBrainJob({ state: 'running', progress: { stage: 'extract', done: 3, total: 12 } }),

@@ -69,7 +69,7 @@ it('high cosine with negation is not deterministic confirmation', async () => {
   expect(confirmations).toEqual([])
   expect(j.claims[0]!.memory.action).toBe('conflict')
 })
-it('same sentence with different endpoints reaches Call 4 instead of confirming', async () => {
+it('same sentence with different endpoints reaches reconciliation instead of confirming', async () => {
   const store = new FakeBrainStore(),
     search = new FakeBrainSearch(),
     m = memory('Harbor has an owner.')
