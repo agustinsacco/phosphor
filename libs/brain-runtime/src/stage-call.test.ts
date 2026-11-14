@@ -19,16 +19,17 @@ async function setup() {
   const controller = new AbortController()
   const delay = vi.fn(async () => {})
   const options: BrainServiceOptions = { ...s.options, retryDelay: delay }
-  const record = new ExtractionRecord(s.job, s.store, Date.now, 'medium')
-  const ask = await stageCaller({
-    job: s.job,
-    lane: await readLane(s.file),
-    store: s.store,
-    options,
-    signal: controller.signal,
-    record,
-  })
-  return { ...s, controller, delay, ask }
+  // Each Retry builds a fresh caller and record over the same job and store.
+  const caller = async () =>
+    stageCaller({
+      job: s.job,
+      lane: await readLane(s.file),
+      store: s.store,
+      options,
+      signal: controller.signal,
+      record: new ExtractionRecord(s.job, s.store, Date.now, 'medium'),
+    })
+  return { ...s, controller, delay, ask: await caller(), caller }
 }
 function failure(reason: 'error' | 'no-text' | 'aborted' | 'timeout' | 'overflow') {
   const tracer = new CallTracer()
@@ -153,3 +154,45 @@ it.each(['exit', 'spawn'] as const)(
       })
   },
 )
+
+it.each(['identity', 'reconcile'] as const)(
+  'answers a repeated %s prompt after Retry from its accepted answer, without a new call',
+  async (stage) => {
+    const s = await setup()
+    s.runner
+      .mockResolvedValueOnce({ text: 'first', usage: { tokens: 10, cost: 0.2 } })
+      .mockResolvedValue({ text: 'second', usage: { tokens: 10, cost: 0.2 } })
+    await expect(s.ask(stage, 1, 'rows 1 and 2', (a) => a)).resolves.toBe('first')
+    const retry = await s.caller()
+    await expect(retry(stage, 1, 'rows 1 and 2', (a) => a)).resolves.toBe('first')
+    expect(s.runner).toHaveBeenCalledOnce()
+    // Only the rows the accepted answer left undecided reach the model again.
+    await expect(retry(stage, 1, 'row 2', (a) => a)).resolves.toBe('second')
+    expect(s.runner).toHaveBeenCalledTimes(2)
+    expect(s.store.extraction(s.job.id).calls.map((c) => c.part)).toEqual([1, 2])
+  },
+)
+it('keeps the repaired answer for a repeated prompt, never the rejected one', async () => {
+  const s = await setup()
+  const valid = (a: string) => {
+    if (a !== 'good') throw new Error('Invalid answer')
+    return a
+  }
+  s.runner
+    .mockResolvedValueOnce({ text: 'bad', usage: { tokens: 10, cost: 0.2 } })
+    .mockResolvedValueOnce({ text: 'good', usage: { tokens: 10, cost: 0.2 } })
+    .mockResolvedValue({ text: 'bad', usage: { tokens: 10, cost: 0.2 } })
+  await expect(s.ask('reconcile', 1, 'rows', valid)).resolves.toBe('good')
+  await expect((await s.caller())('reconcile', 1, 'rows', valid)).resolves.toBe('good')
+  expect(s.runner).toHaveBeenCalledTimes(2)
+})
+it('asks again when no answer to the prompt was ever accepted', async () => {
+  const s = await setup()
+  const invalid = () => {
+    throw new Error('Invalid answer')
+  }
+  s.runner.mockResolvedValue({ text: 'bad', usage: { tokens: 10, cost: 0.2 } })
+  await expect(s.ask('identity', 1, 'rows', invalid)).rejects.toThrow('after repair')
+  await expect((await s.caller())('identity', 1, 'rows', (a) => a)).resolves.toBe('bad')
+  expect(s.runner).toHaveBeenCalledTimes(3)
+})
