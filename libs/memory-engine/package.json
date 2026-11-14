@@ -6,7 +6,11 @@
   "exports": {
     "./types": "./src/types.ts",
     "./store": "./src/store.ts",
-    "./vectors": "./src/vectors.ts"
+    "./vectors": "./src/vectors.ts",
+    "./text": "./src/text.ts",
+    "./search": "./src/search.ts",
+    "./secrets": "./src/secrets.ts",
+    "./test-support": "./src/test-support.ts"
   },
   "nx": {
     "includedScripts": []

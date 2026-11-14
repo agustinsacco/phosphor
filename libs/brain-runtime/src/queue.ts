@@ -17,11 +17,41 @@ export class ExtractionQueue {
   private active: { id: string; abort: AbortController; done: Promise<void> } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
   private disposed = false
+  private paused = false
+
+  get accepting(): boolean {
+    return !this.disposed && !this.paused
+  }
+
+  retry(id: string): void {
+    if (!this.accepting) throw new Error('Brain is resetting.')
+    this.options.store.retry(id)
+    this.options.changed()
+    this.kick()
+  }
+
+  recompute(id: string): void {
+    this.options.store.updateJob(id, { state: 'queued', error: null, progress: null })
+    this.options.changed()
+    this.kick()
+  }
+
+  async pause(): Promise<void> {
+    this.paused = true
+    clearTimeout(this.timer)
+    this.active?.abort.abort()
+    await this.active?.done
+  }
+
+  resume(): void {
+    this.paused = false
+    this.kick()
+  }
 
   constructor(private readonly options: QueueOptions) {}
 
   kick(): void {
-    if (this.disposed) return
+    if (!this.accepting) return
     clearTimeout(this.timer)
     const { store, busy, changed } = this.options
     let waiting = false

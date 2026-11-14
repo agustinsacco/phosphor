@@ -1,142 +1,175 @@
-import { one, run, transaction, type Context } from './database'
-import { cleanOrphans, entity, rebuildFts, resolveEntity } from './entities'
+import type { BrainReviewDecision } from '@phosphor/shared/brain'
+import { run, transaction, type Context } from './database'
+import {
+  addNames,
+  cleanOrphans,
+  createEntity,
+  entity,
+  entityNumber,
+  recountEntities,
+} from './entities'
+import { applyMemory, activeMemoryNumber, insertCitations, type CommitContext } from './commit'
 import { linkOutcome, pruneExtractions } from './extractions'
 import { updateJob } from './jobs'
 import { bumpRevision, revision } from './prefs'
 import { readProposal } from './proposals'
-import type { Extraction } from './types'
-import { encodeVector } from './vectors'
+import type { Proposal, ProposalMemory } from './types'
 
+function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDecision): void {
+  for (const [indexes, length] of [
+    [decision.memories, value.memories.length],
+    [decision.groups, value.groups.length],
+  ] as const) {
+    for (const index of indexes)
+      if (!Number.isInteger(index) || index < 0 || index >= length)
+        throw new Error('Brain proposal index is invalid.')
+  }
+  for (const [ref, target] of Object.entries(decision.identities)) {
+    if (
+      !value.entities.some((item) => item.ref === ref) ||
+      (target !== 'new' && !entity(ctx, target))
+    )
+      throw new Error('Brain identity override is invalid.')
+  }
+}
+function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) {
+  const resolved = new Map<string, string>()
+  return (ref: string): string => {
+    const cached = resolved.get(ref)
+    if (cached) return cached
+    const index = value.entities.findIndex((item) => item.ref === ref)
+    const item = value.entities[index]
+    if (!item) {
+      entityNumber(ctx, ref)
+      return ref
+    }
+    const override = decision.identities[ref]
+    const reuse = override
+      ? override === 'new'
+        ? null
+        : override
+      : item.decision === 'reuse'
+        ? item.entityId
+        : null
+    const id = reuse ?? createEntity(ctx, item, value.entityVectors[index])
+    if (reuse) addNames(ctx, entityNumber(ctx, reuse), [item.label, ...item.aliases], item.keys)
+    resolved.set(ref, id)
+    return id
+  }
+}
+function applyGroups(commit: CommitContext, groups: number[]): void {
+  const { ctx, proposal, resolve } = commit
+  for (const index of new Set(groups)) {
+    const group = proposal.groups[index]!
+    const parent = group.parent.entityId
+      ? resolve(group.parent.entityId)
+      : createEntity(ctx, { ...group.parent, aliases: [], description: '', keys: [] })
+    for (const member of group.members) {
+      const id = resolve(member)
+      if (id === parent) continue
+      const summary = `${entity(ctx, id)!.label} is part of ${entity(ctx, parent)!.label}.`
+      const evidence = proposal.evidence.length
+      proposal.evidence.push({
+        sessionId: proposal.origin.sessionId,
+        entryId: `review:${proposal.jobId}:${index}:${id}`,
+        role: 'user',
+        label: 'Stated by you in review',
+        observedAt: ctx.now(),
+        text: summary,
+      })
+      applyMemory(commit, {
+        summary,
+        type: 'fact',
+        kind: 'reported',
+        entities: [id, parent],
+        links: [
+          {
+            subject: id,
+            predicate: 'part_of',
+            object: parent,
+            citation: { evidence, quote: summary },
+          },
+        ],
+        branch: false,
+        validFrom: null,
+        validTo: null,
+        action: 'add',
+        target: null,
+        reason: '',
+        citations: [{ evidence, quote: summary }],
+      })
+    }
+  }
+}
 export function review(
   ctx: Context,
   jobId: string,
-  keep: number[] | null,
+  decision: BrainReviewDecision | null,
   expectedRevision: number,
 ): void {
   transaction(ctx, () => {
-    if (expectedRevision !== revision(ctx)) {
+    const value = readProposal(ctx, jobId)
+    if (expectedRevision !== revision(ctx) || value.computedRevision !== revision(ctx))
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
-    }
-    const extraction = readProposal(ctx, jobId)
-    const indexes = [...new Set(keep ?? [])]
-    for (const index of indexes) {
-      if (!Number.isInteger(index) || index < 0 || index >= extraction.memories.length) {
-        throw new Error('Brain proposal memory index is invalid.')
+    if (decision) validateDecision(ctx, value, decision)
+    const touched = new Set<number>()
+    if (decision) {
+      const commit: CommitContext = {
+        ctx,
+        proposal: value,
+        resolve: resolver(ctx, value, decision),
+        evidence: new Map(),
+        touched,
       }
+      for (const index of new Set(decision.memories)) {
+        const item = value.memories[index]!
+        const id = applyMemory(
+          commit,
+          identityChanged(item, value, decision) ? { ...item, action: 'add', target: null } : item,
+          value.memoryVectors[index],
+        )
+        linkOutcome(ctx, jobId, index, id)
+      }
+      applyGroups(commit, decision.groups)
+      for (const confirmation of value.confirmations) {
+        if (identityChanged(confirmation.claim, value, decision)) {
+          applyMemory(
+            commit,
+            { ...confirmation.claim, action: 'add', target: null },
+            confirmation.vector,
+          )
+        } else {
+          const target = activeMemoryNumber(ctx, confirmation.memoryId)
+          if (target !== undefined) insertCitations(commit, target, confirmation.claim.citations)
+        }
+      }
+      cleanOrphans(ctx, touched)
+      recountEntities(ctx, touched)
+      if (decision.memories.length || decision.groups.length || value.confirmations.length)
+        bumpRevision(ctx)
     }
-    const resolve = entityResolver(ctx, extraction)
-    const evidence = new Map<number, string>()
-    for (const index of indexes) insertMemory(ctx, extraction, index, resolve, evidence)
-    const confirms = keep !== null && (indexes.length > 0 || extraction.memories.length === 0)
-    if (confirms) applyConfirmations(ctx, extraction)
-    if (indexes.length || (confirms && extraction.confirmations?.length)) {
-      cleanOrphans(ctx)
-      rebuildFts(ctx)
-      bumpRevision(ctx)
-    }
-    updateJob(ctx, jobId, { state: 'done', memories: indexes.length, finishedAt: ctx.now() })
+    updateJob(ctx, jobId, {
+      state: 'done',
+      memories: decision?.memories.length ?? 0,
+      finishedAt: ctx.now(),
+    })
     run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
     pruneExtractions(ctx)
   })
 }
-function entityResolver(ctx: Context, extraction: Extraction): (key: string) => string {
-  const resolved = new Map<string, string>()
-  return (key) => {
-    const cached = resolved.get(key)
-    if (cached) return cached
-    const raw = extraction.entities.find((item) => item.key === key)
-    const id = raw ? resolveEntity(ctx, raw) : entity(ctx, key)?.id
-    if (!id) throw new Error('Brain proposal entity not found.')
-    resolved.set(key, id)
-    return id
-  }
-}
-function insertMemory(
-  ctx: Context,
-  extraction: Extraction,
-  index: number,
-  resolve: (key: string) => string,
-  evidence: Map<number, string>,
-): void {
-  const item = extraction.memories[index]!
-  const subject = resolve(item.subject)
-  const object = item.object ? resolve(item.object) : null
-  const id = ctx.id()
-  run(
-    ctx,
-    `INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'active',?,?,?)`,
-    id,
-    extraction.scope,
-    subject,
-    item.predicate,
-    object,
-    item.literal,
-    item.summary,
-    item.type,
-    item.kind,
-    item.branch ? extraction.branch : null,
-    item.validFrom,
-    ctx.now(),
-    extraction.origin.sessionId,
-    extraction.origin.title,
-    extraction.jobId,
-  )
-  run(ctx, 'INSERT INTO vectors VALUES (?,?)', id, encodeVector(extraction.vectors[index]!))
-  linkOutcome(ctx, extraction.jobId, index, id)
-  insertCitations(ctx, id, item.citations, extraction.evidence, evidence)
-  if (item.supersedes) {
-    run(
-      ctx,
-      "UPDATE memories SET state='superseded' WHERE id=? AND state='active'",
-      item.supersedes,
-    )
-    run(ctx, 'DELETE FROM vectors WHERE memory_id=?', item.supersedes)
-    run(ctx, 'DELETE FROM memory_fts WHERE id=?', item.supersedes)
-  }
-}
-function insertCitations(
-  ctx: Context,
-  id: string,
-  citations: Extraction['memories'][number]['citations'],
-  excerpts: Extraction['evidence'],
-  evidence: Map<number, string>,
-): void {
-  for (const citation of citations) {
-    let evidenceId = evidence.get(citation.evidence)
-    if (!evidenceId) {
-      const excerpt = excerpts[citation.evidence]
-      if (!excerpt) throw new Error('Brain citation evidence not found.')
-      evidenceId = ctx.id()
-      run(
-        ctx,
-        'INSERT INTO evidence VALUES (?,?,?,?,?,?)',
-        evidenceId,
-        excerpt.entryId,
-        excerpt.role,
-        excerpt.label,
-        excerpt.observedAt,
-        excerpt.text,
+
+function identityChanged(
+  item: ProposalMemory,
+  value: Proposal,
+  decision: BrainReviewDecision,
+): boolean {
+  return [...item.entities, ...item.links.flatMap((link) => [link.subject, link.object])].some(
+    (ref) => {
+      const override = decision.identities[ref]
+      const old = value.entities.find((entity) => entity.ref === ref)
+      return (
+        override !== undefined && override !== (old?.decision === 'reuse' ? old.entityId : 'new')
       )
-      evidence.set(citation.evidence, evidenceId)
-    }
-    run(ctx, 'INSERT INTO citations VALUES (?,?,?)', id, evidenceId, citation.quote)
-  }
-}
-function applyConfirmations(ctx: Context, extraction: Extraction): void {
-  for (const confirmation of extraction.confirmations ?? []) {
-    if (!one(ctx, "SELECT id FROM memories WHERE id=? AND state='active'", confirmation.memoryId))
-      continue
-    // A requeued lane can confirm a memory with a quote it already cites.
-    const fresh = confirmation.citations.filter(
-      (citation) =>
-        !one(
-          ctx,
-          'SELECT 1 FROM citations c JOIN evidence e ON e.id=c.evidence_id WHERE c.memory_id=? AND e.entry_id=? AND c.quote=?',
-          confirmation.memoryId,
-          confirmation.evidence[citation.evidence]?.entryId ?? '',
-          citation.quote,
-        ),
-    )
-    insertCitations(ctx, confirmation.memoryId, fresh, confirmation.evidence, new Map())
-  }
+    },
+  )
 }

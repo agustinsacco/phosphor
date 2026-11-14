@@ -2,29 +2,10 @@ import { useEffect, useState } from 'react'
 import type { BrainJob } from '@shared/brain'
 import { Button } from '@/components/form'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
-import { elapsedTime } from './BrainReview'
+import { jobLine } from './jobProgress'
+export { jobLine } from './jobProgress'
 import { useBrain } from './useBrain'
-import { formatCount } from '@/lib/format'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
-
-function jobLine(job: BrainJob, ahead: number, now: number): string {
-  switch (job.state) {
-    case 'waiting':
-      return 'Waits until the lane is idle'
-    case 'queued':
-      return ahead ? `Queued · ${ahead} ahead` : 'Queued · starting'
-    case 'running':
-      return `Reading a private copy · ${elapsedTime(now - (job.startedAt ?? now))}`
-    case 'review':
-      return `${formatCount(job.memories, 'memory', 'memories')} to review`
-    case 'empty':
-      return 'Nothing new worth keeping'
-    case 'failed':
-      return job.error ?? 'Knowledge extraction failed'
-    case 'done':
-      return ''
-  }
-}
 
 export function BrainInbox({
   jobs,
@@ -65,6 +46,17 @@ export function BrainInbox({
               )}
             </p>
           </div>
+          {job.state === 'failed' && (
+            <Button
+              size="xs"
+              disabled={saving}
+              onClick={() => {
+                void useBrain.getState().retry(job.id)
+              }}
+            >
+              Retry
+            </Button>
+          )}
           {(job.state === 'empty' || job.state === 'failed') && (
             <Button size="xs" onClick={() => onExtraction(job.id)}>
               View extraction

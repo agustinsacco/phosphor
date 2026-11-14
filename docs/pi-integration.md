@@ -59,8 +59,9 @@ fake pi, not a real provider.
 
 [Brain](brain.md) adds one optional startup hook to this service: while recall
 is on, a new lane gets Brain's env, recall extension and skill. A failure there
-starts the lane without them. Brain's knowledge forks are not sessions: they are
-`pi -p --fork` runs through `print-mode.ts` that only read the lane's file.
+starts the lane without them. Brain's model calls are not sessions: they are
+session-less, tool-less `pi -p` runs through `print-mode.ts`, with the prompt on
+stdin, and Brain reads the lane's file itself.
 
 ## RPC commands
 

@@ -8,13 +8,15 @@ import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { formatCount } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { useBrainResource } from './useBrainResource'
-import { elapsedTime } from './BrainReview'
+import { elapsedTime } from './jobProgress'
 import { openBrainSource } from './openBrainSource'
 
 const OUTCOME = {
   kept: 'Kept',
   reconfirms: 'Re-confirms an existing memory',
-  duplicate: 'Duplicate of another candidate',
+  folded: 'Folded into another claim',
+  enriches: 'Adds links to an existing memory',
+  held: 'Held back',
   dropped: 'Dropped',
 } as const
 
@@ -54,21 +56,31 @@ export function BrainExtraction({
             </p>
           )}
           <ExtractionOutcomes data={data} onMemory={onMemory} />
-          <section>
-            <SectionLabel>Raw agent output</SectionLabel>
-            <div className="max-h-96 overflow-auto">
-              <CodeBlock
-                code={formatAgentOutput(data.answer) || '(No final text returned)'}
-                language="text"
-                chatActions={false}
-              />
-            </div>
-          </section>
-          <details>
-            <TooltipSummary className="cursor-pointer">Prompt</TooltipSummary>
-            <CodeBlock code={data.prompt} language="text" chatActions={false} />
-          </details>
-          <ExtractionTrace data={data} />
+          {data.calls.map((call, index) => (
+            <section key={index} className="border-border space-y-3 rounded border p-3">
+              <h3 className="font-medium">
+                {call.stage} · part {call.part}
+              </h3>
+              {call.error && <p role="status">{call.error}</p>}
+              <SectionLabel>Raw agent output</SectionLabel>
+              <div className="max-h-96 overflow-auto">
+                <CodeBlock
+                  code={formatAgentOutput(call.answer) || '(No final text returned)'}
+                  language="text"
+                  chatActions={false}
+                />
+              </div>
+              <details>
+                <TooltipSummary>Prompt</TooltipSummary>
+                <CodeBlock
+                  code={data.prompts[index] || 'Prompt unavailable: source lane is gone.'}
+                  language="text"
+                  chatActions={false}
+                />
+              </details>
+              <ExtractionTrace trace={call.trace} />
+            </section>
+          ))}
           <ExtractionSource source={data.source} />
         </>
       )}
@@ -86,19 +98,17 @@ function ExtractionOutcomes({
     <section className="space-y-2">
       <SectionLabel>Candidates</SectionLabel>
       <div className="flex flex-wrap gap-2">
-        {(['kept', 'reconfirms', 'duplicate', 'dropped'] as const).map((status) => (
-          <Tag key={status}>
-            {formatCount(
-              data.outcomes.filter((item) => item.status === status).length,
-              status === 'reconfirms' ? 'reconfirmed' : status,
-              status === 'duplicate'
-                ? 'duplicates'
-                : status === 'reconfirms'
-                  ? 'reconfirmed'
-                  : status,
-            )}
-          </Tag>
-        ))}
+        {(['kept', 'folded', 'reconfirms', 'enriches', 'held', 'dropped'] as const).map(
+          (status) => (
+            <Tag key={status}>
+              {formatCount(
+                data.outcomes.filter((item) => item.status === status).length,
+                status === 'reconfirms' ? 'reconfirmed' : status,
+                status === 'reconfirms' ? 'reconfirmed' : status,
+              )}
+            </Tag>
+          ),
+        )}
       </div>
       <ol className="space-y-2">
         {data.outcomes.map((outcome) => (
@@ -135,8 +145,11 @@ function ExtractionOutcomes({
     </section>
   )
 }
-function ExtractionTrace({ data }: { data: BrainExtractionView }): React.JSX.Element {
-  const trace = data.trace
+function ExtractionTrace({
+  trace,
+}: {
+  trace: BrainExtractionView['calls'][number]['trace']
+}): React.JSX.Element {
   return (
     <section className="space-y-2">
       <SectionLabel>Trace</SectionLabel>

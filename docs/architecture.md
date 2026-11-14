@@ -128,13 +128,13 @@ interactive sessions remain independent and are not reclaimed by it.
 ## Local Brain
 
 The opt-in [Brain](brain.md) keeps its logic in two Node-only libraries:
-`libs/memory-engine` (the SQLite store and search) and `libs/brain-runtime` (the
-queue, the private lane fork, quote checks, embeddings and recall).
-`libs/brain-client` carries recall between lane agents and Desktop. Desktop binds
-them to app paths, the embedding utility process, the session registry's busy
-state and each lane's launch environment. Forks are print-mode pi runs, not
-registry sessions, and recall is one optional startup hook that never blocks a
-lane. All `brain:*` IPC is app-local and unavailable in the PWA.
+`libs/memory-engine` (the SQLite graph store and its read-only search) and
+`libs/brain-runtime` (the queue, the staged extraction pipeline and its private
+model calls, embeddings and recall). `libs/brain-client` carries recall between
+lane agents and Desktop. Desktop binds them to app paths, two utility processes
+(embeddings and search), the session registry's busy state and each lane's launch
+environment. Model calls are session-less print-mode pi runs, not registry
+sessions, and recall is one optional startup hook that never blocks a lane. All `brain:*` IPC is app-local and unavailable in the PWA.
 
 ## Host and control plane
 

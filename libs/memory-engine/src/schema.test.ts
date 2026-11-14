@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -7,64 +7,106 @@ import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
 import { openBrainStore } from './store'
 import { approve, fixture } from './test-support'
 
-describe('Brain SQLite schema and preferences', () => {
-  it.each([0, 1])('discards all prototype tables and FTS at version %i', (version) => {
-    const dir = mkdtempSync(join(tmpdir(), 'brain-v2-'))
+describe('Brain v4 SQLite schema and preferences', () => {
+  it.each([0, 1, 2, 3])(
+    'replaces version %i including FTS while preserving preferences',
+    (version) => {
+      const dir = mkdtempSync(join(tmpdir(), 'brain-v4-'))
+      const path = join(dir, 'brain.sqlite')
+      try {
+        const old = new DatabaseSync(path)
+        const previousSchema = readFileSync(
+          new URL('./__fixtures__/schema-v3.sql', import.meta.url),
+          'utf8',
+        )
+        old.exec(previousSchema)
+        old.exec(`INSERT INTO meta VALUES ('prefs','{"enabled":true,"recall":false,"review":false}');
+        INSERT INTO entities VALUES ('old','Harbor','project','[]',1);
+        INSERT INTO memories(id,scope,subject_id,predicate,summary,type,kind,recorded_at,state)
+        VALUES ('old','/made-up/harbor','old','about','Harbor fact','fact','reported',1,'active');
+        INSERT INTO memory_fts VALUES ('old','discard'); PRAGMA user_version=${version};`)
+        old.close()
+        const store = openBrainStore({ path, Database: DatabaseSync })
+        expect(store.snapshot()).toMatchObject({
+          prefs: { enabled: true, recall: false, review: true },
+          revision: 0,
+          counts: { memories: 0, entities: 0 },
+          jobs: [],
+        })
+        expect(store.snapshot().generation).toBeTruthy()
+        store.close()
+        const db = new DatabaseSync(path)
+        expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 4 })
+        expect(db.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
+        expect(
+          db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'memory_fts%'").all(),
+        ).toEqual([])
+        expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+        db.close()
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
+  it('resets all knowledge and jobs, retains prefs with review on and changes generation', () => {
+    const { store } = fixture()
+    store.setPrefs({ enabled: true, recall: false, review: false })
+    approve(store)
+    const generation = store.snapshot().generation
+    store.reset()
+    expect(store.snapshot()).toMatchObject({
+      prefs: { enabled: true, recall: false, review: true },
+      revision: 0,
+      jobs: [],
+      counts: { memories: 0, entities: 0 },
+    })
+    expect(store.snapshot().generation).not.toBe(generation)
+  })
+  it('upgrades and resets under defensive SQLite, which refuses to drop FTS shadow tables', () => {
+    // Electron's node:sqlite runs in defensive mode; Node 22's ignores the option, so emulate it.
+    class Defensive extends DatabaseSync {
+      override exec(sql: string): void {
+        for (const [, name = ''] of sql.matchAll(/DROP TABLE (?:IF EXISTS )?"?([\w]+)"?/giu)) {
+          const row = this.prepare('SELECT type FROM pragma_table_list WHERE name=?').get(name)
+          if (row?.type === 'shadow') throw new Error(`table ${name} may not be dropped`)
+        }
+        super.exec(sql)
+      }
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'brain-v4-'))
     const path = join(dir, 'brain.sqlite')
     try {
       const old = new DatabaseSync(path)
-      old.exec(`CREATE TABLE prototype(id TEXT PRIMARY KEY); INSERT INTO prototype VALUES ('old');
-        CREATE TABLE child(id TEXT REFERENCES prototype(id));
-        CREATE VIRTUAL TABLE prototype_fts USING fts5(text);
-        INSERT INTO prototype_fts VALUES ('discard me'); PRAGMA user_version=${version};`)
+      old.exec(readFileSync(new URL('./__fixtures__/schema-v3.sql', import.meta.url), 'utf8'))
+      old.exec("INSERT INTO memory_fts VALUES ('old','discard'); PRAGMA user_version=3;")
       old.close()
-      const store = openBrainStore({ path, Database: DatabaseSync })
-      expect(store.snapshot()).toEqual({
-        prefs: DEFAULT_BRAIN_PREFS,
-        revision: 0,
-        jobs: [],
-        counts: { memories: 0, entities: 0 },
-      })
-      store.close()
-      const db = new DatabaseSync(path)
-      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 3 })
-      expect(
-        db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'prototype%'").all(),
-      ).toEqual([])
-      db.close()
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-  it('persists version-two knowledge and preferences across reopen without reset', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'brain-v2-'))
-    const path = join(dir, 'brain.sqlite')
-    try {
-      const store = openBrainStore({ path, Database: DatabaseSync })
-      store.setPrefs({ enabled: true, recall: false, review: true })
+      const store = openBrainStore({ path, Database: Defensive })
       approve(store)
-      const expected = store.knowledge()
+      expect(store.snapshot().counts.memories).toBeGreaterThan(0)
+      store.reset()
+      expect(store.snapshot().counts).toMatchObject({ memories: 0, entities: 0 })
       store.close()
-      const reopened = openBrainStore({ path, Database: DatabaseSync })
-      expect(reopened.snapshot()).toMatchObject({
-        revision: 1,
-        prefs: { enabled: true, recall: false, review: true },
-      })
-      expect(reopened.knowledge()).toEqual(expected)
-      reopened.close()
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })
-  it('merges persisted partial preferences with defaults', () => {
+  it('merges persisted partial preferences with defaults without revision changes', () => {
     const { store, db } = fixture()
-    db.prepare("INSERT INTO meta VALUES ('prefs', ?)").run(JSON.stringify({ enabled: true }))
+    db.prepare("INSERT OR REPLACE INTO meta VALUES ('prefs', ?)").run(
+      JSON.stringify({ enabled: true }),
+    )
     expect(store.snapshot().prefs).toEqual({ ...DEFAULT_BRAIN_PREFS, enabled: true })
-    expect(store.setPrefs({ enabled: true, recall: false, review: false })).toEqual({
-      enabled: true,
-      recall: false,
-      review: false,
-    })
-    expect(store.snapshot().revision).toBe(0)
+    expect(store.revision()).toBe(0)
+  })
+  it('does not prune extraction records or count knowledge on snapshot', () => {
+    const { store, db } = fixture()
+    const statements: string[] = []
+    const prepare = db.prepare.bind(db)
+    db.prepare = (sql) => {
+      statements.push(sql)
+      return prepare(sql)
+    }
+    store.snapshot()
+    expect(statements.join('\n')).not.toMatch(/COUNT|DELETE/iu)
   })
 })
