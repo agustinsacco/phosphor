@@ -59,7 +59,10 @@ Approval saves the checked candidates and removes the earlier, unshared memories
 in one transaction, including memories from older reads whose job rows are gone. Partial
 approval, or approval with no candidates checked, still replaces them. With review off, saving
 happens immediately. A citation or relationship supported by a different lane protects its
-memory unchanged. A rejected, cancelled or permanently failed reread removes no knowledge.
+memory unchanged. Entries a fork copied from its source lane are the same evidence, not another
+lane's support; a message written in the fork is. Replacing bumps the revision once. If the
+search index fails to refresh after an automatic save, the read still ends as done and the
+failure is logged. A rejected, cancelled or permanently failed reread removes no knowledge.
 An **empty** reread (nothing kept) also removes nothing. Rejecting or dismissing a reread keeps
 the earlier finished read in history. Successful saving replaces that history row.
 

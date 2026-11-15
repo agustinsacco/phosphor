@@ -65,10 +65,17 @@ export function merge(ctx: Context, sourceId: string, targetId: string): void {
   })
 }
 export function forget(ctx: Context, id: string): void {
-  transaction(ctx, () => forgetMemory(ctx, id))
+  transaction(ctx, () => {
+    removeMemory(ctx, id)
+    bumpRevision(ctx)
+    pruneExtractions(ctx)
+  })
 }
-/** The caller owns the transaction, so replacing a read and saving it are atomic. */
-export function forgetMemory(ctx: Context, id: string): void {
+/**
+ * The caller owns the transaction, the revision bump and the extraction prune, so replacing a
+ * read is atomic and does that global work once, not once per memory.
+ */
+export function removeMemory(ctx: Context, id: string): void {
   const n = memoryNumber(ctx, id)
   const state = one<{ state: string }>(ctx, 'SELECT state FROM memories WHERE n=?', n)!.state
   const touched = new Set(
@@ -90,8 +97,6 @@ export function forgetMemory(ctx: Context, id: string): void {
   if (state !== 'superseded') adjustCount(ctx, 'memories', -1)
   cleanOrphans(ctx, touched, evidence)
   recountEntities(ctx, touched)
-  bumpRevision(ctx)
-  pruneExtractions(ctx)
 }
 
 function repointRelations(

@@ -193,7 +193,13 @@ async function embedAndPropose(
       { memories: proposal.memories.map((_m, i) => i), identities: {}, groups: [] },
       computedRevision,
     )
-    await search.refresh()
+    // The result is saved. A failed index refresh must not turn a finished read into a failure.
+    await search.refresh().catch((error: unknown) => {
+      options.log?.('Brain search refresh failed after saving', {
+        jobId: job.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
   }
   options.log?.('Brain extraction finished', {
     jobId: job.id,

@@ -12,7 +12,7 @@ import { applyMemory, activeMemoryNumber, insertCitations, type CommitContext } 
 import { linkOutcome, pruneExtractions } from './extractions'
 import { job, removeJob, updateJob } from './jobs'
 import { laneMemories } from './history'
-import { forgetMemory } from './merge'
+import { removeMemory } from './merge'
 import { bumpRevision, revision } from './prefs'
 import { readProposal } from './proposals'
 import type { Proposal, ProposalMemory } from './types'
@@ -150,12 +150,18 @@ export function review(
           if (target !== undefined) insertCitations(commit, target, confirmation.claim.citations)
         }
       }
-      if (current.replaces)
-        for (const id of laneMemories(ctx, current.sessionId, jobId).replaceable)
-          forgetMemory(ctx, id)
+      const replaced = current.replaces
+        ? laneMemories(ctx, current.sessionId, jobId).replaceable
+        : []
+      for (const id of replaced) removeMemory(ctx, id)
       cleanOrphans(ctx, touched)
       recountEntities(ctx, touched)
-      if (decision.memories.length || decision.groups.length || value.confirmations.length)
+      if (
+        decision.memories.length ||
+        decision.groups.length ||
+        value.confirmations.length ||
+        replaced.length
+      )
         bumpRevision(ctx)
     }
     updateJob(ctx, jobId, {
