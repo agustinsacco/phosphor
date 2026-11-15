@@ -616,3 +616,16 @@ it('keeps every named entity bright even if the selected memory only links some 
     graphData.nodes.length,
   )
 })
+
+it('refocuses the selected entity when the previous memory highlight finishes clearing', async () => {
+  await render({ focus: 'rina', matches: new Set(['harbor']) })
+  await render({ focus: 'rina' })
+  expect(lastCamera()[1]).toEqual({ x: 60, y: 10, z: 20 })
+})
+
+it('clearing a selection restores every node even while the pointer stayed on the graph', async () => {
+  await render({ focus: 'rina' })
+  hover('rina')
+  await render()
+  expect(nodeColor('postgres')).toMatch(/,1\)$/)
+})
