@@ -93,6 +93,7 @@ for (const width of [400, 1100]) {
     } else await page.getByRole('button', { name: 'Search lanes and pages', exact: true }).click()
     await input.fill('Go to Settings')
     await palette.getByRole('button', { name: 'Go to Settings', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
+    await expect(page).toHaveURL(`${stack.origin}/pages/settings/${stack.hostId}`)
+    await expect(page.getByRole('combobox', { name: 'Search settings', exact: true })).toBeFocused()
   })
 }

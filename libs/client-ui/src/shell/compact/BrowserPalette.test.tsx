@@ -8,6 +8,7 @@ import {
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { NavigationProvider } from '@/navigation/Navigation'
+import type { Location } from '@/navigation/location'
 import {
   COMPACT_PLATFORM,
   PlatformProvider,
@@ -37,11 +38,11 @@ const rows = (): HTMLButtonElement[] => [
   ...document.querySelectorAll<HTMLButtonElement>('.palette-results button'),
 ]
 const labels = (): string[] => rows().map((row) => row.textContent ?? '')
-function render(platform: Platform): void {
+function render(platform: Platform, location: Location = { to: 'lanes' }): void {
   act(() =>
     root.render(
       <PlatformProvider value={platform}>
-        <NavigationProvider value={{ location: { to: 'lanes' }, navigate }}>
+        <NavigationProvider value={{ location, navigate }}>
           <BrowserPalette />
         </NavigationProvider>
       </PlatformProvider>,
@@ -171,6 +172,30 @@ it('routes pages and new lanes through browser history with the chosen Host fold
     repositoryId: repository.id,
   })
 })
+it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM])(
+  'preserves the current machine in page actions ($formFactor)',
+  (platform) => {
+    const machine = 'host-b'
+    const locations: Location[] = [
+      { to: 'lane', lane: { hostId: machine, laneId: 'lane-b' }, pane: 'chat' },
+      { to: 'lanes', machine },
+    ]
+    for (const location of locations) {
+      render(platform, location)
+      for (const page of ['Settings', 'Skills', 'Routines', 'Artifacts', 'Machines']) {
+        act(() => usePaletteStore.getState().setOpen(true))
+        query(`Go to ${page}`)
+        act(() => rows()[0]!.click())
+        expect(navigate).toHaveBeenLastCalledWith({
+          to: 'page',
+          page: page.toLowerCase(),
+          ...(page === 'Machines' ? {} : { machine }),
+        })
+      }
+    }
+  },
+)
+
 it('takes cancelable Ctrl+K in a wide browser only; native Find elsewhere stays untouched', () => {
   usePaletteStore.setState({ open: false })
   render(WIDE_BROWSER_PLATFORM)
