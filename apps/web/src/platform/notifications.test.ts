@@ -127,3 +127,23 @@ it('notifies the history router without a reload', () => {
   expect(pop).toHaveBeenCalledOnce()
   window.removeEventListener('popstate', pop)
 })
+
+it('keeps notification history routing separate from control full-page navigation', () => {
+  const workers = new EventTarget()
+  vi.stubGlobal('navigator', { serviceWorker: workers })
+  const navigate = vi.fn()
+  const bridge = createBrowserApi({ navigate, storage: null, invalidation: null })
+  try {
+    window.history.replaceState(null, '', '/pages/settings')
+    workers.dispatchEvent(
+      new MessageEvent('message', {
+        origin: location.origin,
+        data: { type: 'phosphor-notification', route: notice.route },
+      }),
+    )
+    expect(navigate).not.toHaveBeenCalled()
+    expect(location.pathname).toBe('/lanes/host/lane/chat')
+  } finally {
+    bridge.dispose()
+  }
+})

@@ -54,7 +54,7 @@ it.each([true, false])(
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(compact ? 1 : 0)
     await act(async () => button('Open machine').click())
     expect(onOpen).toHaveBeenCalledOnce()
-    expect(document.querySelector('[data-testid="notification-drawer"]')).toBeNull()
+    expect(!!document.querySelector('[data-testid="notification-drawer"]')).toBe(!compact)
   },
 )
 it('expands Host receipts in place, preserves New, then closes the sheet when opening the lane', async () => {
@@ -113,3 +113,32 @@ it('offers permission quietly and requests only after a gesture; failure can be 
   expect(requestPermission).toHaveBeenCalledTimes(2)
   expect(document.body.textContent).not.toContain('Get notified when a lane needs you')
 })
+
+it.each([true, false])(
+  'opening one Host receipt preserves other new notices; compact=%s',
+  async (compact) => {
+    const onOpen = vi.fn()
+    for (const laneId of ['first', 'second'])
+      useExtensionUiStore.getState().notify({
+        message: 'Done',
+        title: `bee1 · ${laneId}`,
+        onOpen,
+        receipt: { machine: 'bee1', machineId: 'host', laneId, at: new Date().toISOString() },
+      })
+    mount(compact)
+    act(() => button('bee1 · first').click())
+    await act(async () => button('Open lane').click())
+    expect(onOpen).toHaveBeenCalledOnce()
+    const items = useNotificationsStore.getState().items
+    expect(items.find((item) => item.receipt?.laneId === 'first')?.seenAt).toBeDefined()
+    expect(items.find((item) => item.receipt?.laneId === 'second')?.seenAt).toBeUndefined()
+    expect(useNotificationsStore.getState().open).toBe(!compact)
+    expect(
+      container.querySelector('[data-testid="notifications-button"]')?.getAttribute('aria-label'),
+    ).toBe('Notifications, 1 new')
+    if (compact) act(() => container.querySelector<HTMLButtonElement>('button')!.click())
+    expect(
+      document.querySelectorAll('[data-testid="notification-row"]:not([data-seen])'),
+    ).toHaveLength(1)
+  },
+)

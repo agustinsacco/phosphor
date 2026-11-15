@@ -188,3 +188,15 @@ it('Host attention is suppressed if any visible client shows the lane and ignore
   await dispatch(t, 'message', { data: { type: 'phosphor-attention', notice: { title: 'Bad' } } })
   expect(t.registration.showNotification).not.toHaveBeenCalled()
 })
+
+it('notificationclick without a route focuses Settings without navigating away', async () => {
+  const t = await fixture()
+  const settings = client('/pages/settings')
+  t.clients.matchAll.mockResolvedValue([settings])
+  await dispatch(t, 'notificationclick', {
+    notification: { data: { type: 'phosphor-notification' }, close: vi.fn() },
+  })
+  expect(settings.focus).toHaveBeenCalledOnce()
+  expect(settings.postMessage).not.toHaveBeenCalled()
+  expect(t.clients.openWindow).not.toHaveBeenCalled()
+})
