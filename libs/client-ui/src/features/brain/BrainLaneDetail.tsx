@@ -3,7 +3,7 @@ import type { BrainJob } from '@shared/brain'
 import { Button } from '@/components/form'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { useBrain } from './useBrain'
-import { useBrainModelName } from './BrainModelName'
+import { useBrainModelName } from './useBrainModelName'
 import { useBrainResource } from './useBrainResource'
 import { BrainReview } from './BrainReview'
 import { BrainExtraction } from './BrainExtraction'
@@ -32,6 +32,7 @@ export function BrainLaneDetail({
   const [showRead, setShowRead] = useState(false)
   const [reviewed, setReviewed] = useState(job?.state === 'review')
   if (job?.state === 'review' && !reviewed) setReviewed(true)
+  if (job && job.state !== 'review' && job.state !== 'running' && reviewed) setReviewed(false)
   if (readOnly || showRead || job?.state === 'done' || job?.state === 'empty')
     return (
       <>
@@ -63,7 +64,7 @@ function ReadingDetail({ job, now }: { job: BrainJob; now: number }): React.JSX.
       <header>
         <h2 className="text-xl font-semibold">{job.title}</h2>
         <p className="text-text-tertiary text-sm">
-          {model} ·{' '}
+          {model && `${model} · `}
           {job.startedAt !== null
             ? `started ${elapsedTime(now - job.startedAt)} ago`
             : jobLine(job, 0, now)}

@@ -119,3 +119,35 @@ it('renders forgotten outcomes as removed, and offers Read again in a finished r
     fake.dispose()
   }
 })
+
+it('puts only nonzero outcomes first, pages at twenty, and leaves model calls closed', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const data = mockExtractionView()
+  data.outcomes = Array.from({ length: 24 }, (_, index) => ({
+    candidate: `c${index}`,
+    summary: `Harbor claim ${index}`,
+    status: 'kept',
+  }))
+  const fake = createFakePhosphor({ 'brain:extraction': () => data })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    const result = container.querySelector('[aria-label="Read result"]')!
+    expect(result.textContent).toContain('Result · 24 kept')
+    expect(result.textContent).not.toContain('0 dropped')
+    expect(result.querySelectorAll('li')).toHaveLength(20)
+    expect(container.querySelectorAll('pre')).toHaveLength(0)
+    const more = [...result.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Show more',
+    )!
+    await act(async () => more.click())
+    expect(result.querySelectorAll('li')).toHaveLength(24)
+    expect(container.textContent).not.toMatch(/tokens|cost|demo\//)
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
+})

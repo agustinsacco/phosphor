@@ -72,3 +72,23 @@ it('does not load or offer local Brain on a browser platform', async () => {
   expect(container.textContent).not.toContain('Brain')
   expect(window.phosphor.invoke).not.toHaveBeenCalled()
 })
+
+it('counts only review jobs at the right edge and removes the count live at zero', async () => {
+  const { mockBrainJob } = await import('@/features/brain/mockBrainData')
+  const status = {
+    ...mockBrainStatus(),
+    prefs: { enabled: true, recall: true, review: true, model: null },
+    jobs: [
+      mockBrainJob(),
+      mockBrainJob({ id: 'ledger' }),
+      mockBrainJob({ id: 'running', state: 'running' }),
+    ],
+  }
+  useBrain.setState({ status })
+  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  const count = container.querySelector('[aria-label="2 lanes to review"]')!
+  expect(count.textContent).toBe('2')
+  expect(count.className).toContain('ml-auto')
+  await act(async () => useBrain.setState({ status: { ...status, jobs: [] } }))
+  expect(container.querySelector('[aria-label$="lanes to review"]')).toBeNull()
+})

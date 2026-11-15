@@ -1,11 +1,11 @@
 import { relativeTime } from '@/lib/time'
-import { useBrainModelName } from './BrainModelName'
+import { useBrainModelName } from './useBrainModelName'
 import { useCallback, useEffect, useState } from 'react'
-import type { BrainProposalView, BrainReviewDecision } from '@shared/brain'
+import type { BrainJob, BrainProposalView, BrainReviewDecision } from '@shared/brain'
 import { Button } from '@/components/form'
 import { ipcErrorText } from '@shared/errors'
 import { jobLine } from './jobProgress'
-import { TooltipSummary } from '@/components/Tooltip'
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useBrain } from './useBrain'
 import { useBrainResource } from './useBrainResource'
 import { buildReviewDecision } from './reviewDecision'
@@ -82,7 +82,6 @@ function ReviewProposal({
   onExtraction: () => void
   onStale: () => Promise<void>
 }): React.JSX.Element {
-  const model = useBrainModelName(proposal.job.model)
   const [keep, setKeep] = useState(() => proposal.memories.map((m) => m.index))
   const [identities, setIdentities] = useState<Record<string, string>>({})
   const [groups, setGroups] = useState<number[]>([])
@@ -100,15 +99,7 @@ function ReviewProposal({
   const confirmationsOnly = !proposal.memories.length && proposal.confirmations.length > 0
   return (
     <section aria-label="Review memories" className="min-w-0 space-y-4">
-      <header>
-        <h2 className="text-xl font-semibold">{proposal.job.title}</h2>
-        <p className="text-text-tertiary text-sm">
-          Read by {model} · {relativeTime(proposal.job.finishedAt ?? proposal.job.queuedAt)}
-        </p>
-        <Button size="xs" onClick={onExtraction}>
-          See how it was read
-        </Button>
-      </header>
+      <ReviewHeader job={proposal.job} onExtraction={onExtraction} />
       {error && <p role="alert">{error}</p>}
       {proposal.job.replaces && (
         <p className="bg-accent-soft text-text-secondary rounded-lg p-3 text-sm">
@@ -175,5 +166,29 @@ function ReviewActions({
         {label}
       </Button>
     </div>
+  )
+}
+
+function ReviewHeader({
+  job,
+  onExtraction,
+}: {
+  job: BrainJob
+  onExtraction: () => void
+}): React.JSX.Element {
+  const model = useBrainModelName(job.model)
+  return (
+    <header>
+      <h2 className="text-xl font-semibold">{job.title}</h2>
+      <p className="text-text-tertiary text-sm">
+        Read by {model} · {relativeTime(job.finishedAt ?? job.queuedAt)}
+      </p>
+      <TooltipButton
+        className="text-text-secondary hover:text-text text-sm underline"
+        onClick={onExtraction}
+      >
+        See how it was read
+      </TooltipButton>
+    </header>
   )
 }

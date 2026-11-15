@@ -5,7 +5,7 @@ import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { relativeTime } from '@/lib/time'
 import { jobLine } from './jobProgress'
-import { useBrainModelName } from './BrainModelName'
+import { useBrainModelName } from './useBrainModelName'
 import type { BrainLaneRow, groupBrainLanes } from './laneRows'
 export { jobLine } from './jobProgress'
 

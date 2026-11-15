@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { PageShell } from '@/components/PageShell'
 import { UnderlinedTabs } from '@/components/UnderlinedTabs'
-import { Tag } from '@/components/form'
-import { Button } from '@/components/form'
+import { Tag, Button } from '@/components/form'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { usePlatform } from '@/platform/Platform'
 import { useBrain, useBrainSync } from './useBrain'
@@ -88,12 +87,12 @@ function BrainContent(): React.JSX.Element {
         ]}
       />
       <div
-        id={`brain-panel-${tab}`}
+        id="brain-panel-knowledge"
         role="tabpanel"
-        aria-labelledby={`brain-tab-${tab}`}
-        className="flex min-h-0 min-w-0 flex-1 flex-col"
+        aria-labelledby="brain-tab-knowledge"
+        className={tab === 'knowledge' ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'hidden'}
       >
-        {tab === 'knowledge' ? (
+        {tab === 'knowledge' && (
           <BrainKnowledge
             state={explorer}
             onOpenRead={(id) => {
@@ -101,7 +100,15 @@ function BrainContent(): React.JSX.Element {
               setTab('lanes')
             }}
           />
-        ) : (
+        )}
+      </div>
+      <div
+        id="brain-panel-lanes"
+        role="tabpanel"
+        aria-labelledby="brain-tab-lanes"
+        className={tab === 'lanes' ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'hidden'}
+      >
+        {tab === 'lanes' && (
           <BrainLanes
             selected={selected}
             readId={readId}

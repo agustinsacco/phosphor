@@ -81,37 +81,41 @@ function IdentityRow({
     })),
   ]
   return (
-    <article className="min-w-0 space-y-2 p-3">
-      <p className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{identity.label}</span>
-        <Tag>{identity.kind}</Tag>
-        {identity.auto && <Tag>auto</Tag>}
-      </p>
-      <p className="text-text-tertiary text-sm">{identity.reason}</p>
-      {identity.candidates.length === 1 ? (
-        <Segmented
-          label={`Identity for ${identity.label}`}
-          value={value}
-          onChange={onChange}
-          options={[
-            {
-              value: identity.candidates[0]!.id,
-              label: `Same as ${identity.candidates[0]!.label}`,
-            },
-            { value: 'new', label: 'New' },
-          ]}
-        />
-      ) : (
-        <Select
-          className="w-full"
-          label={`Identity for ${identity.label}`}
-          value={value}
-          onChange={onChange}
-          options={options}
-        />
-      )}
+    <article className="flex min-w-0 flex-wrap items-center justify-between gap-3 p-3">
+      <div className="min-w-0 grow basis-52 space-y-2">
+        <p className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">{identity.label}</span>
+          <Tag>{identity.kind}</Tag>
+          {identity.auto && <Tag>auto</Tag>}
+        </p>
+        <p className="text-text-tertiary text-sm">{identity.reason}</p>
+      </div>
+      <div className="min-w-0 max-w-full">
+        {identity.candidates.length === 1 ? (
+          <Segmented
+            label={`Identity for ${identity.label}`}
+            value={value}
+            onChange={onChange}
+            options={[
+              {
+                value: identity.candidates[0]!.id,
+                label: `Same as ${identity.candidates[0]!.label}`,
+              },
+              { value: 'new', label: 'New' },
+            ]}
+          />
+        ) : (
+          <Select
+            className="w-full"
+            label={`Identity for ${identity.label}`}
+            value={value}
+            onChange={onChange}
+            options={options}
+          />
+        )}
+      </div>
       {candidate?.description && (
-        <p className="text-text-secondary text-sm">{candidate.description}</p>
+        <p className="text-text-secondary w-full text-sm">{candidate.description}</p>
       )}
     </article>
   )

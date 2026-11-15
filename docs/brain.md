@@ -30,6 +30,36 @@ Turning Brain off keeps the model and all knowledge, stops the queue and removes
 lanes. **Remove model** appears only while Brain is off and the model is on disk. The Brain item
 shows in the sidebar's top navigation only while Brain is on.
 
+## The Brain page
+
+The page header shows **Brain**, “N memories · M people and things”, and Settings.
+Underlined **Knowledge** and **Lanes** tabs separate exploration from reading and review.
+Arrow keys, Home and End select tabs. Knowledge opens first, except when there are no
+memories and at least one job: then Lanes opens. Switching tabs keeps the explorer trail
+and selected lane. The Lanes tab and the sidebar's Brain row show the live count of jobs
+waiting for review, hidden at zero.
+
+Lanes is a plain list beside the selected lane's detail, with nonempty sections:
+
+- **To review**: proposed memory count, reader model name, and “reading again” on replacements.
+- **Reading**: running first, then queued, then waiting for the lane to be idle. A running row
+  has the working beacon and its reported step.
+- **Failed**: a shortened error on the row; the detail wraps the full error and offers Retry
+  and Dismiss.
+- **Read**: quieter rows from the newest finished reads, with memory count (or “Nothing kept”),
+  model name and relative finish time. Empty jobs also appear here and can be dismissed.
+
+Selection follows the same job from reading through review into history. If it disappears,
+Brain chooses a review first, then a reading job, then a finished read (or a failed job when
+that is all that remains). Actions belong to the detail, not the list rows. With nothing to
+show, the list says “Right-click a lane and choose Queue for knowledge extraction.”
+
+A reading detail shows its model, elapsed time or queue line, Cancel, and the reported
+steps: Prepare, Read the conversation (part x of y), Match people and things, Compare with
+what Brain knows, and Index. It never invents a separate live relationship stage; **Find
+relationships** names the recorded links calls. Calls made so far use the same closed
+call disclosures as a finished read. Every failed load offers Retry.
+
 ## Queueing a lane
 
 Right-click a local lane and choose **Queue for knowledge extraction**; a queued, waiting or
@@ -39,16 +69,17 @@ ready. A lane whose agent is working (`SessionActivity.busy`) waits until it is 
 nothing new since its last finished extraction by the same extractor version is refused; a new
 extractor version may read it once more. A failed job shows **Retry**, which requeues the same
 job and resumes from its saved steps. Jobs left running when the app quit resume where they
-stopped. The inbox shows each running job's step ("Reading the conversation 3 of 12", "Matching
-entities", …).
+stopped. The Lanes list shows each running job's step ("Read the conversation · part 3 of 12",
+"Match people and things", …).
 
 ## Read lanes and Read again
 
-Below the inbox, **Read lanes** shows the newest finished reads, greyed: title, model, finish
-time and the number of memories that still exist from that lane. There is one row per lane.
-Click a row to inspect its extraction. The list reloads when the inbox or knowledge changes.
+The **Read** section of Lanes shows the newest 200 finished reads, with one history row per
+lane, and says when more exist. The list reloads when jobs or knowledge change; a failed load
+has Retry. Model names match the picker; unavailable names fall back to the id without its
+provider prefix. A row opens the finished read in the same pane.
 
-**Read again** on a row or a finished extraction reads the whole lane, even if nothing changed.
+**Read again** in a finished read reads the whole lane, even if nothing changed.
 It confirms how many earlier memories will be replaced. Memories another lane also supports
 are kept. The lane must still be readable and have no queued, running or review job. Busy lanes
 wait as usual; leaf and model freeze at first start. Retry keeps the replacement intent.
@@ -176,15 +207,26 @@ checkpoint, and both attempts count toward usage.
 
 ## Review
 
-**Review** shows, for one job:
+The selected review opens with its lane title, reader model name and finish time. **See how it
+was read** opens the finished-read view in the same pane, with **Back to review**. A replacement
+has an accent-soft note: “Approving replaces the N memories from the earlier read of this lane.”
+The held-back count remains visible.
 
-- **Who is this?** Every new entity: new, same as an existing one, or uncertain with its
-  candidates to pick from, each with the model's reason.
-- **Possible groups**: yes or no for each prefix question.
-- **Memories** by type, each with its links read as sentences ("Tom Lee → owns → Harbor CS
-  workflow") and a badge: new, adds a link to an existing memory, supersedes, conflicts or
-  resolves, with the target's sentence. Confirmations are collapsed into a count. "N held back"
-  appears when the budget held claims.
+- **Needs your call · n** contains only identities with a suggested existing match. Each row
+  shows the name, kind and wrapped reason. One candidate gets **Same as … / New**; multiple
+  candidates get a native select with short name/kind entries and the selected description
+  below. **Accept all** accepts suggestions; **All new** overrides identities to new.
+- **N new people and things · no decision needed** is closed initially. New or uncertain
+  identities with candidates still offer the same choices inside; those without candidates
+  are wrapping chips.
+- **Possible groups** keeps yes/no checkboxes and bulk choices.
+- **Memories · k of n selected** groups checklist rows by type. Each group has a checked,
+  unchecked or mixed checkbox for the entire group, including other pages. Rows show the
+  sentence, outcome, reason, existing target, supported links and quotes. Groups page at 20.
+  Confirmations remain a separate disclosure.
+- A sticky bottom bar says “Nothing is searchable until you approve it.” with **Reject all**
+  and **Approve N** (or **Approve confirmations**). An empty ordinary approval is disabled
+  unless groups or confirmations are being saved; replacement reviews can approve zero.
 
 **Approve** stores the checked memories, the identity choices and confirmed groups in one
 transaction; **Reject** stores nothing. An uncertain entity without a choice becomes new, and only
@@ -200,7 +242,7 @@ entities nothing else uses; entities named only by superseded memories stay.
 
 ## Exploring
 
-The Brain page keeps memories and entities on the left and the graph on the right. Every read is
+The Knowledge tab keeps memories and entities on the left and the graph on the right. Every read is
 one bounded call, so it stays fast at 100,000 entities and a million memories.
 
 - **Find** (`/`): one box for people, projects and memories (`brain:find`): names, aliases and
@@ -225,12 +267,21 @@ one bounded call, so it stays fast at 100,000 entities and a million memories.
 
 Views reload when Brain's revision or generation changes, and a failed load offers Retry.
 
-## Inspecting an extraction
+## Inspecting a finished read
 
-**View extraction** on a memory, a review or a failed or empty job opens a read-only detail: lane,
-model, thinking, duration, every call (step, part, trace, the scrubbed answer with Copy, and its
-prompt rebuilt from the lane file and the saved step inputs), and every claim's outcome (kept,
-folded, confirmed, enriched, held back or dropped) and every rejected link with its reason.
+A Read row, **See how it was read** in review, or a memory's extraction link opens the
+finished read on Lanes. A memory may open an older read outside the newest 200; its detail
+stays open without fabricating or selecting a list row. Missing records offer Retry.
+
+The header shows the lane, model name, thinking level, duration and relative finish time.
+**Read again** appears for a finished `done` job only. **Result** comes first, showing only
+nonzero counts of kept, folded, reconfirmed, enriched, held and dropped candidates. Outcome
+rows show the claim, outcome tag and reason; the first 20 have **Show more**. Forgotten
+memories say “removed”, not a dead link. **Memories from this lane** opens each memory on
+Knowledge. **How it was read · n calls** has one closed disclosure per call, named in plain
+words with part number and duration. Opening shows the scrubbed raw output with Copy,
+rebuilt prompt and diagnostics, without cost or token counts.
+
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records store no
 prompt text; a prompt whose inputs are gone says so. Records are kept while their job is in the
 inbox or is the latest finished read of its lane, without an age limit. These jobs also keep

@@ -580,3 +580,74 @@ async function setMemories(checked: boolean): Promise<void> {
   for (const toggle of toggles)
     if (toggle.checked !== checked) await act(async () => toggle.click())
 }
+
+it('defaults to Knowledge with memories, counts reviews live, and keeps trail and lane selection across keyboard tabs', async () => {
+  status.counts = { memories: 3, entities: 4 }
+  status.jobs = [
+    mockBrainJob(),
+    mockBrainJob({ id: 'kestrel', title: 'Kestrel planning', state: 'waiting' }),
+  ]
+  await render()
+  const knowledge = container.querySelector<HTMLButtonElement>('#brain-tab-knowledge')!
+  const lanes = container.querySelector<HTMLButtonElement>('#brain-tab-lanes')!
+  expect(knowledge.getAttribute('aria-selected')).toBe('true')
+  expect(lanes.textContent).toBe('Lanes 1')
+  expect(container.textContent).toContain('3 memories · 4 people and things')
+  await chooseHarbor()
+  await act(async () =>
+    knowledge.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })),
+  )
+  expect(document.activeElement).toBe(lanes)
+  expect(lanes.getAttribute('tabindex')).toBe('0')
+  await click('Kestrel planning')
+  await click('Knowledge')
+  expect(container.querySelector('[aria-label="Entity detail"] h2')?.textContent).toBe('Harbor')
+  await lanesTab()
+  expect(
+    container
+      .querySelector('[aria-label="Brain lanes"] [aria-current="true"]')
+      ?.getAttribute('aria-label'),
+  ).toBe('Kestrel planning')
+  await act(async () => useBrain.setState({ status: { ...status, jobs: [status.jobs[1]!] } }))
+  expect(lanes.textContent).toBe('Lanes ')
+})
+
+it('opens Lanes first without memories and follows approval into the same finished read', async () => {
+  status.jobs = [mockBrainJob()]
+  await render()
+  expect(container.querySelector('#brain-tab-lanes')?.getAttribute('aria-selected')).toBe('true')
+  history.mockResolvedValue({
+    items: [{ job: mockBrainJob({ state: 'done' }), memories: 2, replaceable: 2 }],
+    more: true,
+  })
+  await click('Approve 2')
+  expect(container.querySelector('[aria-label="Extraction detail"]')).not.toBeNull()
+  expect(
+    container
+      .querySelector('[aria-label="Brain lanes"] [aria-current="true"]')
+      ?.getAttribute('aria-label'),
+  ).toBe('Harbor planning')
+  expect(container.textContent).toContain('Showing the newest 200 reads.')
+})
+
+it('shows a memory source read outside recent history without inventing a list row', async () => {
+  explorer.details[0]!.memory.jobId = 'old-read'
+  await render()
+  await chooseHarbor()
+  const memory = container.querySelector<HTMLButtonElement>(
+    '[aria-label="Entity memories"] button',
+  )!
+  await act(async () => memory.click())
+  await click('View extraction')
+  expect(container.querySelector('#brain-tab-lanes')?.getAttribute('aria-selected')).toBe('true')
+  expect(container.querySelector('[aria-label="Extraction detail"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="Brain lanes"] [aria-current]')).toBeNull()
+  const produced = container.querySelector<HTMLButtonElement>(
+    '[aria-label="Memories from this lane"] button',
+  )!
+  await act(async () => produced.click())
+  expect(container.querySelector('#brain-tab-knowledge')?.getAttribute('aria-selected')).toBe(
+    'true',
+  )
+  expect(container.querySelector('[aria-label="Memory detail"]')).not.toBeNull()
+})
