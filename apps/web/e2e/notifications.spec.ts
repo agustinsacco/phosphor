@@ -119,3 +119,62 @@ for (const width of [400, 1100]) {
     ).toBe(false)
   })
 }
+
+for (const width of [400, 1100]) {
+  test(`notification permission controls follow a simulated user grant and block at ${width}px`, async ({
+    stack,
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'WebKit does not expose the Notification API')
+    await page.setViewportSize({ width, height: 850 })
+    // Exercise fixed UI states independently of headless OS permission support.
+    // This does not claim native delivery: that remains unit/device acceptance.
+    await page.addInitScript(() => {
+      let permission: NotificationPermission = 'default'
+      Object.defineProperty(Notification, 'permission', {
+        configurable: true,
+        get: () => permission,
+      })
+      Notification.requestPermission = async () => {
+        sessionStorage.setItem('notificationPermissionRequested', 'true')
+        permission = 'granted'
+        return permission
+      }
+    })
+    await page.goto(stack.origin)
+    await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+    await expect(page.getByTestId('home-board')).toBeVisible()
+    const navigation =
+      width < 900
+        ? page.getByRole('navigation', { name: 'Tabs', exact: true })
+        : page.locator('aside.browser-navigation')
+    await navigation.getByRole('button', { name: 'Settings', exact: true }).click()
+    await page
+      .getByRole('navigation', { name: 'Settings sections', exact: true })
+      .getByRole('button', { name: 'Notifications', exact: true })
+      .click()
+    const turnOn = page.getByRole('button', { name: 'Turn on notifications', exact: true })
+    const sendTest = page.getByRole('button', { name: 'Send a test notification', exact: true })
+    await expect(turnOn).toBeEnabled()
+    await expect(sendTest).toBeDisabled()
+    expect(
+      await page.evaluate(() => sessionStorage.getItem('notificationPermissionRequested')),
+    ).toBeNull()
+    await turnOn.click()
+    await expect(turnOn).toBeDisabled()
+    await expect(sendTest).toBeEnabled()
+    expect(
+      await page.evaluate(() => sessionStorage.getItem('notificationPermissionRequested')),
+    ).toBe('true')
+    await page.evaluate(() => {
+      Object.defineProperty(Notification, 'permission', { get: () => 'denied' })
+      window.dispatchEvent(new Event('focus'))
+    })
+    await expect(turnOn).toBeDisabled()
+    await expect(sendTest).toBeDisabled()
+    await expect(
+      page.getByText('Allow notifications in your browser’s site settings, then return here.'),
+    ).toBeVisible()
+  })
+}
