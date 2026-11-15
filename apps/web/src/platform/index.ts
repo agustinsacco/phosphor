@@ -134,9 +134,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       attention.clear()
     },
   })
-  const offNoticeClicks = attachNotificationClicks(
-    options.navigateNotification ?? navigateNotification,
-  )
+  const offClicks = attachNotificationClicks(options.navigateNotification ?? navigateNotification)
   const attention = createBrowserAttention({
     connection: (hostId) => hosts.connection(hostId),
     label: (hostId) => hosts.label(hostId),
@@ -304,7 +302,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       stopped = true
       clearInterval(poll)
       clearInterval(clock)
-      offNoticeClicks()
+      offClicks()
       offLifecycle()
       offInvalidation()
       invalidation?.close()
