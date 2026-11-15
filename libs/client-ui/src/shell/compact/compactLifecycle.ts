@@ -1,3 +1,5 @@
+import { usePaletteStore } from '@/features/palette/paletteStore'
+import { useChatFindRequest } from '@/features/chat/useChatFind'
 import { cancelAllPrompts } from '@/stores/prompt'
 import { clearRemoteStartMemory } from '@/features/home/remoteComposer'
 import { clearDraftMemory } from '@/stores/drafts'
@@ -17,6 +19,8 @@ export const waitForCompactCleanup = (): Promise<void> => cleanup
 export function clearCompactUi(): void {
   useSessionsStore.getState().claimNav()
   cancelAllPrompts()
+  usePaletteStore.setState({ open: false })
+  useChatFindRequest.setState({ sessionId: null })
   clearRemoteStartMemory()
   clearBrowserMemory()
   clearDraftMemory()

@@ -102,6 +102,7 @@ export interface ModalOverlayProps {
   closeOnEscape?: boolean
   /** Extra classes for the backdrop element (e.g. palette padding). */
   className?: string
+  shortcutOverlay?: string
 }
 
 /**
@@ -118,6 +119,7 @@ export function ModalOverlay({
   closeOnBackdrop = true,
   closeOnEscape = true,
   className,
+  shortcutOverlay,
 }: ModalOverlayProps): React.JSX.Element {
   const compact = usePlatform().formFactor === 'compact'
   const depth = useContext(EscapeDepthContext)
@@ -126,6 +128,7 @@ export function ModalOverlay({
   return createPortal(
     <div
       data-modal-overlay=""
+      data-shortcut-overlay={shortcutOverlay}
       data-compact-sheet={compact || undefined}
       className={clsx(
         'fixed inset-0 flex justify-center',

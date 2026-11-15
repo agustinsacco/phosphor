@@ -19,8 +19,7 @@ import { attachRow } from './items/measureRow'
 import { spacingFor } from './items/spacing'
 import { activeActivityId, buildTranscriptRows } from './items/transcriptRows'
 import { FindBar } from '@/components/search/FindBar'
-import { useFind } from '@/components/search/useFind'
-import { useFindTarget } from '@/components/search/findTargets'
+import { useChatFind } from './useChatFind'
 import { useTranscriptFind } from './useTranscriptFind'
 
 export const MessageList = memo(function MessageList({
@@ -299,9 +298,7 @@ export const MessageList = memo(function MessageList({
 
   // ⌘F. The fallback surface: focus in the composer, the top bar or nowhere
   // at all still means "find in this session".
-  const find = useFind()
-  const { show: showFind } = find
-  useFindTarget(containerRef, showFind, true)
+  const find = useChatFind(sessionId, containerRef)
   const releaseFollowForFind = useCallback((): void => {
     if (scrollRef.current) releaseFollow(scrollRef.current)
   }, [releaseFollow])

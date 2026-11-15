@@ -85,7 +85,7 @@ known Host and All machines, never This Mac (that needs `localLanes`), and lives
 in the URL, so a choice replaces the location's `machine` (from a lane, it opens
 that machine's lane list) and back, forward and deep links keep it. New opens
 the New page for the machine in scope, or asks for one under All machines. The
-wide header keeps Back and New lane.
+wide header keeps Back and New lane, beside Search lanes and pages.
 
 A phone has four tabs (`shell/compact/BottomTabs.tsx`): **Home**, **Machines**,
 **Library** and **Settings**. `/` and `/lanes` open Home, the shared Home board
@@ -171,8 +171,8 @@ Artifacts, Skills, Routines and Settings. `SidebarNavigation` (through
 order, row presentation and Machines-row activity on machines outside the scope
 in both clients. The footer's Settings gear opens the Settings page for the
 machine in scope; the account menu offers Machines, Settings and Sign out. It
-shows no keyboard shortcut, because the browser installs
-none (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
+shows no keyboard shortcut, because the browser does not install Desktop’s
+app-wide shortcut set (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
 The Settings page frames Desktop's `SettingsSurface`: the same search field, section
 navigation and sections, listed by platform capability
 ([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
@@ -183,6 +183,27 @@ worktree. Voice needs `localVoice`, which the browser lacks. With no Host to
 configure, a **No machine to configure** notice links to Machines. Leaving the page
 while a Host's settings draft is unsaved asks first, as closing Desktop's dialog does;
 the browser's Back button is not intercepted.
+
+### Palette and find in chat
+
+**Search lanes and pages** in the wide header, phone page headers and phone lane
+header opens the shared command palette. On a phone it fills the screen, with
+its focused input at the top and touch-sized results below. It searches every
+Host's lanes by title, machine and folder before rendering at most twelve
+matches, showing machine · folder and a Needs you mark. It also offers Home,
+Machines, Skills, Routines, Artifacts, Settings, a new lane in each Host folder,
+Add folder on a writable Host and theme choices. Native workspace, pane,
+feedback, rewind and keybinding commands require their Desktop capabilities.
+
+Wide browsers take Cmd/Ctrl+K when the page receives a cancelable key event;
+reserved browser accelerators remain browser-owned. Phones use the button.
+This does not install Desktop's app-wide shortcut set (`appShortcuts`).
+**Find in chat** in Session options (the phone lane sheet or wide pane-tab menu)
+opens the transcript's existing FindBar, switching back from another pane when
+needed. Reading and finding do not take lane control. A phone's bar spans the
+transcript with touch-sized previous, next and close controls; Enter steps
+forward. Wide browsers also take a cancelable Cmd/Ctrl+F only when focus is in
+the visible transcript, leaving browser find elsewhere untouched.
 
 ### One lane row, list and menu
 

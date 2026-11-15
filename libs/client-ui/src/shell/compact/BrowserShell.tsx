@@ -1,3 +1,5 @@
+import { PaletteButton } from '@/components/PaletteButton'
+import { BrowserPalette } from './BrowserPalette'
 import { Button } from '@/components/form'
 import { WaitingNote, WaitingPane } from '@/components/Waiting'
 import { useNavigation } from '@/navigation/Navigation'
@@ -31,6 +33,7 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
   return (
     <div className="compact-shell browser-shell" data-testid="compact-shell">
       {!compact && <BrowserNavigation machine={machine} />}
+      <BrowserPalette />
       <div className="browser-content">
         {compact && location.to === 'lane' ? (
           <CompactLaneHeader location={location} />
@@ -76,6 +79,7 @@ function BrowserHeader({ machine }: { machine?: string }): React.JSX.Element {
       {location.to === 'lane' && 'laneId' in location.lane && (
         <LaneLocation hostId={location.lane.hostId} laneId={location.lane.laneId} />
       )}
+      <PaletteButton />
       {!compact && <NewLaneAction />}
     </header>
   )

@@ -10,6 +10,7 @@ import {
   useRemoteLanesStore,
 } from '@/stores/remoteLanes'
 import { ChatView } from '@/features/chat/ChatView'
+import { requestChatFind } from '@/features/chat/useChatFind'
 import { SessionMenu } from '@/features/chat/SessionMenu'
 import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
 import { SCREENS } from '@/navigation/screens'
@@ -131,7 +132,14 @@ function LanePanes({
               {SCREENS[id].title}
             </TooltipButton>
           ))}
-          <SessionMenu sessionId={session.phosphorId} className="compact-lane-options" />
+          <SessionMenu
+            sessionId={session.phosphorId}
+            className="compact-lane-options"
+            onFind={() => {
+              requestChatFind(session.phosphorId)
+              navigate({ ...location, pane: 'chat' })
+            }}
+          />
         </nav>
       )}
       <div className="min-h-0 flex-1">

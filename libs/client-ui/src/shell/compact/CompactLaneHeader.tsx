@@ -1,3 +1,5 @@
+import { PaletteButton } from '@/components/PaletteButton'
+import { requestChatFind } from '@/features/chat/useChatFind'
 import { useId, useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { ActionSheet, ActionSheetItem } from '@/components/ActionSheet'
@@ -91,6 +93,7 @@ export function CompactLaneHeader({ location }: { location: LaneLocation }): Rea
           pane={pane === 'chat' ? undefined : SCREENS[pane].title}
         />
       </TooltipButton>
+      <PaletteButton />
       {session && <LaneLinks sessionId={session.phosphorId} />}
       {lane ? (
         <HostLaneMenu hostId={hostId} lane={lane} open={open} onClose={() => setOpen(false)}>
@@ -227,7 +230,16 @@ function LaneSheet({
           )
         })}
       </nav>
-      {sessionId && <SessionOptionsGroup sessionId={sessionId} onClose={onClose} />}
+      {sessionId && (
+        <SessionOptionsGroup
+          sessionId={sessionId}
+          onClose={onClose}
+          onFind={() => {
+            requestChatFind(sessionId)
+            onPane('chat')
+          }}
+        />
+      )}
       <LaneActionGroup
         hostId={hostId}
         actions={actions}
@@ -245,9 +257,11 @@ function LaneSheet({
 function SessionOptionsGroup({
   sessionId,
   onClose,
+  onFind,
 }: {
   sessionId: string
   onClose: () => void
+  onFind: () => void
 }): React.JSX.Element {
   // Subscribed so the hints follow the session; the items read the stores themselves.
   useChatStore((s) => s.sessions[sessionId]?.meta)
@@ -255,7 +269,7 @@ function SessionOptionsGroup({
   return (
     <div role="group" aria-label={SESSION_OPTIONS} className="action-sheet-group">
       <p className="action-sheet-label">Session</p>
-      {currentSessionMenuItems(sessionId, nativeFiles).map((item) => (
+      {currentSessionMenuItems(sessionId, nativeFiles, onFind).map((item) => (
         <ActionSheetItem
           key={item.label}
           disabled={item.disabled}

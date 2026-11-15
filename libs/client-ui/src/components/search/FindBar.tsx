@@ -1,9 +1,11 @@
+import './FindBar.css'
 import { TooltipButton } from '@/components/Tooltip'
 import { useId, useLayoutEffect } from 'react'
 import clsx from 'clsx'
 import type { CompiledQuery } from '@shared/text-search'
 import { ChevronDownIcon, CloseIcon, SearchIcon } from '@/components/icons'
 import { formatShortcut } from '@/lib/shortcuts'
+import { usePlatform } from '@/platform/Platform'
 import { optionForKey, SearchOptionToggles } from './SearchOptionToggles'
 import type { FindState } from './useFind'
 
@@ -103,6 +105,7 @@ export function FindBar({
   unavailable?: FindUnavailable
   testId?: string
 }): React.JSX.Element | null {
+  const compact = usePlatform().formFactor === 'compact'
   const { inputRef, focusRequest, open, compiled } = find
   const statusId = useId()
 
@@ -114,42 +117,17 @@ export function FindBar({
 
   if (!open) return null
 
-  const onKeyDown = (event: React.KeyboardEvent): void => {
-    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
-    const mod = event.metaKey || event.ctrlKey
-    const toggle = optionForKey(event)
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      find.close()
-    } else if (toggle) {
-      event.preventDefault()
-      find.toggleOption(toggle)
-    } else if (
-      (event.key === 'Enter' && event.target === inputRef.current && !mod) ||
-      event.key === 'F3' ||
-      (mod && event.code === 'KeyG')
-    ) {
-      event.preventDefault()
-      onStep(event.shiftKey ? -1 : 1)
-    } else if (mod && event.code === 'KeyF' && !event.shiftKey) {
-      event.preventDefault()
-      event.stopPropagation()
-      inputRef.current?.focus()
-      inputRef.current?.select()
-    }
-  }
-
   const stepDisabled = total === 0
   return (
     <div
       data-find-bar
+      data-compact-find={compact || undefined}
       data-find-skip
       data-testid={testId}
       role="search"
       aria-label={placeholder}
-      onKeyDown={onKeyDown}
-      className="border-border bg-surface-raised focus-within:border-border-strong absolute right-3 top-2 z-20 flex items-center gap-1 rounded-lg border py-1 pl-2 pr-1 shadow-md"
+      onKeyDown={(event) => handleFindKey(event, find, onStep)}
+      className="border-border bg-surface-raised focus-within:border-border-strong find-bar absolute right-3 top-2 z-20 flex items-center gap-1 rounded-lg border py-1 pl-2 pr-1 shadow-md"
     >
       <SearchIcon size={11} className="text-text-tertiary shrink-0" />
       <input
@@ -233,4 +211,35 @@ function BarButton({
       {children}
     </TooltipButton>
   )
+}
+
+function handleFindKey(
+  event: React.KeyboardEvent,
+  find: FindState,
+  onStep: (delta: 1 | -1) => void,
+): void {
+  const { inputRef } = find
+  if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
+  const mod = event.metaKey || event.ctrlKey
+  const toggle = optionForKey(event)
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    find.close()
+  } else if (toggle) {
+    event.preventDefault()
+    find.toggleOption(toggle)
+  } else if (
+    (event.key === 'Enter' && event.target === inputRef.current && !mod) ||
+    event.key === 'F3' ||
+    (mod && event.code === 'KeyG')
+  ) {
+    event.preventDefault()
+    onStep(event.shiftKey ? -1 : 1)
+  } else if (mod && event.code === 'KeyF' && !event.shiftKey) {
+    event.preventDefault()
+    event.stopPropagation()
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }
 }
