@@ -166,11 +166,12 @@ scripted artifact preview; it is not an offline execution environment.
 
 <img src="apps/site/src/assets/shots/mobile.webp" alt="Fictional Host lane in Phosphor’s phone layout" width="360">
 
-Desktop’s **Move to…** makes a checked snapshot copy of an idle lane to another
-workspace or connected Host. The original remains and the destination does not
-resume automatically. Commit dirty Git work first. Credentials, workspace files,
-terminal processes and schedules do not move. Same-origin transfers require the
-exact source commit; another repository starts from its own default branch.
+**Move to…** makes a checked snapshot copy of an idle lane to another
+workspace or connected Host, from Desktop or, between Hosts, from the PWA. The
+original remains and the destination does not resume automatically. Commit dirty
+Git work first. Credentials, workspace files, terminal processes and schedules do
+not move. Same-origin transfers require the exact source commit; another
+repository starts from its own default branch.
 [Machines guide](https://phosphor.saccolabs.com/guides/machines/) ·
 [Move limits](docs/lanes.md#moving-a-lane).
 

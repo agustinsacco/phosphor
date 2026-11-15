@@ -1343,10 +1343,10 @@ Capabilities, concurrent-call bounds and frame sizing belong to the API adapter.
 
 ### Importing and exporting lanes
 
-Desktop's **Move to…** can copy a stopped lane onto or off this Host, including
-Host-to-Host through Desktop. This is an explicit exception to normal
-memory-only remote viewing: raw pi and paired Claude session files cross the
-wire. Control never carries their contents. Both export and import require
+**Move to…** can copy a stopped lane onto or off this Host from Desktop, and
+Host-to-Host through Desktop or a browser, which relays the bundle. This is an
+explicit exception to normal memory-only remote viewing: raw pi and paired
+Claude session files cross the wire. Control never carries their contents. Both export and import require
 `sessions.control`; `ready.laneTransfer` advertises support.
 
 The [transfer protocol](remote-protocol.md#lane-snapshot-transfer) stages private,

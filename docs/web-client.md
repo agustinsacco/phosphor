@@ -67,6 +67,27 @@ enforcement as Desktop. The Host's admission is unchanged: it grants
 kind, and drops it on an epoch change. A stolen cookie could already request a
 configure grant from Control; this change does not widen what Control signs.
 
+### Moving lanes
+
+A Host lane's **Move to…** copies it to another Host, or into another folder of
+the same Host, with the same dialog, plan, limits and failure handling as Desktop
+([Moving a lane](lanes.md#moving-a-lane)). `hosts:laneMovePlan` and
+`hosts:laneMove` refuse a request with This Mac on either end; the dialog lists
+only Hosts, since `localLanes` is false. The adapter hands the rest to
+`createHostLaneMoves` (`libs/host-client/src/lane-move.ts`), Desktop's own
+Host-to-Host relay: the page downloads the bundle into memory, checks its
+SHA-256 with Web Crypto, then uploads it, chunked at the transfer limit. On a
+phone the dialog is the compact sheet: machine, folder, one summary with the
+size and the note that the copy passes through this device, then Move.
+
+Threat note: a lane bundle holds raw transcripts, Claude ledgers and attached
+files, and crosses the browser page that moves it. It stays in that page's
+memory, never in storage, the cache or a download, and Control never sees it.
+Account invalidation (another owner, sign-out, the page's dispose) aborts the
+move and drops it. Both Hosts check the page's grant as for Desktop: export and
+import each need `sessions.control`, and a replaced connection or lost
+capability fails the move closed.
+
 ## Shared pages and responsive shells
 
 Browser presentation switches at 900px: a bottom tab bar below that width,
