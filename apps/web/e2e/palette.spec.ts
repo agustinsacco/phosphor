@@ -7,8 +7,8 @@ async function laneMenu(page: Page, compact: boolean): Promise<void> {
     .click()
 }
 
-async function expectUncoveredMatch(page: Page, find: Locator): Promise<void> {
-  const match = page.getByTestId('transcript-scroll').getByText('PHX-synthetic', { exact: true })
+async function expectUncoveredMatch(page: Page, find: Locator, text: string): Promise<void> {
+  const match = page.getByTestId('transcript-scroll').getByText(text, { exact: true })
   await expect(match).toBeInViewport()
   await expect
     .poll(async () => {
@@ -65,10 +65,11 @@ for (const width of [400, 1100]) {
     await expect(field).toBeFocused()
     await field.fill('PHX-synthetic')
     await expect(find.getByTestId('find-status')).toHaveText('1 of 2')
+    if (compact) await expectUncoveredMatch(page, find, 'PHX-synthetic artifact')
     await field.press('Enter')
     await expect(find.getByTestId('find-status')).toHaveText('2 of 2')
     if (compact) {
-      await expectUncoveredMatch(page, find)
+      await expectUncoveredMatch(page, find, 'PHX-synthetic')
       expect((await find.boundingBox())!.width).toBe(width)
       for (const name of ['Previous match', 'Next match', 'Close']) {
         const bounds = await find.getByRole('button', { name, exact: true }).boundingBox()
