@@ -1,0 +1,137 @@
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--px-bg) 94%, transparent);
+  border-bottom: 1px solid var(--px-border);
+  backdrop-filter: blur(12px);
+}
+.header-inner {
+  width: min(94%, 1440px);
+  min-height: 76px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+.header-inner.web-enabled {
+  flex-wrap: wrap;
+  padding-block: 0.75rem;
+  gap: 0.75rem 2rem;
+}
+.web-enabled .header-links {
+  flex-wrap: wrap;
+}
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-family: var(--px-font-mono);
+  font-size: var(--text-lg);
+  letter-spacing: -0.045em;
+  color: var(--px-text);
+}
+.site-header nav {
+  display: flex;
+  gap: 2rem;
+  font-size: var(--text-sm);
+  color: var(--px-text-secondary);
+}
+.site-header nav a {
+  padding-block: 0.75rem;
+}
+.header-links {
+  display: flex;
+  gap: 0.6rem;
+}
+.header-link {
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--px-border-strong);
+  border-radius: 3px;
+}
+.header-link:hover {
+  border-color: var(--px-text-secondary);
+}
+/* A mask, not an inline <svg>: the layout must not draw marks of its own
+   (PhosphorMark.test.ts), and the mask still follows the link colour. */
+.github-mark {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: url('/github-mark.svg') center / contain no-repeat;
+  mask: url('/github-mark.svg') center / contain no-repeat;
+}
+.site-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding-block: 2.5rem;
+  border-top: 1px solid var(--px-border-strong);
+}
+.site-footer p,
+.site-footer > div {
+  font-size: var(--text-xs);
+}
+.site-footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1000px) {
+  .header-inner {
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    padding-block: 0.8rem;
+  }
+  .site-header nav {
+    order: 3;
+    width: 100%;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .site-header nav a {
+    padding-block: 0.3rem;
+  }
+}
+@media (max-width: 480px) {
+  .site-header {
+    position: static;
+  }
+  .header-inner {
+    width: 92%;
+  }
+  .wordmark {
+    font-size: var(--text-base);
+    gap: 0.4rem;
+  }
+  .wordmark img {
+    width: 28px;
+    height: 28px;
+  }
+  .header-link {
+    font-size: var(--text-xs);
+    padding: 0.5rem;
+  }
+  .header-link-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .site-header nav {
+    font-size: var(--text-sm);
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+}

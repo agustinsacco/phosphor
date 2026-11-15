@@ -24,20 +24,18 @@ const sections: [string, string][] = [
     </p>
     <Command cmd="npm install -g @earendil-works/pi-coding-agent" label="Install pi" />
     <p>
-      <a href={download.latest} rel="nofollow">Download Phosphor from the latest release</a>. On macOS, open
-      the DMG and drag Phosphor to Applications. On Linux, use the AppImage or the .deb. On Windows,
-      run the x64 .exe installer.
+      <a href={download.latest} rel="nofollow">Download Phosphor from the latest release</a>. On
+      macOS, open the DMG and drag Phosphor to Applications. On Linux, use the AppImage or the .deb.
+      Windows builds are currently paused; existing installs stay on their last available Windows
+      release.
     </p>
     <p>Or, on macOS or Linux:</p>
-    <Command
-      cmd={download.install}
-      label="Install Phosphor on macOS or Linux"
-    />
+    <Command cmd={download.install} label="Install Phosphor on macOS or Linux" />
     <p>
       The script checks release checksums. It’s still a script piped into your shell, so <a
         href={`${repo}/blob/main/tools/scripts/install.sh`}>read it first</a
-      >. Windows builds aren’t signed, so SmartScreen may warn you. Once you’ve confirmed the
-      download came from this repo, choose More info → Run anyway.
+      >. Local work needs no Phosphor account. For a Host-backed browser or remote Desktop workflow,
+      follow <a href="/guides/machines/">Machines and PWA</a>.
     </p>
     <p>
       <strong>Check:</strong> launch Phosphor. If the setup screen says pi is missing, make sure <code
@@ -122,9 +120,11 @@ const sections: [string, string][] = [
   <section id="extend">
     <h2>4. Go further</h2>
     <p>
-      Once coding works, add what you need. MCP services connect through pi itself; pi packages add
-      web search, subagents, and computer use. Install only what you’ll use, then start a new
-      session.
+      Once coding works, add what you need. Try <a href="/guides/brain/">Brain</a> for reviewed local
+      knowledge, <a href="/guides/machines/">Machines</a> for your own remote execution, or <a
+        href="/watch/">the walkthroughs</a
+      > for a guided tour. MCP services connect through pi itself; pi packages add web search, subagents,
+      and computer use. Install only what you’ll use, then start a new session.
     </p>
     <div class="guide-grid">
       {
@@ -142,7 +142,10 @@ const sections: [string, string][] = [
     <p>
       Phosphor runs on your machine, but unless you use a local model, the model doesn’t. Your
       provider receives every prompt and tool result sent to it. Connected services have their own
-      permissions and data policies.
+      permissions and data policies. Brain extraction also calls the lane’s provider. Remote work
+      runs on your Host; the control service does not receive lane contents. <a href="/privacy/"
+        >Read the privacy policy</a
+      >.
     </p>
     <p>
       <strong>Tools run with full permissions by default.</strong> There are no approval prompts unless

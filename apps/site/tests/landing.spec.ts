@@ -9,6 +9,9 @@ const routes = [
   '/guides/extensions/',
   '/guides/connectors/',
   '/privacy/',
+  '/guides/brain/',
+  '/guides/machines/',
+  '/watch/',
 ]
 
 for (const path of routes) {
@@ -111,17 +114,15 @@ test('all local links resolve, including cross-page fragments and full-size capt
   }
 })
 
-test('landing leads with sub-agents, then lanes, chat and the IDE layout without disclosures', async ({
+test('landing leads with current work, chat and Desktop layout demos without disclosures', async ({
   page,
 }) => {
   await page.goto('/')
   const captures = page.locator('main .capture:visible')
-  // The hero is a curated replay of recorded work, never labelled an untouched capture.
   const expected = [
-    ['remote-hosts', 'Recorded work · curated replay'],
-    ['home', 'Real session'],
-    ['chat', 'Real session'],
-    ['ide-flex', 'Real session'],
+    ['home', 'UI demo · fictional fixture data'],
+    ['chat', 'UI demo · fictional fixture data'],
+    ['ide-flex', 'UI demo · fictional fixture data'],
   ]
   for (const [index, [asset, provenance]] of expected.entries()) {
     const capture = captures.nth(index)
@@ -133,7 +134,6 @@ test('landing leads with sub-agents, then lanes, chat and the IDE layout without
     await expect(capture.locator('figcaption')).toContainText(provenance)
   }
   await expect(page.locator('.hero-proof img')).toHaveAttribute('loading', 'eager')
-  await expect(page.locator('.problem-board img')).toHaveAttribute('loading', 'lazy')
   await expect(page.locator('.workflow-chat img')).toHaveAttribute('loading', 'lazy')
   await expect(page.locator('#surface > .capture img')).toHaveAttribute('loading', 'lazy')
 
@@ -209,10 +209,10 @@ test('header links go to the repo, and to the latest release through the downloa
 
 test('actual layouts use native controls and keyboard navigation', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('h1')).toHaveText(/One mission\.\s*Many agents\.\s*Your IDE\./)
+  await expect(page.locator('h1')).toHaveText(/Your work\.\s*In context\./)
   await expect(page.locator('.package-card')).toHaveCount(4)
-  await expect(page.locator('.connector-grid > a')).toHaveCount(8)
-  await page.locator('#surface summary').click()
+  await expect(page.locator('.connector-grid > a')).toHaveCount(14)
+  await page.locator('#surface summary').first().click()
   for (const id of ['left', 'full', 'right']) {
     await page.locator(`label[for="layout-${id}"]`).click()
     await expect(page.locator(`#layout-${id}`)).toBeChecked()
@@ -253,23 +253,18 @@ test('guide handoffs, privacy labels, skip link, and reduced motion', async ({ p
   await expect(page.locator('#builtin')).toContainText('MCP is built into pi')
 })
 
-test('swarm story distinguishes evidence, example roles and authorization', async ({ page }) => {
+test('swarm distinguishes authorization, inheritance and independent acceptance', async ({
+  page,
+}) => {
   await page.goto('/')
-  await expect(page.locator('#swarm .mission-tracks article')).toHaveCount(4)
-  for (const model of ['Astra', 'Opus 5.5', 'Sol 6.1'])
-    await expect(page.locator('.model-team')).toContainText(model)
-  await expect(page.locator('#swarm')).toContainText(
-    'Example roles, not built-in presets or a benchmark',
-  )
-  await expect(page.locator('#swarm')).toContainText('This lane predates the Swarm switch')
-  await expect(page.locator('#swarm')).toContainText(
-    'not a claim that remote execution is available',
-  )
+  await expect(page.locator('#swarm')).toContainText('authorization, not an autopilot')
   await page.getByRole('link', { name: 'Work with a swarm' }).click()
   await expect(page.locator('#enable')).toContainText('Off is not Stop')
-  await expect(page.locator('#enable')).toContainText('does not cancel existing children')
+  await expect(page.locator('#enable')).toContainText('does not cancel')
+  await expect(page.locator('#enable')).toContainText('Forks and clones inherit')
+  await expect(page.locator('#enable')).toContainText('Unrelated new lanes start off')
   await expect(page.locator('#team')).toContainText('not automatic routing')
-  await expect(page.locator('#case-study')).toContainText('section headings are editorial')
+  await expect(page.locator('#case-study')).toContainText('fictional demo fixtures')
   await expect(page.locator('#boundaries')).toContainText('no hard spawn budget')
   await expect(page.locator('script, astro-island')).toHaveCount(0)
 })

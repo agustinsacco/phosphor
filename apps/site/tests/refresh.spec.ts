@@ -9,33 +9,58 @@ for (const route of newRoutes) {
     await expect(page.locator('h1')).toHaveCount(1)
     await expect(page.locator('script, astro-island')).toHaveCount(0)
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-      'href', `https://phosphor.saccolabs.com${route}`,
+      'href',
+      `https://phosphor.saccolabs.com${route}`,
     )
     await page.goto('/')
     expect(await page.locator(`a[href="${route}"]`).count()).toBeGreaterThan(0)
   })
 }
 
-test('Brain describes opt-in, review, provider extraction and machine-local recall', async ({ page }) => {
+test('Brain describes opt-in, review, provider extraction and machine-local recall', async ({
+  page,
+}) => {
   await page.goto('/guides/brain/')
-  for (const text of ['off by default', 'Desktop-only', 'Settings → Brain', 'Review before saving',
-    'Queue for knowledge extraction', 'brain_search', 'provider', 'does not sync', 'Forget', 'Reset']) {
+  for (const text of [
+    'off by default',
+    'Desktop-only',
+    'Settings → Brain',
+    'Review before saving',
+    'Queue for knowledge extraction',
+    'brain_search',
+    'provider',
+    'does not sync',
+    'Forget',
+    'Reset',
+  ]) {
     await expect(page.locator('main')).toContainText(text)
   }
   await expect(page.locator('#setup .capture')).toHaveCount(1)
   await expect(page.locator('#explore .capture')).toHaveCount(1)
 })
 
-test('Machines explains private transport, explicit control and snapshot moves', async ({ page }) => {
+test('Machines explains private transport, explicit control and snapshot moves', async ({
+  page,
+}) => {
   await page.goto('/guides/machines/')
-  for (const text of ['Tailscale', 'fingerprint', 'Take control', 'not a cloud runner',
-    'original', 'not resumed automatically', 'credentials', 'browser cannot']) {
+  for (const text of [
+    'Tailscale',
+    'fingerprint',
+    'Take control',
+    'not a cloud runner',
+    'original',
+    'not resumed automatically',
+    'credentials',
+    'browser cannot',
+  ]) {
     await expect(page.locator('main')).toContainText(text)
   }
   await expect(page.locator('#browser')).toContainText('Brain')
 })
 
-test('daily work distinguishes PR drafts, Slack links and notification boundaries', async ({ page }) => {
+test('daily work distinguishes PR drafts, Slack links and notification boundaries', async ({
+  page,
+}) => {
   await page.goto('/guides/daily-work/')
   await expect(page.locator('#merge')).toContainText('nothing is sent')
   await expect(page.locator('#merge')).toContainText('no checks')
@@ -45,11 +70,18 @@ test('daily work distinguishes PR drafts, Slack links and notification boundarie
   await expect(page.locator('#moves')).toContainText('snapshot')
 })
 
-test('watch films are opt-in, self-hosted and have visible text alternatives', async ({ page, request }) => {
+test('watch films are opt-in, self-hosted and have visible text alternatives', async ({
+  page,
+  request,
+}) => {
   await page.goto('/watch/')
   const videos = page.locator('video')
   await expect(videos).toHaveCount(3)
-  for (const [index, stem] of ['phosphor-overview', 'brain-walkthrough', 'lane-to-review'].entries()) {
+  for (const [index, stem] of [
+    'phosphor-overview',
+    'brain-walkthrough',
+    'lane-to-review',
+  ].entries()) {
     const video = videos.nth(index)
     await expect(video).toHaveAttribute('controls', '')
     await expect(video).toHaveAttribute('preload', 'none')
@@ -67,7 +99,9 @@ test('watch films are opt-in, self-hosted and have visible text alternatives', a
   }
 })
 
-test('privacy covers Brain provider calls and self-hosted films without tracking', async ({ page }) => {
+test('privacy covers Brain provider calls and self-hosted films without tracking', async ({
+  page,
+}) => {
   await page.goto('/privacy/')
   await expect(page.locator('#brain')).toContainText('provider')
   await expect(page.locator('#brain')).toContainText('local')

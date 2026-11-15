@@ -1,6 +1,7 @@
 ---
 import Guide from '../../layouts/Guide.astro'
-import { doc } from '../../lib/content'
+import Capture from '../../components/Capture.astro'
+import { doc, shot } from '../../lib/content'
 const sections: [string, string][] = [
   ['lanes', 'Lanes and the home screen'],
   ['branches', 'Branches and worktrees'],
@@ -8,6 +9,10 @@ const sections: [string, string][] = [
   ['review', 'Review what it did'],
   ['models', 'Models, thinking, and context'],
   ['merge', 'Pull requests and merging'],
+  ['slack', 'Slack thread links'],
+  ['notifications', 'Notifications'],
+  ['moves', 'Move a lane'],
+  ['brain', 'Keep knowledge with Brain'],
   ['subagents', 'Split work across agents'],
   ['artifacts', 'Artifacts'],
   ['history', 'Resume, rewind, and fork'],
@@ -31,9 +36,9 @@ const sections: [string, string][] = [
     </p>
     <ul>
       <li>
-        <strong>Home</strong> (New in the sidebar) sorts the lanes that need something into columns: Waiting
-        on you, Ready to merge, Needs a push, In review, and Running. Below that, a ledger shows what
-        the project has spent, its tokens, and how much memory the live lanes use.
+        <strong>Home</strong> shows a local workbench with stable lane tiles, observed activity and bounded
+        background-run previews. Its ledger shows usage and live processes. All machines home groups lanes
+        into Needs you, Working and Recent, labelled with their machine and folder.
       </li><li>
         <strong>Find a lane</strong> with the magnifier in a project’s header. It matches title, branch,
         and PR number.
@@ -85,8 +90,9 @@ const sections: [string, string][] = [
       </li>
     </ul>
     <p>
-      Drafts, attachments included, survive switching lanes and quitting. Cmd/Ctrl+Shift+X opens a
-      taller field for long prompts.
+      Local Desktop drafts, attachments included, survive switching lanes and quitting. Browser
+      drafts are not a durable offline archive. Cmd/Ctrl+Shift+X opens a taller field for long
+      prompts.
     </p>
     <p><a href={doc('chat.md#composer')}>Composer reference</a></p>
   </section>
@@ -97,8 +103,9 @@ const sections: [string, string][] = [
         <strong>The transcript:</strong> each tool call is a row you can expand for its arguments and
         output. Edits open as diffs. Cmd/Ctrl+F searches the whole session, tool output included.
       </li><li>
-        <strong>Changes:</strong> every file the lane changed, with its diff. Revert puts a file’s working
-        copy back.
+        <strong>Changes:</strong> observed tool changes with their diffs, not a forensic inventory of
+        every external write. Local session-baseline Revert restores a file’s working copy; Host lanes
+        do not offer that baseline revert.
       </li><li>
         <strong>Files:</strong> an explorer and an editor with tabs, search, and save.
       </li><li>
@@ -107,7 +114,9 @@ const sections: [string, string][] = [
     </ul>
     <p>
       Panes open from the top bar, one at a time beside the chat. Drag the divider, dock the pane
-      left or right, or make it fullscreen. Each lane remembers its own layout.
+      left or right, or make it fullscreen. Each Desktop lane remembers its own layout. The browser
+      has a read-only text file view, no Monaco editor or split panes. Workspace content search is
+      local; filename browsing is a separate capability.
     </p>
     <p>
       <a href={doc('files.md')}>Files and editor</a> · <a href={doc('terminal.md')}>Terminal</a> · <a
@@ -141,16 +150,88 @@ const sections: [string, string][] = [
   <section id="merge">
     <h2>Pull requests and merging</h2>
     <p>
-      A worktree lane is told to commit on its branch and open a pull request when the work is done.
-      Phosphor itself only reads PR status, through the gh CLI: number, state, checks, and review.
-      It never pushes or opens a PR for you.
+      The lane’s PR pill opens an inspector with Overview, Checks, Reviews, Threads and Activity. It
+      distinguishes owned PRs from ones being reviewed or merely mentioned. Track or Hide writes
+      lane metadata only for an open local lane; those actions are not available on Host lanes.
+      Current Hosts can still supply PR status and inspector detail.
+    </p>
+    <Capture
+      image={shot('lane-pr')}
+      alt="PR inspector with fictional checks, review status and a hand-off action."
+      caption="Read the checks and the review, not just a green colour"
+    />
+    <p>
+      Phosphor stays read-only on GitHub through the gh CLI. Fix, Nudge, Address and Update draft a
+      message into the composer; nothing is sent until you send it. A PR with no checks is not green
+      CI. Stale or unavailable results stay labelled; confirm uncertain merge readiness on GitHub.
     </p>
     <p>
-      To merge, use <strong>Merge</strong> on a Ready to merge card, the branch control, or the project
-      menu. The merge runs locally with git and walks you through a dirty worktree first. A worktree lane
-      that has fallen behind main shows <strong>Update</strong> under Needs a push.
+      A worktree lane’s agent is instructed to commit and open a PR when done, but the inspector
+      does not push, create or merge one. The separate local Git Merge flow remains an explicit
+      action and walks you through dirty worktrees first. It is not an automatic GitHub merge.
     </p>
-    <p><a href={doc('lanes.md#pr-status')}>PR status reference</a></p>
+    <p>
+      <a href={doc('lanes.md#pr-status')}>PR status reference</a> · <a href="/watch/#lane-to-review"
+        >Watch the review workflow</a>
+    </p>
+  </section>
+  <section id="slack">
+    <h2>Return to a Slack thread</h2>
+    <p>
+      The Slack pill appears when user prompts or settled assistant text mention valid Slack thread
+      links. It is not an inbox, a Slack connection indicator or a background reader. Search tool
+      output and a still-streaming reply do not add threads.
+    </p>
+    <Capture
+      image={shot('slack-pill')}
+      alt="Slack pill listing fictional thread links already mentioned in the lane."
+      caption="Links from the conversation, not a synced inbox"
+    />
+    <p>
+      Open a thread, copy its link, or append it to your unsent draft without replacing what you
+      typed. Using Slack tools is separate: configure the <a href="/guides/connectors/#slack"
+        >MCP connector</a
+      > and authorize its scopes.
+    </p>
+  </section>
+  <section id="notifications">
+    <h2>Come back to what needs you</h2>
+    <p>
+      The top-bar bell opens the notification drawer. It retains lane notices, actions, warnings and
+      errors after their toast leaves. New and Earlier separate unseen from seen; entries are
+      memory-only, not a durable activity archive.
+    </p>
+    <Capture
+      image={shot('notifications')}
+      alt="Notification drawer showing fictional lane and PR notices with return actions."
+      caption="Return to the lane, with the reason still attached"
+    />
+    <p>
+      Important PR changes for owned This Mac lanes can produce a toast and drawer entry, plus an OS
+      notification while Phosphor is not focused. The first read after launch is only a baseline;
+      failed reads are not change events. PR hand-offs still draft rather than send. Turn off PR
+      status in Settings → Lanes to silence those notices.
+    </p>
+    <p><a href={doc('ui-shell.md#global-surfaces')}>Notification behavior and retention</a></p>
+  </section>
+  <section id="moves">
+    <h2>Continue on another machine</h2>
+    <p>
+      Desktop’s Move to… makes a checked snapshot copy of an idle lane to another workspace or
+      connected Host. The original remains and the new lane waits for you to open it. Commit dirty
+      Git work first; credentials, processes and routine schedules do not move. This is separate
+      from switching a provider account.
+    </p>
+    <p><a href="/guides/machines/#moves">Move prerequisites, contents and recovery</a></p>
+  </section>
+  <section id="brain">
+    <h2>Keep the decision behind the change</h2>
+    <p>
+      Enable Brain on Desktop, queue a selected lane, and review durable memories and relationships
+      before saving. Future local lanes can recall them. Local embeddings do not make extraction
+      offline: the lane’s provider reads scrubbed conversation text.
+    </p>
+    <p><a href="/guides/brain/">Set up and review Brain knowledge</a></p>
   </section>
   <section id="subagents">
     <h2>Split work across agents</h2>
@@ -172,8 +253,10 @@ const sections: [string, string][] = [
     <p>
       Ask for a plan, a doc, a diagram, a chart, or an HTML page as an artifact. It opens in the
       Artifacts pane next to the chat and keeps every version, even after the session compacts. The
-      Artifacts page in the sidebar lists every artifact from every session. HTML artifacts run
-      isolated, with no network access.
+      Artifacts page in the sidebar lists artifacts by machine, including versions that outlive the
+      lane. Copy reference can point another same-machine lane at an artifact. Desktop HTML previews
+      run isolated with no network access; the PWA offers static alternatives or source, not
+      scripted HTML execution.
     </p>
     <p>
       <a href={doc('extensions.md#the-artifact-tools-and-what-each-one-costs')}
@@ -198,8 +281,9 @@ const sections: [string, string][] = [
     <p>
       <strong>Routines</strong> in the sidebar runs a task on a schedule: hourly, daily, weekly, monthly,
       once, or a cron expression. Each run starts a fresh lane with the model you picked. Routines run
-      on your machine while it’s awake, not in the cloud. <strong>Make routine…</strong> in a lane’s menu
-      drafts one from that lane.
+      on their execution machine while it’s awake, not in the cloud. A Host owns its own routines; create
+      them paused and explicitly enable unattended full tool access. <strong>Make routine…</strong> in
+      a lane’s menu drafts one from that lane.
     </p>
     <p><a href={doc('routines.md')}>Routines reference</a></p>
   </section>
@@ -208,12 +292,19 @@ const sections: [string, string][] = [
     <p>
       A skill is a written procedure the agent can follow. The Skills page in the sidebar lists your
       own and the ones your packages bring. Create, import, or export your own there, or add a
-      reviewed one from discovery.
+      reviewed one from discovery. Skills can be shared between machines; that does not copy
+      credentials or configuration.
     </p>
     <p><a href={doc('ui-shell.md#global-surfaces')}>Skills reference</a></p>
   </section>
   <section id="settings">
     <h2>Settings worth knowing</h2>
+    <p>
+      Search Settings by name. Device settings are separate from Configure → machine settings;
+      Folders replaces the old Workspaces label. Brain, local Voice and writing assistance are
+      Desktop capabilities, not browser features. A dictated prompt still reaches your provider when
+      sent.
+    </p>
     <ul>
       <li>
         <strong>Keyboard:</strong> Cmd/Ctrl+K opens the command palette, Cmd/Ctrl+N starts a session,
@@ -229,8 +320,8 @@ const sections: [string, string][] = [
         <strong>Advanced → Maintenance:</strong> finds worktrees of lanes that already landed and reports
         how much space they hold. It deletes them only if you ask.
       </li><li>
-        <strong>Send feedback</strong> at the bottom of the sidebar opens a prefilled GitHub issue with
-        your rating and notes. Nothing about your code or sessions is attached.
+        <strong>Send feedback</strong> in the Settings footer opens a prefilled GitHub issue with your
+        rating and notes. Nothing about your code or sessions is attached.
       </li>
     </ul>
     <p><a href={doc('settings.md')}>Settings reference</a></p>

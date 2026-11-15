@@ -43,8 +43,9 @@ const sections: [string, string][] = [
         a new lane or reload/restart Pi in an existing one.
       </li>
       <li>
-        Open the lane’s composer and turn on <strong>Swarm</strong>. The highlighted switch, amber
-        outline and title badge reflect Pi’s acknowledgement, not just a local preference.
+        Before the first prompt or in the lane’s composer, turn on <strong>Swarm</strong>. The
+        highlighted switch, amber outline and title badge reflect Pi’s acknowledgement, not just a
+        local preference.
       </li>
       <li>
         Give the parent a goal, ownership boundaries, acceptance criteria and a verification plan.
@@ -59,8 +60,9 @@ const sections: [string, string][] = [
     </p>
     <p>
       A change during a run stays pending until a safe turn boundary. Swarm survives resume and
-      compaction on that session branch. Forks, clones and Rewind start off under their new session
-      identity.
+      compaction on that session branch. Forks and clones inherit the copied branch’s last
+      authorization when their session names a parent. Live Clone and Rewind preserve the lane’s
+      current requested setting. Unrelated new lanes start off.
     </p>
     <h3>Off is not Stop</h3>
     <p>
@@ -138,10 +140,10 @@ Do not deploy or merge without my approval.</code></pre>
   <section id="case-study">
     <h2>Real example: Phosphor Remote Hosts</h2>
     <p>
-      The homepage uses selected records from Phosphor’s own Remote Hosts lane. Astra and Opus 5.5
-      appear in the parent’s recorded model metadata at different stages; Sol 6.1 was assigned to
-      workers and independent reviewers. This was explicit delegation before the Swarm switch
-      existed, not a demonstration of that switch running.
+      An earlier site edition used selected records from Phosphor’s own Remote Hosts lane. Astra and
+      Opus 5.5 appear in the parent’s recorded model metadata at different stages; Sol 6.1 was
+      assigned to workers and independent reviewers. This was explicit delegation before the Swarm
+      switch existed, not a demonstration of that switch running.
     </p>
     <p>
       In one recorded phase, the parent coordinated four pieces: enrollment API, Host lifecycle,
@@ -158,13 +160,11 @@ Do not deploy or merge without my approval.</code></pre>
       >, and <a href={`${repo}/pull/435`}>Host identity</a>. These are evidence of individual
       changes, not a claim that every Remote Hosts capability is complete or deployed.
     </p>
-    <h3>What the image represents</h3>
+    <h3>What the current images represent</h3>
     <p>
-      It is a <strong>curated replay in the actual renderer</strong>, not an untouched live
-      screenshot. The excerpt is shortened, section headings are editorial, task labels are
-      expanded, and identifiers, local paths, unrelated projects and deployment details are omitted.
-      The four workstreams’ historical activity comes from the parent’s recorded report. No timing,
-      token savings or speedup benchmark is claimed. No private transcript is distributed.
+      The refreshed site uses fictional demo fixtures in the actual UI, not private transcripts or
+      live runs. This historical case study describes the public development trail, not the contents
+      of those demo images. No timing, token savings or model-performance benchmark is claimed.
     </p>
   </section>
   <section id="boundaries">
@@ -176,9 +176,10 @@ Do not deploy or merge without my approval.</code></pre>
       approval to deploy or merge.
     </p>
     <p>
-      Remote-access development is separate from local delegation. Check the <a
-        href={doc('remote-access.md')}>current remote-access contract</a
-      > before treating a planned capability as available.
+      Remote execution now runs on your own enrolled Hosts over private Tailscale transport. It is
+      separate from subagent delegation, not a hosted cloud runner. Follow <a
+        href="/guides/machines/">Machines and PWA</a
+      > for setup and limits.
     </p>
     <p>
       The exact Swarm state, branch and timing rules live in <a

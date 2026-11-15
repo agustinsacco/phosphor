@@ -1,7 +1,9 @@
 # phosphor.saccolabs.com
 
-The production site is Astro 7 and Tailwind 4, with static HTML and **no shipped
-JavaScript**. One deployment serves the landing and six user guides.
+Astro static HTML with **no shipped client JavaScript**. Native links, disclosures,
+layout radios and video controls work without hydration or third-party embeds.
+The site and control API share a production image; the Host-backed PWA is a
+separate client, not this marketing site.
 
 ## Run and check
 
@@ -15,40 +17,28 @@ npm test --prefix apps/site
 npm run audit:links --prefix apps/site
 ```
 
-Run these examples from the repository root. The site retains its own manifest,
-lockfile and installation; root `npm ci` installs Desktop, not the site. Root
-aliases `site:install`, `site:dev`, `site:check`, `site:build` and `site:test`
-delegate to the commands above. Nx site targets use this same independent package
-and remain uncached. The [installation contract](../../docs/installations.md)
-explains why the root source-library workspaces do not include the site or alter
-its independently resolved toolchain. The combined image builds from the repo root.
+Use a Node version supported by the pinned Astro release (currently ≥22.23.4).
+The site owns its manifest, lockfile and install; root aliases `site:install`,
+`site:dev`, `site:check`, `site:build`, `site:test` delegate here. Nx targets use
+that independent package and remain uncached. See [installations](../../docs/installations.md).
 
-Playwright serves the production build on `127.0.0.1:4322`. It checks all seven
-pages on desktop, mobile, JavaScript-disabled desktop/mobile, and reduced
-motion. Tests cover internal page/fragment destinations, linked capture assets,
-images, canonical metadata, native layout controls, keyboard access, enlarged
-text, 320–1920px overflow, and zero client scripts. CI runs this suite against
-the combined production Node image. `SITE_TEST_URL` can target an already-running site.
+Playwright serves the production build on `127.0.0.1:4322` and checks all eleven
+routes on desktop, mobile, JS-disabled desktop/mobile and reduced motion. It
+covers local links/fragments, full-size capture assets, metadata, native controls,
+keyboard access, enlarged text, 320–1920px overflow and zero client scripts.
+`SITE_TEST_URL` targets an already-running production image; image-only checks
+cover directory routes, cache/security headers, redirects, media and real 404s.
+The external-link audit is separate and requires network access.
 
-The external-link audit is separate from deterministic browser tests. It reads
-links from built pages, follows HTTP redirects, checks GitHub Markdown fragments
-against rendered heading slugs, and fails on unavailable destinations. It needs
-network access; rate limits are failures to investigate, not successful checks.
-
-To exercise the production image locally without deployment:
+To exercise the combined image locally without deployment:
 
 ```bash
 bash tools/scripts/site-image.sh
 ```
 
-The script creates an isolated container with an unused local port and removes it on exit.
-The image-only suite also checks direct guide-directory resolution with or without
-a trailing slash (200, no redirect), cache and security headers, static fonts/assets,
-and real 404 responses. The runtime is
-Node 22 as uid 1000 with a read-only filesystem and all capabilities dropped.
-It needs no writable volumes.
-
-Formatting Astro files explicitly loads the plugin:
+It creates an isolated container on an unused local port and removes it on exit.
+The runtime is Node 22 as uid 1000, with a read-only filesystem, no writable
+volumes and all capabilities dropped. Formatting explicitly loads Astro's plugin:
 
 ```bash
 npm run format --prefix apps/site
@@ -56,112 +46,90 @@ npm run format --prefix apps/site
 
 ## Narrative and routes
 
-- `/`: “One mission. Many agents. Your IDE.” A real Remote Hosts development
-  story leads into scoped delegation, independent review, recovery, optional Swarm
-  authorization, parallel lanes, inspectable edits and artifacts, provider choice,
-  pi packages and an eight-service connector catalog.
-- `/guides/swarm/`: lanes versus subagents, enabling/reversing Swarm, model-role
-  examples, review checkpoints, the Remote Hosts case study and capture provenance.
-- `/guides/`: installation, sign-in choices, a first verifiable task, permissions,
-  and troubleshooting.
-- `/guides/daily-work/`: lanes and the home board, worktrees, the composer,
-  review panes, models and context, PRs and merging, sub-agents, artifacts,
-  history, routines, skills, and the settings worth knowing.
-- `/guides/accounts/`: which subscription plans work, the recommended
-  several-plan setup, pi sign-ins, the Claude Code provider (prerequisites,
-  install, login, test, multiple accounts, routing), moving a lane when a plan
-  runs out, and failure recovery. The control server answers the old `/guides/claude-code/`
-  with a 301 here, so existing links and their fragments still land.
-- `/guides/extensions/`: included versus optional capabilities, five recommended
-  packages, scope, trust, and updates.
-- `/guides/connectors/`: adapter installation, authorization, Test, per-service
-  requirements, custom servers, and permissions.
+- `/`: “Your work. In context.” Current workbench, inspectable lanes, Brain,
+  PR/Slack links, Machines/PWA, Swarm, models, packages, connectors and install.
+- `/guides/`: local installation, provider sign-in, a verifiable first task,
+  Host/PWA alternatives, permissions and troubleshooting.
+- `/guides/daily-work/`: lane/worktree workflow, Files/Changes, models/context,
+  multi-PR inspection, Slack links, notifications, snapshot moves, Brain,
+  subagents, artifacts, history, routines, skills and machine-scoped settings.
+- `/guides/brain/`: Desktop opt-in/model download, explicit queueing, proposal
+  review, graph/evidence inspection, recall, provider costs and retention.
+- `/guides/machines/`: private Tailscale setup, enrollment/readiness, provider
+  configuration, explicit lane control, browser/PWA limits and snapshot moves.
+- `/guides/swarm/`: authorization, inherited branch decisions, bounded delegation,
+  independent review and a historical public Remote Hosts development example.
+- `/guides/accounts/`: provider plans, Claude prerequisites, sign-in, new-session
+  routing, explicit account switching, machine scope and recovery. The old
+  `/guides/claude-code/` redirects here; its useful fragments remain.
+- `/guides/extensions/`: bundled versus optional behavior, four package choices,
+  installation, machine/folder scope, trust and updates.
+- `/guides/connectors/`: pi-native MCP, machine-scoped configuration, service
+  requirements including Google Workspace preview and Slack app registration.
+- `/watch/`: three silent text-led films with native controls, local posters,
+  written steps and guide handoffs. No autoplay, external player or client runtime.
+- `/privacy/`: site logs/download counts, provider requests, Brain, direct Host
+  transport, optional accounts/cookies, service boundaries and deletion limits.
 
-`src/lib/content.ts` owns the guide links, package specs/source destinations,
-and connector summaries. Guides link to the living technical contracts rather
-than replacing them. Screenshots and text must be checked against settings UI
-when it changes. `docs/settings.md`, `docs/cli-providers.md`, `docs/extensions.md`,
-and `docs/mcp.md` are the relevant contracts.
+`src/lib/content.ts` owns guide links, explicit capture imports, package sources
+and connector summaries. `src/lib/films.ts` owns film metadata and written steps.
+Guides link to living contracts instead of duplicating implementation detail.
+Useful old section IDs remain addressable. CSS is split into base, shell,
+marketing, captures and guide reading surfaces; each source file stays ≤400 lines.
 
 ## Captures and privacy
 
-The landing and root README open with **Recorded work · curated replay** from
-Phosphor's Remote Hosts lane. It is not an untouched live screenshot. The reviewed
-allowlist in `scripts/fixtures/remote-hosts.json` holds shortened parent excerpts,
-expanded task labels and an editorial task summary from the recorded four-worker
-phase. Section headings are editorial. Parent guidance stays attributed to the parent,
-not passed off as a child's answer. The reported activity is historical. The
-lane predates the Swarm switch; the screenshot does not claim that mode was on.
-Astra and Opus 5.5 were observed in parent metadata at different stages; Sol 6.1
-was assigned to workers/reviewers. The site's three-role arrangement is explicitly
-an example, not automatic routing or a performance comparison.
+Refreshed screenshots are **UI demo · fictional fixture data** in actual product
+surfaces, not real user sessions, current provider usage or benchmarks. Every
+full-size original must be public-safe; responsive previews are not a redaction
+boundary. The explicit import allowlist prevents accidentally publishing unused
+historical account/settings captures. Never replace it with an asset glob.
 
-`remote-hosts-shot.mjs` drives the actual renderer in a fresh browser profile.
-It reads only the checked-in, public-safe fixture, blocks external requests,
-uses no live sessions or credentials, checks for private identifiers before capture,
-and re-encodes without image metadata. Private transcript paths, unrelated projects,
-run identifiers and deployment details are not published. To regenerate:
+The refresh covers existing site shots and repository `docs/img/` gallery plus
+Brain setup/graph, PR inspector, Slack pills, Machines, mobile and notifications.
+The capture tooling and its reviewed fixtures own reproduction details. Do not
+use live session files, credential stores, a real Host enrollment, provider calls
+or live screenshot utilities to regenerate these demo assets. Inspect full-size
+pixels and metadata before publication. `ide-flex.png` retains its existing name
+because repository/deployment checks use that path.
 
-```bash
-npm run dev:web -- --host 127.0.0.1 --port 5199
-# In another terminal, after installing the site's dependencies:
-node apps/site/scripts/remote-hosts-shot.mjs
-```
+The historical Remote Hosts case study remains public prose and PR links. It is
+not the provenance of the refreshed fixture images, and no speedup, model ranking
+or automatic acceptance is inferred from either.
 
-Review pixels and the fixture before publication. No CSS blur hides an unredacted
-original. No speedup, token savings, task acceptance or complete remote-execution
-product is inferred from the image. The public PR trail is linked in the case study.
-The older `subagents.webp` scripted capture is not the homepage's current hero.
+## Films
 
-After it come the lane dashboard, a chat-focused session, and an IDE-style
-editor-and-agent view to show the layout flexibility. Those three are real
-captures, visible without opening a disclosure. The hero stays uncropped on
-desktop and mobile; every image links to its full-size original.
-Native radios in “Explore more layouts” show actual right-docked, left-docked,
-and fullscreen pane captures. There are no third-party replicas or implied presets.
+The native video surface expects these self-hosted files, each with a matching
+same-stem `.webp` poster under `public/media/`:
 
-The four `guide-*.webp` files are actual settings UI rendered with **fictional
-browser-harness data**, labelled as demos on every use. No live account store,
-credential, browser profile, or Electron instance is read. Account labels are
-Account A/B and addresses are masked example addresses before pixels are
-captured. Versions and usage are illustrative, not current-version claims.
+- `phosphor-overview.mp4`
+- `brain-walkthrough.mp4`
+- `lane-to-review.mp4`
 
-To regenerate from this checkout:
-
-```bash
-npm ci
-npm run dev:web -- --host 127.0.0.1 --port 5199
-# In another terminal:
-npm run shots:guides --prefix apps/site
-```
-
-`GUIDE_HARNESS_URL` may select another localhost port. The capture script launches
-a fresh isolated browser, blocks external requests, substitutes fixture account
-and server data, and re-encodes images without metadata. It captures only the
-settings modal. Inspect every generated image before committing it. Both the
-responsive previews and the full-size linked originals use these safe files;
-there is no CSS-only blur concealing a downloadable unredacted original.
-
-Existing live captures can still be imported with `npm run shots --prefix apps/site`.
-Review and redact new live captures before import. `ide-flex.png` is the original
-supplied editor-and-agent capture, shown after the chat-focused view. Its layout
-is not a composite or a rearranged screenshot.
+The media worker owns rendered Hyperframes assets and their source/provenance.
+The site imports no Hyperframes player or runtime. `<video controls preload="none">`
+never autoplays or loops. Silent text-led content has visible equivalent steps,
+not an audio-only lesson. Posters and source videos must use public-safe demo
+fixtures; neither private recordings nor reconstructed live-performance claims.
+The control server owns MIME/range serving, independently tested there.
 
 ## Behavior and limits
 
-All navigation uses ordinary links. Disclosures and layout radios work without
-JavaScript. Local fonts, responsive Astro images, and existing Phosphor tokens
-keep the site aligned with `docs/style-guide.md`. Reduced motion disables smooth
-scrolling. Guides have page-specific titles/descriptions/canonicals and visible
-navigation on narrow screens.
+Keep Desktop, Host and browser capabilities distinct. Brain is Desktop-only and
+off by default; local embeddings/storage do not make provider extraction offline.
+Review defaults on but can be disabled. Nothing syncs Brain between machines.
+The PWA has no local lanes, native editor, split panes or scripted HTML preview.
 
-Do not promise universal account failover, unlimited subscriptions, a cloud
-runner, automatic GitHub merges, or an agent sandbox. Claude routing applies to
-new sessions; moving a lane respawns it. Connector authorization/Test spends no
-model tokens, but model-driven tool use can consume tokens and service quota.
-Packages execute code with system access. Artifact isolation is a separate
-boundary. Context components are estimates. Routines are local and need the
-computer awake.
+PR actions draft rather than send; GitHub stays read-only. Track/Hide is local-live
+only, while current Hosts support inspector detail. Slack pills are transcript
+links, not Slack sync. Moves retain the original snapshot and do not copy credentials
+or processes. Notifications are memory-only; routines have separate durable history.
+Swarm authorizes delegation, not a fixed team, automatic model roles or merge.
+
+Provider terms/quotas apply. Package tools run with system access. Worktrees are
+not sandboxes. Context component sizes are estimates. Host execution needs your
+own machine awake and runtime running, not a cloud subscription. Current Desktop
+releases are macOS/Linux; Windows builds are paused.
 
 ## Deployment and identity
 

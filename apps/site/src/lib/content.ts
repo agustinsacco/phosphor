@@ -7,7 +7,6 @@ import artifacts from '../assets/shots/artifacts.webp'
 import files from '../assets/shots/files.webp'
 import filesLeft from '../assets/shots/files-left.webp'
 import filesFull from '../assets/shots/files-full.webp'
-import models from '../assets/shots/models.webp'
 import modelsPicker from '../assets/shots/models-picker.webp'
 import contextMeter from '../assets/shots/context-meter.webp'
 import remoteHosts from '../assets/shots/remote-hosts.webp'
@@ -15,6 +14,14 @@ import guideClaude from '../assets/shots/guide-claude.webp'
 import guideRouting from '../assets/shots/guide-routing.webp'
 import guideExtensions from '../assets/shots/guide-extensions.webp'
 import guideConnectors from '../assets/shots/guide-connectors.webp'
+
+import brainSetup from '../assets/shots/brain-setup.webp'
+import brainGraph from '../assets/shots/brain-graph.webp'
+import lanePr from '../assets/shots/lane-pr.webp'
+import slackPill from '../assets/shots/slack-pill.webp'
+import machines from '../assets/shots/machines.webp'
+import mobile from '../assets/shots/mobile.webp'
+import notifications from '../assets/shots/notifications.webp'
 
 export const repo = 'https://github.com/agustinsacco/Phosphor'
 export const releases = `${repo}/releases`
@@ -36,13 +43,19 @@ export const piDoc = (page: string) => `https://pi.dev/docs/latest/${page}`
 // Publish only reviewed assets used by these pages. A glob would also emit
 // unused historical account/settings originals into the public build.
 const captures: Record<string, ImageMetadata> = {
+  'brain-setup': brainSetup,
+  'brain-graph': brainGraph,
+  'lane-pr': lanePr,
+  'slack-pill': slackPill,
+  machines,
+  mobile,
+  notifications,
   changes,
   home,
   chat,
   'ide-flex': ideFlex,
   artifacts,
   files,
-  models,
   'models-picker': modelsPicker,
   'context-meter': contextMeter,
   'remote-hosts': remoteHosts,
@@ -107,6 +120,21 @@ export const packages = [
 ]
 
 export const connectors = [
+  ...[
+    ['gmail', 'Gmail', 'Threads and drafts'],
+    ['google-drive', 'Google Drive', 'Files and sharing'],
+    ['google-calendar', 'Google Calendar', 'Events and availability'],
+    ['google-docs', 'Google Docs', 'Documents'],
+    ['google-sheets', 'Google Sheets', 'Spreadsheets'],
+    ['google-slides', 'Google Slides', 'Presentations'],
+  ].map(([id, name, use]) => ({
+    id,
+    name,
+    use,
+    docs: 'https://developers.google.com/workspace/guides/configure-mcp-servers',
+    note: 'Requires Google Workspace Developer Preview enrollment and your own Google Cloud OAuth client ID and secret. Enable the product API and MCP service, and match the consent scopes. One client can serve all products. Expect repeated sign-in: pi does not request offline access.',
+  })),
+
   {
     id: 'linear',
     name: 'Linear',
@@ -175,6 +203,16 @@ export const guides = [
     href: '/guides/daily-work/',
     title: 'Daily work',
     blurb: 'Lanes, review and merge, panes, artifacts, routines, and skills.',
+  },
+  {
+    href: '/guides/brain/',
+    title: 'Brain',
+    blurb: 'Opt into reviewed local knowledge and recall it in later lanes.',
+  },
+  {
+    href: '/guides/machines/',
+    title: 'Machines and PWA',
+    blurb: 'Connect your own Hosts, use the browser, and move lanes deliberately.',
   },
   {
     href: '/guides/swarm/',

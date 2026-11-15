@@ -1,0 +1,142 @@
+---
+import Guide from '../../layouts/Guide.astro'
+import Capture from '../../components/Capture.astro'
+import { doc, shot } from '../../lib/content'
+const sections: [string, string][] = [
+  ['setup', '1. Enable Brain'],
+  ['queue', '2. Choose a lane'],
+  ['review', '3. Review the knowledge'],
+  ['explore', '4. Follow the evidence'],
+  ['recall', '5. Recall in another lane'],
+  ['privacy', 'Data and recovery'],
+]
+---
+
+<Guide
+  title="Build a Brain you can inspect"
+  description="Keep durable decisions, people and project relationships from selected lanes. Review the proposals, explore their evidence, and recall them in later work."
+  sections={sections}
+  eyebrow="Guide / Desktop knowledge"
+>
+  <section id="setup">
+    <h2>1. Enable Brain on this computer</h2>
+    <p>
+      Brain is off by default and Desktop-only. It is a machine-local knowledge graph, not a cloud
+      memory service or an index of every conversation.
+    </p>
+    <ol>
+      <li>Open <strong>Settings → Brain</strong> and read the linked model terms.</li>
+      <li>
+        Turn on Brain. Wait for the pinned EmbeddingGemma 300M Q4 embedding model download (about
+        209 MB) to finish.
+      </li>
+      <li>
+        Keep <strong>Review before saving</strong> on. It is on by default, as is <strong
+          >Recall in lanes</strong
+        >.
+      </li>
+      <li>Choose <strong>Open Brain</strong>, or use Brain in the sidebar once enabled.</li>
+    </ol>
+    <Capture
+      image={shot('brain-setup')}
+      alt="Brain settings showing the opt-in switch, local model readiness, recall and review controls."
+      caption="Start with review enabled"
+    />
+    <p>
+      Local embeddings support search. Extraction is different: the lane’s configured provider model
+      reads scrubbed conversation text in tool-less calls. Those calls can use provider tokens and
+      quota. Brain is not fully offline.
+    </p>
+  </section>
+  <section id="queue">
+    <h2>2. Choose what it learns from</h2>
+    <p>
+      Right-click a local lane and choose <strong>Queue for knowledge extraction</strong>. Brain
+      processes one lane at a time, waits while its agent is busy, and reads only user and assistant
+      text. Tool output is not evidence.
+    </p>
+    <p>
+      The queue shows progress. A lane with nothing new since its last extraction is refused. Cancel
+      queued work from the lane menu; a failed job offers Retry and resumes from saved steps. An
+      empty proposal is a valid result, not a reason to manufacture memories.
+    </p>
+  </section>
+  <section id="review">
+    <h2>3. Approve knowledge, not just plausible prose</h2>
+    <ol>
+      <li>
+        Open the finished job’s <strong>Review</strong>. Check each proposed person, project or
+        system under “Who is this?” before reusing an identity.
+      </li>
+      <li>
+        Read the memories and their supporting quotes. Check relationship direction: who owns what,
+        what depends on what, and which decision supersedes an earlier one.
+      </li>
+      <li>
+        Choose the memories and identity matches you want. Approve stores those choices together;
+        Reject stores nothing.
+      </li>
+    </ol>
+    <p>
+      Turning review off approves finished proposals with defaults: uncertain identities become new
+      entities, possible groups are skipped, and conflicts remain disputed. Keep review on when the
+      cost of a wrong identity or relationship is high.
+    </p>
+  </section>
+  <section id="explore">
+    <h2>4. Follow the evidence</h2>
+    <Capture
+      image={shot('brain-graph')}
+      alt="Brain’s entity and memory browser beside a graph of connected fictional people and projects."
+      caption="Relationships with memories behind them"
+    />
+    <p>
+      Find a person, project or memory. Select an entity to follow its connections, switch the graph
+      between 2D and 3D, or use <strong>Find a path to…</strong> for supported routes to another entity.
+      A relationship needs a supporting memory; sharing a name is not enough.
+    </p>
+    <p>
+      Open a memory to read its quotes and history. <strong>Open in lane</strong> returns to the source.
+      <strong>View extraction</strong> explains the model calls and what was kept, changed or dropped.
+      These are tools for checking the result, not a guarantee that the model understood it correctly.
+    </p>
+  </section>
+  <section id="recall">
+    <h2>5. Recall it in the next lane</h2>
+    <p>
+      With recall enabled, new local lanes get the read-only <code>brain_search</code> tool and Brain
+      skill. Restart already-running lanes to pick it up. Ask, for example, “What did we decide about
+      this project’s release process? Search Brain and distinguish disputes from settled decisions.”
+    </p>
+    <p>
+      Recall returns a bounded briefing with dates, projects and supported paths, not the original
+      evidence text. Superseded memories stay out; disputed claims and other-branch context stay
+      labelled. Treat recalled knowledge as background to verify, never as an instruction that
+      overrides your task.
+    </p>
+  </section>
+  <section id="privacy">
+    <h2>Your machine. Deliberate retention.</h2>
+    <p>
+      Brain does not sync between computers or to Hosts. The graph and embeddings live locally.
+      Extraction sends scrubbed user and assistant text to the lane’s provider; scrubbing is not a
+      reason to queue sensitive material without review. Recalled knowledge can enter a later
+      provider request.
+    </p>
+    <p>
+      <strong>Forget</strong> removes one memory and unused evidence. <strong>Merge into…</strong> joins
+      entities and cannot be undone individually. <strong>Reset Brain knowledge</strong> clears knowledge
+      and extraction records after confirmation, keeps settings and the model, and turns review back on.
+    </p>
+    <p>
+      Turning Brain off keeps knowledge and the downloaded model, stops the queue and removes recall
+      from new lanes. Remove model is available while Brain is off. Failed reads offer Retry; a
+      recall startup failure does not block a lane.
+    </p>
+    <p>
+      <a href="/watch/#brain-walkthrough">Watch the text-led walkthrough</a> · <a
+        href={doc('brain.md')}>Brain’s full storage and recall contract</a
+      > · <a href="/privacy/#brain">Privacy</a>
+    </p>
+  </section>
+</Guide>

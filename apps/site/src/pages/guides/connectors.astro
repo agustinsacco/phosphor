@@ -34,6 +34,11 @@ const sections: [string, string][] = [
   </section>
   <section id="connect">
     <h2>2. Add and authorize a service</h2>
+    <p>
+      Choose the execution machine first. A Host keeps its own MCP configuration and credentials;
+      changing it requires explicit configuration access. This does not copy this computer’s
+      sign-ins.
+    </p>
     <ol>
       <li>Open <strong>MCP Connectors</strong>.</li><li>
         Find the service under <strong>Add a connector</strong> and fill in any required fields, like
@@ -79,6 +84,10 @@ const sections: [string, string][] = [
   </section>
   <section id="catalog">
     <h2>What each service needs</h2>
+    <p>
+      The lane’s <a href="/guides/daily-work/#slack">Slack thread pill</a> is separate from this catalog:
+      it lists links already in the conversation, not fetched messages or connector status.
+    </p>
     <div class="connector-requirements">
       {
         connectors.map(({ id, name, use, note, docs }) => (
