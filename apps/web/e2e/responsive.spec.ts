@@ -48,6 +48,11 @@ test('shared full pages fit phone, tablet and wide layouts with consistent font 
       // Hydrate the preference through the same reload path as a returning browser.
       await page.goto(`${stack.origin}/new/${stack.hostId}`)
       await expect(page.getByTestId('remote-model-picker')).toContainText('HOST_A_ONLY')
+      // At every width the Host pi's own default chose it; a browser has no This Mac.
+      await expect(page.getByTestId('remote-model-picker')).toHaveAttribute(
+        'data-tooltip',
+        'HOST_A_ONLY Fast · Using this Host’s default model.',
+      )
       await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*dark)/)
       await page.evaluate(() => document.fonts.ready)
       expect(await page.evaluate(() => document.fonts.check('14px Inter'))).toBe(true)

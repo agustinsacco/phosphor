@@ -29,6 +29,11 @@ test('Create on bee1 with a usable default and name the first turn', async ({
       .click()
     await expect(h.page.getByRole('button', { name: 'Machine', exact: true })).toContainText('bee1')
     await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
+    // The Host pi's own default chose it, and the chip says so.
+    await expect(h.page.getByTestId('remote-model-picker')).toHaveAttribute(
+      'data-tooltip',
+      'HOST_B_ONLY Reasoner · Using this Host’s default model.',
+    )
     await expect(h.page.getByRole('button', { name: 'Repository', exact: true })).toContainText(
       'repository',
     )
