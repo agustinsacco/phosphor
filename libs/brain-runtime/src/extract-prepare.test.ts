@@ -9,7 +9,7 @@ it('freezes the advanced leaf at prepare, completes, and retry still reads that 
   const s = await pipelineSetup()
   afterEach(s.cleanup)
   const { store } = fixture()
-  store.setPrefs({ enabled: true, review: false, recall: true })
+  store.setPrefs({ enabled: true, review: false, recall: true, model: null })
   s.options.embeddings.embed = async (texts) => texts.map(() => [...vector()])
   const job = store.enqueue({ ...s.job, leafId: 'A' }, 'queued')
   const advance = (id: string) =>

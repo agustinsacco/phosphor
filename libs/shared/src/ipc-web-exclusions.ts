@@ -35,6 +35,8 @@ const localBrain = {
 /** Brain reads one machine's local database and runs its own lanes' models: Desktop only. */
 export const BRAIN_WEB = {
   'brain:status': localBrain,
+  'brain:history': localBrain,
+  'brain:reread': localBrain,
   'brain:setPrefs': localBrain,
   'brain:download': localBrain,
   'brain:removeModel': localBrain,

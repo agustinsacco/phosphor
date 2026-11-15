@@ -106,3 +106,10 @@ it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
     ),
   ).not.toContain(knowledge.memories[0]!.id)
 })
+
+it('round trips the Brain reader preference through the browser bridge', async () => {
+  const status = await window.phosphor.invoke('brain:status')
+  expect(status.prefs).toHaveProperty('model', null)
+  const prefs = { ...status.prefs, model: 'harbor/reader' }
+  expect((await window.phosphor.invoke('brain:setPrefs', prefs)).prefs).toEqual(prefs)
+})

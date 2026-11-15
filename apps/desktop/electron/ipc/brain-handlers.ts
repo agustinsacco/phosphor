@@ -20,6 +20,12 @@ export { checkDecision, checkLane, checkPrefs } from './brain-checks'
 /** Desktop-only. Lazy acquisition keeps a failed startup retryable. */
 export function registerBrainHandlers(service: () => Promise<BrainService>): void {
   const api = async (): Promise<BrainApi> => (await service()).api
+  handle('brain:history', async (_event, limit) => {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200)
+      throw new Error('Invalid Brain history limit.')
+    return (await api()).history(limit)
+  })
+  handle('brain:reread', async (_event, job) => (await api()).reread(id(job)))
   handle('brain:status', async () => (await api()).status())
   handle('brain:setPrefs', async (_event, prefs) => (await api()).setPrefs(checkPrefs(prefs)))
   handle('brain:download', async () => (await api()).download())

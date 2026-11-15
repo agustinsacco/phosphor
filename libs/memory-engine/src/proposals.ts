@@ -3,6 +3,7 @@ import type { BrainProposedMemory, BrainProposalView } from '@phosphor/shared/br
 import { all, one, run, transaction, type Context } from './database'
 import { entity } from './entities'
 import { job, updateJob } from './jobs'
+import { laneMemories } from './history'
 import { memoryCard, quoteContext } from './knowledge'
 import type { Proposal, ProposalMemory, ProposalResult } from './types'
 import { scrubProposal } from './proposal-text'
@@ -87,7 +88,11 @@ export function propose(ctx: Context, value: Proposal): ProposalResult {
 }
 export function proposal(ctx: Context, jobId: string): BrainProposalView {
   const value = readProposal(ctx, jobId)
+  const current = job(ctx, jobId)!
   return {
+    replacingMemories: current.replaces
+      ? laneMemories(ctx, current.sessionId, jobId).replaceable.length
+      : 0,
     job: job(ctx, jobId)!,
     revision: value.computedRevision,
     held: value.held,

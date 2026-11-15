@@ -146,7 +146,10 @@ it('does not let an older status request overwrite an action’s returned status
       }),
   )
   const reading = useBrain.getState().refresh()
-  const enabled = { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } }
+  const enabled = {
+    ...mockBrainStatus(),
+    prefs: { enabled: true, recall: true, review: true, model: null },
+  }
   invoke.mockResolvedValue(enabled)
   await useBrain.getState().setPrefs(enabled.prefs)
   resolve(mockBrainStatus())

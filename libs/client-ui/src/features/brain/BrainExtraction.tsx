@@ -8,6 +8,7 @@ import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { formatCount } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { useBrainResource } from './useBrainResource'
+import { BrainReadAgain } from './BrainReadAgain'
 import { elapsedTime } from './jobProgress'
 import { openBrainSource } from './openBrainSource'
 
@@ -49,6 +50,13 @@ export function BrainExtraction({
               {data.model} · {data.thinking} thinking ·{' '}
               {elapsedTime(data.finishedAt - data.startedAt)} · {relativeTime(data.finishedAt)}
             </p>
+            {data.job?.state === 'done' && (
+              <BrainReadAgain
+                job={data.job}
+                memories={data.laneMemories}
+                replaceable={data.replaceable}
+              />
+            )}
           </header>
           {data.error && (
             <p role="status" className="text-danger">
@@ -113,7 +121,7 @@ function ExtractionOutcomes({
       <ol className="space-y-2">
         {data.outcomes.map((outcome) => (
           <li key={outcome.candidate} className="border-border rounded-md border p-3">
-            {outcome.memoryId ? (
+            {outcome.memoryId && !outcome.removed ? (
               <Button size="sm" onClick={() => onMemory(outcome.memoryId!)}>
                 {outcome.summary}
               </Button>
@@ -121,7 +129,7 @@ function ExtractionOutcomes({
               <p>{outcome.summary}</p>
             )}
             <p className="text-text-tertiary text-sm">
-              {OUTCOME[outcome.status]}
+              {outcome.removed ? 'removed' : OUTCOME[outcome.status]}
               {outcome.reason && ` · ${outcome.reason}`}
             </p>
           </li>

@@ -60,8 +60,7 @@ function traceUsage(usage?: AssistantMessage['usage']): CallTrace['usage'] {
   }
 }
 export function callThinking(thinking: string): string {
-  const levels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
-  return levels[Math.min(Math.max(0, levels.indexOf(thinking)), 3)]!
+  return ['off', 'minimal', 'low'].includes(thinking) ? thinking : 'medium'
 }
 
 /** Only explicitly selected metadata enters the trace, never message bodies or deltas. */

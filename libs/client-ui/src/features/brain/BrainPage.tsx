@@ -6,6 +6,7 @@ import { Button } from '@/components/form'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { usePlatform } from '@/platform/Platform'
 import { useBrain, useBrainSync } from './useBrain'
+import { BrainHistory } from './BrainHistory'
 import { BrainInbox } from './BrainInbox'
 import { BrainExtraction } from './BrainExtraction'
 import { BrainReview } from './BrainReview'
@@ -108,6 +109,7 @@ function ExplorerDetails({ state }: { state: ExplorerState }): React.JSX.Element
         }}
         onExtraction={setExtraction}
       />
+      <BrainHistory onExtraction={setExtraction} />
       {visit?.kind === 'entity' ? (
         <BrainEntity key={visit.id} id={visit.id} onVisit={onVisit} onPath={state.setPath} />
       ) : visit?.kind === 'memory' ? (

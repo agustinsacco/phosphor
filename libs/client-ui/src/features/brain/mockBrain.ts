@@ -1,5 +1,7 @@
+import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import type {
   BrainExtractionView,
+  BrainJob,
   BrainLaneRef,
   BrainMemoryFilter,
   BrainPrefs,
@@ -11,10 +13,12 @@ import type {
 import { mockBrainJob, mockBrainProposal, mockBrainStatus } from './mockBrainData'
 import { applyMockReview } from './mockReview'
 import { MockExplorer } from './mockExplorer'
+import { MockReadHistory } from './mockReadHistory'
 
 class MockBrain {
   private state = mockBrainStatus()
   private explorer = new MockExplorer()
+  private history = new MockReadHistory(this.explorer)
   private records = new Map<string, BrainExtractionView>()
   private downloading: number | null = null
   private resets = 0
@@ -49,7 +53,20 @@ class MockBrain {
   private review(id: string, decision: BrainReviewDecision | null, revision: number): BrainStatus {
     if (this.state.revision !== revision) throw new Error('Brain changed; refreshing this review')
     const proposal = this.proposal(id)
-    if (decision) applyMockReview(this.explorer, proposal, decision)
+    if (decision) {
+      if (proposal.job.replaces)
+        this.explorer.details = this.explorer.details.filter(
+          (d) => d.memory.origin?.sessionId !== proposal.job.sessionId,
+        )
+      applyMockReview(this.explorer, proposal, decision)
+      const record = this.records.get(id)
+      if (record)
+        for (const outcome of record.outcomes)
+          outcome.memoryId = this.explorer.details.find(
+            (d) => d.memory.jobId === id && d.memory.summary === outcome.summary,
+          )?.memory.id
+    }
+    if (decision || !proposal.job.replaces) this.history.finish(proposal.job, this.now())
     this.state.jobs = this.state.jobs.filter((item) => item.id !== id)
     this.state.revision++
     return this.status()
@@ -64,7 +81,13 @@ class MockBrain {
       job.progress = null
       throw new Error('Brain changed; refreshing this review')
     }
-    return mockBrainProposal(job, this.state.revision)
+    const proposal = mockBrainProposal(job, this.state.revision)
+    if (job.replaces) {
+      proposal.replacingMemories = this.history.memories(job.sessionId).length
+      proposal.confirmations = []
+      proposal.memories = proposal.memories.map((m) => ({ ...m, action: 'add', target: null }))
+    }
+    return proposal
   }
   private tick(): void {
     if (this.downloading !== null) {
@@ -81,6 +104,13 @@ class MockBrain {
     const job = this.state.jobs.find((j) => ['queued', 'running'].includes(j.state))
     if (!job) return
     if (job.state === 'queued') {
+      if (job.startedAt === null) {
+        job.model = this.state.prefs.model ?? job.model
+        this.records.set(job.id, {
+          ...this.extractionRecord(job.id),
+          thinking: this.state.prefs.model === null ? 'low' : 'medium',
+        })
+      }
       job.state = 'running'
       job.startedAt = this.now()
       job.progress = { stage: 'extract', done: 1, total: 4 }
@@ -101,7 +131,7 @@ class MockBrain {
     this.state.embedding.phase = 'downloading'
     return this.status()
   }
-  private queue(lane: BrainLaneRef): BrainStatus {
+  private queue(lane: BrainLaneRef, previous?: BrainJob): BrainStatus {
     if (!this.state.prefs.enabled) throw new Error('Turn Brain on first.')
     if (this.state.jobs.some((job) => job.sessionPath === lane.sessionPath))
       throw new Error('This lane is already queued.')
@@ -109,6 +139,8 @@ class MockBrain {
       mockBrainJob({
         id: crypto.randomUUID(),
         ...lane,
+        replaces: previous?.id ?? null,
+        sessionId: previous?.sessionId ?? lane.sessionPath,
         state: 'queued',
         memories: 0,
         queuedAt: this.now(),
@@ -121,13 +153,16 @@ class MockBrain {
   private extractionRecord(id: string): BrainExtractionView {
     const job = this.state.jobs.find((j) => j.id === id)!
     return {
+      job,
+      replaceable: 0,
+      laneMemories: 0,
       jobId: id,
       sessionId: job.sessionId,
       sessionPath: job.sessionPath,
       title: job.title,
       leafId: job.leafId,
       model: job.model,
-      thinking: 'low',
+      thinking: this.records.get(id)?.thinking ?? 'low',
       calls: [
         {
           stage: 'extract',
@@ -202,6 +237,7 @@ class MockBrain {
         this.explorer.entities = []
         this.explorer.details = []
         this.records.clear()
+        this.history.jobs = []
         this.computedRevisions.clear()
         this.state.jobs = []
         this.state.revision = 0
@@ -227,13 +263,43 @@ class MockBrain {
     this.state.revision++
     return this.status()
   }
+  private extraction(id: string): BrainExtractionView {
+    const record = this.records.get(id)
+    if (!record) throw new Error('Brain extraction not found.')
+    const memories = this.explorer.details
+      .filter((d) => d.memory.jobId === record.jobId)
+      .map(({ memory }) => ({ id: memory.id, summary: memory.summary }))
+    return {
+      ...record,
+      job:
+        this.state.jobs.find((j) => j.id === record.jobId) ??
+        this.history.jobs.find((j) => j.id === record.jobId) ??
+        null,
+      laneMemories: this.history.memories(record.sessionId).length,
+      replaceable: this.history.memories(record.sessionId).length,
+      memories,
+      outcomes: record.outcomes.map((outcome) => ({
+        ...outcome,
+        removed:
+          !!outcome.memoryId &&
+          !this.explorer.details.some((d) => d.memory.id === outcome.memoryId),
+      })),
+    }
+  }
   call(channel: string, args: unknown[]): unknown {
     this.tick()
     switch (channel) {
+      case 'brain:history':
+        return this.history.history(args[0] as number)
+      case 'brain:reread': {
+        const previous = this.history.jobs.find((j) => j.id === args[0])
+        if (!previous) throw new Error('Only finished Brain reads can be read again.')
+        return this.queue(previous, previous)
+      }
       case 'brain:status':
         return this.status()
       case 'brain:setPrefs':
-        this.state.prefs = { ...(args[0] as BrainPrefs) }
+        this.state.prefs = { ...DEFAULT_BRAIN_PREFS, ...(args[0] as BrainPrefs) }
         return this.state.prefs.enabled && this.state.embedding.phase === 'missing'
           ? this.download()
           : this.status()
@@ -252,21 +318,8 @@ class MockBrain {
         return this.status()
       case 'brain:proposal':
         return this.proposal(args[0] as string)
-      case 'brain:extraction': {
-        const record = this.records.get(args[0] as string)
-        if (!record) throw new Error('Brain extraction not found.')
-        const memories = this.explorer.details
-          .filter((d) => d.memory.jobId === record.jobId)
-          .map(({ memory }) => ({ id: memory.id, summary: memory.summary }))
-        return {
-          ...record,
-          memories,
-          outcomes: record.outcomes.map((outcome) => ({
-            ...outcome,
-            memoryId: memories.find((m) => m.summary === outcome.summary)?.id,
-          })),
-        }
-      }
+      case 'brain:extraction':
+        return this.extraction(args[0] as string)
       case 'brain:find':
         return this.explorer.find(args[0] as string, args[1] as number)
       case 'brain:overview':

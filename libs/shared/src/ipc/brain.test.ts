@@ -5,6 +5,7 @@ import type {
   BrainExtractionView,
   BrainFindResult,
   BrainGraph,
+  BrainHistory,
   BrainLaneRef,
   BrainMemoryDetail,
   BrainMemoryFilter,
@@ -21,6 +22,8 @@ import type { BrainInvokeMap } from './brain'
 
 /** UI commands. Authority comes from the Desktop handler, never this DTO. */
 export interface BaselineBrainInvokeMap {
+  'brain:history': { args: [limit: number]; result: BrainHistory }
+  'brain:reread': { args: [jobId: string]; result: BrainStatus }
   'brain:status': { args: []; result: BrainStatus }
   /** Saves at once. Enabling downloads the model if it is missing; disabling keeps it. */
   'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }
@@ -72,4 +75,14 @@ export interface BaselineBrainInvokeMap {
 
 it('freezes the local-only Brain queue, review and explorer channels', () => {
   expectTypeOf<BrainInvokeMap>().toEqualTypeOf<BaselineBrainInvokeMap>()
+})
+
+it('pins the reader preference on both sides of the IPC contract', () => {
+  expectTypeOf<BrainInvokeMap['brain:setPrefs']['args'][0]>().toEqualTypeOf<{
+    enabled: boolean
+    recall: boolean
+    review: boolean
+    model: string | null
+  }>()
+  expectTypeOf<BrainInvokeMap['brain:status']['result']['prefs']>().toEqualTypeOf<BrainPrefs>()
 })

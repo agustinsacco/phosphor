@@ -455,7 +455,12 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       [
         () => window.phosphor.invoke('brain:status'),
         () =>
-          window.phosphor.invoke('brain:setPrefs', { enabled: true, recall: true, review: true }),
+          window.phosphor.invoke('brain:setPrefs', {
+            enabled: true,
+            recall: true,
+            review: true,
+            model: null,
+          }),
         () => window.phosphor.invoke('brain:download'),
         () => window.phosphor.invoke('brain:removeModel'),
         () => window.phosphor.invoke('brain:overview'),

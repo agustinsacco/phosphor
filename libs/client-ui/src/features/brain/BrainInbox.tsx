@@ -38,6 +38,7 @@ export function BrainInbox({
           <div className="min-w-0 flex-1">
             <h3 className="truncate font-medium">{job.title}</h3>
             <p className="text-text-tertiary mt-1 text-sm">
+              {job.replaces && 'Reading again · '}
               {jobLine(
                 job,
                 jobs.slice(0, index).filter((j) => j.state === 'queued' || j.state === 'running')
@@ -45,6 +46,9 @@ export function BrainInbox({
                 now,
               )}
             </p>
+            {job.startedAt !== null && (
+              <p className="text-text-tertiary mt-1 break-all text-sm">{job.model}</p>
+            )}
           </div>
           {job.state === 'failed' && (
             <Button

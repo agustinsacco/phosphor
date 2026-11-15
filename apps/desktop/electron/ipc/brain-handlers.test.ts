@@ -35,8 +35,8 @@ it('registers every Brain channel in the shared contract', () => {
   expect([...handlers.keys()].sort()).toEqual(brain)
 })
 
-it('accepts exactly the three Brain switches', async () => {
-  const prefs = { enabled: true, recall: false, review: true }
+it('accepts the Brain switches and reader model', async () => {
+  const prefs = { enabled: true, recall: false, review: true, model: null }
   expect(checkPrefs(prefs)).toEqual(prefs)
   await expect(call('brain:setPrefs', prefs)).resolves.toBe('saved')
   for (const bad of [
@@ -101,4 +101,44 @@ it('registers extraction inspection and rejects invalid job ids', async () => {
   expect(handlers.has('brain:extraction')).toBe(true)
   for (const id of ['', null, 'x'.repeat(201)])
     await expect(call('brain:extraction', id)).rejects.toThrow('Invalid Brain request.')
+})
+
+it.each([null, 'harbor/reader', 'harbor/team/reader', `p/${'m'.repeat(198)}`])(
+  'passes reader model %s through IPC',
+  async (model) => {
+    const prefs = { enabled: true, recall: true, review: true, model }
+    await expect(call('brain:setPrefs', prefs)).resolves.toBe('saved')
+    expect(api.setPrefs).toHaveBeenLastCalledWith(prefs)
+  },
+)
+it.each([
+  '-harbor/reader',
+  'harbor/read er',
+  'harbor/reader\n',
+  'harbor/rea\u0000der',
+  'harbor/rea\u007fder',
+  'harbor/rea\u0085der',
+  'reader',
+  '/reader',
+  'harbor/',
+  '',
+  `p/${'m'.repeat(199)}`,
+  7,
+  false,
+  {},
+  undefined,
+])('refuses invalid reader model %j at the handler', async (model) => {
+  api.setPrefs.mockClear()
+  await expect(
+    call('brain:setPrefs', { enabled: true, recall: true, review: true, model }),
+  ).rejects.toThrow('Invalid Brain reader model')
+  expect(api.setPrefs).not.toHaveBeenCalled()
+})
+it('registers history/reread and refuses invalid limits before calling the service', async () => {
+  expect(handlers.has('brain:history')).toBe(true)
+  expect(handlers.has('brain:reread')).toBe(true)
+  for (const limit of [0, -1, 201, 1.5, NaN, Infinity, '10', null])
+    await expect(call('brain:history', limit)).rejects.toThrow('Invalid Brain history limit.')
+  for (const job of ['', null, 'x'.repeat(201)])
+    await expect(call('brain:reread', job)).rejects.toThrow('Invalid Brain request.')
 })

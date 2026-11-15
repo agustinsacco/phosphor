@@ -67,6 +67,7 @@ export class FakeBrainStore implements BrainStore {
       throw new Error('This lane is already queued.')
     const job: BrainJob = {
       ...input,
+      replaces: input.replaces ?? null,
       id: `job-${++this.next}`,
       state,
       memories: 0,
@@ -79,6 +80,25 @@ export class FakeBrainStore implements BrainStore {
     }
     this.jobs.push(job)
     return job
+  }
+  history(limit: number) {
+    const rows = this.jobs
+      .filter((j) => j.state === 'done')
+      .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))
+    return {
+      items: rows.slice(0, limit).map((job) => ({
+        job,
+        memories: this.laneMemories(job.sessionId).ids.length,
+        replaceable: this.laneMemories(job.sessionId).replaceable.length,
+      })),
+      more: rows.length > limit,
+    }
+  }
+  laneMemories(sessionId: string, exceptJobId?: string) {
+    const ids = this.oldMemories
+      .filter((m) => m.origin?.sessionId === sessionId && m.jobId !== exceptJobId)
+      .map((m) => m.id)
+    return { ids, replaceable: ids }
   }
   job(id: string): BrainJob | undefined {
     return this.jobs.find((j) => j.id === id)
@@ -161,6 +181,7 @@ export class FakeBrainStore implements BrainStore {
     return {
       job,
       revision: p.computedRevision,
+      replacingMemories: job.replaces ? this.laneMemories(job.sessionId, id).replaceable.length : 0,
       identities: p.entities.map((e) => ({ ...e, candidates: this.entityCards(e.candidates) })),
       groups: p.groups.map((g, index) => ({ ...g, index, labels: [] })),
       memories: p.memories.map((m, index) => ({

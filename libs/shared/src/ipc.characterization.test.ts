@@ -68,6 +68,8 @@ it('freezes every invoke key without a string index signature', () => {
 })
 const baselineScope = {
   'brain:status': 'app',
+  'brain:history': 'app',
+  'brain:reread': 'app',
   'brain:setPrefs': 'app',
   'brain:download': 'app',
   'brain:removeModel': 'app',

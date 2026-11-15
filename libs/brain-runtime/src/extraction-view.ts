@@ -41,7 +41,15 @@ export async function extractionView(
       return UNAVAILABLE
     }
   })
-  return { ...record, prompts, source }
+  const memories = store.laneMemories(record.sessionId)
+  return {
+    ...record,
+    prompts,
+    source,
+    job: store.job(jobId) ?? null,
+    replaceable: memories.replaceable.length,
+    laneMemories: memories.ids.length,
+  }
 }
 function promptFor(
   store: BrainStore,

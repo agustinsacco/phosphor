@@ -3,6 +3,8 @@ import type { IpcInvokeChannel } from './ipc'
 /** Classification only. Remote routing is added by each feature's owner. */
 export const IPC_SCOPE = {
   'brain:status': 'app',
+  'brain:history': 'app',
+  'brain:reread': 'app',
   'brain:setPrefs': 'app',
   'brain:download': 'app',
   'brain:removeModel': 'app',

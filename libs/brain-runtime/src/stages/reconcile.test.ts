@@ -287,3 +287,36 @@ it('keeps the first valid reconciliation row and ignores invalid rows and later 
   expect(ask.spy).toHaveBeenCalledOnce()
   expect(j.claims[0]!.memory).toMatchObject({ action: 'add', reason: 'First valid', target: null })
 })
+
+it('never offers excluded reread memories from link/entity or vector candidates', async () => {
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch()
+  store.oldMemories = [
+    old('Harbor bills weekly.'),
+    { ...old('Ledger bills monthly.'), id: 'other' },
+  ]
+  store.matchesMemory = [['old', 'other']]
+  search.memoryNeighbours = [
+    [
+      { id: 'old', score: 1 },
+      { id: 'other', score: 0.9 },
+    ],
+  ]
+  const ask = trackAsk(async (_s, _p, _prompt, validate) =>
+    validate(
+      JSON.stringify({
+        decisions: [{ ref: 'c1', action: 'add', target: null, reason: 'New read' }],
+      }),
+    ),
+  )
+  const j = job([memory('Harbor bills weekly.')])
+  const confirmations = await reconcile(j, [], store, search, [new Float32Array([1])], ask.ask, [
+    'old',
+  ])
+  expect(confirmations).toEqual([])
+  expect(j.claims).toHaveLength(1)
+  expect(ask.spy).toHaveBeenCalledOnce()
+  const input = ask.spy.mock.calls[0]![2]
+  expect(input).not.toContain('"id":"old"')
+  expect(input).toContain('"id":"other"')
+})
