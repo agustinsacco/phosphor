@@ -32,7 +32,11 @@ export function useExplorer(active = true) {
     [clearPanels],
   )
   useEffect(() => {
-    if (!active) return
+    if (!active) {
+      // The search field unmounts on Lanes; its shortcut guard must reset with it.
+      setQuery('')
+      return
+    }
     const keyboard = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement
       if (
