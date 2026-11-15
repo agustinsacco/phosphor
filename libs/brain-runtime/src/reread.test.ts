@@ -15,7 +15,7 @@ async function setup() {
   cleanup.push(s.cleanup)
   const path = join(s.directory, 'brain.sqlite')
   const store = openBrainStore({ path, Database: DatabaseSync })
-  store.setPrefs({ enabled: true, recall: true, review: true })
+  store.setPrefs({ enabled: true, recall: true, review: true, model: null })
   const service = await createBrainService({ ...s.options, openStore: () => store })
   cleanup.push(() => service.dispose())
   const search = openBrainSearch({ path, Database: DatabaseSync })
@@ -50,7 +50,7 @@ it.each([true, false])(
     expect(before.job?.state).toBe('done')
     const oldIds = s.recall()
     expect(oldIds).toHaveLength(1)
-    s.store.setPrefs({ enabled: true, recall: true, review })
+    s.store.setPrefs({ enabled: true, recall: true, review, model: null })
     vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
     const queued = await s.service.api.reread(s.first.id)
     const next = queued.jobs[0]!

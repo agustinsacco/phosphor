@@ -117,7 +117,7 @@ it('reopens v5 unchanged and refuses newer databases without resetting them', ()
   const path = join(dir, 'brain.sqlite')
   try {
     const first = openBrainStore({ path, Database: DatabaseSync })
-    first.setPrefs({ enabled: true, recall: false, review: false })
+    first.setPrefs({ enabled: true, recall: false, review: false, model: null })
     const before = first.snapshot()
     first.close()
     const current = openBrainStore({ path, Database: DatabaseSync })
