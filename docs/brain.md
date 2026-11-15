@@ -71,24 +71,31 @@ A job calls extract, links, identity and reconcile. Each call's validated output
 step, keyed by a hash of its input, so a retry or restart reuses it:
 
 1. **Extract**, once per part. The model sees the conversation, the entities this job already
-   knows (`r1…`), and the claim sentences kept from earlier parts. It keeps a claim only if a
-   future session would act differently, could not find it in about a minute in code, git,
-   issues or docs, and it will probably still hold in a month or records a decision with its
-   reason. When in doubt, it leaves the claim out. Zero to ten claims is normal; an empty answer
-   is valid. Each part keeps at most 25 claims. Extra claims are dropped with a recorded reason.
-   Preferences and user corrections matter most. Decisions include reasons and rejected options
-   when stated. Other claims cover durable ownership, outside-system quirks, non-obvious reusable
-   procedures, remaining risks and questions for a named person or team. Status, one-off events,
-   pull requests, code facts, unaccepted proposals, corrected statements, generic advice, secrets
-   and contact details do not pass.
+   knows (`r1…`), and the claim sentences kept from earlier parts. The prompt assumes any work
+   session, not only a coding one. Both speakers are evidence: the user's messages are
+   first-hand, and the assistant's replies report what it found in code, data, documents and
+   tools. Only the assistant's account of its own work is skipped. A claim is kept if a future
+   session would act differently, it would take real digging to learn again, and it will
+   probably still hold in a month or records a decision with its reason. Each part keeps every
+   claim that passes, up to 25; an empty answer is valid only when nothing passes. Extra claims
+   are dropped with a recorded reason. No kind of claim ranks first. The model looks for people
+   and structure (who is on which team, who leads, owns or decides what, which customer a
+   project is for), how systems, vendors, data and customers behave, decisions with reasons,
+   preferences and corrections, reusable procedures, remaining risks and open questions for a
+   named person or team. A standing role passes; a ticket event does not. Status, one-off
+   events, near-term dates, pull requests, code facts, file paths, the assistant's work log,
+   instructions for one task, unaccepted proposals, corrected statements, generic advice,
+   personal matters about a person (health, family, pay, performance, conduct), secrets and
+   contact details do not pass.
    It returns lasting entities (`n1…`), self-contained claims (`c1…`) with one or two quotes,
    typed links with their own quotes, and parent assessments for new projects, components,
    documents and teams. A stated parent needs a kept structural link whose subject is that entity.
    Missing or invalid parent assessments mean not stated. People are humans, never agents or bots.
    Pull requests, tickets, commits, branches and files are not entities. The model is asked for
    every lasting relationship the conversation shows between a kept claim's entities. A link
-   sits on a claim that mentions both ends, and its quote may come from any segment. The answer
-   rules are repeated after the conversation, because a long one buries them.
+   sits on a claim that mentions both ends, and its quote may come from any segment. A person is
+   linked only for a real role, never to a tool they merely use. The answer rules are repeated
+   after the conversation, because a long one buries them.
 2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
    more entities, those entities, existing links and short excerpts around each claim's quotes.
    Each excerpt stays in its segment, stops at an elision marker and adds at most 600 characters
@@ -121,8 +128,8 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
 Parsing drops the smallest invalid item and records why. A bad entity or claim cannot fail a
 lane. A bad link is dropped while its claim and known endpoint mentions remain. The first valid
 ref wins. Quotes match exactly in the cited segment, then any segment, then with flexible
-whitespace and straight/curly quotation marks, by a linear search. Flexible matches store the
-source's own substring.
+whitespace, straight/curly quotation marks and no Markdown emphasis marks (`*`, backticks), by a
+linear search. Flexible matches store the source's own substring.
 Every quote stays within one unelided span. Only unusable JSON or missing entity/claim arrays (or the links array in a links call)
 gets one repair call; a second unusable answer fails visibly.
 
