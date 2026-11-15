@@ -152,7 +152,18 @@ offers Copy but no chat code-block actions (Open as artifact, Run in terminal),
 here and in Machine files. New lanes and existing
 lane composers accept any file, as Desktop's Host lanes do: images go inline and
 other files upload to the Host before the prompt, which names their Host path. A
-reload drops a pending attachment. The start screen's Repository menu offers Add
+reload drops a pending attachment. Clicking a pending image opens the shared
+canvas annotator, independent of native file editing. On a phone it fills the
+screen with a touch toolbar, undo, Done and Cancel; drawing never scrolls the
+page. The flattened PNG replaces the chip (or is added beside it), with editable
+layers kept only in memory. Clipboard image read/write channels are browser-local,
+never Host requests: image copies use PNG, converting other formats on a canvas;
+clipboard reads are best-effort and report refusals or an empty image clipboard.
+Wide browsers keep right-click copy. Phone images use a long-press sheet without
+right-click hints. The browser lightbox and that sheet offer Copy image where
+the API exists (permission is still browser-controlled) and Save image, an
+original-byte download served as an octet stream, never navigated to as content.
+The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
 and adds folders under the Host's home over the same Host connection
 (`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through

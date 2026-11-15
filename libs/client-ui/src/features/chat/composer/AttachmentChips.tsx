@@ -1,4 +1,3 @@
-import { usePlatform } from '@/platform/Platform'
 import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import { ChatImage } from '../ChatImage'
@@ -22,7 +21,6 @@ export function AttachmentChips({
   onRemove: (index: number) => void
   onEdit: (index: number, image: PendingImage, replace: boolean) => boolean
 }): React.JSX.Element | null {
-  const platform = usePlatform()
   const [editing, setEditing] = useState<number | null>(null)
   if (attachments.length === 0) return null
   const edited = editing === null ? undefined : attachments[editing]
@@ -34,7 +32,7 @@ export function AttachmentChips({
             <ChatImage
               image={{ type: 'image', data: attachment.data, mimeType: attachment.mimeType }}
               className="border-border h-16 w-16 rounded-lg border object-cover"
-              onOpen={platform.fileEditing ? () => setEditing(index) : undefined}
+              onOpen={() => setEditing(index)}
             />
           ) : (
             <div

@@ -174,12 +174,8 @@ export const IPC_WEB = {
   ),
   'app:openExternal': browser,
   'app:notify': unsupported('Native notifications require Desktop.'),
-  'clipboard:writeImage': unsupported(
-    'Native file and image clipboard integration is unavailable in the browser.',
-  ),
-  'clipboard:readImage': unsupported(
-    'Native file and image clipboard integration is unavailable in the browser.',
-  ),
+  'clipboard:writeImage': browser,
+  'clipboard:readImage': browser,
   'clipboard:writeFiles': unsupported(
     'Native file and image clipboard integration is unavailable in the browser.',
   ),

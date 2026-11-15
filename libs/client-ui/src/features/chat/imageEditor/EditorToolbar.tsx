@@ -76,7 +76,7 @@ const TEXT_BUTTON =
   'text-text-secondary hover:text-text hover:bg-bg-secondary rounded-md px-2 py-1 text-base'
 
 function Divider(): React.JSX.Element {
-  return <div className="bg-border mx-1 h-5 w-px" />
+  return <div className="image-editor-divider bg-border mx-1 h-5 w-px" />
 }
 
 function ActionButton(props: {
@@ -97,6 +97,35 @@ function ActionButton(props: {
     >
       {glyph(props.icon)}
     </TooltipButton>
+  )
+}
+
+function ToolButtons({
+  tool,
+  onTool,
+}: {
+  tool: Tool
+  onTool: (tool: Tool) => void
+}): React.JSX.Element {
+  return (
+    <div className="image-editor-tools flex items-center gap-0.5">
+      {TOOLS.map(({ tool: value, key, label, icon }) => (
+        <TooltipButton
+          key={value}
+          type="button"
+          aria-label={label}
+          aria-pressed={tool === value}
+          title={`${label} (${key.toUpperCase()})`}
+          onClick={() => onTool(value)}
+          className={clsx(
+            iconButtonClass,
+            tool === value && 'bg-bg-secondary text-text ring-border-strong ring-1',
+          )}
+        >
+          {icon}
+        </TooltipButton>
+      ))}
+    </div>
   )
 }
 
@@ -122,60 +151,49 @@ export function EditorToolbar(props: {
       role="toolbar"
       aria-label="Annotation tools"
     >
-      {TOOLS.map(({ tool, key, label, icon }) => (
-        <TooltipButton
-          key={tool}
-          type="button"
-          aria-label={label}
-          aria-pressed={props.tool === tool}
-          title={`${label} (${key.toUpperCase()})`}
-          onClick={() => props.onTool(tool)}
-          className={clsx(
-            iconButtonClass,
-            props.tool === tool && 'bg-bg-secondary text-text ring-border-strong ring-1',
-          )}
-        >
-          {icon}
-        </TooltipButton>
-      ))}
+      <ToolButtons tool={props.tool} onTool={props.onTool} />
       <Divider />
-      {COLORS.map((c) => (
-        <TooltipButton
-          key={c}
-          type="button"
-          aria-label={`Colour ${c}`}
-          aria-pressed={props.color === c}
-          onMouseDown={keepFocus}
-          onClick={() => props.onColor(c)}
-          className="flex h-8 w-7 items-center justify-center"
-        >
-          <span
-            style={{ background: c }}
-            className={clsx(
-              'border-border-strong h-4.5 w-4.5 rounded-full border',
-              props.color === c && 'ring-accent ring-2 ring-offset-1',
-            )}
-          />
-        </TooltipButton>
-      ))}
+      <div className="image-editor-colors">
+        {COLORS.map((c) => (
+          <TooltipButton
+            key={c}
+            type="button"
+            aria-label={`Colour ${c}`}
+            aria-pressed={props.color === c}
+            onMouseDown={keepFocus}
+            onClick={() => props.onColor(c)}
+            className="flex h-8 w-7 items-center justify-center"
+          >
+            <span
+              style={{ background: c }}
+              className={clsx(
+                'border-border-strong h-4.5 w-4.5 rounded-full border',
+                props.color === c && 'ring-accent ring-2 ring-offset-1',
+              )}
+            />
+          </TooltipButton>
+        ))}
+      </div>
       <Divider />
-      {(['S', 'M', 'L'] as const).map((s, i) => (
-        <TooltipButton
-          key={s}
-          type="button"
-          aria-label={`Size ${s}`}
-          aria-pressed={props.size === s}
-          title={['Thin', 'Medium', 'Thick'][i]}
-          onMouseDown={keepFocus}
-          onClick={() => props.onSize(s)}
-          className={clsx(iconButtonClass, props.size === s && 'bg-bg-secondary text-text')}
-        >
-          <span
-            className="rounded-full bg-current"
-            style={{ width: 4 + i * 4, height: 4 + i * 4 }}
-          />
-        </TooltipButton>
-      ))}
+      <div className="image-editor-sizes">
+        {(['S', 'M', 'L'] as const).map((s, i) => (
+          <TooltipButton
+            key={s}
+            type="button"
+            aria-label={`Size ${s}`}
+            aria-pressed={props.size === s}
+            title={['Thin', 'Medium', 'Thick'][i]}
+            onMouseDown={keepFocus}
+            onClick={() => props.onSize(s)}
+            className={clsx(iconButtonClass, props.size === s && 'bg-bg-secondary text-text')}
+          >
+            <span
+              className="rounded-full bg-current"
+              style={{ width: 4 + i * 4, height: 4 + i * 4 }}
+            />
+          </TooltipButton>
+        ))}
+      </div>
       <Divider />
       <ActionButton
         label="Undo"
