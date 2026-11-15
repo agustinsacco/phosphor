@@ -27,10 +27,14 @@ it('extracts windows, resolves, embeds and proposes with progress, summed usage 
   expect(p.memoryVectors).toHaveLength(1)
   expect(s.store.job(s.job.id)).toMatchObject({
     state: 'review',
-    usage: { tokens: 20, cost: 0 },
+    usage: { tokens: 30, cost: 0 },
     progress: { stage: 'embed', done: 1, total: 1 },
   })
-  expect(s.store.extraction(s.job.id).calls.map((c) => c.stage)).toEqual(['extract', 'identity'])
+  expect(s.store.extraction(s.job.id).calls.map((c) => c.stage)).toEqual([
+    'extract',
+    'links',
+    'identity',
+  ])
   expect(s.store.extraction(s.job.id).outcomes).toContainEqual(
     expect.objectContaining({ candidate: 'w1:c1', status: 'kept' }),
   )
@@ -45,7 +49,12 @@ it('unusable envelope triggers one repair; a second invalid answer visibly fails
     usage: { tokens: 7, cost: 0 },
   }))
   await extractJob(s.job, signal(), s.store, s.options, s.search)
-  expect(s.runner.mock.calls.map(([c]) => c.stage)).toEqual(['extract', 'repair', 'identity'])
+  expect(s.runner.mock.calls.map(([c]) => c.stage)).toEqual([
+    'extract',
+    'repair',
+    'links',
+    'identity',
+  ])
   expect(s.runner.mock.calls[1]![0].prompt).toContain('Expected an array')
   expect(s.store.storedProposal(s.job.id)!.memories[0]!.links[0]!.predicate).toBe('owns')
   expect(s.store.extraction(s.job.id).calls[0]!.error).toContain('Expected an array')

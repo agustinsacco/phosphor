@@ -88,6 +88,26 @@ function entity(value: unknown): StageEntity {
   }
 }
 
+/** Shared endpoint-kind and source-quote checks for extraction and the links pass. */
+export function parseLink(
+  value: unknown,
+  kinds: Map<string, BrainEntityKind>,
+  window: TranscriptWindow,
+  within?: ReadonlySet<string>,
+): StageLink {
+  const l = object(value)
+  const subject = text(l.subject),
+    target = text(l.object)
+  for (const id of [subject, target])
+    if (!kinds.has(id)) throw new Error(`Unknown entity ref: ${id}`)
+  if (subject === target) throw new Error('A relationship cannot link an entity to itself')
+  const predicate = vocabulary(l.predicate, BRAIN_PREDICATES)
+  const rule = BRAIN_LINK_RULES[predicate]
+  if (!rule.subject.includes(kinds.get(subject)!) || !rule.object.includes(kinds.get(target)!))
+    throw new Error(`Invalid endpoint kinds for ${predicate}`)
+  return { subject, object: target, predicate, ...verifiedQuote(l, window, within) }
+}
+
 function claim(
   value: unknown,
   kinds: Map<string, BrainEntityKind>,
@@ -115,14 +135,7 @@ function claim(
       const l = object(v)
       for (const endpoint of [l.subject, l.object])
         if (typeof endpoint === 'string' && kinds.has(endpoint)) mentions.add(endpoint)
-      const subject = known(l.subject),
-        target = known(l.object)
-      if (subject === target) throw new Error('A relationship cannot link an entity to itself')
-      const predicate = vocabulary(l.predicate, BRAIN_PREDICATES)
-      const rule = BRAIN_LINK_RULES[predicate]
-      if (!rule.subject.includes(kinds.get(subject)!) || !rule.object.includes(kinds.get(target)!))
-        throw new Error(`Invalid endpoint kinds for ${predicate}`)
-      return { subject, object: target, predicate, ...verifiedQuote(l, window) }
+      return parseLink(l, kinds, window)
     },
     () => id,
     outcomes,
@@ -238,7 +251,7 @@ function candidate(label: string, namespace: string) {
     }
   }
 }
-function tolerant<T>(
+export function tolerant<T>(
   values: unknown[],
   parse: (value: unknown, index: number) => T,
   candidate: (value: unknown, index: number) => string,

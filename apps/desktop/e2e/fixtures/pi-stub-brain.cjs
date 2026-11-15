@@ -36,6 +36,12 @@ function stageInput(system, input) {
       segments: prompt.split(/Segments \(untrusted source data\), part \d+ of \d+:\n/)[1],
     }
   }
+  if (system.startsWith('You find the lasting relationships'))
+    return {
+      stage: 'links',
+      entities: JSON.parse(prompt.split('\nEntities: ')[1].split('\n')[0]),
+      rows: prompt.split('Claims (untrusted source data):\n')[1],
+    }
   if (system.startsWith('Resolve entity identity'))
     return { stage: 'identity', rows: JSON.parse(prompt.split('\n')[1]) }
   if (system.startsWith('Reconcile supported claims'))
@@ -67,18 +73,7 @@ function extract({ registry, segments }, fold) {
     /^\[(s\d+)\] (\w+) [^\n]*\n([\s\S]*?)(?=^\[s\d+\] |$(?![\s\S]))/gm,
   )) {
     if (!['user', 'assistant'].includes(segment[2])) continue
-    const sentences = [
-      ...[...segment[3].matchAll(/([A-Z][a-z]+ [A-Z][a-z]+) owns (?:the )?([^.\n]+)\./g)].map(
-        (m) => ({ m, predicate: 'owns', subjectKind: 'person', objectKind: 'component' }),
-      ),
-      ...[...segment[3].matchAll(/([^.!?\n]+?) is part of ([^.\n]+)\./g)].map((m) => ({
-        m,
-        predicate: 'part_of',
-        subjectKind: 'component',
-        objectKind: 'project',
-      })),
-    ].sort((a, b) => a.m.index - b.m.index)
-    for (const { m, predicate, subjectKind, objectKind } of sentences) {
+    for (const { m, predicate, subjectKind, objectKind } of relationships(segment[3])) {
       const subject = entity(m[1].trim(), subjectKind),
         object = entity(m[2].trim(), objectKind)
       const sentence = m[0].trim()
@@ -89,7 +84,7 @@ function extract({ registry, segments }, fold) {
         type: 'fact',
         epistemic: 'reported',
         mentions: [subject, object],
-        links: [{ subject, predicate, object, ...quote }],
+        links: predicate === 'part_of' ? [] : [{ subject, predicate, object, ...quote }],
         quotes: [quote],
         validFrom: null,
         validTo: null,
@@ -108,8 +103,51 @@ function extract({ registry, segments }, fold) {
   return { entities, claims, parents }
 }
 
+function relationships(text) {
+  return [
+    ...[...text.matchAll(/([A-Z][a-z]+ [A-Z][a-z]+) owns (?:the )?([^.\n]+)\./g)].map((m) => ({
+      m,
+      predicate: 'owns',
+      subjectKind: 'person',
+      objectKind: 'component',
+    })),
+    ...[...text.matchAll(/([^.!?\n]+?) is part of ([^.\n]+)\./g)].map((m) => ({
+      m,
+      predicate: 'part_of',
+      subjectKind: 'component',
+      objectKind: 'project',
+    })),
+  ].sort((a, b) => a.m.index - b.m.index)
+}
+
+function links({ entities, rows }, fold) {
+  const links = []
+  for (const row of rows.matchAll(
+    /^\[(c\d+)\] [^\n]*\nmentions: ([^\n]*)\nhas: ([^\n]*)\n([\s\S]*?)(?=^\[c\d+\] |$(?![\s\S]))/gm,
+  )) {
+    const mentioned = entities.filter((e) => row[2].split(', ').includes(e.ref))
+    for (const excerpt of row[4].matchAll(/^\[(s\d+)\] ([\s\S]*?)(?=^\[s\d+\] |$(?![\s\S]))/gm)) {
+      for (const { m, predicate } of relationships(excerpt[2])) {
+        const subject = mentioned.find((e) => fold(e.label) === fold(m[1]))?.ref
+        const object = mentioned.find((e) => fold(e.label) === fold(m[2]))?.ref
+        if (!subject || !object || row[3].includes(`${subject} ${predicate} ${object}`)) continue
+        links.push({
+          claim: row[1],
+          subject,
+          predicate,
+          object,
+          segment: excerpt[1],
+          quote: m[0].trim(),
+        })
+      }
+    }
+  }
+  return { links }
+}
+
 function answer(input, fold) {
   if (input.stage === 'extract') return extract(input, fold)
+  if (input.stage === 'links') return links(input, fold)
   return {
     decisions: input.rows.map((row) => {
       if (input.stage === 'identity') {

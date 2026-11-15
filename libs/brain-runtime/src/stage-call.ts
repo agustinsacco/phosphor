@@ -8,6 +8,7 @@ import { inputHash } from './windows'
 import { extractionAnswer } from './extraction-record'
 import type { ExtractionRecord } from './extraction-record'
 import { EXTRACTION_SYSTEM } from './stage-prompts/extract'
+import { LINKS_SYSTEM } from './stage-prompts/links'
 import { IDENTITY_SYSTEM } from './stage-prompts/identity'
 import { RECONCILE_SYSTEM } from './stage-prompts/reconcile'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
@@ -16,6 +17,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 const SYSTEM = {
   extract: EXTRACTION_SYSTEM,
+  links: LINKS_SYSTEM,
   identity: IDENTITY_SYSTEM,
   reconcile: RECONCILE_SYSTEM,
 }
@@ -133,11 +135,11 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
     }
   }
   return async (stage, _part, prompt, validate, entryIds = [], metadata: StageInput = {}) => {
-    // Extraction checkpoints its own parsed parts; these two stages keep the accepted answer, so
+    // Extract and links checkpoint their parsed parts; decision stages keep the accepted answer, so
     // a Retry never asks again for decisions it already has. A changed prompt is a new question,
     // and so is the same prompt once the store has moved on.
     const hash = inputHash(prompt)
-    const key = stage === 'extract' ? null : `answer:${stage}:${hash}`
+    const key = stage === 'extract' || stage === 'links' ? null : `answer:${stage}:${hash}`
     const against = `${store.revision()}:${hash}`
     const accept = <T>(answer: string, value: T): T => {
       if (key && scrubExcerpt(answer) === answer)

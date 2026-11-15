@@ -89,7 +89,18 @@ async function directedGraph(page: Page, firstJob: string) {
     (id) => window.phosphor.invoke('brain:extraction', id),
     firstJob,
   )
-  expect(extraction.calls.map((call) => call.stage)).toEqual(['extract', 'identity', 'reconcile'])
+  expect(extraction.calls.map((call) => call.stage)).toEqual([
+    'extract',
+    'links',
+    'identity',
+    'reconcile',
+  ])
+  const extracted = JSON.parse(extraction.calls.find((c) => c.stage === 'extract')!.answer)
+  expect(extracted.claims[1].links).toEqual([])
+  const linked = JSON.parse(extraction.calls.find((c) => c.stage === 'links')!.answer)
+  expect(linked.links).toContainEqual(
+    expect.objectContaining({ predicate: 'part_of', quote: 'Harbor ledger is part of Harbor.' }),
+  )
   const graph = await page.evaluate(() => window.phosphor.invoke('brain:overview'))
   const harbor = graph.nodes.find((e) => e.label === 'Harbor')!
   const rina = graph.nodes.find((e) => e.label === 'Rina Okafor')!

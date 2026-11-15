@@ -67,8 +67,8 @@ context-compression environment, so quotes match the source. The guard extension
 tool call. A call that takes longer than 600 seconds fails. Thinking is capped at `medium` for every
 call, never above the lane's own level.
 
-A job makes these calls; each one's validated output is saved as a step, keyed by a hash of its
-input, so a retry or restart reuses it:
+A job calls extract, links, identity and reconcile. Each call's validated output is saved as a
+step, keyed by a hash of its input, so a retry or restart reuses it:
 
 1. **Extract**, once per part. The model sees the conversation, the entities this job already
    knows (`r1…`), and the claim sentences kept from earlier parts. It keeps a claim only if a
@@ -89,16 +89,24 @@ input, so a retry or restart reuses it:
    every lasting relationship the conversation shows between a kept claim's entities. A link
    sits on a claim that mentions both ends, and its quote may come from any segment. The answer
    rules are repeated after the conversation, because a long one buries them.
-2. **Fold** (code). Claims with the same text and links merge their quotes; entities with the
+2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
+   more entities, those entities, existing links and short excerpts around each claim's quotes.
+   Each excerpt stays in its segment, stops at an elision marker and adds at most 600 characters
+   on each side. Overlapping excerpts merge. Links join two entities the claim already mentions,
+   obey the same endpoint-kind rules and need their own verified quote from a claim excerpt's
+   segment. Duplicate links are dropped. A new structural link can supply a previously unstated
+   parent. When no claim mentions two entities, this call is skipped. Its validated result has a
+   separate per-part checkpoint; the extraction checkpoint stays unchanged.
+3. **Fold** (code). Claims with the same text and links merge their quotes; entities with the
    same name merge within the lane. A person merges this way only on a full name.
-3. **Identity.** Each new entity gets up to 12 candidates: the store's exact keys, names and
+4. **Identity.** Each new entity gets up to 12 candidates: the store's exact keys, names and
    aliases, word and trigram matches, nearest entity vectors, and the job's other entities. A
    unique key match, or an exact name plus a shared neighbour, reuses the existing entity; a
    person is never reused on name alone. Anything else goes to the model in batches of eight:
    reuse a named candidate, new, or uncertain. Three or more entities sharing a leading name
    with no parent become a review question ("Are these part of one Harbor?"). No separate model
    call looks for parents.
-4. **Reconcile.** Each claim is compared with up to five existing memories: ones with the same
+5. **Reconcile.** Each claim is compared with up to five existing memories: ones with the same
    link, ones naming the same entities, and near vectors (cosine 0.7 or more), plus earlier
    claims from this lane. Earlier claims rank by same text, shared link pair, cosine at least
    0.7 (highest first), then shared entity. Paraphrases can match without shared entities.
@@ -106,7 +114,7 @@ input, so a retry or restart reuses it:
    assertion, nothing new), enrich (same assertion, new supported links), supersede, conflict,
    or resolve an open question. Within one lane, a later claim replaces an earlier one.
    Cosine offers candidates but never decides.
-5. **Propose.** At most 300 claims per job: structural links first, then decisions, risks and
+6. **Propose.** At most 300 claims per job: structural links first, then decisions, risks and
    open questions, then the rest; anything held back is recorded. New memories and entity cards
    are embedded and the proposal is stored with the store revision it was computed against.
 
@@ -115,7 +123,7 @@ lane. A bad link is dropped while its claim and known endpoint mentions remain. 
 ref wins. Quotes match exactly in the cited segment, then any segment, then with flexible
 whitespace and straight/curly quotation marks, by a linear search. Flexible matches store the
 source's own substring.
-Every quote stays within one unelided span. Only unusable JSON or missing entity/claim arrays
+Every quote stays within one unelided span. Only unusable JSON or missing entity/claim arrays (or the links array in a links call)
 gets one repair call; a second unusable answer fails visibly.
 
 Identity and reconcile keep valid decisions and ask once more for undecided rows alone. The

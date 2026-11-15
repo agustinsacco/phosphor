@@ -8,6 +8,11 @@ import { reconcilePrompt, RECONCILE_SYSTEM } from '@phosphor/brain-runtime/stage
 import { repairPrompt } from '@phosphor/brain-runtime/stage-call'
 import { makeWindow } from '@phosphor/brain-runtime/windows'
 import { parseStageExtraction } from '@phosphor/brain-runtime/stage-parse'
+import { LINKS_SYSTEM, linksPrompt } from '@phosphor/brain-runtime/stage-prompts/links'
+import { linksInput } from '@phosphor/brain-runtime/stage-links-input'
+import { parseStageLinks } from '@phosphor/brain-runtime/stage-links-parse'
+import { rebuildPrompt } from '@phosphor/brain-runtime/stage-input'
+import type { StageExtraction, Registry } from '@phosphor/brain-runtime/stage-types'
 import { scratchDir } from './scratch'
 
 const stub = resolve(import.meta.dirname, 'pi-stub.cjs')
@@ -87,6 +92,13 @@ async function call(
   }
 }
 
+async function stubLinks(extraction: StageExtraction, registry: Registry = [], source = window) {
+  const input = linksInput(extraction, registry, source, source.segments)
+  const result = await call(LINKS_SYSTEM, rebuildPrompt('links', { links: input }, source.segments))
+  expect(result.code).toBe(0)
+  return parseStageLinks(result.message.content[0].text, source, extraction, input).links
+}
+
 test('Brain stub reads stdin and system file, keeps handles and directed owner/parent quotes', async () => {
   const result = await call(EXTRACTION_SYSTEM, extractPrompt(window, []))
   expect(result.code).toBe(0)
@@ -96,7 +108,8 @@ test('Brain stub reads stdin and system file, keeps handles and directed owner/p
     'Rina Okafor owns Harbor ledger.',
     'Harbor ledger is part of Harbor.',
   ])
-  expect(answer.claims.map((c) => c.links[0])).toEqual([
+  const links = await stubLinks(answer)
+  expect([answer.claims[0]!.links[0], ...links.map(({ claim: _claim, ...link }) => link)]).toEqual([
     {
       subject: 'n1',
       predicate: 'owns',
@@ -113,7 +126,7 @@ test('Brain stub reads stdin and system file, keeps handles and directed owner/p
     },
   ])
   expect(answer.parents).toEqual([
-    { entity: 'n2', status: 'stated', claim: 'c2' },
+    { entity: 'n2', status: 'not_stated', claim: null },
     { entity: 'n3', status: 'not_stated', claim: null },
   ])
 })
@@ -228,8 +241,10 @@ test('Brain stub reuses registry handles for lower-case component sentences', as
   const answer = parseStageExtraction(result.message.content[0].text, source, registry)
   expect(answer.entities).toEqual([])
   expect(answer.claims).toHaveLength(1)
-  expect(answer.claims[0]!.links).toEqual([
+  expect(answer.claims[0]!.links).toEqual([])
+  expect(await stubLinks(answer, registry, source)).toEqual([
     {
+      claim: 'c1',
       subject: 'r1',
       predicate: 'part_of',
       object: 'r2',
@@ -260,3 +275,30 @@ for (const [stage, system, prompt] of [
     expect(repaired.message.content).toEqual(normal.message.content)
   })
 }
+
+test('Brain stub gets the parent link only from the small links call, including repair', async () => {
+  const extracted = await call(EXTRACTION_SYSTEM, extractPrompt(window, []))
+  const part = parseStageExtraction(extracted.message.content[0].text, window)
+  expect(part.claims[1]!.links).toEqual([])
+  const prompt = linksPrompt(
+    part.entities,
+    part.claims.map((c) => ({
+      ...c,
+      excerpts: c.quotes.map((q) => ({ segment: q.segment, text: q.quote })),
+    })),
+  )
+  const normal = await call(LINKS_SYSTEM, prompt)
+  expect(normal.code).toBe(0)
+  expect(JSON.parse(normal.message.content[0].text).links).toEqual([
+    {
+      claim: 'c2',
+      subject: 'n2',
+      predicate: 'part_of',
+      object: 'n3',
+      segment: 's3',
+      quote: 'Harbor ledger is part of Harbor.',
+    },
+  ])
+  const repaired = await call(LINKS_SYSTEM, repairPrompt(prompt, '{}', 'Expected links'))
+  expect(repaired.message.content).toEqual(normal.message.content)
+})

@@ -8,6 +8,7 @@ import { recallOptions } from './options'
 import { LANE_ENTRIES, RAW_EXTRACTION } from './lane'
 
 export function answerFor(input: ModelCallInput): string {
+  if (input.stage === 'links') return JSON.stringify({ links: [] })
   if (input.stage === 'extract' || input.stage === 'repair') return JSON.stringify(RAW_EXTRACTION)
   if (input.stage === 'identity') {
     const rows = JSON.parse(input.prompt.slice(input.prompt.indexOf('\n') + 1)) as {

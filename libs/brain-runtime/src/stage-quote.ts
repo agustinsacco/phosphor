@@ -3,14 +3,21 @@ import type { TranscriptWindow } from './windows'
 import { ELISION } from './constants'
 
 /** Flexible matches return the source substring, never a normalized replacement. */
-export function verifiedQuote(value: unknown, window: TranscriptWindow): StageQuote {
+export function verifiedQuote(
+  value: unknown,
+  window: TranscriptWindow,
+  /** Segment handles the quote may come from; every segment when omitted. */
+  within?: ReadonlySet<string>,
+): StageQuote {
   if (!value || typeof value !== 'object') throw new Error('Expected a quote object')
   const { quote, segment } = value as { quote?: unknown; segment?: unknown }
   if (typeof quote !== 'string' || !quote.trim()) throw new Error('Expected nonempty quote')
   if (typeof segment !== 'string' || !/^s[1-9]\d*$/.test(segment))
     throw new Error('Invalid segment ref')
   if (ELISION.test(quote)) throw new Error('A quote cannot contain an elision marker')
-  const spans = window.segments.map((s) => s.text.split(ELISION))
+  const spans = window.segments.map((s, i) =>
+    within && !within.has(`s${i + 1}`) ? [] : s.text.split(ELISION),
+  )
   const cited = Number(segment.slice(1)) - 1
   if (spans[cited]?.some((span) => span.includes(quote))) return { segment, quote }
   const exact = spans.findIndex((parts) => parts.some((span) => span.includes(quote)))
