@@ -8,7 +8,6 @@ import {
 } from '@/stores/remoteModelPicks'
 import type { ThinkingLevel } from '@shared/rpc'
 import type { MachineModel } from '@shared/host-protocol-machine'
-import { clampThinkingLevel } from '@shared/thinking'
 import { piStartDefaults } from '@/features/home/useLocalStartModel'
 import {
   useMachineCataloguesStore,
@@ -22,7 +21,10 @@ import {
   defaultRemoteModel,
   hostModelUnavailability,
   remoteModelExplanation,
+  remoteStartThinking,
   type ModelChoice,
+  type RemoteStartPreferences,
+  type StartPreference,
 } from './remoteModel'
 
 const NO_MODELS: MachineModel[] = []
@@ -35,7 +37,12 @@ export function useRemoteModel(hostId: string) {
   )
   const last = useRemoteModelPicks((s) => s.last[hostId])
   const rememberedThinking = useRemoteModelPicks((s) => s.thinking[hostId])
-  const defaults = useDesktopDefaults(hostId, generation)
+  const desktop = useDesktopDefaults(hostId, generation)
+  const preferences: RemoteStartPreferences = {
+    last: { model: last, thinking: rememberedThinking },
+    host: { model: catalogue.defaults?.model, thinking: catalogue.defaults?.thinkingLevel },
+    desktop,
+  }
   useEffect(() => {
     if (hostId) void useMachineCataloguesStore.getState().load(hostId)
   }, [hostId, generation])
@@ -46,9 +53,7 @@ export function useRemoteModel(hostId: string) {
     [models, providers, hostId],
   )
   const model =
-    host?.state === 'ready'
-      ? defaultRemoteModel(models, providers, last, defaults.model)
-      : undefined
+    host?.state === 'ready' ? defaultRemoteModel(models, providers, preferences) : undefined
   const missingModel = host?.state === 'ready' && catalogue.status === 'ready' && !model
   const hint = hostReconnecting(host?.state)
     ? 'Connecting…'
@@ -65,41 +70,35 @@ export function useRemoteModel(hostId: string) {
     model,
     models,
     unavailable,
-    explanation: model ? remoteModelExplanation(model, last, defaults.model) : hint,
+    explanation: model ? remoteModelExplanation(model, preferences) : hint,
     canRetry:
       host?.state === 'ready' &&
       host.capabilities.includes('skills.read') &&
       catalogue.status !== 'loading' &&
       !model,
     retry: () => useMachineCataloguesStore.getState().load(hostId, undefined, true),
-    thinking: model
-      ? clampThinkingLevel(model, rememberedThinking ?? defaults.thinking)
-      : ('off' as const),
+    thinking: model ? remoteStartThinking(model, preferences) : ('off' as const),
     setThinking: (level: ThinkingLevel) => rememberRemoteThinking(hostId, level),
     choose: (choice: ModelChoice) => rememberRemoteModel(hostId, choice),
   }
 }
 
-/** Native defaults are only a validated candidate, never a new Host wire contract. */
-function useDesktopDefaults(hostId: string, generation: number) {
+/** This Mac's pi defaults, a validated candidate after the Host's own; none in the browser. */
+function useDesktopDefaults(hostId: string, generation: number): StartPreference {
   const { localLanes } = usePlatform()
-  const [defaults, setDefaults] = useState<{ model?: ModelChoice; thinking: ThinkingLevel }>({
-    thinking: 'off',
-  })
+  const [defaults, setDefaults] = useState<StartPreference>({})
   useEffect(() => {
     let current = true
-    setDefaults({ thinking: 'off' })
+    setDefaults({})
     if (!hostId || !localLanes) return
     void window.phosphor
       .invoke('pi:agentSettings')
       .then((settings) => {
         if (!current) return
-        const { provider, model, thinking = 'off' } = piStartDefaults(settings)
-        setDefaults({
-          model:
-            provider !== undefined && model !== undefined ? { provider, id: model } : undefined,
-          thinking,
-        })
+        const { provider, model, thinking } = piStartDefaults(settings)
+        const choice: ModelChoice | undefined =
+          provider !== undefined && model !== undefined ? { provider, id: model } : undefined
+        setDefaults({ model: choice, thinking })
       })
       .catch(() => undefined)
     return () => {
