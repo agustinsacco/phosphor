@@ -5,32 +5,15 @@ import { join, dirname, basename, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 
-// Close-ups of one control each, cut from the full captures above so they stay
-// real sessions. Rects are in the captures' 2880×1840 pixels.
-export const crops = {
-  'models-picker': { from: 'models', left: 936, top: 444, width: 1008, height: 950 },
-  'context-meter': { from: 'context', left: 1006, top: 614, width: 912, height: 1086 },
-}
-
-export async function cropShots(outDir) {
-  for (const [name, { from, ...rect }] of Object.entries(crops)) {
-    const out = join(outDir, `${name}.webp`)
-    await sharp(join(outDir, `${from}.webp`))
-      .extract(rect)
-      .webp({ quality: 90, effort: 6 })
-      .toFile(out)
-    console.log(`  ✓ ${name}.webp  cut from ${from}.webp`)
-  }
-}
-
+// Close-ups are captured from actual popup bounds, not fixed historical coordinates.
+// Supply models-picker.png and context-meter.png alongside full-window captures.
 export async function importShots(rawDir, outDir) {
   const files = (await readdir(rawDir)).filter((file) => extname(file) === '.png').sort()
   if (files.length === 0) throw new Error(`No .png captures in ${rawDir}`)
   await mkdir(outDir, { recursive: true })
   for (const file of files) {
     const name = basename(file, '.png')
-    // The centrepiece remains the original PNG. Astro derives display sizes;
-    // don't silently replace it with a recompressed or differently named session.
+    // This filename and PNG format are part of the deployment contract.
     if (name === 'ide-flex') {
       await copyFile(join(rawDir, file), join(outDir, file))
       console.log(`  ✓ ${file} — original preserved`)
@@ -42,7 +25,6 @@ export async function importShots(rawDir, outDir) {
       `  ✓ ${name}.webp  ${info.width}×${info.height}  ${Math.round(info.size / 1024)} KB`,
     )
   }
-  await cropShots(outDir)
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

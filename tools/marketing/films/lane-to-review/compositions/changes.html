@@ -1,0 +1,59 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="changes" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i><b id="changes-fill"></b></i><i></i><i></i><i></i>
+      </div>
+      <p class="step">1 of 4 · Read</p>
+      <div class="copy">
+        <h2 id="changes-title" class="title clip" data-start="0.1" data-duration="4.8">
+          <span class="in">Then check <em>Changes</em></span>
+        </h2>
+        <div class="subs">
+          <p id="changes-sub" class="sub clip" data-start="0.7" data-duration="4.2">
+            <span class="in">The files its tools touched, before you call the work finished.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="changes-pan" class="pan">
+        <div id="changes-cam" class="cam">
+          <img class="plate" src="assets/shots/chat.png" alt="" />
+          <img id="changes-open" class="plate next" src="assets/shots/changes.png" alt="" />
+          <div
+            id="changes-ring"
+            class="ring"
+            style="left: 836px; top: 97px; width: 750px; height: 30px"
+          ></div>
+          <img id="changes-cursor" class="cursor" src="assets/cursor.svg" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#changes-cam')
+      const cursor = PX.cursor(tl, '#changes-cursor')
+      cam.cut([820, 0, 780, 420])
+      cursor.cut([1466, 26]).press(0.2)
+      PX.swap(tl, '#changes-open', 0.2)
+      cam.move([828, 44, 764, 330], 0.5, 1.4)
+      cursor.move([1220, 330], 0.6, 0.9)
+      PX.ring(tl, '#changes-ring', 1.9, 4.3)
+      PX.whipOut(tl, '#changes-pan', 4.9)
+      PX.title(tl, '#changes-title .in', 0.2, 4.9)
+      PX.line(tl, '#changes-sub .in', 0.8, 4.9)
+      PX.draw(tl, '#changes-fill', 0, 4.9, 0.5, 1)
+      window.__timelines['changes'] = tl
+    })()
+  </script>
+</template>

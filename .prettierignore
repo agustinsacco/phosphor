@@ -23,3 +23,9 @@ apps/site/public/fonts/
 
 # Per-worktree Nx state (never shared or committed).
 .nx/
+
+# Generated local film assets and Hyperframes caches.
+tools/marketing/films/*/assets/
+tools/marketing/films/*/.hyperframes/
+tools/marketing/films/*/.thumbnails/
+tools/marketing/.work/

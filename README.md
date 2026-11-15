@@ -6,11 +6,11 @@
 
 # Phosphor
 
-**One mission. Many agents. Your IDE.** Phosphor is the open-source multi-agent
-IDE built on the [pi coding agent](https://pi.dev), for macOS and Linux (Windows builds are paused and will return).
-Run independent tasks in isolated lanes, delegate focused pieces inside a lane,
-and stay close to every decision, diff and result. Pi stays the small, extensible
-harness underneath: tools, model providers and skills install as pi packages.
+**Your work. In context.** Phosphor is an open-source workspace for coding
+agents, built on the [pi coding agent](https://pi.dev). Run independent lanes,
+inspect changes and delegated work, keep reviewed knowledge with Brain, and
+reach your own machines from Desktop or the Host-backed PWA. Desktop releases
+currently target macOS and Linux; Windows builds are paused.
 
 [![Website](https://img.shields.io/badge/phosphor.saccolabs.com-eca03d?label=web&labelColor=1e1c18)](https://phosphor.saccolabs.com)
 [![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
@@ -30,18 +30,19 @@ Google Gemini and Vertex, Azure OpenAI, Amazon Bedrock, Mistral, Groq,
 Cerebras, xAI, OpenRouter, and the Cloudflare and Vercel gateways. Switch
 models mid-session and the conversation comes along.
 
-|                                        |                                                        |
-| -------------------------------------- | ------------------------------------------------------ |
-| **One lane per task**                  | Its own agent, worktree and diff                       |
-| **Every change is reviewable**         | Tool calls with their output, diffs, per-file revert   |
-| **Every session is a real pi process** | Your pi setup, extensions and session files carry over |
-| **Runs on your machine**               | MIT licensed, no sign-up, your models and keys         |
+|                                        |                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| **One lane per task**                  | Its own agent, worktree and diff                                               |
+| **Every change is reviewable**         | Tool calls with their output, diffs, per-file revert                           |
+| **Every session is a real pi process** | Your pi setup, extensions and session files carry over                         |
+| **Your execution machines**            | Local Desktop needs no sign-up; enrolled Hosts use private Tailscale transport |
 
-![Curated Remote Hosts replay: four workstreams and a scoped parent decision in the Subagents pane](apps/site/src/assets/shots/remote-hosts.webp)
+![Phosphor’s workbench with fictional parallel lanes and project activity](apps/site/src/assets/shots/home.webp)
 
-_Recorded work, curated replay in the real UI. Excerpts shortened and task labels
-expanded; private paths and unrelated projects omitted. Historical activity, not
-a live run. [Case study and capture provenance](https://phosphor.saccolabs.com/guides/swarm/#case-study)._
+_Product demo · fictional data. All refreshed product screenshots use public-safe
+fixtures in the actual UI, not private sessions or live model runs.
+[Watch the walkthroughs](https://phosphor.saccolabs.com/watch/) ·
+[Setup guides](https://phosphor.saccolabs.com/guides/)._
 
 ## Quick start
 
@@ -75,10 +76,11 @@ terminal and use `/login`, or put API keys / a local endpoint in
   calls run and stream their results. Want confirmations? Install a
   permission-gate extension and Phosphor shows its questions as a review sheet
   ([optional gate](docs/extensions.md#optional-permission-gate-and-scratch-cleanup)).
-- **Local routines.** Save instructions, choose a workspace/model and a preset or
-  cron schedule, and get a fresh lane per run. Persistent history, catch-up,
-  cancellation, and optional background operation. Runs only while the computer
-  is awake, and agents keep full tool permissions. [Routines](docs/routines.md).
+- **Routines on the execution machine.** Save instructions, a folder/model and a
+  schedule for a fresh lane per run, with durable history, catch-up and cancellation.
+  Local runs need Desktop; Host schedules can run with clients closed. The execution
+  machine must be awake and its runtime running. Enable unattended full tool access
+  deliberately. [Routines](docs/routines.md).
 - **Rich responses are first-class.** GFM markdown, highlighted code, Mermaid,
   Chart.js and Vega-Lite specs, KaTeX, and model-authored HTML in a sandboxed
   iframe.
@@ -107,7 +109,8 @@ The **Swarm** switch grants per-lane standing authorization for proactive
 delegation when useful. It does not itself launch agents, assign models or widen
 permissions. Off removes that authorization from future requests, not existing
 children or history. Old lanes need a Pi reload/restart to acquire the command;
-forks and clones start off. [Swarm behavior](docs/chat.md#swarm-authorization).
+forks and clones inherit the copied branch’s authorization when a parent is recorded.
+Live Clone and Rewind preserve current requested state; unrelated new lanes start off. [Swarm behavior](docs/chat.md#swarm-authorization).
 
 For example: **Astra** explores the architecture, **Opus 5.5** orchestrates and
 integrates, and **Sol 6.1** implements scoped changes and performs separate
@@ -120,17 +123,89 @@ at different stages, with Sol 6.1 assigned to workers and reviewers. One phase
 split enrollment API, Host lifecycle, Desktop live status and documentation into
 four workstreams. Workers requested scope exceptions; independent reviews and
 retained work made decisions and recovery inspectable. The lane predates the
-Swarm switch and used explicitly authorized delegation. This is a development
-case study, not a claim that remote execution has shipped.
+Swarm switch and used explicitly authorized delegation. This is a historical development case study, not a live demonstration or benchmark.
+Remote execution now runs on enrolled Hosts you own, separately from Swarm.
 [Work with a swarm](https://phosphor.saccolabs.com/guides/swarm/) ·
 [Current remote-access boundary](docs/remote-access.md).
+
+## Brain: keep the decisions worth remembering
+
+Brain is **off by default, Desktop-only and machine-local**. Enable it in
+Settings → Brain, read the model terms and download the local embedding model.
+Queue selected local lanes for extraction; review proposed identities, memories,
+relationships and source quotes before saving. Review is on by default but can be
+disabled. Explore entities in 2D/3D, follow supported paths, inspect extraction,
+Forget memories or merge duplicate entities. A merge has no individual undo.
+
+![Brain enabled with local search ready and review on, using fictional data](apps/site/src/assets/shots/brain-ready.webp)
+
+![Brain’s local knowledge graph with fictional people and projects](apps/site/src/assets/shots/brain-graph.webp)
+
+New or restarted local lanes can use read-only `brain_search` to recall a bounded
+briefing with dates, disputes, sources and branch context. **Local does not mean
+fully offline:** extraction calls the lane’s provider model with scrubbed user and
+assistant text and can consume quota; later recall can enter provider context.
+Brain does not sync to Hosts or run in the PWA. Turning it off retains knowledge;
+Reset clears it while keeping settings and the embedding model.
+[Brain guide](https://phosphor.saccolabs.com/guides/brain/) · [Contract](docs/brain.md).
+
+## Machines, browser and deliberate lane moves
+
+Install a Host on a computer you own. Enroll it from Machines, compare the
+fingerprint, configure providers there and connect over private Tailscale HTTPS/WSS.
+Desktop and the PWA talk directly to that Host; Control handles identity and grants,
+never lane contents. Local Desktop needs no account. Remote access needs Phosphor
+sign-in and private network reachability. This is **not a cloud runner**.
+
+![Machines with fictional Host readiness](apps/site/src/assets/shots/machines.webp)
+
+[The PWA](https://phosphor-app.saccolabs.com/) shares remote chat, review, terminals,
+settings, skills, routines and artifacts. One explicit controller owns lane mutations.
+The browser has no local lanes, Brain, local Voice, Monaco editing, split panes or
+scripted artifact preview; it is not an offline execution environment.
+
+<img src="apps/site/src/assets/shots/mobile.webp" alt="Fictional Host lane in Phosphor’s phone layout" width="360">
+
+Desktop’s **Move to…** makes a checked snapshot copy of an idle lane to another
+workspace or connected Host. The original remains and the destination does not
+resume automatically. Commit dirty Git work first. Credentials, workspace files,
+terminal processes and schedules do not move. Same-origin transfers require the
+exact source commit; another repository starts from its own default branch.
+[Machines guide](https://phosphor.saccolabs.com/guides/machines/) ·
+[Move limits](docs/lanes.md#moving-a-lane).
+
+## PRs, Slack and the work that needs you
+
+The PR pill and inspector show Opened, Checks, Review and Merge stages, plus checks,
+reviews, threads, activity and freshness across the lane’s PRs. No checks is not green
+CI. GitHub reads use the execution machine’s `gh`; Fix/Address/Update **draft** a
+message and never send it. Track/Hide needs an open local lane; current Hosts support
+inspector detail but not those overrides. Local Git merging is a separate explicit flow.
+
+![PR inspector with fictional checks and review evidence](apps/site/src/assets/shots/lane-pr.webp)
+
+Slack pills list thread links mentioned in user prompts and settled assistant text:
+open, copy or append to a draft. They are not an inbox, unread monitor or proof that
+the Slack MCP connector is configured.
+
+![Slack thread links from a fictional conversation](apps/site/src/assets/shots/slack-pill.webp)
+
+The notification drawer retains actionable notices, warnings and errors in memory,
+not a durable archive. Important changes to owned This Mac PRs can notify you; the
+first status read is a baseline, not a new event. Desktop OS alerts apply while the
+app is unfocused; the browser has in-app attention, not background push execution.
+
+![Notification drawer with fictional lane and PR notices](apps/site/src/assets/shots/notifications.webp)
+
+[Daily work guide](https://phosphor.saccolabs.com/guides/daily-work/) ·
+[Review walkthrough](https://phosphor.saccolabs.com/watch/#lane-to-review).
 
 ## The screens
 
 Every session pairs the transcript with one switchable pane: Files, Changes,
 Terminal, Artifacts or Subagents. The pane docks left or right (persisted per session) and
-can go fullscreen. The feature shots below are the app against a real pi, real
-providers and real tokens. The Remote Hosts image above is a labelled curated replay; see
+can go fullscreen. The feature shots below show the actual UI with fictional fixture data, not
+real provider accounts, private transcripts or model-performance evidence. See
 [the screenshots in this README](#the-screenshots-in-this-readme).
 
 ### Home: where a session starts
@@ -151,7 +226,7 @@ The workbench derives from state the app already holds. It does not poll agent
 activity or spend tokens. Opening the shared subagent inspector explicitly
 requests details; unopened transcripts are not loaded for tile previews.
 
-![Home over the real sessions of a repo](docs/img/home.png)
+![Home with fictional lanes and project activity](docs/img/home.png)
 
 ### Chat: the transcript, not a blob
 
@@ -176,8 +251,8 @@ Models with a thinking ladder get a second chip for effort:
 ![The thinking-level menu](docs/img/thinking.png)
 
 The context meter opens into a live breakdown of the window: what the system
-prompt, tools and conversation cost, and your plan's rate-limit window on
-subscription providers:
+prompt, tools and conversation cost, and available plan rate-limit windows on subscription providers. Composition
+components are estimates; only pi’s total is authoritative:
 
 ![The context meter popover](docs/img/context.png)
 
@@ -225,8 +300,10 @@ compaction and the session itself.
 
 ### Settings, and not only in dark
 
-Appearance, writing, agent, accounts, extensions, connectors, workspaces,
-optimization, voice, advanced, keybindings, about. Light theme included,
+Searchable device settings and Configure → machine settings: appearance, writing,
+agent, accounts, extensions, MCP connectors, Folders, Brain, optimization, voice,
+advanced, keybindings and about. Host configuration requires a separate opt-in;
+credentials and settings do not synchronize automatically. Light theme included,
 because diff review at 2am is a real workflow.
 
 ![The Appearance tab](docs/img/settings.png)
@@ -355,7 +432,7 @@ npm run dev
 | `npm run pack`       | Package for the current platform without packing (quick check)            |
 | `npm run dist`       | Package for the current platform via electron-builder                     |
 | `npm run shots`      | Deterministic screenshots against the e2e pi stub (see below)             |
-| `npm run shots:live` | Re-shoot this README against a real pi instance (see below)               |
+| `npm run shots:live` | Historical live-capture utility; not the refreshed fixture gallery        |
 
 [Testing](docs/testing.md) is the contract for dependency installation, check
 commands, typed test helpers, frozen interfaces, coverage evidence, size budgets
@@ -452,30 +529,17 @@ human too.
 
 ### The screenshots in this README
 
-They are captures of the app against a **real pi instance**: the developer's
-own `~/.pi`, real signed-in providers, a real repo, two metered model turns.
+The refreshed gallery is **Product demo · fictional data**: actual renderer
+surfaces with invented repositories, accounts, machines, graph entities and threads.
+No private sessions, credential stores, real provider calls or paid services were
+used for this refresh. Full-size originals must be as safe as their responsive
+previews; there is no CSS blur hiding an unredacted download.
 
-```bash
-npm run build && npm run shots:live
-```
-
-The live runner (`tools/scripts/capture-live-shots.mjs`) isolates app prefs but not
-pi. It runs one small edit task in a disposable worktree and one artifact task,
-then shoots the transcript, panes, menus and popovers. It spends real tokens
-and leaves the sessions and worktree behind; delete them like any other
-session. `ONLY=models,context` re-shoots a subset (the turns still run);
-`WORKSPACE=… TASK_EDIT=… MODEL_ARTIFACT=…` re-aim it. Email addresses on
-screen are masked before every shot, and `REDACT='from=to,…'` masks anything
-else private, like an internal MCP server's name or host.
-
-`npm run shots` (`tools/scripts/capture-readme-shots.mjs`) is the deterministic
-sibling: same mechanics, scratch workspace, the e2e `pi` stub, no key, no
-network. Use it to verify UI changes; use the live one to regenerate what this
-README's feature gallery shows. The homepage and README opening use a different,
-explicitly labelled source: reviewed Remote Hosts excerpts replayed in the actual
-renderer, with private details removed and task labels expanded. No live agents
-are started to produce that image. The fixture, reproduction script and exact
-provenance live in [apps/site/README.md](apps/site/README.md#captures-and-privacy).
+The [site capture and media notes](apps/site/README.md#captures-and-privacy) own
+reproduction and provenance. Historical live-capture utilities remain in the repo,
+but they are not the source of this refreshed gallery and should not be run merely
+to regenerate these fixtures. The earlier Remote Hosts case study is historical
+public implementation evidence, not a claim about the new demo images.
 
 ### Repo layout
 
@@ -512,7 +576,7 @@ apps/desktop/electron/            main process — owns every side effect
                      OS keychain, or a user-only file on Linux without a keyring);
                      the renderer never sees a token
   control/           main-only control API client for machine listing,
-                     enrollment approval and removal (account preview)
+                     enrollment approval and removal and readiness
   headroom/          Headroom proxy supervisor (adopt/spawn/kill) + install job
   optimization/      the Advisor rules engine (pure functions, advice only)
   voice/             voice input: pinned model download, the dictation service,
@@ -593,7 +657,7 @@ docs/                living technical docs — one file per surface, each
                      plus known-issues.md (current defects) and future-features.md
                      (decided or explored directions that are not built)
 docs/img/            the screenshots above (assets, not documentation)
-apps/site/           phosphor.saccolabs.com — the Astro landing page, real
+apps/site/           phosphor.saccolabs.com — the Astro landing page, fixture
                      captures and browser checks; combined image in apps/control/Dockerfile (apps/site/README.md)
 .infra/phosphor-site/  the k3s manifests the Deploy Site workflow applies
 ```
@@ -612,7 +676,7 @@ only ever renders inside a sandboxed iframe.
 | [docs/known-issues.md](docs/known-issues.md)       | Defects that reproduce today, with the file that has them |
 | [docs/architecture.md](docs/architecture.md)       | Process model, IPC design, cross-cutting requirements     |
 | [docs/pi-integration.md](docs/pi-integration.md)   | pi's RPC protocol and session format                      |
-| [docs/remote-access.md](docs/remote-access.md)     | Remote foundations and current execution boundary         |
+| [docs/remote-access.md](docs/remote-access.md)     | Private Host execution and current trust boundary         |
 | [docs/control-plane.md](docs/control-plane.md)     | Site and account API server                               |
 | [docs/host.md](docs/host.md)                       | Host CLI and machine identity                             |
 | [docs/future-features.md](docs/future-features.md) | Decided or explored directions, not built                 |

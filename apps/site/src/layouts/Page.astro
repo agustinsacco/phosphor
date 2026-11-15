@@ -6,8 +6,8 @@ interface Props {
   description?: string
 }
 const {
-  title = 'Phosphor | One mission. Many agents. Your IDE.',
-  description = 'The open-source multi-agent IDE built on pi. Work in parallel lanes, delegate bounded tasks, inspect every decision and diff, and use the models you already pay for.',
+  title = 'Phosphor | Your work. In context.',
+  description = 'An open-source workspace for coding agents. Review parallel lanes, keep knowledge with Brain, and reach your own machines from Desktop or the web.',
 } = Astro.props
 const webEnabled = import.meta.env.PUBLIC_PHOSPHOR_WEB_ENABLED === 'true'
 const canonical = new URL(Astro.url.pathname, Astro.site)
@@ -32,7 +32,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="Phosphor. One mission. Many agents. Your IDE. The open-source multi-agent IDE built on pi."
+      content="Phosphor. Your work. In context. Lanes, Brain and your machines, built on pi."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <title>{title}</title>
@@ -45,9 +45,9 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
           ><img src="/favicon.svg" width="36" height="36" alt="" /><span>Phosphor</span></a
         >
         <nav aria-label="Main navigation">
-          <a href="/guides/">Guides</a><a href="/#swarm">Swarm</a><a href="/#extensions"
-            >Extensions</a
-          ><a href="/#faq">FAQ</a>
+          <a href="/guides/">Guides</a><a href="/guides/brain/">Brain</a><a href="/guides/machines/"
+            >Machines</a
+          ><a href="/watch/">Watch</a>
         </nav>
         <div class="header-links">
           {
@@ -72,13 +72,13 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
       <a class="wordmark" href="/"
         ><img src="/favicon.svg" alt="" width="32" height="32" /><span>Phosphor</span></a
       >
-      <p>Built on pi, by engineers for engineers.</p>
+      <p>Your tools. Your machines. Built on pi.</p>
       <div>
         <a href="/guides/">Guides</a><a href={`${repo}/blob/main/docs/README.md`}
           >Technical docs ↗</a
-        ><a href="/privacy/">Privacy</a><a href={`${repo}/blob/main/LICENSE`}>MIT license</a><a href={repo}>Source ↗</a><a
-          href={`${repo}/issues`}>Get help ↗</a
-        ><a href="#main">Back to top ↑</a>
+        ><a href="/privacy/">Privacy</a><a href={`${repo}/blob/main/LICENSE`}>MIT license</a><a
+          href={repo}>Source ↗</a
+        ><a href={`${repo}/issues`}>Get help ↗</a><a href="#main">Back to top ↑</a>
       </div>
     </footer>
   </body>

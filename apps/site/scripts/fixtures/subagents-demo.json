@@ -1,0 +1,34 @@
+{
+  "title": "Harbor · token refresh review",
+  "recordedAt": "2026-11-06T12:00:00.000Z",
+  "provenance": "Product demo · fictional tasks and messages. No agents or providers run during capture.",
+  "parentProvider": "anthropic",
+  "parentModel": "claude-opus-5",
+  "parentName": "Opus 5",
+  "workerModel": "Illustrative worker model",
+  "parentExcerpt": "I split this fictional task into four bounded workstreams. Each worker has a distinct responsibility; I will review the changes before integrating them.\n\n### Keep the public API stable\n\n- Share the in-flight token refresh between callers.\n- Exercise both success and rejection paths.\n- Check that retry remains possible after a failure.\n- Update the developer notes with the concurrency guarantee.\n\n### Review before merge\n\nThe test reviewer is checking the regression case independently. No merge or deployment is authorized.\n\nThis is demonstration data, not a live run or a performance claim.",
+  "tracks": [
+    {
+      "key": "implementation",
+      "label": "Refresh implementation",
+      "task": "Own src/auth.ts. Share the pending promise and clear it after settlement. Do not change exported signatures."
+    },
+    {
+      "key": "regression",
+      "label": "Regression tests",
+      "task": "Own src/auth.test.ts. Prove two concurrent callers share a request, and a rejected request permits a later retry."
+    },
+    {
+      "key": "review",
+      "label": "Independent review",
+      "task": "Review the diff without editing implementation. Look for stale promises, dropped errors and test gaps."
+    },
+    {
+      "key": "docs",
+      "label": "Developer notes",
+      "task": "Describe the concurrency contract and caller-visible failure behavior. Do not claim unmeasured speedups."
+    }
+  ],
+  "approvalTrack": "regression",
+  "approvalExcerpt": "Keep the regression deterministic: control the pending promise in the test instead of sleeping. Assert one fetch, both callers resolving, and a fresh request after rejection. These are fictional task instructions, not an acceptance result."
+}

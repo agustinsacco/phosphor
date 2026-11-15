@@ -1,0 +1,69 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="pr" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i><b id="pr-fill"></b></i><i></i><i></i>
+      </div>
+      <p class="step">2 of 4 · Inspect</p>
+      <div class="copy">
+        <h2 id="pr-title" class="title clip" data-start="0.2" data-duration="7.6">
+          <span class="in">Open the <em>PR pill</em></span>
+        </h2>
+        <div class="subs">
+          <p id="pr-sub" class="sub clip" data-start="1.2" data-duration="3.5">
+            <span class="in">Checks, reviews, threads and activity for each pull request.</span>
+          </p>
+          <p id="pr-sub2" class="sub clip" data-start="4.8" data-duration="3.0">
+            <span class="in">A missing check is <strong>never shown as passing</strong>.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="pr-pan" class="pan">
+        <div id="pr-cam" class="cam">
+          <img class="plate" src="assets/shots/chat.png" alt="" />
+          <img id="pr-open" class="plate next" src="assets/shots/lane-pr.png" alt="" />
+          <div
+            id="pr-tabs"
+            class="ring"
+            style="left: 798px; top: 126px; width: 368px; height: 30px"
+          ></div>
+          <div
+            id="pr-stages"
+            class="ring"
+            style="left: 798px; top: 164px; width: 488px; height: 48px"
+          ></div>
+          <img id="pr-cursor" class="cursor" src="assets/cursor.svg" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#pr-cam')
+      const cursor = PX.cursor(tl, '#pr-cursor')
+      PX.whipIn(tl, '#pr-pan')
+      cam.cut([410, 0, 900, 460])
+      cursor.cut([900, 300]).move([628, 26], 0.3, 0.8).press(1.3)
+      PX.swap(tl, '#pr-open', 1.3)
+      cam.move([572, 36, 720, 548], 1.5, 1.2)
+      cursor.move([1120, 500], 1.6, 1)
+      PX.ring(tl, '#pr-tabs', 2.7, 4.5)
+      PX.ring(tl, '#pr-stages', 4.9, 7.6)
+      PX.title(tl, '#pr-title .in', 0.3, 7.8)
+      PX.line(tl, '#pr-sub .in', 1.3, 4.7)
+      PX.line(tl, '#pr-sub2 .in', 4.9, 7.8)
+      PX.draw(tl, '#pr-fill', 0, 7.8, 0, 1)
+      window.__timelines['pr'] = tl
+    })()
+  </script>
+</template>

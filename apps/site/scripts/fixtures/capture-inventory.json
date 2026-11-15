@@ -1,0 +1,604 @@
+[
+  {
+    "path": "apps/site/src/assets/shots/accounts.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 44598,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/artifacts.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 102408,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/brain-extraction.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 58054,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/brain-graph.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 61076,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/brain-memory.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 54474,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/brain-queue.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 57204,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/brain-ready.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 39840,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/brain-recall.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 73864,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/brain-review.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 71652,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/brain-setup.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 26416,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/changes.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 86572,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/chat.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 63848,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/commands.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 84196,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/connectors.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 43124,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/context-meter.webp",
+    "width": 432,
+    "height": 433,
+    "bytes": 19608,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/context.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 89432,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/files-full.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 54918,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/files-left.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 99544,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/files.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 99370,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/guide-agent.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 43502,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/guide-claude.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 62722,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/guide-connectors.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 43124,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/guide-extensions.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 51616,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/guide-lanes.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 38620,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/guide-routing.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 67886,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/guide-subagents.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 60264,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/home.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 49110,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/ide-flex.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 212611,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/lane-pr.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 64088,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/light.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 101632,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/machines.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 45554,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/mentions.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 75282,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/mobile.webp",
+    "width": 860,
+    "height": 1864,
+    "bytes": 62640,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/models-picker.webp",
+    "width": 480,
+    "height": 428,
+    "bytes": 14456,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/models.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 32622,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/notifications.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 80350,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/pwa-wide.webp",
+    "width": 3200,
+    "height": 2000,
+    "bytes": 116012,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/remote-hosts.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 69850,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/settings.webp",
+    "width": 880,
+    "height": 780,
+    "bytes": 28004,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/slack-pill.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 70268,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/subagents.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 69850,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/terminal.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 70870,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "apps/site/src/assets/shots/thinking.webp",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 77224,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/accounts.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 103153,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/artifacts.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 213962,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/brain-extraction.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 143645,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/brain-graph.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 173218,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/brain-memory.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 142368,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/brain-queue.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 148179,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/brain-ready.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 93975,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/brain-recall.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 157564,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/brain-review.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 172069,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/brain-setup.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 67470,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/changes.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 185494,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/chat.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 139197,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/commands.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 184627,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/connectors.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 102366,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/context-meter.png",
+    "width": 432,
+    "height": 433,
+    "bytes": 40823,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/context.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 198503,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/files-full.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 131912,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/files-left.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 210223,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/files.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 209068,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/guide-agent.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 104095,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/guide-claude.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 125690,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/guide-connectors.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 102366,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/guide-extensions.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 112249,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/guide-lanes.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 91775,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/guide-routing.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 133507,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/guide-subagents.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 115609,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/home.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 124033,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/ide-flex.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 212611,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/lane-pr.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 169145,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/light.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 206213,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/machines.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 122938,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/mentions.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 164142,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/mobile.png",
+    "width": 860,
+    "height": 1864,
+    "bytes": 140867,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/models-picker.png",
+    "width": 480,
+    "height": 428,
+    "bytes": 38049,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/models.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 254646,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/notifications.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 172704,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/pwa-wide.png",
+    "width": 3200,
+    "height": 2000,
+    "bytes": 328751,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/remote-hosts.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 151772,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/settings.png",
+    "width": 880,
+    "height": 780,
+    "bytes": 73628,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/slack-pill.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 155874,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/subagents.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 151772,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/terminal.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 159939,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
+    "path": "docs/img/thinking.png",
+    "width": 1600,
+    "height": 1000,
+    "bytes": 168577,
+    "provenance": "Product demo · fictional data; current renderer"
+  }
+]

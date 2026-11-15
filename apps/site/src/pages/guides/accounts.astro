@@ -20,11 +20,16 @@ const sections: [string, string][] = [
 
 <Guide
   title="Subscriptions and accounts"
-  description="Sign in to the plans you already pay for, and add more than one. When a lane uses up one plan’s allowance, move it to another and keep going."
+  description="Use your existing subscriptions or API keys. Route new Claude sessions deliberately, and explicitly switch an existing lane when another account or model is appropriate."
   sections={sections}
 >
   <section id="plans">
     <h2>Which plans work</h2>
+    <p>
+      Provider accounts are not your optional Phosphor account. Settings → Configure selects the
+      machine whose providers you are changing. Host sign-in runs through that machine’s private
+      terminal and requires configuration access; credentials are not copied from Desktop.
+    </p>
     <p>
       You don’t need Claude Code to use Phosphor. Any provider pi supports works, including API keys
       and your own endpoints. These are the subscription plans you can sign in with:
@@ -54,13 +59,13 @@ const sections: [string, string][] = [
     <h2>The setup we recommend</h2>
     <p>
       Every plan has a limit: a 5-hour window, a weekly cap, or a monthly allowance, depending on
-      the plan. With one plan, hitting it stops your work. With several, a lane moves to the next
-      one and keeps going.
+      the plan. Several authorized accounts give you another option when one runs low. You choose
+      when to switch an existing lane; there is no universal automatic failover.
     </p>
     <ul>
       <li>
-        <strong>Two or more Claude Max accounts</strong> through Claude Code. Each login is kept separately,
-        and routing can spread new sessions across them.
+        <strong>Claude Max accounts you already have</strong> through Claude Code. Each login is kept
+        separately, and routing can spread new sessions across them.
       </li><li>
         <strong>ChatGPT through Codex</strong>, for a second model family on its own allowance.
       </li><li><strong>Kimi For Coding or Copilot</strong>, if you have them.</li>
@@ -119,7 +124,9 @@ const sections: [string, string][] = [
         > and choose <strong>Add</strong>. If the card says it needs the Claude CLI on your PATH,
         install the CLI and make it visible to Phosphor before testing the provider.
       </li><li>
-        Wait for the install job to finish. You can also install it from <strong>Extensions → Claude Code</strong>, which is listed before the provider is installed.
+        Wait for the install job to finish. You can also install it from <strong
+          >Extensions → Claude Code</strong
+        >, which is listed before the provider is installed.
       </li>
     </ol>
     <p>Or from a terminal:</p>
@@ -131,7 +138,7 @@ const sections: [string, string][] = [
       image={shot('guide-extensions')}
       alt="Extensions settings showing the recommended package catalog in a demo configuration."
       caption="Settings → Extensions: find the Claude Code provider"
-      provenance="Settings demo · example data"
+      provenance="Product demo · fictional data"
     />
     <p>
       Install globally the first time. A project install only applies to that workspace, and
@@ -156,9 +163,9 @@ const sections: [string, string][] = [
     </ol>
     <Capture
       image={shot('guide-claude')}
-      alt="Claude Code settings showing Health and two fictional accounts labeled Account A and Account B, with addresses masked."
+      alt="Claude Code settings showing provider health and fictional account rows."
       caption="Health and Accounts live in the Claude Code tab"
-      provenance="Settings demo · masked examples"
+      provenance="Product demo · fictional data"
     />
     <p>
       <strong>Two places, two kinds of account:</strong> Settings → Accounts holds pi’s provider sign-ins.
@@ -210,7 +217,7 @@ const sections: [string, string][] = [
       image={shot('guide-routing')}
       alt="The Route new sessions controls with One account, In order top to bottom, and Round robin options; all accounts are fictional."
       caption="Routing picks the account for new sessions only"
-      provenance="Settings demo · masked examples"
+      provenance="Product demo · fictional data"
     />
     <ul>
       <li><strong>One account:</strong> every new session uses the account you pick.</li><li>
@@ -252,6 +259,12 @@ const sections: [string, string][] = [
       </li>
     </ul>
     <p>
+      For a Host lane, Switch account requires configuration access to that Host. Accounts and
+      credentials stay on that machine. This is not the <a href="/guides/machines/#moves"
+        >Move to… snapshot transfer</a
+      >.
+    </p>
+    <p>
       Either way, the next turn re-reads the whole conversation on the new plan, so it costs
       context. Let the current turn finish first. With In order or Round robin routing, new sessions
       can also skip a Claude account that’s at its limit or spending overage credits.
@@ -261,8 +274,8 @@ const sections: [string, string][] = [
     <h2>Troubleshooting and updates</h2>
     <ul>
       <li>
-        <strong>Claude Code tab missing:</strong> check the provider is installed in the right scope,
-        then reopen Settings.
+        <strong>Claude Code unavailable:</strong> the tab is available before installation; check its
+        Health rows for provider scope and CLI readiness.
       </li><li>
         <strong>CLI not found:</strong> check the path under Health. Apps launched from the desktop don’t
         always get the Node or shell setup your terminal has.
@@ -274,9 +287,9 @@ const sections: [string, string][] = [
         <strong>A new model is missing:</strong> the model list comes from pi, not the Claude CLI, so
         update pi too.
       </li><li>
-        <strong>Old session reports a context-policy change:</strong> choose <strong
-          >Rebuild the Claude session</strong
-        >. The next turn reloads saved history, which costs one full-context cache write.
+        <strong>Older Claude session:</strong> the provider automatically detaches the old pairing on
+        the next default request and imports current pi history. No manual reset is needed; missing historical
+        tool results cannot be reconstructed.
       </li><li>
         <strong>Claude can’t see your existing MCP servers:</strong> that’s on purpose. Phosphor uses
         pi’s built-in MCP, not Claude’s own MCP config. <a href="/guides/connectors/"

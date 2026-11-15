@@ -27,7 +27,9 @@ const sections: [string, string][] = [
       Phosphor ships six extensions of its own: artifacts, the context breakdown, opt-in Headroom
       integration, malformed tool-name repair, a wrong-worktree path guard, and a reload between
       turns that brings MCP changes into running lanes. MCP itself is built into pi, so connecting
-      services needs no package: see <a href="/guides/connectors/">MCP connectors</a>.
+      services needs no package: see <a href="/guides/connectors/">MCP connectors</a>. Desktop’s
+      optional <a href="/guides/brain/">Brain</a> adds a separate read-only recall tool and skill to new
+      lanes when enabled; it is not a package you need to install from this catalog.
     </p>
     <p>
       A package can contain extensions, skills, prompt templates, and themes. A skill describes a
@@ -51,14 +53,14 @@ const sections: [string, string][] = [
         Choose global or workspace scope.
       </li><li>
         Start a new session so pi loads the package. Claude Code, Web access, Computer use, and
-        Subagents get their own settings tabs once installed.
+        Subagents have dedicated setup surfaces. Claude Code is visible even before installation.
       </li>
     </ol>
     <Capture
       image={shot('guide-extensions')}
       alt="Phosphor Extensions settings displaying recommended and installed packages with example data."
       caption="Install a package, then set it up in its own tab"
-      provenance="Settings demo · example data"
+      provenance="Product demo · fictional data"
     />
     <aside class="notice">
       <strong>Packages run real code</strong><p>
@@ -115,6 +117,12 @@ const sections: [string, string][] = [
   }
   <section id="maintain">
     <h2>Scope and updates</h2>
+    <p>
+      Choose the machine in Settings before installing. Host configuration requires explicit access
+      and changes that Host only; local packages and credentials are not automatically copied to it. <a
+        href="/guides/machines/">Machine setup</a
+      >.
+    </p>
     <p>
       Global installs apply to every workspace. For a project install, run <code
         >pi install -l npm:package-name</code

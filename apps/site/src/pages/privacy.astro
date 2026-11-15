@@ -6,6 +6,8 @@ const sections: [string, string][] = [
   ['site', 'This website'],
   ['downloads', 'Download counts'],
   ['app', 'The app on your computer'],
+  ['brain', 'Brain knowledge'],
+  ['remote', 'Remote access and browser'],
   ['account', 'A Phosphor account'],
   ['services', 'Services we rely on'],
   ['delete', 'Deleting your data'],
@@ -15,7 +17,7 @@ const sections: [string, string][] = [
 
 <Guide
   title="Privacy"
-  eyebrow="Policy / last updated 27 October 2026"
+  eyebrow="Policy / last updated 15 November 2026"
   description="Phosphor is an open-source app that runs on your computer. This page lists everything the project's own servers receive, how long it is kept, and how to remove it."
   sections={sections}
 >
@@ -23,11 +25,10 @@ const sections: [string, string][] = [
     <h2>In short</h2>
     <ul>
       <li>
-        Your prompts, code, files, transcripts and provider keys stay on your computer or your own
-        machines. Phosphor's servers never receive them.
-      </li><li>
-        This website sets no cookies and runs no analytics or third-party scripts.
-      </li><li>
+        Your configured providers receive the prompts and tool results you send them. Connected
+        services receive their requests. Phosphor’s control service never receives lane contents or
+        provider keys; execution and saved sessions belong to your computers.
+      </li><li>This website sets no cookies and runs no analytics or third-party scripts.</li><li>
         Download links add one to a daily total. Nothing about who clicked is stored.
       </li><li>
         A Phosphor account is optional. You only need one for remote access, and you can delete it
@@ -43,18 +44,21 @@ const sections: [string, string][] = [
     <h2>This website</h2>
     <p>
       phosphor.saccolabs.com is a set of static pages. It has no cookies, no tracking pixels and no
-      scripts from anyone else. The server's request log records the time, the route, the response
-      status and how long it took. It doesn't record your IP address, and the log is kept only as
-      long as the server's log rotation keeps it.
+      client scripts. Tutorial video files and posters are served from this site, not an embedded
+      third-party player. Playback begins only when you choose it; the pages include written
+      walkthroughs. The server’s request log records time, a route category (static requests use
+      site and a path class), response status and duration, rather than a full browsing URL. It
+      doesn't record your IP address, and the log is kept only as long as the server's log rotation
+      keeps it.
     </p>
   </section>
   <section id="downloads">
     <h2>Download counts</h2>
     <p>
-      The site's download links and install command go through <code>/download/…</code> on this
-      server. It adds one to a total for that day and that link, then sends you to the GitHub
-      release. The stored row is the date, which link, and the count. No address, cookie, referrer
-      or browser details are stored with it.
+      The site's download links and install command go through <code>/download/…</code> on this server.
+      It adds one to a total for that day and that link, then sends you to the GitHub release. The stored
+      row is the date, which link, and the count. No address, cookie, referrer or browser details are
+      stored with it. These aggregate totals have no scheduled expiry.
     </p>
     <p>
       To stop one visitor inflating the totals, the server keeps a keyed hash of the address in
@@ -67,12 +71,50 @@ const sections: [string, string][] = [
     <h2>The app on your computer</h2>
     <p>
       Phosphor Desktop and the Host run <a href="https://pi.dev">pi</a>, which talks to the model
-      providers you set up. Those requests go straight from your computer to the provider, under
-      the provider's own terms. Phosphor doesn't proxy, copy or log them.
+      providers you set up. Those requests go straight from your computer to the provider, under the
+      provider's own terms. The control service does not proxy or store them. Local pi session files
+      and app diagnostics remain on the execution machine; review them for sensitive data before
+      sharing.
     </p>
     <p>
       Desktop checks GitHub Releases for updates, so GitHub sees that request. Phosphor's servers
       don't.
+    </p>
+  </section>
+  <section id="brain">
+    <h2>Brain knowledge</h2>
+    <p>
+      Brain is optional, off by default and Desktop-only. The knowledge graph, proposals, evidence
+      and embeddings stay in local app storage. The local embedding model is downloaded when you
+      enable Brain.
+    </p>
+    <p>
+      For a lane you explicitly queue, extraction sends scrubbed user and assistant text to that
+      lane’s configured provider model in tool-less calls. It can consume tokens and quota.
+      Scrubbing is not a guarantee that every sensitive detail is removed. With recall on, kept
+      knowledge can become context in later provider requests.
+    </p>
+    <p>
+      Review before saving is on by default. Forget removes an individual memory and unused
+      evidence; Reset Brain knowledge removes the graph and extraction records while keeping
+      settings and the model. Turning Brain off keeps existing knowledge. It does not sync to Hosts
+      or other computers. <a href="/guides/brain/#privacy">Retention and controls</a>.
+    </p>
+  </section>
+  <section id="remote">
+    <h2>Remote access and the browser</h2>
+    <p>
+      Desktop and the PWA connect directly to your Host over private Tailscale HTTPS/WSS. The Host
+      owns files, transcripts, artifacts and provider credentials. Control handles identity and
+      grants, not a relay of lane contents.
+    </p>
+    <p>
+      Desktop keeps remote content in memory rather than caching it on disk; explicit exports save
+      where you choose. Desktop lane moves carry a private temporary snapshot between machines, not
+      credentials. The browser stores its sign-in cookie and app shell, not an offline transcript
+      archive. <a href={doc('remote-access.md#trust-boundary')}>Remote trust boundary</a> · <a
+        href={doc('web-client.md')}>Browser storage and capabilities</a
+      >.
     </p>
   </section>
   <section id="account">
@@ -96,8 +138,9 @@ const sections: [string, string][] = [
       to disk.
     </p>
     <p>
-      The <a href="https://phosphor-app.saccolabs.com/">web app</a> keeps you signed in with one encrypted,
-      first-party cookie. It is only used for signing in. The details are in the <a
+      The <a href="https://phosphor-app.saccolabs.com/">web app</a> keeps you signed in with an encrypted
+      first-party session cookie and uses a temporary first-party transaction cookie during sign-in. Neither
+      is for advertising or analytics. The details are in the <a
         href={doc('remote-access.md#trust-boundary')}>remote access trust boundary</a
       >.
     </p>
@@ -122,12 +165,15 @@ const sections: [string, string][] = [
     <p>
       Deleting your account removes it from Phosphor's database, along with your machines,
       authorized apps and their log. Any connected Host stops on its next check-in. Nothing on your
-      own computers is touched. Download counts aren't linked to anyone, so there's nothing in them
-      to remove.
+      own computers is touched. Request logs and the deletion event can remain under log rotation;
+      this is not an immediate erasure guarantee for logs or service backups. Download counts aren't
+      linked to anyone, so there's nothing in them to remove.
     </p>
     <p>
-      Without an account, Phosphor's servers hold nothing about you. To remove the app, uninstall
-      it. Its settings live on your computer.
+      Without an account, there is no Phosphor account record to delete; website request logs and
+      aggregate download counts described above still apply. Uninstalling the app does not promise
+      to erase local settings, pi sessions or Brain knowledge. Use the in-app Brain controls and
+      remove any local data you no longer want separately.
     </p>
   </section>
   <section id="contact">

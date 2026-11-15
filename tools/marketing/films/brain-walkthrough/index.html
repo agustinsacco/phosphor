@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1280, height=720" />
+    <title>Build a reviewed memory</title>
+    <link rel="stylesheet" href="assets/film.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script src="assets/kit.js"></script>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="39.0"
+      data-fps="30"
+      data-width="1280"
+      data-height="720"
+    >
+      <div
+        id="enable"
+        data-composition-id="enable"
+        data-composition-src="compositions/enable.html"
+        data-start="0"
+        data-duration="8"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="keep"
+        data-composition-id="keep"
+        data-composition-src="compositions/keep.html"
+        data-start="8"
+        data-duration="4.2"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="queue"
+        data-composition-id="queue"
+        data-composition-src="compositions/queue.html"
+        data-start="12.2"
+        data-duration="5.2"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="review"
+        data-composition-id="review"
+        data-composition-src="compositions/review.html"
+        data-start="17.4"
+        data-duration="8"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="explore"
+        data-composition-id="explore"
+        data-composition-src="compositions/explore.html"
+        data-start="25.4"
+        data-duration="8"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="recall"
+        data-composition-id="recall"
+        data-composition-src="compositions/recall.html"
+        data-start="33.4"
+        data-duration="5.6"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+    </div>
+    <script>
+      window.__timelines['main'] = gsap.timeline({ paused: true })
+    </script>
+  </body>
+</html>
