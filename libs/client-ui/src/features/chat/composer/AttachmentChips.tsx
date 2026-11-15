@@ -27,7 +27,7 @@ export function AttachmentChips({
   return (
     <div className="flex flex-wrap gap-2 px-3 pt-3" data-testid="attachment-chips">
       {attachments.map((attachment, index) => (
-        <div key={index} className="group/img relative">
+        <div key={index} className="attachment-chip group/img relative">
           {attachment.kind === 'image' ? (
             <ChatImage
               image={{ type: 'image', data: attachment.data, mimeType: attachment.mimeType }}
@@ -48,7 +48,7 @@ export function AttachmentChips({
           <TooltipButton
             onClick={() => onRemove(index)}
             aria-label={`Remove ${attachment.name}`}
-            className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-xs group-hover/img:flex"
+            className="attachment-remove hit-slop bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-xs group-hover/img:flex"
           >
             ✕
           </TooltipButton>

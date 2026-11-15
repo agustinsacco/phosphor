@@ -126,11 +126,10 @@ for (const width of [400, 1100]) {
     await editor.getByRole('button', { name: 'Done', exact: true }).click()
     await expect(editor).toBeHidden()
     expect(await chips.locator('img').getAttribute('src')).not.toBe(`data:image/png;base64,${png}`)
-    await page
-      .getByRole('textbox', { name: 'Chat message', exact: true })
-      .fill('PHX-imageAnnotation')
+    await page.getByRole('textbox', { name: 'Chat message', exact: true }).fill('PHX-hostinputs')
     await page.getByRole('button', { name: 'Send message', exact: true }).click()
     await expect(chips).toHaveCount(0)
+    await expect(page.getByText('Attachments: | 1 image/png', { exact: true })).toBeVisible()
     const image = page.getByRole('button', { name: 'Attached image', exact: true }).last()
     await expect(image).toBeVisible()
     await imageActions(page, browserName, width)

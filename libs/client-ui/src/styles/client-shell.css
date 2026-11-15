@@ -432,11 +432,23 @@ html[data-form-factor='compact'] {
   max-height: min(65dvh, 500px, calc(var(--compact-height, 100dvh) - 32px));
   overflow-y: auto;
 }
-/* Always shown on touch, and small: a 44px circle covered the whole thumbnail. */
+/* Keep a touch Remove beside the image, never covering its annotate target. */
 [data-form-factor='compact'] [data-testid='attachment-chips'] button {
   display: flex;
   min-width: 24px;
   min-height: 24px;
+}
+[data-form-factor='compact'] .attachment-chip {
+  display: flex;
+  align-items: center;
+}
+[data-form-factor='compact'] .attachment-remove.hit-slop {
+  position: relative;
+  inset: auto;
+  display: flex;
+  width: 32px;
+  height: 32px;
+  margin-left: 6px;
 }
 /*
  * The phone composer is the shared card, tightened: less padding round the field
