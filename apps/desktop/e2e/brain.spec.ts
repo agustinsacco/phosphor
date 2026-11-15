@@ -26,7 +26,8 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
   try {
     await enableBrain(page, seed.harbor)
     await queueLane(page, seed.harbor)
-    await expect(inbox(page, seed.harbor).getByText('Reading the conversation')).toBeVisible()
+    await page.getByRole('tab', { name: /^Lanes/ }).click()
+    await expect(inbox(page, seed.harbor)).toContainText('Read the conversation')
     await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
     expect((await status(page)).counts).toEqual({ memories: 0, entities: 0 })
     const firstJob = await approveLane(page, seed.harbor)
@@ -36,9 +37,16 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
 
     await writeFile(seed.armed, 'armed\n')
     await queueLane(page, seed.ledger)
-    await expect(
-      inbox(page, seed.ledger).getByRole('button', { name: 'Retry', exact: true }),
-    ).toBeVisible()
+    await page.getByRole('tab', { name: /^Lanes/ }).click()
+    await expect
+      .poll(
+        async () =>
+          (await status(page)).jobs.find((job) => job.sessionPath === seed.ledger.source)?.state,
+      )
+      .toBe('failed')
+    await inbox(page, seed.ledger).click()
+    const failed = page.getByRole('region', { name: 'Failed read', exact: true })
+    await expect(failed.getByRole('button', { name: 'Retry', exact: true })).toBeVisible()
     const failedJob = (await status(page)).jobs.find(
       (job) => job.sessionPath === seed.ledger.source,
     )!
@@ -46,7 +54,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     expect(await readFile(join(seed.failureDirectory, 'failed-attempt-2'), 'utf8')).toBe(
       'extract\n',
     )
-    await inbox(page, seed.ledger).getByRole('button', { name: 'Retry', exact: true }).click()
+    await failed.getByRole('button', { name: 'Retry', exact: true }).click()
     expect(await approveLane(page, seed.ledger)).toBe(failedJob.id)
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 4, entities: 5 })
     const combined = await page.evaluate(() => window.phosphor.invoke('brain:overview'))
@@ -125,21 +133,25 @@ async function directedGraph(page: Page, firstJob: string) {
 }
 
 async function rereadHarbor(page: Page, lane: BrainLane, earlier: string): Promise<void> {
-  const history = page.getByRole('region', { name: 'Read lanes', exact: true })
-  const row = history.getByRole('article').filter({ hasText: lane.title })
+  const history = page.getByRole('region', { name: 'Read', exact: true })
+  const row = history.getByRole('button', { name: lane.title, exact: true })
   await expect(row).toContainText('2 memories')
-  await row.getByRole('button', { name: 'Read again', exact: true }).click()
+  await row.click()
+  await page
+    .getByRole('region', { name: 'Extraction detail', exact: true })
+    .getByRole('button', { name: 'Read again', exact: true })
+    .click()
   const confirm = page.getByRole('dialog', { name: `Read “${lane.title}” again?` })
   await expect(confirm).toContainText('The 2 memories from the earlier read stay until you approve')
   await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await row.getByRole('button').first().click()
+  await row.click()
   const detail = page.getByRole('region', { name: 'Extraction detail', exact: true })
   await expect(detail).toBeVisible()
   const old = await page.evaluate((id) => window.phosphor.invoke('brain:extraction', id), earlier)
   expect(old.prompts.every((p) => !p.startsWith('Prompt not available'))).toBe(true)
   await detail.getByRole('button', { name: 'Read again', exact: true }).click()
   await confirm.getByRole('button', { name: 'Read again', exact: true }).click()
-  await expect(inbox(page, lane)).toContainText('Reading again')
+  await expect(inbox(page, lane)).toContainText('reading again')
   for (const memory of old.memories)
     expect(
       await page.evaluate((id) => window.phosphor.invoke('brain:memory', id), memory.id),
@@ -195,12 +207,13 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
       .toBe('pi-claude-cli/claude-opus-5')
     await page.keyboard.press('Escape')
     await queueLane(page, seed.harbor)
-    await expect(inbox(page, seed.harbor).getByText('2 memories to review')).toBeVisible()
-    await expect(inbox(page, seed.harbor)).toContainText('pi-claude-cli/claude-opus-5')
-    await inbox(page, seed.harbor).getByRole('button', { name: 'Review', exact: true }).click()
-    await page.getByRole('button', { name: 'View extraction', exact: true }).click()
+    await page.getByRole('tab', { name: /^Lanes/ }).click()
+    await expect(inbox(page, seed.harbor)).toContainText('2 memories')
+    await expect(inbox(page, seed.harbor)).toContainText('Claude Opus 5')
+    await inbox(page, seed.harbor).click()
+    await page.getByRole('button', { name: 'See how it was read', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Extraction detail' })).toContainText(
-      'pi-claude-cli/claude-opus-5 · medium thinking',
+      'Claude Opus 5 · medium thinking',
     )
     const launches = (await readFile(argvLog, 'utf8'))
       .trim()
@@ -274,7 +287,7 @@ test('Brain review wraps a 300-character identity description without sideways s
     await expect(review).toBeVisible()
     expect(
       await review.evaluate((element) => {
-        let pane: HTMLElement | null = element
+        let pane: HTMLElement | SVGElement | null = element
         while (pane && !['auto', 'scroll'].includes(getComputedStyle(pane).overflowY))
           pane = pane.parentElement
         if (!pane) throw new Error('Missing review scroll container')
@@ -282,7 +295,7 @@ test('Brain review wraps a 300-character identity description without sideways s
       }),
     ).toEqual(expect.objectContaining({ scroll: expect.any(Number) }))
     const fits = await review.evaluate((element) => {
-      let pane: HTMLElement | null = element
+      let pane: HTMLElement | SVGElement | null = element
       while (pane && !['auto', 'scroll'].includes(getComputedStyle(pane).overflowY))
         pane = pane.parentElement
       return !!pane && pane.scrollWidth <= pane.clientWidth
