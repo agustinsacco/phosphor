@@ -130,6 +130,7 @@ export function createRunAdministration(options: AdministrationOptions) {
     store: options.store,
     runtime: options.runtime,
     stop: options.binding.deleteStop,
+    sessions: options.binding.sessions,
     forget: options.live.forget,
     terminals,
     attachments: options.attachments,

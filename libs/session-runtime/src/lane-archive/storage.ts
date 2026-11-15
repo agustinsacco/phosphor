@@ -118,7 +118,13 @@ export class LaneArchiveStorage {
     }
     if ((await this.list()).entries.length >= 1000)
       throw new Error('Archive is full. Clean up archived lanes first.')
-    const checkout = input.worktree ? await lstat(input.cwd) : null
+    // A worktree removed outside Phosphor still archives; with no identity, cleanup removes nothing.
+    const checkout = input.worktree
+      ? await lstat(input.cwd).catch((error: unknown) => {
+          if (missing(error)) return null
+          throw error
+        })
+      : null
     if (checkout && !checkout.isDirectory())
       throw new Error('The checkout is not a regular directory.')
     const info = input.transcript ? await lstat(input.transcript) : null
@@ -167,7 +173,9 @@ export class LaneArchiveStorage {
   }
   async purge(id: string, cleanup: (record: ArchiveRecord) => Promise<void>) {
     const record = await this.get(id)
-    if (record.state !== 'archived' && record.state !== 'purging')
+    // An empty lane mid-restore moved nothing back, so it may still be cleaned up.
+    const emptyRestore = record.state === 'restoring' && !record.transcript
+    if (record.state !== 'archived' && record.state !== 'purging' && !emptyRestore)
       throw new Error('Restore this incomplete archive before cleaning it up.')
     await assertArchiveDirectory(record, this.sessionsRoot, true)
     await assertPurgeIdentity(record)

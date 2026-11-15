@@ -141,7 +141,7 @@ function ArchiveRow({
         Restore
       </TooltipButton>
       <TooltipButton
-        disabled={disabled || !['archived', 'purging'].includes(entry.state)}
+        disabled={disabled || !['archived', 'purging', 'restoring'].includes(entry.state)}
         onClick={purge}
         className="text-danger"
       >

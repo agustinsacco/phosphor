@@ -15,6 +15,7 @@ import type { HostAttachments } from '../features/attachments'
 import type { HostRuntime } from '../session/runtime'
 import type { HostTerminals } from '../terminals/service'
 import type { HostStore } from './store'
+import type { LaneSessions } from './create'
 import { inside } from '../features/files'
 import {
   archiveAttachmentsPath,
@@ -29,6 +30,8 @@ type Options = {
   store: HostStore
   runtime: Pick<HostRuntime, 'mutateStoppedSession'>
   stop(id: string, allowed: () => boolean): Promise<void>
+  /** Starts the fresh session a restored never-sent lane resumes into. */
+  sessions: LaneSessions
   forget(id: string): void
   announce(id: string): void
   terminals?: Pick<HostTerminals, 'reap'>
@@ -142,7 +145,9 @@ export class HostArchives {
       !store.listRepositories().some((repo) => repo.id === repositoryId)
     )
       throw new Error('Add the original repository to this Host before restoring.')
-    if (store.listLanes().length >= store.limits.lanesPerHost)
+    const current = store.getLane(record.id)
+    const listed = current !== undefined && current !== null && current.removedAt === null
+    if (!listed && store.listLanes().length >= store.limits.lanesPerHost)
       throw new Error('Host lane capacity reached.')
     await stat(record.cwd)
     requireAllowed(allowed)
@@ -164,10 +169,30 @@ export class HostArchives {
       if (restored.laneId !== record.id) throw new Error('Another lane owns this transcript.')
     }
     store.archives.restore(record.id)
-    // pi can report a filename before its first write. Resume must create, not open that missing file.
-    if (!record.transcript) store.bindSessionFile(record.id, null)
+    // A failed start leaves the archive listed, so restore can be retried.
+    if (!record.transcript) await this.startFresh(record)
     await this.storage.finish(record.id)
     this.options.announce(record.id)
+  }
+  /**
+   * pi can report a filename before its first write, and resume refuses a lane
+   * without one. A never-sent lane comes back in a fresh session, as on Desktop.
+   */
+  private async startFresh(record: ArchiveRecord) {
+    const { store, sessions } = this.options
+    store.bindSessionFile(record.id, null)
+    const lane = store.getLane(record.id)
+    const session = await sessions.start({
+      repository: record.cwd,
+      ...(lane?.provider && lane.model ? { provider: lane.provider, model: lane.model } : {}),
+    })
+    try {
+      await sessions.attach(record.id, session.sessionId)
+    } catch (error) {
+      await sessions.stop(session.sessionId)
+      throw error
+    }
+    if (session.sessionFile) store.bindSessionFile(record.id, session.sessionFile)
   }
   private async purge(record: ArchiveRecord, removeCheckout: boolean, allowed: () => boolean) {
     const { store, directory } = this.options

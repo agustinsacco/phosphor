@@ -22,6 +22,9 @@ const identity = (machine: string) =>
   machine === 'local'
     ? 'local'
     : `${machine}:${machinesAccountGeneration()}:${machineReadGeneration(machine)}`
+/** Warn once per machine and account, not again on every reconnect. */
+const warning = (machine: string) =>
+  machine === 'local' ? 'local' : `${machine}:${machinesAccountGeneration()}`
 const patch = (machine: string, change: Partial<View>) =>
   useArchivesStore.setState((state) => ({
     machines: { ...state.machines, [machine]: { ...EMPTY, ...state.machines[machine], ...change } },
@@ -45,15 +48,20 @@ export function loadArchives(
           : await window.phosphor.invoke('hosts:archives', machine, measure)
       if (identity(machine) !== token) return undefined
       patch(machine, { data })
-      if (data.bytes !== null && data.bytes > ARCHIVE_WARNING_BYTES && !warned.has(token)) {
-        warned.add(token)
+      if (
+        data.bytes !== null &&
+        data.bytes > ARCHIVE_WARNING_BYTES &&
+        !warned.has(warning(machine))
+      ) {
+        warned.add(warning(machine))
         useExtensionUiStore
           .getState()
           .pushToast(
             `${machine === 'local' ? 'This computer' : machineLabel(machine)}: archived lanes use ${(data.bytes / 1e9).toFixed(1)} GB. Open Archive to restore or clean up. Nothing is removed automatically.`,
             'info',
           )
-      } else if (data.bytes !== null && data.bytes <= ARCHIVE_WARNING_BYTES) warned.delete(token)
+      } else if (data.bytes !== null && data.bytes <= ARCHIVE_WARNING_BYTES)
+        warned.delete(warning(machine))
       return data
     } catch (error) {
       if (identity(machine) === token)

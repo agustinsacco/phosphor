@@ -15,7 +15,7 @@ import { deleteDraftBlobs } from '../drafts-blobs'
 import { createLaneRemoval } from '../pi/delete-lane'
 import { sessionPaths } from '../pi/session-path-lock'
 import { listSessions, parseSessionFile } from '../pi/session-scanner'
-import { notifyWorkspaceSessions, unwatchWorkspaceSessions } from '../pi/session-watcher'
+import { notifyWorkspaceSessions } from '../pi/session-watcher'
 import { withWorkspace } from '../maintenance/history'
 import { removeWorktree } from '../fs/git-worktrees'
 import { deleteSession } from '../pi/session-deleter'
@@ -57,12 +57,8 @@ export async function archiveLocalLane(
     const disposed = await createLaneRemoval(save, async () => {})(path, sessionId)
     if (!saved) await save()
     inventory.invalidate()
+    // The renderer owns watch lifetimes; it still shows this folder and its restores.
     notifyWorkspaceSessions(cwd)
-    if (
-      !(await listSessions(cwd)).length &&
-      !registry.list().some((lane) => lane.workspacePath === cwd)
-    )
-      await unwatchWorkspaceSessions(cwd)
     return disposed
   })
 }
@@ -155,6 +151,8 @@ export function purgeLocalArchive(id: string, removeCheckout: boolean): Promise<
         // Keep legacy provider cleanup and artifact retention; child-run cleanup is shared.
         await deleteSession(parkedTranscript(record))
         await deleteDraftBlobs(clearDraft(`session:${record.transcript}`))
+      } else if (typeof record.metadata?.draftKey === 'string') {
+        await deleteDraftBlobs(clearDraft(record.metadata.draftKey))
       }
     })
     await storage.finish(id)
