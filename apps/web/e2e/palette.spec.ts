@@ -51,7 +51,7 @@ for (const width of [400, 1100]) {
     await expect(find).toBeVisible()
     const field = find.getByRole('textbox')
     await expect(field).toBeFocused()
-    await field.fill('PHX-synthetic artifact')
+    await field.fill('PHX-synthetic')
     await expect(find.getByTestId('find-status')).toHaveText('1 of 2')
     await field.press('Enter')
     await expect(find.getByTestId('find-status')).toHaveText('2 of 2')
