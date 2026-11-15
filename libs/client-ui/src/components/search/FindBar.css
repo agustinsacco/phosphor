@@ -1,4 +1,7 @@
 .find-bar[data-compact-find] {
+  /* A full-width bar must not cover the first matches in a short transcript. */
+  position: relative;
+  flex-shrink: 0;
   left: 0;
   right: 0;
   top: 0;
