@@ -49,3 +49,31 @@ it.each([
   )
   expect(store.snapshot().prefs).toEqual(DEFAULT_BRAIN_PREFS)
 })
+
+it.each([{ id: 'harbor/reader' }, '-harbor/reader', 'harbor reader', 42, ['harbor/reader']])(
+  'reads a malformed stored reader model %j as null',
+  (model) => {
+    const { store, db } = fixture()
+    db.prepare("INSERT OR REPLACE INTO meta VALUES ('prefs', ?)").run(
+      JSON.stringify({ enabled: true, recall: true, review: false, model }),
+    )
+    expect(store.snapshot().prefs).toEqual({
+      enabled: true,
+      recall: true,
+      review: false,
+      model: null,
+    })
+  },
+)
+it('reads malformed stored switches as their defaults and ignores unknown fields', () => {
+  const { store, db } = fixture()
+  db.prepare("INSERT OR REPLACE INTO meta VALUES ('prefs', ?)").run(
+    JSON.stringify({ enabled: 'yes', recall: null, review: 0, model: 'harbor/reader', extra: 1 }),
+  )
+  expect(store.snapshot().prefs).toEqual({ ...DEFAULT_BRAIN_PREFS, model: 'harbor/reader' })
+})
+it('reads stored preferences that are not an object as the defaults', () => {
+  const { store, db } = fixture()
+  db.prepare("INSERT OR REPLACE INTO meta VALUES ('prefs', ?)").run('[1,2]')
+  expect(store.snapshot().prefs).toEqual(DEFAULT_BRAIN_PREFS)
+})

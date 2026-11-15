@@ -53,3 +53,12 @@ it('refuses a quote that is only emphasis marks', () => {
   const w = makeWindow([segment('Harbor is **stable**.')])
   expect(() => verifiedQuote({ segment: 's1', quote: '** `' }, w)).toThrow('Quote not found')
 })
+it.each([
+  ['Ledger charges a*b credits per batch.', 'Ledger charges ab credits per batch.'],
+  ['Harbor bills 2 * 3 seats.', 'Harbor bills 2 3 seats.'],
+  ['Kestrel raises x**2 retries.', 'Kestrel raises x2 retries.'],
+])('keeps an asterisk that is not an emphasis mark: %s', (source, quote) => {
+  const w = makeWindow([segment(source)])
+  expect(() => verifiedQuote({ segment: 's1', quote }, w)).toThrow('Quote not found')
+  expect(verifiedQuote({ segment: 's1', quote: source }, w).quote).toBe(source)
+})
