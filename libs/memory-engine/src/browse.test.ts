@@ -59,3 +59,17 @@ it('uses the v5 indexes for the unfiltered browse, finished reads and per-job me
   ).toContain('memories_job')
   expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 5 })
 })
+
+it('walks the connection index for common and rare kinds, and finds kinds in one pass', () => {
+  const { db } = setup()
+  const plan = (sql: string) => db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all()
+  for (const kind of ['project', 'event']) {
+    const steps = plan(
+      `SELECT id FROM entities WHERE memories>0 AND kind='${kind}' ORDER BY connections DESC,n ASC LIMIT 21`,
+    )
+    expect(JSON.stringify(steps)).toContain('entities_connections')
+    expect(JSON.stringify(steps)).not.toContain('USE TEMP B-TREE FOR ORDER BY')
+  }
+  const kinds = plan('SELECT DISTINCT kind FROM entities WHERE memories>0')
+  expect(kinds.filter((step) => String(step.detail).includes('SCAN entities'))).toHaveLength(1)
+})
