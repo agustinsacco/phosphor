@@ -24,7 +24,7 @@ beforeEach(() => {
       method === 'hosts:skills'
         ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
         : method === 'hosts:models'
-          ? models
+          ? { models }
           : [{ id: 'p', name: 'Provider', status: 'ready' }],
     )
 })
@@ -36,6 +36,25 @@ it('loads sequential machine reads and never invokes local catalogues', async ()
     'hosts:providers',
   ])
   expect(catalogue().models).toEqual(models)
+  expect(catalogue().defaults).toBeUndefined()
+})
+it('keeps the Host pi’s defaults with its catalogue and drops a malformed one', async () => {
+  const defaults = { model: { provider: 'p', id: 'm' }, thinkingLevel: 'high' }
+  const reply = (value: unknown) =>
+    invoke.mockImplementation(async (method) =>
+      method === 'hosts:skills'
+        ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
+        : method === 'hosts:models'
+          ? { models, defaults: value }
+          : [{ id: 'p', name: 'Provider', status: 'ready' }],
+    )
+  reply(defaults)
+  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
+  expect(catalogue()).toMatchObject({ status: 'ready', models, defaults })
+  reply({ ...defaults, theme: 'dark' })
+  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID, undefined, true)
+  expect(catalogue()).toMatchObject({ status: 'ready', models })
+  expect(catalogue().defaults).toBeUndefined()
 })
 it('does not issue a read for a down or capability-less machine', async () => {
   const hosts = structuredClone(mockRemoteHosts)
@@ -108,13 +127,15 @@ it.each(['hosts:models', 'hosts:providers'] as const)(
       return method === 'hosts:skills'
         ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
         : method === 'hosts:models'
-          ? models
+          ? { models }
           : [{ id: 'p', name: 'Provider', status: 'ready' }]
     })
     const pending = useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
     await vi.waitFor(() => expect(resolve).toBeDefined())
     await useMachineCataloguesStore.getState().load(null)
-    resolve?.(stage === 'hosts:models' ? models : [{ id: 'p', name: 'Provider', status: 'ready' }])
+    resolve?.(
+      stage === 'hosts:models' ? { models } : [{ id: 'p', name: 'Provider', status: 'ready' }],
+    )
     await pending
     expect(catalogue().models).toEqual(models)
     expect(catalogue().providers).toEqual([{ id: 'p', name: 'Provider', status: 'ready' }])

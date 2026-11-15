@@ -51,9 +51,10 @@ it("lists This Mac's Claude provider by its package name, as the provider row ma
 })
 it('answers each delegated channel group from its owning mock module', async () => {
   const host = '00000000-0000-4000-8000-000000000099'
-  expect(await window.phosphor.invoke('hosts:models', host)).toMatchObject([
-    { id: 'claude-sonnet-4-5' },
-  ])
+  expect(await window.phosphor.invoke('hosts:models', host)).toMatchObject({
+    models: [{ id: 'claude-sonnet-4-5' }],
+    defaults: { model: { provider: 'anthropic', id: 'claude-sonnet-4-5' } },
+  })
   await expect(
     (async () => window.phosphor.invoke('hosts:machineTask', host, {} as never))(),
   ).rejects.toThrow('Private setup terminals')

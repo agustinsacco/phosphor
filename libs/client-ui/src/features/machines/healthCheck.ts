@@ -211,7 +211,7 @@ function hostProbes(
   const probes = machineProbes(
     {
       providers: () => context.invoke('hosts:providers', machine.id),
-      models: async () => (await context.invoke('hosts:models', machine.id)).length,
+      models: async () => (await context.invoke('hosts:models', machine.id)).models.length,
       claude: () => context.invoke('hosts:claude', machine.id),
       lanes: async () =>
         `${plural(view?.lanes.length ?? 0, 'lane')} · ${plural(view?.repositories.length ?? 0, 'folder')}`,

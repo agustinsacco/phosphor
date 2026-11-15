@@ -32,7 +32,7 @@ beforeEach(() => {
   invoke.mockReset().mockImplementation(async (channel: string, hostId, section, repositoryId) => {
     if (channel === 'hosts:settingsRead') return mockSettingsRead(hostId, section, repositoryId)
     if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
-    if (channel === 'hosts:models') return []
+    if (channel === 'hosts:models') return { models: [] }
     if (channel === 'pi:agentSettingsScoped') return { global: {}, project: {} }
     if (channel === 'pi:checkAgentSettings')
       return { global: { exists: true, malformed: false }, project: null }

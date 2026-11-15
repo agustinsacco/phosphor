@@ -79,7 +79,7 @@ it('keeps the other compaction values on screen after one is saved (regression A
 
 it('shows a Host folder inheriting its machine thinking level, and lets it pin medium over that (regression A15)', async () => {
   invoke.mockImplementation(async (channel: string, hostId, section, repositoryId) => {
-    if (channel === 'hosts:models') return []
+    if (channel === 'hosts:models') return { models: [] }
     if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
     if (channel !== 'hosts:settingsRead') return local(channel)
     const read = mockSettingsRead(hostId, section, repositoryId)
@@ -244,7 +244,7 @@ it.each([
   'shows a Host model key set on its own as set here, and Reset clears it (regression R-U4, no %s)',
   async (missing, ids) => {
     invoke.mockImplementation(async (channel: string, hostId, section, repositoryId) => {
-      if (channel === 'hosts:models') return []
+      if (channel === 'hosts:models') return { models: [] }
       if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
       if (channel !== 'hosts:settingsRead') return local(channel)
       const read = mockSettingsRead(hostId, section, repositoryId)
@@ -277,7 +277,7 @@ it.each([
 it('waits for a Host folder’s inherited machine read, and offers Retry when it fails (regression R-U5)', async () => {
   let machineRead: 'pending' | 'fail' | 'ok' = 'pending'
   invoke.mockImplementation(async (channel: string, hostId, section, repositoryId) => {
-    if (channel === 'hosts:models') return []
+    if (channel === 'hosts:models') return { models: [] }
     if (channel !== 'hosts:settingsRead') return local(channel)
     if (!repositoryId && machineRead === 'pending') return new Promise(() => undefined)
     if (!repositoryId && machineRead === 'fail') throw new Error('Host unreachable')

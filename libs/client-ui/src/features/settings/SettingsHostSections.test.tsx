@@ -39,9 +39,11 @@ beforeEach(() => {
     if (channel === 'hosts:settingsRead') return mockSettingsRead(hostId, section, repositoryId)
     if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
     if (channel === 'hosts:models')
-      return [
-        { id: 'claude-sonnet-4-5', name: 'Host model', provider: 'anthropic', reasoning: true },
-      ]
+      return {
+        models: [
+          { id: 'claude-sonnet-4-5', name: 'Host model', provider: 'anthropic', reasoning: true },
+        ],
+      }
     if (channel === 'hosts:providers') return []
     return undefined
   })
@@ -187,7 +189,9 @@ it('recovers a failed Host model catalogue without borrowing local models', asyn
 })
 it('saves thinking and agent behavior on the Host even if its model is absent from the catalogue', async () => {
   const normal = invoke.getMockImplementation()!
-  invoke.mockImplementation(async (...args) => (args[0] === 'hosts:models' ? [] : normal(...args)))
+  invoke.mockImplementation(async (...args) =>
+    args[0] === 'hosts:models' ? { models: [] } : normal(...args),
+  )
   await render('agent')
   // The demo Host keeps its state between tests: pick a level no other test saves.
   await act(async () => select('Default thinking level', 'low'))

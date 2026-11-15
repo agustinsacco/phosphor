@@ -58,7 +58,7 @@ beforeEach(() => {
     },
     'routines:list': () => ({ routines: [], runs: [], error: null, background: false }),
     'hosts:skills': () => ({ skills: [], probe: 'rpc', userRoot: '' }),
-    'hosts:models': () => [],
+    'hosts:models': () => ({ models: [] }),
     'hosts:providers': () => [],
   })
   restore = installFakePhosphor(fake)
