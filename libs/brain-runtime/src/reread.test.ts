@@ -90,3 +90,17 @@ it.each([true, false])(
     ).toBe(true)
   },
 )
+it('keeps a saved reread finished when the search refresh fails afterwards', async () => {
+  const s = await setup()
+  s.store.setPrefs({ enabled: true, recall: true, review: false, model: null })
+  const oldIds = s.recall()
+  vi.spyOn(s.search, 'refresh').mockRejectedValue(new Error('search worker exited'))
+  const queued = await s.service.api.reread(s.first.id)
+  const next = queued.jobs[0]!
+  await vi.waitFor(() => expect(['done', 'failed']).toContain(s.store.job(next.id)?.state))
+  // The replacement is already saved, so the read is finished, not a failure to retry.
+  expect(s.store.job(next.id)).toMatchObject({ state: 'done', error: null })
+  expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id])
+  expect(s.recall()).toHaveLength(1)
+  expect(s.recall()).not.toEqual(oldIds)
+})

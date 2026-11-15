@@ -1,4 +1,6 @@
+import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
+import { openBrainStore } from './store'
 import { approve, extraction, fixture, lane } from './test-support'
 
 it.each(['waiting', 'queued', 'running', 'review', 'empty', 'failed'] as const)(
@@ -149,3 +151,41 @@ it.each(['empty', 'failed', 'cancelled'] as const)(
     expect(store.job(old)?.state).toBe('done')
   },
 )
+it('replaces a lane with one revision bump and no extra pruning per removed memory', () => {
+  let prunes = 0
+  class Counting extends DatabaseSync {
+    override prepare(sql: string): ReturnType<DatabaseSync['prepare']> {
+      const statement = super.prepare(sql)
+      if (!sql.startsWith('DELETE FROM extractions')) return statement
+      const run = statement.run.bind(statement)
+      statement.run = (...args: Parameters<typeof run>) => {
+        prunes++
+        return run(...args)
+      }
+      return statement
+    }
+  }
+  let counter = 0
+  const store = openBrainStore({
+    path: ':memory:',
+    Database: Counting,
+    id: () => `id-${++counter}`,
+  })
+  try {
+    const save = (patch: Parameters<typeof lane>[0]): number => {
+      const job = store.enqueue(lane(patch), 'queued')
+      store.propose(extraction(job.id, { computedRevision: store.revision() }))
+      const before = { prunes, revision: store.revision() }
+      store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, store.revision())
+      expect(store.revision()).toBe(before.revision + 1)
+      return prunes - before.prunes
+    }
+    const plain = save({})
+    const old = store.history(1).items[0]!
+    expect(old.replaceable).toBe(2)
+    expect(save({ leafId: 'new', replaces: old.job.id })).toBe(plain)
+    expect(store.history(1).items[0]).toMatchObject({ memories: 2, replaceable: 2 })
+  } finally {
+    store.close()
+  }
+})
