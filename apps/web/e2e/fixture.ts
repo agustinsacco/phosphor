@@ -28,6 +28,9 @@ const endpoint = 'https://fixture.ts.net'
 const removeRoot = (root: string) =>
   rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 
+/** The production stack runs no Host, so it seeds no lanes. */
+const UNSEEDED = { laneId: '', secondLaneId: '', repository: '' }
+
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
 export async function browserFixture(production = false) {
   const root = await mkdtemp(join(tmpdir(), 'phosphor-web-'))
@@ -321,18 +324,7 @@ export async function browserFixture(production = false) {
       upstream.write(head)
       socket.pipe(upstream).pipe(socket)
     })
-    if (production)
-      return {
-        origin,
-        state,
-        hostId,
-        close,
-        owners,
-        laneId: '',
-        secondLaneId: '',
-        repository: '',
-        ...gate.api,
-      }
+    if (production) return { origin, state, hostId, close, owners, ...UNSEEDED, ...gate.api }
 
     const reserve = createServer()
     await new Promise<void>((done) => reserve.listen(0, '127.0.0.1', done))
@@ -512,18 +504,9 @@ export async function browserFixture(production = false) {
         .toBe(true)
       await command({ type: 'control.release' }, laneId, control.fence)
     }
-    return {
-      origin,
-      state,
-      hostId,
-      close,
-      owners,
-      laneId: lanes[0]!,
-      secondLaneId: lanes[1]!,
-      /** The first lane's folder on the Host, which a spec may read and change. */
-      repository: repo,
-      ...gate.api,
-    }
+    // `repository` is the first lane's folder on the Host, which a spec may read and change.
+    const seeded = { laneId: lanes[0]!, secondLaneId: lanes[1]!, repository: repo }
+    return { origin, state, hostId, close, owners, ...seeded, ...gate.api }
   } catch (error) {
     await close()
     throw error
