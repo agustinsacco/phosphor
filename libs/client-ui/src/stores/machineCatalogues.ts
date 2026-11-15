@@ -39,8 +39,24 @@ export function machineCatalogueKey(
 export const useMachineCataloguesStore = create<{
   catalogues: Record<string, MachineCatalogue>
   load: (hostId: string | null, workspacePath?: string, force?: boolean) => Promise<void>
+  adoptDefaults: (hostId: string, defaults: MachineModelDefaults | undefined) => void
 }>((set, get) => ({
   catalogues: {},
+  /**
+   * After this client saved the Host pi's machine-wide defaults: a ready
+   * catalogue takes them as the next read would answer, and one still loading
+   * reads again, as its answer may predate the save.
+   */
+  adoptDefaults(hostId, defaults) {
+    const key = machineCatalogueKey(hostId)
+    const entry = get().catalogues[key]
+    if (entry?.status === 'loading') return void get().load(hostId, undefined, true)
+    if (entry?.status !== 'ready') return
+    const next: MachineCatalogue = { ...entry }
+    if (defaults) next.defaults = defaults
+    else delete next.defaults
+    set((s) => ({ catalogues: { ...s.catalogues, [key]: next } }))
+  },
   async load(hostId, workspacePath, force = false) {
     // A consumer leaving a page does not own another consumer's catalogue.
     if (!hostId) return

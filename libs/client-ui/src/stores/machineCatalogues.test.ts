@@ -56,6 +56,33 @@ it('keeps the Host pi’s defaults with its catalogue and drops a malformed one'
   expect(catalogue()).toMatchObject({ status: 'ready', models })
   expect(catalogue().defaults).toBeUndefined()
 })
+it('adopts saved defaults into a ready catalogue and reads again under a load in flight', async () => {
+  const defaults = { model: { provider: 'p', id: 'm' }, thinkingLevel: 'low' as const }
+  useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, defaults)
+  expect(useMachineCataloguesStore.getState().catalogues).toEqual({})
+  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
+  invoke.mockClear()
+  useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, defaults)
+  expect(catalogue()).toMatchObject({ status: 'ready', models, defaults })
+  useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, undefined)
+  expect(catalogue()).not.toHaveProperty('defaults')
+  expect(invoke).not.toHaveBeenCalled()
+  // A read already in flight may have been answered before the save: it is replaced.
+  let first: ((value: unknown) => void) | undefined
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        first = done
+      }),
+  )
+  const stale = useMachineCataloguesStore.getState().load(MOCK_HOST_ID, undefined, true)
+  await vi.waitFor(() => expect(first).toBeDefined())
+  useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, defaults)
+  first?.({ skills: [], probe: 'rpc', userRoot: 'opaque' })
+  await stale
+  await vi.waitFor(() => expect(catalogue().status).toBe('ready'))
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:skills')).toHaveLength(2)
+})
 it('does not issue a read for a down or capability-less machine', async () => {
   const hosts = structuredClone(mockRemoteHosts)
   useRemoteLanesStore.setState({ hosts })
