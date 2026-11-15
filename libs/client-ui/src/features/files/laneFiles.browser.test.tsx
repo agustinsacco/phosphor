@@ -356,6 +356,22 @@ it('phone: Back to the tree closes the file, asking first when it has edits', as
   }
 })
 
+it('phone: an edit keeps a CRLF file’s line endings, as Monaco does', async () => {
+  const host = fakeLaneHost()
+  host.files['a.ts']!.content = 'one\r\ntwo\r\n'
+  const lane = await renderLaneFiles({ invoke: host.invoke, client: 'phone' })
+  try {
+    // A textarea holds and hands back LF only, whatever the file's line endings are.
+    expect(await lane.edit('a.ts', 'one\nTWO\nthree\n')).toBe(true)
+    await lane.save('a.ts')
+    const saved = 'one\r\nTWO\r\nthree\r\n'
+    expect(lane.savesSent()).toEqual([['fs:writeFile', `${workspace}/a.ts`, saved, 'rev-a1']])
+    expect(host.files['a.ts']!.content).toBe(saved)
+  } finally {
+    lane.unmount()
+  }
+})
+
 it('phone: a file opens as text with Edit, which a read-only lane does not offer', async () => {
   const lane = await renderLaneFiles({
     invoke: fakeLaneHost().invoke,
