@@ -1,0 +1,149 @@
+import { useCallback, useState } from 'react'
+import type { BrainJob } from '@shared/brain'
+import { Button } from '@/components/form'
+import { PhosphorLoader } from '@/components/PhosphorLoader'
+import { useBrain } from './useBrain'
+import { useBrainModelName } from './BrainModelName'
+import { useBrainResource } from './useBrainResource'
+import { BrainReview } from './BrainReview'
+import { BrainExtraction } from './BrainExtraction'
+import { ExtractionCalls } from './ExtractionCalls'
+import {
+  BRAIN_PROGRESS_STAGES,
+  BRAIN_STAGE_LABELS,
+  elapsedTime,
+  jobLine,
+  progressLine,
+} from './jobProgress'
+
+export function BrainLaneDetail({
+  jobId,
+  job,
+  readOnly,
+  now,
+  onMemory,
+}: {
+  jobId: string
+  job: BrainJob | undefined
+  readOnly: boolean
+  now: number
+  onMemory: (id: string, label: string) => void
+}): React.JSX.Element {
+  const [showRead, setShowRead] = useState(false)
+  const [reviewed, setReviewed] = useState(job?.state === 'review')
+  if (job?.state === 'review' && !reviewed) setReviewed(true)
+  if (readOnly || showRead || job?.state === 'done' || job?.state === 'empty')
+    return (
+      <>
+        {job?.state === 'empty' && <JobActions job={job} />}
+        <BrainExtraction
+          jobId={jobId}
+          onMemory={onMemory}
+          onBack={showRead ? () => setShowRead(false) : undefined}
+        />
+      </>
+    )
+  if (job?.state === 'review' || (reviewed && job?.state === 'running'))
+    return <BrainReview jobId={jobId} onClose={() => {}} onExtraction={() => setShowRead(true)} />
+  if (!job)
+    return (
+      <p role="status" className="p-4">
+        Loading read…
+      </p>
+    )
+  return <ReadingDetail job={job} now={now} />
+}
+function ReadingDetail({ job, now }: { job: BrainJob; now: number }): React.JSX.Element {
+  const model = useBrainModelName(job.model)
+  return (
+    <section
+      aria-label={job.state === 'failed' ? 'Failed read' : 'Reading lane'}
+      className="space-y-4 p-4"
+    >
+      <header>
+        <h2 className="text-xl font-semibold">{job.title}</h2>
+        <p className="text-text-tertiary text-sm">
+          {model} ·{' '}
+          {job.startedAt !== null
+            ? `started ${elapsedTime(now - job.startedAt)} ago`
+            : jobLine(job, 0, now)}
+        </p>
+      </header>
+      {job.state === 'failed' ? (
+        <p role="alert" className="text-danger whitespace-pre-wrap">
+          {job.error ?? 'Knowledge extraction failed'}
+        </p>
+      ) : (
+        <ReadingSteps job={job} />
+      )}
+      <JobActions job={job} />
+      <LiveCalls job={job} />
+    </section>
+  )
+}
+function JobActions({ job }: { job: BrainJob }): React.JSX.Element {
+  const saving = useBrain((s) => s.saving)
+  return (
+    <div className="flex flex-wrap gap-2">
+      {job.state === 'failed' && (
+        <Button
+          disabled={saving}
+          onClick={() => {
+            void useBrain.getState().retry(job.id)
+          }}
+        >
+          Retry
+        </Button>
+      )}
+      <Button
+        disabled={saving}
+        onClick={() => {
+          void useBrain.getState().cancel(job.id)
+        }}
+      >
+        {job.state === 'failed' || job.state === 'empty' ? 'Dismiss' : 'Cancel'}
+      </Button>
+    </div>
+  )
+}
+function ReadingSteps({ job }: { job: BrainJob }): React.JSX.Element {
+  const current = job.progress ? BRAIN_PROGRESS_STAGES.indexOf(job.progress.stage) : -1
+  return (
+    <ol aria-label="Reading steps" className="space-y-2">
+      {BRAIN_PROGRESS_STAGES.map((stage, index) => (
+        <li
+          key={stage}
+          aria-current={index === current ? 'step' : undefined}
+          className={
+            index <= current
+              ? 'text-text-secondary flex items-center gap-2'
+              : 'text-text-tertiary flex items-center gap-2'
+          }
+        >
+          {index === current ? (
+            <PhosphorLoader size={16} label="Current step" />
+          ) : (
+            <span aria-label={index < current ? 'Done' : 'Pending'}>
+              {index < current ? '✓' : '○'}
+            </span>
+          )}
+          {index === current && job.progress
+            ? progressLine(job.progress)
+            : BRAIN_STAGE_LABELS[stage]}
+        </li>
+      ))}
+    </ol>
+  )
+}
+function LiveCalls({ job }: { job: BrainJob }): React.JSX.Element {
+  const load = useCallback(() => window.phosphor.invoke('brain:extraction', job.id), [job.id])
+  const { data, error, retry } = useBrainResource(load, job.startedAt !== null, JSON.stringify(job))
+  if (job.startedAt === null) return <p className="text-text-tertiary text-sm">No calls yet.</p>
+  if (!data)
+    return (
+      <p role="status">
+        {error || 'Loading calls…'} {error && <Button onClick={retry}>Retry</Button>}
+      </p>
+    )
+  return <ExtractionCalls data={data} />
+}

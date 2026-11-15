@@ -19,6 +19,7 @@ import { BrainPage } from './BrainPage'
 import { mockBrainJob, mockBrainProposal, mockBrainStatus } from './mockBrainData'
 import { MockExplorer } from './mockExplorer'
 import { useBrain } from './useBrain'
+import { mockExtractionView } from './mockExtractionView'
 
 let root: Root
 let container: HTMLDivElement
@@ -62,6 +63,12 @@ beforeEach(() => {
   fake = createFakePhosphor({
     'brain:status': () => status,
     'brain:history': history,
+    'brain:extraction': () => ({
+      ...mockExtractionView(),
+      job: mockBrainJob({ state: 'done' }),
+      laneMemories: 3,
+      replaceable: 2,
+    }),
     'brain:reread': reread,
     'brain:overview': () => overview(null),
     'brain:neighbourhood': (id, hops) => neighbourhood(id, hops),
@@ -228,19 +235,15 @@ it('renders supported path chains and highlights a chosen route', async () => {
 it('builds a v4 review with identity overrides, group yes and memory select none/all', async () => {
   status.jobs = [mockBrainJob()]
   await render()
-  await click('Review')
   expect(container.textContent).not.toContain('lane summary')
-  await click('Select none · all new')
+  await click('All new')
   await click('Select all groups')
-  await click('Select no memories')
-  await click('Select all memories')
-  const picker = container.querySelector<HTMLSelectElement>(
-    '[aria-label="Identity for Rina Okafor"]',
+  await setMemories(false)
+  await setMemories(true)
+  const picker = container.querySelector<HTMLButtonElement>(
+    '[aria-label="Identity for Rina Okafor"] [role="radio"]',
   )!
-  await act(async () => {
-    picker.value = 'rina'
-    picker.dispatchEvent(new Event('change', { bubbles: true }))
-  })
+  await act(async () => picker.click())
   await click('Approve 2')
   expect(review).toHaveBeenCalledWith(
     'harbor-job',
@@ -259,7 +262,6 @@ it('shows a stale review error, refreshes the proposal, and can approve again', 
     throw new Error('Brain changed; refreshing this review')
   })
   await render()
-  await click('Review')
   await click('Approve 2')
   expect(container.textContent).toContain('Brain changed; refreshing this review')
   expect(container.querySelector('[aria-label="Review memories"]')).toBeNull()
@@ -274,7 +276,6 @@ it('recovers a failed first proposal load and rejects with null', async () => {
   status.jobs = [mockBrainJob()]
   proposalRead.mockRejectedValueOnce(new Error('Harbor proposal unavailable'))
   await render()
-  await click('Review')
   expect(container.textContent).toContain('Harbor proposal unavailable')
   await click('Retry')
   await click('Reject all')
@@ -284,7 +285,6 @@ it('recovers a failed first proposal load and rejects with null', async () => {
 it('waits for a recomputed job to return to review before reloading its proposal', async () => {
   status.jobs = [mockBrainJob()]
   await render()
-  await click('Review')
   expect(proposalRead).toHaveBeenCalledOnce()
   await act(async () =>
     useBrain.setState({ status: { ...status, jobs: [mockBrainJob({ state: 'running' })] } }),
@@ -302,15 +302,15 @@ it('pages review identities at twenty and applies select-all across pages', asyn
     ...base,
     ref: `n${i}`,
     label: `Harbor team ${i}`,
-    decision: 'uncertain',
+    decision: 'reuse',
+    candidates: [...base.candidates, { ...base.candidates[0]!, id: 'other', label: 'Kestrel' }],
   }))
   await render()
-  await click('Review')
   const section = container.querySelector('[aria-label="Who/what is this?"]')!
   expect(section.querySelectorAll('select')).toHaveLength(20)
   await click('Next')
   expect(section.querySelectorAll('select')).toHaveLength(5)
-  await click('Select none · all new')
+  await click('All new')
   await click('Approve 2')
   expect(Object.keys(review.mock.calls[0]![1]!.identities)).toHaveLength(25)
 })
@@ -330,6 +330,8 @@ it('filters disputed memories and retries failed jobs', async () => {
   await act(async () =>
     useBrain.setState({ status: { ...status, jobs: [mockBrainJob({ state: 'failed' })] } }),
   )
+  await lanesTab()
+  await click('Harbor planning')
   await click('Retry')
   expect(retry).toHaveBeenCalledWith('brain:retry', 'harbor-job')
 })
@@ -434,20 +436,23 @@ it('shows held claims and pages groups and memories at twenty with bulk choices 
     summary: `Harbor decision ${index}`,
   }))
   await render()
-  await click('Review')
   expect(container.textContent).toContain('2 held back')
   for (const label of ['Possible groups', 'Proposed memories']) {
     const section = container.querySelector(`[aria-label="${label}"]`)!
-    expect(section.querySelectorAll('input[type="checkbox"]')).toHaveLength(20)
+    expect(section.querySelectorAll('input[type="checkbox"]')).toHaveLength(
+      label === 'Proposed memories' ? 21 : 20,
+    )
     const next = [...section.querySelectorAll('button')].find((b) => b.textContent === 'Next')!
     await act(async () => next.click())
-    expect(section.querySelectorAll('input[type="checkbox"]')).toHaveLength(1)
+    expect(section.querySelectorAll('input[type="checkbox"]')).toHaveLength(
+      label === 'Proposed memories' ? 2 : 1,
+    )
   }
-  await click('Select all suggestions')
+  await click('Accept all')
   await click('Select all groups')
   await click('Select no groups')
-  await click('Select no memories')
-  await click('Select all memories')
+  await setMemories(false)
+  await setMemories(true)
   await click('Approve 21')
   expect(review.mock.calls[0]![1]).toEqual({
     memories: Array.from({ length: 21 }, (_, i) => i),
@@ -489,10 +494,9 @@ it('refreshes status after a stale proposal load and recovers automatically when
     throw new Error('Brain changed; refreshing this review')
   })
   await render()
-  await click('Review')
   expect(useBrain.getState().status?.jobs[0]?.state).toBe('running')
   expect(container.textContent).toContain('Brain changed; refreshing this review')
-  expect(container.textContent).toContain('Matching entities 1 of 2')
+  expect(container.textContent).toContain('Match people and things · part 1 of 2')
   expect(container.querySelector('[aria-label="Review memories"]')).toBeNull()
   status = { ...status, jobs: [mockBrainJob()] }
   await act(async () => vi.advanceTimersByTimeAsync(2000))
@@ -508,13 +512,15 @@ it('loads muted read-lane history, recovers its first failure, reloads with inbo
     more: false,
   })
   await render()
+  await lanesTab()
   expect(container.textContent).toContain('History unavailable')
   await click('Retry')
-  const rows = container.querySelector('[aria-label="Read lanes"]')!
+  const rows = container.querySelector('[aria-label="Read"]')!
   expect(rows.textContent).toContain('Harbor planning')
-  expect(rows.textContent).toContain('demo/harbor-model')
+  expect(rows.textContent).toContain('harbor-model')
   expect(rows.textContent).toContain('3 memories')
-  expect(rows.querySelector('article')?.className).toContain('text-text-tertiary')
+  expect(rows.querySelector('button')?.className).toContain('text-text-tertiary')
+  await click('Harbor planning')
   await click('Read again')
   const dialog = document.querySelector('[role="dialog"]')!
   expect(dialog.textContent).toContain('Read “Harbor planning” again?')
@@ -539,19 +545,18 @@ it('loads muted read-lane history, recovers its first failure, reloads with inbo
     }),
   )
   expect(history).toHaveBeenCalledTimes(4)
-  expect(container.textContent).toContain('Reading again')
+  expect(container.textContent).toContain('reading again')
 })
 it('shows the replacement count only on a reread review and permits approving no new memories', async () => {
   status.jobs = [mockBrainJob({ replaces: 'earlier' })]
   proposal.job = status.jobs[0]!
   proposal.replacingMemories = 2
   await render()
-  await click('Review')
   expect(container.textContent).toContain(
     'Approving replaces the 2 memories from the earlier read of this lane.',
   )
   proposal.confirmations = []
-  await click('Select no memories')
+  await setMemories(false)
   const button = [...container.querySelectorAll('button')].find(
     (b) => b.textContent === 'Approve 0',
   )!
@@ -559,3 +564,19 @@ it('shows the replacement count only on a reread review and permits approving no
   await click('Approve 0')
   expect(review.mock.calls[0]![1]?.memories).toEqual([])
 })
+
+async function lanesTab(): Promise<void> {
+  const tab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) =>
+    tab.textContent?.startsWith('Lanes'),
+  )!
+  await act(async () => tab.click())
+}
+async function setMemories(checked: boolean): Promise<void> {
+  const toggles = [
+    ...container.querySelectorAll<HTMLInputElement>(
+      '[aria-label="Proposed memories"] input[aria-label^="All "]',
+    ),
+  ]
+  for (const toggle of toggles)
+    if (toggle.checked !== checked) await act(async () => toggle.click())
+}
