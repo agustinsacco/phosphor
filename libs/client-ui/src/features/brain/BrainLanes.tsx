@@ -54,7 +54,7 @@ export function BrainLanes({
             <BrainInbox
               groups={groups}
               jobs={jobs}
-              selected={readId ? null : current}
+              selected={current}
               onSelect={onSelect}
               now={now}
             />

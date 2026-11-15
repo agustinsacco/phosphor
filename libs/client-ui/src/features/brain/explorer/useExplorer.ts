@@ -3,7 +3,7 @@ import type { BrainLink } from '@shared/brain'
 import { shortcutOverlayOpen } from '@/lib/shortcutContext'
 import { initialTrail, moveTrail, visitTrail, type BrainVisit } from './trail'
 
-export function useExplorer() {
+export function useExplorer(active = true) {
   const [trail, setTrail] = useState(initialTrail)
   const [path, setPath] = useState<BrainLink[] | null>(null)
   const [query, setQuery] = useState('')
@@ -32,6 +32,7 @@ export function useExplorer() {
     [clearPanels],
   )
   useEffect(() => {
+    if (!active) return
     const keyboard = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement
       if (
@@ -61,7 +62,7 @@ export function useExplorer() {
     }
     window.addEventListener('keydown', keyboard)
     return () => window.removeEventListener('keydown', keyboard)
-  }, [move, query, jump, trail.index])
+  }, [active, move, query, jump, trail.index])
   return {
     trail,
     visit: trail.items[trail.index],

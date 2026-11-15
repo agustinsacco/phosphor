@@ -59,11 +59,11 @@ export function BrainPage(): React.JSX.Element {
 }
 
 function BrainContent(): React.JSX.Element {
-  const explorer = useExplorer()
   const status = useBrain((s) => s.status)!
   const [tab, setTab] = useState<'knowledge' | 'lanes'>(() =>
     !status.counts.memories && status.jobs.length ? 'lanes' : 'knowledge',
   )
+  const explorer = useExplorer(tab === 'knowledge')
   const [selected, setSelected] = useState<string | null>(null)
   const [readId, setReadId] = useState<string | null>(null)
   const reviews = status.jobs.filter((job) => job.state === 'review').length
