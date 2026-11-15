@@ -87,3 +87,25 @@ it('includes missing route nodes beyond the neighbourhood and passes the route t
     fake.dispose()
   }
 })
+
+it('keeps every overview node drawn after selecting an entity', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const explorer = new MockExplorer()
+  const overview = explorer.graph(null)
+  const fake = createFakePhosphor({
+    'brain:overview': () => overview,
+    'brain:neighbourhood': (id, hops) => explorer.graph(id, hops),
+  })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<ExplorerGraph entityId={null} path={null} onVisit={vi.fn()} />))
+    await act(async () => root.render(<ExplorerGraph entityId="rina" path={null} onVisit={vi.fn()} />))
+    for (const node of overview.nodes) expect(container.textContent).toContain(node.id)
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
+})
