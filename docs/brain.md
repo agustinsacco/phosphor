@@ -244,9 +244,10 @@ memories, the entities each memory mentions, relations (subject, predicate, obje
 that states it), each link's and memory's quotes, evidence, and float and sign-bit vectors. Full
 text search covers memories, entity words and entity name trigrams. Version 4 upgrades in place:
 one transaction adds the jobs `replaces` column and indexes for lane memories and finished reads,
-then sets version 5. Knowledge, settings, jobs and records stay. Version 5 opens unchanged. Newer versions are refused
-and left untouched. Opening versions 0 to 3
-deletes its knowledge, keeps settings with review on, and starts a new generation, the same routine as **Reset Brain knowledge**. The model lives under
+then sets version 5. Knowledge, settings, jobs and records stay. Version 5 opens unchanged. Newer
+versions are refused and left untouched. Opening versions 0 to 3 deletes its knowledge, keeps
+settings with review on, and starts a new generation, the same routine as **Reset Brain
+knowledge**. The model lives under
 `<userData>/brain/embeddings`.
 
 - Entities (`BRAIN_ENTITY_KINDS`): person, team, organization, project, component, document,
