@@ -557,7 +557,8 @@ export function ImageEditor({
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
-                onPointerCancel={() => {
+                onPointerCancel={(event) => {
+                  if (event.pointerId !== pointerId.current) return
                   pointerId.current = null
                   gesture.current = null
                   setLive(null)
