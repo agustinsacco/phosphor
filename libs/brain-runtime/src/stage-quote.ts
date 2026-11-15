@@ -22,7 +22,8 @@ export function verifiedQuote(
   if (spans[cited]?.some((span) => span.includes(quote))) return { segment, quote }
   const exact = spans.findIndex((parts) => parts.some((span) => span.includes(quote)))
   if (exact >= 0) return { segment: `s${exact + 1}`, quote }
-  const wanted = folded(quote.trim()).text
+  const wanted = folded(quote.trim()).text.trim()
+  if (!wanted) throw new Error(`Quote not found in ${segment}: ${quote.slice(0, 100)}`)
   for (let i = 0; i < spans.length; i++)
     for (const span of spans[i]!) {
       const source = folded(span)
@@ -37,14 +38,16 @@ export function verifiedQuote(
 }
 
 /**
- * One space per whitespace run and straight quotation marks, with the source offset of every
- * folded character. A plain search over this is linear; a pattern built from the quote was not.
+ * One space per whitespace run, straight quotation marks and no Markdown emphasis marks, with
+ * the source offset of every folded character. Models often copy "**Name:** text" as
+ * "Name: text". A plain search over this is linear; a pattern built from the quote was not.
  */
 function folded(text: string): { text: string; offsets: number[] } {
   const out: string[] = [],
     offsets: number[] = []
   for (let i = 0; i < text.length; i++) {
     const char = text[i]!
+    if (char === '*' || char === '`') continue
     const space = /\s/.test(char)
     if (space && out.at(-1) === ' ') continue
     out.push(space ? ' ' : '“”'.includes(char) ? '"' : '‘’'.includes(char) ? "'" : char)
