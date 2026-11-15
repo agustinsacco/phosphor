@@ -663,3 +663,58 @@ function expectSelectedEntity(label: string): void {
     container.querySelector(`[aria-label="Focus ${label}"]`)?.getAttribute('aria-pressed'),
   ).toBe('true')
 }
+
+it('selects the source read row when it is in history and retains it after visiting its memory', async () => {
+  explorer.details[0]!.memory.jobId = 'harbor-job'
+  history.mockResolvedValue({
+    items: [{ job: mockBrainJob({ state: 'done' }), memories: 3, replaceable: 2 }],
+    more: false,
+  })
+  const invokes = vi.spyOn(fake.api, 'invoke')
+  await render()
+  await chooseHarbor()
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>('[aria-label="Entity memories"] .brain-row')!
+      .click(),
+  )
+  await click('See the read that produced this')
+  expect(invokes).toHaveBeenCalledWith('brain:extraction', 'harbor-job')
+  expect(
+    container
+      .querySelector('[aria-label="Brain lanes"] [aria-current="true"]')
+      ?.getAttribute('aria-label'),
+  ).toBe('Harbor planning')
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>('[aria-label="Memories from this lane"] button')!
+      .click(),
+  )
+  expect(container.querySelector('[aria-label="Memory detail"]')).not.toBeNull()
+  await lanesTab()
+  expect(
+    container
+      .querySelector('[aria-label="Brain lanes"] [aria-current="true"]')
+      ?.getAttribute('aria-label'),
+  ).toBe('Harbor planning')
+})
+
+it('does not navigate the hidden Knowledge trail from the Lanes tab', async () => {
+  await render()
+  await chooseHarbor()
+  await click('Harbor Ledger')
+  await lanesTab()
+  for (const key of ['Escape', 'Backspace', 'ArrowLeft']) {
+    await act(async () =>
+      document.body.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key,
+          altKey: key === 'ArrowLeft',
+          bubbles: true,
+        }),
+      ),
+    )
+  }
+  await click('Knowledge')
+  expectSelectedEntity('Harbor Ledger')
+})
