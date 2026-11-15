@@ -5,6 +5,7 @@ import { graphLabel } from './graphLabels'
 vi.mock('three-spritetext', () => ({
   default: class {
     material = { sizeAttenuation: true }
+    updateMatrixWorld = vi.fn()
     scale = {
       x: 20,
       y: 6,

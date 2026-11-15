@@ -10,7 +10,11 @@ export function graphLabel(text: string, pixels: number): SpriteText {
     renderer.getSize(size)
     // With attenuation disabled, projected height is scale.y * projectionY * paneHeight / 2.
     const height = (2 * pixels) / (Math.max(1, size.y) * camera.projectionMatrix.elements[5]!)
-    if (Number.isFinite(height) && height > 0) label.scale.multiplyScalar(height / label.scale.y)
+    if (Number.isFinite(height) && height > 0) {
+      label.scale.multiplyScalar(height / label.scale.y)
+      // Three has already updated world matrices before this callback.
+      label.updateMatrixWorld()
+    }
   }
   return label
 }
