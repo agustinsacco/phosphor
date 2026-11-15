@@ -15,6 +15,7 @@ let container: HTMLDivElement
 let status: BrainStatus
 const invoke = vi.fn()
 beforeEach(() => {
+  Element.prototype.scrollIntoView = vi.fn()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   useModelCatalogueStore.setState({
     status: 'ready',
@@ -62,7 +63,7 @@ it('saves exactly once per toggle and shows enabled rows immediately', async () 
   expect(terms.href).toBe('https://ai.google.dev/gemma/terms')
   await click('Brain')
   expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:setPrefs')).toEqual([
-    ['brain:setPrefs', { enabled: true, recall: true, review: true }],
+    ['brain:setPrefs', { enabled: true, recall: true, review: true, model: null }],
   ])
   expect(container.textContent).toContain('Recall in lanes')
   expect(container.textContent).toContain('Review before saving')
@@ -72,12 +73,14 @@ it('saves exactly once per toggle and shows enabled rows immediately', async () 
     enabled: true,
     recall: false,
     review: true,
+    model: null,
   })
   await click('Review before saving')
   expect(invoke).toHaveBeenLastCalledWith('brain:setPrefs', {
     enabled: true,
     recall: false,
     review: false,
+    model: null,
   })
 })
 

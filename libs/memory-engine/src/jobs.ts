@@ -51,7 +51,7 @@ function save(ctx: Context, value: BrainJob): void {
     null,
   )
 }
-export const BRAIN_EXTRACTOR_VERSION = 4
+export const BRAIN_EXTRACTOR_VERSION = 5
 
 export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'): BrainJob {
   return transaction(ctx, () => {

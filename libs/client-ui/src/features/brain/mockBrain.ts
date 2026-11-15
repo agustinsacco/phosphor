@@ -1,3 +1,4 @@
+import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import type {
   BrainExtractionView,
   BrainLaneRef,
@@ -81,6 +82,13 @@ class MockBrain {
     const job = this.state.jobs.find((j) => ['queued', 'running'].includes(j.state))
     if (!job) return
     if (job.state === 'queued') {
+      if (job.startedAt === null) {
+        job.model = this.state.prefs.model ?? job.model
+        this.records.set(job.id, {
+          ...this.extractionRecord(job.id),
+          thinking: this.state.prefs.model === null ? 'low' : 'medium',
+        })
+      }
       job.state = 'running'
       job.startedAt = this.now()
       job.progress = { stage: 'extract', done: 1, total: 4 }
@@ -127,7 +135,7 @@ class MockBrain {
       title: job.title,
       leafId: job.leafId,
       model: job.model,
-      thinking: 'low',
+      thinking: this.records.get(id)?.thinking ?? 'low',
       calls: [
         {
           stage: 'extract',
@@ -233,7 +241,7 @@ class MockBrain {
       case 'brain:status':
         return this.status()
       case 'brain:setPrefs':
-        this.state.prefs = { ...(args[0] as BrainPrefs) }
+        this.state.prefs = { ...DEFAULT_BRAIN_PREFS, ...(args[0] as BrainPrefs) }
         return this.state.prefs.enabled && this.state.embedding.phase === 'missing'
           ? this.download()
           : this.status()

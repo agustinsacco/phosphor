@@ -1,6 +1,11 @@
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { BrainLaneRef, BrainPrefs, BrainStatus } from '@phosphor/shared/brain'
+import {
+  checkBrainReaderModel,
+  type BrainLaneRef,
+  type BrainPrefs,
+  type BrainStatus,
+} from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
@@ -21,6 +26,7 @@ function checkPrefs(prefs: BrainPrefs): void {
     ['enabled', 'recall', 'review'].some((k) => typeof prefs[k as keyof BrainPrefs] !== 'boolean')
   )
     throw new Error('Invalid Brain preferences.')
+  checkBrainReaderModel(prefs.model)
 }
 async function enqueue(ref: BrainLaneRef, { store, options, queue }: ApiContext): Promise<void> {
   const check = () => {
@@ -28,7 +34,7 @@ async function enqueue(ref: BrainLaneRef, { store, options, queue }: ApiContext)
     if (!store.snapshot().prefs.enabled) throw new Error('Turn on Brain before queueing a lane.')
   }
   check()
-  const lane = await readLane(ref.sessionPath)
+  const lane = await readLane(ref.sessionPath, store.snapshot().prefs.model)
   check()
   store.enqueue(
     {

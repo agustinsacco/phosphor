@@ -119,8 +119,32 @@ export interface BrainPrefs {
   recall: boolean
   /** Extracted memories wait for approval; off saves them as soon as extraction ends. */
   review: boolean
+  /** Reader provider/modelId; null uses each lane's own model. Frozen when a job starts. */
+  model: string | null
 }
-export const DEFAULT_BRAIN_PREFS: BrainPrefs = { enabled: false, recall: true, review: true }
+export const DEFAULT_BRAIN_PREFS: BrainPrefs = {
+  enabled: false,
+  recall: true,
+  review: true,
+  model: null,
+}
+
+/** This value becomes one --model argument, never an option or multiple arguments. */
+export function checkBrainReaderModel(value: unknown): string | null {
+  if (value === null) return null
+  if (
+    typeof value !== 'string' ||
+    value.length > 200 ||
+    value.startsWith('-') ||
+    /[\s\p{Cc}]/u.test(value) ||
+    value.indexOf('/') <= 0 ||
+    value.indexOf('/') === value.length - 1
+  )
+    throw new Error(
+      'Invalid Brain reader model: use provider/modelId (at most 200 characters, no whitespace or control characters), or null.',
+    )
+  return value
+}
 
 export interface BrainEntity {
   id: string
@@ -183,7 +207,7 @@ export interface BrainJob {
   title: string
   scope: string
   branch: string | null
-  /** "provider/id" of the lane's model, which every extraction call reuses. */
+  /** "provider/id" of the reader, frozen when extraction starts and reused by every call. */
   model: string
   /** waiting: the lane's agent is working; extraction starts once it is idle. */
   state: 'waiting' | 'queued' | 'running' | 'review' | 'empty' | 'failed' | 'done'

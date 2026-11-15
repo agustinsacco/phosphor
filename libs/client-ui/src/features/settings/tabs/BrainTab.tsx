@@ -6,6 +6,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { promptText } from '@/stores/prompt'
 import { useSettingsUiStore } from '../settingsUiStore'
+import { BrainReaderModel } from './BrainReaderModel'
 
 export function BrainTab(): React.JSX.Element {
   useBrainSync()
@@ -60,6 +61,11 @@ export function BrainTab(): React.JSX.Element {
               onChange={(review) => save({ review })}
             />
           </Row>
+          <BrainReaderModel
+            model={status.prefs.model}
+            saving={saving}
+            onChange={(model) => save({ model })}
+          />
           <Row
             title="Knowledge"
             description={
@@ -160,8 +166,8 @@ function BrainToggleRow({
       description={
         <>
           Learns from lanes you queue and lets agents recall what you approve. Each queued lane is
-          read in private windows on its own model, which can make several provider calls. Turning
-          this on downloads EmbeddingGemma for search on this computer (
+          read in private windows with the chosen reader model, which can make several provider
+          calls. Turning this on downloads EmbeddingGemma for search on this computer (
           <a
             className="text-accent underline"
             href={BRAIN_EMBEDDING_MODEL.termsUrl}

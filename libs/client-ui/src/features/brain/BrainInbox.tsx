@@ -45,6 +45,9 @@ export function BrainInbox({
                 now,
               )}
             </p>
+            {job.startedAt !== null && (
+              <p className="text-text-tertiary mt-1 break-all text-sm">{job.model}</p>
+            )}
           </div>
           {job.state === 'failed' && (
             <Button

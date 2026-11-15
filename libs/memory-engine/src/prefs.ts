@@ -1,4 +1,4 @@
-import { DEFAULT_BRAIN_PREFS, type BrainPrefs } from '@phosphor/shared/brain'
+import { checkBrainReaderModel, DEFAULT_BRAIN_PREFS, type BrainPrefs } from '@phosphor/shared/brain'
 import { one, run, type Context } from './database'
 
 export function prefs(ctx: Context): BrainPrefs {
@@ -6,6 +6,7 @@ export function prefs(ctx: Context): BrainPrefs {
   return { ...DEFAULT_BRAIN_PREFS, ...(row ? (JSON.parse(row.value) as Partial<BrainPrefs>) : {}) }
 }
 export function setPrefs(ctx: Context, value: BrainPrefs): BrainPrefs {
+  checkBrainReaderModel(value.model)
   const merged = { ...prefs(ctx), ...value }
   run(ctx, "INSERT OR REPLACE INTO meta VALUES ('prefs', ?)", JSON.stringify(merged))
   return merged

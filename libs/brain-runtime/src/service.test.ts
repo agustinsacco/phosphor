@@ -33,7 +33,8 @@ it('starts the injected reader/writer, saves prefs immediately, and awaits setup
       }),
   )
   expect(
-    (await s.service.api.setPrefs({ enabled: true, recall: false, review: true })).prefs.enabled,
+    (await s.service.api.setPrefs({ enabled: true, recall: false, review: true, model: null }))
+      .prefs.enabled,
   ).toBe(true)
   expect(set).toHaveBeenCalledWith(true)
   finish()
@@ -125,7 +126,7 @@ it('supports download retry and removal only while off; disabled startup leaves 
   expect(download).toHaveBeenCalledOnce()
   await s.service.api.removeModel()
   expect(remove).toHaveBeenCalledOnce()
-  await s.service.api.setPrefs({ enabled: true, recall: true, review: true })
+  await s.service.api.setPrefs({ enabled: true, recall: true, review: true, model: null })
   await expect(s.service.api.removeModel()).rejects.toThrow('Turn off Brain')
 })
 it('deletes only the obsolete prototype artifacts on startup', async () => {

@@ -34,7 +34,10 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
-  status = { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } }
+  status = {
+    ...mockBrainStatus(),
+    prefs: { enabled: true, recall: true, review: true, model: null },
+  }
   proposal = mockBrainProposal()
   explorer = new MockExplorer()
   proposalRead.mockReset().mockImplementation(async () => proposal)

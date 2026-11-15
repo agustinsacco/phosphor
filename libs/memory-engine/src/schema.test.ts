@@ -50,7 +50,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
   )
   it('resets all knowledge and jobs, retains prefs with review on and changes generation', () => {
     const { store } = fixture()
-    store.setPrefs({ enabled: true, recall: false, review: false })
+    store.setPrefs({ enabled: true, recall: false, review: false, model: null })
     approve(store)
     const generation = store.snapshot().generation
     store.reset()

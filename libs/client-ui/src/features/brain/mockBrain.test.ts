@@ -113,7 +113,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
   expect(rina.entity.aliases).toContain('Tom Lee')
   await expect(call('brain:entity', ['tom'])).rejects.toThrow('Entity not found')
   const before = (await call('brain:status', [])) as BrainStatus
-  await call('brain:setPrefs', [{ enabled: true, recall: true, review: false }])
+  await call('brain:setPrefs', [{ enabled: true, recall: true, review: false, model: null }])
   now = 6000
   await call('brain:queue', [{ sessionPath: '/demo/Harbor/auto.jsonl', title: 'Harbor auto' }])
   await call('brain:status', [])
@@ -126,7 +126,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
 it('can extract and approve again after resetting every entity and memory', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ enabled: true, recall: true, review: true }])
+  await call('brain:setPrefs', [{ enabled: true, recall: true, review: true, model: null }])
   now = 6000
   await call('brain:status', [])
   await call('brain:reset', [])
@@ -145,7 +145,7 @@ it('can extract and approve again after resetting every entity and memory', asyn
 it('requeues a stale proposal and returns it to review after recomputing', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ enabled: true, review: true, recall: true }])
+  await call('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
   now = 6000
   await call('brain:status', [])
   const id = 'harbor-demo-review'

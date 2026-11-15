@@ -1,7 +1,7 @@
 # Brain
 
 Brain is Desktop's machine-local knowledge graph. It learns only from lanes you queue: the
-lane's own model reads the lane in a few private, tool-less calls and proposes memories, the
+reader model reads the lane in a few private, tool-less calls and proposes memories, the
 people, projects and systems they name, and how those connect. You approve them, and agents in
 every lane can recall them. It is off by default and Desktop-only; the browser client and Hosts
 refuse every `brain:*` channel (`libs/shared/src/ipc-web-exclusions.ts`).
@@ -17,6 +17,9 @@ appear:
   skill. Lanes already running pick it up when restarted.
 - **Review before saving** (default on): proposals wait for approval. Off approves them as soon
   as a job finishes, with the defaults described under Review.
+- **Model that reads lanes** (default **Each lane's own model**): choose one provider/model for
+  every queued lane, including lanes without a model. A job keeps the model it first starts with,
+  even after this setting changes or you Retry it. Use **Use each lane's own model** to clear it.
 - **Knowledge**: counts and an Open Brain button.
 - **Reset Brain knowledge**: after a confirmation, deletes every memory, entity, job, proposal
   and extraction record. Settings and the embedding model stay; review turns back on.
@@ -39,8 +42,8 @@ entities", …).
 
 ## Reading a lane
 
-A job freezes the lane's leaf, model, thinking level and git branch when it first starts; a
-resume never moves them. It then reads the lane's path to that leaf, applies pi's
+A job freezes the lane's leaf, chosen reader model, thinking level and git branch when it first
+starts. A resume never moves them. It then reads the lane's path to that leaf, applies pi's
 `context_edit` entries, and keeps only user and assistant text. Tool calls, tool output,
 custom messages, branch summaries and compaction summaries are not evidence. Every segment is
 scrubbed of secrets, email addresses and phone numbers before any prompt. User messages longer
@@ -49,13 +52,14 @@ than 6,000 characters keep their first 4,000 and last 1,900 around an explicit
 
 The conversation is read in parts of at most 300,000 characters, with two segments of overlap.
 Each segment has a handle, role and ISO date. Most lanes fit in one part. A part can be about
-100,000 tokens. A lane whose model has a smaller context window fails with the provider's error.
+100,000 tokens. A reader model with a smaller context window fails with the provider's error.
 
-Each model call runs pi in print mode with no session, no tools and the lane's own provider,
-model, binary and Claude account:
+Each model call runs pi in print mode with no session and no tools. It uses the chosen reader
+provider and model, or the lane's own model when unset. The binary and Claude account come from
+the lane:
 
 ```
-pi -p --mode json --no-session --model <lane model> --thinking <t> --no-tools --no-mcp
+pi -p --mode json --no-session --model <reader model> --thinking <t> --no-tools --no-mcp
    --no-skills --no-prompt-templates --no-context-files --no-themes --no-approve --offline
    -e brain-fork-guard.mjs --system-prompt <call dir>/system.md        (prompt on stdin)
 ```
@@ -64,8 +68,9 @@ The prompt goes on stdin, so no transcript text sits in argv. The call runs in a
 directory under `<userData>/brain/calls/<job>/`, removed when the call ends, as a Claude
 one-shot (`claudeOneShotEnv`) with its own `PI_CLAUDE_CLI_STATE_DIR`, and without the lane's
 context-compression environment, so quotes match the source. The guard extension refuses any
-tool call. A call that takes longer than 600 seconds fails. Thinking is capped at `medium` for every
-call, never above the lane's own level.
+tool call. A call that takes longer than 600 seconds fails. With a reader model selected, thinking
+is `medium`. Otherwise it uses the lane's level, capped at `medium`. An unknown level also uses
+`medium`.
 
 A job calls extract, links, identity and reconcile. Each call's validated output is saved as a
 step, keyed by a hash of its input, so a retry or restart reuses it:
@@ -296,7 +301,7 @@ project's memories as context, and to report a dispute rather than pick a side.
 
 ## Limits
 
-- Extraction quality is the lane model's. Review catches a wrong link or identity; afterwards,
+- Extraction quality is the reader model's. Review catches a wrong link or identity; afterwards,
   Forget and Merge into… fix it.
 - A wrong merge cannot be undone except by Reset.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.

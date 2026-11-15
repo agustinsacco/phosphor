@@ -172,6 +172,7 @@ describe('SETTINGS_INDEX against the section sources', () => {
     'tabs/OptimizationTab.tsx': 'optimization',
     'tabs/VoiceTab.tsx': 'voice',
     'tabs/BrainTab.tsx': 'brain',
+    'tabs/BrainReaderModel.tsx': 'brain',
     'tabs/WritingTab.tsx': 'writing',
   }
   /**

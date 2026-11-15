@@ -1,5 +1,6 @@
 import {
   BRAIN_MEMORY_STATES,
+  checkBrainReaderModel,
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
   type BrainLaneRef,
@@ -24,16 +25,17 @@ export const text = (value: unknown, max = 4096): string =>
     : fail('Invalid Brain request.')
 export const id = (value: unknown): string => text(value, 200)
 
-/** Exactly the three switches; anything else is refused rather than stored. */
+/** Exactly the switches and reader model; anything else is refused rather than stored. */
 export function checkPrefs(value: unknown): BrainPrefs {
   const prefs = value as Partial<Record<keyof BrainPrefs, unknown>>
   if (
     !prefs ||
     typeof prefs !== 'object' ||
-    Object.keys(prefs).sort().join() !== 'enabled,recall,review' ||
-    Object.values(prefs).some((flag) => typeof flag !== 'boolean')
+    Object.keys(prefs).sort().join() !== 'enabled,model,recall,review' ||
+    (['enabled', 'recall', 'review'] as const).some((key) => typeof prefs[key] !== 'boolean')
   )
     fail('Invalid Brain settings.')
+  checkBrainReaderModel(prefs.model)
   return prefs as BrainPrefs
 }
 

@@ -26,7 +26,10 @@ afterEach(() => {
 
 it('puts enabled Brain directly below Machines and opens it using the shared action', async () => {
   useBrain.setState({
-    status: { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } },
+    status: {
+      ...mockBrainStatus(),
+      prefs: { enabled: true, recall: true, review: true, model: null },
+    },
   })
   await act(async () => root.render(<PageLinks activePage="brain" onPage={onPage} />))
   const buttons = [...container.querySelectorAll('button')]
@@ -43,7 +46,10 @@ it('hides Brain while off and reacts to enabling without hiding other pages', as
   expect(container.textContent).toContain('Machines')
   act(() =>
     useBrain.setState({
-      status: { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } },
+      status: {
+        ...mockBrainStatus(),
+        prefs: { enabled: true, recall: true, review: true, model: null },
+      },
     }),
   )
   expect(container.textContent).toContain('Brain')
@@ -51,7 +57,10 @@ it('hides Brain while off and reacts to enabling without hiding other pages', as
 
 it('does not load or offer local Brain on a browser platform', async () => {
   useBrain.setState({
-    status: { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } },
+    status: {
+      ...mockBrainStatus(),
+      prefs: { enabled: true, recall: true, review: true, model: null },
+    },
   })
   await act(async () =>
     root.render(

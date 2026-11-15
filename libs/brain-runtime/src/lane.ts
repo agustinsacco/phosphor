@@ -32,7 +32,10 @@ export async function projectContext(
   }
 }
 
-export function laneMetadata(entries: LaneEntry[]): Omit<LaneMeta, 'scope' | 'branch'> {
+export function laneMetadata(
+  entries: LaneEntry[],
+  readerModel: string | null = null,
+): Omit<LaneMeta, 'scope' | 'branch'> {
   const header = entries.find((entry) => entry.type === 'session')
   if (!header?.id || !header.cwd) throw new Error('This lane has no session header.')
   let provider: string | undefined
@@ -58,11 +61,18 @@ export function laneMetadata(entries: LaneEntry[]): Omit<LaneMeta, 'scope' | 'br
   }
   provider ??= assistantProvider
   model ??= assistantModel
-  if (!provider || !model) throw new Error('This lane has no model to read it with.')
-  return { sessionId: header.id, cwd: header.cwd, model: `${provider}/${model}`, thinking, leafId }
+  const selectedModel = readerModel ?? (provider && model ? `${provider}/${model}` : null)
+  if (!selectedModel) throw new Error('This lane has no model to read it with.')
+  return {
+    sessionId: header.id,
+    cwd: header.cwd,
+    model: selectedModel,
+    thinking: readerModel === null ? thinking : 'medium',
+    leafId,
+  }
 }
 
-export async function readLane(path: string): Promise<LaneMeta> {
-  const meta = laneMetadata(await readEntries(path))
+export async function readLane(path: string, readerModel: string | null = null): Promise<LaneMeta> {
+  const meta = laneMetadata(await readEntries(path), readerModel)
   return { ...meta, ...(await projectContext(meta.cwd)) }
 }

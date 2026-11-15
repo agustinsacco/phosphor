@@ -19,7 +19,7 @@ import { EMBEDDING_MAX_TEXTS } from './embedding/model-manifest'
 async function frozenLane(job: BrainJob, store: BrainStore): Promise<LaneMeta> {
   const saved = store.part(job.id, 'prepare', 'frozen-v4')
   if (saved) return JSON.parse(saved.output) as LaneMeta
-  const lane = await readLane(job.sessionPath)
+  const lane = await readLane(job.sessionPath, store.snapshot().prefs.model)
   store.savePart(job.id, {
     part: 'prepare',
     inputHash: 'frozen-v4',

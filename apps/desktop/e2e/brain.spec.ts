@@ -128,7 +128,7 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
   const originalWrapper = await readFile(seed.wrapper, 'utf8')
   await writeFile(
     seed.wrapper,
-    `if (process.argv.includes('--no-session')) require('node:fs').appendFileSync(${JSON.stringify(argvLog)}, JSON.stringify(process.argv.slice(2)) + '\\n');\n${originalWrapper}`,
+    `if (process.argv.some(arg => arg.endsWith('brain-fork-guard.mjs'))) require('node:fs').appendFileSync(${JSON.stringify(argvLog)}, JSON.stringify(process.argv.slice(2)) + '\\n');\n${originalWrapper}`,
   )
   const h = await launch({
     workspace: seed.workspace,
@@ -164,7 +164,11 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line) as string[])
-    expect(launches.length).toBeGreaterThan(0)
+    const extract = launches.find((args) =>
+      args.some((arg) => /extract-\d+\/system\.md$/.test(arg)),
+    )
+    expect(extract, 'Brain extract launch').toBeDefined()
+    expect(extract![extract!.indexOf('--model') + 1]).toBe('pi-claude-cli/claude-opus-5')
     for (const args of launches) {
       expect(args[args.indexOf('--model') + 1]).toBe('pi-claude-cli/claude-opus-5')
       expect(args[args.indexOf('--thinking') + 1]).toBe('medium')
