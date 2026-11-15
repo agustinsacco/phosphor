@@ -39,7 +39,7 @@ const READER_MENU = [
   'Export HTML…',
   'Copy debug info',
   'Copy spend',
-  'Delete',
+  'Archive',
 ]
 
 let root: Root, el: HTMLDivElement
@@ -175,7 +175,7 @@ it.each(SURFACES)('%s row opens the same lane menu on right-click', (name) => {
       ? READER_MENU.filter((label) => label !== 'Move up' && label !== 'Move down')
       : READER_MENU,
   )
-  expect(menuRow('Delete')?.textContent).toContain('Take control first.')
+  expect(menuRow('Archive')?.textContent).toContain('Take control first.')
 })
 
 it.each(SURFACES)('%s row lets the controller delete the lane', (name) => {
@@ -184,9 +184,9 @@ it.each(SURFACES)('%s row lets the controller delete the lane', (name) => {
   })
   render(name)
   rightClick()
-  expect(menuRow('Delete')?.disabled).toBe(false)
-  act(() => menuRow('Delete')!.click())
-  expect(document.body.textContent).toContain('Delete session')
+  expect(menuRow('Archive')?.disabled).toBe(false)
+  act(() => menuRow('Archive')!.click())
+  expect(document.body.textContent).toContain('Archive lane')
 })
 
 it.each(SURFACES)('%s row opens through navigation, so both shells route the lane', (name) => {

@@ -6,6 +6,7 @@ import { loadSqlite } from '../sqlite'
 import { SCHEMA } from '../schema'
 import { StateFailure } from '../state-dir'
 import { LANE_MARKS_SCHEMA } from './marks'
+import { LANE_ARCHIVES_SCHEMA } from './archives'
 import { openStoreDatabase } from './open'
 
 let root: string
@@ -49,6 +50,7 @@ it('sets PRAGMAs, migrates once and recovers before pruning with the configured 
       'migrate',
       SCHEMA,
       LANE_MARKS_SCHEMA,
+      LANE_ARCHIVES_SCHEMA,
       'PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;',
       'interrupt',
       'prune:42',
@@ -65,6 +67,7 @@ it('sets PRAGMAs, migrates once and recovers before pruning with the configured 
     expect(events).toEqual([
       'PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;',
       LANE_MARKS_SCHEMA,
+      LANE_ARCHIVES_SCHEMA,
       'PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;',
       'interrupt',
       'prune:43',

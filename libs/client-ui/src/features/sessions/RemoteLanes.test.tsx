@@ -57,9 +57,7 @@ it('selects remote lanes and confirms bulk deletion through Host commands only',
   })
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
   useSessionsStore.setState({ bulkDelete: null, live: {} })
-  invoke.mockImplementation(async (channel: string) =>
-    channel === 'hosts:deleteLane' ? { branchKept: false } : undefined,
-  )
+  invoke.mockResolvedValue(undefined)
   act(() => root.render(<RemoteLanes />))
   act(() =>
     container.querySelector<HTMLButtonElement>('[aria-label^="Workspace options"]')!.click(),
@@ -72,10 +70,11 @@ it('selects remote lanes and confirms bulk deletion through Host commands only',
   }
   act(() => click('Select all lanes'))
   expect(container.querySelectorAll('[role=checkbox][aria-checked=true]')).toHaveLength(2)
-  act(() => click('Delete…'))
-  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:deleteLane')).toHaveLength(0)
-  await act(async () => click('Delete 2 lanes'))
-  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:deleteLane')).toHaveLength(2)
+  act(() => click('Archive…'))
+  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:archiveLane')).toHaveLength(0)
+  await act(async () => click('Archive 2 lanes'))
+  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:archiveLane')).toHaveLength(2)
+  expect(invoke.mock.calls.some(([c]) => c === 'hosts:deleteLane')).toBe(false)
   expect(
     invoke.mock.calls.filter(([c]) => c.startsWith('sessions:') || c.startsWith('git:')),
   ).toHaveLength(0)

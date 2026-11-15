@@ -1,10 +1,19 @@
 import { useSessionsStore } from './sessions'
 import type { LaneRemovalOptions, LaneRemovalTarget } from './laneRemovalState'
 
+type RemoveWorktree = Awaited<ReturnType<typeof loadWorktreeRemover>>
+
+/** Read once per bulk run, before any lane: an unreadable store fails the whole run. */
+export async function loadWorktreeRemover() {
+  const { useWorktreesStore } = await import('./worktrees')
+  return useWorktreesStore.getState().removeWorktree
+}
+
 /** Legacy permanent removal only. Archive never enters worktree destruction. */
 export async function removeLaneWorktree(
   lane: LaneRemovalTarget,
   options: LaneRemovalOptions,
+  removeWorktree: RemoveWorktree,
 ): Promise<string | undefined> {
   let branchError: string | undefined
   if (!options.archive && options.removeWorktree && lane.worktreePath && lane.mainRepoPath) {
@@ -18,13 +27,10 @@ export async function removeLaneWorktree(
       ...(mainLive ?? []).filter((l) => l.diskPath === lane.path).map((l) => l.sessionId),
     ])
     for (const id of ids) await useSessionsStore.getState().disposeSession(id)
-    const { useWorktreesStore } = await import('./worktrees')
-    const outcome = await useWorktreesStore
-      .getState()
-      .removeWorktree(lane.mainRepoPath, lane.worktreePath, {
-        force: options.discardChanges,
-        deleteBranch: options.deleteBranch,
-      })
+    const outcome = await removeWorktree(lane.mainRepoPath, lane.worktreePath, {
+      force: options.discardChanges,
+      deleteBranch: options.deleteBranch,
+    })
     if (!outcome.removed) {
       throw new Error(`worktree kept, ${outcome.dirtyCount} uncommitted changes`)
     }

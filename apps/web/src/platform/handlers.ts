@@ -87,9 +87,10 @@ function settingsHandlers(settings: () => ReturnType<typeof createBrowserSetting
   } satisfies Partial<BrowserHandlers>
 }
 /** Lanes this tab opened, by handle: pi commands, Host reads and writes. The tab is window 1. */
-function laneHandlers(lanes: RemoteLanes) {
+function laneHandlers(lanes: RemoteLanes, connection: Parameters<typeof laneArchives>[0]) {
   return {
     ...laneWriteHandlers(lanes),
+    ...archiveHandlers(connection),
     'hosts:exportLaneHtml': (id) => lanes.onLane(1, id, exportLaneHtml),
     'hosts:subagentHistory': (id) => lanes.onLane(1, id, laneSubagentHistory),
     'hosts:subagentInspect': (id, request) => lanes.onLane(1, id, laneSubagentInspect(request)),
@@ -207,9 +208,8 @@ export function createBrowserHandlers(ports: {
     'hosts:takeControl': (host, lane) => lanes.action(host, lane, 'control.take'),
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
-    ...laneHandlers(lanes),
+    ...laneHandlers(lanes, hosts.connection),
     'hosts:setLaneMarks': marks.set,
-    ...archiveHandlers(hosts.connection),
     'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),
     'fs:listFiles': (key) => read('fs:listFiles', [key]),
     'fs:readFile': (key) => read('fs:readFile', [key]),

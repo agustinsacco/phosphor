@@ -87,9 +87,11 @@ export function ArchiveSessionModal({
       onClose()
     } catch (error) {
       setError(
-        error instanceof Error
-          ? error.message
-          : 'Archive failed. Check Archive for unfinished work before retrying.',
+        onArchive
+          ? 'The Host could not archive this lane. Send or remove unsent file attachments, then check Archive before retrying.'
+          : error instanceof Error
+            ? error.message
+            : 'Archive failed. Check Archive for unfinished work before retrying.',
       )
     } finally {
       setBusy(false)

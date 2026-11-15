@@ -1,7 +1,7 @@
 import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
 import { hostResourceKey } from '@shared/remote-host'
 import { archivesChanged } from './archiveChanges'
-import { removeLaneWorktree } from './removeLaneWorktree'
+import { loadWorktreeRemover, removeLaneWorktree } from './removeLaneWorktree'
 import {
   laneIsBeingDeleted,
   type LaneDeleteResult,
@@ -1376,6 +1376,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // catch (the lazy store read, the final refresh): a run left `running`
     // keeps its lanes inert and refuses every later delete.
     try {
+      const removeWorktree = await loadWorktreeRemover()
       for (const lane of lanes) {
         // Checked between lanes, never mid-lane: stopping halfway through a
         // worktree removal is how you get a half-deleted lane.
@@ -1383,7 +1384,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         publish(lane)
 
         try {
-          const branchError = await removeLaneWorktree(lane, options)
+          const branchError = await removeLaneWorktree(lane, options, removeWorktree)
           const cwd =
             Object.entries(get().disk).find(([, metas]) =>
               metas.some((m) => m.path === lane.path),

@@ -24,16 +24,17 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('puts enabled Brain directly below Machines and opens it using the shared action', async () => {
+it('puts Archive below Machines and enabled Brain after Archive', async () => {
   useBrain.setState({
     status: { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } },
   })
   await act(async () => root.render(<PageLinks activePage="brain" onPage={onPage} />))
   const buttons = [...container.querySelectorAll('button')]
   const machines = buttons.findIndex((b) => b.textContent === 'Machines')
-  expect(buttons[machines + 1]!.textContent).toBe('Brain')
-  expect(buttons[machines + 1]!.querySelector('.leading-5')).not.toBeNull()
-  await act(async () => buttons[machines + 1]!.click())
+  expect(buttons[machines + 1]!.textContent).toBe('Archive')
+  expect(buttons[machines + 2]!.textContent).toBe('Brain')
+  expect(buttons[machines + 2]!.querySelector('.leading-5')).not.toBeNull()
+  await act(async () => buttons[machines + 2]!.click())
   expect(onPage).toHaveBeenCalledWith('brain')
 })
 

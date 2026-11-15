@@ -41,7 +41,7 @@ import { absolutePath, check, integer, text, uuid } from './validation'
 export { opHash } from './validation'
 export { validateRepositoryIdentity } from './store/identity'
 
-export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+export { REMOVED_LANE_TTL_MS } from './store/archives'
 
 export function openStore(
   directory: string,
@@ -292,9 +292,7 @@ export class HostStore {
     this.ports.onLaneRemoved?.(id)
   }
   pruneRemovedLanes(now: number = this.clock()): void {
-    this.transaction(() =>
-      pruneRemoved(this.db, now, REMOVED_LANE_TTL_MS, this.limits.lanesPerHost),
-    )
+    this.transaction(() => pruneRemoved(this.db, now, this.limits.lanesPerHost))
   }
   private validateController(controller: Controller): void {
     uuid(controller.clientId)

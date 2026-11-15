@@ -1,3 +1,4 @@
+import { ARCHIVE_WEB } from './ipc-web-archive'
 import type { IpcInvokeChannel } from './ipc'
 import { connectorConfig, DESKTOP_TRANSFERS_WEB } from './ipc-web-exclusions'
 
@@ -66,10 +67,7 @@ export const IPC_WEB = {
   'hosts:exportLaneHtml': remote,
   'hosts:subagentHistory': remote,
   'hosts:subagentInspect': remote,
-  'hosts:archiveLane': remote,
-  'hosts:archives': remote,
-  'hosts:restoreArchive': remote,
-  'hosts:purgeArchive': remote,
+  ...ARCHIVE_WEB,
   'hosts:deleteLane': remote,
   'hosts:listFolders': remote,
   'hosts:addRepository': remote,
@@ -354,10 +352,6 @@ export const IPC_WEB = {
   'sessions:stats': unsupported('Local session files and mutations require Desktop.'),
   'sessions:watch': unsupported('Local session files and mutations require Desktop.'),
   'sessions:unwatch': unsupported('Local session files and mutations require Desktop.'),
-  'sessions:archive': localPi,
-  'sessions:archives': localPi,
-  'sessions:restoreArchive': localPi,
-  'sessions:purgeArchive': localPi,
   'sessions:delete': unsupported('Local session files and mutations require Desktop.'),
   'sessions:readTree': unsupported('Local session files and mutations require Desktop.'),
   'sessions:readTranscript': unsupported('Local session files require Desktop.'),

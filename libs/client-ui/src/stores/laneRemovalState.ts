@@ -1,3 +1,15 @@
+export function summaryTitle(
+  processed: number,
+  failed: number,
+  cancelled: boolean,
+  archive = false,
+): string {
+  const verb = archive ? 'archived' : 'deleted'
+  if (failed > 0) return `${processed - failed} ${verb}, ${failed} kept`
+  if (cancelled) return `Stopped after ${processed}`
+  return `${archive ? 'Archived' : 'Deleted'} ${processed} lane${processed === 1 ? '' : 's'}`
+}
+
 export interface LaneRemovalOptions {
   removeWorktree: boolean
   deleteBranch: boolean

@@ -79,10 +79,13 @@ export class LaneArchiveRows {
   }
 }
 
-export function pruneRemoved(db: DatabaseSync, now: number, ttl: number, limit: number) {
+export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+export function pruneRemoved(db: DatabaseSync, now: number, limit: number) {
   integer(now)
   const unarchived = 'lane_id NOT IN (SELECT lane_id FROM lane_archive_ids)'
-  db.prepare(`DELETE FROM lanes WHERE removed_at < ? AND ${unarchived}`).run(now - ttl)
+  db.prepare(`DELETE FROM lanes WHERE removed_at < ? AND ${unarchived}`).run(
+    now - REMOVED_LANE_TTL_MS,
+  )
   db.prepare(
     `DELETE FROM lanes WHERE lane_id IN (SELECT lane_id FROM lanes
     WHERE removed_at IS NOT NULL AND ${unarchived} ORDER BY removed_at DESC,lane_id DESC LIMIT -1 OFFSET ?)`,

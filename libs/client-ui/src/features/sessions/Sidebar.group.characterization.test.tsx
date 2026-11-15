@@ -239,20 +239,20 @@ async function deleteFromMenu(title: string): Promise<string | undefined> {
   })
   act(() =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button')]
-      .find((b) => b.textContent?.startsWith('Delete'))!
+      .find((b) => b.textContent?.startsWith('Archive'))!
       .click(),
   )
   return document.querySelector('h2')?.textContent ?? undefined
 }
 
-it("characterizes a row's Delete in the main checkout: the transcript confirm", async () => {
+it("characterizes a row's Archive in the main checkout: the transcript confirm", async () => {
   useSessionsStore.setState({
     gitByCwd: { '/repo': { branch: 'main', mainRepoPath: '/repo' } as never },
   })
-  expect(await deleteFromMenu('Lane 1')).toBe('Delete session?')
+  expect(await deleteFromMenu('Lane 1')).toBe('Archive lane')
 })
 
-it("characterizes a row's Delete alone in its own worktree: the lane confirm", async () => {
+it("characterizes a row's Archive alone in its own worktree: the lane confirm", async () => {
   useSessionsStore.setState({
     disk: { '/repo': [meta(1), meta(2, { cwd: '/wt2' })] },
     gitByCwd: {
@@ -260,5 +260,5 @@ it("characterizes a row's Delete alone in its own worktree: the lane confirm", a
       '/wt2': { branch: 'wt2', mainRepoPath: '/repo', isWorktree: true } as never,
     },
   })
-  expect(await deleteFromMenu('Lane 2')).toBe('Delete lane')
+  expect(await deleteFromMenu('Lane 2')).toBe('Archive lane')
 })

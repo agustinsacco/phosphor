@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
 import { ChevronIcon, Spinner } from '@/components/icons'
+import { summaryTitle } from '@/stores/laneRemovalState'
 import { useSessionsStore } from '@/stores/sessions'
 import { prChip } from './prChip'
 import { describeWarnings, type PreflightSummary } from './deletePreflight'
@@ -411,16 +412,4 @@ export function BulkDeleteProgressPopover(): React.JSX.Element | null {
     </div>,
     document.body,
   )
-}
-
-function summaryTitle(
-  processed: number,
-  failed: number,
-  cancelled: boolean,
-  archive = false,
-): string {
-  const verb = archive ? 'archived' : 'deleted'
-  if (failed > 0) return `${processed - failed} ${verb}, ${failed} kept`
-  if (cancelled) return `Stopped after ${processed}`
-  return `${archive ? 'Archived' : 'Deleted'} ${processed} lane${processed === 1 ? '' : 's'}`
 }
