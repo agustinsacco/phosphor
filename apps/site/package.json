@@ -14,8 +14,7 @@
     "shots": "node scripts/import-shots.mjs",
     "shots:guides": "node scripts/guide-shots.mjs",
     "audit:links": "node scripts/audit-links.mjs",
-    "test": "npm run test:captures && playwright test",
-    "test:captures": "node --test scripts/capture-assets.test.mjs",
+    "test": "node --test scripts/capture-assets.test.mjs && playwright test",
     "format": "prettier --plugin prettier-plugin-astro --write ."
   },
   "dependencies": {
