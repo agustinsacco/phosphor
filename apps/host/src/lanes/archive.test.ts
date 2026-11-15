@@ -14,8 +14,17 @@ const removed = vi.fn(),
   reap = vi.fn(),
   abort = vi.fn()
 const stop = vi.fn<() => Promise<void>>()
+const sessions = {
+  start: vi.fn(async () => ({ sessionId: 'fresh', sessionFile: null as string | null })),
+  attach: vi.fn(async () => {}),
+  stop: vi.fn(async () => {}),
+}
+const listed = async () =>
+  ((await archives.feature.call('archive.list', undefined)) as { data: { entries: unknown[] } })
+    .data.entries
 function service() {
   return new HostArchives({
+    sessions,
     directory,
     sessionsRoot,
     store,
@@ -168,4 +177,38 @@ it('refuses to overwrite a replacement transcript and keeps the archive recovera
     ok: true,
     data: { entries: [expect.objectContaining({ id: laneId, state: 'restoring' })] },
   })
+})
+
+it('restores a never-sent lane into a fresh session that binds its new file', async () => {
+  await rm(transcript)
+  const fresh = join(sessionsRoot, 'cwd', 'fresh.jsonl')
+  sessions.start.mockRejectedValueOnce(new Error('pi failed'))
+  sessions.start.mockResolvedValueOnce({ sessionId: 'fresh', sessionFile: fresh })
+  expect(await archives.execute({ type: 'lane.archive', laneId }, () => true)).toEqual({ ok: true })
+  const restore = { type: 'archive.restore', archiveId: laneId } as const
+  expect(await archives.execute(restore, () => true)).toEqual({ ok: false, code: 'bad-request' })
+  // A failed start keeps the archive listed so restore can be retried.
+  expect(await listed()).toMatchObject([{ id: laneId }])
+  expect(await archives.execute(restore, () => true)).toEqual({ ok: true })
+  expect(sessions.start).toHaveBeenLastCalledWith({ repository: root })
+  expect(sessions.attach).toHaveBeenCalledWith(laneId, 'fresh')
+  expect(store.getLane(laneId)?.sessionFile).toBe(fresh)
+  expect(await listed()).toEqual([])
+})
+
+it('archives and cleans up a worktree lane whose folder was removed outside Phosphor', async () => {
+  const repositoryId = store.listRepositories()[0]!.id
+  const gone = join(root, '.phosphor', 'worktrees', 'gone')
+  const id = store.ensureLane({ repositoryId, cwd: gone, sessionFile: null, worktree: true }).laneId
+  expect(await archives.execute({ type: 'lane.archive', laneId: id }, () => true)).toEqual({
+    ok: true,
+  })
+  expect(store.listLanes().map((lane) => lane.laneId)).not.toContain(id)
+  expect(
+    await archives.execute(
+      { type: 'archive.purge', archiveId: id, removeWorktree: true },
+      () => true,
+    ),
+  ).toEqual({ ok: true })
+  expect(await listed()).toEqual([])
 })

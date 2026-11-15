@@ -13,24 +13,39 @@ const state = vi.hoisted(() => ({
 vi.mock('../registry', () => ({ registry: { get: state.get, list: () => [] } }))
 vi.mock('../store', () => ({
   getPrefs: () => ({ drafts: state.drafts }),
-  setDrafts: (drafts: Record<string, ComposerDraftRecord>) => { state.drafts = drafts },
+  setDrafts: (drafts: Record<string, ComposerDraftRecord>) => {
+    state.drafts = drafts
+  },
   clearDraft: vi.fn(),
 }))
 vi.mock('../drafts-blobs', () => ({ deleteDraftBlobs: vi.fn() }))
 vi.mock('../pi/delete-lane', () => ({ createLaneRemoval: vi.fn() }))
 vi.mock('../pi/session-deleter', () => ({ deleteSession: vi.fn() }))
 vi.mock('../pi/session-scanner', () => ({ listSessions: vi.fn(), parseSessionFile: vi.fn() }))
-vi.mock('../pi/session-watcher', () => ({ notifyWorkspaceSessions: vi.fn(), unwatchWorkspaceSessions: vi.fn() }))
+vi.mock('../pi/session-watcher', () => ({
+  notifyWorkspaceSessions: vi.fn(),
+  unwatchWorkspaceSessions: vi.fn(),
+}))
 vi.mock('../fs/git-worktrees', () => ({ removeWorktree: vi.fn() }))
-vi.mock('../maintenance/history', () => ({ withWorkspace: <T>(_cwd: string, run: () => Promise<T>) => run() }))
-vi.mock('../pi/session-path-lock', () => ({ sessionPaths: {
-  cancelSessionOpens: vi.fn(), withSessionPath: <T>(_key: string, run: () => Promise<T>) => run(),
-} }))
+vi.mock('@phosphor/session-runtime/git/git-info', () => ({ gitInfo: async () => ({}) }))
+vi.mock('../maintenance/history', () => ({
+  withWorkspace: <T>(_cwd: string, run: () => Promise<T>) => run(),
+}))
+vi.mock('../pi/session-path-lock', () => ({
+  sessionPaths: {
+    cancelSessionOpens: vi.fn(),
+    withSessionPath: <T>(_key: string, run: () => Promise<T>) => run(),
+  },
+}))
 vi.mock('./state', () => ({
   localArchives: () => ({ storage: state.storage!, inventory: { invalidate: vi.fn() } }),
   assertNoArchivedOwners: vi.fn(),
 }))
-import { restoreLocalArchive } from './operations'
+import { archiveLocalLane, purgeLocalArchive, restoreLocalArchive } from './operations'
+import { clearDraft } from '../store'
+import { createLaneRemoval } from '../pi/delete-lane'
+import { listSessions } from '../pi/session-scanner'
+import { unwatchWorkspaceSessions } from '../pi/session-watcher'
 
 let root: string, cwd: string
 const id = 'a'.repeat(64)
@@ -41,11 +56,20 @@ beforeEach(async () => {
   await mkdir(join(root, 'sessions'))
   state.storage = createLaneArchiveStorage(join(root, 'archives'), join(root, 'sessions'))
   state.get.mockReset()
-  state.drafts = { 'session:old': { key: 'session:old', text: 'Unsent work', attachments: [], updatedAt: 1 } }
-  await state.storage.prepare({ id, cwd, title: 'Empty lane', metadata: { draftKey: 'session:old' } })
+  state.drafts = {
+    'session:old': { key: 'session:old', text: 'Unsent work', attachments: [], updatedAt: 1 },
+  }
+  await state.storage.prepare({
+    id,
+    cwd,
+    title: 'Empty lane',
+    metadata: { draftKey: 'session:old' },
+  })
   await state.storage.archive(id)
 })
-afterEach(async () => { await rm(root, { recursive: true, force: true }) })
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true })
+})
 it('keeps an empty restore retryable until a replacement session actually exists', async () => {
   await restoreLocalArchive(id)
   await expect(state.storage!.get(id)).resolves.toMatchObject({ state: 'restoring' })
@@ -62,8 +86,24 @@ it('refuses completion with a missing session or a session belonging to another 
 it('moves the persisted draft before completing an empty restore', async () => {
   await restoreLocalArchive(id)
   state.get.mockReturnValue({ workspacePath: cwd, client: {} })
-  expect(await restoreLocalArchive(id, 'replacement')).toMatchObject({ cwd, draftKey: 'session:old', restoredDraftKey: 'session:replacement' })
+  expect(await restoreLocalArchive(id, 'replacement')).toMatchObject({
+    cwd,
+    draftKey: 'session:old',
+    restoredDraftKey: 'session:replacement',
+  })
   expect(state.drafts['session:replacement']?.text).toBe('Unsent work')
   expect(state.drafts['session:old']).toBeUndefined()
   await expect(state.storage!.get(id)).rejects.toMatchObject({ code: 'ENOENT' })
+})
+it('lets an empty lane interrupted mid-restore be cleaned up, discarding its saved draft', async () => {
+  await restoreLocalArchive(id)
+  await purgeLocalArchive(id, false)
+  await expect(state.storage!.get(id)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(clearDraft).toHaveBeenCalledWith('session:old')
+})
+it('leaves the renderer-owned session watcher running after archiving the last lane', async () => {
+  vi.mocked(createLaneRemoval).mockReturnValue(async () => [])
+  vi.mocked(listSessions).mockResolvedValue([])
+  await archiveLocalLane(cwd)
+  expect(unwatchWorkspaceSessions).not.toHaveBeenCalled()
 })

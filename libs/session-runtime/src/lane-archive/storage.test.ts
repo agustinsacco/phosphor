@@ -126,3 +126,29 @@ it('keeps empty lanes recoverable without inventing a transcript', async () => {
   expect(record.transcript).toBeUndefined()
   expect(record.cwd).toBe(cwd)
 })
+
+it('lets an empty lane interrupted mid-restore be cleaned up, but not a restored conversation', async () => {
+  const empty = archiveIdFor('empty:lane')
+  await storage.prepare({ id: empty, cwd, title: 'No first message yet' })
+  await storage.archive(empty)
+  await storage.restore(empty)
+  await storage.purge(empty, async () => {})
+  await storage.finish(empty)
+  await prepare()
+  await storage.archive(id)
+  await storage.restore(id)
+  await expect(storage.purge(id, async () => {})).rejects.toThrow('Restore this incomplete archive')
+})
+
+it('archives a worktree lane whose checkout is already gone, without a checkout identity', async () => {
+  await rm(cwd, { recursive: true })
+  const record = await storage.prepare({
+    id,
+    cwd,
+    title: 'Removed outside Phosphor',
+    worktree: true,
+  })
+  expect(record.checkout).toBeUndefined()
+  await storage.archive(id)
+  await storage.purge(id, async () => {})
+})
