@@ -84,7 +84,6 @@ export function useRemoteLaneActions({
     ready,
     entry?.phosphorId,
     runner.busy,
-    nativeFiles,
   )
   const access = remoteLaneAccess(state)
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
@@ -143,7 +142,6 @@ function useLaneActionState(
   ready: boolean,
   sessionId: string | undefined,
   running: boolean,
-  nativeFiles: boolean,
 ) {
   const caps = useMachineCaps(hostId)
   const key = remoteLaneResourceKey(hostId, lane.laneId)
@@ -162,7 +160,6 @@ function useLaneActionState(
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
     prs: lanePrMenuEntries(prs),
     markers,
-    ...(!nativeFiles ? { moveBlocked: 'Moving lanes requires Desktop.' } : {}),
   }
   /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
   const marker = markers === 'off' ? null : remoteLaneMarker(lane, markers)

@@ -368,3 +368,21 @@ it.each([
   expect(container.textContent).not.toContain(warning)
   expect(container.textContent).toContain('Sign in with GitHub')
 })
+it('mounts the Move to… dialog in the browser shell and drops it for the next owner', async () => {
+  const { useLaneMoveStore } = await import('@/stores/laneMove')
+  account = signedIn()
+  await act(async () => root.render(<CompactApp />))
+  await act(async () =>
+    useLaneMoveStore.getState().open({
+      source: { machine: MACHINE.id, laneId: '11111111-2222-4333-8444-555555555555' },
+      title: 'Retired research',
+      marks: { pinned: false, marker: null },
+    }),
+  )
+  await vi.waitFor(() => expect(document.body.textContent).toContain('Move lane'))
+  expect(document.body.textContent).toContain('Retired research')
+  await publishAccount({ account: { status: 'signed-out' } })
+  await publishAccount(signedIn('replacement'))
+  expect(useLaneMoveStore.getState().draft).toBeNull()
+  expect(document.body.textContent).not.toContain('Retired research')
+})

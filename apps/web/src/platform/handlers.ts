@@ -176,7 +176,8 @@ function signOut(control: BrowserControl, broadcast: () => void) {
   }
   return result
 }
-export function createBrowserHandlers(ports: {
+/** What the handlers are built over: the page's adapter services, each owned by index.ts. */
+interface BrowserHandlerPorts {
   control: BrowserControl
   hosts: BrowserHosts
   lanes: RemoteLanes
@@ -190,7 +191,8 @@ export function createBrowserHandlers(ports: {
   openExternal: (url: string) => void
   broadcastLogout: () => void
   machinesChanged: () => void
-}): BrowserHandlers {
+}
+export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandlers {
   const { control, hosts, lanes, resources, prefs, drafts } = ports
   const marks = laneMarks(hosts.connection)
   const read = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>

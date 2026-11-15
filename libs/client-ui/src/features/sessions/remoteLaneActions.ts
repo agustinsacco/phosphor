@@ -43,8 +43,6 @@ export interface RemoteLaneActionState {
   prs: LaneActionContext['prs']
   /** The marker preference: `off` drops the marker slot and its menu item, as on This Mac. */
   markers: LanePrefs['markers']
-  /** Desktop relays bundles; the browser cannot. */
-  moveBlocked?: string
 }
 
 /** What this client may do to the lane, and why not. One rule for every surface. */
@@ -118,7 +116,6 @@ function moveHint(
   running: boolean,
   controlHint: string | undefined,
 ): string | undefined {
-  if (state.moveBlocked) return state.moveBlocked
   if (!state.caps.laneTransfer) return LANE_MOVE_NEEDS_UPDATE
   if (!state.caps.granted('sessions.control')) return featureNotOffered('sessions.control')
   if (!running) return undefined

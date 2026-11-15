@@ -3,6 +3,8 @@ import { errorText } from '@shared/errors'
 import type { LaneMovePlan, LaneMoveResult, LaneMoveTarget } from '@shared/lane-move'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button } from '@/components/form'
+import { useNavigation, type Navigation } from '@/navigation/Navigation'
+import { usePlatform } from '@/platform/Platform'
 import { useLaneMoveStore, type LaneMoveDraft } from '@/stores/laneMove'
 import { machineLabel, navigateToLane, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -11,6 +13,7 @@ import {
   formatMoveBytes,
   moveMachines,
   planSummary,
+  relayNote,
   sourceHint,
   type MoveMachine,
 } from './laneMove'
@@ -43,9 +46,10 @@ function keepMarks(draft: LaneMoveDraft, result: Done) {
   void sessions.refreshDisk(result.workspace)
 }
 
-async function openMoved(result: Done): Promise<void> {
+/** A Host copy opens through navigation, which both shells route; a This Mac copy through its file. */
+async function openMoved(result: Done, navigate: Navigation['navigate']): Promise<void> {
   if ('laneId' in result) {
-    await navigateToLane({ hostId: result.machine, laneId: result.laneId })
+    navigate({ to: 'lane', lane: { hostId: result.machine, laneId: result.laneId } })
     return
   }
   const sessions = useSessionsStore.getState()
@@ -146,11 +150,14 @@ function TargetFields(props: {
 
 function PlanView({
   check,
+  note,
   accepted,
   onAccept,
   retry,
 }: {
   check: Check
+  /** How the bytes travel, when that is worth saying. */
+  note: string | undefined
   accepted: boolean
   onAccept: (accepted: boolean) => void
   retry: () => void
@@ -178,6 +185,7 @@ function PlanView({
       <p>
         {planSummary(plan)} {formatMoveBytes(plan.bytes)} to copy. The original stays where it is.
       </p>
+      {note && <p className="text-text-secondary">{note}</p>}
       <label className="flex items-start gap-2">
         <input type="checkbox" checked={accepted} onChange={(e) => onAccept(e.target.checked)} />
         <span>
@@ -189,7 +197,8 @@ function PlanView({
   )
 }
 
-function useMoveExecution(draft: LaneMoveDraft) {
+function useMoveExecution(draft: LaneMoveDraft, onClose: () => void) {
+  const { navigate } = useNavigation()
   const [moving, setMoving] = useState(false)
   const [done, setDone] = useState<Done | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -213,16 +222,22 @@ function useMoveExecution(draft: LaneMoveDraft) {
       setMoving(false)
     }
   }
-  return { moving, done, error, setError, move }
+  /** Opens the copy and closes the dialog; a failure to open stays in the dialog. */
+  const open = () => {
+    if (done)
+      void openMoved(done, navigate).then(onClose, (cause: unknown) => setError(errorText(cause)))
+  }
+  return { moving, done, error, move, open }
 }
 
 function useMoveMachines() {
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const recents = useWorkspacesStore((s) => s.recents)
   const sandboxes = useWorkspacesStore((s) => s.sandboxes)
+  const { localLanes } = usePlatform()
   const machines = useMemo(
-    () => moveMachines({ hosts, labelOf: machineLabel, recents, sandboxes }),
-    [hosts, recents, sandboxes],
+    () => moveMachines({ hosts, labelOf: machineLabel, recents, sandboxes, localLanes }),
+    [hosts, recents, sandboxes, localLanes],
   )
   return { hosts, machines }
 }
@@ -270,20 +285,18 @@ function LaneMoveModal({
 }): React.JSX.Element {
   const { hosts, machines } = useMoveMachines()
   const unavailable = sourceHint(hosts, draft.source)
+  // This Mac comes first where it is offered, so Desktop's fallback stays This Mac.
   const [machine, setMachine] = useState(
-    () => machines.find((m) => !m.disabled)?.machine ?? 'local',
+    () => (machines.find((m) => !m.disabled) ?? machines[0])?.machine ?? '',
   )
   const [workspace, setWorkspace] = useState('')
   const [acceptedTarget, setAcceptedTarget] = useState('')
   const chosen = machines.find((m) => m.machine === machine)
   const picked = chosen?.workspaces.find((w) => w.key === workspace)
   const { check, retry } = useMovePlan(draft, picked?.target, unavailable)
-  const { moving, done, error, setError, move } = useMoveExecution(draft)
+  const { moving, done, error, move, open } = useMoveExecution(draft, onClose)
   const blocked =
     check.state !== 'ready' || check.plan.blockers.length > 0 || acceptedTarget !== picked?.key
-  const open = () => {
-    if (done) void openMoved(done).then(onClose, (cause: unknown) => setError(errorText(cause)))
-  }
   const start = () => {
     if (picked) void move(picked.target)
   }
@@ -328,6 +341,7 @@ function LaneMoveModal({
               />
               <PlanView
                 check={check}
+                note={picked && relayNote(draft.source, picked.target)}
                 retry={retry}
                 accepted={acceptedTarget === picked?.key}
                 onAccept={(yes) => setAcceptedTarget(yes ? picked!.key : '')}

@@ -8,6 +8,7 @@ import { useSkillsStore } from '@/stores/skills'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useMachinesStore } from '@/stores/machines'
+import { useLaneMoveStore } from '@/stores/laneMove'
 import { clearBrowserMemory } from './browserMemory'
 
 let cleanup: Promise<void> = Promise.resolve()
@@ -26,6 +27,7 @@ export function clearCompactUi(): void {
   useHomeSubmissionsStore.setState({ pending: {} })
   useExtensionUiStore.setState({ toasts: [] })
   useMachinesStore.setState({ view: { kind: 'list' }, adding: false })
+  useLaneMoveStore.getState().close()
   const sessions = Object.values(useSessionsStore.getState().live).filter(
     (entry) => entry.target?.kind === 'remote',
   )
