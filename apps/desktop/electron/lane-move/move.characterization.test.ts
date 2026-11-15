@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { readdirSync, statSync } from 'node:fs'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -201,6 +202,28 @@ it('moves a multi-chunk bundle from one Host to another and returns the new lane
   ).toEqual([0, LANE_TRANSFER_LIMITS.chunkBytes, LANE_TRANSFER_LIMITS.chunkBytes * 2])
   expect(b.received().equals(Buffer.from(bytes))).toBe(true)
   // Nothing of the bundle is left on This Mac.
+  expect(await readdir(temp)).toEqual([])
+})
+
+it('stages a Host-to-Host bundle in one private temp file while it sends it', async () => {
+  // Desktop never holds a whole bundle in memory: it reads the file back a chunk at a time.
+  const bytes = new Uint8Array(LANE_TRANSFER_LIMITS.chunkBytes + 5).map((_, i) => i % 251)
+  const a = fakeHost(bytes)
+  const b = fakeHost(new Uint8Array(0))
+  const { service, temp } = await moves({ a, b })
+  let staged: { dir: string; size: number; mode: number }[] | undefined
+  const chunk = b.answers['laneTransfer.chunk']!
+  b.answers['laneTransfer.chunk'] = (params) => {
+    staged ??= readdirSync(temp).map((dir) => {
+      const { size, mode } = statSync(join(temp, dir, 'lane.bundle'))
+      return { dir, size, mode: mode & 0o777 }
+    })
+    return chunk(params)
+  }
+  expect(await service.move(request())).toEqual({ machine: 'b', laneId: newLaneId })
+  expect(staged).toEqual([
+    { dir: expect.stringMatching(/^phosphor-lane-/), size: bytes.length, mode: 0o600 },
+  ])
   expect(await readdir(temp)).toEqual([])
 })
 
