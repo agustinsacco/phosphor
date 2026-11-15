@@ -114,3 +114,12 @@ it('ignores other fingers and discards a cancelled stroke', () => {
   expect(scene().shapes).toHaveLength(0)
   expect(button('Undo').disabled).toBe(true)
 })
+
+it('does not cancel the drawing finger when another pointer is cancelled', () => {
+  pointer('pointerdown', 20, 20)
+  pointer('pointermove', 100, 100)
+  pointer('pointercancel', 80, 80, 2)
+  pointer('pointerup', 100, 100)
+  expect(scene().shapes).toHaveLength(1)
+  expect(button('Undo').disabled).toBe(false)
+})
