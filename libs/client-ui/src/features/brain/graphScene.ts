@@ -190,9 +190,11 @@ class SceneController implements GraphScene {
       selection.focus !== this.selection.focus ||
       selection.matches !== this.selection.matches ||
       selection.path !== this.selection.path
-    if (selection.matches !== this.selection.matches) this.focusCamera = false
-    if (selection.focus !== this.selection.focus) this.focusCamera = !!selection.focus
-    if (selectionChanged) this.userCamera = false
+    if (selectionChanged) {
+      this.focusCamera = !!selection.focus && !selection.matches
+      this.userCamera = false
+      this.hover = null
+    }
     this.selection = selection
     if (changed) {
       const previous = new Map(this.model.nodes.map((node) => [node.id, node]))
