@@ -132,3 +132,29 @@ it.each([
   const pages = useMachinePagesStore.getState()
   expect(page === 'skills' ? pages.skillsMachine : pages.artifactsMachine).toBeFalsy()
 })
+
+it('characterizes Desktop commands on This Mac with and without an active session', async () => {
+  useRemoteLanesStore.setState({ hosts: {}, filter: 'local' })
+  useSessionsStore.setState({ activeSessionId: null, live: {}, disk: {} })
+  usePaletteStore.setState({ open: true })
+  await act(async () => root.render(<CommandPalette workspacePath="/mac" />))
+  const input = document.querySelector<HTMLInputElement>('input[placeholder="Type a command…"]')!
+  const labels = async (query: string): Promise<string[]> => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, query)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    return [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].map(
+      (row) => row.textContent ?? '',
+    )
+  }
+  expect(await labels('pane')).toEqual([])
+  expect(await labels('feedback')).toEqual(['Send feedback'])
+  expect(await labels('Keyboard shortcuts')).toHaveLength(1)
+  expect(await labels('workspace folder')).toEqual(['Open workspace folder…'])
+  useSessionsStore.setState({ activeSessionId: 'mac' })
+  await act(async () => root.render(<CommandPalette workspacePath="/mac" />))
+  expect(await labels('Toggle')).toHaveLength(6)
+  expect(await labels('Rewind')).toHaveLength(1)
+  expect(await labels('tool output')).toHaveLength(1)
+})
