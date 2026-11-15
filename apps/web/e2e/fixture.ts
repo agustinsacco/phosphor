@@ -2,7 +2,7 @@ import { expect, test as base } from '@playwright/test'
 import { createHash, generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto'
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createServer } from 'node:http'
 import { connect, type Socket } from 'node:net'
@@ -27,10 +27,15 @@ const endpoint = 'https://fixture.ts.net'
 /** A stopped Host's children can still be releasing state files; rm retries ENOTEMPTY. */
 const removeRoot = (root: string) =>
   rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+/**
+ * A new root under the real temp path: macOS's tmpdir() is under the /var symlink, and a
+ * Host refuses to land a moved lane under a symlinked folder.
+ */
+const createRoot = async () => mkdtemp(join(await realpath(tmpdir()), 'phosphor-web-'))
 
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
 export async function browserFixture(production = false) {
-  const root = await mkdtemp(join(tmpdir(), 'phosphor-web-'))
+  const root = await createRoot()
   const cleanups: (() => Promise<unknown>)[] = [() => removeRoot(root)]
   const close = async () => {
     const errors: unknown[] = []
