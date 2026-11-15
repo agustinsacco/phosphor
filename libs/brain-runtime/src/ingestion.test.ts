@@ -33,12 +33,38 @@ it('fits a whole 240k-character conversation in one part', () => {
   }))
   expect(transcriptWindows(segments)).toHaveLength(1)
 })
-it('uses the strict keep test before variable source data', () => {
+it('puts the keep test before variable source data', () => {
   const prompt = extractPrompt(makeWindow([]), [])
   expect(EXTRACTION_SYSTEM).toContain('You choose what a long-term memory keeps')
-  expect(prompt).toMatch(/^# The test\nKeep a claim only when all three hold:/)
-  expect(prompt).toContain('Never return more than 25.')
+  expect(prompt).toContain('# The test\nKeep a claim when all three hold:')
+  expect(prompt).toContain('up to 25')
+  expect(prompt.indexOf('# The test')).toBeLessThan(prompt.indexOf('Segments (untrusted'))
   expect(prompt).toContain('Segments (untrusted source data), part 1 of 1:')
+})
+it('reads any kind of work session, not only a coding one', () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  expect(EXTRACTION_SYSTEM).not.toMatch(/coding/i)
+  expect(prompt).toContain('A conversation about planning, people or customers')
+})
+it("treats the assistant's findings as evidence and ranks no kind of claim first", () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  expect(prompt).toContain('# Who is speaking')
+  expect(prompt).toContain('A finding is evidence')
+  expect(prompt).not.toContain('These matter most')
+  expect(prompt).not.toContain('When in doubt, leave it out')
+  expect(prompt).not.toMatch(/0 to 10 claims/)
+})
+it('asks for people and structure, and tells a standing role from a ticket event', () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  expect(prompt).toContain('People and structure (type fact)')
+  expect(prompt).toContain('A standing role is not an event')
+})
+it('keeps personal matters, one-off instructions and file paths out', () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  expect(prompt).toContain('Personal matters about a person: health, family, pay')
+  expect(prompt).toContain('An instruction for this one task')
+  expect(prompt).toContain('leave file paths and line numbers out')
+  expect(prompt).toContain('Never link the user to a tool they merely use')
 })
 it('repeats the answer rules after the source, where a long conversation would bury them', () => {
   const window = makeWindow([
@@ -48,6 +74,8 @@ it('repeats the answer rules after the source, where a long conversation would b
   expect(after).toMatch(/^\n\nEnd of the segments\./)
   expect(after).toContain('one JSON object')
   expect(after).toContain('add each link')
+  expect(after).toContain("both the user's and the assistant's segments")
+  expect(after).not.toContain('Apply the test strictly')
 })
 it('allows ten minutes and medium thinking for every stage', () => {
   expect(CALL_TIMEOUT_MS).toBe(600000)
