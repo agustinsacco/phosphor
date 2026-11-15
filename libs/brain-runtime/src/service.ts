@@ -50,6 +50,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     ),
   )
   const store = options.openStore(join(options.directory, 'brain.sqlite'))
+  const search = options.openSearch(join(options.directory, 'brain.sqlite'))
   let disposed = false
   const changed = (): void => {
     if (!disposed) options.onChange?.()
@@ -58,7 +59,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     store,
     busy: (path) => options.lanes.busy(path),
     ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
-    run: (job, signal) => extractJob(job, signal, store, options),
+    run: (job, signal) => extractJob(job, signal, store, options, search),
     changed,
     cancelled: (job) =>
       options.log?.('Brain job cancelled', {
@@ -68,7 +69,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       }),
     now: options.now ?? Date.now,
   })
-  const recall = createRecall(store, options)
+  const recall = createRecall(store, options, search, () => queue.accepting)
   const setup = modelSetup(options, changed, () => queue.kick())
   store.requeueInterrupted()
   if (store.snapshot().prefs.enabled) setup.start(() => options.embeddings.setEnabled(true))
@@ -76,7 +77,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
   changed()
   queue.kick()
   return {
-    api: createApi({ store, options, queue, changed, startModel: setup.start }),
+    api: createApi({ store, options, search, queue, changed, startModel: setup.start }),
     agent: recall.agent,
     recallLaunch: recall.recallLaunch,
     async dispose() {
@@ -86,6 +87,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       await queue.dispose()
       await setup.settled()
       await recall.dispose()
+      await search.close()
       store.close()
     },
   }

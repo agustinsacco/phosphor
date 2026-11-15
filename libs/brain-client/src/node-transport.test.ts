@@ -71,7 +71,7 @@ describe('createNodeBrainTransport', () => {
     expect(brain.requests[0]!.endsWith('\n')).toBe(true)
     expect(brain.requests[0]!.indexOf('\n')).toBe(brain.requests[0]!.length - 1)
     expect(JSON.parse(brain.requests[0]!)).toEqual({
-      version: 3,
+      version: 4,
       token: TOKEN,
       method: 'search',
       params: { query: 'Harbor' },

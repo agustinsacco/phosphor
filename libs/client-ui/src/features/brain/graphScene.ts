@@ -4,16 +4,18 @@ import { graphAppearance } from './graphAppearance'
 import { readGraphTheme } from './graphColors'
 import type { PerspectiveCamera } from 'three'
 import { fitCamera } from './graphFit'
-import type { GraphModel, GraphNode } from './graphModel'
+import type { GraphLink, GraphModel, GraphNode } from './graphModel'
 
 export interface GraphSelection {
   focus: string | null
   matches: Set<string> | null
+  path?: Set<string> | null
 }
 export interface GraphScene {
   update: (model: GraphModel, selection: GraphSelection) => void
   zoom: (factor: number) => void
   fit: () => void
+  dimensions: (value: 2 | 3) => void
   dispose: () => void
 }
 
@@ -21,6 +23,7 @@ export interface GraphScene {
 export function createGraphScene(
   container: HTMLElement,
   onFocus: (id: string) => void,
+  onEdge: (link: GraphLink | null) => void,
 ): GraphScene {
   // The vendor constructor fixes its generic defaults; this scene is the sole graphData writer.
   const graph = new ForceGraph3D(container, {
@@ -28,7 +31,7 @@ export function createGraphScene(
     rendererConfig: { alpha: true },
   }) as unknown as BrainForceGraph
   try {
-    return new SceneController(graph, container, onFocus)
+    return new SceneController(graph, container, onFocus, onEdge)
   } catch (error) {
     graph._destructor()
     throw error
@@ -56,6 +59,7 @@ class SceneController implements GraphScene {
     private graph: BrainForceGraph,
     container: HTMLElement,
     onFocus: (id: string) => void,
+    onEdge: (link: GraphLink | null) => void,
   ) {
     this.activity = graphActivity(graph, container, () => {
       this.userCamera = true
@@ -66,6 +70,9 @@ class SceneController implements GraphScene {
       .showNavInfo(false)
       .nodeLabel('')
       .linkLabel('')
+      .linkDirectionalArrowLength(4)
+      .linkDirectionalArrowRelPos(0.85)
+      .onLinkHover(onEdge)
       .nodeVal('val')
       .nodeRelSize(4)
       .nodeOpacity(1)
@@ -115,7 +122,7 @@ class SceneController implements GraphScene {
 
   private duration = (): number => (this.motion?.matches ? 0 : 600)
   private paint = (): void => {
-    this.appearance.paint(this.hover, this.selection.matches, this.theme)
+    this.appearance.paint(this.hover, this.selection.matches, this.theme, this.selection.path)
     this.activity.wake()
   }
   private aim = (duration = this.duration()): void => {
@@ -171,7 +178,9 @@ class SceneController implements GraphScene {
   update(model: GraphModel, selection: GraphSelection): void {
     const changed = model !== this.model
     const selectionChanged =
-      selection.focus !== this.selection.focus || selection.matches !== this.selection.matches
+      selection.focus !== this.selection.focus ||
+      selection.matches !== this.selection.matches ||
+      selection.path !== this.selection.path
     if (selection.focus !== this.selection.focus) this.focusCamera = !!selection.focus
     if (selection.matches !== this.selection.matches) this.focusCamera = false
     if (selectionChanged) this.userCamera = false
@@ -196,6 +205,12 @@ class SceneController implements GraphScene {
     if (selectionChanged) this.aim()
     // Waking a paused graph can synchronously stop its OLD engine. Arm only after those wakes.
     if (changed) this.pendingCamera = true
+  }
+
+  dimensions(value: 2 | 3): void {
+    this.graph.numDimensions(value)
+    this.userCamera = false
+    this.setMotion()
   }
 
   fit(): void {

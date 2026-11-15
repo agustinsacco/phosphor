@@ -13,6 +13,7 @@ import { useWorktreesStore, repoWorktrees } from '@/stores/worktrees'
 import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/subagentRuns'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 import { Button } from '@/components/form'
+import { PrBadge } from '@/features/sessions/PrBadge'
 import { LaneCard } from './LaneCard'
 import { LaneActivity } from './LaneActivity'
 import {
@@ -78,7 +79,7 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
         meta: { ...meta, name: chat?.meta?.sessionName ?? meta.name },
         git,
         phosphorId,
-        pr: prs.owned[0]?.pr,
+        prs: prs.owned,
         isStreaming: !!(chat?.isStreaming || chat?.promptSentAt),
         hasPendingQuestion: phosphorId ? asking.has(phosphorId) : false,
         hasDelegatedWork: phosphorId
@@ -180,7 +181,7 @@ export function LaneBoard({ data }: { data: LaneBoardData }): React.JSX.Element 
                   <span className={clsx('uppercase tracking-wider', STATE_ACCENT[lane.state])}>
                     {lane.state === 'idle' ? 'Idle' : LANE_STATE_LABEL[lane.state]}
                   </span>
-                  {lane.pr && <span className="text-text-secondary">PR #{lane.pr.number}</span>}
+                  <PrBadge prs={lane.prs} />
                 </>
               }
               detail={lane.detail}

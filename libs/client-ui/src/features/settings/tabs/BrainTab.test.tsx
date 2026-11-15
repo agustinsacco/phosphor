@@ -128,3 +128,15 @@ it('does not load or render Brain on unsupported platforms', async () => {
   expect(container.textContent).toBe('')
   expect(invoke).not.toHaveBeenCalled()
 })
+
+it('requires explicit reset confirmation, keeps the model/settings copy, and calls reset once', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  await render()
+  await click('Reset Brain knowledge')
+  const request = usePromptStore.getState().requests[0]!
+  expect(request.message).toContain('memories, entities, jobs and extraction records')
+  expect(request.message).toContain('Keeps settings and the embedding model')
+  expect(invoke.mock.calls.some(([channel]) => channel === 'brain:reset')).toBe(false)
+  await act(async () => usePromptStore.getState().dismiss(request, 'RESET'))
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:reset')).toHaveLength(1)
+})

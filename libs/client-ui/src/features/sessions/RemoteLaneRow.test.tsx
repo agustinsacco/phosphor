@@ -95,11 +95,13 @@ it('shows remote PR state and opens its link without opening the lane', async ()
   render()
   const chip = container.querySelector<HTMLElement>('[data-testid=session-pr-badge]')!
   expect(chip.dataset.variant).toBe('merged')
-  await act(async () => chip.click())
+  const bead = chip.querySelector<HTMLElement>('[data-testid=session-pr-bead]')!
+  await act(async () => bead.click())
   expect(invoke).toHaveBeenCalledWith('app:openExternal', 'https://github.com/a/b/pull/42')
   expect(invoke).not.toHaveBeenCalledWith('hosts:openLane', expect.anything(), expect.anything())
   menu()
-  expect(button('Open pull request #42')).toBeTruthy()
+  act(() => button('Pull requests').click())
+  expect(button('#42 · Merged')).toBeTruthy()
   usePullRequestsStore.setState({ byRepo: {} })
 })
 it('prefers the live name, then Host summary, then first prompt without local naming', () => {

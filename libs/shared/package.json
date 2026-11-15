@@ -300,6 +300,14 @@
       "types": "./src/host-protocol-files.ts",
       "default": "./src/host-protocol-files.ts"
     },
+    "./host-protocol-pr-status": {
+      "types": "./src/host-protocol-pr-status.ts",
+      "default": "./src/host-protocol-pr-status.ts"
+    },
+    "./host-protocol-pr-results": {
+      "types": "./src/host-protocol-pr-results.ts",
+      "default": "./src/host-protocol-pr-results.ts"
+    },
     "./host-protocol-file-bytes": {
       "types": "./src/host-protocol-file-bytes.ts",
       "default": "./src/host-protocol-file-bytes.ts"
@@ -367,6 +375,14 @@
     "./lane-archive": {
       "types": "./src/lane-archive.ts",
       "default": "./src/lane-archive.ts"
+    },
+    "./brain-explore": {
+      "types": "./src/brain-explore.ts",
+      "default": "./src/brain-explore.ts"
+    },
+    "./brain-review": {
+      "types": "./src/brain-review.ts",
+      "default": "./src/brain-review.ts"
     }
   },
   "dependencies": {

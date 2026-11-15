@@ -12,6 +12,7 @@ const ALL: (keyof LaneActionHandlers)[] = [
   'pin',
   'marker',
   'openPullRequest',
+  'showPullRequests',
   'takeControl',
   'releaseControl',
   'stop',
@@ -30,7 +31,7 @@ function ctx(edit: Partial<LaneActionContext> = {}): LaneActionContext {
   return {
     pinned: false,
     markers: 'auto',
-    pr: null,
+    prs: [],
     unseen: false,
     running: false,
     busy: false,
@@ -46,7 +47,7 @@ describe('laneActions', () => {
     const order = [{ label: 'Move up', onClick: vi.fn() }]
     const full = ctx({
       pinned: true,
-      pr: { number: 7, state: 'OPEN' },
+      prs: [{ key: 'k7', label: '#7 · In review' }],
       unseen: true,
       running: true,
       completed: false,
@@ -65,7 +66,7 @@ describe('laneActions', () => {
       'Make routine…',
       'Unpin',
       'Lane marker…',
-      'Open pull request #7 (open)',
+      'Pull requests',
       'Take control',
       'Stop (~200 MB)',
       'Mark read',
@@ -134,4 +135,42 @@ it('offers queue or cancel knowledge only when a local source supplies context a
   expect(laneActions(ctx({ knowledge: 'queue', busy: true }), { knowledge })[0]?.disabled).toBe(
     true,
   )
+})
+
+describe('the Pull requests submenu', () => {
+  const prs = [
+    { key: 'k57', label: '#57 · Failing' },
+    { key: 'k58', label: '#58 · In review' },
+  ]
+  const submenu = (h: LaneActionHandlers) =>
+    laneActions(ctx({ prs }), h).find((i) => i.label === 'Pull requests')
+
+  it('lists each PR, then the inspector, and opens each on GitHub by its key', () => {
+    const calls = handlers()
+    const menu = submenu(calls)!
+    expect(rows(menu.submenu!)).toEqual([
+      '#57 · Failing',
+      '#58 · In review',
+      '┄Show pull requests…',
+    ])
+    menu.submenu![1]!.onClick()
+    expect(calls.openPullRequest).toHaveBeenCalledWith('k58')
+    menu.submenu![2]!.onClick()
+    expect(calls.showPullRequests).toHaveBeenCalledOnce()
+  })
+
+  it('opens the inspector from the item itself where a surface cannot nest', () => {
+    const calls = handlers()
+    submenu(calls)!.onClick()
+    expect(calls.showPullRequests).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to the lead PR without an inspector, and hides without PRs', () => {
+    const calls = { ...handlers(), showPullRequests: undefined }
+    const menu = submenu(calls)!
+    expect(rows(menu.submenu!)).toEqual(['#57 · Failing', '#58 · In review'])
+    menu.onClick()
+    expect(calls.openPullRequest).toHaveBeenCalledWith('k57')
+    expect(laneActions(ctx(), handlers()).some((i) => i.label === 'Pull requests')).toBe(false)
+  })
 })

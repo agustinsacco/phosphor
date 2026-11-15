@@ -44,6 +44,10 @@
       "types": "./src/machine-reads.ts",
       "default": "./src/machine-reads.ts"
     },
+    "./pr-status-reads": {
+      "types": "./src/pr-status-reads.ts",
+      "default": "./src/pr-status-reads.ts"
+    },
     "./repository-reads": {
       "types": "./src/repository-reads.ts",
       "default": "./src/repository-reads.ts"

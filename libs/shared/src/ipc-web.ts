@@ -1,6 +1,6 @@
 import { ARCHIVE_WEB } from './ipc-web-archive'
 import type { IpcInvokeChannel } from './ipc'
-import { connectorConfig, DESKTOP_TRANSFERS_WEB } from './ipc-web-exclusions'
+import { BRAIN_WEB, connectorConfig, DESKTOP_TRANSFERS_WEB } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -17,22 +17,10 @@ const localRoutines = unsupported(
   'Local routine execution and native background services require Desktop.',
 )
 const hostFilesOnly = unsupported('Browser file access goes through Host reads and writes only.')
-const localBrain = unsupported('Brain is a local Desktop prototype; remote access is unavailable.')
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
-  'brain:status': localBrain,
-  'brain:setPrefs': localBrain,
-  'brain:download': localBrain,
-  'brain:removeModel': localBrain,
-  'brain:queue': localBrain,
-  'brain:cancel': localBrain,
-  'brain:extraction': localBrain,
-  'brain:proposal': localBrain,
-  'brain:review': localBrain,
-  'brain:knowledge': localBrain,
-  'brain:memory': localBrain,
-  'brain:forget': localBrain,
+  ...BRAIN_WEB,
   'hosts:tailscaleStatus': native,
   'hosts:models': remote,
   'hosts:commands': remote,
@@ -187,6 +175,7 @@ export const IPC_WEB = {
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
   'app:openExternal': browser,
+  'app:notify': unsupported('Native notifications require Desktop.'),
   'clipboard:writeImage': unsupported(
     'Native file and image clipboard integration is unavailable in the browser.',
   ),
@@ -362,7 +351,8 @@ export const IPC_WEB = {
   'sessions:forkClaudeLedger': unsupported('Local session files and mutations require Desktop.'),
   'gh:prForBranch': unsupported('This native service requires Desktop.'),
   'gh:prsForRepo': remote,
-  'gh:prSummaries': unsupported('This native service requires Desktop.'),
+  'gh:prSummaries': remote,
+  'gh:prDetail': remote,
   'gh:available': unsupported('This native service requires Desktop.'),
   'git:info': unsupported('Only Host-scoped read-only status and file comparisons are available.'),
   'git:infoBatch': unsupported(

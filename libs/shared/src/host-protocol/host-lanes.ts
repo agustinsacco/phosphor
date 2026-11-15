@@ -1,6 +1,7 @@
 /** The lanes topic: control, summaries, repositories, lane lists, deltas and attention. */
 import { isIsoTime, isUuid } from '../control-api'
 import { isLaneMarker } from '../host-protocol-lane-marks'
+import { parseLanePrSignals } from '../host-protocol-pr-status'
 import { HOST_LIMITS } from './constants'
 import type { HostFrame } from './frames'
 import type { LaneControl, LaneSummary, RepositorySummary } from './lanes'
@@ -34,6 +35,7 @@ export function parseLaneControl(v: unknown): LaneControl | null {
 export function parseLaneSummary(v: unknown): LaneSummary | null {
   if (!record(v)) return null
   const c = parseLaneControl(v.control)
+  const pullRequests = v.pullRequests === undefined ? null : parseLanePrSignals(v.pullRequests)
   if (
     !isUuid(v.laneId) ||
     !hex(v.repositoryId) ||
@@ -69,9 +71,10 @@ export function parseLaneSummary(v: unknown): LaneSummary | null {
     attention: v.attention,
     read: v.read,
     control: c,
-    // Additive marks: an invalid one is dropped, never the whole summary.
+    // Additive marks and PR signals: an invalid one is dropped, never the whole summary.
     ...(v.pinned === true ? { pinned: true as const } : {}),
     ...(isLaneMarker(v.marker) ? { marker: v.marker } : {}),
+    ...(pullRequests ? { pullRequests } : {}),
   }
 }
 

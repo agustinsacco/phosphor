@@ -135,6 +135,16 @@ describe('file bytes support marker', () => {
   })
 })
 
+describe('PR status support marker', () => {
+  it('carries the additive prStatus marker only as a boolean', () => {
+    expect(parseReadyFrame({ ...READY, prStatus: true })).toStrictEqual({
+      ...READY,
+      prStatus: true,
+    })
+    expect(parseReadyFrame({ ...READY, prStatus: 'yes' })).toBeNull()
+  })
+})
+
 describe('lane marks support marker', () => {
   it('carries the additive laneMarks marker only as a boolean', () => {
     expect(parseReadyFrame({ ...READY, laneMarks: true })).toStrictEqual({

@@ -41,6 +41,8 @@ export interface PrintModeResult {
 
 export interface PrintModeOptions {
   cwd: string
+  /** When provided, write the prompt to piped stdin and close it. */
+  input?: string
   /** Supplied by the caller; this transport never assembles or inherits an env. */
   env: NodeJS.ProcessEnv
   timeoutMs?: number
@@ -144,8 +146,8 @@ function observe(run: PrintRun): void {
 }
 
 /**
- * Spawn, never exec/execFile: pi -p waits for stdin EOF. Ignore stdin so a
- * provider can answer. Never rejects; completion always cleans up the tree.
+ * Spawn, never exec/execFile: pi -p waits for stdin EOF. Close piped input or
+ * ignore stdin so a provider can answer. Never rejects; completion always cleans up the tree.
  * Title sanitizing, provider env and timeout/overflow result policies stay in callers.
  */
 export async function runPrintMode(
@@ -160,7 +162,11 @@ export async function runPrintMode(
       child = spawn(binaryPath, args, {
         cwd: options.cwd,
         env: options.env,
-        stdio: ['ignore', 'pipe', options.stderr === 'ignore' ? 'ignore' : 'pipe'],
+        stdio: [
+          options.input === undefined ? 'ignore' : 'pipe',
+          'pipe',
+          options.stderr === 'ignore' ? 'ignore' : 'pipe',
+        ],
         detached: OWN_GROUP,
       })
     } catch (error) {
@@ -183,5 +189,9 @@ export async function runPrintMode(
       },
     }
     observe(run)
+    // A provider may exit before consuming the prompt. EPIPE must not escape as an
+    // unhandled stream error; close/error still determines the transport result.
+    child.stdin?.on('error', () => undefined)
+    if (options.input !== undefined) child.stdin?.end(options.input)
   })
 }

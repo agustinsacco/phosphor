@@ -16,3 +16,14 @@ export function revision(ctx: Context): number {
 export function bumpRevision(ctx: Context): void {
   run(ctx, "UPDATE meta SET value = CAST(value AS INTEGER) + 1 WHERE key='revision'")
 }
+
+/** Monotonic explicit keys keep incremental search correct even after deleting the last row. */
+export function nextNumber(ctx: Context, table: 'entities' | 'memories'): number {
+  const key = `${table}_sequence`
+  const value = one<{ value: string }>(ctx, 'SELECT value FROM meta WHERE key=?', key)
+  const next = value
+    ? Number(value.value) + 1
+    : (one<{ n: number }>(ctx, `SELECT MAX(n) AS n FROM ${table}`)?.n ?? 0) + 1
+  run(ctx, 'INSERT OR REPLACE INTO meta VALUES (?,?)', key, String(next))
+  return next
+}

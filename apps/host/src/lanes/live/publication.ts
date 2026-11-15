@@ -93,3 +93,16 @@ export function changed(state: LiveState, laneId: string) {
     live.changing = false
   }
 }
+
+/** Lanes whose PR signals changed: an attached lane publishes as usual, the rest in one delta. */
+export function republish(state: LiveState, laneIds: readonly string[]) {
+  const detached: LaneSummary[] = []
+  for (const laneId of laneIds) {
+    if (state.attached.has(laneId)) changed(state, laneId)
+    else {
+      const summary = summaryFor(state, laneId)
+      if (summary) detached.push(summary)
+    }
+  }
+  if (detached.length) state.lanesTopic.delta(detached)
+}

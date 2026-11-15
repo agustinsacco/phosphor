@@ -1,60 +1,48 @@
 import type { BrainAgentMethod, BrainQuery, BrainRecall } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
-import type { BrainServiceOptions, BrainRecallLaunch } from './types'
+import type { BrainServiceOptions, BrainRecallLaunch, BrainSearchPort } from './types'
 import { projectContext } from './lane'
 import { createBrainBridge } from './bridge'
-
-function scopeResolver(): (cwd?: string) => Promise<string | null> {
-  const scopes = new Map<string, Promise<string>>()
-  return async (cwd) => {
-    if (!cwd) return null
-    let pending = scopes.get(cwd)
-    if (!pending) {
-      pending = projectContext(cwd).then((ctx) => ctx.scope)
-      scopes.set(cwd, pending)
-    }
-    return pending
-  }
-}
 
 const unavailable = (): BrainRecall => ({
   status: 'unavailable',
   hits: [],
   entities: [],
   focus: [],
-  links: [],
+  paths: [],
+  branch: null,
   more: 0,
   degradation: [],
 })
 
-export function createRecall(store: BrainStore, options: BrainServiceOptions) {
-  const scope = scopeResolver()
+export function createRecall(
+  store: BrainStore,
+  options: BrainServiceOptions,
+  search: BrainSearchPort,
+  accepting: () => boolean = () => true,
+) {
   let bridge: ReturnType<typeof createBrainBridge> | undefined
   let disposed = false
   const enabled = (): boolean =>
-    !disposed && store.snapshot().prefs.enabled && store.snapshot().prefs.recall
+    !disposed && accepting() && store.snapshot().prefs.enabled && store.snapshot().prefs.recall
   async function agent(method: BrainAgentMethod, input: BrainQuery): Promise<BrainRecall> {
     if (!enabled()) return unavailable()
     const params = validateBrainRequest(method, input)
-    const project = await scope(params.cwd)
+    const project = params.cwd ? await projectContext(params.cwd) : { scope: null, branch: null }
     const vector = await options.embeddings
       .embed([params.query], 'query')
       .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
       .catch(() => null)
     if (!enabled()) return unavailable()
-    const result = store.search({
+    const result = await search.recall({
       query: params.query,
       vector,
-      scope: project,
+      scope: project.scope,
+      branch: project.branch,
+      now: (options.now ?? Date.now)(),
       limit: params.limit ?? 8,
     })
-    if (params.sessionId)
-      store.recordDelivery(
-        params.sessionId,
-        result.hits.map((h) => h.memory.id),
-      )
-    options.onChange?.()
     return result
   }
   async function recallLaunch(): Promise<BrainRecallLaunch | undefined> {

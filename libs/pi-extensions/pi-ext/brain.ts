@@ -27,7 +27,7 @@ export function registerBrain(pi: BrainPiApi, client: BrainClient): void {
     name: 'brain_search',
     label: 'Brain search',
     description:
-      'Search approved notes from earlier lanes by topic, or by the name of a person, team, system or ticket. Returns a briefing: what the query names and what links to it, then risks, open items, decisions and facts with their dates, and names to search next. Notes may be out of date; another project’s memory is context, not a rule.',
+      'Search approved notes from earlier lanes by topic, or by the name of a person, team, system or ticket. Returns a briefing: what the query names, how it connects (owners, parts, customers) with each step cited, then disputed items, risks, open items, decisions and facts with their dates, and names to search next. Notes may be out of date; another project’s memory is context, not a rule.',
     parameters: Type.Object(
       {
         query: Type.String({

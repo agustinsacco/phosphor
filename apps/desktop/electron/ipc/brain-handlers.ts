@@ -1,50 +1,21 @@
-import type { BrainLaneRef, BrainPrefs } from '@phosphor/shared/brain'
 import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
+import {
+  checkDecision,
+  checkFilter,
+  checkLane,
+  checkPrefs,
+  cursorOf,
+  directionOf,
+  hopsOf,
+  id,
+  limitOf,
+  predicateOf,
+  revisionOf,
+  text,
+} from './brain-checks'
 
-const fail = (message: string): never => {
-  throw new Error(message)
-}
-const text = (value: unknown, max = 4096): string =>
-  typeof value === 'string' && value.length > 0 && value.length <= max
-    ? value
-    : fail('Invalid Brain request.')
-
-/** Exactly the three switches; anything else is refused rather than stored. */
-export function checkPrefs(value: unknown): BrainPrefs {
-  const prefs = value as Partial<Record<keyof BrainPrefs, unknown>>
-  if (
-    !prefs ||
-    typeof prefs !== 'object' ||
-    Object.keys(prefs).sort().join() !== 'enabled,recall,review' ||
-    Object.values(prefs).some((flag) => typeof flag !== 'boolean')
-  )
-    fail('Invalid Brain settings.')
-  return prefs as BrainPrefs
-}
-
-export function checkLane(value: unknown): BrainLaneRef {
-  const lane = value as Partial<BrainLaneRef> | null
-  return { sessionPath: text(lane?.sessionPath), title: text(lane?.title, 500) }
-}
-
-/** Proposal indexes: unique, in range of what a proposal can hold. Null rejects the proposal. */
-export function checkKeep(value: unknown): number[] | null {
-  if (value === null) return null
-  if (
-    !Array.isArray(value) ||
-    value.length > 200 ||
-    new Set(value).size !== value.length ||
-    value.some((index) => !Number.isInteger(index) || index < 0 || index >= 200)
-  )
-    fail('Invalid review selection.')
-  return value as number[]
-}
-
-const revisionOf = (value: unknown): number =>
-  Number.isSafeInteger(value) && (value as number) >= 0
-    ? (value as number)
-    : fail('Invalid Brain revision.')
+export { checkDecision, checkLane, checkPrefs } from './brain-checks'
 
 /** Desktop-only. Lazy acquisition keeps a failed startup retryable. */
 export function registerBrainHandlers(service: () => Promise<BrainService>): void {
@@ -54,13 +25,40 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
   handle('brain:download', async () => (await api()).download())
   handle('brain:removeModel', async () => (await api()).removeModel())
   handle('brain:queue', async (_event, lane) => (await api()).queue(checkLane(lane)))
-  handle('brain:cancel', async (_event, id) => (await api()).cancel(text(id, 200)))
-  handle('brain:extraction', async (_event, id) => (await api()).extraction(text(id, 200)))
-  handle('brain:proposal', async (_event, id) => (await api()).proposal(text(id, 200)))
-  handle('brain:review', async (_event, id, keep, revision) =>
-    (await api()).review(text(id, 200), checkKeep(keep), revisionOf(revision)),
+  handle('brain:cancel', async (_event, job) => (await api()).cancel(id(job)))
+  handle('brain:retry', async (_event, job) => (await api()).retry(id(job)))
+  handle('brain:extraction', async (_event, job) => (await api()).extraction(id(job)))
+  handle('brain:proposal', async (_event, job) => (await api()).proposal(id(job)))
+  handle('brain:review', async (_event, job, decision, revision) =>
+    (await api()).review(id(job), checkDecision(decision), revisionOf(revision)),
   )
-  handle('brain:knowledge', async () => (await api()).knowledge())
-  handle('brain:memory', async (_event, id) => (await api()).memory(text(id, 200)))
-  handle('brain:forget', async (_event, id) => (await api()).forget(text(id, 200)))
+  handle('brain:reset', async () => (await api()).reset())
+  handle('brain:merge', async (_event, source, target) => {
+    const from = id(source)
+    const to = id(target)
+    if (from === to) throw new Error('Choose a different entity to merge into.')
+    return (await api()).merge(from, to)
+  })
+  handle('brain:find', async (_event, query, limit) =>
+    (await api()).find(text(query, 500), limitOf(limit)),
+  )
+  handle('brain:overview', async () => (await api()).overview())
+  handle('brain:neighbourhood', async (_event, entity, hops) =>
+    (await api()).neighbourhood(id(entity), hopsOf(hops)),
+  )
+  handle('brain:entity', async (_event, entity) => (await api()).entity(id(entity)))
+  handle('brain:connections', async (_event, entity, predicate, direction, cursor) =>
+    (await api()).connections(
+      id(entity),
+      predicateOf(predicate),
+      directionOf(direction),
+      cursorOf(cursor),
+    ),
+  )
+  handle('brain:entityMemories', async (_event, entity, filter, cursor) =>
+    (await api()).entityMemories(id(entity), checkFilter(filter), cursorOf(cursor)),
+  )
+  handle('brain:memory', async (_event, memory) => (await api()).memory(id(memory)))
+  handle('brain:path', async (_event, from, to) => (await api()).path(id(from), id(to)))
+  handle('brain:forget', async (_event, memory) => (await api()).forget(id(memory)))
 }

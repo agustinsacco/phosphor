@@ -1,46 +1,56 @@
-import { useMemo, useRef, useState } from 'react'
-import type { BrainEntity, BrainMemory } from '@shared/brain'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import type { BrainGraph, BrainLink } from '@shared/brain'
 import { Button } from '@/components/form'
 import { GRAPH_COLORS } from './graphColors'
-import { graphModel, type GraphNode } from './graphModel'
+import { graphModel, type GraphNode, type GraphLink } from './graphModel'
 import { useGraphScene } from './useGraphScene'
+import { useBrainResource } from './useBrainResource'
 import { TooltipButton } from '@/components/Tooltip'
 
 export function BrainGraph3D({
-  entities,
-  memories,
+  graph,
+  path = null,
   focus,
   matches = null,
   onFocus,
 }: {
-  entities: BrainEntity[]
-  memories: BrainMemory[]
+  graph: BrainGraph
+  path?: BrainLink[] | null
   focus: string | null
   matches?: Set<string> | null
   onFocus: (id: string) => void
 }): React.JSX.Element {
-  const model = useMemo(() => graphModel(entities, memories), [entities, memories])
+  const model = useMemo(() => graphModel(graph), [graph])
+  const [dimensions, setDimensions] = useState<2 | 3>(3)
+  const [edge, setEdge] = useState<GraphLink | null>(null)
+  const pathMatches = useMemo(
+    () => (path ? new Set(path.flatMap((link) => [link.subjectId, link.objectId])) : matches),
+    [path, matches],
+  )
+  const pathIds = useMemo(() => (path ? new Set(path.map((link) => link.id)) : null), [path])
   const container = useRef<HTMLDivElement>(null)
-  const { scene, unavailable } = useGraphScene(container, model, { focus, matches }, onFocus)
-  const kinds = [...new Set(model.nodes.map((node) => node.kind))]
+  const { scene, unavailable } = useGraphScene(
+    container,
+    model,
+    { focus, matches: pathMatches, path: pathIds },
+    onFocus,
+    setEdge,
+    dimensions,
+  )
   return (
     <section
       aria-label="Knowledge graph"
       className="border-border bg-bg-secondary/40 relative flex min-h-64 flex-1 flex-col rounded-lg border"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 p-3">
-        <div aria-label="Entity kinds" className="text-text-tertiary flex flex-wrap gap-3 text-sm">
-          {kinds.map((kind) => (
-            <span key={kind} className="flex items-center gap-1">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: `var(${GRAPH_COLORS[kind]})` }}
-              />
-              {kind}
-            </span>
-          ))}
-        </div>
+        <GraphLegend nodes={model.nodes} />
         <div className="flex gap-1">
+          <Button size="xs" aria-pressed={dimensions === 2} onClick={() => setDimensions(2)}>
+            2D
+          </Button>
+          <Button size="xs" aria-pressed={dimensions === 3} onClick={() => setDimensions(3)}>
+            3D
+          </Button>
           <Button
             size="xs"
             aria-label="Zoom out"
@@ -69,7 +79,8 @@ export function BrainGraph3D({
           </p>
         )}
       </div>
-      <GraphAccess nodes={model.nodes} focus={focus} matches={matches} onFocus={onFocus} />
+      {edge && <EdgeDetail key={edge.id} edge={edge} />}
+      <GraphAccess nodes={model.nodes} focus={focus} matches={pathMatches} onFocus={onFocus} />
     </section>
   )
 }
@@ -121,5 +132,40 @@ function GraphAccess({
         </span>
       )}
     </>
+  )
+}
+
+function EdgeDetail({ edge }: { edge: GraphLink }): React.JSX.Element {
+  const load = useCallback(
+    () => window.phosphor.invoke('brain:memory', edge.memoryId),
+    [edge.memoryId],
+  )
+  const { data, error, retry } = useBrainResource(load)
+  return (
+    <div role="status" className="border-border bg-bg-secondary border-t p-3 text-sm">
+      <p>{edge.predicates.map((p) => p.replaceAll('_', ' ')).join(', ')}</p>
+      {data?.memory.summary || error || 'Loading supporting memory…'}
+      {error && (
+        <Button size="xs" onClick={retry}>
+          Retry
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function GraphLegend({ nodes }: { nodes: GraphNode[] }): React.JSX.Element {
+  return (
+    <div aria-label="Entity kinds" className="text-text-tertiary flex flex-wrap gap-3 text-sm">
+      {[...new Set(nodes.map((node) => node.kind))].map((kind) => (
+        <span key={kind} className="flex items-center gap-1">
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ background: `var(${GRAPH_COLORS[kind]})` }}
+          />
+          {kind}
+        </span>
+      ))}
+    </div>
   )
 }

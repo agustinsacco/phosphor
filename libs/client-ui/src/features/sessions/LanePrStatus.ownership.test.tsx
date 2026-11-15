@@ -64,11 +64,16 @@ const summary = {
   mergeStateStatus: 'BLOCKED',
   reviewDecision: 'REVIEW_REQUIRED',
   checks: { passed: 27, failed: 0, pending: 0, total: 27 },
-  skippedChecks: 5,
-  approvals: 3,
-  changesRequested: [],
-  codeOwners: ['knowledge', 'eng-managers'],
-  unresolvedThreads: 0,
+  comments: 0,
+  checkRuns: null,
+  checksTruncated: false,
+  approvedBy: ['a', 'b', 'c'],
+  changesRequestedBy: [],
+  waitingOn: [
+    { name: 'knowledge', team: true, codeOwner: true },
+    { name: 'eng-managers', team: true, codeOwner: true },
+  ],
+  threads: { total: 0, unresolved: 0 },
   inMergeQueue: false,
   autoMerge: false,
 }
@@ -104,8 +109,8 @@ beforeEach(() => {
     'gh:available': async () => true,
     'gh:prsForRepo': async () => ({ byBranch: {}, complete: true }),
     'git:infoBatch': async () => ({ '/repo/wt': git }),
-    // Not in the IPC map on the old code; the fake only answers what it is given.
-    ...({ 'gh:prSummaries': summaries } as object),
+    'gh:prSummaries': summaries as never,
+    'gh:prDetail': async () => null,
   })
   restore = installFakePhosphor(fake)
   dispose = fake.dispose
@@ -130,5 +135,33 @@ it('shows the PR a lane opened from a branch other than its checkout', async () 
   })
   const pill = container.querySelector('[data-testid="lane-pr-status"]')
   expect(pill?.textContent).toContain('#20244')
-  expect(pill?.getAttribute('aria-label')).toContain('feat(knowledge-service)')
+  expect(pill?.getAttribute('aria-label')).toBe(
+    'Pull request #20244: Waiting on code owners @knowledge, @eng-managers.',
+  )
+})
+
+it('reads a PR’s freshness from its own read, never from the checkout branch it is not on', async () => {
+  // Regression: the popover said "No successful upstream check yet" for a PR
+  // read by number seconds ago, because it looked up the checkout's coverage.
+  usePullRequestsStore.setState({
+    byRepo: {
+      '/repo': {
+        byBranch: {},
+        coverage: { scratch: { state: 'absent', checkedAt: 0, attemptedAt: Date.now() } },
+        fetchedAt: Date.now(),
+        attemptedAt: Date.now(),
+        loading: false,
+      },
+    },
+  })
+  await act(async () => root.render(<LanePrStatus sessionId="a" />))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10)
+  })
+  const pill = container.querySelector<HTMLButtonElement>('[data-testid="lane-pr-status"]')!
+  await act(async () => pill.click())
+  const details = document.querySelector('[aria-label="Pull request details"]')!
+  expect(details.textContent).toContain('checked 0s ago')
+  expect(details.textContent).not.toContain('not checked yet')
+  expect(details.querySelector('[data-testid="pr-inspector-stale"]')).toBeNull()
 })

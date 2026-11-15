@@ -3,11 +3,15 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type SpriteText from 'three-spritetext'
-import type { BrainEntity, BrainMemory } from '@shared/brain'
+import type { BrainEntity, BrainMemory, BrainGraph, BrainLink } from '@shared/brain'
+import {
+  createFakePhosphor,
+  installFakePhosphor,
+} from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
+import { MockExplorer } from './mockExplorer'
 import type { GraphLink, GraphModel, GraphNode } from './graphModel'
 import { BrainGraph3D } from './BrainGraph3D'
-import { mockBrainData } from './mockBrainData'
-import { installGraphEnvironment } from './__fixtures__/graph3D'
+import { boundedGraph, graphFixture, installGraphEnvironment } from './__fixtures__/graph3D'
 
 const mock = await vi.hoisted(async () => {
   const { createGraphMock } = await import('./__fixtures__/graph3D')
@@ -28,6 +32,9 @@ let root: Root
 let container: HTMLDivElement
 let entities: BrainEntity[]
 let memories: BrainMemory[]
+let projection: BrainGraph
+let previousEntities: BrainEntity[]
+let previousMemories: BrainMemory[]
 let resize: () => void
 let disconnect: ReturnType<typeof vi.fn>
 const onFocus = vi.fn()
@@ -83,9 +90,9 @@ beforeEach(() => {
     return graph
   })
   onFocus.mockReset()
-  const sample = mockBrainData()
+  const sample = graphFixture()
   entities = sample.entities
-  memories = sample.details.map((detail) => detail.memory)
+  memories = sample.memories
   const environment = installGraphEnvironment()
   resize = environment.resize
   disconnect = environment.disconnect
@@ -103,15 +110,20 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 async function render(
-  props: { focus?: string | null; matches?: Set<string> | null } = {},
+  props: { focus?: string | null; matches?: Set<string> | null; path?: BrainLink[] | null } = {},
 ): Promise<void> {
+  if (entities !== previousEntities || memories !== previousMemories) {
+    projection = boundedGraph(entities, memories)
+    previousEntities = entities
+    previousMemories = memories
+  }
   await act(async () =>
     root.render(
       <BrainGraph3D
-        entities={entities}
-        memories={memories}
+        graph={projection}
         focus={props.focus ?? null}
         matches={props.matches ?? null}
+        path={props.path ?? null}
         onFocus={onFocus}
       />,
     ),
@@ -130,7 +142,18 @@ async function click(label: string): Promise<void> {
 it('passes the mentioned nodes, val and aggregated edges to the lazy library with cube-root sphere sizing', async () => {
   memories = [
     ...memories,
-    { ...memories[0]!, subjectId: 'postgres', objectId: 'harbor', predicate: 'depends_on' },
+    {
+      ...memories[0]!,
+      links: [
+        {
+          ...memories[0]!.links[0]!,
+          id: 'reverse',
+          subjectId: 'postgres',
+          objectId: 'harbor',
+          predicate: 'depends_on',
+        },
+      ],
+    },
   ]
   await render()
   expect(mock.constructor).toHaveBeenCalledWith(
@@ -147,11 +170,15 @@ it('passes the mentioned nodes, val and aggregated edges to the lazy library wit
   expect(data().links[0]).toEqual({
     source: 'harbor',
     target: 'postgres',
-    count: 2,
-    predicates: ['depends_on', 'uses'],
+    id: 'link-db',
+    memoryId: 'db',
+    count: 1,
+    predicates: ['uses'],
   })
   const width = setting<(link: GraphLink) => number>('linkWidth')
-  expect(width(data().links[0]!)).toBeGreaterThan(width(data().links[1]!))
+  expect(width(data().links[0]!)).toBeGreaterThan(0)
+  expect(data().links[2]!.source).toBe('postgres')
+  expect(graph.linkDirectionalArrowLength).toHaveBeenCalledWith(4)
   expect(graph.backgroundColor).toHaveBeenCalledWith('rgba(0,0,0,0)')
   expect(container.querySelector('[aria-label="Knowledge graph"]')).not.toBeNull()
   expect(container.querySelector('[aria-label="Entity kinds"]')?.textContent).toContain('person')
@@ -245,8 +272,9 @@ it('always labels the top twenty nodes and labels smaller nodes only on hover', 
     label: `Harbor billing ${index}`,
     kind: 'project',
     aliases: [],
+    description: '',
   }))
-  memories = entities.map((entity) => ({ ...memories[0]!, subjectId: entity.id, objectId: null }))
+  memories = entities.map((entity) => ({ ...memories[0]!, entityIds: [entity.id], links: [] }))
   await render()
   expect(entities.filter((entity) => sprite(entity.id).visible)).toHaveLength(20)
   const small = entities.find((entity) => !sprite(entity.id).visible)!
@@ -364,7 +392,7 @@ it('recovers when the library refuses the initial graph data', async () => {
 it('does not create a graph if unmounted while the lazy import is pending', async () => {
   await act(async () => {
     root.render(
-      <BrainGraph3D entities={entities} memories={memories} focus={null} onFocus={onFocus} />,
+      <BrainGraph3D graph={boundedGraph(entities, memories)} focus={null} onFocus={onFocus} />,
     )
   })
   act(() => root.unmount())
@@ -494,4 +522,47 @@ it('does not consume the pending fit when resuming a previously stopped engine b
   graph.cameraPosition.mockClear()
   setting<() => void>('onEngineStop')()
   expect(graph.cameraPosition).toHaveBeenCalledOnce()
+})
+
+it('highlights only the selected supported route and switches between two and three dimensions', async () => {
+  await render()
+  const route = projection.links.slice(0, 1)
+  await render({ path: route })
+  const color = setting<(link: GraphLink) => string>('linkColor')
+  expect(color(data().links[0]!)).toMatch(/,1\)$/)
+  expect(color(data().links[1]!)).toMatch(/,0\.16\)$/)
+  expect(nodeColor('rina')).toMatch(/,0\.16\)$/)
+  const label = setting<(link: GraphLink) => SpriteText>('linkThreeObject')
+  expect(label(data().links[0]!).visible).toBe(true)
+  expect(label(data().links[1]!).visible).toBe(false)
+  await click('2D')
+  expect(graph.numDimensions).toHaveBeenLastCalledWith(2)
+  await click('3D')
+  expect(graph.numDimensions).toHaveBeenLastCalledWith(3)
+})
+
+it('reads only the hovered edge support, retries an error and clears on hover exit', async () => {
+  const detail = new MockExplorer().memory('memory-0')
+  const read = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('Support unavailable'))
+    .mockResolvedValue(detail)
+  const fake = createFakePhosphor({ 'brain:memory': read })
+  const restore = installFakePhosphor(fake)
+  try {
+    await render()
+    expect(read).not.toHaveBeenCalled()
+    const hoverEdge = setting<(link: GraphLink | null) => void>('onLinkHover')
+    await act(async () => hoverEdge(data().links[0]!))
+    expect(read).toHaveBeenCalledWith(data().links[0]!.memoryId)
+    expect(container.querySelector('[role="status"]')!.textContent).toContain('uses')
+    expect(container.textContent).toContain('Support unavailable')
+    await click('Retry')
+    expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
+    await act(async () => hoverEdge(null))
+    expect(container.querySelector('[role="status"]')).toBeNull()
+  } finally {
+    restore()
+    fake.dispose()
+  }
 })

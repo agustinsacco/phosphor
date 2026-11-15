@@ -1,140 +1,250 @@
 import { describe, expect, it } from 'vitest'
 import { approve, extraction, fixture, lane, vector } from './test-support'
 
-describe('Brain proposal review', () => {
-  it('approves a subset with only its cited evidence and entities; exposes bounded quote context', () => {
+const keep = (memories: number[]) => ({ memories, identities: {}, groups: [] })
+describe('Brain v4 review transaction', () => {
+  it('approves only referenced identities and evidence with bounded quotes', () => {
     const { store, db } = fixture()
     const job = store.enqueue(lane(), 'queued')
     const data = extraction(job.id)
     data.evidence[0]!.text = `${'B'.repeat(200)}Rina owns Harbor.${'A'.repeat(200)}`
     store.propose(data)
-    const view = store.proposal(job.id)
-    expect(view.entities.map((item) => item.label)).toEqual(['Harbor', 'Rina Okafor', 'Tom Lee'])
-    expect(view.memories[0]?.quotes[0]).toEqual({
-      quote: 'Rina owns Harbor.',
-      before: 'B'.repeat(160),
-      after: 'A'.repeat(160),
-      label: 'You · Nov 6, 12:47',
-    })
-    store.review(job.id, [0], view.revision)
+    expect(store.proposal(job.id).memories[0]?.quotes[0]?.before).toHaveLength(160)
+    store.review(job.id, keep([0, 0]), 0)
     expect(store.snapshot()).toMatchObject({
       revision: 1,
       counts: { memories: 1, entities: 2 },
       jobs: [],
     })
-    const knowledge = store.knowledge()
-    expect(knowledge.entities.map((item) => item.label)).not.toContain('Tom Lee')
-    expect(knowledge.memories[0]).toMatchObject({
-      branch: null,
-      origin: data.origin,
-      summary: data.memories[0]!.summary,
-    })
-    expect(store.memory(knowledge.memories[0]!.id).quotes).toEqual(view.memories[0]!.quotes)
     expect(db.prepare('SELECT COUNT(*) AS n FROM evidence').get()).toEqual({ n: 1 })
-    expect(db.prepare('SELECT COUNT(*) AS n FROM proposal_vectors').get()).toEqual({ n: 0 })
-    expect(store.job(job.id)).toMatchObject({ state: 'done', memories: 1 })
+    expect(store.overview(300).nodes.some((item) => item.label === 'Tom Lee')).toBe(false)
+    expect(store.storedProposal(job.id)).toBeUndefined()
   })
-  it('refuses stale review without partial writes or losing its proposal', () => {
-    const { store } = fixture()
-    approve(store)
-    const job = store.enqueue(lane({ leafId: 'leaf-2' }), 'queued')
-    const data = extraction(job.id, {
-      vectors: [vector(0, 0, 1)],
-      memories: [{ ...extraction(job.id).memories[0]!, summary: 'Rina chose daily backups.' }],
-    })
-    store.propose(data)
-    const view = store.proposal(job.id)
-    store.forget(store.knowledge().memories[0]!.id)
-    expect(() => store.review(job.id, [0], view.revision)).toThrow(
-      'Brain changed while you were reviewing. Reopen the review.',
-    )
-    expect(store.proposal(job.id).memories).toHaveLength(1)
-    expect(store.knowledge().memories).toHaveLength(1)
-  })
-  it.each([null, []])('rejects all with keep=%j and remembers the leaf', (keep) => {
+  it('rejects invalid indexes and stale computed revisions before partial writes', () => {
     const { store } = fixture()
     const job = store.enqueue(lane(), 'queued')
     store.propose(extraction(job.id))
-    store.review(job.id, keep, store.snapshot().revision)
-    expect(store.snapshot().counts.memories).toBe(0)
-    expect(store.job(job.id)).toMatchObject({ state: 'done', memories: 0 })
-    expect(() => store.proposal(job.id)).toThrow('Brain proposal not found.')
-    expect(() => store.enqueue(lane(), 'queued')).toThrow('Nothing new')
-  })
-  it('rolls back entities, memories, evidence and revision when a later kept memory is invalid', () => {
-    const { store, db } = fixture()
-    const job = store.enqueue(lane(), 'queued')
-    const data = extraction(job.id)
-    data.memories[1]!.subject = 'missing'
-    store.propose(data)
-    expect(() => store.review(job.id, [0, 1], 0)).toThrow('Brain proposal entity not found.')
-    expect(store.snapshot()).toMatchObject({ revision: 0, counts: { memories: 0, entities: 0 } })
-    expect(db.prepare('SELECT COUNT(*) AS n FROM evidence').get()).toEqual({ n: 0 })
+    expect(() => store.review(job.id, keep([0, 20]), 0)).toThrow('index is invalid')
+    expect(store.revision()).toBe(0)
+    approve(store, { origin: { sessionId: 'another', title: 'Ledger' } })
+    expect(() => store.review(job.id, keep([0]), store.revision())).toThrow('Brain changed')
     expect(store.proposal(job.id).memories).toHaveLength(2)
   })
-  it('validates indexes before writing and only approves repeated indexes once', () => {
+  it.each([null, keep([])])('rejects all with %j and remembers the leaf', (decision) => {
     const { store } = fixture()
     const job = store.enqueue(lane(), 'queued')
     store.propose(extraction(job.id))
-    expect(() => store.review(job.id, [0, 20], 0)).toThrow(
-      'Brain proposal memory index is invalid.',
-    )
-    expect(store.snapshot().revision).toBe(0)
-    store.review(job.id, [1, 1], 0)
-    expect(store.knowledge().memories).toHaveLength(1)
-    expect(store.knowledge().memories[0]).toMatchObject({
-      branch: 'billing',
-      validFrom: 1700000000000,
-    })
+    store.review(job.id, decision, 0)
+    expect(store.snapshot().counts).toEqual({ memories: 0, entities: 0 })
+    expect(() => store.enqueue(lane(), 'queued')).toThrow('Nothing new')
   })
-  it('supersedes the named active memory even when its vector is identical', () => {
-    const { store, db } = fixture()
-    approve(store)
-    const old = store.knowledge().memories.find((item) => item.summary.includes('owns'))!
-    const job = store.enqueue(lane({ leafId: 'changed' }), 'queued')
-    const data = extraction(job.id)
-    data.memories = [
-      {
-        ...data.memories[0]!,
-        supersedes: old.id,
-        summary: 'Rina Okafor delegates Harbor billing ownership.',
-      },
-    ]
-    data.vectors = [vector(1)]
-    expect(store.propose(data)).toMatchObject({ kept: 1, duplicates: 0 })
-    store.review(job.id, [0], store.snapshot().revision)
-    expect(store.knowledge().memories.map((item) => item.id)).not.toContain(old.id)
-    expect(db.prepare('SELECT state FROM memories WHERE id=?').get(old.id)).toEqual({
-      state: 'superseded',
-    })
-    expect(db.prepare('SELECT * FROM vectors WHERE memory_id=?').get(old.id)).toBeUndefined()
-    expect(db.prepare('SELECT * FROM memory_fts WHERE id=?').get(old.id)).toBeUndefined()
-    expect(store.snapshot().revision).toBe(2)
-  })
-  it('approves a pending proposal after the entity it reuses lost its last memory', () => {
+  it('commits cross-kind explicit reuse and downgrades dependent actions when identity changes', () => {
     const { store } = fixture()
-    approve(store)
-    const rina = store.knowledge().entities.find((item) => item.label === 'Rina Okafor')!
-    const job = store.enqueue(lane({ leafId: 'leaf-2' }), 'queued')
-    const base = extraction(job.id).memories[0]!
-    store.propose(
-      extraction(job.id, {
-        entities: [],
-        vectors: [vector(0, 0, 1)],
-        memories: [
-          { ...base, subject: rina.id, object: null, summary: 'Rina Okafor chose daily backups.' },
-        ],
-      }),
+    const ids = approve(store)
+    const old = store.memory(ids[0]!).memory
+    const harbor = store.overview(300).nodes.find((item) => item.label === 'Harbor')!
+    const next = extraction('next')
+    next.entities[0] = {
+      ...next.entities[0]!,
+      kind: 'team',
+      decision: 'reuse',
+      entityId: harbor.id,
+    }
+    next.memories = [{ ...next.memories[0]!, action: 'supersede', target: old.id }]
+    next.memoryVectors = [vector()]
+    const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
+    store.propose({ ...next, jobId: job.id, computedRevision: store.revision() })
+    store.review(
+      job.id,
+      { memories: [0], identities: { harbor: 'new' }, groups: [] },
+      store.revision(),
     )
-    for (const memory of store.knowledge().memories) store.forget(memory.id)
-    expect(store.knowledge().entities).toEqual([])
-    const view = store.proposal(job.id)
-    expect(view.entities.map((item) => item.label)).toEqual(['Rina Okafor'])
-    store.review(job.id, [0], view.revision)
-    const knowledge = store.knowledge()
-    expect(knowledge.memories.map((item) => item.summary)).toEqual([
-      'Rina Okafor chose daily backups.',
-    ])
-    expect(knowledge.entities.map((item) => item.label)).toEqual(['Rina Okafor'])
+    expect(store.memory(old.id).memory.state).toBe('active')
+    expect(store.overview(300).nodes.filter((item) => item.label === 'Harbor')).toHaveLength(2)
   })
+  it('creates review-confirmed parent facts with explicit user evidence', () => {
+    const { store } = fixture()
+    const job = store.enqueue(lane(), 'queued')
+    const data = extraction(job.id, {
+      memories: [],
+      memoryVectors: [],
+      groups: [
+        {
+          parent: { label: 'Harbor group', kind: 'organization', entityId: null },
+          members: ['harbor', 'rina', 'tom'],
+        },
+      ],
+    })
+    store.propose(data)
+    store.review(job.id, { memories: [], identities: {}, groups: [0] }, 0)
+    expect(store.snapshot().counts).toEqual({ memories: 3, entities: 4 })
+    const parent = store.overview(300).nodes.find((item) => item.label === 'Harbor group')!
+    const fact = store.entityMemories(parent.id, {}, null).memories[0]!
+    expect(store.memory(fact.id).quotes[0]?.label).toBe('Stated by you in review')
+    expect(fact.links[0]?.predicate).toBe('part_of')
+  })
+  it('uses a job entity as the group parent instead of creating a second one', () => {
+    const { store } = fixture()
+    const job = store.enqueue(lane(), 'queued')
+    const data = extraction(job.id, {
+      memories: [],
+      memoryVectors: [],
+      groups: [
+        {
+          parent: { label: 'Harbor', kind: 'organization', entityId: 'harbor' },
+          members: ['rina', 'tom'],
+        },
+      ],
+    })
+    store.propose(data)
+    expect(store.proposal(job.id).groups[0]?.parent.entityId).toBe('harbor')
+    store.review(job.id, { memories: [], identities: {}, groups: [0] }, 0)
+    const harbors = store.overview(300).nodes.filter((item) => item.label === 'Harbor')
+    expect(harbors).toHaveLength(1)
+    expect(store.snapshot().counts).toEqual({ memories: 2, entities: 3 })
+  })
+  it('reactivates a disputed partner when its conflict is forgotten or superseded', () => {
+    const { store } = fixture()
+    const [id] = approve(store)
+    const data = extraction('conflict')
+    const ids = approve(store, {
+      jobId: 'conflict',
+      memories: [{ ...data.memories[0]!, action: 'conflict', target: id! }],
+      memoryVectors: [vector()],
+    })
+    const conflict = ids.find(
+      (candidate) => candidate !== id && store.memory(candidate).memory.state === 'disputed',
+    )!
+    expect(store.memory(id!).memory.state).toBe('disputed')
+    store.forget(conflict)
+    expect(store.memory(id!).memory.state).toBe('active')
+  })
+})
+
+it('scrubs all persisted proposal and extraction free text again at the store boundary', () => {
+  const { store, db } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  const data = extraction(job.id)
+  data.entities[0]!.description = 'token=harbor-secret'
+  data.memories[0]!.summary = 'Write to tom@example.com'
+  data.evidence[0]!.text = 'Bearer harbor-private'
+  data.memories[0]!.citations[0]!.quote = 'Bearer harbor-private'
+  store.propose(data)
+  expect(String(db.prepare('SELECT payload FROM proposals').get()?.payload)).not.toContain(
+    'harbor-private',
+  )
+  store.saveExtraction({
+    jobId: job.id,
+    sessionId: job.sessionId,
+    sessionPath: job.sessionPath,
+    title: job.title,
+    leafId: null,
+    model: job.model,
+    thinking: 'low',
+    calls: [
+      {
+        stage: 'extract',
+        part: 0,
+        entryIds: [],
+        inputHash: 'a',
+        answer: 'Bearer harbor-private',
+        trace: null,
+        error: null,
+      },
+    ],
+    outcomes: [],
+    error: null,
+    startedAt: 1,
+    finishedAt: 2,
+  })
+  expect(store.extraction(job.id).calls[0]?.answer).toBe('[redacted]')
+})
+
+it('deduplicates evidence within the commit without a global evidence lookup', () => {
+  const { store, db } = fixture()
+  const statements: string[] = []
+  const prepare = db.prepare.bind(db)
+  db.prepare = (sql) => {
+    statements.push(sql)
+    return prepare(sql)
+  }
+  approve(store)
+  expect(statements.some((sql) => /SELECT n FROM evidence WHERE session_id/u.test(sql))).toBe(false)
+})
+
+it('does not duplicate relation evidence when enriching the same link from the same entry again', () => {
+  const { store } = fixture()
+  const id = approve(store).find((id) => store.memory(id).memory.summary.includes('owns'))
+  const memory = store.memory(id!).memory
+  const link = memory.links[0]!
+  const base = extraction('repeat')
+  approve(store, {
+    jobId: 'repeat',
+    entities: [],
+    entityVectors: [],
+    memories: [
+      {
+        ...base.memories[0]!,
+        action: 'enrich',
+        target: id!,
+        entities: memory.entityIds,
+        links: [
+          {
+            subject: link.subjectId,
+            object: link.objectId,
+            predicate: link.predicate,
+            citation: base.memories[0]!.citations[0]!,
+          },
+        ],
+      },
+    ],
+    memoryVectors: [vector()],
+  })
+  expect(store.memory(id!).linkQuotes[link.id]).toHaveLength(1)
+})
+
+it('rolls back all created rows when a later identity collides with a stable key', () => {
+  const { store, db } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  const data = extraction(job.id)
+  data.entities[0]!.keys = [{ namespace: 'ledger', value: '27' }]
+  data.entities[2]!.keys = [{ namespace: 'ledger', value: '27' }]
+  store.propose(data)
+  expect(() => store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, 0)).toThrow(
+    'identifier already belongs',
+  )
+  expect(store.snapshot().counts).toEqual({ memories: 0, entities: 0 })
+  expect(db.prepare('SELECT * FROM evidence').all()).toEqual([])
+  expect(store.storedProposal(job.id)).toBeDefined()
+})
+
+it('resolve_open closes the old question and superseding one dispute reactivates its partner', () => {
+  const { store } = fixture()
+  const base = extraction('first')
+  const [open] = approve(store, {
+    memories: [{ ...base.memories[0]!, type: 'open' }],
+    memoryVectors: [vector()],
+  })
+  const resolved = approve(store, {
+    jobId: 'resolved',
+    memories: [{ ...base.memories[0]!, action: 'resolve_open', target: open! }],
+    memoryVectors: [vector()],
+  })
+  expect(store.memory(open!).memory.state).toBe('superseded')
+  const answer = resolved.find((id) =>
+    store.memory(id).related.some((item) => item.kind === 'resolves'),
+  )!
+  const conflicted = approve(store, {
+    jobId: 'dispute',
+    memories: [{ ...base.memories[0]!, action: 'conflict', target: answer }],
+    memoryVectors: [vector()],
+  })
+  const other = conflicted.find((id) => id !== answer)!
+  approve(store, {
+    jobId: 'superseded',
+    memories: [{ ...base.memories[0]!, action: 'supersede', target: other }],
+    memoryVectors: [vector()],
+  })
+  expect(store.memory(answer).memory.state).toBe('active')
+  expect(store.memory(other).memory.state).toBe('superseded')
 })

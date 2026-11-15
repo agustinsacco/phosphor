@@ -1,5 +1,7 @@
 import type { GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
 import { sessionTitle } from '@/lib/sessionTitle'
+import type { LanePr } from '@/features/sessions/lanePrs'
+import { isSummary, prVerdict, type PrTone } from '@/features/sessions/prVerdict'
 
 /**
  * The workbench's lane classification: what each lane needs from you.
@@ -47,7 +49,10 @@ export interface BoardLane {
   /** One short phrase saying why it landed in this column. */
   detail: string
   action: LaneAction
+  /** The lead PR: the one that classifies the lane. */
   pr?: GhPullRequest
+  /** Every PR the lane owns, lead first, for the beads. */
+  prs: LanePr[]
   cost: number
   lastActivityAt: number
 }
@@ -58,6 +63,9 @@ export interface LaneInput {
     'path' | 'cwd' | 'name' | 'firstUserText' | 'cost' | 'lastActivityAt' | 'mtimeMs'
   >
   git?: GitInfo
+  /** The lane's own PRs, lead first (`resolveLanePrs().owned`). */
+  prs?: LanePr[]
+  /** The lead PR, which classifies the lane. Defaults to `prs[0].pr`. */
   pr?: GhPullRequest
   /** This lane's live session id, when it has one. */
   phosphorId?: string
@@ -69,22 +77,26 @@ export interface LaneInput {
 }
 
 /**
- * Are this PR's checks green?
- *
- * `undefined` checks means gh reported no rollup at all (no CI on the repo),
- * which is not the same as "passing" — but for a merge decision it is the same
- * answer the GitHub UI gives, so a repo with no CI can still reach `ready`.
- * A single pending check is enough to hold a lane back: half-green is a state
- * that resolves itself, and offering Merge during it invites a race.
+ * Which column a PR's verdict puts its lane in. The verdict is the sidebar's
+ * and the pill's (`prVerdict`), so Home can never read a lane differently.
+ * Merged, closed and unread PRs say nothing about the lane any more.
  */
-export function checksGreen(pr: GhPullRequest): boolean {
-  const checks = pr.checks
-  if (checks === null) return false
-  if (!checks || checks.total === 0) return true
-  return checks.failed === 0 && checks.pending === 0
+const PR_COLUMN: Partial<Record<PrTone, LaneState>> = {
+  failing: 'attention',
+  conflict: 'attention',
+  blocked: 'attention',
+  pending: 'review',
+  review: 'review',
+  draft: 'review',
+  ready: 'ready',
 }
 
-function laneIdentity({ meta, git, pr, phosphorId }: LaneInput) {
+/** The lead PR: the one the lane's pill and first bead show. */
+const leadPr = (input: LaneInput) => input.pr ?? input.prs?.[0]?.pr
+
+function laneIdentity(input: LaneInput) {
+  const { meta, git, prs, phosphorId } = input
+  const pr = leadPr(input)
   return {
     path: meta.path,
     ...(phosphorId ? { phosphorId } : {}),
@@ -93,6 +105,7 @@ function laneIdentity({ meta, git, pr, phosphorId }: LaneInput) {
     ...(git?.branch ? { branch: git.branch } : {}),
     workspacePath: meta.cwd,
     ...(pr ? { pr } : {}),
+    prs: prs ?? [],
     cost: meta.cost,
     lastActivityAt: Date.parse(meta.lastActivityAt) || meta.mtimeMs,
   }
@@ -100,7 +113,8 @@ function laneIdentity({ meta, git, pr, phosphorId }: LaneInput) {
 
 /** Questions beat streaming, which beats PR state. No match means idle, not success. */
 export function classifyLane(input: LaneInput): BoardLane | null {
-  const { git, pr } = input
+  const { git } = input
+  const pr = leadPr(input)
   const base = laneIdentity(input)
   if (input.hasPendingQuestion) {
     return { ...base, state: 'blocked', detail: 'asked you a question', action: 'answer' }
@@ -114,43 +128,17 @@ export function classifyLane(input: LaneInput): BoardLane | null {
     }
   }
 
-  if (pr && (pr.state === 'OPEN' || pr.state === 'DRAFT')) {
-    if (pr.reviewDecision === 'CHANGES_REQUESTED') {
-      return { ...base, state: 'attention', detail: 'changes requested', action: 'open' }
-    }
-    const failed = pr.checks?.failed ?? 0
-    if (failed > 0) {
-      return {
-        ...base,
-        state: 'attention',
-        detail: `${failed} check${failed > 1 ? 's' : ''} failing`,
-        action: 'open',
-      }
-    }
-    if (pr.state === 'OPEN' && checksGreen(pr)) {
-      const approved = pr.reviewDecision === 'APPROVED'
-      return {
-        ...base,
-        state: 'ready',
-        detail: approved ? 'approved, checks green' : 'checks green',
-        action: 'merge',
-      }
-    }
-    // An open PR that is neither mergeable nor broken is still in flight, and
-    // dropping it off the board entirely is how a lane goes quiet on you: a
-    // pending check resolves on its own, and you want to know it is close.
-    // Checks are pending or unavailable: neither is proof it is ready.
-    return {
-      ...base,
-      state: 'review',
-      detail:
-        pr.state === 'DRAFT'
-          ? 'draft'
-          : pr.checks === null
-            ? 'checks unavailable'
-            : 'checks running',
-      action: 'open',
-    }
+  // An open PR that is neither mergeable nor broken is still in flight, and
+  // dropping it off the board is how a lane goes quiet on you: it stays in
+  // review. Unknown or absent checks never read as green (known issue R1).
+  const verdict = pr ? prVerdict(pr) : undefined
+  const column = verdict && PR_COLUMN[verdict.tone]
+  if (pr && verdict && column) {
+    // A queued PR is already landing: a local merge would race GitHub's.
+    const merge = column === 'ready' && !(isSummary(pr) && pr.inMergeQueue)
+    // The lead's number leads, so a card never hides which PR it means.
+    const detail = `#${pr.number} · ${verdict.headline}`
+    return { ...base, state: column, detail, action: merge ? 'merge' : 'open' }
   }
 
   // No PR to judge, so the remaining question is whether the branch has

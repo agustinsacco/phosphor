@@ -162,6 +162,27 @@ it('forwards targeted PR options through the opaque remote repository router', a
   expect(call).toHaveBeenCalledExactlyOnceWith('github.prs', { repositoryId, options })
 })
 
+it('routes PR status and detail that name a Host machine to it, and leaves This Mac its own', async () => {
+  const hostId = '00000000-0000-4000-8000-000000000001'
+  const ref = { host: 'github.com', owner: 'acme', repo: 'app', number: 57 }
+  const call = vi.fn(async () => ({ type: 'result', id: 'pr', ok: true, data: null }))
+  const connection = {
+    snapshot: () => ({ state: 'ready', prStatus: true, capabilities: ['workspaces.read'] }),
+    incarnation: () => ({ generation: 1 }),
+    call,
+  }
+  mocks.connection.mockReturnValue(connection)
+  registerHostsHandlers()
+  const router: unknown = mocks.router.mock.calls.at(-1)?.[0]
+  if (typeof router !== 'function') throw new Error('Missing router')
+  expect(await router(1, 'gh:prSummaries', [[ref], undefined, `host:${hostId}`]).result).toBeNull()
+  expect(call).toHaveBeenLastCalledWith('github.prSummaries', { refs: [ref], options: {} })
+  expect(await router(1, 'gh:prDetail', [ref, { force: true }, `host:${hostId}`]).result).toBeNull()
+  expect(call).toHaveBeenLastCalledWith('github.prDetail', { ref, options: { force: true } })
+  expect(router(1, 'gh:prSummaries', [[ref]])).toBeFalsy()
+  expect(router(1, 'gh:prDetail', [ref, undefined])).toBeFalsy()
+})
+
 it('registers the Host catalogue and repository reads over the manager connection', async () => {
   const hostId = '00000000-0000-4000-8000-000000000001'
   const repositoryId = '1234567890abcdef'

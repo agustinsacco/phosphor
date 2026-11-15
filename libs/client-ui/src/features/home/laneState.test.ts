@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GhPullRequest, SessionMeta } from '@shared/models'
-import {
-  boardHeadline,
-  buildLaneBoard,
-  checksGreen,
-  classifyLane,
-  retainLaneOrder,
-} from './laneState'
+import { prVerdict } from '@/features/sessions/prVerdict'
+import { boardHeadline, buildLaneBoard, classifyLane, retainLaneOrder } from './laneState'
 
 const meta = (overrides: Partial<SessionMeta> = {}): SessionMeta => ({
   path: '/s.jsonl',
@@ -38,23 +33,15 @@ const pr = (overrides: Partial<GhPullRequest> = {}): GhPullRequest => ({
   ...overrides,
 })
 
+const green = { passed: 2, failed: 0, pending: 0, total: 2 }
+const ready = (overrides: Partial<GhPullRequest> = {}) =>
+  pr({ reviewDecision: 'APPROVED', checks: green, ...overrides })
+
 const lane = (overrides: Partial<Parameters<typeof classifyLane>[0]> = {}) => ({
   meta: meta(),
   isStreaming: false,
   hasPendingQuestion: false,
   ...overrides,
-})
-
-describe('checksGreen', () => {
-  it('treats a repo with no CI as green — it is what the merge button does', () => {
-    expect(checksGreen(pr())).toBe(true)
-    expect(checksGreen(pr({ checks: { passed: 0, failed: 0, pending: 0, total: 0 } }))).toBe(true)
-  })
-
-  it('holds a lane back on a pending check, not only a failing one', () => {
-    expect(checksGreen(pr({ checks: { passed: 3, failed: 0, pending: 1, total: 4 } }))).toBe(false)
-    expect(checksGreen(pr({ checks: { passed: 4, failed: 0, pending: 0, total: 4 } }))).toBe(true)
-  })
 })
 
 describe('classifyLane', () => {
@@ -85,12 +72,12 @@ describe('classifyLane', () => {
     expect(out).toMatchObject({ state: 'running', action: 'open' })
   })
 
-  it('offers merge only for an OPEN PR whose checks are green', () => {
-    expect(classifyLane(lane({ pr: pr() }))).toMatchObject({ state: 'ready', action: 'merge' })
+  it('offers merge only for an OPEN, approved PR whose checks are green', () => {
+    expect(classifyLane(lane({ pr: ready() }))).toMatchObject({ state: 'ready', action: 'merge' })
     // A draft is in flight, not mergeable.
     expect(classifyLane(lane({ pr: pr({ state: 'DRAFT' }) }))).toMatchObject({
       state: 'review',
-      detail: 'draft',
+      detail: '#1 · Draft',
     })
     // A closed or merged PR says nothing about the lane any more.
     expect(classifyLane(lane({ pr: pr({ state: 'MERGED' }) }))).toBeNull()
@@ -104,15 +91,18 @@ describe('classifyLane', () => {
     const out = classifyLane(
       lane({ pr: pr({ checks: { passed: 3, failed: 0, pending: 1, total: 4 } }) }),
     )
-    expect(out).toMatchObject({ state: 'review', detail: 'checks running', action: 'open' })
+    expect(out).toMatchObject({
+      state: 'review',
+      detail: '#1 · Checks running, 1 left',
+      action: 'open',
+    })
   })
 
   it('keeps a PR with unavailable checks in review, never ready to merge', () => {
     const missingChecks = pr({ checks: null, reviewDecision: 'APPROVED' })
-    expect(checksGreen(missingChecks)).toBe(false)
     expect(classifyLane(lane({ pr: missingChecks }))).toMatchObject({
       state: 'review',
-      detail: 'checks unavailable',
+      detail: '#1 · Approved; checks unknown',
       action: 'open',
     })
   })
@@ -121,35 +111,58 @@ describe('classifyLane', () => {
     const out = classifyLane(
       lane({ pr: pr({ state: 'DRAFT', checks: { passed: 2, failed: 0, pending: 0, total: 2 } }) }),
     )
-    expect(out).toMatchObject({ state: 'review', detail: 'draft', action: 'open' })
+    expect(out).toMatchObject({ state: 'review', detail: '#1 · Draft', action: 'open' })
   })
 
   it('names the failing checks rather than saying "attention"', () => {
     const out = classifyLane(
       lane({ pr: pr({ checks: { passed: 1, failed: 2, pending: 0, total: 3 } }) }),
     )
-    expect(out).toMatchObject({ state: 'attention', detail: '2 checks failing', action: 'open' })
+    expect(out).toMatchObject({
+      state: 'attention',
+      detail: '#1 · 2 checks failing',
+      action: 'open',
+    })
   })
 
-  it('ranks changes-requested above a red build: a human is the blocker', () => {
+  it('says changes requested when a human is the only blocker', () => {
     const out = classifyLane(
-      lane({
-        pr: pr({
-          reviewDecision: 'CHANGES_REQUESTED',
-          checks: { passed: 0, failed: 1, pending: 0, total: 1 },
-        }),
-      }),
+      lane({ pr: pr({ reviewDecision: 'CHANGES_REQUESTED', checks: green }) }),
     )
-    expect(out).toMatchObject({ state: 'attention', detail: 'changes requested' })
+    expect(out).toMatchObject({
+      state: 'attention',
+      detail: '#1 · Changes requested',
+      action: 'open',
+    })
   })
 
-  it('says a green PR is approved when it is, because that changes the decision', () => {
-    expect(classifyLane(lane({ pr: pr({ reviewDecision: 'APPROVED' }) }))?.detail).toBe(
-      'approved, checks green',
+  it('leads with the verdict the sidebar and the pill show for the same PR', () => {
+    const both = pr({
+      reviewDecision: 'CHANGES_REQUESTED',
+      checks: { passed: 0, failed: 1, pending: 0, total: 1 },
+    })
+    expect(classifyLane(lane({ pr: both }))).toMatchObject({
+      state: 'attention',
+      detail: `#1 · ${prVerdict(both).headline}`,
+    })
+  })
+
+  it('waits for a review on a green PR nobody approved, and names an approval', () => {
+    expect(classifyLane(lane({ pr: ready() }))?.detail).toBe(
+      '#1 · Approved, checks green: ready to merge',
     )
-    expect(classifyLane(lane({ pr: pr({ reviewDecision: 'REVIEW_REQUIRED' }) }))?.detail).toBe(
-      'checks green',
-    )
+    expect(classifyLane(lane({ pr: ready({ reviewDecision: 'REVIEW_REQUIRED' }) }))).toMatchObject({
+      state: 'review',
+      detail: '#1 · Waiting for review',
+      action: 'open',
+    })
+  })
+
+  it('keeps every owned PR for the beads, and classifies by the lead', () => {
+    const lead = { key: 'k1', number: 1, stale: false, pr: ready(), verdict: prVerdict(ready()) }
+    const out = classifyLane(lane({ prs: [lead] }))
+    expect(out).toMatchObject({ state: 'ready', pr: lead.pr, prs: [lead] })
+    expect(classifyLane(lane({ isStreaming: true }))?.prs).toEqual([])
   })
 
   it('offers update only to a worktree lane behind main', () => {
@@ -193,11 +206,11 @@ describe('buildLaneBoard', () => {
     const board = buildLaneBoard([
       lane({
         meta: meta({ path: '/old.jsonl', lastActivityAt: '2026-09-01T00:00:00.000Z' }),
-        pr: pr(),
+        pr: ready(),
       }),
       lane({
         meta: meta({ path: '/new.jsonl', lastActivityAt: '2026-09-02T00:00:00.000Z' }),
-        pr: pr(),
+        pr: ready(),
       }),
     ])
     expect(board.columns.ready.map((l) => l.path)).toEqual(['/new.jsonl', '/old.jsonl'])
@@ -247,11 +260,11 @@ describe('boardHeadline', () => {
 
   it('leads with questions, then merges, then pushes, then review, then running', () => {
     expect(
-      boardHeadline(buildLaneBoard([lane({ hasPendingQuestion: true }), lane({ pr: pr() })])),
+      boardHeadline(buildLaneBoard([lane({ hasPendingQuestion: true }), lane({ pr: ready() })])),
     ).toBe('1 waiting on you')
-    expect(boardHeadline(buildLaneBoard([lane({ pr: pr() }), lane({ isStreaming: true })]))).toBe(
-      '1 ready to merge',
-    )
+    expect(
+      boardHeadline(buildLaneBoard([lane({ pr: ready() }), lane({ isStreaming: true })])),
+    ).toBe('1 ready to merge')
     expect(
       boardHeadline(
         buildLaneBoard([lane({ pr: pr({ state: 'DRAFT' }) }), lane({ isStreaming: true })]),
@@ -268,5 +281,27 @@ describe('boardHeadline', () => {
     ])
     expect(boardHeadline(one)).toBe('1 needs a push')
     expect(boardHeadline(two)).toBe('2 need a push')
+  })
+})
+
+describe('known issue R1: the board reads a PR the way the sidebar does', () => {
+  const green = { passed: 2, failed: 0, pending: 0, total: 2 }
+
+  it('never offers merge for a PR that conflicts with its base, even approved and green', () => {
+    const conflicting = pr({ mergeable: 'CONFLICTING', reviewDecision: 'APPROVED', checks: green })
+    expect(classifyLane(lane({ pr: conflicting }))).toMatchObject({
+      state: 'attention',
+      action: 'open',
+    })
+  })
+
+  it('never calls a PR with no CI "checks green" or ready to merge', () => {
+    for (const reviewDecision of ['APPROVED', 'REVIEW_REQUIRED', undefined] as const) {
+      for (const checks of [undefined, { passed: 0, failed: 0, pending: 0, total: 0 }]) {
+        const out = classifyLane(lane({ pr: pr({ reviewDecision, checks }) }))
+        expect(out?.state).not.toBe('ready')
+        expect(out?.detail).not.toMatch(/checks green/)
+      }
+    }
   })
 })
