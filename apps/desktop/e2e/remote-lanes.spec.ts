@@ -251,8 +251,8 @@ test('A Host default saved in Machine settings is what the next new lane starts 
   try {
     await h.signIn()
     await selectMachine(h, 'bee1')
-    // The catalogue is read once here, with the Host's default before the save.
     await expect(picker).toContainText('HOST_B_ONLY Reasoner')
+    // Agent defaults reads the catalogue again under the configuration grant, before the save.
     const settings = await openMachineSettings(h, 'Agent', 'Agent defaults')
     await settings
       .getByRole('combobox', { name: 'Default model', exact: true })
