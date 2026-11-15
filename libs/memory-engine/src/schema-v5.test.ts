@@ -111,3 +111,30 @@ it('fresh and upgraded v5 schemas have identical objects and a failed upgrade re
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+it('reopens v5 unchanged and refuses newer databases without resetting them', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'brain-forward-'))
+  const path = join(dir, 'brain.sqlite')
+  try {
+    const first = openBrainStore({ path, Database: DatabaseSync })
+    first.setPrefs({ enabled: true, recall: false, review: false })
+    const before = first.snapshot()
+    first.close()
+    const current = openBrainStore({ path, Database: DatabaseSync })
+    expect(current.snapshot()).toEqual(before)
+    current.close()
+    const inspect = new DatabaseSync(path)
+    inspect.exec('PRAGMA user_version=6')
+    const objects = schemaObjects(inspect)
+    const meta = inspect.prepare('SELECT * FROM meta').all()
+    expect(() => openBrainStore({ path, Database: DatabaseSync })).toThrow(
+      'This Brain database requires a newer application.',
+    )
+    expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
+    expect(inspect.prepare('SELECT * FROM meta').all()).toEqual(meta)
+    expect(schemaObjects(inspect)).toEqual(objects)
+    inspect.close()
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
