@@ -5,6 +5,7 @@ import {
   FILE_BYTES_ERRORS,
   FILE_BYTES_LIMITS,
 } from '@phosphor/shared/host-protocol-file-bytes'
+import type { RemoteLanes } from '@phosphor/host-client/remote-lanes'
 import { createBrowserFileBytes } from './file-bytes'
 
 const saved = vi.hoisted(() => [] as { name: string; data: Uint8Array }[])
@@ -41,13 +42,11 @@ function host(size: number, hold?: Promise<void>) {
       }
     }),
   }
-  const lanes = {
-    onLane: vi.fn(
-      <T>(_window: number, id: string, read: (c: never, laneId: string) => Promise<T>) => {
-        if (id !== 'remote-1') return Promise.reject(new Error('Unknown lane handle'))
-        return read(connection as never, LANE)
-      },
-    ),
+  const lanes: Pick<RemoteLanes, 'onLane'> = {
+    onLane: (_window, id, read) => {
+      if (id !== 'remote-1') return Promise.reject(new Error('Unknown lane handle'))
+      return read(connection as never, LANE)
+    },
   }
   return { calls, lanes }
 }
