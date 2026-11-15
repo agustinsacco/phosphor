@@ -32,6 +32,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     const firstJob = await approveLane(page, seed.harbor)
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 2, entities: 3 })
     const harbor = await directedGraph(page, firstJob)
+    await graphSelection(page)
     await exploreBrain(page)
 
     await writeFile(seed.armed, 'armed\n')
@@ -220,3 +221,39 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
     await shutdown(h)
   }
 })
+
+async function graphSelection(page: Page): Promise<void> {
+  const nodes = page.getByRole('list', { name: 'Graph entities' })
+  const count = await nodes.getByRole('button').count()
+  expect(count).toBe(3)
+  const rina = nodes.getByRole('button', { name: 'Focus Rina Okafor', exact: true })
+  // The accessible list is visually hidden; keyboard activation exercises the same node action.
+  await rina.focus()
+  await rina.press('Enter')
+  await expect(page.getByRole('button', { name: 'Whole graph', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(nodes.getByRole('button')).toHaveCount(count)
+  await expect(nodes.getByRole('button', { name: 'Focus Harbor', exact: true })).toHaveAttribute(
+    'data-highlighted',
+    'false',
+  )
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'Clear selection', exact: true })).toHaveCount(0)
+  await expect(nodes.getByRole('button', { name: 'Focus Harbor', exact: true })).toHaveAttribute(
+    'data-highlighted',
+    'true',
+  )
+  await rina.focus()
+  await rina.press('Enter')
+  await page.getByRole('button', { name: 'Neighbours only', exact: true }).click()
+  await expect(nodes.getByRole('button')).toHaveCount(2)
+  await page.getByRole('button', { name: '2 steps', exact: true }).click()
+  await expect(nodes.getByRole('button')).toHaveCount(3)
+  await page.getByRole('button', { name: 'Whole graph', exact: true }).click()
+  await expect(nodes.getByRole('button')).toHaveCount(count)
+  await page.getByRole('button', { name: 'Clear selection', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Whole graph', exact: true })).toHaveCount(0)
+  await expect(nodes.getByRole('button')).toHaveCount(count)
+}

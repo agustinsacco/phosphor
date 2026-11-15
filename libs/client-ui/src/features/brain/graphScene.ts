@@ -24,6 +24,7 @@ export function createGraphScene(
   container: HTMLElement,
   onFocus: (id: string) => void,
   onEdge: (link: GraphLink | null) => void,
+  onClear: () => void = () => {},
 ): GraphScene {
   // The vendor constructor fixes its generic defaults; this scene is the sole graphData writer.
   const graph = new ForceGraph3D(container, {
@@ -31,7 +32,7 @@ export function createGraphScene(
     rendererConfig: { alpha: true },
   }) as unknown as BrainForceGraph
   try {
-    return new SceneController(graph, container, onFocus, onEdge)
+    return new SceneController(graph, container, onFocus, onEdge, onClear)
   } catch (error) {
     graph._destructor()
     throw error
@@ -60,6 +61,7 @@ class SceneController implements GraphScene {
     container: HTMLElement,
     onFocus: (id: string) => void,
     onEdge: (link: GraphLink | null) => void,
+    onClear: () => void,
   ) {
     this.activity = graphActivity(graph, container, () => {
       this.userCamera = true
@@ -78,6 +80,7 @@ class SceneController implements GraphScene {
       .nodeOpacity(1)
       .linkOpacity(1)
       .linkWidth((link) => 0.4 + Math.sqrt(link.count) * 0.4)
+      .onBackgroundClick(onClear)
       .onNodeClick((node) => onFocus(node.id))
       .onNodeHover((node) => {
         this.hover = node?.id ?? null
@@ -122,7 +125,13 @@ class SceneController implements GraphScene {
 
   private duration = (): number => (this.motion?.matches ? 0 : 600)
   private paint = (): void => {
-    this.appearance.paint(this.hover, this.selection.matches, this.theme, this.selection.path)
+    this.appearance.paint(
+      this.hover,
+      this.selection.matches,
+      this.theme,
+      this.selection.path,
+      this.selection.focus,
+    )
     this.activity.wake()
   }
   private aim = (duration = this.duration()): void => {
@@ -181,8 +190,8 @@ class SceneController implements GraphScene {
       selection.focus !== this.selection.focus ||
       selection.matches !== this.selection.matches ||
       selection.path !== this.selection.path
-    if (selection.focus !== this.selection.focus) this.focusCamera = !!selection.focus
     if (selection.matches !== this.selection.matches) this.focusCamera = false
+    if (selection.focus !== this.selection.focus) this.focusCamera = !!selection.focus
     if (selectionChanged) this.userCamera = false
     this.selection = selection
     if (changed) {

@@ -61,6 +61,8 @@ beforeEach(() => {
   neighbourhood.mockReset().mockImplementation((id, hops) => explorer.graph(id, hops))
   fake = createFakePhosphor({
     'brain:status': () => status,
+    'brain:entities': (...args) => explorer.browse(...args),
+    'brain:recent': (limit) => explorer.recent(limit),
     'brain:history': history,
     'brain:reread': reread,
     'brain:overview': () => overview(null),
@@ -160,7 +162,7 @@ it('debounces find, chooses with keyboard, traverses connections and supports ba
   )
   expect(container.querySelector('[aria-label="Entity detail"]')?.textContent).toContain('Harbor')
   expect(container.textContent).toContain('Contains · 24')
-  expect(neighbourhood).toHaveBeenLastCalledWith('harbor', 1)
+  expect(entity).toHaveBeenLastCalledWith('harbor')
   await click('Harbor Ledger')
   expect(container.textContent).toContain('For customer · 1')
   await act(async () =>
@@ -168,10 +170,11 @@ it('debounces find, chooses with keyboard, traverses connections and supports ba
       new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true }),
     ),
   )
-  expect(neighbourhood).toHaveBeenLastCalledWith('harbor', 1)
+  expect(entity).toHaveBeenLastCalledWith('harbor')
   await click('Forward')
-  expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 1)
-  await click('2 hops')
+  expect(entity).toHaveBeenLastCalledWith('ledger')
+  await click('Neighbours only')
+  await click('2 steps')
   expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 2)
 })
 it('pages connections and memories and shows link support and state on memory detail', async () => {
@@ -186,12 +189,12 @@ it('pages connections and memories and shows link support and state on memory de
     'Harbor component 25 is part of Harbor.',
   )
   const memory = container.querySelector<HTMLButtonElement>(
-    '[aria-label="Entity memories"] button',
+    '[aria-label="Entity memories"] .brain-row',
   )!
   await act(async () => memory.click())
   const detail = container.querySelector('[aria-label="Memory detail"]')!
   expect(detail.textContent).toContain('active')
-  expect(detail.textContent).toContain('→ for customer →')
+  expect(detail.textContent).toContain('for customer')
   expect(detail.querySelectorAll('blockquote').length).toBeGreaterThan(0)
 })
 it('recovers a failed entity read and reloads on reset generation', async () => {
@@ -210,7 +213,7 @@ it('recovers a failed entity read and reloads on reset generation', async () => 
 it('renders supported path chains and highlights a chosen route', async () => {
   await render()
   await chooseHarbor()
-  await click('Find a path to…')
+  await click('Find route to…')
   await search('Rina', '[aria-label="Find an entity"]')
   const option = container.querySelector<HTMLButtonElement>(
     '[aria-label="Choose entity"] [role="option"]',
@@ -392,17 +395,17 @@ it('supports Alt+Right and empty-search Backspace without hijacking typing', asy
   }
   const input = container.querySelector<HTMLInputElement>('[role="combobox"]')!
   await key('Backspace', false, input)
-  expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 1)
+  expect(entity).toHaveBeenLastCalledWith('ledger')
   await key('ArrowLeft', true)
-  expect(neighbourhood).toHaveBeenLastCalledWith('harbor', 1)
+  expect(entity).toHaveBeenLastCalledWith('harbor')
   await key('ArrowRight', true)
-  expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 1)
+  expect(entity).toHaveBeenLastCalledWith('ledger')
   await search('Tom')
   await key('Backspace')
-  expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 1)
+  expect(entity).toHaveBeenLastCalledWith('ledger')
   await key('Escape', false, input)
   await key('Backspace')
-  expect(neighbourhood).toHaveBeenLastCalledWith('harbor', 1)
+  expect(entity).toHaveBeenLastCalledWith('harbor')
 })
 
 it('includes superseded memories only on request and filters by the source lane', async () => {

@@ -1,7 +1,6 @@
-import { useCallback } from 'react'
-import type { BrainLink } from '@shared/brain'
+import { BrainKnowledge } from './explorer/BrainKnowledge'
+import { useEffect, useState } from 'react'
 import { PageShell } from '@/components/PageShell'
-import { ListDetail } from '@/components/ListDetail'
 import { Button } from '@/components/form'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { usePlatform } from '@/platform/Platform'
@@ -10,14 +9,7 @@ import { BrainHistory } from './BrainHistory'
 import { BrainInbox } from './BrainInbox'
 import { BrainExtraction } from './BrainExtraction'
 import { BrainReview } from './BrainReview'
-import { BrainMemoryDetail } from './BrainMemory'
-import { useBrainResource } from './useBrainResource'
-import { BrainSearch } from './explorer/BrainSearch'
-import { BrainEntity } from './explorer/BrainEntity'
-import { BrainTrail } from './explorer/BrainTrail'
-import { ExplorerGraph } from './explorer/ExplorerGraph'
-import type { BrainVisit } from './explorer/trail'
-import { useExplorer, type ExplorerState } from './explorer/useExplorer'
+import { useExplorer } from './explorer/useExplorer'
 import { formatCount } from '@/lib/format'
 
 export function BrainPage(): React.JSX.Element {
@@ -68,114 +60,50 @@ export function BrainPage(): React.JSX.Element {
   )
 }
 
+// bridge: replaced by the Lanes worker's BrainPage at merge
 function BrainContent(): React.JSX.Element {
-  const state = useExplorer()
+  const explorer = useExplorer()
+  const [review, setReview] = useState<string | null>(null)
+  const [extraction, setExtraction] = useState<string | null>(null)
+  const jobs = useBrain((s) => s.status?.jobs ?? [])
+  useEffect(() => {
+    if (extraction && jobs.some((job) => job.replaces === extraction)) setExtraction(null)
+  }, [extraction, jobs])
+  const close = (): void => {
+    setReview(null)
+    setExtraction(null)
+  }
+  const openExtraction = (id: string): void => {
+    setReview(null)
+    setExtraction(id)
+  }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <BrainTrail trail={state.trail} onMove={state.move} onJump={state.jump} />
-      <ListDetail
-        listLabel="Brain Explorer"
-        detailLabel="Brain graph and review"
-        open={!!state.review || !!state.extraction}
-        onBack={() => {
-          if (state.extraction) state.setExtraction(null)
-          else state.setReview(null)
-        }}
-        backLabel="Explorer"
-        list={<ExplorerDetails state={state} />}
-        detail={(back) => (
-          <div className="flex h-full min-h-0 flex-col">
-            {back}
-            <ExplorerPanel state={state} />
+      {extraction ? (
+        <div className="overflow-auto">
+          <BrainExtraction
+            jobId={extraction}
+            onBack={close}
+            onMemory={(id) => {
+              explorer.onVisit({ kind: 'memory', id, label: 'Memory' })
+              close()
+            }}
+          />
+        </div>
+      ) : review ? (
+        <div className="overflow-auto">
+          <Button onClick={close}>Back</Button>
+          <BrainReview jobId={review} onClose={close} onExtraction={openExtraction} />
+        </div>
+      ) : (
+        <>
+          <div className="max-h-48 shrink-0 overflow-auto">
+            <BrainInbox jobs={jobs} onReview={setReview} onExtraction={openExtraction} />
+            <BrainHistory onExtraction={openExtraction} />
           </div>
-        )}
-      />
+          <BrainKnowledge state={explorer} onOpenRead={openExtraction} />
+        </>
+      )}
     </div>
   )
-}
-function ExplorerDetails({ state }: { state: ExplorerState }): React.JSX.Element {
-  const jobs = useBrain((s) => s.status?.jobs ?? [])
-  const { visit, onVisit, setExtraction } = state
-  return (
-    <>
-      <div className="p-3">
-        <BrainSearch shortcut onSelect={onVisit} onQuery={state.setQuery} />
-      </div>
-      <BrainInbox
-        jobs={jobs}
-        onReview={(id) => {
-          state.setReview(id)
-          setExtraction(null)
-        }}
-        onExtraction={setExtraction}
-      />
-      <BrainHistory onExtraction={setExtraction} />
-      {visit?.kind === 'entity' ? (
-        <BrainEntity key={visit.id} id={visit.id} onVisit={onVisit} onPath={state.setPath} />
-      ) : visit?.kind === 'memory' ? (
-        <BrainMemoryDetail
-          key={visit.id}
-          id={visit.id}
-          onFocus={(id, label) => onVisit({ kind: 'entity', id, label })}
-          onMemory={(id, label) => onVisit({ kind: 'memory', id, label })}
-          onForget={() => state.move(-1)}
-          onExtraction={setExtraction}
-        />
-      ) : (
-        <p className="text-text-tertiary p-3 text-sm">
-          Find a person, project or memory, or choose a node in the overview. Follow connections to
-          explore what Brain knows.
-        </p>
-      )}
-    </>
-  )
-}
-function ExplorerPanel({ state }: { state: ExplorerState }): React.JSX.Element {
-  const { extraction, review, visit, path, onVisit, setExtraction } = state
-  if (extraction)
-    return (
-      <div className="overflow-auto">
-        <BrainExtraction
-          jobId={extraction}
-          onBack={() => setExtraction(null)}
-          onMemory={(id) => onVisit({ kind: 'memory', id, label: 'Memory' })}
-        />
-      </div>
-    )
-  if (review)
-    return (
-      <div className="overflow-auto">
-        <BrainReview
-          jobId={review}
-          onClose={() => state.setReview(null)}
-          onExtraction={setExtraction}
-        />
-      </div>
-    )
-  return visit?.kind === 'memory' ? (
-    <MemoryGraph id={visit.id} path={path} onVisit={onVisit} />
-  ) : (
-    <ExplorerGraph entityId={visit?.id ?? null} path={path} onVisit={onVisit} />
-  )
-}
-
-function MemoryGraph({
-  id,
-  path,
-  onVisit,
-}: {
-  id: string
-  path: BrainLink[] | null
-  onVisit: (visit: BrainVisit) => void
-}): React.JSX.Element {
-  const load = useCallback(() => window.phosphor.invoke('brain:memory', id), [id])
-  const { data, error, retry } = useBrainResource(load)
-  if (!data)
-    return (
-      <p role="status" className="p-3">
-        {error || 'Loading memory graph…'}
-        {error && <Button onClick={retry}>Retry</Button>}
-      </p>
-    )
-  return <ExplorerGraph entityId={data.memory.entityIds[0] ?? null} path={path} onVisit={onVisit} />
 }

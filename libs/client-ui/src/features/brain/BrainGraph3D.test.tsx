@@ -305,7 +305,7 @@ it('precomputes a reduced-motion layout and uses zero-duration focus, fit and zo
   expect(graph.cooldownTicks).toHaveBeenCalledWith(0)
   setting<() => void>('onEngineStop')()
   expect(graph.cameraPosition.mock.lastCall![2]).toBe(0)
-  await click('Fit')
+  await click('Fit the graph')
   expect(lastCamera()[1]).toEqual(centerOf())
   expect(lastCamera()[2]).toBe(0)
   await click('Zoom in')
@@ -348,7 +348,7 @@ it('keeps zoom and Fit controls wired to the library', async () => {
   )
   await click('Zoom out')
   expect(graph.cameraPosition.mock.lastCall![0].z).toBeCloseTo(360)
-  await click('Fit')
+  await click('Fit the graph')
   expect(lastCamera()[1]).toEqual(centerOf())
   expect(lastCamera()[2]).toBe(600)
 })
@@ -565,4 +565,54 @@ it('reads only the hovered edge support, retries an error and clears on hover ex
     restore()
     fake.dispose()
   }
+})
+
+it('dims distant nodes after selection, labels direct links and clears through empty space', async () => {
+  const onClear = vi.fn()
+  const explorer = new MockExplorer()
+  const graphData = explorer.graph(null)
+  await act(async () =>
+    root.render(
+      <BrainGraph3D graph={graphData} focus="rina" onFocus={onFocus} onClear={onClear} />,
+    ),
+  )
+  expect(nodeColor('rina')).toMatch(/,1\)$/)
+  expect(nodeColor('ledger')).toMatch(/,1\)$/)
+  expect(nodeColor('harbor')).toMatch(/,0.16\)$/)
+  const direct = data().links.find((l) => l.source === 'rina' || l.target === 'rina')!
+  const label = setting<(link: GraphLink) => SpriteText>('linkThreeObject')(direct)
+  expect(label.visible).toBe(true)
+  expect(label.text).toContain('owns')
+  setting<() => void>('onBackgroundClick')()
+  expect(onClear).toHaveBeenCalledOnce()
+  await act(async () =>
+    root.render(
+      <BrainGraph3D graph={graphData} focus={null} onFocus={onFocus} onClear={onClear} />,
+    ),
+  )
+  expect(nodeColor('harbor')).toMatch(/,1\)$/)
+  expect(label.visible).toBe(false)
+  expect(lastCamera()[1]).toEqual(centerOf())
+})
+
+it('keeps every named entity bright even if the selected memory only links some of them', async () => {
+  const explorer = new MockExplorer()
+  const graphData = explorer.graph(null)
+  const path = graphData.links.filter((l) => l.subjectId === 'rina' || l.objectId === 'rina')
+  const matches = new Set(['rina', 'ledger', 'harbor'])
+  await act(async () =>
+    root.render(
+      <BrainGraph3D
+        graph={graphData}
+        focus={null}
+        path={path}
+        matches={matches}
+        onFocus={onFocus}
+      />,
+    ),
+  )
+  for (const id of matches) expect(nodeColor(id)).toMatch(/,1\)$/)
+  expect(container.querySelectorAll('[aria-label="Graph entities"] li')).toHaveLength(
+    graphData.nodes.length,
+  )
 })

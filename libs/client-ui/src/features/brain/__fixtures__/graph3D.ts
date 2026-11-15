@@ -23,6 +23,7 @@ export function createGraphMock() {
     'nodeColor',
     'linkColor',
     'onNodeClick',
+    'onBackgroundClick',
     'onNodeHover',
     'onNodeDrag',
     'onNodeDragEnd',

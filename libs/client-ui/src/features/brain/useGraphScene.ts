@@ -20,9 +20,12 @@ export function useGraphScene(
   onFocus: (id: string) => void,
   onEdge: (link: GraphLink | null) => void,
   dimensions: 2 | 3,
+  onClear?: () => void,
 ): { scene: GraphScene | null; unavailable: boolean } {
   const [scene, setScene] = useState<GraphScene | null>(null)
   const [unavailable, setUnavailable] = useState(false)
+  const clear = useRef(onClear)
+  clear.current = onClear
   const focus = useRef(onFocus)
   const edge = useRef(onEdge)
   edge.current = onEdge
@@ -44,6 +47,7 @@ export function useGraphScene(
           element,
           (id) => focus.current(id),
           (link) => edge.current(link),
+          () => clear.current?.(),
         )
         setScene(instance.current)
       })
