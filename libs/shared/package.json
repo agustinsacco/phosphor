@@ -363,6 +363,10 @@
     "./brain-extraction": {
       "types": "./src/brain-extraction.ts",
       "default": "./src/brain-extraction.ts"
+    },
+    "./lane-archive": {
+      "types": "./src/lane-archive.ts",
+      "default": "./src/lane-archive.ts"
     }
   },
   "dependencies": {
