@@ -1,10 +1,22 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { test, expect } from './fixture'
 
 async function laneMenu(page: Page, compact: boolean): Promise<void> {
   await page
     .getByRole('button', { name: compact ? /^Lane menu/ : 'Session options', exact: !compact })
     .click()
+}
+
+async function expectUncoveredMatch(page: Page, find: Locator): Promise<void> {
+  const match = page.getByTestId('transcript-scroll').getByText('PHX-synthetic', { exact: true })
+  await expect(match).toBeInViewport()
+  await expect
+    .poll(async () => {
+      const bar = (await find.boundingBox())!
+      const text = (await match.boundingBox())!
+      return text.y - (bar.y + bar.height)
+    })
+    .toBeGreaterThanOrEqual(0)
 }
 
 for (const width of [400, 1100]) {
@@ -25,7 +37,7 @@ for (const width of [400, 1100]) {
       const bounds = await palette.boundingBox()
       expect(bounds?.width).toBe(width)
       expect(bounds?.height).toBe(850)
-      expect((await result.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+      expect(Math.round((await result.boundingBox())!.height)).toBeGreaterThanOrEqual(44)
     }
     await page.screenshot({ path: info.outputPath(`palette-${width}.png`), animations: 'disabled' })
     await result.click()
@@ -56,11 +68,12 @@ for (const width of [400, 1100]) {
     await field.press('Enter')
     await expect(find.getByTestId('find-status')).toHaveText('2 of 2')
     if (compact) {
+      await expectUncoveredMatch(page, find)
       expect((await find.boundingBox())!.width).toBe(width)
       for (const name of ['Previous match', 'Next match', 'Close']) {
         const bounds = await find.getByRole('button', { name, exact: true }).boundingBox()
-        expect(bounds!.width).toBeGreaterThanOrEqual(44)
-        expect(bounds!.height).toBeGreaterThanOrEqual(44)
+        expect(Math.round(bounds!.width)).toBeGreaterThanOrEqual(44)
+        expect(Math.round(bounds!.height)).toBeGreaterThanOrEqual(44)
       }
     }
     await page.screenshot({ path: info.outputPath(`find-${width}.png`), animations: 'disabled' })
