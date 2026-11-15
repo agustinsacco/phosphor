@@ -2,6 +2,7 @@ import type { PhosphorApi, IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shar
 import { IPC_WEB, type WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { createRemoteLanes } from '@phosphor/host-client/remote-lanes'
 import { createAttentionReceiver, readHostReceipt } from '@phosphor/host-client/attention'
+import { createHostLaneMoves } from '@phosphor/host-client/lane-move'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
 import type { IdentityCrypto } from '@phosphor/host-client/crypto'
 import { createBrowserControl } from './control'
@@ -120,6 +121,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('machines', undefined)
     },
     invalidate: (owner) => {
+      laneMoves.abort()
       terminals.clear()
       lanes.clear()
       hosts.clear()
@@ -157,6 +159,13 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     label: hosts.label,
     changed: () => events.emit('hosts', undefined),
   })
+  // A move's bundle lives only in this page's memory; invalidation (an owner change, sign-out,
+  // dispose) aborts it.
+  const laneMoves = createHostLaneMoves({
+    connection: hosts.connection,
+    label: hosts.label,
+    branchPrefix: async () => (await prefs.read()).worktrees.branchPrefix,
+  })
   const resources = createBrowserResources(hosts, lanes)
   const terminals = createBrowserTerminals({ hosts, lanes, control, events })
   const handlers = createBrowserHandlers({
@@ -168,6 +177,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     settings: createBrowserSettings({ control, hosts }),
     prefs,
     drafts,
+    laneMoves,
     window: () => {
       const epoch = control.generation()
       return {

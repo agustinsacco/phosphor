@@ -63,3 +63,7 @@ it("keeps a Host lane's order and a Host folder's collapse in the browser, as De
   for (const channel of ['app:setSessionOrder', 'app:setCollapsedWorkspaces'] as const)
     expect(IPC_WEB[channel]).toEqual({ kind: 'browser-local' })
 })
+it('serves lane moves, which the page relays between Hosts', () => {
+  for (const channel of ['hosts:laneMovePlan', 'hosts:laneMove'] as const)
+    expect(IPC_WEB[channel]).toEqual({ kind: 'remote-supported' })
+})
