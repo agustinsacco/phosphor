@@ -143,3 +143,20 @@ it('saves prepare metadata atomically, freezes null leaves too, and refuses repl
     store.savePart(job.id, { ...checkpoint, prepare: { ...checkpoint.prepare, leafId: 'later' } }),
   ).toThrow('frozen')
 })
+
+it.each(['done', 'empty'] as const)(
+  'requeues version 4 %s leaves once under version 5',
+  (state) => {
+    const { store, db } = fixture()
+    const old = store.enqueue(lane(), 'queued')
+    store.updateJob(old.id, { state })
+    db.prepare('UPDATE jobs SET extractor=4 WHERE id=?').run(old.id)
+    expect(() => store.enqueue(lane(), 'queued')).not.toThrow()
+    const next = store.snapshot().jobs.find((job) => job.state === 'queued')!
+    expect(db.prepare('SELECT extractor FROM jobs WHERE id=?').get(next.id)).toEqual({
+      extractor: 5,
+    })
+    store.updateJob(next.id, { state })
+    expect(() => store.enqueue(lane(), 'queued')).toThrow('Nothing new')
+  },
+)

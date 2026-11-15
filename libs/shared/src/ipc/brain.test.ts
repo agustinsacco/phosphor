@@ -73,3 +73,13 @@ export interface BaselineBrainInvokeMap {
 it('freezes the local-only Brain queue, review and explorer channels', () => {
   expectTypeOf<BrainInvokeMap>().toEqualTypeOf<BaselineBrainInvokeMap>()
 })
+
+it('pins the reader preference on both sides of the IPC contract', () => {
+  expectTypeOf<BrainInvokeMap['brain:setPrefs']['args'][0]>().toEqualTypeOf<{
+    enabled: boolean
+    recall: boolean
+    review: boolean
+    model: string | null
+  }>()
+  expectTypeOf<BrainInvokeMap['brain:status']['result']['prefs']>().toEqualTypeOf<BrainPrefs>()
+})

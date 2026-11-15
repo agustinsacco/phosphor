@@ -10,7 +10,7 @@ import {
 } from './brain'
 
 it('starts off, with recall and review on for when it is enabled', () => {
-  expect(DEFAULT_BRAIN_PREFS).toEqual({ enabled: false, recall: true, review: true })
+  expect(DEFAULT_BRAIN_PREFS).toEqual({ enabled: false, recall: true, review: true, model: null })
 })
 
 it('gives lane agents one read-only search and never approval, queueing or forgetting', () => {

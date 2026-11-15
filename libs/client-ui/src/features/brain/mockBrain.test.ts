@@ -174,3 +174,25 @@ it('exposes the links call beside extraction in the invented extraction view', a
     prompts: [expect.any(String), expect.stringContaining('relationships')],
   })
 })
+
+it('carries and freezes the selected reader model in browser mock jobs', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  expect(await call('brain:status', [])).toMatchObject({ prefs: { model: null } })
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true, model: 'harbor/reader' }])
+  now = 6000
+  await call('brain:reset', [])
+  const queued = (await call('brain:queue', [
+    { sessionPath: '/demo/Harbor/reader.jsonl', title: 'Harbor reader' },
+  ])) as BrainStatus
+  const id = queued.jobs[0]!.id
+  expect(await call('brain:status', [])).toMatchObject({
+    jobs: [expect.objectContaining({ model: 'harbor/reader' })],
+  })
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true, model: 'ledger/reader' }])
+  now += 5000
+  expect(await call('brain:extraction', [id])).toMatchObject({
+    model: 'harbor/reader',
+    thinking: 'medium',
+  })
+})

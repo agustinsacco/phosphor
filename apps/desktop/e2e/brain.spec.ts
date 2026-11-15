@@ -121,3 +121,56 @@ async function directedGraph(page: Page, firstJob: string) {
   )
   return harbor
 }
+
+test('Brain reads a queued lane with the reader selected in Settings', async () => {
+  const seed = await seedBrainLanes()
+  const argvLog = join(seed.workspace, 'brain-argv.jsonl')
+  const originalWrapper = await readFile(seed.wrapper, 'utf8')
+  await writeFile(
+    seed.wrapper,
+    `if (process.argv.includes('--no-session')) require('node:fs').appendFileSync(${JSON.stringify(argvLog)}, JSON.stringify(process.argv.slice(2)) + '\\n');\n${originalWrapper}`,
+  )
+  const h = await launch({
+    workspace: seed.workspace,
+    agentDir: seed.agent,
+    userDataDir: seed.profile,
+    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
+  })
+  const { page } = h
+  try {
+    await enableBrain(page, seed.harbor)
+    await page
+      .getByTestId('account-footer')
+      .getByRole('button', { name: 'Settings', exact: true })
+      .click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Brain', exact: true }).click()
+    await expect(page.getByText('Model that reads lanes', { exact: true })).toBeVisible()
+    await page.getByTestId('brain-reader-model').click()
+    await page.getByTestId('model-search').fill('provider:pi-claude-cli')
+    await page.getByTestId('model-row').click()
+    await expect
+      .poll(async () => (await status(page)).prefs.model)
+      .toBe('pi-claude-cli/claude-opus-5')
+    await page.keyboard.press('Escape')
+    await queueLane(page, seed.harbor)
+    await expect(inbox(page, seed.harbor).getByText('2 memories to review')).toBeVisible()
+    await expect(inbox(page, seed.harbor)).toContainText('pi-claude-cli/claude-opus-5')
+    await inbox(page, seed.harbor).getByRole('button', { name: 'Review', exact: true }).click()
+    await page.getByRole('button', { name: 'View extraction', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Extraction detail' })).toContainText(
+      'pi-claude-cli/claude-opus-5 · medium thinking',
+    )
+    const launches = (await readFile(argvLog, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as string[])
+    expect(launches.length).toBeGreaterThan(0)
+    for (const args of launches) {
+      expect(args[args.indexOf('--model') + 1]).toBe('pi-claude-cli/claude-opus-5')
+      expect(args[args.indexOf('--thinking') + 1]).toBe('medium')
+    }
+    expect(await readFile(seed.harbor.source, 'utf8')).toBe(seed.harbor.original)
+  } finally {
+    await shutdown(h)
+  }
+})

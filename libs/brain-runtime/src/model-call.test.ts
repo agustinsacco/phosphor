@@ -280,3 +280,23 @@ it('removes an interrupted call directory before reusing its ordinal', async () 
   }
   await runModelCall(args, run)
 })
+
+it.each(['stop', 'error'])(
+  'a Claude reader without an account uses default credentials and handles provider %s',
+  async (stopReason) => {
+    const args = await input()
+    args.lane.model = 'pi-claude-cli/harbor-reader'
+    args.launch.env = {}
+    const run = vi.fn<typeof runPrintMode>().mockImplementation(async (_binary, _argv, options) => {
+      options.onStdout?.(event('Made-up provider answer', stopReason) + '\n')
+      return { stdout: '' }
+    })
+    const call = runModelCall(args, run)
+    if (stopReason === 'stop')
+      await expect(call).resolves.toHaveProperty('text', 'Made-up provider answer')
+    else await expect(call).rejects.toThrow('Knowledge extraction error.')
+    const env = run.mock.calls[0]![2].env
+    expect(env).not.toHaveProperty('CLAUDE_SECURESTORAGE_CONFIG_DIR')
+    expect(env).toMatchObject({ PI_CLAUDE_CLI_KEEPALIVE_MS: '0', PI_CLAUDE_CLI_EPHEMERAL: '1' })
+  },
+)

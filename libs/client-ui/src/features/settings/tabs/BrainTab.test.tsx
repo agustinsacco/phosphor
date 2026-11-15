@@ -7,6 +7,8 @@ import { mockBrainStatus } from '@/features/brain/mockBrainData'
 import { useBrain } from '@/features/brain/useBrain'
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { BrainTab } from './BrainTab'
+import { useModelCatalogueStore } from '@/stores/modelCatalogue'
+import { useModelPicksStore } from '@/stores/modelPicks'
 
 let root: Root
 let container: HTMLDivElement
@@ -14,6 +16,20 @@ let status: BrainStatus
 const invoke = vi.fn()
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  useModelCatalogueStore.setState({
+    status: 'ready',
+    source: 'pi',
+    models: [
+      {
+        id: 'reader',
+        name: 'Harbor Reader',
+        provider: 'harbor',
+        reasoning: true,
+        cost: { input: 123, output: 456, cacheRead: 0, cacheWrite: 0 },
+      },
+    ],
+  })
+  useModelPicksStore.setState({ hydrated: true, starred: [], recent: [] })
   status = mockBrainStatus()
   useBrain.setState({ status: null, error: '', saving: false })
   invoke.mockReset().mockImplementation(async (channel: string, prefs: unknown) => {
@@ -139,4 +155,63 @@ it('requires explicit reset confirmation, keeps the model/settings copy, and cal
   expect(invoke.mock.calls.some(([channel]) => channel === 'brain:reset')).toBe(false)
   await act(async () => usePromptStore.getState().dismiss(request, 'RESET'))
   expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:reset')).toHaveLength(1)
+})
+
+it('shows the reader setting only when Brain is on', async () => {
+  await render()
+  expect(container.textContent).not.toContain('Model that reads lanes')
+  await click('Brain')
+  expect(container.textContent).toContain('Model that reads lanes')
+  expect(container.textContent).toContain("Each lane's own model")
+  expect(container.textContent).toContain(
+    'Brain reads every queued lane with this model. A lane already started keeps the model it started with.',
+  )
+})
+
+it('chooses a catalogue model without cost and can return to each lane model', async () => {
+  status.prefs.enabled = true
+  await render()
+  await click("Each lane's own model")
+  const models = document.querySelector('[data-testid=model-list]')!
+  expect(models, 'shared model menu').not.toBeNull()
+  expect(models.textContent).not.toContain('$')
+  const option = models.querySelector<HTMLButtonElement>('[data-testid=model-row]')!
+  await act(async () => option.click())
+  expect(invoke).toHaveBeenCalledWith('brain:setPrefs', { ...status.prefs, model: 'harbor/reader' })
+  expect(container.textContent).toContain('Harbor Reader')
+  await click("Use each lane's own model")
+  expect(invoke).toHaveBeenLastCalledWith('brain:setPrefs', { ...status.prefs, model: null })
+  expect(container.textContent).toContain("Each lane's own model")
+})
+
+it('keeps an unknown stored model visibly selected', async () => {
+  status.prefs = { ...status.prefs, enabled: true, model: 'removed/reader' }
+  await render()
+  expect(container.textContent).toContain('removed/reader')
+  expect(invoke.mock.calls.some(([channel]) => channel === 'brain:setPrefs')).toBe(false)
+})
+
+it('recovers a failed catalogue load when the reader picker is reopened', async () => {
+  status.prefs.enabled = true
+  const hydrate = vi
+    .spyOn(useModelCatalogueStore.getState(), 'hydrate')
+    .mockImplementation(async () => {})
+  const models = useModelCatalogueStore.getState().models
+  useModelCatalogueStore.setState({ status: 'error', models: [] })
+  try {
+    await render()
+    await click("Each lane's own model")
+    expect(document.body.textContent).toContain('Could not read the model list')
+    const input = document.querySelector('[data-testid=model-search]')!
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    )
+    hydrate.mockImplementation(async () => {
+      useModelCatalogueStore.setState({ status: 'ready', models })
+    })
+    await click("Each lane's own model")
+    expect(document.body.textContent).toContain('Harbor Reader')
+  } finally {
+    hydrate.mockRestore()
+  }
 })

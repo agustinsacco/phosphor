@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { CallTracer, traceDiagnostic } from './call-trace'
+import { callThinking, CallTracer, traceDiagnostic } from './call-trace'
 
 it('times first assistant activity, counts turns and updates, and retains only whitelisted metadata', () => {
   let clock = 100
@@ -155,4 +155,17 @@ it('describes current progress, resets retry state after recovery and rejects ar
     cacheRead: 0,
     cacheWrite: 0,
   })
+})
+
+it.each([
+  ['off', 'off'],
+  ['minimal', 'minimal'],
+  ['low', 'low'],
+  ['medium', 'medium'],
+  ['high', 'medium'],
+  ['xhigh', 'medium'],
+  ['max', 'medium'],
+  ['future-level', 'medium'],
+])('caps thinking %s at %s without turning unknown levels off', (input, expected) => {
+  expect(callThinking(input)).toBe(expected)
 })
