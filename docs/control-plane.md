@@ -81,7 +81,11 @@ Astro build has no 404 page. There are no directory listings. Encoded separators
 null bytes, dotfiles and symlinks outside the site root are refused. The site
 root is a trusted, immutable build directory, not an upload directory. Assets
 under `/_astro/` and `/fonts/` are cached for a year as immutable. Text types
-above 1 KB support gzip. Other pages use `nosniff` and
+above 1 KB support gzip. MP4 and WebM videos use their media MIME types and
+support single byte-range GETs for native playback and seeking (206, or 416 for
+an unsatisfiable range). HEAD, multipart/malformed ranges and unvalidated
+If-Range requests return the full representation; videos are not gzipped.
+Stable `/media/` URLs are not cached as immutable. Other pages use `nosniff` and
 `strict-origin-when-cross-origin`. The old Claude guide redirects to
 `/guides/accounts/` with a relative Location.
 
