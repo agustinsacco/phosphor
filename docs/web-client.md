@@ -192,17 +192,19 @@ its focused input at the top and touch-sized results below. It searches every
 Host's lanes by title, machine and folder before rendering at most twelve
 matches, showing machine · folder and a Needs you mark. It also offers Home,
 Machines, Skills, Routines, Artifacts, Settings, a new lane in each Host folder,
-Add folder on a writable Host and theme choices. Native workspace, pane,
+Add folder on a writable Host and theme choices. Settings, Skills, Routines
+and Artifacts keep the machine in scope; Machines opens the account-wide list.
+Native workspace, pane,
 feedback, rewind and keybinding commands require their Desktop capabilities.
 
-Wide browsers take Cmd/Ctrl+K when the page receives a cancelable key event;
-reserved browser accelerators remain browser-owned. Phones use the button.
+Wide browsers take Cmd/Ctrl+K when the page receives the key event. Reserved
+accelerators that never reach the page remain browser-owned. Phones use the button.
 This does not install Desktop's app-wide shortcut set (`appShortcuts`).
 **Find in chat** in Session options (the phone lane sheet or wide pane-tab menu)
 opens the transcript's existing FindBar, switching back from another pane when
 needed. Reading and finding do not take lane control. A phone's bar spans the
 transcript with touch-sized previous, next and close controls; Enter steps
-forward. Wide browsers also take a cancelable Cmd/Ctrl+F only when focus is in
+forward. Wide browsers also take Cmd/Ctrl+F only when focus is in
 the visible transcript, leaving browser find elsewhere untouched.
 
 ### One lane row, list and menu

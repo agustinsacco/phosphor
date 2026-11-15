@@ -9,6 +9,7 @@ export function browserPaletteActions(
   hosts: HostsSnapshot,
   navigate: Navigation['navigate'],
   addFolder: (hostId: string) => void,
+  machine?: string,
 ): PaletteAction[] {
   const pages: [string, Page][] = [
     ['Machines', 'machines'],
@@ -22,7 +23,8 @@ export function browserPaletteActions(
     ...pages.map(([label, page]) => ({
       id: `page-${page}`,
       label: `Go to ${label}`,
-      run: () => navigate({ to: 'page', page }),
+      run: () =>
+        navigate({ to: 'page', page, ...(page !== 'machines' && machine ? { machine } : {}) }),
     })),
     ...Object.entries(hosts).flatMap(([hostId, host]) =>
       hostPaletteActions(hostId, host, addFolder, navigate),

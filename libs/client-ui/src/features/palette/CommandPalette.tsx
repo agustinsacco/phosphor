@@ -21,6 +21,7 @@ import { ignoreShortcut, shortcutOverlayOpen } from '@/lib/shortcutContext'
 
 import { usePlatform, type Platform } from '@/platform/Platform'
 import { useNavigation } from '@/navigation/Navigation'
+import { locationMachine } from '@/navigation/location'
 import { browserPaletteActions } from './browserPaletteActions'
 import { hostPaletteActions } from './hostPaletteActions'
 import { usePaletteStore, type PaletteAction } from './paletteStore'
@@ -57,7 +58,8 @@ export function CommandPalette({
   keyboardShortcut?: boolean
 }): React.JSX.Element | null {
   const platform = usePlatform()
-  const { navigate } = useNavigation()
+  const { location, navigate } = useNavigation()
+  const machine = locationMachine(location)
   const open = usePaletteStore((s) => s.open)
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const hostId = useNavigationHostId()
@@ -218,10 +220,22 @@ export function CommandPalette({
 
     const shown = base.filter((action) => listed(action, workspacePath, remote, platform))
     if (!platform.localLanes)
-      return [...browserPaletteActions(hosts ?? {}, navigate, setAddingFolder), ...shown]
+      return [...browserPaletteActions(hosts ?? {}, navigate, setAddingFolder, machine), ...shown]
     if (!remote) return shown
     return [...shown, ...(hostId && host ? hostPaletteActions(hostId, host, setAddingFolder) : [])]
-  }, [workspacePath, open, activeSessionId, disk, host, hostId, remote, platform, hosts, navigate])
+  }, [
+    workspacePath,
+    open,
+    activeSessionId,
+    disk,
+    host,
+    hostId,
+    remote,
+    platform,
+    hosts,
+    navigate,
+    machine,
+  ])
 
   const matches = useMemo(
     () => fuzzyFilter(query, actions, (a) => `${a.label} ${a.hint ?? ''}`, 12),

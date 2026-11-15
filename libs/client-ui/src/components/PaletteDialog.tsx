@@ -30,6 +30,7 @@ export function PaletteDialog({
     inputRef.current?.focus()
     const previous = returnTo.current
     return () => {
+      if (document.activeElement && document.activeElement !== document.body) return
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus()
     }
   }, [])

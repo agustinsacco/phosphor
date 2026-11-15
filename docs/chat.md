@@ -312,8 +312,9 @@ case, whole word and regex. A one-line selection seeds the query, Esc closes
 the bar, and the count stops at 10,000.
 
 **Find in chat** in Session options opens the same bar without a keyboard, on
-Desktop and in the browser. Browser lane menus switch back to Chat from another
-pane first. The phone bar is full-width above the transcript, with 44px previous,
+Desktop and in the browser. Desktop leaves an expanded right pane first; browser
+lane menus switch back to Chat from another pane. The phone bar is full-width
+above the transcript, with 44px previous,
 next and close controls; wide browsers take Cmd/Ctrl+F only from the visible
 transcript, preserving browser find elsewhere.
 
