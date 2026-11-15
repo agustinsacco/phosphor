@@ -432,9 +432,10 @@ PR's detail (`gh:prDetail`) and reads it again every 30 seconds while the PR is
 open and the window visible. Refresh forces the listing, every PR's status and
 the detail. Freshness comes from each PR's own read: a PR read by number shows
 when that read last succeeded, or a "stale" chip when it failed; only a
-checkout PR not yet read by number falls back to its branch's coverage. A Host
-lane's PRs come from the Host's listing only, with no by-number or detail reads
-from this machine, and say when the Host may be serving a cached listing.
+checkout PR not yet read by number falls back to its branch's coverage. Current
+Hosts serve by-number status and detail through their own `gh`; this machine
+never reads a Host lane's PRs through local `gh`. Older Hosts without `prStatus`
+serve listing-only status and say when that listing may be cached.
 Escape closes the inspector and returns focus to the pill. A request from a
 notice, the sidebar menu or Home (`stores/prInspector.ts`) opens it on one PR.
 

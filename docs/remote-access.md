@@ -168,10 +168,14 @@ Reproducing defects live in [known issues](known-issues.md#host-lanes).
   executables, environment, repositories and extension resources. A caller cannot
   supply spawn settings. Routine activation explicitly acknowledges unattended
   full tool access.
-- **Remote content stays remote or in memory.** Transcripts, artifacts, files and
-  terminal output are not cached on Desktop disk. Explicit Save/PDF export targets
-  This Mac. Artifact HTML remains sandboxed without `allow-same-origin` or network
-  access. Committed attachment paths are the documented prompt-only path exception.
+- **Remote viewing does not create a local content archive.** Transcripts,
+  artifacts, files and terminal output are not cached on Desktop disk merely by
+  viewing them. Explicit exports, file downloads and Open in default app save
+  selected content on This Mac ([Files](files.md)). Desktop's **Move to…** copies
+  a lane snapshot to the chosen machine, using a private temporary bundle even
+  between Hosts ([Moving a lane](lanes.md#moving-a-lane)). Artifact HTML remains
+  sandboxed without `allow-same-origin` or network access. Committed attachment
+  paths are the documented prompt-only path exception.
 
 ## Reference map
 
