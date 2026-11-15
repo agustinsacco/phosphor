@@ -63,7 +63,9 @@ function key(code: string, cancelable = true): KeyboardEvent {
     bubbles: true,
     cancelable,
   })
-  act(() => window.dispatchEvent(event))
+  act(() => {
+    window.dispatchEvent(event)
+  })
   return event
 }
 beforeEach(() => {

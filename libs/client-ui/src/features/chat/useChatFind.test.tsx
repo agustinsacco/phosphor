@@ -60,13 +60,13 @@ it('the menu opens compact find without lane control and Enter steps to the next
   expect(bar.hasAttribute('data-compact-find')).toBe(true)
   const input = bar.querySelector('input')!
   expect(document.activeElement).toBe(input)
-  act(() =>
+  act(() => {
     input.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
-    ),
-  )
+    )
+  })
   expect(step).toHaveBeenLastCalledWith(1)
-  act(() =>
+  act(() => {
     input.dispatchEvent(
       new KeyboardEvent('keydown', {
         key: 'Enter',
@@ -74,14 +74,14 @@ it('the menu opens compact find without lane control and Enter steps to the next
         bubbles: true,
         cancelable: true,
       }),
-    ),
-  )
+    )
+  })
   expect(step).toHaveBeenLastCalledWith(-1)
-  act(() =>
+  act(() => {
     input.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
-    ),
-  )
+    )
+  })
   expect(el.querySelector('[data-find-bar]')).toBeNull()
 })
 it('browser focus routing takes only a visible transcript, never Desktop fallback elsewhere', () => {
