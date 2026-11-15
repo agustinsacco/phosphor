@@ -72,7 +72,10 @@ test('granted browser permission sends a worker test notification without prompt
     .getByRole('navigation', { name: 'Tabs', exact: true })
     .getByRole('button', { name: 'Settings', exact: true })
     .click()
-  await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+  await page
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
+    .getByRole('button', { name: 'Notifications', exact: true })
+    .click()
   await expect(
     page.getByRole('button', { name: 'Turn on notifications', exact: true }),
   ).toBeDisabled()
