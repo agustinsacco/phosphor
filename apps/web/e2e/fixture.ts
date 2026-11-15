@@ -322,7 +322,17 @@ export async function browserFixture(production = false) {
       socket.pipe(upstream).pipe(socket)
     })
     if (production)
-      return { origin, state, hostId, close, owners, laneId: '', secondLaneId: '', ...gate.api }
+      return {
+        origin,
+        state,
+        hostId,
+        close,
+        owners,
+        laneId: '',
+        secondLaneId: '',
+        repository: '',
+        ...gate.api,
+      }
 
     const reserve = createServer()
     await new Promise<void>((done) => reserve.listen(0, '127.0.0.1', done))
@@ -510,6 +520,8 @@ export async function browserFixture(production = false) {
       owners,
       laneId: lanes[0]!,
       secondLaneId: lanes[1]!,
+      /** The first lane's folder on the Host, which a spec may read and change. */
+      repository: repo,
       ...gate.api,
     }
   } catch (error) {
