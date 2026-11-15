@@ -4,6 +4,7 @@
  */
 import type {
   BrainEntity,
+  BrainEntityKind,
   BrainLink,
   BrainMemory,
   BrainMemoryState,
@@ -91,4 +92,22 @@ export interface BrainPaths {
   paths: BrainLink[][]
   entities: BrainEntity[]
   memories: BrainMemory[]
+}
+
+/** Browse uses v5's connection rank and its existing (including historical) mention count. */
+export interface BrainEntityPage {
+  items: { entity: BrainEntity; memories: number }[]
+  more: boolean
+  kinds: BrainEntityKind[]
+}
+export interface BrainRecentMemory {
+  id: string
+  summary: string
+  type: BrainMemoryType
+  originTitle: string | null
+  learnedAt: number
+}
+/** Current memories from at most the 20 newest finished reads, newest read first. */
+export interface BrainRecentMemories {
+  items: BrainRecentMemory[]
 }

@@ -1,6 +1,9 @@
 import type {
   BrainConnectionGroup,
   BrainEntity,
+  BrainEntityKind,
+  BrainEntityPage,
+  BrainRecentMemories,
   BrainEntitySummary,
   BrainEntityView,
   BrainGraph,
@@ -32,6 +35,35 @@ export class MockExplorer {
         ),
       ).size - 1
     return { ...entity, memories: memories.length, connections: Math.max(0, connections) }
+  }
+  browse(kind: BrainEntityKind | null, offset: number, limit: number): BrainEntityPage {
+    const all = this.entities.map((e) => this.summary(e)).filter((e) => e.memories > 0)
+    const rows = all
+      .filter((e) => !kind || e.kind === kind)
+      .sort((a, b) => b.connections - a.connections)
+    return {
+      items: rows
+        .slice(offset, offset + limit)
+        .map((entity) => ({ entity, memories: entity.memories })),
+      more: rows.length > offset + limit,
+      kinds: [...new Set(all.map((e) => e.kind))],
+    }
+  }
+  recent(limit: number): BrainRecentMemories {
+    return {
+      items: this.details
+        .map((d) => d.memory)
+        .filter((m) => m.state !== 'superseded' && m.jobId)
+        .sort((a, b) => b.recordedAt - a.recordedAt)
+        .slice(0, limit)
+        .map((m) => ({
+          id: m.id,
+          summary: m.summary,
+          type: m.type,
+          originTitle: m.origin?.title ?? null,
+          learnedAt: m.recordedAt,
+        })),
+    }
   }
   graph(centerId: string | null, hops: 1 | 2 = 1): BrainGraph {
     let ids = new Set(centerId ? [centerId] : this.entities.map((e) => e.id))

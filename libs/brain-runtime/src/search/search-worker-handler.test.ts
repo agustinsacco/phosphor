@@ -9,6 +9,8 @@ function search(): BrainSearch {
     ready: vi.fn(() => false),
     recall: vi.fn(),
     find: vi.fn(),
+    entities: vi.fn(),
+    recent: vi.fn(),
     nearestEntities: vi.fn(),
     nearestMemories: vi.fn(),
     close: vi.fn(),

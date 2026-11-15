@@ -1,3 +1,4 @@
+import { BRAIN_ENTITY_KINDS } from '@phosphor/shared/brain'
 import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
 import {
@@ -20,6 +21,15 @@ export { checkDecision, checkLane, checkPrefs } from './brain-checks'
 /** Desktop-only. Lazy acquisition keeps a failed startup retryable. */
 export function registerBrainHandlers(service: () => Promise<BrainService>): void {
   const api = async (): Promise<BrainApi> => (await service()).api
+  handle('brain:entities', async (_event, kind, offset, limit) => {
+    if (kind !== null && !BRAIN_ENTITY_KINDS.includes(kind))
+      throw new Error('Invalid Brain entity kind.')
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid Brain entity offset.')
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+      throw new Error('Invalid Brain entity limit.')
+    return (await api()).entities(kind, offset, limit)
+  })
+  handle('brain:recent', async (_event, limit) => (await api()).recent(limitOf(limit)))
   handle('brain:history', async (_event, limit) => {
     if (!Number.isInteger(limit) || limit < 1 || limit > 200)
       throw new Error('Invalid Brain history limit.')

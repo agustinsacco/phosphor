@@ -17,6 +17,8 @@ export const IPC_SCOPE = {
   'brain:reset': 'app',
   'brain:merge': 'app',
   'brain:find': 'app',
+  'brain:entities': 'app',
+  'brain:recent': 'app',
   'brain:overview': 'app',
   'brain:neighbourhood': 'app',
   'brain:entity': 'app',
