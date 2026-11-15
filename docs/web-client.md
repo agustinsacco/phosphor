@@ -218,12 +218,14 @@ and its input is `StartComposer`, the one new-lane composer This Mac uses too
 repositories, usable model choices and submission receipts. New without a
 machine in the URL is pinned to the scoped machine described above; with no
 Host at all it asks for one. An explicit missing Host never silently
-switches. Model precedence is last valid choice, a validated native preference
-when available, then the first usable catalogue model. At every width the model
-and thinking pickers are the lane composer's own split chip and searchable model
-menu, which a phone opens as a bottom sheet, and the chip's tooltip discloses
-which rule chose the model. No configured Host default or cross-device
-preference sync is claimed. Isolation changes are memory-only in the browser,
+switches. Model precedence is the same as Desktop's
+([lane creation](remote-desktop.md#machine-context-and-lane-creation)): the last
+valid choice, then the Host pi's own usable default, then the first usable
+catalogue model; the browser has no This Mac default to fall back on. At every
+width the model and thinking pickers are the lane composer's own split chip and
+searchable model menu, which a phone opens as a bottom sheet, and the chip's
+tooltip names the rule that chose the model ("Using this Host’s default
+model."). No cross-device preference sync is claimed. Isolation changes are memory-only in the browser,
 preserving native preference persistence. Above the input sit the machine,
 repository and isolation row; under it, the hints line and at most one note (a
 warning, the connection it waits for, missing control or missing repository).
