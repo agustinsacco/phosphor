@@ -158,3 +158,34 @@ it('characterizes Desktop commands on This Mac with and without an active sessio
   expect(await labels('Rewind')).toHaveLength(1)
   expect(await labels('tool output')).toHaveLength(1)
 })
+
+it('searches This Mac sessions beyond the former first-eight cutoff', async () => {
+  useRemoteLanesStore.setState({ hosts: {}, filter: 'local' })
+  useSessionsStore.setState({
+    activeSessionId: null,
+    live: {},
+    disk: {
+      '/mac': Array.from({ length: 20 }, (_, index) => ({
+        path: `/mac/${index}.jsonl`,
+        id: `${index}`,
+        cwd: '/mac',
+        name: index === 19 ? 'Needle last session' : `Earlier ${index}`,
+        firstUserText: '',
+        created: '',
+        modified: '',
+        messageCount: 1,
+      })),
+    },
+  })
+  usePaletteStore.setState({ open: true })
+  await act(async () => root.render(<CommandPalette workspacePath="/mac" />))
+  const input = document.querySelector<HTMLInputElement>('input[placeholder="Type a command…"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      'Needle last session',
+    )
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(document.body.textContent).toContain('Open session: Needle last session')
+})
