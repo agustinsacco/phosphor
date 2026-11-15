@@ -63,3 +63,9 @@ it("keeps a Host lane's order and a Host folder's collapse in the browser, as De
   for (const channel of ['app:setSessionOrder', 'app:setCollapsedWorkspaces'] as const)
     expect(IPC_WEB[channel]).toEqual({ kind: 'browser-local' })
 })
+it('keeps image clipboard access on this device, never on the Host', () => {
+  for (const channel of ['clipboard:writeImage', 'clipboard:readImage'] as const)
+    expect(IPC_WEB[channel]).toEqual({ kind: 'browser-local' })
+  for (const channel of ['clipboard:writeFiles', 'clipboard:readFiles'] as const)
+    expect(IPC_WEB[channel].kind).toBe('unsupported')
+})
