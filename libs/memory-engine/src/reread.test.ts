@@ -157,8 +157,9 @@ it('replaces a lane with one revision bump and no extra pruning per removed memo
     override prepare(sql: string): ReturnType<DatabaseSync['prepare']> {
       const statement = super.prepare(sql)
       if (!sql.startsWith('DELETE FROM extractions')) return statement
-      const run = statement.run.bind(statement)
-      statement.run = (...args: Parameters<typeof run>) => {
+      const counted = statement as unknown as { run: (...args: unknown[]) => unknown }
+      const run = counted.run.bind(statement)
+      counted.run = (...args) => {
         prunes++
         return run(...args)
       }
@@ -181,6 +182,7 @@ it('replaces a lane with one revision bump and no extra pruning per removed memo
       return prunes - before.prunes
     }
     const plain = save({})
+    expect(plain).toBeGreaterThan(0)
     const old = store.history(1).items[0]!
     expect(old.replaceable).toBe(2)
     expect(save({ leafId: 'new', replaces: old.job.id })).toBe(plain)
