@@ -9,6 +9,10 @@ export interface Platform {
   fileEditing: boolean
   terminal: boolean
   scriptedArtifacts: boolean
+  /**
+   * Files save, open and reveal through this device's file system: save dialogs, Downloads and
+   * default apps, and Host files stream into viewers. A browser downloads and holds them instead.
+   */
   nativeFiles: boolean
   machineSettings: boolean
   /** Spellcheck, autocomplete and prompt learning in text fields (Settings → Writing). */

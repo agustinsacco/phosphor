@@ -17,7 +17,7 @@ import { formatShortcut } from '@/lib/shortcuts'
 import { runFileAction } from './fileActions'
 import { closeEditorFile } from './closeEditorFile'
 import type { FilesSource } from './filesSource'
-import { downloadEntry } from './download'
+import { fileDownload } from './download'
 
 export const EditorPane = memo(function EditorPane({
   source,
@@ -135,16 +135,14 @@ function SingleFile({
 function ActiveView({ file, source }: { file: OpenFile; source: FilesSource }): React.JSX.Element {
   const { workspacePath, features } = source
   const kind = previewKindForPath(file.path)
-  const onDownload = features.download
-    ? (then?: 'open') => downloadEntry(source, file, then)
-    : undefined
+  const download = fileDownload(source, file)
   const text =
     file.binary || file.tooLarge ? (
       <FileFallback
         file={file}
         osActions={features.osActions}
         textLimitBytes={source.textLimitBytes}
-        onDownload={onDownload}
+        download={download}
       />
     ) : (
       <ActiveEditor file={file} workspacePath={workspacePath} readOnly={!!source.writeRefusal} />
@@ -159,8 +157,9 @@ function ActiveView({ file, source }: { file: OpenFile; source: FilesSource }): 
       features={features}
       textLimitBytes={source.textLimitBytes}
       source={text}
-      onDownload={onDownload}
+      download={download}
       sessionId={source.sessionId}
+      previewLimitBytes={source.byteLimits.preview}
     />
   )
 }

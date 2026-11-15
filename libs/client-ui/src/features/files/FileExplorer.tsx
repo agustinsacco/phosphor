@@ -157,8 +157,19 @@ function rowMenu(
     },
     ...(features.download && !entry.isDirectory
       ? [
-          { label: 'Download', hint: 'to Downloads', onClick: () => downloadEntry(source, entry) },
-          { label: 'Open in default app', onClick: () => downloadEntry(source, entry, 'open') },
+          {
+            label: 'Download',
+            hint: features.openDownloads ? 'to Downloads' : undefined,
+            onClick: () => downloadEntry(source, entry),
+          },
+          ...(features.openDownloads
+            ? [
+                {
+                  label: 'Open in default app',
+                  onClick: () => downloadEntry(source, entry, 'open'),
+                },
+              ]
+            : []),
         ]
       : []),
     ...createItems(source, entry),

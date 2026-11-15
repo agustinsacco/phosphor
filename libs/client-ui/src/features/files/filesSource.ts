@@ -1,6 +1,11 @@
 import { useMemo } from 'react'
 import { MAX_TEXT_FILE_BYTES } from '@shared/file-kinds'
 import { FILE_LIMITS } from '@shared/host-protocol-files'
+import {
+  BROWSER_FILE_BYTES,
+  FILE_BYTES_ERRORS,
+  FILE_BYTES_LIMITS,
+} from '@shared/host-protocol-file-bytes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -23,10 +28,18 @@ export interface FilesFeatures {
   clipboardFiles: boolean
   /** Revert a changed file to the session's start. */
   revert: boolean
-  /** Save a file into this device's Downloads folder, through `sessionId`. */
+  /**
+   * Save a Host lane's file on this device, through `sessionId`: into its Downloads folder
+   * where files save natively, as a browser download in a browser.
+   */
   download: boolean
-  /** Images, media and PDFs streamed from a Host over `phosphor-file://`, through `sessionId`. */
-  streamPreview: boolean
+  /** Open a finished download in its default app, and reveal it: where files save natively. */
+  openDownloads: boolean
+  /**
+   * Images and media from a Host, through `sessionId`: streamed over `phosphor-file://` as the
+   * viewer reads them, or in a browser read whole into a Blob; null where the Host sends no bytes.
+   */
+  hostPreview: 'stream' | 'blob' | null
 }
 
 /** One lane's files, as the Files pane reads and writes them. */
@@ -47,6 +60,11 @@ export interface FilesSource {
   refreshKey: string
   /** The largest file the machine reads as text. */
   textLimitBytes: number
+  /**
+   * The largest Host file this device downloads, with the refusal for a larger one, and the
+   * largest it previews from its bytes.
+   */
+  byteLimits: { download: number; tooLarge: string; preview: number }
   features: FilesFeatures
 }
 
@@ -59,7 +77,8 @@ const LOCAL_FEATURES: FilesFeatures = {
   clipboardFiles: true,
   revert: true,
   download: false,
-  streamPreview: false,
+  openDownloads: false,
+  hostPreview: null,
 }
 
 // Revert needs a session baseline the Host does not keep yet (E6).
@@ -72,9 +91,32 @@ const HOST_FEATURES: FilesFeatures = {
   clipboardFiles: false,
   revert: false,
   download: false,
-  streamPreview: false,
-} // A Host that serves file bytes, to a device that saves files natively.
-const HOST_BYTES_FEATURES: FilesFeatures = { ...HOST_FEATURES, download: true, streamPreview: true }
+  openDownloads: false,
+  hostPreview: null,
+}
+// A Host that serves file bytes, to a device that saves and streams them natively, or to a
+// browser, which holds each file in memory.
+const NATIVE_BYTES_FEATURES: FilesFeatures = {
+  ...HOST_FEATURES,
+  download: true,
+  openDownloads: true,
+  hostPreview: 'stream',
+}
+const BROWSER_BYTES_FEATURES: FilesFeatures = {
+  ...HOST_FEATURES,
+  download: true,
+  hostPreview: 'blob',
+}
+const NATIVE_BYTE_LIMITS = {
+  download: FILE_BYTES_LIMITS.fileBytes,
+  tooLarge: FILE_BYTES_ERRORS.tooLarge,
+  preview: FILE_BYTES_LIMITS.fileBytes,
+}
+const BROWSER_BYTE_LIMITS = {
+  download: BROWSER_FILE_BYTES.downloadBytes,
+  tooLarge: FILE_BYTES_ERRORS.browserTooLarge,
+  preview: BROWSER_FILE_BYTES.previewBytes,
+}
 
 /** A folder on this device; it holds no state, so it is not a hook. */
 export function localFilesSource(workspacePath: string): FilesSource {
@@ -86,6 +128,7 @@ export function localFilesSource(workspacePath: string): FilesSource {
     listing: 'tree',
     refreshKey: '',
     textLimitBytes: MAX_TEXT_FILE_BYTES,
+    byteLimits: NATIVE_BYTE_LIMITS,
     features: LOCAL_FEATURES,
   }
 }
@@ -112,7 +155,6 @@ export function useHostFilesSource(sessionId: string, workspacePath: string): Fi
   const writeRefusal = useLaneWriteRefusal(sessionId) ?? null
   const native = usePlatform().nativeFiles
   const served = useRemoteLanesStore((s) => hostOf(s)?.fileBytes === true)
-  const bytes = native && served
   return useMemo(
     () => ({
       sessionId,
@@ -123,9 +165,10 @@ export function useHostFilesSource(sessionId: string, workspacePath: string): Fi
       listing: 'flat',
       refreshKey,
       textLimitBytes: FILE_LIMITS.textBytes,
-      features: bytes ? HOST_BYTES_FEATURES : HOST_FEATURES,
+      byteLimits: native ? NATIVE_BYTE_LIMITS : BROWSER_BYTE_LIMITS,
+      features: !served ? HOST_FEATURES : native ? NATIVE_BYTES_FEATURES : BROWSER_BYTES_FEATURES,
     }),
-    [sessionId, workspacePath, pathRoot, unavailable, writeRefusal, refreshKey, bytes],
+    [sessionId, workspacePath, pathRoot, unavailable, writeRefusal, refreshKey, native, served],
   )
 }
 
