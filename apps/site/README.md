@@ -79,7 +79,7 @@ marketing, captures and guide reading surfaces; each source file stays ≤400 li
 
 ## Captures and privacy
 
-Refreshed screenshots are **UI demo · fictional fixture data** in actual product
+Refreshed screenshots are **Product demo · fictional data** in actual product
 surfaces, not real user sessions, current provider usage or benchmarks. Every
 full-size original must be public-safe; responsive previews are not a redaction
 boundary. The explicit import allowlist prevents accidentally publishing unused

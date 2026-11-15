@@ -74,9 +74,14 @@ test('watch films are opt-in, self-hosted and have visible text alternatives', a
   page,
   request,
 }) => {
+  const mediaRequests: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.endsWith('.mp4')) mediaRequests.push(request.url())
+  })
   await page.goto('/watch/')
   const videos = page.locator('video')
   await expect(videos).toHaveCount(3)
+  expect(mediaRequests, 'No movie bytes are requested before choosing playback').toEqual([])
   for (const [index, stem] of [
     'phosphor-overview',
     'brain-walkthrough',

@@ -120,9 +120,9 @@ test('landing leads with current work, chat and Desktop layout demos without dis
   await page.goto('/')
   const captures = page.locator('main .capture:visible')
   const expected = [
-    ['home', 'UI demo · fictional fixture data'],
-    ['chat', 'UI demo · fictional fixture data'],
-    ['ide-flex', 'UI demo · fictional fixture data'],
+    ['home', 'Product demo · fictional data'],
+    ['chat', 'Product demo · fictional data'],
+    ['ide-flex', 'Product demo · fictional data'],
   ]
   for (const [index, [asset, provenance]] of expected.entries()) {
     const capture = captures.nth(index)
@@ -242,7 +242,7 @@ test('guide handoffs, privacy labels, skip link, and reduced motion', async ({ p
   await expect(page.locator('#install ol')).toHaveCSS('list-style-type', 'decimal')
   await expect(page.locator('#routing ul')).toHaveCSS('list-style-type', 'disc')
   for (const capture of await page.locator('.guide-content .capture').all()) {
-    await expect(capture.locator('figcaption')).toContainText('Settings demo')
+    await expect(capture.locator('figcaption')).toContainText('Product demo · fictional data')
     await expect(capture.locator('a')).toHaveAttribute('href', /guide-.*\.webp$/)
   }
   await page

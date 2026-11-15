@@ -39,7 +39,7 @@ models mid-session and the conversation comes along.
 
 ![Phosphor’s workbench with fictional parallel lanes and project activity](apps/site/src/assets/shots/home.webp)
 
-_UI demo · fictional fixture data. All refreshed product screenshots use public-safe
+_Product demo · fictional data. All refreshed product screenshots use public-safe
 fixtures in the actual UI, not private sessions or live model runs.
 [Watch the walkthroughs](https://phosphor.saccolabs.com/watch/) ·
 [Setup guides](https://phosphor.saccolabs.com/guides/)._
@@ -432,7 +432,7 @@ npm run dev
 | `npm run pack`       | Package for the current platform without packing (quick check)            |
 | `npm run dist`       | Package for the current platform via electron-builder                     |
 | `npm run shots`      | Deterministic screenshots against the e2e pi stub (see below)             |
-| `npm run shots:live` | Re-shoot this README against a real pi instance (see below)               |
+| `npm run shots:live` | Historical live-capture utility; not the refreshed fixture gallery        |
 
 [Testing](docs/testing.md) is the contract for dependency installation, check
 commands, typed test helpers, frozen interfaces, coverage evidence, size budgets
@@ -529,7 +529,7 @@ human too.
 
 ### The screenshots in this README
 
-The refreshed gallery is **UI demo · fictional fixture data**: actual renderer
+The refreshed gallery is **Product demo · fictional data**: actual renderer
 surfaces with invented repositories, accounts, machines, graph entities and threads.
 No private sessions, credential stores, real provider calls or paid services were
 used for this refresh. Full-size originals must be as safe as their responsive
@@ -657,7 +657,7 @@ docs/                living technical docs — one file per surface, each
                      plus known-issues.md (current defects) and future-features.md
                      (decided or explored directions that are not built)
 docs/img/            the screenshots above (assets, not documentation)
-apps/site/           phosphor.saccolabs.com — the Astro landing page, real
+apps/site/           phosphor.saccolabs.com — the Astro landing page, fixture
                      captures and browser checks; combined image in apps/control/Dockerfile (apps/site/README.md)
 .infra/phosphor-site/  the k3s manifests the Deploy Site workflow applies
 ```
