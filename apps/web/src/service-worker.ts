@@ -1,3 +1,4 @@
+import { openNotification, showHostNotification } from './notification-events'
 declare const __WEB_BUILD_ID__: string
 const worker = globalThis as unknown as ServiceWorkerGlobalScope
 const PREFIX = 'phosphor-web-shell-'
@@ -70,4 +71,18 @@ worker.addEventListener('fetch', (event) => {
       return response
     })(),
   )
+})
+
+worker.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil(openNotification(worker, event.notification.data))
+})
+worker.addEventListener('message', (event) => {
+  if (
+    event.data?.type !== 'phosphor-attention' ||
+    typeof event.data.notice?.title !== 'string' ||
+    typeof event.data.notice?.body !== 'string'
+  )
+    return
+  event.waitUntil(showHostNotification(worker, event.data.notice).catch(() => {}))
 })

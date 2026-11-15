@@ -1,7 +1,8 @@
+import { createBrowserAttention } from './attention'
+import { attachNotificationClicks, navigateNotification } from './notifications'
 import type { PhosphorApi, IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import { IPC_WEB, type WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { createRemoteLanes } from '@phosphor/host-client/remote-lanes'
-import { createAttentionReceiver, readHostReceipt } from '@phosphor/host-client/attention'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
 import type { IdentityCrypto } from '@phosphor/host-client/crypto'
 import { createBrowserControl } from './control'
@@ -130,12 +131,12 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       attention.clear()
     },
   })
-  // As on Desktop, without an OS notification: an account change drops every receipt wait.
-  const attention = createAttentionReceiver({
-    receipt: (hostId, laneId) => readHostReceipt(hosts.connection, hostId, laneId),
-    publish: (notice) => {
-      if (!stopped) events.emit('attention', notice)
-    },
+  const offNotificationClicks = attachNotificationClicks(options.navigate ?? navigateNotification)
+  const attention = createBrowserAttention({
+    connection: (hostId) => hosts.connection(hostId),
+    label: (hostId) => hosts.label(hostId),
+    publish: (notice) => events.emit('attention', notice),
+    generation: () => (stopped ? undefined : control.generation()),
   })
   const drafts = createBrowserDrafts(() => control.session() !== null)
   const hosts = createBrowserHosts({
@@ -298,6 +299,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       stopped = true
       clearInterval(poll)
       clearInterval(clock)
+      offNotificationClicks()
       offLifecycle()
       offInvalidation()
       invalidation?.close()

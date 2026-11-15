@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./notifications": {
+      "types": "./src/notifications.ts",
+      "default": "./src/notifications.ts"
+    },
     "./base64": {
       "types": "./src/base64.ts",
       "default": "./src/base64.ts"

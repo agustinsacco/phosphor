@@ -174,7 +174,21 @@ export interface BaselineAppInvokeMap {
 
   'app:openExternal': { args: [string]; result: void }
 
-  'app:notify': { args: [notice: { title: string; body: string }]; result: boolean }
+  'app:notify': {
+    args: [
+      notice: {
+        title: string
+        body: string
+        key?: string
+        route?: {
+          hostId: string
+          laneId: string
+          pr?: { host: string; owner: string; repo: string; number: number }
+        }
+      },
+    ]
+    result: boolean
+  }
 }
 it('freezes app channel tuples and results through ipc.ts', () => {
   expectTypeOf<

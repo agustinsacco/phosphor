@@ -161,7 +161,8 @@ lane shells and the Machine page's shell
 ([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. Host
 machine settings, including provider installation and Claude accounts, work after
 [configuration access](#configuration-access-and-lane-deletion). File editing and
-This Mac's settings are unavailable. Attention is in-app only, not OS push. A Host's
+This Mac's settings are unavailable. Attention reaches the shared notification drawer
+and, with permission, native notifications while the app runs ([below](#notifications)). A Host's
 registered repositories open read-only from **Machines → a Host → Machine files**.
 
 `PageShell` owns each page's single heading, actions and close behavior;
@@ -176,7 +177,7 @@ none (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
 The Settings page frames Desktop's `SettingsSurface`: the same search field, section
 navigation and sections, listed by platform capability
 ([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
-Lanes, Phosphor account, App installation and About, then **Configure** with the Host
+Lanes, Phosphor account, Notifications, App installation and About, then **Configure** with the Host
 machine settings of each known Host; it lists no This Mac sections. Lanes has no
 "own branch" switch there (it needs `localLanes`): a Host lane always gets its own
 worktree. Voice needs `localVoice`, which the browser lacks. With no Host to
@@ -256,6 +257,44 @@ refused. The parent permits only `frame-src blob:` for these previews and blocks
 app embedding with `X-Frame-Options: DENY`. Its CSP omits `frame-ancestors` because
 WebKit inherits that restriction into otherwise valid Blob previews. Desktop's
 artifact/file protocols and scripted artifact behavior are unchanged.
+
+## Notifications
+
+The header's bell counts new notices on every top-level phone tab and in the wide
+browser header. It opens Desktop's right-hand drawer on a wide screen, or a
+full-height bottom sheet on a phone; the four tabs are unchanged, with no Inbox
+tab. Host receipts expand in place; Open lane, View changes and Retry close the
+sheet after navigating. Warnings, errors and openable notices use the same store
+as Desktop. Mark all seen, Earlier/Clear, aging and the 50-entry cap are shared.
+Notices are memory-only; reload or account loss clears them.
+
+**Settings → Notifications** is device-scoped (`notificationPermission`: true in
+the browser at every width, false on Desktop, where the OS owns permission).
+It shows On / Off / Blocked, Turn on notifications, and Send a test notification.
+Blocked permission points to the browser's site settings. While permission is
+undecided, the drawer offers one quiet Turn on row. Only that gesture requests
+permission; startup never prompts. The test action deliberately works while
+visible. On iPhone, native notifications require Home Screen installation.
+
+`app:notify` is browser-local: only a hidden page with granted permission may
+call `ServiceWorkerRegistration.showNotification`, never `new Notification()`.
+Unlike Desktop, it resolves **false immediately after attempted delivery**:
+browsers cannot keep the invocation alive until a click. The worker routes clicks
+independently, focusing an existing same-origin page or opening one, then opening
+the Host lane (and optional PR inspector focus) through normal Host admission.
+
+Host attention follows Desktop's rule: only a lane no visible page shows gets a
+native notice, even if the receiving page is visible elsewhere. The worker checks
+all same-origin window clients before delivery. Desktop and browser share
+`attentionNotice` in `libs/shared/src/notifications.ts`: title `machine · lane`,
+body receipt facts only, never reply excerpts, repository/branch names or paths.
+The same module owns stable `phosphor:lane:host:lane` / `phosphor:pr:prKey` tags
+(or an explicit stable key), identifier-only click data and route construction,
+for page delivery and future Web Push reuse. Updates replace the native notice.
+Names can still reveal projects on lock screens. No lane data is cached by the
+worker. Delivery while the app is closed or browser execution is suspended needs
+Web Push and is not built; physical Android/iOS notification delivery and clicking
+remain device acceptance, not a headless guarantee.
 
 ## Installation
 

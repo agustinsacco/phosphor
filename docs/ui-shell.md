@@ -506,7 +506,10 @@ close it; focus moves into the sheet and returns to the element on close.
   you can open 7s, the rest 5s. While the notification drawer is open, a
   notice it keeps lands there instead, and other toasts stack beside it.
 - **Notification drawer** — the bell at the right end of the top bar counts
-  new notices and opens a right-hand column styled like the left navigation.
+  new notices and opens a right-hand column styled like the left navigation,
+  on Desktop and in the wide browser. The phone's top-level tab headers carry
+  the same bell; it opens a full-height bottom sheet, with touch-sized rows and
+  visible remove buttons. Opening a lane closes the browser drawer/sheet.
   It keeps what a toast leaves behind: lane notices, anything you can open,
   and every warning or error (a one-line "Copied" only toasts). One entry per
   lane, or per explicit key (a PR's is `pr:<prKey>`), updated in place, which
@@ -521,7 +524,9 @@ close it; focus moves into the sheet and returns to the element on close.
   **Earlier** in a muted tone. Expanding a receipt does not count. Rows can be removed one at a time and Earlier can be cleared. Seen
   entries age out 24h after they arrived, new ones after 72h, and the list
   holds at most 50. Entries are memory only and leave when their lane closes
-  (PR notices stay: they open the lane from its file).
+  (PR notices stay: they open the lane from its file). Browser notices also clear
+  on account loss. The browser's quiet permission offer and native delivery
+  contract are in [Web client](web-client.md#notifications).
 - **PR change notices** — `stores/prTransitions.ts` watches PR status and
   speaks when a PR a This Mac lane owns (`features/sessions/prLaneIndex.ts`,
   never a reviewed or mentioned one) changes in a way worth interrupting for

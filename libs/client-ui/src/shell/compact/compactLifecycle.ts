@@ -1,3 +1,4 @@
+import { useNotificationsStore } from '@/stores/notifications'
 import { cancelAllPrompts } from '@/stores/prompt'
 import { clearRemoteStartMemory } from '@/features/home/remoteComposer'
 import { clearDraftMemory } from '@/stores/drafts'
@@ -25,6 +26,7 @@ export function clearCompactUi(): void {
   useSkillsStore.setState({ byWorkspace: {}, loading: {}, error: {}, selectedDir: null })
   useHomeSubmissionsStore.setState({ pending: {} })
   useExtensionUiStore.setState({ toasts: [] })
+  useNotificationsStore.setState({ items: [], open: false })
   useMachinesStore.setState({ view: { kind: 'list' }, adding: false })
   const sessions = Object.values(useSessionsStore.getState().live).filter(
     (entry) => entry.target?.kind === 'remote',

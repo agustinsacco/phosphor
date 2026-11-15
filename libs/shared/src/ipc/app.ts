@@ -1,3 +1,4 @@
+import type { NativeNotice } from '../notifications'
 import type { ContextFileKind } from '../context-files'
 import type {
   AppPrefs,
@@ -141,7 +142,8 @@ export interface AppInvokeMap {
   /**
    * A native notification. Resolves true once the user clicks it (the window
    * comes forward first), false when it closes unclicked or cannot be shown,
-   * including while the window is focused.
+   * including while the window is focused. Browser delivery requires a hidden page
+   * and granted permission; it resolves false immediately and the worker routes clicks.
    */
-  'app:notify': { args: [notice: { title: string; body: string }]; result: boolean }
+  'app:notify': { args: [notice: NativeNotice]; result: boolean }
 }

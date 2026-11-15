@@ -29,6 +29,8 @@ export interface Platform {
   cancelSignIn: boolean
   /** Dictation runs on this device with a local speech model (Settings → Voice). */
   localVoice: boolean
+  /** This browser/device owns its native notification permission. Desktop uses OS settings. */
+  notificationPermission: boolean
   /** Brain knowledge and its embedding model live on this Desktop machine. */
   localBrain: boolean
 }
@@ -51,6 +53,7 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   cancelSignIn: true,
   localVoice: true,
   localBrain: true,
+  notificationPermission: false,
 })
 export const COMPACT_PLATFORM: Platform = Object.freeze({
   formFactor: 'compact',
@@ -73,6 +76,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   cancelSignIn: false,
   localVoice: false,
   localBrain: false,
+  notificationPermission: true,
 })
 /** A wide browser changes presentation, never its authority or native capabilities. */
 export const WIDE_BROWSER_PLATFORM: Platform = Object.freeze({

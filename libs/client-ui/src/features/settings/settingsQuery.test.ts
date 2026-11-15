@@ -168,6 +168,7 @@ describe('SETTINGS_INDEX against the section sources', () => {
     'tabs/AccountTab.tsx': 'account',
     'tabs/AppearanceTab.tsx': 'appearance',
     'tabs/InstallAppTab.tsx': 'install',
+    'tabs/NotificationsTab.tsx': 'notifications',
     'tabs/KeybindingsTab.tsx': 'keybindings',
     'tabs/OptimizationTab.tsx': 'optimization',
     'tabs/VoiceTab.tsx': 'voice',
