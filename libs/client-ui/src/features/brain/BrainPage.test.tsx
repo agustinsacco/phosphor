@@ -742,3 +742,17 @@ it('keeps a missing source read error recoverable without adding a history row',
   expect(container.querySelector('[aria-label="Memories from this lane"]')).not.toBeNull()
   expect(container.querySelector('[aria-label="Brain lanes"] [aria-current]')).toBeNull()
 })
+
+it('allows empty-search Backspace after returning from Lanes', async () => {
+  await render()
+  await chooseHarbor()
+  await click('Harbor Ledger')
+  await search('Tom')
+  await lanesTab()
+  await click('Knowledge')
+  expect(container.querySelector<HTMLInputElement>('[role="combobox"]')?.value).toBe('')
+  await act(async () =>
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true })),
+  )
+  expectSelectedEntity('Harbor')
+})
