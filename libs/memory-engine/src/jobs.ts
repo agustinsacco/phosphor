@@ -5,7 +5,7 @@ import type { JobPart, JobPatch, NewJob } from './types'
 
 const columns = `id, session_id AS sessionId, session_path AS sessionPath, title, scope, branch,
  model, state, memories, leaf_id AS leafId, error, queued_at AS queuedAt,
- started_at AS startedAt, finished_at AS finishedAt, usage, progress`
+ started_at AS startedAt, finished_at AS finishedAt, usage, progress, replaces`
 type JobRow = Omit<BrainJob, 'usage' | 'progress'> & {
   usage: string | null
   progress: string | null
@@ -27,10 +27,18 @@ export function jobs(ctx: Context): BrainJob[] {
     `SELECT ${columns} FROM jobs WHERE state!='done' ORDER BY queued_at, rowid`,
   ).map(decode)
 }
+export function finishedJobs(ctx: Context, limit: number): BrainJob[] {
+  return all<JobRow>(
+    ctx,
+    `SELECT ${columns} FROM jobs WHERE state='done'
+    ORDER BY finished_at DESC, queued_at DESC, rowid DESC LIMIT ?`,
+    limit,
+  ).map(decode)
+}
 function save(ctx: Context, value: BrainJob): void {
   run(
     ctx,
-    `INSERT INTO jobs VALUES (${Array(18).fill('?').join(',')})`,
+    `INSERT INTO jobs VALUES (${Array(19).fill('?').join(',')})`,
     value.id,
     value.sessionId,
     value.sessionPath,
@@ -49,12 +57,20 @@ function save(ctx: Context, value: BrainJob): void {
     BRAIN_EXTRACTOR_VERSION,
     value.progress ? JSON.stringify(value.progress) : null,
     null,
+    value.replaces,
   )
 }
 export const BRAIN_EXTRACTOR_VERSION = 5
 
 export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'): BrainJob {
   return transaction(ctx, () => {
+    if (value.replaces) {
+      const previous = job(ctx, value.replaces)
+      if (previous?.state !== 'done')
+        throw new Error('Only finished Brain reads can be read again.')
+      if (previous.sessionId !== value.sessionId)
+        throw new Error('This read belongs to a different lane.')
+    }
     const unfinished = one(
       ctx,
       `SELECT id FROM jobs WHERE session_id=? AND state IN
@@ -68,11 +84,12 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
       value.sessionId,
       BRAIN_EXTRACTOR_VERSION,
     )
-    if (last && last.leaf_id === value.leafId) {
+    if (!value.replaces && last && last.leaf_id === value.leafId) {
       throw new Error('Nothing new in this lane since its last extraction.')
     }
     const result: BrainJob = {
       ...value,
+      replaces: value.replaces ?? null,
       id: ctx.id(),
       state,
       memories: 0,

@@ -42,6 +42,27 @@ job and resumes from its saved steps. Jobs left running when the app quit resume
 stopped. The inbox shows each running job's step ("Reading the conversation 3 of 12", "Matching
 entities", …).
 
+## Read lanes and Read again
+
+Below the inbox, **Read lanes** shows the newest finished reads, greyed: title, model, finish
+time and the number of memories that still exist from that lane. There is one row per lane.
+Click a row to inspect its extraction. The list reloads when the inbox or knowledge changes.
+
+**Read again** on a row or a finished extraction reads the whole lane, even if nothing changed.
+It confirms how many earlier memories will be replaced. Memories another lane also supports
+are kept. The lane must still be readable and have no queued, running or review job. Busy lanes
+wait as usual; leaf and model freeze at first start. Retry keeps the replacement intent.
+
+Earlier memories remain searchable while the new read runs and waits for review. Reconcile
+excludes the memories this read will replace; entity identity still reuses shared entities.
+Approval saves the checked candidates and removes the earlier, unshared memories from that lane
+in one transaction, including memories from older reads whose job rows are gone. Partial
+approval, or approval with no candidates checked, still replaces them. With review off, saving
+happens immediately. A citation or relationship supported by a different lane protects its
+memory unchanged. A rejected, cancelled or permanently failed reread removes no knowledge.
+An **empty** reread (nothing kept) also removes nothing. Rejecting or dismissing a reread keeps
+the earlier finished read in history. Successful saving replaces that history row.
+
 ## Reading a lane
 
 A job freezes the lane's leaf, chosen reader model, thinking level and git branch when it first
@@ -209,17 +230,22 @@ prompt rebuilt from the lane file and the saved step inputs), and every claim's 
 folded, confirmed, enriched, held back or dropped) and every rejected link with its reason.
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records store no
 prompt text; a prompt whose inputs are gone says so. Records are kept while their job is in the
-inbox or a memory references them, and expire after 30 days.
+inbox or is the latest finished read of its lane, without an age limit. These jobs also keep
+step inputs, so finished-read prompts can be rebuilt. Removing or replacing a job deletes its
+step inputs. A record without a job survives only while a memory references it, and expires
+30 days after it finished; its prompts are unavailable. With neither job nor memory, the record
+is pruned immediately. Forgotten candidate memories show as removed, not as dead links.
 
 ## Storage
 
-`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 4, WAL) holds settings,
+`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 5, WAL) holds settings,
 the queue and its saved steps, proposals, extraction records, entities (names, aliases, keys),
 memories, the entities each memory mentions, relations (subject, predicate, object, the memory
 that states it), each link's and memory's quotes, evidence, and float and sign-bit vectors. Full
-text search covers memories, entity words and entity name trigrams. Opening a file from an
-earlier version deletes its knowledge, keeps settings with review on, and starts a new
-generation, the same routine as **Reset Brain knowledge**. The model lives under
+text search covers memories, entity words and entity name trigrams. Version 4 upgrades in place:
+one transaction adds the jobs `replaces` column and indexes for lane memories and finished reads,
+then sets version 5. Knowledge, settings, jobs and records stay. Opening version 3 or older
+deletes its knowledge, keeps settings with review on, and starts a new generation, the same routine as **Reset Brain knowledge**. The model lives under
 `<userData>/brain/embeddings`.
 
 - Entities (`BRAIN_ENTITY_KINDS`): person, team, organization, project, component, document,

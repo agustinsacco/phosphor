@@ -184,3 +184,21 @@ it('stale review recomputation reuses extract parts and refreshes identity decis
   expect(s.runner.mock.calls.filter(([call]) => call.stage === 'extract')).toHaveLength(1)
   expect(s.runner.mock.calls.filter(([call]) => call.stage === 'identity')).toHaveLength(2)
 })
+
+it('rereads a finished lane through busy waiting, rejects missing files and unfinished lanes', async () => {
+  const s = await setup()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await review(s.service)
+  const old = s.store.snapshot().jobs[0]!
+  await s.service.api.review(old.id, { memories: [0], identities: {}, groups: [] }, s.store.rev)
+  expect(s.service.api.reread).toBeTypeOf('function')
+  vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
+  const result = await s.service.api.reread(old.id)
+  expect(result.jobs[0]).toMatchObject({ replaces: old.id, state: 'waiting' })
+  await expect(s.service.api.reread(old.id)).rejects.toThrow('This lane is already queued.')
+  await s.service.api.cancel(result.jobs[0]!.id)
+  await import('node:fs/promises').then((fs) => fs.unlink(s.file))
+  await expect(s.service.api.reread(old.id)).rejects.toThrow(
+    "This lane's file is gone, so Brain cannot read it again.",
+  )
+})

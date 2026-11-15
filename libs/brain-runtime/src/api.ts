@@ -28,16 +28,27 @@ function checkPrefs(prefs: BrainPrefs): void {
     throw new Error('Invalid Brain preferences.')
   checkBrainReaderModel(prefs.model)
 }
-async function enqueue(ref: BrainLaneRef, { store, options, queue }: ApiContext): Promise<void> {
+async function enqueue(
+  ref: BrainLaneRef,
+  { store, options, queue }: ApiContext,
+  replaces?: string,
+): Promise<void> {
   const check = () => {
     if (!queue.accepting) throw new Error('Brain is resetting.')
     if (!store.snapshot().prefs.enabled) throw new Error('Turn on Brain before queueing a lane.')
   }
   check()
-  const lane = await readLane(ref.sessionPath, store.snapshot().prefs.model)
+  const lane = await readLane(ref.sessionPath, store.snapshot().prefs.model).catch(
+    (error: unknown) => {
+      if (replaces && (error as NodeJS.ErrnoException).code === 'ENOENT')
+        throw new Error("This lane's file is gone, so Brain cannot read it again.")
+      throw error
+    },
+  )
   check()
   store.enqueue(
     {
+      replaces,
       sessionPath: ref.sessionPath,
       title: ref.title,
       sessionId: lane.sessionId,
@@ -48,6 +59,22 @@ async function enqueue(ref: BrainLaneRef, { store, options, queue }: ApiContext)
     },
     options.lanes.busy(ref.sessionPath) ? 'waiting' : 'queued',
   )
+}
+async function reread(id: string, context: ApiContext): Promise<void> {
+  const { store } = context
+  const previous = store.job(id)
+  if (previous?.state !== 'done') throw new Error('Only finished Brain reads can be read again.')
+  if (
+    store
+      .snapshot()
+      .jobs.some(
+        (j) =>
+          j.sessionId === previous.sessionId &&
+          ['waiting', 'queued', 'running', 'review'].includes(j.state),
+      )
+  )
+    throw new Error('This lane is already queued.')
+  await enqueue(previous, context, id)
 }
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
@@ -71,6 +98,13 @@ export function createApi(context: ApiContext): BrainApi {
   }
   return {
     status: async () => status(),
+    history: async (limit) => store.history(limit),
+    reread: async (id) => {
+      await reread(id, context)
+      changed()
+      queue.kick()
+      return status()
+    },
     ...modelApi(context, status),
     queue: async (ref) => {
       await enqueue(ref, context)

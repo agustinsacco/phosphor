@@ -134,3 +134,11 @@ it.each([
   ).rejects.toThrow('Invalid Brain reader model')
   expect(api.setPrefs).not.toHaveBeenCalled()
 })
+it('registers history/reread and refuses invalid limits before calling the service', async () => {
+  expect(handlers.has('brain:history')).toBe(true)
+  expect(handlers.has('brain:reread')).toBe(true)
+  for (const limit of [0, -1, 201, 1.5, NaN, Infinity, '10', null])
+    await expect(call('brain:history', limit)).rejects.toThrow('Invalid Brain history limit.')
+  for (const job of ['', null, 'x'.repeat(201)])
+    await expect(call('brain:reread', job)).rejects.toThrow('Invalid Brain request.')
+})

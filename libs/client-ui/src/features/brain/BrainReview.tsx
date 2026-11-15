@@ -105,11 +105,20 @@ function ReviewProposal({
       <h2 className="text-xl font-semibold">{proposal.job.title}</h2>
       {error && <p role="alert">{error}</p>}
       <p className="text-text-tertiary text-sm">Nothing is searchable until you approve it.</p>
+      {proposal.job.replaces && (
+        <p className="text-text-secondary text-sm">
+          Approving replaces the {proposal.replacingMemories} memories from the earlier read of this
+          lane.
+        </p>
+      )}
       {proposal.held > 0 && <p>{proposal.held} held back · inspect the extraction for reasons</p>}
       <div className="flex gap-2">
         <Button
           variant="primary"
-          disabled={saving || (!keep.length && !confirmationsOnly && !groups.length)}
+          disabled={
+            saving ||
+            (!proposal.job.replaces && !keep.length && !confirmationsOnly && !groups.length)
+          }
           onClick={() => {
             void review(buildReviewDecision(keep, identities, groups))
           }}

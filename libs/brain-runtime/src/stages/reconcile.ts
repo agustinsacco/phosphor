@@ -91,8 +91,9 @@ export async function reconcile(
   search: BrainSearchPort,
   vectors: Float32Array[],
   ask: StageAsk,
+  excluded: string[] = [],
 ): Promise<Proposal['confirmations']> {
-  const rows = await candidateRows(job, entities, store, search, vectors)
+  const rows = await candidateRows(job, entities, store, search, vectors, excluded)
   const confirmations: Proposal['confirmations'] = [],
     removed = new Set<string>(),
     pending: Row[] = []
@@ -180,6 +181,7 @@ async function candidateRows(
   store: BrainStore,
   search: BrainSearchPort,
   vectors: Float32Array[],
+  excluded: string[],
 ): Promise<Row[]> {
   const normalized = job.claims.map((c) => resolvedMemory(c.memory, entities))
   const matches = store.memoryMatches(
@@ -202,6 +204,7 @@ async function candidateRows(
           ...semantic.flatMap((m) => m.filter((v) => v.score >= 0.7).map((v) => v.id)),
         ]),
       ])
+      .filter((m) => !excluded.includes(m.id))
       .map((m) => [m.id, card(m)]),
   )
   return job.claims.map((claim, index): Row => {

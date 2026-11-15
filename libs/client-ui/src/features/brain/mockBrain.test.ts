@@ -196,3 +196,52 @@ it('carries and freezes the selected reader model in browser mock jobs', async (
     thinking: 'medium',
   })
 })
+it('keeps finished reads in history and replaces the mocked lane only on approval', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  now = 6000
+  await call('brain:review', [
+    'harbor-demo-review',
+    { memories: [0], identities: {}, groups: [] },
+    0,
+  ])
+  const history = await call('brain:history', [20]).catch(String)
+  expect(history).toMatchObject({ items: [{ job: { id: 'harbor-demo-review' } }], more: false })
+  const queued = (await call('brain:reread', ['harbor-demo-review'])) as BrainStatus
+  expect(queued.jobs.at(-1)?.replaces).toBe('harbor-demo-review')
+  const count = queued.counts.memories
+  await call('brain:status', [])
+  now += 4000
+  const id = queued.jobs.at(-1)!.id
+  const proposal = (await call('brain:proposal', [id])) as BrainProposalView
+  expect(proposal.replacingMemories).toBe(count)
+  const saved = (await call('brain:review', [
+    id,
+    { memories: [0], identities: {}, groups: [] },
+    proposal.revision,
+  ])) as BrainStatus
+  expect(saved.counts.memories).toBe(1)
+  expect(await call('brain:history', [20])).toMatchObject({ items: [{ job: { id }, memories: 1 }] })
+})
+
+it('marks forgotten links removed in a finished mocked extraction', async () => {
+  const call = createMockBrain()
+  await call('brain:review', [
+    'harbor-demo-review',
+    { memories: [0], identities: {}, groups: [] },
+    0,
+  ])
+  const view = (await call('brain:extraction', [
+    'harbor-demo-review',
+  ])) as import('@shared/brain').BrainExtractionView
+  await call('brain:forget', [view.memories[0]!.id])
+  expect(await call('brain:extraction', ['harbor-demo-review'])).toMatchObject({
+    outcomes: [expect.anything(), expect.anything()],
+    job: { state: 'done' },
+  })
+  const after = (await call('brain:extraction', [
+    'harbor-demo-review',
+  ])) as import('@shared/brain').BrainExtractionView
+  expect(after.outcomes[0]).toMatchObject({ memoryId: view.memories[0]!.id, removed: true })
+})

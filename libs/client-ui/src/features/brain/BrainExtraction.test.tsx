@@ -15,6 +15,9 @@ afterEach(() => vi.unstubAllGlobals())
 function extractionView(): BrainExtractionView {
   const job = mockBrainJob()
   return {
+    job,
+    replaceable: 0,
+    laneMemories: 0,
     jobId: job.id,
     sessionId: job.sessionId,
     sessionPath: job.sessionPath,
@@ -145,4 +148,34 @@ it('omits part counts for a single-part stage', () => {
         0,
       ),
     ).toBe('Reading the conversation')
+})
+
+it('renders forgotten outcomes as removed, and offers Read again in a finished read header', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const data = extractionView()
+  data.job = mockBrainJob({ state: 'done' })
+  data.laneMemories = 2
+  data.replaceable = 2
+  data.memories = []
+  data.outcomes[1]!.removed = true
+  const fake = createFakePhosphor({ 'brain:extraction': async () => data })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () =>
+      root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} onBack={() => {}} />),
+    )
+    expect(container.textContent).toContain('removed')
+    expect(
+      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Harbor decision'),
+    ).toBe(false)
+    expect(
+      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Read again'),
+    ).toBe(true)
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
 })

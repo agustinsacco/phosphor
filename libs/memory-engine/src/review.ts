@@ -10,7 +10,9 @@ import {
 } from './entities'
 import { applyMemory, activeMemoryNumber, insertCitations, type CommitContext } from './commit'
 import { linkOutcome, pruneExtractions } from './extractions'
-import { updateJob } from './jobs'
+import { job, removeJob, updateJob } from './jobs'
+import { laneMemories } from './history'
+import { forgetMemory } from './merge'
 import { bumpRevision, revision } from './prefs'
 import { readProposal } from './proposals'
 import type { Proposal, ProposalMemory } from './types'
@@ -111,6 +113,11 @@ export function review(
     const value = readProposal(ctx, jobId)
     if (expectedRevision !== revision(ctx) || value.computedRevision !== revision(ctx))
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
+    const current = job(ctx, jobId)!
+    if (!decision && current.replaces) {
+      removeJob(ctx, jobId)
+      return
+    }
     if (decision) validateDecision(ctx, value, decision)
     const touched = new Set<number>()
     if (decision) {
@@ -143,6 +150,9 @@ export function review(
           if (target !== undefined) insertCitations(commit, target, confirmation.claim.citations)
         }
       }
+      if (current.replaces)
+        for (const id of laneMemories(ctx, current.sessionId, jobId).replaceable)
+          forgetMemory(ctx, id)
       cleanOrphans(ctx, touched)
       recountEntities(ctx, touched)
       if (decision.memories.length || decision.groups.length || value.confirmations.length)

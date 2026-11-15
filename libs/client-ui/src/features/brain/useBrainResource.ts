@@ -6,6 +6,7 @@ import { brainToast, useBrain } from './useBrain'
 export function useBrainResource<T>(
   load: () => Promise<T>,
   enabled = true,
+  reloadKey?: string,
 ): {
   data: T | null
   error: string
@@ -35,6 +36,6 @@ export function useBrainResource<T>(
     return () => {
       alive = false
     }
-  }, [load, currentRevision, currentGeneration, attempt, enabled])
+  }, [load, currentRevision, currentGeneration, attempt, enabled, reloadKey])
   return { data, error, retry: () => setAttempt((value) => value + 1) }
 }

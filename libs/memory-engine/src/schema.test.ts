@@ -36,7 +36,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
         expect(store.snapshot().generation).toBeTruthy()
         store.close()
         const db = new DatabaseSync(path)
-        expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 4 })
+        expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 5 })
         expect(db.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
         expect(
           db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'memory_fts%'").all(),

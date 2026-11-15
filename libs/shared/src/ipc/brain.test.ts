@@ -5,6 +5,7 @@ import type {
   BrainExtractionView,
   BrainFindResult,
   BrainGraph,
+  BrainHistory,
   BrainLaneRef,
   BrainMemoryDetail,
   BrainMemoryFilter,
@@ -21,6 +22,8 @@ import type { BrainInvokeMap } from './brain'
 
 /** UI commands. Authority comes from the Desktop handler, never this DTO. */
 export interface BaselineBrainInvokeMap {
+  'brain:history': { args: [limit: number]; result: BrainHistory }
+  'brain:reread': { args: [jobId: string]; result: BrainStatus }
   'brain:status': { args: []; result: BrainStatus }
   /** Saves at once. Enabling downloads the model if it is missing; disabling keeps it. */
   'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }

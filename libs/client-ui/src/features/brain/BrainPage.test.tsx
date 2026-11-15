@@ -2,13 +2,19 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { BrainStatus, BrainProposalView, BrainReviewDecision } from '@shared/brain'
+import type {
+  BrainStatus,
+  BrainProposalView,
+  BrainReviewDecision,
+  BrainHistory,
+} from '@shared/brain'
 import {
   createFakePhosphor,
   installFakePhosphor,
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { PromptHost } from '@/components/PromptHost'
 import { BrainPage } from './BrainPage'
 import { mockBrainJob, mockBrainProposal, mockBrainStatus } from './mockBrainData'
 import { MockExplorer } from './mockExplorer'
@@ -25,6 +31,8 @@ const review =
   vi.fn<
     (id: string, decision: BrainReviewDecision | null, revision: number) => Promise<BrainStatus>
   >()
+const history = vi.fn<() => Promise<BrainHistory>>()
+const reread = vi.fn<() => Promise<BrainStatus>>()
 const proposalRead = vi.fn<() => Promise<BrainProposalView>>()
 const find = vi.fn<MockExplorer['find']>()
 const entity = vi.fn<MockExplorer['entity']>()
@@ -39,6 +47,8 @@ beforeEach(() => {
     prefs: { enabled: true, recall: true, review: true, model: null },
   }
   proposal = mockBrainProposal()
+  history.mockReset().mockResolvedValue({ items: [], more: false })
+  reread.mockReset().mockImplementation(async () => status)
   explorer = new MockExplorer()
   proposalRead.mockReset().mockImplementation(async () => proposal)
   review.mockReset().mockImplementation(async () => {
@@ -51,6 +61,8 @@ beforeEach(() => {
   neighbourhood.mockReset().mockImplementation((id, hops) => explorer.graph(id, hops))
   fake = createFakePhosphor({
     'brain:status': () => status,
+    'brain:history': history,
+    'brain:reread': reread,
     'brain:overview': () => overview(null),
     'brain:neighbourhood': (id, hops) => neighbourhood(id, hops),
     'brain:find': find,
@@ -89,7 +101,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 const render = async (): Promise<void> => {
-  await act(async () => root.render(<BrainPage />))
+  await act(async () =>
+    root.render(
+      <>
+        <BrainPage />
+        <PromptHost />
+      </>,
+    ),
+  )
 }
 async function click(text: string): Promise<void> {
   const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -480,4 +499,63 @@ it('refreshes status after a stale proposal load and recovers automatically when
   expect(proposalRead).toHaveBeenCalledTimes(2)
   expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
   expect(container.textContent).not.toContain('Brain changed; refreshing this review')
+})
+
+it('loads muted read-lane history, recovers its first failure, reloads with inbox and revision, and confirms reread', async () => {
+  const job = mockBrainJob({ state: 'done' })
+  history.mockRejectedValueOnce(new Error('History unavailable')).mockResolvedValue({
+    items: [{ job, memories: 3, replaceable: 2 }],
+    more: false,
+  })
+  await render()
+  expect(container.textContent).toContain('History unavailable')
+  await click('Retry')
+  const rows = container.querySelector('[aria-label="Read lanes"]')!
+  expect(rows.textContent).toContain('Harbor planning')
+  expect(rows.textContent).toContain('demo/harbor-model')
+  expect(rows.textContent).toContain('3 memories')
+  expect(rows.querySelector('article')?.className).toContain('text-text-tertiary')
+  await click('Read again')
+  const dialog = document.querySelector('[role="dialog"]')!
+  expect(dialog.textContent).toContain('Read “Harbor planning” again?')
+  expect(dialog.textContent).toContain(
+    'The 2 memories from the earlier read stay until you approve',
+  )
+  expect(dialog.textContent).toContain('1 memories that another lane also supports are kept.')
+  const confirm = [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) => b.textContent === 'Read again',
+  )!
+  await act(async () => confirm.click())
+  expect(reread).toHaveBeenCalledWith(job.id)
+  await act(async () => useBrain.setState({ status: { ...status, revision: 2 } }))
+  expect(history).toHaveBeenCalledTimes(3)
+  await act(async () =>
+    useBrain.setState({
+      status: {
+        ...status,
+        revision: 2,
+        jobs: [mockBrainJob({ state: 'queued', replaces: job.id })],
+      },
+    }),
+  )
+  expect(history).toHaveBeenCalledTimes(4)
+  expect(container.textContent).toContain('Reading again')
+})
+it('shows the replacement count only on a reread review and permits approving no new memories', async () => {
+  status.jobs = [mockBrainJob({ replaces: 'earlier' })]
+  proposal.job = status.jobs[0]!
+  proposal.replacingMemories = 2
+  await render()
+  await click('Review')
+  expect(container.textContent).toContain(
+    'Approving replaces the 2 memories from the earlier read of this lane.',
+  )
+  proposal.confirmations = []
+  await click('Select no memories')
+  const button = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === 'Approve 0',
+  )!
+  expect(button.disabled).toBe(false)
+  await click('Approve 0')
+  expect(review.mock.calls[0]![1]?.memories).toEqual([])
 })

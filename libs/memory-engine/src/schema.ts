@@ -4,8 +4,15 @@ import { prefs, setPrefs } from './prefs'
 export function initialize(ctx: Context): void {
   ctx.db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL')
   const version = one<{ user_version: number }>(ctx, 'PRAGMA user_version')!.user_version
-  if (version > 4) throw new Error('This Brain database requires a newer application.')
-  if (version !== 4) reset(ctx)
+  if (version > 5) throw new Error('This Brain database requires a newer application.')
+  if (version === 4) {
+    transaction(ctx, () => {
+      ctx.db.exec('ALTER TABLE jobs ADD COLUMN replaces TEXT')
+      ctx.db.exec('CREATE INDEX memories_origin ON memories(origin_session)')
+      ctx.db.exec('CREATE INDEX jobs_finished ON jobs(state, finished_at DESC)')
+      ctx.db.exec('PRAGMA user_version = 5')
+    })
+  } else if (version !== 5) reset(ctx)
 }
 export function reset(ctx: Context): void {
   const hasMeta = one(ctx, "SELECT 1 FROM sqlite_master WHERE name='meta'")
@@ -68,6 +75,7 @@ CREATE TABLE memories(n INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE, summary TE
   origin_session TEXT, origin_title TEXT, job_id TEXT);
 CREATE INDEX memories_recent ON memories(state, observed_at DESC);
 CREATE INDEX memories_job ON memories(job_id);
+CREATE INDEX memories_origin ON memories(origin_session);
 CREATE TABLE mentions(memory INTEGER NOT NULL REFERENCES memories(n) ON DELETE CASCADE,
   entity INTEGER NOT NULL REFERENCES entities(n), PRIMARY KEY(memory, entity)) WITHOUT ROWID;
 CREATE INDEX mentions_entity ON mentions(entity, memory);
@@ -103,8 +111,9 @@ CREATE TRIGGER memory_bits_delete AFTER DELETE ON memory_bits BEGIN UPDATE meta 
 CREATE TABLE jobs(id TEXT PRIMARY KEY, session_id TEXT NOT NULL, session_path TEXT NOT NULL, title TEXT NOT NULL,
   scope TEXT NOT NULL, branch TEXT, model TEXT NOT NULL, state TEXT NOT NULL, memories INTEGER NOT NULL,
   leaf_id TEXT, error TEXT, queued_at INTEGER NOT NULL, started_at INTEGER, finished_at INTEGER, usage TEXT,
-  extractor INTEGER NOT NULL, progress TEXT, computed_revision INTEGER);
+  extractor INTEGER NOT NULL, progress TEXT, computed_revision INTEGER, replaces TEXT);
 CREATE INDEX jobs_session ON jobs(session_id, state);
+CREATE INDEX jobs_finished ON jobs(state, finished_at DESC);
 CREATE TABLE job_parts(job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE, part TEXT NOT NULL,
   input_hash TEXT NOT NULL, state TEXT NOT NULL, output TEXT, PRIMARY KEY(job_id, part, input_hash)) WITHOUT ROWID;
 CREATE TABLE proposals(job_id TEXT PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE, payload TEXT NOT NULL);
@@ -113,5 +122,5 @@ CREATE TABLE proposal_vectors(job_id TEXT NOT NULL REFERENCES proposals(job_id) 
 CREATE TABLE extractions(job_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, session_path TEXT NOT NULL, title TEXT NOT NULL,
   leaf_id TEXT, model TEXT NOT NULL, thinking TEXT NOT NULL, calls TEXT NOT NULL, outcomes TEXT NOT NULL, error TEXT,
   started_at INTEGER NOT NULL, finished_at INTEGER NOT NULL);
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 `

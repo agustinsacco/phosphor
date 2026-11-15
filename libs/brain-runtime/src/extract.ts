@@ -124,6 +124,9 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
     search,
     vectors.map((v) => new Float32Array(v)),
     ask,
+    context.job.replaces
+      ? store.laneMemories(context.job.sessionId, context.job.id).replaceable
+      : [],
   )
   progress('reconcile', 1, 1)
   recordClaims(context.record, folded)

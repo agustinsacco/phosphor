@@ -199,9 +199,11 @@ export interface BrainQuote {
 }
 
 export type BrainJobStage = 'prepare' | 'extract' | 'identity' | 'reconcile' | 'embed'
-/** Queue entry for one lane. `done` entries stay only to refuse re-queuing an unchanged lane. */
+/** Queue entry for one lane. The latest `done` entry is its read history. */
 export interface BrainJob {
   id: string
+  /** Earlier finished read; replacement happens only when the new result is approved. */
+  replaces: string | null
   sessionId: string
   sessionPath: string
   title: string
@@ -222,6 +224,10 @@ export interface BrainJob {
   usage: { tokens: number; cost: number } | null
   /** Where a running job is: `done` of `total` steps in `stage`. */
   progress: { stage: BrainJobStage; done: number; total: number } | null
+}
+export interface BrainHistory {
+  items: { job: BrainJob; memories: number; replaceable: number }[]
+  more: boolean
 }
 export interface BrainEmbeddingStatus {
   phase: 'missing' | 'downloading' | 'verifying' | 'testing' | 'ready' | 'error' | 'unsupported'

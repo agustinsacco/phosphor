@@ -38,6 +38,7 @@ export function BrainInbox({
           <div className="min-w-0 flex-1">
             <h3 className="truncate font-medium">{job.title}</h3>
             <p className="text-text-tertiary mt-1 text-sm">
+              {job.replaces && 'Reading again · '}
               {jobLine(
                 job,
                 jobs.slice(0, index).filter((j) => j.state === 'queued' || j.state === 'running')

@@ -982,6 +982,7 @@ export function installMockPhosphor(): void {
 
     invoke: (channel: string, ...args: unknown[]) => {
       // All v4 Brain channels use the bounded, invented Explorer and review fixtures.
+      // Includes read history and reread; Brain remains local-only in the real web bridge.
       if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
       if (channel.startsWith('routines:')) return mockLocalRoutineCall(channel, args)
       if (MACHINE_SETTINGS_MOCK.has(channel))

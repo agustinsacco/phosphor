@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { launch, shutdown } from './fixtures/local-app'
+import type { BrainLane } from './fixtures/brain-lanes'
 import { seedBrainLanes } from './fixtures/brain-lanes'
 import {
   approveLane,
@@ -64,6 +65,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     await expect(
       page.getByText('Nothing new in this lane since its last extraction.'),
     ).toBeVisible()
+    await rereadHarbor(page, seed.harbor, firstJob)
     await resetBrain(page)
     for (const lane of [seed.harbor, seed.ledger])
       expect(await readFile(lane.source, 'utf8')).toBe(lane.original)
@@ -122,6 +124,46 @@ async function directedGraph(page: Page, firstJob: string) {
   return harbor
 }
 
+async function rereadHarbor(page: Page, lane: BrainLane, earlier: string): Promise<void> {
+  const history = page.getByRole('region', { name: 'Read lanes', exact: true })
+  const row = history.getByRole('article').filter({ hasText: lane.title })
+  await expect(row).toContainText('2 memories')
+  await row.getByRole('button', { name: 'Read again', exact: true }).click()
+  const confirm = page.getByRole('dialog', { name: `Read “${lane.title}” again?` })
+  await expect(confirm).toContainText('The 2 memories from the earlier read stay until you approve')
+  await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await row.getByRole('button').first().click()
+  const detail = page.getByRole('region', { name: 'Extraction detail', exact: true })
+  await expect(detail).toBeVisible()
+  const old = await page.evaluate((id) => window.phosphor.invoke('brain:extraction', id), earlier)
+  expect(old.prompts.every((p) => !p.startsWith('Prompt not available'))).toBe(true)
+  await detail.getByRole('button', { name: 'Read again', exact: true }).click()
+  await confirm.getByRole('button', { name: 'Read again', exact: true }).click()
+  await expect(inbox(page, lane)).toContainText('Reading again')
+  for (const memory of old.memories)
+    expect(
+      await page.evaluate((id) => window.phosphor.invoke('brain:memory', id), memory.id),
+    ).toHaveProperty('memory.id', memory.id)
+  const next = await approveLane(page, lane)
+  expect(next).not.toBe(earlier)
+  await expect(row).toContainText('2 memories')
+  const fresh = await page.evaluate((id) => window.phosphor.invoke('brain:extraction', id), next)
+  expect(fresh.memories).toHaveLength(2)
+  for (const memory of old.memories) {
+    expect(fresh.memories.map((m) => m.id)).not.toContain(memory.id)
+    expect(
+      await page.evaluate(
+        (id) => window.phosphor.invoke('brain:memory', id).catch(String),
+        memory.id,
+      ),
+    ).toContain('Brain memory not found')
+  }
+  expect(
+    (await page.evaluate(() => window.phosphor.invoke('brain:history', 20))).items
+      .filter((i) => i.job.sessionId === old.sessionId)
+      .map((i) => i.job.id),
+  ).toEqual([next])
+}
 test('Brain reads a queued lane with the reader selected in Settings', async () => {
   const seed = await seedBrainLanes()
   const argvLog = join(seed.workspace, 'brain-argv.jsonl')
