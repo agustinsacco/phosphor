@@ -1,5 +1,5 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { vi } from 'vitest'
 import type { HostCapability } from '@shared/remote-host'
 import type { HostConnectionView } from '@shared/ipc'
@@ -11,7 +11,7 @@ import { useFilesStore } from '@/stores/files'
 import { usePromptStore } from '@/stores/prompt'
 import { COMPACT_PLATFORM, PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { RightPane } from '../RightPane'
-import { ReadOnlyFilesPane } from '../ReadOnlyFilesPane'
+import { LaneFilesPane } from '../LaneFilesPane'
 
 /**
  * Host-lane Files at the pane boundary: the lane's right pane, driven by what a user does.
@@ -158,27 +158,11 @@ export async function renderLaneFiles({
   document.body.append(container)
   const root = createRoot(container)
   const shown = { lane: 'a' as LaneName | null, activate: !inactive }
-  const show = async (lane: LaneName | null): Promise<void> => {
+  const show = (lane: LaneName | null) => {
     shown.lane = lane
-    // The browser shows one lane at a time, and the lane it shows is the active one.
-    if (client !== 'desktop')
-      useSessionsStore.setState({
-        activeSessionId: !shown.activate ? 'previous-lane' : lane ? lanes[lane].sessionId : null,
-      })
+    const activate = shown.activate
     shown.activate = true
-    await act(async () =>
-      root.render(
-        !lane ? (
-          <div>No lane</div>
-        ) : client === 'desktop' ? (
-          <RightPane workspacePath={lanes[lane].workspacePath} sessionId={lanes[lane].sessionId} />
-        ) : (
-          <PlatformProvider value={BROWSER_PLATFORMS[client]}>
-            <ReadOnlyFilesPane sessionId={lanes[lane].sessionId} />
-          </PlatformProvider>
-        ),
-      ),
-    )
+    return showLane(root, client, lane, activate)
   }
   await show('a')
   return {
@@ -207,6 +191,36 @@ export async function renderLaneFiles({
     },
     ...(client === 'phone' ? phoneActions(container) : paneActions(container)),
   }
+}
+
+/** Render `lane`'s Files as `client` shows it; the browser activates it unless told not to. */
+async function showLane(
+  root: Root,
+  client: FilesClient,
+  lane: LaneName | null,
+  activate: boolean,
+): Promise<void> {
+  // The browser shows one lane at a time, and the lane it shows is the active one.
+  if (client !== 'desktop')
+    useSessionsStore.setState({
+      activeSessionId: !activate ? 'previous-lane' : lane ? lanes[lane].sessionId : null,
+    })
+  await act(async () =>
+    root.render(
+      !lane ? (
+        <div>No lane</div>
+      ) : client === 'desktop' ? (
+        <RightPane workspacePath={lanes[lane].workspacePath} sessionId={lanes[lane].sessionId} />
+      ) : (
+        <PlatformProvider value={BROWSER_PLATFORMS[client]}>
+          <LaneFilesPane
+            workspacePath={lanes[lane].workspacePath}
+            sessionId={lanes[lane].sessionId}
+          />
+        </PlatformProvider>
+      ),
+    ),
+  )
 }
 
 /** What a user does inside the pane: the tree, the editor and its save. */
@@ -238,6 +252,10 @@ function paneActions(container: HTMLElement) {
     text: (): string => container.textContent ?? '',
     files: (): string[] => rows().map((r) => r.textContent ?? ''),
     clickTreeRow,
+    /** A phone's Back to the tree; beside the tree there is none. */
+    back: async (_answer?: 'save' | 'discard'): Promise<void> => {
+      throw new Error('The tree is beside the file: there is no Back')
+    },
     /** Types into the file's editor; false when the editor refuses input (read only). */
     edit: async (path: string, text: string): Promise<boolean> => {
       const target = await showEditor(path)

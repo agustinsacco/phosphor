@@ -3,7 +3,7 @@ import { memo, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { useFilesStore, workspaceFiles, type OpenFile } from '@/stores/files'
 import { isTextPreview, previewKindForPath } from '@shared/file-kinds'
-import { MonacoEditor } from './MonacoEditor'
+import { ActiveEditor } from './ActiveEditor'
 import { FileFallback, FileViewer } from './FileViewer'
 import { showContextMenu } from '@/components/ContextMenu'
 import {
@@ -21,8 +21,11 @@ import { downloadEntry } from './download'
 
 export const EditorPane = memo(function EditorPane({
   source,
+  back = null,
 }: {
   source: FilesSource
+  /** A phone's way back to the tree: it shows the one active file under it, without tabs. */
+  back?: React.ReactNode
 }): React.JSX.Element {
   const { workspacePath } = source
   const openFiles = useFilesStore((s) => workspaceFiles(s, workspacePath).openFiles)
@@ -44,6 +47,8 @@ export const EditorPane = memo(function EditorPane({
       </div>
     )
   }
+
+  if (back && active) return <SingleFile file={active} source={source} back={back} />
 
   return (
     <div className="flex h-full flex-col">
@@ -80,15 +85,47 @@ export const EditorPane = memo(function EditorPane({
           </TooltipButton>
         </div>
       )}
-      {active?.saveUncertain ? (
-        <UncertainSaveBar file={active} workspacePath={workspacePath} />
-      ) : (
-        active?.diskConflict && <ConflictBar file={active} workspacePath={workspacePath} />
-      )}
+      {active && <SaveBars file={active} workspacePath={workspacePath} />}
       <div className="min-h-0 flex-1">{active && <ActiveView file={active} source={source} />}</div>
     </div>
   )
 })
+
+/** A phone's file screen: Back to the tree, the file's path, and the file. */
+function SingleFile({
+  file,
+  source,
+  back,
+}: {
+  file: OpenFile
+  source: FilesSource
+  back: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-border flex shrink-0 items-center gap-2 border-b px-2 py-1">
+        {back}
+        <span
+          aria-label="Current file path"
+          data-tooltip={file.path}
+          className="text-text-secondary min-w-0 flex-1 truncate text-sm"
+        >
+          {file.relativePath}
+        </span>
+        {file.dirty && (
+          <span
+            aria-label="Unsaved edits"
+            className="bg-accent h-1.5 w-1.5 shrink-0 rounded-full"
+          />
+        )}
+      </div>
+      <SaveBars file={file} workspacePath={source.workspacePath} />
+      <div className="min-h-0 flex-1">
+        <ActiveView file={file} source={source} />
+      </div>
+    </div>
+  )
+}
 
 /**
  * A previewable file gets its viewer (HTML/SVG keep their source one click
@@ -124,28 +161,6 @@ function ActiveView({ file, source }: { file: OpenFile; source: FilesSource }): 
       source={text}
       onDownload={onDownload}
       sessionId={source.sessionId}
-    />
-  )
-}
-
-function ActiveEditor({
-  file,
-  workspacePath,
-  readOnly,
-}: {
-  file: OpenFile
-  workspacePath: string
-  readOnly: boolean
-}): React.JSX.Element {
-  return (
-    <MonacoEditor
-      path={file.path}
-      language={file.language}
-      value={file.content}
-      readOnly={readOnly}
-      reveal={file.pendingReveal}
-      onChange={(value) => useFilesStore.getState().updateBuffer(workspacePath, file.path, value)}
-      onSave={() => runFileAction(useFilesStore.getState().saveFile(workspacePath, file.path))}
     />
   )
 }
@@ -291,6 +306,12 @@ function Tab({
       </TooltipButton>
     </div>
   )
+}
+
+/** A save that may have landed, or a file that changed under its edits, says so above the file. */
+function SaveBars({ file, workspacePath }: { file: OpenFile; workspacePath: string }) {
+  if (file.saveUncertain) return <UncertainSaveBar file={file} workspacePath={workspacePath} />
+  return file.diskConflict ? <ConflictBar file={file} workspacePath={workspacePath} /> : null
 }
 
 function ConflictBar({

@@ -338,6 +338,11 @@ html[data-form-factor='compact'] {
   -webkit-user-select: none;
   user-select: none;
 }
+/* A phone has no right-click: a file row's long-press is its menu, so the hint goes, and a
+   status line that held only the hint with it (FileExplorer's ExplorerStatus). */
+[data-form-factor='compact'] :is([data-pointer-hint], [data-hint-only]) {
+  display: none;
+}
 /* Stands in for the composer when this device is only reading the lane. */
 .compact-observer {
   display: flex;

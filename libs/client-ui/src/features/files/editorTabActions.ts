@@ -32,6 +32,20 @@ export async function closeEditorFiles(workspace: string, paths: string[]): Prom
   }
 }
 
+/**
+ * Close every open file, the active one first, pinned or not; each with edits asks first, and
+ * one kept open stops the rest.
+ */
+export async function closeAllEditorFiles(workspace: string): Promise<void> {
+  const open = () => workspaceFiles(useFilesStore.getState(), workspace)
+  for (;;) {
+    const { openFiles, activePath } = open()
+    const next = openFiles.find((f) => f.path === activePath) ?? openFiles[0]
+    if (!next || !(await closeEditorFile(workspace, next.path))) return
+    if (open().openFiles.some((f) => f.path === next.path)) return
+  }
+}
+
 export async function saveAllEditorFiles(workspace: string): Promise<void> {
   const files = workspaceFiles(useFilesStore.getState(), workspace).openFiles
   for (const file of files) await useFilesStore.getState().saveFile(workspace, file.path)

@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
-import { ReadOnlyFilesPane } from './ReadOnlyFilesPane'
+import { LaneChangesPane } from './LaneChangesPane'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo, mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
@@ -10,7 +10,7 @@ import { PlatformProvider, COMPACT_PLATFORM } from '@/platform/Platform'
 vi.mock('@/components/markdown/CodeBlock', () => ({
   CodeBlock: ({ code }: { code: string }) => <pre>{code}</pre>,
 }))
-it('reads real lane resources without file mutation, watcher, or editor requests', async () => {
+it('reads what git reports changed, then a file and its HEAD version, and writes nothing', async () => {
   const sessionId = mockRemoteInfo.sessionId
   useSessionsStore.setState({
     live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } },
@@ -26,9 +26,10 @@ it('reads real lane resources without file mutation, watcher, or editor requests
     },
   })
   const invoke = vi.fn(async (channel: string) => {
-    if (channel === 'fs:listFiles') return ['fixture.txt']
+    if (channel === 'git:statusMap') return { 'fixture.txt': ' M' }
     if (channel === 'fs:readFile')
       return { content: 'fixture content', binary: false, tooLarge: false }
+    if (channel === 'git:showFileAt') return 'fixture at HEAD'
     throw new Error(`Unexpected IPC ${channel}`)
   })
   vi.stubGlobal('phosphor', { invoke })
@@ -37,7 +38,7 @@ it('reads real lane resources without file mutation, watcher, or editor requests
   await act(async () =>
     root.render(
       <PlatformProvider value={COMPACT_PLATFORM}>
-        <ReadOnlyFilesPane sessionId={sessionId} />
+        <LaneChangesPane sessionId={sessionId} />
       </PlatformProvider>,
     ),
   )
@@ -46,9 +47,14 @@ it('reads real lane resources without file mutation, watcher, or editor requests
   )
   expect(row).toBeDefined()
   await act(async () => row?.click())
+  expect(container.textContent).toContain('fixture at HEAD')
   expect(container.textContent).toContain('fixture content')
   expect(container.querySelector('textarea')).toBeNull()
-  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['fs:listFiles', 'fs:readFile'])
+  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual([
+    'git:statusMap',
+    'fs:readFile',
+    'git:showFileAt',
+  ])
   await act(async () => root.unmount())
   useSessionsStore.setState({ live: {}, activeSessionId: null })
   useRemoteLanesStore.setState({ hosts: {} })
@@ -73,7 +79,7 @@ it('waits for its lane to become active before reading, then reads', async () =>
     },
   })
   const invoke = vi.fn(async (channel: string) => {
-    if (channel === 'fs:listFiles') return ['fixture.txt']
+    if (channel === 'git:statusMap') return { 'fixture.txt': ' M' }
     throw new Error(`Unexpected IPC ${channel}`)
   })
   vi.stubGlobal('phosphor', { invoke })
@@ -82,14 +88,14 @@ it('waits for its lane to become active before reading, then reads', async () =>
   await act(async () =>
     root.render(
       <PlatformProvider value={COMPACT_PLATFORM}>
-        <ReadOnlyFilesPane sessionId={sessionId} />
+        <LaneChangesPane sessionId={sessionId} />
       </PlatformProvider>,
     ),
   )
   expect(invoke).not.toHaveBeenCalled()
   expect(container.textContent).not.toContain('Could not read files.')
   await act(async () => useSessionsStore.setState({ activeSessionId: sessionId }))
-  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['fs:listFiles'])
+  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['git:statusMap'])
   expect(container.textContent).toContain('fixture.txt')
   await act(async () => root.unmount())
   useSessionsStore.setState({ live: {}, activeSessionId: null })
