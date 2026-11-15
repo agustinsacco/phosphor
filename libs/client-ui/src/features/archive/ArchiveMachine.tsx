@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useArchiveMutation } from './useArchiveMutation'
 import { TooltipButton } from '@/components/Tooltip'
-import { useArchiveInventory, loadArchives, archivesChanged } from '@/stores/archives'
+import { useArchiveInventory, loadArchives } from '@/stores/archives'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
 import {
   ARCHIVE_WARNING_BYTES,
   type LaneArchiveEntry,
@@ -23,35 +22,10 @@ export function ArchiveMachine({ machine }: { machine: string }): React.JSX.Elem
       (host?.capabilities.includes('sessions.control') &&
         host.capabilities.includes('workspaces.write')))
   const view = useArchiveInventory(machine, available)
-  const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [purging, setPurging] = useState<LaneArchiveEntry | null>(null)
-  const mutate = async (entry: LaneArchiveEntry, purge: boolean, removeWorktree = false) => {
-    if (!writable || busy) return
-    setBusy(entry.id)
-    setError(null)
-    try {
-      if (purge) {
-        if (machine === 'local')
-          await window.phosphor.invoke('sessions:purgeArchive', entry.id, removeWorktree)
-        else await window.phosphor.invoke('hosts:purgeArchive', machine, entry.id, removeWorktree)
-      } else if (machine === 'local') {
-        const restored = await window.phosphor.invoke('sessions:restoreArchive', entry.id)
-        await useSessionsStore.getState().refreshDisk(restored.cwd)
-        if (!restored.path) await useSessionsStore.getState().createSession(restored.cwd)
-      } else await window.phosphor.invoke('hosts:restoreArchive', machine, entry.id)
-      setPurging(null)
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : 'Operation failed. Nothing else will be cleaned up.',
-      )
-    } finally {
-      setBusy(null)
-      archivesChanged(machine)
-    }
-  }
+  const { busy, error, purging, setError, setPurging, mutate } = useArchiveMutation(
+    machine,
+    writable,
+  )
   return (
     <section className="border-border space-y-3 rounded-lg border p-4">
       <div className="flex items-center justify-between gap-3">

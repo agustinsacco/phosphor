@@ -18,6 +18,12 @@ export interface LaneArchiveList {
   measuring: boolean
   truncated: boolean
 }
+export interface LocalArchiveRestore {
+  cwd: string
+  path?: string
+  draftKey?: string
+  restoredDraftKey?: string
+}
 export type LaneArchiveOp =
   | { type: 'lane.archive'; laneId: string }
   | { type: 'archive.restore'; archiveId: string }

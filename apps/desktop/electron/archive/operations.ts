@@ -1,4 +1,5 @@
 import { stat } from 'node:fs/promises'
+import type { LocalArchiveRestore } from '@shared/lane-archive'
 import { archiveIdFor, type ArchiveRecord } from '@phosphor/session-runtime/lane-archive/storage'
 import {
   assertArchivedWorktree,
@@ -9,7 +10,7 @@ import {
 import { gitInfo } from '@phosphor/session-runtime/git/git-info'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { registry } from '../registry'
-import { clearDraft } from '../store'
+import { clearDraft, getPrefs, setDrafts } from '../store'
 import { deleteDraftBlobs } from '../drafts-blobs'
 import { createLaneRemoval } from '../pi/delete-lane'
 import { sessionPaths } from '../pi/session-path-lock'
@@ -45,6 +46,7 @@ export async function archiveLocalLane(
           cwd,
           title: meta?.name || meta?.firstUserText?.slice(0, 160) || 'Untitled lane',
           ...(info && file ? { transcript: file } : {}),
+          metadata: { draftKey: `session:${file ?? path ?? sessionId}` },
           worktree: git.isWorktree === true,
           ...(git.mainRepoPath ? { repository: git.mainRepoPath } : {}),
         })
@@ -82,15 +84,46 @@ async function withArchive<T>(id: string, run: (record: ArchiveRecord) => Promis
   })
 }
 
-export function restoreLocalArchive(id: string): Promise<{ cwd: string; path?: string }> {
+export function restoreLocalArchive(
+  id: string,
+  restoredSessionId?: string,
+): Promise<LocalArchiveRestore> {
   return withArchive(id, async (record) => {
     const { storage, inventory } = localArchives()
     await stat(record.cwd) // No silent recreation or replacement of a missing checkout.
-    await storage.restore(id)
-    await storage.finish(id)
+    const draftKey =
+      typeof record.metadata?.draftKey === 'string' ? record.metadata.draftKey : undefined
+    let restoredDraftKey: string | undefined
+    if (restoredSessionId !== undefined) {
+      const live = registry.get(restoredSessionId)
+      if (
+        record.transcript ||
+        record.state !== 'restoring' ||
+        !live ||
+        sessionPathKey(live.workspacePath) !== sessionPathKey(record.cwd)
+      )
+        throw new Error('The replacement session is unavailable. Retry restoring this archive.')
+      restoredDraftKey = `session:${live.client.sessionFile ?? restoredSessionId}`
+      const drafts = { ...getPrefs().drafts }
+      if (draftKey && drafts[draftKey] && draftKey !== restoredDraftKey) {
+        if (drafts[restoredDraftKey]?.text.trim() || drafts[restoredDraftKey]?.attachments.length)
+          throw new Error('The replacement session already has a draft. The archive was kept.')
+        drafts[restoredDraftKey] = { ...drafts[draftKey], key: restoredDraftKey }
+        delete drafts[draftKey]
+        setDrafts(drafts) // Move references atomically; never unlink shared image blobs.
+      }
+    } else await storage.restore(id)
+    // A never-sent lane has no discoverable transcript. Keep its intent until the
+    // client has successfully created a replacement and its persisted draft is safe.
+    if (record.transcript || restoredSessionId !== undefined) await storage.finish(id)
     inventory.invalidate()
     notifyWorkspaceSessions(record.cwd)
-    return { cwd: record.cwd, ...(record.transcript ? { path: record.transcript } : {}) }
+    return {
+      cwd: record.cwd,
+      ...(record.transcript ? { path: record.transcript } : {}),
+      ...(draftKey ? { draftKey } : {}),
+      ...(restoredDraftKey ? { restoredDraftKey } : {}),
+    }
   })
 }
 
