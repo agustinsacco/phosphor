@@ -1,5 +1,6 @@
 import { Color } from 'three'
-import SpriteText from 'three-spritetext'
+import type SpriteText from 'three-spritetext'
+import { graphLabel } from './graphLabels'
 import {
   graphEndpoint,
   graphNeighbors,
@@ -51,14 +52,14 @@ export function graphAppearance(graph: BrainForceGraph): {
       labels.clear()
       predicates.clear()
       for (const node of model.nodes) {
-        const sprite = new SpriteText(node.label, 6)
+        const sprite = graphLabel(node.label, 12)
         sprite.position.y = 4 * Math.cbrt(node.val) + 4
         labels.set(node.id, sprite)
       }
       for (const link of model.links)
         predicates.set(
           link,
-          new SpriteText(link.predicates.map((p) => p.replaceAll('_', ' ')).join(', '), 4),
+          graphLabel(link.predicates.map((p) => p.replaceAll('_', ' ')).join(', '), 11),
         )
     },
     paint: (hover, matches, theme, path, focus) => {

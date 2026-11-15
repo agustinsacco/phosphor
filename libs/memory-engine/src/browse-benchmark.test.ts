@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { buildBenchmark } from './benchmark-fixture'
@@ -37,20 +37,21 @@ it.skipIf(process.env.BRAIN_BROWSE_BENCH !== '1')(
         read()
         return performance.now() - at
       }
-      console.log(
-        JSON.stringify({
-          entities: entityCount,
-          memories: count,
-          buildMs: built - start,
-          allMs: measure(() => entities(ctx, null, 0, 20)),
-          commonKindMs: measure(() => entities(ctx, 'project', 0, 20)),
-          rareKindMs: measure(() => entities(ctx, 'event', 0, 20)),
-          kindsMs: measure(() =>
-            db.prepare('SELECT DISTINCT kind FROM entities WHERE memories>0').all(),
-          ),
-          recentMs: measure(() => recent(ctx, 10)),
-        }),
-      )
+      const timings = JSON.stringify({
+        entities: entityCount,
+        memories: count,
+        buildMs: built - start,
+        allMs: measure(() => entities(ctx, null, 0, 20)),
+        commonKindMs: measure(() => entities(ctx, 'project', 0, 20)),
+        rareKindMs: measure(() => entities(ctx, 'event', 0, 20)),
+        kindsMs: measure(() =>
+          db.prepare('SELECT DISTINCT kind FROM entities WHERE memories>0').all(),
+        ),
+        recentMs: measure(() => recent(ctx, 10)),
+      })
+      // Keep measured evidence even when a runner hides successful-test console output.
+      writeFileSync(join(process.cwd(), '.brain-browse-benchmark.json'), timings + '\n')
+      console.log(timings)
       expect(entities(ctx, 'event', 0, 20).items).toHaveLength(1)
       expect(recent(ctx, 10).items).toHaveLength(10)
     } finally {
