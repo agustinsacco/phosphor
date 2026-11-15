@@ -251,8 +251,8 @@ The composer is one small field with several ways in.
 - Code blocks carry three hover actions (`components/markdown/CodeBlock.tsx`):
   **Open as artifact** (typed from the language: html/svg/mermaid/chart/
   markdown, else `code`), **Run in terminal** (shell languages only; pastes
-  without executing) and copy. A browser file preview uses the same block with
-  copy only.
+  without executing) and copy. A file read as text in the Files pane (a phone's,
+  or the browser's Changes) uses the same block with copy only.
 - User messages: **Rewind to here**, plus a branch button opening the
   multi-message rewind picker (Esc Esc). Both run pi's `fork` RPC
   (`features/chat/rewind.ts`), which branches the live session onto a **new

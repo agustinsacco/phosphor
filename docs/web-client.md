@@ -114,8 +114,11 @@ phone. A shell passes layout down instead: the phone's lane header carries the
 lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
 as Machine files, is the `ListDetail` primitive, one at a time on a phone.
 `localLanes`, `nativeFiles`, `fileEditing`, `splitPanes` and `localBrain` remain false in the
-browser at every width. Modal/menu placement adapts without enabling native
-editors or pane controls. Brain has no nav entry there; its deep link's
+browser at every width. Modal/menu placement adapts without enabling pane
+controls. A Host lane's Files edits at both widths, in Monaco when wide and in a
+plain text field on a phone, which Monaco does not support
+([files](files.md#remote-lanes)); `formFactor` picks the editor in a primitive
+(`FileTextEditing`), not the feature. Brain has no nav entry there; its deep link's
 unavailable page and the fixed `brain:*` IPC refusal apply at both widths; no local memory service is invoked. Desktop retains
 its native sidebar and local workbench.
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
@@ -146,10 +149,14 @@ preserve partial-state warnings and deduplicate qualified IDs. The Routines
 machine picker offers All machines and each Host; New under All machines asks for
 a Host. Incomplete
 artifact aggregation reports an error rather than a misleading complete list.
-Files and HEAD/working-copy comparisons are read-only, coloured by the file's
-language, and a chat link scrolls to its line. Like This Mac's viewer, a file
-offers Copy but no chat code-block actions (Open as artifact, Run in terminal),
-here and in Machine files. New lanes and existing
+A Host lane's Files is Desktop's Files pane: with control and the Host's write
+access it edits, saves with the revision it read, creates, renames and trashes;
+it downloads files up to 100 MB and previews images, video and audio up to 50 MB
+from their bytes ([files](files.md#remote-lanes)). On a phone the tree and the
+file are separate screens, and a file reads coloured by its language, scrolled to
+the line a chat link names, until Edit. Changes' HEAD/working-copy comparisons
+and Machine files are read only. Like This Mac's viewer, a file offers Copy but
+no chat code-block actions (Open as artifact, Run in terminal). New lanes and existing
 lane composers accept any file, as Desktop's Host lanes do: images go inline and
 other files upload to the Host before the prompt, which names their Host path. A
 reload drops a pending attachment. The start screen's Repository menu offers Add
@@ -160,8 +167,8 @@ and adds folders under the Host's home over the same Host connection
 lane shells and the Machine page's shell
 ([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. Host
 machine settings, including provider installation and Claude accounts, work after
-[configuration access](#configuration-access-and-lane-deletion). File editing and
-This Mac's settings are unavailable. Attention is in-app only, not OS push. A Host's
+[configuration access](#configuration-access-and-lane-deletion). Editing skills,
+artifacts and attachments in place, and This Mac's settings, are unavailable. Attention is in-app only, not OS push. A Host's
 registered repositories open read-only from **Machines → a Host → Machine files**.
 
 `PageShell` owns each page's single heading, actions and close behavior;
@@ -256,6 +263,18 @@ refused. The parent permits only `frame-src blob:` for these previews and blocks
 app embedding with `X-Frame-Options: DENY`. Its CSP omits `frame-ancestors` because
 WebKit inherits that restriction into otherwise valid Blob previews. Desktop's
 artifact/file protocols and scripted artifact behavior are unchanged.
+
+A Host file's image, video and audio previews are Blob URLs too, which is why the
+app's CSP has `img-src … blob:` and `media-src blob:` and nothing more. The threat
+is Host-controlled bytes running in the app's origin. A blob URL inherits the
+page's origin, so the bytes are typed from a fixed table by extension, never by
+the Host or by sniffing (`apps/web/src/platform/file-bytes.ts`), and are only
+ever the source of an `<img>`, `<video>` or `<audio>` element, none of which runs
+script. SVG stays on the sandboxed text path above, a PDF is never embedded (an
+unsandboxed same-origin frame would hold Host bytes), and a preview blob is never
+navigated to or opened in a window. Each is revoked when its file closes or
+changes, and all of them on sign-out. `blob:` adds no network source: the page
+made every blob it can show.
 
 ## Installation
 
