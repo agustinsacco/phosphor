@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test, expect } from './fixture'
@@ -54,6 +54,18 @@ async function save(page: Page) {
   if (phone(page)) await page.getByRole('button', { name: 'Save', exact: true }).click()
   else await page.locator('.monaco-editor [role="textbox"]').first().press('ControlOrMeta+KeyS')
 }
+/**
+ * A phone's tap lands on the control anywhere in a 44px band across its middle, through its
+ * own box or its hit-slop, with none of the band clipped away by a container.
+ */
+async function expectTouchTarget(control: Locator) {
+  const reach = await control.evaluate((node) => {
+    const box = node.getBoundingClientRect()
+    const [x, y] = [box.left + box.width / 2, box.top + box.height / 2]
+    return [-21, 21].map((dy) => node.contains(document.elementFromPoint(x, y + dy)))
+  })
+  expect(reach).toEqual([true, true])
+}
 /** What the open file shows: the phone's highlighted read view, or Monaco. */
 const shown = (page: Page) =>
   page.locator(phone(page) ? '.code-block' : '.monaco-editor .view-lines').first()
@@ -68,6 +80,9 @@ for (const width of [400, 1100])
     await openFiles(page, stack.origin, true)
     await fileRow(page, 'remote.txt').click()
     await expect(shown(page)).toContainText('HOST_A_ONLY synthetic file')
+    if (phone(page))
+      for (const name of ['← Files', 'Edit'])
+        await expectTouchTarget(page.getByRole('button', { name, exact: true }))
     await edit(page, 'HOST_A_ONLY saved from a browser')
     await save(page)
     await expect.poll(() => readFile(remote, 'utf8')).toBe('HOST_A_ONLY saved from a browser')
@@ -111,8 +126,10 @@ for (const width of [400, 1100])
     // The app's CSP admits blob: images; a refused one never decodes.
     await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1)
 
+    const action = page.getByRole('button', { name: 'Download', exact: true })
+    if (phone(page)) await expectTouchTarget(action)
     const download = page.waitForEvent('download')
-    await page.getByRole('button', { name: 'Download', exact: true }).click()
+    await action.click()
     const saved = await download
     expect(saved.suggestedFilename()).toBe('pixel.png')
     expect(await readFile((await saved.path())!)).toEqual(PIXEL)
