@@ -31,6 +31,8 @@ export interface Platform {
   localVoice: boolean
   /** Brain knowledge and its embedding model live on this Desktop machine. */
   localBrain: boolean
+  /** Machines → Debug log: main keeps this client's control and Host traffic (`hosts:traffic`). */
+  hostTrafficLog: boolean
 }
 export const DESKTOP_PLATFORM: Platform = Object.freeze({
   formFactor: 'expanded',
@@ -51,6 +53,7 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   cancelSignIn: true,
   localVoice: true,
   localBrain: true,
+  hostTrafficLog: true,
 })
 export const COMPACT_PLATFORM: Platform = Object.freeze({
   formFactor: 'compact',
@@ -73,6 +76,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   cancelSignIn: false,
   localVoice: false,
   localBrain: false,
+  hostTrafficLog: false,
 })
 /** A wide browser changes presentation, never its authority or native capabilities. */
 export const WIDE_BROWSER_PLATFORM: Platform = Object.freeze({

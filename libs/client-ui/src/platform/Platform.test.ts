@@ -25,6 +25,7 @@ it('Desktop and the browser differ only in the capabilities each declares', () =
     'cancelSignIn',
     'feedback',
     'fileEditing',
+    'hostTrafficLog',
     'installableApp',
     'localBrain',
     'localLanes',

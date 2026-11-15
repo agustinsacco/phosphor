@@ -784,7 +784,9 @@ the last 2000 lines in memory (`hosts:traffic`, nothing on disk), and the open
 panel polls every 500 ms from its last cursor, saying when older lines were
 dropped. Filters: peer, text, errors only, and pings (hidden by default). Pause
 stops polling, Clear empties the view, Copy puts the visible lines on the
-clipboard as tab-separated text with UTC milliseconds.
+clipboard as tab-separated text with UTC milliseconds. The log is Desktop's
+(`hostTrafficLog`): the browser has no `hosts:traffic`, so its Machines page has no
+debug log toggle.
 
 Add a machine is disabled while signed out. The guide checks this computer's
 account and read-only local Tailscale readiness, then shows a copyable terminal

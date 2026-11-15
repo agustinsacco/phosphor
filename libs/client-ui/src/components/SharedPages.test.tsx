@@ -123,7 +123,7 @@ it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
       'bee1',
     )
     expect(!!container.querySelector('[data-testid="local-machine-row"]')).toBe(platform.localLanes)
-    expect(container.querySelector('[aria-label="Debug log"]')).not.toBeNull()
+    expect(!!container.querySelector('[aria-label="Debug log"]')).toBe(platform.hostTrafficLog)
     expect(container.textContent).toContain('Add a machine')
   },
 )

@@ -113,8 +113,8 @@ its Session options and Settings match on Desktop, in a wide browser and on a
 phone. A shell passes layout down instead: the phone's lane header carries the
 lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
 as Machine files, is the `ListDetail` primitive, one at a time on a phone.
-`localLanes`, `nativeFiles`, `fileEditing`, `splitPanes` and `localBrain` remain false in the
-browser at every width. Modal/menu placement adapts without enabling native
+`localLanes`, `nativeFiles`, `fileEditing`, `splitPanes`, `localBrain` and `hostTrafficLog`
+remain false in the browser at every width. Modal/menu placement adapts without enabling native
 editors or pane controls. Brain has no nav entry there; its deep link's
 unavailable page and the fixed `brain:*` IPC refusal apply at both widths; no local memory service is invoked. Desktop retains
 its native sidebar and local workbench.
