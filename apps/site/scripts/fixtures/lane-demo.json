@@ -1,0 +1,104 @@
+[
+  {
+    "role": "user",
+    "content": "Refactor token refresh so concurrent requests share one refresh. Keep the public API unchanged, and add a regression test.",
+    "timestamp": 1793966400000
+  },
+  {
+    "role": "assistant",
+    "provider": "anthropic",
+    "model": "claude-opus-5",
+    "stopReason": "toolUse",
+    "content": [
+      {
+        "type": "text",
+        "text": "I found two callers refreshing the same token independently. I\u2019ll share the in-flight promise and cover the concurrent-request case."
+      },
+      {
+        "type": "toolCall",
+        "id": "read-demo",
+        "name": "read",
+        "arguments": {
+          "path": "src/auth.ts"
+        }
+      }
+    ],
+    "timestamp": 1793966400000
+  },
+  {
+    "role": "toolResult",
+    "toolCallId": "read-demo",
+    "toolName": "read",
+    "content": [
+      {
+        "type": "text",
+        "text": "export async function refreshToken() {\n  return fetchToken()\n}\n"
+      }
+    ],
+    "isError": false,
+    "timestamp": 1793966400000
+  },
+  {
+    "role": "assistant",
+    "provider": "anthropic",
+    "model": "claude-opus-5",
+    "stopReason": "toolUse",
+    "content": [
+      {
+        "type": "toolCall",
+        "id": "edit-demo",
+        "name": "edit",
+        "arguments": {
+          "path": "src/auth.ts",
+          "oldText": "export async function refreshToken() {\n  return fetchToken()\n}",
+          "newText": "let pending: Promise<string> | null = null\n\nexport function refreshToken() {\n  pending ??= fetchToken().finally(() => { pending = null })\n  return pending\n}"
+        }
+      }
+    ],
+    "timestamp": 1793966400000
+  },
+  {
+    "role": "toolResult",
+    "toolCallId": "edit-demo",
+    "toolName": "edit",
+    "content": [
+      {
+        "type": "text",
+        "text": "Updated src/auth.ts."
+      }
+    ],
+    "details": {
+      "diff": " 1 /** Share a token refresh across concurrent requests. */\n-2 export async function refreshToken(): Promise<string> {\n-3   return fetchToken()\n+2 let pending: Promise<string> | null = null\n+3 \n+4 export function refreshToken(): Promise<string> {\n+5   pending ??= fetchToken().finally(() => {\n+6     pending = null\n+7   })\n+8   return pending\n 9 }\n 10 \n 11 async function fetchToken(): Promise<string> {",
+      "patch": "--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,6 +1,11 @@\n /** Share a token refresh across concurrent requests. */\n-export async function refreshToken(): Promise<string> {\n-  return fetchToken()\n+let pending: Promise<string> | null = null\n+\n+export function refreshToken(): Promise<string> {\n+  pending ??= fetchToken().finally(() => {\n+    pending = null\n+  })\n+  return pending\n }\n \n async function fetchToken(): Promise<string> {"
+    },
+    "isError": false,
+    "timestamp": 1793966400000
+  },
+  {
+    "role": "assistant",
+    "provider": "anthropic",
+    "model": "claude-opus-5",
+    "stopReason": "stop",
+    "content": [
+      {
+        "type": "text",
+        "text": "## One refresh, shared safely\n\nConcurrent callers now await the **same in-flight promise**. The promise is cleared on success or failure, so the next request can retry.\n\n- Kept the `refreshToken()` API unchanged\n- Added a regression test for two concurrent callers\n- Checked the rejection path so failures do not lock out future refreshes\n\n**Demo verification:** 12 fixture tests passed. Review the diff in Changes before merging.\n\nThis is a fictional capture scenario, not a live project run."
+      }
+    ],
+    "usage": {
+      "input": 18320,
+      "output": 1200,
+      "cacheRead": 12000,
+      "cacheWrite": 0,
+      "totalTokens": 31520,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    "timestamp": 1793966400000
+  }
+]
