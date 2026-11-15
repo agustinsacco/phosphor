@@ -38,7 +38,7 @@ const sections: [string, string][] = [
       <li>Choose <strong>Open Brain</strong>, or use Brain in the sidebar once enabled.</li>
     </ol>
     <Capture
-      image={shot('brain-setup')}
+      image={shot('brain-ready')}
       alt="Brain settings showing the opt-in switch, local model readiness, recall and review controls."
       caption="Start with review enabled"
     />
@@ -63,6 +63,11 @@ const sections: [string, string][] = [
   </section>
   <section id="review">
     <h2>3. Approve knowledge, not just plausible prose</h2>
+    <Capture
+      image={shot('brain-review')}
+      alt="A fictional Harbor pilot review: existing project identities match, while Rina’s identity needs confirmation."
+      caption="A familiar name is not enough to merge identities"
+    />
     <ol>
       <li>
         Open the finished job’s <strong>Review</strong>. Check each proposed person, project or
@@ -103,6 +108,11 @@ const sections: [string, string][] = [
   </section>
   <section id="recall">
     <h2>5. Recall it in the next lane</h2>
+    <Capture
+      image={shot('brain-recall')}
+      alt="A fictional brain_search briefing about Harbor pilot ownership, with a dated source and a reminder to verify it."
+      caption="Earlier context, with its source and limits still visible"
+    />
     <p>
       With recall enabled, new local lanes get the read-only <code>brain_search</code> tool and Brain
       skill. Restart already-running lanes to pick it up. Ask, for example, “What did we decide about

@@ -137,7 +137,7 @@ relationships and source quotes before saving. Review is on by default but can b
 disabled. Explore entities in 2D/3D, follow supported paths, inspect extraction,
 Forget memories or merge duplicate entities. A merge has no individual undo.
 
-![Brain opt-in and review settings with fictional data](apps/site/src/assets/shots/brain-setup.webp)
+![Brain enabled with local search ready and review on, using fictional data](apps/site/src/assets/shots/brain-ready.webp)
 
 ![Brain’s local knowledge graph with fictional people and projects](apps/site/src/assets/shots/brain-graph.webp)
 

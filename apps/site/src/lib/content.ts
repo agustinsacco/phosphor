@@ -15,8 +15,10 @@ import guideRouting from '../assets/shots/guide-routing.webp'
 import guideExtensions from '../assets/shots/guide-extensions.webp'
 import guideConnectors from '../assets/shots/guide-connectors.webp'
 
-import brainSetup from '../assets/shots/brain-setup.webp'
+import brainReady from '../assets/shots/brain-ready.webp'
 import brainGraph from '../assets/shots/brain-graph.webp'
+import brainReview from '../assets/shots/brain-review.webp'
+import brainRecall from '../assets/shots/brain-recall.webp'
 import lanePr from '../assets/shots/lane-pr.webp'
 import slackPill from '../assets/shots/slack-pill.webp'
 import machines from '../assets/shots/machines.webp'
@@ -43,8 +45,10 @@ export const piDoc = (page: string) => `https://pi.dev/docs/latest/${page}`
 // Publish only reviewed assets used by these pages. A glob would also emit
 // unused historical account/settings originals into the public build.
 const captures: Record<string, ImageMetadata> = {
-  'brain-setup': brainSetup,
+  'brain-ready': brainReady,
   'brain-graph': brainGraph,
+  'brain-review': brainReview,
+  'brain-recall': brainRecall,
   'lane-pr': lanePr,
   'slack-pill': slackPill,
   machines,

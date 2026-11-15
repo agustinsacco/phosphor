@@ -87,7 +87,8 @@ historical account/settings captures. Never replace it with an asset glob.
 
 The refresh covers existing site shots and repository `docs/img/` gallery plus
 Brain setup/graph, PR inspector, Slack pills, Machines, mobile and notifications.
-The capture tooling and its reviewed fixtures own reproduction details. Do not
+[Capture tooling and fixtures](scripts/CAPTURES.md) document reproduction, the
+fictional Harbor Brain dataset and the complete asset inventory. Do not
 use live session files, credential stores, a real Host enrollment, provider calls
 or live screenshot utilities to regenerate these demo assets. Inspect full-size
 pixels and metadata before publication. `ide-flex.png` retains its existing name
@@ -106,7 +107,8 @@ same-stem `.webp` poster under `public/media/`:
 - `brain-walkthrough.mp4`
 - `lane-to-review.mp4`
 
-The media worker owns rendered Hyperframes assets and their source/provenance.
+Rendered Hyperframes assets keep their editable sources and reproduction steps
+under `tools/marketing/`.
 The site imports no Hyperframes player or runtime. `<video controls preload="none">`
 never autoplays or loops. Silent text-led content has visible equivalent steps,
 not an audio-only lesson. Posters and source videos must use public-safe demo
