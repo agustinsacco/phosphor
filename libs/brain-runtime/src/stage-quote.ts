@@ -47,11 +47,28 @@ function folded(text: string): { text: string; offsets: number[] } {
     offsets: number[] = []
   for (let i = 0; i < text.length; i++) {
     const char = text[i]!
-    if (char === '*' || char === '`') continue
+    if (char === '`') continue
+    if (char === '*') {
+      let end = i
+      while (text[end + 1] === '*') end++
+      if (emphasis(text[i - 1], text[end + 1])) {
+        i = end
+        continue
+      }
+    }
     const space = /\s/.test(char)
     if (space && out.at(-1) === ' ') continue
     out.push(space ? ' ' : '“”'.includes(char) ? '"' : '‘’'.includes(char) ? "'" : char)
     offsets.push(i)
   }
   return { text: out.join(''), offsets }
+}
+/**
+ * A run of asterisks is an emphasis mark when it touches text on at least one side and is not
+ * inside a word or number. "a*b", "x**2" and "2 * 3" keep theirs: there it carries meaning.
+ */
+function emphasis(before: string | undefined, after: string | undefined): boolean {
+  const blank = (char: string | undefined): boolean => char === undefined || /\s/.test(char)
+  const word = (char: string | undefined): boolean => !!char && /[\p{L}\p{N}]/u.test(char)
+  return !(blank(before) && blank(after)) && !(word(before) && word(after))
 }

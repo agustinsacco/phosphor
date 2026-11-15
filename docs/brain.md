@@ -20,6 +20,8 @@ appear:
 - **Model that reads lanes** (default **Each lane's own model**): choose one provider/model for
   every queued lane, including lanes without a model. A job keeps the model it first starts with,
   even after this setting changes or you Retry it. Use **Use each lane's own model** to clear it.
+  A stored setting is checked when read as well as when written: a malformed value reads as its
+  default.
 - **Knowledge**: counts and an Open Brain button.
 - **Reset Brain knowledge**: after a confirmation, deletes every memory, entity, job, proposal
   and extraction record. Settings and the embedding model stay; review turns back on.
@@ -133,8 +135,9 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
 Parsing drops the smallest invalid item and records why. A bad entity or claim cannot fail a
 lane. A bad link is dropped while its claim and known endpoint mentions remain. The first valid
 ref wins. Quotes match exactly in the cited segment, then any segment, then with flexible
-whitespace, straight/curly quotation marks and no Markdown emphasis marks (`*`, backticks), by a
-linear search. Flexible matches store the source's own substring.
+whitespace, straight/curly quotation marks and no Markdown emphasis marks (backticks, and
+asterisks that touch text and are not inside a word or number, so `a*b` and `2 * 3` keep theirs),
+by a linear search. Flexible matches store the source's own substring.
 Every quote stays within one unelided span. Only unusable JSON or missing entity/claim arrays (or the links array in a links call)
 gets one repair call; a second unusable answer fails visibly.
 

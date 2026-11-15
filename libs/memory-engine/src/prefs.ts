@@ -1,9 +1,28 @@
 import { checkBrainReaderModel, DEFAULT_BRAIN_PREFS, type BrainPrefs } from '@phosphor/shared/brain'
 import { one, run, type Context } from './database'
 
+/** A stored value is checked like a written one: a bad field reads as its default. */
 export function prefs(ctx: Context): BrainPrefs {
   const row = one<{ value: string }>(ctx, "SELECT value FROM meta WHERE key='prefs'")
-  return { ...DEFAULT_BRAIN_PREFS, ...(row ? (JSON.parse(row.value) as Partial<BrainPrefs>) : {}) }
+  const stored: unknown = row ? JSON.parse(row.value) : null
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored))
+    return { ...DEFAULT_BRAIN_PREFS }
+  const value = stored as Record<string, unknown>
+  const flag = (key: 'enabled' | 'recall' | 'review'): boolean =>
+    typeof value[key] === 'boolean' ? value[key] : DEFAULT_BRAIN_PREFS[key]
+  return {
+    enabled: flag('enabled'),
+    recall: flag('recall'),
+    review: flag('review'),
+    model: storedModel(value.model),
+  }
+}
+function storedModel(value: unknown): string | null {
+  try {
+    return checkBrainReaderModel(value ?? null)
+  } catch {
+    return null
+  }
 }
 export function setPrefs(ctx: Context, value: BrainPrefs): BrainPrefs {
   checkBrainReaderModel(value.model)
