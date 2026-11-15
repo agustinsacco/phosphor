@@ -187,6 +187,8 @@ function readApi({
   search,
 }: ApiContext): Pick<
   BrainApi,
+  | 'entities'
+  | 'recent'
   | 'find'
   | 'overview'
   | 'neighbourhood'
@@ -197,6 +199,8 @@ function readApi({
   | 'path'
 > {
   return {
+    entities: (kind, offset, limit) => search.entities(kind, offset, limit),
+    recent: (limit) => search.recent(limit),
     find: async (query, limit) => {
       const rows = await options.embeddings.embed([query], 'query').catch(() => [])
       return search.find(

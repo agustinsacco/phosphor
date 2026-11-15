@@ -11,6 +11,8 @@ const { checkDecision, checkLane, checkPrefs, registerBrainHandlers } =
 const { IPC_WEB } = await import('@phosphor/shared/ipc-web')
 
 const api = {
+  entities: vi.fn(async () => 'entities'),
+  recent: vi.fn(async () => 'recent'),
   status: vi.fn(async () => 'status'),
   setPrefs: vi.fn(async () => 'saved'),
   queue: vi.fn(async () => 'queued'),
@@ -141,4 +143,20 @@ it('registers history/reread and refuses invalid limits before calling the servi
     await expect(call('brain:history', limit)).rejects.toThrow('Invalid Brain history limit.')
   for (const job of ['', null, 'x'.repeat(201)])
     await expect(call('brain:reread', job)).rejects.toThrow('Invalid Brain request.')
+})
+
+it('checks browse kind, offset and limit and recent limit before reading', async () => {
+  for (const kind of ['invalid', undefined, 1, {}])
+    await expect(call('brain:entities', kind, 0, 20)).rejects.toThrow('entity kind')
+  for (const offset of [-1, 0.5, NaN, Infinity, '0', null, Number.MAX_SAFE_INTEGER + 1])
+    await expect(call('brain:entities', null, offset, 20)).rejects.toThrow('entity offset')
+  for (const limit of [0, 101, 1.5, NaN, Infinity, '20', null])
+    await expect(call('brain:entities', null, 0, limit)).rejects.toThrow('entity limit')
+  for (const limit of [0, 51, 1.5, NaN, Infinity, '10', null])
+    await expect(call('brain:recent', limit)).rejects.toThrow()
+  await expect(call('brain:entities', 'person', 20, 100)).resolves.toBe('entities')
+  expect(api.entities).toHaveBeenCalledWith('person', 20, 100)
+  await expect(call('brain:entities', null, 0, 1)).resolves.toBe('entities')
+  await expect(call('brain:recent', 50)).resolves.toBe('recent')
+  expect(api.recent).toHaveBeenCalledWith(50)
 })

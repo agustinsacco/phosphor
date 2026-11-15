@@ -1,6 +1,7 @@
 import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import type {
   BrainExtractionView,
+  BrainEntityKind,
   BrainJob,
   BrainLaneRef,
   BrainMemoryFilter,
@@ -322,6 +323,14 @@ class MockBrain {
         return this.extraction(args[0] as string)
       case 'brain:find':
         return this.explorer.find(args[0] as string, args[1] as number)
+      case 'brain:entities':
+        return this.explorer.browse(
+          args[0] as BrainEntityKind | null,
+          args[1] as number,
+          args[2] as number,
+        )
+      case 'brain:recent':
+        return this.explorer.recent(args[0] as number)
       case 'brain:overview':
         return this.explorer.graph(null)
       case 'brain:neighbourhood':

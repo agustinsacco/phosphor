@@ -242,30 +242,58 @@ entities nothing else uses; entities named only by superseded memories stay.
 
 ## Exploring
 
-The Knowledge tab keeps memories and entities on the left and the graph on the right. Every read is
-one bounded call, so it stays fast at 100,000 entities and a million memories.
+The **Knowledge** tab keeps search and a browse/detail column beside the graph. On Desktop the
+graph is always visible; there is no hide-graph control. The explorer trail survives switching to
+**Lanes**. Names, summaries, evidence and controls wrap within their column.
 
 - **Find** (`/`): one box for people, projects and memories (`brain:find`): names, aliases and
-  keys, word and trigram matches, then nearest vectors. Arrow keys and Enter; Esc clears.
-- **Entity**: label, kind, aliases, description, source lanes and merged names. **Connections**
-  are grouped by predicate and direction in plain words ("Owns" / "Owned by", "Part of" /
-  "Contains", "For customer" / "Customer of", …) with counts; each neighbour is a chip that hops,
-  and **Show more** pages (`brain:connections`). **Memories** are grouped by type with filters for
-  type, state (superseded hidden by default) and lane, paged (`brain:entityMemories`).
-- **Memory**: sentence, type, state, dates, entity chips, each link with its own quote, quotes
-  with **Open in lane**, and its history (what it superseded, conflicts with or resolves).
-- **Trail**: a breadcrumb of where you have been, with Back and Forward (`Alt+←` / `Alt+→`,
-  or Backspace when focus is not in a field).
-- **Graph**: the selected entity's neighbourhood, one or two hops, at most 300 nodes
-  (`brain:neighbourhood`); with nothing selected, the best-connected entities
-  (`brain:overview`). Edges are directed, with arrows; hovering one shows its predicate and
-  memory. Clicking a node hops to it. A 2D/3D toggle switches layouts.
-- **Find a path to…**: up to three shortest supported routes between two entities, at most four
+  keys, word and trigram matches, then nearest vectors. Arrow keys and Enter; Esc clears the field.
+- **Overview**: a neutral kind filter shows All and only populated kinds (People, Teams,
+  Organizations, Projects, Systems, Documents, Concepts, Events). **Most connected** pages twenty
+  entities at a time (`brain:entities`), ranked by connections. Its memory count includes historical
+  memories, as on entity cards. **Recently learned** shows ten current memories from recent finished
+  reads (`brain:recent`), with the lane and learned time; a kind filter hides it.
+- **Entity**: name, kind tag, description, aliases, source lanes, merged names and memory count.
+  **Connections** reads from that entity's side in plain words (Owns / Owned by, Part of / Contains,
+  For customer / Customer of), with chips and paging (`brain:connections`). **Memories** has type
+  filters with counts and wrapping rows. State, source lane and Include superseded filters remain
+  available (`brain:entityMemories`).
+- **Memory**: type, state, learned time, summary and every named entity; evidence with matched
+  words highlighted, speaker/lane labels and **Open in lane**; supported links, History and Related
+  rows. Dates and scope remain in a disclosure. **See the read that produced this** opens its job
+  in Lanes. **Forget** removes the memory as before.
+- **Trail**: Back and Forward (`Alt+←` / `Alt+→`, or Backspace outside fields), then plain-text
+  Overview and the previous two steps plus the current selection. Older steps collapse to an
+  ellipsis. Clearing selection goes to Overview without deleting the forward trail.
+- **Graph**: selecting a node, row, chip or result keeps the bounded overview (`brain:overview`)
+  drawn. The selected node, its direct neighbours and links stay bright; the rest dims. The camera
+  moves to the node. A memory highlights every named entity and the links it supports. Selected
+  things outside the overview are included with their neighbours, still capped at 300 nodes.
+  A bounded-selection notice remains visible when the graph is truncated.
+- **Clear selection**: the selection chip's ✕, empty graph space, Esc outside fields/dialogs/menus,
+  or the Overview breadcrumb restores the whole graph and fits the camera. **Whole graph** is the
+  default; **Neighbours only** explicitly switches to one or two steps (`brain:neighbourhood`),
+  and clearing resets that choice. Zoom, fit and 2D/3D controls remain available. The legend along
+  the bottom shares its theme-token colours with the column's kind dots. Directed links show
+  predicate words on selection or hover; hovering still loads the supporting memory. Reduced
+  motion uses instantaneous camera moves.
+- **Find route to…**: up to three shortest supported routes between two entities, at most four
   hops, each hop with its memory, highlighted in the graph (`brain:path`).
 - **Merge into…**: folds one entity into another after a confirmation. Names, keys, links and
   memories move; the source is deleted and the merge is recorded. There is no split.
 
 Views reload when Brain's revision or generation changes, and a failed load offers Retry.
+
+The two browse reads run in the search worker and use **schema v5 unchanged**:
+`brain:entities(kind | null, offset, limit)` accepts limits 1–100, returns entity/count rows,
+`more` and populated `kinds`. It walks `entities_connections` in connection-count descending,
+row-number ascending order, leaving out memory-less and merged-away rows. Kind filtering may
+walk farther; finding populated kinds makes one entity-table pass. `brain:recent(limit)` accepts
+1–50, walks at most twenty finished jobs through `jobs_finished`, and reads their active/disputed
+memories through `memories_job`, newest read first and recorded time descending within each read.
+It stops when full. Memories without a surviving finished job are omitted. `learnedAt` is the
+memory's recorded time, not when the source originally said it. These are bounded result sets,
+not an assertion that every browse query has constant work at a million memories.
 
 ## Inspecting a finished read
 

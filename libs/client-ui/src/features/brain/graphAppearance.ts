@@ -1,5 +1,6 @@
 import { Color } from 'three'
-import SpriteText from 'three-spritetext'
+import type SpriteText from 'three-spritetext'
+import { graphLabel } from './graphLabels'
 import {
   graphEndpoint,
   graphNeighbors,
@@ -24,6 +25,7 @@ export function graphAppearance(graph: BrainForceGraph): {
     matches: Set<string> | null,
     theme: GraphTheme,
     path?: Set<string> | null,
+    focus?: string | null,
   ) => void
 } {
   let model: GraphModel = { nodes: [], links: [] }
@@ -50,29 +52,25 @@ export function graphAppearance(graph: BrainForceGraph): {
       labels.clear()
       predicates.clear()
       for (const node of model.nodes) {
-        const sprite = new SpriteText(node.label, 4)
+        const sprite = graphLabel(node.label, 12)
         sprite.position.y = 4 * Math.cbrt(node.val) + 4
         labels.set(node.id, sprite)
       }
       for (const link of model.links)
         predicates.set(
           link,
-          new SpriteText(link.predicates.map((p) => p.replaceAll('_', ' ')).join(', '), 3),
+          graphLabel(link.predicates.map((p) => p.replaceAll('_', ' ')).join(', '), 11),
         )
     },
-    paint: (hover, matches, theme, path) => {
-      const neighbors = graphNeighbors(model, hover)
-      const bright = (node: GraphNode): boolean =>
-        (!matches || matches.has(node.id)) && (!hover || neighbors.has(node.id))
-      const connected = (link: GraphLink): boolean =>
-        graphEndpoint(link.source) === hover || graphEndpoint(link.target) === hover
+    paint: (hover, matches, theme, path, focus) => {
+      const { selected, bright, connected } = selectionStyle(model, hover, matches, focus)
       graph
         .nodeColor((node) => colorOpacity(theme.kinds[node.kind], bright(node)))
         .linkColor((link) =>
           colorOpacity(
             connected(link) || path?.has(link.id) ? theme.accent : theme.edge,
             (!path || path.has(link.id)) &&
-              (!hover || connected(link)) &&
+              (!(hover || focus) || connected(link) || !!path?.has(link.id)) &&
               (!matches ||
                 (matches.has(graphEndpoint(link.source)) &&
                   matches.has(graphEndpoint(link.target)))),
@@ -80,7 +78,11 @@ export function graphAppearance(graph: BrainForceGraph): {
         )
       for (const node of model.nodes) {
         const label = labels.get(node.id)!
-        label.visible = largest.has(node.id) || hover === node.id
+        label.visible =
+          largest.has(node.id) ||
+          hover === node.id ||
+          !!selected?.has(node.id) ||
+          !!matches?.has(node.id)
         label.color = theme.text
         label.material.opacity = bright(node) ? 1 : 0.16
       }
@@ -91,4 +93,22 @@ export function graphAppearance(graph: BrainForceGraph): {
       }
     },
   }
+}
+
+function selectionStyle(
+  model: GraphModel,
+  hover: string | null,
+  matches: Set<string> | null,
+  focus?: string | null,
+) {
+  const selected = focus && !matches ? graphNeighbors(model, focus) : null
+  const neighbors = graphNeighbors(model, hover)
+  const bright = (node: GraphNode): boolean =>
+    (!matches || matches.has(node.id)) &&
+    (!selected || selected.has(node.id)) &&
+    (!hover || neighbors.has(node.id))
+  const connected = (link: GraphLink): boolean =>
+    (!!hover && (graphEndpoint(link.source) === hover || graphEndpoint(link.target) === hover)) ||
+    (!!focus && (graphEndpoint(link.source) === focus || graphEndpoint(link.target) === focus))
+  return { selected, bright, connected }
 }

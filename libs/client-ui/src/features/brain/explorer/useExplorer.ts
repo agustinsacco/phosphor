@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { BrainLink } from '@shared/brain'
+import { shortcutOverlayOpen } from '@/lib/shortcutContext'
 import { initialTrail, moveTrail, visitTrail, type BrainVisit } from './trail'
 
 export function useExplorer() {
   const [trail, setTrail] = useState(initialTrail)
-  const [review, setReview] = useState<string | null>(null)
-  const [extraction, setExtraction] = useState<string | null>(null)
   const [path, setPath] = useState<BrainLink[] | null>(null)
   const [query, setQuery] = useState('')
   const clearPanels = useCallback((): void => {
-    setReview(null)
-    setExtraction(null)
     setPath(null)
   }, [])
   const onVisit = useCallback(
@@ -27,18 +24,30 @@ export function useExplorer() {
     },
     [clearPanels],
   )
-  const jump = (index: number): void => {
-    setTrail((old) => ({ ...old, index }))
-    clearPanels()
-  }
+  const jump = useCallback(
+    (index: number): void => {
+      setTrail((old) => ({ ...old, index }))
+      clearPanels()
+    },
+    [clearPanels],
+  )
   useEffect(() => {
     const keyboard = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement
       if (
         event.defaultPrevented ||
-        target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')
+        event.isComposing ||
+        shortcutOverlayOpen() ||
+        target.closest(
+          'input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]',
+        )
       )
         return
+      if (event.key === 'Escape' && trail.index >= 0) {
+        event.preventDefault()
+        jump(-1)
+        return
+      }
       const delta =
         event.altKey && event.key === 'ArrowRight'
           ? 1
@@ -52,18 +61,14 @@ export function useExplorer() {
     }
     window.addEventListener('keydown', keyboard)
     return () => window.removeEventListener('keydown', keyboard)
-  }, [move, query])
+  }, [move, query, jump, trail.index])
   return {
     trail,
     visit: trail.items[trail.index],
-    review,
-    extraction,
     path,
     onVisit,
     move,
     jump,
-    setReview,
-    setExtraction,
     setPath,
     setQuery,
   }

@@ -307,6 +307,9 @@ export type {
   BrainExtractionView,
 } from './brain-extraction'
 export type {
+  BrainEntityPage,
+  BrainRecentMemory,
+  BrainRecentMemories,
   BrainEntitySummary,
   BrainGraph,
   BrainConnection,

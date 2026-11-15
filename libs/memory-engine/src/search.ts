@@ -1,3 +1,4 @@
+import { entities, recent } from './browse'
 import { randomUUID } from 'node:crypto'
 import type { BrainFindResult } from '@phosphor/shared/brain'
 import { all, type Context } from './database'
@@ -136,6 +137,8 @@ export function openBrainSearch(options: Pick<OpenStoreOptions, 'path' | 'Databa
   return {
     refresh: () => indexes.refresh(),
     ready: () => indexes.loaded,
+    entities: (kind, offset, limit) => entities(ctx, kind, offset, limit),
+    recent: (limit) => recent(ctx, limit),
     nearestEntities: (vectors, k) =>
       vectors.map((vector) => (indexes.loaded ? indexes.entities.nearest(vector, k) : [])),
     nearestMemories: (vectors, k) =>

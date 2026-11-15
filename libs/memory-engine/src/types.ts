@@ -2,6 +2,9 @@ import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainConnectionPage,
   BrainEntityView,
+  BrainEntityKind,
+  BrainEntityPage,
+  BrainRecentMemories,
   BrainExtractionRecord,
   BrainFindResult,
   BrainGraph,
@@ -156,6 +159,8 @@ export interface Neighbour {
  * any process; `refresh` picks up rows committed since the last call.
  */
 export interface BrainSearch {
+  entities(kind: BrainEntityKind | null, offset: number, limit: number): BrainEntityPage
+  recent(limit: number): BrainRecentMemories
   /** Coalesced, chunked load; calls keep using the previous complete index while it refreshes. */
   refresh(): Promise<void>
   /** False while the vector index is still loading; searches then use words and names only. */

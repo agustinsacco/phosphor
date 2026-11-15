@@ -100,7 +100,7 @@ export async function exploreBrain(page: Page): Promise<void> {
   await expect(detail.getByRole('heading', { name: 'Harbor ledger', exact: true })).toBeVisible()
   await trail.getByRole('button', { name: 'Forward', exact: true }).click()
   await expect(detail.getByRole('heading', { name: 'Rina Okafor', exact: true })).toBeVisible()
-  await detail.getByRole('button', { name: 'Find a path to…', exact: true }).click()
+  await detail.getByRole('button', { name: 'Find route to…', exact: true }).click()
   const target = detail.getByRole('combobox', { name: 'Find an entity' })
   await target.fill('Harbor')
   await expect(detail.getByRole('option').first()).toContainText('Harbor')
