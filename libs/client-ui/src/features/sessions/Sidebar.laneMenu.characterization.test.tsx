@@ -127,7 +127,7 @@ it("characterizes This Mac's menu for a saved lane", async () => {
     ['Move to…', false, false],
     ['Export HTML…', false, false],
     ['Copy debug info', false, false],
-    ['Archiveto trash', false, true],
+    ['Archivekeeps files', false, true],
   ])
 })
 
@@ -176,7 +176,7 @@ it("characterizes This Mac's menu for a live, unseen lane with a PR and spend", 
     ['Export HTML…', false, false],
     ['Copy debug info', false, false],
     ['Copy spend$1.50', false, false],
-    ['Archiveto trash', false, true],
+    ['Archivekeeps files', false, true],
   ])
 })
 
@@ -239,7 +239,7 @@ it("characterizes This Mac's menu for a finished lane whose worktree was removed
     ['Move to…', false, false],
     ['Export HTML…', false, false],
     ['Copy debug info', false, false],
-    ['Archiveto trash', false, true],
+    ['Archivekeeps files', false, true],
   ])
 })
 
@@ -271,7 +271,7 @@ it("characterizes This Mac's menu with lane markers off, and while a bulk delete
     ['Move to…', false, false],
     ['Export HTML…', false, false],
     ['Copy debug info', false, false],
-    ['Archiveanother delete is running', true, true],
+    ['Archiveanother archive is running', true, true],
   ])
 })
 
@@ -295,7 +295,7 @@ it("characterizes This Mac's menu for a lane in the Pinned list", async () => {
     ['Move to…', false, false],
     ['Export HTML…', false, false],
     ['Copy debug info', false, false],
-    ['Archiveto trash', false, true],
+    ['Archivekeeps files', false, true],
   ])
 })
 

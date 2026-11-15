@@ -256,6 +256,12 @@ The additive `laneMarks` boolean in `ready` says the Host keeps lane pins and
 markers ([Lane pins and markers](#lane-pins-and-markers)). Clients project it as
 `HostConnectionView.laneMarks`.
 
+The additive `laneArchive` boolean in `ready` says the Host accepts `lane.archive`,
+`archive.restore`, `archive.purge` and the `archive.list` call
+([Lane archives](host.md#lane-archives)). Clients project it as
+`HostConnectionView.laneArchive`. Without it, clients disable Archive and send
+none of these; they never fall back to `lane.delete`.
+
 ### Machine configuration operations
 
 `machine.settings.read`, `machine.settings.patch` and `machine.settings.check`

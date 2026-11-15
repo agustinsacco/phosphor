@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { writeFile, stat } from 'node:fs/promises'
+import { readFile, writeFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
@@ -169,7 +169,7 @@ test('Dirty file editor survives connection interruption', async () => {
   }
 })
 
-test('Delete confirms resources and broadcasts removal', async () => {
+test('Archive confirms, broadcasts removal and keeps Host files', async () => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
@@ -184,19 +184,19 @@ test('Delete confirms resources and broadcasts removal', async () => {
     await row.click({ button: 'right' })
     await h.page
       .getByTestId('context-menu')
-      .getByRole('button', { name: 'Delete', exact: true })
+      .getByRole('button', { name: 'Archive', exact: true })
       .click()
     const dialog = h.page.locator('[data-modal-overlay]')
-    await expect(dialog).toContainText('Delete session?')
+    await expect(dialog).toContainText('uncommitted, untracked and ignored files')
     await expect(dialog.getByRole('checkbox')).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(row).toBeVisible()
     await row.click({ button: 'right' })
     await h.page
       .getByTestId('context-menu')
-      .getByRole('button', { name: 'Delete', exact: true })
+      .getByRole('button', { name: 'Archive', exact: true })
       .click()
-    await dialog.getByRole('button', { name: 'Delete session', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Archive lane', exact: true }).click()
     await expect(row).toHaveCount(0)
     await expect.poll(() => h.laneSummary(h.laneId)).toBeUndefined()
     await expect(
@@ -237,7 +237,7 @@ test('Stop before first prompt preserves a recoverable remote lane', async () =>
   }
 })
 
-test('Isolated lane delete defaults remove the worktree but preserve an unmerged branch truthfully', async () => {
+test('Archiving an isolated lane keeps its worktree and unmerged branch', async () => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
@@ -266,19 +266,15 @@ test('Isolated lane delete defaults remove the worktree but preserve an unmerged
     await row.click({ button: 'right' })
     await h.page
       .getByTestId('context-menu')
-      .getByRole('button', { name: 'Delete', exact: true })
+      .getByRole('button', { name: 'Archive', exact: true })
       .click()
     const modal = h.page.locator('[data-modal-overlay]')
-    await expect(modal).toContainText('All three are on by default.')
-    await expect(modal.getByRole('checkbox', { name: /Remove the git worktree/ })).toBeChecked()
-    await expect(modal.getByRole('checkbox', { name: /Also delete the branch/ })).toBeChecked()
-    await modal.getByRole('button', { name: 'Delete lane', exact: true }).click()
+    await expect(modal.getByRole('checkbox')).toHaveCount(0)
+    await modal.getByRole('button', { name: 'Archive lane', exact: true }).click()
     await expect(row).toHaveCount(0)
-    await expect(
-      h.page.getByText("Branch kept: it isn't merged yet.", { exact: true }),
-    ).toBeVisible()
     await expect.poll(() => h.laneSummary(lane)).toBeUndefined()
-    await expect(stat(cwd)).rejects.toThrow()
+    expect((await stat(cwd)).isDirectory()).toBe(true)
+    expect(await readFile(join(cwd, 'unmerged.txt'), 'utf8')).toBe('HOST_A_ONLY unmerged')
     expect(
       execFileSync('git', ['-C', h.repo, 'branch', '--list', 'unmerged-delete'], {
         encoding: 'utf8',

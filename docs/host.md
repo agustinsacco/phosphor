@@ -2026,6 +2026,36 @@ write: active entries move as the user wrote them, symlinked spellings included,
 and a configured folder that is not active, such as one missing on disk, keeps
 its slot. It returns no data. Older Hosts answer `unsupported`.
 
+### Lane archives
+
+`lane.archive` is a lane command with `lane.delete`'s admission: the current
+controller, matching fence, `sessions.control` and `workspaces.write`, checked
+again before each step. It stops pi and its process group, then, inside the
+runtime's path lock for the transcript, saves the manifest, marks the lane
+archived (`lane_archive_ids`), aborts unfinished attachment uploads, parks the
+attachments and transcript, and reaps the lane's terminals. The lane leaves
+every client's snapshot. A worktree lane whose folder is already gone archives
+with no checkout identity, so cleanup can never remove a later folder at that
+path ([lanes.md](lanes.md#archiving-lanes)).
+
+`archive.restore {archiveId}` and `archive.purge {archiveId, removeWorktree}` are
+laneless commands under `sessions.control` and `workspaces.write`. Restore needs
+the original repository active and a free lane slot. It brings back the same
+lane id, recreating the row from the manifest if an older Host pruned it, and
+starts and binds a fresh session for a lane that never sent a message. Purge
+marks the lane removed. With `removeWorktree` it runs
+`git worktree remove --force` only for a dedicated checkout under the
+repository's `.phosphor/worktrees/` that no lane or other archive uses and whose
+device and inode still match the manifest. Failures answer `bad-request`, or
+`forbidden` when access changed while the work waited.
+
+`archive.list {measure?}` is a call under `sessions.read`. It returns
+`{entries, bytes, measuredAt, measuring, truncated}`, at most 1000 entries;
+`measure: true` starts a background size read. Every `ready` frame carries
+`laneArchive: true`. The store creates `lane_archive_ids` at open with
+`CREATE TABLE IF NOT EXISTS`, which an older Host ignores. `lane.delete`
+refuses to remove a checkout an archive manifest still names.
+
 `lane.delete` requires the current controller, matching fence, `sessions.control`
 and `workspaces.write`, checked again while work waits and before destructive
 steps. It stops pi and its process group, then moves the transcript through the

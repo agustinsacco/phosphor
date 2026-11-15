@@ -153,7 +153,7 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
       'Export HTML…',
       'Copy debug info',
       'Copy spend',
-      'Delete',
+      'Archive',
     ])
       await expect(menuItem(name)).toBeVisible()
     // Mark read shows only on an unseen lane, and this lane has not run a turn yet.

@@ -54,10 +54,12 @@ Control, so a secret typed into a setting travels only over the verified Host
 connection. `hosts:machineTask` runs reviewed programs in the browser's Host
 terminals, as Desktop's `terminals.task` does. Nothing logs settings payloads.
 
-`hosts:deleteLane` uses the shared `repositoryManagement.deleteLane`, as Desktop
-does. The Host admits `lane.delete` only from the lane's controller, so a reader
-sees the lane menu's Delete disabled with “Take control first.” until it takes
-control.
+`hosts:archiveLane` uses the shared `laneArchives` client, as Desktop does. The
+Host admits `lane.archive` only from the lane's controller, so a reader sees the
+lane menu's Archive disabled with “Take control first.” until it takes control.
+The Archive page restores and cleans up a Host's archives through
+`hosts:archives`, `hosts:restoreArchive` and `hosts:purgeArchive`; This Mac's
+archives need Desktop.
 
 Threat note: a signed-in browser session can now configure a Host (change pi
 settings and connectors, install reviewed packages, move Claude accounts), but
@@ -206,9 +208,9 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   where the device can) opens its menu; below 900px the menu is a bottom sheet
   titled with the lane.
 - The menu comes from `laneActions`, the same items and hints Desktop
-  shows. Delete, Rename and Stop need control (“Take control first.”); Delete
+  shows. Archive, Rename and Stop need control (“Take control first.”); Archive
   also needs `workspaces.write`. Rows carry This Mac's select box
-  (`LaneSelect.tsx`), and bulk delete is the shared bar and confirm
+  (`LaneSelect.tsx`), and bulk Archive is the shared bar and confirm
   (`RemoteBulkDelete`).
 
 `RemoteWorkspacePage` composes the complete remote start page in both clients,
