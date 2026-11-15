@@ -147,3 +147,33 @@ it('keeps notification history routing separate from control full-page navigatio
     bridge.dispose()
   }
 })
+
+it('supports a dedicated notification navigation port and cleans it up on disposal', () => {
+  const workers = new EventTarget()
+  vi.stubGlobal('navigator', { serviceWorker: workers })
+  const navigate = vi.fn(),
+    navigateNotification = vi.fn()
+  const bridge = createBrowserApi({
+    navigate,
+    navigateNotification,
+    storage: null,
+    invalidation: null,
+  })
+  const emit = () =>
+    workers.dispatchEvent(
+      new MessageEvent('message', {
+        origin: location.origin,
+        data: { type: 'phosphor-notification', route: notice.route },
+      }),
+    )
+  try {
+    emit()
+    expect(navigateNotification).toHaveBeenCalledExactlyOnceWith('/lanes/host/lane/chat')
+    expect(navigate).not.toHaveBeenCalled()
+    bridge.dispose()
+    emit()
+    expect(navigateNotification).toHaveBeenCalledOnce()
+  } finally {
+    bridge.dispose()
+  }
+})

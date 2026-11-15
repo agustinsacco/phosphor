@@ -29,28 +29,38 @@ for (const width of [400, 1100]) {
     }
     // A real Host turn while Home is on screen feeds the same notice pipeline as Desktop.
     await page.evaluate(
-      async ({ hostId, laneId }) => {
-        const lane = await window.phosphor.invoke('hosts:openLane', hostId, laneId)
-        await window.phosphor.invoke('hosts:takeControl', hostId, laneId)
-        const result = await window.phosphor.piCommand(lane.sessionId, {
-          type: 'prompt',
-          message: 'notification acceptance',
-        })
-        if (!result.success) throw new Error('Synthetic prompt refused')
+      async ({ hostId, laneIds }) => {
+        for (const laneId of laneIds) {
+          const lane = await window.phosphor.invoke('hosts:openLane', hostId, laneId)
+          await window.phosphor.invoke('hosts:takeControl', hostId, laneId)
+          const result = await window.phosphor.piCommand(lane.sessionId, {
+            type: 'prompt',
+            message: 'notification acceptance',
+          })
+          if (!result.success) throw new Error('Synthetic prompt refused')
+        }
       },
-      { hostId: stack.hostId, laneId: stack.laneId },
+      { hostId: stack.hostId, laneIds: [stack.laneId, stack.secondLaneId] },
     )
-    const row = drawer.getByTestId('notification-row').filter({ hasText: 'Synthetic Host' })
+    const rows = drawer.getByTestId('notification-row').filter({ hasText: 'Synthetic Host' })
+    await expect(rows).toHaveCount(2)
+    const row = rows.filter({ hasText: 'Synthetic acceptance lane' })
     await expect(row).toHaveCount(1)
-    await expect(bell).toHaveAttribute('aria-label', 'Notifications, 1 new')
+    await expect(bell).toHaveAttribute('aria-label', 'Notifications, 2 new')
     await row.locator('button[aria-expanded]').click()
     await expect(row.getByRole('button', { name: 'Open lane', exact: true })).toBeVisible()
     await expect(row).not.toHaveAttribute('data-seen')
     await page.screenshot({ path: info.outputPath(`notifications-${width}.png`) })
     await row.getByRole('button', { name: 'Open lane', exact: true }).click()
-    await expect(drawer).toHaveCount(0)
+    await expect(drawer).toHaveCount(width < 900 ? 0 : 1)
     await expect(page).toHaveURL(new RegExp(`/lanes/${stack.hostId}/${stack.laneId}/chat$`))
     await expect(page.getByTestId('transcript-scroll')).toBeVisible()
+    if (width < 900) {
+      await page.getByRole('button', { name: 'Back to lanes', exact: true }).click()
+      await expect(bell).toHaveAttribute('aria-label', 'Notifications, 1 new')
+      await bell.click()
+    } else await expect(bell).toHaveAttribute('aria-label', 'Notifications, 1 new')
+    await expect(drawer.locator('[data-testid="notification-row"]:not([data-seen])')).toHaveCount(1)
   })
 }
 

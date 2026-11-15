@@ -49,5 +49,5 @@ export async function openNotification(worker: ServiceWorkerGlobalScope, data: u
     return
   }
   await client.focus()
-  client.postMessage({ type: 'phosphor-notification', ...(route ? { route } : {}) })
+  if (route) client.postMessage({ type: 'phosphor-notification', route })
 }

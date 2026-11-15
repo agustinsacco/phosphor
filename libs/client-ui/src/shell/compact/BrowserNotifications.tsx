@@ -15,7 +15,9 @@ export function BrowserNotifications(): React.JSX.Element | null {
     <NotificationDrawer
       className="browser-notifications"
       permission={<NotificationPermissionOffer />}
-      onNavigate={() => setNotificationsOpen(false)}
+      onNavigate={
+        compact ? () => useNotificationsStore.getState().closeAfterNavigation() : undefined
+      }
     />
   )
   return compact ? (

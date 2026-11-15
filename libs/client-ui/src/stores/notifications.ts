@@ -90,6 +90,8 @@ interface NotificationsState {
   forgetSession: (sessionId: string) => void
   prune: (now?: number) => void
   setOpen: (open: boolean) => void
+  /** A phone opens one notice elsewhere; unrelated notices remain new. */
+  closeAfterNavigation: () => void
 }
 
 let nextId = 1
@@ -142,6 +144,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     const items = pruneNotifications(get().items, now)
     if (items !== get().items) set({ items })
   },
+
+  closeAfterNavigation: () => set({ open: false }),
 
   setOpen: (open) => {
     if (open === get().open) return

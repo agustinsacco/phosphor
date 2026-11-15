@@ -264,7 +264,8 @@ The header's bell counts new notices on every top-level phone tab and in the wid
 browser header. It opens Desktop's right-hand drawer on a wide screen, or a
 full-height bottom sheet on a phone; the four tabs are unchanged, with no Inbox
 tab. Host receipts expand in place; Open lane, View changes and Retry close the
-sheet after navigating. Warnings, errors and openable notices use the same store
+sheet after navigating without marking other notices seen. The wide drawer stays
+open, as on Desktop. Warnings, errors and openable notices use the same store
 as Desktop. Mark all seen, Earlier/Clear, aging and the 50-entry cap are shared.
 Notices are memory-only; reload or account loss clears them.
 
@@ -274,7 +275,8 @@ It shows On / Off / Blocked, Turn on notifications, and Send a test notification
 Blocked permission points to the browser's site settings. While permission is
 undecided, the drawer offers one quiet Turn on row. Only that gesture requests
 permission; startup never prompts. The test action deliberately works while
-visible. On iPhone, native notifications require Home Screen installation.
+visible; clicking it focuses the existing page without leaving Settings. On iPhone,
+native notifications require Home Screen installation.
 
 `app:notify` is browser-local: only a hidden page with granted permission may
 call `ServiceWorkerRegistration.showNotification`, never `new Notification()`.
@@ -282,6 +284,8 @@ Unlike Desktop, it resolves **false immediately after attempted delivery**:
 browsers cannot keep the invocation alive until a click. The worker routes clicks
 independently, focusing an existing same-origin page or opening one, then opening
 the Host lane (and optional PR inspector focus) through normal Host admission.
+New worker handlers take effect after its waiting update activates (close all older
+app tabs); updates never force activation or reload over a draft.
 
 Host attention follows Desktop's rule: only a lane no visible page shows gets a
 native notice, even if the receiving page is visible elsewhere. The worker checks

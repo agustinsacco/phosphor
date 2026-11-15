@@ -27,7 +27,10 @@ export interface BrowserInvalidation {
 }
 export interface BrowserApiOptions {
   fetch?: typeof fetch
+  /** Full-page navigation for account sign-in. */
   navigate?: (path: string) => void
+  /** In-app history navigation for a native notification click. */
+  navigateNotification?: (path: string) => void
   /** Reloads the page once a different owner signs in while it is open. */
   reload?: () => void
   openExternal?: (url: string) => void
@@ -131,7 +134,9 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       attention.clear()
     },
   })
-  const offNotificationClicks = attachNotificationClicks(options.navigate ?? navigateNotification)
+  const offNoticeClicks = attachNotificationClicks(
+    options.navigateNotification ?? navigateNotification,
+  )
   const attention = createBrowserAttention({
     connection: (hostId) => hosts.connection(hostId),
     label: (hostId) => hosts.label(hostId),
@@ -299,7 +304,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       stopped = true
       clearInterval(poll)
       clearInterval(clock)
-      offNotificationClicks()
+      offNoticeClicks()
       offLifecycle()
       offInvalidation()
       invalidation?.close()
