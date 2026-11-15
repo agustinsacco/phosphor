@@ -220,3 +220,75 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
     await shutdown(h)
   }
 })
+
+test('Brain review wraps a 300-character identity description without sideways scrolling', async () => {
+  const seed = await seedBrainLanes()
+  const h = await launch({
+    workspace: seed.workspace,
+    agentDir: seed.agent,
+    userDataDir: seed.profile,
+    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
+  })
+  try {
+    const { page } = h
+    await enableBrain(page, seed.harbor)
+    await queueLane(page, seed.harbor)
+    await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
+    const job = (await status(page)).jobs[0]!
+    const proposal = await page.evaluate(
+      (id) => window.phosphor.invoke('brain:proposal', id),
+      job.id,
+    )
+    const identity = proposal.identities[0]!
+    identity.decision = 'reuse'
+    identity.entityId = 'harbor-candidate'
+    identity.candidates = [
+      {
+        id: 'harbor-candidate',
+        label: 'Harbor',
+        kind: 'project',
+        aliases: [],
+        description: 'Harbor and Ledger share a billing workflow with Kestrel. '
+          .repeat(6)
+          .slice(0, 300),
+      },
+      {
+        id: 'ledger-candidate',
+        label: 'Ledger',
+        kind: 'project',
+        aliases: [],
+        description: 'Another project.',
+      },
+    ]
+    await h.app.evaluate(({ ipcMain }, value) => {
+      ipcMain.removeHandler('brain:proposal')
+      ipcMain.handle('brain:proposal', () => value)
+    }, proposal)
+    const lanes = page.getByRole('tab', { name: /^Lanes/ })
+    if (await lanes.count()) await lanes.click()
+    await page
+      .getByRole('button', { name: 'Review', exact: true })
+      .or(page.locator('.page-shell').getByRole('button', { name: seed.harbor.title, exact: true }))
+      .click()
+    const review = page.getByRole('region', { name: 'Review memories', exact: true })
+    await expect(review).toBeVisible()
+    expect(
+      await review.evaluate((element) => {
+        let pane: HTMLElement | null = element
+        while (pane && !['auto', 'scroll'].includes(getComputedStyle(pane).overflowY))
+          pane = pane.parentElement
+        if (!pane) throw new Error('Missing review scroll container')
+        return { scroll: pane.scrollWidth, client: pane.clientWidth }
+      }),
+    ).toEqual(expect.objectContaining({ scroll: expect.any(Number) }))
+    const fits = await review.evaluate((element) => {
+      let pane: HTMLElement | null = element
+      while (pane && !['auto', 'scroll'].includes(getComputedStyle(pane).overflowY))
+        pane = pane.parentElement
+      return !!pane && pane.scrollWidth <= pane.clientWidth
+    })
+    expect(fits, 'review scrollWidth <= clientWidth').toBe(true)
+  } finally {
+    await shutdown(h)
+  }
+})
