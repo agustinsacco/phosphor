@@ -519,8 +519,11 @@ in the Host's environment, stays usable because pi listed it.
 
 Thinking is remembered per Host in this window, capped at 64 Hosts. Sign-out or
 remote disable clears it, and restart resets it; it never writes agent settings.
-Without a remembered choice it starts from This Mac's valid default thinking
-level, or `off` when unavailable, clamped to the selected model's supported levels.
+Without a remembered choice it starts from the Host pi's default thinking level,
+then (on Desktop) This Mac's valid default, or `off` when neither is set, clamped
+to the selected model's supported levels. Saving the Host's machine-wide default
+model or thinking level in its Agent settings updates what the next new lane
+starts on, without another catalogue read.
 A successful thinking change in a live Host lane updates that Host's remembered
 choice.
 
