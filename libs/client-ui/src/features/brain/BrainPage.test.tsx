@@ -7,6 +7,7 @@ import type {
   BrainProposalView,
   BrainReviewDecision,
   BrainHistory,
+  BrainExtractionView,
 } from '@shared/brain'
 import {
   createFakePhosphor,
@@ -33,6 +34,7 @@ const review =
     (id: string, decision: BrainReviewDecision | null, revision: number) => Promise<BrainStatus>
   >()
 const history = vi.fn<() => Promise<BrainHistory>>()
+const extraction = vi.fn<(id: string) => Promise<BrainExtractionView>>()
 const reread = vi.fn<() => Promise<BrainStatus>>()
 const proposalRead = vi.fn<() => Promise<BrainProposalView>>()
 const find = vi.fn<MockExplorer['find']>()
@@ -51,6 +53,12 @@ beforeEach(() => {
   history.mockReset().mockResolvedValue({ items: [], more: false })
   reread.mockReset().mockImplementation(async () => status)
   explorer = new MockExplorer()
+  extraction.mockReset().mockResolvedValue({
+    ...mockExtractionView(),
+    job: mockBrainJob({ state: 'done' }),
+    laneMemories: 3,
+    replaceable: 2,
+  })
   proposalRead.mockReset().mockImplementation(async () => proposal)
   review.mockReset().mockImplementation(async () => {
     status = { ...status, jobs: [], revision: status.revision + 1 }
@@ -63,12 +71,7 @@ beforeEach(() => {
   fake = createFakePhosphor({
     'brain:status': () => status,
     'brain:history': history,
-    'brain:extraction': () => ({
-      ...mockExtractionView(),
-      job: mockBrainJob({ state: 'done' }),
-      laneMemories: 3,
-      replaceable: 2,
-    }),
+    'brain:extraction': extraction,
     'brain:reread': reread,
     'brain:entities': (kind, offset, limit) => explorer.browse(kind, offset, limit),
     'brain:recent': (limit) => explorer.recent(limit),
@@ -717,4 +720,25 @@ it('does not navigate the hidden Knowledge trail from the Lanes tab', async () =
   }
   await click('Knowledge')
   expectSelectedEntity('Harbor Ledger')
+})
+
+it('keeps a missing source read error recoverable without adding a history row', async () => {
+  explorer.details[0]!.memory.jobId = 'old-read'
+  extraction.mockRejectedValueOnce(new Error('Brain extraction not found'))
+  await render()
+  await chooseHarbor()
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>('[aria-label="Entity memories"] .brain-row')!
+      .click(),
+  )
+  await click('See the read that produced this')
+  expect(container.querySelector('[aria-label="Extraction detail"]')?.textContent).toContain(
+    'Brain extraction not found',
+  )
+  expect(container.querySelector('[aria-label="Brain lanes"] [aria-current]')).toBeNull()
+  await click('Retry')
+  expect(extraction.mock.calls).toEqual([['old-read'], ['old-read']])
+  expect(container.querySelector('[aria-label="Memories from this lane"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="Brain lanes"] [aria-current]')).toBeNull()
 })

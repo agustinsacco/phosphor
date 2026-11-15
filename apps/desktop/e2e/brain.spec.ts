@@ -308,7 +308,9 @@ test('Brain review wraps a 300-character identity description without sideways s
 })
 
 async function graphSelection(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
   const nodes = page.getByRole('list', { name: 'Graph entities' })
+  await expect(nodes.getByRole('button')).toHaveCount(3)
   const count = await nodes.getByRole('button').count()
   expect(count).toBe(3)
   const rina = nodes.getByRole('button', { name: 'Focus Rina Okafor', exact: true })
