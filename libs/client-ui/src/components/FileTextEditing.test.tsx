@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
@@ -10,6 +10,7 @@ import {
 } from '@/platform/Platform'
 import { FileTextEditing } from './FileTextEditing'
 import { SplitListDetail } from './ListDetail'
+import { PlainTextEditor } from './PlainTextEditor'
 
 let root: Root
 let container: HTMLDivElement
@@ -138,4 +139,33 @@ it('SplitListDetail: a phone keeps the list mounted and hidden while the detail 
   expect(container.querySelector('p')?.closest('[hidden]')).toBeNull()
   expect(container.querySelector('[data-detail]')?.textContent).toBe('')
   expect(container.querySelector('[data-panel-group]')).not.toBeNull()
+})
+
+it('PlainTextEditor: an edit goes back in the line ending the text had, as Monaco keeps it', () => {
+  const sent: string[] = []
+  function Field({ initial }: { initial: string }) {
+    const [value, setValue] = useState(initial)
+    const onChange = (next: string) => {
+      sent.push(next)
+      setValue(next)
+    }
+    return <PlainTextEditor label="Edit" value={value} onChange={onChange} />
+  }
+  const field = () => container.querySelector('textarea')!
+  const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+  const type = (text: string) =>
+    act(() => {
+      setValue.call(field(), text)
+      field().dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  act(() => root.render(<Field key="crlf" initial={'a\r\nb'} />))
+  expect(field().value).toBe('a\nb')
+  type('a\nbc')
+  // Every line break gone, then a new one: the file is still CRLF.
+  type('abc')
+  type('ab\nc')
+  expect(sent).toEqual(['a\r\nbc', 'abc', 'ab\r\nc'])
+  act(() => root.render(<Field key="lf" initial={'a\nb'} />))
+  type('a\nb\nc')
+  expect(sent.at(-1)).toBe('a\nb\nc')
 })

@@ -117,7 +117,8 @@ and the open file are separate screens (`SplitListDetail`): a file opens
 highlighted, as text, and a writable one offers **Edit**, which swaps in a plain
 16px monospace field (`PlainTextEditor`, corrections off) over the same buffer,
 then **Save** while it has edits, on the same save, conflict and uncertain-save
-path. **← Files** closes the file, asking first when it has edits, and returns to
+path. A textarea holds only LF, so the field writes each edit back in the file's
+line ending (CRLF or LF, picked as Monaco picks it), not LF throughout. **← Files** closes the file, asking first when it has edits, and returns to
 the tree with its folders as they were. A row's long-press opens its menu as a
 bottom sheet; only a mouse drags, so moves by dragging stay with wide windows.
 The browser's Changes is not This Mac's: it lists what git reports changed
