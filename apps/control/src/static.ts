@@ -25,6 +25,14 @@ const types: Record<string, string> = {
 const inside = (root: string, path: string) => path.startsWith(root + sep)
 const hidden = (path: string) => path.split(/[\\/]/).some((part) => part.startsWith('.'))
 
+/**
+ * The web app's document policy. Its blob: images and media are Host files the page itself
+ * read into memory and typed by extension (apps/web/src/platform/file-bytes.ts); they never
+ * load from the network.
+ */
+const WEB_APP_POLICY =
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src blob:; font-src 'self'; connect-src 'self' https://*.ts.net:* wss://*.ts.net:*; manifest-src 'self'; worker-src 'self'; frame-src blob:; base-uri 'none'; form-action 'self'"
+
 export async function serveStatic(
   request: Request,
   siteDir: string,
@@ -41,10 +49,7 @@ export async function serveStatic(
     // WebKit inherits CSP frame-ancestors into Blob previews and refuses them.
     // DENY protects the app from framing without propagating into opaque Blobs.
     headers.set('X-Frame-Options', 'DENY')
-    headers.set(
-      'Content-Security-Policy',
-      "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.ts.net:* wss://*.ts.net:*; manifest-src 'self'; worker-src 'self'; frame-src blob:; base-uri 'none'; form-action 'self'",
-    )
+    headers.set('Content-Security-Policy', WEB_APP_POLICY)
   }
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     headers.set('Allow', 'GET, HEAD')

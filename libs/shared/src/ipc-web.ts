@@ -52,6 +52,11 @@ export const IPC_WEB = {
   'hosts:takeControl': remote,
   'hosts:markRead': remote,
   'hosts:exportLaneHtml': remote,
+  // A Host file read whole into this tab (BROWSER_FILE_BYTES), saved as a browser download or
+  // shown from a Blob URL; cancelling only stops this tab's reads.
+  'hosts:fileDownload': remote,
+  'hosts:fileDownloadCancel': browser,
+  'hosts:filePreviewUrl': remote,
   'hosts:subagentHistory': remote,
   'hosts:subagentInspect': remote,
   'hosts:deleteLane': remote,

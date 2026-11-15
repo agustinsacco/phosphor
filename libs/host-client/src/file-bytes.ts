@@ -1,5 +1,7 @@
 import { base64ToBytes } from '@phosphor/shared/base64'
+import { isUuid } from '@phosphor/shared/control-api'
 import type { HostFrame } from '@phosphor/shared/host-protocol'
+import { isFilePath } from '@phosphor/shared/host-protocol-files'
 import {
   FILE_BYTES_ERRORS as ERRORS,
   FILE_BYTES_LIMITS as LIMITS,
@@ -118,4 +120,51 @@ export async function transferFile(
   const failure = workers.find((w) => w.status === 'rejected')
   if (failure) throw failure.reason
   return size
+}
+
+/**
+ * A whole file from `read`, in this process's memory, for a client that holds the bytes itself
+ * (a browser download or preview). A file larger than `maxBytes` is refused with `tooLarge`
+ * once its first chunk says how large it is, before any more is read.
+ */
+export async function readWholeFile(
+  read: ChunkReader,
+  {
+    maxBytes,
+    tooLarge,
+    signal,
+    onProgress,
+  }: { maxBytes: number; tooLarge: string } & Omit<TransferOptions, 'parallel'>,
+): Promise<Uint8Array<ArrayBuffer>> {
+  let whole: Uint8Array<ArrayBuffer> | undefined
+  const capped: ChunkReader = async (offset, length) => {
+    const chunk = await read(offset, length)
+    if (chunk.size > maxBytes) throw new Error(tooLarge)
+    whole ??= new Uint8Array(chunk.size)
+    return chunk
+  }
+  await transferFile(
+    capped,
+    async (bytes, offset) => {
+      whole!.set(bytes, offset)
+    },
+    { signal, onProgress },
+  )
+  return whole ?? new Uint8Array(0)
+}
+
+/** A renderer's lane file, or null: the lane handle and a lane-relative path. */
+export function parseLaneFile(v: unknown): { sessionId: string; path: string } | null {
+  if (typeof v !== 'object' || v === null) return null
+  const { sessionId, path } = v as Record<string, unknown>
+  return typeof sessionId === 'string' && isFilePath(path) ? { sessionId, path } : null
+}
+
+/** A download request, or null: a lane file and a fresh id. */
+export function parseDownloadRequest(
+  v: unknown,
+): { sessionId: string; path: string; id: string } | null {
+  const file = parseLaneFile(v)
+  const { id } = (v ?? {}) as Record<string, unknown>
+  return file && isUuid(id) ? { ...file, id } : null
 }

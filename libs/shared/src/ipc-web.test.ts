@@ -63,3 +63,8 @@ it("keeps a Host lane's order and a Host folder's collapse in the browser, as De
   for (const channel of ['app:setSessionOrder', 'app:setCollapsedWorkspaces'] as const)
     expect(IPC_WEB[channel]).toEqual({ kind: 'browser-local' })
 })
+it('serves Host file downloads and previews in the browser, which only cancels its own reads', () => {
+  for (const channel of ['hosts:fileDownload', 'hosts:filePreviewUrl'] as const)
+    expect(IPC_WEB[channel]).toEqual({ kind: 'remote-supported' })
+  expect(IPC_WEB['hosts:fileDownloadCancel']).toEqual({ kind: 'browser-local' })
+})

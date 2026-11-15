@@ -22,6 +22,7 @@ import { staticArtifactPreview } from './preview'
 import type { createBrowserDrafts } from './drafts'
 import type { createBrowserTerminals } from './terminals'
 import type { createBrowserSettings } from './settings'
+import type { createBrowserFileBytes } from './file-bytes'
 
 export type BrowserHandlers = {
   [C in WebSupportedChannel]: (
@@ -99,9 +100,15 @@ function settingsHandlers(settings: () => ReturnType<typeof createBrowserSetting
   } satisfies Partial<BrowserHandlers>
 }
 /** Lanes this tab opened, by handle: pi commands, Host reads and writes. The tab is window 1. */
-function laneHandlers(lanes: RemoteLanes) {
+function laneHandlers(
+  lanes: RemoteLanes,
+  fileBytes: () => ReturnType<typeof createBrowserFileBytes>,
+) {
   return {
     ...laneWriteHandlers(lanes),
+    'hosts:fileDownload': (request) => fileBytes().download(request),
+    'hosts:fileDownloadCancel': (id) => fileBytes().cancel(id),
+    'hosts:filePreviewUrl': (request) => fileBytes().previewUrl(request),
     'hosts:exportLaneHtml': (id) => lanes.onLane(1, id, exportLaneHtml),
     'hosts:subagentHistory': (id) => lanes.onLane(1, id, laneSubagentHistory),
     'hosts:subagentInspect': (id, request) => lanes.onLane(1, id, laneSubagentInspect(request)),
@@ -158,7 +165,8 @@ function signOut(control: BrowserControl, broadcast: () => void) {
   }
   return result
 }
-export function createBrowserHandlers(ports: {
+/** What the handlers reach: the tab's control session, Host connections and stores. */
+export interface BrowserHandlerPorts {
   control: BrowserControl
   hosts: BrowserHosts
   lanes: RemoteLanes
@@ -168,10 +176,12 @@ export function createBrowserHandlers(ports: {
   settings: ReturnType<typeof createBrowserSettings>
   prefs: ReturnType<typeof createBrowserPreferences>
   drafts: ReturnType<typeof createBrowserDrafts>
+  fileBytes: ReturnType<typeof createBrowserFileBytes>
   openExternal: (url: string) => void
   broadcastLogout: () => void
   machinesChanged: () => void
-}): BrowserHandlers {
+}
+export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandlers {
   const { control, hosts, lanes, resources, prefs, drafts } = ports
   const marks = laneMarks(hosts.connection)
   const read = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
@@ -210,7 +220,7 @@ export function createBrowserHandlers(ports: {
     'hosts:takeControl': (host, lane) => lanes.action(host, lane, 'control.take'),
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
-    ...laneHandlers(lanes),
+    ...laneHandlers(lanes, () => ports.fileBytes),
     'hosts:setLaneMarks': marks.set,
     'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),
     'fs:listFiles': (key) => read('fs:listFiles', [key]),
