@@ -1,0 +1,251 @@
+/* The films' one look: Phosphor's dark theme (docs/style-guide.md), a copy column on the left and
+   the real app window bleeding off the right and bottom edges. Frame is 1280x720. */
+@font-face {
+  font-family: 'Phosphor Sans';
+  src: url('fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Phosphor Mono';
+  src: url('fonts/JetBrainsMono.ttf') format('truetype');
+  font-weight: 100 800;
+  font-style: normal;
+}
+:root {
+  --ground: #15130f;
+  --window: #1e1c18;
+  --border: #3a352c;
+  --border-strong: #4b453a;
+  --ink: #ece7db;
+  --ink-quiet: #aca496;
+  --amber: #eca03d;
+  --amber-ink: #241503;
+  --sans: 'Phosphor Sans', sans-serif;
+  --mono: 'Phosphor Mono', monospace;
+}
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html,
+body {
+  width: 1280px;
+  height: 720px;
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Copy column */
+.col {
+  position: absolute;
+  left: 56px;
+  top: 0;
+  width: 376px;
+  height: 720px;
+}
+.rail {
+  position: absolute;
+  top: 66px;
+  left: 0;
+  display: flex;
+  gap: 6px;
+}
+.rail i {
+  display: block;
+  width: 46px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  overflow: hidden;
+}
+.rail i.done {
+  background: var(--ink-quiet);
+}
+.rail i b {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--amber);
+  transform-origin: 0 50%;
+}
+.step {
+  position: absolute;
+  top: 86px;
+  left: 0;
+  font: 500 19px/1.2 var(--mono);
+  color: var(--ink-quiet);
+  white-space: nowrap;
+}
+.copy {
+  position: absolute;
+  top: 166px;
+  left: 0;
+  width: 376px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.title {
+  font: 500 47px/1.07 var(--sans);
+  letter-spacing: -0.047em;
+  text-wrap: balance;
+}
+.title em {
+  font-style: normal;
+  color: var(--amber);
+}
+.subs {
+  display: grid;
+}
+.sub {
+  grid-area: 1 / 1;
+  width: 356px;
+  font: 400 21px/1.42 var(--sans);
+  letter-spacing: -0.012em;
+  color: var(--ink-quiet);
+  text-wrap: pretty;
+}
+.sub strong {
+  font-weight: 500;
+  color: var(--ink);
+}
+.in,
+.w {
+  display: inline-block;
+}
+.title .in,
+.sub .in {
+  display: block;
+}
+.slate {
+  position: absolute;
+  left: 0;
+  bottom: 44px;
+  font: 500 12.5px/1 var(--mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  white-space: nowrap;
+}
+
+/* The app window: a fixed viewport over a camera that carries the capture plates. */
+.win {
+  position: absolute;
+  left: 460px;
+  top: 52px;
+  width: 860px;
+  height: 708px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px 0 0 0;
+  background: var(--window);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.5);
+}
+.pan {
+  position: absolute;
+  inset: 0;
+}
+.cam {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.plate {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1600px;
+  height: 1000px;
+  max-width: none;
+}
+.plate.dialog {
+  width: 880px;
+  height: 780px;
+}
+.plate.next {
+  opacity: 0;
+}
+.ring {
+  position: absolute;
+  border: 2px solid var(--amber);
+  border-radius: 9px;
+  box-shadow: 0 0 0 4px rgb(236 160 61 / 0.16);
+}
+.band {
+  position: absolute;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--amber);
+  transform-origin: 0 50%;
+}
+.cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  transform-origin: 0 0;
+}
+
+/* A second surface beside the window: the phone-sized browser app, cropped by a plain frame. */
+.phone {
+  position: absolute;
+  right: 56px;
+  top: 84px;
+  width: 330px;
+  height: 716px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 30px;
+  background: var(--window);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.6);
+}
+.phone img {
+  display: block;
+  width: 330px;
+}
+
+/* End card */
+.card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.lockup {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.lockup img {
+  width: 92px;
+  height: 92px;
+}
+.wordmark {
+  font: 500 50px/1 var(--mono);
+  letter-spacing: -0.02em;
+}
+.headline {
+  margin-top: 54px;
+  font: 500 84px/1 var(--sans);
+  letter-spacing: -0.06em;
+  white-space: nowrap;
+}
+.headline em {
+  font-style: normal;
+  color: var(--amber);
+}
+.where {
+  margin-top: 48px;
+  font: 500 20px/1 var(--mono);
+  color: var(--ink-quiet);
+  white-space: nowrap;
+}

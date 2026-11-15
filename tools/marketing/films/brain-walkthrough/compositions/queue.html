@@ -1,0 +1,55 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="queue" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i><b id="queue-fill"></b></i><i></i><i></i>
+      </div>
+      <p class="step">2 of 4 · Queue</p>
+      <div class="copy">
+        <h2 id="queue-title" class="title clip" data-start="0.2" data-duration="5.0">
+          <span class="in">Queue a <em>local lane</em></span>
+        </h2>
+        <div class="subs">
+          <p id="queue-sub" class="sub clip" data-start="0.9" data-duration="4.3">
+            <span class="in">Extraction calls that lane’s provider, so it can use quota.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="queue-pan" class="pan">
+        <div id="queue-cam" class="cam">
+          <img class="plate" src="assets/shots/brain-queue.png" alt="" />
+          <div
+            id="queue-ring"
+            class="ring"
+            style="left: 266px; top: 326px; width: 428px; height: 56px"
+          ></div>
+          <img id="queue-cursor" class="cursor" src="assets/cursor.svg" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#queue-cam')
+      const cursor = PX.cursor(tl, '#queue-cursor')
+      PX.whipIn(tl, '#queue-pan')
+      cam.cut([256, 44, 640, 420]).move([262, 150, 440, 250], 0.6, 1.2)
+      PX.ring(tl, '#queue-ring', 1.9, 4.6)
+      cursor.cut([600, 470]).move([663, 271], 3.8, 1).press(5.05)
+      PX.title(tl, '#queue-title .in', 0.3, 5.2)
+      PX.line(tl, '#queue-sub .in', 1.0, 5.2)
+      PX.draw(tl, '#queue-fill', 0, 5.2, 0.45, 1)
+      window.__timelines['queue'] = tl
+    })()
+  </script>
+</template>

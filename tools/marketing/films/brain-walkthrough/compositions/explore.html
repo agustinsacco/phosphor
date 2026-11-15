@@ -1,0 +1,60 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="explore" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i class="done"></i><i class="done"></i><i><b id="explore-fill"></b></i>
+      </div>
+      <p class="step">4 of 4 · Explore</p>
+      <div class="copy">
+        <h2 id="explore-title" class="title clip" data-start="0.2" data-duration="7.8">
+          <span class="in">Explore the <em>graph</em></span>
+        </h2>
+        <div class="subs">
+          <p id="explore-sub" class="sub clip" data-start="0.8" data-duration="3.3">
+            <span class="in">Typed connections between people, projects and documents.</span>
+          </p>
+          <p id="explore-sub2" class="sub clip" data-start="4.4" data-duration="3.6">
+            <span class="in">Open a memory to read the quotes that support it.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="explore-pan" class="pan">
+        <div id="explore-cam" class="cam">
+          <img class="plate" src="assets/shots/brain-graph.png" alt="" />
+          <img id="explore-memory" class="plate next" src="assets/shots/brain-memory.png" alt="" />
+          <div
+            id="explore-quote"
+            class="ring"
+            style="left: 272px; top: 503px; width: 416px; height: 88px"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#explore-cam')
+      PX.whipIn(tl, '#explore-pan')
+      cam.cut([724, 150, 800, 700]).move([790, 300, 660, 560], 0.5, 3, 1.5, 'power1.inOut')
+      cam.move([262, 330, 440, 420], 3.8, 1.3, 1.4)
+      PX.swap(tl, '#explore-memory', 4.4)
+      PX.ring(tl, '#explore-quote', 5.5, 7.6)
+      PX.whipOut(tl, '#explore-pan', 8)
+      PX.title(tl, '#explore-title .in', 0.3, 8)
+      PX.line(tl, '#explore-sub .in', 0.9, 4.1)
+      PX.line(tl, '#explore-sub2 .in', 4.5, 8)
+      PX.draw(tl, '#explore-fill', 0, 8, 0, 0.6)
+      window.__timelines['explore'] = tl
+    })()
+  </script>
+</template>

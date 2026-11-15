@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1280, height=720" />
+    <title>From a task to work you can inspect</title>
+    <link rel="stylesheet" href="assets/film.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script src="assets/kit.js"></script>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="25.0"
+      data-fps="30"
+      data-width="1280"
+      data-height="720"
+    >
+      <div
+        id="lane"
+        data-composition-id="lane"
+        data-composition-src="compositions/lane.html"
+        data-start="0"
+        data-duration="4.4"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="inspect"
+        data-composition-id="inspect"
+        data-composition-src="compositions/inspect.html"
+        data-start="4.4"
+        data-duration="4.6"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="review"
+        data-composition-id="review"
+        data-composition-src="compositions/review.html"
+        data-start="9.0"
+        data-duration="4.2"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="brain"
+        data-composition-id="brain"
+        data-composition-src="compositions/brain.html"
+        data-start="13.2"
+        data-duration="4.1"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="hosts"
+        data-composition-id="hosts"
+        data-composition-src="compositions/hosts.html"
+        data-start="17.3"
+        data-duration="4.2"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="end"
+        data-composition-id="end"
+        data-composition-src="compositions/end.html"
+        data-start="21.5"
+        data-duration="3.5"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+    </div>
+    <script>
+      window.__timelines['main'] = gsap.timeline({ paused: true })
+    </script>
+  </body>
+</html>

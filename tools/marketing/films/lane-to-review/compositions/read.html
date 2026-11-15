@@ -1,0 +1,55 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="read" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i><b id="read-fill"></b></i><i></i><i></i><i></i>
+      </div>
+      <p class="step">1 of 4 · Read</p>
+      <div class="copy">
+        <h2 id="read-title" class="title clip" data-start="0" data-duration="5.3">
+          <span class="in">Read what the lane <em>did</em></span>
+        </h2>
+        <div class="subs">
+          <p id="read-sub" class="sub clip" data-start="0.5" data-duration="4.8">
+            <span class="in">Its steps, tool output and reply stay in the conversation.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="read-pan" class="pan">
+        <div id="read-cam" class="cam">
+          <img class="plate" src="assets/shots/chat.png" alt="" />
+          <div
+            id="read-ring"
+            class="ring"
+            style="left: 560px; top: 205px; width: 216px; height: 26px"
+          ></div>
+          <img id="read-cursor" class="cursor" src="assets/cursor.svg" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#read-cam')
+      const cursor = PX.cursor(tl, '#read-cursor')
+      cam.cut([410, 0, 900, 560]).move([548, 130, 640, 340], 1.2, 2.2, 1.25)
+      PX.ring(tl, '#read-ring', 2.5, 4)
+      cursor.cut([1150, 600]).move([1466, 26], 4, 1.2)
+      cam.move([820, 0, 780, 420], 4, 1.2)
+      PX.line(tl, '#read-title .in', undefined, 5.3)
+      PX.line(tl, '#read-sub .in', 0.6, 5.3)
+      PX.draw(tl, '#read-fill', 0, 5.3, 0, 0.5)
+      window.__timelines['read'] = tl
+    })()
+  </script>
+</template>

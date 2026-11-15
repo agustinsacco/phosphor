@@ -1,0 +1,44 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="close" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i>
+      </div>
+      <p class="step">Phosphor</p>
+      <div class="copy">
+        <h2 id="close-title" class="title clip" data-start="0.1" data-duration="3.4">
+          <span class="in">Nothing merges or sends <em>on its own</em></span>
+        </h2>
+        <div class="subs">
+          <p id="close-sub" class="sub clip" data-start="0.9" data-duration="2.6">
+            <span class="in">You stay the reviewer.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="close-pan" class="pan">
+        <div id="close-cam" class="cam">
+          <img class="plate" src="assets/shots/notifications.png" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#close-cam')
+      cam.cut([1180, 40, 420, 330]).move([540, 0, 1060, 860], 0, 1.6, 1.5, 'power3.inOut')
+      PX.title(tl, '#close-title .in', 0.2)
+      PX.line(tl, '#close-sub .in', 1.0)
+      window.__timelines['close'] = tl
+    })()
+  </script>
+</template>

@@ -1,0 +1,51 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="hosts" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i class="done"></i><i class="done"></i><i><b id="hosts-fill"></b></i>
+      </div>
+      <p class="step">4 of 4 · Context</p>
+      <div class="copy">
+        <h2 id="hosts-title" class="title clip" data-start="0.2" data-duration="4.0">
+          <span class="in">Reach your own <em>machines</em></span>
+        </h2>
+        <div class="subs">
+          <p id="hosts-sub" class="sub clip" data-start="0.7" data-duration="3.5">
+            <span class="in">Hosts you run, from Desktop or the browser app.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="hosts-pan" class="pan">
+        <div id="hosts-cam" class="cam">
+          <img class="plate" src="assets/shots/machines.png" alt="" />
+        </div>
+      </div>
+    </div>
+    <div id="hosts-phone" class="phone" data-layout-allow-overflow>
+      <img src="assets/shots/mobile.png" alt="" />
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#hosts-cam')
+      PX.whipIn(tl, '#hosts-pan')
+      cam.cut([496, 44, 864, 600]).move([470, 130, 768, 560], 1.2, 1.2)
+      PX.rise(tl, '#hosts-phone', 1.3)
+      PX.whipOut(tl, '#hosts-pan', 4.2)
+      PX.title(tl, '#hosts-title .in', 0.3, 4.2)
+      PX.line(tl, '#hosts-sub .in', 0.8, 4.2)
+      PX.draw(tl, '#hosts-fill', 0, 4.2, 0.5, 1)
+      window.__timelines['hosts'] = tl
+    })()
+  </script>
+</template>

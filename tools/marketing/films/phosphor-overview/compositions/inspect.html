@@ -1,0 +1,51 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="inspect" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i><b id="inspect-fill"></b></i><i></i><i></i>
+      </div>
+      <p class="step">2 of 4 · Inspect</p>
+      <div class="copy">
+        <h2 id="inspect-title" class="title clip" data-start="0.2" data-duration="4.4">
+          <span class="in">Inspect the <em>work</em></span>
+        </h2>
+        <div class="subs">
+          <p id="inspect-sub" class="sub clip" data-start="0.7" data-duration="3.9">
+            <span class="in"
+              >Tool calls, changed files and versioned artifacts, not just the summary.</span
+            >
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="inspect-pan" class="pan">
+        <div id="inspect-cam" class="cam">
+          <img class="plate" src="assets/shots/chat.png" alt="" />
+          <img id="inspect-artifact" class="plate next" src="assets/shots/artifacts.png" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#inspect-cam')
+      PX.whipIn(tl, '#inspect-pan')
+      cam.cut([548, 130, 640, 340], 0, 1.2).move([828, 52, 764, 620], 1.5, 1.3)
+      PX.swap(tl, '#inspect-artifact', 2.05)
+      PX.whipOut(tl, '#inspect-pan', 4.6)
+      PX.title(tl, '#inspect-title .in', 0.3, 4.6)
+      PX.line(tl, '#inspect-sub .in', 0.8, 4.6)
+      PX.draw(tl, '#inspect-fill', 0, 4.6, 0, 1)
+      window.__timelines['inspect'] = tl
+    })()
+  </script>
+</template>

@@ -1,0 +1,59 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="lane" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i><b id="lane-fill"></b></i><i></i><i></i><i></i>
+      </div>
+      <p class="step">1 of 4 · Start</p>
+      <div class="copy">
+        <h2 id="lane-title" class="title clip" data-start="0" data-duration="4.4">
+          <span class="in">Start with a <em>lane</em></span>
+        </h2>
+        <div class="subs">
+          <p id="lane-sub" class="sub clip" data-start="0.5" data-duration="3.9">
+            <span class="in"
+              >Choose the repository and model. Tasks stay on separate worktrees.</span
+            >
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="lane-pan" class="pan">
+        <div id="lane-cam" class="cam">
+          <img class="plate" src="assets/shots/home.png" alt="" />
+          <div
+            id="lane-ring"
+            class="ring"
+            style="left: 548px; top: 808px; width: 510px; height: 34px"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      // Taller than the capture, so the composer can sit mid-frame clear of the illustrative totals.
+      const HOME = { w: 1600, h: 1180 }
+      const cam = PX.camera(tl, '#lane-cam', HOME)
+      cam.cut([344, 150, 500, 250]).move([344, 170, 500, 250], 0.2, 1.6, 1.5, 'power1.out')
+      PX.whipOut(tl, '#lane-pan', 1.9)
+      cam.cut([540, 800, 640, 230], 1.9, 1.2)
+      PX.whipIn(tl, '#lane-pan', 1.9)
+      PX.ring(tl, '#lane-ring', 2.6, 4.2)
+      PX.whipOut(tl, '#lane-pan', 4.4)
+      PX.line(tl, '#lane-title .in', undefined, 4.4)
+      PX.line(tl, '#lane-sub .in', 0.6, 4.4)
+      PX.draw(tl, '#lane-fill', 0, 4.4, 0, 1)
+      window.__timelines['lane'] = tl
+    })()
+  </script>
+</template>

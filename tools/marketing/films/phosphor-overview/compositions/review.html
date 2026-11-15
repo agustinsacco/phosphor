@@ -1,0 +1,53 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="review" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i class="done"></i><i><b id="review-fill"></b></i><i></i>
+      </div>
+      <p class="step">3 of 4 · Review</p>
+      <div class="copy">
+        <h2 id="review-title" class="title clip" data-start="0.2" data-duration="4.0">
+          <span class="in">Check the <em>evidence</em></span>
+        </h2>
+        <div class="subs">
+          <p id="review-sub" class="sub clip" data-start="0.7" data-duration="3.5">
+            <span class="in">Hand-off buttons draft a message. You decide whether to send.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="review-pan" class="pan">
+        <div id="review-cam" class="cam">
+          <img class="plate" src="assets/shots/lane-pr.png" alt="" />
+          <div
+            id="review-ring"
+            class="ring"
+            style="left: 798px; top: 164px; width: 488px; height: 48px"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#review-cam')
+      PX.whipIn(tl, '#review-pan')
+      cam.cut([572, 36, 720, 548]).move([820, 150, 572, 300], 1.3, 1.3, 1.4)
+      PX.ring(tl, '#review-ring', 2.3, 4)
+      PX.whipOut(tl, '#review-pan', 4.2)
+      PX.title(tl, '#review-title .in', 0.3, 4.2)
+      PX.line(tl, '#review-sub .in', 0.8, 4.2)
+      PX.draw(tl, '#review-fill', 0, 4.2, 0, 1)
+      window.__timelines['review'] = tl
+    })()
+  </script>
+</template>

@@ -1,0 +1,87 @@
+{
+  "hyperframes": "0.9.49",
+  "crf": 19,
+  "films": [
+    {
+      "id": "phosphor-overview",
+      "video": {
+        "bytes": 3201152,
+        "sha256": "f0ea94fcf28e7d6d48bf4c3cc83fa06add422e1d512605e8167d9dd5b5c7dcfa"
+      },
+      "poster": {
+        "bytes": 26056,
+        "sha256": "011849c9084428ab58ee3a7ab8aea251cb03667bbc5318025150e8deeaf6fe2d"
+      },
+      "codec": "h264",
+      "pixelFormat": "yuv420p",
+      "width": 1280,
+      "height": 720,
+      "frameRate": "30/1",
+      "seconds": 25,
+      "audioStreams": 0,
+      "seekableFromStart": true,
+      "posterWidth": 1280,
+      "posterHeight": 720
+    },
+    {
+      "id": "brain-walkthrough",
+      "video": {
+        "bytes": 4191883,
+        "sha256": "acecbe3081948934bfe94ace2dbb2b64fe85d06852ccdb4b28c93cfceff12331"
+      },
+      "poster": {
+        "bytes": 28294,
+        "sha256": "cb2f37501997dec63713775fe7443243a02e452761bf891cbab2130786c2cc00"
+      },
+      "codec": "h264",
+      "pixelFormat": "yuv420p",
+      "width": 1280,
+      "height": 720,
+      "frameRate": "30/1",
+      "seconds": 39,
+      "audioStreams": 0,
+      "seekableFromStart": true,
+      "posterWidth": 1280,
+      "posterHeight": 720
+    },
+    {
+      "id": "lane-to-review",
+      "video": {
+        "bytes": 4946311,
+        "sha256": "234daea873d58750a8e3f0d63f248ca1b9fb62f43258d60abb6c9d3e08899681"
+      },
+      "poster": {
+        "bytes": 37812,
+        "sha256": "c5984db0d2255ed6dca72b3a2e3e81a1a43bfcae89468bbffc9543a1c49ba6fd"
+      },
+      "codec": "h264",
+      "pixelFormat": "yuv420p",
+      "width": 1280,
+      "height": 720,
+      "frameRate": "30/1",
+      "seconds": 35,
+      "audioStreams": 0,
+      "seekableFromStart": true,
+      "posterWidth": 1280,
+      "posterHeight": 720
+    }
+  ],
+  "plates": {
+    "artifacts.png": "a5316250b8f0619bb0dfb03839e344fbfe320c2fe0bef88752e8f0db0f835e80",
+    "brain-graph.png": "0460b3a1eeabe81a6a834a2d9a404427ebd1615caeaf7b1dc875733c29a74a40",
+    "brain-memory.png": "7704d965290ea68b9a8b87a0df0ea2ceee3c356713e3d9db8c4fe8bb88f3df8b",
+    "brain-queue.png": "c878cc53804b102217851cc49f95d5dddfda54beb1e707f21771b290835daade",
+    "brain-ready.png": "d68871b5b56a300c4f34d39d60bbeacc8a704c1d0dc009e9a53ff27871ebc8e4",
+    "brain-recall.png": "5ef96117329accdb0429f4a5c8f9ccc37863ecf96d5de4e161fa9f8fab16cbba",
+    "brain-review.png": "44eb8553e695b8ca421c0057ab1a04c7714f2ce3dfb2f8456049064d55cf4c67",
+    "brain-setup.png": "34cb2f927db5d22278dd304ededd4c5bec6f6c1276131524096167c3db31dff4",
+    "changes.png": "d943c95c5659af07bbd64c50a44b903686212c1767b9749f81156ecc63256a42",
+    "chat.png": "f848c2ff98191e4084605e0f53ea33e1852bce5de72bc9582b88f0913478bda4",
+    "home.png": "c8aa511f7648dc8ac091d84db96d02aca8146f1974246add4d149d627c4c2a89",
+    "lane-pr.png": "81ce02f4687e76484cc0241d00f7e3e887db58d5f68904e869c7a3cb3e275aa9",
+    "machines.png": "8aaec60ffe9f761ff7e1622e490cb029dbfd341555cc336b62207928707b7844",
+    "mobile.png": "16099b0c6da9fdd05b23fd09950de50a961ddd4874975d423b318aa27f4891ab",
+    "notifications.png": "06f9356dd0e7a208949640bcefc2ac11f4d943869fd83fa8f1135db34eb44244",
+    "slack-pill.png": "f0369537e96b6ac7851d04a6bf27ef1c8a00aa9c5b3e21fb3cb7b2c8f6148631"
+  }
+}
