@@ -149,7 +149,10 @@ function ViewerBar({
   download?: FileDownload
 }): React.JSX.Element {
   return (
-    <div className="border-border flex h-8 shrink-0 items-center gap-2 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden">
+    <div
+      data-viewer-bar
+      className="border-border flex h-8 shrink-0 items-center gap-2 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden"
+    >
       {view && (
         <ViewTabs
           view={view}

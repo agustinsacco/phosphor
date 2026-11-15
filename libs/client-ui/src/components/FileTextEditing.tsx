@@ -7,6 +7,7 @@ import { usePlatform } from '@/platform/Platform'
  * A file's text, edited as this device can. Monaco does not support mobile browsers, so a
  * phone shows `reader` (the file, highlighted) and, while the file is writable, Edit, which
  * swaps in a plain text field over the same buffer; Save sends it as the editor's Mod+S does.
+ * Their row is 44px tall, so the buttons' hit-slops stay off the row above.
  * Anywhere else this is `editor`.
  */
 export function FileTextEditing({
@@ -39,7 +40,7 @@ export function FileTextEditing({
   return (
     <div className="flex h-full min-h-0 flex-col">
       {!readOnly && (
-        <div className="border-border flex shrink-0 items-center gap-2 border-b px-2 py-1">
+        <div className="border-border flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
           <Button size="sm" onClick={() => setEditing(writing ? null : id)}>
             {writing ? 'Done' : 'Edit'}
           </Button>

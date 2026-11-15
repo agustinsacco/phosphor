@@ -343,6 +343,18 @@ html[data-form-factor='compact'] {
 [data-form-factor='compact'] :is([data-pointer-hint], [data-hint-only]) {
   display: none;
 }
+/* A file viewer's bar is 32px for a mouse and scrolls sideways, which clips anything taller.
+   Touch grows its actions to 44px, so the bar grows with them (FileViewer's ViewerBar). */
+[data-form-factor='compact'] [data-viewer-bar] {
+  height: auto;
+  min-height: 44px;
+}
+@media (pointer: coarse) {
+  .browser-shell [data-viewer-bar] {
+    height: auto;
+    min-height: 44px;
+  }
+}
 /* Stands in for the composer when this device is only reading the lane. */
 .compact-observer {
   display: flex;

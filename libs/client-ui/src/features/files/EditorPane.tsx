@@ -91,7 +91,10 @@ export const EditorPane = memo(function EditorPane({
   )
 })
 
-/** A phone's file screen: Back to the tree, the file's path, and the file. */
+/**
+ * A phone's file screen: Back to the tree, the file's path, and the file. Its rows pad their
+ * 32px buttons to 44px, so each one's hit-slop stays inside its row and off the next row's.
+ */
 function SingleFile({
   file,
   source,
@@ -103,7 +106,7 @@ function SingleFile({
 }): React.JSX.Element {
   return (
     <div className="flex h-full flex-col">
-      <div className="border-border flex shrink-0 items-center gap-2 border-b px-2 py-1">
+      <div className="border-border flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
         {back}
         <span
           aria-label="Current file path"
