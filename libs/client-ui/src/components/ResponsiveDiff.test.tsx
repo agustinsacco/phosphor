@@ -87,3 +87,23 @@ it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM, DESKTOP_PLATFORM])(
     }
   },
 )
+
+it('names the phone diff and its change markers through roles that allow accessible names', () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    act(() =>
+      root.render(
+        <PlatformProvider value={COMPACT_PLATFORM}>
+          <ResponsiveDiff original="old" modified="new" editor={null} />
+        </PlatformProvider>,
+      ),
+    )
+    expect(container.querySelector('[role="region"][aria-label="Unified diff"]')).not.toBeNull()
+    expect(container.querySelector('[role="img"][aria-label="Removed"]')?.textContent).toBe('−')
+    expect(container.querySelector('[role="img"][aria-label="Added"]')?.textContent).toBe('+')
+  } finally {
+    act(() => root.unmount())
+  }
+})
