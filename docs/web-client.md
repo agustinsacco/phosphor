@@ -300,7 +300,9 @@ lanes own, with the same baseline and silence rules ([Lanes](lanes.md#change-not
 They land on the toast and in the drawer, and while the page is hidden go to the
 worker with the stable `pr:<prKey>` key and their Host lane route, so a newer
 change replaces the notification and a click opens that lane with its PR
-inspector on the PR.
+inspector on the PR. Their native text is the PR number, a fixed word for the
+change kind and the machine label (`prNativeNotice`): no branch, repository,
+check or reviewer name, and no lane title.
 
 Host attention follows Desktop's rule: only a lane no visible page shows gets a
 native notice, even if the receiving page is visible elsewhere. The worker checks

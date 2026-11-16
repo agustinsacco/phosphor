@@ -342,7 +342,10 @@ last keeps it. The first status read after launch is only a baseline, and a read
 that failed says nothing. A read GitHub answered without checks (too costly or
 slow) keeps the last known checks, so the next full read never reports old
 failures as new; a PR with no CI is never "ready to merge". Each notice names the PR and its newest change, the
-lane and `repo#n`, and lists everything that changed since you last looked.
+lane and `repo#n`, and lists everything that changed since you last looked. A
+Host lane's native notification says less, since it can show on a lock screen:
+the PR number, a fixed word for the change ("Branch conflict", "Checks failed")
+and the machine, never a branch, repository, check, reviewer or lane title.
 **Open lane** opens the lane (a Host lane through its Host, as any Host lane
 notice does) with its inspector on that PR (a request the
 lane's pill has not answered within 15 seconds lapses, so an inspector never

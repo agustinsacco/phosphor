@@ -545,9 +545,11 @@ close it; focus moves into the sheet and returns to the element on close.
   (a conflict), or Open on GitHub (ready to merge); merged has none. A
   hand-off drafts into that lane's composer and is never sent. While
   Phosphor is not the focused app, the same notice also goes to the
-  operating system (`app:notify`: title "#57 …", body "lane · repo", or
-  "machine · lane" for a Host lane, which keeps repository names off lock
-  screens as Host attention does); clicking it brings the window forward and
+  operating system (`app:notify`: title "#57 …", body "lane · repo"; for a
+  Host lane, title "#57 Branch conflict" with a fixed word for the change kind
+  and body the machine label, which keeps repository and branch names, check
+  names, reviewers and the lane title off lock screens as Host attention does);
+  clicking it brings the window forward and
   opens the lane on that PR. In front of you the toast says it, so there is no
   native one. Desktop attaches the watch in `AppOverlays`, the browser shell in
   `CompactApp` (see [Web client](web-client.md#notifications)).
