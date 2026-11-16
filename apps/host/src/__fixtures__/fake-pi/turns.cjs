@@ -35,10 +35,11 @@ function billingIdentity(env) {
     : 'no isolated credential'
 }
 function prompt(ctx, message, images = []) {
-  ctx.ports.persist({ role: 'user', content: message })
+  const content = images.length ? [{ type: 'text', text: message }, ...images] : message
+  ctx.ports.persist({ role: 'user', content })
   ctx.ports.out({ type: 'agent_start' })
-  ctx.ports.out({ type: 'message_start', message: { role: 'user', content: message } })
-  ctx.ports.out({ type: 'message_end', message: { role: 'user', content: message } })
+  ctx.ports.out({ type: 'message_start', message: { role: 'user', content } })
+  ctx.ports.out({ type: 'message_end', message: { role: 'user', content } })
   ctx.ports.out({ type: 'message_start', message: ctx.ports.text('') })
   if (/artifact/i.test(message)) tools.artifact(ctx.toolState, ctx.ports)
   if (/links/i.test(message)) tools.linkTool(ctx.ports)

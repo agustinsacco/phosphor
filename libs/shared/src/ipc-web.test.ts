@@ -67,3 +67,9 @@ it('serves lane moves, which the page relays between Hosts', () => {
   for (const channel of ['hosts:laneMovePlan', 'hosts:laneMove'] as const)
     expect(IPC_WEB[channel]).toEqual({ kind: 'remote-supported' })
 })
+it('keeps image clipboard access on this device, never on the Host', () => {
+  for (const channel of ['clipboard:writeImage', 'clipboard:readImage'] as const)
+    expect(IPC_WEB[channel]).toEqual({ kind: 'browser-local' })
+  for (const channel of ['clipboard:writeFiles', 'clipboard:readFiles'] as const)
+    expect(IPC_WEB[channel].kind).toBe('unsupported')
+})

@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./browser-image-clipboard": {
+      "types": "./src/browser-image-clipboard.ts",
+      "default": "./src/browser-image-clipboard.ts"
+    },
     "./base64": {
       "types": "./src/base64.ts",
       "default": "./src/base64.ts"

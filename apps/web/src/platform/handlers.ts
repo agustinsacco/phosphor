@@ -1,3 +1,4 @@
+import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
 import type { IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
@@ -154,9 +155,11 @@ function laneWriteHandlers(lanes: RemoteLanes) {
     },
   } satisfies Partial<BrowserHandlers>
 }
-/** Device preferences this browser keeps (preferences.ts): validated, allowlisted, small. */
+/** Browser-local clipboard access and validated, allowlisted device preferences. */
 function preferenceHandlers(prefs: ReturnType<typeof createBrowserPreferences>) {
   return {
+    'clipboard:writeImage': writeBrowserImage,
+    'clipboard:readImage': readBrowserImage,
     'app:setTheme': prefs.theme,
     'app:setFontPrefs': prefs.fonts,
     'app:setModelPicks': prefs.models,

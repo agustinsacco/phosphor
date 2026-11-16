@@ -9,6 +9,8 @@ export interface Platform {
   fileEditing: boolean
   terminal: boolean
   scriptedArtifacts: boolean
+  /** Image clipboard access is native rather than a permission-gated browser API. */
+  nativeImageClipboard: boolean
   nativeFiles: boolean
   machineSettings: boolean
   /** Spellcheck, autocomplete and prompt learning in text fields (Settings → Writing). */
@@ -41,6 +43,7 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   fileEditing: true,
   terminal: true,
   scriptedArtifacts: true,
+  nativeImageClipboard: true,
   nativeFiles: true,
   machineSettings: true,
   writingAssist: true,
@@ -63,6 +66,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   // Host shells over the Host connection; a browser never opens a local one.
   terminal: true,
   scriptedArtifacts: false,
+  nativeImageClipboard: false,
   nativeFiles: false,
   // Host settings over the Host connection, after the explicit configuration access request.
   machineSettings: true,

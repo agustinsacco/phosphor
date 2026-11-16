@@ -126,7 +126,8 @@ The composer is one small field with several ways in.
   attach the file again after an upload failure. Neither these bytes nor local
   or Host document paths are persisted in remote drafts.
 - **Clicking a pending image opens the annotator** (`features/chat/imageEditor/`),
-  not the lightbox. Box, circle, arrow, pen, highlighter, text and numbered
+  not the lightbox, on Desktop and in the browser at every width. The phone
+  editor fills the screen with touch drawing, undo, Done and Cancel. Box, circle, arrow, pen, highlighter, text and numbered
   markers, with colour, size, undo/redo and select-to-move/resize. ⌘V (or
   _Paste image_) puts another image on top; ⇧⌘V (or _Replace image_) swaps the
   screenshot underneath, keeping the marks. _Done_ flattens everything into one
@@ -136,6 +137,13 @@ The composer is one small field with several ways in.
   ride along in memory (`PendingImage.annotation`) so reopening keeps them
   editable; a draft restored after a restart comes back flattened. Images
   already in the transcript are not editable: copy one and paste it.
+- **Chat images:** click opens the full-size lightbox; right-click copies on
+  Desktop and wide browsers. On a phone, long-press opens Copy image / Save
+  image, also available in the browser lightbox. Copy is shown where the image
+  Clipboard API exists; browser permission may still refuse it, with a visible
+  error. Browser copies convert non-PNG sources to PNG; Save downloads the
+  original bytes. The annotator's clipboard buttons are best-effort too; paste
+  or attach an image if browser clipboard reads are unavailable.
 - **Drafts persist.** Text, attachments and the model the draft was composed
   against live in `libs/client-ui/src/stores/drafts.ts`, keyed per session or per home
   workspace, and survive switching and quitting. Image bytes go to

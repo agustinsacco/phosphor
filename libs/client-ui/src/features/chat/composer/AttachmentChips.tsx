@@ -1,4 +1,3 @@
-import { usePlatform } from '@/platform/Platform'
 import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import { ChatImage } from '../ChatImage'
@@ -22,19 +21,18 @@ export function AttachmentChips({
   onRemove: (index: number) => void
   onEdit: (index: number, image: PendingImage, replace: boolean) => boolean
 }): React.JSX.Element | null {
-  const platform = usePlatform()
   const [editing, setEditing] = useState<number | null>(null)
   if (attachments.length === 0) return null
   const edited = editing === null ? undefined : attachments[editing]
   return (
     <div className="flex flex-wrap gap-2 px-3 pt-3" data-testid="attachment-chips">
       {attachments.map((attachment, index) => (
-        <div key={index} className="group/img relative">
+        <div key={index} className="attachment-chip group/img relative">
           {attachment.kind === 'image' ? (
             <ChatImage
               image={{ type: 'image', data: attachment.data, mimeType: attachment.mimeType }}
               className="border-border h-16 w-16 rounded-lg border object-cover"
-              onOpen={platform.fileEditing ? () => setEditing(index) : undefined}
+              onOpen={() => setEditing(index)}
             />
           ) : (
             <div
@@ -50,7 +48,7 @@ export function AttachmentChips({
           <TooltipButton
             onClick={() => onRemove(index)}
             aria-label={`Remove ${attachment.name}`}
-            className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-xs group-hover/img:flex"
+            className="attachment-remove hit-slop bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-xs group-hover/img:flex"
           >
             ✕
           </TooltipButton>
