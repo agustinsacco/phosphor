@@ -59,12 +59,18 @@ function browser() {
     getRegistrations: vi.fn(async () => [...registrations.values()]),
   }
   let permission: ReturnType<PushPorts['permission']> = 'granted'
+  const watchers = new Set<() => void>()
   return {
     registrations,
     workers,
+    watchers,
     ports: {
       permission: () => permission,
       workers: () => workers as never,
+      watchPermission: (changed) => {
+        watchers.add(changed)
+        return () => watchers.delete(changed)
+      },
     } satisfies PushPorts,
     setPermission: (next: typeof permission) => {
       permission = next
@@ -103,6 +109,7 @@ function setup() {
     changed,
     ports: b.ports,
   })
+  push.start()
   const sync = async () => {
     push.sync()
     await vi.advanceTimersByTimeAsync(500)
@@ -200,6 +207,42 @@ describe('browser Web Push registrations', () => {
     t.setPermission('granted')
     await t.sync()
     expect(t.scope(CLIENT, MAC)).toBeDefined()
+  })
+  it('follows the permission when the device reports a change, without a Host event', async () => {
+    const t = setup()
+    t.setPermission('default')
+    await t.sync()
+    expect(t.workers.register).not.toHaveBeenCalled()
+    t.setPermission('granted')
+    for (const changed of t.watchers) changed()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(t.scope(CLIENT, MAC)).toBeDefined()
+    t.setPermission('denied')
+    for (const changed of t.watchers) changed()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(t.scope(CLIENT, MAC)).toBeUndefined()
+    t.push.dispose()
+    expect(t.watchers.size).toBe(0)
+  })
+  it('removes a scope that finished installing after a sign-out', async () => {
+    const t = setup()
+    let finish!: () => void
+    const register = t.workers.register.getMockImplementation()!
+    t.workers.register.mockImplementationOnce(async (script, options) => {
+      await new Promise<void>((resolve) => (finish = resolve))
+      return register(script, options)
+    })
+    t.push.sync()
+    await vi.advanceTimersByTimeAsync(500)
+    t.setSession(null)
+    t.push.accountChanged(null)
+    finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect([...t.registrations.keys()]).toStrictEqual(['/'])
+    expect(t.connections.get(MAC)!.call).not.toHaveBeenCalledWith(
+      'notifications.subscribe',
+      expect.anything(),
+    )
   })
   it('removes every push scope on a definite sign-out, and none when an account loads', async () => {
     const t = setup()

@@ -8,6 +8,8 @@ type Workers = Pick<ServiceWorkerContainer, 'register' | 'getRegistrations'>
 export interface PushPorts {
   permission(): NotificationPermission | 'unavailable'
   workers(): Workers | undefined
+  /** Calls back whenever this device's notification permission may have changed. */
+  watchPermission(changed: () => void): () => void
 }
 const browserPorts: PushPorts = {
   permission: () =>
@@ -15,6 +17,28 @@ const browserPorts: PushPorts = {
       ? 'unavailable'
       : Notification.permission,
   workers: () => globalThis.navigator?.serviceWorker,
+  watchPermission(changed) {
+    if (typeof window === 'undefined') return () => {}
+    // Site settings change outside the page, so permission is read again on every return.
+    let status: PermissionStatus | undefined,
+      off = false
+    window.addEventListener('focus', changed)
+    document.addEventListener('visibilitychange', changed)
+    navigator.permissions?.query({ name: 'notifications' }).then(
+      (result) => {
+        if (off) return
+        status = result
+        result.addEventListener('change', changed)
+      },
+      () => {},
+    )
+    return () => {
+      off = true
+      window.removeEventListener('focus', changed)
+      document.removeEventListener('visibilitychange', changed)
+      status?.removeEventListener('change', changed)
+    }
+  },
 }
 type PushHosts = Pick<BrowserHosts, 'connection' | 'snapshot' | 'directoryReady'>
 type Connection = NonNullable<ReturnType<BrowserHosts['connection']>>
@@ -73,6 +97,9 @@ interface PushState {
   statuses: Map<string, 'registered' | 'failed'>
   confirmed: Map<string, { connection: Connection; generation: number; key: string }>
   stopped: boolean
+  /** The state last reconciled, and when a failed registration may be tried again. */
+  last: string
+  retryAt: number
 }
 
 function setStatus(state: PushState, hostId: string, status?: 'registered' | 'failed') {
@@ -119,6 +146,11 @@ async function registerScope(
     const registration = await activated(
       await workers.register('/sw.js', { type: 'module', scope: path }),
     )
+    // Signed out while the worker installed: the sign-out's removal already ran.
+    if (state.options.session()?.clientId !== scope.clientId) {
+      await removeScope(state, { registration, ...scope })
+      return true
+    }
     const ok = await registerWebPush(c, wire(await subscribed(registration.pushManager, key)))
     if (ok) state.confirmed.set(scope.hostId, { connection: c, generation, key })
     setStatus(state, scope.hostId, ok ? 'registered' : 'failed')
@@ -174,6 +206,25 @@ async function removeAll(state: PushState) {
   }
 }
 
+/** One reconciliation, skipped when nothing it reads changed and no retry is due. */
+async function reconcileOnce(state: PushState) {
+  const workers = state.ports.workers()
+  const session = state.options.session()
+  // Not signed in yet is not signed out: only a definite sign-out removes registrations.
+  if (!workers || !session) return
+  const view = state.options.hosts.snapshot()
+  const signature = JSON.stringify([
+    session.clientId,
+    state.ports.permission(),
+    state.options.hosts.directoryReady(),
+    Object.entries(view).map(([id, h]) => [id, h.state, h.webPushKey, h.capabilities]),
+  ])
+  if (signature === state.last && Date.now() < state.retryAt) return
+  const complete = await reconcileScopes(state, workers, session.clientId, view)
+  state.last = signature
+  state.retryAt = complete ? Infinity : Date.now() + RETRY_MS
+}
+
 /**
  * This device's Web Push registrations, one per Host that announces it, while notifications
  * are allowed and the account is signed in. Closing the page keeps them; turning
@@ -188,29 +239,12 @@ export function createBrowserPush(options: PushOptions) {
     statuses: new Map(),
     confirmed: new Map(),
     stopped: false,
+    last: '',
+    retryAt: 0,
   }
   let timer: ReturnType<typeof setTimeout> | undefined
   let running = false,
-    again = false,
-    last = '',
-    retryAt = 0
-  async function run() {
-    const workers = state.ports.workers()
-    const session = options.session()
-    // Not signed in yet is not signed out: only a definite sign-out removes registrations.
-    if (!workers || !session) return
-    const view = options.hosts.snapshot()
-    const signature = JSON.stringify([
-      session.clientId,
-      state.ports.permission(),
-      options.hosts.directoryReady(),
-      Object.entries(view).map(([id, h]) => [id, h.state, h.webPushKey, h.capabilities]),
-    ])
-    if (signature === last && Date.now() < retryAt) return
-    const complete = await reconcileScopes(state, workers, session.clientId, view)
-    last = signature
-    retryAt = complete ? Infinity : Date.now() + RETRY_MS
-  }
+    again = false
   async function drain() {
     if (running) {
       again = true
@@ -220,26 +254,32 @@ export function createBrowserPush(options: PushOptions) {
     try {
       do {
         again = false
-        await run()
+        await reconcileOnce(state)
       } while (again && !state.stopped)
     } catch {
-      last = ''
+      state.last = ''
     } finally {
       running = false
     }
   }
+  /** Host, account or permission state may have changed. */
+  function sync() {
+    if (state.stopped || timer) return
+    timer = setTimeout(() => {
+      timer = undefined
+      void drain()
+    }, SYNC_MS)
+  }
+  let offPermission = () => {}
   return {
-    /** Host, account or permission state may have changed. */
-    sync() {
-      if (state.stopped || timer) return
-      timer = setTimeout(() => {
-        timer = undefined
-        void drain()
-      }, SYNC_MS)
+    sync,
+    /** Follows the device's permission from now until disposal. */
+    start() {
+      if (!state.stopped) offPermission = state.ports.watchPermission(sync)
     },
     /** `null` is a definite sign-out: every push registration of this browser goes. */
     accountChanged(owner: string | null) {
-      last = ''
+      state.last = ''
       state.confirmed.clear()
       if (owner === null) void removeAll(state).catch(() => {})
     },
@@ -255,6 +295,7 @@ export function createBrowserPush(options: PushOptions) {
     dispose() {
       state.stopped = true
       clearTimeout(timer)
+      offPermission()
     },
   }
 }

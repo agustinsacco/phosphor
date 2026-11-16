@@ -309,6 +309,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
           refreshQuietly()
         })
         offInvalidation = invalidation?.subscribe(control.invalidate) ?? (() => {})
+        push.start()
         poll = setInterval(refreshQuietly, DIRECTORY_POLL_MS)
         clock = setInterval(hosts.reconcile, 5000)
       }
