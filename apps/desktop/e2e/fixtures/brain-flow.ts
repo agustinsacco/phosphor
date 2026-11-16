@@ -14,6 +14,28 @@ export const inbox = (page: Page, lane: BrainLane) =>
     .getByRole('button', { name: lane.title, exact: true })
 export const status = (page: Page) => page.evaluate(() => window.phosphor.invoke('brain:status'))
 
+/**
+ * A stubbed read spawns four model calls and holds the first for three seconds. A loaded CI
+ * runner has taken more than four times as long, so a read gets its own budget, not the default.
+ */
+export const READ_TIMEOUT = 60_000
+/** Wait for the read of one lane, or of the first job when no lane is named, to settle. */
+export async function awaitRead(
+  page: Page,
+  lane: BrainLane | null,
+  state: 'review' | 'failed' = 'review',
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const { jobs } = await status(page)
+        return (lane ? jobs.find((job) => job.sessionPath === lane.source) : jobs[0])?.state
+      },
+      { timeout: READ_TIMEOUT },
+    )
+    .toBe(state)
+}
+
 export async function enableBrain(page: Page, lane: BrainLane): Promise<void> {
   const row = laneRow(page, lane)
   await expect(row).toBeVisible({ timeout: 30_000 })
@@ -38,11 +60,7 @@ export async function queueLane(page: Page, lane: BrainLane): Promise<void> {
 
 export async function approveLane(page: Page, lane: BrainLane): Promise<string> {
   await page.getByRole('tab', { name: /^Lanes/ }).click()
-  await expect
-    .poll(
-      async () => (await status(page)).jobs.find((job) => job.sessionPath === lane.source)?.state,
-    )
-    .toBe('review')
+  await awaitRead(page, lane)
   await expect(inbox(page, lane)).toContainText('2 memories')
   const job = (await status(page)).jobs.find((job) => job.sessionPath === lane.source)!
   await inbox(page, lane).click()
