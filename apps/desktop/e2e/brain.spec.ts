@@ -14,6 +14,7 @@ import {
 } from './fixtures/brain-inspection'
 import {
   approveLane,
+  awaitRead,
   enableBrain,
   exploreBrain,
   inbox,
@@ -23,6 +24,8 @@ import {
 } from './fixtures/brain-flow'
 
 test('Brain v4 reviews directed links, explores across lanes, retries and resets without changing lane files', async () => {
+  // Four reads, one of them failing first: allow each its read budget on a loaded runner.
+  test.setTimeout(300_000)
   const seed = await seedBrainLanes()
   const h = await launch({
     workspace: seed.workspace,
@@ -37,7 +40,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     await queueLane(page, seed.harbor)
     await page.getByRole('tab', { name: /^Lanes/ }).click()
     await expect(inbox(page, seed.harbor)).toContainText('Read the conversation')
-    await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
+    await awaitRead(page, null)
     await noReadErrors()
     expect((await status(page)).counts).toEqual({ memories: 0, entities: 0 })
     const firstJob = await approveLane(page, seed.harbor)
@@ -51,12 +54,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     await writeFile(seed.armed, 'armed\n')
     await queueLane(page, seed.ledger)
     await page.getByRole('tab', { name: /^Lanes/ }).click()
-    await expect
-      .poll(
-        async () =>
-          (await status(page)).jobs.find((job) => job.sessionPath === seed.ledger.source)?.state,
-      )
-      .toBe('failed')
+    await awaitRead(page, seed.ledger, 'failed')
     await inbox(page, seed.ledger).click()
     const failed = page.getByRole('region', { name: 'Failed read', exact: true })
     await expect(failed.getByRole('button', { name: 'Retry', exact: true })).toBeVisible()
@@ -214,6 +212,7 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
     await page.keyboard.press('Escape')
     await queueLane(page, seed.harbor)
     await page.getByRole('tab', { name: /^Lanes/ }).click()
+    await awaitRead(page, seed.harbor)
     await expect(inbox(page, seed.harbor)).toContainText('2 memories')
     await expect(inbox(page, seed.harbor)).toContainText('Claude Opus 5')
     await inbox(page, seed.harbor).click()
@@ -252,7 +251,7 @@ test('Brain review wraps a 300-character identity description without sideways s
     const { page } = h
     await enableBrain(page, seed.harbor)
     await queueLane(page, seed.harbor)
-    await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
+    await awaitRead(page, null)
     const job = (await status(page)).jobs[0]!
     const proposal = await page.evaluate(
       (id) => window.phosphor.invoke('brain:proposal', id),
@@ -394,7 +393,7 @@ test('Brain caps long read text and anchors a short review action bar', async ()
   try {
     await enableBrain(page, seed.harbor)
     await queueLane(page, seed.harbor)
-    await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
+    await awaitRead(page, null)
     const job = (await status(page)).jobs[0]!
     const proposal = await page.evaluate(
       (id) => window.phosphor.invoke('brain:proposal', id),
