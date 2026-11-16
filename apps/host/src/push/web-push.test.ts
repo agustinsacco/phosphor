@@ -140,6 +140,7 @@ function setup(overrides: Partial<WebPushOptions> = {}) {
     listeners,
   }
 }
+type Setup = ReturnType<typeof setup>
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20))
 
 describe('Host Web Push', () => {
@@ -267,6 +268,94 @@ describe('Host Web Push', () => {
     expect(t.fetch).toHaveBeenCalledTimes(1)
     for (const call of t.log.mock.calls)
       expect(JSON.stringify(call)).not.toMatch(/https|Studio|Fix/)
+  })
+  it.each([
+    [
+      'revoked',
+      (t: Setup) => t.authority({ owner: 'owner', epoch: 1, revokedClients: new Set([PHONE]) }),
+    ],
+    [
+      'unsubscribed',
+      (t: Setup) =>
+        t.push.feature.call(
+          'notifications.unsubscribe',
+          { endpoint: t.subscription().endpoint },
+          undefined,
+          PHONE,
+        ),
+    ],
+    ['ownerless', (t: Setup) => t.authority(null)],
+  ])('never posts a queued push to a device %s after it was queued', async (_name, invalidate) => {
+    const t = setup({ delivery: { concurrency: 1 } })
+    await t.subscribe()
+    let release!: () => void
+    t.fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => (release = () => resolve(new Response(null, { status: 201 })))),
+    )
+    t.publish(event({ kind: 'needs-input', laneId: OTHER_LANE, id: `${OTHER_LANE}:1` }))
+    await settle()
+    t.publish(event({ kind: 'needs-input', id: `${LANE}:2` }))
+    await settle()
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+    await invalidate(t)
+    release()
+    await settle()
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+  })
+  it('never retries a push to a device revoked after its first attempt', async () => {
+    const t = setup({ delivery: { backoffMs: [10, 10, 10] } })
+    await t.subscribe()
+    t.fetch.mockImplementationOnce(async () => {
+      t.authority({ owner: 'owner', epoch: 1, revokedClients: new Set([PHONE]) })
+      return new Response(null, { status: 503 })
+    })
+    t.publish(event({ kind: 'needs-input' }))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+  })
+  it('drops an announcement a newer attention for its lane overtook while it read the receipt', async () => {
+    const t = setup()
+    await t.subscribe()
+    let answer!: (outcome: CallOutcome) => void
+    t.receipt.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+    t.publish(event({ title: 'Finished run' }))
+    t.publish(event({ kind: 'needs-input', id: `${LANE}:2`, title: 'Waiting run' }))
+    await settle()
+    answer({ ok: true, data: RECEIPT })
+    await settle()
+    expect(t.sent().map((s) => s.payload.kind)).toStrictEqual(['needs-input'])
+  })
+  it('never lets a retry of an older push replace a newer one for the same lane', async () => {
+    const t = setup({ delivery: { concurrency: 1, backoffMs: [10, 10, 10] } })
+    await t.subscribe()
+    let fail!: () => void
+    t.fetch.mockImplementationOnce(
+      () => new Promise((resolve) => (fail = () => resolve(new Response(null, { status: 503 })))),
+    )
+    t.publish(event({ kind: 'needs-input', title: 'First' }))
+    await settle()
+    t.publish(event({ kind: 'needs-input', id: `${LANE}:2`, title: 'Second' }))
+    await settle()
+    fail()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(t.sent().map((s) => s.payload.title)).toStrictEqual(['First', 'Second'])
+  })
+  it('sends one push per device and lane at a time, so an older one never lands last', async () => {
+    const t = setup()
+    await t.subscribe()
+    let finish!: () => void
+    t.fetch.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = () => resolve(new Response(null, { status: 201 })))),
+    )
+    t.publish(event({ kind: 'needs-input', title: 'First' }))
+    await settle()
+    t.publish(event({ kind: 'needs-input', id: `${LANE}:2`, title: 'Second' }))
+    await settle()
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+    finish()
+    await settle()
+    expect(t.sent().map((s) => s.payload.title)).toStrictEqual(['First', 'Second'])
   })
   it('stops listening and sending once closed', async () => {
     const t = setup()

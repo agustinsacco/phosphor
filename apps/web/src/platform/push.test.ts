@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createBrowserApi } from './index'
 import { createBrowserPush, type PushPorts } from './push'
 
 const ORIGIN = 'https://app.invalid'
@@ -345,5 +346,53 @@ describe('browser Web Push registrations', () => {
     t.push.dispose()
     await t.sync()
     expect(t.scope(CLIENT, MAC)!.unregister).not.toHaveBeenCalled()
+  })
+})
+
+describe('browser Web Push through the adapter', () => {
+  /** A device that registered with the Mac on an earlier visit. */
+  async function configured() {
+    const b = browser()
+    const registration = await b.workers.register('/sw.js', { scope: `/push/${CLIENT}/${MAC}/` })
+    const subscription = await registration.pushManager.subscribe({
+      applicationServerKey: new Uint8Array(keyBytes(KEY)),
+    })
+    vi.stubGlobal('navigator', { serviceWorker: Object.assign(new EventTarget(), b.workers) })
+    vi.stubGlobal('Notification', { permission: 'granted' })
+    vi.stubGlobal('PushManager', class {})
+    return { registration, subscription }
+  }
+  const adapter = (fetch: typeof globalThis.fetch) =>
+    createBrowserApi({
+      fetch,
+      storage: null,
+      invalidation: null,
+      lifecycle: { subscribe: () => () => {} },
+    })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+  it('keeps them when startup fails offline and the page disposes the adapter', async () => {
+    const { registration, subscription } = await configured()
+    const bridge = adapter(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    await expect(bridge.start()).rejects.toThrow()
+    bridge.dispose()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(subscription.unsubscribe).not.toHaveBeenCalled()
+    expect(registration.unregister).not.toHaveBeenCalled()
+  })
+  it('removes them when Control confirms the browser is signed out', async () => {
+    const { registration, subscription } = await configured()
+    const bridge = adapter(async () => new Response('', { status: 401 }))
+    try {
+      await bridge.start()
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(subscription.unsubscribe).toHaveBeenCalled()
+      expect(registration.unregister).toHaveBeenCalled()
+    } finally {
+      bridge.dispose()
+    }
   })
 })
