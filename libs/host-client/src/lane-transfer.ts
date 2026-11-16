@@ -220,8 +220,9 @@ async function upload(
  * One Host's half of a lane move, shared by Desktop and the browser. A replaced
  * connection, a lost capability or an answer that does not parse fails closed,
  * and a write whose outcome is in doubt is reported as unconfirmed, never
- * retried. The caller owns where the bytes live: `download` writes them to
- * `open`'s writer and `upload` reads them back through `read`.
+ * retried. The caller owns where the bytes live (Desktop a private temp file,
+ * the browser its memory): `download` writes them to `open`'s writer and
+ * `upload` reads them back through `read`.
  */
 export function remoteLaneTransfer(
   connection: LaneTransferConnection,

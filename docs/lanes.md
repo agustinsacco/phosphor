@@ -123,8 +123,8 @@ or waiting on a Host question says to wait. Main and the Host still refuse to
 export a live lane. Pick a machine, then one of its workspaces: Desktop offers
 This Mac and every connected Host, the browser only Hosts, since it has no This
 Mac. A checked plan states the size to copy, what will land there and any
-blockers before anything moves. Between two Hosts, or two folders of one, it
-also says the copy passes through this device.
+blockers before anything moves. In the browser it also says the copy passes
+through this device.
 
 A move is a snapshot copy. The original is untouched, keeps its row, and is
 never deleted automatically. The new lane keeps its conversation, exact supported
@@ -163,12 +163,14 @@ unconfirmed result is never automatically retried: check the destination before
 trying again.
 
 Every byte passes through the client that asks; the two Hosts never talk to each
-other. A move with This Mac on one end goes through one private temporary file
-on This Mac, removed afterwards. A move between Hosts (from Desktop or a
-browser) goes through the client's memory only: the shared relay in
-`libs/host-client/src/lane-move.ts` downloads the whole bundle into one buffer,
-checks its SHA-256 with platform crypto, then sends it, and never writes it to
-disk. Both Hosts must stay connected and keep the client's grants throughout.
+other. Desktop stages every move, between two Hosts too, in one private
+temporary file on This Mac, reads it back a chunk at a time, and removes it
+afterwards. The browser has no disk to stage on: between Hosts, the relay in
+`libs/host-client/src/lane-move.ts` downloads the whole bundle into the page's
+memory, checks its SHA-256 with Web Crypto, then sends it, and never stores it.
+Both clients share one Host's half of a move (`lane-transfer.ts`) and differ only
+in where the bytes live. Both Hosts must stay connected and keep the client's
+grants throughout.
 Each client runs one move at a time. The browser aborts its move when the
 account changes, it signs out or the page closes, and drops the bytes: a
 download stops at its next chunk and still releases the Host's export, an upload

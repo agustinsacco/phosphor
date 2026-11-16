@@ -9,12 +9,10 @@ routing and machine selection. Individual panes keep their own UI contracts.
 **Move to…** supports This Mac → This Mac (another workspace), This Mac → Host,
 Host → This Mac, and Host → Host. Main owns the transfer via `hosts:laneMovePlan`
 and `hosts:laneMove`; the sandboxed renderer chooses a destination and presents
-the checked plan. Desktop relays one bounded bundle and verifies its hash:
-Host → Host through memory, with the browser's shared relay
-(`libs/host-client/src/lane-move.ts`), and to or from This Mac through a private
-temporary file. Both Host connections must remain ready in the same incarnation
-throughout a move. A connection replacement or permission loss fails closed; an
-uncertain commit reports an unconfirmed result instead of resending it.
+the checked plan. Desktop relays one bounded bundle and verifies its hash. Both
+Host connections must remain ready in the same incarnation throughout a move.
+A connection replacement or permission loss fails closed; an uncertain commit
+reports an unconfirmed result instead of resending it.
 
 This Mac imports into pi's cwd-mangled sessions folder. Attachments brought from
 a Host live under `<userData>/lane-attachments/<sessionId>/`, are private, and go
@@ -64,12 +62,11 @@ intermediate states are coalesced. Machine reads use it to reject stale replies.
 status and whether they are this Desktop, never a client or user id. Repositories,
 lane summaries, cursors, the last 50 attention events and open lane streams stay
 in memory. Normal viewing writes no transcript to the client's disk. Explicit
-HTML exports and [Move to…](lanes.md#moving-a-lane) are exceptions: a move with
-This Mac on one end stages a private temporary bundle on Desktop, deletes it
-afterwards, and installs a permanent session file only when This Mac is the
-destination. A Host → Host move holds the bundle in memory only. Remote lane
-access requires `sessions.read` in the Host's authenticated `ready` frame;
-mutations also require `sessions.control`.
+HTML exports and [Move to…](lanes.md#moving-a-lane) are exceptions: a move stages
+a private temporary bundle on Desktop, deletes it afterwards, and installs a
+permanent session file only when This Mac is the destination. Remote lane access
+requires `sessions.read` in the Host's authenticated `ready` frame; mutations
+also require `sessions.control`.
 
 `hosts:reconnect` re-reads the directory, then replaces one present Host's
 connection (logged as reason `requested`). `hosts:traffic` pages main's

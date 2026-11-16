@@ -80,7 +80,7 @@ async function checkMove(ctx: MoveContext): Promise<LaneMovePlan> {
 }
 
 /** What moving a Host lane would do: the source Host's facts, checked by the target Host. */
-export async function planHostLaneMove(
+async function planHostLaneMove(
   ports: HostLaneMovePorts,
   request: HostLaneMoveRequest,
 ): Promise<LaneMovePlan> {
@@ -113,7 +113,7 @@ function memoryBundle() {
  * Hosts never talk to each other. The source is only read; a refusal anywhere
  * changes nothing, and an aborted `signal` stops the move before its commit.
  */
-export async function moveHostLane(
+async function moveHostLane(
   ports: HostLaneMovePorts,
   request: HostLaneMoveRequest,
   signal?: AbortSignal,
@@ -146,6 +146,8 @@ export async function moveHostLane(
  * Moves between Hosts for a client that has no machine of its own (the
  * browser): one at a time, and `abort` stops the one running, which then drops
  * its bytes. Requests with This Mac on either end are the caller's to refuse.
+ * Each move holds its whole bundle in memory, so Desktop does not use this: it
+ * stages bundles in a private temp file (`apps/desktop/electron/lane-move`).
  */
 export function createHostLaneMoves(ports: HostLaneMovePorts) {
   let running: AbortController | null = null

@@ -42,9 +42,10 @@ async function uploadFrom(
 }
 
 /**
- * One Host's half of a lane move that starts or ends on This Mac, through a
- * private file there. The calls, checks and fixed errors are the shared
- * `@phosphor/host-client/lane-transfer`; Host-to-Host moves never come here.
+ * One Host's half of a Desktop lane move, through a private file on This Mac,
+ * also when both ends are Hosts. The calls, checks and fixed errors are the
+ * shared `@phosphor/host-client/lane-transfer`; only where the bytes live is
+ * Desktop's.
  */
 export function remoteLaneTransfer(connection: LaneTransferConnection, hostId: string) {
   const host = hostLaneTransfer(connection, hostId)

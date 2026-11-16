@@ -171,11 +171,11 @@ Reproducing defects live in [known issues](known-issues.md#host-lanes).
 - **Remote viewing does not create a local content archive.** Transcripts,
   artifacts, files and terminal output are not cached on Desktop disk merely by
   viewing them. Explicit exports, file downloads and Open in default app save
-  selected content on This Mac ([Files](files.md)). **Move to…** copies a lane
-  snapshot to the chosen machine through the client: between Hosts in its memory
-  only, from Desktop or a browser, and with This Mac on one end through a private
-  temporary bundle there ([Moving a lane](lanes.md#moving-a-lane)). Artifact
-  HTML remains sandboxed without `allow-same-origin` or network access. Committed attachment
+  selected content on This Mac ([Files](files.md)). Desktop's **Move to…** copies
+  a lane snapshot to the chosen machine, using a private temporary bundle even
+  between Hosts; a browser moves a lane between Hosts in the page's memory only
+  ([Moving a lane](lanes.md#moving-a-lane)). Artifact HTML remains
+  sandboxed without `allow-same-origin` or network access. Committed attachment
   paths are the documented prompt-only path exception.
 
 ## Reference map
