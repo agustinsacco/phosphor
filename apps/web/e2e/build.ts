@@ -1,6 +1,6 @@
 import { build } from 'vite'
 import { execFileSync } from 'node:child_process'
-import { copyFile } from 'node:fs/promises'
+import { copyFile, cp } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import config from '../vite.config'
 import { evidence } from '../playwright.config'
@@ -26,6 +26,10 @@ export default async function setup() {
       rollupOptions: { input: resolve(import.meta.dirname, 'client/index.html') },
     },
   })
-  // The same compiled production worker guards the authenticated transport-mapped case.
+  // The production worker shares notification helpers with its app entry. Keep its
+  // hashed imports too: the transport-mapped app has a different asset graph.
+  await cp(resolve(root, 'apps/web/dist/assets'), resolve(evidence, 'fixture-build/assets'), {
+    recursive: true,
+  })
   await copyFile(resolve(root, 'apps/web/dist/sw.js'), resolve(evidence, 'fixture-build/sw.js'))
 }

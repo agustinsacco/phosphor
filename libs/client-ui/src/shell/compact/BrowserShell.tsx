@@ -1,5 +1,8 @@
 import { PaletteButton } from '@/components/PaletteButton'
 import { BrowserPalette } from './BrowserPalette'
+import { NotificationsButton } from '@/features/notifications/NotificationsButton'
+import { BrowserNotifications } from './BrowserNotifications'
+import { useNotificationPrFocus } from './useNotificationPrFocus'
 import { Button } from '@/components/form'
 import { WaitingNote, WaitingPane } from '@/components/Waiting'
 import { useNavigation } from '@/navigation/Navigation'
@@ -28,8 +31,11 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
   const compact = usePlatform().formFactor === 'compact'
   const machine = locationMachine(location)
   useRememberWhere(location)
+  useNotificationPrFocus()
   // A phone's lane and start page own the bottom of the screen: the composer is there.
   const tabs = compact && location.to !== 'lane' && location.to !== 'new'
+  // Settings carries the phone bell in its title row, leaving more room for its panel.
+  const settingsOwnsHeader = compact && location.to === 'page' && location.page === 'settings'
   return (
     <div className="compact-shell browser-shell" data-testid="compact-shell">
       {!compact && <BrowserNavigation machine={machine} />}
@@ -38,7 +44,7 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
         {compact && location.to === 'lane' ? (
           <CompactLaneHeader location={location} />
         ) : (
-          (!compact || location.to === 'new') && <BrowserHeader machine={machine} />
+          !settingsOwnsHeader && <BrowserHeader machine={machine} />
         )}
         <main className="compact-main" data-route={location.to} data-tabs={tabs || undefined}>
           <BrowserScreen machine={machine} pending={pending} />
@@ -46,6 +52,7 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
         {tabs && <NewLaneAction floating />}
         {tabs && <BottomTabs />}
       </div>
+      <BrowserNotifications />
     </div>
   )
 }
@@ -67,7 +74,7 @@ function BrowserHeader({ machine }: { machine?: string }): React.JSX.Element {
   const back = compact ? (lanes ?? { to: 'lanes' as const }) : { to: 'lanes' as const, machine }
   return (
     <header className="compact-header">
-      {(location.to === 'lane' || compact) && (
+      {(location.to === 'lane' || (compact && location.to === 'new')) && (
         <Button aria-label="Back to lanes" onClick={() => navigate(back)}>
           ←
         </Button>
@@ -81,6 +88,7 @@ function BrowserHeader({ machine }: { machine?: string }): React.JSX.Element {
       )}
       <PaletteButton />
       {!compact && <NewLaneAction />}
+      <NotificationsButton />
     </header>
   )
 }

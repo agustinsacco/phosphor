@@ -15,18 +15,25 @@ async function fixture() {
     platform: 'browser',
     define: { __WEB_BUILD_ID__: '"test"' },
   })
+  const clients = {
+    claim: vi.fn(),
+    matchAll: vi.fn<() => Promise<object[]>>(async () => []),
+    openWindow: vi.fn(async (_path: string) => null),
+  }
+  const registration = { showNotification: vi.fn(async () => {}) }
   runInNewContext(output.outputFiles[0]!.text, {
     addEventListener: (name: string, listener: (event: unknown) => void) =>
       listeners.set(name, listener),
     location: { origin: 'https://app.invalid' },
-    clients: { claim: vi.fn() },
+    clients,
+    registration,
     caches,
     fetch,
     URL,
     Request,
     Response,
   })
-  return { listeners, cache, caches, fetch }
+  return { listeners, cache, caches, fetch, clients, registration }
 }
 it.each([
   ['https://app.invalid/api/auth/session', 'GET', 'cors'],
@@ -82,4 +89,114 @@ it('does not cache successful navigations, and falls back to anonymous shell onl
   expect(await (await response).text()).toBe('anonymous offline shell')
   expect(t.cache.match).toHaveBeenCalledWith('/')
   expect(t.cache.put).not.toHaveBeenCalled()
+})
+
+const route = { hostId: 'host', laneId: 'lane' }
+const notificationData = { type: 'phosphor-notification', route }
+function client(path: string, visibilityState = 'visible') {
+  return {
+    url: `https://app.invalid${path}`,
+    visibilityState,
+    focus: vi.fn(async () => {}),
+    postMessage: vi.fn(),
+  }
+}
+async function dispatch(t: Awaited<ReturnType<typeof fixture>>, name: string, data: object) {
+  let pending: Promise<unknown> | undefined
+  t.listeners.get(name)!({
+    ...data,
+    waitUntil: (work: Promise<unknown>) => {
+      pending = work
+    },
+  })
+  await pending
+}
+it('notificationclick closes the notice, focuses an existing page and sends its opaque route', async () => {
+  const t = await fixture()
+  const other = client('/lanes'),
+    lane = client('/lanes/host/lane/chat')
+  t.clients.matchAll.mockResolvedValue([other, lane])
+  const close = vi.fn()
+  await dispatch(t, 'notificationclick', { notification: { data: notificationData, close } })
+  expect(close).toHaveBeenCalledOnce()
+  expect(lane.focus).toHaveBeenCalledOnce()
+  expect(other.focus).not.toHaveBeenCalled()
+  expect(lane.postMessage).toHaveBeenCalledWith(notificationData)
+  expect(t.clients.openWindow).not.toHaveBeenCalled()
+})
+it('notificationclick opens a same-origin lane or Home when no client exists, including PR focus', async () => {
+  const t = await fixture()
+  const pr = { host: 'github.com', owner: 'acme', repo: 'app', number: 57 }
+  await dispatch(t, 'notificationclick', {
+    notification: { data: { ...notificationData, route: { ...route, pr } }, close: vi.fn() },
+  })
+  expect(t.clients.openWindow).toHaveBeenLastCalledWith(
+    `/lanes/host/lane/chat?notificationPr=${encodeURIComponent(JSON.stringify(pr))}`,
+  )
+  await dispatch(t, 'notificationclick', {
+    notification: { data: { type: 'phosphor-notification' }, close: vi.fn() },
+  })
+  expect(t.clients.openWindow).toHaveBeenLastCalledWith('/lanes')
+})
+it('notificationclick can reuse another app page but never focuses a foreign origin or follows a path payload', async () => {
+  const t = await fixture()
+  const app = client('/pages/settings')
+  const foreign = { ...client('/'), url: 'https://other.invalid/lanes/host/lane/chat' }
+  t.clients.matchAll.mockResolvedValue([foreign, app])
+  await dispatch(t, 'notificationclick', {
+    notification: { data: notificationData, close: vi.fn() },
+  })
+  expect(app.focus).toHaveBeenCalledOnce()
+  expect(foreign.focus).not.toHaveBeenCalled()
+  await dispatch(t, 'notificationclick', {
+    notification: {
+      data: { ...notificationData, route: { ...route, laneId: '../private' } },
+      close: vi.fn(),
+    },
+  })
+  expect(app.focus).toHaveBeenCalledOnce()
+})
+it.each([
+  ['/lanes/host/lane/chat', 'visible', false],
+  ['/lanes/host/lane/files', 'visible', false],
+  ['/lanes/host/lane/chat', 'hidden', true],
+  ['/lanes/host/another/chat', 'visible', true],
+  ['/pages/settings', 'visible', true],
+] as const)('Host attention on %s (%s): native delivery = %s', async (path, visibility, shown) => {
+  const t = await fixture()
+  t.clients.matchAll.mockResolvedValue([client(path, visibility)])
+  await dispatch(t, 'message', {
+    data: { type: 'phosphor-attention', notice: { title: 'bee1 · Lane', body: 'Done', route } },
+  })
+  expect(t.registration.showNotification).toHaveBeenCalledTimes(shown ? 1 : 0)
+  if (shown)
+    expect(t.registration.showNotification).toHaveBeenCalledWith(
+      'bee1 · Lane',
+      expect.objectContaining({
+        body: 'Done',
+        tag: 'phosphor:lane:host:lane',
+        data: notificationData,
+      }),
+    )
+})
+it('Host attention is suppressed if any visible client shows the lane and ignores malformed messages', async () => {
+  const t = await fixture()
+  t.clients.matchAll.mockResolvedValue([client('/lanes'), client('/lanes/host/lane/chat')])
+  await dispatch(t, 'message', {
+    data: { type: 'phosphor-attention', notice: { title: 'bee1 · Lane', body: 'Done', route } },
+  })
+  await dispatch(t, 'message', { data: { type: 'phosphor-attention', notice: { title: 'Bad' } } })
+  expect(t.registration.showNotification).not.toHaveBeenCalled()
+})
+
+it('notificationclick without a route focuses Settings without navigating away', async () => {
+  const t = await fixture()
+  const settings = client('/pages/settings')
+  t.clients.matchAll.mockResolvedValue([settings])
+  await dispatch(t, 'notificationclick', {
+    notification: { data: { type: 'phosphor-notification' }, close: vi.fn() },
+  })
+  expect(settings.focus).toHaveBeenCalledOnce()
+  expect(settings.postMessage).not.toHaveBeenCalled()
+  expect(t.clients.openWindow).not.toHaveBeenCalled()
 })

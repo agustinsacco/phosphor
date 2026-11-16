@@ -1,7 +1,8 @@
+import { createBrowserAttention } from './attention'
+import { attachNotificationClicks, navigateNotification } from './notifications'
 import type { PhosphorApi, IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import { IPC_WEB, type WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { createRemoteLanes, type RemoteWindow } from '@phosphor/host-client/remote-lanes'
-import { createAttentionReceiver, readHostReceipt } from '@phosphor/host-client/attention'
 import { createHostLaneMoves } from '@phosphor/host-client/lane-move'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
 import type { IdentityCrypto } from '@phosphor/host-client/crypto'
@@ -28,7 +29,10 @@ export interface BrowserInvalidation {
 }
 export interface BrowserApiOptions {
   fetch?: typeof fetch
+  /** Full-page navigation for account sign-in. */
   navigate?: (path: string) => void
+  /** In-app history navigation for a native notification click. */
+  navigateNotification?: (path: string) => void
   /** Reloads the page once a different owner signs in while it is open. */
   reload?: () => void
   openExternal?: (url: string) => void
@@ -187,12 +191,12 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       attention.clear()
     },
   })
-  // As on Desktop, without an OS notification: an account change drops every receipt wait.
-  const attention = createAttentionReceiver({
-    receipt: (hostId, laneId) => readHostReceipt(hosts.connection, hostId, laneId),
-    publish: (notice) => {
-      if (!stopped) events.emit('attention', notice)
-    },
+  const offClicks = attachNotificationClicks(options.navigateNotification ?? navigateNotification)
+  const attention = createBrowserAttention({
+    connection: (hostId) => hosts.connection(hostId),
+    label: (hostId) => hosts.label(hostId),
+    publish: (notice) => events.emit('attention', notice),
+    generation: () => (stopped ? undefined : control.generation()),
   })
   const drafts = createBrowserDrafts(() => control.session() !== null)
   const hosts = createBrowserHosts({
@@ -336,6 +340,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       stopped = true
       clearInterval(poll)
       clearInterval(clock)
+      offClicks()
       offLifecycle()
       offInvalidation()
       invalidation?.close()

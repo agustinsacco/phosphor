@@ -8,6 +8,10 @@
       "types": "./src/browser-image-clipboard.ts",
       "default": "./src/browser-image-clipboard.ts"
     },
+    "./notifications": {
+      "types": "./src/notifications.ts",
+      "default": "./src/notifications.ts"
+    },
     "./base64": {
       "types": "./src/base64.ts",
       "default": "./src/base64.ts"

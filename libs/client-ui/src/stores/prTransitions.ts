@@ -126,7 +126,7 @@ export function notifyNatively(notice: PrNotice, focused = document.hasFocus()):
       inbox.markSeen(inbox.items.filter((item) => item.key === key).map((item) => item.id))
       return openPrNotice(notice)
     })
-    // A browser has no native notifications; the toast and the drawer still have it.
+    // Native delivery is optional; the toast and the drawer still have it.
     .catch(() => undefined)
 }
 

@@ -1,5 +1,6 @@
 import { usePaletteStore } from '@/features/palette/paletteStore'
 import { useChatFindRequest } from '@/features/chat/useChatFind'
+import { useNotificationsStore } from '@/stores/notifications'
 import { cancelAllPrompts } from '@/stores/prompt'
 import { clearRemoteStartMemory } from '@/features/home/remoteComposer'
 import { clearDraftMemory } from '@/stores/drafts'
@@ -30,6 +31,7 @@ export function clearCompactUi(): void {
   useSkillsStore.setState({ byWorkspace: {}, loading: {}, error: {}, selectedDir: null })
   useHomeSubmissionsStore.setState({ pending: {} })
   useExtensionUiStore.setState({ toasts: [] })
+  useNotificationsStore.setState({ items: [], open: false })
   useMachinesStore.setState({ view: { kind: 'list' }, adding: false })
   useLaneMoveStore.getState().close()
   const sessions = Object.values(useSessionsStore.getState().live).filter(

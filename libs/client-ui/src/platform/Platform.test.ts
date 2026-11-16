@@ -32,6 +32,7 @@ it('Desktop and the browser differ only in the capabilities each declares', () =
     'localVoice',
     'nativeFiles',
     'nativeImageClipboard',
+    'notificationPermission',
     'pageZoom',
     'savedFontPrefs',
     'scriptedArtifacts',

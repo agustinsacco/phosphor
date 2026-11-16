@@ -144,7 +144,8 @@ event for that lane supersedes a pending publication. Replies from replaced
 connections, removed lanes or connections without `sessions.read` are discarded.
 Desktop and the browser share one receiver for these rules
 (`createAttentionReceiver` in `libs/host-client/src/attention.ts`). The browser
-raises no OS notification, so it waits for the receipt of every such attention.
+has no focused-lane port, so it waits for the receipt of every such attention;
+its worker separately checks visible lanes before [native delivery](web-client.md#notifications).
 
 The Host reports provider-error completions as failed, not finished.
 [Lane notices](chat.md#lane-notices) own card contents and fact meanings. Host OS

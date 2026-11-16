@@ -21,6 +21,7 @@ export type SettingsTab =
   | 'keybindings'
   | 'account'
   | 'install'
+  | 'notifications'
   | 'about'
 
 /** The machine Settings configures: This Mac or a Host id. */

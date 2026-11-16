@@ -22,8 +22,10 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 
 ## PWA attention and Web Push
 
-In-app attention, machine-titled Desktop notifications and Host read watermarks
-are built. A browser/PWA consumer needs Web Push from each Host when closed, with
+In-app attention and the notification drawer in both clients, machine-titled
+Desktop and browser native notifications while the app runs, and Host read
+watermarks are built ([Web client](web-client.md#notifications)).
+A browser/PWA consumer still needs Web Push from each Host when closed, with
 a minimal payload encrypted end to end to the device.
 The device registers with that Host over Tailscale. Control stores nothing new.
 iOS requires Home Screen installation and iOS 16.4 or newer.

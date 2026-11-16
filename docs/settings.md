@@ -7,7 +7,8 @@ inherits the theme, the UI scale and the app's lifecycle. Cmd/Ctrl+, opens it;
 Cmd/Ctrl+/ opens it on Keybindings. The browser frames the same surface in its
 Settings page (`shell/compact/CompactSettings.tsx`, `PageShell`/`PageBody`). The frames
 add only their chrome: a title and a close button in the dialog, the page heading in
-the browser.
+the browser. On a phone the notification bell shares that heading, without a second
+shell header above the settings panel.
 
 ## Sections and capabilities
 
@@ -17,28 +18,29 @@ needs. The surface lists only sections the platform supports, and search
 (`SETTINGS_INDEX`) honours the same filter, down to single rows. Nothing branches on
 the form factor.
 
-| Section          | Scope             | Needs               | Desktop | Browser | What it is                                                                                               | Writes                                                                |
-| ---------------- | ----------------- | ------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Appearance       | device            | (rows below)        | yes     | yes     | Theme, UI scale, per-surface font sizes, mono font                                                       | Phosphor prefs (electron-store; browser storage)                      |
-| Writing          | device            | `writingAssist`     | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                         | Phosphor prefs; `<userData>/writing/prompts.jsonl`                    |
-| Lanes            | device            | none                | yes     | yes     | Lane markers, PR status, branch prefix and slug length; the worktree switch needs `localLanes`           | Phosphor prefs (browser storage in the browser)                       |
-| Voice            | device            | `localVoice`        | yes     | no      | Dictation on/off and which local speech model                                                            | Phosphor prefs; model files in `<userData>/voice/`                    |
-| Brain            | device            | `localBrain`        | yes     | no      | Brain on/off, recall, review before saving, and the local embedding model                                | Brain store and model in `<userData>/brain/`                          |
-| Keybindings      | device            | `appShortcuts`      | yes     | no      | Static reference sheet                                                                                   | nothing                                                               |
-| Phosphor account | device            | none                | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                   | `account:*`                                                           |
-| App installation | device            | `installableApp`    | no      | yes     | Install Phosphor, and the in-app attention note                                                          | nothing                                                               |
-| About            | device            | rows need `appInfo` | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                  | nothing                                                               |
-| Agent            | machine, both     | a machine           | yes     | yes     | pi's agent defaults, per machine or folder                                                               | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json`; a Host's own |
-| Accounts         | machine, both     | a machine           | yes     | yes     | Subscription logins pi can drive, and a link to Claude Code                                              | pi's provider auth; a Host signs in in a private terminal             |
-| Extensions       | machine, both     | a machine           | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                  | shells out to `pi install` / `remove` / `update`                      |
-| ↳ Claude Code    | machine, both     | a machine           | yes     | yes     | The `pi-claude-cli` provider on every machine: health and Install, accounts, routing                     | Phosphor prefs + the package's own config                             |
-| ↳ Web access     | machine, both     | package             | yes     | yes     | The `pi-web-access` provider: search, fetch, PDF                                                         | `web-search.json`                                                     |
-| ↳ Computer use   | machine, both     | package             | yes     | yes     | Info page for `@injaneity/pi-computer-use`                                                               | nothing (read-only)                                                   |
-| ↳ Subagents      | machine, both     | installed package   | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                            | This Mac: global Pi settings in the raw editor                        |
-| MCP Connectors   | machine, both     | a machine           | yes     | yes     | pi's built-in MCP: curated OAuth catalog + custom servers, per machine or folder                         | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`; a Host's own           |
-| Folders          | machine, both     | per machine         | yes     | yes     | This Mac: recent folders and sandboxes; a Host: registered folders and trust                             | recents (This Mac); the Host, through `hosts:*Repository`             |
-| Optimization     | machine, This Mac | `localLanes`        | yes     | no      | Headroom tool-result compression + the Advisor                                                           | Phosphor prefs; `headroom:*` lifecycle in main                        |
-| Advanced         | machine, both     | per machine         | yes     | yes     | Version and update, pi health, PATH, agent dir; This Mac: raw editors, maintenance, resources; Host: env | the pi files it edits; maintenance prefs                              |
+| Section          | Scope             | Needs                    | Desktop | Browser | What it is                                                                                               | Writes                                                                |
+| ---------------- | ----------------- | ------------------------ | ------- | ------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Appearance       | device            | (rows below)             | yes     | yes     | Theme, UI scale, per-surface font sizes, mono font                                                       | Phosphor prefs (electron-store; browser storage)                      |
+| Writing          | device            | `writingAssist`          | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                         | Phosphor prefs; `<userData>/writing/prompts.jsonl`                    |
+| Lanes            | device            | none                     | yes     | yes     | Lane markers, PR status, branch prefix and slug length; the worktree switch needs `localLanes`           | Phosphor prefs (browser storage in the browser)                       |
+| Voice            | device            | `localVoice`             | yes     | no      | Dictation on/off and which local speech model                                                            | Phosphor prefs; model files in `<userData>/voice/`                    |
+| Brain            | device            | `localBrain`             | yes     | no      | Brain on/off, recall, review before saving, and the local embedding model                                | Brain store and model in `<userData>/brain/`                          |
+| Keybindings      | device            | `appShortcuts`           | yes     | no      | Static reference sheet                                                                                   | nothing                                                               |
+| Phosphor account | device            | none                     | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                   | `account:*`                                                           |
+| Notifications    | device            | `notificationPermission` | no      | yes     | Native notification permission and a test                                                                | browser permission                                                    |
+| App installation | device            | `installableApp`         | no      | yes     | Install Phosphor, and the in-app attention note                                                          | nothing                                                               |
+| About            | device            | rows need `appInfo`      | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                  | nothing                                                               |
+| Agent            | machine, both     | a machine                | yes     | yes     | pi's agent defaults, per machine or folder                                                               | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json`; a Host's own |
+| Accounts         | machine, both     | a machine                | yes     | yes     | Subscription logins pi can drive, and a link to Claude Code                                              | pi's provider auth; a Host signs in in a private terminal             |
+| Extensions       | machine, both     | a machine                | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                  | shells out to `pi install` / `remove` / `update`                      |
+| ↳ Claude Code    | machine, both     | a machine                | yes     | yes     | The `pi-claude-cli` provider on every machine: health and Install, accounts, routing                     | Phosphor prefs + the package's own config                             |
+| ↳ Web access     | machine, both     | package                  | yes     | yes     | The `pi-web-access` provider: search, fetch, PDF                                                         | `web-search.json`                                                     |
+| ↳ Computer use   | machine, both     | package                  | yes     | yes     | Info page for `@injaneity/pi-computer-use`                                                               | nothing (read-only)                                                   |
+| ↳ Subagents      | machine, both     | installed package        | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                            | This Mac: global Pi settings in the raw editor                        |
+| MCP Connectors   | machine, both     | a machine                | yes     | yes     | pi's built-in MCP: curated OAuth catalog + custom servers, per machine or folder                         | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`; a Host's own           |
+| Folders          | machine, both     | per machine              | yes     | yes     | This Mac: recent folders and sandboxes; a Host: registered folders and trust                             | recents (This Mac); the Host, through `hosts:*Repository`             |
+| Optimization     | machine, This Mac | `localLanes`             | yes     | no      | Headroom tool-result compression + the Advisor                                                           | Phosphor prefs; `headroom:*` lifecycle in main                        |
+| Advanced         | machine, both     | per machine              | yes     | yes     | Version and update, pi health, PATH, agent dir; This Mac: raw editors, maintenance, resources; Host: env | the pi files it edits; maintenance prefs                              |
 
 A machine section is listed for This Mac when the client has `localLanes`, and for a
 Host when it has `machineSettings`; there a Host writes its own files through
@@ -916,6 +918,18 @@ A static sheet of every shortcut in four groups: **App**, **Chat**,
 Claude Code and Claude Desktop where a binding exists there (Esc Esc rewind, ↑
 prompt history, ⌃O verbose output), so muscle memory carries over. Terminal
 copy/paste differs per platform because Ctrl+C must stay SIGINT off macOS.
+
+## Notifications
+
+A browser-only device section (`notificationPermission`), independent of the Host
+chosen in Configure. It shows **On**, **Off** or **Blocked**, **Turn on
+notifications** (only this explicit gesture requests permission), and **Send a
+test notification** when granted. Blocked permission points to the browser's site
+settings. An unavailable browser explains that; on iPhone, install on the Home
+Screen first. A failed permission request or test can be retried. The test uses
+the service worker and can show while the page is visible. Routine delivery is
+[while the app runs](web-client.md#notifications), not closed-app Web Push.
+Desktop keeps its OS-owned permission and has no section here.
 
 ## About
 

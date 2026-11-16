@@ -1,4 +1,5 @@
 import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
+import { createBrowserNotifications } from './notifications'
 import type { IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
@@ -186,6 +187,13 @@ function signOut(control: BrowserControl, broadcast: () => void) {
   }
   return result
 }
+function externalUrl(value: string): string {
+  const url = new URL(value)
+  if (url.protocol !== 'https:' || url.username || url.password)
+    throw new Error('Only HTTPS links can be opened.')
+  return url.href
+}
+
 /** What the handlers are built over: the page's adapter services, each owned by index.ts. */
 export interface BrowserHandlerPorts {
   control: BrowserControl
@@ -283,12 +291,10 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     'app:readDraftBlob': drafts.readBlob,
     'app:sweepDrafts': drafts.sweep,
     ...preferenceHandlers(prefs),
+    'app:notify': createBrowserNotifications().notify,
     'app:resumeTarget': () => ({ kind: 'none' }),
     'app:openExternal': (value) => {
-      const url = new URL(value)
-      if (url.protocol !== 'https:' || url.username || url.password)
-        throw new Error('Only HTTPS links can be opened.')
-      ports.openExternal(url.href)
+      ports.openExternal(externalUrl(value))
     },
   }
 }
