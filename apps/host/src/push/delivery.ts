@@ -19,9 +19,10 @@ export interface PushMessage {
   /** The device's push endpoint: with `topic`, which messages replace each other. */
   endpoint: string
   /**
-   * The device's subscription now, asked before every request and before a retry waits:
-   * undefined once it may no longer receive this message (unsubscribed, revoked, another
-   * owner) or a newer message for its lane overtook it, and the message is then dropped.
+   * The subscription of the registration this message was queued for, asked before every
+   * request and before a retry waits: undefined once that registration may no longer
+   * receive it (unsubscribed, registered again, revoked, another owner or epoch), and the
+   * message is then dropped.
    */
   recipient(): WebPushSubscription | undefined
   payload: Buffer

@@ -6,7 +6,10 @@ import {
 } from '@phosphor/shared/host-protocol-web-push'
 import { atomicRecord, readBounded } from '../update/files'
 
-/** One device's registration, bound to the client, owner and enrollment epoch that made it. */
+/**
+ * One device's registration, bound to the client, owner and enrollment epoch that made it.
+ * Every subscribe stores a new row, even for the same endpoint, so a row is one registration.
+ */
 export interface StoredPushSubscription {
   clientId: string
   owner: string
@@ -73,6 +76,8 @@ export function createPushSubscriptions(options: { path: string; hostId: string 
   }
   return {
     list: (): readonly StoredPushSubscription[] => rows,
+    /** Whether this registration is still stored; a later one for its endpoint is another row. */
+    holds: (row: StoredPushSubscription): boolean => rows.includes(row),
     /** A client keeps one registration; re-registering an endpoint moves it to this client. */
     subscribe(row: StoredPushSubscription) {
       const others = rows.filter(
