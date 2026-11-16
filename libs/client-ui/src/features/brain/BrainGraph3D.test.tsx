@@ -541,11 +541,17 @@ it('highlights only the selected supported route and switches between two and th
   expect(graph.numDimensions).toHaveBeenLastCalledWith(3)
 })
 
+const canvas = (): Element => container.querySelector('[aria-label="Memory relationships"]')!
 function enterCanvas(): void {
   act(() => {
-    container
-      .querySelector('[aria-label="Memory relationships"]')!
-      .dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+    canvas().dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+    canvas().dispatchEvent(new MouseEvent('pointerenter'))
+  })
+}
+function leaveCanvas(): void {
+  act(() => {
+    canvas().dispatchEvent(new MouseEvent('pointerout', { bubbles: true }))
+    canvas().dispatchEvent(new MouseEvent('pointerleave'))
   })
 }
 
@@ -683,6 +689,28 @@ it('ignores link support the scene reports while the pointer is outside the grap
     restore()
     fake.dispose()
   }
+})
+
+it('ignores a hovered node the scene reports with no pointer on the graph and drops it on leave', async () => {
+  await render()
+  // The library keeps raycasting from its last, or default, pointer position.
+  hover('postgres')
+  expect(nodeColor('rina')).toMatch(/,1\)$/)
+  enterCanvas()
+  hover('postgres')
+  expect(nodeColor('rina')).toMatch(/,0\.16\)$/)
+  leaveCanvas()
+  expect(nodeColor('rina')).toMatch(/,1\)$/)
+})
+
+it('keeps a selection bright while the pointer hovers another node', async () => {
+  await render({ focus: 'rina' })
+  enterCanvas()
+  hover('postgres')
+  expect(nodeColor('rina')).toMatch(/,1\)$/)
+  expect(nodeColor('ledger')).toMatch(/,1\)$/)
+  expect(nodeColor('postgres')).toMatch(/,1\)$/)
+  expect(nodeColor('harbor')).toMatch(/,0\.16\)$/)
 })
 
 it('does not move for a visible node near the viewport edge', async () => {
