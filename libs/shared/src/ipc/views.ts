@@ -69,6 +69,8 @@ export interface HostConnectionView {
   fileBytes?: boolean
   /** Host reads PRs by number (`github.prSummaries`, `github.prDetail`) and sends lane PR signals. */
   prStatus?: boolean
+  /** Host reads a lane's file again after Track or Hide, so its summary shows the write. */
+  prTracking?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]

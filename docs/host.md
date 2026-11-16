@@ -1713,7 +1713,9 @@ batched over 200 ms; a failed read keeps the last answer. An extension command
 changes a lane with no pi event (Track and Hide's `/phosphor-prs` only appends
 an entry to its file), so after any `/` prompt that succeeded the Host refreshes
 the lane's state like its other silent setters, and the summary that publishes
-asks for the file again.
+asks for the file again. The ready frame announces this with `prTracking`
+([Host protocol](remote-protocol.md#host-grants)); clients refuse
+Track and Hide on a Host without it.
 
 The `skills.read` feature answers `machine.models` with the Host pi's model
 catalogue and `machine.providers` with provider names and readiness only. It

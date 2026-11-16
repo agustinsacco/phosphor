@@ -33,7 +33,11 @@ const chatError = (sessionId: string, fallback: string): string =>
 
 export const OPEN_TO_TRACK = 'Open the lane to track pull requests.'
 export const RESUME_TO_TRACK = 'Resume the lane to track pull requests.'
-/** A Host without `prStatus` folds no PR signals: a write there would never show. */
+/**
+ * A Host without `prStatus` folds no PR signals, and one without `prTracking`
+ * (host-v0.2.80) never reads the lane's file again after the write: either way
+ * the write would never show.
+ */
 export const HOST_TRACK_NEEDS_UPDATE = 'Update this Host to track pull requests.'
 
 /** The override store's key for the lane, or why this lane cannot write now. */
@@ -47,7 +51,8 @@ function writableLane(sessionId: string): string {
   if (!remote?.laneId || !remote.lane) throw new Error(OPEN_TO_TRACK)
   const hint = laneControlHint(remote)
   if (hint) throw new Error(hint)
-  if (remote.host?.prStatus !== true) throw new Error(HOST_TRACK_NEEDS_UPDATE)
+  if (remote.host?.prStatus !== true || remote.host.prTracking !== true)
+    throw new Error(HOST_TRACK_NEEDS_UPDATE)
   if (remote.lane.activity === 'stopped' || remote.lane.activity === 'failed')
     throw new Error(RESUME_TO_TRACK)
   return remoteLaneKey(remote.hostId, remote.laneId)

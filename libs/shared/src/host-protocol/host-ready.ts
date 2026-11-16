@@ -52,6 +52,7 @@ export function parseReadyFrame(
     (v.laneTransfer !== undefined && typeof v.laneTransfer !== 'boolean') ||
     (v.fileBytes !== undefined && typeof v.fileBytes !== 'boolean') ||
     (v.prStatus !== undefined && typeof v.prStatus !== 'boolean') ||
+    (v.prTracking !== undefined && typeof v.prTracking !== 'boolean') ||
     !v.capabilities.every((c) => h.hello.capabilities.includes(c))
   )
     return null
@@ -70,5 +71,6 @@ export function parseReadyFrame(
     ...(v.laneTransfer !== undefined ? { laneTransfer: v.laneTransfer as boolean } : {}),
     ...(v.fileBytes !== undefined ? { fileBytes: v.fileBytes as boolean } : {}),
     ...(v.prStatus !== undefined ? { prStatus: v.prStatus as boolean } : {}),
+    ...(v.prTracking !== undefined ? { prTracking: v.prTracking as boolean } : {}),
   }
 }

@@ -77,6 +77,7 @@ export interface BaselineHostConnectionView {
   laneTransfer?: boolean
   fileBytes?: boolean
   prStatus?: boolean
+  prTracking?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: BaselineHostLaneView[]

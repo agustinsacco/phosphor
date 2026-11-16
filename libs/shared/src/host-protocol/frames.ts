@@ -83,6 +83,11 @@ export type HostFrame =
        * `github.prDetail`) and sends lane summaries' `pullRequests`.
        */
       readonly prStatus?: boolean
+      /**
+       * Additive support marker: after Track or Hide (`/phosphor-prs`) the Host reads
+       * the lane's file again, so its summary's `pullRequests` carry the write.
+       */
+      readonly prTracking?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }

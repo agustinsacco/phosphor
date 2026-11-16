@@ -230,7 +230,9 @@ because an unknown slash command would run a model. A Host lane's pi is on its
 Host, so the command goes there like any prompt, and only while this window
 holds the lane (the shared control refusal, such as "Take control first."),
 the lane is running ("Resume the lane to track pull requests.") and its Host
-folds PR signals (`prStatus`). Track and Hide never start a stopped lane:
+announces both `prStatus` (it folds PR signals) and `prTracking` (it reads the
+lane's file again after the write); an older Host, host-v0.2.80 included, gets
+"Update this Host to track pull requests.". Track and Hide never start a stopped lane:
 host-client resumes a stopped lane for an ordinary prompt, but sends this one
 once (`isLanePrsPrompt` in `libs/shared/src/lane-prs-command.ts`), so a lane
 that stops in the meantime refuses it. The Host
