@@ -29,7 +29,7 @@ export function ExplorerGraph({
   useEffect(() => {
     if (!selected) setScope('all')
   }, [selected])
-  const { overview, resource, shown, memory, matches, error } = useExplorerGraph(
+  const { overview, resource, shown, memory, matches, error, selectionPending } = useExplorerGraph(
     entityId,
     memoryId,
     scope,
@@ -55,7 +55,7 @@ export function ExplorerGraph({
           )}
           <BrainGraph3D
             graph={shown}
-            selectionPending={selected && !resource.data}
+            selectionPending={selected && selectionPending}
             path={path ?? memory?.links ?? null}
             focus={entityId}
             scope={scope === 'near' ? 'near' : 'all'}
@@ -149,6 +149,7 @@ function useExplorerGraph(
   path: BrainLink[] | null,
 ) {
   const overview = useBrainResource(useCallback(() => window.phosphor.invoke('brain:overview'), []))
+  const selectionKey = JSON.stringify([entityId, memoryId, scope, hops, path])
   const load = useCallback(async () => {
     const memory = memoryId ? await window.phosphor.invoke('brain:memory', memoryId) : null
     const ids = entityId ? [entityId] : (memory?.memory.entityIds ?? [])
@@ -177,8 +178,8 @@ function useExplorerGraph(
     ]
     const base = near || extras.length ? combineGraphs(graphs, priority) : overview.data!
     const graph = await includePath(base, route, priority)
-    return { graph, memory }
-  }, [entityId, memoryId, scope, hops, overview.data, path])
+    return { graph, memory, selectionKey }
+  }, [entityId, memoryId, scope, hops, overview.data, path, selectionKey])
   const resource = useBrainResource(load, !!overview.data)
   const [previous, setPrevious] = useState<BrainGraph | null>(null)
   useEffect(() => {
@@ -188,5 +189,13 @@ function useExplorerGraph(
   const memory = resource.data?.memory?.memory
   const matches = useMemo(() => (memory ? new Set(memory.entityIds) : null), [memory])
   const error = overview.error || resource.error
-  return { overview, resource, shown, memory, matches, error }
+  return {
+    overview,
+    resource,
+    shown,
+    memory,
+    matches,
+    error,
+    selectionPending: resource.data?.selectionKey !== selectionKey,
+  }
 }
