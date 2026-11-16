@@ -1,18 +1,14 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LANE_PRS_COMMAND as EXTENSION_COMMAND } from '@phosphor/pi-extensions/lane-prs'
+import { LANE_PRS_COMMAND, isLanePrsPrompt } from '@shared/lane-prs-command'
 import { remoteLaneKey } from '@shared/remote-host'
 import { hostLaneSession, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { useLanePrOverridesStore } from '@/stores/lanePrOverrides'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { prRef } from './__fixtures__/pullRequests'
-import {
-  HOST_TRACK_NEEDS_UPDATE,
-  LANE_PRS_COMMAND,
-  RESUME_TO_TRACK,
-  setLanePrOverride,
-} from './lanePrOverrides'
+import { HOST_TRACK_NEEDS_UPDATE, RESUME_TO_TRACK, setLanePrOverride } from './lanePrOverrides'
 import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
 
 const piCommand = vi.fn()
@@ -54,6 +50,7 @@ beforeEach(() => {
 describe('setLanePrOverride', () => {
   it('names the command the bundled extension registers', () => {
     expect(LANE_PRS_COMMAND).toBe(EXTENSION_COMMAND)
+    expect(isLanePrsPrompt(`/${EXTENSION_COMMAND} pin ${URL}`)).toBe(true)
   })
 
   it('checks registration, sends the command and records the write by session file', async () => {
