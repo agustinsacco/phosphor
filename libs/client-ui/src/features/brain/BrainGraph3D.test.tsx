@@ -73,6 +73,7 @@ beforeEach(() => {
   mock.controls.addEventListener.mockReset()
   mock.controls.removeEventListener.mockReset()
   graph.controls.mockReturnValue(mock.controls)
+  graph.scene.mockReturnValue(mock.scene)
   const camera = new PerspectiveCamera(40, 2, 0.1, 10000)
   camera.position.set(0, 0, 300)
   camera.updateMatrixWorld()
