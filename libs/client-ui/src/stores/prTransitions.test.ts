@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { prKey } from '@shared/github-pr-refs'
 import type { GhPrSummary, SessionMeta } from '@shared/models'
 import { prCheck, prRef, prSummary } from '@/features/sessions/__fixtures__/pullRequests'
@@ -8,7 +8,11 @@ import { useLanePrefsStore } from './lanePrefs'
 import { useNotificationsStore } from './notifications'
 import { usePrStatusStore, type PrStatusEntry } from './prStatus'
 import { useSessionsStore } from './sessions'
+import { useMachinesStore } from './machines'
+import { useRemoteLanesStore } from './remoteLanes'
 import { attachPrTransitions } from './prTransitions'
+import { MOCK_HOST_ID, mockRemoteHosts } from '@/dev/mockRemoteLanes'
+import { MACHINE } from '@/features/machines/__fixtures__/control'
 
 const openPrNotice = vi.hoisted(() => vi.fn(() => Promise.resolve()))
 vi.mock('@/features/notifications/prNoticeActions', () => ({ openPrNotice }))
@@ -79,6 +83,7 @@ beforeEach(() => {
   useExtensionUiStore.setState({ toasts: [] })
   usePrStatusStore.setState({ byKey: {} })
   useSessionsStore.setState({ disk: { '/repo': [lane] }, live: {}, gitByCwd: {} })
+  useRemoteLanesStore.setState({ hosts: {} })
   useLanePrefsStore.getState().applyLanePrefs({ prStatus: true })
   detach = attachPrTransitions()
 })
@@ -182,4 +187,53 @@ it('posts a native notification only while Phosphor is in the background', async
   // Clicking it is looking at it: the entry is seen and its card goes.
   expect(items()[0]!.seenAt).toBeDefined()
   expect(useExtensionUiStore.getState().toasts.every((toast) => toast.leaving)).toBe(true)
+})
+
+describe('a Host lane', () => {
+  const HOST_LANE = mockRemoteHosts[MOCK_HOST_ID]!.lanes[0]!.laneId
+  beforeEach(() => {
+    const hosts = structuredClone(mockRemoteHosts)
+    const host = hosts[MOCK_HOST_ID]!
+    host.capabilities.push('workspaces.read')
+    host.prStatus = true
+    host.lanes[0] = {
+      ...host.lanes[0]!,
+      title: 'Host lane',
+      pullRequests: { ...lane.pullRequests!, opened: [prRef(70)], reviewing: [] },
+    }
+    useRemoteLanesStore.setState({ hosts })
+    useMachinesStore.setState({ machines: [{ ...MACHINE, id: MOCK_HOST_ID, label: 'Studio' }] })
+  })
+
+  it('takes a baseline, says nothing for a failed read, then raises the change', () => {
+    answer(green(70))
+    answer(failing(green(70), 'unit'), { failed: true })
+    expect(items()).toHaveLength(0)
+    answer(failing(green(70), 'unit'))
+    expect(items().map((item) => [item.key, item.title, item.message])).toEqual([
+      [`pr:${prKey(prRef(70))}`, '#70 unit failed', 'Host lane · Phosphor#70'],
+    ])
+    expect(items()[0]!.pr!.lane).toEqual({
+      hostId: MOCK_HOST_ID,
+      laneId: HOST_LANE,
+      title: 'Host lane',
+    })
+  })
+
+  it('names its machine, not its repository, natively, with a stable key and its route', () => {
+    vi.mocked(document.hasFocus).mockReturnValue(false)
+    answer(green(70))
+    answer(failing(green(70), 'unit'))
+    expect(notifyCalls()).toEqual([
+      [
+        'app:notify',
+        {
+          title: '#70 unit failed',
+          body: 'Studio · Host lane',
+          key: `pr:${prKey(prRef(70))}`,
+          route: { hostId: MOCK_HOST_ID, laneId: HOST_LANE, pr: prRef(70) },
+        },
+      ],
+    ])
+  })
 })
