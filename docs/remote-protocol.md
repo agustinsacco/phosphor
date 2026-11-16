@@ -130,7 +130,7 @@ injected into the fake, and the tests verify real Ed25519 proofs.
 
 ## Lane snapshot transfer
 
-Hosts supporting Desktop's **Move to…** announce `laneTransfer: true` in `ready`.
+Hosts supporting **Move to…** announce `laneTransfer: true` in `ready`.
 Older Hosts remain usable; moving to or from one asks the user to update it.
 `host-protocol-lane-transfer.ts` owns the bounded bundle schema, and
 `host-protocol-lane-transfer-calls.ts` owns these feature calls:
@@ -156,8 +156,9 @@ on restart. Completed exports retaining bytes still count against the four-expor
 cap; imports admit at most two unfinished uploads. Imports commit one at a time.
 
 This explicitly transfers session files across the wire. Desktop uses a private
-temporary bundle, also when relaying Host-to-Host; Control and the two Hosts never
-relay directly to each other. Raw transcripts are not part of normal lane
+temporary bundle, also when relaying Host-to-Host; a browser page relays between
+Hosts through its memory only. Control and the two Hosts never relay directly to
+each other. Raw transcripts are not part of normal lane
 subscriptions. An uncertain commit result is unconfirmed and never retried
 automatically. The source is never modified and no prompt is replayed.
 

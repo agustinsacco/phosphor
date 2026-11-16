@@ -12,6 +12,7 @@ import { loadBundledFonts } from '@/lib/fonts'
 import { TooltipProvider } from '@/components/Tooltip'
 import { PromptHost } from '@/components/PromptHost'
 import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/ExtensionUiHosts'
+import { LaneMoveOverlay } from '@/features/sessions/SessionRecoveryModals'
 import { CompactSignIn } from './CompactSignIn'
 import { clearCompactUi, waitForCompactCleanup } from './compactLifecycle'
 import { useBrowserNavigation } from './useBrowserNavigation'
@@ -104,6 +105,7 @@ function AuthenticatedCompact(): React.JSX.Element {
       <ExtensionDialogHost />
       <PromptHost />
       <ToastHost />
+      <LaneMoveOverlay />
     </NavigationProvider>
   )
 }

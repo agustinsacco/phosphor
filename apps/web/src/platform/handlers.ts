@@ -7,6 +7,8 @@ import {
   laneSubagentInspect,
 } from '@phosphor/host-client/lane-reads'
 import { remoteSkillShare } from '@phosphor/host-client/skill-share'
+import { isHostLaneMove, type createHostLaneMoves } from '@phosphor/host-client/lane-move'
+import { parseLaneMoveRequest } from '@phosphor/shared/lane-move'
 import { downloadBytes } from '@phosphor/shared/download'
 import { zipSkillBundle } from '@phosphor/shared/zip-store'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
@@ -51,6 +53,22 @@ function machineHandlers(
     'hosts:skillInstall': (machine, bundle, overwrite) =>
       share.install(machine, bundle, overwrite === true),
     'skills:saveBundle': saveSkillBundle,
+  } satisfies Partial<BrowserHandlers>
+}
+const LANE_CANNOT_MOVE = 'This lane cannot move.'
+/**
+ * "Move to…" between Hosts, or between folders of one, relayed through the page's memory.
+ * The browser has no This Mac, so a request with `local` on either end is refused as malformed.
+ */
+function laneMoveHandlers(moves: () => ReturnType<typeof createHostLaneMoves>) {
+  const parse = (value: unknown) => {
+    const request = parseLaneMoveRequest(value)
+    if (!request || !isHostLaneMove(request)) throw new Error(LANE_CANNOT_MOVE)
+    return request
+  }
+  return {
+    'hosts:laneMovePlan': (request) => moves().plan(parse(request)),
+    'hosts:laneMove': (request) => moves().move(parse(request)),
   } satisfies Partial<BrowserHandlers>
 }
 /** The Host's folder dialog; the folders are the Host's, so the browser can browse them too. */
@@ -158,7 +176,8 @@ function signOut(control: BrowserControl, broadcast: () => void) {
   }
   return result
 }
-export function createBrowserHandlers(ports: {
+/** What the handlers are built over: the page's adapter services, each owned by index.ts. */
+interface BrowserHandlerPorts {
   control: BrowserControl
   hosts: BrowserHosts
   lanes: RemoteLanes
@@ -168,10 +187,12 @@ export function createBrowserHandlers(ports: {
   settings: ReturnType<typeof createBrowserSettings>
   prefs: ReturnType<typeof createBrowserPreferences>
   drafts: ReturnType<typeof createBrowserDrafts>
+  laneMoves: ReturnType<typeof createHostLaneMoves>
   openExternal: (url: string) => void
   broadcastLogout: () => void
   machinesChanged: () => void
-}): BrowserHandlers {
+}
+export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandlers {
   const { control, hosts, lanes, resources, prefs, drafts } = ports
   const marks = laneMarks(hosts.connection)
   const read = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
@@ -211,6 +232,7 @@ export function createBrowserHandlers(ports: {
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
     ...laneHandlers(lanes),
+    ...laneMoveHandlers(() => ports.laneMoves),
     'hosts:setLaneMarks': marks.set,
     'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),
     'fs:listFiles': (key) => read('fs:listFiles', [key]),

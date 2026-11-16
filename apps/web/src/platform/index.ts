@@ -1,11 +1,12 @@
 import type { PhosphorApi, IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import { IPC_WEB, type WebSupportedChannel } from '@phosphor/shared/ipc-web'
-import { createRemoteLanes } from '@phosphor/host-client/remote-lanes'
+import { createRemoteLanes, type RemoteWindow } from '@phosphor/host-client/remote-lanes'
 import { createAttentionReceiver, readHostReceipt } from '@phosphor/host-client/attention'
+import { createHostLaneMoves } from '@phosphor/host-client/lane-move'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
 import type { IdentityCrypto } from '@phosphor/host-client/crypto'
-import { createBrowserControl } from './control'
-import { createBrowserHosts, DIRECTORY_POLL_MS } from './hosts'
+import { createBrowserControl, type BrowserControl } from './control'
+import { createBrowserHosts, DIRECTORY_POLL_MS, type BrowserHosts } from './hosts'
 import { createBrowserEvents } from './events'
 import { createBrowserPreferences, type PreferenceStorage } from './preferences'
 import { createBrowserResources } from './resources'
@@ -89,6 +90,32 @@ function piFailure(args: unknown[], error: string) {
   const command = args[1] as IpcInvokeMap['pi:command']['args'][1]
   return { type: 'response', command: command.type, id: command.id, success: false, error }
 }
+/**
+ * "Move to…" between Hosts with this browser's branch prefix. A move's bundle lives only in the
+ * page's memory; invalidation (an owner change, sign-out, dispose) aborts it.
+ */
+const browserLaneMoves = (hosts: BrowserHosts, prefs: ReturnType<typeof browserPreferences>) =>
+  createHostLaneMoves({
+    connection: hosts.connection,
+    label: hosts.label,
+    branchPrefix: async () => (await prefs.read()).worktrees.branchPrefix,
+  })
+/** The tab is window 1; it is gone once the page is disposed or its account changes. */
+function tabWindow(
+  control: BrowserControl,
+  events: ReturnType<typeof createBrowserEvents>,
+  stopped: () => boolean,
+): RemoteWindow {
+  const epoch = control.generation()
+  const current = () => !stopped() && epoch === control.generation()
+  return {
+    id: 1,
+    destroyed: () => !current(),
+    send: (channel, push) => {
+      if (current()) events.emit(channel, push)
+    },
+  }
+}
 /** Desktop's native hooks, which a page answers with nothing. */
 const NATIVE_ONLY = {
   pathForFile: () => '',
@@ -120,6 +147,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('machines', undefined)
     },
     invalidate: (owner) => {
+      laneMoves.abort()
       terminals.clear()
       lanes.clear()
       hosts.clear()
@@ -157,6 +185,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     label: hosts.label,
     changed: () => events.emit('hosts', undefined),
   })
+  const laneMoves = browserLaneMoves(hosts, prefs)
   const resources = createBrowserResources(hosts, lanes)
   const terminals = createBrowserTerminals({ hosts, lanes, control, events })
   const handlers = createBrowserHandlers({
@@ -168,16 +197,8 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     settings: createBrowserSettings({ control, hosts }),
     prefs,
     drafts,
-    window: () => {
-      const epoch = control.generation()
-      return {
-        id: 1,
-        destroyed: () => stopped || epoch !== control.generation(),
-        send: (channel, push) => {
-          if (!stopped && epoch === control.generation()) events.emit(channel, push)
-        },
-      }
-    },
+    laneMoves,
+    window: () => tabWindow(control, events, () => stopped),
     openExternal:
       options.openExternal ??
       ((url) => {

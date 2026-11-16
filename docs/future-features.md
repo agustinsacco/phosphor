@@ -18,7 +18,7 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync               |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                                             |
 | Clients         | Web Push to a closed browser or installed PWA                                                                                                                    |
-| Portability     | Larger lane transfers, submodule/LFS support, browser relay, primitive copy/sync and sharing Desktop's local runtime                                             |
+| Portability     | Larger lane transfers, submodule/LFS support, primitive copy/sync and sharing Desktop's local runtime                                                            |
 
 ## PWA attention and Web Push
 
@@ -125,11 +125,12 @@ remains machine-local, consistent with AGENTS.md fact 5.
 
 ## Lane portability beyond bounded copies
 
-Desktop's [Move to…](lanes.md#moving-a-lane) copies saved lanes between folders
-and machines. Follow-ups are larger bundles and Host transcripts, submodule/LFS
-support, browser relay, and a detailed comparison of the target's skills,
-extensions, context files and MCP setup. The current dialog acknowledges these
-configuration differences; it does not sync them or promise provider cache hits.
+[Move to…](lanes.md#moving-a-lane) copies saved lanes between folders and
+machines, from Desktop and, between Hosts, from the browser. Follow-ups are
+larger bundles and Host transcripts, submodule/LFS support, and a detailed
+comparison of the target's skills, extensions, context files and MCP setup. The
+current dialog acknowledges these configuration differences; it does not sync
+them or promise provider cache hits.
 
 This is a snapshot copy, not a single-writer handoff: the source remains intact
 and the user chooses whether to delete it. Automatically retiring the source,

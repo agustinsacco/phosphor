@@ -173,7 +173,8 @@ Reproducing defects live in [known issues](known-issues.md#host-lanes).
   viewing them. Explicit exports, file downloads and Open in default app save
   selected content on This Mac ([Files](files.md)). Desktop's **Move to…** copies
   a lane snapshot to the chosen machine, using a private temporary bundle even
-  between Hosts ([Moving a lane](lanes.md#moving-a-lane)). Artifact HTML remains
+  between Hosts; a browser moves a lane between Hosts in the page's memory only
+  ([Moving a lane](lanes.md#moving-a-lane)). Artifact HTML remains
   sandboxed without `allow-same-origin` or network access. Committed attachment
   paths are the documented prompt-only path exception.
 

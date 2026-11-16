@@ -31,6 +31,9 @@ export const IPC_WEB = {
   'hosts:skills': remote,
   'hosts:skillExport': remote,
   'hosts:skillInstall': remote,
+  // Host to Host only, relayed through the page's memory; This Mac is never an end.
+  'hosts:laneMovePlan': remote,
+  'hosts:laneMove': remote,
   ...DESKTOP_TRANSFERS_WEB,
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
