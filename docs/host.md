@@ -1709,7 +1709,11 @@ read when asked inside that window, four lanes at a time. A file that only grew
 continues the last fold, proven by its bytes as the scan proves it; answers stay
 cached by file size and mtime (1,024 files, 16 resumable folds), and a session file
 over 64 MiB is not folded. A changed answer publishes the lane's summary again,
-batched over 200 ms; a failed read keeps the last answer.
+batched over 200 ms; a failed read keeps the last answer. An extension command
+changes a lane with no pi event (Track and Hide's `/phosphor-prs` only appends
+an entry to its file), so after any `/` prompt that succeeded the Host refreshes
+the lane's state like its other silent setters, and the summary that publishes
+asks for the file again.
 
 The `skills.read` feature answers `machine.models` with the Host pi's model
 catalogue and `machine.providers` with provider names and readiness only. It

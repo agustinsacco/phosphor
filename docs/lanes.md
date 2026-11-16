@@ -224,11 +224,19 @@ Track and Hide write through the lane's own pi, the one writer of its file:
 `setLanePrOverride` (`features/sessions/lanePrOverrides.ts`) sends
 `/phosphor-prs pin|hide|clear <url>`, which the bundled `lane-prs.ts` turns into
 one custom entry, `{ action, ref }`. It runs no model and adds nothing to the
-context, and pi runs it at once, even mid-turn. Only a live This Mac lane that
-lists the command can write; a closed lane, a Host lane or an older pi gets a
-message saying so. The scan lags the write, so `stores/lanePrOverrides.ts` holds
-each write by session file and merges it into the scanned signals until the
-scan agrees, or for two minutes.
+context, and pi runs it at once, even mid-turn. Only a live lane whose pi lists
+the command can write; a closed lane or an older pi gets a message saying so,
+because an unknown slash command would run a model. A Host lane's pi is on its
+Host, so the command goes there like any prompt, and only while this window
+holds the lane (the shared control refusal, such as "Take control first."),
+the lane is running (a prompt would resume a stopped one: "Resume the lane to
+track pull requests.") and its Host folds PR signals (`prStatus`). The Host
+refreshes a lane after any `/` prompt that succeeded, so its summary reads the
+file again and carries the write within one read interval. The scan and the
+summary lag the write, so `stores/lanePrOverrides.ts` holds each write by lane
+(a This Mac lane's session file path, a Host lane's `remoteLaneKey`, never a
+path on the Host) and merges it into the read signals, on the pill and the
+sidebar row, until they agree, or for two minutes.
 
 Commands are read from tool calls, outside heredoc bodies, so a PR description
 that quotes `git push` adds nothing. `gh pr view` and `gh pr checks` are status
@@ -317,16 +325,21 @@ lanes keep their checkout branch's PR, with no error.
 
 ### Change notices
 
-When a PR one of your This Mac lanes owns changes in a way worth interrupting
-for (failed checks, an approval, requested changes, a conflict, ready to merge,
+When a PR one of your lanes owns changes in a way worth interrupting for
+(failed checks, an approval, requested changes, a conflict, ready to merge,
 merged or closed), Phosphor says so once per PR: a toast, an entry in the
 notification drawer, and, while Phosphor is not the focused app, a native
-notification. The first status read after launch is only a baseline, and a read
+notification. That covers This Mac's lanes and every Host lane its Host lists,
+on Desktop and in the browser (`features/sessions/prLaneIndex.ts`); a Host lane
+owns what its summary's signals and checkout branch give it, and an older Host's
+lane only its checkout branch's PR. When two lanes own one PR, the one updated
+last keeps it. The first status read after launch is only a baseline, and a read
 that failed says nothing. A read GitHub answered without checks (too costly or
 slow) keeps the last known checks, so the next full read never reports old
 failures as new; a PR with no CI is never "ready to merge". Each notice names the PR and its newest change, the
 lane and `repo#n`, and lists everything that changed since you last looked.
-**Open lane** opens the lane with its inspector on that PR (a request the
+**Open lane** opens the lane (a Host lane through its Host, as any Host lane
+notice does) with its inspector on that PR (a request the
 lane's pill has not answered within 15 seconds lapses, so an inspector never
 pops open later on its own). A second button
 drafts the fitting hand-off for the agent (fix the checks, address the changes,
@@ -391,10 +404,18 @@ more pull request."
 
 Enter or Space opens the **PR inspector** (`features/sessions/pr-inspector/`),
 anchored to the pill like the Slack pill's popup. On a wide window it is about
-720px: a 220px list beside the selected PR. Under about 620px of its own width,
-which is every phone sheet, it is one column and the list becomes a row of PR
-chips above it. Its height fits the viewport and stays fixed, so loading never
-moves it; only the tab panel scrolls.
+720px: a 220px list beside the selected PR. Under about 620px of its own width
+it is one column and the list becomes a row of PR chips above it. Its height
+fits the viewport and stays fixed, so loading never moves it; only the tab
+panel scrolls.
+
+On a phone the lane header opens it as a bottom sheet the height of the screen
+(`LaneHeaderPill`'s `sheet`), titled "Pull requests" with a Close button. The
+chips sit on top, the tabs are a segmented control, the header's actions are a
+row above the header, and the overflow menu, itself a sheet, holds Track in this
+lane (for a suggestion), Track a PR… and Hide from this lane; the list has no
+`+` and no Track row. Hand-offs, failures and Escape behave as below. Desktop
+and the wide browser keep the anchored popup.
 
 - **The list** groups This lane, Reviewing and Mentioned, each only when it has
   PRs, then "Track a PR…". It is one tab stop: arrow keys, Home and End move the

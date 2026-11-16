@@ -124,10 +124,15 @@ opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,
 Changes, Artifacts, Subagents and Terminal, then the lane's Session options (the same
 list as Desktop's top bar, [chat](chat.md)), then its shared actions, the same
 list as every Host lane row's menu without Open (see below), then New lane on
-that Host. Beside the title, a lane with a PR shows the shared [PR status button](lanes.md#active-lane-header), which
-opens status details and Refresh without opening the lane menu. Wide headers use
-the same control after the title. Both use this Host lane's repository identity,
-not the machine filter, and share repository refreshes with visible groups.
+that Host. Beside the title, a lane with a PR shows the shared [PR status button](lanes.md#active-lane-header)
+(a 32px pill with a 44px hit-slop), which opens the PR inspector without opening
+the lane menu: on a phone a full-height bottom sheet with segmented sections,
+Track and Hide in its overflow sheet and hand-offs that draft into the composer.
+Wide headers use the same control after the title, with Desktop's anchored
+popup. Both use this Host lane's repository identity, not the machine filter,
+and share repository refreshes with visible groups. Track and Hide write through
+the Host lane's pi only while this browser holds a running lane
+([Lanes](lanes.md#which-prs-belong-to-a-lane)).
 The [Slack thread links](lanes.md#slack-thread-links) follow the PR button in
 both headers once the lane's transcript mentions a thread.
 A confirmed action closes the sheet; a refusal stays to say why.
@@ -288,6 +293,14 @@ independently, focusing an existing same-origin page or opening one, then openin
 the Host lane (and optional PR inspector focus) through normal Host admission.
 New worker handlers take effect after its waiting update activates (close all older
 app tabs); updates never force activation or reload over a draft.
+
+PR change notices reach the browser too: the shell attaches the same
+`stores/prTransitions.ts` watch as Desktop while signed in, for PRs its Host
+lanes own, with the same baseline and silence rules ([Lanes](lanes.md#change-notices)).
+They land on the toast and in the drawer, and while the page is hidden go to the
+worker with the stable `pr:<prKey>` key and their Host lane route, so a newer
+change replaces the notification and a click opens that lane with its PR
+inspector on the PR.
 
 Host attention follows Desktop's rule: only a lane no visible page shows gets a
 native notice, even if the receiving page is visible elsewhere. The worker checks
