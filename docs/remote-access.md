@@ -157,9 +157,15 @@ Reproducing defects live in [known issues](known-issues.md#host-lanes).
   Host public keys and aggregate counts. It never receives prompts, transcripts,
   paths, repository names, files, artifacts or provider credentials. It never
   probes submitted endpoints or proxies execution.
-- **Private keys stay on their owner.** The Host's identity private key stays on
-  the Host. Control stores only its public key. Desktop account tokens stay in
-  main's [account vault](settings.md#phosphor-account), not the renderer.
+- **Private keys stay on their owner.** The Host's identity and Web Push private
+  keys stay on the Host. Control stores only the identity's public key. Desktop
+  account tokens stay in main's [account vault](settings.md#phosphor-account), not
+  the renderer.
+- **Web Push bypasses Control.** A browser registers its push subscription with
+  each Host over the Host connection; Control stores no subscription. The Host
+  POSTs only to the allowlisted push services, encrypted end to end to the device,
+  and the push service sees timing, size and the endpoint
+  ([Web client](web-client.md#web-push)).
 - **No remote-to-local fallback.** Opaque Host resource keys are not local paths.
   Unrouted machine actions fail closed rather than touch this computer's files,
   providers or subprocesses.

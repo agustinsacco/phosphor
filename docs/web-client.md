@@ -294,11 +294,55 @@ all same-origin window clients before delivery. Desktop and browser share
 body receipt facts only, never reply excerpts, repository/branch names or paths.
 The same module owns stable `phosphor:lane:host:lane` / `phosphor:pr:prKey` tags
 (or an explicit stable key), identifier-only click data and route construction,
-for page delivery and future Web Push reuse. Updates replace the native notice.
+for page delivery and Web Push. Updates replace the native notice.
 Names can still reveal projects on lock screens. No lane data is cached by the
-worker. Delivery while the app is closed or browser execution is suspended needs
-Web Push and is not built; physical Android/iOS notification delivery and clicking
-remain device acceptance, not a headless guarantee.
+worker. Physical Android/iOS notification delivery and clicking remain device
+acceptance, not a headless guarantee.
+
+### Web Push
+
+While the app is closed, or the browser has suspended it (Android freezes a
+backgrounded PWA quickly), each Host pushes the same lane attention itself. The
+device registers with each Host over the verified Host connection
+([protocol](remote-protocol.md#web-push)); Control stores nothing, and the opt-in
+is per device: the browser's notification permission is the only switch.
+
+A worker registration holds one push subscription, bound to one VAPID key, and
+every Host has its own key, which never leaves it. So `apps/web/src/platform/push.ts`
+registers the app's own `/sw.js` once more per Host, at scope
+`/push/<clientId>/<hostId>/` (`apps/web/src/push-scope.ts`), and subscribes each
+scope with `userVisibleOnly` and that Host's announced key. Both ids are UUIDs from
+Control's session and directory, never a Host-supplied value, so there is at most
+one scope per directory Host (32). A push scope controls no page: its install,
+activate and fetch handlers do nothing, so it never precaches, never deletes the
+caches older tabs still use and never claims a client. The `/` registration keeps
+its update flow unchanged.
+
+The registrations are reconciled from state, at most twice a second, when Hosts
+change, on focus, on visibility and on the Permissions API's change event. With
+permission granted, a signed-in account and the app's own worker present (a dev
+server has none, so nothing registers), each ready Host that announces
+`webPushKey` and grants `sessions.read` is subscribed and then registered with
+`notifications.subscribe`, again after every reconnect; a subscription made with
+another key is replaced. Losing the permission, a Host leaving the directory or no
+longer announcing Web Push, a sign-out, another account's scopes and unknown push
+scopes (stale cleanup on every start) are removed: the device tells the Host when
+it is reachable, unsubscribes, then unregisters the scope. Unsubscribing makes the
+push service refuse that Host from then on even if the Host never heard of it.
+Closing the page, an account not yet known and an unknown directory keep them.
+
+A push is parsed with the shared contract (`parseWebPushPayload`) and shown through
+`pushNotice`, the page's own notice and tag, so a page notice and a push for the
+same lane replace each other. While any same-origin window is visible, the push
+shows nothing: that page already has the attention. Clicks follow the routing
+above and open the lane in the app's scope, never a push scope.
+
+The payload is encrypted end to end to the device (RFC 8291). The push service
+sees timing, size and the endpoint only. Lane titles and the machine label can show
+on a lock screen; Android's own sensitive-content setting applies. A Host makes
+outbound HTTPS only to the allowlisted push services. iOS delivers Web Push only to
+the installed Home Screen app on iOS 16.4 or newer, and push to more than one
+registration of one app is unverified there.
 
 ## Installation
 
