@@ -59,7 +59,10 @@ A reading detail shows its model, elapsed time or queue line, Cancel, and the re
 steps: Prepare, Read the conversation (part x of y), Match people and things, Compare with
 what Brain knows, and Index. It never invents a separate live relationship stage; **Find
 relationships** names the recorded links calls. Calls made so far use the same closed
-call disclosures as a finished read. Every failed load offers Retry.
+call disclosures as a finished read. Until the first record is saved it says “No calls yet.”,
+without an error notification. Once a record exists, reading and failed details also show the
+same candidate outcomes and reasons and **Source lane at extraction** (with Open lane) as a
+finished read. Every real load failure offers Retry.
 
 ## Queueing a lane
 
@@ -222,9 +225,10 @@ The held-back count remains visible.
 - **Possible groups** keeps yes/no checkboxes and bulk choices.
 - **Memories · k of n selected** groups checklist rows by type. Each group has a checked,
   unchecked or mixed checkbox for the entire group, including other pages. Rows show the
-  sentence, outcome, reason, existing target, supported links and quotes. Groups page at 20.
+  sentence with a non-shrinking outcome tag at its right, reason, existing target, supported links
+  and quotes. Groups page at 20.
   Confirmations remain a separate disclosure.
-- A sticky bottom bar says “Nothing is searchable until you approve it.” with **Reject all**
+- A sticky action bar stays at the pane bottom even for a short review. It says “Nothing is searchable until you approve it.” with **Reject all**
   and **Approve N** (or **Approve confirmations**). An empty ordinary approval is disabled
   unless groups or confirmations are being saved; replacement reviews can approve zero.
 
@@ -259,24 +263,32 @@ graph is always visible; there is no hide-graph control. The explorer trail surv
   filters with counts and wrapping rows. State, source lane and Include superseded filters remain
   available (`brain:entityMemories`).
 - **Memory**: type, state, learned time, summary and every named entity; evidence with matched
-  words highlighted, speaker/lane labels and **Open in lane**; supported links, History and Related
-  rows. Dates and scope remain in a disclosure. **See the read that produced this** opens its job
+  words highlighted and each quote’s stored label, unchanged. Quotes do not carry their own
+  session path, so one memory-level **Open in lane** opens the origin lane; no quote is attributed
+  to that lane. Supported links, History and Related rows remain available. Dates and scope remain in a disclosure. **See the read that produced this** opens its job
   in Lanes. **Forget** removes the memory as before.
 - **Trail**: Back and Forward (`Alt+←` / `Alt+→`, or Backspace outside fields), then plain-text
   Overview and the previous two steps plus the current selection. Older steps collapse to an
   ellipsis. Clearing selection goes to Overview without deleting the forward trail.
 - **Graph**: selecting a node, row, chip or result keeps the bounded overview (`brain:overview`)
   drawn. The selected node, its direct neighbours and links stay bright; the rest dims. The camera
-  moves to the node. A memory highlights every named entity and the links it supports. Selected
-  things outside the overview are included with their neighbours, still capped at 300 nodes.
+  stays unchanged for an in-view selection in **Whole graph** mode, never zooming into the
+  selection. If the selection is outside the view or newly added, it fits the whole graph. A
+  memory highlights every named entity and the links it supports. Selected things outside the
+  overview are included with their neighbours, still capped at 300 nodes: selection first, then
+  route nodes, direct neighbours and the rest of the overview.
   A bounded-selection notice remains visible when the graph is truncated.
 - **Clear selection**: the selection chip's ✕, empty graph space, Esc outside fields/dialogs/menus,
   or the Overview breadcrumb restores the whole graph and fits the camera. **Whole graph** is the
   default; **Neighbours only** explicitly switches to one or two steps (`brain:neighbourhood`),
-  and clearing resets that choice. Zoom, fit and 2D/3D controls remain available. The legend along
-  the bottom lists only present kinds and shares its theme-token colours with the column's kind dots.
+  and fits that neighbourhood; clearing resets that choice. Fit fits everything currently shown.
+  Zoom and 2D/3D controls remain available. The legend along
+  the bottom lists only present kinds, with the filter’s plural words (People, Systems), and
+  shares its theme-token colours with the column's kind dots. The keyboard focus badge sits
+  inside the canvas, separate from both the legend and selection controls.
   Node labels keep a twelve-CSS-pixel height as the camera zooms. Directed links show
-  predicate words on selection or hover; hovering still loads the supporting memory. Reduced
+  predicate words on selection or hover; hovering loads the supporting memory and leaving the
+  link or canvas clears it. Reduced
   motion uses instantaneous camera moves.
 - **Find route to…**: up to three shortest supported routes between two entities, at most four
   hops, each hop with its memory, highlighted in the graph (`brain:path`).
@@ -309,7 +321,8 @@ rows show the claim, outcome tag and reason; the first 20 have **Show more**. Fo
 memories say “removed”, not a dead link. **Memories from this lane** opens each memory on
 Knowledge. **How it was read · n calls** has one closed disclosure per call, named in plain
 words with part number and duration. Opening shows the scrubbed raw output with Copy,
-rebuilt prompt and diagnostics, without cost or token counts.
+rebuilt prompt and diagnostics, without cost or token counts. Raw output, prompts and source
+text each have a capped, internally scrolling box.
 
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records store no
 prompt text; a prompt whose inputs are gone says so. Records are kept while their job is in the

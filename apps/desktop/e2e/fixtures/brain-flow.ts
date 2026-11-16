@@ -4,7 +4,7 @@ import type { BrainLane } from './brain-lanes'
 export const brainNav = (page: Page) =>
   page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: /^Brain(?: \d+ lanes to review)?$/ })
+    .getByRole('button', { name: /^Brain(?: \d+ lanes? to review)?$/ })
 const laneRow = (page: Page, lane: BrainLane) =>
   page.getByTestId('session-row').filter({ hasText: lane.title }).first()
 export const inbox = (page: Page, lane: BrainLane) =>
@@ -22,7 +22,7 @@ export async function enableBrain(page: Page, lane: BrainLane): Promise<void> {
   await expect(page.getByText('Queue for knowledge extraction')).toHaveCount(0)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await page.getByRole('button', { name: /^Brain(?: \d+ lanes to review)?$/ }).click()
+  await page.getByRole('button', { name: /^Brain(?: \d+ lanes? to review)?$/ }).click()
   await page.getByRole('switch', { name: 'Brain', exact: true }).click()
   await expect(page.getByRole('switch', { name: 'Brain', exact: true })).toBeChecked()
   await expect(page.getByRole('switch', { name: 'Review before saving' })).toBeChecked()
