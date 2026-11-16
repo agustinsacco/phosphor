@@ -21,6 +21,7 @@ export function useGraphScene(
   onEdge: (link: GraphLink | null) => void,
   dimensions: 2 | 3,
   onClear?: () => void,
+  selectionPending = false,
 ): { scene: GraphScene | null; unavailable: boolean } {
   const [scene, setScene] = useState<GraphScene | null>(null)
   const [unavailable, setUnavailable] = useState(false)
@@ -65,6 +66,8 @@ export function useGraphScene(
     }
   }, [container])
   useEffect(() => {
+    // A pending memory read is not a cleared selection; retain its current camera and scene.
+    if (selectionPending) return
     try {
       scene?.update(model, {
         focus: selection.focus,
@@ -79,7 +82,16 @@ export function useGraphScene(
       container.current?.replaceChildren()
       setUnavailable(true)
     }
-  }, [scene, model, selection.focus, selection.matches, selection.path, selection.scope, container])
+  }, [
+    scene,
+    model,
+    selection.focus,
+    selection.matches,
+    selection.path,
+    selection.scope,
+    selectionPending,
+    container,
+  ])
   useEffect(() => {
     scene?.dimensions(dimensions)
   }, [scene, dimensions])

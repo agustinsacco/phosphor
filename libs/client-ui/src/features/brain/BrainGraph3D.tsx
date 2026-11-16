@@ -15,6 +15,7 @@ export function BrainGraph3D({
   path = null,
   focus,
   scope = 'all',
+  selectionPending = false,
   matches = null,
   onFocus,
   onClear,
@@ -24,6 +25,7 @@ export function BrainGraph3D({
   path?: BrainLink[] | null
   focus: string | null
   scope?: 'all' | 'near'
+  selectionPending?: boolean
   matches?: Set<string> | null
   onFocus: (id: string) => void
   onClear?: () => void
@@ -49,6 +51,7 @@ export function BrainGraph3D({
     setEdge,
     dimensions,
     onClear,
+    selectionPending,
   )
   return (
     <section

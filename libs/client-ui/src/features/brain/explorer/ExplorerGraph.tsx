@@ -55,6 +55,7 @@ export function ExplorerGraph({
           )}
           <BrainGraph3D
             graph={shown}
+            selectionPending={selected && !resource.data}
             path={path ?? memory?.links ?? null}
             focus={entityId}
             scope={scope === 'near' ? 'near' : 'all'}

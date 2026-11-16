@@ -4,7 +4,7 @@ import { graphAppearance } from './graphAppearance'
 import { readGraphTheme } from './graphColors'
 import { Vector3, type PerspectiveCamera } from 'three'
 import { fitCamera } from './graphFit'
-import type { GraphLink, GraphModel, GraphNode } from './graphModel'
+import type { GraphLink, GraphModel } from './graphModel'
 
 export interface GraphSelection {
   focus: string | null
@@ -154,13 +154,13 @@ class SceneController implements GraphScene {
     })
   }
   /** Fit the nodes themselves, keeping the current view direction. */
-  private fitTo(duration: number, keep: (node: GraphNode) => boolean = () => true): void {
+  private fitTo(duration: number): void {
     const camera = this.graph.camera() as PerspectiveCamera
     camera.updateMatrixWorld()
     const e = camera.matrixWorld.elements
     const fit = fitCamera(
       this.model.nodes
-        .filter((node) => keep(node) && Number.isFinite(node.x))
+        .filter((node) => Number.isFinite(node.x))
         // Sphere radius is nodeRelSize(4) * cbrt(val); the extra room keeps its label in view.
         .map((node) => ({
           x: node.x ?? 0,
