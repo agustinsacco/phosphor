@@ -403,7 +403,13 @@ test('Brain caps long read text and anchors a short review action bar', async ()
     record.calls = [{ ...record.calls[0]!, answer: 'Harbor output\n'.repeat(1500) }]
     record.prompts = ['Ledger prompt\n'.repeat(1500)]
     record.source.segments = [
-      { label: 'user · 2026-11-01T00:00:00Z', text: 'Kestrel source\n'.repeat(1500) },
+      {
+        entryId: 'harbor-entry',
+        role: 'user',
+        observedAt: 0,
+        label: 'user · 2026-11-01T00:00:00Z',
+        text: 'Kestrel source\n'.repeat(1500),
+      },
     ]
     await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
     await h.app.evaluate(

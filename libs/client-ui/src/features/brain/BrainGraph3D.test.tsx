@@ -647,11 +647,11 @@ it('clears link support when the pointer exits the canvas even without a vendor 
     await render()
     await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
     expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
-    act(() =>
+    act(() => {
       container
         .querySelector('[aria-label="Memory relationships"]')!
-        .dispatchEvent(new MouseEvent('pointerout', { bubbles: true })),
-    )
+        .dispatchEvent(new MouseEvent('pointerout', { bubbles: true }))
+    })
     expect(container.textContent).not.toContain('Harbor Ledger is built for Harbor.')
   } finally {
     restore()
