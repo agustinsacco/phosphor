@@ -17,25 +17,7 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | Skills          | Catalogue install, upload, discovery and in-place edits                                                                                                                                               |
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync                                                    |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                                                                                  |
-| Clients         | Web Push to a closed browser or installed PWA                                                                                                                                                         |
 | Portability     | Larger lane transfers, submodule/LFS support, primitive copy/sync and sharing Desktop's local runtime                                                                                                 |
-
-## PWA attention and Web Push
-
-In-app attention and the notification drawer in both clients, machine-titled
-Desktop and browser native notifications while the app runs, and Host read
-watermarks are built ([Web client](web-client.md#notifications)).
-A browser/PWA consumer still needs Web Push from each Host when closed, with
-a minimal payload encrypted end to end to the device.
-The device registers with that Host over Tailscale. Control stores nothing new.
-iOS requires Home Screen installation and iOS 16.4 or newer.
-
-**Open questions.** Define event retention, subscription expiry, device-key
-registration and rotation, and which devices receive notifications.
-
-**Risks.** Push providers see delivery metadata. Names can reveal projects on lock
-screens. Duplicate or expired events must not resurrect read badges. Hosts need
-bounded retry queues and explicit subscription revocation.
 
 ## Share this computer
 

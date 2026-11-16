@@ -14,5 +14,12 @@ export interface HostFeature {
   capability: HostCapability
   /** Exact method names, each `<namespace>.<name>`. */
   methods: readonly string[]
-  call(method: string, params: unknown, authorized?: () => boolean): Promise<FeatureOutcome>
+  /** Its calls act for the calling client, which the connection's grant names. */
+  clientScoped?: true
+  call(
+    method: string,
+    params: unknown,
+    authorized?: () => boolean,
+    clientId?: string,
+  ): Promise<FeatureOutcome>
 }

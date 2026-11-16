@@ -927,9 +927,13 @@ notifications** (only this explicit gesture requests permission), and **Send a
 test notification** when granted. Blocked permission points to the browser's site
 settings. An unavailable browser explains that; on iPhone, install on the Home
 Screen first. A failed permission request or test can be retried. The test uses
-the service worker and can show while the page is visible. Routine delivery is
-[while the app runs](web-client.md#notifications), not closed-app Web Push.
-Desktop keeps its OS-owned permission and has no section here.
+the service worker and can show while the page is visible. Once notifications are
+on, **When Phosphor is closed** lists every machine in the directory with whether
+it will notify this device through [Web Push](web-client.md#web-push): On, Could
+not register (it is retried), Setting up, Not supported (a Host without Web Push)
+or the connection state. The permission is the only switch: turning it off in the
+browser removes every registration. Desktop keeps its OS-owned permission and has
+no section here.
 
 ## About
 

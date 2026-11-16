@@ -14,9 +14,17 @@ export interface LaneService {
     status(clientId: string, requestId: string, connectionId?: string): void
   }
   calls: {
-    call(method: string, params: unknown, authorized?: () => boolean): Promise<CallOutcome>
+    /** `clientId` is the connection's own client, for calls a client makes for itself. */
+    call(
+      method: string,
+      params: unknown,
+      authorized?: () => boolean,
+      clientId?: string,
+    ): Promise<CallOutcome>
     capabilityFor(method: string): HostCapability | null
   }
+  /** The VAPID public key the ready frame announces when the Host sends Web Push. */
+  webPushKey?: string
   streams: LaneStreams
   lanesTopic: LanesTopic
   /** Publishes the current control of every active lane this client controls. */

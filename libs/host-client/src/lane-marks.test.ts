@@ -87,4 +87,10 @@ describe('readyView', () => {
     expect(readyView({ ...ready, fileBytes: true }).fileBytes).toBe(true)
     expect(readyView(ready).fileBytes).toBe(false)
   })
+  it('projects the Web Push key, and clears it for an older Host on reconnect', () => {
+    const key = 'B'.repeat(87)
+    expect(readyView({ ...ready, webPushKey: key }).webPushKey).toBe(key)
+    const previous = { webPushKey: key }
+    expect({ ...previous, ...readyView(ready) }.webPushKey).toBeUndefined()
+  })
 })

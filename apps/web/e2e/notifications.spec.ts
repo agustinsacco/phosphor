@@ -161,12 +161,20 @@ for (const width of [400, 1100]) {
     expect(
       await page.evaluate(() => sessionStorage.getItem('notificationPermissionRequested')),
     ).toBeNull()
+    const closed = page.locator('[data-setting-row]', { hasText: 'When Phosphor is closed' })
+    await expect(closed).toHaveCount(0)
     await turnOn.click()
     await expect(turnOn).toBeDisabled()
     await expect(sendTest).toBeEnabled()
     expect(
       await page.evaluate(() => sessionStorage.getItem('notificationPermissionRequested')),
     ).toBe('true')
+    // The real Host announces its Web Push key. Headless Chromium has no push service, so
+    // registering may fail, but the machine is listed and never as unsupported.
+    await expect(closed.getByText('Synthetic Host', { exact: true })).toBeVisible()
+    await expect(closed.getByText(/^(Setting up|Could not register|On)$/)).toBeVisible()
+    const row = await closed.boundingBox()
+    expect(row!.x + row!.width).toBeLessThanOrEqual(width + 1)
     await page.evaluate(() => {
       Object.defineProperty(Notification, 'permission', { get: () => 'denied' })
       window.dispatchEvent(new Event('focus'))
@@ -176,5 +184,6 @@ for (const width of [400, 1100]) {
     await expect(
       page.getByText('Allow notifications in your browser’s site settings, then return here.'),
     ).toBeVisible()
+    await expect(closed).toHaveCount(0)
   })
 }

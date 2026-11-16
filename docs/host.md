@@ -544,6 +544,9 @@ The files live in `identity/` beside the config file, including when
   `hostId` is the enrolled UUID, not the config's local name. `savedAt` is the
   Host's clock. The server supplies `enrolledAt` in status.
 - `host-key.<hostId>.pem`: the private key, PKCS#8 PEM. It never leaves the Host.
+- `web-push-key.pem`: the [Web Push](#web-push) VAPID P-256 private key, PKCS#8
+  PEM, created once by the first `run` and kept across enrollments. It never
+  leaves the Host and is never logged.
 - `pending-key.pem` and `pending.json`: the pending key and
   `{version: 1, controlUrl, enrollmentId, userCode, keyFingerprint, expiresAt, savedAt, pollIntervalSec}`.
   Login saves the key first, then the metadata, before printing the code.
@@ -2012,6 +2015,38 @@ current marks in `lane_marks` (see [State](#state)) and drops the row when the l
 is neither pinned nor marked. It then publishes the lane's summary, so `lanes`
 subscribers receive a `lanes-delta` upsert. `updatedAt`, `attention` and `read`
 do not change. Every `ready` frame carries `laneMarks: true`.
+
+## Web Push
+
+`run` pushes lane attention to browsers that registered with it
+([protocol](remote-protocol.md#web-push), [browser](web-client.md#web-push)), on
+the same events Desktop notifies for: a finished run, a new needs-input and a
+failure. The VAPID key is `identity/web-push-key.pem`, created at 0600 by the
+first `run` with the identity files' atomic writer; a file that is not a regular,
+owner-only file of this user, or not a P-256 key, is refused and never replaced,
+and `run` then works without Web Push (one `push.unavailable` line) and announces
+no `webPushKey`. Subscriptions live in `<state>/web-push.json` at 0600, at most 20,
+one per client, each with the owner and Control epoch it registered under. A
+revoked client, another owner or a new epoch drops its subscription, and a push is
+sent only to one that is still current.
+
+The lane topic only starts the work, so pushing never blocks or slows a lane. A
+push waits at most 2 seconds for the run's receipt facts (at most 32 reads at
+once) and goes out without them otherwise; a newer attention for the lane that
+arrives meanwhile replaces it, so an older one never sends after it. Delivery
+(`apps/host/src/push/`) queues at most 64 messages, replacing a queued one for the
+same subscription and lane, and sends 4 at a time, one per subscription and lane,
+with a 10-second timeout. It retries 429, 5xx and network failures up to 4
+attempts after 5, 30 and 120 seconds (a longer `Retry-After` wins, capped at 10
+minutes), unless a newer message for that subscription and lane is already
+waiting. Before every request and every retry it looks the subscription up again:
+one unsubscribed, revoked, of another owner or epoch, or without a known owner is
+dropped with its message. 404 and 410 remove the subscription. It never follows a
+redirect and checks the endpoint against the push-service allowlist again before
+every request. The VAPID `sub` is the Control URL when it is https; a token is
+reused per push-service origin for 12 hours, less an hour. Logs carry counts and
+reasons only (`push.subscribed`, `.gone`, `.revoked`, `.dropped`, `.failed`,
+`.refused`), never an endpoint, key or payload.
 
 ## Repository management and lane deletion
 

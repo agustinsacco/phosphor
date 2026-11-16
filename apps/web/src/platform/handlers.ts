@@ -27,6 +27,7 @@ import type { createBrowserDrafts } from './drafts'
 import type { createBrowserTerminals } from './terminals'
 import type { createBrowserSettings } from './settings'
 import type { createBrowserFileBytes } from './file-bytes'
+import type { BrowserPush } from './push'
 
 export type BrowserHandlers = {
   [C in WebSupportedChannel]: (
@@ -207,6 +208,7 @@ export interface BrowserHandlerPorts {
   drafts: ReturnType<typeof createBrowserDrafts>
   laneMoves: ReturnType<typeof createHostLaneMoves>
   fileBytes: ReturnType<typeof createBrowserFileBytes>
+  push: Pick<BrowserPush, 'project'>
   openExternal: (url: string) => void
   broadcastLogout: () => void
   machinesChanged: () => void
@@ -240,7 +242,7 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     ...githubHandlers(resources.repositories, hosts),
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
-    'hosts:snapshot': hosts.snapshot,
+    'hosts:snapshot': () => ports.push.project(hosts.snapshot()),
     'hosts:reconnect': hosts.reconnect,
     'hosts:setFocusedLane': (target) => lanes.setFocused(1, target),
     'hosts:openLane': (host, lane) => lanes.open(ports.window(), host, lane),

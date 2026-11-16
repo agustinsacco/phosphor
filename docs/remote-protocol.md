@@ -265,6 +265,41 @@ without losing the catalogue. Desktop and the browser receive it through
 starts on it when it is usable
 ([lane creation](remote-desktop.md#machine-context-and-lane-creation)).
 
+## Web Push
+
+A Host that pushes lane attention to closed browsers announces the additive
+`webPushKey` in `ready`: its VAPID public key, an uncompressed P-256 point as 87
+characters of unpadded base64url. Clients drop a malformed key
+(`isP256PublicKey`) and project it as `HostConnectionView.webPushKey`; older
+clients ignore it. Both calls need `sessions.read`, like reading the lanes the
+pushes announce, and act only for the calling client, which the Host takes from
+the connection's grant, never from params
+(`libs/shared/src/host-protocol-web-push.ts`):
+
+- `notifications.subscribe {endpoint, keys: {p256dh, auth}}` registers this
+  client's push subscription, replacing its previous one. `endpoint` is https on
+  `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com`
+  or a `*.notify.windows.com` subdomain, with no credentials, port or fragment, at
+  most 2048 characters; `p256dh` is a P-256 point on the curve and `auth` 16 bytes.
+  A Host keeps at most 20 and forgets the least recently registered beyond that.
+- `notifications.unsubscribe {endpoint}` forgets this client's subscription with
+  that endpoint; another client's is never touched.
+
+Any other key, endpoint or key material is `bad-request`; a revoked client, or a
+Host that does not know its current owner, is `forbidden`. Both answer `null`. A client calls them only on a Host that announces the key
+(`libs/host-client/src/web-push.ts`, confirmed only on the connection that
+answered).
+
+A push body is one JSON object, at most 3072 bytes, encrypted to the device as one
+aes128gcm record (RFC 8291) under a VAPID ES256 token (RFC 8292):
+`{v: 1, hostId, laneId, kind, machine, title, receipt?}`. `kind` is `finished`,
+`needs-input` or `failed`; `machine` and `title` are bounded labels; `receipt`
+holds only the run's facts (outcome, duration, files changed, tests,
+artifacts), never the reply excerpt, repository, branch or paths. The device
+refuses any other key. Requests carry a 6-hour `TTL`, `Urgency: high` for
+needs-input and a per-lane `Topic`, so a newer push replaces an undelivered older
+one. [Web client](web-client.md#web-push) owns how a browser registers and shows them.
+
 ## Host grants
 
 `libs/shared/src/host-grant.ts` defines

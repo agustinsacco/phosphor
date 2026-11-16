@@ -17,6 +17,7 @@ import { createBrowserSettings } from './settings'
 import { captureCompletionFence } from './completion-fence'
 import { createBrowserDrafts, OWNER_DRAFT_CHANNELS } from './drafts'
 import { createBrowserFileBytes } from './file-bytes'
+import { createBrowserPush } from './push'
 
 /** Lifecycle and invalidation ports contain no account or lane data. */
 export interface BrowserLifecycle {
@@ -126,11 +127,22 @@ const NATIVE_ONLY = {
   pathForFile: () => '',
   spellingSuggestions: () => null,
 } satisfies Partial<PhosphorApi>
-/** What the shared UI subscribes to, as events this tab emits. */
-function subscriptions(
+/** The `window.phosphor` surface over the adapter's invoke and events. */
+function browserSurface(
+  invoke: PhosphorApi['invoke'],
   events: ReturnType<typeof createBrowserEvents>,
-): Pick<PhosphorApi, Extract<keyof PhosphorApi, `on${string}`>> {
+  platform: PhosphorApi['platform'] | undefined,
+): PhosphorApi {
   return {
+    platform:
+      platform ??
+      (/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '')
+        ? 'darwin'
+        : /Win/.test(globalThis.navigator?.platform ?? '')
+          ? 'win32'
+          : 'linux'),
+    invoke,
+    piCommand: ((id, command) => invoke('pi:command', id, command)) as PhosphorApi['piCommand'],
     onSessionPush: (id, listener) => events.on(`pi:event:${id}`, listener),
     onAccountChanged: (listener) => events.on('account', listener),
     onMachinesChanged: (listener) => events.on('machines', listener),
@@ -152,6 +164,7 @@ function subscriptions(
     onClaudeLoginState: (listener) => events.on('claude-login', listener),
     onVoiceStatus: (listener) => events.on('voice', listener),
     onFileDownloadProgress: (listener) => events.on('file-download', listener),
+    ...NATIVE_ONLY,
   }
 }
 /** Install api on window BEFORE importing the shared UI; call start after installation. */
@@ -181,6 +194,8 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     invalidate: (owner) => {
       laneMoves.abort()
       fileBytes.clear()
+      // Disposing (closing, a start that failed offline) is no sign-out: push scopes stay.
+      if (!stopped) push.accountChanged(owner)
       terminals.clear()
       lanes.clear()
       hosts.clear()
@@ -207,9 +222,15 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       lanes.reconcile()
       terminals.reconcile()
       events.emit('hosts', undefined)
+      push.sync()
     },
     routinesChanged: (hostId) => events.emit('routines', { machine: `host:${hostId}` }),
     attention: attention.receive,
+  })
+  const push = createBrowserPush({
+    hosts,
+    session: control.session,
+    changed: () => events.emit('hosts', undefined),
   })
   const lanes = createRemoteLanes({
     identity: options.identity,
@@ -238,6 +259,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     drafts,
     laneMoves,
     fileBytes,
+    push,
     window: () => tabWindow(control, events, () => stopped),
     openExternal:
       options.openExternal ??
@@ -296,19 +318,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     }
     return result
   }
-  const api: PhosphorApi = {
-    platform:
-      options.platform ??
-      (/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '')
-        ? 'darwin'
-        : /Win/.test(globalThis.navigator?.platform ?? '')
-          ? 'win32'
-          : 'linux'),
-    invoke,
-    piCommand: ((id, command) => invoke('pi:command', id, command)) as PhosphorApi['piCommand'],
-    ...subscriptions(events),
-    ...NATIVE_ONLY,
-  }
+  const api = browserSurface(invoke, events, options.platform)
   const refreshQuietly = () => void refresh().catch(() => {})
   function refresh() {
     if (stopped) return Promise.resolve()
@@ -330,6 +340,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
           refreshQuietly()
         })
         offInvalidation = invalidation?.subscribe(control.invalidate) ?? (() => {})
+        push.start()
         poll = setInterval(refreshQuietly, DIRECTORY_POLL_MS)
         clock = setInterval(hosts.reconcile, 5000)
       }
@@ -341,6 +352,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       clearInterval(poll)
       clearInterval(clock)
       offClicks()
+      push.dispose()
       offLifecycle()
       offInvalidation()
       invalidation?.close()
