@@ -357,6 +357,74 @@ describe('Host Web Push', () => {
     await settle()
     expect(t.sent().map((s) => s.payload.title)).toStrictEqual(['First', 'Second'])
   })
+  const unsubscribe = (t: Setup) =>
+    t.push.feature.call(
+      'notifications.unsubscribe',
+      { endpoint: t.subscription().endpoint },
+      undefined,
+      PHONE,
+    )
+  /** Fake time: one 503, so the push waits out its first backoff in the queue. */
+  async function backingOff() {
+    vi.useFakeTimers()
+    const t = setup()
+    await t.subscribe()
+    t.fetch.mockResolvedValueOnce(new Response(null, { status: 503 }))
+    t.publish(event({ kind: 'needs-input', title: 'Earlier registration' }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+    return t
+  }
+  it('never posts a queued push to the next registration of a device that unsubscribed', async () => {
+    const t = setup({ delivery: { concurrency: 1 } })
+    await t.subscribe()
+    let release!: () => void
+    t.fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => (release = () => resolve(new Response(null, { status: 201 })))),
+    )
+    t.publish(event({ kind: 'needs-input', laneId: OTHER_LANE, id: `${OTHER_LANE}:1` }))
+    await settle()
+    t.publish(event({ kind: 'needs-input', id: `${LANE}:2`, title: 'Earlier registration' }))
+    await settle()
+    await unsubscribe(t)
+    expect(await t.subscribe()).toStrictEqual({ ok: true, data: null })
+    release()
+    await settle()
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+    t.publish(event({ kind: 'needs-input', id: `${LANE}:3`, title: 'This registration' }))
+    await settle()
+    expect(t.sent().map((s) => s.payload.title)).toStrictEqual([
+      'Fix the build',
+      'This registration',
+    ])
+  })
+  it('never retries a push to the registration a device made during its backoff', async () => {
+    const t = await backingOff()
+    await unsubscribe(t)
+    await t.subscribe()
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+    t.publish(event({ kind: 'needs-input', id: `${LANE}:2`, title: 'This registration' }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.sent().map((s) => s.payload.title)).toStrictEqual([
+      'Earlier registration',
+      'This registration',
+    ])
+  })
+  it.each([
+    ['a new epoch', { owner: 'owner', epoch: 2 }],
+    ['another owner', { owner: 'someone-else', epoch: 2 }],
+  ])(
+    'never sends a push queued before %s to the device registering again under it',
+    async (_name, next) => {
+      const t = await backingOff()
+      t.authority({ ...next, revokedClients: new Set() })
+      expect(await t.subscribe()).toStrictEqual({ ok: true, data: null })
+      await vi.advanceTimersByTimeAsync(600_000)
+      expect(t.fetch).toHaveBeenCalledTimes(1)
+    },
+  )
   it('stops listening and sending once closed', async () => {
     const t = setup()
     await t.subscribe()
