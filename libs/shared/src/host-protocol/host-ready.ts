@@ -54,6 +54,7 @@ export function parseReadyFrame(
     (v.fileBytes !== undefined && typeof v.fileBytes !== 'boolean') ||
     (v.prStatus !== undefined && typeof v.prStatus !== 'boolean') ||
     (v.webPushKey !== undefined && !isP256PublicKey(v.webPushKey)) ||
+    (v.prTracking !== undefined && typeof v.prTracking !== 'boolean') ||
     !v.capabilities.every((c) => h.hello.capabilities.includes(c))
   )
     return null
@@ -73,5 +74,6 @@ export function parseReadyFrame(
     ...(v.fileBytes !== undefined ? { fileBytes: v.fileBytes as boolean } : {}),
     ...(v.prStatus !== undefined ? { prStatus: v.prStatus as boolean } : {}),
     ...(v.webPushKey !== undefined ? { webPushKey: v.webPushKey } : {}),
+    ...(v.prTracking !== undefined ? { prTracking: v.prTracking as boolean } : {}),
   }
 }

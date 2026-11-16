@@ -27,7 +27,7 @@ const mark = (action: LanePrOverrideMark['action'], number: number): LanePrOverr
   action,
   at: 0,
 })
-const marks = () => useLanePrOverridesStore.getState().byPath[PATH]
+const marks = () => useLanePrOverridesStore.getState().byLane[PATH]
 
 describe('applyLanePrOverride', () => {
   it('pins out of hidden, hides out of pinned and clears both, keeping other signals', () => {
@@ -93,7 +93,7 @@ describe('lanePrOverrideSettled', () => {
 describe('useLanePrOverridesStore', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    useLanePrOverridesStore.setState({ byPath: {} })
+    useLanePrOverridesStore.setState({ byLane: {} })
   })
   afterEach(() => vi.useRealTimers())
 
@@ -115,7 +115,7 @@ describe('useLanePrOverridesStore', () => {
     settle(PATH, signals({ pinned: [prRef(5)] }))
     expect(marks()?.map((m) => m.ref.number)).toEqual([2])
     settle(PATH, signals({ pinned: [prRef(5)], hidden: [prRef(2)] }))
-    expect(useLanePrOverridesStore.getState().byPath).toEqual({})
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
   })
 
   it('expires a mark the scan never confirms, but not a newer write for the same PR', () => {
@@ -130,6 +130,6 @@ describe('useLanePrOverridesStore', () => {
       ['pin', 6],
     ])
     vi.advanceTimersByTime(LANE_PR_OVERRIDE_TTL_MS / 2)
-    expect(useLanePrOverridesStore.getState().byPath).toEqual({})
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
   })
 })

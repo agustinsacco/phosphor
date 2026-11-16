@@ -1,6 +1,7 @@
 import { isLanePiOp, type LaneOp } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
+import { isLanePrsPrompt } from '@phosphor/shared/lane-prs-command'
 import type { CommandResult } from './connection'
 
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
@@ -83,6 +84,7 @@ type Host = { send(op: LaneOp, laneId?: string, fence?: number): Promise<Command
  * first. A Host restart (an update, a crash) stops every lane and nothing starts
  * pi again; without this every message came back `lane-stopped`. Only `prompt`:
  * steer and follow-up target a running turn, and nothing else needs pi to start.
+ * Track and Hide's prompt only writes lane metadata, so its refusal comes back as is.
  */
 export async function sendToLane(
   host: Host,
@@ -91,7 +93,12 @@ export async function sendToLane(
   fence?: number,
 ): Promise<CommandResult> {
   const result = await host.send(op, laneId, fence)
-  if (op.type !== 'prompt' || result.status !== 'rejected' || result.code !== 'lane-stopped')
+  if (
+    op.type !== 'prompt' ||
+    isLanePrsPrompt(op.message) ||
+    result.status !== 'rejected' ||
+    result.code !== 'lane-stopped'
+  )
     return result
   const resumed = await host.send({ type: 'lane.resume' }, laneId, fence)
   if (resumed.status !== 'done') return resumed

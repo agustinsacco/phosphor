@@ -52,6 +52,7 @@ export function readyFrame(options: {
     fileBytes: true,
     prStatus: true,
     ...(options.webPushKey ? { webPushKey: options.webPushKey } : {}),
+    prTracking: true,
     proof: hostProof(hello, options.challenge, options.key),
     connectionId: options.connectionId,
     grantExpiresAt: options.grantExpiresAt,

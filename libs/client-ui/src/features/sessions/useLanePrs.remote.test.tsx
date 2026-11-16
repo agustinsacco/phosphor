@@ -16,6 +16,8 @@ import { usePullRequestsStore } from '@/stores/pullRequests'
 import { usePrStatusStore } from '@/stores/prStatus'
 import { usePrDetailStore } from '@/stores/prDetail'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useLanePrOverridesStore } from '@/stores/lanePrOverrides'
+import { remoteLaneKey } from '@shared/remote-host'
 import { prSummary } from './__fixtures__/pullRequests'
 import { useLanePullRequests } from './useLanePrs'
 
@@ -79,6 +81,7 @@ beforeEach(() => {
   usePullRequestsStore.setState({ byRepo: {}, available: true })
   usePrStatusStore.setState({ byKey: {} })
   usePrDetailStore.setState({ byKey: {} })
+  useLanePrOverridesStore.setState({ byLane: {} })
   summaries.mockClear()
   detail.mockClear()
   const fake = createFakePhosphor({
@@ -135,4 +138,17 @@ it('keeps the checkout branch only, and asks nothing by number, on an older Host
     await vi.advanceTimersByTimeAsync(120_000)
   })
   expect(summaries).not.toHaveBeenCalled()
+})
+
+it("shows a Host lane's Track at once, and drops the mark once its Host's summary agrees", async () => {
+  const key = remoteLaneKey(MOCK_HOST_ID, mockRemoteInfo.laneId!)
+  const hidden = { ...SIGNALS, hidden: [REF] }
+  useRemoteLanesStore.setState({ hosts: hosts(true, SIGNALS), filter: 'all' })
+  expect(await render()).toBe(`#57:${prSummary().title}|1`)
+  act(() => useLanePrOverridesStore.getState().record(key, 'hide', REF))
+  expect(container.textContent).toBe('none|1')
+  useRemoteLanesStore.setState({ hosts: hosts(true, hidden) })
+  await render()
+  expect(container.textContent).toBe('none|1')
+  expect(useLanePrOverridesStore.getState().byLane).toEqual({})
 })

@@ -1,3 +1,5 @@
+import type { RpcCommand } from '@phosphor/shared/rpc'
+import { mayRunExtensionCommand } from '../../session/command-policy'
 import type { HostRuntime } from '../../session/runtime'
 import { advertisesExtensionCommand } from '../pi-results'
 import type { Binding, RuntimeLaneState } from './state'
@@ -22,6 +24,20 @@ async function titlesLane(
   const response = await context.options.runtime.command(sessionId, { type: 'get_commands' })
   return !(response.success && advertisesExtensionCommand(response.data, name))
 }
+
+/**
+ * Commands whose effect pi reports with no event. An extension command is one: Track and
+ * Hide (`/phosphor-prs pin|hide|clear <url>`) only append to the lane's file, so the state
+ * refresh is what republishes the summary, which reads the file's PR signals again.
+ */
+const refreshesState = (command: RpcCommand): boolean =>
+  [
+    'set_thinking_level',
+    'set_session_name',
+    'set_steering_mode',
+    'set_follow_up_mode',
+    'set_auto_compaction',
+  ].includes(command.type) || mayRunExtensionCommand(command)
 
 export async function command(
   context: RuntimeLaneState,
@@ -70,17 +86,7 @@ export async function command(
       firstPrompt(context, args[0], binding, binding.laneId, args[1].message)
     if (response.success && args[1].type === 'set_session_name' && binding)
       recordManualName(context, binding, args[1].name)
-    if (
-      response.success &&
-      [
-        'set_model',
-        'set_thinking_level',
-        'set_session_name',
-        'set_steering_mode',
-        'set_follow_up_mode',
-        'set_auto_compaction',
-      ].includes(args[1].type)
-    ) {
+    if (response.success && (args[1].type === 'set_model' || refreshesState(args[1]))) {
       if (args[1].type === 'set_model') await finishModelSelection(context, args[0], binding)
       else {
         const currentId = binding?.laneId ? live.sessionFor(binding.laneId) : args[0]

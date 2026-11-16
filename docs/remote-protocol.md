@@ -341,6 +341,13 @@ The additive `prStatus` boolean in `ready` says the Host reads PRs by number and
 sends lane PR signals ([PR status by number](#pr-status-by-number)). Clients
 project it as `HostConnectionView.prStatus`.
 
+The additive `prTracking` boolean in `ready` says the Host refreshes a lane after
+a `/` prompt that succeeded, so a Track or Hide (`/phosphor-prs`, which appends
+to the lane's file without a pi event) reaches the lane's summary
+`pullRequests`. Clients project it as `HostConnectionView.prTracking` and refuse
+Track and Hide on a Host without it: host-v0.2.80 announces `prStatus` but not
+this, and a write there would never show.
+
 ### Machine configuration operations
 
 `machine.settings.read`, `machine.settings.patch` and `machine.settings.check`

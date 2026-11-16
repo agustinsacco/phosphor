@@ -525,12 +525,13 @@ close it; focus moves into the sheet and returns to the element on close.
   **Earlier** in a muted tone. Expanding a receipt does not count. Rows can be removed one at a time and Earlier can be cleared. Seen
   entries age out 24h after they arrived, new ones after 72h, and the list
   holds at most 50. Entries are memory only and leave when their lane closes
-  (PR notices stay: they open the lane from its file). Browser notices also clear
+  (PR notices stay: they open the lane from its file or its Host). Browser notices also clear
   on account loss. The browser's quiet permission offer and native delivery
   contract are in [Web client](web-client.md#notifications).
 - **PR change notices** — `stores/prTransitions.ts` watches PR status and
-  speaks when a PR a This Mac lane owns (`features/sessions/prLaneIndex.ts`,
-  never a reviewed or mentioned one) changes in a way worth interrupting for
+  speaks when a PR a lane owns, This Mac's or a Host's
+  (`features/sessions/prLaneIndex.ts`, never a reviewed or mentioned one),
+  changes in a way worth interrupting for
   (the `important` changes of `prChanges`: failed checks, an approval,
   requested changes, a conflict, ready to merge, merged or closed). The first
   answer per PR after launch is only a baseline, a read that failed or found
@@ -544,9 +545,14 @@ close it; focus moves into the sheet and returns to the element on close.
   (a conflict), or Open on GitHub (ready to merge); merged has none. A
   hand-off drafts into that lane's composer and is never sent. While
   Phosphor is not the focused app, the same notice also goes to the
-  operating system (`app:notify`: title "#57 …", body "lane · repo");
-  clicking it brings the window forward and opens the lane on that PR. In
-  front of you the toast says it, so there is no native one.
+  operating system (`app:notify`: title "#57 …", body "lane · repo"; for a
+  Host lane, title "#57 Branch conflict" with a fixed word for the change kind
+  and body the machine label, which keeps repository and branch names, check
+  names, reviewers and the lane title off lock screens as Host attention does);
+  clicking it brings the window forward and
+  opens the lane on that PR. In front of you the toast says it, so there is no
+  native one. Desktop attaches the watch in `AppOverlays`, the browser shell in
+  `CompactApp` (see [Web client](web-client.md#notifications)).
 - **Status strip** — the bottom of the chat pane, only while a session has
   something to say: an MCP chip (`connected/enabled`, tool count, "N need
   attention"; opens Settings → MCP Connectors), a sub-agent chip (background

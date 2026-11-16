@@ -1,33 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
+import { CloseIcon } from '@/components/icons'
+import { ModalOverlay } from '@/components/Modal'
 import { PopupMenu } from '@/components/PopupMenu'
 import { TooltipButton } from '@/components/Tooltip'
+import './laneHeaderPill.css'
 
 /** Closes the popup; focus returns to the pill unless the action moved it elsewhere. */
 export type ClosePill = (restoreFocus?: boolean) => void
 
-/**
- * A lane header quick link: a real tab stop that opens an anchored details
- * popup. The PR status and Slack threads pills are both this; their contents
- * differ, their focus and dismissal must not.
- *
- * Enter/Space opens and focus starts on the popup's `data-popup-autofocus`
- * element, else its first button; Escape, an
- * outside click or the pill itself closes it and returns focus to the pill.
- */
-export function LaneHeaderPill({
-  label,
-  testId,
-  variant,
-  className,
-  face,
-  region,
-  popupClassName = 'w-80 py-2',
-  open: controlledOpen,
-  onOpenChange,
-  holdOpen,
-  children,
-}: {
+interface LaneHeaderPillProps {
   label: string
   testId: string
   variant?: string
@@ -43,8 +25,37 @@ export function LaneHeaderPill({
   onOpenChange?: (open: boolean) => void
   /** True while a dialog the popup opened is on top: clicks there must not close it. */
   holdOpen?: () => boolean
+  /** A full-height bottom sheet with this title, for a phone. */
+  sheet?: { title: string }
   children: (close: ClosePill) => React.ReactNode
-}): React.JSX.Element {
+}
+
+/**
+ * A lane header quick link: a real tab stop that opens an anchored details
+ * popup. The PR status and Slack threads pills are both this; their contents
+ * differ, their focus and dismissal must not.
+ *
+ * Enter/Space opens and focus starts on the popup's `data-popup-autofocus`
+ * element, else its first button; Escape, an
+ * outside click or the pill itself closes it and returns focus to the pill.
+ *
+ * `sheet` is the phone shell's choice: the details fill a bottom sheet the
+ * height of the screen, with its own Close, instead of an anchored popup.
+ */
+export function LaneHeaderPill({
+  label,
+  testId,
+  variant,
+  className,
+  face,
+  region,
+  popupClassName = 'w-80 py-2',
+  open: controlledOpen,
+  onOpenChange,
+  holdOpen,
+  sheet,
+  children,
+}: LaneHeaderPillProps): React.JSX.Element {
   const [ownOpen, setOwnOpen] = useState(false)
   const open = controlledOpen ?? ownOpen
   const setOpen = (next: boolean): void => {
@@ -70,13 +81,19 @@ export function LaneHeaderPill({
         data-testid={testId}
         data-variant={variant}
         className={clsx(
-          'flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+          // A drawn pill: on touch it keeps its size and gains a 44px hit area.
+          'hit-slop flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
           className,
         )}
       >
         {face}
       </TooltipButton>
-      {open && (
+      {open && sheet && (
+        <PillSheet id={id} region={region} title={sheet.title} close={close}>
+          {children(close)}
+        </PillSheet>
+      )}
+      {open && !sheet && (
         <PopupMenu
           id={id}
           triggerRef={triggerRef}
@@ -92,11 +109,43 @@ export function LaneHeaderPill({
   )
 }
 
-function FocusFirst({
+/** The details as a phone's bottom sheet: the height of the screen, its title and Close. */
+function PillSheet({
+  id,
   region,
+  title,
+  close,
   children,
 }: {
+  id: string
   region: string
+  title: string
+  close: ClosePill
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <ModalOverlay onClose={close} backdrop="dim">
+      <div id={id} role="dialog" aria-modal="true" aria-label={region} className="lane-pill-sheet">
+        <div className="lane-pill-sheet-bar">
+          <strong>{title}</strong>
+          <TooltipButton type="button" aria-label="Close" onClick={() => close()}>
+            <CloseIcon size={16} />
+          </TooltipButton>
+        </div>
+        <FocusFirst className="lane-pill-sheet-body">{children}</FocusFirst>
+      </div>
+    </ModalOverlay>
+  )
+}
+
+/** `region` names the popup's contents; a sheet's dialog already carries the name. */
+function FocusFirst({
+  region,
+  className,
+  children,
+}: {
+  region?: string
+  className?: string
   children: React.ReactNode
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
@@ -109,7 +158,7 @@ function FocusFirst({
     first?.focus({ preventScroll: true })
   }, [])
   return (
-    <div ref={ref} role="region" aria-label={region}>
+    <div ref={ref} role={region ? 'region' : undefined} aria-label={region} className={className}>
       {children}
     </div>
   )

@@ -17,9 +17,15 @@ import type { InspectorFocus } from './pr-inspector/usePrInspector'
  *
  * A lane without a PR whose status is known shows nothing: no placeholder,
  * no "no PR". The listing keeps refreshing underneath, so a PR opened later
- * appears.
+ * appears. On a phone (`sheet`, from its shell) the inspector is a bottom sheet.
  */
-export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+export function LanePrStatus({
+  sessionId,
+  sheet = false,
+}: {
+  sessionId: string
+  sheet?: boolean
+}): React.JSX.Element | null {
   // Keyed by lane: switching lanes never carries an open inspector across.
   const [openFor, setOpenFor] = useState<string | null>(null)
   const [lane, setLane] = useState(sessionId)
@@ -47,6 +53,7 @@ export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.El
       lead={lead}
       open={open}
       onOpenChange={(next) => setOpenFor(next ? sessionId : null)}
+      sheet={sheet}
       // A Host lane whose Host reads by number gets detail like a This Mac lane;
       // an older Host's lane shows only what its listing says.
       lane={{ repoPath, ready, slice, prs, branch, remote: remote && !byNumber }}
@@ -66,12 +73,14 @@ function LanePrPill({
   lead,
   open,
   onOpenChange,
+  sheet,
   lane,
 }: {
   sessionId: string
   lead: LanePr
   open: boolean
   onOpenChange: (open: boolean) => void
+  sheet: boolean
   lane: InspectorLane
 }): React.JSX.Element {
   const prompting = useRef(false)
@@ -107,12 +116,14 @@ function LanePrPill({
         onOpenChange(next)
       }}
       holdOpen={() => prompting.current}
+      sheet={sheet ? { title: 'Pull requests' } : undefined}
     >
       {(close) => (
         <LanePrInspector
           sessionId={sessionId}
           lane={lane}
           focus={focus}
+          sheet={sheet}
           onClose={close}
           onPrompting={(value) => {
             prompting.current = value

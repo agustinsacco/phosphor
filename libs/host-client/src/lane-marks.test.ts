@@ -93,4 +93,11 @@ describe('readyView', () => {
     const previous = { webPushKey: key }
     expect({ ...previous, ...readyView(ready) }.webPushKey).toBeUndefined()
   })
+  it('reports PR tracking only when the Host says so', () => {
+    expect(readyView({ ...ready, prStatus: true, prTracking: true })).toMatchObject({
+      prStatus: true,
+      prTracking: true,
+    })
+    expect(readyView({ ...ready, prStatus: true })).toMatchObject({ prTracking: false })
+  })
 })

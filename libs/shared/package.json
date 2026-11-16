@@ -380,6 +380,10 @@
       "types": "./src/lane-move.ts",
       "default": "./src/lane-move.ts"
     },
+    "./lane-prs-command": {
+      "types": "./src/lane-prs-command.ts",
+      "default": "./src/lane-prs-command.ts"
+    },
     "./brain-extraction": {
       "types": "./src/brain-extraction.ts",
       "default": "./src/brain-extraction.ts"

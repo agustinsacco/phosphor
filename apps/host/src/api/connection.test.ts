@@ -190,12 +190,13 @@ describe('connection boundary', () => {
       capabilities: ['sessions.read', 'machine.configure'],
     })
   })
-  it('advertises Host-synced lane marks, file bytes and PR status to every client', async () => {
+  it('advertises Host-synced lane marks, file bytes, PR status and PR tracking to every client', async () => {
     const c = await auth()
     expect(c.frames.find((frame) => frame.type === 'ready')).toMatchObject({
       laneMarks: true,
       fileBytes: true,
       prStatus: true,
+      prTracking: true,
     })
     expect(c.frames.find((frame) => frame.type === 'ready')).not.toHaveProperty('webPushKey')
   })

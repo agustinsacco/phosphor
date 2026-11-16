@@ -7,6 +7,7 @@ import { useAccount } from '@/features/settings/useAccount'
 import { attachMachinesListener } from '@/stores/machines'
 import { attachRemoteLanesListener } from '@/stores/remoteLanes'
 import { attachPiCommandsListener } from '@/stores/sessions'
+import { attachPrTransitions } from '@/stores/prTransitions'
 import { useSettingsStore } from '@/stores/settings'
 import { loadBundledFonts } from '@/lib/fonts'
 import { TooltipProvider } from '@/components/Tooltip'
@@ -84,7 +85,10 @@ function AuthenticatedCompact(): React.JSX.Element {
       const offMachines = attachMachinesListener()
       const offLanes = attachRemoteLanesListener()
       const offCommands = attachPiCommandsListener()
+      // PR change notices for Host lanes: the toast, the drawer and, hidden, the worker.
+      const offPrs = attachPrTransitions()
       detach = () => {
+        offPrs()
         offCommands()
         offLanes()
         offMachines()

@@ -90,8 +90,11 @@ it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM])(
       expect(pill.parentElement?.closest('button')).toBeNull()
       expect(container.querySelector('header')?.textContent).toContain(lane.title)
       await act(async () => pill.click())
-      expect(document.querySelector('[aria-label="Pull request details"]')?.textContent).toContain(
-        'Host PR',
+      const details = document.querySelector('[aria-label="Pull request details"]')
+      expect(details?.textContent).toContain('Host PR')
+      // The phone's header opens a full-height sheet; the wide browser keeps Desktop's popup.
+      expect(details?.getAttribute('role')).toBe(
+        platform.formFactor === 'compact' ? 'dialog' : 'region',
       )
     } finally {
       act(() => root.unmount())

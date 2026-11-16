@@ -19,7 +19,7 @@ async function laneA(): Promise<SessionMeta> {
 
 beforeEach(async () => {
   installMockPhosphor()
-  useLanePrOverridesStore.setState({ byPath: {} })
+  useLanePrOverridesStore.setState({ byLane: {} })
   const info = await window.phosphor.invoke('pi:createSession', {
     workspacePath: CWD,
     sessionPath: PATH,
@@ -45,7 +45,7 @@ it('tracks and hides PRs on the harness lane, as the next scan of its file would
   expect(after.pullRequests).toMatchObject({ pinned: [prRef(61)], hidden: [prRef(57)] })
   expect(MOCK_LANE_PRS.a).toBe(after.pullRequests)
   useLanePrOverridesStore.getState().settle(PATH, after.pullRequests)
-  expect(useLanePrOverridesStore.getState().byPath).toEqual({})
+  expect(useLanePrOverridesStore.getState().byLane).toEqual({})
 
   await setLanePrOverride('mock-session-id', 'clear', prRef(57))
   await setLanePrOverride('mock-session-id', 'clear', prRef(61))

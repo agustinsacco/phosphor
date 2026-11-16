@@ -54,6 +54,26 @@ describe('sendToLane', () => {
     },
   )
 
+  // Track and Hide only append an entry to the lane's file: never a reason to start pi.
+  it('never resumes a stopped lane for Track or Hide', async () => {
+    const send = host(stopped)
+    const op: LaneOp = {
+      type: 'prompt',
+      message: '/phosphor-prs pin https://github.com/acme/app/pull/7',
+    }
+    expect(await sendToLane({ send }, op, LANE, 2)).toBe(stopped)
+    expect(send).toHaveBeenCalledExactlyOnceWith(op, LANE, 2)
+  })
+
+  it.each(['/phosphor-prs-later pin x', 'explain /phosphor-prs pin x'])(
+    'still resumes for an ordinary prompt: %s',
+    async (message) => {
+      const send = host(stopped, done, { requestId: 'r3', status: 'done' })
+      await sendToLane({ send }, { type: 'prompt', message }, LANE, 2)
+      expect(send).toHaveBeenCalledTimes(3)
+    },
+  )
+
   it('passes every other prompt outcome through untouched', async () => {
     const other: CommandResult = { requestId: 'r1', status: 'rejected', code: 'not-controller' }
     const send = host(other)

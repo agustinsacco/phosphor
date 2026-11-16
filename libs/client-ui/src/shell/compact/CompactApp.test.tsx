@@ -36,6 +36,8 @@ vi.mock('@/features/extension-ui/ExtensionUiHosts', () => ({
   ToastHost: () => null,
 }))
 vi.mock('@/lib/fonts', () => ({ loadBundledFonts: async () => undefined }))
+const prTransitions = vi.hoisted(() => ({ attach: vi.fn(), detach: vi.fn() }))
+vi.mock('@/stores/prTransitions', () => ({ attachPrTransitions: prTransitions.attach }))
 vi.mock('@/stores/settings', () => ({
   useSettingsStore: { getState: () => ({ hydrate: async () => undefined }) },
 }))
@@ -94,6 +96,8 @@ beforeEach(() => {
   useRoutinesStore.setState({ snapshot: null, machines: [], remote: {}, error: null })
   accountListeners = new Set()
   invoke.mockClear()
+  prTransitions.detach.mockReset()
+  prTransitions.attach.mockReset().mockReturnValue(prTransitions.detach)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('phosphor', {
     invoke,
@@ -248,6 +252,16 @@ it('boots only remote subscriptions, follows history, and returns to sign-in on 
   })
   expect(container.textContent).toContain('Sign in with GitHub')
   expect(useRemoteLanesStore.getState().hosts).toEqual({})
+})
+
+it('watches PR changes for Host lane notices while signed in, and stops on account loss', async () => {
+  account = signedIn()
+  await act(async () => root.render(<CompactApp />))
+  expect(container.querySelector('[data-testid="compact-shell"]')).not.toBeNull()
+  expect(prTransitions.attach).toHaveBeenCalledOnce()
+  expect(prTransitions.detach).not.toHaveBeenCalled()
+  await publishAccount({ account: { status: 'signed-out' } })
+  expect(prTransitions.detach).toHaveBeenCalledOnce()
 })
 
 function signedIn(login: string | null = 'fixture'): AccountView {
