@@ -12,6 +12,7 @@ import {
 import { MockExplorer } from './mockExplorer'
 import type { GraphLink, GraphModel, GraphNode } from './graphModel'
 import { BrainGraph3D } from './BrainGraph3D'
+import { ExplorerGraph } from './explorer/ExplorerGraph'
 import { boundedGraph, graphFixture, installGraphEnvironment } from './__fixtures__/graph3D'
 
 const mock = await vi.hoisted(async () => {
@@ -685,4 +686,47 @@ it('fits all nodes after a selection is newly added to the layout', async () => 
   await render({ focus: 'kestrel' })
   setting<() => void>('onEngineStop')()
   expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
+})
+
+it('does not clear the camera while the real explorer loads an in-view memory selection', async () => {
+  const explorer = new MockExplorer()
+  const graphData = explorer.graph('rina')
+  const detail = explorer.details.find((d) =>
+    d.memory.entityIds.every((id) => graphData.nodes.some((n) => n.id === id)),
+  )!
+  let resolve!: (value: typeof detail) => void
+  const fake = createFakePhosphor({
+    'brain:overview': () => graphData,
+    'brain:memory': () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  })
+  const restore = installFakePhosphor(fake)
+  try {
+    await act(async () =>
+      root.render(<ExplorerGraph entityId="rina" path={null} onVisit={() => {}} />),
+    )
+    await act(async () => {
+      await vi.dynamicImportSettled()
+    })
+    setting<() => void>('onEngineStop')()
+    graph.cameraPosition.mockClear()
+    await act(async () =>
+      root.render(
+        <ExplorerGraph
+          entityId={null}
+          memoryId={detail.memory.id}
+          path={null}
+          onVisit={() => {}}
+        />,
+      ),
+    )
+    expect(graph.cameraPosition).not.toHaveBeenCalled()
+    await act(async () => resolve(detail))
+    expect(graph.cameraPosition).not.toHaveBeenCalled()
+  } finally {
+    restore()
+    fake.dispose()
+  }
 })
