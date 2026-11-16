@@ -1,4 +1,4 @@
-export interface DiffLine {
+export interface UnifiedDiffLine {
   kind: 'same' | 'removed' | 'added'
   text: string
 }
@@ -10,7 +10,7 @@ const lines = (text: string): string[] =>
  * A line comparison with shared context. Bound the LCS matrix: large unrelated versions
  * show the changed middle as one replacement rather than blocking a phone on quadratic work.
  */
-export function unifiedLines(original: string, modified: string): DiffLine[] {
+export function unifiedLines(original: string, modified: string): UnifiedDiffLine[] {
   const before = lines(original)
   const after = lines(modified)
   let start = 0
@@ -24,7 +24,7 @@ export function unifiedLines(original: string, modified: string): DiffLine[] {
     end++
   const a = before.slice(start, before.length - end)
   const b = after.slice(start, after.length - end)
-  let result: DiffLine[] = before.slice(0, start).map((text) => ({ kind: 'same', text }))
+  let result: UnifiedDiffLine[] = before.slice(0, start).map((text) => ({ kind: 'same', text }))
   if ((a.length + 1) * (b.length + 1) > 250_000) {
     result = result.concat(
       a.map((text) => ({ kind: 'removed', text })),

@@ -29,7 +29,7 @@ function UnifiedLineDiff({
 }): React.JSX.Element {
   const lines = useMemo(() => unifiedLines(original, modified), [original, modified])
   return (
-    <div aria-label="Unified diff" className="p-2 font-mono text-sm">
+    <div role="region" aria-label="Unified diff" className="p-2 font-mono text-sm">
       {original === modified && <p className="text-text-tertiary mb-2 font-sans">No changes</p>}
       {lines.map((line, index) => (
         <div
@@ -41,6 +41,7 @@ function UnifiedLineDiff({
           )}
         >
           <span
+            role="img"
             className="w-5 shrink-0 select-none"
             aria-label={
               line.kind === 'added' ? 'Added' : line.kind === 'removed' ? 'Removed' : 'Unchanged'

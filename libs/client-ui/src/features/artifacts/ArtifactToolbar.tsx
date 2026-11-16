@@ -30,7 +30,12 @@ interface ArtifactToolbarProps {
 }
 
 export function ArtifactToolbar(props: ArtifactToolbarProps): React.JSX.Element {
-  const { canWrite, writeIn, write, reference, copyReference, shown } = props
+  const { canWrite, writeIn, write, reference, promoted, copyReference, shown } = props
+  const referenceRefusal = reference
+    ? undefined
+    : promoted
+      ? 'The agent cannot read a code block copied here.'
+      : 'Available once pi reports the session.'
   return (
     <ResponsiveToolbar
       label="Artifact actions"
@@ -46,11 +51,16 @@ export function ArtifactToolbar(props: ArtifactToolbarProps): React.JSX.Element 
               )
           },
         },
-        { label: 'Copy reference', disabled: !reference, onClick: copyReference },
+        {
+          label: 'Copy reference',
+          hint: referenceRefusal,
+          disabled: !reference,
+          onClick: copyReference,
+        },
         ...(canWrite
           ? [
               {
-                label: 'Write into workspace and open in Files',
+                label: 'Write in Files',
                 hint: writeIn.refusal,
                 disabled: !!writeIn.refusal,
                 onClick: write,
@@ -171,6 +181,8 @@ function ExpandedControls(props: ArtifactToolbarProps): React.JSX.Element {
     write,
   } = props
   const platform = usePlatform()
+  // Shrink and scroll so the shell's fullscreen/close buttons after this toolbar stay
+  // reachable in a narrow pane; refusing to give ground would push them out of view.
   return (
     <div className="flex min-w-0 shrink items-center gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
       <ExpandedViews {...props} />

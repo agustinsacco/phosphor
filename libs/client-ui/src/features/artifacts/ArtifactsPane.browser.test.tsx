@@ -156,7 +156,9 @@ for (const [label, platform] of [
   })
   it(`${label}: a controller writes the shown artifact into its Host Files`, async () => {
     await render(platform)
-    const action = await secondary('Write into workspace and open in Files')
+    const action = await secondary(
+      platform === COMPACT_PLATFORM ? 'Write in Files' : 'Write into workspace and open in Files',
+    )
     expect(action).toBeDefined()
     expect(action?.disabled).toBe(false)
     await act(async () => action!.click())

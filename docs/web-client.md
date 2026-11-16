@@ -280,6 +280,8 @@ app embedding with `X-Frame-Options: DENY`. Its CSP omits `frame-ancestors` beca
 WebKit inherits that restriction into otherwise valid Blob previews. Desktop's
 artifact/file protocols and scripted artifact behavior are unchanged.
 
+### Host file previews
+
 A Host file's image, video and audio previews are Blob URLs too, which is why the
 app's CSP has `img-src … blob:` and `media-src blob:` and nothing more. The threat
 is Host-controlled bytes running in the app's origin. A blob URL inherits the

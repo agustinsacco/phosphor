@@ -76,7 +76,10 @@ for (const width of [400, 1100])
       ).toBeVisible()
     }
     await page
-      .getByRole('button', { name: 'Write into workspace and open in Files', exact: true })
+      .getByRole('button', {
+        name: width < 900 ? 'Write in Files' : 'Write into workspace and open in Files',
+        exact: true,
+      })
       .click()
     await expect
       .poll(() => readFile(join(stack.repository, 'host-card.html'), 'utf8').catch(() => null))
