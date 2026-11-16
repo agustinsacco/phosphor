@@ -91,7 +91,7 @@ export function CompactLaneHeader({ location }: { location: LaneLocation }): Rea
           pane={pane === 'chat' ? undefined : SCREENS[pane].title}
         />
       </TooltipButton>
-      {session && <LaneLinks sessionId={session.phosphorId} />}
+      {session && <LaneLinks sessionId={session.phosphorId} sheet />}
       {lane ? (
         <HostLaneMenu hostId={hostId} lane={lane} open={open} onClose={() => setOpen(false)}>
           {({ items, error }) => sheet(items, error)}
