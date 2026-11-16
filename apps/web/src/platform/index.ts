@@ -15,6 +15,7 @@ import { createBrowserTerminals } from './terminals'
 import { createBrowserSettings } from './settings'
 import { captureCompletionFence } from './completion-fence'
 import { createBrowserDrafts, OWNER_DRAFT_CHANNELS } from './drafts'
+import { createBrowserFileBytes } from './file-bytes'
 
 /** Lifecycle and invalidation ports contain no account or lane data. */
 export interface BrowserLifecycle {
@@ -120,8 +121,35 @@ function tabWindow(
 const NATIVE_ONLY = {
   pathForFile: () => '',
   spellingSuggestions: () => null,
-  onFileDownloadProgress: () => () => undefined,
 } satisfies Partial<PhosphorApi>
+/** What the shared UI subscribes to, as events this tab emits. */
+function subscriptions(
+  events: ReturnType<typeof createBrowserEvents>,
+): Pick<PhosphorApi, Extract<keyof PhosphorApi, `on${string}`>> {
+  return {
+    onSessionPush: (id, listener) => events.on(`pi:event:${id}`, listener),
+    onAccountChanged: (listener) => events.on('account', listener),
+    onMachinesChanged: (listener) => events.on('machines', listener),
+    onHostsChanged: (listener) => events.on('hosts', listener),
+    onHostAttention: (listener) => events.on('attention', listener),
+    onRoutinesChanged: (listener) => events.on('routines', listener),
+    onHostOpenLane: (listener) => events.on('openLane', listener),
+    onPiCommandsChanged: (listener) => events.on('commands', listener),
+    onSessionsChanged: (listener) => events.on('sessions', listener),
+    onFsChanged: (listener) => events.on('files', listener),
+    onPackagesJobOutput: (id, listener) => events.on(`package-output:${id}`, listener),
+    onPackagesJobExit: (id, listener) => events.on(`package-exit:${id}`, listener),
+    onPtyData: (id, listener) => events.on(`pty-data:${id}`, listener),
+    onPtyExit: (id, listener) => events.on(`pty-exit:${id}`, listener),
+    onPtyStatus: (listener) => events.on('pty-status', listener),
+    onUpdateEvent: (listener) => events.on('updates', listener),
+    onMcpAuthState: (listener) => events.on('mcp', listener),
+    onPiLoginState: (listener) => events.on('pi-login', listener),
+    onClaudeLoginState: (listener) => events.on('claude-login', listener),
+    onVoiceStatus: (listener) => events.on('voice', listener),
+    onFileDownloadProgress: (listener) => events.on('file-download', listener),
+  }
+}
 /** Install api on window BEFORE importing the shared UI; call start after installation. */
 export function createBrowserApi(options: BrowserApiOptions = {}): {
   api: PhosphorApi
@@ -148,6 +176,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     },
     invalidate: (owner) => {
       laneMoves.abort()
+      fileBytes.clear()
       terminals.clear()
       lanes.clear()
       hosts.clear()
@@ -187,6 +216,12 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
   })
   const laneMoves = browserLaneMoves(hosts, prefs)
   const resources = createBrowserResources(hosts, lanes)
+  const fileBytes = createBrowserFileBytes({
+    lanes,
+    progress: (progress) => {
+      if (!stopped) events.emit('file-download', progress)
+    },
+  })
   const terminals = createBrowserTerminals({ hosts, lanes, control, events })
   const handlers = createBrowserHandlers({
     control,
@@ -198,6 +233,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     prefs,
     drafts,
     laneMoves,
+    fileBytes,
     window: () => tabWindow(control, events, () => stopped),
     openExternal:
       options.openExternal ??
@@ -266,26 +302,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
           : 'linux'),
     invoke,
     piCommand: ((id, command) => invoke('pi:command', id, command)) as PhosphorApi['piCommand'],
-    onSessionPush: (id, listener) => events.on(`pi:event:${id}`, listener),
-    onAccountChanged: (listener) => events.on('account', listener),
-    onMachinesChanged: (listener) => events.on('machines', listener),
-    onHostsChanged: (listener) => events.on('hosts', listener),
-    onHostAttention: (listener) => events.on('attention', listener),
-    onRoutinesChanged: (listener) => events.on('routines', listener),
-    onHostOpenLane: (listener) => events.on('openLane', listener),
-    onPiCommandsChanged: (listener) => events.on('commands', listener),
-    onSessionsChanged: (listener) => events.on('sessions', listener),
-    onFsChanged: (listener) => events.on('files', listener),
-    onPackagesJobOutput: (id, listener) => events.on(`package-output:${id}`, listener),
-    onPackagesJobExit: (id, listener) => events.on(`package-exit:${id}`, listener),
-    onPtyData: (id, listener) => events.on(`pty-data:${id}`, listener),
-    onPtyExit: (id, listener) => events.on(`pty-exit:${id}`, listener),
-    onPtyStatus: (listener) => events.on('pty-status', listener),
-    onUpdateEvent: (listener) => events.on('updates', listener),
-    onMcpAuthState: (listener) => events.on('mcp', listener),
-    onPiLoginState: (listener) => events.on('pi-login', listener),
-    onClaudeLoginState: (listener) => events.on('claude-login', listener),
-    onVoiceStatus: (listener) => events.on('voice', listener),
+    ...subscriptions(events),
     ...NATIVE_ONLY,
   }
   const refreshQuietly = () => void refresh().catch(() => {})
@@ -323,6 +340,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       offInvalidation()
       invalidation?.close()
       control.dispose()
+      fileBytes.clear()
       terminals.clear()
       hosts.dispose()
       lanes.clear()

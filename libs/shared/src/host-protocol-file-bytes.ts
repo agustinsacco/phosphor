@@ -70,9 +70,21 @@ export function parseFileBytes(
     : null
 }
 
+/**
+ * What a browser holds in memory for one Host file. It reads the whole file into a Blob
+ * before it can save or show it, so it takes far less than a Host serves.
+ */
+export const BROWSER_FILE_BYTES = {
+  /** The largest file a browser downloads. */
+  downloadBytes: 100 * 1024 * 1024,
+  /** The largest image, video or audio file a browser previews. */
+  previewBytes: 50 * 1024 * 1024,
+} as const
+
 /** Fixed text for a transfer that did not finish; a Host's own words never reach the UI. */
 export const FILE_BYTES_ERRORS = {
   tooLarge: 'Larger than 1 GB: too big to bring over from its Host.',
+  browserTooLarge: 'Larger than 100 MB: too big to download in a browser.',
   changed: 'The file changed on its Host during the download. Try again.',
   outdated: 'Update this machine’s Host to download its files.',
   failed: 'Could not download this file.',

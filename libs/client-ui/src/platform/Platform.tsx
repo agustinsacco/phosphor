@@ -11,6 +11,10 @@ export interface Platform {
   scriptedArtifacts: boolean
   /** Image clipboard access is native rather than a permission-gated browser API. */
   nativeImageClipboard: boolean
+  /**
+   * Files save, open and reveal through this device's file system: save dialogs, Downloads and
+   * default apps, and Host files stream into viewers. A browser downloads and holds them instead.
+   */
   nativeFiles: boolean
   machineSettings: boolean
   /** Spellcheck, autocomplete and prompt learning in text fields (Settings → Writing). */

@@ -34,28 +34,44 @@ by dragging them in the tree (Option/Ctrl copies). Without them the explorer sho
 what needs a local folder: content search, the hidden-file and .gitignore
 toggles, the OS clipboard and file import, Reveal and Quick Look.
 
-On Desktop, a Host that serves file bytes ([Host protocol](remote-protocol.md#file-bytes))
-adds **Download**: on a file's right-click menu, in the viewer bar and on the "No
-preview" card. It saves any file up to 1 GB into this device's Downloads folder
-under its own name, numbered (`clip (2).mp4`) rather than replacing anything there.
-Main reads the file in 1 MiB chunks into a `clip.mp4.download`
-part file that gets the real name only once complete, with no execute bit; the
-renderer never holds the bytes. Downloads and previews share at most four chunk
-reads in flight per Host connection, well inside its 32 pending calls. A strip under the pane shows each download's
-progress with **Cancel**, then where it landed with Reveal in Finder, and stays
-when the pane closes or the lane changes. A larger file is refused up front, a
-file that changes on the Host mid-download is refused as torn, and a cancelled
-or failed download leaves no part behind. Closing the window cancels its
-downloads. An older Host shows no Download. **Open in default app** (Open in the
-viewer bar and on a finished download) downloads the same way, then hands the
-saved copy to This Mac's `fs:openInDefaultApp`, which refuses anything it would
-run.
+A Host that serves file bytes ([Host protocol](remote-protocol.md#file-bytes))
+adds **Download**: on a file's menu, in the viewer bar and on the "No preview"
+card. Both clients read the file in 1 MiB `files.readBytes` chunks over the lane's
+Host connection (`libs/host-client/src/file-bytes.ts`), and downloads and
+previews share at most four chunk reads in flight per Host connection, well
+inside its 32 pending calls. A strip under the pane shows each download's
+progress with **Cancel**, and stays when the pane closes or the lane changes. A
+larger file is refused up front, a file that changes on the Host mid-download is
+refused as torn, and a cancelled or failed download leaves nothing behind. An
+older Host shows no Download.
 
-The same Host previews images, video, audio and PDFs up to 1 GB as This Mac's do
-(see [Previews](#previews)): a remote grant streams the file from the Host as the
-viewer reads it, so a video starts playing and seeks without being downloaded.
-A file that changes on the Host stops its stream; reopening it streams the new
-version. The browser and an older Host show the "No preview" card instead.
+On Desktop, Download saves any file up to 1 GB into this device's Downloads
+folder under its own name, numbered (`clip (2).mp4`) rather than replacing
+anything there. Main reads it into a `clip.mp4.download` part file that gets the
+real name only once complete, with no execute bit; the renderer never holds the
+bytes. A finished download shows where it landed with Reveal in Finder. Closing
+the window cancels its downloads. **Open in default app** (Open in the viewer bar
+and on a finished download) downloads the same way, then hands the saved copy to
+This Mac's `fs:openInDefaultApp`, which refuses anything it would run.
+
+The browser holds a download in the page's memory, so it takes files up to
+100 MB (`BROWSER_FILE_BYTES` in `libs/shared/src/host-protocol-file-bytes.ts`)
+and refuses a larger one with "Larger than 100 MB: too big to download in a
+browser." The bytes go to the browser's own download as an opaque file, are
+never stored by Phosphor, and a finished row says only "Downloaded": there is
+no Open or Reveal. Signing out or another account stops every running read.
+
+On Desktop, the same Host previews images, video, audio and PDFs up to 1 GB as
+This Mac's do (see [Previews](#previews)): a remote grant streams the file from
+the Host as the viewer reads it, so a video starts playing and seeks without
+being downloaded. A file that changes on the Host stops its stream; reopening it
+streams the new version. The browser reads an image, video or audio file up to
+50 MB whole into a Blob, typed by its extension, shows it in an `<img>`,
+`<video>` or `<audio>` element, and revokes its URL when the file closes or
+changes. One preview read runs per lane; opening another file cancels it. A
+browser never embeds a PDF (Android Chrome cannot show one inline): a PDF, and
+any file over 50 MB, gets the "No preview" card with Download. An older Host
+shows the card without it.
 
 Saves send the SHA-256 revision the editor read, not an mtime, one at a time per
 file; a pane that remounts during a save sees it and sends nothing more. A
@@ -92,10 +108,22 @@ read for unsaved edits.
 Chat links, tool path chips and the finder open through an explicit remote lane
 and can reveal a line. Host absolute paths must be inside that lane's cwd.
 Editor models and caches are lane-qualified. Machine-level Files browses
-configured Host repositories read-only without opening a lane. The browser's
-Files pane is read-only. Its folders, and Machine-level Files', start collapsed
-and open for a selected file; the browser's Files has Collapse all, and its
-Changes starts expanded.
+configured Host repositories read-only without opening a lane; its folders start
+collapsed and open for a selected file.
+
+The browser's Files is this pane, with the same rules. A wide browser shows it as
+Desktop does, Monaco included. On a phone, where Monaco does not run, the tree
+and the open file are separate screens (`SplitListDetail`): a file opens
+highlighted, as text, and a writable one offers **Edit**, which swaps in a plain
+16px monospace field (`PlainTextEditor`, corrections off) over the same buffer,
+then **Save** while it has edits, on the same save, conflict and uncertain-save
+path. A textarea holds only LF, so the field writes each edit back in the file's
+line ending (CRLF or LF, picked as Monaco picks it), not LF throughout. **← Files** closes the file, asking first when it has edits, and returns to
+the tree with its folders as they were. A row's long-press opens its menu as a
+bottom sheet; only a mouse drags, so moves by dragging stay with wide windows.
+The browser's Changes is not This Mac's: it lists what git reports changed
+against HEAD, read only, each file as its HEAD version then its working copy,
+with its folders expanded.
 [Remote surface gaps](future-features.md#remote-surface-gaps) lists unavailable
 operations. Without the capability, the pane shows “This Host does not offer files to this
 device.”, and “Machine not connected. Wait for reconnection.” while the Host is away.

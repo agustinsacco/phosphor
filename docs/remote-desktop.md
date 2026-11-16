@@ -219,7 +219,9 @@ Unsaved edits stay in renderer memory per lane, survive lane switches, and clear
 on reload, successful save, lane forget or closing the tab without saving.
 Desktop downloads a lane's file through `hosts:fileDownload` on the lane's handle
 ([Files](files.md#remote-lanes)), so a download keeps going when the window focuses
-another lane; progress is pushed on `hosts:fileDownloadProgress`.
+another lane; progress is pushed on `hosts:fileDownloadProgress`. The browser
+serves the same channels in the page, over the same chunk reads, holding each
+file in memory up to its smaller caps.
 Changes lists the files the lane's tools touched, each with an inline read-only
 diff. Binary files and oversized text use placeholders. Remote text uses in-memory
 Monaco models, never `phosphor-file://` grants or filesystem watchers; only media

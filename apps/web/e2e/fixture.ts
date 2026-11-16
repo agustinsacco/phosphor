@@ -33,6 +33,9 @@ const removeRoot = (root: string) =>
  */
 const createRoot = async () => mkdtemp(join(await realpath(tmpdir()), 'phosphor-web-'))
 
+/** The production stack runs no Host, so it seeds no lanes. */
+const UNSEEDED = { laneId: '', secondLaneId: '', repository: '' }
+
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
 export async function browserFixture(production = false) {
   const root = await createRoot()
@@ -326,8 +329,7 @@ export async function browserFixture(production = false) {
       upstream.write(head)
       socket.pipe(upstream).pipe(socket)
     })
-    if (production)
-      return { origin, state, hostId, close, owners, laneId: '', secondLaneId: '', ...gate.api }
+    if (production) return { origin, state, hostId, close, owners, ...UNSEEDED, ...gate.api }
 
     const reserve = createServer()
     await new Promise<void>((done) => reserve.listen(0, '127.0.0.1', done))
@@ -507,16 +509,9 @@ export async function browserFixture(production = false) {
         .toBe(true)
       await command({ type: 'control.release' }, laneId, control.fence)
     }
-    return {
-      origin,
-      state,
-      hostId,
-      close,
-      owners,
-      laneId: lanes[0]!,
-      secondLaneId: lanes[1]!,
-      ...gate.api,
-    }
+    // `repository` is the first lane's folder on the Host, which a spec may read and change.
+    const seeded = { laneId: lanes[0]!, secondLaneId: lanes[1]!, repository: repo }
+    return { origin, state, hostId, close, owners, ...seeded, ...gate.api }
   } catch (error) {
     await close()
     throw error

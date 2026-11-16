@@ -10,7 +10,8 @@ import { hostPlatform } from '@/lib/shortcuts'
 import { FileIcon } from '@/components/icons'
 import { TextFileRender, ViewTabs } from './TextFilePreview'
 import { MarkdownPreview } from './MarkdownPreview'
-import { HostFileActions } from './download'
+import { HostFileActions, type FileDownload } from './download'
+import { usePreviewUrl, type PreviewSource } from './previewUrl'
 import { openInDefaultApp, toastError } from './openInDefaultApp'
 import type { FilesFeatures } from './filesSource'
 
@@ -23,43 +24,6 @@ import type { FilesFeatures } from './filesSource'
  * for what a previewed page can and cannot do.
  */
 
-/**
- * The file's preview URL, re-requested whenever it changes on disk.
- *
- * The grant is per file, not per version, so its URL is stable; the `v`
- * query is what makes the viewer reload after an agent rewrites the file.
- * A Host lane's file (`sessionId`) streams through its Host; a Host reports
- * no mtime, so its size is the version, and a new size re-reads the grant.
- */
-function usePreviewUrl(
-  workspacePath: string,
-  file: OpenFile,
-  sessionId?: string,
-): { url: string | null; failed: boolean } {
-  const { path, relativePath } = file
-  const version = sessionId ? file.size : Math.round(file.mtimeMs)
-  const regrant = sessionId ? version : null
-  const [state, setState] = useState<{ base: string | null; failed: boolean }>({
-    base: null,
-    failed: false,
-  })
-  useEffect(() => {
-    let cancelled = false
-    setState({ base: null, failed: false })
-    const grant = sessionId
-      ? window.phosphor.invoke('hosts:filePreviewUrl', { sessionId, path: relativePath })
-      : window.phosphor.invoke('fs:previewUrl', workspacePath, path)
-    void grant
-      .then((base) => !cancelled && setState({ base, failed: false }))
-      .catch(() => !cancelled && setState({ base: null, failed: true }))
-    return () => {
-      cancelled = true
-    }
-  }, [workspacePath, path, relativePath, sessionId, regrant])
-  const url = state.base ? `${state.base}?v=${version}` : null
-  return { url, failed: state.failed }
-}
-
 interface FileViewerProps {
   file: OpenFile
   kind: PreviewKind
@@ -71,25 +35,46 @@ interface FileViewerProps {
   /** What Source shows — the editor, owned by EditorPane. */
   source: React.ReactNode
   /** Save the file on this device, where its machine serves its bytes. */
-  onDownload?: (then?: 'open') => void
-  /** A Host lane's handle, which streamed previews read through. */
+  download?: FileDownload
+  /** A Host lane's handle, which previews of its bytes read through. */
   sessionId?: string
+  /** The largest Host file this device previews from its bytes. */
+  previewLimitBytes: number
 }
 
-export function FileViewer({
-  file,
-  kind,
-  textPreview,
-  workspacePath,
-  features,
-  textLimitBytes,
-  source,
-  onDownload,
-  sessionId,
-}: FileViewerProps): React.JSX.Element {
+/** Kinds a browser shows from a Blob: only in <img>, <audio> and <video>, never a frame. */
+const BLOB_KINDS: readonly PreviewKind[] = ['image', 'video', 'audio']
+
+/**
+ * Where this file's preview reads its bytes, or null for none: a Host's media and PDFs stream
+ * through it, and a browser reads its images and media whole, up to its cap. A browser never
+ * embeds a PDF (Android Chrome cannot show one inline): it offers Download instead.
+ */
+function previewSource(
+  { features, sessionId, file, previewLimitBytes }: FileViewerProps,
+  kind: PreviewKind,
+  textPreview: boolean,
+): PreviewSource | null {
+  if (features.mediaPreview) return { kind: 'local' }
+  if (!sessionId || textPreview || kind === 'markdown') return null
+  if (features.hostPreview === 'stream') return { kind: 'stream', sessionId }
+  if (features.hostPreview !== 'blob' || !BLOB_KINDS.includes(kind)) return null
+  return file.size <= previewLimitBytes ? { kind: 'blob', sessionId } : null
+}
+
+/** Why a browser shows a Host file it could preview as a card instead, when it is too large. */
+function tooLargeToPreview({ features, file, previewLimitBytes }: FileViewerProps) {
+  return features.hostPreview === 'blob' && file.size > previewLimitBytes
+    ? `Larger than ${previewLimitBytes / 1024 / 1024} MB: too big to preview in a browser.`
+    : undefined
+}
+
+export function FileViewer(props: FileViewerProps): React.JSX.Element {
+  const { file, kind, textPreview, workspacePath, features, textLimitBytes, source, download } =
+    props
   const view = textPreview ? (file.view ?? 'preview') : 'preview'
-  // A Host streams media and PDFs; its HTML, SVG and markdown render from the text it sent.
-  const streamed = features.streamPreview && !!sessionId && !textPreview && kind !== 'markdown'
+  // A Host's HTML, SVG and markdown render from the text it sent.
+  const bytes = previewSource(props, kind, textPreview)
   const [detail, setDetail] = useState<string | null>(null)
   // A different file or a new version resets what the viewer measured.
   useEffect(() => setDetail(null), [file.path, file.mtimeMs])
@@ -106,14 +91,14 @@ export function FileViewer({
             : [detail, formatBytes(file.size)].filter(Boolean).join(' · ')
         }
         osActions={features.osActions}
-        onDownload={onDownload}
+        download={download}
       />
       <div className="min-h-0 flex-1">
         {view === 'source' ? (
           source
-        ) : !features.mediaPreview && !streamed ? (
-          // No `phosphor-file://` grant for this file: text renders from the buffer through the
-          // artifact sandbox, and anything else has no viewer here.
+        ) : !bytes ? (
+          // No bytes for this file: text renders from the buffer through the artifact sandbox,
+          // and anything else has no viewer here.
           textPreview && !file.binary && !file.tooLarge ? (
             <Suspense fallback={null}>
               <TextFileRender kind={kind} path={file.path} content={file.content} />
@@ -121,9 +106,10 @@ export function FileViewer({
           ) : (
             <FileFallback
               file={file}
+              reason={tooLargeToPreview(props)}
               osActions={false}
               textLimitBytes={textLimitBytes}
-              onDownload={onDownload}
+              download={download}
             />
           )
         ) : (
@@ -137,8 +123,8 @@ export function FileViewer({
             onDetail={setDetail}
             osActions={features.osActions}
             textLimitBytes={textLimitBytes}
-            sessionId={streamed ? sessionId : undefined}
-            onDownload={onDownload}
+            source={bytes}
+            download={download}
           />
         )}
       </div>
@@ -153,17 +139,20 @@ function ViewerBar({
   workspacePath,
   note,
   osActions,
-  onDownload,
+  download,
 }: {
   file: OpenFile
   view: 'preview' | 'source' | null
   workspacePath: string
   note: string
   osActions: boolean
-  onDownload?: (then?: 'open') => void
+  download?: FileDownload
 }): React.JSX.Element {
   return (
-    <div className="border-border flex h-8 shrink-0 items-center gap-2 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden">
+    <div
+      data-viewer-bar
+      className="border-border flex h-8 shrink-0 items-center gap-2 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden"
+    >
       {view && (
         <ViewTabs
           view={view}
@@ -171,7 +160,7 @@ function ViewerBar({
         />
       )}
       <span className="text-text-tertiary min-w-0 flex-1 truncate text-sm">{note}</span>
-      {onDownload && <HostFileActions size={file.size} onDownload={onDownload} compact />}
+      {download && <HostFileActions size={file.size} download={download} compact />}
       {osActions && <FileActions path={file.path} compact />}
     </div>
   )
@@ -184,8 +173,8 @@ interface PreviewProps {
   onDetail: (detail: string) => void
   osActions: boolean
   textLimitBytes: number
-  sessionId?: string
-  onDownload?: (then?: 'open') => void
+  source: PreviewSource
+  download?: FileDownload
 }
 
 function Preview({
@@ -195,13 +184,13 @@ function Preview({
   onDetail,
   osActions,
   textLimitBytes,
-  sessionId,
-  onDownload,
+  source,
+  download,
 }: PreviewProps): React.JSX.Element {
-  const { url, failed } = usePreviewUrl(workspacePath, file, sessionId)
+  const { url, failed } = usePreviewUrl(workspacePath, file, source)
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [url])
-  const fallback = { file, osActions, textLimitBytes, onDownload }
+  const fallback = { file, osActions, textLimitBytes, download }
 
   if (kind === 'markdown') {
     // Rendered from the live buffer, in-app — no iframe, no saved-file lag.
@@ -211,6 +200,8 @@ function Preview({
     return <MarkdownPreview text={file.content} urlBase={url ?? undefined} />
   }
 
+  // A blob is only ever an <img>, <audio> or <video> source, never a frame's page.
+  if (source.kind === 'blob' && !BLOB_KINDS.includes(kind)) return <FileFallback {...fallback} />
   if (failed || broken) {
     const playable = kind === 'video' || kind === 'audio'
     const reason = playable
@@ -287,13 +278,13 @@ export function FileFallback({
   reason,
   osActions,
   textLimitBytes,
-  onDownload,
+  download,
 }: {
   file: OpenFile
   reason?: string
   osActions: boolean
   textLimitBytes: number
-  onDownload?: (then?: 'open') => void
+  download?: FileDownload
 }): React.JSX.Element {
   const ext = extensionOf(file.path)
   const why =
@@ -318,7 +309,7 @@ export function FileFallback({
           </div>
         </div>
         {osActions && <FileActions path={file.path} />}
-        {onDownload && <HostFileActions size={file.size} onDownload={onDownload} />}
+        {download && <HostFileActions size={file.size} download={download} />}
       </div>
     </div>
   )

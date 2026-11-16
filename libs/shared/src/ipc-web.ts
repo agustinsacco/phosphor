@@ -1,5 +1,5 @@
 import type { IpcInvokeChannel } from './ipc'
-import { BRAIN_WEB, connectorConfig, DESKTOP_TRANSFERS_WEB } from './ipc-web-exclusions'
+import { BRAIN_WEB, connectorConfig } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -34,7 +34,6 @@ export const IPC_WEB = {
   // Host to Host only, relayed through the page's memory; This Mac is never an end.
   'hosts:laneMovePlan': remote,
   'hosts:laneMove': remote,
-  ...DESKTOP_TRANSFERS_WEB,
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,
@@ -55,6 +54,11 @@ export const IPC_WEB = {
   'hosts:takeControl': remote,
   'hosts:markRead': remote,
   'hosts:exportLaneHtml': remote,
+  // A Host file read whole into this tab (BROWSER_FILE_BYTES), saved as a browser download or
+  // shown from a Blob URL; cancelling only stops this tab's reads.
+  'hosts:fileDownload': remote,
+  'hosts:fileDownloadCancel': browser,
+  'hosts:filePreviewUrl': remote,
   'hosts:subagentHistory': remote,
   'hosts:subagentInspect': remote,
   'hosts:deleteLane': remote,

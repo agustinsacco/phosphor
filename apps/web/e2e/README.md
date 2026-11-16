@@ -56,7 +56,11 @@ Both engines exercise cookie/CSRF, verified Host read without control, explicit
 control/send, socket interruption/reconnect, real file/artifact lane isolation,
 owner-scoped draft loss, outstanding Host approval cleanup, anonymous offline
 recovery, authenticated cache exclusion, and a waiting worker update that does
-not replace an unsent draft. Offline navigation cuts the disposable fixture's
+not replace an unsent draft. At 400px and 1100px, `files.spec.ts` edits and
+saves a Host lane's file (a phone's plain field, Monaco when wide), keeps a draft
+over a competing Host write, previews an image from a Blob under the served app
+CSP and downloads a file; on a phone, Back, Edit and Download each take a whole
+44px tap. Offline navigation cuts the disposable fixture's
 HTTP connections instead of relying on WebKit's offline emulation. Recovery is
 anonymous with Retry, never a claim that offline authentication succeeded or that
 a missing network response proves sign-out. Offline assets are warmed under the

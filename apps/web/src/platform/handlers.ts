@@ -25,6 +25,7 @@ import { staticArtifactPreview } from './preview'
 import type { createBrowserDrafts } from './drafts'
 import type { createBrowserTerminals } from './terminals'
 import type { createBrowserSettings } from './settings'
+import type { createBrowserFileBytes } from './file-bytes'
 
 export type BrowserHandlers = {
   [C in WebSupportedChannel]: (
@@ -118,9 +119,15 @@ function settingsHandlers(settings: () => ReturnType<typeof createBrowserSetting
   } satisfies Partial<BrowserHandlers>
 }
 /** Lanes this tab opened, by handle: pi commands, Host reads and writes. The tab is window 1. */
-function laneHandlers(lanes: RemoteLanes) {
+function laneHandlers(
+  lanes: RemoteLanes,
+  fileBytes: () => ReturnType<typeof createBrowserFileBytes>,
+) {
   return {
     ...laneWriteHandlers(lanes),
+    'hosts:fileDownload': (request) => fileBytes().download(request),
+    'hosts:fileDownloadCancel': (id) => fileBytes().cancel(id),
+    'hosts:filePreviewUrl': (request) => fileBytes().previewUrl(request),
     'hosts:exportLaneHtml': (id) => lanes.onLane(1, id, exportLaneHtml),
     'hosts:subagentHistory': (id) => lanes.onLane(1, id, laneSubagentHistory),
     'hosts:subagentInspect': (id, request) => lanes.onLane(1, id, laneSubagentInspect(request)),
@@ -180,7 +187,7 @@ function signOut(control: BrowserControl, broadcast: () => void) {
   return result
 }
 /** What the handlers are built over: the page's adapter services, each owned by index.ts. */
-interface BrowserHandlerPorts {
+export interface BrowserHandlerPorts {
   control: BrowserControl
   hosts: BrowserHosts
   lanes: RemoteLanes
@@ -191,6 +198,7 @@ interface BrowserHandlerPorts {
   prefs: ReturnType<typeof createBrowserPreferences>
   drafts: ReturnType<typeof createBrowserDrafts>
   laneMoves: ReturnType<typeof createHostLaneMoves>
+  fileBytes: ReturnType<typeof createBrowserFileBytes>
   openExternal: (url: string) => void
   broadcastLogout: () => void
   machinesChanged: () => void
@@ -234,7 +242,7 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     'hosts:takeControl': (host, lane) => lanes.action(host, lane, 'control.take'),
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
-    ...laneHandlers(lanes),
+    ...laneHandlers(lanes, () => ports.fileBytes),
     ...laneMoveHandlers(() => ports.laneMoves),
     'hosts:setLaneMarks': marks.set,
     'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),

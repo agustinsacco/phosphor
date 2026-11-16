@@ -73,3 +73,8 @@ it('keeps image clipboard access on this device, never on the Host', () => {
   for (const channel of ['clipboard:writeFiles', 'clipboard:readFiles'] as const)
     expect(IPC_WEB[channel].kind).toBe('unsupported')
 })
+it('serves Host file downloads and previews in the browser, which only cancels its own reads', () => {
+  for (const channel of ['hosts:fileDownload', 'hosts:filePreviewUrl'] as const)
+    expect(IPC_WEB[channel]).toEqual({ kind: 'remote-supported' })
+  expect(IPC_WEB['hosts:fileDownloadCancel']).toEqual({ kind: 'browser-local' })
+})

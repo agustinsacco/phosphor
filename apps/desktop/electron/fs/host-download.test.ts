@@ -8,7 +8,7 @@ import type { ChunkReader } from '@phosphor/host-client/file-bytes'
 const downloads = vi.hoisted(() => ({ dir: '' }))
 vi.mock('electron', () => ({ app: { getPath: () => downloads.dir } }))
 
-const { cancelHostDownload, downloadHostFile, parseDownloadRequest, FILE_DOWNLOAD_PROGRESS } =
+const { cancelHostDownload, downloadHostFile, FILE_DOWNLOAD_PROGRESS } =
   await import('./host-download')
 
 const ID = '0b6f8a1e-4c2d-4e8f-9a1b-2c3d4e5f6a7b'
@@ -110,18 +110,5 @@ describe('downloadHostFile', () => {
     await expect(downloadHostFile(win, { id: ID, path: 'a' }, text('x'))).rejects.toThrow(
       'Could not save into your Downloads folder.',
     )
-  })
-})
-
-describe('parseDownloadRequest', () => {
-  it('takes a lane handle, a lane-relative path and a uuid', () => {
-    expect(parseDownloadRequest({ sessionId: 'remote-1', path: 'a/b.mp4', id: ID })).toEqual({
-      sessionId: 'remote-1',
-      path: 'a/b.mp4',
-      id: ID,
-    })
-    expect(parseDownloadRequest({ sessionId: 'remote-1', path: '../b', id: ID })).toBeNull()
-    expect(parseDownloadRequest({ sessionId: 'remote-1', path: 'b', id: 'x' })).toBeNull()
-    expect(parseDownloadRequest(null)).toBeNull()
   })
 })

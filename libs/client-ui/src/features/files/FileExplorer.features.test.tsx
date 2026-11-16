@@ -14,6 +14,15 @@ vi.mock('@/components/ContextMenu', () => ({
     event.stopPropagation()
     shown.items = items
   },
+  // A row's menu gesture (right-click here) shows its items at once.
+  useMenuTriggers: (items: () => ContextMenuItem[]) => ({
+    onContextMenu: (event: { preventDefault(): void; stopPropagation(): void }) => {
+      event.preventDefault()
+      event.stopPropagation()
+      shown.items = items()
+    },
+    onPointerDown: () => {},
+  }),
 }))
 
 const entry = (name: string, isDirectory = false): DirEntry => ({
