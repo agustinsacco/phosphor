@@ -243,3 +243,12 @@ it('labels recorded provider/id models with picker names and a provider-free fal
   expect(recordedModelName([], 'harbor/unknown')).toBe('unknown')
   expect(recordedModelName([], 'reader')).toBe('reader')
 })
+
+it('keeps the full stored id as an explicit Settings fallback without changing lane labels', async () => {
+  const { recordedModelName } = await import('./modelCatalogue')
+  const model = 'removed/reader'
+  expect(recordedModelName([], model)).toBe('reader')
+  expect(recordedModelName([], model, model)).toBe(model)
+  const models = [{ provider: 'removed', id: 'reader', name: 'Harbor Reader', reasoning: true }]
+  expect(recordedModelName(models, model, model)).toBe('Harbor Reader')
+})

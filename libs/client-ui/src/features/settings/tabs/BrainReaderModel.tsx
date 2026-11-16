@@ -31,7 +31,7 @@ export function BrainReaderModel({
       <div className="flex min-w-0 items-center gap-2">
         <ModelChip
           testId="brain-reader-model"
-          name={model ? recordedModelName(models, model) : "Each lane's own model"}
+          name={model ? recordedModelName(models, model, model) : "Each lane's own model"}
           title={model ?? "Each lane's own model"}
           active={open}
           disabled={saving}
