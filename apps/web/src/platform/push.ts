@@ -48,13 +48,24 @@ type Scoped = { registration: ServiceWorkerRegistration; clientId: string; hostI
 const SYNC_MS = 500
 /** A failed registration is tried again after this long, or when the Host reconnects. */
 const RETRY_MS = 30_000
-const ACTIVATION_MS = 30_000
+/** A browser step that has not finished by then fails, so it never holds up a removal. */
+const STEP_MS = 30_000
+
+function bounded<T>(work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('push step timed out')), STEP_MS)
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
 
 async function activated(registration: ServiceWorkerRegistration) {
   const worker = registration.installing ?? registration.waiting
   if (registration.active || !worker) return registration
   await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('worker did not activate')), ACTIVATION_MS)
+    const timer = setTimeout(() => reject(new Error('worker did not activate')), STEP_MS)
     const check = () => {
       if (worker.state !== 'activated' && worker.state !== 'redundant') return
       clearTimeout(timer)
@@ -151,7 +162,8 @@ async function registerScope(
       await removeScope(state, { registration, ...scope })
       return true
     }
-    const ok = await registerWebPush(c, wire(await subscribed(registration.pushManager, key)))
+    const subscription = await bounded(subscribed(registration.pushManager, key))
+    const ok = await registerWebPush(c, wire(subscription))
     if (ok) state.confirmed.set(scope.hostId, { connection: c, generation, key })
     setStatus(state, scope.hostId, ok ? 'registered' : 'failed')
     return ok

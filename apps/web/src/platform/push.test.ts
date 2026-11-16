@@ -319,6 +319,26 @@ describe('browser Web Push registrations', () => {
       pushRegistration: 'registered',
     })
   })
+  it('fails a subscription the browser never settles, and still removes on permission loss', async () => {
+    const t = setup()
+    const manager = () => t.scope(CLIENT, MAC)!.pushManager
+    const register = t.workers.register.getMockImplementation()!
+    t.workers.register.mockImplementationOnce(async (script, options) => {
+      const registration = await register(script, options)
+      registration.pushManager.subscribe.mockImplementationOnce(() => new Promise(() => {}))
+      return registration
+    })
+    t.push.sync()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(manager().subscribe).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(t.push.project({ [MAC]: {} } as never)[MAC]).toMatchObject({
+      pushRegistration: 'failed',
+    })
+    t.setPermission('denied')
+    await t.sync()
+    expect(t.scope(CLIENT, MAC)).toBeUndefined()
+  })
   it('keeps registrations when the page closes', async () => {
     const t = setup()
     await t.sync()
