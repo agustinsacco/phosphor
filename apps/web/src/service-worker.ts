@@ -1,6 +1,12 @@
-import { openNotification, showHostNotification } from './notification-events'
+import { openNotification, showHostNotification, showPushNotification } from './notification-events'
+import { isPushScope } from './push-scope'
 declare const __WEB_BUILD_ID__: string
 const worker = globalThis as unknown as ServiceWorkerGlobalScope
+/**
+ * A Host's push registration controls no page and activates at once on every deploy, so it
+ * never caches, never deletes caches older tabs still use, and never claims a client.
+ */
+const PUSH_ONLY = isPushScope(worker.registration?.scope)
 const PREFIX = 'phosphor-web-shell-'
 const CACHE = PREFIX + __WEB_BUILD_ID__
 const STATIC = ['/', '/icons/icon-192.png', '/icons/icon-512.png']
@@ -15,6 +21,7 @@ async function remember(request: RequestInfo, response: Response) {
   for (const key of assets.slice(0, Math.max(0, assets.length - 64))) await cache.delete(key)
 }
 worker.addEventListener('install', (event) => {
+  if (PUSH_ONLY) return
   event.waitUntil(
     Promise.all(
       STATIC.map(async (path) => {
@@ -35,6 +42,7 @@ worker.addEventListener('install', (event) => {
   )
 })
 worker.addEventListener('activate', (event) => {
+  if (PUSH_ONLY) return
   event.waitUntil(
     (async () => {
       for (const name of await caches.keys()) {
@@ -45,6 +53,7 @@ worker.addEventListener('activate', (event) => {
   )
 })
 worker.addEventListener('fetch', (event) => {
+  if (PUSH_ONLY) return
   const request = event.request
   const url = new URL(request.url)
   if (request.method !== 'GET' || url.origin !== worker.location.origin) return
@@ -73,6 +82,15 @@ worker.addEventListener('fetch', (event) => {
   )
 })
 
+worker.addEventListener('push', (event) => {
+  let data: unknown
+  try {
+    data = event.data?.json()
+  } catch {
+    return
+  }
+  event.waitUntil(showPushNotification(worker, data).catch(() => {}))
+})
 worker.addEventListener('notificationclick', (event) => {
   event.notification.close()
   event.waitUntil(openNotification(worker, event.notification.data))

@@ -2,7 +2,7 @@ import { build } from 'esbuild'
 import { runInNewContext } from 'node:vm'
 import { expect, it, vi } from 'vitest'
 
-async function fixture() {
+async function fixture(scope = 'https://app.invalid/') {
   const listeners = new Map<string, (event: unknown) => void>()
   const cache = { put: vi.fn(), keys: vi.fn(async () => []), match: vi.fn(), delete: vi.fn() }
   const caches = { open: vi.fn(async () => cache), keys: vi.fn(async () => []), delete: vi.fn() }
@@ -20,7 +20,7 @@ async function fixture() {
     matchAll: vi.fn<() => Promise<object[]>>(async () => []),
     openWindow: vi.fn(async (_path: string) => null),
   }
-  const registration = { showNotification: vi.fn(async () => {}) }
+  const registration = { scope, showNotification: vi.fn(async () => {}) }
   runInNewContext(output.outputFiles[0]!.text, {
     addEventListener: (name: string, listener: (event: unknown) => void) =>
       listeners.set(name, listener),
@@ -199,4 +199,99 @@ it('notificationclick without a route focuses Settings without navigating away',
   expect(settings.focus).toHaveBeenCalledOnce()
   expect(settings.postMessage).not.toHaveBeenCalled()
   expect(t.clients.openWindow).not.toHaveBeenCalled()
+})
+
+const HOST = '00000000-0000-4000-8000-000000000006'
+const LANE = '00000000-0000-4000-8000-000000000007'
+const PUSH_SCOPE = `https://app.invalid/push/00000000-0000-4000-8000-000000000005/${HOST}/`
+const push = {
+  v: 1,
+  hostId: HOST,
+  laneId: LANE,
+  kind: 'finished',
+  machine: 'bee1',
+  title: 'Fix build',
+  receipt: { outcome: 'done', durationMs: 4000, files: 1, tests: 'passed', artifacts: 0 },
+}
+const pushEvent = (payload: unknown) => ({
+  data: {
+    json: () => {
+      if (typeof payload === 'string') throw new SyntaxError('not JSON')
+      return payload
+    },
+  },
+})
+it('a Host push scope never precaches, deletes caches older tabs use, or claims clients', async () => {
+  const t = await fixture(PUSH_SCOPE)
+  t.caches.keys.mockResolvedValue(['phosphor-web-shell-older'] as never)
+  const waitUntil = vi.fn()
+  t.listeners.get('install')!({ waitUntil })
+  t.listeners.get('activate')!({ waitUntil })
+  await Promise.all(waitUntil.mock.calls.map(([work]) => work))
+  expect(t.fetch).not.toHaveBeenCalled()
+  expect(t.caches.open).not.toHaveBeenCalled()
+  expect(t.caches.delete).not.toHaveBeenCalled()
+  expect(t.clients.claim).not.toHaveBeenCalled()
+  const respondWith = vi.fn()
+  t.listeners.get('fetch')!({
+    request: { url: 'https://app.invalid/', method: 'GET', mode: 'navigate' },
+    respondWith,
+  })
+  expect(respondWith).not.toHaveBeenCalled()
+})
+it('the app scope still cleans older shell caches and claims its pages on activate', async () => {
+  const t = await fixture()
+  t.caches.keys.mockResolvedValue(['phosphor-web-shell-older', 'phosphor-web-shell-test'] as never)
+  await dispatch(t, 'activate', {})
+  expect(t.caches.delete).toHaveBeenCalledWith('phosphor-web-shell-older')
+  expect(t.caches.delete).not.toHaveBeenCalledWith('phosphor-web-shell-test')
+  expect(t.clients.claim).toHaveBeenCalledOnce()
+})
+it('a push shows the page notice, with its tag, only while no app page is visible', async () => {
+  const t = await fixture(PUSH_SCOPE)
+  t.clients.matchAll.mockResolvedValue([client('/lanes', 'hidden')])
+  await dispatch(t, 'push', pushEvent(push))
+  expect(t.registration.showNotification).toHaveBeenCalledWith('bee1 · Fix build', {
+    body: 'Done in 4s · 1 file changed · tests pass',
+    tag: `phosphor:lane:${HOST}:${LANE}`,
+    icon: '/icons/icon-192.png',
+    data: { type: 'phosphor-notification', route: { hostId: HOST, laneId: LANE } },
+  })
+  expect(t.clients.matchAll).toHaveBeenCalledWith({ type: 'window', includeUncontrolled: true })
+  t.registration.showNotification.mockClear()
+  for (const visible of [client('/pages/settings'), client(`/lanes/${HOST}/${LANE}/chat`)]) {
+    t.clients.matchAll.mockResolvedValue([client('/lanes', 'hidden'), visible])
+    await dispatch(t, 'push', pushEvent(push))
+  }
+  const foreign = { ...client('/'), url: 'https://other.invalid/' }
+  t.clients.matchAll.mockResolvedValue([foreign])
+  const { receipt: _receipt, ...waiting } = push
+  await dispatch(t, 'push', pushEvent({ ...waiting, kind: 'needs-input' }))
+  expect(t.registration.showNotification).toHaveBeenCalledTimes(1)
+  expect(t.registration.showNotification).toHaveBeenCalledWith(
+    'bee1 · Fix build',
+    expect.objectContaining({ body: 'needs-input' }),
+  )
+})
+it('a push that is not the Host contract shows nothing', async () => {
+  const t = await fixture(PUSH_SCOPE)
+  for (const payload of [
+    'not json',
+    { ...push, v: 2 },
+    { ...push, excerpt: 'private reply' },
+    { ...push, hostId: '../private' },
+  ])
+    t.listeners.get('push')!({ ...pushEvent(payload), waitUntil: vi.fn() })
+  await dispatch(t, 'push', pushEvent({ ...push, title: '' }))
+  expect(t.registration.showNotification).not.toHaveBeenCalled()
+})
+it('a push notice click opens its lane in the app scope, not the push scope', async () => {
+  const t = await fixture(PUSH_SCOPE)
+  await dispatch(t, 'notificationclick', {
+    notification: {
+      data: { type: 'phosphor-notification', route: { hostId: HOST, laneId: LANE } },
+      close: vi.fn(),
+    },
+  })
+  expect(t.clients.openWindow).toHaveBeenCalledWith(`/lanes/${HOST}/${LANE}/chat`)
 })
