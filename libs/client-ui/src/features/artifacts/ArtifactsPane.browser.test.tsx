@@ -44,7 +44,14 @@ beforeEach(() => {
   document.body.append(container)
   root = createRoot(container)
   const fake = createFakePhosphor({
-    'fs:readFile': () => ({ content: 'old', binary: false, size: 3, revision }),
+    'fs:readFile': () => ({
+      path: `${workspace}/guide.html`,
+      mtimeMs: 1,
+      content: 'old',
+      binary: false,
+      size: 3,
+      revision,
+    }),
     'fs:writeFile': write.mockResolvedValue({ mtimeMs: 1, revision }),
   })
   const restore = installFakePhosphor(fake)
@@ -123,8 +130,11 @@ async function secondary(name: string) {
   if (!button(name)) await act(async () => button('Artifact actions')?.click())
   return button(name)
 }
-for (const platform of [COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM]) {
-  it(`${platform.formFactor}: browser Diff is available and PDF is absent`, async () => {
+for (const [label, platform] of [
+  ['compact', COMPACT_PLATFORM],
+  ['expanded', WIDE_BROWSER_PLATFORM],
+] as const) {
+  it(`${label}: browser Diff is available and PDF is absent`, async () => {
     await render(platform)
     const select = container.querySelector<HTMLSelectElement>('select[aria-label="View"]')
     if (select)
@@ -144,7 +154,7 @@ for (const platform of [COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM]) {
     expect(document.body.textContent).not.toContain('PDF')
     expect(document.querySelector('[aria-label*="PDF"]')).toBeNull()
   })
-  it(`${platform.formFactor}: a controller writes the shown artifact into its Host Files`, async () => {
+  it(`${label}: a controller writes the shown artifact into its Host Files`, async () => {
     await render(platform)
     const action = await secondary('Write into workspace and open in Files')
     expect(action).toBeDefined()
@@ -157,7 +167,7 @@ for (const platform of [COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM]) {
     expect(useLayoutStore.getState().bySession[id]?.pane).toBe('files')
   })
   it.each(['Take control first.', 'This Host does not offer file editing to this device.'])(
-    `${platform.formFactor}: Write in Files refuses with %s`,
+    `${label}: Write in Files refuses with %s`,
     async (reason) => {
       const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
       useRemoteLanesStore.setState({
@@ -183,7 +193,7 @@ for (const platform of [COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM]) {
       expect(write).not.toHaveBeenCalled()
     },
   )
-  it(`${platform.formFactor}: HTML downloads raw shown source as an octet stream, never a page`, async () => {
+  it(`${label}: HTML downloads raw shown source as an octet stream, never a page`, async () => {
     await render(platform)
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     await act(async () => (await secondary('Download source'))!.click())
