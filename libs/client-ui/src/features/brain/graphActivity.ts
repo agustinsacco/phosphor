@@ -4,20 +4,35 @@ import type { GraphNode, GraphLink } from './graphModel'
 
 export type BrainForceGraph = ForceGraph3DInstance<GraphNode, GraphLink>
 
+export interface GraphActivity {
+  /** The library raycasts every frame from its last, or default, position: trust a real pointer. */
+  inside: () => boolean
+  wake: (duration?: number) => void
+  reheat: () => void
+  cooled: () => void
+  dispose: () => void
+}
+
+function listen(target: EventTarget, handlers: Record<string, () => void>): () => void {
+  for (const [type, handler] of Object.entries(handlers))
+    target.addEventListener(type, handler, { passive: true })
+  return () => {
+    for (const [type, handler] of Object.entries(handlers))
+      target.removeEventListener(type, handler)
+  }
+}
+
 /** Keep raycasting responsive on input, but stop WebGL frames after cooling and camera motion. */
 export function graphActivity(
   graph: BrainForceGraph,
   container: HTMLElement,
   onInteraction: () => void,
-): {
-  wake: (duration?: number) => void
-  reheat: () => void
-  cooled: () => void
-  dispose: () => void
-} {
+  onLeave: () => void = () => {},
+): GraphActivity {
   let cooling = true
   let held = false
   let resuming = false
+  let inside = false
   let until = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   const check = (): void => {
@@ -47,19 +62,28 @@ export function graphActivity(
     wake()
   }
   const move = (): void => wake()
+  const enter = (): void => {
+    inside = true
+    wake()
+  }
+  const leave = (): void => {
+    inside = false
+    onLeave()
+    wake()
+  }
   // Orbit controls without damping have no hidden inertia after pointer release.
   const controls = graph.controls() as OrbitControls
   controls.enableDamping = false
   controls.addEventListener('start', start)
   controls.addEventListener('end', end)
   controls.addEventListener('change', move)
-  container.addEventListener('pointerdown', start)
-  container.addEventListener('pointermove', move)
-  container.addEventListener('pointerleave', move)
-  container.addEventListener('wheel', move, { passive: true })
-  window.addEventListener('pointerup', end)
-  window.addEventListener('pointercancel', end)
+  const unlisten = [
+    listen(container, { pointerdown: start, pointerenter: enter, pointermove: enter }),
+    listen(container, { pointerleave: leave, wheel: move }),
+    listen(window, { pointerup: end, pointercancel: end }),
+  ]
   return {
+    inside: () => inside,
     wake,
     reheat: () => {
       cooling = true
@@ -74,12 +98,7 @@ export function graphActivity(
       controls.removeEventListener('start', start)
       controls.removeEventListener('end', end)
       controls.removeEventListener('change', move)
-      container.removeEventListener('pointerdown', start)
-      container.removeEventListener('pointermove', move)
-      container.removeEventListener('pointerleave', move)
-      container.removeEventListener('wheel', move)
-      window.removeEventListener('pointerup', end)
-      window.removeEventListener('pointercancel', end)
+      for (const stop of unlisten) stop()
     },
   }
 }

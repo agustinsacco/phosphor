@@ -246,6 +246,7 @@ it('never moves for an in-view selection, but fits the whole graph for an offscr
 
 it('highlights a hovered node, its neighbours and links, with predicate sprites at link midpoints', async () => {
   await render()
+  enterCanvas()
   hover('postgres')
   expect(nodeColor('rina')).toMatch(/,0\.16\)$/)
   expect(nodeColor('harbor')).toMatch(/,1\)$/)
@@ -278,6 +279,7 @@ it('always labels the top twenty nodes and labels smaller nodes only on hover', 
   await render()
   expect(entities.filter((entity) => sprite(entity.id).visible)).toHaveLength(20)
   const small = entities.find((entity) => !sprite(entity.id).visible)!
+  enterCanvas()
   hover(small.id)
   expect(sprite(small.id).visible).toBe(true)
   hover(null)
@@ -642,6 +644,7 @@ it('does not zoom when a memory highlight gives way to an entity selection', asy
 
 it('clearing a selection restores every node even while the pointer stayed on the graph', async () => {
   await render({ focus: 'rina' })
+  enterCanvas()
   hover('rina')
   await render()
   expect(nodeColor('postgres')).toMatch(/,1\)$/)
@@ -663,11 +666,7 @@ it('clears link support when the pointer exits the canvas even without a vendor 
     enterCanvas()
     await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
     expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
-    act(() => {
-      container
-        .querySelector('[aria-label="Memory relationships"]')!
-        .dispatchEvent(new MouseEvent('pointerout', { bubbles: true }))
-    })
+    leaveCanvas()
     expect(container.textContent).not.toContain('Harbor Ledger is built for Harbor.')
   } finally {
     restore()
@@ -707,10 +706,14 @@ it('keeps a selection bright while the pointer hovers another node', async () =>
   await render({ focus: 'rina' })
   enterCanvas()
   hover('postgres')
+  // Rina owns Harbor; PostgreSQL is outside the selection and is lit only because it is hovered.
   expect(nodeColor('rina')).toMatch(/,1\)$/)
-  expect(nodeColor('ledger')).toMatch(/,1\)$/)
+  expect(nodeColor('harbor')).toMatch(/,1\)$/)
   expect(nodeColor('postgres')).toMatch(/,1\)$/)
-  expect(nodeColor('harbor')).toMatch(/,0\.16\)$/)
+  const color = setting<(link: GraphLink) => string>('linkColor')
+  expect(color(data().links.find((l) => l.memoryId === 'db')!)).toMatch(/,0\.16\)$/)
+  hover(null)
+  expect(nodeColor('postgres')).toMatch(/,0\.16\)$/)
 })
 
 it('does not move for a visible node near the viewport edge', async () => {

@@ -1,5 +1,5 @@
 import ForceGraph3D from '3d-force-graph'
-import { graphActivity, type BrainForceGraph } from './graphActivity'
+import { graphActivity, type BrainForceGraph, type GraphActivity } from './graphActivity'
 import { graphAppearance } from './graphAppearance'
 import { readGraphTheme } from './graphColors'
 import { Vector3, type PerspectiveCamera } from 'three'
@@ -51,7 +51,7 @@ class SceneController implements GraphScene {
   private width = 0
   private height = 0
   private motion = window.matchMedia?.('(prefers-reduced-motion: reduce)')
-  private activity: ReturnType<typeof graphActivity>
+  private activity: GraphActivity
   private appearance: ReturnType<typeof graphAppearance>
   private observer: ResizeObserver
   private themeObserver: MutationObserver
@@ -63,9 +63,19 @@ class SceneController implements GraphScene {
     onEdge: (link: GraphLink | null) => void,
     onClear: () => void,
   ) {
-    this.activity = graphActivity(graph, container, () => {
-      this.userCamera = true
-    })
+    this.activity = graphActivity(
+      graph,
+      container,
+      () => {
+        this.userCamera = true
+      },
+      () => {
+        onEdge(null)
+        if (this.hover === null) return
+        this.hover = null
+        this.paint()
+      },
+    )
     this.appearance = graphAppearance(graph)
     graph
       .backgroundColor('rgba(0,0,0,0)')
@@ -74,7 +84,7 @@ class SceneController implements GraphScene {
       .linkLabel('')
       .linkDirectionalArrowLength(4)
       .linkDirectionalArrowRelPos(0.85)
-      .onLinkHover(onEdge)
+      .onLinkHover((link) => onEdge(this.activity.inside() ? link : null))
       .nodeVal('val')
       .nodeRelSize(4)
       .nodeOpacity(1)
@@ -83,7 +93,9 @@ class SceneController implements GraphScene {
       .onBackgroundClick(onClear)
       .onNodeClick((node) => onFocus(node.id))
       .onNodeHover((node) => {
-        this.hover = node?.id ?? null
+        const hover = this.activity.inside() ? (node?.id ?? null) : null
+        if (hover === this.hover) return
+        this.hover = hover
         this.paint()
       })
       .onNodeDrag(() => this.activity.reheat())

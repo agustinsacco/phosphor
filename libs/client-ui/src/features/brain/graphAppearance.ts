@@ -63,14 +63,14 @@ export function graphAppearance(graph: BrainForceGraph): {
         )
     },
     paint: (hover, matches, theme, path, focus) => {
-      const { selected, bright, connected } = selectionStyle(model, hover, matches, focus)
+      const { selected, bright, connected, roaming } = selectionStyle(model, hover, matches, focus)
       graph
         .nodeColor((node) => colorOpacity(theme.kinds[node.kind], bright(node)))
         .linkColor((link) =>
           colorOpacity(
             connected(link) || path?.has(link.id) ? theme.accent : theme.edge,
             (!path || path.has(link.id)) &&
-              (!(hover || focus) || connected(link) || !!path?.has(link.id)) &&
+              (!(roaming || focus) || connected(link) || !!path?.has(link.id)) &&
               (!matches ||
                 (matches.has(graphEndpoint(link.source)) &&
                   matches.has(graphEndpoint(link.target)))),
@@ -83,13 +83,14 @@ export function graphAppearance(graph: BrainForceGraph): {
           hover === node.id ||
           !!selected?.has(node.id) ||
           !!matches?.has(node.id)
-        label.color = theme.text
+        // Assigning a colour redraws the label's canvas, so skip an unchanged one.
+        if (label.color !== theme.text) label.color = theme.text
         label.material.opacity = bright(node) ? 1 : 0.16
       }
       for (const link of model.links) {
         const label = predicates.get(link)!
         label.visible = connected(link) || !!path?.has(link.id)
-        label.color = theme.accent
+        if (label.color !== theme.accent) label.color = theme.accent
       }
     },
   }
@@ -102,13 +103,17 @@ function selectionStyle(
   focus?: string | null,
 ) {
   const selected = focus && !matches ? graphNeighbors(model, focus) : null
-  const neighbors = graphNeighbors(model, hover)
+  // A hover highlights its neighbourhood only on an unselected graph; it never dims a selection.
+  const roaming = matches || selected ? null : hover
+  const neighbors = graphNeighbors(model, roaming)
   const bright = (node: GraphNode): boolean =>
-    (!matches || matches.has(node.id)) &&
-    (!selected || selected.has(node.id)) &&
-    (!hover || neighbors.has(node.id))
+    node.id === hover ||
+    ((!matches || matches.has(node.id)) &&
+      (!selected || selected.has(node.id)) &&
+      (!roaming || neighbors.has(node.id)))
   const connected = (link: GraphLink): boolean =>
-    (!!hover && (graphEndpoint(link.source) === hover || graphEndpoint(link.target) === hover)) ||
+    (!!roaming &&
+      (graphEndpoint(link.source) === roaming || graphEndpoint(link.target) === roaming)) ||
     (!!focus && (graphEndpoint(link.source) === focus || graphEndpoint(link.target) === focus))
-  return { selected, bright, connected }
+  return { selected, bright, connected, roaming }
 }
