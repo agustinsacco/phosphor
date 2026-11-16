@@ -10,6 +10,7 @@ import {
 import { ExplorerGraph } from './ExplorerGraph'
 import { MockExplorer } from '../mockExplorer'
 const mounts = vi.hoisted(() => vi.fn())
+const projected = vi.hoisted(() => vi.fn())
 vi.mock('../BrainGraph3D', () => ({
   BrainGraph3D: ({
     graph,
@@ -22,6 +23,7 @@ vi.mock('../BrainGraph3D', () => ({
     toolbar?: React.ReactNode
     matches?: Set<string> | null
   }) => {
+    projected(graph)
     useEffect(() => {
       mounts()
     }, [])
@@ -238,6 +240,49 @@ it('retries an overview failure and an outside selection failure without unmount
     expect(container.textContent).toContain('harbor')
     expect(container.textContent).not.toContain('failed')
     expect(mounts).toHaveBeenCalledOnce()
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
+})
+
+it('prioritizes the outside selection, route and direct neighbours through the real projection caller', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const explorer = new MockExplorer()
+  const node = (id: string) => ({ ...explorer.graph(null).nodes[0]!, id, label: id })
+  const overview: BrainGraph = {
+    nodes: Array.from({ length: 300 }, (_, i) => node(`Harbor-${i}`)),
+    links: [],
+    centerId: null,
+    truncated: true,
+  }
+  const near: BrainGraph = {
+    nodes: [node('Ledger'), node('Kestrel')],
+    links: [
+      { id: 'near', subjectId: 'Ledger', objectId: 'Kestrel', predicate: 'uses', memoryId: 'm' },
+    ],
+    centerId: 'Ledger',
+    truncated: false,
+  }
+  const path: BrainLink[] = [
+    { id: 'route', subjectId: 'Ledger', objectId: 'Rina', predicate: 'uses', memoryId: 'm' },
+  ]
+  const fake = createFakePhosphor({
+    'brain:overview': () => overview,
+    'brain:neighbourhood': () => near,
+    'brain:entity': (id) => ({ ...explorer.entity('rina'), entity: node(id) }),
+  })
+  const restore = installFakePhosphor(fake)
+  const root = createRoot(document.createElement('div'))
+  try {
+    await act(async () =>
+      root.render(<ExplorerGraph entityId="Ledger" path={path} onVisit={vi.fn()} />),
+    )
+    const graph: BrainGraph = projected.mock.lastCall![0]
+    expect(graph.nodes).toHaveLength(300)
+    expect(graph.nodes.slice(0, 3).map((n) => n.id)).toEqual(['Ledger', 'Rina', 'Kestrel'])
+    expect(graph.links.map((l) => l.id)).toEqual(expect.arrayContaining(['near', 'route']))
   } finally {
     act(() => root.unmount())
     restore()

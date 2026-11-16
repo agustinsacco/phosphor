@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { PerspectiveCamera } from 'three'
 import type SpriteText from 'three-spritetext'
 import type { BrainEntity, BrainMemory, BrainGraph, BrainLink } from '@shared/brain'
 import {
@@ -71,13 +72,10 @@ beforeEach(() => {
   mock.controls.addEventListener.mockReset()
   mock.controls.removeEventListener.mockReset()
   graph.controls.mockReturnValue(mock.controls)
-  graph.camera.mockReturnValue({
-    fov: 40,
-    aspect: 2,
-    // Looking down -z with +y up, as the library's default camera does.
-    matrixWorld: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 300, 1] },
-    updateMatrixWorld: vi.fn(),
-  })
+  const camera = new PerspectiveCamera(40, 2, 0.1, 10000)
+  camera.position.set(0, 0, 300)
+  camera.updateMatrixWorld()
+  graph.camera.mockReturnValue(camera)
   graph.cameraPosition.mockImplementation((...args: unknown[]) =>
     args.length ? graph : { x: 0, y: 0, z: 300 },
   )
@@ -181,7 +179,7 @@ it('passes the mentioned nodes, val and aggregated edges to the lazy library wit
   expect(graph.linkDirectionalArrowLength).toHaveBeenCalledWith(4)
   expect(graph.backgroundColor).toHaveBeenCalledWith('rgba(0,0,0,0)')
   expect(container.querySelector('[aria-label="Knowledge graph"]')).not.toBeNull()
-  expect(container.querySelector('[aria-label="Entity kinds"]')?.textContent).toContain('person')
+  expect(container.querySelector('[aria-label="Entity kinds"]')?.textContent).toContain('People')
 })
 
 it('measures the container on resize and destroys the graph and observers on unmount', async () => {
@@ -215,33 +213,28 @@ it('focuses clicked nodes and exposes keyboard buttons including Space', async (
   expect(onFocus).toHaveBeenLastCalledWith('rina')
 })
 
-it('dims nonmatches, fits just search matches in 600ms, and fits everything when cleared', async () => {
+it('highlights a memory without moving a whole-graph camera, and fits everything when cleared', async () => {
   await render()
+  setting<() => void>('onEngineStop')()
+  graph.cameraPosition.mockClear()
   await render({ matches: new Set(['harbor', 'postgres']) })
   expect(nodeColor('harbor')).toMatch(/,1\)$/)
   expect(nodeColor('rina')).toMatch(/,0\.16\)$/)
-  expect(lastCamera()[1]).toEqual(centerOf(['harbor', 'postgres']))
-  expect(lastCamera()[2]).toBe(600)
-  expect(centerOf(['harbor', 'postgres'])).not.toEqual(centerOf())
   expect(sprite('rina').material.opacity).toBe(0.16)
-  await render()
-  expect(lastCamera()[1]).toEqual(centerOf())
-  expect(nodeColor('rina')).toMatch(/,1\)$/)
-  graph.cameraPosition.mockClear()
-  await render({ matches: new Set() })
   expect(graph.cameraPosition).not.toHaveBeenCalled()
+  await render()
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
 })
 
-it('flies to an external focus, but a new search takes camera precedence over the About chip', async () => {
+it('never moves for an in-view selection, but fits the whole graph for an offscreen selection', async () => {
   await render()
+  setting<() => void>('onEngineStop')()
+  graph.cameraPosition.mockClear()
   await render({ focus: 'rina' })
-  expect(graph.cameraPosition).toHaveBeenLastCalledWith(
-    { x: 60, y: 10, z: 140 },
-    { x: 60, y: 10, z: 20 },
-    600,
-  )
-  await render({ focus: 'rina', matches: new Set(['harbor']) })
-  expect(lastCamera()[1]).toEqual(centerOf(['harbor']))
+  expect(graph.cameraPosition).not.toHaveBeenCalled()
+  data().nodes.find((n) => n.id === 'harbor')!.x = 2000
+  await render({ focus: 'harbor' })
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
 })
 
 it('highlights a hovered node, its neighbours and links, with predicate sprites at link midpoints', async () => {
@@ -451,7 +444,7 @@ it.each(['orbit', 'zoom'])('does not override %s on container resize', async (ac
   expect(graph.cameraPosition).not.toHaveBeenCalled()
 })
 
-it('keeps an About focus or a search framed, instantly, when the pane resizes', async () => {
+it('keeps the whole graph framed on resize even with a selection', async () => {
   await render()
   setting<() => void>('onEngineStop')()
   const shrink = (): void => {
@@ -465,10 +458,10 @@ it('keeps an About focus or a search framed, instantly, when the pane resizes', 
   await render({ focus: 'rina' })
   shrink()
   expect(graph.cameraPosition).toHaveBeenCalledOnce()
-  expect(lastCamera().slice(1)).toEqual([{ x: 60, y: 10, z: 20 }, 0])
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 0])
   await render({ focus: 'rina', matches: new Set(['harbor']) })
   shrink()
-  expect(lastCamera().slice(1)).toEqual([centerOf(['harbor']), 0])
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 0])
 })
 
 it('refits with the measured pane shape, not the camera aspect the library has yet to update', async () => {
@@ -617,10 +610,12 @@ it('keeps every named entity bright even if the selected memory only links some 
   )
 })
 
-it('refocuses the selected entity when the previous memory highlight finishes clearing', async () => {
+it('does not zoom when a memory highlight gives way to an entity selection', async () => {
   await render({ focus: 'rina', matches: new Set(['harbor']) })
+  setting<() => void>('onEngineStop')()
+  graph.cameraPosition.mockClear()
   await render({ focus: 'rina' })
-  expect(lastCamera()[1]).toEqual({ x: 60, y: 10, z: 20 })
+  expect(graph.cameraPosition).not.toHaveBeenCalled()
 })
 
 it('clearing a selection restores every node even while the pointer stayed on the graph', async () => {
@@ -628,4 +623,31 @@ it('clearing a selection restores every node even while the pointer stayed on th
   hover('rina')
   await render()
   expect(nodeColor('postgres')).toMatch(/,1\)$/)
+})
+
+it('places the focus badge inside the canvas frame, separate from toolbar and legend', async () => {
+  await render()
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Focus Rina Okafor"]')!.focus())
+  const badge = container.querySelector('[role="status"]')!
+  const canvas = container.querySelector('[aria-label="Memory relationships"]')!
+  expect(badge.parentElement).toBe(canvas.parentElement)
+  expect(badge.parentElement!.querySelector('[aria-label="Entity kinds"]')).toBeNull()
+})
+it('clears link support when the pointer exits the canvas even without a vendor hover callback', async () => {
+  const fake = createFakePhosphor({ 'brain:memory': () => new MockExplorer().memory('memory-0') })
+  const restore = installFakePhosphor(fake)
+  try {
+    await render()
+    await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
+    expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
+    act(() =>
+      container
+        .querySelector('[aria-label="Memory relationships"]')!
+        .dispatchEvent(new MouseEvent('pointerout', { bubbles: true })),
+    )
+    expect(container.textContent).not.toContain('Harbor Ledger is built for Harbor.')
+  } finally {
+    restore()
+    fake.dispose()
+  }
 })
