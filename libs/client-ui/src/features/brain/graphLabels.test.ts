@@ -4,7 +4,8 @@ import { graphLabel } from './graphLabels'
 
 vi.mock('three-spritetext', () => ({
   default: class {
-    material = { sizeAttenuation: true }
+    material = { sizeAttenuation: true, depthTest: true }
+    renderOrder = 0
     updateMatrixWorld = vi.fn()
     scale = {
       x: 20,
@@ -39,4 +40,10 @@ it('keeps labels at twelve CSS pixels across pane sizes and camera distances', (
       expect(label.scale.x / label.scale.y).toBeCloseTo(20 / 6)
     }
   }
+})
+
+it('draws labels over the spheres in front of them', () => {
+  const label = graphLabel('Harbor', 12)
+  expect(label.material.depthTest).toBe(false)
+  expect(label.renderOrder).toBeGreaterThan(0)
 })

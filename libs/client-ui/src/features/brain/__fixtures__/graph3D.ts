@@ -40,6 +40,8 @@ export function createGraphMock() {
     'pauseAnimation',
     'resumeAnimation',
     '_destructor',
+    'd3Force',
+    'scene',
   ] as const
   const graph = Object.fromEntries(names.map((name) => [name, vi.fn()])) as Record<
     (typeof names)[number],
@@ -54,7 +56,9 @@ export function createGraphMock() {
   const constructor = vi.fn(function () {
     return graph
   })
-  return { graph, controls, constructor }
+  /** The object the library renders; the scene hooks its per-frame callback here. */
+  const scene: { onBeforeRender?: (...args: unknown[]) => void } = {}
+  return { graph, controls, constructor, scene }
 }
 
 export function installGraphEnvironment(): {
