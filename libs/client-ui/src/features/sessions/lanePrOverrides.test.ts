@@ -153,4 +153,29 @@ describe('setLanePrOverride on a Host lane', () => {
     expect(piCommand).toHaveBeenCalledExactlyOnceWith(SESSION, { type: 'get_commands' })
     expect(useLanePrOverridesStore.getState().byLane).toEqual({})
   })
+
+  it('sends nothing when the lane stops while its commands are read', async () => {
+    hostLane({ self: true })
+    piCommand.mockImplementation(async (_id: string, command: { type: string }) => {
+      hostLane({ self: true, activity: 'stopped' })
+      return command.type === 'get_commands'
+        ? { success: true, data: { commands: [supported] } }
+        : { success: true, data: { disposition: 'handled' } }
+    })
+    await expect(setLanePrOverride(SESSION, 'pin', prRef(57))).rejects.toThrow(RESUME_TO_TRACK)
+    expect(piCommand).toHaveBeenCalledExactlyOnceWith(SESSION, { type: 'get_commands' })
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
+  })
+
+  it('says to resume when the Host refuses the send because the lane stopped', async () => {
+    hostLane({ self: true })
+    piCommand.mockImplementation(async (_id: string, command: { type: string }) => {
+      if (command.type === 'get_commands') return { success: true, data: { commands: [supported] } }
+      // Track and Hide never resume a lane: the Host's refusal comes back as it is.
+      hostLane({ self: true, activity: 'stopped' })
+      return { success: false, error: 'Studio: this lane is stopped.' }
+    })
+    await expect(setLanePrOverride(SESSION, 'pin', prRef(57))).rejects.toThrow(RESUME_TO_TRACK)
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
+  })
 })
