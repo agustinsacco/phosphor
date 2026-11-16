@@ -33,7 +33,7 @@ export function BrainGraph3D({
 }): React.JSX.Element {
   const model = useMemo(() => graphModel(graph), [graph])
   const [dimensions, setDimensions] = useState<2 | 3>(3)
-  const [edge, setEdge] = useState<GraphLink | null>(null)
+  const { edge, hoverEdge, pointer } = useEdgeHover()
   const pathMatches = useMemo(
     () =>
       path?.length
@@ -48,7 +48,7 @@ export function BrainGraph3D({
     model,
     { focus, matches: pathMatches, path: pathIds, scope },
     onFocus,
-    setEdge,
+    hoverEdge,
     dimensions,
     onClear,
     selectionPending,
@@ -65,7 +65,7 @@ export function BrainGraph3D({
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div
           ref={container}
-          onPointerLeave={() => setEdge(null)}
+          {...pointer}
           aria-label="Memory relationships"
           className="absolute inset-0 touch-none"
         />
@@ -87,6 +87,28 @@ export function BrainGraph3D({
       </div>
     </section>
   )
+}
+
+/** The scene raycasts from a default position before any pointer arrives: trust only real hovers. */
+function useEdgeHover() {
+  const [edge, setEdge] = useState<GraphLink | null>(null)
+  const inside = useRef(false)
+  const hoverEdge = useCallback(
+    (link: GraphLink | null) => setEdge(inside.current ? link : null),
+    [],
+  )
+  const enter = (): void => {
+    inside.current = true
+  }
+  const pointer = {
+    onPointerEnter: enter,
+    onPointerMove: enter,
+    onPointerLeave: (): void => {
+      inside.current = false
+      setEdge(null)
+    },
+  }
+  return { edge, hoverEdge, pointer }
 }
 
 function GraphAccess({

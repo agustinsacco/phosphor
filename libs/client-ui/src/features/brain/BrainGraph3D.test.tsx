@@ -541,6 +541,14 @@ it('highlights only the selected supported route and switches between two and th
   expect(graph.numDimensions).toHaveBeenLastCalledWith(3)
 })
 
+function enterCanvas(): void {
+  act(() => {
+    container
+      .querySelector('[aria-label="Memory relationships"]')!
+      .dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+  })
+}
+
 it('reads only the hovered edge support, retries an error and clears on hover exit', async () => {
   const detail = new MockExplorer().memory('memory-0')
   const read = vi
@@ -552,6 +560,7 @@ it('reads only the hovered edge support, retries an error and clears on hover ex
   try {
     await render()
     expect(read).not.toHaveBeenCalled()
+    enterCanvas()
     const hoverEdge = setting<(link: GraphLink | null) => void>('onLinkHover')
     await act(async () => hoverEdge(data().links[0]!))
     expect(read).toHaveBeenCalledWith(data().links[0]!.memoryId)
@@ -645,6 +654,7 @@ it('clears link support when the pointer exits the canvas even without a vendor 
   const restore = installFakePhosphor(fake)
   try {
     await render()
+    enterCanvas()
     await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
     expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
     act(() => {
