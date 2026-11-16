@@ -123,3 +123,33 @@ it('does not cancel the drawing finger when another pointer is cancelled', () =>
   expect(scene().shapes).toHaveLength(1)
   expect(button('Undo').disabled).toBe(false)
 })
+
+it('discards a stroke when its pointer capture is lost and accepts a fresh pointer', () => {
+  pointer('pointerdown', 20, 20)
+  pointer('pointermove', 100, 100)
+  pointer('lostpointercapture', 100, 100)
+  expect(scene().shapes).toHaveLength(0)
+  expect(button('Undo').disabled).toBe(true)
+  const down = new MouseEvent('pointerdown', { bubbles: true, clientX: 30, clientY: 30 })
+  Object.defineProperties(down, {
+    pointerId: { value: 3 },
+    pointerType: { value: 'touch' },
+    isPrimary: { value: true },
+  })
+  act(() => document.querySelector('canvas')!.dispatchEvent(down))
+  pointer('pointermove', 150, 150, 3)
+  pointer('pointerup', 150, 150, 3)
+  expect(scene().shapes).toEqual([
+    expect.objectContaining({ kind: 'rect', x: 15, y: 15, w: 60, h: 60 }),
+  ])
+})
+
+it('ignores capture loss from another pointer and after a completed stroke', () => {
+  pointer('pointerdown', 20, 20)
+  pointer('pointermove', 100, 100)
+  pointer('lostpointercapture', 80, 80, 2)
+  pointer('pointerup', 100, 100)
+  pointer('lostpointercapture', 100, 100)
+  expect(scene().shapes).toHaveLength(1)
+  expect(button('Undo').disabled).toBe(false)
+})

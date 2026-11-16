@@ -1,8 +1,6 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixture'
 
-test.use({ hasTouch: true, isMobile: true })
-
 /** Real touch pointer delivery in Chromium; WebKit's driver exposes only taps, so use its mouse. */
 async function draw(page: Page, browserName: string, touch: boolean): Promise<void> {
   const box = (await page.getByTestId('image-editor-canvas').boundingBox())!
@@ -65,9 +63,17 @@ async function phoneToolbar(page: Page): Promise<void> {
 async function imageActions(page: Page, browserName: string, width: number): Promise<void> {
   const image = page.getByRole('button', { name: 'Attached image', exact: true }).last()
   await image.click()
-  await expect(
-    page.getByRole('img', { name: 'Attached image, full size', exact: true }),
-  ).toBeVisible()
+  const fullImage = page.getByRole('img', { name: 'Attached image, full size', exact: true })
+  await expect(fullImage).toBeVisible()
+  if (width === 400) {
+    const picture = (await fullImage.boundingBox())!
+    const actions = (await page
+      .getByRole('button', { name: 'Save image', exact: true })
+      .locator('..')
+      .boundingBox())!
+    expect(picture.height).toBeGreaterThan(0)
+    expect(picture.y + picture.height).toBeLessThanOrEqual(actions.y)
+  }
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Save image', exact: true }).click()
   expect((await download).suggestedFilename()).toBe('image.png')
@@ -93,46 +99,68 @@ async function imageActions(page: Page, browserName: string, width: number): Pro
   }
 }
 
+async function openAnnotator(page: Page, width: number): Promise<void> {
+  const thumbnail = page
+    .getByTestId('attachment-chips')
+    .getByRole('button', { name: 'Attached image', exact: true })
+  if (width === 400) return thumbnail.click()
+  await thumbnail.hover()
+  const box = (await thumbnail.boundingBox())!
+  const point = { x: box.x + box.width - 15, y: box.y + 15 }
+  expect(
+    await thumbnail.evaluate(
+      (el, point) => el.contains(document.elementFromPoint(point.x, point.y)),
+      point,
+    ),
+  ).toBe(true)
+  await page.mouse.click(point.x, point.y)
+}
+
 for (const width of [400, 1100]) {
-  test(`Host image annotation, send and image actions at ${width}px`, async ({
-    stack,
-    page,
-    context,
-    browserName,
-  }, info) => {
-    await page.setViewportSize({ width, height: 850 })
-    if (browserName === 'chromium')
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
-        origin: stack.origin,
-      })
-    await page.goto(stack.origin)
-    await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-    await expect(page.getByTestId('home-board')).toBeVisible()
-    await page.goto(`${stack.origin}/lanes/${stack.hostId}/${stack.laneId}/chat`)
-    await page.getByRole('button', { name: 'Take control', exact: true }).click()
-    await expect(page.getByText('Controlled by you', { exact: true })).toBeVisible()
-    const png = await attachWhiteImage(page)
-    const chips = page.getByTestId('attachment-chips')
-    await chips.getByRole('button', { name: 'Attached image', exact: true }).click()
-    const editor = page.getByRole('dialog', { name: 'Annotate image' })
-    await expect(page.getByTestId('image-editor-canvas')).toBeVisible()
-    if (width === 400) await phoneToolbar(page)
-    await draw(page, browserName, width === 400)
-    await expect(editor.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled()
-    await editor.getByRole('button', { name: 'Undo', exact: true }).click()
-    await expect(editor.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled()
-    await editor.getByRole('button', { name: 'Redo', exact: true }).click()
-    await page.screenshot({ path: info.outputPath(`annotator-${width}.png`) })
-    await editor.getByRole('button', { name: 'Done', exact: true }).click()
-    await expect(editor).toBeHidden()
-    expect(await chips.locator('img').getAttribute('src')).not.toBe(`data:image/png;base64,${png}`)
-    await page.getByRole('textbox', { name: 'Chat message', exact: true }).fill('PHX-hostinputs')
-    await page.getByRole('button', { name: 'Send message', exact: true }).click()
-    await expect(chips).toHaveCount(0)
-    await expect(page.getByText('Attachments: | 1 image/png', { exact: true })).toBeVisible()
-    const image = page.getByRole('button', { name: 'Attached image', exact: true }).last()
-    await expect(image).toBeVisible()
-    await imageActions(page, browserName, width)
-    await page.screenshot({ path: info.outputPath(`image-actions-${width}.png`) })
+  test.describe(width === 400 ? 'phone touch' : 'wide mouse', () => {
+    test.use({ hasTouch: width === 400, isMobile: width === 400 })
+    test(`Host image annotation, send and image actions at ${width}px`, async ({
+      stack,
+      page,
+      context,
+      browserName,
+    }, info) => {
+      await page.setViewportSize({ width, height: 850 })
+      if (browserName === 'chromium')
+        await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
+          origin: stack.origin,
+        })
+      await page.goto(stack.origin)
+      await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+      await expect(page.getByTestId('home-board')).toBeVisible()
+      await page.goto(`${stack.origin}/lanes/${stack.hostId}/${stack.laneId}/chat`)
+      await page.getByRole('button', { name: 'Take control', exact: true }).click()
+      await expect(page.getByText('Controlled by you', { exact: true })).toBeVisible()
+      const png = await attachWhiteImage(page)
+      const chips = page.getByTestId('attachment-chips')
+      await openAnnotator(page, width)
+      const editor = page.getByRole('dialog', { name: 'Annotate image' })
+      await expect(page.getByTestId('image-editor-canvas')).toBeVisible()
+      if (width === 400) await phoneToolbar(page)
+      await draw(page, browserName, width === 400)
+      await expect(editor.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled()
+      await editor.getByRole('button', { name: 'Undo', exact: true }).click()
+      await expect(editor.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled()
+      await editor.getByRole('button', { name: 'Redo', exact: true }).click()
+      await page.screenshot({ path: info.outputPath(`annotator-${width}.png`) })
+      await editor.getByRole('button', { name: 'Done', exact: true }).click()
+      await expect(editor).toBeHidden()
+      expect(await chips.locator('img').getAttribute('src')).not.toBe(
+        `data:image/png;base64,${png}`,
+      )
+      await page.getByRole('textbox', { name: 'Chat message', exact: true }).fill('PHX-hostinputs')
+      await page.getByRole('button', { name: 'Send message', exact: true }).click()
+      await expect(chips).toHaveCount(0)
+      await expect(page.getByText('Attachments: | 1 image/png', { exact: true })).toBeVisible()
+      const image = page.getByRole('button', { name: 'Attached image', exact: true }).last()
+      await expect(image).toBeVisible()
+      await imageActions(page, browserName, width)
+      await page.screenshot({ path: info.outputPath(`image-actions-${width}.png`) })
+    })
   })
 }
