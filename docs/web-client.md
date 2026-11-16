@@ -261,7 +261,9 @@ artifact/file protocols and scripted artifact behavior are unchanged.
 ## Notifications
 
 The header's bell counts new notices on every top-level phone tab and in the wide
-browser header. It opens Desktop's right-hand drawer on a wide screen, or a
+browser header. On phone Settings it shares the page's title row instead of adding
+a second header, leaving room for the configuration panel. It opens Desktop's
+right-hand drawer on a wide screen, or a
 full-height bottom sheet on a phone; the four tabs are unchanged, with no Inbox
 tab. Host receipts expand in place; Open lane, View changes and Retry close the
 sheet after navigating without marking other notices seen. The wide drawer stays

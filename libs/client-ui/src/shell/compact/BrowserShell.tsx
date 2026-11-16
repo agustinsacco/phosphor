@@ -32,6 +32,8 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
   useNotificationPrFocus()
   // A phone's lane and start page own the bottom of the screen: the composer is there.
   const tabs = compact && location.to !== 'lane' && location.to !== 'new'
+  // Settings carries the phone bell in its title row, leaving more room for its panel.
+  const settingsOwnsHeader = compact && location.to === 'page' && location.page === 'settings'
   return (
     <div className="compact-shell browser-shell" data-testid="compact-shell">
       {!compact && <BrowserNavigation machine={machine} />}
@@ -39,7 +41,7 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
         {compact && location.to === 'lane' ? (
           <CompactLaneHeader location={location} />
         ) : (
-          <BrowserHeader machine={machine} />
+          !settingsOwnsHeader && <BrowserHeader machine={machine} />
         )}
         <main className="compact-main" data-route={location.to} data-tabs={tabs || undefined}>
           <BrowserScreen machine={machine} pending={pending} />

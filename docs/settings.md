@@ -7,7 +7,8 @@ inherits the theme, the UI scale and the app's lifecycle. Cmd/Ctrl+, opens it;
 Cmd/Ctrl+/ opens it on Keybindings. The browser frames the same surface in its
 Settings page (`shell/compact/CompactSettings.tsx`, `PageShell`/`PageBody`). The frames
 add only their chrome: a title and a close button in the dialog, the page heading in
-the browser.
+the browser. On a phone the notification bell shares that heading, without a second
+shell header above the settings panel.
 
 ## Sections and capabilities
 
