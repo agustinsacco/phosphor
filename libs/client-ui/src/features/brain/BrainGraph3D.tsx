@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import type { BrainGraph, BrainLink } from '@shared/brain'
 import { Button, NeutralSegmented } from '@/components/form'
 import './explorer/knowledge.css'
+import { ENTITY_LABELS } from './explorer/KnowledgePrimitives'
 import { GRAPH_COLORS } from './graphColors'
 import { graphModel, graphNeighbors, type GraphNode, type GraphLink } from './graphModel'
 import type { GraphScene } from './graphScene'
@@ -13,6 +14,7 @@ export function BrainGraph3D({
   graph,
   path = null,
   focus,
+  scope = 'all',
   matches = null,
   onFocus,
   onClear,
@@ -21,6 +23,7 @@ export function BrainGraph3D({
   graph: BrainGraph
   path?: BrainLink[] | null
   focus: string | null
+  scope?: 'all' | 'near'
   matches?: Set<string> | null
   onFocus: (id: string) => void
   onClear?: () => void
@@ -41,7 +44,7 @@ export function BrainGraph3D({
   const { scene, unavailable } = useGraphScene(
     container,
     model,
-    { focus, matches: pathMatches, path: pathIds },
+    { focus, matches: pathMatches, path: pathIds, scope },
     onFocus,
     setEdge,
     dimensions,
@@ -59,8 +62,15 @@ export function BrainGraph3D({
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div
           ref={container}
+          onPointerLeave={() => setEdge(null)}
           aria-label="Memory relationships"
           className="absolute inset-0 touch-none"
+        />
+        <GraphAccess
+          nodes={model.nodes}
+          focus={focus}
+          matches={pathMatches ?? (focus ? graphNeighbors(model, focus) : null)}
+          onFocus={onFocus}
         />
         {unavailable && (
           <p role="status" className="text-text-tertiary p-6 text-center text-sm">
@@ -72,12 +82,6 @@ export function BrainGraph3D({
       <div className="border-border border-t p-3">
         <GraphLegend nodes={model.nodes} />
       </div>
-      <GraphAccess
-        nodes={model.nodes}
-        focus={focus}
-        matches={pathMatches ?? (focus ? graphNeighbors(model, focus) : null)}
-        onFocus={onFocus}
-      />
     </section>
   )
 }
@@ -160,7 +164,7 @@ function GraphLegend({ nodes }: { nodes: GraphNode[] }): React.JSX.Element {
             className="h-2 w-2 rounded-full"
             style={{ background: `var(${GRAPH_COLORS[kind]})` }}
           />
-          {kind}
+          {ENTITY_LABELS[kind]}
         </span>
       ))}
     </div>

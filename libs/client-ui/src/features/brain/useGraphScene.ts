@@ -70,6 +70,7 @@ export function useGraphScene(
         focus: selection.focus,
         matches: selection.matches,
         path: selection.path,
+        scope: selection.scope,
       })
     } catch {
       instance.current?.dispose()
@@ -78,7 +79,7 @@ export function useGraphScene(
       container.current?.replaceChildren()
       setUnavailable(true)
     }
-  }, [scene, model, selection.focus, selection.matches, selection.path, container])
+  }, [scene, model, selection.focus, selection.matches, selection.path, selection.scope, container])
   useEffect(() => {
     scene?.dimensions(dimensions)
   }, [scene, dimensions])

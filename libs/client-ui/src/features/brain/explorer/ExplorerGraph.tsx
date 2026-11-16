@@ -57,6 +57,7 @@ export function ExplorerGraph({
             graph={shown}
             path={path ?? memory?.links ?? null}
             focus={entityId}
+            scope={scope === 'near' ? 'near' : 'all'}
             matches={matches}
             onClear={onClear}
             onFocus={(id) =>
@@ -157,12 +158,24 @@ function useExplorerGraph(
         window.phosphor.invoke('brain:neighbourhood', id, near ? (Number(hops) as 1 | 2) : 1),
       ),
     )
-    const base = near
-      ? combineGraphs(extras, ids)
-      : extras.length
-        ? combineGraphs([overview.data!, ...extras], ids)
-        : overview.data!
-    const graph = await includePath(base, path ?? memory?.memory.links ?? null)
+    const route = path ?? memory?.memory.links ?? null
+    const graphs = near ? extras : [overview.data!, ...extras]
+    const neighbours = graphs
+      .flatMap((g) => g.links)
+      .flatMap((link) =>
+        ids.includes(link.subjectId)
+          ? [link.objectId]
+          : ids.includes(link.objectId)
+            ? [link.subjectId]
+            : [],
+      )
+    const priority = [
+      ...ids,
+      ...(route?.flatMap((l) => [l.subjectId, l.objectId]) ?? []),
+      ...neighbours,
+    ]
+    const base = near || extras.length ? combineGraphs(graphs, priority) : overview.data!
+    const graph = await includePath(base, route, priority)
     return { graph, memory }
   }, [entityId, memoryId, scope, hops, overview.data, path])
   const resource = useBrainResource(load, !!overview.data)

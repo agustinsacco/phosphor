@@ -3,9 +3,9 @@ import type { BrainGraph, BrainLink } from '@shared/brain'
 /** Prioritize a selected thing or route without letting additions exceed the 300-node bound. */
 export function combineGraphs(graphs: BrainGraph[], priority: string[] = []): BrainGraph {
   const nodes = new Map(graphs.flatMap((g) => g.nodes).map((n) => [n.id, n]))
-  const important = new Set(priority)
+  const important = new Map([...new Set(priority)].map((id, index) => [id, index]))
   const selected = [...nodes.values()]
-    .sort((a, b) => Number(important.has(b.id)) - Number(important.has(a.id)))
+    .sort((a, b) => (important.get(a.id) ?? Infinity) - (important.get(b.id) ?? Infinity))
     .slice(0, 300)
   const ids = new Set(selected.map((n) => n.id))
   return {
@@ -21,6 +21,7 @@ export function combineGraphs(graphs: BrainGraph[], priority: string[] = []): Br
 export async function includePath(
   graph: BrainGraph,
   path: BrainLink[] | null,
+  priority: string[] = [],
 ): Promise<BrainGraph> {
   if (!path?.length) return graph
   const ids = [...new Set(path.flatMap((l) => [l.subjectId, l.objectId]))]
@@ -28,6 +29,6 @@ export async function includePath(
   const extra = await Promise.all(missing.map((id) => window.phosphor.invoke('brain:entity', id)))
   return combineGraphs(
     [graph, { nodes: extra.map((v) => v.entity), links: path, centerId: null, truncated: false }],
-    ids,
+    [...priority, ...ids],
   )
 }
