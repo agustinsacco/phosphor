@@ -158,7 +158,15 @@ it('caps raw output, prompts and source text with their own scroll containers', 
   data.calls = [{ ...data.calls[0]!, answer: 'Harbor output\n'.repeat(1500) }]
   data.prompts = ['Ledger prompt\n'.repeat(1500)]
   data.source.exists = true
-  data.source.segments = [{ label: 'user · 2026-11-01', text: 'Kestrel source\n'.repeat(1500) }]
+  data.source.segments = [
+    {
+      entryId: 'harbor-entry',
+      role: 'user',
+      observedAt: 0,
+      label: 'user · 2026-11-01',
+      text: 'Kestrel source\n'.repeat(1500),
+    },
+  ]
   const fake = createFakePhosphor({ 'brain:extraction': () => data })
   const restore = installFakePhosphor(fake)
   const container = document.createElement('div')

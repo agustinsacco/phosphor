@@ -5,6 +5,12 @@ import { launch, shutdown } from './fixtures/local-app'
 import type { BrainLane } from './fixtures/brain-lanes'
 import { seedBrainLanes } from './fixtures/brain-lanes'
 import {
+  attachBrainFailure,
+  watchBrainErrors,
+  expectBoundedReadText,
+  expectReviewBarAtBottom,
+} from './fixtures/brain-inspection'
+import {
   approveLane,
   enableBrain,
   exploreBrain,
@@ -25,13 +31,17 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
   const { page } = h
   try {
     await enableBrain(page, seed.harbor)
+    const noReadErrors = await watchBrainErrors(page)
     await queueLane(page, seed.harbor)
     await page.getByRole('tab', { name: /^Lanes/ }).click()
     await expect(inbox(page, seed.harbor)).toContainText('Read the conversation')
     await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
+    await noReadErrors()
     expect((await status(page)).counts).toEqual({ memories: 0, entities: 0 })
     const firstJob = await approveLane(page, seed.harbor)
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 2, entities: 3 })
+    await expect(page.getByRole('region', { name: 'Extraction detail' })).toBeVisible()
+    await noReadErrors()
     const harbor = await directedGraph(page, firstJob)
     await graphSelection(page)
     await exploreBrain(page)
@@ -52,6 +62,8 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
       (job) => job.sessionPath === seed.ledger.source,
     )!
     expect(failedJob.state).toBe('failed')
+    await expect(failed.getByText('Source lane at extraction')).toBeVisible()
+    await noReadErrors()
     expect(await readFile(join(seed.failureDirectory, 'failed-attempt-2'), 'utf8')).toBe(
       'extract\n',
     )
@@ -79,16 +91,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     for (const lane of [seed.harbor, seed.ledger])
       expect(await readFile(lane.source, 'utf8')).toBe(lane.original)
   } catch (error) {
-    const snapshot = await status(page)
-    const records = await page.evaluate(
-      async (ids) =>
-        Promise.all(ids.map((id) => window.phosphor.invoke('brain:extraction', id).catch(String))),
-      snapshot.jobs.map((job) => job.id),
-    )
-    await test.info().attach('brain-failure.json', {
-      body: JSON.stringify({ snapshot, records }, null, 2),
-      contentType: 'application/json',
-    })
+    await attachBrainFailure(page)
     throw error
   } finally {
     await shutdown(h)
@@ -374,3 +377,56 @@ async function expectBrainPanesToFit(page: Page): Promise<void> {
   }
   await page.setViewportSize(original)
 }
+
+test('Brain caps long read text and anchors a short review action bar', async () => {
+  const seed = await seedBrainLanes()
+  const h = await launch({
+    workspace: seed.workspace,
+    agentDir: seed.agent,
+    userDataDir: seed.profile,
+    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
+  })
+  const { page } = h
+  try {
+    await enableBrain(page, seed.harbor)
+    await queueLane(page, seed.harbor)
+    await expect.poll(async () => (await status(page)).jobs[0]?.state).toBe('review')
+    const job = (await status(page)).jobs[0]!
+    const proposal = await page.evaluate(
+      (id) => window.phosphor.invoke('brain:proposal', id),
+      job.id,
+    )
+    const record = await page.evaluate(
+      (id) => window.phosphor.invoke('brain:extraction', id),
+      job.id,
+    )
+    record.calls = [{ ...record.calls[0]!, answer: 'Harbor output\n'.repeat(1500) }]
+    record.prompts = ['Ledger prompt\n'.repeat(1500)]
+    record.source.segments = [
+      { label: 'user · 2026-11-01T00:00:00Z', text: 'Kestrel source\n'.repeat(1500) },
+    ]
+    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
+    await h.app.evaluate(
+      ({ ipcMain }, value) => {
+        ipcMain.removeHandler('brain:proposal')
+        ipcMain.handle('brain:proposal', () => ({
+          ...value.proposal,
+          memories: [],
+          identities: [],
+          groups: [],
+          confirmations: [],
+        }))
+        ipcMain.removeHandler('brain:extraction')
+        ipcMain.handle('brain:extraction', () => value.record)
+      },
+      { proposal, record },
+    )
+    await page.getByRole('tab', { name: /^Lanes/ }).click()
+    await inbox(page, seed.harbor).click()
+    await expectReviewBarAtBottom(page)
+    await page.getByRole('button', { name: 'See how it was read', exact: true }).click()
+    await expectBoundedReadText(page)
+  } finally {
+    await shutdown(h)
+  }
+})
