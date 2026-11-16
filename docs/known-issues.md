@@ -148,7 +148,6 @@ Found in a 2026-09-05 workbench review; all still reproduce.
 | R5  | A failed worktree creation starts in the original checkout with a warning, but no retry or cancel                                  | `libs/client-ui/src/features/sessions/startChat.ts`                        |
 | R6  | A dirty lane with no PR classifies as idle; "Needs a push" also absorbs "changes requested" and "N checks failing"                 | `libs/client-ui/src/features/home/laneState.ts`                            |
 | R7  | The model picked on Home is written to the drafts store and never passed into `createSession`                                      | `WorkspaceHome.tsx` → `startChat.ts`                                       |
-| R8  | Cmd+K lists only the first eight sessions from the current cwd                                                                     | `libs/client-ui/src/features/palette/CommandPalette.tsx`                   |
 | R9  | Home stats cover one cwd while the Ledger beside them is project-wide                                                              | `WorkspaceHome.tsx`                                                        |
 | R10 | A This Mac lane that settles before its git info loads gets a receipt naming the worktree folder as the repository, with no branch | `libs/client-ui/src/features/sessions/laneNotices.ts` `noticeLaneSettled`  |
 

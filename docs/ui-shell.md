@@ -562,7 +562,12 @@ close it; focus moves into the sheet and returns to the element on close.
   and "Add folder on <Host>…" (where the Host lets this device add one) stand
   in for them. The same filtering applies on Host home,
   using the sidebar's selected machine rather than This Mac's home workspace.
-  Target switches refresh the command set.
+  Target switches refresh the command set. This Mac searches all scanned sessions
+  in the current cwd before rendering at most twelve matches, not just its first
+  eight. The browser opens the same palette from Search lanes and pages in its
+  wide header and phone page/lane headers, with a full-screen phone presentation.
+  Its inventory searches all Hosts and routes to browser pages, not native
+  workspaces or pane commands ([web client](web-client.md#palette-and-find-in-chat)).
   Distinct from the chat `/` command menu.
 - **Host home Files**: with no lane open and a Host selected in the sidebar,
   the top-bar Files button opens read-only configured-repository browsing.

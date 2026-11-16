@@ -1,3 +1,4 @@
+import { PaletteButton } from './PaletteButton'
 import { memo } from 'react'
 import { useLayoutStore } from '@/stores/layout'
 import { useNavigation } from '@/navigation/Navigation'
@@ -34,7 +35,10 @@ export const PageShell = memo(function PageShell({
     <div className={wide ? 'page-shell page-shell--wide' : 'page-shell'}>
       <header className="page-shell-header">
         <h1 className="page-shell-title">{title}</h1>
-        <div className="page-shell-actions">{actions}</div>
+        <div className="page-shell-actions">
+          {actions}
+          {!localLanes && formFactor === 'compact' && <PaletteButton />}
+        </div>
         {dismissible && formFactor !== 'compact' && (
           <PaneIconButton title="Close page" onClick={close}>
             <CloseIcon size={13} />

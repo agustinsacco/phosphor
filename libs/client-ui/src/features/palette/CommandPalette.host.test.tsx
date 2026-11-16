@@ -132,3 +132,72 @@ it.each([
   const pages = useMachinePagesStore.getState()
   expect(page === 'skills' ? pages.skillsMachine : pages.artifactsMachine).toBeFalsy()
 })
+
+it('characterizes Desktop commands on This Mac with and without an active session', async () => {
+  useRemoteLanesStore.setState({ hosts: {}, filter: 'local' })
+  useSessionsStore.setState({ activeSessionId: null, live: {}, disk: {} })
+  usePaletteStore.setState({ open: true })
+  await act(async () => root.render(<CommandPalette workspacePath="/mac" />))
+  const input = document.querySelector<HTMLInputElement>('input[placeholder="Type a command…"]')!
+  const labels = async (query: string): Promise<string[]> => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, query)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    return [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].map(
+      (row) => row.textContent ?? '',
+    )
+  }
+  expect(await labels('pane')).toEqual([])
+  expect(await labels('feedback')).toEqual(['Send feedback'])
+  expect(await labels('Keyboard shortcuts')).toHaveLength(1)
+  expect(await labels('workspace folder')).toEqual(['Open workspace folder…'])
+  useSessionsStore.setState({ activeSessionId: 'mac' })
+  await act(async () => root.render(<CommandPalette workspacePath="/mac" />))
+  expect(await labels('Toggle')).toHaveLength(6)
+  expect(await labels('Rewind')).toHaveLength(1)
+  expect(await labels('tool output')).toHaveLength(1)
+})
+
+it('searches This Mac sessions beyond the former first-eight cutoff', async () => {
+  useRemoteLanesStore.setState({ hosts: {}, filter: 'local' })
+  useSessionsStore.setState({
+    activeSessionId: null,
+    live: {},
+    disk: {
+      '/mac': Array.from({ length: 20 }, (_, index) => ({
+        path: `/mac/${index}.jsonl`,
+        sessionId: `${index}`,
+        cwd: '/mac',
+        name: index === 19 ? 'Needle last session' : `Earlier ${index}`,
+        firstUserText: '',
+        createdAt: '',
+        userMessages: 1,
+        assistantMessages: 0,
+        toolCalls: 0,
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        cost: 0,
+        headroomSavedTokens: 0,
+        entryCount: 1,
+        branchCount: 0,
+        mtimeMs: 0,
+        lastActivityAt: '',
+      })),
+    },
+  })
+  usePaletteStore.setState({ open: true })
+  await act(async () => root.render(<CommandPalette workspacePath="/mac" />))
+  const input = document.querySelector<HTMLInputElement>('input[placeholder="Type a command…"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      'Needle last session',
+    )
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(document.body.textContent).toContain('Open session: Needle last session')
+})

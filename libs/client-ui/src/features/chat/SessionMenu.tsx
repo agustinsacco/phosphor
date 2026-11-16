@@ -12,17 +12,23 @@ import { currentSessionMenuItems, SESSION_OPTIONS } from './sessionMenuItems'
 export function SessionMenu({
   sessionId,
   className,
+  onFind,
 }: {
   sessionId: string
   className?: string
+  onFind?: () => void
 }): React.JSX.Element {
   const { nativeFiles } = usePlatform()
   return (
     <TooltipButton
       onClick={(event) =>
-        showMenuBelow(event.currentTarget, currentSessionMenuItems(sessionId, nativeFiles), {
-          title: SESSION_OPTIONS,
-        })
+        showMenuBelow(
+          event.currentTarget,
+          currentSessionMenuItems(sessionId, nativeFiles, onFind),
+          {
+            title: SESSION_OPTIONS,
+          },
+        )
       }
       className={clsx(
         'text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
