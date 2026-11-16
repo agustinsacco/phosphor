@@ -21,7 +21,12 @@ import type { CallOutcome } from '../lanes/service'
 import type { LanesTopic } from '../lanes/stream'
 import { createPushDelivery, type PushDeliveryPorts } from './delivery'
 import { isUsablePushKey } from './encryption'
-import { createPushSubscriptions, current, type PushSubscriptions } from './subscriptions'
+import {
+  createPushSubscriptions,
+  current,
+  type PushSubscriptions,
+  type StoredPushSubscription,
+} from './subscriptions'
 import { createVapidSigner, loadVapidKey, type VapidKey } from './vapid'
 
 /** How long a push service holds a message for a device that is off. */
@@ -101,20 +106,20 @@ function pushPayload(
     : undefined
 }
 
-/** The subscription a queued message may still go to: same client and endpoint, still current. */
-function storedRecipient(
+/**
+ * The registration a message was queued for, while that registration is still stored and
+ * current. A device registering again, even with the same endpoint, is another row: a
+ * message queued before it, and before any unsubscribe, owner or epoch change, never goes.
+ */
+function queuedRecipient(
   authority: WebPushOptions['authority'],
   subscriptions: PushSubscriptions,
-  clientId: string,
-  endpoint: string,
+  row: StoredPushSubscription,
 ) {
   const snapshot = authority.snapshot()
-  const row =
-    snapshot &&
-    subscriptions
-      .list()
-      .find((r) => r.clientId === clientId && r.subscription.endpoint === endpoint)
-  return row && current(row, snapshot) ? row.subscription : undefined
+  return snapshot && subscriptions.holds(row) && current(row, snapshot)
+    ? row.subscription
+    : undefined
 }
 
 /** The Host's Web Push, or undefined when its key cannot be loaded: the Host then runs without it. */
@@ -157,14 +162,11 @@ export function createHostWebPush(options: WebPushOptions, key: VapidKey) {
     // Fail closed: no current owner and epoch, no push.
     const authority = options.authority.snapshot()
     if (!authority) return
-    for (const { clientId, subscription } of subscriptions
-      .list()
-      .filter((r) => current(r, authority)))
+    for (const row of subscriptions.list().filter((r) => current(r, authority)))
       delivery.send({
-        endpoint: subscription.endpoint,
-        // Revoked, unsubscribed or ownerless before it is sent or retried: dropped.
-        recipient: () =>
-          storedRecipient(options.authority, subscriptions, clientId, subscription.endpoint),
+        endpoint: row.subscription.endpoint,
+        // Bound to this registration: checked before every request and every retry.
+        recipient: () => queuedRecipient(options.authority, subscriptions, row),
         payload: bytes,
         ttl: WEB_PUSH_TTL_SECONDS,
         urgency: kind === 'needs-input' ? 'high' : 'normal',
