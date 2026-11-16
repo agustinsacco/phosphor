@@ -82,6 +82,11 @@ for (const width of [400, 1100])
       .poll(() => readFile(join(stack.repository, 'host-card.html'), 'utf8').catch(() => null))
       .toBe('<h1>HOST_A_ONLY version 2</h1>')
     await expect(page.getByTestId('artifact-scroll')).toHaveCount(0)
+    // Files opens HTML on its static preview; Source reads the same saved bytes.
+    await expect(
+      page.frameLocator('iframe').getByRole('heading', { name: 'HOST_A_ONLY version 2' }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Source', exact: true }).click()
     // A phone's Files opens the written file as its detail, not behind the tree.
     await expect(
       page.locator(width < 900 ? '.code-block' : '.monaco-editor .view-lines').first(),
