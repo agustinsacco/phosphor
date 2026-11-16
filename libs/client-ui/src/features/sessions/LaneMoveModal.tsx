@@ -3,17 +3,17 @@ import { errorText } from '@shared/errors'
 import type { LaneMovePlan, LaneMoveResult, LaneMoveTarget } from '@shared/lane-move'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button } from '@/components/form'
-import { useNavigation, type Navigation } from '@/navigation/Navigation'
+import { useAwaitableNavigate } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { useLaneMoveStore, type LaneMoveDraft } from '@/stores/laneMove'
 import { machineLabel, navigateToLane, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import {
+  MEMORY_RELAY_NOTE,
   formatMoveBytes,
   moveMachines,
   planSummary,
-  relayNote,
   sourceHint,
   type MoveMachine,
 } from './laneMove'
@@ -46,10 +46,16 @@ function keepMarks(draft: LaneMoveDraft, result: Done) {
   void sessions.refreshDisk(result.workspace)
 }
 
-/** A Host copy opens through navigation, which both shells route; a This Mac copy through its file. */
-async function openMoved(result: Done, navigate: Navigation['navigate']): Promise<void> {
+/**
+ * A Host copy opens through navigation, which both shells route (Desktop's
+ * resolves once the lane is open); a This Mac copy through its file.
+ */
+async function openMoved(
+  result: Done,
+  navigate: ReturnType<typeof useAwaitableNavigate>,
+): Promise<void> {
   if ('laneId' in result) {
-    navigate({ to: 'lane', lane: { hostId: result.machine, laneId: result.laneId } })
+    await navigate({ to: 'lane', lane: { hostId: result.machine, laneId: result.laneId } })
     return
   }
   const sessions = useSessionsStore.getState()
@@ -198,7 +204,7 @@ function PlanView({
 }
 
 function useMoveExecution(draft: LaneMoveDraft, onClose: () => void) {
-  const { navigate } = useNavigation()
+  const navigate = useAwaitableNavigate()
   const [moving, setMoving] = useState(false)
   const [done, setDone] = useState<Done | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -222,7 +228,7 @@ function useMoveExecution(draft: LaneMoveDraft, onClose: () => void) {
       setMoving(false)
     }
   }
-  /** Opens the copy and closes the dialog; a failure to open stays in the dialog. */
+  /** Opens the copy, then closes the dialog; a failure to open stays in the dialog. */
   const open = () => {
     if (done)
       void openMoved(done, navigate).then(onClose, (cause: unknown) => setError(errorText(cause)))
@@ -284,6 +290,8 @@ function LaneMoveModal({
   onClose: () => void
 }): React.JSX.Element {
   const { hosts, machines } = useMoveMachines()
+  // Desktop stages the bundle in a private temp file; the browser holds it in memory and says so.
+  const { nativeFiles } = usePlatform()
   const unavailable = sourceHint(hosts, draft.source)
   // This Mac comes first where it is offered, so Desktop's fallback stays This Mac.
   const [machine, setMachine] = useState(
@@ -341,7 +349,7 @@ function LaneMoveModal({
               />
               <PlanView
                 check={check}
-                note={picked && relayNote(draft.source, picked.target)}
+                note={picked && !nativeFiles ? MEMORY_RELAY_NOTE : undefined}
                 retry={retry}
                 accepted={acceptedTarget === picked?.key}
                 onAccept={(yes) => setAcceptedTarget(yes ? picked!.key : '')}

@@ -90,12 +90,12 @@ export function moveMachines(input: {
   return machines
 }
 
-/** Between Hosts the bundle passes through this client, which says so; else nothing. */
-export function relayNote(source: LaneMoveSource, target: LaneMoveTarget): string | undefined {
-  return source.machine === 'local' || target.machine === 'local'
-    ? undefined
-    : 'The copy passes through this device, held in memory until it lands.'
-}
+/**
+ * What the browser's plan adds: it relays a move between Hosts through its own
+ * memory. Desktop stages the bundle in a private temp file and says nothing.
+ */
+export const MEMORY_RELAY_NOTE =
+  'The copy passes through this device, held in memory until it lands.'
 
 /** One sentence on how the lane lands, from the plan the target checked. */
 export function planSummary(plan: LaneMovePlan): string {

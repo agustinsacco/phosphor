@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HostsSnapshot } from '@shared/ipc'
 import { MOCK_HOST_ID, mockRemoteHosts } from '@/dev/mockRemoteLanes'
-import {
-  MOVE_HINTS,
-  formatMoveBytes,
-  moveMachines,
-  planSummary,
-  relayNote,
-  sourceHint,
-} from './laneMove'
+import { MOVE_HINTS, formatMoveBytes, moveMachines, planSummary, sourceHint } from './laneMove'
 
 const base = mockRemoteHosts[MOCK_HOST_ID]!
 const hostsWith = (edit: Partial<typeof base>): HostsSnapshot => ({
@@ -85,19 +78,6 @@ describe('moveMachines without local lanes', () => {
     })
     expect(machines.map((m) => m.machine)).toEqual([MOCK_HOST_ID])
     expect(machines[0]!.disabled).toBeUndefined()
-  })
-})
-
-describe('relayNote', () => {
-  it('says the copy passes through this device only when both ends are Hosts', () => {
-    const host = { machine: MOCK_HOST_ID, laneId: 'x' }
-    const folder = { machine: 'other', repositoryId: 'a'.repeat(16) }
-    expect(relayNote(host, folder)).toContain('passes through this device')
-    expect(relayNote(host, { machine: MOCK_HOST_ID, repositoryId: 'b'.repeat(16) })).toContain(
-      'held in memory',
-    )
-    expect(relayNote({ machine: 'local', sessionPath: '/s.jsonl' }, folder)).toBeUndefined()
-    expect(relayNote(host, { machine: 'local', workspace: '/w' })).toBeUndefined()
   })
 })
 

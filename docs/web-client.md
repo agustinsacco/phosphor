@@ -74,11 +74,13 @@ the same Host, with the same dialog, plan, limits and failure handling as Deskto
 ([Moving a lane](lanes.md#moving-a-lane)). `hosts:laneMovePlan` and
 `hosts:laneMove` refuse a request with This Mac on either end; the dialog lists
 only Hosts, since `localLanes` is false. The adapter hands the rest to
-`createHostLaneMoves` (`libs/host-client/src/lane-move.ts`), Desktop's own
-Host-to-Host relay: the page downloads the bundle into memory, checks its
-SHA-256 with Web Crypto, then uploads it, chunked at the transfer limit. On a
-phone the dialog is the compact sheet: machine, folder, one summary with the
-size and the note that the copy passes through this device, then Move.
+`createHostLaneMoves` (`libs/host-client/src/lane-move.ts`): the page downloads
+the bundle into memory, checks its SHA-256 with Web Crypto, then uploads it,
+chunked at the transfer limit. Desktop makes the same Host calls but stages the
+bundle in a private temp file instead, so only the browser's plan adds "The copy
+passes through this device, held in memory until it lands." (`nativeFiles` is
+false). On a phone the dialog is the compact sheet: machine, folder, one summary
+with the size and that note, then Move.
 
 Threat note: a lane bundle holds raw transcripts, Claude ledgers and attached
 files, and crosses the browser page that moves it. It stays in that page's
