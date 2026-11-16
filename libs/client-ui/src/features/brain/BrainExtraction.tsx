@@ -103,7 +103,7 @@ function FinishedRead({
     </>
   )
 }
-function ExtractionOutcomes({
+export function ExtractionOutcomes({
   data,
   onMemory,
 }: {

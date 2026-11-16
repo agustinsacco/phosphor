@@ -40,17 +40,21 @@ function Call({
         <div className="mt-3 min-w-0 space-y-3">
           {call.error && <p role="status">{call.error}</p>}
           <SectionLabel>Raw agent output</SectionLabel>
-          <CodeBlock
-            code={formatAgentOutput(call.answer) || '(No final text returned)'}
-            language="text"
-            chatActions={false}
-          />
+          <div className="max-h-96 overflow-auto">
+            <CodeBlock
+              code={formatAgentOutput(call.answer) || '(No final text returned)'}
+              language="text"
+              chatActions={false}
+            />
+          </div>
           <SectionLabel>Prompt</SectionLabel>
-          <CodeBlock
-            code={prompt || 'Prompt unavailable: source lane is gone.'}
-            language="text"
-            chatActions={false}
-          />
+          <div className="max-h-96 overflow-auto">
+            <CodeBlock
+              code={prompt || 'Prompt unavailable: source lane is gone.'}
+              language="text"
+              chatActions={false}
+            />
+          </div>
           <ExtractionTrace trace={call.trace} />
         </div>
       )}

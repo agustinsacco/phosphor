@@ -6,7 +6,9 @@ import { useBrain } from './useBrain'
 import { useBrainModelName } from './useBrainModelName'
 import { useBrainResource } from './useBrainResource'
 import { BrainReview } from './BrainReview'
-import { BrainExtraction } from './BrainExtraction'
+import { BrainExtraction, ExtractionOutcomes } from './BrainExtraction'
+import { ExtractionSource } from './ExtractionSource'
+import { ipcErrorText } from '@shared/errors'
 import { ExtractionCalls } from './ExtractionCalls'
 import {
   BRAIN_PROGRESS_STAGES,
@@ -52,9 +54,17 @@ export function BrainLaneDetail({
         Loading read…
       </p>
     )
-  return <ReadingDetail job={job} now={now} />
+  return <ReadingDetail job={job} now={now} onMemory={onMemory} />
 }
-function ReadingDetail({ job, now }: { job: BrainJob; now: number }): React.JSX.Element {
+function ReadingDetail({
+  job,
+  now,
+  onMemory,
+}: {
+  job: BrainJob
+  now: number
+  onMemory: (id: string, label: string) => void
+}): React.JSX.Element {
   const model = useBrainModelName(job.model)
   return (
     <section
@@ -78,7 +88,7 @@ function ReadingDetail({ job, now }: { job: BrainJob; now: number }): React.JSX.
         <ReadingSteps job={job} />
       )}
       <JobActions job={job} />
-      <LiveCalls job={job} />
+      <LiveExtraction job={job} onMemory={onMemory} />
     </section>
   )
 }
@@ -136,15 +146,37 @@ function ReadingSteps({ job }: { job: BrainJob }): React.JSX.Element {
     </ol>
   )
 }
-function LiveCalls({ job }: { job: BrainJob }): React.JSX.Element {
-  const load = useCallback(() => window.phosphor.invoke('brain:extraction', job.id), [job.id])
+function LiveExtraction({
+  job,
+  onMemory,
+}: {
+  job: BrainJob
+  onMemory: (id: string, label: string) => void
+}): React.JSX.Element {
+  const load = useCallback(async () => {
+    try {
+      return { record: await window.phosphor.invoke('brain:extraction', job.id) }
+    } catch (cause) {
+      // The first record is saved only after a call returns, not when the job starts.
+      if (ipcErrorText(cause) === 'Brain extraction not found (dismissed or expired).')
+        return { record: null }
+      throw cause
+    }
+  }, [job.id])
   const { data, error, retry } = useBrainResource(load, job.startedAt !== null, JSON.stringify(job))
-  if (job.startedAt === null) return <p className="text-text-tertiary text-sm">No calls yet.</p>
-  if (!data)
+  if (job.startedAt === null || (data && !data.record))
+    return <p className="text-text-tertiary text-sm">No calls yet.</p>
+  if (!data?.record)
     return (
       <p role="status">
         {error || 'Loading calls…'} {error && <Button onClick={retry}>Retry</Button>}
       </p>
     )
-  return <ExtractionCalls data={data} />
+  return (
+    <>
+      <ExtractionOutcomes data={data.record} onMemory={onMemory} />
+      <ExtractionCalls data={data.record} />
+      <ExtractionSource source={data.record.source} />
+    </>
+  )
 }
