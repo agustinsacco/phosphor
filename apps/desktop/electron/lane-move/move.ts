@@ -20,6 +20,8 @@ export interface LaneMovePorts {
   label(hostId: string): string
   branchPrefix(): string
   tempDir(): string
+  /** Diagnostics: fixed fields, paths and blockers only, never titles or raw error text. */
+  log?(message: string, data: Record<string, unknown>): void
 }
 
 const LOCAL = 'This Mac'
@@ -40,6 +42,20 @@ function moveContext(ports: LaneMovePorts, request: LaneMoveRequest) {
   }
 }
 type MoveContext = ReturnType<typeof moveContext>
+
+const route = ({ source, target }: LaneMoveRequest) => ({
+  from: source.machine === 'local' ? 'local' : 'host',
+  to: target.machine === 'local' ? 'local' : 'host',
+})
+
+/** An error's class and code, never its message: git and Host errors can carry URLs and output. */
+function errorKind(error: unknown): { error: string; code?: string } {
+  const code = (error as { code?: unknown } | null)?.code
+  return {
+    error: error instanceof Error ? error.name : typeof error,
+    ...(typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,31}$/.test(code) ? { code } : {}),
+  }
+}
 
 async function inspect({ request, same, remote }: MoveContext): Promise<LaneInspection> {
   const { source } = request
@@ -105,14 +121,29 @@ async function transfer(ctx: MoveContext, archive: string): Promise<LaneMoveResu
  * at a time.
  */
 export function createLaneMoves(ports: LaneMovePorts) {
+  const log = ports.log ?? (() => {})
   let running = false
-  async function move(request: LaneMoveRequest): Promise<LaneMoveResult> {
+  /** `dialog` is the check the dialog shows; `move` is the one every Move repeats first. */
+  async function check(ctx: MoveContext, purpose: 'dialog' | 'move'): Promise<LaneMovePlan> {
+    const started = Date.now()
+    const base = () => ({ purpose, ...route(ctx.request), ms: Date.now() - started })
+    try {
+      const plan = await planMove(ctx)
+      const { mode, bytes, blockers } = plan
+      log('checked', { ...base(), mode, bytes, blockers })
+      return plan
+    } catch (error) {
+      log('check failed', { ...base(), ...errorKind(error) })
+      throw error
+    }
+  }
+  async function attempt(request: LaneMoveRequest): Promise<LaneMoveResult> {
     if (running) return { blockers: [LANE_MOVE_BUSY] }
     running = true
     let dir: string | undefined
     try {
       const ctx = moveContext(ports, request)
-      const checked = await planMove(ctx)
+      const checked = await check(ctx, 'move')
       if (checked.blockers.length) return { blockers: checked.blockers }
       dir = await mkdtemp(join(ports.tempDir(), 'phosphor-lane-'))
       return await transfer(ctx, join(dir, 'lane.bundle'))
@@ -121,8 +152,31 @@ export function createLaneMoves(ports: LaneMovePorts) {
       throw error
     } finally {
       running = false
-      if (dir) await rm(dir, { recursive: true, force: true })
+      // By now the lane is saved or refused; a leftover temp bundle must not change that answer.
+      if (dir)
+        await rm(dir, { recursive: true, force: true }).catch((error: unknown) =>
+          log('temp cleanup failed', errorKind(error)),
+        )
     }
   }
-  return { plan: (request: LaneMoveRequest) => planMove(moveContext(ports, request)), move }
+  async function move(request: LaneMoveRequest): Promise<LaneMoveResult> {
+    const started = Date.now()
+    const base = () => ({ ...route(request), ms: Date.now() - started })
+    try {
+      const result = await attempt(request)
+      if ('blockers' in result) log('move refused', { ...base(), blockers: result.blockers })
+      else if ('sessionPath' in result)
+        log('moved', {
+          ...base(),
+          sessionPath: result.sessionPath,
+          workspace: result.workspace,
+        })
+      else log('moved', base())
+      return result
+    } catch (error) {
+      log('move failed', { ...base(), ...errorKind(error) })
+      throw error
+    }
+  }
+  return { plan: (request: LaneMoveRequest) => check(moveContext(ports, request), 'dialog'), move }
 }
