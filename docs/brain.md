@@ -36,8 +36,8 @@ The page header shows **Brain**, “N memories · M people and things”, and Se
 Underlined **Knowledge** and **Lanes** tabs separate exploration from reading and review.
 Arrow keys, Home and End select tabs. Knowledge opens first, except when there are no
 memories and at least one job: then Lanes opens. Switching tabs keeps the explorer trail
-and selected lane; explorer shortcuts act only on Knowledge. The Lanes tab and the sidebar's Brain row show the live count of jobs
-waiting for review, hidden at zero.
+and selected lane; explorer shortcuts act only on Knowledge. The Lanes tab and the sidebar's
+Brain row show the live count of jobs waiting for review, hidden at zero.
 
 Lanes is a plain list beside the selected lane's detail, with nonempty sections:
 

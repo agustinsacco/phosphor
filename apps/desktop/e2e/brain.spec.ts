@@ -34,7 +34,6 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 2, entities: 3 })
     const harbor = await directedGraph(page, firstJob)
     await graphSelection(page)
-    await expectBrainPanesToFit(page)
     await exploreBrain(page)
 
     await writeFile(seed.armed, 'armed\n')
@@ -345,6 +344,7 @@ async function graphSelection(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Clear selection', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Whole graph', exact: true })).toHaveCount(0)
   await expect(nodes.getByRole('button')).toHaveCount(count)
+  await expectBrainPanesToFit(page)
 }
 
 async function expectBrainPanesToFit(page: Page): Promise<void> {
