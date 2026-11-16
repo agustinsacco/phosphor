@@ -30,6 +30,11 @@ export const INSTALL_ROWS: SettingEntry[] = [
 
 export const NOTIFICATION_ROWS: SettingEntry[] = section('notifications', null, [
   ['Native notifications', 'permission alerts blocked test turn on', 'notificationPermission'],
+  [
+    'When Phosphor is closed',
+    'web push background machines phone android delivery',
+    'notificationPermission',
+  ],
 ])
 
 export const ABOUT_ROWS: SettingEntry[] = section('about', null, [

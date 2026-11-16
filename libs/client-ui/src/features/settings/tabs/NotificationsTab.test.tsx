@@ -2,6 +2,10 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { MachineView } from '@phosphor/shared/control-api'
+import type { HostsSnapshot } from '@phosphor/shared/ipc'
+import { useMachinesStore } from '@/stores/machines'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { NotificationsTab } from './NotificationsTab'
 let root: Root
 let container: HTMLDivElement
@@ -51,4 +55,45 @@ it('uses showNotification for a visible-page test, reports failure and recovers 
     'Phosphor',
     expect.objectContaining({ body: 'Notifications are on.', tag: 'phosphor:test' }),
   )
+})
+it('lists which machines notify this device while closed, only once notifications are on', () => {
+  vi.stubGlobal('navigator', { serviceWorker: {} })
+  const machine = (id: string, label: string) => ({ id, label }) as MachineView
+  useMachinesStore.setState({
+    machines: [
+      machine('mac', 'Studio'),
+      machine('old', 'Old box'),
+      machine('down', 'Laptop'),
+      machine('fail', 'Server'),
+      machine('new', 'Mini'),
+      machine('gone', 'Not in snapshot'),
+    ],
+  })
+  const ready = { state: 'ready', capabilities: ['sessions.read'] } as const
+  useRemoteLanesStore.setState({
+    hosts: {
+      mac: { ...ready, webPushKey: 'k', pushRegistration: 'registered' },
+      old: ready,
+      down: { state: 'down' },
+      fail: { ...ready, webPushKey: 'k', pushRegistration: 'failed' },
+      new: { ...ready, webPushKey: 'k' },
+    } as unknown as HostsSnapshot,
+  })
+  vi.stubGlobal('Notification', { permission: 'default' })
+  act(() => root.render(<NotificationsTab />))
+  expect(container.textContent).not.toContain('When Phosphor is closed')
+  act(() => root.unmount())
+  root = createRoot(container)
+  vi.stubGlobal('Notification', { permission: 'granted' })
+  act(() => root.render(<NotificationsTab />))
+  const rows = [...container.querySelectorAll('li')].map((li) =>
+    [...li.children].map((c) => c.textContent),
+  )
+  expect(rows).toStrictEqual([
+    ['Studio', 'On'],
+    ['Old box', 'Not supported'],
+    ['Laptop', 'Down'],
+    ['Server', 'Could not register'],
+    ['Mini', 'Setting up'],
+  ])
 })
