@@ -257,6 +257,22 @@ Each page scrolls in one place: a lane's transcript, or the remote start
 page's intro above its composer, which is never a scroller of its own. A menu
 that opens upward (`/`, `@`, model, thinking, readouts) is a bottom sheet
 lifted above the box it opened from, so it never covers Send.
+
+### Artifacts
+
+Host lane artifacts offer Preview, Code and, with multiple versions, Diff at every
+width. A wide browser uses Desktop's Monaco diff; a phone wraps added and removed
+lines in one column, with +/− markers. Large unrelated versions compare as one
+replacement to bound the work. Write into workspace and open in Files uses the
+Host lane's editing path: it needs control and `workspaces.write`, carries the
+file's read revision, and explains a refusal. Stored library artifacts remain
+read-only. On a phone View, Version and Download source stay visible; Copy source,
+Copy reference and Write in Files share the Artifact actions bottom sheet.
+Download source saves the shown version's raw author bytes as an octet-stream
+attachment, including standalone `.html` and `.svg` files; opening those files
+runs outside the preview sandbox. Browser PDF export is omitted: printing model
+HTML safely needs the artifact's own origin, which only Desktop supplies.
+
 HTML/SVG previews use revocable Blob URLs, an empty iframe sandbox and a leading
 restrictive document CSP. Scripts, network, forms and authored navigation are
 refused. The parent permits only `frame-src blob:` for these previews and blocks
