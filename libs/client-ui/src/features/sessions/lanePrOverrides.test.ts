@@ -1,10 +1,19 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LANE_PRS_COMMAND as EXTENSION_COMMAND } from '@phosphor/pi-extensions/lane-prs'
+import { remoteLaneKey } from '@shared/remote-host'
+import { hostLaneSession, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { useLanePrOverridesStore } from '@/stores/lanePrOverrides'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { prRef } from './__fixtures__/pullRequests'
-import { LANE_PRS_COMMAND, setLanePrOverride } from './lanePrOverrides'
+import {
+  HOST_TRACK_NEEDS_UPDATE,
+  LANE_PRS_COMMAND,
+  RESUME_TO_TRACK,
+  setLanePrOverride,
+} from './lanePrOverrides'
+import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
 
 const piCommand = vi.fn()
 const PATH = '/s/lane.jsonl'
@@ -27,7 +36,8 @@ beforeEach(() => {
   // @ts-expect-error partial preload
   window.phosphor = { piCommand }
   answer()
-  useLanePrOverridesStore.setState({ byPath: {} })
+  useLanePrOverridesStore.setState({ byLane: {} })
+  useRemoteLanesStore.setState({ hosts: {} })
   useSessionsStore.setState({
     live: {
       lane: { phosphorId: 'lane', workspacePath: '/repo', diskPath: PATH },
@@ -53,7 +63,7 @@ describe('setLanePrOverride', () => {
       ['lane', { type: 'prompt', message: `/phosphor-prs pin ${URL}` }],
       ['lane', { type: 'get_state' }],
     ])
-    expect(useLanePrOverridesStore.getState().byPath[PATH]).toMatchObject([
+    expect(useLanePrOverridesStore.getState().byLane[PATH]).toMatchObject([
       { action: 'pin', ref: prRef(57) },
     ])
   })
@@ -61,11 +71,11 @@ describe('setLanePrOverride', () => {
   it.each([
     ['a lane that is not open', 'closed', 'Open the lane to track pull requests.'],
     ['a lane with no session file yet', 'fresh', 'Open the lane to track pull requests.'],
-    ['a Host lane', 'remote', 'not available on Host lanes yet'],
+    ['a Host lane its Host does not list', 'remote', 'Open the lane to track pull requests.'],
   ])('rejects %s without sending anything', async (_label, sessionId, message) => {
     await expect(setLanePrOverride(sessionId, 'hide', prRef(57))).rejects.toThrow(message)
     expect(piCommand).not.toHaveBeenCalled()
-    expect(useLanePrOverridesStore.getState().byPath).toEqual({})
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
   })
 
   it.each([
@@ -77,7 +87,7 @@ describe('setLanePrOverride', () => {
       "This lane's pi doesn't support tracking yet.",
     )
     expect(piCommand).toHaveBeenCalledTimes(1)
-    expect(useLanePrOverridesStore.getState().byPath).toEqual({})
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
   })
 
   it('records nothing when pi refuses the command', async () => {
@@ -87,7 +97,7 @@ describe('setLanePrOverride', () => {
         : { success: false, error: 'pi exited' },
     )
     await expect(setLanePrOverride('lane', 'clear', prRef(57))).rejects.toThrow('pi exited')
-    expect(useLanePrOverridesStore.getState().byPath).toEqual({})
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
   })
 
   it('refuses a ref that is not a pull request', async () => {
@@ -95,5 +105,52 @@ describe('setLanePrOverride', () => {
       'not a pull request',
     )
     expect(piCommand).not.toHaveBeenCalled()
+  })
+})
+
+describe('setLanePrOverride on a Host lane', () => {
+  const SESSION = mockRemoteInfo.sessionId
+  const KEY = remoteLaneKey(MOCK_HOST_ID, mockRemoteInfo.laneId!)
+  function hostLane(options: Parameters<typeof hostLaneSession>[0], prStatus = true): void {
+    const { hosts, live } = hostLaneSession(options)
+    hosts[MOCK_HOST_ID]!.prStatus = prStatus
+    useRemoteLanesStore.setState({ hosts })
+    useSessionsStore.setState({ live })
+  }
+
+  it('sends the command through the lane it holds and records it by Host and lane', async () => {
+    hostLane({ self: true })
+    await setLanePrOverride(SESSION, 'hide', prRef(57))
+    expect(piCommand.mock.calls.map(([id, command]) => [id, command])).toEqual([
+      [SESSION, { type: 'get_commands' }],
+      [SESSION, { type: 'prompt', message: `/phosphor-prs hide ${URL}` }],
+      [SESSION, { type: 'get_state' }],
+    ])
+    expect(Object.keys(useLanePrOverridesStore.getState().byLane)).toEqual([KEY])
+    expect(useLanePrOverridesStore.getState().byLane[KEY]).toMatchObject([
+      { action: 'hide', ref: prRef(57) },
+    ])
+  })
+
+  it.each([
+    ['another device holds', { self: false }, true, TAKE_CONTROL_FIRST],
+    ['is stopped', { self: true, activity: 'stopped' as const }, true, RESUME_TO_TRACK],
+    ['failed', { self: true, activity: 'failed' as const }, true, RESUME_TO_TRACK],
+    ['is on a Host that folds no PRs', { self: true }, false, HOST_TRACK_NEEDS_UPDATE],
+  ])('sends nothing to a Host lane that %s', async (_label, options, prStatus, message) => {
+    hostLane(options, prStatus)
+    await expect(setLanePrOverride(SESSION, 'pin', prRef(57))).rejects.toThrow(message)
+    expect(piCommand).not.toHaveBeenCalled()
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
+  })
+
+  it('never sends the slash command to a Host lane whose pi does not list it', async () => {
+    hostLane({ self: true })
+    answer([{ name: LANE_PRS_COMMAND, source: 'prompt' }])
+    await expect(setLanePrOverride(SESSION, 'pin', prRef(57))).rejects.toThrow(
+      "This lane's pi doesn't support tracking yet.",
+    )
+    expect(piCommand).toHaveBeenCalledExactlyOnceWith(SESSION, { type: 'get_commands' })
+    expect(useLanePrOverridesStore.getState().byLane).toEqual({})
   })
 })
