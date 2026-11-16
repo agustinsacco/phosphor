@@ -31,12 +31,35 @@ beforeEach(() => {
   })
 })
 it('uses the machine allowlist and parsed models, never a local fallback', async () => {
-  expect(await reads.models('host')).toEqual([
-    { id: 'm', name: 'Model', provider: 'p', reasoning: false },
-  ])
+  // An older Host's answer: no defaults, and none invented.
+  expect(await reads.models('host')).toEqual({
+    models: [{ id: 'm', name: 'Model', provider: 'p', reasoning: false }],
+  })
   expect(call).toHaveBeenCalledWith('machine.models', {})
   connected = undefined
   await expect(reads.models('missing')).rejects.toThrow('Not available')
+})
+it('carries the Host pi’s defaults and ignores a malformed field without losing the models', async () => {
+  const models = [{ id: 'm', name: 'Model', provider: 'p', reasoning: false }]
+  const reply = (defaults: unknown) =>
+    call.mockResolvedValueOnce({
+      type: 'result',
+      id: 'catalogue',
+      ok: true,
+      data: { models, source: 'pi', defaults },
+    })
+  const defaults = { model: { provider: 'p', id: 'm' }, thinkingLevel: 'high' }
+  reply(defaults)
+  expect(await reads.models('host')).toEqual({ models, defaults })
+  for (const bad of [
+    'p/m',
+    { model: { provider: 'p', id: 'm', path: '/private' } },
+    { model: { provider: 'p', id: 'm' }, theme: 'dark' },
+    { thinkingLevel: 'extreme' },
+  ]) {
+    reply(bad)
+    expect(await reads.models('host')).toEqual({ models })
+  }
 })
 it('reads a repository’s commands through the same allowlist and parser', async () => {
   const command = { name: 'deploy', source: 'skill', secret: 'x' }

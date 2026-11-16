@@ -53,6 +53,9 @@ const buildHostFixture = createHostFixtureBuilder({
  */
 export const REMOTE_TEST_TIMEOUT = process.env.CI ? 120_000 : 25_000
 
+/** The Host pi's own default: a new bee1 lane starts on HOST_B_ONLY Reasoner by this rule. */
+const HOST_PI_DEFAULTS = { defaultProvider: 'anthropic', defaultModel: 'host-reasoner' }
+
 export async function remoteHostFixture(
   options: { allowRepositoryChanges?: boolean; claude?: boolean; native?: boolean } = {},
 ) {
@@ -327,11 +330,7 @@ export async function remoteHostFixture(
       join(agent, 'skills', 'host-only', 'SKILL.md'),
       '---\nname: host-only\ndescription: HOST_A_ONLY fixture\n---\nHOST_A_ONLY skill\n',
     )
-    await writeFile(
-      join(agent, 'settings.json'),
-      JSON.stringify({ defaultProvider: 'fake', defaultModel: 'fake-model' }),
-      { mode: 0o600 },
-    )
+    await writeFile(join(agent, 'settings.json'), JSON.stringify(HOST_PI_DEFAULTS), { mode: 0o600 })
     const installClaudeProvider = async () => {
       const provider = join(agent, 'npm/node_modules/@saccolabs/pi-claude-cli')
       await mkdir(provider, { recursive: true })
@@ -341,11 +340,7 @@ export async function remoteHostFixture(
       )
       await writeFile(
         join(agent, 'settings.json'),
-        JSON.stringify({
-          defaultProvider: 'fake',
-          defaultModel: 'fake-model',
-          packages: ['npm:@saccolabs/pi-claude-cli'],
-        }),
+        JSON.stringify({ ...HOST_PI_DEFAULTS, packages: ['npm:@saccolabs/pi-claude-cli'] }),
         { mode: 0o600 },
       )
     }

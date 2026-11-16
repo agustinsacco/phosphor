@@ -32,6 +32,7 @@ let removed = false
 let active = true
 let cwd: string
 let payload: string | undefined
+let piEnv: Record<string, string>
 const laneId = randomUUID()
 const model = { id: 'model', name: 'Model', provider: 'provider', reasoning: true }
 const command = (path: string, scope = 'user') => ({
@@ -71,6 +72,7 @@ beforeEach(async () => {
   removed = false
   active = true
   payload = undefined
+  piEnv = {}
   const script = join(root, 'pi.cjs')
   await writeFile(
     script,
@@ -108,6 +110,7 @@ beforeEach(async () => {
           launch: { binaryPath: process.execPath, prefixArgs: [script], version: '1' },
           environment: {
             env: {
+              ...piEnv,
               COMMANDS: JSON.stringify(commands),
               MODELS: JSON.stringify(models),
               ...(payload ? { PAYLOAD: join(root, 'payload') } : {}),
@@ -153,6 +156,56 @@ describe('createSkillsFeature', () => {
     })
     for (const params of [{ binaryPath: '/bin/sh' }, { env: {} }, { laneId }])
       expect(await feature.call('machine.models', params)).toEqual(error('bad-request'))
+  })
+  it('answers the Host pi’s default model and thinking level, and no other setting', async () => {
+    const agentDir = join(root, '.pi', 'agent')
+    await mkdir(agentDir, { recursive: true })
+    await writeFile(
+      join(agentDir, 'settings.json'),
+      JSON.stringify({
+        defaultProvider: 'provider',
+        defaultModel: 'model',
+        defaultThinkingLevel: 'high',
+        theme: 'private-theme',
+        packages: ['npm:private-package'],
+        compaction: { enabled: false },
+        apiKey: 'sk-private',
+      }),
+    )
+    const reply = await feature.call('machine.models', {})
+    expect(reply).toEqual({
+      ok: true,
+      data: {
+        models: [model],
+        source: 'pi',
+        defaults: { model: { provider: 'provider', id: 'model' }, thinkingLevel: 'high' },
+      },
+    })
+    expect(JSON.stringify(reply)).not.toMatch(/private|compaction/)
+  })
+  it('reads the defaults from the agent folder pi’s environment names', async () => {
+    const agentDir = join(root, 'custom-agent')
+    piEnv = { PI_CODING_AGENT_DIR: agentDir }
+    await mkdir(agentDir)
+    await writeFile(join(agentDir, 'settings.json'), '{"defaultThinkingLevel":"low"}')
+    expect(await feature.call('machine.models', {})).toMatchObject({
+      data: { defaults: { thinkingLevel: 'low' } },
+    })
+  })
+  it('omits the defaults when pi sets none or its settings are unreadable', async () => {
+    const agentDir = join(root, '.pi', 'agent')
+    await mkdir(agentDir, { recursive: true })
+    const settings = join(agentDir, 'settings.json')
+    const plain = { ok: true, data: { models: [model], source: 'pi' } }
+    await writeFile(settings, JSON.stringify({ theme: 'dark', defaultModel: 'model' }))
+    expect(await feature.call('machine.models', {})).toEqual(plain)
+    await writeFile(settings, '{"defaultProvider":"provider",')
+    expect(await feature.call('machine.models', {})).toEqual(plain)
+    await rm(settings)
+    const elsewhere = join(root, 'elsewhere.json')
+    await writeFile(elsewhere, '{"defaultProvider":"provider","defaultModel":"model"}')
+    await symlink(elsewhere, settings)
+    expect(await feature.call('machine.models', {})).toEqual(plain)
   })
   it('lists commands in a configured repository, else the home, and never a caller path', async () => {
     const projected = {

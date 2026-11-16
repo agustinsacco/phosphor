@@ -10,6 +10,8 @@ import { mockSettingsRead, mockSettingsPatch } from '@/dev/mockMachineSettings'
 import { promptChoice } from '@/stores/prompt'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
+import { useRemoteModelPicks } from '@/stores/remoteModelPicks'
+import { useRemoteModel } from '@/features/machines/useRemoteModel'
 import { COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 vi.mock('@/stores/prompt', () => ({
   promptChoice: vi.fn(async () => undefined),
@@ -39,9 +41,11 @@ beforeEach(() => {
     if (channel === 'hosts:settingsRead') return mockSettingsRead(hostId, section, repositoryId)
     if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
     if (channel === 'hosts:models')
-      return [
-        { id: 'claude-sonnet-4-5', name: 'Host model', provider: 'anthropic', reasoning: true },
-      ]
+      return {
+        models: [
+          { id: 'claude-sonnet-4-5', name: 'Host model', provider: 'anthropic', reasoning: true },
+        ],
+      }
     if (channel === 'hosts:providers') return []
     return undefined
   })
@@ -187,7 +191,9 @@ it('recovers a failed Host model catalogue without borrowing local models', asyn
 })
 it('saves thinking and agent behavior on the Host even if its model is absent from the catalogue', async () => {
   const normal = invoke.getMockImplementation()!
-  invoke.mockImplementation(async (...args) => (args[0] === 'hosts:models' ? [] : normal(...args)))
+  invoke.mockImplementation(async (...args) =>
+    args[0] === 'hosts:models' ? { models: [] } : normal(...args),
+  )
   await render('agent')
   // The demo Host keeps its state between tests: pick a level no other test saves.
   await act(async () => select('Default thinking level', 'low'))
@@ -199,6 +205,47 @@ it('saves thinking and agent behavior on the Host even if its model is absent fr
   expect(promptChoice).not.toHaveBeenCalled()
   expect(container.textContent).not.toContain('Review agent behavior')
   expect(invoke.mock.calls.every(([channel]) => channel.startsWith('hosts:'))).toBe(true)
+})
+it('a saved machine-wide model and thinking default is what the next New lane starts on', async () => {
+  const opus = { id: 'claude-opus-5', name: 'Host opus', provider: 'anthropic', reasoning: true }
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (...args) => {
+    if (args[0] !== 'hosts:models') return normal(...args)
+    // As a Host answers: the defaults its pi's settings hold at the time of the read.
+    const agent = mockSettingsRead(machine.id, 'agent').agent!
+    const listed = (await normal(...args)) as { models: unknown[] }
+    return {
+      models: [...listed.models, opus],
+      defaults: {
+        model: { provider: agent.defaultProvider!, id: agent.defaultModel! },
+        thinkingLevel: agent.defaultThinkingLevel,
+      },
+    }
+  })
+  useRemoteModelPicks.setState({ last: {}, thinking: {} })
+  await render('agent')
+  const model = [...container.querySelectorAll('select')].find((s) =>
+    [...s.options].some((o) => o.value === JSON.stringify(['anthropic', opus.id])),
+  )!
+  await act(async () => {
+    model.value = JSON.stringify(['anthropic', opus.id])
+    model.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await act(async () => select('Default thinking level', 'minimal'))
+  expect(patches().map(([, , patch]) => patch.change.patch)).toEqual([
+    { defaultProvider: 'anthropic', defaultModel: opus.id },
+    { defaultThinkingLevel: 'minimal' },
+  ])
+  act(() => root.unmount())
+  root = createRoot(container)
+  function NewLane() {
+    const { model, thinking, explanation } = useRemoteModel(machine.id)
+    return <p>{`${model?.id}|${thinking}|${explanation}`}</p>
+  }
+  await act(async () => root.render(<NewLane />))
+  expect(container.textContent).toBe(`${opus.id}|minimal|Using this Host’s default model.`)
+  // The save's own answer updated the catalogue: no second read of the Host's models.
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:models')).toHaveLength(1)
 })
 it('keeps older Host model defaults usable without offering unsupported behavior edits', async () => {
   const normal = invoke.getMockImplementation()!

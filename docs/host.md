@@ -1713,7 +1713,13 @@ batched over 200 ms; a failed read keeps the last answer.
 
 The `skills.read` feature answers `machine.models` with the Host pi's model
 catalogue and `machine.providers` with provider names and readiness only. It
-never returns credentials or provider diagnostic text. Probes use the Host's
+never returns credentials or provider diagnostic text. The models answer also
+carries `defaults {model?: {provider, id}, thinkingLevel?}`: the
+`defaultProvider` + `defaultModel` pair and `defaultThinkingLevel` from the
+global `settings.json` in the agent folder pi's environment names, read under
+the Host's file policy. Nothing else from the settings crosses. A Host that sets
+none, or whose settings file it refuses (malformed, a link, oversized), omits the
+field and still answers the catalogue. Probes use the Host's
 validated pi binary and configured environment, not call parameters.
 `machine.commands {repositoryId?}` answers pi's `get_commands` run in that
 configured repository (its project skills, prompts and extensions included), or

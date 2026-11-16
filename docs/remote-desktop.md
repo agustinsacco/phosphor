@@ -479,9 +479,15 @@ The home composer follows the sidebar machine selection (All machines uses This
 Mac). A picker override lasts until the next sidebar selection change. This target
 is window-local renderer state, never persisted. Host-targeted folder, model and
 thinking chips use that machine's repositories and model catalogue.
-The branch choice follows the isolation rule above. The model prefers the last usable choice on that Host, then a usable Desktop default,
-then the first model of the first signed-in provider, then the first other usable
-model. The effective choice is visible.
+The branch choice follows the isolation rule above. The model prefers the last
+usable choice on that Host, then the Host pi's own usable default (the
+`defaults` its `machine.models` answer carries), then a usable Desktop default
+(This Mac's pi settings), then the first model of the first signed-in provider,
+then the first other usable model. A default the Host's catalogue lacks or blocks
+falls through. The browser applies the same order without the Desktop default
+(`features/machines/remoteModel.ts`). The thinking level follows the same order,
+clamped to the model. The effective choice is visible, and the chip's tooltip
+names the rule that chose it.
 
 Host lanes start from the same composer as This Mac (`features/home/StartComposer.tsx`):
 the machine, repository and isolation row above a two-row input, **Start lane**,
@@ -513,8 +519,11 @@ in the Host's environment, stays usable because pi listed it.
 
 Thinking is remembered per Host in this window, capped at 64 Hosts. Sign-out or
 remote disable clears it, and restart resets it; it never writes agent settings.
-Without a remembered choice it starts from This Mac's valid default thinking
-level, or `off` when unavailable, clamped to the selected model's supported levels.
+Without a remembered choice it starts from the Host pi's default thinking level,
+then (on Desktop) This Mac's valid default, or `off` when neither is set, clamped
+to the selected model's supported levels. Saving the Host's machine-wide default
+model or thinking level in its Agent settings updates what the next new lane
+starts on, without another catalogue read.
 A successful thinking change in a live Host lane updates that Host's remembered
 choice.
 

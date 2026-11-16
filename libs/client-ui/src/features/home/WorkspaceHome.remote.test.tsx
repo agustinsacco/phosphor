@@ -106,14 +106,16 @@ beforeEach(() => {
   invoke = vi.fn<Invoke>().mockImplementation(async (channel, hostId) => {
     if (channel === 'hosts:skills') return { skills: [], probe: 'rpc', userRoot: 'opaque' }
     if (channel === 'hosts:models')
-      return [
-        {
-          id: 'model',
-          provider: 'p',
-          name: hostId === other ? 'Other model' : 'Home model',
-          reasoning: false,
-        },
-      ]
+      return {
+        models: [
+          {
+            id: 'model',
+            provider: 'p',
+            name: hostId === other ? 'Other model' : 'Home model',
+            reasoning: false,
+          },
+        ],
+      }
     if (channel === 'hosts:providers') return [{ id: 'p', name: 'Provider', status: 'ready' }]
     if (channel === 'pi:agentSettings') return {}
     if (channel === 'hosts:snapshot') return useRemoteLanesStore.getState().hosts

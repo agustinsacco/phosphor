@@ -249,6 +249,21 @@ This is a run summary, not a durable command receipt or execution acknowledgemen
 outcome matching and timeout behavior. Legacy Claude marker recognition is shared
 with Desktop through `libs/shared/src/external-tool-marker.ts`.
 
+## Machine model defaults
+
+`machine.models` (under `skills.read`) answers `{models, source, defaults?}`.
+The additive `defaults {model?: {provider, id}, thinkingLevel?}` is the Host pi's
+own new-session default ([host.md](host.md#machine-features)), so a client reads
+it without `machine.configure`; nothing else from the Host's settings crosses.
+It needs no `ready` marker: it rides an answer clients already read, so an older
+Host omits it and an older client ignores it. Clients parse it strictly
+(`libs/shared/src/host-protocol-machine/model-defaults.ts`: only those keys, ids
+bounded as a catalogue model's, a known thinking level) and drop a malformed one
+without losing the catalogue. Desktop and the browser receive it through
+`hosts:models` (`libs/host-client/src/machine-reads.ts`), and a new Host lane
+starts on it when it is usable
+([lane creation](remote-desktop.md#machine-context-and-lane-creation)).
+
 ## Host grants
 
 `libs/shared/src/host-grant.ts` defines

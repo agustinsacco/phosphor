@@ -13,7 +13,7 @@ it('uses only Host models for a Host routine, refusing a down Host instead of lo
     channel === 'hosts:skills'
       ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
       : channel === 'hosts:models'
-        ? [{ id: 'host-model', name: 'Host model', provider: 'host', reasoning: false }]
+        ? { models: [{ id: 'host-model', name: 'Host model', provider: 'host', reasoning: false }] }
         : [{ id: 'host', name: 'Host', status: 'ready' }],
   )
   vi.stubGlobal('phosphor', { invoke })
@@ -194,7 +194,11 @@ it('a Host routine whose model read fails says the models could not be read', as
 it('a Host routine whose model read lists no models says none is signed in, not that the read failed', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const invoke = vi.fn(async (channel: string) =>
-    channel === 'hosts:skills' ? { skills: [], probe: 'rpc', userRoot: 'opaque' } : [],
+    channel === 'hosts:skills'
+      ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
+      : channel === 'hosts:models'
+        ? { models: [] }
+        : [],
   )
   vi.stubGlobal('phosphor', { invoke })
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)

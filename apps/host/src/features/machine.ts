@@ -2,13 +2,18 @@ import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { inspectClaude } from '../machine/claude'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { hostname } from 'node:os'
+import { join } from 'node:path'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
+import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
+import { HOST_FILE_POLICY, settingsFile } from '@phosphor/session-runtime/pi/settings-file'
 import {
   MACHINE_COMMANDS_LIMIT,
+  machineModelDefaults,
   machineRecord,
   parseMachineCommands,
   parseMachineModels,
   parseMachineProviders,
+  type MachineModelDefaults,
 } from '@phosphor/shared/host-protocol-machine'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import { inspectHost } from '../commands/doctor'
@@ -231,5 +236,24 @@ export async function machineCall(
   if (Array.isArray(raw) && raw.length > 1000) throw new FeatureFailure('too-large')
   const models = parseMachineModels(raw)
   if (!models) throw new FeatureFailure('internal')
-  return { ok: true, data: { models, source: 'pi' } }
+  const defaults = piModelDefaults(inspection.pi, context.home)
+  return { ok: true, data: { models, source: 'pi', ...(defaults ? { defaults } : {}) } }
+}
+
+/**
+ * The defaults pi starts a new session on, from the global settings in the agent
+ * folder its environment names. Only the projected ids and level leave this
+ * function. Settings the Host refuses to read (malformed, a link, oversized)
+ * have no defaults; they never fail the catalogue.
+ */
+function piModelDefaults(
+  pi: NonNullable<HostInspection['pi']>,
+  home: string,
+): MachineModelDefaults | undefined {
+  try {
+    const path = join(piAgentDir(pi.environment.env, home), 'settings.json')
+    return machineModelDefaults(settingsFile(path, HOST_FILE_POLICY).raw)
+  } catch {
+    return undefined
+  }
 }
