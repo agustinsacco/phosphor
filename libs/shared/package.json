@@ -312,6 +312,10 @@
       "types": "./src/host-protocol-pr-results.ts",
       "default": "./src/host-protocol-pr-results.ts"
     },
+    "./host-protocol-web-push": {
+      "types": "./src/host-protocol-web-push.ts",
+      "default": "./src/host-protocol-web-push.ts"
+    },
     "./host-protocol-file-bytes": {
       "types": "./src/host-protocol-file-bytes.ts",
       "default": "./src/host-protocol-file-bytes.ts"

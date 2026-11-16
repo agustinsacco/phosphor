@@ -1,7 +1,8 @@
 import type { HostAttention } from './ipc'
 import type { GhPrRef } from './models'
 import { isPrRef, prKey } from './github-pr-refs'
-import { receiptSummary } from './lane-receipt'
+import { receiptSummary, type LaneReceipt, type LaneReceiptFacts } from './lane-receipt'
+import type { WebPushPayload } from './host-protocol-web-push'
 
 /** Shared with Web Push: opaque IDs only; PR focus opens the lane's inspector, never a URL/path. */
 export interface NotificationRoute {
@@ -36,8 +37,12 @@ export function parseNotificationRoute(value: unknown): NotificationRoute | unde
   }
 }
 
+type NoticeAttention = Pick<HostAttention, 'hostId' | 'laneId' | 'kind' | 'title'> & {
+  receipt?: LaneReceipt | LaneReceiptFacts
+}
+
 /** Receipt facts only: reply excerpts, repositories, branches and paths stay off the lock screen. */
-export function attentionNotice(machine: string, attention: HostAttention): NativeNotice {
+export function attentionNotice(machine: string, attention: NoticeAttention): NativeNotice {
   return {
     title: `${machine} · ${attention.title}`,
     body: attention.receipt
@@ -49,6 +54,11 @@ export function attentionNotice(machine: string, attention: HostAttention): Nati
           : attention.kind,
     route: { hostId: attention.hostId, laneId: attention.laneId },
   }
+}
+
+/** A Host's Web Push message, worded and routed exactly as the page's own attention notice. */
+export function pushNotice(payload: WebPushPayload): NativeNotice {
+  return attentionNotice(payload.machine, payload)
 }
 
 /** One payload constructor for page delivery and service-worker/Web Push delivery. */

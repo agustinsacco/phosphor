@@ -83,6 +83,11 @@ export type HostFrame =
        * `github.prDetail`) and sends lane summaries' `pullRequests`.
        */
       readonly prStatus?: boolean
+      /**
+       * Additive support marker: the Host sends Web Push (`notifications.subscribe`). The value
+       * is its VAPID public key, the `applicationServerKey` a browser subscribes with.
+       */
+      readonly webPushKey?: string
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }

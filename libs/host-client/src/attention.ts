@@ -1,11 +1,8 @@
-import { parseLaneReceipt, type LaneReceipt } from '@phosphor/shared/lane-receipt'
+import { receiptExpected, receiptForEvent } from '@phosphor/shared/lane-receipt'
 import type { AttentionEvent } from '@phosphor/shared/host-protocol'
 import type { HostAttention } from '@phosphor/shared/ipc'
 
-/** Only a settled run or a finished routine has a receipt worth waiting for. */
-export function receiptExpected(event: AttentionEvent): boolean {
-  return event.kind === 'finished' || event.kind === 'failed' || event.kind === 'routine-finished'
-}
+export { receiptExpected, receiptForEvent }
 
 export function makeAttention(hostId: string, event: AttentionEvent): HostAttention {
   const kind = event.kind.startsWith('routine-') ? 'routine' : event.kind
@@ -16,18 +13,6 @@ export function makeAttention(hostId: string, event: AttentionEvent): HostAttent
     title: event.title ?? 'Untitled lane',
     at: event.at,
   }
-}
-
-/** The receipt of the run this event announces: settled within 30s of it, with a matching outcome. */
-export function receiptForEvent(event: AttentionEvent, value: unknown): LaneReceipt | null {
-  const parsed = parseLaneReceipt(value)
-  return receiptExpected(event) &&
-    parsed &&
-    parsed.settledAt !== null &&
-    Math.abs(parsed.settledAt - Date.parse(event.at)) <= 30_000 &&
-    (event.kind === 'failed') === (parsed.outcome === 'error')
-    ? parsed
-    : null
 }
 
 /** A receipt read that has not answered in two seconds is not waited for. */
