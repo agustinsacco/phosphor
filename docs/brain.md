@@ -286,10 +286,16 @@ graph is always visible; there is no hide-graph control. The explorer trail surv
   the bottom lists only present kinds, with the filter’s plural words (People, Systems), and
   shares its theme-token colours with the column's kind dots. The keyboard focus badge sits
   inside the canvas, separate from both the legend and selection controls.
-  Node labels keep a twelve-CSS-pixel height as the camera zooms. Directed links show
-  predicate words on selection or hover; hovering loads the supporting memory and leaving the
-  link or canvas clears it. Reduced
-  motion uses instantaneous camera moves.
+  Node labels keep a twelve-CSS-pixel height as the camera zooms and draw over the spheres in
+  front of them. On every frame a label that would cover a more important one is hidden: a
+  selected or hovered label always shows, then lit nodes, link words and the rest by size.
+  Labels take no pointer hits; nodes and links do. Directed links show predicate words on
+  selection or hover; hovering a link loads its supporting memory and leaving the link or
+  canvas clears it. A hover counts only while a pointer is on the canvas. On an unselected
+  graph it lights the hovered node and its neighbours; with a selection it lights only the
+  hovered node and never dims the selection. Groups with no link between them stop repelling
+  at a fixed range, so they stay in view instead of drifting apart. Reduced motion uses
+  instantaneous camera moves.
 - **Find route to…**: up to three shortest supported routes between two entities, at most four
   hops, each hop with its memory, highlighted in the graph (`brain:path`).
 - **Merge into…**: folds one entity into another after a confirmation. Names, keys, links and
