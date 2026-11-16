@@ -10,7 +10,7 @@ import {
   type Platform,
 } from '@/platform/Platform'
 import { ContextMenuHost } from './ContextMenu'
-import { ImageButton, ImageLightboxActions } from './ImageActions'
+import { ImageButton, ImageLightboxActions, ImageLightboxFrame } from './ImageActions'
 
 let root: Root
 let container: HTMLDivElement
@@ -93,3 +93,37 @@ it.each([DESKTOP_PLATFORM, WIDE_BROWSER_PLATFORM])(
     if (platform.nativeImageClipboard) expect(buttons()).toHaveLength(1)
   },
 )
+
+it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM])(
+  'groups browser lightbox actions after the image in normal flow ($formFactor)',
+  (platform) => {
+    act(() =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <ImageLightboxFrame onCopy={onCopy} onSave={onSave}>
+            <img alt="Full image" />
+          </ImageLightboxFrame>
+        </PlatformProvider>,
+      ),
+    )
+    const image = container.querySelector('img')!
+    const actions = container.querySelector('[role="group"][aria-label="Image actions"]')!
+    expect(image.nextElementSibling).toBe(actions)
+    expect(actions.className).not.toContain('absolute')
+    expect(image.parentElement!.className).toContain('flex-col')
+  },
+)
+
+it('keeps Desktop lightbox markup image-only', () => {
+  act(() =>
+    root.render(
+      <PlatformProvider value={DESKTOP_PLATFORM}>
+        <ImageLightboxFrame onCopy={onCopy} onSave={onSave}>
+          <img alt="Full image" />
+        </ImageLightboxFrame>
+      </PlatformProvider>,
+    ),
+  )
+  expect(container.children).toHaveLength(1)
+  expect(container.firstElementChild?.tagName).toBe('IMG')
+})

@@ -136,7 +136,9 @@ it('discards a stroke when its pointer capture is lost and accepts a fresh point
     pointerType: { value: 'touch' },
     isPrimary: { value: true },
   })
-  act(() => document.querySelector('canvas')!.dispatchEvent(down))
+  act(() => {
+    document.querySelector('canvas')!.dispatchEvent(down)
+  })
   pointer('pointermove', 150, 150, 3)
   pointer('pointerup', 150, 150, 3)
   expect(scene().shapes).toEqual([

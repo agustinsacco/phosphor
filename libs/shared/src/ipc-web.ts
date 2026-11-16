@@ -177,10 +177,10 @@ export const IPC_WEB = {
   'clipboard:writeImage': browser,
   'clipboard:readImage': browser,
   'clipboard:writeFiles': unsupported(
-    'Native file and image clipboard integration is unavailable in the browser.',
+    'Native file clipboard integration is unavailable in the browser.',
   ),
   'clipboard:readFiles': unsupported(
-    'Native file and image clipboard integration is unavailable in the browser.',
+    'Native file clipboard integration is unavailable in the browser.',
   ),
   'writing:setPrefs': unsupported(
     'Native writing integration and prompt learning are unavailable in the browser.',

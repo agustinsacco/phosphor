@@ -113,8 +113,8 @@ its Session options and Settings match on Desktop, in a wide browser and on a
 phone. A shell passes layout down instead: the phone's lane header carries the
 lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
 as Machine files, is the `ListDetail` primitive, one at a time on a phone.
-`localLanes`, `nativeFiles`, `fileEditing`, `splitPanes` and `localBrain` remain false in the
-browser at every width. Modal/menu placement adapts without enabling native
+`localLanes`, `nativeFiles`, `nativeImageClipboard`, `fileEditing`, `splitPanes` and
+`localBrain` remain false in the browser at every width. Modal/menu placement adapts without enabling native
 editors or pane controls. Brain has no nav entry there; its deep link's
 unavailable page and the fixed `brain:*` IPC refusal apply at both widths; no local memory service is invoked. Desktop retains
 its native sidebar and local workbench.
@@ -163,6 +163,9 @@ Wide browsers keep right-click copy. Phone images use a long-press sheet without
 right-click hints. The browser lightbox and that sheet offer Copy image where
 the API exists (permission is still browser-controlled) and Save image, an
 original-byte download served as an octet stream, never navigated to as content.
+The lightbox reserves space below the image for those actions, so they never
+cover image content. Expanded-browser attachment Remove controls keep their
+visible hit area; phone Remove controls sit beside the annotation thumbnail.
 The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
 and adds folders under the Host's home over the same Host connection

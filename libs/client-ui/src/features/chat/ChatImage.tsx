@@ -1,4 +1,4 @@
-import { ImageButton, ImageLightboxActions } from '@/components/ImageActions'
+import { ImageButton, ImageLightboxFrame } from '@/components/ImageActions'
 import { downloadBytes } from '@phosphor/shared/download'
 import { base64ToBytes } from '@phosphor/shared/base64'
 import { useMemo, useState } from 'react'
@@ -120,17 +120,18 @@ export function ImageLightbox({
 }): React.JSX.Element {
   return (
     <ModalOverlay onClose={onClose} backdrop="photo">
-      <ImageLightboxActions onCopy={() => void copy(image)} onSave={() => saveChatImage(image)} />
-      <img
-        src={imageUrl(image)}
-        alt="Attached image, full size"
-        onContextMenu={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          void copy(image)
-        }}
-        className="max-h-[90vh] max-w-[92vw] cursor-zoom-out rounded-lg object-contain shadow-2xl"
-      />
+      <ImageLightboxFrame onCopy={() => void copy(image)} onSave={() => saveChatImage(image)}>
+        <img
+          src={imageUrl(image)}
+          alt="Attached image, full size"
+          onContextMenu={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void copy(image)
+          }}
+          className="max-h-[90vh] max-w-[92vw] cursor-zoom-out rounded-lg object-contain shadow-2xl"
+        />
+      </ImageLightboxFrame>
     </ModalOverlay>
   )
 }

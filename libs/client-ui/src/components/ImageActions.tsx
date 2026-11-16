@@ -46,12 +46,27 @@ export function ImageButton({
   )
 }
 
+/** Reserve room for browser actions without changing Desktop's image-only layout. */
+export function ImageLightboxFrame({
+  children,
+  onCopy,
+  onSave,
+}: ImageActions & { children: React.ReactNode }): React.JSX.Element {
+  if (usePlatform().nativeImageClipboard) return <>{children}</>
+  return (
+    <div className="flex h-[92dvh] w-[92vw] flex-col items-center gap-3 pb-[env(safe-area-inset-bottom)] [&>img]:min-h-0 [&>img]:flex-1">
+      {children}
+      <ImageLightboxActions onCopy={onCopy} onSave={onSave} />
+    </div>
+  )
+}
+
 /** Browser-local copy/download; Desktop keeps its existing lightbox presentation. */
 export function ImageLightboxActions({ onCopy, onSave }: ImageActions): React.JSX.Element | null {
   const platform = usePlatform()
   if (platform.nativeImageClipboard) return null
   return (
-    <div className="absolute bottom-4 left-0 flex w-full justify-center gap-2 pb-[env(safe-area-inset-bottom)]">
+    <div role="group" aria-label="Image actions" className="flex shrink-0 justify-center gap-2">
       {canWriteBrowserImage() && (
         <TooltipButton
           onClick={onCopy}

@@ -432,6 +432,10 @@ html[data-form-factor='compact'] {
   max-height: min(65dvh, 500px, calc(var(--compact-height, 100dvh) - 32px));
   overflow-y: auto;
 }
+/* Expanded Remove is hover-only: its slop must not steal thumbnail annotation taps. */
+html:not([data-form-factor='compact']) .attachment-remove::before {
+  content: none;
+}
 /* Keep a touch Remove beside the image, never covering its annotate target. */
 [data-form-factor='compact'] [data-testid='attachment-chips'] button {
   display: flex;

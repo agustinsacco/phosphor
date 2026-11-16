@@ -358,6 +358,13 @@ export function ImageEditor({
     apply(result)
   }
 
+  const cancelPointer = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+    if (event.pointerId !== pointerId.current) return
+    pointerId.current = null
+    gesture.current = null
+    setLive(null)
+  }
+
   const onDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>): void => {
     if (tool !== 'select') return
     const hit = shapeAt(toImagePoint(event))
@@ -557,12 +564,8 @@ export function ImageEditor({
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
-                onPointerCancel={(event) => {
-                  if (event.pointerId !== pointerId.current) return
-                  pointerId.current = null
-                  gesture.current = null
-                  setLive(null)
-                }}
+                onPointerCancel={cancelPointer}
+                onLostPointerCapture={cancelPointer}
                 onDoubleClick={onDoubleClick}
                 // Keeps focus on the editor (and on text being typed): a
                 // mousedown here would otherwise move it before our handler.
