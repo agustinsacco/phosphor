@@ -34,6 +34,16 @@ async function openFiles(page: Page, origin: string, control: boolean) {
 function fileRow(page: Page, path: string) {
   return page.locator(`[data-testid="file-explorer"] [data-path$="/${path}"]`)
 }
+/**
+ * The editor's Mod key, read as Monaco reads it (`CtrlCmd`): Meta where the browser's user agent
+ * names a Mac, else Control, so the spec presses what a user of that browser presses. Not
+ * Playwright's ControlOrMeta, which follows the machine running the test: Playwright's WebKit
+ * reports a Mac Safari user agent on every OS, so on Linux that pressed Control+S into an
+ * editor bound to Cmd+S. A real browser's user agent names its own OS.
+ */
+async function modKey(page: Page): Promise<'Meta' | 'Control'> {
+  return (await page.evaluate(() => navigator.userAgent.includes('Macintosh'))) ? 'Meta' : 'Control'
+}
 /** Replace the open file's text: a phone's plain field after Edit, Monaco when wide. */
 async function edit(page: Page, content: string) {
   if (phone(page)) {
@@ -46,13 +56,18 @@ async function edit(page: Page, content: string) {
   const input = page.locator('.monaco-editor [role="textbox"]').first()
   await expect(input).toBeEditable()
   await input.focus()
-  await input.press('ControlOrMeta+A')
+  await input.press(`${await modKey(page)}+KeyA`)
   await page.keyboard.insertText(content)
-  await expect(page.locator('.monaco-editor .view-lines').first()).toContainText(content)
+  // The whole text: a missed select-all leaves the old text after the new.
+  await expect(page.locator('.monaco-editor .view-lines').first()).toHaveText(content)
 }
 async function save(page: Page) {
   if (phone(page)) await page.getByRole('button', { name: 'Save', exact: true }).click()
-  else await page.locator('.monaco-editor [role="textbox"]').first().press('ControlOrMeta+KeyS')
+  else
+    await page
+      .locator('.monaco-editor [role="textbox"]')
+      .first()
+      .press(`${await modKey(page)}+KeyS`)
 }
 /**
  * A phone's tap lands on the control anywhere in a 44px band across its middle, through its
