@@ -228,8 +228,8 @@ describe('a Host lane', () => {
       [
         'app:notify',
         {
-          title: '#70 unit failed',
-          body: 'Studio · Host lane',
+          title: '#70 Checks failed',
+          body: 'Studio',
           key: `pr:${prKey(prRef(70))}`,
           route: { hostId: MOCK_HOST_ID, laneId: HOST_LANE, pr: prRef(70) },
         },
