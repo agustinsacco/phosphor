@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import { useBrain, useBrainSync } from '@/features/brain/useBrain'
 import { usePlatform } from '@/platform/Platform'
 import type { GlobalPage } from '@/stores/layout'
@@ -37,7 +38,7 @@ export function PageLinks({
               page === 'brain' && reviews > 0 ? (
                 <span
                   className="text-accent ml-auto text-xs tabular-nums"
-                  aria-label={`${reviews} lanes to review`}
+                  aria-label={`${formatCount(reviews, 'lane')} to review`}
                 >
                   {reviews}
                 </span>

@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BRAIN_PREDICATE_LABELS, type BrainLink, type BrainConnectionGroup } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
@@ -33,7 +34,9 @@ export function BrainEntity({
           <h2 className="text-xl font-semibold">{data.entity.label}</h2>
           <Tag>{data.entity.kind}</Tag>
         </div>
-        <p className="text-text-tertiary text-sm">{data.entity.memories} memories</p>
+        <p className="text-text-tertiary text-sm">
+          {formatCount(data.entity.memories, 'memory', 'memories')}
+        </p>
       </header>
       <p>{data.entity.description}</p>
       {data.entity.aliases.length > 0 && <p>Also known as: {data.entity.aliases.join(', ')}</p>}

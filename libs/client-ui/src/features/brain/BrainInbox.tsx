@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import clsx from 'clsx'
 import type { BrainJob } from '@shared/brain'
 import { TooltipButton } from '@/components/Tooltip'
@@ -70,9 +71,9 @@ function LaneRow({
   const model = useBrainModelName(job.model)
   const read = job.state === 'done' || job.state === 'empty'
   const line = read
-    ? `${memories ? `${memories} memories` : 'Nothing kept'} · ${model} · ${job.finishedAt === null ? 'Finished' : relativeTime(job.finishedAt)}`
+    ? `${memories ? formatCount(memories, 'memory', 'memories') : 'Nothing kept'} · ${model} · ${job.finishedAt === null ? 'Finished' : relativeTime(job.finishedAt)}`
     : job.state === 'review'
-      ? `${job.memories} memories · ${model}`
+      ? `${formatCount(job.memories, 'memory', 'memories')} · ${model}`
       : jobLine(job, ahead, now)
   return (
     <TooltipButton

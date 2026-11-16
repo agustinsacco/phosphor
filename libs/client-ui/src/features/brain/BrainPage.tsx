@@ -24,8 +24,8 @@ export function BrainPage(): React.JSX.Element {
           Brain{' '}
           {status && (
             <span className="text-text-tertiary ml-3 text-sm font-normal">
-              {formatCount(status.counts.memories, 'memory', 'memories')} · {status.counts.entities}{' '}
-              people and things
+              {formatCount(status.counts.memories, 'memory', 'memories')} ·{' '}
+              {formatCount(status.counts.entities, 'person or thing', 'people and things')}
             </span>
           )}
         </span>

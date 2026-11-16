@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import { useState } from 'react'
 import { BRAIN_MEMORY_TYPES, type BrainProposalView } from '@shared/brain'
 import { Button, Tag } from '@/components/form'
@@ -165,16 +166,18 @@ function ReviewMemory({
     proposal.identities.find((i) => i.ref === ref)?.label ?? ref
   return (
     <article className="min-w-0 space-y-2 px-4 py-3">
-      <label className="flex items-start gap-2">
-        <input
-          className="mt-1 shrink-0"
-          type="checkbox"
-          checked={checked}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        <span className="min-w-0">{memory.summary}</span>
-      </label>
-      <Tag>{ACTION[memory.action]}</Tag>
+      <div className="flex items-start gap-2">
+        <label className="flex min-w-0 flex-1 items-start gap-2">
+          <input
+            className="mt-1 shrink-0"
+            type="checkbox"
+            checked={checked}
+            onChange={(event) => onChange(event.target.checked)}
+          />
+          <span className="min-w-0">{memory.summary}</span>
+        </label>
+        <Tag>{ACTION[memory.action]}</Tag>
+      </div>
       {memory.target && <p className="text-text-secondary text-sm">{memory.target.summary}</p>}
       <p className="text-text-tertiary text-sm">{memory.reason}</p>
       {memory.links.map((link, index) => (
@@ -186,7 +189,7 @@ function ReviewMemory({
         </div>
       ))}
       <details>
-        <TooltipSummary>{memory.quotes.length} quotes</TooltipSummary>
+        <TooltipSummary>{formatCount(memory.quotes.length, 'quote')}</TooltipSummary>
         <MemoryQuotes quotes={memory.quotes} />
       </details>
     </article>

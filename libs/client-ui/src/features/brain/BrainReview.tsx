@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { useBrainModelName } from './useBrainModelName'
 import { useCallback, useEffect, useState } from 'react'
@@ -39,7 +40,7 @@ export function BrainReview({
     if (data) setStale(false)
   }, [data])
   return (
-    <section className="min-w-0 p-3 [overflow-wrap:anywhere]">
+    <section className="flex min-h-full min-w-0 flex-col p-3 [overflow-wrap:anywhere]">
       {stale ? (
         <div role="status">
           <p>Brain changed; refreshing this review</p>
@@ -98,7 +99,7 @@ function ReviewProposal({
   }
   const confirmationsOnly = !proposal.memories.length && proposal.confirmations.length > 0
   return (
-    <section aria-label="Review memories" className="min-w-0 space-y-4">
+    <section aria-label="Review memories" className="flex min-w-0 flex-1 flex-col gap-4">
       <ReviewHeader job={proposal.job} onExtraction={onExtraction} />
       {error && <p role="alert">{error}</p>}
       {proposal.job.replaces && (
@@ -116,8 +117,8 @@ function ReviewProposal({
       {proposal.confirmations.length > 0 && (
         <details>
           <TooltipSummary>
-            {confirmationsOnly ? 'Confirms' : 'Also confirms'} {proposal.confirmations.length}{' '}
-            existing memories
+            {confirmationsOnly ? 'Confirms' : 'Also confirms'}{' '}
+            {formatCount(proposal.confirmations.length, 'existing memory', 'existing memories')}
           </TooltipSummary>
           <ReviewPage>
             {proposal.confirmations.map((m) => (
@@ -155,7 +156,7 @@ function ReviewActions({
   onReject: () => void
 }): React.JSX.Element {
   return (
-    <div className="border-border bg-bg sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t py-3">
+    <div className="border-border bg-bg sticky bottom-0 mt-auto flex flex-wrap items-center justify-end gap-2 border-t py-3">
       <p className="text-text-tertiary mr-auto text-sm">
         Nothing is searchable until you approve it.
       </p>

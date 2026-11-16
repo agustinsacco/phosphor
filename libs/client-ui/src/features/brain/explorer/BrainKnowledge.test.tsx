@@ -6,7 +6,7 @@ import { BrainKnowledge } from './BrainKnowledge'
 import { useExplorer, type ExplorerState } from './useExplorer'
 import { MockExplorer } from '../mockExplorer'
 import { useBrain } from '../useBrain'
-import { mockBrainStatus } from '../mockBrainData'
+import { mockBrainJob, mockBrainStatus } from '../mockBrainData'
 import {
   createFakePhosphor,
   installFakePhosphor,
@@ -31,7 +31,11 @@ beforeEach(() => {
   explorer = new MockExplorer()
   explorer.details[0]!.memory.jobId = 'harbor-read'
   browse.mockReset().mockImplementation((...args) => explorer.browse(...args))
-  recent.mockReset().mockImplementation((...args) => explorer.recent(...args))
+  recent
+    .mockReset()
+    .mockImplementation((...args) =>
+      explorer.recent(args[0], [mockBrainJob({ id: 'harbor-read', state: 'done' })]),
+    )
   entity.mockReset().mockImplementation((id) => explorer.entity(id))
   memory.mockReset().mockImplementation((id) => explorer.memory(id))
   connections.mockReset().mockImplementation((...args) => explorer.connections(...args))

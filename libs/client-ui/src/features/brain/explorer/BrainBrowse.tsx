@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import { useCallback, useState } from 'react'
 import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@shared/brain'
 import { Button, NeutralSegmented } from '@/components/form'
@@ -65,7 +66,7 @@ function BrowsePages({
             <span className="min-w-0">
               <span className="block font-medium">{entity.label}</span>
               <span className="text-text-tertiary text-sm">
-                {entity.kind} · {memories} memories
+                {entity.kind} · {formatCount(memories, 'memory', 'memories')}
               </span>
             </span>
           </TooltipButton>

@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import type { BrainIdentity, BrainProposalView } from '@shared/brain'
 import { Button, Segmented, Select, Tag } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
@@ -39,7 +40,10 @@ export function ReviewIdentities({
       )}
       {fresh.length > 0 && (
         <details>
-          <TooltipSummary>{fresh.length} new people and things · no decision needed</TooltipSummary>
+          <TooltipSummary>
+            {formatCount(fresh.length, 'new person or thing', 'new people and things')} · no
+            decision needed
+          </TooltipSummary>
           <div className="mt-3 space-y-3">
             {fresh.some((identity) => identity.candidates.length) && (
               <div className="border-border bg-surface rounded-lg border">

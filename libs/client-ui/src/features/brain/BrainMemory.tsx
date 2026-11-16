@@ -55,15 +55,7 @@ export function MemoryTags({ memory }: { memory: BrainMemory }): React.JSX.Eleme
   )
 }
 
-export function MemoryQuotes({
-  quotes,
-  lane,
-  sourcePath,
-}: {
-  quotes: BrainQuote[]
-  lane?: string
-  sourcePath?: string | null
-}): React.JSX.Element {
+export function MemoryQuotes({ quotes }: { quotes: BrainQuote[] }): React.JSX.Element {
   return (
     <div className="space-y-3">
       {quotes.map((quote, index) => (
@@ -76,10 +68,7 @@ export function MemoryQuotes({
             <mark className="bg-accent-soft text-text rounded-sm">{quote.quote}</mark>
             {quote.after}
           </blockquote>
-          <figcaption className="text-text-tertiary mt-2">
-            {quote.label}
-            {lane && ` · ${lane}`} {sourcePath && <OpenSource path={sourcePath} />}
-          </figcaption>
+          <figcaption className="text-text-tertiary mt-2">{quote.label}</figcaption>
         </figure>
       ))}
     </div>
@@ -130,7 +119,10 @@ export function BrainMemoryDetail({
         </TooltipButton>
       )}
       <footer className="text-text-tertiary flex items-center justify-between gap-3 text-sm">
-        <span>{memory.origin && `From ${memory.origin.title}`}</span>
+        <span>
+          {memory.origin && `From ${memory.origin.title}`}{' '}
+          {data.sourcePath && <OpenSource path={data.sourcePath} />}
+        </span>
         <TooltipButton
           className="text-danger hover:bg-danger-soft rounded-md px-2 py-1"
           disabled={saving}
@@ -177,9 +169,7 @@ function MemoryEvidence({
     const label = found?.label ?? id
     return <EntityChip label={label} kind={found?.kind} onClick={() => onFocus(id, label)} />
   }
-  const quotes = (items: BrainQuote[]): React.ReactNode => (
-    <MemoryQuotes quotes={items} lane={memory.origin?.title} sourcePath={data.sourcePath} />
-  )
+  const quotes = (items: BrainQuote[]): React.ReactNode => <MemoryQuotes quotes={items} />
   return (
     <>
       <div className="flex flex-wrap gap-2">

@@ -330,7 +330,7 @@ class MockBrain {
           args[2] as number,
         )
       case 'brain:recent':
-        return this.explorer.recent(args[0] as number)
+        return this.explorer.recent(args[0] as number, this.history.jobs)
       case 'brain:overview':
         return this.explorer.graph(null)
       case 'brain:neighbourhood':

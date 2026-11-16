@@ -7,6 +7,7 @@ import type {
   BrainEntitySummary,
   BrainEntityView,
   BrainGraph,
+  BrainJob,
   BrainMemoryDetail,
   BrainMemoryFilter,
   BrainMemoryPage,
@@ -49,20 +50,30 @@ export class MockExplorer {
       kinds: [...new Set(all.map((e) => e.kind))],
     }
   }
-  recent(limit: number): BrainRecentMemories {
+  recent(limit: number, jobs: BrainJob[] = []): BrainRecentMemories {
+    const finished = jobs
+      .filter((job) => job.state === 'done')
+      .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))
+      .slice(0, 20)
     return {
-      items: this.details
-        .map((d) => d.memory)
-        .filter((m) => m.state !== 'superseded' && m.jobId)
-        .sort((a, b) => b.recordedAt - a.recordedAt)
-        .slice(0, limit)
-        .map((m) => ({
-          id: m.id,
-          summary: m.summary,
-          type: m.type,
-          originTitle: m.origin?.title ?? null,
-          learnedAt: m.recordedAt,
-        })),
+      items: finished
+        .flatMap((job) =>
+          this.details
+            .map((d, index) => ({ memory: d.memory, index }))
+            .filter(
+              ({ memory }) =>
+                memory.jobId === job.id && ['active', 'disputed'].includes(memory.state),
+            )
+            .sort((a, b) => b.memory.recordedAt - a.memory.recordedAt || b.index - a.index)
+            .map(({ memory: m }) => ({
+              id: m.id,
+              summary: m.summary,
+              type: m.type,
+              originTitle: m.origin?.title ?? null,
+              learnedAt: m.recordedAt,
+            })),
+        )
+        .slice(0, limit),
     }
   }
   graph(centerId: string | null, hops: 1 | 2 = 1): BrainGraph {
