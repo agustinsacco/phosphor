@@ -87,4 +87,9 @@ describe('readyView', () => {
     expect(readyView({ ...ready, fileBytes: true }).fileBytes).toBe(true)
     expect(readyView(ready).fileBytes).toBe(false)
   })
+  it('reports PR tracking only when the Host says so', () => {
+    const tracking = { ...ready, prStatus: true, prTracking: true } as typeof ready
+    expect(readyView(tracking)).toMatchObject({ prStatus: true, prTracking: true })
+    expect(readyView({ ...ready, prStatus: true })).toMatchObject({ prTracking: false })
+  })
 })

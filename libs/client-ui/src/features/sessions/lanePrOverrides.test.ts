@@ -108,9 +108,14 @@ describe('setLanePrOverride', () => {
 describe('setLanePrOverride on a Host lane', () => {
   const SESSION = mockRemoteInfo.sessionId
   const KEY = remoteLaneKey(MOCK_HOST_ID, mockRemoteInfo.laneId!)
-  function hostLane(options: Parameters<typeof hostLaneSession>[0], prStatus = true): void {
+  type Markers = { prStatus: boolean; prTracking?: boolean }
+  /** The lane on a Host announcing `markers`; a current Host announces both. */
+  function hostLane(
+    options: Parameters<typeof hostLaneSession>[0],
+    markers: Markers = { prStatus: true, prTracking: true },
+  ): void {
     const { hosts, live } = hostLaneSession(options)
-    hosts[MOCK_HOST_ID]!.prStatus = prStatus
+    Object.assign(hosts[MOCK_HOST_ID]!, markers)
     useRemoteLanesStore.setState({ hosts })
     useSessionsStore.setState({ live })
   }
@@ -129,13 +134,26 @@ describe('setLanePrOverride on a Host lane', () => {
     ])
   })
 
+  const CURRENT: Markers = { prStatus: true, prTracking: true }
   it.each([
-    ['another device holds', { self: false }, true, TAKE_CONTROL_FIRST],
-    ['is stopped', { self: true, activity: 'stopped' as const }, true, RESUME_TO_TRACK],
-    ['failed', { self: true, activity: 'failed' as const }, true, RESUME_TO_TRACK],
-    ['is on a Host that folds no PRs', { self: true }, false, HOST_TRACK_NEEDS_UPDATE],
-  ])('sends nothing to a Host lane that %s', async (_label, options, prStatus, message) => {
-    hostLane(options, prStatus)
+    ['another device holds', { self: false }, CURRENT, TAKE_CONTROL_FIRST],
+    ['is stopped', { self: true, activity: 'stopped' as const }, CURRENT, RESUME_TO_TRACK],
+    ['failed', { self: true, activity: 'failed' as const }, CURRENT, RESUME_TO_TRACK],
+    [
+      'is on a Host that folds no PRs',
+      { self: true },
+      { prStatus: false },
+      HOST_TRACK_NEEDS_UPDATE,
+    ],
+    // host-v0.2.80 folds PRs but never reads the file again after a write: Track reverts.
+    [
+      'is on a Host that never rereads its file after a write',
+      { self: true },
+      { prStatus: true },
+      HOST_TRACK_NEEDS_UPDATE,
+    ],
+  ])('sends nothing to a Host lane that %s', async (_label, options, markers, message) => {
+    hostLane(options, markers)
     await expect(setLanePrOverride(SESSION, 'pin', prRef(57))).rejects.toThrow(message)
     expect(piCommand).not.toHaveBeenCalled()
     expect(useLanePrOverridesStore.getState().byLane).toEqual({})

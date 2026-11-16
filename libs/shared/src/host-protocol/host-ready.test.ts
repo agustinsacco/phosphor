@@ -145,6 +145,17 @@ describe('PR status support marker', () => {
   })
 })
 
+describe('PR tracking support marker', () => {
+  it('carries the additive prTracking marker only as a boolean', () => {
+    expect(parseReadyFrame({ ...READY, prStatus: true, prTracking: true })).toStrictEqual({
+      ...READY,
+      prStatus: true,
+      prTracking: true,
+    })
+    expect(parseReadyFrame({ ...READY, prTracking: 'yes' })).toBeNull()
+  })
+})
+
 describe('lane marks support marker', () => {
   it('carries the additive laneMarks marker only as a boolean', () => {
     expect(parseReadyFrame({ ...READY, laneMarks: true })).toStrictEqual({
