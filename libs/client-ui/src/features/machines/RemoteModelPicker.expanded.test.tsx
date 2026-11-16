@@ -32,10 +32,12 @@ beforeEach(() => {
   useModelPicksStore.setState({ starred: [], recent: [], groupMode: 'family', hydrated: false })
   fake = createFakePhosphor({
     'hosts:skills': () => ({ skills: [], probe: 'rpc', userRoot: 'opaque' }),
-    'hosts:models': () => [
-      { id: 'opus', name: 'Claude Opus 5.5', provider: 'p', reasoning: true },
-      { id: 'haiku', name: 'Claude Haiku', provider: 'p', reasoning: false },
-    ],
+    'hosts:models': () => ({
+      models: [
+        { id: 'opus', name: 'Claude Opus 5.5', provider: 'p', reasoning: true },
+        { id: 'haiku', name: 'Claude Haiku', provider: 'p', reasoning: false },
+      ],
+    }),
     'hosts:providers': () => [{ id: 'p', name: 'Provider', status: 'ready' }],
     'app:getPrefs': () => DEFAULT_APP_PREFS,
     'app:setModelPicks': savePicks,

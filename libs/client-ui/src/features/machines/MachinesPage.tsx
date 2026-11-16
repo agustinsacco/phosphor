@@ -240,7 +240,7 @@ export function MachinesPage(): React.JSX.Element {
           )}
         </div>
       </PageBody>
-      {logOpen && <TrafficLogPanel onClose={() => setLogOpen(false)} />}
+      {logOpen && platform.hostTrafficLog && <TrafficLogPanel onClose={() => setLogOpen(false)} />}
       {adding && <AddMachineDialog onClose={() => setAdding(false)} />}
       {removing && (
         <ModalOverlay

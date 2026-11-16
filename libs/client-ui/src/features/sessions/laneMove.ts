@@ -34,15 +34,17 @@ export function sourceHint(hosts: HostsSnapshot, source: LaneMoveSource): string
 }
 
 /**
- * Every machine a lane could move to, This Mac first, each with the
- * workspaces it offers. A Host that cannot take one says why instead of
- * disappearing, so a missing option is never a mystery.
+ * Every machine a lane could move to, This Mac first where the client has
+ * local lanes, each with the workspaces it offers. A Host that cannot take one
+ * says why instead of disappearing, so a missing option is never a mystery.
  */
 export function moveMachines(input: {
   hosts: HostsSnapshot
   labelOf(hostId: string): string
   recents: WorkspaceInfo[]
   sandboxes: SandboxInfo[]
+  /** False in the browser, which has no This Mac to move lanes to. */
+  localLanes: boolean
 }): MoveMachine[] {
   const local: MoveWorkspace[] = [...input.recents, ...input.sandboxes]
     .filter((w, i, all) => all.findIndex((o) => o.path === w.path) === i)
@@ -51,14 +53,16 @@ export function moveMachines(input: {
       label: w.name,
       target: { machine: 'local', workspace: w.path },
     }))
-  const machines: MoveMachine[] = [
-    {
-      machine: 'local',
-      label: 'This Mac',
-      workspaces: local,
-      ...(local.length ? {} : { disabled: MOVE_HINTS.noWorkspaces }),
-    },
-  ]
+  const machines: MoveMachine[] = input.localLanes
+    ? [
+        {
+          machine: 'local',
+          label: 'This Mac',
+          workspaces: local,
+          ...(local.length ? {} : { disabled: MOVE_HINTS.noWorkspaces }),
+        },
+      ]
+    : []
   for (const [hostId, host] of Object.entries(input.hosts)) {
     if (!host) continue
     const disabled =
@@ -85,6 +89,13 @@ export function moveMachines(input: {
   }
   return machines
 }
+
+/**
+ * What the browser's plan adds: it relays a move between Hosts through its own
+ * memory. Desktop stages the bundle in a private temp file and says nothing.
+ */
+export const MEMORY_RELAY_NOTE =
+  'The copy passes through this device, held in memory until it lands.'
 
 /** One sentence on how the lane lands, from the plan the target checked. */
 export function planSummary(plan: LaneMovePlan): string {

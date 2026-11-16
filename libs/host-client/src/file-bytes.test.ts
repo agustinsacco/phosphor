@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { FILE_BYTES_ERRORS, FILE_BYTES_LIMITS } from '@phosphor/shared/host-protocol-file-bytes'
-import { laneFileReader, READS_PER_CONNECTION, transferFile, type ChunkReader } from './file-bytes'
+import {
+  laneFileReader,
+  parseDownloadRequest,
+  READS_PER_CONNECTION,
+  readWholeFile,
+  transferFile,
+  type ChunkReader,
+} from './file-bytes'
 
 const STEP = FILE_BYTES_LIMITS.chunkBytes
 const laneId = '7f1c2a4e-9b3d-4c5e-8f6a-1b2c3d4e5f60'
@@ -127,5 +134,59 @@ describe('laneFileReader', () => {
     await expect(laneFileReader(answer(null), laneId, '../x')(0, 1)).rejects.toThrow(
       FILE_BYTES_ERRORS.failed,
     )
+  })
+})
+
+describe('readWholeFile', () => {
+  const limits = { maxBytes: STEP * 2, tooLarge: 'Too large here.' }
+
+  it('assembles every chunk in order and reports progress to the end', async () => {
+    const size = STEP + 9
+    const progress: number[] = []
+    const bytes = await readWholeFile(fileOf(size), {
+      ...limits,
+      onProgress: (received, total) => progress.push(received / total),
+    })
+    expect(bytes.length).toBe(size)
+    expect(bytes[STEP + 3]).toBe((STEP + 3) & 0xff)
+    expect(progress.at(-1)).toBe(1)
+  })
+
+  it('reads an empty file', async () => {
+    expect((await readWholeFile(fileOf(0), limits)).length).toBe(0)
+  })
+
+  it('refuses a file over the cap after its first chunk, reading no more', async () => {
+    const read = vi.fn(fileOf(STEP * 2 + 1))
+    await expect(readWholeFile(read, limits)).rejects.toThrow('Too large here.')
+    expect(read).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops when cancelled, with the fixed text', async () => {
+    const abort = new AbortController()
+    abort.abort()
+    await expect(readWholeFile(fileOf(10), { ...limits, signal: abort.signal })).rejects.toThrow(
+      FILE_BYTES_ERRORS.cancelled,
+    )
+  })
+
+  it('refuses a file that changes between chunks', async () => {
+    let n = 0
+    const read = fileOf(STEP * 2, () => (n++ === 0 ? VERSION : 'b'.repeat(32)))
+    await expect(readWholeFile(read, limits)).rejects.toThrow(FILE_BYTES_ERRORS.changed)
+  })
+})
+
+describe('parseDownloadRequest', () => {
+  const ID = '0b6f8a1e-4c2d-4e8f-9a1b-2c3d4e5f6a7b'
+  it('takes a lane handle, a lane-relative path and a uuid', () => {
+    expect(parseDownloadRequest({ sessionId: 'remote-1', path: 'a/b.mp4', id: ID })).toEqual({
+      sessionId: 'remote-1',
+      path: 'a/b.mp4',
+      id: ID,
+    })
+    expect(parseDownloadRequest({ sessionId: 'remote-1', path: '../b', id: ID })).toBeNull()
+    expect(parseDownloadRequest({ sessionId: 'remote-1', path: 'b', id: 'x' })).toBeNull()
+    expect(parseDownloadRequest(null)).toBeNull()
   })
 })

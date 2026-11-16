@@ -1,3 +1,4 @@
+import { NotificationsTab } from '../tabs/NotificationsTab'
 import type { SettingsTab } from '../settingsUiStore'
 import { AboutTab } from '../tabs/AboutTab'
 import { AccountTab } from '../tabs/AccountTab'
@@ -42,6 +43,7 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   keybindings: { Device: KeybindingsTab },
   account: { Device: AccountTab },
   install: { Device: InstallAppTab },
+  notifications: { Device: NotificationsTab },
   about: { Device: AboutTab },
   agent: { Local: LocalAgent, Host: HostAgent, scoped: true },
   accounts: { Local: LocalAccounts, Host: HostAccounts },

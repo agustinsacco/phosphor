@@ -3,20 +3,23 @@ import { CloseIcon, DownloadIcon } from '@/components/icons'
 import { formatBytes } from '@/lib/format'
 import { revealLabel } from '@/lib/reveal'
 import { useDownloadsStore, type Download } from '@/stores/downloads'
+import { usePlatform } from '@/platform/Platform'
 import { openInDefaultApp } from './openInDefaultApp'
 
 /**
- * Host files being saved into Downloads: how far each has got, Cancel while it
- * runs, and where it landed once it has. Shown under the Files pane while any
- * download is running or was just finished.
+ * Host files being saved on this device: how far each has got, Cancel while it runs, and
+ * where it landed once it has. Shown under the Files pane while any download is running or
+ * was just finished. Where files save natively a finished one opens and reveals; a browser
+ * keeps its own downloads, so it only says the file was downloaded.
  */
 export function DownloadsBar(): React.JSX.Element | null {
   const items = useDownloadsStore((s) => s.items)
+  const native = usePlatform().nativeFiles
   if (!items.length) return null
   return (
     <ul aria-label="Downloads" className="border-border shrink-0 border-t py-1">
       {items.map((d) => (
-        <DownloadRow key={d.id} download={d} />
+        <DownloadRow key={d.id} download={d} native={native} />
       ))}
     </ul>
   )
@@ -24,12 +27,20 @@ export function DownloadsBar(): React.JSX.Element | null {
 
 const button = 'hover:text-text shrink-0 rounded px-1.5 py-0.5 font-medium'
 
-function DownloadRow({ download: d }: { download: Download }): React.JSX.Element {
+function DownloadRow({
+  download: d,
+  native,
+}: {
+  download: Download
+  native: boolean
+}): React.JSX.Element {
   const { cancel, dismiss } = useDownloadsStore.getState()
   const percent = d.size ? Math.min(100, Math.round((d.received / d.size) * 100)) : 0
   const detail =
     d.status === 'done'
-      ? 'Saved to Downloads'
+      ? native
+        ? 'Saved to Downloads'
+        : 'Downloaded'
       : d.status === 'failed'
         ? d.error
         : d.size === null
@@ -67,12 +78,12 @@ function DownloadRow({ download: d }: { download: Download }): React.JSX.Element
         </TooltipButton>
       ) : (
         <>
-          {d.savedTo && (
+          {native && d.savedTo && (
             <TooltipButton className={button} onClick={() => void openInDefaultApp(d.savedTo!)}>
               Open
             </TooltipButton>
           )}
-          {d.savedTo && (
+          {native && d.savedTo && (
             <TooltipButton
               className={button}
               onClick={() =>

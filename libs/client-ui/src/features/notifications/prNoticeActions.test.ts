@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { prKey } from '@shared/github-pr-refs'
 import type { SessionMeta } from '@shared/models'
 import { prCheck, prRef, prSummary } from '@/features/sessions/__fixtures__/pullRequests'
@@ -99,4 +99,57 @@ it('opens a ready PR on GitHub', async () => {
   await runPrNoticeAction(notice, { kind: 'github', label: 'Open on GitHub' })
   expect(invoke).toHaveBeenCalledWith('app:openExternal', notice.summary.url)
   expect(openDiskSession).not.toHaveBeenCalled()
+})
+
+describe('a Host lane', () => {
+  const hostNotice: PrNotice = {
+    ...notice,
+    lane: { hostId: 'host-1', laneId: 'lane-1', title: 'Host lane' },
+  }
+  const open = (hostId: string, laneId: string) => {
+    useSessionsStore.setState({
+      activeSessionId: 'r1',
+      live: {
+        r1: {
+          phosphorId: 'r1',
+          workspacePath: `host:${hostId}/lane:${laneId}`,
+          target: { kind: 'remote', hostId },
+          laneId,
+        },
+      },
+    })
+    return Promise.resolve(true)
+  }
+
+  it('opens the lane by its ids, then asks its inspector for the PR', async () => {
+    mocks.navigateToLane.mockImplementationOnce(() => open('host-1', 'lane-1'))
+    await openPrNotice(hostNotice)
+    expect(mocks.navigateToLane).toHaveBeenCalledExactlyOnceWith({
+      hostId: 'host-1',
+      laneId: 'lane-1',
+    })
+    expect(openDiskSession).not.toHaveBeenCalled()
+    expect(usePrInspectorStore.getState().request).toMatchObject({
+      sessionId: 'r1',
+      key: notice.key,
+    })
+  })
+
+  it('asks for nothing when the lane did not open, or another lane is on screen', async () => {
+    mocks.navigateToLane.mockResolvedValueOnce(false)
+    expect(await openPrLane(hostNotice)).toBeNull()
+    mocks.navigateToLane.mockImplementationOnce(() => open('host-1', 'other'))
+    await openPrNotice(hostNotice)
+    expect(usePrInspectorStore.getState().request).toBeNull()
+  })
+
+  it('drafts a hand-off in the Host lane once it is on screen', async () => {
+    mocks.navigateToLane.mockImplementationOnce(() => open('host-1', 'lane-1'))
+    await runPrNoticeAction(hostNotice, {
+      kind: 'handoff',
+      handoff: 'update-branch',
+      label: 'Ask agent to update',
+    })
+    expect(mocks.appendToDraft).toHaveBeenCalledWith('r1', expect.any(String))
+  })
 })

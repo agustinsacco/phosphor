@@ -113,3 +113,27 @@ it('shows a receipt row with its facts, and opens it in place to where it ran an
   expect(onOpen).toHaveBeenCalledOnce()
   expect(rows()[0]!.hasAttribute('data-seen')).toBe(true)
 })
+
+it('characterizes closing the Desktop drawer: all current notices become seen and the bell clears', () => {
+  act(() => {
+    useExtensionUiStore.getState().pushToast('Attention', 'warning')
+    useNotificationsStore.getState().setOpen(true)
+    root.render(
+      <>
+        <NotificationsButton />
+        <NotificationDrawer />
+      </>,
+    )
+  })
+  expect(
+    container.querySelector('[data-testid="notifications-button"]')?.getAttribute('aria-pressed'),
+  ).toBe('true')
+  act(() =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Close notifications"]')!.click(),
+  )
+  expect(useNotificationsStore.getState().open).toBe(false)
+  expect(useNotificationsStore.getState().items.every((item) => item.seenAt)).toBe(true)
+  expect(
+    container.querySelector('[data-testid="notifications-button"]')?.getAttribute('aria-label'),
+  ).toBe('Notifications')
+})

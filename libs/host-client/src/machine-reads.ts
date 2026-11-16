@@ -3,7 +3,7 @@ import {
   parseMachineClaude,
   parseMachineClaudeUsage,
   parseMachineCommands,
-  parseMachineModels,
+  parseMachineModelList,
   parseMachineParams,
   parseMachineProviders,
 } from '@phosphor/shared/host-protocol-machine'
@@ -79,9 +79,10 @@ export function machineReads(connection: Connection) {
         { ...(laneId ? { laneId } : {}), ...(force ? { force: true } : {}) },
         parseMachineClaudeUsage,
       ),
+    /** The catalogue and the Host pi's defaults; an older Host's answer has no defaults. */
     async models(hostId: string) {
       const data = await lane(hostId).call('skills.read', 'machine.models', {})
-      const result = machineRecord(data) ? parseMachineModels(data.models) : null
+      const result = parseMachineModelList(data)
       if (!result) throw new Error(REMOTE_UNAVAILABLE)
       return result
     },

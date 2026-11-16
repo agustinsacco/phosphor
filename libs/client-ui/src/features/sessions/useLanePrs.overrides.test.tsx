@@ -39,7 +39,7 @@ const owned = () => seen?.owned.map((lane) => lane.number).sort()
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  useLanePrOverridesStore.setState({ byPath: {} })
+  useLanePrOverridesStore.setState({ byLane: {} })
   usePullRequestsStore.setState({ byRepo: {} })
   usePrStatusStore.setState({ byKey: {} })
   restore = installFakePhosphor(
@@ -64,14 +64,14 @@ it('shows a Track or Hide at once, and lets the scan take over once it agrees', 
     useLanePrOverridesStore.getState().record(PATH, 'hide', prRef(1))
   })
   expect(owned()).toEqual([2])
-  expect(useLanePrOverridesStore.getState().byPath[PATH]).toHaveLength(2)
+  expect(useLanePrOverridesStore.getState().byLane[PATH]).toHaveLength(2)
 
   // The scan read the pin but not yet the hide.
   act(() => root.render(<Row scanned={signals({ pinned: [prRef(2)] })} />))
   expect(owned()).toEqual([2])
-  expect(useLanePrOverridesStore.getState().byPath[PATH]?.map((m) => m.action)).toEqual(['hide'])
+  expect(useLanePrOverridesStore.getState().byLane[PATH]?.map((m) => m.action)).toEqual(['hide'])
 
   act(() => root.render(<Row scanned={signals({ pinned: [prRef(2)], hidden: [prRef(1)] })} />))
   expect(owned()).toEqual([2])
-  expect(useLanePrOverridesStore.getState().byPath).toEqual({})
+  expect(useLanePrOverridesStore.getState().byLane).toEqual({})
 })

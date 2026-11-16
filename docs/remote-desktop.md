@@ -144,7 +144,8 @@ event for that lane supersedes a pending publication. Replies from replaced
 connections, removed lanes or connections without `sessions.read` are discarded.
 Desktop and the browser share one receiver for these rules
 (`createAttentionReceiver` in `libs/host-client/src/attention.ts`). The browser
-raises no OS notification, so it waits for the receipt of every such attention.
+has no focused-lane port, so it waits for the receipt of every such attention;
+its worker separately checks visible lanes before [native delivery](web-client.md#notifications).
 
 The Host reports provider-error completions as failed, not finished.
 [Lane notices](chat.md#lane-notices) own card contents and fact meanings. Host OS
@@ -219,7 +220,9 @@ Unsaved edits stay in renderer memory per lane, survive lane switches, and clear
 on reload, successful save, lane forget or closing the tab without saving.
 Desktop downloads a lane's file through `hosts:fileDownload` on the lane's handle
 ([Files](files.md#remote-lanes)), so a download keeps going when the window focuses
-another lane; progress is pushed on `hosts:fileDownloadProgress`.
+another lane; progress is pushed on `hosts:fileDownloadProgress`. The browser
+serves the same channels in the page, over the same chunk reads, holding each
+file in memory up to its smaller caps.
 Changes lists the files the lane's tools touched, each with an inline read-only
 diff. Binary files and oversized text use placeholders. Remote text uses in-memory
 Monaco models, never `phosphor-file://` grants or filesystem watchers; only media
@@ -343,8 +346,12 @@ Removed lanes are excluded because no admitted lane authorizes their read.
 Local deleted-session retention is unchanged. Host indexes and blobs stay on
 the Host; Desktop holds remote contents in memory only.
 
-HTML staging remains local through `phosphor-artifact://`. Its sandbox never
-uses `allow-same-origin`, and its policy grants no network access.
+On Desktop HTML staging remains local through `phosphor-artifact://`. Its sandbox
+never uses `allow-same-origin`, and its policy grants no network access. The
+[browser's artifact viewer](web-client.md#artifacts) offers the same version diff,
+source download and controlled Write in Files; a phone uses a single-column line
+diff and an overflow action sheet. Browser HTML/SVG previews stay static and
+sandboxed, and PDF export is absent because the browser lacks the artifact origin.
 
 ## Add a machine
 
@@ -479,9 +486,15 @@ The home composer follows the sidebar machine selection (All machines uses This
 Mac). A picker override lasts until the next sidebar selection change. This target
 is window-local renderer state, never persisted. Host-targeted folder, model and
 thinking chips use that machine's repositories and model catalogue.
-The branch choice follows the isolation rule above. The model prefers the last usable choice on that Host, then a usable Desktop default,
-then the first model of the first signed-in provider, then the first other usable
-model. The effective choice is visible.
+The branch choice follows the isolation rule above. The model prefers the last
+usable choice on that Host, then the Host pi's own usable default (the
+`defaults` its `machine.models` answer carries), then a usable Desktop default
+(This Mac's pi settings), then the first model of the first signed-in provider,
+then the first other usable model. A default the Host's catalogue lacks or blocks
+falls through. The browser applies the same order without the Desktop default
+(`features/machines/remoteModel.ts`). The thinking level follows the same order,
+clamped to the model. The effective choice is visible, and the chip's tooltip
+names the rule that chose it.
 
 Host lanes start from the same composer as This Mac (`features/home/StartComposer.tsx`):
 the machine, repository and isolation row above a two-row input, **Start lane**,
@@ -513,8 +526,11 @@ in the Host's environment, stays usable because pi listed it.
 
 Thinking is remembered per Host in this window, capped at 64 Hosts. Sign-out or
 remote disable clears it, and restart resets it; it never writes agent settings.
-Without a remembered choice it starts from This Mac's valid default thinking
-level, or `off` when unavailable, clamped to the selected model's supported levels.
+Without a remembered choice it starts from the Host pi's default thinking level,
+then (on Desktop) This Mac's valid default, or `off` when neither is set, clamped
+to the selected model's supported levels. Saving the Host's machine-wide default
+model or thinking level in its Agent settings updates what the next new lane
+starts on, without another catalogue read.
 A successful thinking change in a live Host lane updates that Host's remembered
 choice.
 
@@ -585,8 +601,9 @@ the Host, as This Mac's does: it reads the file's revision first, so it replaces
 only what it read (or creates a new file), then opens it in that lane's Files.
 Like the lane's Files editing, it needs the Host's file editing and this window
 holding the lane; otherwise the button is disabled and its tooltip names why. A
-refusal from the Host is a toast. Save and PDF export explicitly target This
-Mac. The top-bar artifact count belongs to the active lane.
+refusal from the Host is a toast. On Desktop Save and PDF export explicitly target
+This Mac; the browser downloads the source and offers no PDF export. The top-bar
+artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. The Rules · MCP readout shows the

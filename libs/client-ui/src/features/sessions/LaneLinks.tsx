@@ -2,11 +2,20 @@ import { LanePrStatus } from './LanePrStatus'
 import { LaneSlackThreads } from './LaneSlackThreads'
 import { useRemoteLaneSession } from './useRemoteLaneActions'
 
-/** The lane header's quick links: its pull request, then the Slack threads it mentions. */
-export function LaneLinks({ sessionId }: { sessionId: string }): React.JSX.Element {
+/**
+ * The lane header's quick links: its pull request, then the Slack threads it
+ * mentions. `sheet` is the phone shell's: the PR inspector opens as a sheet.
+ */
+export function LaneLinks({
+  sessionId,
+  sheet,
+}: {
+  sessionId: string
+  sheet?: boolean
+}): React.JSX.Element {
   return (
     <>
-      <LanePrStatus sessionId={sessionId} />
+      <LanePrStatus sessionId={sessionId} sheet={sheet} />
       <LaneSlackThreads sessionId={sessionId} />
     </>
   )

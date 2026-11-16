@@ -2,8 +2,6 @@ import { app } from 'electron'
 import { basename } from 'node:path/posix'
 import { transferFile, type ChunkReader } from '@phosphor/host-client/file-bytes'
 import { FILE_BYTES_ERRORS as ERRORS } from '@shared/host-protocol-file-bytes'
-import { isFilePath } from '@shared/host-protocol-files'
-import { isUuid } from '@shared/control-api'
 import type { FileDownloadProgress } from '@shared/ipc'
 import { localFileName, saveDownload } from './downloads'
 
@@ -34,22 +32,6 @@ function failureText(error: unknown): string {
   return typeof error === 'object' && error !== null && 'code' in error
     ? SAVE_FAILED
     : ERRORS.failed
-}
-
-/** A renderer's lane file, or null: the lane handle and a lane-relative path. */
-export function parseLaneFile(v: unknown): { sessionId: string; path: string } | null {
-  if (typeof v !== 'object' || v === null) return null
-  const { sessionId, path } = v as Record<string, unknown>
-  return typeof sessionId === 'string' && isFilePath(path) ? { sessionId, path } : null
-}
-
-/** A download request, or null: a lane file and a fresh id. */
-export function parseDownloadRequest(
-  v: unknown,
-): { sessionId: string; path: string; id: string } | null {
-  const file = parseLaneFile(v)
-  const { id } = (v ?? {}) as Record<string, unknown>
-  return file && isUuid(id) ? { ...file, id } : null
 }
 
 export async function downloadHostFile(

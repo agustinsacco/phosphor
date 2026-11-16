@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import { ReadOnlyFilesPane } from './ReadOnlyFilesPane'
+import { LaneFilesPane } from './LaneFilesPane'
 import { openFileInWorkspace } from '@/stores/layout'
 import { useFilesStore } from '@/stores/files'
 import { useSessionsStore } from '@/stores/sessions'
@@ -26,7 +26,12 @@ vi.mock('@/components/markdown/CodeBlock', () => ({
   ),
 }))
 
-vi.mock('./MonacoEditor', () => ({ releaseFileModel: () => {} }))
+vi.mock('./MonacoEditor', () => ({ releaseFileModel: () => {}, MonacoEditor: () => null }))
+vi.mock('@/lib/monaco', () => ({}))
+// The settings store reads the colour scheme when the Files pane's modules load.
+vi.hoisted(() => {
+  window.matchMedia = () => ({ matches: false, addEventListener() {} }) as unknown as MediaQueryList
+})
 vi.mock('@/components/markdown/Markdown', () => ({
   Markdown: ({ text }: { text: string }) => <article>{text}</article>,
 }))
@@ -51,6 +56,8 @@ afterEach(() => {
 
 async function openFromChat(path: string, line?: number): Promise<HTMLDivElement> {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  // jsdom has no layout; the explorer scrolls the open file's row into view.
+  Element.prototype.scrollIntoView ??= () => {}
   useSessionsStore.setState({
     live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } },
     activeSessionId: sessionId,
@@ -75,7 +82,7 @@ async function openFromChat(path: string, line?: number): Promise<HTMLDivElement
   await act(async () =>
     root!.render(
       <PlatformProvider value={COMPACT_PLATFORM}>
-        <ReadOnlyFilesPane sessionId={sessionId} />
+        <LaneFilesPane sessionId={sessionId} workspacePath={mockRemoteInfo.workspacePath} />
       </PlatformProvider>,
     ),
   )

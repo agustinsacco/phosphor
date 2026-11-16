@@ -9,6 +9,7 @@ import { useDownloadsStore } from './downloads'
 import { useExtensionUiStore } from './extensionUi'
 import { downloadEntry } from '@/features/files/download'
 import { localFilesSource } from '@/features/files/filesSource'
+import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 
 const invoke = vi.fn()
 let progress: (p: FileDownloadProgress) => void = () => undefined
@@ -98,7 +99,7 @@ it('Open downloads first, then hands the saved copy to the OS, which may refuse 
   const source = {
     ...localFilesSource('host:h/lane'),
     sessionId: 'remote-1',
-    features: { ...localFilesSource('x').features, download: true },
+    features: { ...localFilesSource('x').features, download: true, openDownloads: true },
   }
   downloadEntry(source, { relativePath: 'tools/run.sh' }, 'open')
   invoke.mockImplementationOnce(async () => ({ ok: false, reason: 'launchable' }))
@@ -107,6 +108,18 @@ it('Open downloads first, then hands the saved copy to the OS, which may refuse 
   await vi.waitFor(() =>
     expect(pushToast).toHaveBeenCalledWith(expect.stringContaining('would run a program'), 'error'),
   )
+})
+
+it('a browser download never opens: the browser keeps it', async () => {
+  const source = {
+    ...localFilesSource('host:h/lane'),
+    sessionId: 'remote-1',
+    features: { ...localFilesSource('x').features, download: true, openDownloads: false },
+  }
+  downloadEntry(source, { relativePath: 'tools/run.sh' }, 'open')
+  pending.get(items()[0]!.id)!.resolve({ savedTo: 'run.sh' })
+  await vi.waitFor(() => expect(items()[0]?.status).toBe('done'))
+  expect(invoke).not.toHaveBeenCalledWith('fs:openInDefaultApp', expect.anything())
 })
 
 it('shows a running download with Cancel, and a finished one with its folder', async () => {
@@ -120,5 +133,28 @@ it('shows a running download with Cancel, and a finished one with its folder', a
   const cancel = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Cancel')
   await act(async () => cancel!.click())
   expect(container.textContent).toBe('')
+  act(() => root.unmount())
+})
+
+it('a finished download says where it landed natively, and only that it was downloaded in a browser', async () => {
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  void useDownloadsStore.getState().start('remote-1', 'clip.mp4')
+  pending.get(items()[0]!.id)!.resolve({ savedTo: '/d/clip.mp4' })
+  await vi.waitFor(() => expect(items()[0]?.status).toBe('done'))
+  const labels = () => [...container.querySelectorAll('button')].map((b) => b.textContent)
+  await act(async () => root.render(<DownloadsBar />))
+  expect(container.textContent).toContain('Saved to Downloads')
+  expect(labels()).toContain('Open')
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <DownloadsBar />
+      </PlatformProvider>,
+    ),
+  )
+  expect(container.textContent).toContain('Downloaded')
+  expect(labels()).not.toContain('Open')
+  expect(container.querySelector('[aria-label="Dismiss clip.mp4"]')).not.toBeNull()
   act(() => root.unmount())
 })

@@ -225,6 +225,19 @@ describe('lane adapter', () => {
     await flush()
     expect(c.frames.some((f) => f.type === 'result' && f.id === 'pending')).toBe(false)
   })
+  it("names the connection's own client to a call, never one from its params", async () => {
+    h.service.calls.capabilityFor = () => 'sessions.read'
+    const c = await ready(h.claims.client, ['sessions.read'])
+    const params = { endpoint: 'x', clientId: randomUUID() }
+    c.send({ type: 'call', id: 'own', method: 'notifications.subscribe', params })
+    await flush()
+    expect(h.service.calls.call).toHaveBeenLastCalledWith(
+      'notifications.subscribe',
+      params,
+      expect.any(Function),
+      h.claims.client.id,
+    )
+  })
   it('old Host unknown-method refusal keeps the socket and lane alive', async () => {
     h.service.calls.capabilityFor = () => null
     h.service.calls.call = vi.fn(async (): Promise<CallOutcome> => ({

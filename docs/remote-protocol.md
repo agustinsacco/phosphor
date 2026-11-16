@@ -130,7 +130,7 @@ injected into the fake, and the tests verify real Ed25519 proofs.
 
 ## Lane snapshot transfer
 
-Hosts supporting Desktop's **Move to…** announce `laneTransfer: true` in `ready`.
+Hosts supporting **Move to…** announce `laneTransfer: true` in `ready`.
 Older Hosts remain usable; moving to or from one asks the user to update it.
 `host-protocol-lane-transfer.ts` owns the bounded bundle schema, and
 `host-protocol-lane-transfer-calls.ts` owns these feature calls:
@@ -156,8 +156,9 @@ on restart. Completed exports retaining bytes still count against the four-expor
 cap; imports admit at most two unfinished uploads. Imports commit one at a time.
 
 This explicitly transfers session files across the wire. Desktop uses a private
-temporary bundle, also when relaying Host-to-Host; Control and the two Hosts never
-relay directly to each other. Raw transcripts are not part of normal lane
+temporary bundle, also when relaying Host-to-Host; a browser page relays between
+Hosts through its memory only. Control and the two Hosts never relay directly to
+each other. Raw transcripts are not part of normal lane
 subscriptions. An uncertain commit result is unconfirmed and never retried
 automatically. The source is never modified and no prompt is replayed.
 
@@ -249,6 +250,56 @@ This is a run summary, not a durable command receipt or execution acknowledgemen
 outcome matching and timeout behavior. Legacy Claude marker recognition is shared
 with Desktop through `libs/shared/src/external-tool-marker.ts`.
 
+## Machine model defaults
+
+`machine.models` (under `skills.read`) answers `{models, source, defaults?}`.
+The additive `defaults {model?: {provider, id}, thinkingLevel?}` is the Host pi's
+own new-session default ([host.md](host.md#machine-features)), so a client reads
+it without `machine.configure`; nothing else from the Host's settings crosses.
+It needs no `ready` marker: it rides an answer clients already read, so an older
+Host omits it and an older client ignores it. Clients parse it strictly
+(`libs/shared/src/host-protocol-machine/model-defaults.ts`: only those keys, ids
+bounded as a catalogue model's, a known thinking level) and drop a malformed one
+without losing the catalogue. Desktop and the browser receive it through
+`hosts:models` (`libs/host-client/src/machine-reads.ts`), and a new Host lane
+starts on it when it is usable
+([lane creation](remote-desktop.md#machine-context-and-lane-creation)).
+
+## Web Push
+
+A Host that pushes lane attention to closed browsers announces the additive
+`webPushKey` in `ready`: its VAPID public key, an uncompressed P-256 point as 87
+characters of unpadded base64url. Clients drop a malformed key
+(`isP256PublicKey`) and project it as `HostConnectionView.webPushKey`; older
+clients ignore it. Both calls need `sessions.read`, like reading the lanes the
+pushes announce, and act only for the calling client, which the Host takes from
+the connection's grant, never from params
+(`libs/shared/src/host-protocol-web-push.ts`):
+
+- `notifications.subscribe {endpoint, keys: {p256dh, auth}}` registers this
+  client's push subscription, replacing its previous one. `endpoint` is https on
+  `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com`
+  or a `*.notify.windows.com` subdomain, with no credentials, port or fragment, at
+  most 2048 characters; `p256dh` is a P-256 point on the curve and `auth` 16 bytes.
+  A Host keeps at most 20 and forgets the least recently registered beyond that.
+- `notifications.unsubscribe {endpoint}` forgets this client's subscription with
+  that endpoint; another client's is never touched.
+
+Any other key, endpoint or key material is `bad-request`; a revoked client, or a
+Host that does not know its current owner, is `forbidden`. Both answer `null`. A client calls them only on a Host that announces the key
+(`libs/host-client/src/web-push.ts`, confirmed only on the connection that
+answered).
+
+A push body is one JSON object, at most 3072 bytes, encrypted to the device as one
+aes128gcm record (RFC 8291) under a VAPID ES256 token (RFC 8292):
+`{v: 1, hostId, laneId, kind, machine, title, receipt?}`. `kind` is `finished`,
+`needs-input` or `failed`; `machine` and `title` are bounded labels; `receipt`
+holds only the run's facts (outcome, duration, files changed, tests,
+artifacts), never the reply excerpt, repository, branch or paths. The device
+refuses any other key. Requests carry a 6-hour `TTL`, `Urgency: high` for
+needs-input and a per-lane `Topic`, so a newer push replaces an undelivered older
+one. [Web client](web-client.md#web-push) owns how a browser registers and shows them.
+
 ## Host grants
 
 `libs/shared/src/host-grant.ts` defines
@@ -289,6 +340,13 @@ markers ([Lane pins and markers](#lane-pins-and-markers)). Clients project it as
 The additive `prStatus` boolean in `ready` says the Host reads PRs by number and
 sends lane PR signals ([PR status by number](#pr-status-by-number)). Clients
 project it as `HostConnectionView.prStatus`.
+
+The additive `prTracking` boolean in `ready` says the Host refreshes a lane after
+a `/` prompt that succeeded, so a Track or Hide (`/phosphor-prs`, which appends
+to the lane's file without a pi event) reaches the lane's summary
+`pullRequests`. Clients project it as `HostConnectionView.prTracking` and refuse
+Track and Hide on a Host without it: host-v0.2.80 announces `prStatus` but not
+this, and a write there would never show.
 
 ### Machine configuration operations
 

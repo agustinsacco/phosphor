@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import clsx from 'clsx'
 import { prDetailOf, usePrDetailStore } from '@/stores/prDetail'
 import { prStatusOf, usePrStatusStore } from '@/stores/prStatus'
 import type { RepoPullRequests } from '@/stores/pullRequests'
@@ -29,6 +30,8 @@ interface LanePrInspectorProps {
   sessionId: string
   lane: InspectorLane
   focus?: InspectorFocus
+  /** A phone's sheet: segmented sections, and Track and Hide in the overflow menu. */
+  sheet?: boolean
   onClose: ClosePill
   /** A dialog the inspector opened is on top. */
   onPrompting: (prompting: boolean) => void
@@ -73,12 +76,13 @@ function laneNotes(lane: InspectorLane): string[] {
  * lane's own session file.
  *
  * Tab order is list, tabs, panel, then the header's actions, which are drawn
- * in the header's corner but come last in the DOM.
+ * in the header's corner (in a sheet, above it) but come last in the DOM.
  */
 export function LanePrInspector({
   sessionId,
   lane,
   focus,
+  sheet = false,
   onClose,
   onPrompting,
 }: LanePrInspectorProps): React.JSX.Element | null {
@@ -100,52 +104,79 @@ export function LanePrInspector({
   })
   if (!item) return null
   return (
-    <div className="pr-inspector" data-testid="pr-inspector">
-      <div className="pr-inspector-grid h-[min(540px,calc(100dvh-88px))]">
-        <PrList
-          prs={prs}
-          selected={item.key}
-          onSelect={model.select}
-          onTrack={(ref) => act.override('pin', ref)}
-          onTrackOther={act.trackOther}
+    <InspectorFrame sheet={sheet}>
+      <PrList
+        prs={prs}
+        selected={item.key}
+        onSelect={model.select}
+        // A sheet keeps Track in its overflow menu: no small targets in the list.
+        onTrack={sheet ? undefined : (ref) => act.override('pin', ref)}
+        onTrackOther={sheet ? undefined : act.trackOther}
+      />
+      <section
+        className="relative flex min-h-0 min-w-0 flex-col"
+        aria-label="Selected pull request"
+      >
+        <PrHeader
+          item={item}
+          fresh={prFreshness(item, entry, lane.slice, lane.branch)}
+          notes={laneNotes(lane)}
         />
-        <section
-          className="relative flex min-h-0 min-w-0 flex-col"
-          aria-label="Selected pull request"
-        >
-          <PrHeader
-            item={item}
-            fresh={prFreshness(item, entry, lane.slice, lane.branch)}
-            notes={laneNotes(lane)}
-          />
-          <SinceYouLooked baseline={model.baseline} summary={summary} />
-          <InspectorError error={act.error} />
-          <PrTabList
-            base={base}
-            tabs={prTabs(summary, detail, groups)}
-            active={tab}
-            onChange={setTab}
-          />
-          <PrTabPanel
-            base={base}
-            tab={tab}
-            item={item}
-            summary={summary}
-            detail={detail}
-            groups={groups}
-            loading={loading}
-            seenAt={model.baseline?.seenAt}
-            onHandoff={act.handoff}
-            onOpen={act.open}
-          />
-          <PrHeaderActions
-            item={item}
-            suggestion={!prs.owned.some((owned) => owned.key === item.key)}
-            refreshing={lane.slice.loading || detailEntry.loading}
-            act={act}
-            onRefresh={refresh}
-          />
-        </section>
+        <SinceYouLooked baseline={model.baseline} summary={summary} />
+        <InspectorError error={act.error} />
+        <PrTabList
+          base={base}
+          tabs={prTabs(summary, detail, groups)}
+          active={tab}
+          onChange={setTab}
+          segmented={sheet}
+        />
+        <PrTabPanel
+          base={base}
+          tab={tab}
+          item={item}
+          summary={summary}
+          detail={detail}
+          groups={groups}
+          loading={loading}
+          seenAt={model.baseline?.seenAt}
+          onHandoff={act.handoff}
+          onOpen={act.open}
+        />
+        <PrHeaderActions
+          item={item}
+          suggestion={!prs.owned.some((owned) => owned.key === item.key)}
+          refreshing={lane.slice.loading || detailEntry.loading}
+          act={act}
+          onRefresh={refresh}
+          sheet={sheet}
+        />
+      </section>
+    </InspectorFrame>
+  )
+}
+
+/** Desktop's popup has a fixed height; a phone's sheet gives the inspector the rest of the screen. */
+function InspectorFrame({
+  sheet,
+  children,
+}: {
+  sheet: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div
+      className={clsx('pr-inspector', sheet && 'flex min-h-0 flex-1 flex-col')}
+      data-testid="pr-inspector"
+      data-sheet={sheet || undefined}
+    >
+      <div
+        className={clsx(
+          'pr-inspector-grid',
+          sheet ? 'min-h-0 flex-1' : 'h-[min(540px,calc(100dvh-88px))]',
+        )}
+      >
+        {children}
       </div>
     </div>
   )

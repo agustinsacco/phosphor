@@ -48,7 +48,7 @@ function invoke() {
           { id: 'b', name: 'B', status: 'not_ready' },
         ]
       case 'hosts:models':
-        return []
+        return { models: [] }
       case 'hosts:claude':
         return { provider: 'missing', cli: 'ok', auth: 'ok' }
       case 'hosts:skills':

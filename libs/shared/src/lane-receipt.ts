@@ -1,4 +1,5 @@
 import type { AgentMessage } from './rpc'
+import type { AttentionEvent } from './host-protocol'
 
 export interface LaneReceipt {
   title: string
@@ -14,6 +15,12 @@ export interface LaneReceipt {
   excerpt: string | null
   outcome: 'done' | 'error'
 }
+
+/** What a notification may say about a run: never its excerpt, title, repository or branch. */
+export type LaneReceiptFacts = Pick<
+  LaneReceipt,
+  'outcome' | 'durationMs' | 'files' | 'tests' | 'artifacts'
+>
 
 export interface ReceiptTool {
   name: string | null
@@ -221,7 +228,7 @@ export function receiptDurationLabel(durationMs: number): string {
 }
 
 /** Lock-screen safe: never include the reply, repository, branch or command. */
-export function receiptSummary(receipt: LaneReceipt): string {
+export function receiptSummary(receipt: LaneReceipt | LaneReceiptFacts): string {
   const facts = [receipt.outcome === 'error' ? 'Stopped' : 'Done']
   if (receipt.durationMs !== null) facts[0] += ` in ${receiptDurationLabel(receipt.durationMs)}`
   if (receipt.files)
@@ -229,4 +236,37 @@ export function receiptSummary(receipt: LaneReceipt): string {
   if (receipt.tests) facts.push(receipt.tests === 'passed' ? 'tests pass' : 'tests failed')
   if (receipt.artifacts) facts.push(`${receipt.artifacts} artifacts`)
   return facts.join(' · ')
+}
+
+export function receiptFactsOf(receipt: LaneReceipt): LaneReceiptFacts {
+  const { outcome, durationMs, files, tests, artifacts } = receipt
+  return { outcome, durationMs, files, tests, artifacts }
+}
+
+/** Only a settled run or a finished routine has a receipt worth waiting for. */
+export function receiptExpected(event: AttentionEvent): boolean {
+  return event.kind === 'finished' || event.kind === 'failed' || event.kind === 'routine-finished'
+}
+
+/** The receipt of the run this event announces: settled within 30s of it, with a matching outcome. */
+export function receiptForEvent(event: AttentionEvent, value: unknown): LaneReceipt | null {
+  const parsed = parseLaneReceipt(value)
+  return receiptExpected(event) &&
+    parsed &&
+    parsed.settledAt !== null &&
+    Math.abs(parsed.settledAt - Date.parse(event.at)) <= 30_000 &&
+    (event.kind === 'failed') === (parsed.outcome === 'error')
+    ? parsed
+    : null
+}
+
+/** A receipt read that has not answered in two seconds is not waited for. */
+export function receiptWithin(request: Promise<unknown>): Promise<unknown> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    request,
+    new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), 2000)
+    }),
+  ]).finally(() => clearTimeout(timer))
 }

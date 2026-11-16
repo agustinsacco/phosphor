@@ -5,6 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { mockRemoteHosts, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { useChatStore } from '@/stores/chat'
+import { sessionPanes, useLayoutStore } from '@/stores/layout'
+import { useChatFindRequest } from '@/features/chat/useChatFind'
 import { usePromptStore } from '@/stores/prompt'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -40,6 +42,8 @@ beforeEach(() => {
   vi.stubGlobal('phosphor', { invoke: vi.fn().mockResolvedValue(undefined), piCommand })
   piCommand.mockClear()
   usePromptStore.setState({ requests: [] })
+  useLayoutStore.setState({ bySession: {} })
+  useChatFindRequest.setState({ sessionId: null })
   useSessionsStore.setState({
     activeSessionId: SESSION,
     live: { [SESSION]: { ...mockRemoteInfo, phosphorId: SESSION } },
@@ -53,6 +57,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  useLayoutStore.setState({ bySession: {} })
+  useChatFindRequest.setState({ sessionId: null })
   vi.unstubAllGlobals()
 })
 
@@ -73,6 +79,18 @@ const row = (label: string): HTMLButtonElement | undefined =>
   [...document.querySelectorAll<HTMLButtonElement>('[data-testid="context-menu"] button')].find(
     (b) => b.textContent?.startsWith(label),
   )
+
+it('Find in chat leaves a fullscreen pane before requesting the transcript bar', () => {
+  const layout = useLayoutStore.getState()
+  layout.setRightPane('files', SESSION)
+  layout.toggleRightExpanded(SESSION)
+  const before = sessionPanes(useLayoutStore.getState(), SESSION)
+  render()
+  act(() => trigger()!.click())
+  act(() => row('Find in chat')!.click())
+  expect(sessionPanes(useLayoutStore.getState(), SESSION)).toEqual({ ...before, expanded: false })
+  expect(useChatFindRequest.getState().sessionId).toBe(SESSION)
+})
 
 it('shows Session options in the top bar for a Host lane (regression)', () => {
   render()

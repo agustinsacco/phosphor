@@ -1,7 +1,10 @@
 import { execFileSync } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { test, expect } from '@playwright/test'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
+  openMachineSettings,
   selectMachine,
   remoteRow,
   sendTurn,
@@ -29,6 +32,11 @@ test('Create on bee1 with a usable default and name the first turn', async ({
       .click()
     await expect(h.page.getByRole('button', { name: 'Machine', exact: true })).toContainText('bee1')
     await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
+    // The Host pi's own default chose it, and the chip says so.
+    await expect(h.page.getByTestId('remote-model-picker')).toHaveAttribute(
+      'data-tooltip',
+      'HOST_B_ONLY Reasoner · Using this Host’s default model.',
+    )
     await expect(h.page.getByRole('button', { name: 'Repository', exact: true })).toContainText(
       'repository',
     )
@@ -231,6 +239,37 @@ test('A manual Host name wins while first-prompt auto-naming is pending', async 
     await sendTurn(h, 'PHX-manualwins')
     await expect(remoteRow(h, 'HOST_A_ONLY user wins')).toBeVisible()
     await expect(remoteRow(h, 'HOST_A_ONLY title')).toHaveCount(0)
+  } finally {
+    await h.close()
+  }
+})
+
+test('A Host default saved in Machine settings is what the next new lane starts on', async () => {
+  test.setTimeout(Math.max(REMOTE_TEST_TIMEOUT, 60_000))
+  const h = await remoteHostFixture()
+  const picker = h.page.getByTestId('remote-model-picker')
+  try {
+    await h.signIn()
+    await selectMachine(h, 'bee1')
+    await expect(picker).toContainText('HOST_B_ONLY Reasoner')
+    // Agent defaults reads the catalogue again under the configuration grant, before the save.
+    const settings = await openMachineSettings(h, 'Agent', 'Agent defaults')
+    await settings
+      .getByRole('combobox', { name: 'Default model', exact: true })
+      .selectOption(JSON.stringify(['fake', 'fake-model']))
+    await expect
+      .poll(async () => JSON.parse(await readFile(join(h.agent, 'settings.json'), 'utf8')))
+      .toMatchObject({ defaultProvider: 'fake', defaultModel: 'fake-model' })
+    await expect(h.page.getByTestId('toast-stack')).toContainText(
+      'Saved on bee1 — applies to new lanes',
+    )
+    await h.page.keyboard.press('Escape')
+    await h.page.getByRole('button', { name: 'New', exact: true }).click()
+    await expect(picker).toContainText('HOST_A_ONLY Fast')
+    await expect(picker).toHaveAttribute(
+      'data-tooltip',
+      'HOST_A_ONLY Fast · Using this Host’s default model.',
+    )
   } finally {
     await h.close()
   }

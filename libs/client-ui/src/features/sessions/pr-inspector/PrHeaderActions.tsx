@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
+import { ActionSheet, ActionSheetItem } from '@/components/ActionSheet'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
 import { TooltipButton } from '@/components/Tooltip'
 import { CheckIcon, LinkIcon, RefreshIcon } from '@/components/icons'
@@ -13,6 +14,9 @@ export const ICON_BUTTON =
 /**
  * Open on GitHub, Copy link, Refresh and a menu holding "Hide from this lane".
  * A suggestion also gets "Track", the keyboard route to the list's `+`.
+ *
+ * In a phone's sheet the row sits above the header instead of in its corner,
+ * and its menu is a sheet that also holds Track in this lane and Track a PR….
  */
 export function PrHeaderActions({
   item,
@@ -20,21 +24,26 @@ export function PrHeaderActions({
   refreshing,
   act,
   onRefresh,
+  sheet = false,
 }: {
   item: LanePr
   suggestion: boolean
   refreshing: boolean
   act: InspectorActions
   onRefresh: () => void
+  sheet?: boolean
 }): React.JSX.Element {
   const url = item.pr?.url
   const ref = item.ref
   return (
     <div
-      className="absolute right-2 top-2 flex items-center gap-0.5"
+      className={clsx(
+        'flex items-center gap-0.5',
+        sheet ? 'order-first justify-end px-2 pt-1' : 'absolute right-2 top-2',
+      )}
       data-testid="pr-inspector-actions"
     >
-      {suggestion && ref && (
+      {!sheet && suggestion && ref && (
         <TooltipButton
           type="button"
           onClick={() => act.override('pin', ref)}
@@ -67,8 +76,64 @@ export function PrHeaderActions({
           className={clsx(refreshing && 'animate-spin motion-reduce:animate-none')}
         />
       </TooltipButton>
-      {ref && <MoreMenu onHide={() => act.override('hide', ref)} />}
+      {sheet ? (
+        <MoreSheet
+          title={item.pr?.title}
+          onTrack={suggestion && ref ? () => act.override('pin', ref) : undefined}
+          onTrackOther={act.trackOther}
+          onHide={ref ? () => act.override('hide', ref) : undefined}
+        />
+      ) : (
+        ref && <MoreMenu onHide={() => act.override('hide', ref)} />
+      )}
     </div>
+  )
+}
+
+/** A phone's overflow menu: Track and Hide, as a sheet over the inspector's. */
+function MoreSheet({
+  title,
+  onTrack,
+  onTrackOther,
+  onHide,
+}: {
+  title: string | undefined
+  onTrack?: () => void
+  onTrackOther: () => void
+  onHide?: () => void
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const moreRef = useRef<HTMLButtonElement>(null)
+  const run = (action: () => void) => () => {
+    setOpen(false)
+    action()
+  }
+  return (
+    <>
+      <TooltipButton
+        ref={moreRef}
+        type="button"
+        aria-label="More actions"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        className={ICON_BUTTON}
+      >
+        <PrGlyph glyph="more" size={14} />
+      </TooltipButton>
+      {open && (
+        <ActionSheet
+          label="Pull request actions"
+          head={title && <strong className="truncate">{title}</strong>}
+          returnFocus={moreRef.current}
+          onClose={() => setOpen(false)}
+        >
+          {onTrack && <ActionSheetItem onClick={run(onTrack)}>Track in this lane</ActionSheetItem>}
+          <ActionSheetItem onClick={run(onTrackOther)}>Track a PR…</ActionSheetItem>
+          {onHide && <ActionSheetItem onClick={run(onHide)}>Hide from this lane</ActionSheetItem>}
+        </ActionSheet>
+      )}
+    </>
   )
 }
 

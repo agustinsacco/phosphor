@@ -190,13 +190,22 @@ describe('connection boundary', () => {
       capabilities: ['sessions.read', 'machine.configure'],
     })
   })
-  it('advertises Host-synced lane marks, file bytes and PR status to every client', async () => {
+  it('advertises Host-synced lane marks, file bytes, PR status and PR tracking to every client', async () => {
     const c = await auth()
     expect(c.frames.find((frame) => frame.type === 'ready')).toMatchObject({
       laneMarks: true,
       fileBytes: true,
       prStatus: true,
+      prTracking: true,
     })
+    expect(c.frames.find((frame) => frame.type === 'ready')).not.toHaveProperty('webPushKey')
+  })
+  it('announces the Web Push key only when the Host sends Web Push', async () => {
+    const webPushKey = 'B' + 'A'.repeat(86)
+    const c = await auth({}, { webPushKey })
+    const ready = c.frames.find((frame) => frame.type === 'ready')
+    expect(ready).toMatchObject({ webPushKey })
+    expect(parseHostFrame(JSON.stringify(ready)).ok).toBe(true)
   })
   it('revokes configuration authority on renewal and reports the effective capabilities', async () => {
     const renew = vi.fn()

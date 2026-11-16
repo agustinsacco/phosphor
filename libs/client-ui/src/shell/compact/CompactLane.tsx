@@ -10,8 +10,9 @@ import {
   useRemoteLanesStore,
 } from '@/stores/remoteLanes'
 import { ChatView } from '@/features/chat/ChatView'
+import { requestChatFind } from '@/features/chat/useChatFind'
 import { SessionMenu } from '@/features/chat/SessionMenu'
-import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
+import { LaneChangesPane } from '@/features/files/LaneChangesPane'
 import { SCREENS } from '@/navigation/screens'
 import { usePlatform } from '@/platform/Platform'
 import { useTerminalRefusal } from '@/stores/terminal'
@@ -20,6 +21,10 @@ import { useRemoteLaneSession } from '@/features/sessions/useRemoteLaneActions'
 import type { Location } from '@/navigation/location'
 const TerminalPane = lazy(() =>
   import('@/features/terminal/TerminalPane').then((m) => ({ default: m.TerminalPane })),
+)
+// Files loads its explorer and editor on use; Monaco itself loads only where it runs.
+const LaneFilesPane = lazy(() =>
+  import('@/features/files/LaneFilesPane').then((m) => ({ default: m.LaneFilesPane })),
 )
 const SubagentPanel = lazy(() =>
   import('@/features/chat/SubagentPanel').then((m) => ({ default: m.SubagentPanel })),
@@ -131,7 +136,14 @@ function LanePanes({
               {SCREENS[id].title}
             </TooltipButton>
           ))}
-          <SessionMenu sessionId={session.phosphorId} className="compact-lane-options" />
+          <SessionMenu
+            sessionId={session.phosphorId}
+            className="compact-lane-options"
+            onFind={() => {
+              requestChatFind(session.phosphorId)
+              navigate({ ...location, pane: 'chat' })
+            }}
+          />
         </nav>
       )}
       <div className="min-h-0 flex-1">
@@ -149,12 +161,14 @@ function LanePanes({
               workspacePath={session.workspacePath}
               laneControls={tabs ? 'row' : 'header'}
             />
-          ) : pane === 'files' || pane === 'changes' ? (
-            <ReadOnlyFilesPane
-              key={`${session.phosphorId}:${pane}`}
+          ) : pane === 'files' ? (
+            <LaneFilesPane
+              key={session.phosphorId}
               sessionId={session.phosphorId}
-              changes={pane === 'changes'}
+              workspacePath={session.workspacePath}
             />
+          ) : pane === 'changes' ? (
+            <LaneChangesPane key={session.phosphorId} sessionId={session.phosphorId} />
           ) : pane === 'artifacts' ? (
             <ArtifactsPane sessionId={session.phosphorId} workspacePath={session.workspacePath} />
           ) : pane === 'subagents' ? (

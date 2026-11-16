@@ -115,13 +115,16 @@ stay until you rename or delete one.
 
 ## Moving a lane
 
-Desktop's row menus offer **Move to…** on lanes, local and remote, that are not
-working. A move copies the saved transcript, so an idle open lane is stopped
-first (the item says "stops it first"); a lane mid-turn, running delegated
-work, starting, or waiting on a Host question says to wait. Main and the Host
-still refuse to export a live lane. Pick This Mac or a connected Host, then one
-of its workspaces. A checked plan explains
-what will land there and any blockers. The browser cannot relay transfers.
+Row menus offer **Move to…** on lanes that are not working: on Desktop for This
+Mac's lanes and Host lanes, in the browser (wide or phone) for Host lanes. A
+move copies the saved transcript, so an idle open lane is stopped first (the
+item says "stops it first"); a lane mid-turn, running delegated work, starting,
+or waiting on a Host question says to wait. Main and the Host still refuse to
+export a live lane. Pick a machine, then one of its workspaces: Desktop offers
+This Mac and every connected Host, the browser only Hosts, since it has no This
+Mac. A checked plan states the size to copy, what will land there and any
+blockers before anything moves. In the browser it also says the copy passes
+through this device.
 
 A move is a snapshot copy. The original is untouched, keeps its row, and is
 never deleted automatically. The new lane keeps its conversation, exact supported
@@ -155,10 +158,25 @@ routine schedules and workspace files are never copied.
 
 Limits: 256 MiB per bundle, 4,000 parts, 20 MiB per attachment, and 32 MiB per
 transcript imported by a Host. Host lane names above 80 characters are refused,
-not shortened; other transfers support names up to 200 characters. Both Hosts
-must stay connected for Host-to-Host moves; Desktop carries a private temporary
-bundle between them. An unconfirmed result is never automatically retried:
-check the destination before trying again.
+not shortened; other transfers support names up to 200 characters. An
+unconfirmed result is never automatically retried: check the destination before
+trying again.
+
+Every byte passes through the client that asks; the two Hosts never talk to each
+other. Desktop stages every move, between two Hosts too, in one private
+temporary file on This Mac, reads it back a chunk at a time, and removes it
+afterwards. The browser has no disk to stage on: between Hosts, the relay in
+`libs/host-client/src/lane-move.ts` downloads the whole bundle into the page's
+memory, checks its SHA-256 with Web Crypto, then sends it, and never stores it.
+Both clients share one Host's half of a move (`lane-transfer.ts`) and differ only
+in where the bytes live. Both Hosts must stay connected and keep the client's
+grants throughout.
+Each client runs one move at a time. The browser aborts its move when the
+account changes, it signs out or the page closes, and drops the bytes: a
+download stops at its next chunk and still releases the Host's export, an upload
+that has not committed never does, and one already committed reports an
+unconfirmed result. An aborted upload's partial staging stays on the target Host
+until its one-hour expiry.
 
 ## Markers
 
@@ -224,11 +242,24 @@ Track and Hide write through the lane's own pi, the one writer of its file:
 `setLanePrOverride` (`features/sessions/lanePrOverrides.ts`) sends
 `/phosphor-prs pin|hide|clear <url>`, which the bundled `lane-prs.ts` turns into
 one custom entry, `{ action, ref }`. It runs no model and adds nothing to the
-context, and pi runs it at once, even mid-turn. Only a live This Mac lane that
-lists the command can write; a closed lane, a Host lane or an older pi gets a
-message saying so. The scan lags the write, so `stores/lanePrOverrides.ts` holds
-each write by session file and merges it into the scanned signals until the
-scan agrees, or for two minutes.
+context, and pi runs it at once, even mid-turn. Only a live lane whose pi lists
+the command can write; a closed lane or an older pi gets a message saying so,
+because an unknown slash command would run a model. A Host lane's pi is on its
+Host, so the command goes there like any prompt, and only while this window
+holds the lane (the shared control refusal, such as "Take control first."),
+the lane is running ("Resume the lane to track pull requests.") and its Host
+announces both `prStatus` (it folds PR signals) and `prTracking` (it reads the
+lane's file again after the write); an older Host, host-v0.2.80 included, gets
+"Update this Host to track pull requests.". Track and Hide never start a stopped lane:
+host-client resumes a stopped lane for an ordinary prompt, but sends this one
+once (`isLanePrsPrompt` in `libs/shared/src/lane-prs-command.ts`), so a lane
+that stops in the meantime refuses it. The Host
+refreshes a lane after any `/` prompt that succeeded, so its summary reads the
+file again and carries the write within one read interval. The scan and the
+summary lag the write, so `stores/lanePrOverrides.ts` holds each write by lane
+(a This Mac lane's session file path, a Host lane's `remoteLaneKey`, never a
+path on the Host) and merges it into the read signals, on the pill and the
+sidebar row, until they agree, or for two minutes.
 
 Commands are read from tool calls, outside heredoc bodies, so a PR description
 that quotes `git push` adds nothing. `gh pr view` and `gh pr checks` are status
@@ -317,16 +348,24 @@ lanes keep their checkout branch's PR, with no error.
 
 ### Change notices
 
-When a PR one of your This Mac lanes owns changes in a way worth interrupting
-for (failed checks, an approval, requested changes, a conflict, ready to merge,
+When a PR one of your lanes owns changes in a way worth interrupting for
+(failed checks, an approval, requested changes, a conflict, ready to merge,
 merged or closed), Phosphor says so once per PR: a toast, an entry in the
 notification drawer, and, while Phosphor is not the focused app, a native
-notification. The first status read after launch is only a baseline, and a read
+notification. That covers This Mac's lanes and every Host lane its Host lists,
+on Desktop and in the browser (`features/sessions/prLaneIndex.ts`); a Host lane
+owns what its summary's signals and checkout branch give it, and an older Host's
+lane only its checkout branch's PR. When two lanes own one PR, the one updated
+last keeps it. The first status read after launch is only a baseline, and a read
 that failed says nothing. A read GitHub answered without checks (too costly or
 slow) keeps the last known checks, so the next full read never reports old
 failures as new; a PR with no CI is never "ready to merge". Each notice names the PR and its newest change, the
-lane and `repo#n`, and lists everything that changed since you last looked.
-**Open lane** opens the lane with its inspector on that PR (a request the
+lane and `repo#n`, and lists everything that changed since you last looked. A
+Host lane's native notification says less, since it can show on a lock screen:
+the PR number, a fixed word for the change ("Branch conflict", "Checks failed")
+and the machine, never a branch, repository, check, reviewer or lane title.
+**Open lane** opens the lane (a Host lane through its Host, as any Host lane
+notice does) with its inspector on that PR (a request the
 lane's pill has not answered within 15 seconds lapses, so an inspector never
 pops open later on its own). A second button
 drafts the fitting hand-off for the agent (fix the checks, address the changes,
@@ -391,10 +430,18 @@ more pull request."
 
 Enter or Space opens the **PR inspector** (`features/sessions/pr-inspector/`),
 anchored to the pill like the Slack pill's popup. On a wide window it is about
-720px: a 220px list beside the selected PR. Under about 620px of its own width,
-which is every phone sheet, it is one column and the list becomes a row of PR
-chips above it. Its height fits the viewport and stays fixed, so loading never
-moves it; only the tab panel scrolls.
+720px: a 220px list beside the selected PR. Under about 620px of its own width
+it is one column and the list becomes a row of PR chips above it. Its height
+fits the viewport and stays fixed, so loading never moves it; only the tab
+panel scrolls.
+
+On a phone the lane header opens it as a bottom sheet the height of the screen
+(`LaneHeaderPill`'s `sheet`), titled "Pull requests" with a Close button. The
+chips sit on top, the tabs are a segmented control, the header's actions are a
+row above the header, and the overflow menu, itself a sheet, holds Track in this
+lane (for a suggestion), Track a PR… and Hide from this lane; the list has no
+`+` and no Track row. Hand-offs, failures and Escape behave as below. Desktop
+and the wide browser keep the anchored popup.
 
 - **The list** groups This lane, Reviewing and Mentioned, each only when it has
   PRs, then "Track a PR…". It is one tab stop: arrow keys, Home and End move the

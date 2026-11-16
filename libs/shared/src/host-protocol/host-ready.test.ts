@@ -145,6 +145,30 @@ describe('PR status support marker', () => {
   })
 })
 
+describe('Web Push support marker', () => {
+  const KEY =
+    'BLovIndJxi9rn_Q4YZsHtnESnX2ccbijmaIDmUM5wlGXFhzoviBVcfGYlIZIhlSuhQ5bE_LcnhZ9SvnLQkh2g_M'
+  it('carries the VAPID public key only as an uncompressed P-256 point', () => {
+    expect(parseReadyFrame({ ...READY, webPushKey: KEY })).toStrictEqual({
+      ...READY,
+      webPushKey: KEY,
+    })
+    for (const webPushKey of [true, '', KEY.slice(1), 'C' + KEY.slice(1), KEY + 'A', `${KEY}=`])
+      expect(parseReadyFrame({ ...READY, webPushKey }), String(webPushKey)).toBeNull()
+  })
+})
+
+describe('PR tracking support marker', () => {
+  it('carries the additive prTracking marker only as a boolean', () => {
+    expect(parseReadyFrame({ ...READY, prStatus: true, prTracking: true })).toStrictEqual({
+      ...READY,
+      prStatus: true,
+      prTracking: true,
+    })
+    expect(parseReadyFrame({ ...READY, prTracking: 'yes' })).toBeNull()
+  })
+})
+
 describe('lane marks support marker', () => {
   it('carries the additive laneMarks marker only as a boolean', () => {
     expect(parseReadyFrame({ ...READY, laneMarks: true })).toStrictEqual({

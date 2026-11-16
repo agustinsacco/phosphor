@@ -27,6 +27,7 @@ describe('moveMachines', () => {
         { path: '/work/app', name: 'app', itemCount: 0, modifiedAt: 0 },
         { path: '/sand/quiet-fox', name: 'quiet-fox', itemCount: 0, modifiedAt: 0 },
       ] as never,
+      localLanes: true,
     })
     expect(machines).toHaveLength(1)
     expect(machines[0]!.workspaces.map((w) => w.target)).toEqual([
@@ -37,8 +38,13 @@ describe('moveMachines', () => {
 
   it('keeps a Host that cannot take the lane, with the reason', () => {
     const reason = (edit: Partial<typeof base>) =>
-      moveMachines({ hosts: hostsWith(edit), labelOf: () => 'Box', recents, sandboxes: [] })[1]!
-        .disabled
+      moveMachines({
+        hosts: hostsWith(edit),
+        labelOf: () => 'Box',
+        recents,
+        sandboxes: [],
+        localLanes: true,
+      })[1]!.disabled
     expect(reason({ state: 'offline' } as never)).toBe(MOVE_HINTS.offline)
     expect(reason({ laneTransfer: undefined })).toBe(MOVE_HINTS.outdated)
     expect(reason({ laneTransfer: true, capabilities: ['sessions.read'] })).toBe(MOVE_HINTS.control)
@@ -52,11 +58,26 @@ describe('moveMachines', () => {
       labelOf: () => 'Box',
       recents,
       sandboxes: [],
+      localLanes: true,
     })
     expect(host!.workspaces[0]!.target).toEqual({
       machine: MOCK_HOST_ID,
       repositoryId: base.repositories[0]!.id,
     })
+  })
+})
+
+describe('moveMachines without local lanes', () => {
+  it('lists only Hosts, so a browser never offers This Mac', () => {
+    const machines = moveMachines({
+      hosts: hostsWith(capable),
+      labelOf: () => 'Box',
+      recents,
+      sandboxes: [],
+      localLanes: false,
+    })
+    expect(machines.map((m) => m.machine)).toEqual([MOCK_HOST_ID])
+    expect(machines[0]!.disabled).toBeUndefined()
   })
 })
 

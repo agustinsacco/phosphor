@@ -73,6 +73,22 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true })
   vi.useRealTimers()
 })
+describe('client-scoped feature calls', () => {
+  it('pass the calling client only to a feature that acts for it', async () => {
+    const scoped = vi.fn(async () => ({ ok: true as const, data: null }))
+    const plain = vi.fn(async () => ({ ok: true as const, data: null }))
+    const c = calls([
+      { capability: 'sessions.read', methods: ['a.scoped'], clientScoped: true, call: scoped },
+      { capability: 'sessions.read', methods: ['a.plain'], call: plain },
+    ])
+    const allowed = () => true
+    await c.call('a.scoped', { x: 1 }, allowed, 'client')
+    await c.call('a.plain', { x: 1 }, allowed, 'client')
+    expect(scoped).toHaveBeenCalledWith('a.scoped', { x: 1 }, allowed, 'client')
+    expect(plain).toHaveBeenCalledWith('a.plain', { x: 1 }, allowed)
+  })
+})
+
 describe('lane calls', () => {
   it('reads receipts through the bounded transcript path and rejects missing or removed lanes', async () => {
     const c = calls()

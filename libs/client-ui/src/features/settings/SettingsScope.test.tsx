@@ -51,7 +51,8 @@ beforeEach(() => {
         agentDirectivesByProject: {},
         retiredDirectives: {},
       }
-    if (channel === 'packages:list' || channel === 'hosts:models') return []
+    if (channel === 'packages:list') return []
+    if (channel === 'hosts:models') return { models: [] }
     return undefined
   })
   container = document.createElement('div')

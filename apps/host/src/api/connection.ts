@@ -44,6 +44,8 @@ export interface ConnectionPorts {
   origin: string
   hello: HostHello
   key: KeyObject
+  /** Announced in ready when the Host sends Web Push. */
+  webPushKey?: string
   admit(clientId: string): boolean
   ping?: () => void
   handler?(connection: ReadyConnection): AuthenticatedHandler
@@ -174,6 +176,7 @@ export function createConnection(ports: ConnectionPorts) {
           connectionId,
           grantExpiresAt,
           caps,
+          webPushKey: ports.webPushKey,
         }),
       )
       if (!ended) {

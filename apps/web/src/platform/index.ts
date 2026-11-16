@@ -1,11 +1,13 @@
+import { createBrowserAttention } from './attention'
+import { attachNotificationClicks, navigateNotification } from './notifications'
 import type { PhosphorApi, IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import { IPC_WEB, type WebSupportedChannel } from '@phosphor/shared/ipc-web'
-import { createRemoteLanes } from '@phosphor/host-client/remote-lanes'
-import { createAttentionReceiver, readHostReceipt } from '@phosphor/host-client/attention'
+import { createRemoteLanes, type RemoteWindow } from '@phosphor/host-client/remote-lanes'
+import { createHostLaneMoves } from '@phosphor/host-client/lane-move'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
 import type { IdentityCrypto } from '@phosphor/host-client/crypto'
-import { createBrowserControl } from './control'
-import { createBrowserHosts, DIRECTORY_POLL_MS } from './hosts'
+import { createBrowserControl, type BrowserControl } from './control'
+import { createBrowserHosts, DIRECTORY_POLL_MS, type BrowserHosts } from './hosts'
 import { createBrowserEvents } from './events'
 import { createBrowserPreferences, type PreferenceStorage } from './preferences'
 import { createBrowserResources } from './resources'
@@ -14,6 +16,8 @@ import { createBrowserTerminals } from './terminals'
 import { createBrowserSettings } from './settings'
 import { captureCompletionFence } from './completion-fence'
 import { createBrowserDrafts, OWNER_DRAFT_CHANNELS } from './drafts'
+import { createBrowserFileBytes } from './file-bytes'
+import { createBrowserPush } from './push'
 
 /** Lifecycle and invalidation ports contain no account or lane data. */
 export interface BrowserLifecycle {
@@ -26,7 +30,10 @@ export interface BrowserInvalidation {
 }
 export interface BrowserApiOptions {
   fetch?: typeof fetch
+  /** Full-page navigation for account sign-in. */
   navigate?: (path: string) => void
+  /** In-app history navigation for a native notification click. */
+  navigateNotification?: (path: string) => void
   /** Reloads the page once a different owner signs in while it is open. */
   reload?: () => void
   openExternal?: (url: string) => void
@@ -89,12 +96,77 @@ function piFailure(args: unknown[], error: string) {
   const command = args[1] as IpcInvokeMap['pi:command']['args'][1]
   return { type: 'response', command: command.type, id: command.id, success: false, error }
 }
+/**
+ * "Move to…" between Hosts with this browser's branch prefix. A move's bundle lives only in the
+ * page's memory; invalidation (an owner change, sign-out, dispose) aborts it.
+ */
+const browserLaneMoves = (hosts: BrowserHosts, prefs: ReturnType<typeof browserPreferences>) =>
+  createHostLaneMoves({
+    connection: hosts.connection,
+    label: hosts.label,
+    branchPrefix: async () => (await prefs.read()).worktrees.branchPrefix,
+  })
+/** The tab is window 1; it is gone once the page is disposed or its account changes. */
+function tabWindow(
+  control: BrowserControl,
+  events: ReturnType<typeof createBrowserEvents>,
+  stopped: () => boolean,
+): RemoteWindow {
+  const epoch = control.generation()
+  const current = () => !stopped() && epoch === control.generation()
+  return {
+    id: 1,
+    destroyed: () => !current(),
+    send: (channel, push) => {
+      if (current()) events.emit(channel, push)
+    },
+  }
+}
 /** Desktop's native hooks, which a page answers with nothing. */
 const NATIVE_ONLY = {
   pathForFile: () => '',
   spellingSuggestions: () => null,
-  onFileDownloadProgress: () => () => undefined,
 } satisfies Partial<PhosphorApi>
+/** The `window.phosphor` surface over the adapter's invoke and events. */
+function browserSurface(
+  invoke: PhosphorApi['invoke'],
+  events: ReturnType<typeof createBrowserEvents>,
+  platform: PhosphorApi['platform'] | undefined,
+): PhosphorApi {
+  return {
+    platform:
+      platform ??
+      (/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '')
+        ? 'darwin'
+        : /Win/.test(globalThis.navigator?.platform ?? '')
+          ? 'win32'
+          : 'linux'),
+    invoke,
+    piCommand: ((id, command) => invoke('pi:command', id, command)) as PhosphorApi['piCommand'],
+    onSessionPush: (id, listener) => events.on(`pi:event:${id}`, listener),
+    onAccountChanged: (listener) => events.on('account', listener),
+    onMachinesChanged: (listener) => events.on('machines', listener),
+    onHostsChanged: (listener) => events.on('hosts', listener),
+    onHostAttention: (listener) => events.on('attention', listener),
+    onRoutinesChanged: (listener) => events.on('routines', listener),
+    onHostOpenLane: (listener) => events.on('openLane', listener),
+    onPiCommandsChanged: (listener) => events.on('commands', listener),
+    onSessionsChanged: (listener) => events.on('sessions', listener),
+    onFsChanged: (listener) => events.on('files', listener),
+    onPackagesJobOutput: (id, listener) => events.on(`package-output:${id}`, listener),
+    onPackagesJobExit: (id, listener) => events.on(`package-exit:${id}`, listener),
+    onPtyData: (id, listener) => events.on(`pty-data:${id}`, listener),
+    onPtyExit: (id, listener) => events.on(`pty-exit:${id}`, listener),
+    onPtyStatus: (listener) => events.on('pty-status', listener),
+    onUpdateEvent: (listener) => events.on('updates', listener),
+    onMcpAuthState: (listener) => events.on('mcp', listener),
+    onPiLoginState: (listener) => events.on('pi-login', listener),
+    onClaudeLoginState: (listener) => events.on('claude-login', listener),
+    onVoiceStatus: (listener) => events.on('voice', listener),
+    onFileDownloadProgress: (listener) => events.on('file-download', listener),
+    ...NATIVE_ONLY,
+  }
+}
 /** Install api on window BEFORE importing the shared UI; call start after installation. */
 export function createBrowserApi(options: BrowserApiOptions = {}): {
   api: PhosphorApi
@@ -120,6 +192,10 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('machines', undefined)
     },
     invalidate: (owner) => {
+      laneMoves.abort()
+      fileBytes.clear()
+      // Disposing (closing, a start that failed offline) is no sign-out: push scopes stay.
+      if (!stopped) push.accountChanged(owner)
       terminals.clear()
       lanes.clear()
       hosts.clear()
@@ -130,12 +206,12 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       attention.clear()
     },
   })
-  // As on Desktop, without an OS notification: an account change drops every receipt wait.
-  const attention = createAttentionReceiver({
-    receipt: (hostId, laneId) => readHostReceipt(hosts.connection, hostId, laneId),
-    publish: (notice) => {
-      if (!stopped) events.emit('attention', notice)
-    },
+  const offClicks = attachNotificationClicks(options.navigateNotification ?? navigateNotification)
+  const attention = createBrowserAttention({
+    connection: (hostId) => hosts.connection(hostId),
+    label: (hostId) => hosts.label(hostId),
+    publish: (notice) => events.emit('attention', notice),
+    generation: () => (stopped ? undefined : control.generation()),
   })
   const drafts = createBrowserDrafts(() => control.session() !== null)
   const hosts = createBrowserHosts({
@@ -146,9 +222,15 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       lanes.reconcile()
       terminals.reconcile()
       events.emit('hosts', undefined)
+      push.sync()
     },
     routinesChanged: (hostId) => events.emit('routines', { machine: `host:${hostId}` }),
     attention: attention.receive,
+  })
+  const push = createBrowserPush({
+    hosts,
+    session: control.session,
+    changed: () => events.emit('hosts', undefined),
   })
   const lanes = createRemoteLanes({
     identity: options.identity,
@@ -157,7 +239,14 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     label: hosts.label,
     changed: () => events.emit('hosts', undefined),
   })
+  const laneMoves = browserLaneMoves(hosts, prefs)
   const resources = createBrowserResources(hosts, lanes)
+  const fileBytes = createBrowserFileBytes({
+    lanes,
+    progress: (progress) => {
+      if (!stopped) events.emit('file-download', progress)
+    },
+  })
   const terminals = createBrowserTerminals({ hosts, lanes, control, events })
   const handlers = createBrowserHandlers({
     control,
@@ -168,16 +257,10 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     settings: createBrowserSettings({ control, hosts }),
     prefs,
     drafts,
-    window: () => {
-      const epoch = control.generation()
-      return {
-        id: 1,
-        destroyed: () => stopped || epoch !== control.generation(),
-        send: (channel, push) => {
-          if (!stopped && epoch === control.generation()) events.emit(channel, push)
-        },
-      }
-    },
+    laneMoves,
+    fileBytes,
+    push,
+    window: () => tabWindow(control, events, () => stopped),
     openExternal:
       options.openExternal ??
       ((url) => {
@@ -235,38 +318,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     }
     return result
   }
-  const api: PhosphorApi = {
-    platform:
-      options.platform ??
-      (/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '')
-        ? 'darwin'
-        : /Win/.test(globalThis.navigator?.platform ?? '')
-          ? 'win32'
-          : 'linux'),
-    invoke,
-    piCommand: ((id, command) => invoke('pi:command', id, command)) as PhosphorApi['piCommand'],
-    onSessionPush: (id, listener) => events.on(`pi:event:${id}`, listener),
-    onAccountChanged: (listener) => events.on('account', listener),
-    onMachinesChanged: (listener) => events.on('machines', listener),
-    onHostsChanged: (listener) => events.on('hosts', listener),
-    onHostAttention: (listener) => events.on('attention', listener),
-    onRoutinesChanged: (listener) => events.on('routines', listener),
-    onHostOpenLane: (listener) => events.on('openLane', listener),
-    onPiCommandsChanged: (listener) => events.on('commands', listener),
-    onSessionsChanged: (listener) => events.on('sessions', listener),
-    onFsChanged: (listener) => events.on('files', listener),
-    onPackagesJobOutput: (id, listener) => events.on(`package-output:${id}`, listener),
-    onPackagesJobExit: (id, listener) => events.on(`package-exit:${id}`, listener),
-    onPtyData: (id, listener) => events.on(`pty-data:${id}`, listener),
-    onPtyExit: (id, listener) => events.on(`pty-exit:${id}`, listener),
-    onPtyStatus: (listener) => events.on('pty-status', listener),
-    onUpdateEvent: (listener) => events.on('updates', listener),
-    onMcpAuthState: (listener) => events.on('mcp', listener),
-    onPiLoginState: (listener) => events.on('pi-login', listener),
-    onClaudeLoginState: (listener) => events.on('claude-login', listener),
-    onVoiceStatus: (listener) => events.on('voice', listener),
-    ...NATIVE_ONLY,
-  }
+  const api = browserSurface(invoke, events, options.platform)
   const refreshQuietly = () => void refresh().catch(() => {})
   function refresh() {
     if (stopped) return Promise.resolve()
@@ -288,6 +340,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
           refreshQuietly()
         })
         offInvalidation = invalidation?.subscribe(control.invalidate) ?? (() => {})
+        push.start()
         poll = setInterval(refreshQuietly, DIRECTORY_POLL_MS)
         clock = setInterval(hosts.reconcile, 5000)
       }
@@ -298,10 +351,13 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       stopped = true
       clearInterval(poll)
       clearInterval(clock)
+      offClicks()
+      push.dispose()
       offLifecycle()
       offInvalidation()
       invalidation?.close()
       control.dispose()
+      fileBytes.clear()
       terminals.clear()
       hosts.dispose()
       lanes.clear()

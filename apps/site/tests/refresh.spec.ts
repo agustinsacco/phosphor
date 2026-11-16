@@ -51,7 +51,7 @@ test('Machines explains private transport, explicit control and snapshot moves',
     'original',
     'not resumed automatically',
     'credentials',
-    'browser cannot',
+    'holding the copy only in the page',
   ]) {
     await expect(page.locator('main')).toContainText(text)
   }

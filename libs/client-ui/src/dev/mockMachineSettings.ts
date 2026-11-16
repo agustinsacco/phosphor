@@ -260,14 +260,21 @@ export function mockMachineSettingsInvoke(channel: string, args: unknown[]): unk
     case 'hosts:claudeAccount':
       throw new Error('Demo mode does not restart real Host lanes.')
     case 'hosts:models':
-      return [
-        {
-          id: 'claude-sonnet-4-5',
-          name: 'Claude Sonnet 4.5',
-          provider: 'anthropic',
-          reasoning: true,
+      // The defaults match the mock agent section's defaultProvider/defaultModel.
+      return {
+        models: [
+          {
+            id: 'claude-sonnet-4-5',
+            name: 'Claude Sonnet 4.5',
+            provider: 'anthropic',
+            reasoning: true,
+          },
+        ],
+        defaults: {
+          model: { provider: 'anthropic', id: 'claude-sonnet-4-5' },
+          thinkingLevel: 'medium',
         },
-      ]
+      }
     case 'hosts:claude':
       return null
     case 'hosts:claudeUsage':

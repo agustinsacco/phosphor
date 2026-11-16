@@ -6,7 +6,8 @@ import { fakeMachine, EXTENSIONS_ROOT } from '../__fixtures__/machine'
 import { buildPiEnvironment } from '../machine/environment'
 import { identityDirectory } from '../control/identity'
 import { createShutdown, type Drainable } from '../shutdown'
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { isP256PublicKey } from '@phosphor/shared/host-protocol-web-push'
 import { inspectHost } from './doctor'
 import { runHost, type RunContext } from './run'
 import type * as Runtime from '../session/runtime'
@@ -444,6 +445,18 @@ describe('run teardown', () => {
       expect(hooks.lanes?.capabilities).toContain('terminal')
       expect(hooks.order).toEqual(PHASES)
       expect(await runLocks(host.control)).toEqual([])
+    } finally {
+      await host.cleanup()
+    }
+  })
+  it('announces a Web Push key it keeps owner-only beside the identity', async () => {
+    const host = await fullHost()
+    try {
+      const stop = async () => host.control.abort.abort()
+      expect(await runHost({ ...host.context, wait: stop })).toBe(0)
+      expect(isP256PublicKey(hooks.lanes?.webPushKey)).toBe(true)
+      const key = join(identityDirectory(host.control.configPath), 'web-push-key.pem')
+      expect(statSync(key).mode & 0o777).toBe(0o600)
     } finally {
       await host.cleanup()
     }

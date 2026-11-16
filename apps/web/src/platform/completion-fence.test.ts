@@ -51,3 +51,13 @@ it.each(['artifacts:list', 'routines:list'] as const)(
     expect(current()).toBe(false)
   },
 )
+it('leaves a lane move’s outcome to the relay, which reports a reconnect itself', () => {
+  // Voiding a confirmed move would ask for a retry, and a retry makes a second copy.
+  const s = fixture(),
+    current = s.fence('hosts:laneMove', [
+      { source: { machine: 'a', laneId: 'x' }, target: { machine: 'b', repositoryId: 'y' } },
+    ])
+  s.hosts.a!.connectionToken = 'reconnected'
+  s.hosts.b!.connectionToken = 'reconnected'
+  expect(current()).toBe(true)
+})

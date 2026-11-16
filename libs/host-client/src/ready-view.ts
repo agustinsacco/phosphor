@@ -12,6 +12,8 @@ type ReadyView = Pick<
   | 'laneTransfer'
   | 'fileBytes'
   | 'prStatus'
+  | 'webPushKey'
+  | 'prTracking'
   | 'capabilities'
 >
 
@@ -27,6 +29,9 @@ export function readyView(frame: Extract<HostFrame, { type: 'ready' }>): ReadyVi
     laneTransfer: frame.laneTransfer === true,
     fileBytes: frame.fileBytes === true,
     prStatus: frame.prStatus === true,
+    // Set even when absent, so a reconnect to an older Host forgets the key.
+    webPushKey: frame.webPushKey,
+    prTracking: frame.prTracking === true,
     capabilities: [...frame.capabilities],
   }
 }

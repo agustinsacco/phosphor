@@ -67,6 +67,29 @@ enforcement as Desktop. The Host's admission is unchanged: it grants
 kind, and drops it on an epoch change. A stolen cookie could already request a
 configure grant from Control; this change does not widen what Control signs.
 
+### Moving lanes
+
+A Host lane's **Move to…** copies it to another Host, or into another folder of
+the same Host, with the same dialog, plan, limits and failure handling as Desktop
+([Moving a lane](lanes.md#moving-a-lane)). `hosts:laneMovePlan` and
+`hosts:laneMove` refuse a request with This Mac on either end; the dialog lists
+only Hosts, since `localLanes` is false. The adapter hands the rest to
+`createHostLaneMoves` (`libs/host-client/src/lane-move.ts`): the page downloads
+the bundle into memory, checks its SHA-256 with Web Crypto, then uploads it,
+chunked at the transfer limit. Desktop makes the same Host calls but stages the
+bundle in a private temp file instead, so only the browser's plan adds "The copy
+passes through this device, held in memory until it lands." (`nativeFiles` is
+false). On a phone the dialog is the compact sheet: machine, folder, one summary
+with the size and that note, then Move.
+
+Threat note: a lane bundle holds raw transcripts, Claude ledgers and attached
+files, and crosses the browser page that moves it. It stays in that page's
+memory, never in storage, the cache or a download, and Control never sees it.
+Account invalidation (another owner, sign-out, the page's dispose) aborts the
+move and drops it. Both Hosts check the page's grant as for Desktop: export and
+import each need `sessions.control`, and a replaced connection or lost
+capability fails the move closed.
+
 ## Shared pages and responsive shells
 
 Browser presentation switches at 900px: a bottom tab bar below that width,
@@ -85,7 +108,7 @@ known Host and All machines, never This Mac (that needs `localLanes`), and lives
 in the URL, so a choice replaces the location's `machine` (from a lane, it opens
 that machine's lane list) and back, forward and deep links keep it. New opens
 the New page for the machine in scope, or asks for one under All machines. The
-wide header keeps Back and New lane.
+wide header keeps Back and New lane, beside Search lanes and pages.
 
 A phone has four tabs (`shell/compact/BottomTabs.tsx`): **Home**, **Machines**,
 **Library** and **Settings**. `/` and `/lanes` open Home, the shared Home board
@@ -113,9 +136,12 @@ its Session options and Settings match on Desktop, in a wide browser and on a
 phone. A shell passes layout down instead: the phone's lane header carries the
 lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
 as Machine files, is the `ListDetail` primitive, one at a time on a phone.
-`localLanes`, `nativeFiles`, `fileEditing`, `splitPanes` and `localBrain` remain false in the
-browser at every width. Modal/menu placement adapts without enabling native
-editors or pane controls. Brain has no nav entry there; its deep link's
+`localLanes`, `nativeFiles`, `nativeImageClipboard`, `fileEditing`, `splitPanes`, `localBrain`
+and `hostTrafficLog` remain false in the browser at every width. Modal/menu placement adapts without
+enabling pane controls. A Host lane's Files edits at both widths, in Monaco when wide and in a
+plain text field on a phone, which Monaco does not support
+([files](files.md#remote-lanes)); `formFactor` picks the editor in a primitive
+(`FileTextEditing`), not the feature. Brain has no nav entry there; its deep link's
 unavailable page and the fixed `brain:*` IPC refusal apply at both widths; no local memory service is invoked. Desktop retains
 its native sidebar and local workbench.
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
@@ -124,10 +150,15 @@ opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,
 Changes, Artifacts, Subagents and Terminal, then the lane's Session options (the same
 list as Desktop's top bar, [chat](chat.md)), then its shared actions, the same
 list as every Host lane row's menu without Open (see below), then New lane on
-that Host. Beside the title, a lane with a PR shows the shared [PR status button](lanes.md#active-lane-header), which
-opens status details and Refresh without opening the lane menu. Wide headers use
-the same control after the title. Both use this Host lane's repository identity,
-not the machine filter, and share repository refreshes with visible groups.
+that Host. Beside the title, a lane with a PR shows the shared [PR status button](lanes.md#active-lane-header)
+(a 32px pill with a 44px hit-slop), which opens the PR inspector without opening
+the lane menu: on a phone a full-height bottom sheet with segmented sections,
+Track and Hide in its overflow sheet and hand-offs that draft into the composer.
+Wide headers use the same control after the title, with Desktop's anchored
+popup. Both use this Host lane's repository identity, not the machine filter,
+and share repository refreshes with visible groups. Track and Hide write through
+the Host lane's pi only while this browser holds a running lane
+([Lanes](lanes.md#which-prs-belong-to-a-lane)).
 The [Slack thread links](lanes.md#slack-thread-links) follow the PR button in
 both headers once the lane's transcript mentions a thread.
 A confirmed action closes the sheet; a refusal stays to say why.
@@ -146,13 +177,31 @@ preserve partial-state warnings and deduplicate qualified IDs. The Routines
 machine picker offers All machines and each Host; New under All machines asks for
 a Host. Incomplete
 artifact aggregation reports an error rather than a misleading complete list.
-Files and HEAD/working-copy comparisons are read-only, coloured by the file's
-language, and a chat link scrolls to its line. Like This Mac's viewer, a file
-offers Copy but no chat code-block actions (Open as artifact, Run in terminal),
-here and in Machine files. New lanes and existing
+A Host lane's Files is Desktop's Files pane: with control and the Host's write
+access it edits, saves with the revision it read, creates, renames and trashes;
+it downloads files up to 100 MB and previews images, video and audio up to 50 MB
+from their bytes ([files](files.md#remote-lanes)). On a phone the tree and the
+file are separate screens, and a file reads coloured by its language, scrolled to
+the line a chat link names, until Edit. Changes' HEAD/working-copy comparisons
+and Machine files are read only. Like This Mac's viewer, a file offers Copy but
+no chat code-block actions (Open as artifact, Run in terminal). New lanes and existing
 lane composers accept any file, as Desktop's Host lanes do: images go inline and
 other files upload to the Host before the prompt, which names their Host path. A
-reload drops a pending attachment. The start screen's Repository menu offers Add
+reload drops a pending attachment. Clicking a pending image opens the shared
+canvas annotator, independent of native file editing. On a phone it fills the
+screen with a touch toolbar, undo, Done and Cancel; drawing never scrolls the
+page. The flattened PNG replaces the chip (or is added beside it), with editable
+layers kept only in memory. Clipboard image read/write channels are browser-local,
+never Host requests: image copies use PNG, converting other formats on a canvas;
+clipboard reads are best-effort and report refusals or an empty image clipboard.
+Wide browsers keep right-click copy. Phone images use a long-press sheet without
+right-click hints. The browser lightbox and that sheet offer Copy image where
+the API exists (permission is still browser-controlled) and Save image, an
+original-byte download served as an octet stream, never navigated to as content.
+The lightbox reserves space below the image for those actions, so they never
+cover image content. Expanded-browser attachment Remove controls keep their
+visible hit area; phone Remove controls sit beside the annotation thumbnail.
+The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
 and adds folders under the Host's home over the same Host connection
 (`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
@@ -160,8 +209,9 @@ and adds folders under the Host's home over the same Host connection
 lane shells and the Machine page's shell
 ([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. Host
 machine settings, including provider installation and Claude accounts, work after
-[configuration access](#configuration-access-and-lane-deletion). File editing and
-This Mac's settings are unavailable. Attention is in-app only, not OS push. A Host's
+[configuration access](#configuration-access-and-lane-deletion). Editing skills,
+artifacts and attachments in place, and This Mac's settings, are unavailable. Attention reaches the shared notification drawer
+and, with permission, native notifications while the app runs ([below](#notifications)). A Host's
 registered repositories open read-only from **Machines → a Host → Machine files**.
 
 `PageShell` owns each page's single heading, actions and close behavior;
@@ -171,18 +221,42 @@ Artifacts, Skills, Routines and Settings. `SidebarNavigation` (through
 order, row presentation and Machines-row activity on machines outside the scope
 in both clients. The footer's Settings gear opens the Settings page for the
 machine in scope; the account menu offers Machines, Settings and Sign out. It
-shows no keyboard shortcut, because the browser installs
-none (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
+shows no keyboard shortcut, because the browser does not install Desktop’s
+app-wide shortcut set (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
 The Settings page frames Desktop's `SettingsSurface`: the same search field, section
 navigation and sections, listed by platform capability
 ([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
-Lanes, Phosphor account, App installation and About, then **Configure** with the Host
+Lanes, Phosphor account, Notifications, App installation and About, then **Configure** with the Host
 machine settings of each known Host; it lists no This Mac sections. Lanes has no
 "own branch" switch there (it needs `localLanes`): a Host lane always gets its own
 worktree. Voice needs `localVoice`, which the browser lacks. With no Host to
 configure, a **No machine to configure** notice links to Machines. Leaving the page
 while a Host's settings draft is unsaved asks first, as closing Desktop's dialog does;
 the browser's Back button is not intercepted.
+
+### Palette and find in chat
+
+**Search lanes and pages** in the browser header (wide, and on every phone tab
+beside the bell), phone Settings' title row, which stands in for that header, and
+the phone lane header opens the shared command palette. On a phone it fills the screen, with
+its focused input at the top and touch-sized results below. It searches every
+Host's lanes by title, machine and folder before rendering at most twelve
+matches, showing machine · folder and a Needs you mark. It also offers Home,
+Machines, Skills, Routines, Artifacts, Settings, a new lane in each Host folder,
+Add folder on a writable Host and theme choices. Settings, Skills, Routines
+and Artifacts keep the machine in scope; Machines opens the account-wide list.
+Native workspace, pane,
+feedback, rewind and keybinding commands require their Desktop capabilities.
+
+Wide browsers take Cmd/Ctrl+K when the page receives the key event. Reserved
+accelerators that never reach the page remain browser-owned. Phones use the button.
+This does not install Desktop's app-wide shortcut set (`appShortcuts`).
+**Find in chat** in Session options (the phone lane sheet or wide pane-tab menu)
+opens the transcript's existing FindBar, switching back from another pane when
+needed. Reading and finding do not take lane control. A phone's bar spans the
+transcript with touch-sized previous, next and close controls; Enter steps
+forward. Wide browsers also take Cmd/Ctrl+F only when focus is in
+the visible transcript, leaving browser find elsewhere untouched.
 
 ### One lane row, list and menu
 
@@ -218,12 +292,14 @@ and its input is `StartComposer`, the one new-lane composer This Mac uses too
 repositories, usable model choices and submission receipts. New without a
 machine in the URL is pinned to the scoped machine described above; with no
 Host at all it asks for one. An explicit missing Host never silently
-switches. Model precedence is last valid choice, a validated native preference
-when available, then the first usable catalogue model. At every width the model
-and thinking pickers are the lane composer's own split chip and searchable model
-menu, which a phone opens as a bottom sheet, and the chip's tooltip discloses
-which rule chose the model. No configured Host default or cross-device
-preference sync is claimed. Isolation changes are memory-only in the browser,
+switches. Model precedence is the same as Desktop's
+([lane creation](remote-desktop.md#machine-context-and-lane-creation)): the last
+valid choice, then the Host pi's own usable default, then the first usable
+catalogue model; the browser has no This Mac default to fall back on. At every
+width the model and thinking pickers are the lane composer's own split chip and
+searchable model menu, which a phone opens as a bottom sheet, and the chip's
+tooltip names the rule that chose the model ("Using this Host’s default
+model."). No cross-device preference sync is claimed. Isolation changes are memory-only in the browser,
 preserving native preference persistence. Above the input sit the machine,
 repository and isolation row; under it, the hints line and at most one note (a
 warning, the connection it waits for, missing control or missing repository).
@@ -250,12 +326,145 @@ Each page scrolls in one place: a lane's transcript, or the remote start
 page's intro above its composer, which is never a scroller of its own. A menu
 that opens upward (`/`, `@`, model, thinking, readouts) is a bottom sheet
 lifted above the box it opened from, so it never covers Send.
+
+### Artifacts
+
+Host lane artifacts offer Preview, Code and, with multiple versions, Diff at every
+width. A wide browser uses Desktop's Monaco diff; a phone wraps added and removed
+lines in one column, with +/− markers. Large unrelated versions compare as one
+replacement to bound the work. Write into workspace and open in Files uses the
+Host lane's editing path: it needs control and `workspaces.write`, carries the
+file's read revision, and explains a refusal. Stored library artifacts remain
+read-only. On a phone View, Version and Download source stay visible; Copy source,
+Copy reference and Write in Files share the Artifact actions bottom sheet.
+Download source saves the shown version's raw author bytes as an octet-stream
+attachment, including standalone `.html` and `.svg` files; opening those files
+runs outside the preview sandbox. Browser PDF export is omitted: printing model
+HTML safely needs the artifact's own origin, which only Desktop supplies.
+
 HTML/SVG previews use revocable Blob URLs, an empty iframe sandbox and a leading
 restrictive document CSP. Scripts, network, forms and authored navigation are
 refused. The parent permits only `frame-src blob:` for these previews and blocks
 app embedding with `X-Frame-Options: DENY`. Its CSP omits `frame-ancestors` because
 WebKit inherits that restriction into otherwise valid Blob previews. Desktop's
 artifact/file protocols and scripted artifact behavior are unchanged.
+
+### Host file previews
+
+A Host file's image, video and audio previews are Blob URLs too, which is why the
+app's CSP has `img-src … blob:` and `media-src blob:` and nothing more. The threat
+is Host-controlled bytes running in the app's origin. A blob URL inherits the
+page's origin, so the bytes are typed from a fixed table by extension, never by
+the Host or by sniffing (`apps/web/src/platform/file-bytes.ts`), and are only
+ever the source of an `<img>`, `<video>` or `<audio>` element, none of which runs
+script. SVG stays on the sandboxed text path above, a PDF is never embedded (an
+unsandboxed same-origin frame would hold Host bytes), and a preview blob is never
+navigated to or opened in a window. Each is revoked when its file closes or
+changes, and all of them on sign-out. `blob:` adds no network source: the page
+made every blob it can show.
+
+## Notifications
+
+The header's bell counts new notices on every top-level phone tab and in the wide
+browser header. On phone Settings it shares the page's title row instead of adding
+a second header, leaving room for the configuration panel. It opens Desktop's
+right-hand drawer on a wide screen, or a
+full-height bottom sheet on a phone; the four tabs are unchanged, with no Inbox
+tab. Host receipts expand in place; Open lane, View changes and Retry close the
+sheet after navigating without marking other notices seen. The wide drawer stays
+open, as on Desktop. Warnings, errors and openable notices use the same store
+as Desktop. Mark all seen, Earlier/Clear, aging and the 50-entry cap are shared.
+Notices are memory-only; reload or account loss clears them.
+
+**Settings → Notifications** is device-scoped (`notificationPermission`: true in
+the browser at every width, false on Desktop, where the OS owns permission).
+It shows On / Off / Blocked, Turn on notifications, and Send a test notification.
+Blocked permission points to the browser's site settings. While permission is
+undecided, the drawer offers one quiet Turn on row. Only that gesture requests
+permission; startup never prompts. The test action deliberately works while
+visible; clicking it focuses the existing page without leaving Settings. On iPhone,
+native notifications require Home Screen installation.
+
+`app:notify` is browser-local: only a hidden page with granted permission may
+call `ServiceWorkerRegistration.showNotification`, never `new Notification()`.
+Unlike Desktop, it resolves **false immediately after attempted delivery**:
+browsers cannot keep the invocation alive until a click. The worker routes clicks
+independently, focusing an existing same-origin page or opening one, then opening
+the Host lane (and optional PR inspector focus) through normal Host admission.
+New worker handlers take effect after its waiting update activates (close all older
+app tabs); updates never force activation or reload over a draft.
+
+PR change notices reach the browser too: the shell attaches the same
+`stores/prTransitions.ts` watch as Desktop while signed in, for PRs its Host
+lanes own, with the same baseline and silence rules ([Lanes](lanes.md#change-notices)).
+They land on the toast and in the drawer, and while the page is hidden go to the
+worker with the stable `pr:<prKey>` key and their Host lane route, so a newer
+change replaces the notification and a click opens that lane with its PR
+inspector on the PR. Their native text is the PR number, a fixed word for the
+change kind and the machine label (`prNativeNotice`): no branch, repository,
+check or reviewer name, and no lane title.
+
+Host attention follows Desktop's rule: only a lane no visible page shows gets a
+native notice, even if the receiving page is visible elsewhere. The worker checks
+all same-origin window clients before delivery. Desktop and browser share
+`attentionNotice` in `libs/shared/src/notifications.ts`: title `machine · lane`,
+body receipt facts only, never reply excerpts, repository/branch names or paths.
+The same module owns stable `phosphor:lane:host:lane` / `phosphor:pr:prKey` tags
+(or an explicit stable key), identifier-only click data and route construction,
+for page delivery and Web Push. Updates replace the native notice.
+Names can still reveal projects on lock screens. No lane data is cached by the
+worker. Physical Android/iOS notification delivery and clicking remain device
+acceptance, not a headless guarantee.
+
+### Web Push
+
+While the app is closed, or the browser has suspended it (Android freezes a
+backgrounded PWA quickly), each Host pushes the same lane attention itself. The
+device registers with each Host over the verified Host connection
+([protocol](remote-protocol.md#web-push)); Control stores nothing, and the opt-in
+is per device: the browser's notification permission is the only switch.
+
+A worker registration holds one push subscription, bound to one VAPID key, and
+every Host has its own key, which never leaves it. So `apps/web/src/platform/push.ts`
+registers the app's own `/sw.js` once more per Host, at scope
+`/push/<clientId>/<hostId>/` (`apps/web/src/push-scope.ts`), and subscribes each
+scope with `userVisibleOnly` and that Host's announced key. Both ids are UUIDs from
+Control's session and directory, never a Host-supplied value, so there is at most
+one scope per directory Host (32). A push scope controls no page: its install,
+activate and fetch handlers do nothing, so it never precaches, never deletes the
+caches older tabs still use and never claims a client. The `/` registration keeps
+its update flow unchanged.
+
+The registrations are reconciled from state, at most twice a second, when Hosts
+change, on focus, on visibility and on the Permissions API's change event. With
+permission granted, a signed-in account and the app's own worker present (a dev
+server has none, so nothing registers), each ready Host that announces
+`webPushKey` and grants `sessions.read` is subscribed and then registered with
+`notifications.subscribe`, again after every reconnect; a subscription made with
+another key is replaced. Losing the permission, a Host leaving the directory or no
+longer announcing Web Push, a sign-out, another account's scopes and unknown push
+scopes (stale cleanup on every start) are removed: the device tells the Host when
+it is reachable, unsubscribes, then unregisters the scope. Unsubscribing makes the
+push service refuse that Host from then on even if the Host never heard of it.
+Closing the page, disposing the adapter (as a start that failed offline does), an
+account not yet known and an unknown directory keep them. Only a definite sign-out
+removes them all: Control refusing the session, or signing out here or in another
+tab.
+
+A push is parsed with the shared contract (`parseWebPushPayload`) and shown through
+`pushNotice`, the page's own notice and tag, so a page notice and a push for the
+same lane replace each other: a tag belongs to the origin, not to the registration
+that showed it, and Chromium and Firefox replace across registrations. While any
+same-origin window is visible, the push shows nothing: that page already has the
+attention. Clicks follow the routing above and open the lane in the app's scope,
+never a push scope.
+
+The payload is encrypted end to end to the device (RFC 8291). The push service
+sees timing, size and the endpoint only. Lane titles and the machine label can show
+on a lock screen; Android's own sensitive-content setting applies. A Host makes
+outbound HTTPS only to the allowlisted push services. iOS delivers Web Push only to
+the installed Home Screen app on iOS 16.4 or newer, and push to more than one
+registration of one app is unverified there.
 
 ## Installation
 

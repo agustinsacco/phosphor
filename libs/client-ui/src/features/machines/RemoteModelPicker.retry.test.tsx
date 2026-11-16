@@ -31,7 +31,7 @@ beforeEach(() => {
     'hosts:skills': () => ({ skills: [], probe: 'rpc', userRoot: 'opaque' }),
     'hosts:models': () => {
       if (++attempts === 1) throw new Error('temporary failure')
-      return [{ id: 'model', name: 'Recovered model', provider: 'p', reasoning: false }]
+      return { models: [{ id: 'model', name: 'Recovered model', provider: 'p', reasoning: false }] }
     },
     'hosts:providers': () => [{ id: 'p', name: 'Provider', status: 'ready' }],
   })

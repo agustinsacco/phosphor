@@ -64,6 +64,10 @@
       "types": "./src/repository-management.ts",
       "default": "./src/repository-management.ts"
     },
+    "./web-push": {
+      "types": "./src/web-push.ts",
+      "default": "./src/web-push.ts"
+    },
     "./lane-marks": {
       "types": "./src/lane-marks.ts",
       "default": "./src/lane-marks.ts"
@@ -95,6 +99,14 @@
     "./skill-share": {
       "types": "./src/skill-share.ts",
       "default": "./src/skill-share.ts"
+    },
+    "./lane-transfer": {
+      "types": "./src/lane-transfer.ts",
+      "default": "./src/lane-transfer.ts"
+    },
+    "./lane-move": {
+      "types": "./src/lane-move.ts",
+      "default": "./src/lane-move.ts"
     }
   },
   "dependencies": {

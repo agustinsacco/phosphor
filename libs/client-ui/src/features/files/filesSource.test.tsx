@@ -9,6 +9,7 @@ import {
   COMPACT_PLATFORM,
   DESKTOP_PLATFORM,
   PlatformProvider,
+  WIDE_BROWSER_PLATFORM,
   type Platform,
 } from '@/platform/Platform'
 import { useHostFilesSource, localFilesSource, type FilesSource } from './filesSource'
@@ -62,6 +63,11 @@ it('This Mac’s folder is a watched tree with every feature and no refusal', ()
     listing: 'tree',
     refreshKey: '',
     textLimitBytes: 4 * 1024 * 1024,
+    byteLimits: {
+      download: 1024 * 1024 * 1024,
+      tooLarge: 'Larger than 1 GB: too big to bring over from its Host.',
+      preview: 1024 * 1024 * 1024,
+    },
     features: {
       watch: true,
       search: true,
@@ -71,7 +77,8 @@ it('This Mac’s folder is a watched tree with every feature and no refusal', ()
       clipboardFiles: true,
       revert: true,
       download: false,
-      streamPreview: false,
+      openDownloads: false,
+      hostPreview: null,
     },
   })
 })
@@ -91,20 +98,41 @@ it('a Host lane is a flat list without the local-only features', async () => {
   source.done()
 })
 
-it('a Host serving file bytes offers downloads through the lane, where files save natively', async () => {
+it('a Host serving file bytes offers downloads and previews, as each client can take them', async () => {
   seed(true, ['workspaces.read'])
   await update(() => ({ fileBytes: true }))
   const desktop = await hostSource()
-  expect(desktop.read()).toMatchObject({ sessionId: mockRemoteInfo.sessionId })
-  expect(desktop.read().features).toMatchObject({ download: true, streamPreview: true })
+  expect(desktop.read()).toMatchObject({
+    sessionId: mockRemoteInfo.sessionId,
+    byteLimits: { download: 1024 * 1024 * 1024, preview: 1024 * 1024 * 1024 },
+  })
+  expect(desktop.read().features).toMatchObject({
+    download: true,
+    openDownloads: true,
+    hostPreview: 'stream',
+  })
   desktop.done()
-  const browser = await hostSource(COMPACT_PLATFORM)
-  expect(browser.read().features).toMatchObject({ download: false, streamPreview: false })
-  browser.done()
+  // A browser holds each file in memory, so it takes less, and has no app to open it in.
+  for (const platform of [COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM]) {
+    const browser = await hostSource(platform)
+    expect(browser.read().features).toMatchObject({
+      download: true,
+      openDownloads: false,
+      hostPreview: 'blob',
+    })
+    expect(browser.read().byteLimits).toEqual({
+      download: 100 * 1024 * 1024,
+      tooLarge: 'Larger than 100 MB: too big to download in a browser.',
+      preview: 50 * 1024 * 1024,
+    })
+    browser.done()
+  }
   await update(() => ({ fileBytes: undefined }))
-  const older = await hostSource()
-  expect(older.read().features.download).toBe(false)
-  older.done()
+  for (const platform of [DESKTOP_PLATFORM, COMPACT_PLATFORM]) {
+    const older = await hostSource(platform)
+    expect(older.read().features).toMatchObject({ download: false, hostPreview: null })
+    older.done()
+  }
 })
 
 it('a Host lane says why it cannot be read or written', async () => {

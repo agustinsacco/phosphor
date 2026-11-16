@@ -232,3 +232,10 @@ it('phone: the Settings tab opens Settings for the machine in view', async () =>
   expect(window.location.pathname).toBe(`/pages/settings/${MOCK_HOST_ID}`)
   expect(tab('Settings').getAttribute('aria-current')).toBe('page')
 })
+
+vi.hoisted(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: () => ({ matches: false, addEventListener: () => {} }),
+  })
+})

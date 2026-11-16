@@ -40,17 +40,41 @@ export function prTabs(
 export const tabId = (base: string, id: PrTabId) => `${base}-tab-${id}`
 export const panelId = (base: string, id: PrTabId) => `${base}-panel-${id}`
 
-/** One tab stop; arrow keys, Home and End move between tabs and show each. */
+/** Desktop's underlined tab, or one segment of a phone's segmented control. */
+function tabClass(segmented: boolean, selected: boolean): string {
+  return clsx(
+    'focus-visible:outline-accent flex items-center gap-1 whitespace-nowrap text-base focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2',
+    segmented
+      ? [
+          'justify-center rounded-md px-1.5',
+          selected ? 'bg-surface-raised text-text shadow-sm' : 'text-text-secondary',
+        ]
+      : [
+          '-mb-px shrink-0 rounded-t-md border-b-2 px-2 pb-1.5 pt-1',
+          selected
+            ? 'border-accent text-text'
+            : 'text-text-secondary hover:text-text border-transparent',
+        ],
+  )
+}
+
+/**
+ * One tab stop; arrow keys, Home and End move between tabs and show each.
+ * `segmented` draws them as a phone's segmented control: equal segments that
+ * scroll sideways only when the screen is too narrow for them.
+ */
 export function PrTabList({
   base,
   tabs,
   active,
   onChange,
+  segmented = false,
 }: {
   base: string
   tabs: PrTab[]
   active: PrTabId
   onChange: (id: PrTabId) => void
+  segmented?: boolean
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const move = (event: React.KeyboardEvent): void => {
@@ -76,7 +100,12 @@ export function PrTabList({
       role="tablist"
       aria-label="Pull request sections"
       onKeyDown={move}
-      className="border-border mt-2 flex gap-0.5 overflow-x-auto border-b px-2"
+      data-segmented={segmented || undefined}
+      className={
+        segmented
+          ? 'pr-segments bg-bg-secondary mx-3 mt-2 grid grid-flow-col gap-0.5 overflow-x-auto rounded-lg p-0.5'
+          : 'border-border mt-2 flex gap-0.5 overflow-x-auto border-b px-2'
+      }
     >
       {tabs.map((tab) => {
         const selected = tab.id === active
@@ -90,12 +119,7 @@ export function PrTabList({
             aria-controls={panelId(base, tab.id)}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
-            className={clsx(
-              'focus-visible:outline-accent -mb-px flex shrink-0 items-center gap-1 whitespace-nowrap rounded-t-md border-b-2 px-2 pb-1.5 pt-1 text-base focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2',
-              selected
-                ? 'border-accent text-text'
-                : 'text-text-secondary hover:text-text border-transparent',
-            )}
+            className={tabClass(segmented, selected)}
           >
             {tab.label}
             {tab.count !== undefined && (

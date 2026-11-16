@@ -3,6 +3,7 @@ import { prChanges, type PrChange } from '@/features/sessions/prChanges'
 import { currentPrLaneIndex, type PrLaneOwner } from '@/features/sessions/prLaneIndex'
 import {
   mergeSince,
+  prNativeNotice,
   prNoticeKey,
   prNoticeKind,
   prNoticePlace,
@@ -14,12 +15,14 @@ import { acknowledgeToast, useExtensionUiStore } from './extensionUi'
 import { useLanePrefsStore } from './lanePrefs'
 import { useNotificationsStore } from './notifications'
 import { usePrStatusStore, type PrStatusEntry } from './prStatus'
+import { machineLabel } from './remoteLanes'
 
 /**
  * PR change notices. Watches PR status (`stores/prStatus.ts`) and, when a PR
- * a This Mac lane owns changes in a way worth interrupting for, says so on
- * the toast, in the drawer and, while Phosphor is in the background, as a
- * native notification.
+ * a lane owns (This Mac's or a Host's) changes in a way worth interrupting
+ * for, says so on the toast, in the drawer and, while Phosphor is in the
+ * background, as a native notification. Desktop and the browser shell each
+ * attach it once.
  *
  * The first answer for a PR after launch is only a baseline: nothing on
  * launch. A read that did not answer (failed, or GitHub unavailable) says
@@ -84,10 +87,11 @@ export function raisePrNotice(transition: PrTransition, owner: PrLaneOwner): PrN
   const earlier = useNotificationsStore
     .getState()
     .items.find((item) => item.key === key && !item.seenAt)?.pr?.changes
+  const { pr: _pr, sessionId: _sessionId, ...lane } = owner
   const notice: PrNotice = {
     key: transition.key,
     ref: owner.pr.ref ?? transition.summary.ref,
-    lane: { path: owner.path, workspacePath: owner.workspacePath, title: owner.title },
+    lane,
     summary: transition.summary,
     changes: mergeSince(transition.changes, earlier ?? []),
   }
@@ -107,17 +111,15 @@ export function raisePrNotice(transition: PrTransition, owner: PrLaneOwner): PrN
 /**
  * The native notification, only while Phosphor is not the focused app: in
  * front of the user the toast already says it, and two would be one too many.
- * Clicking it brings the window forward (main), opens the lane on this PR and
- * counts as looking.
+ * On Desktop, clicking it brings the window forward (main), opens the lane on
+ * this PR and counts as looking. The browser resolves false at once; its worker
+ * opens the notice's route instead.
  */
 export function notifyNatively(notice: PrNotice, focused = document.hasFocus()): void {
   if (focused) return
   const key = prNoticeKey(notice.key)
   window.phosphor
-    .invoke('app:notify', {
-      title: prNoticeTitle(notice),
-      body: `${notice.lane.title} · ${notice.ref.repo}`,
-    })
+    .invoke('app:notify', prNativeNotice(notice, machineLabel))
     .then((clicked) => {
       if (!clicked) return
       for (const toast of useExtensionUiStore.getState().toasts)
@@ -126,7 +128,7 @@ export function notifyNatively(notice: PrNotice, focused = document.hasFocus()):
       inbox.markSeen(inbox.items.filter((item) => item.key === key).map((item) => item.id))
       return openPrNotice(notice)
     })
-    // A browser has no native notifications; the toast and the drawer still have it.
+    // Native delivery is optional; the toast and the drawer still have it.
     .catch(() => undefined)
 }
 

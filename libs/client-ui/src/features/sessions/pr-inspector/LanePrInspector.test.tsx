@@ -347,3 +347,18 @@ it('closes when the header switches to another lane', async () => {
   await act(async () => root.render(<LanePrStatus sessionId="a" />))
   expect(details()).toBeNull()
 })
+
+it('keeps Desktop’s anchored popup: underlined tabs, Track in the list, Hide alone in More', async () => {
+  await openInspector()
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(details()?.closest('[data-popup-menu]')).not.toBeNull()
+  const tablist = document.querySelector('[role="tablist"]')!
+  expect(tablist.hasAttribute('data-segmented')).toBe(false)
+  expect(tab('Overview').className).toContain('border-b-2')
+  expect(button('Track a PR…')).toBeDefined()
+  await act(async () => button('More actions').click())
+  const menu = button('Hide from this lane').closest('[data-popup-menu]')!
+  expect([...menu.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+    'Hide from this lane',
+  ])
+})

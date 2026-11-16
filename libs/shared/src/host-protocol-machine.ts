@@ -2,8 +2,17 @@ import type { ClaudeUsageSnapshotResult, ClaudeUsageWindow } from './models'
 import type { ThinkingLevelMap } from './rpc'
 import { parseModelCost, parseModelThinkingLevelMap } from './host-protocol-machine/model-fields'
 import { repositoryId as isRepositoryId } from './machine-settings-fields'
+import {
+  parseMachineModelDefaults,
+  type MachineModelDefaults,
+} from './host-protocol-machine/model-defaults'
 
 export { MACHINE_COMMANDS_LIMIT, parseMachineCommands } from './host-protocol-machine/commands'
+export {
+  machineModelDefaults,
+  parseMachineModelDefaults,
+  type MachineModelDefaults,
+} from './host-protocol-machine/model-defaults'
 
 /** Read-only machine methods. No executable, environment or filesystem root comes from a client. */
 export const MACHINE_LIMITS = { models: 1000, skills: 500, textBytes: 2 * 1024 * 1024 } as const
@@ -148,6 +157,19 @@ export function parseMachineModels(v: unknown): MachineModel[] | null {
     })
   }
   return models
+}
+/** A Host's `machine.models` answer as clients keep it: the catalogue and the Host pi's defaults. */
+export interface MachineModelList {
+  models: MachineModel[]
+  defaults?: MachineModelDefaults
+}
+/** A malformed `defaults` is dropped, never the catalogue it rides with. */
+export function parseMachineModelList(v: unknown): MachineModelList | null {
+  if (!machineRecord(v)) return null
+  const models = parseMachineModels(v.models)
+  if (!models) return null
+  const defaults = v.defaults === undefined ? null : parseMachineModelDefaults(v.defaults)
+  return { models, ...(defaults ? { defaults } : {}) }
 }
 export function parseMachineProviders(v: unknown): MachineProvider[] | null {
   if (!Array.isArray(v) || v.length > 64) return null
