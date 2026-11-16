@@ -108,7 +108,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 async function render(
-  props: { focus?: string | null; matches?: Set<string> | null; path?: BrainLink[] | null } = {},
+  props: {
+    focus?: string | null
+    matches?: Set<string> | null
+    path?: BrainLink[] | null
+    scope?: 'all' | 'near'
+  } = {},
 ): Promise<void> {
   if (entities !== previousEntities || memories !== previousMemories) {
     projection = boundedGraph(entities, memories)
@@ -119,6 +124,7 @@ async function render(
     root.render(
       <BrainGraph3D
         graph={projection}
+        scope={props.scope}
         focus={props.focus ?? null}
         matches={props.matches ?? null}
         path={props.path ?? null}
@@ -650,4 +656,33 @@ it('clears link support when the pointer exits the canvas even without a vendor 
     restore()
     fake.dispose()
   }
+})
+
+it('does not move for a visible node near the viewport edge', async () => {
+  await render()
+  setting<() => void>('onEngineStop')()
+  data().nodes.find((n) => n.id === 'rina')!.x =
+    0.95 * (300 - 20) * Math.tan((20 * Math.PI) / 180) * 2
+  graph.cameraPosition.mockClear()
+  await render({ focus: 'rina' })
+  expect(graph.cameraPosition).not.toHaveBeenCalled()
+})
+it('fits the neighbourhood on scope changes and all shown nodes on explicit Fit', async () => {
+  await render({ focus: 'rina' })
+  setting<() => void>('onEngineStop')()
+  graph.cameraPosition.mockClear()
+  await render({ focus: 'rina', scope: 'near' })
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
+  graph.cameraPosition.mockClear()
+  await click('Fit the graph')
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
+})
+it('fits all nodes after a selection is newly added to the layout', async () => {
+  await render()
+  setting<() => void>('onEngineStop')()
+  entities = [...entities, { ...entities[0]!, id: 'kestrel', label: 'Kestrel' }]
+  graph.cameraPosition.mockClear()
+  await render({ focus: 'kestrel' })
+  setting<() => void>('onEngineStop')()
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
 })
