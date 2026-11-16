@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { PerspectiveCamera } from 'three'
+import { PerspectiveCamera, type Vector2 } from 'three'
 import type SpriteText from 'three-spritetext'
 import { createGraphScene, type GraphScene } from './graphScene'
 import { graphModel, type GraphModel, type GraphNode } from './graphModel'
@@ -36,7 +36,8 @@ const label = (id: string): SpriteText =>
   (graph.nodeThreeObject!.mock.lastCall![0] as (node: GraphNode) => SpriteText)(
     model.nodes.find((node) => node.id === id)!,
   )
-const frame = (): void => mock.scene.onBeforeRender?.(undefined, undefined, camera)
+const renderer = { getSize: (size: Vector2) => size.set(800, 400) }
+const frame = (): void => mock.scene.onBeforeRender?.(renderer, undefined, camera)
 
 beforeEach(() => {
   for (const method of Object.values(graph)) method.mockReset().mockReturnValue(graph)

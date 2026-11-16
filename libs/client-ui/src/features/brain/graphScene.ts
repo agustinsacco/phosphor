@@ -1,6 +1,6 @@
 import ForceGraph3D from '3d-force-graph'
 import { graphActivity, type BrainForceGraph, type GraphActivity } from './graphActivity'
-import { graphAppearance } from './graphAppearance'
+import { graphAppearance, type GraphAppearance } from './graphAppearance'
 import { readGraphTheme } from './graphColors'
 import { Vector3, type PerspectiveCamera } from 'three'
 import { fitCamera } from './graphFit'
@@ -33,11 +33,21 @@ export function createGraphScene(
     rendererConfig: { alpha: true },
   }) as unknown as BrainForceGraph
   try {
+    compactLayout(graph)
     return new SceneController(graph, container, onFocus, onEdge, onClear)
   } catch (error) {
     graph._destructor()
     throw error
   }
+}
+
+/** Groups with no link between them stop repelling past this range, so they stay in view. */
+function compactLayout(graph: BrainForceGraph): void {
+  const charge = graph.d3Force('charge') as { distanceMax?: (range: number) => unknown } | undefined
+  charge?.distanceMax?.(90)
+  // Room for a label between two linked nodes.
+  const link = graph.d3Force('link') as { distance?: (length: number) => unknown } | undefined
+  link?.distance?.(45)
 }
 
 class SceneController implements GraphScene {
@@ -52,7 +62,7 @@ class SceneController implements GraphScene {
   private height = 0
   private motion = window.matchMedia?.('(prefers-reduced-motion: reduce)')
   private activity: GraphActivity
-  private appearance: ReturnType<typeof graphAppearance>
+  private appearance: GraphAppearance
   private observer: ResizeObserver
   private themeObserver: MutationObserver
 

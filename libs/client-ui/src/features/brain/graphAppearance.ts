@@ -1,6 +1,7 @@
-import { Color } from 'three'
+import { Color, Vector2 } from 'three'
 import type SpriteText from 'three-spritetext'
 import { graphLabel } from './graphLabels'
+import { declutterLabels, rankLabels, type LabelCandidate } from './graphLabelLayout'
 import {
   graphEndpoint,
   graphNeighbors,
@@ -18,7 +19,7 @@ function colorOpacity(color: string, bright: boolean): string {
     .replace(')', `,${bright ? 1 : 0.16})`)
 }
 
-export function graphAppearance(graph: BrainForceGraph): {
+export interface GraphAppearance {
   data: (model: GraphModel) => void
   paint: (
     hover: string | null,
@@ -27,11 +28,30 @@ export function graphAppearance(graph: BrainForceGraph): {
     path?: Set<string> | null,
     focus?: string | null,
   ) => void
-} {
+}
+
+/** The twenty largest nodes are labelled without a hover or a selection. */
+function largestNodes(model: GraphModel): Set<string> {
+  return new Set(
+    [...model.nodes]
+      .sort((a, b) => b.val - a.val || a.id.localeCompare(b.id))
+      .slice(0, 20)
+      .map((node) => node.id),
+  )
+}
+
+export function graphAppearance(graph: BrainForceGraph): GraphAppearance {
   let model: GraphModel = { nodes: [], links: [] }
   let largest = new Set<string>()
   const labels = new Map<string, SpriteText>()
   const predicates = new Map<GraphLink, SpriteText>()
+  let candidates: LabelCandidate[] = []
+  const pane = new Vector2()
+  // Nodes and the camera move between paints, so labels are thinned on every drawn frame.
+  graph.scene().onBeforeRender = (renderer, _scene, camera) => {
+    renderer.getSize(pane)
+    declutterLabels(candidates, camera, pane.x, pane.y)
+  }
   graph
     .nodeThreeObjectExtend(true)
     .linkThreeObjectExtend(true)
@@ -43,12 +63,7 @@ export function graphAppearance(graph: BrainForceGraph): {
   return {
     data: (next) => {
       model = next
-      largest = new Set(
-        [...model.nodes]
-          .sort((a, b) => b.val - a.val || a.id.localeCompare(b.id))
-          .slice(0, 20)
-          .map((node) => node.id),
-      )
+      largest = largestNodes(model)
       labels.clear()
       predicates.clear()
       for (const node of model.nodes) {
@@ -92,6 +107,12 @@ export function graphAppearance(graph: BrainForceGraph): {
         label.visible = connected(link) || !!path?.has(link.id)
         if (label.color !== theme.accent) label.color = theme.accent
       }
+      candidates = rankLabels(
+        model,
+        labels,
+        predicates,
+        new Set([hover, focus].filter((id) => typeof id === 'string')),
+      )
     },
   }
 }
