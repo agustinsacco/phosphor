@@ -73,3 +73,35 @@ export async function attachBrainFailure(page: Page): Promise<void> {
     contentType: 'application/json',
   })
 }
+
+export async function expectGraphFocusClear(page: Page): Promise<void> {
+  const badge = page.getByRole('status').filter({ hasText: 'Focus Rina Okafor' })
+  await expect(badge).toBeVisible()
+  const focus = (await badge.boundingBox())!
+  for (const surface of [
+    page.locator('[aria-label="Entity kinds"]'),
+    page.getByRole('button', { name: 'Clear selection', exact: true }).locator('..'),
+  ]) {
+    const box = (await surface.boundingBox())!
+    const overlaps =
+      focus.x < box.x + box.width &&
+      focus.x + focus.width > box.x &&
+      focus.y < box.y + box.height &&
+      focus.y + focus.height > box.y
+    expect(overlaps, 'keyboard focus badge does not cover legend or selection').toBe(false)
+  }
+}
+
+export async function expectReviewOutcomeAligned(page: Page): Promise<void> {
+  const row = page
+    .getByRole('region', { name: 'Proposed memories', exact: true })
+    .locator('article')
+    .first()
+  const label = (await row.locator('label').boundingBox())!
+  const tag = (await row.locator('span.rounded-full').boundingBox())!
+  const box = (await row.boundingBox())!
+  expect(Math.abs(label.y - tag.y), 'outcome is on the sentence row').toBeLessThan(2)
+  expect(box.x + box.width - tag.x - tag.width, 'outcome is at the right edge').toBeLessThanOrEqual(
+    17,
+  )
+}

@@ -6,6 +6,8 @@ import type { BrainLane } from './fixtures/brain-lanes'
 import { seedBrainLanes } from './fixtures/brain-lanes'
 import {
   attachBrainFailure,
+  expectGraphFocusClear,
+  expectReviewOutcomeAligned,
   watchBrainErrors,
   expectBoundedReadText,
   expectReviewBarAtBottom,
@@ -305,6 +307,7 @@ test('Brain review wraps a 300-character identity description without sideways s
       return !!pane && pane.scrollWidth <= pane.clientWidth
     })
     expect(fits, 'review scrollWidth <= clientWidth').toBe(true)
+    await expectReviewOutcomeAligned(page)
     await expectBrainPanesToFit(page)
   } finally {
     await shutdown(h)
@@ -326,6 +329,7 @@ async function graphSelection(page: Page): Promise<void> {
     'true',
   )
   await expect(nodes.getByRole('button')).toHaveCount(count)
+  await expectGraphFocusClear(page)
   await expect(nodes.getByRole('button', { name: 'Focus Harbor', exact: true })).toHaveAttribute(
     'data-highlighted',
     'false',
