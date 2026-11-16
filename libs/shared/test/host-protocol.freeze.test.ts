@@ -324,6 +324,20 @@ describe('Host API constants and op lists', () => {
     expect(HOST_PROTOCOL_VERSION).toBe(1)
   })
 
+  it('keeps the Web Push methods, bounds and push services exactly', () => {
+    expect(WEB_PUSH_METHODS).toStrictEqual(['notifications.subscribe', 'notifications.unsubscribe'])
+    expect(WEB_PUSH_LIMITS).toStrictEqual({
+      subscriptions: 20,
+      endpointChars: 2048,
+      payloadBytes: 3072,
+    })
+    expect(WEB_PUSH_SERVICES).toStrictEqual([
+      'fcm.googleapis.com',
+      'updates.push.services.mozilla.com',
+      'web.push.apple.com',
+    ])
+    expect(WEB_PUSH_SERVICE_SUFFIX).toBe('.notify.windows.com')
+  })
   it('keeps the call method and command op lists exactly, in order', () => {
     expect(HOST_CALL_METHODS).toStrictEqual([
       'host.repositories',
@@ -347,18 +361,6 @@ describe('Host API constants and op lists', () => {
     expect(FILE_BYTES_METHOD).toBe('files.readBytes')
     expect(FILE_BYTES_LIMITS).toStrictEqual({ fileBytes: 1073741824, chunkBytes: 1048576 })
     expect(PR_STATUS_METHODS).toStrictEqual(['github.prSummaries', 'github.prDetail'])
-    expect(WEB_PUSH_METHODS).toStrictEqual(['notifications.subscribe', 'notifications.unsubscribe'])
-    expect(WEB_PUSH_LIMITS).toStrictEqual({
-      subscriptions: 20,
-      endpointChars: 2048,
-      payloadBytes: 3072,
-    })
-    expect(WEB_PUSH_SERVICES).toStrictEqual([
-      'fcm.googleapis.com',
-      'updates.push.services.mozilla.com',
-      'web.push.apple.com',
-    ])
-    expect(WEB_PUSH_SERVICE_SUFFIX).toBe('.notify.windows.com')
     expect(LANE_PR_WIRE_LIMITS).toStrictEqual({
       opened: 20,
       branches: 20,

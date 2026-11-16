@@ -232,7 +232,8 @@ export function createLaneAdapter(
           const authorized = authorization.admit(capability)
           void (async () => {
             try {
-              const outcome = await service.calls.call(frame.method, frame.params, authorized)
+              const { method, params } = frame
+              const outcome = await service.calls.call(method, params, authorized, client.id)
               if (!authorized()) return
               const result: HostFrame = { type: 'result', id: frame.id, ...outcome }
               if (Buffer.byteLength(JSON.stringify(result)) > limits.outboundFrameBytes)

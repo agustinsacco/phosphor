@@ -259,3 +259,14 @@ export function receiptForEvent(event: AttentionEvent, value: unknown): LaneRece
     ? parsed
     : null
 }
+
+/** A receipt read that has not answered in two seconds is not waited for. */
+export function receiptWithin(request: Promise<unknown>): Promise<unknown> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    request,
+    new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), 2000)
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
