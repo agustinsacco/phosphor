@@ -164,7 +164,8 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('machines', undefined)
     },
     invalidate: (owner) => {
-      push.accountChanged(owner)
+      // Disposing (closing, a start that failed offline) is no sign-out: push scopes stay.
+      if (!stopped) push.accountChanged(owner)
       terminals.clear()
       lanes.clear()
       hosts.clear()

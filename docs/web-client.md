@@ -329,13 +329,18 @@ longer announcing Web Push, a sign-out, another account's scopes and unknown pus
 scopes (stale cleanup on every start) are removed: the device tells the Host when
 it is reachable, unsubscribes, then unregisters the scope. Unsubscribing makes the
 push service refuse that Host from then on even if the Host never heard of it.
-Closing the page, an account not yet known and an unknown directory keep them.
+Closing the page, disposing the adapter (as a start that failed offline does), an
+account not yet known and an unknown directory keep them. Only a definite sign-out
+removes them all: Control refusing the session, or signing out here or in another
+tab.
 
 A push is parsed with the shared contract (`parseWebPushPayload`) and shown through
 `pushNotice`, the page's own notice and tag, so a page notice and a push for the
-same lane replace each other. While any same-origin window is visible, the push
-shows nothing: that page already has the attention. Clicks follow the routing
-above and open the lane in the app's scope, never a push scope.
+same lane replace each other: a tag belongs to the origin, not to the registration
+that showed it, and Chromium and Firefox replace across registrations. While any
+same-origin window is visible, the push shows nothing: that page already has the
+attention. Clicks follow the routing above and open the lane in the app's scope,
+never a push scope.
 
 The payload is encrypted end to end to the device (RFC 8291). The push service
 sees timing, size and the endpoint only. Lane titles and the machine label can show
