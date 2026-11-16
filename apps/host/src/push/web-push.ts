@@ -59,6 +59,64 @@ const pushKind = (kind: string): kind is WebPushPayload['kind'] =>
 export const laneTopic = (laneId: string): string =>
   createHash('sha256').update(laneId).digest('base64url').slice(0, 32)
 
+/**
+ * Each lane's newest attention while it is announced: an older one still reading its
+ * receipt then never sends, so it cannot replace the newer one on the device.
+ */
+function laneAnnouncements() {
+  const latest = new Map<string, number>()
+  let sequence = 0
+  return {
+    begin(laneId: string) {
+      latest.set(laneId, ++sequence)
+      return sequence
+    },
+    newest: (laneId: string, n: number) => latest.get(laneId) === n,
+    end(laneId: string, n: number) {
+      if (latest.get(laneId) === n) latest.delete(laneId)
+    },
+  }
+}
+
+/** The device's payload, or undefined when the device would refuse it: then nothing is sent. */
+function pushPayload(
+  options: Pick<WebPushOptions, 'hostId' | 'machine'>,
+  event: AttentionEvent,
+  kind: WebPushPayload['kind'],
+  receipt: WebPushPayload['receipt'],
+): Buffer | undefined {
+  const payload: WebPushPayload = {
+    v: 1,
+    hostId: options.hostId,
+    laneId: event.laneId,
+    kind,
+    machine: options.machine,
+    title: event.title ?? 'Untitled lane',
+    ...(receipt ? { receipt } : {}),
+  }
+  const bytes = Buffer.from(JSON.stringify(payload))
+  // The device parses with the same contract; anything it would refuse is never sent.
+  return bytes.length <= WEB_PUSH_LIMITS.payloadBytes && parseWebPushPayload(payload)
+    ? bytes
+    : undefined
+}
+
+/** The subscription a queued message may still go to: same client and endpoint, still current. */
+function storedRecipient(
+  authority: WebPushOptions['authority'],
+  subscriptions: PushSubscriptions,
+  clientId: string,
+  endpoint: string,
+) {
+  const snapshot = authority.snapshot()
+  const row =
+    snapshot &&
+    subscriptions
+      .list()
+      .find((r) => r.clientId === clientId && r.subscription.endpoint === endpoint)
+  return row && current(row, snapshot) ? row.subscription : undefined
+}
+
 /** The Host's Web Push, or undefined when its key cannot be loaded: the Host then runs without it. */
 export async function startHostWebPush(options: WebPushOptions) {
   try {
@@ -89,40 +147,39 @@ export function createHostWebPush(options: WebPushOptions, key: VapidKey) {
     limits: options.delivery,
   })
   const receiptFacts = receiptReader(options.receipt)
-  async function announce(event: AttentionEvent, kind: WebPushPayload['kind']) {
+  const announcements = laneAnnouncements()
+  async function announce(event: AttentionEvent, kind: WebPushPayload['kind'], n: number) {
     const receipt = await receiptFacts(event)
-    const payload: WebPushPayload = {
-      v: 1,
-      hostId: options.hostId,
-      laneId: event.laneId,
-      kind,
-      machine: options.machine,
-      title: event.title ?? 'Untitled lane',
-      ...(receipt ? { receipt } : {}),
-    }
-    const bytes = Buffer.from(JSON.stringify(payload))
-    // The device parses with the same contract; anything it would refuse is never sent.
-    if (bytes.length > WEB_PUSH_LIMITS.payloadBytes || !parseWebPushPayload(payload))
-      return options.log('push.dropped', { reason: 'payload' })
+    // A newer attention for the lane came while the receipt was read: it is the one to show.
+    if (!announcements.newest(event.laneId, n)) return
+    const bytes = pushPayload(options, event, kind, receipt)
+    if (!bytes) return options.log('push.dropped', { reason: 'payload' })
     // Fail closed: no current owner and epoch, no push.
     const authority = options.authority.snapshot()
     if (!authority) return
-    for (const row of subscriptions.list())
-      if (current(row, authority))
-        delivery.send({
-          subscription: row.subscription,
-          payload: bytes,
-          ttl: WEB_PUSH_TTL_SECONDS,
-          urgency: kind === 'needs-input' ? 'high' : 'normal',
-          topic: laneTopic(event.laneId),
-        })
+    for (const { clientId, subscription } of subscriptions
+      .list()
+      .filter((r) => current(r, authority)))
+      delivery.send({
+        endpoint: subscription.endpoint,
+        // Revoked, unsubscribed or ownerless before it is sent or retried: dropped.
+        recipient: () =>
+          storedRecipient(options.authority, subscriptions, clientId, subscription.endpoint),
+        payload: bytes,
+        ttl: WEB_PUSH_TTL_SECONDS,
+        urgency: kind === 'needs-input' ? 'high' : 'normal',
+        topic: laneTopic(event.laneId),
+      })
   }
   const offTopic = options.lanesTopic.listen((frame) => {
     // Called inside the lane's publication: only start the work, never wait on it.
     if (frame?.type !== 'attention' || !subscriptions.list().length) return
     const { event } = frame
-    if (pushKind(event.kind))
-      void announce(event, event.kind).catch(() => options.log('push.dropped', { reason: 'error' }))
+    if (!pushKind(event.kind)) return
+    const n = announcements.begin(event.laneId)
+    void announce(event, event.kind, n)
+      .catch(() => options.log('push.dropped', { reason: 'error' }))
+      .finally(() => announcements.end(event.laneId, n))
   })
   const offAuthority = options.authority.onChange(() => {
     const authority = options.authority.snapshot()

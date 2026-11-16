@@ -2026,12 +2026,17 @@ sent only to one that is still current.
 
 The lane topic only starts the work, so pushing never blocks or slows a lane. A
 push waits at most 2 seconds for the run's receipt facts (at most 32 reads at
-once) and goes out without them otherwise. Delivery (`apps/host/src/push/`) queues
-at most 64 messages, replacing a queued one for the same subscription and lane,
-sends 4 at a time with a 10-second timeout, and retries 429, 5xx and network
-failures up to 4 attempts after 5, 30 and 120 seconds (a longer `Retry-After`
-wins, capped at 10 minutes). 404 and 410 remove the subscription. It never follows
-a redirect and checks the endpoint against the push-service allowlist again before
+once) and goes out without them otherwise; a newer attention for the lane that
+arrives meanwhile replaces it, so an older one never sends after it. Delivery
+(`apps/host/src/push/`) queues at most 64 messages, replacing a queued one for the
+same subscription and lane, and sends 4 at a time, one per subscription and lane,
+with a 10-second timeout. It retries 429, 5xx and network failures up to 4
+attempts after 5, 30 and 120 seconds (a longer `Retry-After` wins, capped at 10
+minutes), unless a newer message for that subscription and lane is already
+waiting. Before every request and every retry it looks the subscription up again:
+one unsubscribed, revoked, of another owner or epoch, or without a known owner is
+dropped with its message. 404 and 410 remove the subscription. It never follows a
+redirect and checks the endpoint against the push-service allowlist again before
 every request. The VAPID `sub` is the Control URL when it is https; a token is
 reused per push-service origin for 12 hours, less an hour. Logs carry counts and
 reasons only (`push.subscribed`, `.gone`, `.revoked`, `.dropped`, `.failed`,

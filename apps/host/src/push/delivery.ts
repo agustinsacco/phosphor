@@ -16,7 +16,14 @@ export const PUSH_DELIVERY_LIMITS = {
 }
 
 export interface PushMessage {
-  subscription: WebPushSubscription
+  /** The device's push endpoint: with `topic`, which messages replace each other. */
+  endpoint: string
+  /**
+   * The device's subscription now, asked before every request and before a retry waits:
+   * undefined once it may no longer receive this message (unsubscribed, revoked, another
+   * owner) or a newer message for its lane overtook it, and the message is then dropped.
+   */
+  recipient(): WebPushSubscription | undefined
   payload: Buffer
   /** Seconds the push service may hold the message for an offline device. */
   ttl: number
@@ -39,6 +46,9 @@ export interface PushDeliveryPorts {
   limits?: Partial<typeof PUSH_DELIVERY_LIMITS>
 }
 
+/** Messages with one key replace each other and are sent one at a time, in order. */
+const keyOf = (message: PushMessage) => `${message.endpoint} ${message.topic}`
+
 function retryAfterMs(response: Response): number {
   const seconds = Number(response.headers.get('retry-after'))
   return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0
@@ -46,12 +56,8 @@ function retryAfterMs(response: Response): number {
 
 /** A newer message for the same device and lane replaces a waiting one. False when one was dropped. */
 function queueJob(queue: Job[], job: Job, limit: number): boolean {
-  const { endpoint } = job.message.subscription
-  const same = queue.findIndex(
-    (queued) =>
-      queued.message.subscription.endpoint === endpoint &&
-      queued.message.topic === job.message.topic,
-  )
+  const key = keyOf(job.message)
+  const same = queue.findIndex((queued) => keyOf(queued.message) === key)
   let kept = true
   if (same >= 0) queue.splice(same, 1)
   else if (queue.length >= limit) {
@@ -68,6 +74,31 @@ function retryDelay(limits: typeof PUSH_DELIVERY_LIMITS, job: Job, after: number
 }
 
 /**
+ * A failed job's next attempt, `'failed'` once it is out of attempts, or undefined when it
+ * no longer goes: its recipient is gone, or a message with its key was queued while it was
+ * in flight, which is newer and wins.
+ */
+function nextAttempt(
+  limits: typeof PUSH_DELIVERY_LIMITS,
+  queue: readonly Job[],
+  job: Job,
+  after: number,
+  now: number,
+): Job | 'failed' | undefined {
+  const key = keyOf(job.message)
+  if (queue.some((queued) => keyOf(queued.message) === key) || !job.message.recipient())
+    return undefined
+  if (job.attempt + 1 >= limits.attempts) return 'failed'
+  return { ...job, attempt: job.attempt + 1, dueAt: now + retryDelay(limits, job, after) }
+}
+
+/** Drops every waiting message for an endpoint the push service says is gone. */
+function forgetEndpoint(queue: Job[], endpoint: string) {
+  for (let i = queue.length - 1; i >= 0; i--)
+    if (queue[i]!.message.endpoint === endpoint) queue.splice(i, 1)
+}
+
+/**
  * A bounded, best-effort sender. `send` only queues, so a lane's publication never waits
  * on a push service; requests run in the background, never follow redirects, and never
  * go anywhere but an allowlisted push service. Nothing about the message is logged.
@@ -75,6 +106,8 @@ function retryDelay(limits: typeof PUSH_DELIVERY_LIMITS, job: Job, after: number
 export function createPushDelivery(ports: PushDeliveryPorts) {
   const limits = { ...PUSH_DELIVERY_LIMITS, ...ports.limits }
   const queue: Job[] = []
+  /** Keys with a request in flight: a later message for the same device and lane waits for it. */
+  const busy = new Set<string>()
   const aborts = new Set<AbortController>()
   let active = 0
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -83,20 +116,24 @@ export function createPushDelivery(ports: PushDeliveryPorts) {
   function schedule() {
     clearTimeout(timer)
     timer = undefined
-    if (closed || !queue.length || active >= limits.concurrency) return
-    const next = Math.min(...queue.map((job) => job.dueAt))
+    const ready = queue.filter((job) => !busy.has(keyOf(job.message)))
+    if (closed || !ready.length || active >= limits.concurrency) return
+    const next = Math.min(...ready.map((job) => job.dueAt))
     timer = setTimeout(pump, Math.max(0, next - ports.now()))
     timer.unref()
   }
   function pump() {
     while (!closed && active < limits.concurrency) {
       const now = ports.now()
-      const index = queue.findIndex((job) => job.dueAt <= now)
+      const index = queue.findIndex((job) => job.dueAt <= now && !busy.has(keyOf(job.message)))
       if (index < 0) break
       const [job] = queue.splice(index, 1)
+      const key = keyOf(job!.message)
       active++
+      busy.add(key)
       void attempt(job!).finally(() => {
         active--
+        busy.delete(key)
         pump()
       })
     }
@@ -106,27 +143,22 @@ export function createPushDelivery(ports: PushDeliveryPorts) {
     if (!queueJob(queue, job, limits.queue)) ports.log('push.dropped', { reason: 'queue' })
   }
   function retry(job: Job, after: number, reason: string | number) {
-    if (job.attempt + 1 >= limits.attempts) {
-      ports.log('push.failed', { reason })
-      return
-    }
-    enqueue({
-      ...job,
-      attempt: job.attempt + 1,
-      dueAt: ports.now() + retryDelay(limits, job, after),
-    })
+    const next = nextAttempt(limits, queue, job, after, ports.now())
+    if (next === 'failed') ports.log('push.failed', { reason })
+    else if (next) enqueue(next)
   }
   function gone(endpoint: string) {
-    for (let i = queue.length - 1; i >= 0; i--)
-      if (queue[i]!.message.subscription.endpoint === endpoint) queue.splice(i, 1)
+    forgetEndpoint(queue, endpoint)
     ports.gone(endpoint)
   }
   async function attempt(job: Job) {
+    const subscription = job.message.recipient()
+    if (!subscription) return
     const abort = new AbortController()
     aborts.add(abort)
     try {
-      const outcome = await post(ports, limits.requestMs, job.message, abort)
-      if (outcome.kind === 'gone') gone(job.message.subscription.endpoint)
+      const outcome = await post(ports, limits.requestMs, subscription, job.message, abort)
+      if (outcome.kind === 'gone') gone(job.message.endpoint)
       else if (outcome.kind === 'retry' && !closed) retry(job, outcome.after, outcome.reason)
       else if (outcome.kind === 'refused') ports.log('push.refused', outcome.fields)
     } finally {
@@ -159,10 +191,11 @@ type Outcome =
 async function post(
   ports: Pick<PushDeliveryPorts, 'fetch' | 'authorization'>,
   requestMs: number,
+  subscription: WebPushSubscription,
   message: PushMessage,
   abort: AbortController,
 ): Promise<Outcome> {
-  const { subscription, payload, ttl, urgency, topic } = message
+  const { payload, ttl, urgency, topic } = message
   // Checked again at send time: a stored endpoint never widens where the Host connects.
   if (!isPushServiceEndpoint(subscription.endpoint)) return { kind: 'refused', fields: {} }
   const deadline = setTimeout(() => abort.abort(), requestMs)

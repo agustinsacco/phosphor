@@ -7,7 +7,8 @@ agent.generateKeys()
 const keys = { p256dh: agent.getPublicKey().toString('base64url'), auth: 'EAY5CR185BofDMFkvMZw4Q' }
 const FCM = 'https://fcm.googleapis.com/fcm/send/device'
 const message = (overrides: Partial<PushMessage> = {}): PushMessage => ({
-  subscription: { endpoint: FCM, keys },
+  endpoint: FCM,
+  recipient: () => ({ endpoint: FCM, keys }),
   payload: Buffer.from('{"v":1}'),
   ttl: 21_600,
   urgency: 'normal',
@@ -123,7 +124,7 @@ describe('push delivery', () => {
   it('re-checks the endpoint at send time and never contacts anything else', async () => {
     const t = setup()
     for (const endpoint of ['https://evil.example/push', 'http://fcm.googleapis.com/x'])
-      t.delivery.send(message({ subscription: { endpoint, keys }, topic: endpoint }))
+      t.delivery.send(message({ endpoint, recipient: () => ({ endpoint, keys }), topic: endpoint }))
     await vi.advanceTimersByTimeAsync(0)
     expect(t.fetch).not.toHaveBeenCalled()
     expect(t.log).toHaveBeenCalledWith('push.refused', {})
@@ -141,6 +142,45 @@ describe('push delivery', () => {
     expect(t.delivery.pending()).toBe(4 + 64)
     expect(t.log).toHaveBeenCalledWith('push.dropped', { reason: 'queue' })
     for (const call of t.log.mock.calls) expect(JSON.stringify(call)).not.toContain('fcm')
+  })
+  it('asks for the recipient before every request and retry, and drops a message without one', async () => {
+    const t = setup([status(503)])
+    let current: { endpoint: string; keys: typeof keys } | undefined = { endpoint: FCM, keys }
+    const recipient = vi.fn(() => current)
+    t.delivery.send(message({ recipient }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+    expect(recipient).toHaveBeenCalledTimes(2)
+    current = undefined
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+    t.delivery.send(message({ recipient, topic: 'queued' }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+    expect(t.delivery.pending()).toBe(0)
+    expect(t.log).not.toHaveBeenCalled()
+  })
+  it('sends one message per device and lane at a time, and a retry never replaces a newer one', async () => {
+    let fail!: () => void
+    const t = setup([
+      () =>
+        new Promise<Response>(
+          (resolve) => (fail = () => resolve(new Response(null, { status: 503 }))),
+        ),
+    ])
+    t.delivery.send(message({ payload: Buffer.from('old') }))
+    await vi.advanceTimersByTimeAsync(0)
+    t.delivery.send(message({ payload: Buffer.from('new') }))
+    t.delivery.send(message({ topic: 'other-lane' }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.fetch).toHaveBeenCalledTimes(2)
+    expect(t.fetch.mock.calls[1]![1]!.headers).toMatchObject({ topic: 'other-lane' })
+    fail()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.fetch).toHaveBeenCalledTimes(3)
+    expect(t.fetch.mock.calls[2]![1]!.headers).toMatchObject({ topic: 'lane-topic' })
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(t.fetch).toHaveBeenCalledTimes(3)
   })
   it('aborts requests in flight and sends nothing more once closed', async () => {
     let signal: AbortSignal | undefined
