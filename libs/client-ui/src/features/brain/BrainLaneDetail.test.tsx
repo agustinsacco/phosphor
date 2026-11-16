@@ -11,6 +11,7 @@ import { BrainLaneDetail } from './BrainLaneDetail'
 import { mockBrainJob, mockBrainStatus } from './mockBrainData'
 import { mockExtractionView } from './mockExtractionView'
 import { useBrain } from './useBrain'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 
 let root: Root
 let container: HTMLDivElement
@@ -118,4 +119,51 @@ it('keeps empty reads dismissible without Read again', async () => {
   expect(container.textContent).not.toContain('Read again')
   await click('Dismiss')
   expect(cancel).toHaveBeenCalledWith(job.id)
+})
+
+it.each(['failed', 'running'] as const)(
+  'keeps outcomes and source inspection for a %s record',
+  async (state) => {
+    const job = mockBrainJob({ state })
+    const data = mockExtractionView()
+    data.source.exists = true
+    extraction.mockResolvedValue(data)
+    await act(async () =>
+      root.render(
+        <BrainLaneDetail jobId={job.id} job={job} readOnly={false} now={0} onMemory={() => {}} />,
+      ),
+    )
+    expect(container.querySelector('[aria-label="Read result"]')?.textContent).toContain(
+      'Link quote not found in s2',
+    )
+    expect(container.textContent).toContain('Source lane at extraction')
+    expect(container.textContent).toContain('Open lane')
+  },
+)
+
+it('treats a not-yet-recorded read as empty without notifying and loads it on progress', async () => {
+  const toast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast')
+  const job = mockBrainJob({ state: 'running', progress: { stage: 'extract', done: 0, total: 1 } })
+  extraction.mockRejectedValueOnce(
+    new Error(
+      "Error invoking remote method 'brain:extraction': Error: Brain extraction not found (dismissed or expired).",
+    ),
+  )
+  const render = () =>
+    act(async () =>
+      root.render(
+        <BrainLaneDetail jobId={job.id} job={job} readOnly={false} now={0} onMemory={() => {}} />,
+      ),
+    )
+  try {
+    await render()
+    expect(container.textContent).toContain('No calls yet.')
+    expect(toast).not.toHaveBeenCalled()
+    job.progress = { stage: 'identity', done: 0, total: 1 }
+    await render()
+    expect(container.querySelector('[aria-label="How it was read"]')).not.toBeNull()
+    expect(toast).not.toHaveBeenCalled()
+  } finally {
+    toast.mockRestore()
+  }
 })

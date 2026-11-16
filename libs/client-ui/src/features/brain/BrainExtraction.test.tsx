@@ -151,3 +151,31 @@ it('puts only nonzero outcomes first, pages at twenty, and leaves model calls cl
     fake.dispose()
   }
 })
+
+it('caps raw output, prompts and source text with their own scroll containers', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const data = mockExtractionView()
+  data.calls = [{ ...data.calls[0]!, answer: 'Harbor output\n'.repeat(1500) }]
+  data.prompts = ['Ledger prompt\n'.repeat(1500)]
+  data.source.exists = true
+  data.source.segments = [{ label: 'user · 2026-11-01', text: 'Kestrel source\n'.repeat(1500) }]
+  const fake = createFakePhosphor({ 'brain:extraction': () => data })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    for (const detail of container.querySelectorAll('details'))
+      await act(async () => {
+        detail.open = true
+        detail.dispatchEvent(new Event('toggle'))
+      })
+    expect(container.querySelectorAll('pre')).toHaveLength(3)
+    for (const pre of container.querySelectorAll('pre'))
+      expect(pre.closest('.max-h-96.overflow-auto')).not.toBeNull()
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
+})
