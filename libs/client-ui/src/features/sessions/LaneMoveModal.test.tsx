@@ -192,3 +192,69 @@ it('in the browser, moves a Host lane to another Host and opens the copy through
   })
   expect(useLaneMoveStore.getState().draft).toBeNull()
 })
+
+const taken = 'A branch named agustin/arena already exists in Target.'
+const plan = (blockers: string[] = []) => ({
+  mode: 'new-branch',
+  branch: 'agustin/arena',
+  workspace: 'Target',
+  blockers,
+  bytes: 10,
+})
+const checkbox = () => document.querySelector<HTMLInputElement>('input[type="checkbox"]')
+const move = () => button('Move')
+const checks = (invoke: ReturnType<typeof vi.fn>) =>
+  invoke.mock.calls.filter(([channel]) => channel === 'hosts:laneMovePlan').length
+
+/** Open the dialog, choose Target, wait for its check and acknowledge it. */
+async function acknowledgeMove(invoke: ReturnType<typeof vi.fn>) {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke })
+  useLaneMoveStore.getState().open({
+    source: { machine: 'local', sessionPath: '/source.jsonl' },
+    title: 'Arena',
+    marks: { pinned: false, marker: null },
+  })
+  el = document.createElement('div')
+  document.body.append(el)
+  root = createRoot(el)
+  await act(async () => root!.render(<LaneMoveHost />))
+  const select = document.querySelector('select[aria-label="Workspace"]') as HTMLSelectElement
+  await act(async () => {
+    select.value = 'local:/target'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await act(async () => checkbox()!.click())
+  expect(move().disabled).toBe(false)
+}
+
+it('checks again after a refused Move, so the same stale plan cannot be retried', async () => {
+  const answers = [plan(), plan([taken])]
+  const invoke = vi.fn((channel: string) =>
+    Promise.resolve(channel === 'hosts:laneMove' ? { blockers: [taken] } : answers.shift()),
+  )
+  await acknowledgeMove(invoke)
+  await act(async () => move().click())
+  expect(checks(invoke)).toBe(2)
+  expect(move().disabled).toBe(true)
+  expect(checkbox()).toBeNull()
+  // The refusal and the fresh check's blocker are one message, shown once.
+  expect(document.body.textContent!.split(taken)).toHaveLength(2)
+})
+
+it('asks for a fresh acknowledgement after a failed Move even when the new check passes', async () => {
+  const invoke = vi.fn((channel: string) =>
+    channel === 'hosts:laneMove'
+      ? Promise.reject(new Error('Connection changed.'))
+      : Promise.resolve(plan()),
+  )
+  await acknowledgeMove(invoke)
+  await act(async () => move().click())
+  expect(document.body.textContent).toContain('Connection changed.')
+  expect(checks(invoke)).toBe(2)
+  expect(checkbox()!.checked).toBe(false)
+  expect(move().disabled).toBe(true)
+  await act(async () => checkbox()!.click())
+  expect(move().disabled).toBe(false)
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:laneMove')).toHaveLength(1)
+})

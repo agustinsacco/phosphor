@@ -3,7 +3,11 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { LaneSourceFacts } from '@phosphor/shared/host-protocol-lane-transfer'
+import {
+  parseLaneTargetPlan,
+  type LaneSourceFacts,
+} from '@phosphor/shared/host-protocol-lane-transfer'
+import { checkTarget } from './move'
 import { inspectSourceGit, normalizeOrigin } from './source-git'
 import { inspectTargetGit, planMove, prepareTarget, type WorktreePort } from './target'
 
@@ -47,6 +51,17 @@ function repositories() {
   sh(temp, 'clone', origin, target)
   named(target)
   return { temp, origin, source, lane, target }
+}
+
+/** A repository with no shared history or origin with the lane's. */
+function unrelatedRepository(temp: string): string {
+  const other = join(temp, 'other')
+  sh(temp, 'init', '-b', 'main', other)
+  writeFileSync(join(other, 'x'), 'x')
+  sh(other, 'add', '.')
+  sh(other, 'commit', '-m', 'x')
+  sh(other, 'remote', 'add', 'origin', 'git@github.com:someone/else.git')
+  return other
 }
 
 const worktrees: WorktreePort = {
@@ -164,6 +179,35 @@ describe('a lane moving to another repository or a plain folder', () => {
     await expect(prepareTarget({ plan: ready, root: other, source, worktrees })).rejects.toThrow(
       'A branch named phosphor/feature already exists in target.',
     )
+  })
+
+  it('reports a taken branch name in the check, before anything is built', async () => {
+    const { lane, temp } = repositories()
+    const other = unrelatedRepository(temp)
+    const source = await facts(lane)
+    const input = { root: other, workspace: 'other', branchPrefix: 'phosphor/', sameMachine: true }
+    expect((await checkTarget(input, source)).blockers).toEqual([])
+    sh(other, 'branch', 'phosphor/feature')
+    expect(await checkTarget(input, source)).toMatchObject({
+      mode: 'new-branch',
+      branch: 'phosphor/feature',
+      blockers: ['A branch named phosphor/feature already exists in other.'],
+    })
+    // Checking reads; it never creates the branch or a worktree.
+    expect(sh(other, 'worktree', 'list', '--porcelain').split('\n\n')).toHaveLength(1)
+  })
+
+  it('keeps the taken-branch blocker within what a Host plan may carry', async () => {
+    const { lane, temp } = repositories()
+    const other = unrelatedRepository(temp)
+    sh(other, 'branch', 'phosphor/feature')
+    const workspace = 'w'.repeat(255)
+    const { blockers, ...plan } = await checkTarget(
+      { root: other, workspace, branchPrefix: 'phosphor/', sameMachine: false },
+      await facts(lane),
+    )
+    expect(blockers).toEqual(['A branch with this lane’s name already exists in that workspace.'])
+    expect(parseLaneTargetPlan({ ...plan, blockers })).not.toBeNull()
   })
 
   it('names a branch from the title when the lane had none', async () => {
