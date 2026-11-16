@@ -119,3 +119,14 @@ it('keeps confirmation-only approval and disables a genuinely empty approval', a
       ?.disabled,
   ).toBe(true)
 })
+
+it('uses singular quotes and keeps the outcome on the sentence row without shrinking', async () => {
+  await render()
+  const row = container.querySelector('[aria-label="Proposed memories"] article')!
+  const label = row.querySelector('label')!
+  const tag = [...row.querySelectorAll('span')].find((s) => s.textContent === 'new')!
+  expect(row.querySelector('summary')?.textContent).toBe('1 quote')
+  expect(tag.parentElement).toBe(label.parentElement)
+  expect(tag.classList.contains('shrink-0')).toBe(true)
+  expect(label.classList.contains('flex-1')).toBe(true)
+})

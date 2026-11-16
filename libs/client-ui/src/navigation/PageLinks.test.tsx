@@ -92,3 +92,16 @@ it('counts only review jobs at the right edge and removes the count live at zero
   await act(async () => useBrain.setState({ status: { ...status, jobs: [] } }))
   expect(container.querySelector('[aria-label$="lanes to review"]')).toBeNull()
 })
+
+it('names one review lane in the singular', async () => {
+  const { mockBrainJob } = await import('@/features/brain/mockBrainData')
+  useBrain.setState({
+    status: {
+      ...mockBrainStatus(),
+      prefs: { enabled: true, recall: true, review: true, model: null },
+      jobs: [mockBrainJob()],
+    },
+  })
+  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  expect(container.querySelector('[aria-label="1 lane to review"]')).not.toBeNull()
+})

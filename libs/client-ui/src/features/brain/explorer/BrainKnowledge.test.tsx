@@ -219,3 +219,29 @@ it('keeps the graph beside an empty Brain and never offers a hide graph button',
   expect(section('Knowledge graph')).not.toBeNull()
   expect(button('Hide graph')).toBeUndefined()
 })
+
+it('uses singular memory counts in browse and entity detail', async () => {
+  const row = explorer.browse(null, 0, 100).items.find((item) => item.memories === 1)!
+  await render()
+  expect(section('Most connected').textContent).not.toContain('1 memories')
+  await visit('entity', row.entity.id)
+  expect(section('Entity detail').textContent).toContain('1 memory')
+  expect(section('Entity detail').textContent).not.toContain('1 memories')
+})
+it('keeps each stored quote label unchanged without attributing it to the origin lane', async () => {
+  const detail = explorer.details[0]!
+  detail.quotes = [
+    'user · 2026-11-01T00:00:00Z · Harbor',
+    'assistant · 2026-11-02T00:00:00Z · Ledger',
+  ].map((label) => ({ quote: 'Kestrel uses Ledger.', before: '', after: '', label }))
+  detail.sourcePath = '/demo/Harbor/origin.jsonl'
+  await render()
+  await visit('memory', detail.memory.id)
+  const captions = [...section('Evidence').querySelectorAll('figcaption')].map((c) => c.textContent)
+  expect(captions).toEqual(detail.quotes.map((q) => q.label))
+  expect(section('Memory detail').querySelectorAll('button')).toSatisfy(
+    (buttons: NodeListOf<HTMLButtonElement>) =>
+      [...buttons].filter((b) => b.textContent === 'Open in lane').length === 1,
+  )
+  expect(section('Evidence').textContent).not.toContain('Open in lane')
+})

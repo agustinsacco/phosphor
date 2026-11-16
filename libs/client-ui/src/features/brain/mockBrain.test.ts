@@ -8,6 +8,7 @@ import {
   type BrainEntityView,
   type BrainConnectionPage,
   type BrainPaths,
+  type BrainRecentMemories,
 } from '@shared/brain'
 import { createMockBrain } from './mockBrain'
 
@@ -274,4 +275,29 @@ it('serves both browse reads with paging, kinds and memories learned from an app
       },
     ],
   })
+})
+
+it('orders recent memories by finished job and caps eligibility at the newest twenty done jobs', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  const expected: string[] = []
+  for (let index = 0; index < 22; index++) {
+    now = 1_000_000 - index * 10000
+    const status = (await call('brain:queue', [
+      { sessionPath: `/demo/Harbor/read-${index}.jsonl`, title: `Harbor ${index}` },
+    ])) as BrainStatus
+    const id = status.jobs.at(-1)!.id
+    await call('brain:status', [])
+    now += 5000
+    const proposal = (await call('brain:proposal', [id])) as BrainProposalView
+    await call('brain:review', [
+      id,
+      { memories: [0, 1], identities: {}, groups: [] },
+      proposal.revision,
+    ])
+    expected.push(`${id}-1`, `${id}-0`)
+  }
+  const recent = (await call('brain:recent', [50])) as BrainRecentMemories
+  expect(recent.items.map((item) => item.id)).toEqual(expected.slice(0, 40))
 })
