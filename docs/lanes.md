@@ -124,21 +124,26 @@ export a live lane. Pick a machine, then one of its workspaces: Desktop offers
 This Mac and every connected Host, the browser only Hosts, since it has no This
 Mac. A checked plan states the size to copy, what will land there and any
 blockers before anything moves. In the browser it also says the copy passes
-through this device.
+through this device. If a Move is refused or fails anyway, the dialog
+checks again and asks for a fresh acknowledgement; it never retries the Move by
+itself.
 
 A move is a snapshot copy. The original is untouched, keeps its row, and is
 never deleted automatically. The new lane keeps its conversation, exact supported
 name, artifact versions, child-run history, pin and visible marker, without a
 copy suffix or badge. It is not resumed automatically. **Open** continues it at
-the destination. A fixed, model-visible notice records both locations, warns
-about stale paths, and lists the attachments' new paths.
+the destination, in the new worktree when the move made one. Its row appears
+under that project as soon as the move ends. A fixed, model-visible notice
+records both locations, warns about stale paths, and lists the attachments' new
+paths.
 
 - **Folders without git:** the conversation moves, not the folder's files.
 - **Same origin on another machine:** the target fetches the source branch and
   requires its exact commit. A clean matching Phosphor worktree can be reused;
   conflicting branches or folders are refused.
 - **Another git workspace:** a fresh worktree/branch starts from the target's
-  default branch. The source code stays behind; a taken branch name is refused.
+  default branch. The source code stays behind. A branch name the target already
+  uses is a blocker in the plan, before anything is copied.
 - **Same repository on the same machine:** use Clone instead.
 
 Uncommitted tracked or untracked work blocks a git lane; ignored files neither

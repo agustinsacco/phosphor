@@ -14,9 +14,15 @@ Host connections must remain ready in the same incarnation throughout a move.
 A connection replacement or permission loss fails closed; an uncertain commit
 reports an unconfirmed result instead of resending it.
 
-This Mac imports into pi's cwd-mangled sessions folder. Attachments brought from
-a Host live under `<userData>/lane-attachments/<sessionId>/`, are private, and go
-to trash with the lane. Pins, markers and seen state are persisted by main;
+This Mac imports into pi's cwd-mangled sessions folder. The result names the
+folder the lane runs in, a new worktree when the move made one, and main
+broadcasts `sessions:changed` for it so the sidebar discovers that worktree.
+Main logs each check and move under `lane-move` in the debug log: outcome, mode,
+size, time, blockers and the destination, never titles or raw error text. A
+temporary bundle it cannot remove is logged and does not change the result.
+Attachments brought from a Host live under
+`<userData>/lane-attachments/<sessionId>/`, are private, and go to trash with
+the lane. Pins, markers and seen state are persisted by main;
 artifacts rebuild from the transcript. No live process, provider credential,
 routine schedule or terminal is transferred. See [lane semantics](lanes.md#moving-a-lane)
 and the [Host calls](remote-protocol.md#lane-snapshot-transfer).
