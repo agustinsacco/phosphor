@@ -3,12 +3,12 @@ import type { BrainEntityKind } from '@shared/brain'
 export const GRAPH_COLORS: Record<BrainEntityKind, string> = {
   person: '--px-accent',
   team: '--px-success',
-  organization: '--px-warning',
-  project: '--px-text',
+  organization: '--px-merged',
+  project: '--px-info',
   component: '--px-text-secondary',
   document: '--px-danger',
-  concept: '--px-text-tertiary',
-  event: '--px-border-strong',
+  concept: '--px-text',
+  event: '--px-warning',
 }
 
 export interface GraphTheme {

@@ -3,7 +3,11 @@ import { Row } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { ModelChip } from '@/features/chat/composer/ModelChip'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
-import { catalogueEmptyText, useModelCatalogueStore } from '@/stores/modelCatalogue'
+import {
+  catalogueEmptyText,
+  recordedModelName,
+  useModelCatalogueStore,
+} from '@/stores/modelCatalogue'
 
 export function BrainReaderModel({
   model,
@@ -19,7 +23,6 @@ export function BrainReaderModel({
   useEffect(() => {
     void useModelCatalogueStore.getState().hydrate()
   }, [])
-  const current = models.find((entry) => `${entry.provider}/${entry.id}` === model)
   return (
     <Row
       title="Model that reads lanes"
@@ -28,7 +31,7 @@ export function BrainReaderModel({
       <div className="flex min-w-0 items-center gap-2">
         <ModelChip
           testId="brain-reader-model"
-          name={current?.name ?? model ?? "Each lane's own model"}
+          name={model ? recordedModelName(models, model, model) : "Each lane's own model"}
           title={model ?? "Each lane's own model"}
           active={open}
           disabled={saving}

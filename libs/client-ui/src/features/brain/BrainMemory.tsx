@@ -7,11 +7,12 @@ import type {
   BrainMemoryDetail as MemoryDetail,
 } from '@shared/brain'
 import { Button, Tag } from '@/components/form'
-import { TooltipButton } from '@/components/Tooltip'
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { relativeTime } from '@/lib/time'
 import { brainToast, useBrain } from './useBrain'
 import { openBrainSource } from './openBrainSource'
 import { ipcErrorText } from '@shared/errors'
+import { EntityChip, KnowledgeHeading } from './explorer/KnowledgePrimitives'
 import { useBrainResource } from './useBrainResource'
 
 export const MEMORY_LABELS: Record<BrainMemoryType, string> = {
@@ -58,7 +59,10 @@ export function MemoryQuotes({ quotes }: { quotes: BrainQuote[] }): React.JSX.El
   return (
     <div className="space-y-3">
       {quotes.map((quote, index) => (
-        <figure key={index} className="border-border bg-bg-secondary rounded-md border p-3 text-sm">
+        <figure
+          key={index}
+          className="border-border border-l-2 pl-3 text-sm [overflow-wrap:anywhere]"
+        >
           <blockquote>
             {quote.before}
             <mark className="bg-accent-soft text-text rounded-sm">{quote.quote}</mark>
@@ -96,20 +100,31 @@ export function BrainMemoryDetail({
     )
   const { memory } = data
   return (
-    <article aria-label="Memory detail" className="space-y-4 p-4">
+    <article aria-label="Memory detail" className="space-y-4 py-3 [overflow-wrap:anywhere]">
+      <div className="text-text-tertiary flex flex-wrap items-center gap-2 text-sm">
+        <Tag>{memory.type}</Tag>
+        <span>
+          {memory.state === 'active' ? 'current' : memory.state} · learned{' '}
+          {relativeTime(memory.recordedAt)}
+        </span>
+      </div>
       <h2 className="text-lg font-medium">{memory.summary}</h2>
-      <MemoryTags memory={memory} />
       <MemoryEvidence data={data} onFocus={onFocus} onMemory={onMemory} />
       {memory.jobId && (
-        <Button size="sm" onClick={() => onExtraction(memory.jobId!)}>
-          View extraction
-        </Button>
+        <TooltipButton
+          className="text-text-secondary text-left text-sm hover:underline"
+          onClick={() => onExtraction(memory.jobId!)}
+        >
+          See the read that produced this
+        </TooltipButton>
       )}
       <footer className="text-text-tertiary flex items-center justify-between gap-3 text-sm">
-        <span>{memory.origin && `From ${memory.origin.title}`}</span>
-        <Button
-          size="sm"
-          variant="danger"
+        <span>
+          {memory.origin && `From ${memory.origin.title}`}{' '}
+          {data.sourcePath && <OpenSource path={data.sourcePath} />}
+        </span>
+        <TooltipButton
+          className="text-danger hover:bg-danger-soft rounded-md px-2 py-1"
           disabled={saving}
           onClick={() => {
             void useBrain
@@ -121,12 +136,24 @@ export function BrainMemoryDetail({
           }}
         >
           Forget
-        </Button>
+        </TooltipButton>
       </footer>
     </article>
   )
 }
 
+function OpenSource({ path }: { path: string }): React.JSX.Element {
+  return (
+    <TooltipButton
+      className="hover:text-text underline"
+      onClick={() => {
+        openBrainSource(path).catch((cause: unknown) => brainToast(ipcErrorText(cause), 'error'))
+      }}
+    >
+      Open in lane
+    </TooltipButton>
+  )
+}
 function MemoryEvidence({
   data,
   onFocus,
@@ -138,59 +165,82 @@ function MemoryEvidence({
 }): React.JSX.Element {
   const { memory, entities } = data
   const entity = (id: string): React.ReactNode => {
-    const label = entities.find((e) => e.id === id)?.label ?? id
-    return (
-      <TooltipButton className="text-accent hover:underline" onClick={() => onFocus(id, label)}>
-        {label}
-      </TooltipButton>
-    )
+    const found = entities.find((e) => e.id === id)
+    const label = found?.label ?? id
+    return <EntityChip label={label} kind={found?.kind} onClick={() => onFocus(id, label)} />
   }
+  const quotes = (items: BrainQuote[]): React.ReactNode => <MemoryQuotes quotes={items} />
   return (
     <>
       <div className="flex flex-wrap gap-2">
         {memory.entityIds.map((id) => (
-          <span key={id}>{entity(id)}</span>
+          <span key={id} className="max-w-full">
+            {entity(id)}
+          </span>
         ))}
       </div>
-      {memory.links.map((link) => (
-        <section key={link.id} className="space-y-2">
-          <p>
-            {entity(link.subjectId)} → {link.predicate.replaceAll('_', ' ')} →{' '}
-            {entity(link.objectId)}
-          </p>
-          <MemoryQuotes quotes={data.linkQuotes[link.id] ?? []} />
+      <section aria-label="Evidence">
+        <KnowledgeHeading>Evidence</KnowledgeHeading>
+        {quotes(data.quotes)}
+      </section>
+      {memory.links.length > 0 && (
+        <section aria-label="Links">
+          <KnowledgeHeading>Links</KnowledgeHeading>
+          {memory.links.map((link) => (
+            <div key={link.id} className="space-y-2 py-2">
+              <p>
+                {entity(link.subjectId)}{' '}
+                <span className="text-text-secondary">{link.predicate.replaceAll('_', ' ')}</span>{' '}
+                {entity(link.objectId)}
+              </p>
+              {quotes(data.linkQuotes[link.id] ?? [])}
+            </div>
+          ))}
         </section>
-      ))}
-      <MemoryQuotes quotes={data.quotes} />
-      {data.sourcePath && (
-        <Button
-          size="sm"
-          onClick={() => {
-            openBrainSource(data.sourcePath!).catch((cause: unknown) =>
-              brainToast(ipcErrorText(cause), 'error'),
-            )
-          }}
-        >
-          Open in lane
-        </Button>
       )}
+      <MemoryHistory data={data} onMemory={onMemory} />
+      <details className="text-text-tertiary text-sm">
+        <TooltipSummary>Dates and scope</TooltipSummary>
+        <MemoryTags memory={memory} />
+      </details>
+    </>
+  )
+}
+
+function MemoryHistory({
+  data,
+  onMemory,
+}: {
+  data: MemoryDetail
+  onMemory: (id: string, label: string) => void
+}): React.JSX.Element {
+  return (
+    <>
       {data.history.length > 0 && (
         <section>
-          <h3>History</h3>
+          <KnowledgeHeading>History</KnowledgeHeading>
           {data.history.map((m) => (
-            <Button key={m.id} size="sm" onClick={() => onMemory(m.id, m.summary)}>
+            <TooltipButton
+              className="brain-row"
+              key={m.id}
+              onClick={() => onMemory(m.id, m.summary)}
+            >
               {m.summary} · {m.state}
-            </Button>
+            </TooltipButton>
           ))}
         </section>
       )}
       {data.related.length > 0 && (
         <section>
-          <h3>Related</h3>
+          <KnowledgeHeading>Related</KnowledgeHeading>
           {data.related.map(({ kind, memory: m }) => (
-            <Button key={`${kind}:${m.id}`} size="sm" onClick={() => onMemory(m.id, m.summary)}>
+            <TooltipButton
+              className="brain-row"
+              key={`${kind}:${m.id}`}
+              onClick={() => onMemory(m.id, m.summary)}
+            >
               {kind}: {m.summary} · {m.state}
-            </Button>
+            </TooltipButton>
           ))}
         </section>
       )}

@@ -234,3 +234,21 @@ it("shares its sign-in read with This Mac's other readers", async () => {
   expect(await lastLocalSubscriptionAuth()).toEqual(signedIn)
   expect(invoke.mock.calls.filter(([channel]) => channel === 'pi:subscriptionAuth')).toHaveLength(1)
 })
+
+it('labels recorded provider/id models with picker names and a provider-free fallback', async () => {
+  const { recordedModelName } = await import('./modelCatalogue')
+  const models = [{ provider: 'harbor', id: 'reader', name: 'Harbor Reader', reasoning: true }]
+  expect(recordedModelName(models, 'harbor/reader')).toBe('Harbor Reader')
+  expect(recordedModelName(models, 'kestrel/reader')).toBe('reader')
+  expect(recordedModelName([], 'harbor/unknown')).toBe('unknown')
+  expect(recordedModelName([], 'reader')).toBe('reader')
+})
+
+it('keeps the full stored id as an explicit Settings fallback without changing lane labels', async () => {
+  const { recordedModelName } = await import('./modelCatalogue')
+  const model = 'removed/reader'
+  expect(recordedModelName([], model)).toBe('reader')
+  expect(recordedModelName([], model, model)).toBe(model)
+  const models = [{ provider: 'removed', id: 'reader', name: 'Harbor Reader', reasoning: true }]
+  expect(recordedModelName(models, model, model)).toBe('Harbor Reader')
+})

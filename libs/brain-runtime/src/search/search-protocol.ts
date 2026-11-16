@@ -6,6 +6,8 @@ export const SEARCH_METHODS = [
   'ready',
   'recall',
   'find',
+  'entities',
+  'recent',
   'nearestEntities',
   'nearestMemories',
 ] as const satisfies readonly (keyof BrainSearch)[]

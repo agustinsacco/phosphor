@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { PerspectiveCamera } from 'three'
 import type SpriteText from 'three-spritetext'
 import type { BrainEntity, BrainMemory, BrainGraph, BrainLink } from '@shared/brain'
 import {
@@ -11,6 +12,7 @@ import {
 import { MockExplorer } from './mockExplorer'
 import type { GraphLink, GraphModel, GraphNode } from './graphModel'
 import { BrainGraph3D } from './BrainGraph3D'
+import { ExplorerGraph } from './explorer/ExplorerGraph'
 import { boundedGraph, graphFixture, installGraphEnvironment } from './__fixtures__/graph3D'
 
 const mock = await vi.hoisted(async () => {
@@ -71,13 +73,10 @@ beforeEach(() => {
   mock.controls.addEventListener.mockReset()
   mock.controls.removeEventListener.mockReset()
   graph.controls.mockReturnValue(mock.controls)
-  graph.camera.mockReturnValue({
-    fov: 40,
-    aspect: 2,
-    // Looking down -z with +y up, as the library's default camera does.
-    matrixWorld: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 300, 1] },
-    updateMatrixWorld: vi.fn(),
-  })
+  const camera = new PerspectiveCamera(40, 2, 0.1, 10000)
+  camera.position.set(0, 0, 300)
+  camera.updateMatrixWorld()
+  graph.camera.mockReturnValue(camera)
   graph.cameraPosition.mockImplementation((...args: unknown[]) =>
     args.length ? graph : { x: 0, y: 0, z: 300 },
   )
@@ -110,7 +109,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 async function render(
-  props: { focus?: string | null; matches?: Set<string> | null; path?: BrainLink[] | null } = {},
+  props: {
+    focus?: string | null
+    matches?: Set<string> | null
+    path?: BrainLink[] | null
+    scope?: 'all' | 'near'
+  } = {},
 ): Promise<void> {
   if (entities !== previousEntities || memories !== previousMemories) {
     projection = boundedGraph(entities, memories)
@@ -121,6 +125,7 @@ async function render(
     root.render(
       <BrainGraph3D
         graph={projection}
+        scope={props.scope}
         focus={props.focus ?? null}
         matches={props.matches ?? null}
         path={props.path ?? null}
@@ -181,7 +186,7 @@ it('passes the mentioned nodes, val and aggregated edges to the lazy library wit
   expect(graph.linkDirectionalArrowLength).toHaveBeenCalledWith(4)
   expect(graph.backgroundColor).toHaveBeenCalledWith('rgba(0,0,0,0)')
   expect(container.querySelector('[aria-label="Knowledge graph"]')).not.toBeNull()
-  expect(container.querySelector('[aria-label="Entity kinds"]')?.textContent).toContain('person')
+  expect(container.querySelector('[aria-label="Entity kinds"]')?.textContent).toContain('People')
 })
 
 it('measures the container on resize and destroys the graph and observers on unmount', async () => {
@@ -215,33 +220,28 @@ it('focuses clicked nodes and exposes keyboard buttons including Space', async (
   expect(onFocus).toHaveBeenLastCalledWith('rina')
 })
 
-it('dims nonmatches, fits just search matches in 600ms, and fits everything when cleared', async () => {
+it('highlights a memory without moving a whole-graph camera, and fits everything when cleared', async () => {
   await render()
+  setting<() => void>('onEngineStop')()
+  graph.cameraPosition.mockClear()
   await render({ matches: new Set(['harbor', 'postgres']) })
   expect(nodeColor('harbor')).toMatch(/,1\)$/)
   expect(nodeColor('rina')).toMatch(/,0\.16\)$/)
-  expect(lastCamera()[1]).toEqual(centerOf(['harbor', 'postgres']))
-  expect(lastCamera()[2]).toBe(600)
-  expect(centerOf(['harbor', 'postgres'])).not.toEqual(centerOf())
   expect(sprite('rina').material.opacity).toBe(0.16)
-  await render()
-  expect(lastCamera()[1]).toEqual(centerOf())
-  expect(nodeColor('rina')).toMatch(/,1\)$/)
-  graph.cameraPosition.mockClear()
-  await render({ matches: new Set() })
   expect(graph.cameraPosition).not.toHaveBeenCalled()
+  await render()
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
 })
 
-it('flies to an external focus, but a new search takes camera precedence over the About chip', async () => {
+it('never moves for an in-view selection, but fits the whole graph for an offscreen selection', async () => {
   await render()
+  setting<() => void>('onEngineStop')()
+  graph.cameraPosition.mockClear()
   await render({ focus: 'rina' })
-  expect(graph.cameraPosition).toHaveBeenLastCalledWith(
-    { x: 60, y: 10, z: 140 },
-    { x: 60, y: 10, z: 20 },
-    600,
-  )
-  await render({ focus: 'rina', matches: new Set(['harbor']) })
-  expect(lastCamera()[1]).toEqual(centerOf(['harbor']))
+  expect(graph.cameraPosition).not.toHaveBeenCalled()
+  data().nodes.find((n) => n.id === 'harbor')!.x = 2000
+  await render({ focus: 'harbor' })
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
 })
 
 it('highlights a hovered node, its neighbours and links, with predicate sprites at link midpoints', async () => {
@@ -305,7 +305,7 @@ it('precomputes a reduced-motion layout and uses zero-duration focus, fit and zo
   expect(graph.cooldownTicks).toHaveBeenCalledWith(0)
   setting<() => void>('onEngineStop')()
   expect(graph.cameraPosition.mock.lastCall![2]).toBe(0)
-  await click('Fit')
+  await click('Fit the graph')
   expect(lastCamera()[1]).toEqual(centerOf())
   expect(lastCamera()[2]).toBe(0)
   await click('Zoom in')
@@ -348,7 +348,7 @@ it('keeps zoom and Fit controls wired to the library', async () => {
   )
   await click('Zoom out')
   expect(graph.cameraPosition.mock.lastCall![0].z).toBeCloseTo(360)
-  await click('Fit')
+  await click('Fit the graph')
   expect(lastCamera()[1]).toEqual(centerOf())
   expect(lastCamera()[2]).toBe(600)
 })
@@ -451,7 +451,7 @@ it.each(['orbit', 'zoom'])('does not override %s on container resize', async (ac
   expect(graph.cameraPosition).not.toHaveBeenCalled()
 })
 
-it('keeps an About focus or a search framed, instantly, when the pane resizes', async () => {
+it('keeps the whole graph framed on resize even with a selection', async () => {
   await render()
   setting<() => void>('onEngineStop')()
   const shrink = (): void => {
@@ -465,10 +465,10 @@ it('keeps an About focus or a search framed, instantly, when the pane resizes', 
   await render({ focus: 'rina' })
   shrink()
   expect(graph.cameraPosition).toHaveBeenCalledOnce()
-  expect(lastCamera().slice(1)).toEqual([{ x: 60, y: 10, z: 20 }, 0])
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 0])
   await render({ focus: 'rina', matches: new Set(['harbor']) })
   shrink()
-  expect(lastCamera().slice(1)).toEqual([centerOf(['harbor']), 0])
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 0])
 })
 
 it('refits with the measured pane shape, not the camera aspect the library has yet to update', async () => {
@@ -541,6 +541,14 @@ it('highlights only the selected supported route and switches between two and th
   expect(graph.numDimensions).toHaveBeenLastCalledWith(3)
 })
 
+function enterCanvas(): void {
+  act(() => {
+    container
+      .querySelector('[aria-label="Memory relationships"]')!
+      .dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+  })
+}
+
 it('reads only the hovered edge support, retries an error and clears on hover exit', async () => {
   const detail = new MockExplorer().memory('memory-0')
   const read = vi
@@ -552,6 +560,7 @@ it('reads only the hovered edge support, retries an error and clears on hover ex
   try {
     await render()
     expect(read).not.toHaveBeenCalled()
+    enterCanvas()
     const hoverEdge = setting<(link: GraphLink | null) => void>('onLinkHover')
     await act(async () => hoverEdge(data().links[0]!))
     expect(read).toHaveBeenCalledWith(data().links[0]!.memoryId)
@@ -561,6 +570,187 @@ it('reads only the hovered edge support, retries an error and clears on hover ex
     expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
     await act(async () => hoverEdge(null))
     expect(container.querySelector('[role="status"]')).toBeNull()
+  } finally {
+    restore()
+    fake.dispose()
+  }
+})
+
+it('dims distant nodes after selection, labels direct links and clears through empty space', async () => {
+  const onClear = vi.fn()
+  const explorer = new MockExplorer()
+  const graphData = explorer.graph(null)
+  await act(async () =>
+    root.render(
+      <BrainGraph3D graph={graphData} focus="rina" onFocus={onFocus} onClear={onClear} />,
+    ),
+  )
+  expect(nodeColor('rina')).toMatch(/,1\)$/)
+  expect(nodeColor('ledger')).toMatch(/,1\)$/)
+  expect(nodeColor('harbor')).toMatch(/,0.16\)$/)
+  const direct = data().links.find((l) => l.source === 'rina' || l.target === 'rina')!
+  const label = setting<(link: GraphLink) => SpriteText>('linkThreeObject')(direct)
+  expect(label.visible).toBe(true)
+  expect(label.text).toContain('owns')
+  setting<() => void>('onBackgroundClick')()
+  expect(onClear).toHaveBeenCalledOnce()
+  await act(async () =>
+    root.render(
+      <BrainGraph3D graph={graphData} focus={null} onFocus={onFocus} onClear={onClear} />,
+    ),
+  )
+  expect(nodeColor('harbor')).toMatch(/,1\)$/)
+  expect(label.visible).toBe(false)
+  expect(lastCamera()[1]).toEqual(centerOf())
+})
+
+it('keeps every named entity bright even if the selected memory only links some of them', async () => {
+  const explorer = new MockExplorer()
+  const graphData = explorer.graph(null)
+  const path = graphData.links.filter((l) => l.subjectId === 'rina' || l.objectId === 'rina')
+  const matches = new Set(['rina', 'ledger', 'harbor'])
+  await act(async () =>
+    root.render(
+      <BrainGraph3D
+        graph={graphData}
+        focus={null}
+        path={path}
+        matches={matches}
+        onFocus={onFocus}
+      />,
+    ),
+  )
+  for (const id of matches) expect(nodeColor(id)).toMatch(/,1\)$/)
+  expect(container.querySelectorAll('[aria-label="Graph entities"] li')).toHaveLength(
+    graphData.nodes.length,
+  )
+})
+
+it('does not zoom when a memory highlight gives way to an entity selection', async () => {
+  await render({ focus: 'rina', matches: new Set(['harbor']) })
+  setting<() => void>('onEngineStop')()
+  graph.cameraPosition.mockClear()
+  await render({ focus: 'rina' })
+  expect(graph.cameraPosition).not.toHaveBeenCalled()
+})
+
+it('clearing a selection restores every node even while the pointer stayed on the graph', async () => {
+  await render({ focus: 'rina' })
+  hover('rina')
+  await render()
+  expect(nodeColor('postgres')).toMatch(/,1\)$/)
+})
+
+it('places the focus badge inside the canvas frame, separate from toolbar and legend', async () => {
+  await render()
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Focus Rina Okafor"]')!.focus())
+  const badge = container.querySelector('[role="status"]')!
+  const canvas = container.querySelector('[aria-label="Memory relationships"]')!
+  expect(badge.parentElement).toBe(canvas.parentElement)
+  expect(badge.parentElement!.querySelector('[aria-label="Entity kinds"]')).toBeNull()
+})
+it('clears link support when the pointer exits the canvas even without a vendor hover callback', async () => {
+  const fake = createFakePhosphor({ 'brain:memory': () => new MockExplorer().memory('memory-0') })
+  const restore = installFakePhosphor(fake)
+  try {
+    await render()
+    enterCanvas()
+    await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
+    expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
+    act(() => {
+      container
+        .querySelector('[aria-label="Memory relationships"]')!
+        .dispatchEvent(new MouseEvent('pointerout', { bubbles: true }))
+    })
+    expect(container.textContent).not.toContain('Harbor Ledger is built for Harbor.')
+  } finally {
+    restore()
+    fake.dispose()
+  }
+})
+
+it('ignores link support the scene reports while the pointer is outside the graph', async () => {
+  const read = vi.fn(() => new MockExplorer().memory('memory-0'))
+  const fake = createFakePhosphor({ 'brain:memory': read })
+  const restore = installFakePhosphor(fake)
+  try {
+    await render()
+    // The library raycasts from its default pointer position before any pointer reaches the canvas.
+    await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
+    expect(read).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('Harbor Ledger is built for Harbor.')
+  } finally {
+    restore()
+    fake.dispose()
+  }
+})
+
+it('does not move for a visible node near the viewport edge', async () => {
+  await render()
+  setting<() => void>('onEngineStop')()
+  data().nodes.find((n) => n.id === 'rina')!.x =
+    0.95 * (300 - 20) * Math.tan((20 * Math.PI) / 180) * 2
+  graph.cameraPosition.mockClear()
+  await render({ focus: 'rina' })
+  expect(graph.cameraPosition).not.toHaveBeenCalled()
+})
+it('fits the neighbourhood on scope changes and all shown nodes on explicit Fit', async () => {
+  await render({ focus: 'rina' })
+  setting<() => void>('onEngineStop')()
+  graph.cameraPosition.mockClear()
+  await render({ focus: 'rina', scope: 'near' })
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
+  graph.cameraPosition.mockClear()
+  await click('Fit the graph')
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
+})
+it('fits all nodes after a selection is newly added to the layout', async () => {
+  await render()
+  setting<() => void>('onEngineStop')()
+  entities = [...entities, { ...entities[0]!, id: 'kestrel', label: 'Kestrel' }]
+  graph.cameraPosition.mockClear()
+  await render({ focus: 'kestrel' })
+  setting<() => void>('onEngineStop')()
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
+})
+
+it('does not clear the camera while the real explorer loads an in-view memory selection', async () => {
+  const explorer = new MockExplorer()
+  const graphData = explorer.graph('rina')
+  const detail = explorer.details.find((d) =>
+    d.memory.entityIds.every((id) => graphData.nodes.some((n) => n.id === id)),
+  )!
+  let resolve!: (value: typeof detail) => void
+  const fake = createFakePhosphor({
+    'brain:overview': () => graphData,
+    'brain:memory': () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  })
+  const restore = installFakePhosphor(fake)
+  try {
+    await act(async () =>
+      root.render(<ExplorerGraph entityId="rina" path={null} onVisit={() => {}} />),
+    )
+    await act(async () => {
+      await vi.dynamicImportSettled()
+    })
+    setting<() => void>('onEngineStop')()
+    graph.cameraPosition.mockClear()
+    await act(async () =>
+      root.render(
+        <ExplorerGraph
+          entityId={null}
+          memoryId={detail.memory.id}
+          path={null}
+          onVisit={() => {}}
+        />,
+      ),
+    )
+    expect(graph.cameraPosition).not.toHaveBeenCalled()
+    await act(async () => resolve(detail))
+    expect(graph.cameraPosition).not.toHaveBeenCalled()
   } finally {
     restore()
     fake.dispose()

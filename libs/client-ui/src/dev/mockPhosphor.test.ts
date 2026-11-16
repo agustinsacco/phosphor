@@ -113,3 +113,11 @@ it('round trips the Brain reader preference through the browser bridge', async (
   const prefs = { ...status.prefs, model: 'harbor/reader' }
   expect((await window.phosphor.invoke('brain:setPrefs', prefs)).prefs).toEqual(prefs)
 })
+
+it('dispatches both Knowledge overview reads in the browser harness', async () => {
+  const page = await window.phosphor.invoke('brain:entities', null, 0, 20)
+  expect(page.items).toHaveLength(20)
+  expect(page.more).toBe(true)
+  expect(page.kinds).toContain('person')
+  expect(await window.phosphor.invoke('brain:recent', 10)).toHaveProperty('items')
+})

@@ -1,0 +1,11 @@
+.underlined-tab {
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  padding-bottom: 8px;
+  color: var(--px-text-secondary);
+}
+.underlined-tab[aria-current='page'],
+.underlined-tab[aria-selected='true'] {
+  border-bottom-color: var(--px-accent);
+  color: var(--px-text);
+}

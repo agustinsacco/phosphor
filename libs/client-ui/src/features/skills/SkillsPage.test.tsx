@@ -419,3 +419,14 @@ it('retains the detail and surfaces a failed Trash operation, allowing retry', a
   expect(invoke).toHaveBeenCalledTimes(2)
   expect(useSkillsStore.getState().selectedDir).toBeNull()
 })
+
+it('characterizes the neutral Skills filter selection and styling', async () => {
+  await render()
+  expect(button('Discover').getAttribute('aria-pressed')).toBe('true')
+  expect(button('Discover').className).toContain('bg-bg-secondary text-text font-medium')
+  expect(button('Yours').getAttribute('aria-pressed')).toBe('false')
+  await act(async () => button('Yours').click())
+  expect(useSkillsStore.getState().tab).toBe('yours')
+  expect(button('Yours').getAttribute('aria-pressed')).toBe('true')
+  expect(button('Discover').getAttribute('aria-pressed')).toBe('false')
+})

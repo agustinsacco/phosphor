@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import { useBrain, useBrainSync } from '@/features/brain/useBrain'
 import { usePlatform } from '@/platform/Platform'
 import type { GlobalPage } from '@/stores/layout'
@@ -19,6 +20,9 @@ export function PageLinks({
 }): React.JSX.Element {
   useBrainSync()
   const enabled = useBrain((s) => s.status?.prefs.enabled)
+  const reviews = useBrain(
+    (s) => s.status?.jobs.filter((job) => job.state === 'review').length ?? 0,
+  )
   const localBrain = usePlatform().localBrain
   return (
     <>
@@ -30,7 +34,18 @@ export function PageLinks({
             label={title}
             icon={<Icon />}
             active={activePage === page}
-            trailing={trailing?.[page]}
+            trailing={
+              page === 'brain' && reviews > 0 ? (
+                <span
+                  className="text-accent ml-auto text-xs tabular-nums"
+                  aria-label={`${formatCount(reviews, 'lane')} to review`}
+                >
+                  {reviews}
+                </span>
+              ) : (
+                trailing?.[page]
+              )
+            }
             onClick={() => onPage(page)}
           />
         )

@@ -14,6 +14,8 @@ function fakeSearch(patch: Partial<BrainSearch> = {}): BrainSearch {
     ready: vi.fn(() => true),
     recall: vi.fn(),
     find: vi.fn(),
+    entities: vi.fn(),
+    recent: vi.fn(),
     nearestEntities: vi.fn((vectors: Float32Array[]) =>
       vectors.map((v) => [{ id: `harbor-${v.length}`, score: v[0]! }]),
     ),
@@ -163,5 +165,43 @@ it('loads a readiness-faithful index on first open and again after a process res
     [{ id: 'semantic-harbor', score: 1 }],
   ])
   expect(opened[1]!.refresh).toHaveBeenCalledTimes(1)
+  await client.close()
+})
+
+it('forwards browse and recent reads through the search worker and lets each recover', async () => {
+  const entities = vi
+    .fn<BrainSearch['entities']>()
+    .mockImplementationOnce(() => {
+      throw new Error('Browse unavailable')
+    })
+    .mockReturnValue({ items: [], more: false, kinds: ['person'] })
+  const recent = vi
+    .fn<BrainSearch['recent']>()
+    .mockImplementationOnce(() => {
+      throw new Error('Recent unavailable')
+    })
+    .mockReturnValue({
+      items: [
+        {
+          id: 'harbor-memory',
+          summary: 'Harbor uses Ledger.',
+          type: 'fact',
+          originTitle: 'Harbor planning',
+          learnedAt: 100,
+        },
+      ],
+    })
+  const { spawn } = host(() => fakeSearch({ entities, recent }))
+  const client = createSearchClient({ path: 'brain.sqlite', spawn })
+  await expect(client.entities('person', 20, 20)).rejects.toThrow('Browse unavailable')
+  await expect(client.entities('person', 20, 20)).resolves.toEqual({
+    items: [],
+    more: false,
+    kinds: ['person'],
+  })
+  expect(entities).toHaveBeenLastCalledWith('person', 20, 20)
+  await expect(client.recent(10)).rejects.toThrow('Recent unavailable')
+  expect((await client.recent(10)).items[0]?.id).toBe('harbor-memory')
+  expect(recent).toHaveBeenLastCalledWith(10)
   await client.close()
 })

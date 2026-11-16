@@ -5,6 +5,9 @@ import type {
   BrainExtractionView,
   BrainFindResult,
   BrainGraph,
+  BrainEntityKind,
+  BrainEntityPage,
+  BrainRecentMemories,
   BrainHistory,
   BrainLaneRef,
   BrainMemoryDetail,
@@ -49,6 +52,11 @@ export interface BaselineBrainInvokeMap {
   /** Typeahead over entities and memories. */
   'brain:find': { args: [query: string, limit: number]; result: BrainFindResult }
   /** The best-connected entities, when nothing is selected. */
+  'brain:entities': {
+    args: [kind: BrainEntityKind | null, offset: number, limit: number]
+    result: BrainEntityPage
+  }
+  'brain:recent': { args: [limit: number]; result: BrainRecentMemories }
   'brain:overview': { args: []; result: BrainGraph }
   /** One entity's neighbourhood, one or two hops out. */
   'brain:neighbourhood': { args: [entityId: string, hops: 1 | 2]; result: BrainGraph }

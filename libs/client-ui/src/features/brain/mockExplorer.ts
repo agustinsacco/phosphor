@@ -1,9 +1,13 @@
 import type {
   BrainConnectionGroup,
   BrainEntity,
+  BrainEntityKind,
+  BrainEntityPage,
+  BrainRecentMemories,
   BrainEntitySummary,
   BrainEntityView,
   BrainGraph,
+  BrainJob,
   BrainMemoryDetail,
   BrainMemoryFilter,
   BrainMemoryPage,
@@ -32,6 +36,45 @@ export class MockExplorer {
         ),
       ).size - 1
     return { ...entity, memories: memories.length, connections: Math.max(0, connections) }
+  }
+  browse(kind: BrainEntityKind | null, offset: number, limit: number): BrainEntityPage {
+    const all = this.entities.map((e) => this.summary(e)).filter((e) => e.memories > 0)
+    const rows = all
+      .filter((e) => !kind || e.kind === kind)
+      .sort((a, b) => b.connections - a.connections)
+    return {
+      items: rows
+        .slice(offset, offset + limit)
+        .map((entity) => ({ entity, memories: entity.memories })),
+      more: rows.length > offset + limit,
+      kinds: [...new Set(all.map((e) => e.kind))],
+    }
+  }
+  recent(limit: number, jobs: BrainJob[] = []): BrainRecentMemories {
+    const finished = jobs
+      .filter((job) => job.state === 'done')
+      .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))
+      .slice(0, 20)
+    return {
+      items: finished
+        .flatMap((job) =>
+          this.details
+            .map((d, index) => ({ memory: d.memory, index }))
+            .filter(
+              ({ memory }) =>
+                memory.jobId === job.id && ['active', 'disputed'].includes(memory.state),
+            )
+            .sort((a, b) => b.memory.recordedAt - a.memory.recordedAt || b.index - a.index)
+            .map(({ memory: m }) => ({
+              id: m.id,
+              summary: m.summary,
+              type: m.type,
+              originTitle: m.origin?.title ?? null,
+              learnedAt: m.recordedAt,
+            })),
+        )
+        .slice(0, limit),
+    }
   }
   graph(centerId: string | null, hops: 1 | 2 = 1): BrainGraph {
     let ids = new Set(centerId ? [centerId] : this.entities.map((e) => e.id))

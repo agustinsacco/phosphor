@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { BrainEntity, BrainPaths, BrainLink } from '@shared/brain'
-import { Button } from '@/components/form'
+import { TooltipButton } from '@/components/Tooltip'
 import { promptText } from '@/stores/prompt'
 import { useBrain } from '../useBrain'
 import { useBrainResource } from '../useBrainResource'
@@ -22,18 +22,18 @@ export function EntityActions({
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
+        <TooltipButton
+          className="text-text-secondary text-left hover:underline"
           onClick={() => {
             setMode('path')
             setTarget(null)
             onPath(null)
           }}
         >
-          Find a path to…
-        </Button>
-        <Button
-          size="sm"
+          Find route to…
+        </TooltipButton>
+        <TooltipButton
+          className="text-text-secondary text-left hover:underline"
           disabled={saving}
           onClick={() => {
             setMode('merge')
@@ -42,10 +42,10 @@ export function EntityActions({
           }}
         >
           Merge into…
-        </Button>
+        </TooltipButton>
         {mode && (
-          <Button
-            size="sm"
+          <TooltipButton
+            className="text-text-secondary text-left hover:underline"
             onClick={() => {
               setMode(null)
               setTarget(null)
@@ -53,7 +53,7 @@ export function EntityActions({
             }}
           >
             Close {mode === 'path' ? 'path finder' : 'merge'}
-          </Button>
+          </TooltipButton>
         )}
       </div>
       {mode && (
@@ -97,7 +97,7 @@ function PathResults({
     return (
       <p role="status">
         {error || 'Finding supported paths…'}
-        {error && <Button onClick={retry}>Retry</Button>}
+        {error && <TooltipButton onClick={retry}>Retry</TooltipButton>}
       </p>
     )
   return (
@@ -105,8 +105,7 @@ function PathResults({
       {!data.paths.length && <p>No supported path found within four hops.</p>}
       {data.paths.map((path, index) => (
         <article key={index} className="border-border space-y-2 rounded border p-2">
-          <Button
-            size="xs"
+          <TooltipButton
             aria-pressed={selected === index}
             onClick={() => {
               setSelected(index)
@@ -114,7 +113,7 @@ function PathResults({
             }}
           >
             Highlight route {index + 1}
-          </Button>
+          </TooltipButton>
           <PathChain data={data} path={path} onVisit={onVisit} />
         </article>
       ))}
@@ -134,9 +133,7 @@ export function PathChain({
   const entity = (id: string): React.ReactNode => {
     const label = data.entities.find((e) => e.id === id)?.label ?? id
     return (
-      <Button size="xs" onClick={() => onVisit({ kind: 'entity', id, label })}>
-        {label}
-      </Button>
+      <TooltipButton onClick={() => onVisit({ kind: 'entity', id, label })}>{label}</TooltipButton>
     )
   }
   return (
@@ -147,9 +144,8 @@ export function PathChain({
             {entity(link.subjectId)} → {link.predicate.replaceAll('_', ' ')} →{' '}
             {entity(link.objectId)}
           </p>
-          <Button
-            size="xs"
-            className="text-left"
+          <TooltipButton
+            className="brain-row"
             onClick={() =>
               onVisit({
                 kind: 'memory',
@@ -159,7 +155,7 @@ export function PathChain({
             }
           >
             {data.memories.find((m) => m.id === link.memoryId)?.summary ?? 'Open supporting memory'}
-          </Button>
+          </TooltipButton>
         </li>
       ))}
     </ol>
