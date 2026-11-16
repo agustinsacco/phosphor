@@ -150,7 +150,7 @@ class SceneController implements GraphScene {
       const node = this.model.nodes.find((item) => item.id === id)
       if (!node || !Number.isFinite(node.x)) return false
       const point = new Vector3(node.x, node.y, node.z).project(camera)
-      return Math.abs(point.x) < 0.9 && Math.abs(point.y) < 0.9 && Math.abs(point.z) <= 1
+      return Math.abs(point.x) <= 1 && Math.abs(point.y) <= 1 && Math.abs(point.z) <= 1
     })
   }
   /** Fit the nodes themselves, keeping the current view direction. */
