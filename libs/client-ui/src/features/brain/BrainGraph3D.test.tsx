@@ -659,6 +659,22 @@ it('clears link support when the pointer exits the canvas even without a vendor 
   }
 })
 
+it('ignores link support the scene reports while the pointer is outside the graph', async () => {
+  const read = vi.fn(() => new MockExplorer().memory('memory-0'))
+  const fake = createFakePhosphor({ 'brain:memory': read })
+  const restore = installFakePhosphor(fake)
+  try {
+    await render()
+    // The library raycasts from its default pointer position before any pointer reaches the canvas.
+    await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
+    expect(read).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('Harbor Ledger is built for Harbor.')
+  } finally {
+    restore()
+    fake.dispose()
+  }
+})
+
 it('does not move for a visible node near the viewport edge', async () => {
   await render()
   setting<() => void>('onEngineStop')()
