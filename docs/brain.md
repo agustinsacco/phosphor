@@ -36,7 +36,7 @@ The page header shows **Brain**, “N memories · M people and things”, and Se
 Underlined **Knowledge** and **Lanes** tabs separate exploration from reading and review.
 Arrow keys, Home and End select tabs. Knowledge opens first, except when there are no
 memories and at least one job: then Lanes opens. Switching tabs keeps the explorer trail
-and selected lane. The Lanes tab and the sidebar's Brain row show the live count of jobs
+and selected lane; explorer shortcuts act only on Knowledge. The Lanes tab and the sidebar's Brain row show the live count of jobs
 waiting for review, hidden at zero.
 
 Lanes is a plain list beside the selected lane's detail, with nonempty sections:
@@ -47,7 +47,8 @@ Lanes is a plain list beside the selected lane's detail, with nonempty sections:
 - **Failed**: a shortened error on the row; the detail wraps the full error and offers Retry
   and Dismiss.
 - **Read**: quieter rows from the newest finished reads, with memory count (or “Nothing kept”),
-  model name and relative finish time. Empty jobs also appear here and can be dismissed.
+  model name and relative finish time. Empty jobs join these rows by finish time as “Nothing
+  kept”; they offer Dismiss, never Read again.
 
 Selection follows the same job from reading through review into history. If it disappears,
 Brain chooses a review first, then a reading job, then a finished read (or a failed job when
@@ -69,8 +70,7 @@ ready. A lane whose agent is working (`SessionActivity.busy`) waits until it is 
 nothing new since its last finished extraction by the same extractor version is refused; a new
 extractor version may read it once more. A failed job shows **Retry**, which requeues the same
 job and resumes from its saved steps. Jobs left running when the app quit resume where they
-stopped. The Lanes list shows each running job's step ("Read the conversation · part 3 of 12",
-"Match people and things", …).
+stopped.
 
 ## Read lanes and Read again
 
@@ -274,7 +274,8 @@ graph is always visible; there is no hide-graph control. The explorer trail surv
   or the Overview breadcrumb restores the whole graph and fits the camera. **Whole graph** is the
   default; **Neighbours only** explicitly switches to one or two steps (`brain:neighbourhood`),
   and clearing resets that choice. Zoom, fit and 2D/3D controls remain available. The legend along
-  the bottom shares its theme-token colours with the column's kind dots. Directed links show
+  the bottom lists only present kinds and shares its theme-token colours with the column's kind dots.
+  Node labels keep a twelve-CSS-pixel height as the camera zooms. Directed links show
   predicate words on selection or hover; hovering still loads the supporting memory. Reduced
   motion uses instantaneous camera moves.
 - **Find route to…**: up to three shortest supported routes between two entities, at most four
@@ -297,13 +298,13 @@ not an assertion that every browse query has constant work at a million memories
 
 ## Inspecting a finished read
 
-A Read row, **See how it was read** in review, or a memory's extraction link opens the
-finished read on Lanes. A memory may open an older read outside the newest 200; its detail
-stays open without fabricating or selecting a list row. Missing records offer Retry.
+A Read row, **See how it was read** in review, or **See the read that produced this** on a
+memory opens the read on Lanes, selecting its row when present. An older read outside the
+newest 200 stays open without fabricating or selecting a list row. Missing records offer Retry.
 
 The header shows the lane, model name, thinking level, duration and relative finish time.
 **Read again** appears for a finished `done` job only. **Result** comes first, showing only
-nonzero counts of kept, folded, reconfirmed, enriched, held and dropped candidates. Outcome
+nonzero counts of kept, folded, reconfirmed, enriches, held and dropped candidates. Outcome
 rows show the claim, outcome tag and reason; the first 20 have **Show more**. Forgotten
 memories say “removed”, not a dead link. **Memories from this lane** opens each memory on
 Knowledge. **How it was read · n calls** has one closed disclosure per call, named in plain
@@ -316,7 +317,7 @@ inbox or is the latest finished read of its lane, without an age limit. These jo
 step inputs, so finished-read prompts can be rebuilt. Removing or replacing a job deletes its
 step inputs. A record without a job survives only while a memory references it, and expires
 30 days after it finished; its prompts are unavailable. With neither job nor memory, the record
-is pruned immediately. Forgotten candidate memories show as removed, not as dead links.
+is pruned immediately.
 
 ## Storage
 

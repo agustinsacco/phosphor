@@ -34,6 +34,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 2, entities: 3 })
     const harbor = await directedGraph(page, firstJob)
     await graphSelection(page)
+    await expectBrainPanesToFit(page)
     await exploreBrain(page)
 
     await writeFile(seed.armed, 'armed\n')
@@ -302,6 +303,7 @@ test('Brain review wraps a 300-character identity description without sideways s
       return !!pane && pane.scrollWidth <= pane.clientWidth
     })
     expect(fits, 'review scrollWidth <= clientWidth').toBe(true)
+    await expectBrainPanesToFit(page)
   } finally {
     await shutdown(h)
   }
@@ -343,4 +345,32 @@ async function graphSelection(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Clear selection', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Whole graph', exact: true })).toHaveCount(0)
   await expect(nodes.getByRole('button')).toHaveCount(count)
+}
+
+async function expectBrainPanesToFit(page: Page): Promise<void> {
+  const original = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+  for (const width of [1280, 1000, 800]) {
+    await page.setViewportSize({ width, height: original.height })
+    await expect
+      .poll(
+        () =>
+          page.locator('.page-shell').evaluate((shell) => {
+            const panes = [
+              shell,
+              ...shell.querySelectorAll<HTMLElement>(
+                '.brain-knowledge-column, [aria-label="Graph explorer"], [aria-label="Brain lanes"], .brain-lane-detail',
+              ),
+            ]
+            return panes
+              .filter(
+                (pane) =>
+                  pane.getBoundingClientRect().width > 0 && pane.scrollWidth > pane.clientWidth,
+              )
+              .map((pane) => pane.getAttribute('aria-label') ?? pane.className)
+          }),
+        { message: `Brain panes fit at ${width}px` },
+      )
+      .toEqual([])
+  }
+  await page.setViewportSize(original)
 }

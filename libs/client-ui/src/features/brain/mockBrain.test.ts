@@ -242,3 +242,36 @@ it('marks forgotten links removed in a finished mocked extraction', async () => 
   const after = (await call('brain:extraction', ['harbor-demo-review'])) as BrainExtractionView
   expect(after.outcomes[0]).toMatchObject({ memoryId: view.memories[0]!.id, removed: true })
 })
+
+it('serves both browse reads with paging, kinds and memories learned from an approved mock read', async () => {
+  const call = createMockBrain()
+  const all = await call('brain:entities', [null, 0, 1])
+  expect(all).toMatchObject({
+    items: [{ entity: { id: 'harbor' }, memories: expect.any(Number) }],
+    more: true,
+    kinds: expect.arrayContaining(['person', 'organization']),
+  })
+  expect(await call('brain:entities', ['person', 0, 1])).toMatchObject({
+    items: [{ entity: { kind: 'person' } }],
+    more: true,
+  })
+  expect(await call('brain:entities', ['person', 1, 1])).toMatchObject({
+    items: [{ entity: { kind: 'person' } }],
+    more: false,
+  })
+  await call('brain:review', [
+    'harbor-demo-review',
+    { memories: [0], identities: {}, groups: [] },
+    0,
+  ])
+  const read = (await call('brain:extraction', ['harbor-demo-review'])) as BrainExtractionView
+  expect(await call('brain:recent', [10])).toMatchObject({
+    items: [
+      {
+        id: read.memories[0]!.id,
+        originTitle: 'Harbor identity review',
+        learnedAt: expect.any(Number),
+      },
+    ],
+  })
+})
