@@ -77,10 +77,11 @@ function browser() {
     },
   }
 }
-function connection(view: object = {}) {
+type View = { state: string; capabilities: string[]; webPushKey?: string }
+function connection(view: Partial<View> = {}) {
   let generation = 1
   const c = {
-    view: { state: 'ready', capabilities: ['sessions.read'], webPushKey: KEY, ...view },
+    view: { state: 'ready', capabilities: ['sessions.read'], webPushKey: KEY, ...view } as View,
     snapshot: () => c.view,
     incarnation: () => ({ generation }),
     call: vi.fn(async (_method: string, _params?: unknown) => ({ ok: true, data: null })),
