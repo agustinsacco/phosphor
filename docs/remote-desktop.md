@@ -345,8 +345,12 @@ Removed lanes are excluded because no admitted lane authorizes their read.
 Local deleted-session retention is unchanged. Host indexes and blobs stay on
 the Host; Desktop holds remote contents in memory only.
 
-HTML staging remains local through `phosphor-artifact://`. Its sandbox never
-uses `allow-same-origin`, and its policy grants no network access.
+On Desktop HTML staging remains local through `phosphor-artifact://`. Its sandbox
+never uses `allow-same-origin`, and its policy grants no network access. The
+[browser's artifact viewer](web-client.md#artifacts) offers the same version diff,
+source download and controlled Write in Files; a phone uses a single-column line
+diff and an overflow action sheet. Browser HTML/SVG previews stay static and
+sandboxed, and PDF export is absent because the browser lacks the artifact origin.
 
 ## Add a machine
 
@@ -596,8 +600,9 @@ the Host, as This Mac's does: it reads the file's revision first, so it replaces
 only what it read (or creates a new file), then opens it in that lane's Files.
 Like the lane's Files editing, it needs the Host's file editing and this window
 holding the lane; otherwise the button is disabled and its tooltip names why. A
-refusal from the Host is a toast. Save and PDF export explicitly target This
-Mac. The top-bar artifact count belongs to the active lane.
+refusal from the Host is a toast. On Desktop Save and PDF export explicitly target
+This Mac; the browser downloads the source and offers no PDF export. The top-bar
+artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. The Rules · MCP readout shows the

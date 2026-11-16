@@ -1,34 +1,23 @@
 import { usePlatform } from '@/platform/Platform'
 import { localMachineLabel } from '@/lib/localMachine'
-import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import clsx from 'clsx'
 import { LOCAL_ARTIFACT_PREFIX, useArtifactsStore, type Artifact } from '@/stores/artifacts'
 import { useOpenArtifactInFiles } from './openArtifactInFiles'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { PageShell } from '@/components/PageShell'
-import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { ChevronDownIcon } from '@/components/icons'
-import { Markdown } from '@/components/markdown/Markdown'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
-import { MermaidBlock } from '@/components/markdown/MermaidBlock'
-import { ChartBlock } from '@/components/markdown/ChartBlock'
 import { MonacoDiff } from '@/features/files/MonacoEditor'
-import { CopyButton } from '@/components/CopyButton'
-import { SandboxedHtml } from '@/components/SandboxedHtml'
-import { DownloadIcon, FileIcon, LinkIcon, PdfExportIcon } from '@/components/icons'
 import { useChatStore } from '@/stores/chat'
 import { artifactReference } from './artifactReference'
 import { FindBar } from '@/components/search/FindBar'
 import { useFind } from '@/components/search/useFind'
 import { useDomFind } from '@/components/search/useDomFind'
 import { useFindTarget } from '@/components/search/findTargets'
-import { relativeTimeShort } from '@/lib/time'
 import { useSettingsStore } from '@/stores/settings'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ipcErrorText } from '@shared/errors'
 import { saveActionLabel, saveToDevice } from '@/lib/saveToDevice'
-import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
+import { artifactLanguage, suggestedFileName } from './artifactKinds'
 import {
   needsRenderedPreview,
   previewReadySelector,
@@ -37,7 +26,9 @@ import {
   waitForPreview,
 } from './previewHtml'
 
-type ViewMode = 'preview' | 'code' | 'diff'
+import { ArtifactToolbar, type ViewMode } from './ArtifactToolbar'
+import { ArtifactSwitcher, ArtifactPreview } from './ArtifactPresentation'
+import { ResponsiveDiff } from '@/components/ResponsiveDiff'
 
 /**
  * Whether a view's text is in this document, where find can reach it. HTML and
@@ -192,7 +183,6 @@ export function ArtifactWorkspace({
 
   const shown = artifact.versions[Math.min(versionIndex, artifact.versions.length - 1)] ?? latest
   const previous = artifact.versions[Math.min(versionIndex, artifact.versions.length - 1) - 1]
-  const versioned = artifact.versions.length > 1
 
   // The current version is named without a number, so a prompt reads whatever
   // is newest; an older one being read is pinned.
@@ -269,84 +259,27 @@ export function ArtifactWorkspace({
         </>
       }
       actions={
-        /*
-         * Shrinkable and scrollable, following the terminal's tab strip: the
-         * shell's own ↔ / ↗ / ✕ come AFTER this in the row, so a toolbar that
-         * refused to give ground would push them out of a narrow pane and
-         * leave no way to close it. The pane title (flex-basis 0) collapses
-         * first; only then does this scroll.
-         */
-        <div className="flex min-w-0 shrink items-center gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="View">
-            <Tab active={mode === 'preview'} onClick={() => setMode('preview')}>
-              Preview
-            </Tab>
-            <Tab active={mode === 'code'} onClick={() => setMode('code')}>
-              Code
-            </Tab>
-            {versioned && platform.fileEditing && (
-              <Tab active={mode === 'diff'} onClick={() => setMode('diff')}>
-                Diff
-              </Tab>
-            )}
-          </div>
-          {versioned && (
-            <select
-              value={shown.version}
-              data-tooltip="Version"
-              aria-label="Version"
-              onChange={(e) => {
-                const index = artifact.versions.findIndex(
-                  (v) => v.version === Number(e.target.value),
-                )
-                if (index !== -1) setVersionIndex(index)
-              }}
-              className="border-border bg-surface text-text-secondary shrink-0 rounded-md border px-1 py-0.5 text-sm outline-none"
-            >
-              {artifact.versions.map((v) => (
-                <option key={v.version} value={v.version}>
-                  v{v.version}
-                </option>
-              ))}
-            </select>
-          )}
-          <CopyButton text={shown.content} title="Copy source" className="shrink-0" />
-          <ActionIcon
-            title={
-              reference
-                ? 'Copy reference for a prompt'
-                : promoted
-                  ? 'Copy reference (not for a code block copied here; the agent cannot read it)'
-                  : 'Copy reference (available once pi reports the session)'
-            }
-            disabled={!reference}
-            onClick={copyReference}
-          >
-            <LinkIcon />
-          </ActionIcon>
-          <ActionIcon title={saveTitle} onClick={() => void save()}>
-            <DownloadIcon />
-          </ActionIcon>
-          {/* PDF prints model HTML, which a browser could only do in the app's own origin. */}
-          {platform.nativeFiles && (
-            <ActionIcon
-              title={exporting ? 'Exporting PDF…' : `Export preview to PDF (${downloads})`}
-              disabled={exporting}
-              onClick={() => void exportPdf()}
-            >
-              <PdfExportIcon />
-            </ActionIcon>
-          )}
-          {!page && platform.fileEditing && (
-            <ActionIcon
-              disabled={!!writeIn.refusal}
-              title={writeIn.refusal ?? 'Write into workspace and open in Files'}
-              onClick={() => void writeIn.open(artifact, shown.content)}
-            >
-              <FileIcon size={12} />
-            </ActionIcon>
-          )}
-        </div>
+        <ArtifactToolbar
+          artifact={artifact}
+          shown={shown}
+          mode={mode}
+          setMode={setMode}
+          selectVersion={(version) => {
+            const index = artifact.versions.findIndex((v) => v.version === version)
+            if (index !== -1) setVersionIndex(index)
+          }}
+          reference={reference}
+          promoted={promoted}
+          copyReference={copyReference}
+          saveTitle={saveTitle}
+          save={save}
+          exporting={exporting}
+          downloads={downloads}
+          exportPdf={exportPdf}
+          canWrite={!page && (platform.fileEditing || remote)}
+          writeIn={writeIn}
+          write={() => void writeIn.open(artifact, shown.content)}
+        />
       }
     >
       <div className="relative flex min-h-0 flex-1 flex-col">
@@ -395,11 +328,17 @@ export function ArtifactWorkspace({
           )}
           {mode === 'diff' && (
             <div className="h-full">
-              <MonacoDiff
-                originalText={previous?.content ?? ''}
-                modifiedText={shown.content}
-                language={artifactLanguage(artifact)}
-                renderSideBySide={false}
+              <ResponsiveDiff
+                original={previous?.content ?? ''}
+                modified={shown.content}
+                editor={
+                  <MonacoDiff
+                    originalText={previous?.content ?? ''}
+                    modifiedText={shown.content}
+                    language={artifactLanguage(artifact)}
+                    renderSideBySide={false}
+                  />
+                }
               />
             </div>
           )}
@@ -420,200 +359,5 @@ function PageArtifactShell({
     <div ref={rootRef} className="flex h-full min-h-0 flex-col">
       <PageShell {...shell} />
     </div>
-  )
-}
-
-/**
- * Header title = the selected artifact itself (glyph, name). With more than
- * one artifact it becomes a dropdown switcher; with one it is a plain label.
- *
- * No timestamp here: it cost ~45px of a row that also carries the tabs, the
- * version picker and the shell's buttons, and the dropdown already dates every
- * artifact.
- */
-function ArtifactSwitcher({
-  list,
-  selected,
-  onSelect,
-}: {
-  list: Artifact[]
-  selected: Artifact
-  onSelect: (id: string) => void
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const multiple = list.length > 1
-
-  return (
-    <div className="relative min-w-0 flex-1">
-      <TooltipButton
-        ref={triggerRef}
-        disabled={!multiple}
-        aria-haspopup={multiple ? 'listbox' : undefined}
-        aria-expanded={multiple ? open : undefined}
-        title={multiple ? 'Switch artifact' : selected.title}
-        onClick={() => setOpen((v) => !v)}
-        className={clsx(
-          // `overflow-hidden` on the BUTTON, not on the relative wrapper: the
-          // wrapper anchors the dropdown, and clipping there would cut the
-          // popup off. Without it the glyph and chevron (both `shrink-0`)
-          // spill out of a title box that a narrow pane has squeezed to zero,
-          // and paint on top of the tabs.
-          'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden rounded-md px-1 py-0.5 text-left transition-colors',
-          multiple && 'hover:bg-bg-secondary',
-        )}
-      >
-        <span className="shrink-0 text-base leading-none">{artifactGlyph(selected.type)}</span>
-        <span className="min-w-0 truncate text-lg font-semibold">{selected.title}</span>
-        {multiple && <ChevronDownIcon size={11} className="text-text-tertiary shrink-0" />}
-      </TooltipButton>
-      {open && (
-        <PopupMenu
-          onClose={() => setOpen(false)}
-          triggerRef={triggerRef}
-          fitViewport
-          className="absolute left-0 top-full mt-1 w-80 py-1"
-        >
-          {list.map((artifact) => (
-            <MenuRow
-              key={artifact.id}
-              active={artifact.id === selected.id}
-              onClick={() => {
-                onSelect(artifact.id)
-                setOpen(false)
-              }}
-            >
-              {/*
-               * Title truncates and the meta is a sibling, not MenuRow's
-               * `trailing` overlay: `v3 · 1m ago` is far wider than the 36px
-               * that overlay reserves, so it used to sit on top of a title
-               * that had already wrapped to two lines.
-               */}
-              <span className="shrink-0 text-base leading-none">
-                {artifactGlyph(artifact.type)}
-              </span>
-              <span className="min-w-0 flex-1 truncate">{artifact.title}</span>
-              <span className="text-text-tertiary shrink-0 text-sm">
-                v{artifact.versions.length} · {relativeTimeShort(artifact.updatedAt)}
-              </span>
-            </MenuRow>
-          ))}
-        </PopupMenu>
-      )}
-    </div>
-  )
-}
-
-function ArtifactPreview({
-  artifact,
-  content,
-}: {
-  artifact: Artifact
-  content: string
-}): React.JSX.Element {
-  const platform = usePlatform()
-  if (!platform.scriptedArtifacts && (artifact.type === 'html' || artifact.type === 'svg'))
-    return (
-      <div className="flex h-full flex-col">
-        <p className="text-text-tertiary p-2 text-sm">
-          Static preview · scripts and network access are disabled.
-        </p>
-        <SandboxedHtml
-          html={content}
-          title={artifact.title}
-          className="bg-bg min-h-0 w-full flex-1 border-0"
-        />
-      </div>
-    )
-  switch (artifact.type) {
-    case 'html':
-      return (
-        <SandboxedHtml
-          html={content}
-          title={artifact.title}
-          className="bg-bg block h-full w-full border-0"
-        />
-      )
-    case 'svg':
-      return (
-        <iframe
-          sandbox=""
-          srcDoc={`<!doctype html><style>html,body{margin:0;display:grid;place-items:center;height:100%;background:#fff}</style>${content}`}
-          data-tooltip={artifact.title}
-          className="block h-full w-full border-0 bg-white"
-        />
-      )
-    case 'mermaid':
-      return (
-        <div className="p-3">
-          <MermaidBlock code={content} />
-        </div>
-      )
-    case 'chart':
-      return (
-        <div className="p-3">
-          <ChartBlock code={content} />
-        </div>
-      )
-    case 'markdown':
-      return (
-        <div className="mx-auto min-w-0 max-w-[76ch] p-4 sm:p-6">
-          <Markdown text={content} />
-        </div>
-      )
-    case 'code':
-    default:
-      return (
-        <div className="[&_.code-block]:my-0 [&_.code-block]:rounded-none [&_.code-block]:border-0">
-          <CodeBlock code={content} language={artifactLanguage(artifact)} />
-        </div>
-      )
-  }
-}
-
-function Tab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      onClick={onClick}
-      aria-pressed={active}
-      className={clsx(
-        'rounded-sm px-1.5 py-0.5 text-sm font-medium transition-colors',
-        active ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
-      )}
-    >
-      {children}
-    </TooltipButton>
-  )
-}
-
-function ActionIcon({
-  title,
-  onClick,
-  disabled = false,
-  children,
-}: {
-  title: string
-  onClick: () => void
-  disabled?: boolean
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      title={title}
-      aria-label={title}
-      onClick={onClick}
-      disabled={disabled}
-      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors disabled:opacity-50"
-    >
-      {children}
-    </TooltipButton>
   )
 }
