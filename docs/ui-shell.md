@@ -571,7 +571,7 @@ close it; focus moves into the sheet and returns to the element on close.
   Target switches refresh the command set. This Mac searches all scanned sessions
   in the current cwd before rendering at most twelve matches, not just its first
   eight. The browser opens the same palette from Search lanes and pages in its
-  wide header and phone page/lane headers, with a full-screen phone presentation.
+  header, phone Settings' title row and phone lane header, with a full-screen phone presentation.
   Its inventory searches all Hosts and routes to browser pages, not native
   workspaces or pane commands ([web client](web-client.md#palette-and-find-in-chat)).
   Distinct from the chat `/` command menu.

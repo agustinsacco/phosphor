@@ -231,8 +231,9 @@ the browser's Back button is not intercepted.
 
 ### Palette and find in chat
 
-**Search lanes and pages** in the wide header, phone page headers and phone lane
-header opens the shared command palette. On a phone it fills the screen, with
+**Search lanes and pages** in the browser header (wide, and on every phone tab
+beside the bell), phone Settings' title row, which stands in for that header, and
+the phone lane header opens the shared command palette. On a phone it fills the screen, with
 its focused input at the top and touch-sized results below. It searches every
 Host's lanes by title, machine and folder before rendering at most twelve
 matches, showing machine · folder and a Needs you mark. It also offers Home,

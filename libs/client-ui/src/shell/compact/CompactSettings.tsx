@@ -16,7 +16,7 @@ export function CompactSettings({ machine }: { machine?: string }): React.JSX.El
     <PageShell
       title="Settings"
       actions={
-        // On a phone the title row stands in for the shell header, so it carries both its buttons.
+        // On a phone this title row stands in for the shell header, so it carries both its buttons.
         compact ? (
           <>
             <PaletteButton />
