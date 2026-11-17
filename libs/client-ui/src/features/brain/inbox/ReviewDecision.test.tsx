@@ -197,3 +197,22 @@ it('answers a and r through the keys the Inbox forwards', async () => {
   await act(async () => keys.current.reject?.())
   expect(review).toHaveBeenLastCalledWith('harbor-job', null, 0)
 })
+
+it('regression: counts a plainly new person apart from the ones matched without doubt', async () => {
+  proposal.identities.push({
+    ...proposal.identities[0]!,
+    ref: 'kestrel',
+    label: 'Kestrel',
+    kind: 'team',
+    decision: 'new',
+    entityId: null,
+    candidates: [],
+    auto: false,
+  })
+  await render()
+  expect(
+    button(
+      '▸ 3 people and things matched without doubt · 1 new person or thing · 1 memory confirms what Brain knows',
+    ),
+  ).toBeDefined()
+})
