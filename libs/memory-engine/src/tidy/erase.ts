@@ -4,20 +4,7 @@ import { flagKeyPrefix } from './flag-keys'
 
 /** Forget runs this before deleting live rows, while changed relation keys can still be resolved. */
 export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
-  run(
-    ctx,
-    "DELETE FROM tidy_suggestions WHERE subject_type='memory' AND (first_id=? OR second_id=?)",
-    id,
-    id,
-  )
-  // A flag keeps the flagged memory in its key wherever a fold has moved it.
-  const prefix = flagKeyPrefix(id)
-  run(
-    ctx,
-    'DELETE FROM tidy_suggestions WHERE pair_key>=? AND pair_key<?',
-    prefix,
-    `${prefix.slice(0, -1)}/`,
-  )
+  eraseSuggestions(ctx, id)
   const ops = all<{ id: string; kind: string }>(
     ctx,
     'SELECT o.id,o.kind FROM tidy_operation_memories m JOIN tidy_operations o ON o.id=m.operation_id WHERE m.memory_id=?',
@@ -86,6 +73,23 @@ export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
   }
 }
 
+/** Suggestions about the memory, and lane flags filed against it wherever a fold moved them. */
+function eraseSuggestions(ctx: Context, id: string): void {
+  run(
+    ctx,
+    "DELETE FROM tidy_suggestions WHERE subject_type='memory' AND (first_id=? OR second_id=?)",
+    id,
+    id,
+  )
+  // A flag keeps the flagged memory in its key wherever a fold has moved it.
+  const prefix = flagKeyPrefix(id)
+  run(
+    ctx,
+    'DELETE FROM tidy_suggestions WHERE pair_key>=? AND pair_key<?',
+    prefix,
+    `${prefix.slice(0, -1)}/`,
+  )
+}
 function eraseBeforeImages(ctx: Context, id: string): void {
   run(ctx, 'DELETE FROM tidy_operation_rows WHERE operation_id=?', id)
   run(ctx, 'DELETE FROM tidy_operation_memories WHERE operation_id=?', id)
