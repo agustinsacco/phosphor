@@ -15,6 +15,8 @@ import type { BrainVisit } from './trail'
 
 export interface ProfileProps {
   visit: Extract<BrainVisit, { kind: 'entity' }>
+  /** Back, forward and the last steps; drawn in the header. */
+  trail: React.ReactNode
   /** The map, when the page is too narrow for its own column. */
   map: React.ReactNode | null
   /** A request from the map's "+N more": show Connections. */
@@ -35,14 +37,17 @@ export function KnowledgeProfile(props: ProfileProps): React.JSX.Element {
   const { data, error, retry } = useEntityView(visit.id)
   if (!data)
     return (
-      <p role="status" className="p-4">
-        {error || 'Loading…'}{' '}
-        {error && (
-          <Button size="xs" onClick={retry}>
-            Retry
-          </Button>
-        )}
-      </p>
+      <div className="space-y-2 px-4 pt-2">
+        {props.trail}
+        <p role="status">
+          {error || 'Loading…'}{' '}
+          {error && (
+            <Button size="xs" onClick={retry}>
+              Retry
+            </Button>
+          )}
+        </p>
+      </div>
     )
   return <Profile key={visit.id} view={data} {...props} />
 }
@@ -50,6 +55,7 @@ export function KnowledgeProfile(props: ProfileProps): React.JSX.Element {
 function Profile({
   view,
   visit,
+  trail,
   map,
   connectionsRequest,
   onVisit,
@@ -100,6 +106,7 @@ function Profile({
   return (
     <article aria-label={view.entity.label} className="flex min-h-0 flex-1 flex-col">
       <ProfileHeader
+        trail={trail}
         view={view}
         lastLearned=""
         tab={shown}

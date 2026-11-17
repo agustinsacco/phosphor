@@ -9,14 +9,18 @@ import type { BrainVisit } from './trail'
 
 /** Knowledge before a selection: what Brain learned last, so there is always a way in. */
 export function KnowledgeStart({
+  trail,
   onVisit,
 }: {
+  /** Back and forward, once there is a trail to walk. */
+  trail: React.ReactNode
   onVisit: (visit: BrainVisit) => void
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:recent', 20), [])
   const { data, error, retry } = useBrainResource(load)
   return (
     <div className="brain-scroll px-4 py-3">
+      {trail}
       <p className="text-text-secondary pb-3">
         Pick someone or something in the index, or open one of the newest memories.
       </p>

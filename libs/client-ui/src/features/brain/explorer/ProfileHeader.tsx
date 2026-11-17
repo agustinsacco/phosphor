@@ -83,6 +83,7 @@ export function ProfileTrail({
 
 /** The part of a profile that stays put: name, actions, one line of counts, and the tabs. */
 export function ProfileHeader({
+  trail,
   view,
   lastLearned,
   tab,
@@ -93,6 +94,8 @@ export function ProfileHeader({
   menu,
   saving,
 }: {
+  /** Back, forward and the last steps, drawn above the name. */
+  trail: React.ReactNode
   view: BrainEntityView
   /** "last learned 2 days ago", once Brain reports it. */
   lastLearned: string
@@ -107,6 +110,7 @@ export function ProfileHeader({
   const { entity } = view
   return (
     <div className="space-y-1.5 px-4 pt-2">
+      {trail}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="min-w-0 text-xl font-semibold">{entity.label}</h2>
         <Tag>{ENTITY_WORDS[entity.kind]}</Tag>

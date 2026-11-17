@@ -8,6 +8,7 @@ import { KnowledgeProfile, MemoryVisit } from './KnowledgeProfile'
 import { KnowledgeStart } from './KnowledgeStart'
 import { BrainMap, type MapHighlight } from './BrainMap'
 import { FullMap } from './FullMap'
+import { ProfileTrail } from './ProfileHeader'
 import type { MemoryRowActions } from './MemoryRow'
 import type { ExplorerState } from './useExplorer'
 
@@ -58,6 +59,15 @@ export function BrainKnowledge({
     onOpenRead,
     onMemory: (id, label) => onVisit({ kind: 'memory', id, label }),
   }
+  const move = (delta: number): void => {
+    setHighlight({ hover: null, lit: null })
+    state.move(delta)
+  }
+  const jump = (index: number): void => {
+    setHighlight({ hover: null, lit: null })
+    state.jump(index)
+  }
+  const trail = <ProfileTrail trail={state.trail} onMove={move} onJump={jump} />
   const onKeyDown = (event: React.KeyboardEvent): void => {
     for (const [key, delta] of [
       ['[', -1],
@@ -65,8 +75,7 @@ export function BrainKnowledge({
     ] as const)
       if (pageKeyTarget(event, key)) {
         event.preventDefault()
-        setHighlight({ hover: null, lit: null })
-        state.move(delta)
+        move(delta)
       }
   }
   return (
@@ -105,6 +114,7 @@ export function BrainKnowledge({
             {entity ? (
               <KnowledgeProfile
                 visit={entity}
+                trail={trail}
                 map={narrow ? map : null}
                 connectionsRequest={connectionsRequest}
                 onVisit={(next) => {
@@ -125,7 +135,7 @@ export function BrainKnowledge({
                 actions={actions}
               />
             ) : (
-              <KnowledgeStart onVisit={onVisit} />
+              <KnowledgeStart trail={state.trail.items.length ? trail : null} onVisit={onVisit} />
             )}
           </section>
           {!narrow && (

@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
+import { PromptHost } from '@/components/PromptHost'
 import { BrainKnowledge } from './BrainKnowledge'
 import { useExplorer, type ExplorerState } from './useExplorer'
 import { MockExplorer } from '../mockExplorer'
@@ -14,20 +15,29 @@ import {
 
 let root: Root, container: HTMLDivElement, state: ExplorerState, explorer: MockExplorer
 let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
+let searchRequest = 0
 const browse = vi.fn<MockExplorer['browse']>()
 const recent = vi.fn<MockExplorer['recent']>()
 const entity = vi.fn<MockExplorer['entity']>()
 const memory = vi.fn<MockExplorer['memory']>()
 const connections = vi.fn<MockExplorer['connections']>()
 const memories = vi.fn<MockExplorer['memories']>()
+const forget = vi.fn(() => ({ ...mockBrainStatus(), revision: 1 }))
 const onOpenRead = vi.fn()
 function Harness(): React.JSX.Element {
   state = useExplorer()
-  return <BrainKnowledge state={state} onOpenRead={onOpenRead} />
+  return (
+    <>
+      <BrainKnowledge state={state} searchRequest={searchRequest} onOpenRead={onOpenRead} />
+      <PromptHost />
+    </>
+  )
 }
 beforeEach(() => {
+  vi.useFakeTimers()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+  searchRequest = 0
   explorer = new MockExplorer()
   explorer.details[0]!.memory.jobId = 'harbor-read'
   browse.mockReset().mockImplementation((...args) => explorer.browse(...args))
@@ -40,6 +50,7 @@ beforeEach(() => {
   memory.mockReset().mockImplementation((id) => explorer.memory(id))
   connections.mockReset().mockImplementation((...args) => explorer.connections(...args))
   memories.mockReset().mockImplementation((...args) => explorer.memories(...args))
+  forget.mockClear()
   onOpenRead.mockReset()
   fake = createFakePhosphor({
     'brain:entities': browse,
@@ -52,7 +63,7 @@ beforeEach(() => {
     'brain:connections': connections,
     'brain:find': (q, n) => explorer.find(q, n),
     'brain:path': (a, b) => explorer.path(a, b),
-    'brain:forget': () => ({ ...mockBrainStatus(), revision: 1 }),
+    'brain:forget': forget,
   })
   restore = installFakePhosphor(fake)
   useBrain.setState({ status: mockBrainStatus(), error: '', saving: false })
@@ -65,187 +76,297 @@ afterEach(() => {
   container.remove()
   restore()
   fake.dispose()
+  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 const render = () => act(async () => root.render(<Harness />))
 const section = (name: string): HTMLElement => container.querySelector(`[aria-label="${name}"]`)!
-function button(label: string, inside: HTMLElement = container): HTMLButtonElement {
+function button(label: string, inside: ParentNode = container): HTMLButtonElement {
   return [...inside.querySelectorAll('button')].find(
     (b) => b.getAttribute('aria-label') === label || b.textContent === label,
   )!
 }
-const click = (label: string, inside?: HTMLElement) =>
-  act(async () => button(label, inside).click())
+const click = (label: string, inside?: ParentNode) =>
+  act(async () => {
+    const target = button(label, inside)
+    expect(target, label).toBeDefined()
+    target.click()
+  })
 const visit = (kind: 'entity' | 'memory', id: string, label = id) =>
   act(async () => state.onVisit({ kind, id, label }))
-const key = (key: string, options: KeyboardEventInit = {}, target: HTMLElement = container) =>
-  act(async () =>
-    target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...options })),
-  )
+const key = (key: string, target: Element = container) =>
+  act(async () => target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })))
+const search = () => container.querySelector<HTMLInputElement>('[role="combobox"]')!
+async function type(value: string): Promise<void> {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search(), value)
+    search().dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await act(async () => vi.advanceTimersByTimeAsync(200))
+}
+const rows = () => [...section('People and things').querySelectorAll('[role="option"]')]
+const tab = (name: string) =>
+  [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((t) =>
+    t.textContent?.startsWith(name),
+  )!
 
-it('shows the browse list, only present kinds, twenty-at-a-time paging and recent memories', async () => {
+it('lists the index thirty at a time with only present kinds, and opens a profile', async () => {
   await render()
-  expect(section('Most connected').querySelectorAll('.brain-row')).toHaveLength(20)
-  expect(section('Recently learned').textContent).toContain('Harbor planning')
-  expect(button('People')).toBeDefined()
-  expect(button('Events')).toBeUndefined()
-  await click('Show more', section('Most connected'))
-  expect(browse).toHaveBeenLastCalledWith(null, 20, 20)
-  expect(section('Most connected').querySelectorAll('.brain-row').length).toBeGreaterThan(20)
-  await click('People')
-  expect(browse).toHaveBeenLastCalledWith('person', 0, 20)
-  expect(section('Most connected').querySelectorAll('.brain-row')).toHaveLength(2)
-  expect(section('Recently learned')).toBeNull()
-  await click('All')
-  expect(section('Recently learned')).not.toBeNull()
-  await act(async () =>
-    section('Most connected').querySelector<HTMLButtonElement>('.brain-row')!.click(),
-  )
-  expect(section('Entity detail')).not.toBeNull()
+  expect(rows()).toHaveLength(29)
+  expect(browse).toHaveBeenLastCalledWith(null, 0, 30)
+  expect(button('People', section('Kinds'))).toBeDefined()
+  expect(button('Events', section('Kinds'))).toBeUndefined()
+  await click('People', section('Kinds'))
+  expect(browse).toHaveBeenLastCalledWith('person', 0, 30)
+  expect(rows().map((row) => row.textContent)).toEqual(['Rina Okafor1', 'Tom Lee1'])
+  await act(async () => (rows()[0] as HTMLButtonElement).click())
+  expect(state.visit).toMatchObject({ kind: 'entity', id: 'rina' })
+  expect(section('Rina Okafor').querySelector('h2')?.textContent).toBe('Rina Okafor')
+  expect(rows()[0]!.getAttribute('aria-current')).toBe('true')
 })
 
-it.each(['browse', 'recent'] as const)('recovers when the first %s load fails', async (which) => {
-  if (which === 'browse') browse.mockRejectedValueOnce(new Error('Browse failed'))
-  else recent.mockRejectedValueOnce(new Error('Recent failed'))
+it('pages the index by reloading every shown row in one bounded pass', async () => {
+  explorer.entities.push(
+    ...Array.from({ length: 20 }, (_, i) => ({
+      id: `kestrel-${i}`,
+      label: `Kestrel part ${i + 1}`,
+      kind: 'component' as const,
+      aliases: [],
+      description: '',
+    })),
+  )
+  for (const [index, extra] of explorer.entities.slice(-20).entries())
+    explorer.details.push({
+      ...explorer.details[0]!,
+      memory: {
+        ...explorer.details[0]!.memory,
+        id: `kestrel-memory-${index}`,
+        entityIds: [extra.id, 'harbor'],
+        links: [],
+      },
+    })
   await render()
-  const name = which === 'browse' ? 'Most connected' : 'Recently learned'
-  expect(section(name).textContent).toContain('failed')
-  await click('Retry', section(name))
-  expect(section(name).textContent).not.toContain('failed')
-  expect(section(name).querySelectorAll('.brain-row').length).toBeGreaterThan(0)
+  expect(rows()).toHaveLength(30)
+  await click('Show more')
+  expect(browse).toHaveBeenLastCalledWith(null, 0, 60)
+  expect(rows()).toHaveLength(49)
+  expect(button('Show more')).toBeUndefined()
 })
 
-it('shows entity connections, type counts and memory rows, keeping state and lane filters', async () => {
+it('recovers a failed first index load with Retry', async () => {
+  browse.mockImplementationOnce(() => {
+    throw new Error('Index failed')
+  })
   await render()
-  await visit('entity', 'harbor', 'Harbor')
-  expect(section('Entity detail').textContent).toContain('organization')
-  expect(section('Connections').textContent).toContain('Contains')
-  expect(button('Decisions 1', section('Entity memories'))).toBeDefined()
-  expect(section('Entity memories').querySelector('[aria-label="Source lane"]')).not.toBeNull()
-  expect(section('Entity memories').querySelector('[aria-label="Memory state"]')).not.toBeNull()
-  await click('Decisions 1', section('Entity memories'))
-  expect(memories.mock.lastCall?.[1].types).toEqual(['decision'])
-  expect(section('Entity memories').querySelectorAll('.brain-row')).toHaveLength(1)
-  await act(async () =>
-    section('Entity memories').querySelector<HTMLButtonElement>('.brain-row')!.click(),
-  )
-  expect(section('Memory detail').textContent).toContain('learned')
-  expect(section('Evidence').querySelector('mark')?.textContent).toBe(
+  expect(section('Index').textContent).toContain('Index failed')
+  await click('Retry', section('Index'))
+  expect(rows().length).toBeGreaterThan(0)
+})
+
+it('searches people, things and memories, and walks with the arrows and Enter', async () => {
+  await render()
+  await type('Harbor Ledger')
+  expect(section('Memories').textContent).toContain('Harbor Ledger is built for Harbor.')
+  expect(container.textContent).toMatch(/\d+ results?/)
+  await key('ArrowDown', search())
+  await key('Enter', search())
+  expect(state.visit).toMatchObject({ kind: 'entity' })
+  await key('Escape', search())
+  expect(search().value).toBe('')
+  expect(document.activeElement).not.toBe(search())
+})
+
+it('opens a searched memory inside the profile of the first thing it names', async () => {
+  await render()
+  await type('built for Harbor')
+  const option = [...section('Memories').querySelectorAll<HTMLButtonElement>('[role="option"]')][0]!
+  await act(async () => option.click())
+  expect(state.visit).toMatchObject({ kind: 'entity', id: 'ledger', memoryId: 'memory-0' })
+  expect(state.trail.items).toHaveLength(1)
+  const open = section('Harbor Ledger').querySelector('[aria-expanded="true"]')!
+  expect(open.textContent).toContain('Harbor Ledger is built for Harbor.')
+  expect(section('Harbor Ledger').querySelector('mark')?.textContent).toBe(
     'Harbor Ledger is built for Harbor.',
   )
-  expect(section('Links').textContent).toContain('for customer')
-  await click('See the read that produced this')
-  expect(onOpenRead).toHaveBeenCalledWith('harbor-read')
 })
 
-it('pages entity connections and memories, and retries failures in each', async () => {
+it('focuses the index search when the page asks', async () => {
   await render()
-  await visit('entity', 'harbor')
-  connections.mockRejectedValueOnce(new Error('Connections failed'))
-  await click('Show more', section('Connections'))
-  expect(section('Connections').textContent).toContain('Connections failed')
-  await click('Retry', section('Connections'))
-  expect(section('Connections').textContent).not.toContain('Connections failed')
-  memories.mockRejectedValueOnce(new Error('Memories failed'))
-  await click('Show more memories')
-  expect(section('Entity memories').textContent).toContain('Memories failed')
-  await click('Retry', section('Entity memories'))
-  expect(section('Entity memories').querySelectorAll('.brain-row').length).toBeGreaterThan(20)
-})
-
-it('recovers the entity detail and memory detail after an initial failure', async () => {
+  expect(document.activeElement).not.toBe(search())
+  searchRequest = 1
   await render()
-  entity.mockRejectedValueOnce(new Error('Entity failed'))
-  await visit('entity', 'harbor')
-  expect(section('Brain Explorer').textContent).toContain('Entity failed')
-  await click('Retry', section('Brain Explorer'))
-  expect(section('Entity detail')).not.toBeNull()
-  memory.mockRejectedValueOnce(new Error('Memory failed'))
-  await visit('memory', 'memory-0')
-  expect(section('Brain Explorer').textContent).toContain('Memory failed')
-  await click('Retry', section('Brain Explorer'))
-  expect(section('Memory detail')).not.toBeNull()
+  expect(document.activeElement).toBe(search())
 })
 
-it('keeps a compact breadcrumb and the Forward trail after clearing with Escape or the chip', async () => {
+it('shows a profile header with counts, every other name once, and tabs with counts', async () => {
+  await render()
+  await visit('entity', 'ledger', 'Harbor Ledger')
+  const profile = section('Harbor Ledger')
+  expect(profile.querySelector('h2 + span')?.textContent).toBe('project')
+  expect(profile.textContent).toMatch(/\d+ memories · \d+ links · from 1 lane/)
+  expect(profile.textContent).toContain('Billing project for Harbor')
+  expect(profile.textContent).toContain('Also called')
+  expect(profile.textContent!.match(/Ledger(?!\w)/g)!.length).toBeGreaterThan(0)
+  expect(tab('Memories').textContent).toBe('Memories 3')
+  expect(tab('Connections').textContent).toMatch(/^Connections \d+$/)
+  expect(tab('Lanes').textContent).toBe('Lanes 1')
+  expect(tab('Map')).toBeUndefined()
+})
+
+it('filters memories by type, lane and state, and opens a row in place', async () => {
   await render()
   await visit('entity', 'harbor', 'Harbor')
-  await visit('entity', 'ledger', 'Ledger')
+  await click('Decisions1', section('Memory types'))
+  expect(memories.mock.lastCall?.[1].types).toEqual(['decision'])
+  const select = section('State') as HTMLSelectElement
+  await act(async () => {
+    select.value = 'all'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(memories.mock.lastCall?.[1].states).toEqual(['active', 'disputed', 'superseded'])
+  const row = section('Harbor').querySelector<HTMLButtonElement>('[aria-expanded="false"]')!
+  await act(async () => row.click())
+  expect(row.getAttribute('aria-expanded')).toBe('true')
+  await click('See the read')
+  expect(onOpenRead).toHaveBeenCalledWith('harbor-read')
+  await click('Harbor Ledger')
+  expect(state.visit).toMatchObject({ kind: 'entity', id: 'ledger' })
+})
+
+it('asks before forgetting a memory, which is permanent', async () => {
+  await render()
+  await visit('entity', 'harbor', 'Harbor')
+  await act(async () =>
+    section('Harbor').querySelector<HTMLButtonElement>('[aria-expanded="false"]')!.click(),
+  )
+  await click('Forget')
+  expect(document.body.textContent).toContain('Forget cannot be undone.')
+  expect(forget).not.toHaveBeenCalled()
+  await click('Forget permanently', document.body)
+  expect(forget).toHaveBeenCalledWith('memory-0')
+})
+
+it('pages memories and recovers a failed page', async () => {
+  await render()
+  await visit('entity', 'harbor', 'Harbor')
+  memories.mockImplementationOnce(() => {
+    throw new Error('Memories failed')
+  })
+  await click('Show more memories')
+  expect(section('Harbor').textContent).toContain('Memories failed')
+  await click('Retry', section('Harbor'))
+  expect(section('Harbor').textContent).not.toContain('Memories failed')
+  expect(section('Harbor').textContent).toMatch(/2\d shown · newest first/)
+})
+
+it('lists one row per connection label, walks on click and pages with Retry', async () => {
+  await render()
+  await visit('entity', 'harbor', 'Harbor')
+  await act(async () => tab('Connections').click())
+  const table = section('Connections')
+  expect([...table.querySelectorAll('th')].map((th) => th.textContent)).toContain('Contains24')
+  connections.mockImplementationOnce(() => {
+    throw new Error('Connections failed')
+  })
+  await click('Show more', table)
+  expect(table.textContent).toContain('Connections failed')
+  await click('Retry', table)
+  expect(table.textContent).not.toContain('Connections failed')
+  await click('Harbor Ledger3 memories', table)
+  expect(state.visit).toMatchObject({ id: 'ledger' })
+})
+
+it('lists the lanes a profile came from and filters its memories by one', async () => {
+  await render()
+  await visit('entity', 'harbor', 'Harbor')
+  await act(async () => tab('Lanes').click())
+  expect(section('Lanes').textContent).toContain('Harbor planning')
+  await click('Its memories', section('Lanes'))
+  expect(tab('Memories').getAttribute('aria-selected')).toBe('true')
+  expect(memories.mock.lastCall?.[1].sessionId).toBe('harbor-lane')
+})
+
+it('recovers a failed profile and a failed memory with Retry', async () => {
+  await render()
+  entity.mockImplementationOnce(() => {
+    throw new Error('Entity failed')
+  })
+  await visit('entity', 'harbor')
+  expect(section('Profile').textContent).toContain('Entity failed')
+  await click('Retry', section('Profile'))
+  expect(section('Harbor')).not.toBeNull()
+  memory.mockImplementationOnce(() => {
+    throw new Error('Memory failed')
+  })
+  await visit('memory', 'memory-0')
+  expect(section('Profile').textContent).toContain('Memory failed')
+  await click('Retry', section('Profile'))
+  expect(state.visit).toMatchObject({ id: 'ledger', memoryId: 'memory-0' })
+})
+
+it('goes back and forward with the buttons and [ ], never from a text field', async () => {
+  await render()
+  await visit('entity', 'harbor', 'Harbor')
+  await visit('entity', 'ledger', 'Harbor Ledger')
   await visit('entity', 'rina', 'Rina Okafor')
   await visit('entity', 'tom', 'Tom Lee')
-  expect(section('Brain trail').textContent).toContain('…')
-  expect(section('Brain trail').textContent).not.toContain('Harbor')
-  expect(section('Brain trail').textContent).toContain('Ledger')
+  expect(section('Brain trail').textContent).not.toContain('Harbor›')
   await click('Back', section('Brain trail'))
   expect(state.visit?.id).toBe('rina')
-  await key('ArrowRight', { altKey: true })
-  expect(state.visit?.id).toBe('tom')
-  await key('Backspace')
+  await key('[', section('Profile'))
+  expect(state.visit?.id).toBe('ledger')
+  await key(']', section('Profile'))
   expect(state.visit?.id).toBe('rina')
-  await key('Escape')
-  expect(state.visit).toBeUndefined()
-  expect(section('Most connected')).not.toBeNull()
-  await click('Forward', section('Brain trail'))
-  expect(state.visit?.id).toBe('harbor')
-  await click('Clear selection')
-  expect(state.visit).toBeUndefined()
-  await key('ArrowRight', { altKey: true })
-  expect(state.visit?.id).toBe('harbor')
-  await click('Overview', section('Brain trail'))
-  expect(state.visit).toBeUndefined()
+  await key('[', search())
+  expect(state.visit?.id).toBe('rina')
+  await click('Harbor Ledger', section('Brain trail'))
+  expect(state.visit?.id).toBe('ledger')
 })
 
-it('does not steal Escape from inputs, selects, menus or dialogs', async () => {
+it('draws the selection and its neighbours, capped with a way to the rest', async () => {
   await render()
-  await visit('entity', 'harbor')
-  for (const tag of ['input', 'select', 'div']) {
-    const target = document.createElement(tag)
-    if (tag === 'div') target.setAttribute('role', 'dialog')
-    container.append(target)
-    await key('Escape', {}, target)
-    expect(state.visit?.id).toBe('harbor')
-    target.remove()
-  }
-  const menu = document.createElement('div')
-  menu.setAttribute('role', 'menu')
-  container.append(menu)
-  await key('Escape', {}, menu)
-  expect(state.visit?.id).toBe('harbor')
-  menu.remove()
+  await visit('entity', 'harbor', 'Harbor')
+  const map = section('Map')
+  expect(
+    map.querySelector('[aria-label^="Harbor, organization"]')?.getAttribute('aria-label'),
+  ).toBe('Harbor, organization, 26 memories (selected)')
+  expect(map.querySelectorAll('g[role="button"]').length).toBe(25)
+  expect(section('Legend').textContent).toContain('Systems')
+  await click('+1 more', map)
+  expect(tab('Connections').getAttribute('aria-selected')).toBe('true')
+  const ledger = map.querySelector<SVGGElement>('[aria-label^="Harbor Ledger,"]')!
+  await key('Enter', ledger)
+  expect(state.visit).toMatchObject({ id: 'ledger' })
 })
 
-it('keeps the graph beside an empty Brain and never offers a hide graph button', async () => {
+it('opens the full map in place of profile and map, and goes back', async () => {
+  await render()
+  await visit('entity', 'harbor', 'Harbor')
+  await click('Full map', section('Map'))
+  expect(section('Full map')).not.toBeNull()
+  expect(section('Knowledge graph')).not.toBeNull()
+  expect(section('Map')).toBeNull()
+  await click('Back to profile')
+  expect(section('Full map')).toBeNull()
+  expect(section('Harbor')).not.toBeNull()
+})
+
+it('starts with what Brain learned last, and says what to do when Brain is empty', async () => {
+  await render()
+  expect(section('Recently learned').textContent).toContain('Harbor planning')
   explorer.entities = []
   explorer.details = []
+  act(() => root.unmount())
+  root = createRoot(container)
   await render()
-  expect(section('Brain Explorer').textContent).toContain('Queue for knowledge extraction')
-  expect(section('Knowledge graph')).not.toBeNull()
-  expect(button('Hide graph')).toBeUndefined()
+  expect(section('Index').textContent).toContain('Queue for knowledge extraction')
+  expect(section('Recently learned').textContent).toContain('Queue for knowledge extraction')
 })
 
-it('uses singular memory counts in browse and entity detail', async () => {
-  const row = explorer.browse(null, 0, 100).items.find((item) => item.memories === 1)!
+it('uses singular counts', async () => {
   await render()
-  expect(section('Most connected').textContent).not.toContain('1 memories')
-  await visit('entity', row.entity.id)
-  expect(section('Entity detail').textContent).toContain('1 memory')
-  expect(section('Entity detail').textContent).not.toContain('1 memories')
-})
-it('keeps each stored quote label unchanged without attributing it to the origin lane', async () => {
-  const detail = explorer.details[0]!
-  detail.quotes = [
-    'user · 2026-11-01T00:00:00Z · Harbor',
-    'assistant · 2026-11-02T00:00:00Z · Ledger',
-  ].map((label) => ({ quote: 'Kestrel uses Ledger.', before: '', after: '', label }))
-  detail.sourcePath = '/demo/Harbor/origin.jsonl'
-  await render()
-  await visit('memory', detail.memory.id)
-  const captions = [...section('Evidence').querySelectorAll('figcaption')].map((c) => c.textContent)
-  expect(captions).toEqual(detail.quotes.map((q) => q.label))
-  expect(section('Memory detail').querySelectorAll('button')).toSatisfy(
-    (buttons: NodeListOf<HTMLButtonElement>) =>
-      [...buttons].filter((b) => b.textContent === 'Open in lane').length === 1,
-  )
-  expect(section('Evidence').textContent).not.toContain('Open in lane')
+  await visit('entity', 'rina', 'Rina Okafor')
+  expect(section('Rina Okafor').textContent).toContain('1 memory ·')
+  expect(section('Rina Okafor').textContent).not.toContain('1 memories')
 })
