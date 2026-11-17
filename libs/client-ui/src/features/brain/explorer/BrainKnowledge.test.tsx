@@ -91,10 +91,10 @@ it('shows the browse list, only present kinds, twenty-at-a-time paging and recen
   expect(button('People')).toBeDefined()
   expect(button('Events')).toBeUndefined()
   await click('Show more', section('Most connected'))
-  expect(browse).toHaveBeenLastCalledWith(null, 20, 20)
+  expect(browse).toHaveBeenLastCalledWith(null, 20, 20, 'connected')
   expect(section('Most connected').querySelectorAll('.brain-row').length).toBeGreaterThan(20)
   await click('People')
-  expect(browse).toHaveBeenLastCalledWith('person', 0, 20)
+  expect(browse).toHaveBeenLastCalledWith('person', 0, 20, 'connected')
   expect(section('Most connected').querySelectorAll('.brain-row')).toHaveLength(2)
   expect(section('Recently learned')).toBeNull()
   await click('All')
@@ -225,7 +225,7 @@ it('keeps the graph beside an empty Brain and never offers a hide graph button',
 })
 
 it('uses singular memory counts in browse and entity detail', async () => {
-  const row = explorer.browse(null, 0, 100).items.find((item) => item.memories === 1)!
+  const row = explorer.browse(null, 0, 100, 'connected').items.find((item) => item.memories === 1)!
   await render()
   expect(section('Most connected').textContent).not.toContain('1 memories')
   await visit('entity', row.entity.id)

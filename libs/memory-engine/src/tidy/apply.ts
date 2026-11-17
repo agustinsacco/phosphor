@@ -7,6 +7,8 @@ import { checkRevision } from './journal'
 import { changeMemories, mergeChange } from './operations'
 import { actionRefusal } from './action-guards'
 import { openSuggestion } from './suggestions'
+import { removableNames, removeNameChange } from './entity-edits'
+import { fold } from '../text'
 
 export function apply(
   ctx: Context,
@@ -47,6 +49,15 @@ export function apply(
         'replace',
         { suggestionId: id },
       )
+    } else if (action.kind === 'unname' && ids.includes(action.entityId)) {
+      if (
+        !removableNames(ctx, row.first_id, row.second_id!).some(
+          (name) => name.entityId === action.entityId && name.folded === fold(action.name),
+        )
+      )
+        throw new Error('That is not a name these records share.')
+      operation = removeNameChange(ctx, action.entityId, action.name, id)
+      bumpRevision(ctx)
     } else if (action.kind === 'forget' || action.kind === 'keep') {
       if (action.kind === 'forget') {
         removeMemory(ctx, row.first_id)
@@ -57,7 +68,8 @@ export function apply(
     run(
       ctx,
       'UPDATE tidy_suggestions SET state=?,updated_at=? WHERE id=?',
-      action.kind === 'keep' ? 'dismissed' : 'applied',
+      // Removing the shared name answers the pair: these are not the same.
+      action.kind === 'keep' || action.kind === 'unname' ? 'dismissed' : 'applied',
       ctx.now(),
       id,
     )

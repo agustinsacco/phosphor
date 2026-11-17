@@ -26,6 +26,7 @@ export interface TidyRunner {
 }
 const active = (run: BrainTidyRun | null): boolean =>
   !!run && ['queued', 'sweeping', 'checking'].includes(run.state)
+const pairs = (count: number): string => `${count} ${count === 1 ? 'pair' : 'pairs'}`
 const message = (error: unknown): string =>
   scrubExcerpt(error instanceof Error ? error.message : 'Brain Tidy failed.').slice(0, 300)
 
@@ -72,8 +73,10 @@ async function check(
     update({ message: 'No pairs need a model check.' })
     return
   }
+  update({ model: model.lane.model })
   const call = tidyCaller(context.options, model, signal)
   let checked = 0,
+    settled = 0,
     dropped = 0,
     missing = 0
   for (let offset = 0; offset < ids.length; offset += 8) {
@@ -85,18 +88,23 @@ async function check(
         context.store.pendingPairs(40).filter((pair) => batch.has(pair.suggestionId)),
       )
       signal.throwIfAborted()
-      context.store.recordVerdicts(result.judgements)
-      checked += result.judgements.length
+      const recorded = context.store.recordVerdicts(result.judgements)
+      checked += recorded.recorded
+      settled += recorded.settled
       dropped += result.dropped
       missing += result.missing
-      update({ checked, message: `Checking ${checked} of ${ids.length}` })
+      update({ checked, settled, message: `Checking ${checked} of ${ids.length}` })
     } catch (error) {
       if (signal.aborted) throw error
       update({ error: `${message(error)} Retry to check the unjudged pairs.` })
     }
   }
   update({
-    message: `Checked ${checked} of ${ids.length} pairs.${dropped ? ` Dropped ${dropped} invalid answers.` : ''}${missing ? ` ${missing} pairs were left unjudged; Retry to check them.` : ''}`,
+    message: `${
+      settled
+        ? `Checked ${pairs(checked)}; you settled ${settled} while it ran.`
+        : `Checked ${checked} of ${pairs(ids.length)}.`
+    }${dropped ? ` Dropped ${dropped} invalid answers.` : ''}${missing ? ` ${missing} pairs were left unjudged; Retry to check them.` : ''}`,
   })
   if (missing) update({ error: 'Some pairs had no usable verdict. Retry to check them.' })
 }
@@ -154,6 +162,8 @@ export function createTidyRunner(context: TidyRunContext): TidyRunner {
         finishedAt: null,
         message: 'Waiting for the Brain reader.',
         error: null,
+        model: null,
+        settled: 0,
       }
       update({})
       const task = context.queue.enqueueTask(execute)

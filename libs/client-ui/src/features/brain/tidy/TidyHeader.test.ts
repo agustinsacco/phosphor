@@ -13,6 +13,8 @@ function finished(suggestions: number, folded: number): BrainTidyPage {
     finishedAt: 2,
     message: null,
     error: null,
+    model: null,
+    settled: 0,
   }
   return { ...emptyBrainTidyPage(), run }
 }

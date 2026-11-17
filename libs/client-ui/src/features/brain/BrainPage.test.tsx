@@ -73,7 +73,7 @@ beforeEach(() => {
     'brain:history': history,
     'brain:extraction': extraction,
     'brain:reread': reread,
-    'brain:entities': (kind, offset, limit) => explorer.browse(kind, offset, limit),
+    'brain:entities': (kind, offset, limit, sort) => explorer.browse(kind, offset, limit, sort),
     'brain:recent': (limit) => explorer.recent(limit),
     'brain:overview': () => overview(null),
     'brain:neighbourhood': (id, hops) => neighbourhood(id, hops),

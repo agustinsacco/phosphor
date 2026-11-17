@@ -12,6 +12,7 @@ const { IPC_WEB } = await import('@phosphor/shared/ipc-web')
 
 const api = {
   tidySuggestion: vi.fn(async () => null),
+  tidyApply: vi.fn(async (): Promise<unknown> => 'applied'),
   entities: vi.fn(async () => 'entities'),
   recent: vi.fn(async () => 'recent'),
   status: vi.fn(async () => 'status'),
@@ -19,6 +20,9 @@ const api = {
   queue: vi.fn(async () => 'queued'),
   review: vi.fn(async () => 'reviewed'),
   merge: vi.fn(async () => 'merged'),
+  describe: vi.fn(async () => 'described'),
+  removeName: vi.fn(async () => 'unnamed'),
+  split: vi.fn(async () => 'split'),
   connections: vi.fn(async () => 'page'),
   entityMemories: vi.fn(async () => 'memories'),
   neighbourhood: vi.fn(async () => 'graph'),
@@ -146,18 +150,22 @@ it('registers history/reread and refuses invalid limits before calling the servi
     await expect(call('brain:reread', job)).rejects.toThrow('Invalid Brain request.')
 })
 
-it('checks browse kind, offset and limit and recent limit before reading', async () => {
+it('checks browse kind, offset, limit and sort and recent limit before reading', async () => {
   for (const kind of ['invalid', undefined, 1, {}])
-    await expect(call('brain:entities', kind, 0, 20)).rejects.toThrow('entity kind')
+    await expect(call('brain:entities', kind, 0, 20, 'connected')).rejects.toThrow('entity kind')
   for (const offset of [-1, 0.5, NaN, Infinity, '0', null, Number.MAX_SAFE_INTEGER + 1])
-    await expect(call('brain:entities', null, offset, 20)).rejects.toThrow('entity offset')
+    await expect(call('brain:entities', null, offset, 20, 'name')).rejects.toThrow('entity offset')
   for (const limit of [0, 101, 1.5, NaN, Infinity, '20', null])
-    await expect(call('brain:entities', null, 0, limit)).rejects.toThrow('entity limit')
+    await expect(call('brain:entities', null, 0, limit, 'recent')).rejects.toThrow('entity limit')
+  for (const sort of [undefined, null, '', 'newest', 'Name', 1, {}])
+    await expect(call('brain:entities', null, 0, 20, sort)).rejects.toThrow('entity sort')
   for (const limit of [0, 51, 1.5, NaN, Infinity, '10', null])
     await expect(call('brain:recent', limit)).rejects.toThrow()
-  await expect(call('brain:entities', 'person', 20, 100)).resolves.toBe('entities')
-  expect(api.entities).toHaveBeenCalledWith('person', 20, 100)
-  await expect(call('brain:entities', null, 0, 1)).resolves.toBe('entities')
+  for (const sort of ['connected', 'recent', 'name']) {
+    await expect(call('brain:entities', 'person', 20, 100, sort)).resolves.toBe('entities')
+    expect(api.entities).toHaveBeenLastCalledWith('person', 20, 100, sort)
+  }
+  await expect(call('brain:entities', null, 0, 1, 'connected')).resolves.toBe('entities')
   await expect(call('brain:recent', 50)).resolves.toBe('recent')
   expect(api.recent).toHaveBeenCalledWith(50)
 })
@@ -177,7 +185,60 @@ it('checks Tidy arguments before invoking its API', async () => {
   await expect(call('brain:merge', 'a', 'b')).rejects.toThrow('revision')
 })
 
+it('passes a dispute through and returns its refusal sentence unchanged', async () => {
+  await expect(call('brain:tidyApply', 's', { kind: 'dispute' }, 4)).resolves.toBe('applied')
+  expect(api.tidyApply).toHaveBeenLastCalledWith('s', { kind: 'dispute' }, 4)
+  api.tidyApply.mockRejectedValueOnce(new Error('Brain changed; refresh Tidy and try again.'))
+  await expect(call('brain:tidyApply', 's', { kind: 'dispute' }, 3)).rejects.toThrow(
+    'Brain changed; refresh Tidy and try again.',
+  )
+})
+
 it('forwards an absent Tidy suggestion as null, not an error', async () => {
   await expect(call('brain:tidySuggestion', 'settled-or-forgotten')).resolves.toBeNull()
   expect(api.tidySuggestion).toHaveBeenCalledWith('settled-or-forgotten')
+})
+
+it('checks entity edits before invoking the API', async () => {
+  await expect(call('brain:describe', 'harbor', '  Harbor billing system  ', 3)).resolves.toBe(
+    'described',
+  )
+  expect(api.describe).toHaveBeenLastCalledWith('harbor', 'Harbor billing system', 3)
+  for (const description of ['', '   ', 'x'.repeat(161), 4, null])
+    await expect(call('brain:describe', 'harbor', description, 3)).rejects.toThrow(
+      '1 to 160 characters',
+    )
+  await expect(call('brain:describe', 'harbor', 'Harbor', -1)).rejects.toThrow('revision')
+  await expect(call('brain:describe', '', 'Harbor', 0)).rejects.toThrow('Invalid Brain request.')
+
+  await expect(call('brain:removeName', 'kestrel', 'Harbor', 2)).resolves.toBe('unnamed')
+  expect(api.removeName).toHaveBeenLastCalledWith('kestrel', 'Harbor', 2)
+  for (const name of ['', 'x'.repeat(201), 3, null])
+    await expect(call('brain:removeName', 'kestrel', name, 2)).rejects.toThrow('Invalid Brain')
+  await expect(call('brain:removeName', 'kestrel', 'Harbor')).rejects.toThrow('revision')
+
+  const target = { label: ' Tom Lee (vendor) ', kind: 'person' }
+  await expect(call('brain:split', 'tom', ['m1', 'm2'], target, 5)).resolves.toBe('split')
+  expect(api.split).toHaveBeenLastCalledWith(
+    'tom',
+    ['m1', 'm2'],
+    { label: 'Tom Lee (vendor)', kind: 'person' },
+    5,
+  )
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`)
+  await expect(call('brain:split', 'tom', ids(200), target, 5)).resolves.toBe('split')
+  for (const memoryIds of [[], ids(201), ['m1', 'm1'], 'm1', null])
+    await expect(call('brain:split', 'tom', memoryIds, target, 5)).rejects.toThrow('1 to 200')
+  await expect(call('brain:split', 'tom', ['m1', ''], target, 5)).rejects.toThrow('Invalid Brain')
+  for (const label of ['', '  ', 'x'.repeat(81), 7])
+    await expect(call('brain:split', 'tom', ['m1'], { ...target, label }, 5)).rejects.toThrow(
+      '1 to 80 characters',
+    )
+  await expect(
+    call('brain:split', 'tom', ['m1'], { ...target, kind: 'vendor' }, 5),
+  ).rejects.toThrow('entity kind')
+  await expect(call('brain:split', 'tom', ['m1'], { ...target, extra: true }, 5)).rejects.toThrow(
+    'Invalid Brain request.',
+  )
+  await expect(call('brain:split', 'tom', ['m1'], target, 1.5)).rejects.toThrow('revision')
 })

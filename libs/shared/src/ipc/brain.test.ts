@@ -75,11 +75,33 @@ export interface BaselineBrainInvokeMap {
     args: [sourceId: string, targetId: string, revision: number]
     result: BrainTidyMutation
   }
+  'brain:describe': {
+    args: [entityId: string, description: string, revision: number]
+    result: BrainTidyMutation
+  }
+  'brain:removeName': {
+    args: [entityId: string, name: string, revision: number]
+    result: BrainTidyMutation
+  }
+  'brain:split': {
+    args: [
+      entityId: string,
+      memoryIds: string[],
+      target: { label: string; kind: BrainEntityKind },
+      revision: number,
+    ]
+    result: BrainTidyMutation
+  }
   /** Typeahead over entities and memories. */
   'brain:find': { args: [query: string, limit: number]; result: BrainFindResult }
   /** The best-connected entities, when nothing is selected. */
   'brain:entities': {
-    args: [kind: BrainEntityKind | null, offset: number, limit: number]
+    args: [
+      kind: BrainEntityKind | null,
+      offset: number,
+      limit: number,
+      sort: 'connected' | 'recent' | 'name',
+    ]
     result: BrainEntityPage
   }
   'brain:recent': { args: [limit: number]; result: BrainRecentMemories }

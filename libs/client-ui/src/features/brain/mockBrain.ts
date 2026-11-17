@@ -1,5 +1,6 @@
 import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
 import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
+import type { BrainEntitySort } from '@shared/brain-explore'
 import type {
   BrainExtractionView,
   BrainEntityKind,
@@ -259,6 +260,13 @@ class MockBrain {
         this.state.revision++
         return Object.assign(this.status(), { operationId })
       }
+      case 'brain:describe':
+      case 'brain:removeName':
+      case 'brain:split': {
+        const operationId = this.tidy.edit(channel, args)
+        this.state.revision++
+        return Object.assign(this.status(), { operationId })
+      }
       case 'brain:forget':
         this.tidy.forget(args[0] as string)
         this.explorer.details = this.explorer.details.filter(({ memory }) => memory.id !== args[0])
@@ -341,6 +349,7 @@ class MockBrain {
           args[0] as BrainEntityKind | null,
           args[1] as number,
           args[2] as number,
+          args[3] as BrainEntitySort,
         )
       case 'brain:recent':
         return this.explorer.recent(args[0] as number, this.history.jobs)

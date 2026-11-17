@@ -43,9 +43,11 @@ export type BrainTidyAction =
   | { kind: 'replace'; newerId: string }
   | { kind: 'forget' }
   | { kind: 'keep' }
+  /** "Not the same; remove this name from X": the shared name leaves one record. */
+  | { kind: 'unname'; entityId: string; name: string }
 export interface BrainTidyOperation {
   id: string
-  kind: 'merge' | 'fold' | 'dispute' | 'replace'
+  kind: 'merge' | 'fold' | 'dispute' | 'replace' | 'split' | 'unname' | 'describe'
   automatic: boolean
   summary: string
   createdAt: number
@@ -75,6 +77,10 @@ export interface BrainTidyRun {
   finishedAt: number | null
   message: string | null
   error: string | null
+  /** "provider/id" of the model that checked the pairs; null when no model ran. */
+  model: string | null
+  /** Pairs the owner settled while the check ran. */
+  settled: number
 }
 export interface BrainTidySummary {
   open: number
@@ -156,13 +162,12 @@ export function checkBrainTidyAction(value: unknown): BrainTidyAction {
     throw new Error('Invalid Brain Tidy action.')
   const row = value as Record<string, unknown>
   const key = row.kind === 'merge' || row.kind === 'fold' ? 'survivorId' : 'newerId'
+  const bounded = (field: unknown): boolean =>
+    typeof field === 'string' && field.length > 0 && field.length <= 200
   if (['merge', 'fold', 'replace'].includes(String(row.kind))) {
-    if (
-      Object.keys(row).length === 2 &&
-      typeof row[key] === 'string' &&
-      row[key].length > 0 &&
-      row[key].length <= 200
-    )
+    if (Object.keys(row).length === 2 && bounded(row[key])) return value as BrainTidyAction
+  } else if (row.kind === 'unname') {
+    if (Object.keys(row).length === 3 && bounded(row.entityId) && bounded(row.name))
       return value as BrainTidyAction
   } else if (
     ['dispute', 'forget', 'keep'].includes(String(row.kind)) &&

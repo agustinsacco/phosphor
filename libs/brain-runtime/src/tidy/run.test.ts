@@ -54,16 +54,17 @@ function setup(count = 8, finished = true) {
   }
   const pending = Array.from({ length: count }, (_, i) => pair(i))
   const recorded: BrainTidyJudgement[] = []
+  /** Pairs the owner answers while the model reads them. */
+  const settled = new Set<string>()
   const pendingPairs = vi
     .spyOn(store as BrainStore, 'pendingPairs')
     .mockImplementation(() => pending)
   vi.spyOn(store as BrainStore, 'recordVerdicts').mockImplementation((rows) => {
-    recorded.push(...rows)
-    for (const row of rows)
-      pending.splice(
-        pending.findIndex((p) => p.suggestionId === row.suggestionId),
-        1,
-      )
+    const open = rows.filter((row) => !settled.has(row.suggestionId))
+    recorded.push(...open)
+    const answered = new Set(rows.map((row) => row.suggestionId))
+    pending.splice(0, pending.length, ...pending.filter((p) => !answered.has(p.suggestionId)))
+    return { recorded: open.length, settled: rows.length - open.length }
   })
   const sweep = vi.spyOn(store as BrainStore, 'sweep').mockReturnValue({
     coverage: { ...emptyBrainTidyCoverage(), phase: 'done' },
@@ -113,6 +114,7 @@ function setup(count = 8, finished = true) {
     pending,
     pendingPairs,
     recorded,
+    settled,
     sweep,
     apply,
     calls,
@@ -155,6 +157,19 @@ it('checks eight pairs with the pinned reader, records exact model and never app
   expect(s.search.refreshes).toBe(1)
   expect(JSON.stringify(s.states)).not.toMatch(/tokens|cost/)
 })
+it('counts only recorded verdicts, says what the owner settled and records the model', async () => {
+  const s = setup(12)
+  s.settled.add('pair-3')
+  s.runner.start()
+  expect(await s.finish()).toMatchObject({
+    state: 'done',
+    checked: 11,
+    settled: 1,
+    total: 12,
+    model: HARBOR_JOB.model,
+    message: 'Checked 11 pairs; you settled 1 while it ran.',
+  })
+})
 it('uses the newest launchable finished read, without an empty session path', async () => {
   const s = setup()
   const newer = s.store.enqueue(
@@ -191,8 +206,9 @@ it('bounds the click at forty, cancels between calls and persists progress acros
   const s = setup(50)
   const record = s.context.store.recordVerdicts.bind(s.context.store)
   s.context.store.recordVerdicts = (...args: unknown[]) => {
-    record(...(args as []))
+    const result = record(...(args as []))
     s.runner.cancel()
+    return result
   }
   s.runner.start()
   expect(await s.finish()).toMatchObject({ state: 'cancelled', checked: 8, total: 40 })

@@ -283,9 +283,21 @@ export class FakeBrainStore implements BrainStore {
   })
   takeTidyMaintenance = (): string[] => []
   pendingPairs = () => []
-  recordVerdicts(): void {}
+  recordVerdicts = () => ({ recorded: 0, settled: 0 })
   flag = () => ({ status: 'filed' as const, suggestionId: 'flag' })
   merge(): string {
+    this.rev++
+    return 'operation'
+  }
+  describe(): string {
+    this.rev++
+    return 'operation'
+  }
+  removeName(): string {
+    this.rev++
+    return 'operation'
+  }
+  split(): string {
     this.rev++
     return 'operation'
   }
@@ -336,7 +348,7 @@ export class FakeBrainSearch implements BrainSearchPort {
     return this.result
   }
   async entities() {
-    return { items: [], more: false, kinds: [] }
+    return { items: [], more: false, kinds: [], counts: {}, total: 0 }
   }
   async recent() {
     return { items: [] }

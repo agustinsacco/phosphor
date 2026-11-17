@@ -32,6 +32,8 @@ beforeEach(() => {
       finishedAt: 200,
       message: null,
       error: null,
+      model: null,
+      settled: 0,
     },
   })
   fake = createFakePhosphor({ 'brain:tidy': list })
@@ -150,6 +152,8 @@ it('ignores an older completion reply and says nothing when disabled or unsuppor
       finishedAt: 2,
       message: null,
       error: 'Old error',
+      model: null,
+      settled: 0,
     },
   })
   await flush()

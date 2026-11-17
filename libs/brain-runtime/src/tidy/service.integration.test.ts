@@ -51,6 +51,27 @@ it('approves, sweeps, checks without applying, then merges and undoes with a rea
   expect(s.call).toHaveBeenCalledOnce()
 })
 
+it('refuses a stale dispute with a plain sentence, then journals it at the current revision', async () => {
+  const s = await realService()
+  await approveRead(s.store, s.service, s.options)
+  const page = await s.service.api.tidy('same_memory', null, 50)
+  const details = await Promise.all(page.items.map((i) => s.service.api.tidySuggestion(i.id)))
+  const pair = page.items[details.findIndex((d) => d?.allowed.includes('dispute'))]!
+  const before = await s.service.api.tidyChanges(50)
+  await s.service.api.tidyDismiss(page.items.find((item) => item.id !== pair.id)!.id, page.revision)
+  await expect(
+    s.service.api.tidyApply(pair.id, { kind: 'dispute' }, page.revision),
+  ).rejects.toThrow('Brain changed; refresh Tidy and try again.')
+  expect(await s.service.api.tidyChanges(50)).toMatchObject({ items: before.items })
+  const fresh = (await s.service.api.status()).revision
+  const disputed = await s.service.api.tidyApply(pair.id, { kind: 'dispute' }, fresh)
+  expect(disputed.operationId).toBeTruthy()
+  expect((await s.service.api.tidyChanges(50)).items[0]).toMatchObject({
+    id: disputed.operationId,
+    kind: 'dispute',
+  })
+})
+
 it('files lane flags through the agent entry and refuses a second, a sixth and a forgotten memory', async () => {
   const s = await realService()
   await approveRead(

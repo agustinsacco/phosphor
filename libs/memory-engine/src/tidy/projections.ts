@@ -61,7 +61,15 @@ export function rebuild(ctx: Context, selection: Selection, removedNames: number
     if (vector)
       run(ctx, 'INSERT INTO memory_bits VALUES (?,?)', n, encodeBits(decodeVector(vector.vector)))
   }
-  recountEntities(ctx, new Set(selection.entities))
+  // A restored state changes the current count of every entity the memory names.
+  const counted = new Set(selection.entities)
+  for (const row of all<{ entity: number }>(
+    ctx,
+    'SELECT DISTINCT entity FROM mentions WHERE memory IN (SELECT value FROM json_each(?))',
+    JSON.stringify(selection.memories),
+  ))
+    counted.add(row.entity)
+  recountEntities(ctx, counted)
   run(ctx, "UPDATE meta SET value=(SELECT COUNT(*) FROM entities) WHERE key='entities'")
   run(
     ctx,

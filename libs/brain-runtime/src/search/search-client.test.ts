@@ -174,7 +174,7 @@ it('forwards browse and recent reads through the search worker and lets each rec
     .mockImplementationOnce(() => {
       throw new Error('Browse unavailable')
     })
-    .mockReturnValue({ items: [], more: false, kinds: ['person'] })
+    .mockReturnValue({ items: [], more: false, kinds: ['person'], counts: { person: 3 }, total: 3 })
   const recent = vi
     .fn<BrainSearch['recent']>()
     .mockImplementationOnce(() => {
@@ -193,13 +193,15 @@ it('forwards browse and recent reads through the search worker and lets each rec
     })
   const { spawn } = host(() => fakeSearch({ entities, recent }))
   const client = createSearchClient({ path: 'brain.sqlite', spawn })
-  await expect(client.entities('person', 20, 20)).rejects.toThrow('Browse unavailable')
-  await expect(client.entities('person', 20, 20)).resolves.toEqual({
+  await expect(client.entities('person', 20, 20, 'recent')).rejects.toThrow('Browse unavailable')
+  await expect(client.entities('person', 20, 20, 'recent')).resolves.toEqual({
     items: [],
     more: false,
     kinds: ['person'],
+    counts: { person: 3 },
+    total: 3,
   })
-  expect(entities).toHaveBeenLastCalledWith('person', 20, 20)
+  expect(entities).toHaveBeenLastCalledWith('person', 20, 20, 'recent')
   await expect(client.recent(10)).rejects.toThrow('Recent unavailable')
   expect((await client.recent(10)).items[0]?.id).toBe('harbor-memory')
   expect(recent).toHaveBeenLastCalledWith(10)

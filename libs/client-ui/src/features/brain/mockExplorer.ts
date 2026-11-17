@@ -15,6 +15,7 @@ import type {
   BrainPredicate,
 } from '@shared/brain'
 import { BRAIN_MEMORY_TYPES } from '@shared/brain'
+import { BRAIN_ENTITY_SORTS, type BrainEntitySort } from '@shared/brain-explore'
 import { mockBrainData } from './mockBrainData'
 
 const PAGE = 20
@@ -37,17 +38,40 @@ export class MockExplorer {
       ).size - 1
     return { ...entity, memories: memories.length, connections: Math.max(0, connections) }
   }
-  browse(kind: BrainEntityKind | null, offset: number, limit: number): BrainEntityPage {
+  browse(
+    kind: BrainEntityKind | null,
+    offset: number,
+    limit: number,
+    sort: BrainEntitySort,
+  ): BrainEntityPage {
+    if (!BRAIN_ENTITY_SORTS.includes(sort)) throw new Error('Invalid Brain entity sort.')
     const all = this.entities.map((e) => this.summary(e)).filter((e) => e.memories > 0)
+    const learned = (id: string): number =>
+      Math.max(
+        0,
+        ...this.details
+          .filter((d) => d.memory.entityIds.includes(id) && d.memory.state !== 'superseded')
+          .map((d) => d.memory.observedAt),
+      )
     const rows = all
       .filter((e) => !kind || e.kind === kind)
-      .sort((a, b) => b.connections - a.connections)
+      .sort((a, b) =>
+        sort === 'name'
+          ? a.label.toLowerCase().localeCompare(b.label.toLowerCase()) || a.id.localeCompare(b.id)
+          : sort === 'recent'
+            ? learned(b.id) - learned(a.id)
+            : b.connections - a.connections,
+      )
+    const counts: BrainEntityPage['counts'] = {}
+    for (const e of all) counts[e.kind] = (counts[e.kind] ?? 0) + 1
     return {
       items: rows
         .slice(offset, offset + limit)
         .map((entity) => ({ entity, memories: entity.memories })),
       more: rows.length > offset + limit,
       kinds: [...new Set(all.map((e) => e.kind))],
+      counts,
+      total: rows.length,
     }
   }
   recent(limit: number, jobs: BrainJob[] = []): BrainRecentMemories {
@@ -122,7 +146,7 @@ export class MockExplorer {
         const entity = this.entities.find(
           (e) => e.id === (direction === 'out' ? link.objectId : link.subjectId),
         )
-        return entity ? [{ entity: this.summary(entity), link }] : []
+        return entity ? [{ entity: this.summary(entity), link, supports: 1 }] : []
       })
     return {
       items: items.slice(offset, offset + PAGE),
@@ -155,7 +179,12 @@ export class MockExplorer {
             memory.origin ? [[memory.origin.sessionId, memory.origin] as const] : [],
           ),
         ).values(),
-      ],
+      ].map((origin) => ({
+        ...origin,
+        memories: memories.filter(({ memory }) => memory.origin?.sessionId === origin.sessionId)
+          .length,
+      })),
+      lastLearnedAt: Math.max(0, ...memories.map(({ memory }) => memory.observedAt)) || null,
       merged: this.merged.get(id) ?? [],
       memoryCounts: Object.fromEntries(
         BRAIN_MEMORY_TYPES.map((type) => [

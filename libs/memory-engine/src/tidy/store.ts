@@ -9,6 +9,7 @@ import { undoOperation } from './operations'
 import { pendingPairs, recordVerdicts } from './verdicts'
 import { sweep } from './sweep'
 import { takeMaintenance } from './maintenance'
+import { describeEntity, removeName, splitEntity } from './entity-edits'
 
 export function tidyStore(ctx: Context): BrainTidyStore {
   return {
@@ -26,6 +27,13 @@ export function tidyStore(ctx: Context): BrainTidyStore {
     tidyChanges: (limit) => changes(ctx, limit),
     tidyUndo: (id, revision) => {
       afterUndo(ctx, undoOperation(ctx, id, revision))
+    },
+    describe: (id, description, revision) => describeEntity(ctx, id, description, revision),
+    removeName: (id, name, revision) => removeName(ctx, id, name, revision),
+    split: (id, memoryIds, target, revision) => {
+      const operation = splitEntity(ctx, id, memoryIds, target, revision)
+      afterOperation(ctx, operation)
+      return operation
     },
     sweep: (input) => sweep(ctx, input),
     takeTidyMaintenance: () => takeMaintenance(ctx),

@@ -1,8 +1,10 @@
 import {
+  BRAIN_ENTITY_KINDS,
   BRAIN_MEMORY_STATES,
   checkBrainReaderModel,
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
+  type BrainEntityKind,
   type BrainLaneRef,
   type BrainMemoryFilter,
   type BrainPredicate,
@@ -113,5 +115,37 @@ export function checkFilter(value: unknown): BrainMemoryFilter {
     ...(value.types === undefined ? {} : { types: members(value.types, BRAIN_MEMORY_TYPES) }),
     ...(value.states === undefined ? {} : { states: members(value.states, BRAIN_MEMORY_STATES) }),
     ...(value.sessionId === undefined ? {} : { sessionId: id(value.sessionId) }),
+  }
+}
+
+/** Stored descriptions are 1–160 characters once trimmed. */
+export const descriptionOf = (value: unknown): string => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  return trimmed.length > 0 && trimmed.length <= 160
+    ? trimmed
+    : fail('A description needs 1 to 160 characters.')
+}
+
+/** What to split off: 1–200 distinct memory ids, and the new record's label and kind. */
+export function checkSplit(
+  memoryIds: unknown,
+  target: unknown,
+): { memoryIds: string[]; target: { label: string; kind: BrainEntityKind } } {
+  if (
+    !Array.isArray(memoryIds) ||
+    memoryIds.length < 1 ||
+    memoryIds.length > 200 ||
+    new Set(memoryIds).size !== memoryIds.length
+  )
+    fail('Choose 1 to 200 memories to split off.')
+  if (!record(target) || Object.keys(target).sort().join() !== 'kind,label')
+    fail('Invalid Brain request.')
+  const { label, kind } = target as Record<string, unknown>
+  const trimmed = typeof label === 'string' ? label.trim() : ''
+  if (!trimmed || trimmed.length > 80) fail('A name needs 1 to 80 characters.')
+  if (!(BRAIN_ENTITY_KINDS as readonly unknown[]).includes(kind)) fail('Invalid Brain entity kind.')
+  return {
+    memoryIds: (memoryIds as unknown[]).map(id),
+    target: { label: trimmed, kind: kind as BrainEntityKind },
   }
 }

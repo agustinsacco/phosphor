@@ -48,6 +48,11 @@ function ordinaryEdges(ctx: Context, n: number, perPredicate: number): BrainLink
     directions.flatMap((groups) => groups.get(predicate) ?? []),
   )
 }
+/**
+ * Links one graph payload carries with its at most 300 nodes. Each is one pair and predicate (its
+ * newest link), read from at most eight per predicate and direction per node, centre first.
+ */
+export const GRAPH_LINKS = 1500
 export function graph(
   ctx: Context,
   ids: string[],
@@ -56,14 +61,25 @@ export function graph(
 ): BrainGraph {
   const selected = new Set(ids)
   const links = new Map<string, BrainLink>()
-  for (const id of ids)
-    for (const link of edges(ctx, id))
-      if (selected.has(link.subjectId) && selected.has(link.objectId)) links.set(link.id, link)
+  let cut = false
+  for (const id of ids) {
+    for (const link of edges(ctx, id)) {
+      if (!selected.has(link.subjectId) || !selected.has(link.objectId)) continue
+      const pair = `${link.subjectId}\n${link.predicate}\n${link.objectId}`
+      if (links.has(pair)) continue
+      if (links.size >= GRAPH_LINKS) {
+        cut = true
+        break
+      }
+      links.set(pair, link)
+    }
+    if (cut) break
+  }
   return {
     nodes: ids.map((id) => entity(ctx, id)!).filter(Boolean),
     links: [...links.values()],
     centerId,
-    truncated,
+    truncated: truncated || cut,
   }
 }
 export function overview(ctx: Context, limit: number): BrainGraph {

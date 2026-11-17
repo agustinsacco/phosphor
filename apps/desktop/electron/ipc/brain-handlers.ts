@@ -1,13 +1,16 @@
 import { BRAIN_TIDY_KINDS, checkBrainTidyAction } from '@phosphor/shared/brain-tidy'
 import { BRAIN_ENTITY_KINDS } from '@phosphor/shared/brain'
+import { BRAIN_ENTITY_SORTS } from '@phosphor/shared/brain-explore'
 import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
 import {
   checkDecision,
   checkFilter,
+  checkSplit,
   checkLane,
   checkPrefs,
   cursorOf,
+  descriptionOf,
   directionOf,
   hopsOf,
   id,
@@ -23,13 +26,14 @@ export { checkDecision, checkLane, checkPrefs } from './brain-checks'
 export function registerBrainHandlers(service: () => Promise<BrainService>): void {
   const api = async (): Promise<BrainApi> => (await service()).api
   registerTidyHandlers(api)
-  handle('brain:entities', async (_event, kind, offset, limit) => {
+  handle('brain:entities', async (_event, kind, offset, limit, sort) => {
     if (kind !== null && !BRAIN_ENTITY_KINDS.includes(kind))
       throw new Error('Invalid Brain entity kind.')
     if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid Brain entity offset.')
     if (!Number.isInteger(limit) || limit < 1 || limit > 100)
       throw new Error('Invalid Brain entity limit.')
-    return (await api()).entities(kind, offset, limit)
+    if (!BRAIN_ENTITY_SORTS.includes(sort)) throw new Error('Invalid Brain entity sort.')
+    return (await api()).entities(kind, offset, limit, sort)
   })
   handle('brain:recent', async (_event, limit) => (await api()).recent(limitOf(limit)))
   handle('brain:history', async (_event, limit) => {
@@ -56,6 +60,16 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
     const to = id(target)
     if (from === to) throw new Error('Choose a different entity to merge into.')
     return (await api()).merge(from, to, revisionOf(revision))
+  })
+  handle('brain:describe', async (_event, entity, description, revision) =>
+    (await api()).describe(id(entity), descriptionOf(description), revisionOf(revision)),
+  )
+  handle('brain:removeName', async (_event, entity, name, revision) =>
+    (await api()).removeName(id(entity), id(name), revisionOf(revision)),
+  )
+  handle('brain:split', async (_event, entity, memoryIds, target, revision) => {
+    const split = checkSplit(memoryIds, target)
+    return (await api()).split(id(entity), split.memoryIds, split.target, revisionOf(revision))
   })
   handle('brain:find', async (_event, query, limit) =>
     (await api()).find(text(query, 500), limitOf(limit)),
