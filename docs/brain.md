@@ -376,9 +376,26 @@ sweep call walks at most 128 entity or memory rows from a saved numeric cursor a
 watermarks. Coverage reports records visited, totals, capped buckets and completion, not an
 exhaustive comparison of every pair. Name/alias buckets inspect at most 16 candidates, eight
 names per entity; a one-word person name also offers full-name token matches. The sweep never
-merges entities automatically. Near-memory detection checks at most 32 candidates for each of
-four mentioned entities and requires matching project scope/branch and cosine at least 0.92.
-Similarity only raises a suggestion. Two memories supporting one link are not a defect.
+merges entities automatically. Reasons name the matching labels or alias; shared full-name
+evidence takes precedence over one-word matches. After a merge, suggestions about the removed
+record close, and a bounded sweep reconnects the survivor to remaining matching records and
+compares the merged records' memories again.
+
+Near-memory detection uses the four mentioned entities with the fewest memories, plus up to
+16 same-kind name-matching siblings for each, through those same bounded name buckets. Each
+identity contributes its newest 256 stored memories (numeric insertion order). The sweep scores
+those windows by cosine, retains the best 32 candidates across all identities, and offers at
+most eight pairs per swept memory at cosine 0.84 or above. Project and branch differences are
+shown in the reason, not excluded from comparison. The threshold admits observed 0.86
+paraphrases and contradictions while excluding the observed topic-only pairs at 0.80 or below.
+Similarity only raises a question, never applies a change. Two memories supporting one link
+are not a defect.
+
+A sweep call caches up to 128 entity vector windows in least-recently-used order (about 96 MiB
+of vectors); eviction permits a re-read without changing candidates. Folds invalidate the
+windows because mentions changed. Coverage counts capped name buckets and memory windows
+larger than 256, not cache evictions; an older partner beyond a window can be missed. A single
+memory scores at most 4 × 17 × 256 vectors before the shared best-32 cut.
 
 Only exact repeats fold automatically: the folded sentence, type, project scope, branch,
 validity dates and complete mentioned-entity set must match. Disputed or historical memories
