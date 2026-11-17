@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { seedBrainLanes, type BrainLane } from './brain-lanes'
-import { awaitRead, inbox, queueLane } from './brain-flow'
+import { awaitRead, brainTab, queueLane, reviewRow } from './brain-flow'
 
 export async function seedBrainTidyLanes() {
   const seed = await seedBrainLanes()
@@ -15,10 +15,10 @@ export async function seedBrainTidyLanes() {
 
 export async function readTidyLane(page: Page, lane: BrainLane): Promise<void> {
   await queueLane(page, lane)
-  await page.getByRole('tab', { name: /^Lanes/ }).click()
+  await brainTab(page, 'Inbox').click()
   await awaitRead(page, lane)
-  await inbox(page, lane).click()
-  const review = page.getByRole('region', { name: 'Review memories', exact: true })
+  await reviewRow(page, lane).click()
+  const review = page.getByRole('article', { name: 'Review memories', exact: true })
   for (const fact of lane.facts)
     await expect(review.getByText(fact, { exact: true }).first()).toBeVisible()
   await review.getByRole('button', { name: 'Approve 2', exact: true }).click()
@@ -26,38 +26,43 @@ export async function readTidyLane(page: Page, lane: BrainLane): Promise<void> {
 }
 
 export async function openTidyNotice(page: Page, count: number): Promise<void> {
-  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
+  await brainTab(page, 'Knowledge').click()
   await page.getByTestId('notifications-button').click()
   const drawer = page.getByRole('complementary', { name: 'Notifications' })
   const notice = drawer.getByRole('button', {
-    name: `Open Tidy: Brain has ${count} ${count === 1 ? 'thing' : 'things'} to tidy`,
+    name: `Open Brain Inbox: Brain has ${count} ${count === 1 ? 'thing' : 'things'} to tidy`,
     exact: true,
   })
   await expect(notice).toHaveCount(1)
   await expect(drawer.getByText(/^Brain has \d+ things? to tidy$/)).toHaveCount(1)
   await notice.click()
-  await expect(page.getByRole('tab', { name: /^Tidy/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(brainTab(page, 'Inbox')).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('button', { name: 'Close notifications', exact: true }).click()
 }
 
-export async function mergeSwapAndUndo(page: Page): Promise<void> {
+/** Merge into the side Brain did not suggest, check the index, then undo from Lanes. */
+export async function mergeOtherAndUndo(page: Page): Promise<void> {
   const detail = page.getByRole('article', { name: 'Tidy suggestion', exact: true })
-  const initial = await detail.getByRole('button', { name: /^Merge into / }).textContent()
-  await detail.getByRole('button', { name: 'Swap surviving record', exact: true }).click()
-  const swapped = detail.getByRole('button', { name: /^Merge into / })
-  await expect(swapped).not.toHaveText(initial!)
-  const survivor = (await swapped.textContent())!.replace('Merge into ', '')
-  await swapped.click()
+  const suggested = (await detail.getByRole('button', { name: /^Merge into / }).textContent())!
+  const other = detail.getByRole('button', { name: /^Keep .+ instead$/ })
+  const survivor = (await other.textContent())!.replace(/^Keep (.+) instead$/, '$1')
+  expect(suggested).not.toBe(`Merge into ${survivor}`)
+  await other.click()
+  await brainTab(page, 'Lanes').click()
   const recent = page.getByRole('region', { name: 'Recent changes', exact: true })
   await expect(recent).toContainText('Merged two people or things')
-  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-  const nodes = page.getByRole('list', { name: 'Graph entities' })
-  await expect(nodes.getByRole('button', { name: `Focus ${survivor}`, exact: true })).toHaveCount(1)
-  await expect(nodes.getByRole('button', { name: /^Focus Rina(?: Okafor)?$/ })).toHaveCount(1)
-  await page.getByRole('tab', { name: /^Tidy/ }).click()
+  await brainTab(page, 'Knowledge').click()
+  const index = page.getByRole('listbox', { name: 'People and things', exact: true })
+  const named = (name: string | RegExp) =>
+    index.getByRole('option', {
+      name: new RegExp(`^${typeof name === 'string' ? name : name.source}(?: \\d+ memories)?$`),
+    })
+  await expect(named(survivor)).toHaveCount(1)
+  await expect(named(/Rina(?: Okafor)?/)).toHaveCount(1)
+  await brainTab(page, 'Lanes').click()
   await recent.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect(recent).toContainText('Undone')
-  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-  await expect(nodes.getByRole('button', { name: 'Focus Rina', exact: true })).toHaveCount(1)
-  await expect(nodes.getByRole('button', { name: 'Focus Rina Okafor', exact: true })).toHaveCount(1)
+  await brainTab(page, 'Knowledge').click()
+  await expect(named('Rina')).toHaveCount(1)
+  await expect(named('Rina Okafor')).toHaveCount(1)
 }
