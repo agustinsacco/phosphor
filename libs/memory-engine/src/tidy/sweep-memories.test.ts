@@ -122,9 +122,15 @@ it('caches a 256-memory hub window once per 128-memory chunk, not across calls',
   const prepare = db.prepare.bind(db)
   let windowsRead = 0
   db.prepare = (sql) => {
-    if (sql.includes('FROM mentions WHERE entity=?') && sql.includes('memory_vectors'))
-      windowsRead++
-    return prepare(sql)
+    const statement = prepare(sql)
+    if (sql.includes('FROM mentions WHERE entity=?') && sql.includes('memory_vectors')) {
+      const all = statement.all.bind(statement)
+      statement.all = (...args) => {
+        windowsRead++
+        return all(...args)
+      }
+    }
+    return statement
   }
   try {
     const start = performance.now()
