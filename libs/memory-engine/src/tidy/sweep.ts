@@ -7,6 +7,7 @@ import {
 } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision } from '../prefs'
+import { recountEntities } from '../entities'
 import { sweepEntity } from './sweep-entities'
 import { memoryCandidateCache } from './memory-candidates'
 import { sweepMemory } from './sweep-memories'
@@ -86,6 +87,17 @@ export function sweep(
       if (c.startedAt === null || c.phase === 'done') c = start(ctx)
       if (c.unkeyed) memories.push(...nextUnkeyed(ctx, c))
       else nextChunk(ctx, c, entities, memories)
+      // Counts stored before they meant current memories and distinct neighbours catch up here.
+      recountEntities(
+        ctx,
+        new Set(
+          all<{ n: number }>(
+            ctx,
+            'SELECT n FROM entities WHERE id IN (SELECT value FROM json_each(?))',
+            JSON.stringify(entities),
+          ).map((row) => row.n),
+        ),
+      )
     }
     for (const id of entities) {
       const found = sweepEntity(ctx, id, preferredEntityId)

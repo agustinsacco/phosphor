@@ -48,9 +48,14 @@ it('counts only current memories in the header, type counts and lanes alike', ()
   expect(store.entity(rina).sources).toEqual([])
   expect(store.entity(rina).lastLearnedAt).toBeNull()
   expect(store.entity(harbor).entity.memories).toBe(2)
-  expect(store.entity(harbor).sources.map((s) => [s.title, s.memories])).toEqual([
-    ['Ledger planning', 1],
+  expect(
+    store
+      .entity(harbor)
+      .sources.map((s) => [s.title, s.memories])
+      .sort(),
+  ).toEqual([
     ['Harbor billing', 1],
+    ['Ledger planning', 1],
   ])
 })
 
@@ -61,4 +66,15 @@ it('browses and draws entities with the same current count', () => {
   expect(page.items.find((item) => item.entity.id === harbor)!.memories).toBe(2)
   expect(page.items.some((item) => item.entity.id === rina)).toBe(false)
   expect(store.overview(300).nodes.find((node) => node.id === harbor)!.memories).toBe(2)
+})
+
+it('corrects counts stored under the old definitions as Tidy visits each record', () => {
+  const { store, db, rina, harbor } = handover()
+  db.exec('UPDATE entities SET memories=memories+5,connections=connections+5')
+  const stored = () => store.overview(300).nodes.find((node) => node.id === harbor)!
+  expect(stored().memories).toBe(7)
+  expect(store.entity(harbor).entity).toMatchObject({ memories: 2, connections: 2 })
+  while (store.sweep('all').coverage.phase === 'entities');
+  expect(stored()).toMatchObject({ memories: 2, connections: 2 })
+  expect(store.entity(rina).entity.memories).toBe(0)
 })

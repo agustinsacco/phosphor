@@ -2,6 +2,7 @@ import {
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
   type BrainConnection,
+  type BrainMemoryType,
   type BrainConnectionPage,
   type BrainEntityView,
   type BrainMemoryFilter,
@@ -126,6 +127,58 @@ export function connections(
 ): BrainConnectionPage {
   return connectionPage(ctx, id, predicate, direction, after, PAGE_SIZE)
 }
+/**
+ * Current (active or disputed) memories in one pass over the entity's mentions, so the header,
+ * type counts, lanes and last-learned time always agree. The mentions index leads the join.
+ */
+function currentMemories(
+  ctx: Context,
+  n: number,
+): Pick<BrainEntityView, 'memoryCounts' | 'sources' | 'lastLearnedAt'> & { total: number } {
+  const rows = all<{
+    sessionId: string | null
+    title: string | null
+    type: BrainMemoryType
+    total: number
+    newest: number
+  }>(
+    ctx,
+    `SELECT m.origin_session AS sessionId,m.origin_title AS title,m.type,COUNT(*) AS total,MAX(m.observed_at) AS newest
+      FROM mentions a CROSS JOIN memories m ON m.n=a.memory
+      WHERE a.entity=? AND m.state IN ('active','disputed') GROUP BY m.origin_session,m.type`,
+    n,
+  )
+  const memoryCounts = Object.fromEntries(BRAIN_MEMORY_TYPES.map((type) => [type, 0])) as Record<
+    BrainMemoryType,
+    number
+  >
+  const lanes = new Map<string, BrainEntityView['sources'][number] & { newest: number }>()
+  for (const row of rows) {
+    if (row.type in memoryCounts) memoryCounts[row.type] += row.total
+    if (row.sessionId === null) continue
+    const lane = lanes.get(row.sessionId)
+    if (!lane)
+      lanes.set(row.sessionId, {
+        sessionId: row.sessionId,
+        title: row.title ?? '',
+        memories: row.total,
+        newest: row.newest,
+      })
+    else {
+      lane.memories += row.total
+      if (row.newest > lane.newest) Object.assign(lane, { newest: row.newest, title: row.title })
+    }
+  }
+  return {
+    total: rows.reduce((sum, row) => sum + row.total, 0),
+    memoryCounts,
+    lastLearnedAt: rows.length ? Math.max(...rows.map((row) => row.newest)) : null,
+    sources: [...lanes.values()]
+      .sort((a, b) => b.newest - a.newest || a.sessionId.localeCompare(b.sessionId))
+      .slice(0, 50)
+      .map(({ newest: _newest, ...lane }) => lane),
+  }
+}
 export function entity(ctx: Context, id: string): BrainEntityView {
   const n = entityNumber(ctx, id)
   const groups = BRAIN_PREDICATES.flatMap((predicate) =>
@@ -150,28 +203,16 @@ export function entity(ctx: Context, id: string): BrainEntityView {
         : []
     }),
   )
-  const counts = all<{ type: string; total: number }>(
-    ctx,
-    "SELECT m.type,COUNT(*) AS total FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed') GROUP BY m.type",
-    n,
-  )
+  const { total, ...current } = currentMemories(ctx, n)
   return {
-    entity: entitySummary(ctx, id)!,
+    // Live counts: a record stored before counts meant current memories still agrees here.
+    entity: {
+      ...entitySummary(ctx, id)!,
+      memories: total,
+      connections: groups.reduce((sum, group) => sum + group.total, 0),
+    },
     groups,
-    sources: all(
-      ctx,
-      'SELECT m.origin_session AS sessionId,m.origin_title AS title,COUNT(*) AS memories FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.origin_session IS NOT NULL GROUP BY m.origin_session ORDER BY MAX(m.observed_at) DESC LIMIT 50',
-      n,
-    ),
-    lastLearnedAt:
-      one<{ newest: number | null }>(
-        ctx,
-        "SELECT MAX(m.observed_at) AS newest FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed')",
-        n,
-      )?.newest ?? null,
-    memoryCounts: Object.fromEntries(
-      BRAIN_MEMORY_TYPES.map((type) => [type, counts.find((row) => row.type === type)?.total ?? 0]),
-    ) as BrainEntityView['memoryCounts'],
+    ...current,
     merged: all<{ label: string }>(
       ctx,
       'SELECT label FROM merges WHERE target=? ORDER BY recorded_at DESC LIMIT 100',
