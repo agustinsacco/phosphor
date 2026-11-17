@@ -106,3 +106,41 @@ it('scrubs settled suggestions and moves an open flag along folds until Forget e
   expect(db.prepare('SELECT * FROM tidy_operations').all()).toEqual([])
   expect(db.prepare('SELECT * FROM tidy_suggestions').all()).toEqual([])
 })
+function flagFirst(store: BrainStore): string {
+  return store.flag({
+    memoryId: 'memory-1',
+    problem: 'wrong',
+    reason: 'Rina leads Ledger area 1 is wrong; Tom Lee leads it',
+    title: 'Harbor planning',
+    sessionId: 'harbor-lane',
+  }).suggestionId!
+}
+function flagRows(db: DatabaseSync) {
+  return db
+    .prepare("SELECT first_id,state FROM tidy_suggestions WHERE kind='flagged'")
+    .all()
+    .map((row) => ({ ...row }))
+}
+it('an undone fold puts the lane flag back on the memory the lane objected to', () => {
+  const { store, db } = chain()
+  flagFirst(store)
+  const operation = fold(store, 'memory-1', 'memory-2')
+  expect(flagRows(db)).toEqual([{ first_id: 'memory-2', state: 'open' }])
+  store.tidyUndo(operation, store.revision())
+  expect(flagRows(db)).toEqual([{ first_id: 'memory-1', state: 'open' }])
+  expect(store.tidy('flagged', null, 50).items[0]!.subjects.map((s) => s.id)).toEqual(['memory-1'])
+  store.forget('memory-1')
+  expect(flagRows(db)).toEqual([])
+  expect(tidyText(db)).not.toContain('Tom Lee leads it')
+  expect(store.memory('memory-2').memory.state).toBe('active')
+})
+it('Forget of a memory erases the flag filed against it while the flag sits on another memory', () => {
+  const { store, db } = chain()
+  const flagged = flagFirst(store)
+  // A flag can sit on a survivor while its memory is live: an earlier build left it there.
+  db.prepare("UPDATE tidy_suggestions SET first_id='memory-2' WHERE id=?").run(flagged)
+  store.forget('memory-1')
+  expect(flagRows(db)).toEqual([])
+  expect(tidyText(db)).not.toContain('Tom Lee leads it')
+  expect(store.memory('memory-2').memory.state).toBe('active')
+})
