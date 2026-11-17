@@ -71,6 +71,28 @@ export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
     }
     run(ctx, 'DELETE FROM tidy_operation_memories WHERE operation_id=? AND memory_id=?', op.id, id)
   }
+  eraseEntityText(ctx, forgotten)
+}
+
+/**
+ * A description or name an edit or merge replaced can quote the forgotten memory even when the
+ * operation never touched it. At most 200 operations are retained, each with few entity rows.
+ */
+function eraseEntityText(ctx: Context, forgotten: string[]): void {
+  const rows = all<{ id: string; table_name: string; before_image: string }>(
+    ctx,
+    `SELECT r.operation_id AS id,r.table_name,r.before_image FROM tidy_operation_rows r
+      JOIN tidy_operations o ON o.id=r.operation_id
+      WHERE r.table_name IN ('entities','entity_names','merges')`,
+  )
+  const holds = (row: (typeof rows)[number]): boolean => {
+    try {
+      return retainedText(ctx, row, forgotten)
+    } catch {
+      return true // An unreadable record cannot prove it is safe; Forget must still finish.
+    }
+  }
+  for (const id of new Set(rows.filter(holds).map((row) => row.id))) eraseBeforeImages(ctx, id)
 }
 
 /** Suggestions about the memory, and lane flags filed against it wherever a fold moved them. */

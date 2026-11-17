@@ -289,6 +289,18 @@ export class FakeBrainStore implements BrainStore {
     this.rev++
     return 'operation'
   }
+  describe(): string {
+    this.rev++
+    return 'operation'
+  }
+  removeName(): string {
+    this.rev++
+    return 'operation'
+  }
+  split(): string {
+    this.rev++
+    return 'operation'
+  }
   forget(id: string): void {
     this.details = this.details.filter((d) => d.memory.id !== id)
     this.rev++

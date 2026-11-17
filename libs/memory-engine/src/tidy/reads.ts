@@ -93,7 +93,7 @@ export function changes(ctx: Context, limit: number): BrainTidyChanges {
   limitOf(limit)
   const rows = all<Omit<BrainTidyOperation, 'automatic'> & { automatic: number }>(
     ctx,
-    `SELECT id,kind,automatic,summary,created_at AS createdAt,undone_at AS undoneAt,suggestion_id AS suggestionId FROM tidy_operations WHERE kind IN ('merge','fold','dispute','replace') ORDER BY created_at DESC,id DESC LIMIT ?`,
+    `SELECT id,kind,automatic,summary,created_at AS createdAt,undone_at AS undoneAt,suggestion_id AS suggestionId FROM tidy_operations WHERE kind IN ('merge','fold','dispute','replace','split','unname','describe') ORDER BY created_at DESC,id DESC LIMIT ?`,
     limit,
   )
   return { items: rows.map((r) => ({ ...r, automatic: !!r.automatic })), revision: revision(ctx) }
