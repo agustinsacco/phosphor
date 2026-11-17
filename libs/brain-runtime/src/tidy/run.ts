@@ -125,8 +125,9 @@ export function createTidyRunner(context: TidyRunContext): TidyRunner {
     }
   }
   return {
-    current: () => run,
+    current: () => (context.runState ? context.runState.readRun() : run),
     start() {
+      if (context.runState) run = context.runState.readRun()
       if (active(run)) return
       if (!context.runState) throw new Error('Brain Tidy persistence is unavailable.')
       if (!context.queue.accepting) throw new Error('Brain is resetting.')
