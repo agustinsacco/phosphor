@@ -82,9 +82,11 @@ A comparison starts with its reason and whether a local rule or the named model 
 Entities show descriptions, other names, memory counts, links and source lanes. Memories show
 scope, branch, dates and labelled quotes. The two sides stack when the comparison pane is narrow;
 each opens its record on Knowledge. Entity merges default to the record with more memories and
-have a **Swap surviving record** control. Either repeated memory can survive. A disagreement can
-stay disputed or either side can replace the other. **Not the same** and **Not a conflict** dismiss
-the pair. A lane flag offers **Keep**, or a confirmed permanent **Forget**; Open the lane resolves
+have a **Swap surviving record** control. Both “Said twice” and “These disagree” offer the actions
+the engine currently allows: either memory can survive a fold, both can stay disputed, or either
+side can replace the other. Different project, branch or dates, or existing replacement/dispute
+history, prevent folding; a quiet line shows the engine's reason. **Not the same** dismisses an
+open suggestion. A lane flag offers **Keep**, or a confirmed permanent **Forget**; Open the lane resolves
 only a local lane already known to the sidebar, never a path supplied by the flag.
 
 A decision selects the next visible suggestion. Successful changes offer Undo in their toast.

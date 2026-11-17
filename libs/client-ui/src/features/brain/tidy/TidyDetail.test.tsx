@@ -74,7 +74,7 @@ it('shows scope, dates and labelled evidence and folds either memory', async () 
   await click('Keep this one', 1)
   expect(apply).toHaveBeenLastCalledWith({ kind: 'fold', survivorId: 'tidy-1-1' })
 })
-it('offers both replacements, dispute and not-a-conflict with the checked model name', async () => {
+it('offers both replacements, dispute and dismissal with the checked model name', async () => {
   await render(2)
   expect(container.textContent).toContain('Checked by harbor-model')
   await click('Keep both as disputed')
@@ -83,7 +83,7 @@ it('offers both replacements, dispute and not-a-conflict with the checked model 
   expect(apply).toHaveBeenLastCalledWith({ kind: 'replace', newerId: 'tidy-2-0' })
   await click('This one replaces that one', 1)
   expect(apply).toHaveBeenLastCalledWith({ kind: 'replace', newerId: 'tidy-2-1' })
-  await click('Not a conflict')
+  await click('Not the same')
   expect(dismiss).toHaveBeenCalledOnce()
 })
 it('keeps a flag or confirms permanent Forget, and disables an unknown lane', async () => {
@@ -133,4 +133,53 @@ it('opens only a flagging lane resolved from the known sidebar metadata', async 
   await render(3)
   await click('Open the lane')
   expect(openBrainSource).toHaveBeenCalledWith('/demo/Harbor/known.jsonl')
+})
+
+it('uses allowed actions rather than the Said twice label for dispute and replacement', async () => {
+  await render(1)
+  await click('Keep both as disputed')
+  expect(apply).toHaveBeenLastCalledWith({ kind: 'dispute' })
+  await click('This one replaces that one', 1)
+  expect(apply).toHaveBeenLastCalledWith({ kind: 'replace', newerId: 'tidy-1-1' })
+})
+it.each([
+  [
+    'applicability',
+    'These apply to different projects or branches, so they cannot be folded into one.',
+  ],
+  [
+    'history',
+    'One of these already replaced or disputes another memory, so they cannot be folded into one.',
+  ],
+] as const)(
+  'shows the engine fold refusal %s, not an inferred reason',
+  async (foldRefusal, text) => {
+    await render(1, (d) => {
+      d.allowed = ['dispute', 'replace']
+      d.foldRefusal = foldRefusal
+    })
+    expect(container.textContent).not.toContain('Keep this one')
+    expect(container.textContent).toContain(text)
+    await click('Keep both as disputed')
+    expect(apply).toHaveBeenLastCalledWith({ kind: 'dispute' })
+    await click('Not the same')
+    expect(dismiss).toHaveBeenCalledOnce()
+  },
+)
+it('does not invent a refusal reason and suppresses unoffered actions', async () => {
+  await render(2, (d) => {
+    d.allowed = ['replace']
+    d.foldRefusal = null
+  })
+  expect(container.textContent).not.toContain('cannot be folded')
+  expect(container.textContent).not.toContain('Keep both as disputed')
+  expect(container.textContent).not.toContain('Keep this one')
+})
+it('offers no mutation buttons for a settled or missing-subject comparison', async () => {
+  await render(0, (d) => {
+    d.suggestion.state = 'applied'
+    d.allowed = []
+    d.subjects = []
+  })
+  expect(container.querySelector('button')).toBeNull()
 })

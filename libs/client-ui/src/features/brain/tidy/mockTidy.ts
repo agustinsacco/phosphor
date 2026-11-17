@@ -5,11 +5,13 @@ import {
   type BrainTidyOperation,
   type BrainTidyPage,
   type BrainTidySuggestion,
+  type BrainTidySuggestionDetail,
+  type BrainTidySubjectDetail,
   type BrainTidySummary,
 } from '@shared/brain-tidy'
 import type { BrainStatus } from '@shared/brain'
 import type { MockExplorer } from '../mockExplorer'
-import { seedMockTidy } from './mockTidyData'
+import { seedMockTidy, mockTidyPermissions } from './mockTidyData'
 
 export interface MockTidyOptions {
   count?: number
@@ -166,6 +168,8 @@ export class MockTidy {
   private apply(id: string, action: BrainTidyAction): string | null {
     const suggestion = this.items.find((s) => s.id === id && s.state === 'open')
     if (!suggestion) throw new Error('This suggestion was already settled.')
+    if (!this.detail(id)?.allowed.includes(action.kind))
+      throw new Error('This action is not available for these records.')
     suggestion.state = 'applied'
     const ids = suggestion.subjects.map((s) => s.id)
     if (action.kind === 'keep') return null
@@ -211,25 +215,8 @@ export class MockTidy {
     switch (channel) {
       case 'brain:tidy':
         return this.list(args)
-      case 'brain:tidySuggestion': {
-        const suggestion = this.items.find((s) => s.id === args[0])
-        if (!suggestion) return null
-        return {
-          suggestion,
-          revision: this.state.revision,
-          subjects: suggestion.subjects
-            .filter((s) =>
-              s.type === 'entity'
-                ? this.explorer.entities.some((e) => e.id === s.id)
-                : this.explorer.details.some((d) => d.memory.id === s.id),
-            )
-            .map((s) =>
-              s.type === 'entity'
-                ? { type: 'entity', value: this.explorer.entity(s.id) }
-                : { type: 'memory', value: this.explorer.memory(s.id) },
-            ),
-        }
-      }
+      case 'brain:tidySuggestion':
+        return this.detail(args[0] as string)
       case 'brain:tidyChanges':
         return { items: this.operations.slice(0, args[0] as number), revision: this.state.revision }
       case 'brain:tidyRun':
@@ -269,6 +256,27 @@ export class MockTidy {
         throw new Error('Unknown Tidy channel')
     }
     return { ...this.state, tidy: this.summary() }
+  }
+  private detail(id: string): BrainTidySuggestionDetail | null {
+    const suggestion = this.items.find((s) => s.id === id)
+    if (!suggestion) return null
+    const subjects: BrainTidySubjectDetail[] = suggestion.subjects
+      .filter((s) =>
+        s.type === 'entity'
+          ? this.explorer.entities.some((e) => e.id === s.id)
+          : this.explorer.details.some((d) => d.memory.id === s.id),
+      )
+      .map((s) =>
+        s.type === 'entity'
+          ? { type: 'entity', value: this.explorer.entity(s.id) }
+          : { type: 'memory', value: this.explorer.memory(s.id) },
+      )
+    return {
+      suggestion,
+      subjects,
+      revision: this.state.revision,
+      ...mockTidyPermissions(suggestion, subjects),
+    }
   }
   private undo(id: string, revision: number): void {
     this.check(revision)

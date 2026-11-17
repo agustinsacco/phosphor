@@ -7,6 +7,8 @@ import type {
 } from '@shared/brain-tidy'
 import type { BrainStatus } from '@shared/brain'
 import { createMockBrain } from '../mockBrain'
+import { MockExplorer } from '../mockExplorer'
+import { mockTidyPermissions, seedMockTidy } from './mockTidyData'
 
 it('serves all kinds, recovers a first failed load, pages and advances a cancellable run', async () => {
   let now = 10000
@@ -61,4 +63,43 @@ it('applies, dismisses, guards revisions and undoes through the same journal as 
   const status = (await call('brain:status', [])) as BrainStatus
   const merged = (await call('brain:merge', ['tom', 'rina', status.revision])) as BrainTidyMutation
   expect(merged.operationId).toBeTruthy()
+})
+
+it('reports permissions for open, settled and removed suggestions', async () => {
+  const call = createMockBrain(() => 10000)
+  const detail = (await call('brain:tidySuggestion', ['tidy-1'])) as BrainTidySuggestionDetail
+  expect(detail.allowed).toEqual(['fold', 'dispute', 'replace'])
+  expect(detail.foldRefusal).toBeNull()
+  await call('brain:tidyApply', ['tidy-1', { kind: 'fold', survivorId: 'tidy-1-0' }, 0])
+  expect(
+    ((await call('brain:tidySuggestion', ['tidy-1'])) as BrainTidySuggestionDetail).allowed,
+  ).toEqual([])
+  await call('brain:forget', ['tidy-1-0'])
+  expect(await call('brain:tidySuggestion', ['tidy-1'])).toBeNull()
+})
+
+it('models applicability and history refusals without offering a fold', () => {
+  const explorer = new MockExplorer()
+  const suggestion = seedMockTidy(explorer, 2, 10000)[1]!
+  const subjects = suggestion.subjects.map((s) => ({
+    type: 'memory' as const,
+    value: explorer.memory(s.id),
+  }))
+  const first = subjects[0]!.value,
+    second = subjects[1]!.value
+  second.memory.branch = 'kestrel'
+  expect(mockTidyPermissions(suggestion, subjects)).toEqual({
+    allowed: ['dispute', 'replace'],
+    foldRefusal: 'applicability',
+  })
+  second.memory.branch = first.memory.branch
+  second.history.push(first.memory)
+  expect(mockTidyPermissions(suggestion, subjects)).toEqual({
+    allowed: ['dispute', 'replace'],
+    foldRefusal: 'history',
+  })
+  expect(mockTidyPermissions(suggestion, subjects.slice(0, 1))).toEqual({
+    allowed: [],
+    foldRefusal: null,
+  })
 })

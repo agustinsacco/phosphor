@@ -295,3 +295,14 @@ it('ignores a late detail response for the previous selected row', async () => {
   await click('Merge into Rina Okafor')
   expect(apply.mock.calls[0]![0]).toBe('tidy-4')
 })
+
+it('chooses from the reloaded list when a merge closes other pairs for the removed record', async () => {
+  apply.mockImplementationOnce(async (...args) => {
+    const result = await mock('brain:tidyApply', args)
+    await call('brain:tidyDismiss', 'tidy-4', 1)
+    return result
+  })
+  await render()
+  await click('Merge into Rina Okafor')
+  expect(detail).toHaveBeenLastCalledWith('tidy-8')
+})

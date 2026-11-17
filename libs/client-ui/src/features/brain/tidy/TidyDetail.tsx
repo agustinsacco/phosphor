@@ -26,7 +26,6 @@ export function TidyDetail({
   onVisit: (visit: BrainVisit) => void
 }): React.JSX.Element {
   const { suggestion, subjects } = data
-  const model = useBrainModelName(suggestion.model ?? '')
   const [survivor, setSurvivor] = useState(
     () =>
       [...subjects].sort(
@@ -37,41 +36,36 @@ export function TidyDetail({
   )
   const survivorId = survivor?.type === 'entity' ? survivor.value.entity.id : ''
   const survivorLabel = survivor?.type === 'entity' ? survivor.value.entity.label : ''
-  const kind = suggestion.kind
-  const newerId = suggestion.verdict?.kind === 'replaces' ? suggestion.verdict.newerId : null
-  const perSide = (id: string): React.ReactNode =>
-    kind === 'same_memory' ? (
-      <Button disabled={busy} onClick={() => onApply({ kind: 'fold', survivorId: id })}>
-        Keep this one
-      </Button>
-    ) : kind === 'conflict' ? (
-      <Button disabled={busy} onClick={() => onApply({ kind: 'replace', newerId: id })}>
-        This one replaces that one
-      </Button>
-    ) : null
+  const allowed = suggestion.state === 'open' ? data.allowed : []
+  const perSide = (id: string): React.ReactNode => (
+    <div className="flex flex-wrap gap-2">
+      {allowed.includes('fold') && (
+        <Button disabled={busy} onClick={() => onApply({ kind: 'fold', survivorId: id })}>
+          Keep this one
+        </Button>
+      )}
+      {allowed.includes('replace') && (
+        <Button disabled={busy} onClick={() => onApply({ kind: 'replace', newerId: id })}>
+          This one replaces that one
+        </Button>
+      )}
+    </div>
+  )
   return (
     <article className="space-y-4 p-3 [overflow-wrap:anywhere]" aria-label="Tidy suggestion">
-      <header className="space-y-2">
-        <p className="font-medium">{suggestion.reason}</p>
-        <p className="text-text-tertiary text-sm">
-          {suggestion.verdict
-            ? `Checked by ${model}`
-            : suggestion.source === 'sweep'
-              ? 'Found on this computer'
-              : 'Flagged by a lane'}
-        </p>
-        {suggestion.verdict && (
-          <p>
-            {suggestion.verdict.reason}
-            {suggestion.verdict.kind === 'replaces' &&
-              ` Newer truth: ${suggestion.subjects.find((s) => s.id === newerId)?.label ?? ''}`}
-          </p>
-        )}
-      </header>
+      <TidyVerdict suggestion={suggestion} />
       {suggestion.flag && <FlagLane flag={suggestion.flag} />}
+      {!allowed.includes('fold') && data.foldRefusal && (
+        <p className="text-text-secondary text-sm">
+          {data.foldRefusal === 'applicability'
+            ? 'These apply to different projects or branches, so they cannot be folded into one.'
+            : 'One of these already replaced or disputes another memory, so they cannot be folded into one.'}
+        </p>
+      )}
       <TidySubjects subjects={subjects} onVisit={onVisit} action={perSide} />
       <TidyFooter
-        kind={kind}
+        allowed={allowed}
+        open={suggestion.state === 'open'}
         busy={busy}
         onApply={onApply}
         onDismiss={onDismiss}
@@ -135,7 +129,8 @@ function FlagLane({
 }
 
 function TidyFooter({
-  kind,
+  allowed,
+  open,
   busy,
   onApply,
   onDismiss,
@@ -143,7 +138,8 @@ function TidyFooter({
   survivorLabel,
   onSwap,
 }: {
-  kind: BrainTidySuggestionDetail['suggestion']['kind']
+  allowed: BrainTidyAction['kind'][]
+  open: boolean
   busy: boolean
   onApply: (action: BrainTidyAction) => void
   onDismiss: () => void
@@ -153,7 +149,7 @@ function TidyFooter({
 }): React.JSX.Element {
   return (
     <footer className="flex flex-wrap items-center gap-2">
-      {kind === 'same_entity' && (
+      {allowed.includes('merge') && (
         <>
           <Button disabled={busy} onClick={() => onApply({ kind: 'merge', survivorId })}>
             Merge into {survivorLabel}
@@ -163,31 +159,60 @@ function TidyFooter({
           </Button>
         </>
       )}
-      {kind === 'conflict' && (
+      {allowed.includes('dispute') && (
         <Button disabled={busy} onClick={() => onApply({ kind: 'dispute' })}>
           Keep both as disputed
         </Button>
       )}
-      {kind === 'flagged' ? (
-        <>
-          <Button
-            disabled={busy}
-            variant="danger"
-            onClick={() => {
-              void confirmForget(onApply)
-            }}
-          >
-            Forget
-          </Button>
-          <Button disabled={busy} onClick={() => onApply({ kind: 'keep' })}>
-            Keep
-          </Button>
-        </>
-      ) : (
+      {allowed.includes('forget') && (
+        <Button
+          disabled={busy}
+          variant="danger"
+          onClick={() => {
+            void confirmForget(onApply)
+          }}
+        >
+          Forget
+        </Button>
+      )}
+      {allowed.includes('keep') && (
+        <Button disabled={busy} onClick={() => onApply({ kind: 'keep' })}>
+          Keep
+        </Button>
+      )}
+      {open && (
         <Button disabled={busy} onClick={onDismiss}>
-          {kind === 'conflict' ? 'Not a conflict' : 'Not the same'}
+          Not the same
         </Button>
       )}
     </footer>
+  )
+}
+
+function TidyVerdict({
+  suggestion,
+}: {
+  suggestion: BrainTidySuggestionDetail['suggestion']
+}): React.JSX.Element {
+  const model = useBrainModelName(suggestion.model ?? '')
+  const newerId = suggestion.verdict?.kind === 'replaces' ? suggestion.verdict.newerId : null
+  return (
+    <header className="space-y-2">
+      <p className="font-medium">{suggestion.reason}</p>
+      <p className="text-text-tertiary text-sm">
+        {suggestion.verdict
+          ? `Checked by ${model}`
+          : suggestion.source === 'sweep'
+            ? 'Found on this computer'
+            : 'Flagged by a lane'}
+      </p>
+      {suggestion.verdict && (
+        <p>
+          {suggestion.verdict.reason}
+          {suggestion.verdict.kind === 'replaces' &&
+            ` Newer truth: ${suggestion.subjects.find((s) => s.id === newerId)?.label ?? ''}`}
+        </p>
+      )}
+    </header>
   )
 }

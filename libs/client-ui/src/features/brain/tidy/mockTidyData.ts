@@ -1,4 +1,9 @@
-import { BRAIN_TIDY_KINDS, type BrainTidySuggestion } from '@shared/brain-tidy'
+import {
+  BRAIN_TIDY_KINDS,
+  type BrainTidySuggestion,
+  type BrainTidySubjectDetail,
+  type BrainTidyAction,
+} from '@shared/brain-tidy'
 import type { MockExplorer } from '../mockExplorer'
 
 /** Made-up pairs with separate records, including same-name people in different lanes. */
@@ -70,4 +75,31 @@ export function seedMockTidy(
       updatedAt: now,
     }
   })
+}
+
+export function mockTidyPermissions(
+  suggestion: BrainTidySuggestion,
+  subjects: BrainTidySubjectDetail[],
+): {
+  allowed: BrainTidyAction['kind'][]
+  foldRefusal: 'applicability' | 'history' | null
+} {
+  const none = { allowed: [], foldRefusal: null }
+  if (suggestion.state !== 'open' || subjects.length !== suggestion.subjects.length) return none
+  if (suggestion.kind === 'flagged') return { allowed: ['forget', 'keep'], foldRefusal: null }
+  const [a, b] = subjects
+  if (a?.type === 'entity' && b?.type === 'entity') return { allowed: ['merge'], foldRefusal: null }
+  if (a?.type !== 'memory' || b?.type !== 'memory') return none
+  const fields = ['scope', 'branch', 'validFrom', 'validTo'] as const
+  const foldRefusal = fields.some((field) => a.value.memory[field] !== b.value.memory[field])
+    ? 'applicability'
+    : [a.value, b.value].some(
+          (d) => d.history.length || d.related.length || d.memory.state !== 'active',
+        )
+      ? 'history'
+      : null
+  return {
+    allowed: foldRefusal ? ['dispute', 'replace'] : ['fold', 'dispute', 'replace'],
+    foldRefusal,
+  }
 }
