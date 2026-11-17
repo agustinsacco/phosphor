@@ -125,3 +125,20 @@ it('Forget and Reset erase forgotten text from every tidy text column but ids ma
   expect(text()).not.toContain('memory-1')
   expect(store.tidyChanges(50).items).toEqual([])
 })
+
+it('Forget erases a journaled entity description that repeats the forgotten sentence', () => {
+  const { store, db } = fixture()
+  seed(db, 2)
+  db.exec(
+    "UPDATE entities SET description='Ledger description erasure sentinel' WHERE n=2; UPDATE memories SET summary='Ledger description erasure sentinel' WHERE n=2",
+  )
+  store.merge('rina-2', 'rina-1', store.revision())
+  store.forget('memory-2')
+  const text = db
+    .prepare("SELECT name FROM pragma_table_list WHERE name LIKE 'tidy_%' AND type='table'")
+    .all()
+    .flatMap((t) => db.prepare(`SELECT * FROM ${String(t.name)}`).all())
+    .map((r) => JSON.stringify(r))
+    .join('\n')
+  expect(text).not.toContain('Ledger description erasure sentinel')
+})
