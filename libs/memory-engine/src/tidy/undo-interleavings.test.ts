@@ -133,17 +133,17 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
         store.memory(target).quotes.some((q) => q.quote === 'Independent Ledger support'),
       ).toBe(true)
       if (kind === 'merge' && event !== 'relation')
-        expect(store.memory('memory-2').memory.entityIds).toEqual(['rina-2'])
+        expect(store.memory('memory-2').memory.entityIds.toSorted()).toEqual(['rina-1', 'rina-2'])
     },
   )
 }
-it('merge undo stays clean after a later quote on a memory that only mentions the survivor', () => {
+it('merge undo stays clean after a later quote on a memory it did not rewrite', () => {
   const { store, db } = setup()
   const operation = store.merge('rina-2', 'rina-1', store.revision())
   enrich(store, 'memory-3', 'quote')
   expect(() => store.tidyUndo(operation, store.revision())).not.toThrow()
   expect(store.memory('memory-1').memory.entityIds.toSorted()).toEqual(['rina-1', 'rina-2'])
-  expect(store.memory('memory-2').memory.entityIds).toEqual(['rina-2'])
+  expect(store.memory('memory-2').memory.entityIds.toSorted()).toEqual(['rina-1', 'rina-2'])
   expect(store.memory('memory-3').quotes.map((q) => q.quote)).toContain(
     'Independent Ledger support',
   )

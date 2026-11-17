@@ -23,6 +23,8 @@ export interface Image {
   version: 1
   key: Row
   row: Row | null
+  /** A row the operation left unchanged: undo checks its hash and never writes it. */
+  guard?: true
 }
 export type Rows = Map<RowTable, Map<string, Row>>
 export interface Selection {
@@ -57,6 +59,9 @@ export function hash(row: Row | null): string | null {
 export function encodeImage(table: RowTable, key: Row, row: Row | null): string {
   return `{"version":1,"key":${json(keyOf(table, key))},"row":${json(row)}}`
 }
+export function encodeGuard(table: RowTable, key: Row): string {
+  return `{"version":1,"key":${json(keyOf(table, key))},"row":null,"guard":true}`
+}
 export function columns(ctx: Context, table: RowTable): string[] {
   return all<{ name: string }>(ctx, `PRAGMA table_info(${table})`)
     .map((c) => c.name)
@@ -69,8 +74,9 @@ export function decodeImage(ctx: Context, table: RowTable, text: string): Image 
   }
   const value: unknown = JSON.parse(text)
   if (!value || typeof value !== 'object') return fail()
-  const image = value as { version?: unknown; key?: unknown; row?: unknown }
+  const image = value as { version?: unknown; key?: unknown; row?: unknown; guard?: unknown }
   if (image.version !== 1) return fail()
+  if (image.guard !== undefined && (image.guard !== true || image.row !== null)) return fail()
   const decode = (raw: unknown, expected: readonly string[]): Row => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fail()
     const entries = Object.entries(raw)
@@ -97,7 +103,7 @@ export function decodeImage(ctx: Context, table: RowTable, text: string): Image 
   const key = decode(image.key, rowKeys[table])
   const row = image.row === null ? null : decode(image.row, columns(ctx, table))
   if (row && rowKey(table, row) !== rowKey(table, key)) return fail()
-  return { version: 1, key, row }
+  return image.guard ? { version: 1, key, row, guard: true } : { version: 1, key, row }
 }
 export function currentRow(ctx: Context, table: RowTable, key: Row): Row | null {
   return (

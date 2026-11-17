@@ -464,11 +464,17 @@ or validity periods cannot be folded.
 
 Every merge, fold, dispute and replacement records a reversible operation. The newest 200
 operations retain versioned, validated before-images of changed source rows, with an expected
-after-row digest; merge and fold also retain unchanged memory dependencies as undo guards.
-Float vectors use base64 blobs. Counts, FTS indexes and sign bits are rebuilt,
-not journaled. Undo restores only the operation's contributions and refuses when later edits
-prevent a clean restoration; new survivor facts stay. Added support, mentions or links on a
-merge/fold's touched memories refuse undo rather than lose later contributions. Dispute and
+after-row digest. Unchanged rows an undo depends on are kept as guards: key and digest only,
+never a before-image, and never a vector. A fold guards both memories' quotes, mentions, links
+and evidence. A merge guards only the memories whose mentions or relations it rewrote: their
+rows that name the survivor and their memory links. Float vectors use base64 blobs. Counts, FTS
+indexes and sign bits are rebuilt, not journaled. Undo restores only the rows the operation
+changed and refuses when later edits prevent a clean restoration; new survivor facts stay.
+Added support, mentions or links on a fold's memories refuse its undo rather than lose later
+contributions. A merge refuses only when a later write depends on it: a relation or mention
+naming the survivor on a memory it rewrote, or a later merge, fold, dispute or replacement on
+those records. A later quote, or a mention of someone else, leaves a merge undoable: the
+mention goes back to the restored person and the later quote stays. Dispute and
 replacement undo preserve independent additions and recompute dispute state from surviving links. Search's normal refresh reloads vectors
 restored below its previous watermark. Undo drops its before-images immediately but retains
 the operation's one-line record. Undo also remembers the pair as dismissed, including automatic

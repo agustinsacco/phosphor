@@ -1,9 +1,12 @@
 import {
   captureMemoryGuards,
   checkDependents,
-  memoryGuard,
+  foldGuards,
+  mergeGuards,
   restoreLinkedStates,
+  rewrittenBy,
   type Delta,
+  type Guards,
 } from './undo-guards'
 import { inheritFoldReferences } from './fold-ancestry'
 import { fingerprintMemories } from './fingerprints'
@@ -16,6 +19,7 @@ import {
   capture,
   currentRow,
   decodeImage,
+  encodeGuard,
   encodeImage,
   hash,
   knownTable,
@@ -45,12 +49,12 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     'SELECT id,n FROM memories WHERE n IN (SELECT value FROM json_each(?))',
     JSON.stringify(references.memories),
   )
-  const guarded = input.kind === 'merge' || input.kind === 'fold'
-  if (guarded) captureMemoryGuards(ctx, before, references.memories)
+  const guards = journalGuards(ctx, input, before, references.memories)
+  if (guards) captureMemoryGuards(ctx, before, guards.memories)
   action()
   const after = capture(
     ctx,
-    guarded ? { ...input.selection, memories: references.memories } : input.selection,
+    guards ? { ...input.selection, memories: guards.memories } : input.selection,
   )
   // A row can leave the selected neighbourhood without being deleted (shared evidence).
   for (const [table, rows] of before)
@@ -81,7 +85,7 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     input.subjects.first,
     input.subjects.second,
   )
-  saveDelta(ctx, id, before, after, guarded)
+  saveDelta(ctx, id, before, after, guards)
   for (const m of memories)
     run(ctx, 'INSERT INTO tidy_operation_memories VALUES (?,?,?)', id, m.id, m.n)
   if (input.kind === 'fold') inheritFoldReferences(ctx, input.subjects.first, input.subjects.second)
@@ -96,25 +100,53 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     )
   return id
 }
-function saveDelta(ctx: Context, id: string, before: Rows, after: Rows, guarded: boolean): void {
+function journalGuards(
+  ctx: Context,
+  input: JournalInput,
+  before: Rows,
+  memories: number[],
+): Guards | null {
+  if (input.kind === 'fold') return foldGuards(memories)
+  if (input.kind !== 'merge') return null
+  const [source, survivor] = [input.subjects.first, input.subjects.second].map(
+    (id) => one<{ n: number }>(ctx, 'SELECT n FROM entities WHERE id=?', id)!.n,
+  )
+  return mergeGuards(rewrittenBy(before, source!), survivor!)
+}
+/** A changed row keeps its before-image; an unchanged guarded row keeps only its key and hash. */
+function saveDelta(ctx: Context, id: string, before: Rows, after: Rows, guards: Guards | null) {
   for (const table of Object.keys(rowKeys) as RowTable[]) {
     const old = before.get(table)!,
       next = after.get(table)!
     for (const key of new Set([...old.keys(), ...next.keys()])) {
       const previous = old.get(key) ?? null,
         current = next.get(key) ?? null
-      if (hash(previous) === hash(current) && !(guarded && memoryGuard(table))) continue
+      const unchanged = hash(previous) === hash(current)
+      if (unchanged && !guards?.covers(table, current!)) continue
       run(
         ctx,
         'INSERT INTO tidy_operation_rows VALUES (?,?,?,?,?)',
         id,
         table,
         key,
-        encodeImage(table, previous ?? current!, previous),
+        unchanged
+          ? encodeGuard(table, current!)
+          : encodeImage(table, previous ?? current!, previous),
         hash(current),
       )
     }
   }
+}
+function undoGuards(ctx: Context, kind: string, survivorId: string, deltas: Delta[]): Guards {
+  const memories = new Set<number>()
+  for (const d of deltas)
+    if (d.table === 'mentions' || d.table === 'relations')
+      memories.add(Number((d.image.row ?? d.current ?? d.image.key).memory))
+  if (kind === 'fold') return foldGuards(selectionOf(deltas).memories)
+  const survivor = one<{ n: number }>(ctx, 'SELECT n FROM entities WHERE id=?', survivorId)
+  if (!survivor)
+    throw new Error('Later changes touch this Brain change; it cannot be cleanly undone.')
+  return mergeGuards([...memories], survivor.n)
 }
 function undoRows(ctx: Context, id: string): Delta[] {
   return all<{ table_name: string; before_image: string; after_hash: string | null }>(
@@ -134,7 +166,9 @@ function undoRows(ctx: Context, id: string): Delta[] {
 function restore(ctx: Context, deltas: Delta[]): void {
   const order = Object.keys(rowKeys) as RowTable[]
   for (const table of [...order].reverse()) {
-    for (const { image } of deltas.filter((d) => d.table === table && !d.image.row))
+    for (const { image } of deltas.filter(
+      (d) => d.table === table && !d.image.row && !d.image.guard,
+    ))
       run(
         ctx,
         `DELETE FROM ${table} WHERE ${rowKeys[table].map((k) => `${k}=?`).join(' AND ')}`,
@@ -180,7 +214,8 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
         'This Brain change is no longer available to undo because a memory was forgotten.',
       )
     const selection = selectionOf(deltas)
-    if (op.kind === 'merge' || op.kind === 'fold') checkDependents(ctx, deltas, selection.memories)
+    if (op.kind === 'merge' || op.kind === 'fold')
+      checkDependents(ctx, deltas, undoGuards(ctx, op.kind, op.second_id, deltas))
     const names = deltas.filter((d) => d.table === 'entity_names').map((d) => Number(d.image.key.n))
     restore(ctx, deltas)
     restoreLinkedStates(ctx, selection.memories)
