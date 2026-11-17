@@ -58,15 +58,21 @@ export function laneKey(selection: LaneSelection | null): string {
       : `${selection.type}:${selection.id ?? ''}`
 }
 
-/** Keep a selection that still exists; otherwise the first read in progress, then the newest. */
+/**
+ * Keep a selection that still exists; otherwise the first read in progress, then the newest.
+ * A read the list never showed (older than its newest 200) stays selected: it was asked for
+ * by id. One the list did show and no longer does was cancelled or dismissed.
+ */
 export function keepLaneSelection(
   selected: LaneSelection | null,
   groups: LaneGroup[],
   changes: BrainTidyOperation[],
+  listed: ReadonlySet<string> = new Set(),
 ): LaneSelection | null {
   const jobs = groups.flatMap((group) => group.rows.map((row) => row.job.id))
   if (selected?.type === 'never') return selected
-  if (selected?.type === 'job' && jobs.includes(selected.id)) return selected
+  if (selected?.type === 'job' && (jobs.includes(selected.id) || !listed.has(selected.id)))
+    return selected
   if (selected?.type === 'change') {
     const change = changes.find((item) => selected.id === null || item.id === selected.id)
     if (change) return { type: 'change', id: change.id }

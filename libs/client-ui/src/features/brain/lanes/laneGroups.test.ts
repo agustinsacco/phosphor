@@ -101,7 +101,7 @@ it('counts what a read kept, confirmed and left out', () => {
   ).toEqual({ kept: 2, confirmed: 2, left: 2 })
 })
 
-it('keeps a selection that exists, resolves the newest change, else the first read', () => {
+it('keeps a selection that exists or was asked for by id, else the first read', () => {
   const groups = laneGroups([mockBrainJob({ id: 'running', state: 'running' })], null)
   const changes = [{ id: 'op-2' }, { id: 'op-1' }] as BrainTidyOperation[]
   expect(keepLaneSelection({ type: 'job', id: 'running' }, groups, changes)).toEqual({
@@ -112,9 +112,12 @@ it('keeps a selection that exists, resolves the newest change, else the first re
     type: 'change',
     id: 'op-2',
   })
-  expect(keepLaneSelection({ type: 'job', id: 'gone' }, groups, changes)).toEqual({
+  expect(keepLaneSelection({ type: 'job', id: 'old-read' }, groups, changes)).toEqual({
     type: 'job',
-    id: 'running',
+    id: 'old-read',
   })
+  expect(
+    keepLaneSelection({ type: 'job', id: 'cancelled' }, groups, changes, new Set(['cancelled'])),
+  ).toEqual({ type: 'job', id: 'running' })
   expect(keepLaneSelection(null, [], [])).toBeNull()
 })

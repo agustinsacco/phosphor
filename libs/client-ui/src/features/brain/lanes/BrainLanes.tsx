@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/form'
 import { useBrain } from '../useBrain'
 import { useBrainResource } from '../useBrainResource'
@@ -29,8 +29,13 @@ export function BrainLanes({
   const now = useLaneClock(jobs.some((job) => job.state !== 'review'))
   const groups = laneGroups(jobs, history)
   const operations = changes.data?.items ?? []
-  // Wait for fresh reads before deciding a finished job has disappeared.
-  const current = data && changes.data ? keepLaneSelection(selected, groups, operations) : selected
+  const listed = useListedJobs(groups)
+  const reviews = jobs.filter((job) => job.state === 'review').map((job) => job.id)
+  // Wait for fresh reads before deciding a finished job has disappeared. A review is the Inbox's.
+  const current =
+    data && changes.data
+      ? keepLaneSelection(selected, groups, operations, new Set([...listed, ...reviews]))
+      : selected
   useEffect(() => {
     if (laneKey(current) !== laneKey(selected)) onSelect(current)
   }, [current, selected, onSelect])
@@ -44,6 +49,8 @@ export function BrainLanes({
   const row = groups
     .flatMap((group) => group.rows)
     .find((entry) => current?.type === 'job' && entry.job.id === current.id)
+  // A finished read asked for by id that the newest 200 do not include.
+  const unlisted = current?.type === 'job' && !row && data ? current.id : null
   const change = operations.find((op) => current?.type === 'change' && op.id === current.id)
   return (
     <div className="brain-panes brain-lanes">
@@ -93,6 +100,8 @@ export function BrainLanes({
             ahead={jobsAhead(jobs, row.job.id)}
             onMemory={onMemory}
           />
+        ) : unlisted ? (
+          <ReadDetail key={unlisted} jobId={unlisted} onMemory={onMemory} />
         ) : change ? (
           <ChangeDetail
             change={change}
@@ -108,6 +117,13 @@ export function BrainLanes({
       </section>
     </div>
   )
+}
+
+/** Every job id the list has shown while mounted. */
+function useListedJobs(groups: ReturnType<typeof laneGroups>): ReadonlySet<string> {
+  const seen = useRef(new Set<string>())
+  for (const group of groups) for (const row of group.rows) seen.current.add(row.job.id)
+  return seen.current
 }
 
 /** Recent Tidy changes, reloaded when Tidy or Brain changes; rows stay while reloading. */

@@ -244,3 +244,18 @@ it('undoes a change from its row or its detail, and shows a refused Undo in word
   await click('Undo', section('Recent changes'))
   expect(undo).toHaveBeenCalledTimes(2)
 })
+
+it('shows a read older than the newest 200 without inventing a row for it', async () => {
+  await render([], { type: 'job', id: 'old-read' })
+  expect(extraction).toHaveBeenCalledWith('old-read')
+  expect(section('Read detail')).not.toBeNull()
+  expect(section('Brain lanes').querySelector('[aria-current]')).toBeNull()
+})
+
+it('moves on when the open read is cancelled', async () => {
+  const queued = mockBrainJob({ id: 'queued', state: 'queued' })
+  await render([queued], { type: 'job', id: 'queued' })
+  await click('Cancel', section('Lane detail'))
+  await act(async () => useBrain.setState({ status: { ...status, jobs: [] } }))
+  expect(selection).toEqual({ type: 'job', id: 'harbor-read' })
+})
