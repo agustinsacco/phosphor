@@ -413,7 +413,7 @@ An approval commits before sweeping its touched records. Entity merges and undo 
 changed mention sets. A sweep failure emits a warning and does not roll back or report the
 saved approval/change as failed; running Tidy again retries local detection. Each whole-Brain
 sweep call walks at most 128 entity or memory rows from a saved numeric cursor and fixed pass
-watermarks. Coverage reports records visited, totals, capped buckets and completion, not an
+watermarks. Coverage reports records visited, totals, limited checks and pass completion, not an
 exhaustive comparison of every pair. Name/alias buckets inspect at most 16 candidates, eight
 names per entity; a one-word person name also offers full-name token matches. The sweep never
 merges entities automatically. Reasons name the matching labels or alias; shared full-name
@@ -433,9 +433,18 @@ are not a defect.
 
 A sweep call caches up to 128 entity vector windows in least-recently-used order (about 96 MiB
 of vectors); eviction permits a re-read without changing candidates. Folds invalidate the
-windows because mentions changed. Coverage counts capped name buckets and memory windows
-larger than 256, not cache evictions; an older partner beyond a window can be missed. A single
-memory scores at most 4 × 17 × 256 vectors before the shared best-32 cut.
+windows because mentions changed. Limited checks count:
+
+- a memory that mentions more than four people or things;
+- more than 16 same-name records offered together as siblings;
+- more than eight names on one record;
+- more than 256 memories about one person or thing;
+- a name shared by more than 16 records.
+
+These are checks cut short, not distinct records or cache evictions. The page shows the count
+quietly under coverage and explains that a repeat could be missed there. An older partner beyond
+a memory window can be missed. A single memory scores at most 4 × 17 × 256 vectors before the
+shared best-32 cut.
 
 Only exact repeats fold automatically: the folded sentence, type, project scope, branch,
 validity dates and complete mentioned-entity set must match. Disputed or historical memories

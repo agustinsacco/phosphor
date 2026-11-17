@@ -19,9 +19,9 @@ export function tidyStatus(page: BrainTidyPage | null): string {
     total = coverage.totalMemories.toLocaleString()
   const line =
     coverage.phase === 'done'
-      ? `Checked all ${total} memories`
+      ? `Checked all ${total} memories and ${coverage.totalEntities.toLocaleString()} people and things`
       : `Checked ${covered} of ${total} memories so far`
-  return `${line}${coverage.finishedAt ? ` · ${relativeTime(coverage.finishedAt)}` : ''}${coverage.limitedChecks ? ' · Common-name groups were capped' : ''}`
+  return `${line}${coverage.finishedAt ? ` · ${relativeTime(coverage.finishedAt)}` : ''}`
 }
 
 export function TidyHeader({
@@ -53,9 +53,15 @@ export function TidyHeader({
       <Button disabled={busy || running} tooltip={tooltip} onClick={onRun}>
         Tidy now
       </Button>
-      <p role="status" className="text-text-secondary min-w-0 flex-1 text-sm">
-        {tidyStatus(page)}
-      </p>
+      <div className="text-text-secondary min-w-0 flex-1 text-sm">
+        <p role="status">{tidyStatus(page)}</p>
+        {!!page?.coverage.limitedChecks && (
+          <p>
+            {page.coverage.limitedChecks.toLocaleString()} checks were cut short to stay fast, so a
+            repeat could be missed there.
+          </p>
+        )}
+      </div>
       {running && (
         <Button disabled={busy} onClick={onCancel}>
           Cancel
