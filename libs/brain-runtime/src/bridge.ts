@@ -23,6 +23,21 @@ export async function createBrainBridge(invoke: BridgeInvoke) {
       ? `\\\\.\\pipe\\phosphor-brain-${randomBytes(12).toString('hex')}`
       : join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
+  const flagTimes: number[] = []
+  const limitedInvoke: BridgeInvoke = async (method, params) => {
+    if (method === 'flag') {
+      const now = Date.now()
+      while (flagTimes.length && flagTimes[0]! <= now - 60_000) flagTimes.shift()
+      if (flagTimes.length >= 10)
+        return {
+          status: 'limit',
+          message:
+            'Brain accepts ten flag requests per minute. Try again shortly; Brain knowledge has not changed.',
+        }
+      flagTimes.push(now)
+    }
+    return invoke(method, params)
+  }
   const server = createServer((socket) => {
     if (sockets.size >= 32) {
       socket.destroy()
@@ -30,7 +45,7 @@ export async function createBrainBridge(invoke: BridgeInvoke) {
     }
     sockets.add(socket)
     socket.once('close', () => sockets.delete(socket))
-    accept(socket, token, invoke)
+    accept(socket, token, limitedInvoke)
   })
   try {
     await new Promise<void>((resolve, reject) => {

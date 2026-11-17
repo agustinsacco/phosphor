@@ -10,7 +10,8 @@ export interface BrainFlagPort {
 const MESSAGES: Record<BrainFlagResponse['status'], string> = {
   filed: 'Flag filed for the owner to review; Brain knowledge has not changed.',
   already_flagged: 'This memory is already flagged; Brain knowledge has not changed.',
-  limit: 'This lane already has five open flags; Brain knowledge has not changed.',
+  limit:
+    'Brain accepts five open flags per lane and 50 in total. Review some before flagging more; Brain knowledge has not changed.',
   unavailable: 'This memory cannot be flagged right now; Brain knowledge has not changed.',
 }
 export function flagResponse(status: BrainFlagResponse['status']): BrainFlagResponse {

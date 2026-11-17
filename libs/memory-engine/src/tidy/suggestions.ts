@@ -225,7 +225,9 @@ export function flag(ctx: Context, input: BrainTidyFlag): BrainTidyFlagResult {
         ctx,
         "SELECT id FROM tidy_suggestions WHERE session_id=? AND state='open' AND kind='flagged' LIMIT 5",
         input.sessionId,
-      ).length >= 5
+      ).length >= 5 ||
+      all(ctx, "SELECT id FROM tidy_suggestions WHERE state='open' AND kind='flagged' LIMIT 50")
+        .length >= 50
     )
       return { status: 'limit', suggestionId: null }
     const id = ctx.id(),
