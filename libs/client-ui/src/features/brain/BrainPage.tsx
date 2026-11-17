@@ -134,13 +134,13 @@ function BrainContent(): React.JSX.Element {
       </Panel>
       <Panel id="lanes" tab={tab}>
         <BrainLanes
+          tidy={tidy}
           selected={lane}
           onSelect={setLane}
           onMemory={(id, label) => {
             explorer.onVisit({ kind: 'memory', id, label })
             setTab('knowledge')
           }}
-          onEntity={openEntity}
         />
       </Panel>
     </div>

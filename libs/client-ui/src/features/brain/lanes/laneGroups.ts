@@ -1,7 +1,7 @@
-import type { BrainHistory, BrainJob } from '@shared/brain'
+import type { BrainExtractionOutcome, BrainHistory, BrainJob } from '@shared/brain'
 import type { BrainTidyOperation } from '@shared/brain-tidy'
 import { formatCount } from '@/lib/format'
-import { progressLine } from '../jobProgress'
+import { agoWords, durationWords, progressLine } from '../jobProgress'
 
 /**
  * Every row the Lanes list can select. A change with a null id is the newest one, for a
@@ -79,20 +79,6 @@ export function keepLaneSelection(
   return first ? { type: 'job', id: first } : null
 }
 
-/** "less than a minute", "3 min", "2 h 5 min", "3 days": never negative, never "241:11". */
-export function durationWords(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000)
-  if (minutes < 1) return 'less than a minute'
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return minutes % 60 ? `${hours} h ${minutes % 60} min` : `${hours} h`
-  return formatCount(Math.floor(hours / 24), 'day')
-}
-
-export function agoWords(ms: number): string {
-  return ms < 60_000 ? 'just now' : `${durationWords(ms)} ago`
-}
-
 /** When this attempt started: a resume, retry or refresh restarts the clock. */
 export function attemptStartedAt(job: BrainJob): number | null {
   return job.startedAt
@@ -125,4 +111,26 @@ export function jobsAhead(jobs: BrainJob[], id: string): number {
   return jobs
     .slice(0, Math.max(0, at))
     .filter((job) => job.state === 'queued' || job.state === 'running').length
+}
+
+/** What one finished read did: kept, confirmed what Brain knew, or left out. */
+export function readCounts(outcomes: BrainExtractionOutcome[]): {
+  kept: number
+  confirmed: number
+  left: number
+} {
+  const count = (statuses: BrainExtractionOutcome['status'][]): number =>
+    outcomes.filter((outcome) => statuses.includes(outcome.status) && !outcome.removed).length
+  return {
+    kept: count(['kept', 'enriches']),
+    confirmed: count(['reconfirms', 'folded']),
+    left: outcomes.filter((o) => o.status === 'held' || o.status === 'dropped').length,
+  }
+}
+
+/** A finished read's second line: what is left of it, and when. */
+export function readLine(row: LaneRow, now: number): string {
+  if (row.job.state === 'empty') return 'Nothing worth keeping'
+  const when = row.job.finishedAt === null ? '' : ` · ${agoWords(now - row.job.finishedAt)}`
+  return `${formatCount(row.memories, 'memory', 'memories')}${when}`
 }

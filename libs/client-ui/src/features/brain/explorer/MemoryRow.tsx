@@ -101,16 +101,19 @@ export function MemoryOpen({
   id,
   selfId,
   actions,
+  inset = true,
 }: {
   id: string
   selfId: string | null
   actions: MemoryRowActions
+  /** Indent under the row's type column; off where it stands alone. */
+  inset?: boolean
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:memory', id), [id])
   const { data, error, retry } = useBrainResource(load)
   if (!data)
     return (
-      <p role="status" className="py-2 pl-[6.1rem] text-sm">
+      <p role="status" className={clsx('py-2 text-sm', inset && 'pl-[6.1rem]')}>
         {error || 'Loading memory…'}{' '}
         {error && (
           <Button size="xs" onClick={retry}>
@@ -123,7 +126,7 @@ export function MemoryOpen({
     data.entities.find((entity) => entity.id === entityId)
   const others = data.memory.entityIds.filter((entityId) => entityId !== selfId)
   return (
-    <div className="space-y-3 pb-3 pl-[6.1rem] pr-1 [overflow-wrap:anywhere]">
+    <div className={clsx('space-y-3 pb-3 pr-1 [overflow-wrap:anywhere]', inset && 'pl-[6.1rem]')}>
       <MemoryQuotes quotes={data.quotes} />
       {others.length > 0 && (
         <div className="flex flex-wrap gap-1">

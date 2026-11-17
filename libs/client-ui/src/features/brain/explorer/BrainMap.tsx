@@ -1,32 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { BRAIN_ENTITY_KINDS } from '@shared/brain'
 import { Button, NeutralSegmented } from '@/components/form'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { formatCount } from '@/lib/format'
 import { useBrainResource } from '../useBrainResource'
+import { useBoxSize } from '../useBoxSize'
 import { GRAPH_COLORS } from '../graphColors'
 import { ENTITY_LABELS, ENTITY_WORDS } from '../memoryLabels'
 import { layoutMap, type MapEdge, type MapNode } from './mapLayout'
 
-/** Box size from a ResizeObserver; a fixed size where none exists (tests, old engines). */
-function useBoxSize(ref: React.RefObject<HTMLElement | null>): { width: number; height: number } {
-  const [size, setSize] = useState({ width: 320, height: 360 })
-  useEffect(() => {
-    const node = ref.current
-    if (!node || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry)
-        setSize({
-          width: Math.floor(entry.contentRect.width),
-          height: Math.floor(entry.contentRect.height),
-        })
-    })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [ref])
-  return size
-}
+const MAP_FALLBACK = { width: 320, height: 360 }
 
 export interface MapHighlight {
   /** A neighbour pointed at in the profile or on the map: its edge to the selection lights. */
@@ -58,7 +42,7 @@ export function BrainMap({
   onFull: () => void
 }): React.JSX.Element {
   const box = useRef<HTMLDivElement>(null)
-  const { width, height } = useBoxSize(box)
+  const { width, height } = useBoxSize(box, MAP_FALLBACK)
   const load = useCallback(
     () => window.phosphor.invoke('brain:neighbourhood', entityId, hops),
     [entityId, hops],
@@ -73,7 +57,7 @@ export function BrainMap({
   )
   const kinds = BRAIN_ENTITY_KINDS.filter((kind) => layout?.nodes.some((n) => n.kind === kind))
   return (
-    <section aria-label="Map" className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <header className="border-border flex flex-wrap items-center gap-2 border-b px-3 py-1.5">
         <span className="min-w-0 flex-1 truncate">
           <SectionLabel>Map · {label}</SectionLabel>
@@ -128,7 +112,7 @@ export function BrainMap({
           ))}
         </ul>
       )}
-    </section>
+    </div>
   )
 }
 
