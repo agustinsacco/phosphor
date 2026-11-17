@@ -4,6 +4,10 @@ import { writeFingerprint } from './fingerprints'
 import { changeMemories } from './operations'
 import { offer, pairKnown, pairKey, type SuggestionRow } from './suggestions'
 
+// Calibration: true paraphrase/contradiction pairs scored 0.86; topic-only pairs <= 0.80.
+// Candidates only ask for review, so favour recall; fingerprints alone permit automatic folds.
+const NEAR_MEMORY_COSINE = 0.84
+
 export function sweepMemory(
   ctx: Context,
   n: number,
@@ -109,7 +113,7 @@ function nearMemory(
         pairKnown(ctx, 'memory', row.id, peer.id)
       )
         continue
-      if (cosine(decodeVector(vector.vector), decodeVector(peer.vector)) >= 0.92) {
+      if (cosine(decodeVector(vector.vector), decodeVector(peer.vector)) >= NEAR_MEMORY_COSINE) {
         if (
           offer(
             ctx,
