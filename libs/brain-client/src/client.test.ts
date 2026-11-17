@@ -9,7 +9,7 @@ function setup(result: unknown = HARBOR_RECALL) {
 }
 
 describe('createBrainClient', () => {
-  it('exposes only search, preserving session, cwd and cancellation', async () => {
+  it('exposes search and flag, preserving session, cwd and cancellation', async () => {
     const { client, request } = setup()
     const signal = new AbortController().signal
     const query = {
@@ -20,7 +20,7 @@ describe('createBrainClient', () => {
     }
     expect(await client.search(query, signal)).toEqual(HARBOR_RECALL)
     expect(request.mock.calls).toEqual([['search', query, signal]])
-    expect(Object.keys(client)).toEqual(['search'])
+    expect(Object.keys(client)).toEqual(['flag', 'search'])
   })
 
   it.each([
@@ -77,4 +77,44 @@ describe('createBrainClient', () => {
     await expect(client.search(query)).rejects.toMatchObject({ code: 'malformed' })
     expect(request).not.toHaveBeenCalled()
   })
+})
+
+const flag = {
+  memoryId: 'harbor-fact',
+  problem: 'wrong' as const,
+  reason: 'Rina verified the billing rule changed.',
+  sessionId: 'harbor-lane',
+  title: 'Harbor billing',
+}
+it('sends a validated flag and accepts bounded typed refusals', async () => {
+  for (const status of ['filed', 'already_flagged', 'limit', 'unavailable']) {
+    const result = { status, message: 'Brain knowledge has not changed.' }
+    const { client, request } = setup(result)
+    expect(await client.flag(flag)).toEqual(result)
+    expect(request).toHaveBeenCalledWith('flag', flag, undefined)
+  }
+})
+it.each([
+  { reason: '' },
+  { reason: ' '.repeat(2) },
+  { reason: 'x'.repeat(301) },
+  { memoryId: 'x'.repeat(201) },
+  { sessionId: 'x'.repeat(257) },
+  { title: 'x'.repeat(121) },
+  { problem: 'guess' },
+  { extra: 'not allowed' },
+])('rejects invalid flag fields before transport %j', async (patch) => {
+  const { client, request } = setup()
+  await expect(client.flag({ ...flag, ...patch } as typeof flag)).rejects.toMatchObject({
+    code: 'malformed',
+  })
+  expect(request).not.toHaveBeenCalled()
+})
+it.each([
+  {},
+  { status: 'changed', message: 'changed' },
+  { status: 'filed', message: 'x'.repeat(301) },
+  { status: 'filed', message: 'ok', extra: true },
+])('rejects malformed flag responses %j', async (response) => {
+  await expect(setup(response).client.flag(flag)).rejects.toMatchObject({ code: 'malformed' })
 })

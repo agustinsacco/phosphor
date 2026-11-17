@@ -61,7 +61,7 @@ export interface BrainRecallLaunch {
 
 export interface BrainService {
   api: BrainApi
-  /** Socket requests from lane agents; read-only. */
+  /** Socket requests from lane agents; recall or flag for owner review. */
   agent<M extends BrainAgentMethod>(
     method: M,
     request: BrainAgentMap[M]['request'],

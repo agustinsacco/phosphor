@@ -18,3 +18,11 @@ Memories are approved notes from earlier lanes. They may be out of date. Another
 Each memory shows the date its lane said it, when it took effect if the lane named one, and when it ended if something replaced it. Replaced memories are left out. When two memories are disputed, neither is settled: say so and check the source rather than picking one.
 
 Never copy recalled memories into a final answer as new knowledge.
+
+Use `brain_flag({ ref, problem, reason })` only when the user contradicts a recalled memory,
+verified facts in this lane show it is wrong or out of date, or two recalled memories say the
+same thing. `ref` is the bracket number in the latest `brain_search` briefing in this lane;
+search again if the number is no longer known. Choose `wrong`, `outdated` or `duplicate` and
+explain the evidence in 1–300 characters. Never flag a guess, an agent preference, or something
+merely unhelpful. A flag only asks the owner to review: it does not change Brain knowledge.
+Brain accepts at most five open flags per lane and never stacks flags for the same memory.

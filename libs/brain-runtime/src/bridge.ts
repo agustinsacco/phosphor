@@ -13,7 +13,7 @@ import { validateBrainRequest } from '@phosphor/brain-client/validate'
 const MAX_BYTES = 512 * 1024
 export type BridgeInvoke = (method: BrainAgentMethod, params: unknown) => Promise<unknown>
 
-/** One random read-only token per service lifetime, carried only over a private local socket. */
+/** One random recall/flag token per service lifetime, carried only over a private local socket. */
 export async function createBrainBridge(invoke: BridgeInvoke) {
   const directory = await mkdtemp(join(tmpdir(), 'ph-brain-'))
   await chmod(directory, 0o700)
@@ -105,11 +105,14 @@ async function respond(
     } | null
     if (
       !input ||
+      typeof input !== 'object' ||
+      Array.isArray(input) ||
+      Object.keys(input).some((key) => !['version', 'token', 'method', 'params'].includes(key)) ||
       input.version !== BRAIN_PROTOCOL ||
       typeof input.token !== 'string' ||
       input.token.length !== token.length ||
       !timingSafeEqual(Buffer.from(input.token), Buffer.from(token)) ||
-      input.method !== 'search'
+      (input.method !== 'search' && input.method !== 'flag')
     )
       throw new Error('Denied')
     const params = validateBrainRequest(input.method, input.params)

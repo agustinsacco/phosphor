@@ -168,15 +168,19 @@ function body(entries: Entry[], refs: Map<string, number>, cwd: string | undefin
  * how many matches were left out and which names to try next. Memories are chosen first and
  * numbered in display order; a path is shown only when every step cites one of them.
  */
-export function formatBrainRecall(
+export function brainBriefing(
   result: BrainRecall,
   cwd?: string,
   maxChars = 6000,
   now = Date.now(),
-): string {
+): { text: string; refs: Map<number, string> } {
   if (result.status === 'unavailable')
-    return 'Brain is unavailable right now. This is not a no-match result.'
-  if (result.status === 'no_match') return 'No approved Brain memories matched.'
+    return {
+      text: 'Brain is unavailable right now. This is not a no-match result.',
+      refs: new Map(),
+    }
+  if (result.status === 'no_match')
+    return { text: 'No approved Brain memories matched.', refs: new Map() }
   const names = new Map(result.entities.map((entity) => [entity.id, entity]))
   const order = ordered(result, now)
   const room = maxChars - OPEN.length - CLOSE.length
@@ -193,5 +197,18 @@ export function formatBrainRecall(
   const lines = body(shown, refs, cwd)
   const left = result.more + result.hits.length - shown.length
   const tail = fit(footer(result, names, left), room - size(head) - size(lines))
-  return OPEN + [...head, ...lines, ...tail].join('\n') + CLOSE
+  return {
+    text: OPEN + [...head, ...lines, ...tail].join('\n') + CLOSE,
+    refs: new Map([...refs].map(([id, ref]) => [ref, id])),
+  }
+}
+
+/** The public search text is unchanged; the extension also keeps the shown reference map. */
+export function formatBrainRecall(
+  result: BrainRecall,
+  cwd?: string,
+  maxChars = 6000,
+  now = Date.now(),
+): string {
+  return brainBriefing(result, cwd, maxChars, now).text
 }
