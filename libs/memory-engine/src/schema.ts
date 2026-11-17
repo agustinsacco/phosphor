@@ -16,11 +16,6 @@ export function initialize(ctx: Context): void {
       ctx.db.exec(tidySchema)
     })
   } else if (version !== 6) reset(ctx)
-  // Never resume model work on startup: the owner must click Tidy now again.
-  run(
-    ctx,
-    "UPDATE tidy_run SET state='idle',error='Tidy was interrupted; run Tidy again.' WHERE state IN ('queued','sweeping','checking')",
-  )
 }
 export function reset(ctx: Context): void {
   const hasMeta = one(ctx, "SELECT 1 FROM sqlite_master WHERE name='meta'")

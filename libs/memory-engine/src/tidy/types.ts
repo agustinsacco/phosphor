@@ -32,7 +32,7 @@ export interface BrainTidyStore {
   flag(input: BrainTidyFlag): BrainTidyFlagResult
 }
 
-/** Persisted queue checkpoint; terminal success is idle, no model work resumes on startup. */
+/** Persisted queue checkpoint. The runtime runner owns interrupted-run recovery. */
 export interface BrainTidyStoredRun {
   state: 'idle' | 'queued' | 'sweeping' | 'checking' | 'failed' | 'skipped' | 'cancelled'
   done: number
