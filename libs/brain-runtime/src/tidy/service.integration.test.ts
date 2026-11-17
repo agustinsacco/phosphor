@@ -1,3 +1,4 @@
+import { CallTracer } from '../call-trace'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -165,3 +166,49 @@ it('reopens an in-flight persisted run as interrupted without starting any model
     await reopened.dispose()
   }
 })
+
+it.each(['next batch', 'transport retry'])(
+  'does not send forgotten text in the %s',
+  async (mode) => {
+    const s = await realService()
+    await approveRead(
+      s.store,
+      s.service,
+      s.options,
+      Array.from({ length: 7 }, (_, i) => `Harbor retains Ledger policy ${i}.`),
+    )
+    const pairs = s.store.pendingPairs(40)
+    const subject = pairs[mode === 'next batch' ? 8 : 0]!.subjects.find(
+      (subject) => subject.type === 'memory',
+    )!
+    expect(subject.type).toBe('memory')
+    if (subject.type !== 'memory') throw new Error('Expected a memory pair')
+    const normal = s.call.getMockImplementation()!
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    s.options.retryDelay = async () => {}
+    s.call.mockImplementationOnce(async (input) => {
+      await held
+      if (mode === 'transport retry') {
+        const trace = new CallTracer()
+        trace.finish('exit')
+        input.onTrace?.(trace.trace)
+        throw new Error('Fake transport exit')
+      }
+      return normal(input)
+    })
+    await s.service.api.tidyRun()
+    await vi.waitFor(() => expect(s.call).toHaveBeenCalledOnce())
+    await s.service.api.forget(subject.id)
+    release()
+    await vi.waitFor(() => expect(s.store.readRun()?.state).toBe('done'))
+    expect(s.call.mock.calls.length).toBeGreaterThan(1)
+    const laterPrompts = s.call.mock.calls
+      .slice(1)
+      .map(([input]) => input.prompt)
+      .join('\n')
+    expect(laterPrompts).not.toContain(subject.sentence)
+  },
+)
