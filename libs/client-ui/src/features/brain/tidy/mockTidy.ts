@@ -1,3 +1,4 @@
+import { checkMockTidyArguments } from './mockTidyArguments'
 import {
   emptyBrainTidyPage,
   emptyBrainTidySummary,
@@ -210,6 +211,7 @@ export class MockTidy {
     )
   }
   call(channel: string, args: unknown[]): unknown {
+    checkMockTidyArguments(channel, args)
     this.init()
     this.tick()
     switch (channel) {

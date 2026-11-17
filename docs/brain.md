@@ -90,7 +90,7 @@ open suggestion. A lane flag offers **Keep**, or a confirmed permanent **Forget*
 only a local lane already known to the sidebar, never a path supplied by the flag.
 
 A decision selects the next visible suggestion. Successful changes offer Undo in their toast.
-**Recent changes** lists the newest hundred journal operations with their time, automatic/by-you
+**Recent changes** lists the newest fifty journal operations with their time, automatic/by-you
 origin and Undo. Refused undo shows the engine's reason. Failed actions reload rather than replay:
 a changed revision says “Brain changed. Check this again.”; an already-settled suggestion advances
 to the next. Every failed read offers Retry, and older replies cannot overwrite newer reads.

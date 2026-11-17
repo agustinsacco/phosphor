@@ -58,7 +58,7 @@ function useTidyView(active: boolean, recent: number) {
   const detail = useTidyDetail(id)
   const summary = useBrain((s) => JSON.stringify(s.status?.tidy))
   const changes = useBrainResource(
-    useCallback(() => window.phosphor.invoke('brain:tidyChanges', 100), []),
+    useCallback(() => window.phosphor.invoke('brain:tidyChanges', 50), []),
     active,
     `${summary}:${recent}`,
   )
