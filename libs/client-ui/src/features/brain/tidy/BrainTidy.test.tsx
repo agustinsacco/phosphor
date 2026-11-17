@@ -329,3 +329,13 @@ it('explains limited checks without calling them common-name caps or exhaustive 
   expect(container.textContent).not.toContain('Common-name')
   expect(container.textContent).not.toContain('complete')
 })
+
+it('requests Recent changes within the Desktop limit instead of failing every load', async () => {
+  changes.mockImplementation(async (limit: number) => {
+    if (limit > 50) throw new Error('Invalid Brain request.')
+    return mock('brain:tidyChanges', [limit])
+  })
+  await render()
+  expect(container.textContent).not.toContain('Invalid Brain request.')
+  expect(changes).toHaveBeenCalledWith(50)
+})

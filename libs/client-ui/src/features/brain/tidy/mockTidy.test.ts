@@ -103,3 +103,35 @@ it('models applicability and history refusals without offering a fold', () => {
     foldRefusal: null,
   })
 })
+
+it.each([
+  ['brain:tidy', [null, null, 100]],
+  ['brain:tidy', [null, null, 0]],
+  ['brain:tidy', [null, null, 1.5]],
+  ['brain:tidy', ['unknown', null, 20]],
+  ['brain:tidy', [null, '', 20]],
+  ['brain:tidy', [null, 'x'.repeat(513), 20]],
+  ['brain:tidy', [null, 1, 20]],
+  ['brain:tidySuggestion', ['']],
+  ['brain:tidySuggestion', ['x'.repeat(201)]],
+  ['brain:tidySuggestion', [1]],
+  ['brain:tidyChanges', [100]],
+  ['brain:tidyChanges', ['20']],
+  ['brain:tidyChanges', [0]],
+  ['brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0', extra: true }, 0]],
+  ['brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: '' }, 0]],
+  ['brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'x'.repeat(201) }, 0]],
+  ['brain:tidyApply', ['tidy-0', { kind: 'unknown' }, 0]],
+  ['brain:tidyApply', ['tidy-3', { kind: 'keep', extra: true }, 0]],
+  ['brain:tidyApply', ['', { kind: 'keep' }, 0]],
+  ['brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, -1]],
+  ['brain:tidyDismiss', ['tidy-0', -1]],
+  ['brain:tidyDismiss', ['tidy-0', Number.MAX_SAFE_INTEGER + 1]],
+  ['brain:tidyDismiss', ['tidy-0', '0']],
+  ['brain:tidyDismiss', ['x'.repeat(201), 0]],
+  ['brain:tidyUndo', ['', 0]],
+  ['brain:tidyUndo', ['operation-0', 0.5]],
+])('refuses Desktop-invalid arguments to %s: %j', async (channel, args) => {
+  const call = createMockBrain(() => 10000)
+  await expect(call(channel as string, args as unknown[])).rejects.toThrow('Invalid')
+})
