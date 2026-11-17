@@ -67,13 +67,18 @@ async function openMoved(
   await navigateToLane({ sessionId: await sessions.openDiskSession(result.workspace, meta) })
 }
 
-/** Ask the target what a move would do whenever the choice changes; older answers are dropped. */
+/**
+ * Ask the target what a move would do whenever the choice changes; older
+ * answers are dropped. Each check needs its own acknowledgement, so a recheck
+ * (after a failed Move, say) clears it.
+ */
 function useMovePlan(
   draft: LaneMoveDraft,
   target: LaneMoveTarget | undefined,
   unavailable?: string,
 ) {
   const [check, setCheck] = useState<Check>({ state: 'idle' })
+  const [accepted, setAccepted] = useState(false)
   const run = useRef(0)
   const [attempt, setAttempt] = useState(0)
   const machine = target?.machine
@@ -81,6 +86,7 @@ function useMovePlan(
   const repositoryId = target && 'repositoryId' in target ? target.repositoryId : undefined
   useEffect(() => {
     const id = ++run.current
+    setAccepted(false)
     if (!machine || (!workspace && !repositoryId) || unavailable) {
       setCheck({ state: 'idle' })
       return
@@ -103,7 +109,7 @@ function useMovePlan(
       run.current++
     }
   }, [machine, workspace, repositoryId, draft, unavailable, attempt])
-  return { check, retry: () => setAttempt((n) => n + 1) }
+  return { check, accepted, setAccepted, recheck: () => setAttempt((n) => n + 1) }
 }
 
 function TargetFields(props: {
@@ -203,7 +209,11 @@ function PlanView({
   )
 }
 
-function useMoveExecution(draft: LaneMoveDraft, onClose: () => void) {
+/**
+ * Runs the Move and opens its copy. `onFailed` runs when a Move is refused or
+ * throws: the plan it was checked against is stale.
+ */
+function useMoveExecution(draft: LaneMoveDraft, onClose: () => void, onFailed: () => void) {
   const navigate = useAwaitableNavigate()
   const [moving, setMoving] = useState(false)
   const [done, setDone] = useState<Done | null>(null)
@@ -217,13 +227,16 @@ function useMoveExecution(draft: LaneMoveDraft, onClose: () => void) {
         target,
         marks: draft.marks,
       })
-      if ('blockers' in result) setError(result.blockers.join(' '))
-      else {
+      if ('blockers' in result) {
+        setError(result.blockers.join(' '))
+        onFailed()
+      } else {
         keepMarks(draft, result)
         setDone(result)
       }
     } catch (cause) {
       setError(errorText(cause))
+      onFailed()
     } finally {
       setMoving(false)
     }
@@ -298,13 +311,13 @@ function LaneMoveModal({
     () => (machines.find((m) => !m.disabled) ?? machines[0])?.machine ?? '',
   )
   const [workspace, setWorkspace] = useState('')
-  const [acceptedTarget, setAcceptedTarget] = useState('')
   const chosen = machines.find((m) => m.machine === machine)
   const picked = chosen?.workspaces.find((w) => w.key === workspace)
-  const { check, retry } = useMovePlan(draft, picked?.target, unavailable)
-  const { moving, done, error, move, open } = useMoveExecution(draft, onClose)
-  const blocked =
-    check.state !== 'ready' || check.plan.blockers.length > 0 || acceptedTarget !== picked?.key
+  const { check, accepted, setAccepted, recheck } = useMovePlan(draft, picked?.target, unavailable)
+  const { moving, done, error, move, open } = useMoveExecution(draft, onClose, recheck)
+  const blocked = check.state !== 'ready' || check.plan.blockers.length > 0 || !accepted
+  // A refusal the fresh check lists too is shown once, in the list.
+  const listed = check.state === 'ready' && !!error && check.plan.blockers.includes(error)
   const start = () => {
     if (picked) void move(picked.target)
   }
@@ -350,13 +363,13 @@ function LaneMoveModal({
               <PlanView
                 check={check}
                 note={picked && !nativeFiles ? MEMORY_RELAY_NOTE : undefined}
-                retry={retry}
-                accepted={acceptedTarget === picked?.key}
-                onAccept={(yes) => setAcceptedTarget(yes ? picked!.key : '')}
+                retry={recheck}
+                accepted={accepted}
+                onAccept={setAccepted}
               />
             </>
           )}
-          {error && <p className="text-danger">{error}</p>}
+          {error && !listed && <p className="text-danger">{error}</p>}
         </div>
       </ModalPanel>
     </ModalOverlay>

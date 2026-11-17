@@ -100,6 +100,28 @@ const exists = (root: string, ref: string) =>
     () => false,
   )
 
+/** The refusal for a taken branch, short enough for a Host plan's 300-character blockers. */
+function branchTaken(branch: string, workspace: string): string {
+  const text = `A branch named ${branch} already exists in ${workspace}.`
+  return text.length <= 300
+    ? text
+    : 'A branch with this lane’s name already exists in that workspace.'
+}
+
+/**
+ * Why a `new-branch` plan cannot land, read from the target's refs without
+ * changing them. A snapshot, not a reservation: `prepareTarget` checks again.
+ */
+export async function takenBranchBlocker(
+  root: string,
+  plan: LaneTargetPlan,
+): Promise<string | null> {
+  if (plan.mode !== 'new-branch' || !plan.branch || !isLaneBranchName(plan.branch)) return null
+  return (await exists(root, `refs/heads/${plan.branch}`))
+    ? branchTaken(plan.branch, plan.workspace)
+    : null
+}
+
 /** An existing clean worktree of this repository on `branch` at `commit`, which a second lane may share. */
 async function sharedWorktree(
   root: string,
@@ -139,8 +161,7 @@ export async function prepareTarget(input: {
   if (!branch) refuse('This lane’s branch name cannot be used there.')
   const ref = `refs/heads/${branch}`
   if (plan.mode === 'new-branch') {
-    if (await exists(root, ref))
-      refuse(`A branch named ${branch} already exists in ${plan.workspace}.`)
+    if (await exists(root, ref)) refuse(branchTaken(branch, plan.workspace))
     const added = await input.worktrees.add(root, branch, true)
     return { ...added, branch, worktree: true }
   }

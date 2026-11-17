@@ -185,6 +185,21 @@ reproduces when the pi agent directory is reached through a symlink (`/tmp` on
 macOS, so the routines e2e hits it; a normal `~/.pi/agent` does not). Fixing it
 means picking one path identity for a session file and using it on both sides.
 
+**R15 — Open in the Move dialog can close a later Move dialog.** `openMoved` in
+`libs/client-ui/src/features/sessions/LaneMoveModal.tsx` awaits the scan and resume
+with no pending state, so Done stays enabled. When an Open that outlived its
+dialog finishes, it still navigates and calls the store's global `close`
+(`libs/client-ui/src/stores/laneMove.ts`), dismissing whichever Move dialog is
+open by then.
+
+**R16 — a lane moved to another workspace on the same Mac borrows the
+original's attachments.** Same-machine export skips attachment parts
+(`apps/desktop/electron/lane-move/local.ts`, `attachmentAllowed`) and the copy keeps
+the old paths. When the original came from a Host, those paths sit under
+`<userData>/lane-attachments/<original id>/`, which
+`apps/desktop/electron/pi/session-deleter.ts` trashes with the original, so
+deleting it breaks the copy's attachments.
+
 ## Code health
 
 | #   | Issue                                                                                                            | Where                                                                       |

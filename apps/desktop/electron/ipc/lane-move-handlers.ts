@@ -1,5 +1,7 @@
 import { app } from 'electron'
 import { parseLaneMoveRequest } from '@shared/lane-move'
+import { broadcast } from '../broadcast'
+import { log } from '../debug-log'
 import type { createHostManager } from '../hosts/manager'
 import { createLaneMoves } from '../lane-move/move'
 import { getPrefs, markSessionSeen, setLaneMarkers, setPinnedSessions } from '../store'
@@ -16,6 +18,7 @@ export function registerLaneMoveHandlers(
     label: manager.label,
     branchPrefix: () => getPrefs().worktrees.branchPrefix,
     tempDir: () => app.getPath('temp'),
+    log: (message, data) => log('lane-move', message, data),
   })
   handle('hosts:laneMovePlan', (_event, request) => {
     const parsed = parseLaneMoveRequest(request)
@@ -33,6 +36,8 @@ export function registerLaneMoveHandlers(
       if (parsed.marks.marker !== null)
         setLaneMarkers({ ...prefs.laneMarkers, [result.sessionPath]: parsed.marks.marker })
       markSessionSeen(result.sessionPath)
+      // A new worktree is a folder no window watches yet; this is how the sidebar finds it.
+      broadcast('sessions:changed', { workspacePath: result.workspace })
     }
     return result
   })
