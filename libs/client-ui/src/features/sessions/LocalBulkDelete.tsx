@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
-import { BulkDeleteModal } from './BulkDeleteModal'
+import { ArchiveConfirm, ArchiveSessionModal } from './ArchiveConfirm'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { DeleteSessionModal } from './DeleteSessionModal'
 import { LaneBulkBar } from './LaneSelect'
 import { clearLaneSelection, useSelectedKeys, useSelectionOwner } from './laneSelection'
@@ -54,14 +55,17 @@ export function LocalDeleteDialogs({
   useEffect(() => () => useLocalLaneDelete.setState({ lanes: null, session: null }), [])
   return (
     <>
-      {session && (
-        <DeleteSessionModal target={session} onClose={() => confirmSessionDelete(null)} />
-      )}
+      {session &&
+        (session.archive ? (
+          <ArchiveSessionModal target={session} onClose={() => confirmSessionDelete(null)} />
+        ) : (
+          <DeleteSessionModal target={session} onClose={() => confirmSessionDelete(null)} />
+        ))}
       {lanes && (
-        <BulkDeleteModal
-          summary={lanes}
+        <ArchiveConfirm
+          titles={lanes.deletable.map((lane) => lane.title)}
           onCancel={() => confirmLaneDelete(null)}
-          onConfirm={(options) => {
+          onConfirm={() => {
             const chosen = lanes.deletable.map((lane) => ({
               path: lane.path,
               title: lane.title,
@@ -72,7 +76,17 @@ export function LocalDeleteDialogs({
             // soon as the non-blocking notification takes over.
             confirmLaneDelete(null)
             clearLaneSelection()
-            void useSessionsStore.getState().deleteManySessions(workspacePath, chosen, options)
+            void useSessionsStore
+              .getState()
+              .deleteManySessions(workspacePath, chosen, {
+                archive: true,
+                removeWorktree: false,
+                deleteBranch: false,
+                discardChanges: false,
+              })
+              .catch((error: unknown) =>
+                useExtensionUiStore.getState().pushToast(String(error), 'error'),
+              )
           }}
         />
       )}

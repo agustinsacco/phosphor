@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import { remoteLaneResourceKey } from '@shared/remote-host'
 import type { HostLaneView } from '@shared/ipc'
 import { remotePrKey } from '@shared/host-protocol-github'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { pullRequestFor, usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
-import { BulkDeleteModal } from './BulkDeleteModal'
-import { lanesOwningWorktree, type LanePreflight, type PreflightSummary } from './deletePreflight'
-import { canDeleteRemoteLane, deleteRemoteLanes } from './deleteRemoteLanes'
+import { ArchiveConfirm } from './ArchiveConfirm'
+import { useExtensionUiStore } from '@/stores/extensionUi'
+import { canArchiveRemoteLane, canDeleteRemoteLane, deleteRemoteLanes } from './deleteRemoteLanes'
 import { LaneBulkBar } from './LaneSelect'
 import { clearLaneSelection, useSelectedKeys, useSelectionOwner } from './laneSelection'
 
@@ -31,7 +29,7 @@ export function RemoteBulkDelete({
   const keys = useSelectedKeys(owner)
   const running = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   if (owner === null) return null
-  const chosen = lanes.filter((l) => keys.includes(l.laneId) && canDeleteRemoteLane(hostId, l))
+  const chosen = lanes.filter((l) => keys.includes(l.laneId) && canArchiveRemoteLane(hostId, l))
   return (
     <>
       <LaneBulkBar
@@ -42,14 +40,19 @@ export function RemoteBulkDelete({
         onCancel={clearLaneSelection}
       />
       {confirming && (
-        <BulkDeleteModal
-          remote
-          summary={preflight(hostId, chosen)}
+        <ArchiveConfirm
+          titles={chosen.map((lane) => lane.title || 'Untitled lane')}
           onCancel={() => setConfirming(false)}
-          onConfirm={(options) => {
+          onConfirm={() => {
             setConfirming(false)
             clearLaneSelection()
-            void deleteRemoteLanes(hostId, chosen, options)
+            void deleteRemoteLanes(hostId, chosen, {
+              archive: true,
+              removeWorktree: false,
+              deleteBranch: false,
+            }).catch((error: unknown) =>
+              useExtensionUiStore.getState().pushToast(String(error), 'error'),
+            )
           }}
         />
       )}
@@ -73,37 +76,4 @@ export function selectableLanes(
             'MERGED'),
     )
     .map((lane) => lane.laneId)
-}
-
-function preflight(hostId: string, lanes: HostLaneView[]): PreflightSummary {
-  const prs = usePullRequestsStore.getState()
-  const owners = lanesOwningWorktree(
-    lanes.map((l) => ({ path: l.laneId, cwd: l.cwd })),
-    (useRemoteLanesStore.getState().hosts[hostId]?.lanes ?? []).map((l) => ({
-      path: l.laneId,
-      cwd: l.cwd,
-    })),
-  )
-  const rows = lanes.map((l): LanePreflight => {
-    const pr = pullRequestFor(prs, remotePrKey(hostId, l.repositoryId), l.branch)
-    return {
-      path: remoteLaneResourceKey(hostId, l.laneId),
-      title: l.title || 'Untitled lane',
-      marker: '',
-      dirtyCount: 0,
-      pr,
-      warnings: [
-        ...(l.activity === 'working' ? ['running' as const] : []),
-        ...(pr?.state === 'OPEN' || pr?.state === 'DRAFT' ? ['open-pr' as const] : []),
-      ],
-    }
-  })
-  const warnings = [...new Set(rows.flatMap((r) => r.warnings))]
-  return {
-    lanes: rows,
-    deletable: rows,
-    warnings,
-    needsAcknowledgement: warnings.length > 0,
-    worktreeCount: lanes.filter((l) => l.worktree && owners.has(l.laneId)).length,
-  }
 }

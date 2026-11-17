@@ -19,6 +19,7 @@ import {
   type BranchGit,
 } from '@phosphor/session-runtime/git/branch-landed'
 import { ghEvidence } from './gh-cli'
+import { mapLimit } from '@phosphor/session-runtime/map-limit'
 
 const execFileAsync = promisify(execFile)
 
@@ -103,27 +104,21 @@ export function parseWorktreeList(
   return result
 }
 
-export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
+export async function listWorktreeMetadata(repoPath: string): Promise<WorktreeInfo[]> {
   const parsed = parseWorktreeList(await git(repoPath, ['worktree', 'list', '--porcelain']))
-  const mainPath = parsed[0]?.path
-  return Promise.all(
-    parsed.map(async (wt) => {
-      let dirty = -1
-      if (existsSync(wt.path)) {
-        try {
-          dirty = await dirtyCount(wt.path)
-        } catch {
-          dirty = -1
-        }
-      }
-      return {
-        ...wt,
-        realPath: normalizeRealPath(wt.path),
-        isMain: wt.path === mainPath,
-        dirtyCount: dirty,
-      }
-    }),
-  )
+  return parsed.map((wt) => ({
+    ...wt,
+    realPath: normalizeRealPath(wt.path),
+    isMain: wt.path === parsed[0]?.path,
+    dirtyCount: -1,
+  }))
+}
+
+export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
+  return mapLimit(await listWorktreeMetadata(repoPath), 4, async (wt) => ({
+    ...wt,
+    dirtyCount: existsSync(wt.path) ? await dirtyCount(wt.path).catch(() => -1) : -1,
+  }))
 }
 
 export async function listBranches(
@@ -135,7 +130,7 @@ export async function listBranches(
       'refs/heads',
       '--format=%(refname:short)\t%(committerdate:unix)\t%(subject)',
     ]),
-    listWorktrees(repoPath),
+    listWorktreeMetadata(repoPath),
     git(repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']).then((s) => s.trim()),
   ])
 
@@ -332,7 +327,7 @@ export async function addWorktree(
 
   if (branch.kind === 'existing') {
     const [worktrees, { defaultBranch }] = await Promise.all([
-      listWorktrees(repoPath),
+      listWorktreeMetadata(repoPath),
       listBranches(repoPath),
     ])
     const taken = worktrees.find((w) => w.branch === branch.branch)
@@ -371,10 +366,10 @@ export async function addWorktree(
     await git(repoPath, ['worktree', 'add', path, branch.branch])
   }
 
-  const worktrees = await listWorktrees(repoPath)
+  const worktrees = await listWorktreeMetadata(repoPath)
   const created = worktrees.find((w) => w.path === path || w.realPath === normalizeRealPath(path))
   if (!created) throw new Error('Worktree was created but not found in `git worktree list`.')
-  return created
+  return { ...created, dirtyCount: await dirtyCount(created.path).catch(() => -1) }
 }
 
 /**

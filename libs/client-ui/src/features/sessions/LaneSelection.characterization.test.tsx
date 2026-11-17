@@ -60,7 +60,7 @@ beforeEach(() => {
         ? {}
         : channel === 'git:listWorktrees'
           ? []
-          : channel === 'hosts:deleteLane'
+          : channel === 'hosts:archiveLane'
             ? { branchKept: false }
             : channel === 'sessions:list'
               ? [meta(1), meta(2), meta(3)]
@@ -169,7 +169,7 @@ describe('This Mac', () => {
     await render()
     click(box('Lane 1'))
     click(box('Lane 2'))
-    click(button('Delete…'))
+    click(button('Archive…'))
     const modal = document.querySelector('[data-modal-overlay]')
     expect(modal?.textContent).toContain('Lane 1')
     expect(modal?.textContent).toContain('Lane 2')
@@ -218,9 +218,9 @@ describe('Host', () => {
     click(container.querySelector<HTMLElement>('[aria-label^="Workspace options"]')!)
     click(button('Select merged lanes'))
     expect(checked()).toEqual(['Select Merged lane'])
-    click(button('Delete…'))
-    await act(async () => click(button('Delete lane')))
-    const deletes = invoke.mock.calls.filter(([channel]) => channel === 'hosts:deleteLane')
+    click(button('Archive…'))
+    await act(async () => click(button('Archive lane')))
+    const deletes = invoke.mock.calls.filter(([channel]) => channel === 'hosts:archiveLane')
     expect(deletes.map(([, host, lane]) => [host, lane])).toEqual([[MOCK_HOST_ID, laneIds[0]]])
     expect(
       invoke.mock.calls.filter(

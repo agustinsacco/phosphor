@@ -1,3 +1,4 @@
+import { registerArchiveHandlers } from './archive-handlers'
 import { handle } from './handle'
 import { checkoutMissing, retainedWorkspaces, setCompleted } from '../maintenance/conversations'
 import { decorateSession } from '../maintenance/history'
@@ -18,6 +19,7 @@ import { forkClaudeLedgerForClone } from '../pi/claude-ledger'
 
 /** On-disk session discovery, tree reading and history rewrites. */
 export function registerSessionsHandlers(): void {
+  registerArchiveHandlers()
   handle('sessions:list', async (_event, workspacePath: string) =>
     (await listSessions(workspacePath)).map((meta) =>
       decorateSession(meta, checkoutMissing(workspacePath)),

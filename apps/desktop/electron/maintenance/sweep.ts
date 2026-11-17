@@ -1,6 +1,7 @@
-import { execFile } from 'node:child_process'
 import { stat } from 'node:fs/promises'
-import { promisify } from 'node:util'
+import { directorySize } from '@phosphor/session-runtime/directory-size'
+export { directorySize } from '@phosphor/session-runtime/directory-size'
+import { mapLimit } from '@phosphor/session-runtime/map-limit'
 import type { MaintenancePrefs, MaintenanceReport } from '@shared/models'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import {
@@ -15,28 +16,6 @@ import { selectReclaimable, totalBytes, type WorktreeFacts } from './policy'
 import { initializeReport, reclaimCandidates } from './reclaim'
 import { conversationFacts } from './conversations'
 import { removeCompletedWorktree } from './removal'
-
-const execFileAsync = promisify(execFile)
-
-/**
- * Disk size of a directory, in bytes.
- *
- * Shells out to `du` rather than walking with `fs`: a lane's `node_modules`
- * holds six figures of files, and a recursive stat walk of 45 of them takes
- * long enough to be felt. `du` is unavailable on Windows, and an unmeasured
- * size is reported as null rather than guessed — the report says "unknown",
- * and the policy never depends on the number.
- */
-export async function directorySize(path: string): Promise<number | null> {
-  if (process.platform === 'win32') return null
-  try {
-    const { stdout } = await execFileAsync('du', ['-sk', path], { timeout: 30_000 })
-    const kb = Number.parseInt(stdout.trim().split(/\s+/)[0] ?? '', 10)
-    return Number.isFinite(kb) ? kb * 1024 : null
-  } catch {
-    return null
-  }
-}
 
 /** Newest mtime of anything that marks the lane as used. */
 async function lastWrite(worktreePath: string): Promise<number> {
@@ -61,25 +40,23 @@ const PR_LOOKUPS = 4
 
 async function gatherFacts(repoPath: string, measure: boolean): Promise<WorktreeFacts[]> {
   const worktrees = await listWorktrees(repoPath)
-  const facts: WorktreeFacts[] = await Promise.all(
-    worktrees.map(async (w) => {
-      const conversations = await conversationFacts(w.path)
-      return {
-        path: w.path,
-        realPath: w.realPath,
-        branch: w.branch,
-        head: w.head,
-        isMain: w.isMain,
-        // Unknown dirty state is not permission to delete.
-        dirtyCount: w.dirtyCount < 0 ? 1 : w.dirtyCount,
-        locked: w.locked,
-        ...conversations,
-        merged: w.isMain || !w.branch ? false : await isBranchMerged(repoPath, w.branch),
-        lastWriteMs: Math.max(await lastWrite(w.path), conversations.lastWriteMs),
-        bytes: measure ? await directorySize(w.path) : null,
-      }
-    }),
-  )
+  const facts: WorktreeFacts[] = await mapLimit(worktrees, 4, async (w) => {
+    const conversations = await conversationFacts(w.path)
+    return {
+      path: w.path,
+      realPath: w.realPath,
+      branch: w.branch,
+      head: w.head,
+      isMain: w.isMain,
+      // Unknown dirty state is not permission to delete.
+      dirtyCount: w.dirtyCount < 0 ? 1 : w.dirtyCount,
+      locked: w.locked,
+      ...conversations,
+      merged: w.isMain || !w.branch ? false : await isBranchMerged(repoPath, w.branch),
+      lastWriteMs: Math.max(await lastWrite(w.path), conversations.lastWriteMs),
+      bytes: measure ? await directorySize(w.path) : null,
+    }
+  })
   // Git misses most lanes that landed as a PR (see `landedViaPullRequest`).
   // Ask GitHub only where the answer can matter: a clean lane git could not
   // prove. A dirty lane is held whatever its merge state.

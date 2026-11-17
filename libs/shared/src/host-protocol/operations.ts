@@ -1,4 +1,5 @@
 /** Commands and their receipts, read-only queries, and the capability each admits. */
+import type { LaneArchiveOp } from '../lane-archive'
 import type { AttachmentOp } from '../host-protocol-attachments'
 import type { ProviderLoginOp } from '../host-protocol-providers'
 import type { MachineTaskOp } from '../machine-settings'
@@ -49,6 +50,7 @@ export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType
 export type LaneOp =
   | RepositoryOp
   | DeleteLaneOp
+  | LaneArchiveOp
   | LaneMarksOp
   | ProviderLoginOp
   | MachineTaskOp

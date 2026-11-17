@@ -246,6 +246,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: (event) => context.log?.('host', event, {}),
           directory: realpathSync(stateDirectory),
           laneExists: (laneId) => store?.getLane(laneId)?.removedAt === null,
+          laneRetained: (laneId) => store?.archives.has(laneId) ?? false,
           now: context.now,
         })
       } catch (error) {
@@ -325,7 +326,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
             activeTopic.repositoriesChanged()
           },
         })
-        const administration = createRunAdministration({
+        const { features: administrationFeatures, ...administration } = createRunAdministration({
           context,
           configPath: config.path,
           env: machine.env,
@@ -334,6 +335,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           runtime: activeRuntime,
           accounts: claudeAccounts,
           terminals,
+          attachments,
           binding,
           live,
           repositories,
@@ -341,14 +343,10 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: log.write,
         })
         commands = createLaneCommands({
-          moveClaudeAccount: administration.moveClaudeAccount,
+          ...administration,
           repositories,
-          machineTasks: administration.machineTasks,
-          deleteLane: administration.deleteLane,
-          providerLogins: administration.providerLogins,
           attachments,
           terminals,
-          writes: administration.writes,
           store,
           ...binding,
           runtime: binding,
@@ -369,7 +367,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           receipt: (laneId) => calls.call('lane.receipt', { laneId }),
           log: log.write,
         })
-        const features = [...administration.features(), ...(webPush ? [webPush.feature] : [])]
+        const features = [...administrationFeatures(), ...(webPush ? [webPush.feature] : [])]
         const calls = createLaneCalls({
           features,
           store,

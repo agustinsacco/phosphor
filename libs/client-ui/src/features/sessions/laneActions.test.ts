@@ -75,7 +75,7 @@ describe('laneActions', () => {
       'Export HTML…',
       'Copy debug info',
       'Copy spend ($1.50)',
-      '┄Delete (to trash)',
+      '┄Archive (to trash)',
     ])
   })
 
@@ -91,7 +91,7 @@ describe('laneActions', () => {
       'Resume',
       '┄Export HTML…',
       'Copy debug info',
-      '┄Delete',
+      '┄Archive',
     ])
   })
 
@@ -100,7 +100,7 @@ describe('laneActions', () => {
       ctx({ refusals: { delete: 'another delete is running' }, hints: { delete: 'to trash' } }),
       handlers(),
     )
-    expect(refused.find((i) => i.label === 'Delete')).toMatchObject({
+    expect(refused.find((i) => i.label === 'Archive')).toMatchObject({
       disabled: true,
       hint: 'another delete is running',
       danger: true,

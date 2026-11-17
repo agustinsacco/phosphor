@@ -1,3 +1,4 @@
+import { registerHostArchiveHandlers } from './host-archive-handlers'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
 import { repositoryManagement } from '@phosphor/host-client/repository-management'
 import { registerHostReadHandlers } from './hosts-read-handlers'
@@ -63,6 +64,7 @@ export function remoteLanes(): RemoteLanes {
 function registerManagementHandlers(
   connection: Parameters<typeof repositoryManagement>[0] & Parameters<typeof laneMarks>[0],
 ): void {
+  registerHostArchiveHandlers(connection)
   const management = repositoryManagement(connection)
   const marks = laneMarks(connection)
   handle('hosts:listFolders', (_event, hostId, path, hidden) =>

@@ -56,7 +56,7 @@ describe('policy declaration', () => {
       .filter(([, scope]) => scope === 'machine')
       .map(([channel]) => channel)
     expect(Object.keys(MACHINE_RESOURCE_ARGS).sort()).toEqual(machine.sort())
-    expect(machine).toHaveLength(183)
+    expect(machine).toHaveLength(184)
     expect(
       Object.entries(MACHINE_RESOURCE_ARGS)
         .filter(([, policy]) => policy === 'routed-pi')
@@ -113,7 +113,8 @@ describe('refusesMachineResourceArgs', () => {
           )
       }
     }
-    expect(positions).toBe(137)
+    // sessions:archive declares cwd, transcript path and session id.
+    expect(positions).toBe(140)
   })
 
   it('refuses the named option and array positions', () => {

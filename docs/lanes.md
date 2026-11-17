@@ -754,6 +754,54 @@ Placeholder rows stand aside while a filter is on: they have no name, branch
 or PR yet. Live names are matched as well as scanned ones, so a lane renamed
 mid-turn is findable under the name on screen.
 
+## Archiving lanes
+
+Archive stops a lane and hides it without losing anything. Its conversation,
+saved draft, branch and **entire checkout**, uncommitted, untracked and
+ignored files included, stay on the lane's own machine until you clean them up.
+Nothing expires. The flow is the same on This Mac and on Hosts
+(`libs/session-runtime/src/lane-archive/`).
+
+- **What moves.** The transcript is renamed beside itself to
+  `<name>.jsonl.archived`, which pi and the sidebar scan ignore. Each rename
+  checks device and inode, so a replacement file is never overwritten, and a
+  crash between steps can be retried. A Host also parks the lane's attachments
+  as `attachments/<id>.archived` and keeps the lane row as a tombstone that its
+  30-day prune skips. Nothing in the checkout moves.
+- **Manifests.** Each archive is a JSON manifest outside pi's discovery, in
+  `<userData>/lane-archive/` on This Mac and `<state>/lane-archive/` on a Host.
+  Every step saves its intent first (`archiving`, `restoring`, `purging`), so an
+  interrupted operation stays listed and can be retried. A machine holds at
+  most 1000 archives.
+- **Ownership.** An archived checkout still counts as in use. Worktree removal,
+  maintenance reclaim, the Host's `lane.delete` and sandbox rename or delete
+  refuse a folder an archive still names.
+- **Restore** moves the transcript (and a Host's attachments) back and shows
+  the lane again. A Host needs the original repository and a free lane slot. A
+  lane that never got a first message comes back in a fresh session: This Mac
+  keeps the archive until the replacement session exists, then moves the saved
+  draft to it; a Host starts the session itself. A failed start leaves the
+  archive listed for another try.
+- **Clean up…** is the only permanent step. It removes the parked transcript,
+  that transcript's own subagent runs, the saved draft and a Host's parked
+  attachments. The checkout stays unless you tick its removal and renew the
+  acknowledgement. Only a dedicated worktree under `.phosphor/worktrees/` that
+  no live lane or other archive uses, and that is still the folder archived,
+  can be removed. Branches and the shared `subagent-artifacts` folder are never
+  removed. An empty lane stuck mid-restore can also be cleaned up.
+
+The **Archive** page, after Machines in the page links, lists each machine's
+archives and storage. Shared folders count once, and storage a machine cannot
+measure reads “Storage unknown”, never zero. Sizes come from `du` (30 s
+timeout), two at a time and off the request path, at most every 10 minutes
+unless the archive changes. When a machine's archives pass 1 GB, Phosphor shows
+one toast per machine and account and a warning on the page. It never cleans up
+on its own.
+
+A Host offers Archive when its `ready` frame carries `laneArchive: true`
+([Host](host.md#lane-archives)). On an older Host, Archive is disabled; Phosphor
+never falls back to deleting.
+
 ## Deleting lanes
 
 One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
@@ -763,7 +811,7 @@ order and labels, from the context `hostLaneContext` maps (Open, Move up and
 Move down where the row sits in an ordered list, Rename…, Make routine…, Pin,
 Lane marker…, Open pull request when the lane has one, Take or Release control,
 Stop or Resume, Mark read on an unseen lane, then Export HTML…, Copy debug
-info and Copy spend, then Delete), and `useRemoteLaneActions` runs it; the
+info and Copy spend, then Archive), and `useRemoteLaneActions` runs it; the
 phone's lane sheet lists the same items without Open. Absent data hides an
 item; a refusal disables it and names itself. The row's menu opens on right-click, the ContextMenu key or
 Shift+F10, and a touch long-press; on a phone it is a bottom sheet. The row
@@ -793,27 +841,24 @@ as This Mac's does. Both copies confirm with a toast and, where the clipboard is
 denied, show the text to copy by hand, on either machine. Export HTML… opens the lane's session if needed and saves the Host's export
 (`exportRemoteLaneHtml`): a save dialog on Desktop, a download in the browser.
 Local-only tree, fork and clone actions are omitted.
-Remote Delete needs control and workspace-write capability, in Desktop and the
+Remote Archive needs control and workspace-write capability, in Desktop and the
 browser alike. A disabled action's hint names its obstacle: “Take control
 first.” for a viewer, “Only while running.” for rename and spend on a stopped
 lane, “Send a first message before stopping this lane.” for Stop on an open lane
 with no first message (the Host refuses it), and “This Host does not offer lane
-control to this device.” (or file editing, for Delete; routines, for Make
-routine…) when a ready Host does not grant the capability. Delete uses the
-same resource confirmation, keeps failures visible, and closes the lane on
-success. A shared worktree gets transcript-only deletion. The Host keeps trashed
-transcripts for 30 days; worktree removal and merged-branch deletion are optional.
+control to this device.” (or file editing, for Archive; routines, for Make
+routine…) when a ready Host does not grant the capability, and “Update this
+Host to archive lanes safely.” when it lacks `laneArchive`. Archive keeps
+failures visible in its confirmation and closes the lane on success. It refuses
+while the lane has file attachments that were never sent.
 
-Every sidebar session has **Delete**, including starting, running, crashed and
-live-only rows whose transcript is missing. A row that is the **only session
-in its own worktree** opens the lane confirm below, with worktree removal on
-by default — deleting just the transcript used to leave the directory, and its
-`node_modules`, on disk with nothing in the sidebar pointing at it. Every other
-row (the main checkout, a shared worktree, no git info yet) gets the
-session-only confirm: running work will stop, saved transcripts are trashed,
-and the worktree, branch and project files are kept. A missing transcript is
-not an error; other failures stay visible in the confirmation so deletion can
-be retried. Pending rows do not invent a timestamp from the current time.
+Every sidebar session has **Archive**, including starting, running, crashed and
+live-only rows whose transcript is missing. The confirm says running work will
+stop and that the conversation and the whole checkout, uncommitted, untracked
+and ignored files included, are kept ([Archiving lanes](#archiving-lanes)).
+A missing transcript is not an error; other failures stay visible in the
+confirmation so archiving can be retried. Pending rows do not invent a
+timestamp from the current time.
 
 Concurrent opens of the same transcript share one process. Main serializes
 resume and deletion by transcript path, cancels queued or hung startup opens,
@@ -839,8 +884,12 @@ and "Collapse lanes" live in the workspace `⋯` menu (`LaneGroupOptions`), abov
 the machine's own folder rows, on This Mac's groups and Host folders. The bulk bar
 (`LaneBulkBar`) shows only in select mode.
 
-Deleting is three resources, and all three default on. The branch default is
-safe because an unmerged branch is never deleted:
+Archive replaced deletion in every lane menu and bulk bar: bulk Archive runs the
+loop below with each lane archived instead of deleted, and touches no worktree
+or branch. The permanent delete remains for callers that ask for it, such as
+the Host's `lane.delete` from older clients. It is three resources, and all
+three default on. The branch default is safe because an unmerged branch is
+never deleted:
 
 1. the session transcript, to the OS Trash (recoverable): pi's `.jsonl`
    **and**, for a session recorded before provider 0.9.0, its paired Claude
@@ -1013,6 +1062,13 @@ session, a locked registration and paths outside `.phosphor/worktrees/`, and
 drops a stale Git registration of that same path first (other stale entries
 are left alone). Dependencies must be
 reinstalled. Phosphor never picks a replacement silently.
+
+Worktree listings check dirty state at most four checkouts at a time. Internal
+branch listings and new-lane preflight read only worktree metadata; creation
+checks dirtiness only for the new checkout. Maintenance also gathers facts and
+sizes for at most four worktrees at a time, rather than spawning subprocesses
+for every registered checkout together. These bounds do not queue interactive
+Git operations behind background scans.
 
 Sizes come from `du`, which Windows lacks; an unmeasured size reports "unknown"
 and the policy never depends on the number. The scheduler is a plain interval

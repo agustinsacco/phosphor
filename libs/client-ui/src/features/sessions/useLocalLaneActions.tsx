@@ -58,12 +58,12 @@ function localContext(
     spend: meta.cost > 0 ? { hint: formatCost(meta.cost) } : undefined,
     busy: deleting,
     refusals: {
-      delete: bulkDeleteRunning ? 'another delete is running' : undefined,
+      delete: bulkDeleteRunning ? 'another archive is running' : undefined,
       moveTo: working ? WAIT_BEFORE_MOVE : undefined,
     },
     hints: {
       stop: '~200 MB',
-      delete: 'to trash',
+      delete: 'keeps files',
       moveTo: livePhosphorId ? MOVE_STOPS_LANE : undefined,
     },
   }

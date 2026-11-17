@@ -2,6 +2,7 @@ import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-im
 import { createBrowserNotifications } from './notifications'
 import type { IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
+import { laneArchives } from '@phosphor/host-client/lane-archive'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
 import {
   exportLaneHtml,
@@ -124,9 +125,11 @@ function settingsHandlers(settings: () => ReturnType<typeof createBrowserSetting
 function laneHandlers(
   lanes: RemoteLanes,
   fileBytes: () => ReturnType<typeof createBrowserFileBytes>,
+  connection: Parameters<typeof laneArchives>[0],
 ) {
   return {
     ...laneWriteHandlers(lanes),
+    ...archiveHandlers(connection),
     'hosts:fileDownload': (request) => fileBytes().download(request),
     'hosts:fileDownloadCancel': (id) => fileBytes().cancel(id),
     'hosts:filePreviewUrl': (request) => fileBytes().previewUrl(request),
@@ -187,6 +190,15 @@ function signOut(control: BrowserControl, broadcast: () => void) {
     // Local invalidation still takes effect if the browser channel is unavailable.
   }
   return result
+}
+function archiveHandlers(connection: Parameters<typeof laneArchives>[0]) {
+  const archives = laneArchives(connection)
+  return {
+    'hosts:archiveLane': archives.archive,
+    'hosts:archives': archives.list,
+    'hosts:restoreArchive': archives.restore,
+    'hosts:purgeArchive': archives.purge,
+  }
 }
 function externalUrl(value: string): string {
   const url = new URL(value)
@@ -252,7 +264,7 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     'hosts:takeControl': (host, lane) => lanes.action(host, lane, 'control.take'),
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
-    ...laneHandlers(lanes, () => ports.fileBytes),
+    ...laneHandlers(lanes, () => ports.fileBytes, hosts.connection),
     ...laneMoveHandlers(() => ports.laneMoves),
     'hosts:setLaneMarks': marks.set,
     'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),

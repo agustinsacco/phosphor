@@ -1,4 +1,5 @@
 /** Command ops: the lane and pi ops parsed here, and the families other modules own. */
+import { parseLaneArchiveOp } from '../lane-archive'
 import { parseAttachmentOp } from '../host-protocol-attachments'
 import { parseProviderLoginOp } from '../host-protocol-providers'
 import { parseMachineTask, isMachineAccountId } from '../machine-settings'
@@ -37,6 +38,9 @@ export const BAD_REQUEST_OP_TYPES = [
   'host.repositories.createFolder',
   'host.repositories.order',
   'lane.delete',
+  'lane.archive',
+  'archive.restore',
+  'archive.purge',
   'lane.create',
   'lane.resume',
   'lane.stop',
@@ -160,6 +164,8 @@ function coreOp(v: OpFields): LaneOp | null {
 
 /** The module that parses `type`'s op family, or undefined for the core ops above. */
 function familyParser(type: unknown): ((v: OpFields) => LaneOp | null) | undefined {
+  if (type === 'lane.archive' || type === 'archive.restore' || type === 'archive.purge')
+    return parseLaneArchiveOp
   if (type === 'lane.delete') return parseDeleteLaneOp
   if (type === 'lane.marks') return parseLaneMarksOp
   if (typeof type === 'string' && type.startsWith('host.repositories.')) return parseRepositoryOp

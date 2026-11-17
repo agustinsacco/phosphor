@@ -74,6 +74,8 @@ export type HostFrame =
       readonly machineShell?: boolean
       /** Additive support marker: the Host keeps lane pins and markers (`lane.marks`). */
       readonly laneMarks?: boolean
+      /** Retained-worktree lane archive, restore and explicit cleanup. */
+      readonly laneArchive?: boolean
       /** Additive support marker: the Host exports and imports lanes (`laneTransfer.*`). */
       readonly laneTransfer?: boolean
       /** Additive support marker: the Host serves raw file bytes (`files.readBytes`). */

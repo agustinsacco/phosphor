@@ -6029,7 +6029,7 @@ test('an artifact outlives its session’s context, a restart and the session it
       timeout: 10_000,
     })
 
-    // The global page lists it, and keeps it once the session is deleted.
+    // The global page lists it, and keeps it once the session's file is gone (archived here).
     await page.getByRole('button', { name: 'Artifacts', exact: true }).click()
     const listed = page.getByTestId('global-page').getByRole('button', { name: /E2E Linked Doc/ })
     await expect(listed).toBeVisible({ timeout: 10_000 })
@@ -6038,9 +6038,9 @@ test('an artifact outlives its session’s context, a restart and the session it
     await row.click({ button: 'right' })
     await page
       .getByTestId('context-menu')
-      .getByRole('button', { name: /^Delete/ })
+      .getByRole('button', { name: /^Archive/ })
       .click()
-    await page.getByRole('button', { name: 'Delete session', exact: true }).click()
+    await page.getByRole('button', { name: 'Archive lane', exact: true }).click()
     await expect(row).toHaveCount(0)
     await expect(listed).toContainText('Session deleted', { timeout: 10_000 })
 

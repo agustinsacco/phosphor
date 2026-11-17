@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { loadSqlite } from '../sqlite'
 import { SCHEMA_VERSION } from '../schema'
 import { LANE_MARKS_SCHEMA } from './marks'
+import { LANE_ARCHIVES_SCHEMA } from './archives'
 import { prepareStateDirectory, prepareStateFile, StateFailure } from '../state-dir'
 import type { StorePorts } from './types'
 
@@ -30,6 +31,7 @@ export async function openStoreDatabase<T extends StoreRecovery>(
     const store = constructStore(db, ports)
     if (version === 0) store.migrate()
     db.exec(LANE_MARKS_SCHEMA)
+    db.exec(LANE_ARCHIVES_SCHEMA)
     db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;')
     store.markInterrupted()
     store.pruneReceipts((ports.now ?? Date.now)())

@@ -5,6 +5,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { errorText } from '@shared/errors'
 
 export interface DeleteSessionTarget {
+  archive?: boolean
   title: string
   workspacePath: string
   path?: string

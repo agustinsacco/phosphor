@@ -108,6 +108,35 @@ describe('workspace installation closure', () => {
     )
   })
 
+  it('exports every workspace subpath that production source imports', () => {
+    // Typecheck resolves through tsconfig paths; esbuild, Vite and Node resolve
+    // npm exports. A missing export passes typecheck and breaks the Host build.
+    const exported = new Map(
+      libraries.map((library) => {
+        const manifest = json(join(root, library, 'package.json'))
+        return [manifest.name as string, new Set(Object.keys(manifest.exports))]
+      }),
+    )
+    const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter((file) => /^(apps|libs)\/.+\.(ts|tsx|mts|mjs)$/.test(file))
+      .filter((file) => !/\.test\.|__fixtures__|\/e2e\/|\/test\//.test(file))
+      .filter((file) => existsSync(join(root, file)))
+    const missing = files.flatMap((file) =>
+      [
+        ...readFileSync(join(root, file), 'utf8').matchAll(
+          /['"](@phosphor\/[\w-]+)\/([\w./-]+)['"]/g,
+        ),
+      ]
+        .filter(([, name, subpath]) => exported.get(name!)?.has(`./${subpath}`) === false)
+        .map(([, name, subpath]) => `${file}: ${name}/${subpath}`),
+    )
+    expect(missing).toEqual([])
+  })
+
   it('bundles real workspace subpath exports rather than shipping TypeScript links', async () => {
     // UI exports contain Vite assets and workers, not Node entrypoints. The web
     // production build validates their actual browser graph via build-policy.ts.

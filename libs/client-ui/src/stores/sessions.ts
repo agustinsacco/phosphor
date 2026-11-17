@@ -1,5 +1,12 @@
 import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
 import { hostResourceKey } from '@shared/remote-host'
+import { archivesChanged } from './archiveChanges'
+import { loadWorktreeRemover, removeLaneWorktree } from './removeLaneWorktree'
+import {
+  laneIsBeingDeleted,
+  type LaneDeleteResult,
+  type BulkDeleteProgress,
+} from './laneRemovalState'
 import { create } from 'zustand'
 import type {
   GitInfo,
@@ -271,7 +278,7 @@ interface SessionsState {
   deleteDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<void>
   deleteSession: (
     workspacePath: string,
-    target: { path?: string; sessionId?: string },
+    target: { path?: string; sessionId?: string; archive?: boolean },
   ) => Promise<void>
   /** File paths or live handles currently owned by a single-lane delete. */
   deletingSessionKeys: string[]
@@ -298,39 +305,20 @@ interface SessionsState {
   deleteManySessions: (
     workspacePath: string,
     lanes: Array<{ path: string; title: string; worktreePath?: string; mainRepoPath?: string }>,
-    options: { removeWorktree: boolean; deleteBranch: boolean; discardChanges: boolean },
+    options: {
+      removeWorktree: boolean
+      deleteBranch: boolean
+      discardChanges: boolean
+      archive?: boolean
+    },
   ) => Promise<LaneDeleteResult[]>
 }
 
-export interface LaneDeleteResult {
-  path: string
-  title: string
-  ok: boolean
-  /** Set on failure, and also on success when the branch could not be removed. */
-  error?: string
-}
-
-export interface BulkDeleteProgress {
-  total: number
-  done: number
-  /** Lane currently being deleted; empty once finished. */
-  current: string
-  /** Session path of the current lane, so duplicate titles remain unambiguous. */
-  currentPath: string
-  /**
-   * Every selected lane, in run order, published up front.
-   *
-   * The progress surface used to render only finished rows, so it grew by a
-   * row every time a lane completed. Knowing the full list on the first frame
-   * lets the expanded notification reserve its final height and fill rows in
-   * place.
-   */
-  lanes: Array<{ path: string; title: string }>
-  results: LaneDeleteResult[]
-  running: boolean
-  cancelled: boolean
-}
-
+export {
+  laneIsBeingDeleted,
+  type LaneDeleteResult,
+  type BulkDeleteProgress,
+} from './laneRemovalState'
 /**
  * Cancellation flag for the in-flight bulk delete.
  *
@@ -339,17 +327,6 @@ export interface BulkDeleteProgress {
  * depend on render timing.
  */
 let bulkDeleteCancelled = false
-
-/** Whether a sidebar lane must be inert while the bulk-delete loop owns it. */
-export function laneIsBeingDeleted(progress: BulkDeleteProgress | null, path: string): boolean {
-  if (!progress?.running || !progress.lanes.some((lane) => lane.path === path)) return false
-  const result = progress.results.find((item) => item.path === path)
-  // A successful row may remain in the last disk snapshot until the final
-  // refresh. A failed lane is safe to use again immediately.
-  if (result) return result.ok
-  // Stop skips queued lanes, but the current lane still finishes atomically.
-  return !progress.cancelled || progress.currentPath === path
-}
 
 const unsubscribers = new Map<string, () => void>()
 const pendingOpens = new Map<string, Promise<string>>()
@@ -1292,7 +1269,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       )
       for (const entry of matches) closingSessions.add(entry.phosphorId)
       try {
-        const disposed = await window.phosphor.invoke('sessions:delete', path, target.sessionId)
+        const disposed = target.archive
+          ? await window.phosphor.invoke('sessions:archive', workspacePath, path, target.sessionId)
+          : await window.phosphor.invoke('sessions:delete', path, target.sessionId)
         const ids = new Set([...matches.map((l) => l.phosphorId), ...(disposed ?? [])])
         for (const id of ids) await cleanupLocalSessionState(id)
         if (path) {
@@ -1322,6 +1301,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         }
         if (!get().activeSessionId) void window.phosphor.invoke('app:setLastSession', undefined)
       } finally {
+        if (target.archive) archivesChanged('local')
         for (const entry of matches) closingSessions.delete(entry.phosphorId)
         await get().refreshDisk(workspacePath)
       }
@@ -1365,6 +1345,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     bulkDeleteCancelled = false
     set({
       bulkDelete: {
+        archiving: options.archive,
         total: lanes.length,
         done: 0,
         current: lanes[0]?.title ?? '',
@@ -1395,10 +1376,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // catch (the lazy store read, the final refresh): a run left `running`
     // keeps its lanes inert and refuses every later delete.
     try {
-      const { removeWorktree } = await import('./worktrees').then((m) => ({
-        removeWorktree: m.useWorktreesStore.getState().removeWorktree,
-      }))
-
+      const removeWorktree = await loadWorktreeRemover()
       for (const lane of lanes) {
         // Checked between lanes, never mid-lane: stopping halfway through a
         // worktree removal is how you get a half-deleted lane.
@@ -1406,32 +1384,15 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         publish(lane)
 
         try {
-          let branchError: string | undefined
-          if (options.removeWorktree && lane.worktreePath && lane.mainRepoPath) {
-            // Stop every writer, including handles a renderer reload has not
-            // adopted yet, before removing its working directory.
-            const mainLive = await window.phosphor.invoke('pi:listLiveSessions')
-            const ids = new Set([
-              ...Object.values(get().live)
-                .filter((l) => l.diskPath === lane.path)
-                .map((l) => l.phosphorId),
-              ...(mainLive ?? []).filter((l) => l.diskPath === lane.path).map((l) => l.sessionId),
-            ])
-            for (const id of ids) await get().disposeSession(id)
-            const outcome = await removeWorktree(lane.mainRepoPath, lane.worktreePath, {
-              force: options.discardChanges,
-              deleteBranch: options.deleteBranch,
-            })
-            if (!outcome.removed) {
-              throw new Error(`worktree kept, ${outcome.dirtyCount} uncommitted changes`)
-            }
-            branchError = outcome.branchError
-          }
+          const branchError = await removeLaneWorktree(lane, options, removeWorktree)
           const cwd =
             Object.entries(get().disk).find(([, metas]) =>
               metas.some((m) => m.path === lane.path),
             )?.[0] ?? workspacePath
-          await get().deleteSession(cwd, { path: lane.path })
+          await get().deleteSession(cwd, {
+            path: lane.path,
+            ...(options.archive ? { archive: true } : {}),
+          })
           results.push({
             path: lane.path,
             title: lane.title,

@@ -100,6 +100,10 @@
       "types": "./src/skill-share.ts",
       "default": "./src/skill-share.ts"
     },
+    "./lane-archive": {
+      "types": "./src/lane-archive.ts",
+      "default": "./src/lane-archive.ts"
+    },
     "./lane-transfer": {
       "types": "./src/lane-transfer.ts",
       "default": "./src/lane-transfer.ts"

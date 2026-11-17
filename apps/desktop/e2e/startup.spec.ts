@@ -572,10 +572,10 @@ test('pending session is deletable before persistence and a late bootstrap canno
     await row.click({ button: 'right' })
     await h.page
       .getByTestId('context-menu')
-      .getByRole('button', { name: /^Delete/ })
+      .getByRole('button', { name: /^Archive/ })
       .click()
-    await expect(h.page.getByRole('heading', { name: 'Delete session?' })).toBeVisible()
-    await h.page.getByRole('button', { name: 'Delete session', exact: true }).click()
+    await expect(h.page.getByRole('heading', { name: 'Archive lane' })).toBeVisible()
+    await h.page.getByRole('button', { name: 'Archive lane', exact: true }).click()
     await expect(row).toHaveCount(0)
     expect(await h.page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).toEqual([])
     await h.app.evaluate(() =>
@@ -591,7 +591,7 @@ test('pending session is deletable before persistence and a late bootstrap canno
   }
 })
 
-test('a running session can be stopped and deleted from its row', async () => {
+test('a running session can be stopped and archived from its row', async () => {
   const h = await launch('dark')
   try {
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('queue-hold')
@@ -601,10 +601,10 @@ test('a running session can be stopped and deleted from its row', async () => {
     await row.click({ button: 'right' })
     await h.page
       .getByTestId('context-menu')
-      .getByRole('button', { name: /^Delete/ })
+      .getByRole('button', { name: /^Archive/ })
       .click()
-    await expect(h.page.getByText(/Any running turn will be stopped/)).toBeVisible()
-    await h.page.getByRole('button', { name: 'Delete session', exact: true }).click()
+    await expect(h.page.getByText(/Stop these lanes and hide them/)).toBeVisible()
+    await h.page.getByRole('button', { name: 'Archive lane', exact: true }).click()
     await expect(row).toHaveCount(0)
     expect(await h.page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).toEqual([])
   } finally {
@@ -612,7 +612,7 @@ test('a running session can be stopped and deleted from its row', async () => {
   }
 })
 
-test('concurrent resumes share one writer and an orphan with a missing transcript is deletable', async () => {
+test('concurrent resumes share one writer and an orphan with a missing transcript is archivable', async () => {
   const h = await launch('dark')
   try {
     const created = await h.page.evaluate(
@@ -653,9 +653,9 @@ test('concurrent resumes share one writer and an orphan with a missing transcrip
     await row.click({ button: 'right' })
     await h.page
       .getByTestId('context-menu')
-      .getByRole('button', { name: /^Delete/ })
+      .getByRole('button', { name: /^Archive/ })
       .click()
-    await h.page.getByRole('button', { name: 'Delete session', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Archive lane', exact: true }).click()
     await expect(row).toHaveCount(0)
     expect(await h.page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).toEqual([])
   } finally {

@@ -1,4 +1,5 @@
 import { app, shell } from 'electron'
+import { hasArchivedFolder } from './archive/state'
 import { rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isWithinFolder, rebaseWithinFolder } from '@shared/paths'
@@ -46,7 +47,10 @@ export async function renameSandbox(path: string, name: string) {
   if (!plan.ok) return { ok: false as const, reason: plan.reason }
   // Same folder: a no-op submit, or a rename to the name it already has.
   if (plan.from === plan.to) return { ok: true as const, path: plan.to }
-  if (registry.list().some((session) => isWithinFolder(session.workspacePath, plan.from))) {
+  if (
+    registry.list().some((session) => isWithinFolder(session.workspacePath, plan.from)) ||
+    (await hasArchivedFolder(plan.from))
+  ) {
     return { ok: false as const, reason: 'in-use' as const }
   }
 
@@ -103,7 +107,10 @@ export async function renameSandbox(path: string, name: string) {
 export async function deleteSandbox(path: string) {
   const target = resolveSandboxFolder(sandboxBase(), path)
   if (!target) return { ok: false as const, reason: 'not-a-sandbox' as const }
-  if (registry.list().some((session) => isWithinFolder(session.workspacePath, target))) {
+  if (
+    registry.list().some((session) => isWithinFolder(session.workspacePath, target)) ||
+    (await hasArchivedFolder(target))
+  ) {
     return { ok: false as const, reason: 'in-use' as const }
   }
 

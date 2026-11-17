@@ -388,6 +388,10 @@
       "types": "./src/brain-extraction.ts",
       "default": "./src/brain-extraction.ts"
     },
+    "./lane-archive": {
+      "types": "./src/lane-archive.ts",
+      "default": "./src/lane-archive.ts"
+    },
     "./brain-explore": {
       "types": "./src/brain-explore.ts",
       "default": "./src/brain-explore.ts"
@@ -395,6 +399,10 @@
     "./brain-review": {
       "types": "./src/brain-review.ts",
       "default": "./src/brain-review.ts"
+    },
+    "./ipc-web-archive": {
+      "types": "./src/ipc-web-archive.ts",
+      "default": "./src/ipc-web-archive.ts"
     }
   },
   "dependencies": {

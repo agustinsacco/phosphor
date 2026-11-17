@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import * as facade from '../host-protocol'
+import type { LaneArchiveOp } from '../lane-archive'
 import type { AttachmentOp } from '../host-protocol-attachments'
 import type { ProviderLoginOp } from '../host-protocol-providers'
 import type { LaneMarksOp } from '../host-protocol-lane-marks'
@@ -83,6 +84,7 @@ describe('host-protocol operation declarations', () => {
     type Core = Exclude<
       LaneOp,
       | RepositoryOp
+      | LaneArchiveOp
       | DeleteLaneOp
       | LaneMarksOp
       | ProviderLoginOp
@@ -114,6 +116,7 @@ describe('host-protocol operation declarations', () => {
       | LanePiOpType
       | Core['type']
       | RepositoryOp['type']
+      | LaneArchiveOp['type']
       | DeleteLaneOp['type']
       | LaneMarksOp['type']
       | ProviderLoginOp['type']

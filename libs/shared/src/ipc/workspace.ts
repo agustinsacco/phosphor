@@ -1,3 +1,4 @@
+import type { LaneArchiveList, LocalArchiveRestore } from '../lane-archive'
 import type { WorkspaceSearchRequest, WorkspaceSearchResult } from '../workspace-search'
 import type {
   AddWorktreeBranch,
@@ -28,6 +29,16 @@ import type { SessionTree } from './views'
 import type { AgentMessage } from '../rpc'
 
 export interface SessionsInvokeMap {
+  'sessions:archive': {
+    args: [workspacePath: string, path?: string, sessionId?: string]
+    result: string[]
+  }
+  'sessions:archives': { args: [measure?: boolean]; result: LaneArchiveList }
+  'sessions:restoreArchive': {
+    args: [id: string, restoredSessionId?: string]
+    result: LocalArchiveRestore
+  }
+  'sessions:purgeArchive': { args: [id: string, removeWorktree: boolean]; result: void }
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
   'sessions:setCompleted': { args: [sessionFilePath: string, completed: boolean]; result: void }
   'sessions:retainedWorkspaces': { args: [repoPath: string]; result: string[] }

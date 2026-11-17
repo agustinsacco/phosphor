@@ -101,7 +101,7 @@ it('holds select mode with Delete off when Select merged finds nothing merged', 
   click(container.querySelector('[aria-label^="Workspace options"]')!)
   click(button('Select merged lanes'))
   expect(bar()?.textContent).toContain('0 selected')
-  expect(button('Delete…').disabled).toBe(true)
+  expect(button('Archive…').disabled).toBe(true)
   expect(boxes().some((b) => b.className.includes('hidden'))).toBe(false)
   click(button('Cancel'))
   expect(bar()).toBeNull()
