@@ -24,9 +24,10 @@ it('a whole-Brain pass covers memories deferred behind its cursor before it repo
   hub(db, 2100)
   // Memories past the hub keep the pass running after its cursor has passed the hub.
   const memory = db.prepare(
-    "INSERT INTO memories VALUES (?,?,'Kestrel ships on Thursday.','fact','reported','/Kestrel',NULL,NULL,NULL,?,?,'active','kestrel-lane','Kestrel',NULL)",
+    "INSERT INTO memories VALUES (?,?,?,'fact','reported','/Kestrel',NULL,NULL,NULL,?,?,'active','kestrel-lane','Kestrel',NULL)",
   )
-  for (let n = 2103; n <= 2402; n++) memory.run(n, `kestrel-${n}`, n, n)
+  for (let n = 2103; n <= 2402; n++)
+    memory.run(n, `kestrel-${n}`, `Kestrel ships build ${n}.`, n, n)
   let pass = store.sweep('all')
   while (!(pass.coverage.phase === 'memories' && pass.coverage.cursor >= 2102))
     pass = store.sweep('all')

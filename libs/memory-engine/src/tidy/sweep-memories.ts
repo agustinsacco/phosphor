@@ -1,6 +1,6 @@
 import { all, one, run, type Context } from '../database'
 import { memoryCandidates, type MemoryCandidateCache } from './memory-candidates'
-import { writeFingerprint } from './fingerprints'
+import { fingerprintOf, writeFingerprint } from './fingerprints'
 import { changeMemories } from './operations'
 import { offer, pairKnown, pairKey, type SuggestionRow } from './suggestions'
 
@@ -79,11 +79,11 @@ function nearMemory(
 ): typeof result {
   const candidates = memoryCandidates(ctx, n, cache)
   result.capped += candidates.capped
-  const fingerprint = writeFingerprint(ctx, n)
+  const fingerprint = fingerprintOf(ctx, n)
   for (const peer of candidates.items) {
     if (peer.score < NEAR_MEMORY_COSINE) break
     // A near pass must not reserve an exact pair before its cursor reaches the peer.
-    if (fingerprint && writeFingerprint(ctx, peer.n) === fingerprint) continue
+    if (fingerprint && fingerprintOf(ctx, peer.n) === fingerprint) continue
     if (pairKnown(ctx, 'memory', row.id, peer.id)) continue
     let reason = 'These two sentences say nearly the same thing.'
     if (peer.scope !== row.scope) reason += ' They come from different projects.'

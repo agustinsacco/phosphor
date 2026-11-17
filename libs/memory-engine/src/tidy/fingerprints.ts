@@ -4,6 +4,22 @@ import { fold } from '../text'
 
 /** Mention identity and applicability are part of equality, never just the sentence. */
 export function writeFingerprint(ctx: Context, n: number): string | null {
+  const fingerprint = fingerprintOf(ctx, n)
+  if (fingerprint === null) run(ctx, 'DELETE FROM tidy_memory_keys WHERE memory=?', n)
+  else
+    run(
+      ctx,
+      'INSERT INTO tidy_memory_keys VALUES (?,?) ON CONFLICT(memory) DO UPDATE SET fingerprint=excluded.fingerprint',
+      n,
+      fingerprint,
+    )
+  return fingerprint
+}
+/**
+ * Reads without writing: a stored key marks a swept memory, so the closing pass of "Tidy now"
+ * finds the memories a deferred merge left unswept by their missing key.
+ */
+export function fingerprintOf(ctx: Context, n: number): string | null {
   const row = one<{
     summary: string
     type: string
@@ -13,16 +29,13 @@ export function writeFingerprint(ctx: Context, n: number): string | null {
     valid_to: number | null
     state: string
   }>(ctx, 'SELECT summary,type,scope,branch,valid_from,valid_to,state FROM memories WHERE n=?', n)
-  if (!row || row.state !== 'active') {
-    run(ctx, 'DELETE FROM tidy_memory_keys WHERE memory=?', n)
-    return null
-  }
+  if (!row || row.state !== 'active') return null
   const entities = all<{ entity: number }>(
     ctx,
     'SELECT entity FROM mentions WHERE memory=? ORDER BY entity',
     n,
   ).map((r) => r.entity)
-  const fingerprint = createHash('sha256')
+  return createHash('sha256')
     .update(
       JSON.stringify([
         fold(row.summary),
@@ -35,13 +48,6 @@ export function writeFingerprint(ctx: Context, n: number): string | null {
       ]),
     )
     .digest('hex')
-  run(
-    ctx,
-    'INSERT INTO tidy_memory_keys VALUES (?,?) ON CONFLICT(memory) DO UPDATE SET fingerprint=excluded.fingerprint',
-    n,
-    fingerprint,
-  )
-  return fingerprint
 }
 export function fingerprintMemories(ctx: Context, memories: number[]): void {
   for (const n of memories) writeFingerprint(ctx, n)

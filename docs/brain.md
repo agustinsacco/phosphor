@@ -417,7 +417,11 @@ changed mention sets. Inside the change, this maintenance sweeps at most 128 tou
 (lowest row numbers first). The rest lose their fingerprints and wait in memory; after the change
 returns, the runtime sweeps them 128 at a time, yielding between batches, refreshing search and
 notifying after each, and stopping on dispose or reset. If Phosphor closes first, the missing
-fingerprints bring those memories into the next **Tidy now** pass. A sweep failure emits a
+fingerprints bring those memories into **Tidy now**: when a whole-Brain pass reaches its last
+memory, it reads the memory table in windows of 4,096 rows from a second cursor and sweeps the
+active memories that have no fingerprint, 128 per call. The pass is done only when that closing
+walk finds none left, so a memory deferred behind the cursor is covered in the same pass. Only a
+sweep writes a memory's fingerprint. A sweep failure emits a
 warning and does not roll back or report the saved approval/change as failed; running Tidy
 again retries local detection. Each whole-Brain
 sweep call walks at most 128 entity or memory rows from a saved numeric cursor and fixed pass
