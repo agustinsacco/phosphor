@@ -34,7 +34,7 @@ export interface BrainInvokeMap {
     args: [kind: BrainTidyKind | null, cursor: string | null, limit: number]
     result: BrainTidyPage
   }
-  'brain:tidySuggestion': { args: [id: string]; result: BrainTidySuggestionDetail }
+  'brain:tidySuggestion': { args: [id: string]; result: BrainTidySuggestionDetail | null }
   'brain:tidyRun': { args: []; result: BrainStatus }
   'brain:tidyCancel': { args: []; result: BrainStatus }
   'brain:tidyApply': {
