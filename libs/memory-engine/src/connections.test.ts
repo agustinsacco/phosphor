@@ -59,3 +59,46 @@ it('gives the Tidy entity card distinct neighbours', () => {
   const card = pair!.subjects[0]
   expect(card.type === 'entity' && card.neighbours).toEqual([{ name: 'Harbor', link: 'Owns' }])
 })
+
+it('pages distinct neighbours with a stable cursor when their support interleaves', () => {
+  const { store } = fixture()
+  const data = extraction('pages')
+  const refs = Array.from({ length: 46 }, (_, i) => `Kestrel-${i}`)
+  const link = (ref: string, round: number) => ({
+    ...data.memories[0]!,
+    entities: [refs[0]!, ref],
+    summary: `Kestrel part ${ref} round ${round}.`,
+    links: [
+      {
+        subject: refs[0]!,
+        predicate: 'part_of' as const,
+        object: ref,
+        citation: data.memories[0]!.citations[0]!,
+      },
+    ],
+  })
+  // Every neighbour is stated in both rounds, so its older link sits a whole page away.
+  const memories = [1, 2].flatMap((round) => refs.slice(1).map((ref) => link(ref, round)))
+  approve(store, {
+    entities: refs.map((ref) => ({
+      ...extraction('x').entities[0]!,
+      ref,
+      label: ref,
+      aliases: [],
+    })),
+    entityVectors: refs.map(() => extraction('x').entityVectors[0]!),
+    memories,
+    memoryVectors: memories.map(() => extraction('x').memoryVectors[0]!),
+  })
+  const center = store.overview(300).nodes.find((node) => node.label === refs[0])!
+  expect(store.entity(center.id).groups[0]).toMatchObject({ total: 45 })
+  const first = store.connections(center.id, 'part_of', 'out', null)
+  const second = store.connections(center.id, 'part_of', 'out', first.next)
+  expect(first.items).toHaveLength(40)
+  expect(second.items).toHaveLength(5)
+  expect(second.next).toBeNull()
+  const seen = [...first.items, ...second.items]
+  expect(new Set(seen.map((item) => item.entity.id)).size).toBe(45)
+  expect(seen.every((item) => item.supports === 2)).toBe(true)
+  expect(store.entity(center.id).entity.connections).toBe(45)
+})

@@ -130,11 +130,15 @@ export function cleanOrphans(
       n,
     )
 }
+/** A connection is a distinct neighbour through one predicate in one direction. */
 export function recountEntities(ctx: Context, touched: Set<number>): void {
   for (const n of touched) {
     run(
       ctx,
-      `UPDATE entities SET memories=(SELECT COUNT(*) FROM mentions WHERE entity=?), connections=(SELECT COUNT(*) FROM relations WHERE subject=? AND live=1)+(SELECT COUNT(*) FROM relations WHERE object=? AND live=1) WHERE n=?`,
+      `UPDATE entities SET memories=(SELECT COUNT(*) FROM mentions WHERE entity=?),
+        connections=(SELECT COUNT(*) FROM (SELECT DISTINCT object,predicate FROM relations WHERE subject=? AND live=1))
+          +(SELECT COUNT(*) FROM (SELECT DISTINCT subject,predicate FROM relations WHERE object=? AND live=1))
+        WHERE n=?`,
       n,
       n,
       n,

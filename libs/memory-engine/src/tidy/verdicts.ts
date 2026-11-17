@@ -26,7 +26,8 @@ function card(ctx: Context, type: 'entity' | 'memory', id: string): BrainTidyCar
     ).map((r) => r.name.slice(0, 160))
     const links = all<{ n: number; predicate: BrainPredicate; direction: 'out' | 'in' }>(
       ctx,
-      `SELECT object AS n,predicate,'out' AS direction FROM relations WHERE subject=? AND live=1 UNION ALL SELECT subject AS n,predicate,'in' AS direction FROM relations WHERE object=? AND live=1 LIMIT 5`,
+      // Distinct neighbours from a bounded window of each side, so a hub never reads every link.
+      `SELECT * FROM (SELECT object AS n,predicate,'out' AS direction FROM relations WHERE subject=? AND live=1 LIMIT 64) UNION SELECT * FROM (SELECT subject AS n,predicate,'in' AS direction FROM relations WHERE object=? AND live=1 LIMIT 64) LIMIT 5`,
       row.n,
       row.n,
     )

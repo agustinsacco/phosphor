@@ -31,6 +31,24 @@ function decode(value: string | null): number[] | null {
   }
   throw new Error('Brain page cursor is invalid.')
 }
+type Side = 'subject' | 'object'
+const sideIndex = (side: Side) => (side === 'subject' ? 'relations_out' : 'relations_in')
+/**
+ * A subquery about one (entity, neighbour) pair, run through the index of whichever side has
+ * fewer connections. Binds the entity's own connection count once.
+ */
+function pairProbe(own: Side, other: Side, query: (from: string, pair: string) => string): string {
+  const pair = `x.${other}=r.${other} AND x.live=1 AND x.predicate=r.predicate AND x.${own}=r.${own}`
+  const through = (side: Side) => query(`relations x INDEXED BY ${sideIndex(side)}`, pair)
+  return `CASE WHEN e.connections<=? THEN (${through(other)}) ELSE (${through(own)}) END`
+}
+/**
+ * One row per neighbour through this predicate and direction. The walk follows the entity's own
+ * index newest first and keeps a link only when no newer live link joins the same pair, so a
+ * page reads about `limit` rows per supporting memory and the cursor stays stateless. The newer
+ * link check and the support count use the smaller side's index, so a page of a hub, or a page
+ * that links into a hub, never reads the hub's whole range.
+ */
 function connectionPage(
   ctx: Context,
   id: string,
@@ -39,10 +57,26 @@ function connectionPage(
   after: string | null,
   limit: number,
 ): BrainConnectionPage {
-  const n = entityNumber(ctx, id)
   const own = direction === 'out' ? 'subject' : 'object'
   const other = direction === 'out' ? 'object' : 'subject'
+  const self = one<{ n: number; connections: number }>(
+    ctx,
+    'SELECT n,connections FROM entities WHERE id=?',
+    id,
+  )
+  if (!self) throw new Error('Brain entity not found.')
   const key = decode(after)
+  const newer = pairProbe(
+    own,
+    other,
+    (from, pair) =>
+      `SELECT 1 FROM ${from} WHERE ${pair} AND x.observed_at>=r.observed_at AND (x.observed_at>r.observed_at OR x.n>r.n)`,
+  )
+  const supports = pairProbe(
+    own,
+    other,
+    (from, pair) => `SELECT COUNT(*) FROM ${from} WHERE ${pair}`,
+  )
   const rows = all<{
     n: number
     observed_at: number
@@ -50,12 +84,22 @@ function connectionPage(
     memoryId: string
     subjectId: string
     objectId: string
+    supports: number
   }>(
     ctx,
-    `SELECT r.n,r.observed_at,e.id AS neighbour,m.id AS memoryId,s.id AS subjectId,o.id AS objectId FROM relations r JOIN entities e ON e.n=r.${other} JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory WHERE r.${own}=? AND r.live=1 AND r.predicate=? ${key ? 'AND (r.observed_at,r.n)<(?,?)' : ''} ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
-    n,
+    `SELECT r.n,r.observed_at,e.id AS neighbour,m.id AS memoryId,s.id AS subjectId,o.id AS objectId,
+      ${supports} AS supports
+      FROM relations r INDEXED BY ${sideIndex(own)}
+      JOIN entities e ON e.n=r.${other} JOIN entities s ON s.n=r.subject
+      JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory
+      WHERE r.${own}=? AND r.live=1 AND r.predicate=? ${key ? 'AND (r.observed_at,r.n)<(?,?)' : ''}
+      AND ${newer} IS NULL
+      ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
+    self.connections,
+    self.n,
     predicate,
     ...(key ?? []),
+    self.connections,
     limit + 1,
   )
   const selected = rows.slice(0, limit)
@@ -68,7 +112,7 @@ function connectionPage(
       predicate,
       memoryId: row.memoryId,
     },
-    supports: 1,
+    supports: row.supports,
   }))
   const last = selected.at(-1)
   return { items, next: rows.length > limit && last ? cursor([last.observed_at, last.n]) : null }
@@ -87,9 +131,10 @@ export function entity(ctx: Context, id: string): BrainEntityView {
   const groups = BRAIN_PREDICATES.flatMap((predicate) =>
     (['out', 'in'] as const).flatMap((direction) => {
       const column = direction === 'out' ? 'subject' : 'object'
+      const other = direction === 'out' ? 'object' : 'subject'
       const total = one<{ total: number }>(
         ctx,
-        `SELECT COUNT(*) AS total FROM relations WHERE ${column}=? AND live=1 AND predicate=?`,
+        `SELECT COUNT(DISTINCT ${other}) AS total FROM relations WHERE ${column}=? AND live=1 AND predicate=?`,
         n,
         predicate,
       )!.total
