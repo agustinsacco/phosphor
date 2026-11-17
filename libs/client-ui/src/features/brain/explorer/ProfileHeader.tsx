@@ -4,6 +4,7 @@ import { showMenuBelow, type ContextMenuItem } from '@/components/ContextMenu'
 import { TooltipButton } from '@/components/Tooltip'
 import { UnderlinedTabs } from '@/components/UnderlinedTabs'
 import { formatCount } from '@/lib/format'
+import { relativeTime } from '@/lib/time'
 import { ENTITY_WORDS } from '../memoryLabels'
 import type { BrainTrail as Trail } from './trail'
 
@@ -11,12 +12,16 @@ export type ProfileTab = 'memories' | 'connections' | 'lanes' | 'map'
 export type ProfileTool = 'route' | 'merge'
 
 /** "13 memories · 10 links · from 3 lanes". */
+/** "13 memories · 10 links · from 3 lanes · last learned 2 days ago". */
 export function profileLine(view: BrainEntityView): string {
   return [
     formatCount(view.entity.memories, 'memory', 'memories'),
     formatCount(view.entity.connections, 'link'),
     `from ${formatCount(view.sources.length, 'lane')}`,
-  ].join(' · ')
+    view.lastLearnedAt !== null && `last learned ${relativeTime(view.lastLearnedAt)}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 /** Back, forward and the last three steps; `[` and `]` do the same (see BrainKnowledge). */
@@ -85,7 +90,6 @@ export function ProfileTrail({
 export function ProfileHeader({
   trail,
   view,
-  lastLearned,
   tab,
   tabs,
   onTab,
@@ -97,8 +101,6 @@ export function ProfileHeader({
   /** Back, forward and the last steps, drawn above the name. */
   trail: React.ReactNode
   view: BrainEntityView
-  /** "last learned 2 days ago", once Brain reports it. */
-  lastLearned: string
   tab: ProfileTab
   tabs: readonly { value: ProfileTab; label: React.ReactNode }[]
   onTab: (tab: ProfileTab) => void
@@ -143,10 +145,7 @@ export function ProfileHeader({
           </TooltipButton>
         </span>
       </div>
-      <p className="text-text-tertiary text-sm">
-        {profileLine(view)}
-        {lastLearned && ` · ${lastLearned}`}
-      </p>
+      <p className="text-text-tertiary text-sm">{profileLine(view)}</p>
       <div className="-mx-4">
         <UnderlinedTabs
           id="brain-profile"

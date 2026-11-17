@@ -231,7 +231,7 @@ it('shows a profile header with counts, every other name once, and tabs with cou
   await visit('entity', 'ledger', 'Harbor Ledger')
   const profile = section('Harbor Ledger')
   expect(profile.querySelector('h2 + span')?.textContent).toBe('project')
-  expect(profile.textContent).toMatch(/\d+ memories · \d+ links · from 1 lane/)
+  expect(profile.textContent).toMatch(/\d+ memories · \d+ links · from 1 lane · last learned /)
   expect(profile.textContent).toContain('Billing project for Harbor')
   expect(profile.textContent).toContain('Also called')
   expect(profile.textContent!.match(/Ledger(?!\w)/g)!.length).toBeGreaterThan(0)
@@ -288,6 +288,16 @@ it('pages memories and recovers a failed page', async () => {
 })
 
 it('lists one row per connection label, walks on click and pages with Retry', async () => {
+  // A second memory says the same thing: the neighbour shows two supporting memories.
+  const first = explorer.details[0]!
+  explorer.details.push({
+    ...first,
+    memory: {
+      ...first.memory,
+      id: 'memory-again',
+      links: [{ ...first.memory.links[0]!, id: 'link-again', memoryId: 'memory-again' }],
+    },
+  })
   await render()
   await visit('entity', 'harbor', 'Harbor')
   await act(async () => tab('Connections').click())
@@ -300,7 +310,7 @@ it('lists one row per connection label, walks on click and pages with Retry', as
   expect(table.textContent).toContain('Connections failed')
   await click('Retry', table)
   expect(table.textContent).not.toContain('Connections failed')
-  await click('Harbor Ledger3 memories', table)
+  await click('Harbor Ledger2 memories', table)
   expect(state.visit).toMatchObject({ id: 'ledger' })
 })
 
@@ -308,7 +318,7 @@ it('lists the lanes a profile came from and filters its memories by one', async 
   await render()
   await visit('entity', 'harbor', 'Harbor')
   await act(async () => tab('Lanes').click())
-  expect(section('Lanes').textContent).toContain('Harbor planning')
+  expect(section('Lanes').querySelector('th')?.textContent).toBe('Harbor planning26 memories')
   await click('Its memories', section('Lanes'))
   expect(tab('Memories').getAttribute('aria-selected')).toBe('true')
   expect(memories.mock.lastCall?.[1].sessionId).toBe('harbor-lane')

@@ -107,7 +107,7 @@ function Neighbour({
       <KindDot kind={entity.kind} />
       <span className="min-w-0">{entity.label}</span>
       <span className="text-text-tertiary shrink-0">
-        {formatCount(entity.memories, 'memory', 'memories')}
+        {formatCount(item.supports, 'memory', 'memories')}
       </span>
     </TooltipButton>
   )

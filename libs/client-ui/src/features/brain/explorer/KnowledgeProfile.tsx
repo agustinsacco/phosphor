@@ -89,7 +89,6 @@ function Profile({
       <ProfileHeader
         trail={trail}
         view={view}
-        lastLearned=""
         tab={shown}
         tabs={profileTabs(view, !!map)}
         onTab={setTab}

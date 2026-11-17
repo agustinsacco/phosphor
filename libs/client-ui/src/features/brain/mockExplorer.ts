@@ -1,4 +1,5 @@
 import type {
+  BrainLink,
   BrainConnectionGroup,
   BrainEntity,
   BrainEntityKind,
@@ -134,20 +135,26 @@ export class MockExplorer {
     cursor: string | null,
   ) {
     const offset = Number(cursor ?? 0)
-    const items = this.details
-      .filter(({ memory }) => memory.state !== 'superseded')
-      .flatMap(({ memory }) => memory.links)
-      .filter(
-        (link) =>
-          link.predicate === predicate &&
-          (direction === 'out' ? link.subjectId : link.objectId) === id,
-      )
-      .flatMap((link) => {
-        const entity = this.entities.find(
-          (e) => e.id === (direction === 'out' ? link.objectId : link.subjectId),
-        )
-        return entity ? [{ entity: this.summary(entity), link, supports: 1 }] : []
-      })
+    // One row per neighbour: its newest link, and how many current memories state one.
+    const byNeighbour = new Map<string, { link: BrainLink; supports: number; at: number }>()
+    for (const { memory } of this.details) {
+      if (memory.state === 'superseded') continue
+      for (const link of memory.links) {
+        if (link.predicate !== predicate) continue
+        if ((direction === 'out' ? link.subjectId : link.objectId) !== id) continue
+        const other = direction === 'out' ? link.objectId : link.subjectId
+        const seen = byNeighbour.get(other)
+        byNeighbour.set(other, {
+          link: !seen || memory.observedAt > seen.at ? link : seen.link,
+          supports: (seen?.supports ?? 0) + 1,
+          at: Math.max(seen?.at ?? 0, memory.observedAt),
+        })
+      }
+    }
+    const items = [...byNeighbour].flatMap(([other, { link, supports }]) => {
+      const entity = this.entities.find((e) => e.id === other)
+      return entity ? [{ entity: this.summary(entity), link, supports }] : []
+    })
     return {
       items: items.slice(offset, offset + PAGE),
       next: offset + PAGE < items.length ? String(offset + PAGE) : null,
