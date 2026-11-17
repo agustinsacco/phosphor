@@ -1,3 +1,4 @@
+import { inheritFoldReferences } from './fold-ancestry'
 import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
@@ -73,6 +74,7 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
   saveDelta(ctx, id, before, after)
   for (const m of memories)
     run(ctx, 'INSERT INTO tidy_operation_memories VALUES (?,?,?)', id, m.id, m.n)
+  if (input.kind === 'fold') inheritFoldReferences(ctx, input.subjects.first, input.subjects.second)
   run(
     ctx,
     'DELETE FROM tidy_operations WHERE id IN (SELECT id FROM tidy_operations ORDER BY created_at DESC,id DESC LIMIT -1 OFFSET 200)',

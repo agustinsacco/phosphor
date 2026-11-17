@@ -21,7 +21,15 @@ export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
     ),
   ].filter(Boolean)
   for (const op of ops) {
-    if (op.kind !== 'merge') {
+    if (
+      op.kind !== 'merge' ||
+      one(
+        ctx,
+        `SELECT 1 FROM tidy_operation_memories r WHERE r.operation_id=?
+          AND NOT EXISTS(SELECT 1 FROM memories m WHERE m.id=r.memory_id)`,
+        op.id,
+      )
+    ) {
       eraseBeforeImages(ctx, op.id)
       continue
     }

@@ -1,3 +1,4 @@
+import { settleFoldSuggestions } from './fold-ancestry'
 import { clearSubject } from './suggestions'
 import { all, transaction, type Context } from '../database'
 import { entityNumber } from '../entities'
@@ -92,7 +93,10 @@ export function changeMemories(
         ? foldMemories(ctx, source, target)
         : conflictMemories(ctx, source, target, kind === 'replace'),
   )
-  if (kind === 'fold') clearSubject(ctx, 'memory', sourceId)
+  if (kind === 'fold') {
+    settleFoldSuggestions(ctx, sourceId, targetId)
+    clearSubject(ctx, 'memory', sourceId)
+  }
   fingerprintMemories(ctx, selection.memories)
   bumpRevision(ctx)
   return id
