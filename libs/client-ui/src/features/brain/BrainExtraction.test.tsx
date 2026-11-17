@@ -9,7 +9,7 @@ import {
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { BrainExtraction } from './BrainExtraction'
 import { mockBrainJob } from './mockBrainData'
-import { jobLine } from './BrainInbox'
+import { jobLine } from './jobProgress'
 import { mockExtractionView } from './mockExtractionView'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -181,6 +181,26 @@ it('caps raw output, prompts and source text with their own scroll containers', 
     expect(container.querySelectorAll('pre')).toHaveLength(3)
     for (const pre of container.querySelectorAll('pre'))
       expect(pre.closest('.max-h-96.overflow-auto')).not.toBeNull()
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
+})
+
+it('says how long a long read took in words, never as minutes and seconds', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const data = mockExtractionView()
+  data.startedAt = 0
+  data.finishedAt = (241 * 60 + 11) * 1000
+  const fake = createFakePhosphor({ 'brain:extraction': async () => data })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    expect(container.textContent).toContain('took 4 h 1 min')
+    expect(container.textContent).not.toContain('241:11')
   } finally {
     act(() => root.unmount())
     restore()

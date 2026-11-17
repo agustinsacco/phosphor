@@ -1,8 +1,0 @@
-/* Fieldsets default to min-content; one native option must not widen the pane. */
-.brain-lane-detail fieldset {
-  min-inline-size: 0;
-}
-.brain-lane-detail pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
