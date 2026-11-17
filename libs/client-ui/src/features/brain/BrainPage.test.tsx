@@ -2,102 +2,69 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type {
-  BrainStatus,
-  BrainProposalView,
-  BrainReviewDecision,
-  BrainHistory,
-  BrainExtractionView,
-} from '@shared/brain'
+import type { BrainStatus } from '@shared/brain'
+import type { IpcInvokeChannel } from '@shared/ipc'
 import {
   createFakePhosphor,
   installFakePhosphor,
+  type FakePhosphorHandlers,
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { PromptHost } from '@/components/PromptHost'
 import { BrainPage } from './BrainPage'
-import { mockBrainJob, mockBrainProposal, mockBrainStatus } from './mockBrainData'
-import { MockExplorer } from './mockExplorer'
+import { openBrain, openTidy, useBrainNavigation } from './brainNavigation'
+import { createMockBrain } from './mockBrain'
+import { mockBrainJob } from './mockBrainData'
 import { useBrain } from './useBrain'
-import { mockExtractionView } from './mockExtractionView'
 
-let root: Root
-let container: HTMLDivElement
-let status: BrainStatus
-let proposal: BrainProposalView
-let explorer: MockExplorer
-let fake: ReturnType<typeof createFakePhosphor>
-let restore: () => void
-const review =
-  vi.fn<
-    (id: string, decision: BrainReviewDecision | null, revision: number) => Promise<BrainStatus>
-  >()
-const history = vi.fn<() => Promise<BrainHistory>>()
-const extraction = vi.fn<(id: string) => Promise<BrainExtractionView>>()
-const reread = vi.fn<() => Promise<BrainStatus>>()
-const proposalRead = vi.fn<() => Promise<BrainProposalView>>()
-const find = vi.fn<MockExplorer['find']>()
-const entity = vi.fn<MockExplorer['entity']>()
-const overview = vi.fn<MockExplorer['graph']>()
-const neighbourhood = vi.fn<MockExplorer['graph']>()
-beforeEach(() => {
-  vi.useFakeTimers()
+let root: Root, container: HTMLDivElement
+let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
+let mock: ReturnType<typeof createMockBrain>
+let patchStatus: ((status: BrainStatus) => BrainStatus) | null
+const CHANNELS: IpcInvokeChannel[] = [
+  'brain:status',
+  'brain:setPrefs',
+  'brain:history',
+  'brain:entities',
+  'brain:recent',
+  'brain:overview',
+  'brain:entity',
+  'brain:neighbourhood',
+  'brain:entityMemories',
+  'brain:connections',
+  'brain:memory',
+  'brain:find',
+  'brain:tidy',
+  'brain:tidySuggestion',
+  'brain:tidyChanges',
+  'brain:tidyApply',
+  'brain:tidyCancel',
+  'brain:proposal',
+  'brain:review',
+  'brain:extraction',
+]
+beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
-  status = {
-    ...mockBrainStatus(),
-    prefs: { enabled: true, recall: true, review: true, model: null },
-  }
-  proposal = mockBrainProposal()
-  history.mockReset().mockResolvedValue({ items: [], more: false })
-  reread.mockReset().mockImplementation(async () => status)
-  explorer = new MockExplorer()
-  extraction.mockReset().mockResolvedValue({
-    ...mockExtractionView(),
-    job: mockBrainJob({ state: 'done' }),
-    laneMemories: 3,
-    replaceable: 2,
-  })
-  proposalRead.mockReset().mockImplementation(async () => proposal)
-  review.mockReset().mockImplementation(async () => {
-    status = { ...status, jobs: [], revision: status.revision + 1 }
-    return status
-  })
-  find.mockReset().mockImplementation((q, n) => explorer.find(q, n))
-  entity.mockReset().mockImplementation((id) => explorer.entity(id))
-  overview.mockReset().mockImplementation(() => explorer.graph(null))
-  neighbourhood.mockReset().mockImplementation((id, hops) => explorer.graph(id, hops))
-  fake = createFakePhosphor({
-    'brain:status': () => status,
-    'brain:history': history,
-    'brain:extraction': extraction,
-    'brain:reread': reread,
-    'brain:entities': (kind, offset, limit) => explorer.browse(kind, offset, limit),
-    'brain:recent': (limit) => explorer.recent(limit),
-    'brain:overview': () => overview(null),
-    'brain:neighbourhood': (id, hops) => neighbourhood(id, hops),
-    'brain:find': find,
-    'brain:entity': entity,
-    'brain:connections': (id, predicate, direction, cursor) =>
-      explorer.connections(id, predicate, direction, cursor),
-    'brain:entityMemories': (id, filter, cursor) => explorer.memories(id, filter, cursor),
-    'brain:memory': (id) => explorer.memory(id),
-    'brain:merge': (source, target) => {
-      explorer.merge(source, target)
-      return { ...status, revision: ++status.revision, operationId: null }
-    },
-    'brain:retry': () => status,
-    'brain:path': (from, to) => explorer.path(from, to),
-    'brain:proposal': proposalRead,
-    'brain:review': review,
-    'brain:forget': (id) => {
-      explorer.details = explorer.details.filter((d) => d.memory.id !== id)
-      return { ...status, revision: ++status.revision }
-    },
-  })
+  mock = createMockBrain(() => 10000)
+  patchStatus = null
+  await mock('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
+  const handlers = Object.fromEntries(
+    CHANNELS.map((channel) => [
+      channel,
+      async (...args: unknown[]) => {
+        const result = await mock(channel, args)
+        return channel === 'brain:status' && patchStatus
+          ? patchStatus(result as BrainStatus)
+          : result
+      },
+    ]),
+  ) as FakePhosphorHandlers
+  fake = createFakePhosphor(handlers)
   restore = installFakePhosphor(fake)
   useBrain.setState({ status: null, saving: false, error: '' })
+  useBrainNavigation.setState({ request: 0, target: null, tab: null })
   useSettingsUiStore.setState({ open: false })
   container = document.createElement('div')
   document.body.append(container)
@@ -108,11 +75,10 @@ afterEach(() => {
   container.remove()
   restore()
   fake.dispose()
-  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
-const render = async (): Promise<void> => {
+async function render(): Promise<void> {
   await act(async () =>
     root.render(
       <>
@@ -122,36 +88,77 @@ const render = async (): Promise<void> => {
     ),
   )
 }
-async function click(text: string): Promise<void> {
-  const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+const tab = (id: string) => container.querySelector<HTMLButtonElement>(`#brain-tab-${id}`)!
+const selectedTab = () => container.querySelector('[role="tab"][aria-selected="true"]')?.id
+const section = (name: string): HTMLElement => container.querySelector(`[aria-label="${name}"]`)!
+function button(text: string, scope: ParentNode = container): HTMLButtonElement | undefined {
+  return [...scope.querySelectorAll<HTMLButtonElement>('button')].find(
     (b) => b.textContent === text || b.getAttribute('aria-label') === text,
   )
-  expect(button, text).toBeDefined()
-  await act(async () => button!.click())
 }
-async function search(
-  value: string,
-  selector = '[aria-label="Find a person, project or memory"]',
-): Promise<void> {
-  const input = container.querySelector<HTMLInputElement>(selector)!
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-  })
-  await act(async () => vi.advanceTimersByTimeAsync(200))
+async function click(text: string, scope: ParentNode = container): Promise<void> {
+  const target = button(text, scope)
+  expect(target, text).toBeDefined()
+  await act(async () => target!.click())
 }
-async function chooseHarbor(): Promise<void> {
-  await search('Harbor')
-  const option = container.querySelector<HTMLButtonElement>('[role="option"]')!
-  await act(async () => option.click())
-}
+const press = (key: string, target: Element, init: KeyboardEventInit = {}) =>
+  act(async () =>
+    target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...init })),
+  )
+const search = () => container.querySelector<HTMLInputElement>('[role="combobox"]')
 
-it('loads a bounded overview, opens settings and refuses Brain on browser platforms', async () => {
+it('opens on the Inbox with its count, and shows the Brain totals in the title', async () => {
   await render()
-  expect(overview).toHaveBeenCalledOnce()
+  expect(selectedTab()).toBe('brain-tab-inbox')
+  const status = useBrain.getState().status!
+  expect(tab('inbox').textContent).toBe(`Inbox ${1 + status.tidy.open}`)
+  expect(container.textContent).toMatch(/\d+ memories · \d+ people and things/)
+  expect(container.querySelector('#brain-tab-tidy')).toBeNull()
+})
+
+it('opens on Knowledge with nothing to decide, and on Lanes before anything is known', async () => {
+  patchStatus = (status) => ({ ...status, jobs: [], tidy: { ...status.tidy, open: 0 } })
+  await render()
+  expect(selectedTab()).toBe('brain-tab-knowledge')
+  act(() => root.unmount())
+  root = createRoot(container)
+  patchStatus = (status) => ({
+    ...status,
+    jobs: [mockBrainJob({ state: 'queued' })],
+    tidy: { ...status.tidy, open: 0 },
+    counts: { memories: 0, entities: 0 },
+  })
+  useBrain.setState({ status: null })
+  await render()
+  expect(selectedTab()).toBe('brain-tab-lanes')
+})
+
+it('focuses Knowledge search with / from anywhere on the page, but not from a field', async () => {
+  await render()
+  await press('/', section('Decisions'))
+  expect(selectedTab()).toBe('brain-tab-knowledge')
+  expect(document.activeElement).toBe(search())
+  await press('/', search()!)
+  expect(search()!.value).toBe('')
+  await act(async () => tab('inbox').click())
+  await press('k', section('Decisions'), { metaKey: true })
+  expect(selectedTab()).toBe('brain-tab-inbox')
+})
+
+it('goes to Knowledge search from the header button', async () => {
+  await render()
+  const go = [...container.querySelectorAll('button')].find((b) =>
+    b.textContent?.includes('Go to anyone or anything'),
+  )!
+  await act(async () => go.click())
+  expect(selectedTab()).toBe('brain-tab-knowledge')
+  expect(document.activeElement).toBe(search())
+})
+
+it('opens Brain settings and refuses Brain on a platform without it', async () => {
+  await render()
   await click('Settings')
   expect(useSettingsUiStore.getState().open).toBe(true)
-  const calls = overview.mock.calls.length
   await act(async () =>
     root.render(
       <PlatformProvider value={WIDE_BROWSER_PLATFORM}>
@@ -160,599 +167,86 @@ it('loads a bounded overview, opens settings and refuses Brain on browser platfo
     ),
   )
   expect(container.textContent).toContain('Brain is available on Desktop')
-  expect(overview).toHaveBeenCalledTimes(calls)
+  expect(container.querySelector('[role="tab"]')).toBeNull()
 })
-it('debounces find, chooses with keyboard, traverses connections and supports back/forward', async () => {
+
+it('shows a thin status line only while Brain reads or checks, with a way to Lanes', async () => {
+  patchStatus = (status) => ({
+    ...status,
+    jobs: [
+      mockBrainJob({
+        id: 'reading',
+        title: 'Northwind contract',
+        state: 'running',
+        progress: { stage: 'reconcile', done: 1, total: 1 },
+      }),
+      mockBrainJob({ id: 'next', state: 'queued' }),
+    ],
+  })
   await render()
-  await search('Harbor')
-  expect(find).toHaveBeenCalledWith('Harbor', 12)
-  const input = container.querySelector<HTMLInputElement>('[role="combobox"]')!
-  await act(async () =>
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  const strip = container.querySelector('[role="status"]')!
+  expect(strip.textContent).toContain(
+    'Reading Northwind contract · Compare with what Brain knows · 1 queued',
   )
-  expect(container.querySelector('[aria-label="Entity detail"]')?.textContent).toContain('Harbor')
-  expect(container.textContent).toContain('Contains · 24')
-  expectSelectedEntity('Harbor')
-  await click('Harbor Ledger')
-  expect(container.textContent).toContain('For customer · 1')
-  await act(async () =>
-    document.body.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true }),
-    ),
-  )
-  expectSelectedEntity('Harbor')
-  await click('Forward')
-  expectSelectedEntity('Harbor Ledger')
-  await click('Neighbours only')
-  await click('2 steps')
-  expect(neighbourhood).toHaveBeenLastCalledWith('ledger', 2)
+  await click('Lanes', strip)
+  expect(selectedTab()).toBe('brain-tab-lanes')
 })
-it('pages connections and memories and shows link support and state on memory detail', async () => {
+
+it('routes a notice to the Inbox, and an automatic change to Lanes › Recent changes', async () => {
+  await mock('brain:tidy', [null, null, 20])
+  await mock('brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0])
   await render()
-  await chooseHarbor()
-  const connections = container.querySelector('[aria-label="Connections"]')!
-  expect(connections.textContent).not.toContain('Harbor component 25')
-  await click('Show more')
-  expect(connections.textContent).toContain('Harbor component 25')
-  await click('Show more memories')
-  expect(container.querySelector('[aria-label="Entity memories"]')?.textContent).toContain(
-    'Harbor component 25 is part of Harbor.',
-  )
-  const memory = container.querySelector<HTMLButtonElement>(
-    '[aria-label="Entity memories"] .brain-row',
-  )!
+  await act(async () => openTidy(true))
+  expect(selectedTab()).toBe('brain-tab-lanes')
+  expect(section('Recent changes').querySelector('[aria-current="true"]')).not.toBeNull()
+  expect(section('Change detail').textContent).toContain('Combined names, links and memories.')
+  await act(async () => openTidy())
+  expect(selectedTab()).toBe('brain-tab-inbox')
+  await act(async () => openBrain({ tab: 'inbox', item: 'suggestion:tidy-2' }))
+  expect(section('Tidy suggestion')).not.toBeNull()
+})
+
+it('opens a profile from the Inbox and keeps the Inbox selection across tabs', async () => {
+  await render()
+  await press('j', section('Decisions'))
+  const chosen = section('Decisions').querySelector('[aria-current="true"]')!.textContent
+  await click('Open profile', section('What Brain knows'))
+  expect(selectedTab()).toBe('brain-tab-knowledge')
+  expect(section('Profile').querySelector('h2')).not.toBeNull()
+  await act(async () => tab('inbox').click())
+  expect(section('Decisions').querySelector('[aria-current="true"]')!.textContent).toBe(chosen)
+})
+
+it('approves a review, then finds its read in Lanes', async () => {
+  await render()
+  await press('a', section('Decisions'))
+  expect(section('Decisions').textContent).not.toContain('Harbor identity review')
+  await click('Lanes')
+  expect(section('Read').textContent).toContain('Harbor identity review')
+})
+
+it('walks from a Knowledge memory to the read that produced it, and back', async () => {
+  await render()
+  await press('a', section('Decisions'))
+  await act(async () => tab('knowledge').click())
+  const learned = section('Recently learned').querySelector<HTMLButtonElement>('button')!
+  await act(async () => learned.click())
+  await click('See the read', section('Profile'))
+  expect(selectedTab()).toBe('brain-tab-lanes')
+  expect(section('Read detail').querySelector('h2')?.textContent).toBe('Harbor identity review')
+  const memory = section('Read detail').querySelector<HTMLButtonElement>('details li button')!
   await act(async () => memory.click())
-  const detail = container.querySelector('[aria-label="Memory detail"]')!
-  expect(detail.textContent).toContain('active')
-  expect(detail.querySelector('[aria-label="Links"]')?.textContent).toContain(
-    'Harbor Ledger for customer Harbor',
-  )
-  expect(detail.querySelectorAll('blockquote').length).toBeGreaterThan(0)
-})
-it('recovers a failed entity read and reloads on reset generation', async () => {
-  entity.mockImplementationOnce(() => {
-    throw new Error('Harbor temporarily unavailable')
-  })
-  await render()
-  await chooseHarbor()
-  expect(container.textContent).toContain('Harbor temporarily unavailable')
-  await click('Retry')
-  expect(container.querySelector('[aria-label="Entity detail"]')).not.toBeNull()
-  await act(async () => useBrain.setState({ status: { ...status, generation: 'reset-1' } }))
-  expect(container.querySelector('[aria-label="Entity detail"]')).toBeNull()
-  expect(overview).toHaveBeenCalledTimes(2)
-})
-it('renders supported path chains and highlights a chosen route', async () => {
-  await render()
-  await chooseHarbor()
-  await click('Find route to…')
-  await search('Rina', '[aria-label="Find an entity"]')
-  const option = container.querySelector<HTMLButtonElement>(
-    '[aria-label="Choose entity"] [role="option"]',
-  )!
-  await act(async () => option.click())
-  const paths = container.querySelector('[aria-label="Supported paths"]')!
-  expect(paths.textContent).toContain('Rina Okafor owns Harbor Ledger migrations.')
-  await click('Highlight route 1')
-  expect(
-    [...paths.querySelectorAll('button')]
-      .find((b) => b.textContent === 'Highlight route 1')
-      ?.getAttribute('aria-pressed'),
-  ).toBe('true')
-})
-it('builds a v4 review with identity overrides, group yes and memory select none/all', async () => {
-  status.jobs = [mockBrainJob()]
-  await render()
-  expect(container.textContent).not.toContain('lane summary')
-  await click('All new')
-  await click('Select all groups')
-  await setMemories(false)
-  await setMemories(true)
-  const picker = container.querySelector<HTMLButtonElement>(
-    '[aria-label="Identity for Rina Okafor"] [role="radio"]',
-  )!
-  await act(async () => picker.click())
-  await click('Approve 2')
-  expect(review).toHaveBeenCalledWith(
-    'harbor-job',
-    {
-      memories: [0, 1],
-      identities: { harbor: 'new', ledger: 'new', rina: 'rina', tom: 'new' },
-      groups: [0],
-    },
-    0,
-  )
-})
-it('shows a stale review error, refreshes the proposal, and can approve again', async () => {
-  status.jobs = [mockBrainJob()]
-  review.mockImplementationOnce(async () => {
-    status = { ...status, jobs: [mockBrainJob({ state: 'running' })] }
-    throw new Error('Brain changed; refreshing this review')
-  })
-  await render()
-  await click('Approve 2')
-  expect(container.textContent).toContain('Brain changed; refreshing this review')
-  expect(container.querySelector('[aria-label="Review memories"]')).toBeNull()
-  status = { ...status, jobs: [mockBrainJob()] }
-  await act(async () => vi.advanceTimersByTimeAsync(2000))
-  expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
-  expect(container.textContent).not.toContain('Brain changed; refreshing this review')
-  await click('Approve 2')
-  expect(review).toHaveBeenCalledTimes(2)
-})
-it('recovers a failed first proposal load and rejects with null', async () => {
-  status.jobs = [mockBrainJob()]
-  proposalRead.mockRejectedValueOnce(new Error('Harbor proposal unavailable'))
-  await render()
-  expect(container.textContent).toContain('Harbor proposal unavailable')
-  await click('Retry')
-  await click('Reject all')
-  expect(review).toHaveBeenCalledWith('harbor-job', null, 0)
+  expect(selectedTab()).toBe('brain-tab-knowledge')
 })
 
-it('waits for a recomputed job to return to review before reloading its proposal', async () => {
-  status.jobs = [mockBrainJob()]
+it('reloads every tab after a reset', async () => {
   await render()
-  expect(proposalRead).toHaveBeenCalledOnce()
-  await act(async () =>
-    useBrain.setState({ status: { ...status, jobs: [mockBrainJob({ state: 'running' })] } }),
-  )
-  expect(container.textContent).toContain('Waiting for the job to return to review')
-  await act(async () => useBrain.setState({ status: { ...status, jobs: [mockBrainJob()] } }))
-  expect(proposalRead).toHaveBeenCalledTimes(2)
-  expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
-})
-
-it('pages review identities at twenty and applies select-all across pages', async () => {
-  status.jobs = [mockBrainJob()]
-  const base = proposal.identities[0]!
-  proposal.identities = Array.from({ length: 25 }, (_, i) => ({
-    ...base,
-    ref: `n${i}`,
-    label: `Harbor team ${i}`,
-    decision: 'reuse',
-    candidates: [...base.candidates, { ...base.candidates[0]!, id: 'other', label: 'Kestrel' }],
-  }))
-  await render()
-  const section = container.querySelector('[aria-label="Who/what is this?"]')!
-  expect(section.querySelectorAll('select')).toHaveLength(20)
-  await click('Next')
-  expect(section.querySelectorAll('select')).toHaveLength(5)
-  await click('All new')
-  await click('Approve 2')
-  expect(Object.keys(review.mock.calls[0]![1]!.identities)).toHaveLength(25)
-})
-
-it('filters disputed memories and retries failed jobs', async () => {
-  const retry = vi.spyOn(fake.api, 'invoke')
-  await render()
-  await chooseHarbor()
-  const select = container.querySelector<HTMLSelectElement>('[aria-label="Memory state"]')!
-  await act(async () => {
-    select.value = 'disputed'
-    select.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-  const memories = container.querySelector('[aria-label="Entity memories"]')!
-  expect(memories.textContent).toContain('Harbor component 1 is part of Harbor.')
-  expect(memories.textContent).not.toContain('Harbor Ledger is built for Harbor.')
-  await act(async () =>
-    useBrain.setState({ status: { ...status, jobs: [mockBrainJob({ state: 'failed' })] } }),
-  )
-  await lanesTab()
-  await click('Harbor planning')
-  await click('Retry')
-  expect(retry).toHaveBeenCalledWith('brain:retry', 'harbor-job')
-})
-
-it('requires explicit merge confirmation and hops to the target', async () => {
-  const { usePromptStore } = await import('@/stores/prompt')
-  await render()
-  await chooseHarbor()
-  await click('Merge into…')
-  await search('Rina', '[aria-label="Find an entity"]')
-  await act(async () =>
-    container
-      .querySelector<HTMLButtonElement>('[aria-label="Choose entity"] [role="option"]')!
-      .click(),
-  )
-  const request = usePromptStore.getState().requests[0]!
-  expect(request.title).toBe('Merge Harbor into Rina Okafor?')
-  expect(request.message).toContain('The source entity is deleted')
-  await act(async () => usePromptStore.getState().dismiss(request, 'MERGE'))
-  expect(container.querySelector('[aria-label="Entity detail"] h2')!.textContent).toBe(
-    'Rina Okafor',
-  )
-  expect(explorer.entities.some((entity) => entity.id === 'harbor')).toBe(false)
-})
-
-it('discards loaded connection pages when the entity revision changes', async () => {
-  await render()
-  await chooseHarbor()
-  await click('Show more')
-  expect(container.querySelector('[aria-label="Connections"]')!.textContent).toContain(
-    'Harbor component 25',
-  )
-  explorer.details = explorer.details.filter((d) => !d.memory.entityIds.includes('component-24'))
-  await act(async () => useBrain.setState({ status: { ...status, revision: 1 } }))
-  const connections = container.querySelector('[aria-label="Connections"]')!
-  expect(connections.textContent).not.toContain('Harbor component 25')
-  expect(connections.textContent).toContain('Contains · 23')
-})
-
-it('starts memory paging again after a revision instead of retaining deleted earlier pages', async () => {
-  await render()
-  await chooseHarbor()
-  await click('Show more memories')
-  explorer.details = explorer.details.filter((d) => d.memory.id !== 'memory-0')
-  await act(async () => useBrain.setState({ status: { ...status, revision: 1 } }))
-  const memories = container.querySelector('[aria-label="Entity memories"]')!
-  expect(memories.textContent).not.toContain('Harbor Ledger is built for Harbor.')
-  expect(memories.textContent).toContain('Harbor component 1 is part of Harbor.')
-  expect(memories.textContent).not.toContain('Harbor component 25 is part of Harbor.')
-})
-
-it('supports Alt+Right and empty-search Backspace without hijacking typing', async () => {
-  await render()
-  await chooseHarbor()
-  await click('Harbor Ledger')
-  const key = async (key: string, altKey = false, target: HTMLElement = document.body) => {
-    await act(async () =>
-      target.dispatchEvent(new KeyboardEvent('keydown', { key, altKey, bubbles: true })),
-    )
-  }
-  const input = container.querySelector<HTMLInputElement>('[role="combobox"]')!
-  await key('Backspace', false, input)
-  expectSelectedEntity('Harbor Ledger')
-  await key('ArrowLeft', true)
-  expectSelectedEntity('Harbor')
-  await key('ArrowRight', true)
-  expectSelectedEntity('Harbor Ledger')
-  await search('Tom')
-  await key('Backspace')
-  expectSelectedEntity('Harbor Ledger')
-  await key('Escape', false, input)
-  await key('Backspace')
-  expectSelectedEntity('Harbor')
-})
-
-it('includes superseded memories only on request and filters by the source lane', async () => {
-  explorer.details[0]!.memory.origin = { sessionId: 'ledger-lane', title: 'Ledger rollout' }
-  await render()
-  await chooseHarbor()
-  const memories = () => container.querySelector('[aria-label="Entity memories"]')!
-  expect(memories().textContent).not.toContain('Harbor component 2 is part of Harbor.')
-  await act(async () =>
-    memories().querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(),
-  )
-  expect(memories().textContent).toContain('Harbor component 2 is part of Harbor.')
-  const lane = container.querySelector<HTMLSelectElement>('[aria-label="Source lane"]')!
-  await act(async () => {
-    lane.value = 'ledger-lane'
-    lane.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-  expect(memories().textContent).toContain('Harbor Ledger is built for Harbor.')
-  expect(memories().textContent).not.toContain('Harbor component 1 is part of Harbor.')
-})
-
-it('shows held claims and pages groups and memories at twenty with bulk choices across pages', async () => {
-  status.jobs = [mockBrainJob()]
-  proposal.groups = Array.from({ length: 21 }, (_, index) => ({ ...proposal.groups[0]!, index }))
-  const base = proposal.memories[0]!
-  proposal.memories = Array.from({ length: 21 }, (_, index) => ({
-    ...base,
-    index,
-    summary: `Harbor decision ${index}`,
-  }))
-  await render()
-  expect(container.textContent).toContain('2 held back')
-  for (const label of ['Possible groups', 'Proposed memories']) {
-    const section = container.querySelector(`[aria-label="${label}"]`)!
-    expect(section.querySelectorAll('input[type="checkbox"]')).toHaveLength(
-      label === 'Proposed memories' ? 21 : 20,
-    )
-    const next = [...section.querySelectorAll('button')].find((b) => b.textContent === 'Next')!
-    await act(async () => next.click())
-    expect(section.querySelectorAll('input[type="checkbox"]')).toHaveLength(
-      label === 'Proposed memories' ? 2 : 1,
-    )
-  }
-  await click('Accept all')
-  await click('Select all groups')
-  await click('Select no groups')
-  await setMemories(false)
-  await setMemories(true)
-  await click('Approve 21')
-  expect(review.mock.calls[0]![1]).toEqual({
-    memories: Array.from({ length: 21 }, (_, i) => i),
-    identities: { harbor: 'harbor', ledger: 'ledger', rina: 'new', tom: 'tom' },
-    groups: [],
-  })
-})
-
-it('cancels a merge without changing entities or navigating', async () => {
-  const { usePromptStore } = await import('@/stores/prompt')
-  const invokes = vi.spyOn(fake.api, 'invoke')
-  await render()
-  await chooseHarbor()
-  await click('Merge into…')
-  await search('Rina', '[aria-label="Find an entity"]')
-  await act(async () =>
-    container
-      .querySelector<HTMLButtonElement>('[aria-label="Choose entity"] [role="option"]')!
-      .click(),
-  )
-  const request = usePromptStore.getState().requests[0]!
-  await act(async () => usePromptStore.getState().dismiss(request, undefined))
-  expect(invokes.mock.calls.some(([channel]) => channel === 'brain:merge')).toBe(false)
-  expect(container.querySelector('[aria-label="Entity detail"] h2')!.textContent).toBe('Harbor')
-})
-
-it('refreshes status after a stale proposal load and recovers automatically when recomputation finishes', async () => {
-  status.jobs = [mockBrainJob()]
-  proposalRead.mockImplementationOnce(async () => {
-    status = {
-      ...status,
-      jobs: [
-        mockBrainJob({
-          state: 'running',
-          progress: { stage: 'identity', done: 1, total: 2 },
-        }),
-      ],
-    }
-    throw new Error('Brain changed; refreshing this review')
-  })
-  await render()
-  expect(useBrain.getState().status?.jobs[0]?.state).toBe('running')
-  expect(container.textContent).toContain('Brain changed; refreshing this review')
-  expect(container.textContent).toContain('Match people and things · part 1 of 2')
-  expect(container.querySelector('[aria-label="Review memories"]')).toBeNull()
-  status = { ...status, jobs: [mockBrainJob()] }
-  await act(async () => vi.advanceTimersByTimeAsync(2000))
-  expect(proposalRead).toHaveBeenCalledTimes(2)
-  expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
-  expect(container.textContent).not.toContain('Brain changed; refreshing this review')
-})
-
-it('loads muted read-lane history, recovers its first failure, reloads with inbox and revision, and confirms reread', async () => {
-  const job = mockBrainJob({ state: 'done' })
-  history.mockRejectedValueOnce(new Error('History unavailable')).mockResolvedValue({
-    items: [{ job, memories: 3, replaceable: 2 }],
-    more: false,
-  })
-  await render()
-  await lanesTab()
-  expect(container.textContent).toContain('History unavailable')
-  await click('Retry')
-  const rows = container.querySelector('[aria-label="Read"]')!
-  expect(rows.textContent).toContain('Harbor planning')
-  expect(rows.textContent).toContain('harbor-model')
-  expect(rows.textContent).toContain('3 memories')
-  expect(rows.querySelector('button')?.className).toContain('text-text-tertiary')
-  await click('Harbor planning')
-  await click('Read again')
-  const dialog = document.querySelector('[role="dialog"]')!
-  expect(dialog.textContent).toContain('Read “Harbor planning” again?')
-  expect(dialog.textContent).toContain(
-    'The 2 memories from the earlier read stay until you approve',
-  )
-  expect(dialog.textContent).toContain('1 memories that another lane also supports are kept.')
-  const confirm = [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(
-    (b) => b.textContent === 'Read again',
-  )!
-  await act(async () => confirm.click())
-  expect(reread).toHaveBeenCalledWith(job.id)
-  await act(async () => useBrain.setState({ status: { ...status, revision: 2 } }))
-  expect(history).toHaveBeenCalledTimes(3)
+  const before = useBrain.getState().status!.generation
   await act(async () =>
     useBrain.setState({
-      status: {
-        ...status,
-        revision: 2,
-        jobs: [mockBrainJob({ state: 'queued', replaces: job.id })],
-      },
+      status: { ...useBrain.getState().status!, generation: `${before}-reset`, jobs: [] },
     }),
   )
-  expect(history).toHaveBeenCalledTimes(4)
-  expect(container.textContent).toContain('reading again')
-})
-it('shows the replacement count only on a reread review and permits approving no new memories', async () => {
-  status.jobs = [mockBrainJob({ replaces: 'earlier' })]
-  proposal.job = status.jobs[0]!
-  proposal.replacingMemories = 2
-  await render()
-  expect(container.textContent).toContain(
-    'Approving replaces the 2 memories from the earlier read of this lane.',
-  )
-  proposal.confirmations = []
-  await setMemories(false)
-  const button = [...container.querySelectorAll('button')].find(
-    (b) => b.textContent === 'Approve 0',
-  )!
-  expect(button.disabled).toBe(false)
-  await click('Approve 0')
-  expect(review.mock.calls[0]![1]?.memories).toEqual([])
-})
-
-async function lanesTab(): Promise<void> {
-  const tab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) =>
-    tab.textContent?.startsWith('Lanes'),
-  )!
-  await act(async () => tab.click())
-}
-async function setMemories(checked: boolean): Promise<void> {
-  const toggles = [
-    ...container.querySelectorAll<HTMLInputElement>(
-      '[aria-label="Proposed memories"] input[aria-label^="All "]',
-    ),
-  ]
-  for (const toggle of toggles)
-    if (toggle.checked !== checked) await act(async () => toggle.click())
-}
-
-it('defaults to Knowledge with memories, counts reviews live, and keeps trail and lane selection across keyboard tabs', async () => {
-  status.counts = { memories: 3, entities: 4 }
-  status.jobs = [
-    mockBrainJob(),
-    mockBrainJob({ id: 'kestrel', title: 'Kestrel planning', state: 'waiting' }),
-  ]
-  await render()
-  const knowledge = container.querySelector<HTMLButtonElement>('#brain-tab-knowledge')!
-  const lanes = container.querySelector<HTMLButtonElement>('#brain-tab-lanes')!
-  expect(knowledge.getAttribute('aria-selected')).toBe('true')
-  expect(lanes.textContent).toBe('Lanes 1')
-  expect(container.textContent).toContain('3 memories · 4 people and things')
-  await chooseHarbor()
-  await act(async () =>
-    knowledge.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })),
-  )
-  expect(document.activeElement).toBe(lanes)
-  expect(lanes.getAttribute('tabindex')).toBe('0')
-  await click('Kestrel planning')
-  await click('Knowledge')
-  expect(container.querySelector('[aria-label="Entity detail"] h2')?.textContent).toBe('Harbor')
-  await lanesTab()
-  expect(
-    container
-      .querySelector('[aria-label="Brain lanes"] [aria-current="true"]')
-      ?.getAttribute('aria-label'),
-  ).toBe('Kestrel planning')
-  await act(async () => useBrain.setState({ status: { ...status, jobs: [status.jobs[1]!] } }))
-  expect(lanes.textContent).toBe('Lanes ')
-})
-
-it('opens Lanes first without memories and follows approval into the same finished read', async () => {
-  status.jobs = [mockBrainJob()]
-  await render()
-  expect(container.querySelector('#brain-tab-lanes')?.getAttribute('aria-selected')).toBe('true')
-  history.mockResolvedValue({
-    items: [{ job: mockBrainJob({ state: 'done' }), memories: 2, replaceable: 2 }],
-    more: true,
-  })
-  await click('Approve 2')
-  expect(container.querySelector('[aria-label="Extraction detail"]')).not.toBeNull()
-  expect(
-    container
-      .querySelector('[aria-label="Brain lanes"] [aria-current="true"]')
-      ?.getAttribute('aria-label'),
-  ).toBe('Harbor planning')
-  expect(container.textContent).toContain('Showing the newest 200 reads.')
-})
-
-it('shows a memory source read outside recent history without inventing a list row', async () => {
-  explorer.details[0]!.memory.jobId = 'old-read'
-  await render()
-  await chooseHarbor()
-  const memory = container.querySelector<HTMLButtonElement>(
-    '[aria-label="Entity memories"] .brain-row',
-  )!
-  await act(async () => memory.click())
-  await click('See the read that produced this')
-  expect(container.querySelector('#brain-tab-lanes')?.getAttribute('aria-selected')).toBe('true')
-  expect(container.querySelector('[aria-label="Extraction detail"]')).not.toBeNull()
-  expect(container.querySelector('[aria-label="Brain lanes"] [aria-current]')).toBeNull()
-  const produced = container.querySelector<HTMLButtonElement>(
-    '[aria-label="Memories from this lane"] button',
-  )!
-  await act(async () => produced.click())
-  expect(container.querySelector('#brain-tab-knowledge')?.getAttribute('aria-selected')).toBe(
-    'true',
-  )
-  expect(container.querySelector('[aria-label="Memory detail"]')).not.toBeNull()
-})
-
-function expectSelectedEntity(label: string): void {
-  expect(container.querySelector('[aria-label="Entity detail"] h2')?.textContent).toBe(label)
-  expect(
-    container.querySelector(`[aria-label="Focus ${label}"]`)?.getAttribute('aria-pressed'),
-  ).toBe('true')
-}
-
-it('selects the source read row when it is in history and retains it after visiting its memory', async () => {
-  explorer.details[0]!.memory.jobId = 'harbor-job'
-  history.mockResolvedValue({
-    items: [{ job: mockBrainJob({ state: 'done' }), memories: 3, replaceable: 2 }],
-    more: false,
-  })
-  const invokes = vi.spyOn(fake.api, 'invoke')
-  await render()
-  await chooseHarbor()
-  await act(async () =>
-    container
-      .querySelector<HTMLButtonElement>('[aria-label="Entity memories"] .brain-row')!
-      .click(),
-  )
-  await click('See the read that produced this')
-  expect(invokes).toHaveBeenCalledWith('brain:extraction', 'harbor-job')
-  expect(
-    container
-      .querySelector('[aria-label="Brain lanes"] [aria-current="true"]')
-      ?.getAttribute('aria-label'),
-  ).toBe('Harbor planning')
-  await act(async () =>
-    container
-      .querySelector<HTMLButtonElement>('[aria-label="Memories from this lane"] button')!
-      .click(),
-  )
-  expect(container.querySelector('[aria-label="Memory detail"]')).not.toBeNull()
-  await lanesTab()
-  expect(
-    container
-      .querySelector('[aria-label="Brain lanes"] [aria-current="true"]')
-      ?.getAttribute('aria-label'),
-  ).toBe('Harbor planning')
-})
-
-it('does not navigate the hidden Knowledge trail from the Lanes tab', async () => {
-  await render()
-  await chooseHarbor()
-  await click('Harbor Ledger')
-  await lanesTab()
-  for (const key of ['Escape', 'Backspace', 'ArrowLeft']) {
-    await act(async () =>
-      document.body.dispatchEvent(
-        new KeyboardEvent('keydown', {
-          key,
-          altKey: key === 'ArrowLeft',
-          bubbles: true,
-        }),
-      ),
-    )
-  }
-  await click('Knowledge')
-  expectSelectedEntity('Harbor Ledger')
-})
-
-it('keeps a missing source read error recoverable without adding a history row', async () => {
-  explorer.details[0]!.memory.jobId = 'old-read'
-  extraction.mockRejectedValueOnce(new Error('Brain extraction not found'))
-  await render()
-  await chooseHarbor()
-  await act(async () =>
-    container
-      .querySelector<HTMLButtonElement>('[aria-label="Entity memories"] .brain-row')!
-      .click(),
-  )
-  await click('See the read that produced this')
-  expect(container.querySelector('[aria-label="Extraction detail"]')?.textContent).toContain(
-    'Brain extraction not found',
-  )
-  expect(container.querySelector('[aria-label="Brain lanes"] [aria-current]')).toBeNull()
-  await click('Retry')
-  expect(extraction.mock.calls).toEqual([['old-read'], ['old-read']])
-  expect(container.querySelector('[aria-label="Memories from this lane"]')).not.toBeNull()
-  expect(container.querySelector('[aria-label="Brain lanes"] [aria-current]')).toBeNull()
-})
-
-it('allows empty-search Backspace after returning from Lanes', async () => {
-  await render()
-  await chooseHarbor()
-  await click('Harbor Ledger')
-  await search('Tom')
-  await lanesTab()
-  await click('Knowledge')
-  expect(container.querySelector<HTMLInputElement>('[role="combobox"]')?.value).toBe('')
-  await act(async () =>
-    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true })),
-  )
-  expectSelectedEntity('Harbor')
+  expect(section('Decisions')).not.toBeNull()
+  expect(section('Decisions').textContent).not.toContain('Harbor identity review')
 })
