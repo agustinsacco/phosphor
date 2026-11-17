@@ -113,3 +113,31 @@ it('raises at most eight of the best 32 candidates per memory', () => {
   store.sweep({ entityIds: [], memoryIds: ['memory-40'] })
   expect(store.tidy('same_memory', null, 50).items).toHaveLength(8)
 })
+
+it('caches a 256-memory hub window once per 128-memory chunk, not across calls', () => {
+  const { store, db } = hub(256, 107)
+  db.exec(
+    "UPDATE tidy_sweep SET phase='memories',cursor=0,entity_max=256,memory_max=256,started_at=1",
+  )
+  const prepare = db.prepare.bind(db)
+  let windowsRead = 0
+  db.prepare = (sql) => {
+    if (sql.includes('FROM mentions WHERE entity=?') && sql.includes('memory_vectors'))
+      windowsRead++
+    return prepare(sql)
+  }
+  try {
+    const start = performance.now()
+    const result = store.sweep('all')
+    console.log(
+      JSON.stringify({ hubMemories: 256, chunkMemories: 128, chunkMs: performance.now() - start }),
+    )
+    expect(result.coverage.memories).toBe(128)
+    expect(result.suggestions).toBeLessThanOrEqual(128 * 8)
+    expect(windowsRead).toBe(1)
+    store.sweep('all')
+    expect(windowsRead).toBe(2)
+  } finally {
+    db.prepare = prepare
+  }
+})
