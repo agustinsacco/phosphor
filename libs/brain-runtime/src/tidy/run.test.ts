@@ -259,3 +259,11 @@ it('unusable JSON leaves a batch unjudged without a model repair or automatic re
   })
   expect(s.calls).toHaveBeenCalledOnce()
 })
+
+it('does not retain a run after Reset removes the persisted singleton', async () => {
+  const s = setup()
+  s.runner.start()
+  await s.finish()
+  vi.spyOn(s.context.runState, 'readRun').mockReturnValue(null)
+  expect(s.runner.current()).toBeNull()
+})
