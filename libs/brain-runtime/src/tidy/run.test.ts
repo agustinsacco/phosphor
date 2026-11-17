@@ -267,3 +267,46 @@ it('does not retain a run after Reset removes the persisted singleton', async ()
   vi.spyOn(s.context.runState, 'readRun').mockReturnValue(null)
   expect(s.runner.current()).toBeNull()
 })
+
+it('Retry recovers a failed first load and calls only still-unjudged pairs', async () => {
+  const s = setup(16)
+  s.calls.mockRejectedValueOnce(new Error('Reader unavailable'))
+  s.runner.start()
+  expect(await s.finish()).toMatchObject({ state: 'failed', checked: 8 })
+  expect(s.pending).toHaveLength(8)
+  s.runner.start()
+  expect(await s.finish()).toMatchObject({ state: 'done', checked: 8, total: 8, error: null })
+  expect(s.pending).toHaveLength(0)
+  expect(s.recorded).toHaveLength(16)
+  expect(new Set(s.recorded.map((j) => j.suggestionId)).size).toBe(16)
+})
+
+it('transport retry recovers in the same batch without persisting usage', async () => {
+  const s = setup()
+  s.calls.mockImplementationOnce(async (input) => {
+    const tracer = new CallTracer()
+    tracer.finish('exit')
+    input.onTrace?.(tracer.trace)
+    throw new Error('Reader exited')
+  })
+  s.runner.start()
+  expect(await s.finish()).toMatchObject({ state: 'done', checked: 8, error: null })
+  expect(s.calls).toHaveBeenCalledTimes(2)
+  expect(s.options.retryDelay).toHaveBeenCalledOnce()
+  expect(JSON.stringify(s.states)).not.toMatch(/tokens|cost/)
+})
+
+it('advances local sweep chunks before the first model call and stops at the coverage end', async () => {
+  const s = setup()
+  s.sweep.mockReturnValueOnce({
+    coverage: emptyBrainTidyCoverage(),
+    suggestions: 1,
+    folded: 0,
+    operationIds: [],
+  })
+  s.runner.start()
+  await s.finish()
+  expect(s.sweep).toHaveBeenCalledTimes(2)
+  expect(s.sweep.mock.invocationCallOrder[1]).toBeLessThan(s.calls.mock.invocationCallOrder[0]!)
+  expect(s.runner.current()).toMatchObject({ suggestions: 3, folded: 1 })
+})
