@@ -20,22 +20,20 @@ beforeEach(() => {
   useExtensionUiStore.setState({ toasts: [] })
   useLayoutStore.setState({ page: null })
   useTidyNavigation.setState({ request: 0, tab: 'knowledge', recent: false })
-  list
-    .mockReset()
-    .mockResolvedValue({
-      ...emptyBrainTidyPage(),
-      run: {
-        state: 'done',
-        suggestions: 8,
-        folded: 2,
-        checked: 12,
-        total: 12,
-        startedAt: 100,
-        finishedAt: 200,
-        message: null,
-        error: null,
-      },
-    })
+  list.mockReset().mockResolvedValue({
+    ...emptyBrainTidyPage(),
+    run: {
+      state: 'done',
+      suggestions: 8,
+      folded: 2,
+      checked: 12,
+      total: 12,
+      startedAt: 100,
+      finishedAt: 200,
+      message: null,
+      error: null,
+    },
+  })
   fake = createFakePhosphor({ 'brain:tidy': list })
   restore = installFakePhosphor(fake)
 })

@@ -135,9 +135,7 @@ it('selects the next suggestion after an action, journals it and offers Undo', a
   await render()
   await click('Merge into Rina Okafor')
   expect(apply).toHaveBeenCalledWith('tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0)
-  expect(container.querySelector('[aria-label="Tidy suggestion"]')?.textContent).toContain(
-    'Keep this one',
-  )
+  expect(detail).toHaveBeenLastCalledWith('tidy-4')
   expect(container.querySelector('[aria-label="Recent changes"]')).not.toBeNull()
   expect(
     useExtensionUiStore.getState().toasts.find((t) => t.message === 'Brain updated')?.openLabel,
@@ -174,9 +172,7 @@ it('selects the next suggestion and explains an already-settled failure', async 
   await render()
   await click('Merge into Rina Okafor')
   expect(container.textContent).toContain('This suggestion was already settled.')
-  expect(container.querySelector('[aria-label="Tidy suggestion"]')?.textContent).toContain(
-    'Keep this one',
-  )
+  expect(detail).toHaveBeenLastCalledWith('tidy-4')
 })
 it('leaves a refused Undo visible with the engine reason', async () => {
   undo.mockRejectedValueOnce(new Error('Later changes prevent a clean undo.'))
@@ -199,6 +195,8 @@ it('keeps a swapped survivor, not just the row, after hiding and reopening Tidy'
   await click('Swap surviving record')
   await render(false)
   await render()
-  const merge = [...container.querySelectorAll('button')].find((b) => b.textContent?.startsWith('Merge into'))!
+  const merge = [...container.querySelectorAll('button')].find((b) =>
+    b.textContent?.startsWith('Merge into'),
+  )!
   expect(merge.textContent).toBe('Merge into Rina')
 })

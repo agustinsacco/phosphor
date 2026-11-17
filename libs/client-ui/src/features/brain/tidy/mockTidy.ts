@@ -66,6 +66,19 @@ export class MockTidy {
     const run = this.page.run
     if (run && this.summary().running) {
       const elapsed = this.now() - run.startedAt
+      if (
+        elapsed >= 2000 &&
+        this.explorer.details.some((d) => d.memory.id === 'tidy-exact-repeat')
+      ) {
+        this.journal('fold', 'Folded an exact repeat of the Harbor Ledger decision', () => {
+          this.explorer.details = this.explorer.details.filter(
+            (d) => d.memory.id !== 'tidy-exact-repeat',
+          )
+        })
+        this.operations[0]!.automatic = true
+        this.state.revision++
+        run.folded++
+      }
       run.state = elapsed < 2000 ? 'sweeping' : elapsed < 6000 ? 'checking' : 'done'
       run.checked = Math.min(run.total, Math.max(0, Math.floor((elapsed - 2000) / 500)))
       if (run.state === 'done') {
@@ -87,20 +100,30 @@ export class MockTidy {
     }
     if (this.flagAt !== null && this.now() >= this.flagAt) {
       const source = this.items.find((s) => s.kind === 'flagged')
-      if (source)
+      if (source) {
+        const memory = structuredClone(this.explorer.memory(source.subjects[0]!.id))
+        memory.memory.id = 'tidy-arriving-memory'
+        this.explorer.details.push(memory)
         this.items.push({
           ...structuredClone(source),
           id: 'tidy-arriving-flag',
+          subjects: [{ type: 'memory', id: memory.memory.id, label: memory.memory.summary }],
           state: 'open',
           createdAt: this.now(),
           updatedAt: this.now(),
         })
+      }
       this.flagAt = null
     }
   }
   private init(): void {
     if (this.initialized) return
     this.items = seedMockTidy(this.explorer, this.options.count ?? 12, this.now())
+    if (this.items.length) {
+      const exact = structuredClone(this.explorer.details[0]!)
+      exact.memory.id = 'tidy-exact-repeat'
+      this.explorer.details.push(exact)
+    }
     this.initialized = true
     if (this.options.flagAfterMs !== undefined) this.flagAt = this.now() + this.options.flagAfterMs
   }

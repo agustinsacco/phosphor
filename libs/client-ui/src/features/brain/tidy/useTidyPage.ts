@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { BrainTidyPage } from '@shared/brain-tidy'
+import { BRAIN_TIDY_KINDS, type BrainTidyPage } from '@shared/brain-tidy'
 import { ipcErrorText } from '@shared/errors'
 import { useBrain } from '../useBrain'
 
@@ -26,8 +26,14 @@ export function useTidyPage(active: boolean) {
       }
       if (ticket !== request.current) return null
       visible.current = Math.max(20, result.items.length)
-      setPage(result)
-      return result
+      const ordered = {
+        ...result,
+        items: result.items.toSorted(
+          (a, b) => BRAIN_TIDY_KINDS.indexOf(a.kind) - BRAIN_TIDY_KINDS.indexOf(b.kind),
+        ),
+      }
+      setPage(ordered)
+      return ordered
     } catch (cause) {
       if (ticket === request.current) setError(ipcErrorText(cause))
       return null
@@ -35,13 +41,14 @@ export function useTidyPage(active: boolean) {
       if (ticket === request.current) setLoading(false)
     }
   }, [])
+  const invalidate = useCallback(() => {
+    request.current++
+  }, [])
   const summary = JSON.stringify(status?.tidy)
   useEffect(() => {
     if (active) void reload()
-    return () => {
-      request.current++
-    }
-  }, [active, reload, status?.revision, status?.generation, summary])
+    return invalidate
+  }, [active, reload, invalidate, status?.revision, status?.generation, summary])
   useEffect(() => {
     if (!active || !status?.tidy.running) return
     const timer = setInterval(() => {

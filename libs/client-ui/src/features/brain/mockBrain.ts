@@ -381,4 +381,4 @@ export function createMockBrain(
   const mock = new MockBrain(now, tidy)
   return async (channel, args) => structuredClone(mock.call(channel, args))
 }
-export const mockBrainCall = createMockBrain()
+export const mockBrainCall = createMockBrain(() => Date.now(), { flagAfterMs: 20000 })

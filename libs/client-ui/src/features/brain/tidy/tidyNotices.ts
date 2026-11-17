@@ -5,15 +5,13 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { openTidy, tidyIsVisible } from './tidyNavigation'
 
 function notify(message: string, key: string, recent = false, error = false): void {
-  useExtensionUiStore
-    .getState()
-    .notify({
-      message,
-      key,
-      kind: error ? 'error' : 'info',
-      openLabel: recent ? 'Open Tidy recent changes' : 'Open Tidy',
-      onOpen: () => openTidy(recent),
-    })
+  useExtensionUiStore.getState().notify({
+    message,
+    key,
+    kind: error ? 'error' : 'info',
+    openLabel: recent ? 'Open Tidy recent changes' : 'Open Tidy',
+    onOpen: () => openTidy(recent),
+  })
 }
 
 function clearTidyNotices(): void {

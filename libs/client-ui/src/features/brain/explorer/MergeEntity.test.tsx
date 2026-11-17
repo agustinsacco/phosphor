@@ -29,13 +29,11 @@ beforeEach(() => {
   useExtensionUiStore.setState({ toasts: [] })
   const explorer = new MockExplorer()
   read.mockReset().mockImplementation((id: string) => explorer.entity(id))
-  merge
-    .mockReset()
-    .mockImplementation(async () => ({
-      ...status,
-      revision: status.revision + 1,
-      operationId: 'merge-1',
-    }))
+  merge.mockReset().mockImplementation(async () => ({
+    ...status,
+    revision: status.revision + 1,
+    operationId: 'merge-1',
+  }))
   fake = createFakePhosphor({
     'brain:entity': read,
     'brain:merge': merge,

@@ -45,7 +45,9 @@ export function TidyHeader({
   const model = useBrainModelName(status.prefs.model ?? history.data?.items[0]?.job.model ?? '')
   const running = status.tidy.running
   const retry = !!page?.run && !!(page.run.error || page.run.message) && !running
-  const tooltip = `Brain looks for repeats on this computer, then sends up to 40 pairs of memories or names to ${model || 'the model that reads lanes'} to judge them.`
+  const tooltip = model
+    ? `Brain looks for repeats on this computer, then sends up to 40 pairs of memories or names to ${model} to judge them.`
+    : 'Brain looks for repeats on this computer. When a reader model is available, it sends up to 40 pairs of memories or names to that model to judge them. Otherwise the model check is skipped.'
   return (
     <header className="border-border flex flex-wrap items-center gap-3 border-b p-3 [overflow-wrap:anywhere]">
       <Button disabled={busy || running} tooltip={tooltip} onClick={onRun}>

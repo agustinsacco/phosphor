@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { BrainTidyAction, BrainTidySuggestionDetail } from '@shared/brain-tidy'
 import { Button } from '@/components/form'
 import { useSessionsStore } from '@/stores/sessions'
+import { useChatStore } from '@/stores/chat'
+import { navigateToLane } from '@/stores/remoteLanes'
 import { promptChoice } from '@/stores/prompt'
 import { ipcErrorText } from '@shared/errors'
 import { brainToast } from '../useBrain'
@@ -102,17 +104,28 @@ function FlagLane({
         .flat()
         .find((lane) => lane.sessionId === flag.sessionId)?.path,
   )
+  const live = useSessionsStore((s) => s.live)
+  const liveId = useChatStore((s) =>
+    Object.keys(live).find(
+      (id) =>
+        live[id]?.target?.kind !== 'remote' && s.sessions[id]?.meta?.sessionId === flag.sessionId,
+    ),
+  )
   return (
     <div className="space-y-2">
       <p>
         {flag.problem} · {flag.title}
       </p>
       <Button
-        disabled={!path}
-        tooltip={path ? 'Open the lane' : 'The lane is no longer on this computer.'}
+        disabled={!path && !liveId}
+        tooltip={path || liveId ? 'Open the lane' : 'The lane is no longer on this computer.'}
         onClick={() => {
-          if (path)
-            openBrainSource(path).catch((e: unknown) => brainToast(ipcErrorText(e), 'error'))
+          const opening = liveId
+            ? navigateToLane({ sessionId: liveId })
+            : path
+              ? openBrainSource(path)
+              : null
+          opening?.catch((e: unknown) => brainToast(ipcErrorText(e), 'error'))
         }}
       >
         Open the lane

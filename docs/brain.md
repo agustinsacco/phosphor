@@ -33,7 +33,8 @@ shows in the sidebar's top navigation only while Brain is on.
 ## The Brain page
 
 The page header shows **Brain**, “N memories · M people and things”, and Settings.
-Underlined **Knowledge** and **Lanes** tabs separate exploration from reading and review.
+Underlined **Knowledge**, **Lanes** and **Tidy** tabs separate exploration, reading and review,
+and knowledge cleanup. Tidy is available only while local Brain is on.
 Arrow keys, Home and End select tabs. Knowledge opens first, except when there are no
 memories and at least one job: then Lanes opens. Switching tabs keeps the explorer trail
 and selected lane; explorer shortcuts act only on Knowledge. The Lanes tab and the sidebar's
@@ -63,6 +64,41 @@ call disclosures as a finished read. Until the first record is saved it says “
 without an error notification. Once a record exists, reading and failed details also show the
 same candidate outcomes and reasons and **Source lane at extraction** (with Open lane) as a
 finished read. Every real load failure offers Retry.
+
+### Tidy
+
+Tidy's tab badge counts open suggestions. Like Lanes, it keeps a grouped list beside the
+selected detail. **Same person or thing?**, **Said twice**, **These disagree** and **Flagged by a
+lane** show their counts and reasons; empty groups disappear. Show more loads twenty more
+suggestions. Up and Down move between rows and Enter opens one. Switching tabs preserves the
+selection and comparison controls, alongside the Knowledge trail and selected lane.
+
+**Tidy now** looks for repeats locally, then asks the reader model to judge at most forty pairs.
+Its tooltip names the pinned reader, or the newest finished read's model. The status line shows
+local work, model progress, the last coverage and partial coverage. Cancel stops a run; failed or
+skipped checks show their reason and Retry. No cost or token counts appear.
+
+A comparison starts with its reason and whether a local rule or the named model found it.
+Entities show descriptions, other names, memory counts, links and source lanes. Memories show
+scope, branch, dates and labelled quotes. The two sides stack when the comparison pane is narrow;
+each opens its record on Knowledge. Entity merges default to the record with more memories and
+have a **Swap surviving record** control. Either repeated memory can survive. A disagreement can
+stay disputed or either side can replace the other. **Not the same** and **Not a conflict** dismiss
+the pair. A lane flag offers **Keep**, or a confirmed permanent **Forget**; Open the lane resolves
+only a local lane already known to the sidebar, never a path supplied by the flag.
+
+A decision selects the next visible suggestion. Successful changes offer Undo in their toast.
+**Recent changes** lists the newest hundred journal operations with their time, automatic/by-you
+origin and Undo. Refused undo shows the engine's reason. Failed actions reload rather than replay:
+a changed revision says “Brain changed. Check this again.”; an already-settled suggestion advances
+to the next. Every failed read offers Retry, and older replies cannot overwrite newer reads.
+
+Automatic folds produce one “Brain folded N exact repeats” toast and panel notice opening Recent
+changes. New suggestions replace the single `brain:tidy` notice: “Brain has N things to tidy”.
+A completed Tidy run announces its result only while Tidy is not visible. Notices open Brain on
+Tidy. Existing startup suggestions and decreasing counts are silent; disabling Brain removes its
+Tidy notices. While visible, enabled Brain checks status every ten seconds to discover lane flags,
+or every two seconds during work. These reads never start a sweep or a model call.
 
 ## Queueing a lane
 
@@ -299,7 +335,9 @@ graph is always visible; there is no hide-graph control. The explorer trail surv
 - **Find route to…**: up to three shortest supported routes between two entities, at most four
   hops, each hop with its memory, highlighted in the graph (`brain:path`).
 - **Merge into…**: folds one entity into another after a confirmation. Names, keys, links and
-  memories move; the source is deleted and the merge is recorded. There is no split.
+  memories move; the source is deleted and the merge is journaled. The confirmation shows both
+  descriptions and memory counts, so identical names remain distinguishable. Its toast and
+  Tidy's Recent changes offer Undo; later edits can prevent a clean undo.
 
 Views reload when Brain's revision or generation changes, and a failed load offers Retry.
 
@@ -436,5 +474,5 @@ project's memories as context, and to report a dispute rather than pick a side.
 
 - Extraction quality is the reader model's. Review catches a wrong link or identity; afterwards,
   Forget and Merge into… fix it.
-- A wrong merge cannot be undone except by Reset.
+- Undo refuses a merge when later changes prevent restoring it safely. Forget is permanent.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.
