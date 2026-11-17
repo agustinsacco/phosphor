@@ -1,11 +1,11 @@
 import type { BrainEntityKind, BrainEntityPage, BrainRecentMemories } from '@phosphor/shared/brain'
 import type { BrainEntitySort } from '@phosphor/shared/brain-explore'
-import { all, type Context } from './database'
+import { all, one, type Context } from './database'
+import { recentEntities } from './browse-recent'
 import { entity } from './entities'
 
-const ORDER: Record<BrainEntitySort, string> = {
+const ORDER: Record<Exclude<BrainEntitySort, 'recent'>, string> = {
   connected: 'connections DESC,n ASC',
-  recent: `(SELECT MAX(m.observed_at) FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=entities.n AND m.state IN ('active','disputed')) DESC NULLS LAST,n ASC`,
   name: 'label COLLATE NOCASE ASC,id ASC',
 }
 /** v5's connection index supplies the default browse order. */
@@ -16,17 +16,25 @@ export function entities(
   limit: number,
   sort: BrainEntitySort,
 ): BrainEntityPage {
-  const rows = all<{ id: string }>(
+  const counts = all<{ kind: BrainEntityKind; total: number; memories: number }>(
     ctx,
-    `SELECT id FROM entities WHERE memories>0 ${kind ? 'AND kind=?' : ''} ORDER BY ${ORDER[sort]} LIMIT ? OFFSET ?`,
-    ...(kind ? [kind] : []),
-    limit + 1,
-    offset,
+    'SELECT kind,COUNT(*) AS total,SUM(memories) AS memories FROM entities WHERE memories>0 GROUP BY kind',
   )
-  const counts = all<{ kind: BrainEntityKind; total: number }>(
-    ctx,
-    'SELECT kind,COUNT(*) AS total FROM entities WHERE memories>0 GROUP BY kind',
-  )
+  const listed = counts.filter((row) => !kind || row.kind === kind)
+  const total = listed.reduce((sum, row) => sum + row.total, 0)
+  const memories = listed.reduce((sum, row) => sum + row.memories, 0)
+  const rows =
+    sort === 'recent'
+      ? recentEntities(ctx, kind, offset + limit + 1, { total, memories })
+          .slice(offset)
+          .map((n) => one<{ id: string }>(ctx, 'SELECT id FROM entities WHERE n=?', n)!)
+      : all<{ id: string }>(
+          ctx,
+          `SELECT id FROM entities WHERE memories>0 ${kind ? 'AND kind=?' : ''} ORDER BY ${ORDER[sort]} LIMIT ? OFFSET ?`,
+          ...(kind ? [kind] : []),
+          limit + 1,
+          offset,
+        )
   return {
     items: rows.slice(0, limit).map(({ id }) => {
       const value = entity(ctx, id)!
@@ -35,7 +43,7 @@ export function entities(
     more: rows.length > limit,
     kinds: counts.map((row) => row.kind),
     counts: Object.fromEntries(counts.map((row) => [row.kind, row.total])),
-    total: counts.reduce((sum, row) => sum + (!kind || row.kind === kind ? row.total : 0), 0),
+    total,
   }
 }
 
