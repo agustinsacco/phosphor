@@ -18,10 +18,8 @@ import {
   type CallTrace,
 } from './call-trace'
 
-export interface ModelCallInput {
+interface ModelCallBase {
   directory: string
-  job: BrainJob
-  stage: BrainExtractionCall['stage']
   part: string | number
   systemPrompt: string
   thinking?: string
@@ -35,6 +33,11 @@ export interface ModelCallInput {
   /** Raw final text, including on transport or assistant failure; never diagnostics. */
   onAnswer?: (answer: string) => void
 }
+export type ModelCallInput = ModelCallBase &
+  (
+    | { stage: BrainExtractionCall['stage']; job: BrainJob }
+    | { stage: 'tidy'; job: Pick<BrainJob, 'id'> }
+  )
 export interface ModelCallResult {
   text: string
   usage: { tokens: number; cost: number }
