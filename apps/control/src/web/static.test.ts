@@ -54,6 +54,9 @@ it('isolates static roots and CSP, limits SPA fallback, and preserves confinemen
     expect(policy).not.toContain("frame-src 'self'")
     expect(policy).not.toContain("script-src 'self' 'unsafe-inline'")
     expect(policy).toContain("connect-src 'self' https://*.ts.net:* wss://*.ts.net:*")
+    // Host images and media the page read into memory show from blob: URLs; nothing else widens.
+    expect(policy).toContain("img-src 'self' data: blob:;")
+    expect(policy).toContain('media-src blob:;')
     expect(policy).not.toContain('http:')
     expect(
       policy

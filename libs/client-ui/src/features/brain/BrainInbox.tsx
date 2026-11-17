@@ -1,84 +1,102 @@
-import { useEffect, useState } from 'react'
+import { formatCount } from '@/lib/format'
+import clsx from 'clsx'
 import type { BrainJob } from '@shared/brain'
-import { Button } from '@/components/form'
+import { TooltipButton } from '@/components/Tooltip'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
-import { jobLine } from './jobProgress'
-export { jobLine } from './jobProgress'
-import { useBrain } from './useBrain'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
+import { relativeTime } from '@/lib/time'
+import { jobLine } from './jobProgress'
+import { useBrainModelName } from './useBrainModelName'
+import type { BrainLaneRow, groupBrainLanes } from './laneRows'
+export { jobLine } from './jobProgress'
 
 export function BrainInbox({
+  groups,
+  selected,
+  onSelect,
+  now,
   jobs,
-  onReview,
-  onExtraction,
 }: {
+  groups: ReturnType<typeof groupBrainLanes>
+  selected: string | null
+  onSelect: (id: string) => void
+  now: number
   jobs: BrainJob[]
-  onReview: (id: string) => void
-  onExtraction: (id: string) => void
-}): React.JSX.Element | null {
-  const [now, setNow] = useState(Date.now())
-  const running = jobs.some((job) => job.state === 'running')
-  const saving = useBrain((s) => s.saving)
-  useEffect(() => {
-    if (!running) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [running])
-  if (!jobs.length) return null
+}): React.JSX.Element {
   return (
-    <section aria-label="Inbox" className="space-y-1 p-3">
-      <SectionLabel>Inbox</SectionLabel>
-      {jobs.map((job, index) => (
-        <article key={job.id} className="border-border flex items-start gap-2 border-b py-3">
-          {job.state === 'running' ? (
-            <PhosphorLoader size={16} label="Extracting knowledge" />
-          ) : (
-            <span className="bg-text-tertiary mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" />
-          )}
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate font-medium">{job.title}</h3>
-            <p className="text-text-tertiary mt-1 text-sm">
-              {jobLine(
-                job,
-                jobs.slice(0, index).filter((j) => j.state === 'queued' || j.state === 'running')
-                  .length,
-                now,
-              )}
-            </p>
-          </div>
-          {job.state === 'failed' && (
-            <Button
-              size="xs"
-              disabled={saving}
-              onClick={() => {
-                void useBrain.getState().retry(job.id)
-              }}
-            >
-              Retry
-            </Button>
-          )}
-          {(job.state === 'empty' || job.state === 'failed') && (
-            <Button size="xs" onClick={() => onExtraction(job.id)}>
-              View extraction
-            </Button>
-          )}
-          <Button
-            size="xs"
-            disabled={saving}
-            variant={job.state === 'review' ? 'primary' : 'secondary'}
-            onClick={() => {
-              if (job.state === 'review') onReview(job.id)
-              else void useBrain.getState().cancel(job.id)
-            }}
-          >
-            {job.state === 'review'
-              ? 'Review'
-              : job.state === 'failed' || job.state === 'empty'
-                ? 'Dismiss'
-                : 'Cancel'}
-          </Button>
-        </article>
+    <div className="space-y-4 p-3">
+      {groups.map(({ label, rows }) => (
+        <section key={label} aria-label={label}>
+          <SectionLabel>
+            {label} · {rows.length}
+          </SectionLabel>
+          <ul>
+            {rows.map((row) => (
+              <li key={row.job.id}>
+                <LaneRow
+                  row={row}
+                  selected={selected === row.job.id}
+                  onSelect={onSelect}
+                  now={now}
+                  ahead={
+                    jobs
+                      .slice(
+                        0,
+                        jobs.findIndex((job) => job.id === row.job.id),
+                      )
+                      .filter((job) => job.state === 'queued' || job.state === 'running').length
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
       ))}
-    </section>
+    </div>
+  )
+}
+function LaneRow({
+  row: { job, memories },
+  selected,
+  onSelect,
+  now,
+  ahead,
+}: {
+  row: BrainLaneRow
+  selected: boolean
+  onSelect: (id: string) => void
+  now: number
+  ahead: number
+}): React.JSX.Element {
+  const model = useBrainModelName(job.model)
+  const read = job.state === 'done' || job.state === 'empty'
+  const line = read
+    ? `${memories ? formatCount(memories, 'memory', 'memories') : 'Nothing kept'} · ${model} · ${job.finishedAt === null ? 'Finished' : relativeTime(job.finishedAt)}`
+    : job.state === 'review'
+      ? `${formatCount(job.memories, 'memory', 'memories')} · ${model}`
+      : jobLine(job, ahead, now)
+  return (
+    <TooltipButton
+      aria-label={job.title}
+      tooltip={job.title}
+      aria-current={selected ? 'true' : undefined}
+      className={clsx(
+        'hover:bg-bg-secondary flex w-full items-start gap-2 rounded-md px-2 py-2 text-left [overflow-wrap:anywhere]',
+        selected && 'bg-sidebar-active',
+        read && 'text-text-tertiary',
+      )}
+      onClick={() => onSelect(job.id)}
+    >
+      {job.state === 'running' && <PhosphorLoader size={16} label="Reading lane" />}
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{job.title}</span>
+        <span
+          className={clsx('text-text-tertiary block text-sm', job.state === 'failed' && 'truncate')}
+        >
+          {line}
+          {job.replaces && !read && ' · reading again'}
+        </span>
+      </span>
+    </TooltipButton>
   )
 }

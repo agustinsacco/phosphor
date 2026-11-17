@@ -1,101 +1,201 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { BrainGraph, BrainLink } from '@shared/brain'
-import { Button } from '@/components/form'
+import { Button, NeutralSegmented } from '@/components/form'
+import { TooltipButton } from '@/components/Tooltip'
 import { useBrainResource } from '../useBrainResource'
 import { BrainGraph3D } from '../BrainGraph3D'
 import type { BrainVisit } from './trail'
-export function ExplorerGraph({
-  entityId,
-  path,
-  onVisit,
-}: {
+import { combineGraphs, includePath } from './graphProjection'
+
+interface ExplorerGraphProps {
   entityId: string | null
+  memoryId?: string | null
+  label?: string
   path: BrainLink[] | null
   onVisit: (visit: BrainVisit) => void
-}): React.JSX.Element {
-  const [hops, setHops] = useState<1 | 2>(1)
-  const load = useCallback(async () => {
-    const graph = entityId
-      ? await window.phosphor.invoke('brain:neighbourhood', entityId, hops)
-      : await window.phosphor.invoke('brain:overview')
-    return includePath(graph, path)
-  }, [entityId, hops, path])
-  const { data, error, retry } = useBrainResource(load)
-  const [previous, setPrevious] = useState<BrainGraph | null>(null)
+  onClear?: () => void
+}
+export function ExplorerGraph({
+  entityId,
+  memoryId = null,
+  label,
+  path,
+  onVisit,
+  onClear,
+}: ExplorerGraphProps): React.JSX.Element {
+  const [scope, setScope] = useState('all')
+  const [hops, setHops] = useState<'1' | '2'>('1')
+  const selected = !!(entityId || memoryId)
   useEffect(() => {
-    if (data) setPrevious(data)
-  }, [data])
-  const shown = data ?? previous
+    if (!selected) setScope('all')
+  }, [selected])
+  const { overview, resource, shown, memory, matches, error, selectionPending } = useExplorerGraph(
+    entityId,
+    memoryId,
+    scope,
+    hops,
+    path,
+  )
   return (
-    <section aria-label="Graph explorer" className="flex h-full min-h-80 flex-col gap-2 p-3">
-      <div className="flex gap-2">
-        <h2 className="flex-1 font-medium">{entityId ? 'Neighbourhood' : 'Overview'}</h2>
-        {entityId && (
-          <>
-            <Button size="xs" aria-pressed={hops === 1} onClick={() => setHops(1)}>
-              1 hop
-            </Button>
-            <Button size="xs" aria-pressed={hops === 2} onClick={() => setHops(2)}>
-              2 hops
-            </Button>
-          </>
-        )}
-      </div>
-      {!data && (
-        <p role="status">
+    <section aria-label="Graph explorer" className="flex h-full min-h-0 min-w-0 flex-col">
+      {(!overview.data || !resource.data) && (
+        <p role="status" className="p-2 text-sm">
           {error || 'Loading graph…'}
-          {error && <Button onClick={retry}>Retry</Button>}
+          {error && (
+            <Button onClick={overview.error ? overview.retry : resource.retry}>Retry</Button>
+          )}
         </p>
       )}
-      {shown &&
-        (!shown.nodes.length ? (
-          <p>No knowledge yet. Right-click a lane and choose Queue for knowledge extraction.</p>
-        ) : (
-          <>
-            {shown.truncated && (
-              <p className="text-text-tertiary text-sm">
-                Showing a bounded selection of the graph. Search to explore further.
-              </p>
-            )}
-            <BrainGraph3D
-              graph={shown}
-              path={path}
-              focus={entityId}
-              onFocus={(id) =>
-                onVisit({
-                  kind: 'entity',
-                  id,
-                  label: shown.nodes.find((node) => node.id === id)?.label ?? id,
-                })
-              }
-            />
-          </>
-        ))}
+      {shown && (
+        <>
+          {shown.truncated && (
+            <p className="text-text-tertiary p-2 text-sm">
+              Showing a bounded selection of the graph. Search to explore further.
+            </p>
+          )}
+          <BrainGraph3D
+            graph={shown}
+            selectionPending={selected && selectionPending}
+            path={path ?? memory?.links ?? null}
+            focus={entityId}
+            scope={scope === 'near' ? 'near' : 'all'}
+            matches={matches}
+            onClear={onClear}
+            onFocus={(id) =>
+              onVisit({
+                kind: 'entity',
+                id,
+                label: shown.nodes.find((n) => n.id === id)?.label ?? id,
+              })
+            }
+            toolbar={
+              <GraphSelection
+                selected={selected}
+                label={label ?? entityId ?? 'Memory'}
+                scope={scope}
+                setScope={setScope}
+                hops={hops}
+                setHops={setHops}
+                onClear={onClear}
+              />
+            }
+          />
+        </>
+      )}
     </section>
   )
 }
-
-/** A four-hop route may extend beyond the selected neighbourhood. Fetch only its missing nodes. */
-async function includePath(graph: BrainGraph, path: BrainLink[] | null): Promise<BrainGraph> {
-  if (!path) return graph
-  const ids = new Set(graph.nodes.map((node) => node.id))
-  const missing = [...new Set(path.flatMap((link) => [link.subjectId, link.objectId]))].filter(
-    (id) => !ids.has(id),
+function GraphSelection({
+  selected,
+  label,
+  scope,
+  setScope,
+  hops,
+  setHops,
+  onClear,
+}: {
+  selected: boolean
+  label: string
+  scope: string
+  setScope: (value: string) => void
+  hops: '1' | '2'
+  setHops: (value: '1' | '2') => void
+  onClear?: () => void
+}): React.JSX.Element {
+  if (!selected)
+    return <span className="text-text-tertiary text-sm">Click a node to select it.</span>
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <span className="bg-chip flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-sm">
+        <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
+        <TooltipButton
+          aria-label="Clear selection"
+          tooltip="Clear selection · Esc"
+          className="text-text-tertiary hover:text-text shrink-0 px-1"
+          onClick={onClear}
+        >
+          ✕
+        </TooltipButton>
+      </span>
+      <NeutralSegmented
+        wrap
+        value={scope}
+        options={[
+          { id: 'all', label: 'Whole graph' },
+          { id: 'near', label: 'Neighbours only' },
+        ]}
+        onChange={setScope}
+      />
+      {scope === 'near' && (
+        <NeutralSegmented
+          wrap
+          value={hops}
+          options={[
+            { id: '1', label: '1 step' },
+            { id: '2', label: '2 steps' },
+          ]}
+          onChange={setHops}
+        />
+      )}
+    </div>
   )
-  const extra = await Promise.all(missing.map((id) => window.phosphor.invoke('brain:entity', id)))
-  const links = new Map([...graph.links, ...path].map((link) => [link.id, link]))
-  // Keep the read bounded at 300 nodes even when the route adds nodes to a full neighbourhood.
-  const routeIds = new Set(path.flatMap((link) => [link.subjectId, link.objectId]))
-  const nodes = [...graph.nodes, ...extra.map((view) => view.entity)]
-    .sort((a, b) => Number(routeIds.has(b.id)) - Number(routeIds.has(a.id)))
-    .slice(0, 300)
-  const shown = new Set(nodes.map((node) => node.id))
+}
+
+function useExplorerGraph(
+  entityId: string | null,
+  memoryId: string | null,
+  scope: string,
+  hops: '1' | '2',
+  path: BrainLink[] | null,
+) {
+  const overview = useBrainResource(useCallback(() => window.phosphor.invoke('brain:overview'), []))
+  const selectionKey = JSON.stringify([entityId, memoryId, scope, hops, path])
+  const load = useCallback(async () => {
+    const memory = memoryId ? await window.phosphor.invoke('brain:memory', memoryId) : null
+    const ids = entityId ? [entityId] : (memory?.memory.entityIds ?? [])
+    const near = scope === 'near' && ids.length > 0
+    const missing = near ? ids : ids.filter((id) => !overview.data!.nodes.some((n) => n.id === id))
+    const extras = await Promise.all(
+      missing.map((id) =>
+        window.phosphor.invoke('brain:neighbourhood', id, near ? (Number(hops) as 1 | 2) : 1),
+      ),
+    )
+    const route = path ?? memory?.memory.links ?? null
+    const graphs = near ? extras : [overview.data!, ...extras]
+    const neighbours = graphs
+      .flatMap((g) => g.links)
+      .flatMap((link) =>
+        ids.includes(link.subjectId)
+          ? [link.objectId]
+          : ids.includes(link.objectId)
+            ? [link.subjectId]
+            : [],
+      )
+    const priority = [
+      ...ids,
+      ...(route?.flatMap((l) => [l.subjectId, l.objectId]) ?? []),
+      ...neighbours,
+    ]
+    const base = near || extras.length ? combineGraphs(graphs, priority) : overview.data!
+    const graph = await includePath(base, route, priority)
+    return { graph, memory, selectionKey }
+  }, [entityId, memoryId, scope, hops, overview.data, path, selectionKey])
+  const resource = useBrainResource(load, !!overview.data)
+  const [previous, setPrevious] = useState<BrainGraph | null>(null)
+  useEffect(() => {
+    if (resource.data) setPrevious(resource.data.graph)
+  }, [resource.data])
+  const shown = resource.data?.graph ?? previous ?? overview.data
+  const memory = resource.data?.memory?.memory
+  const matches = useMemo(() => (memory ? new Set(memory.entityIds) : null), [memory])
+  const error = overview.error || resource.error
   return {
-    ...graph,
-    nodes,
-    links: [...links.values()].filter(
-      (link) => shown.has(link.subjectId) && shown.has(link.objectId),
-    ),
-    truncated: graph.truncated || graph.nodes.length + extra.length > 300,
+    overview,
+    resource,
+    shown,
+    memory,
+    matches,
+    error,
+    selectionPending: resource.data?.selectionKey !== selectionKey,
   }
 }

@@ -1,0 +1,142 @@
+---
+import Command from './Command.astro'
+import { doc, download, guides, repo, releases } from '../lib/content'
+const questions = [
+  [
+    'What is pi, and do I need it?',
+    'pi is the extensible agent harness underneath Phosphor. Each live lane is a real pi process. Install pi on the machine that will execute the work; local Desktop needs Node 22.19 or newer and pi on PATH.',
+  ],
+  [
+    'Can I use my subscriptions?',
+    'Yes. ChatGPT Plus/Pro, Claude Pro/Max through pi-claude-cli and the Claude Code CLI, GitHub Copilot and Kimi For Coding are supported sign-in routes. API keys and custom endpoints work too. Provider availability, terms and limits still apply.',
+  ],
+  [
+    'What does Phosphor cost?',
+    'Phosphor is free and MIT licensed. Your providers bill subscriptions and API usage; connected services may have their own quotas. More agents can mean more usage, not free capacity.',
+  ],
+  [
+    'Does the agent ask before running commands?',
+    'Not by default. Tools have full permissions. Worktrees separate branches, not file or network access. An optional permission-gate extension can ask before risky actions; the artifact sandbox protects the page, not the agent’s tools.',
+  ],
+  [
+    'Does my code leave my computer?',
+    'Your configured model provider receives prompts and tool results, and connected services receive their requests. Remote lane traffic goes directly to your own Host over Tailscale, not through Phosphor’s control service. Brain extraction also calls the lane’s provider.',
+  ],
+  [
+    'Is Brain always on?',
+    'No. Brain is opt-in and Desktop-only. You select lanes for extraction and review proposed knowledge by default. It uses local embeddings but provider model calls for extraction. It does not sync across machines.',
+  ],
+  [
+    'Is this a hosted agent service?',
+    'No. You run Desktop or a Host on your own computer. The PWA is a client for those Hosts, not a cloud execution service. Routines need their execution machine awake and the app or Host service running.',
+  ],
+  [
+    'Which desktop platforms ship?',
+    'Current releases target macOS and Linux. Windows builds are paused; existing Windows installs remain on their last available release until builds resume.',
+  ],
+  [
+    'Can I leave every lane running?',
+    'Each live lane owns a pi process and uses memory. Phosphor does not reclaim idle processes for you. Suspend idle local lanes when you want to free resources.',
+  ],
+]
+---
+
+<section id="built" class="section">
+  <div class="container">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Built in the open</p><h2>Read the source.<br />Check the limits.</h2>
+      </div><p class="section-intro">
+        Phosphor is developed in Phosphor. These pages show privacy-safe fixture demonstrations of
+        the UI, not private work or performance benchmarks.
+      </p>
+    </div>
+    <div class="guide-grid" id="feature-index">
+      <a href={repo}><h3>Source ↗</h3><p>MIT licensed. Follow the implementation.</p></a>
+      <a href={doc('README.md')}
+        ><h3>Technical contracts ↗</h3><p>What the app does now, including its boundaries.</p></a
+      >
+      <a href={doc('known-issues.md')}
+        ><h3>Known issues ↗</h3><p>Reproducing defects, written down.</p></a
+      >
+      <a href={releases}><h3>Releases ↗</h3><p>Published builds and checksums.</p></a>
+    </div>
+  </div>
+</section>
+<section id="faq" class="section alternate">
+  <div class="container faq-layout">
+    <div><p class="eyebrow">Before you start</p><h2>Clear answers.<br />Real boundaries.</h2></div>
+    <div class="faq">
+      {
+        questions.map(([question, answer]) => (
+          <details>
+            <>
+              <summary>
+                {question}
+                <span aria-hidden="true">+</span>
+              </summary>
+              <p>{answer}</p>
+            </>
+          </details>
+        ))
+      }<p class="fineprint"><a class="text-link" href="/privacy/">Read the privacy policy →</a></p>
+    </div>
+  </div>
+</section>
+<section id="install" class="section install-section">
+  <div class="container">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Start with one lane</p><h2>Install it.<br />Make something clear.</h2>
+      </div><p class="section-intro">
+        Two commands for local work on macOS or Linux. Bring a repository you trust and a small task
+        you can verify.
+      </p>
+    </div>
+    <ol class="install-steps">
+      <li>
+        <span class="mono">1 / pi · Node 22.19+</span><Command
+          cmd="npm install -g @earendil-works/pi-coding-agent"
+          label="Install pi"
+        />
+      </li>
+      <li>
+        <span class="mono">2 / Phosphor · macOS and Linux</span><Command
+          cmd={download.install}
+          label="Install Phosphor"
+        />
+      </li>
+    </ol>
+    <p class="fineprint">
+      The installer verifies release checksums, but it is still a script piped into your shell. <a
+        class="text-link"
+        href={`${repo}/blob/main/tools/scripts/install.sh`}>Read it first</a
+      >, or choose a package from the latest release. Windows builds are currently paused.
+    </p>
+    <div class="source-line">
+      <a class="action action-primary" href="/guides/">Full install guide →</a><a
+        class="text-link"
+        href={download.latest}
+        rel="nofollow">Download the latest release ↗</a
+      ><a class="text-link" href="/watch/">Watch before you start →</a>
+    </div>
+    <div class="guide-grid">
+      {
+        guides.slice(1).map(({ href, title, blurb }) => (
+          <a href={href}>
+            <>
+              <h3>{title} →</h3>
+              <p>{blurb}</p>
+            </>
+          </a>
+        ))
+      }
+    </div>
+    <p class="fineprint">
+      No account needed for local Desktop work. Tools run with full permissions by default. <a
+        class="text-link"
+        href="/guides/#trust">Permissions and data →</a
+      >
+    </p>
+  </div>
+</section>

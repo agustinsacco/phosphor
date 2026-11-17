@@ -32,6 +32,7 @@ export function readyFrame(options: {
   connectionId: string
   grantExpiresAt: string
   caps: readonly HostCapability[]
+  webPushKey?: string
 }): Extract<HostFrame, { type: 'ready' }> {
   const { hello, grant } = options
   return {
@@ -51,6 +52,8 @@ export function readyFrame(options: {
     laneTransfer: true,
     fileBytes: true,
     prStatus: true,
+    ...(options.webPushKey ? { webPushKey: options.webPushKey } : {}),
+    prTracking: true,
     proof: hostProof(hello, options.challenge, options.key),
     connectionId: options.connectionId,
     grantExpiresAt: options.grantExpiresAt,

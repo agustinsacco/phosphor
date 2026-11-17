@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SessionPush } from '@phosphor/shared/models'
+import type { LanePrSignals, SessionPush } from '@phosphor/shared/models'
 import type { RpcCommand, RpcSessionState, RpcSlashCommand } from '@phosphor/shared/rpc'
 import { fakeMachine, type FakeMachine } from '../../__fixtures__/machine'
 import type { HostRuntime, Delivery } from '../../session/runtime'
@@ -9,6 +9,7 @@ import type { RuntimeLaneState, RuntimeLaneOptions } from './state'
 import { start, attach } from './lifecycle'
 import { command } from './command'
 import { createLiveLanes } from '../live'
+import type { LanePrRead } from '../live/lane-pr-fold'
 import { openStore, type HostStore } from '../store'
 
 const state: RpcSessionState = {
@@ -43,7 +44,11 @@ afterEach(async () => {
   vi.restoreAllMocks()
   machine.cleanup()
 })
-function setup(pushes: SessionPush[] = [], nameLane?: RuntimeLaneOptions['nameLane']) {
+function setup(
+  pushes: SessionPush[] = [],
+  nameLane?: RuntimeLaneOptions['nameLane'],
+  lanePrs?: LanePrRead,
+) {
   let deliver: Delivery = () => {}
   const command = vi.fn(
     async (_id: string, cmd: RpcCommand): ReturnType<HostRuntime['command']> => ({
@@ -63,7 +68,14 @@ function setup(pushes: SessionPush[] = [], nameLane?: RuntimeLaneOptions['nameLa
     command,
     extensionUiResponse: vi.fn(),
   }
-  live = createLiveLanes({ epoch: '0123456789abcdef', store, runtime, now: Date.now, log: vi.fn() })
+  live = createLiveLanes({
+    epoch: '0123456789abcdef',
+    store,
+    runtime,
+    now: Date.now,
+    log: vi.fn(),
+    lanePrs,
+  })
   const log = vi.fn()
   const context: RuntimeLaneState = {
     options: { runtime, store, live, log, nameLane },
@@ -212,11 +224,12 @@ it.each([
 describe('slash prompts and the lane title', () => {
   const commands: RpcSlashCommand[] = [
     { name: 'phosphor-swarm', source: 'extension' },
+    { name: 'phosphor-prs', source: 'extension' },
     { name: 'review', source: 'prompt' },
   ]
-  async function withCommands() {
+  async function withCommands(lanePrs?: LanePrRead) {
     const nameLane = vi.fn()
-    const s = setup([], nameLane)
+    const s = setup([], nameLane, lanePrs)
     const session = await start(s.context, {})
     const lane = s.saved()
     await attach(s.context, lane.laneId, session.sessionId)
@@ -256,5 +269,44 @@ describe('slash prompts and the lane title', () => {
     const s = await withCommands()
     await command(s.context, s.sessionId, { type: 'prompt', message: '/review the parser' })
     expect(store.getLane(s.laneId)?.title).toBe('/review the parser')
+  })
+  it('reads the lane file again after Track or Hide, so its summary carries the write', async () => {
+    const ref = { host: 'github.com', owner: 'acme', repo: 'app', number: 7 }
+    const pinned: LanePrSignals = {
+      ...{ opened: [], branches: [], reviewing: [], mentioned: [], hidden: [] },
+      pinned: [ref],
+    }
+    // pi appends the entry without an event: before the fix, nothing read the file again.
+    const read = vi.fn<LanePrRead>(async () => pinned)
+    const s = await withCommands(read)
+    const file = join(machine.dir, 'lane.jsonl')
+    store.bindSessionFile(s.laneId, file)
+    const delta = vi.spyOn(live.lanesTopic, 'delta')
+    const message = '/phosphor-prs pin https://github.com/acme/app/pull/7'
+    expect(await command(s.context, s.sessionId, { type: 'prompt', message })).toMatchObject({
+      success: true,
+    })
+    await vi.waitFor(() =>
+      expect(delta).toHaveBeenCalledWith([
+        expect.objectContaining({ laneId: s.laneId, pullRequests: pinned }),
+      ]),
+    )
+    expect(read).toHaveBeenCalledWith(file)
+    expect(store.getLane(s.laneId)?.title).toBeNull()
+  })
+  it('reads nothing again when pi refused the Track', async () => {
+    const read = vi.fn<LanePrRead>(async () => undefined)
+    const s = await withCommands(read)
+    store.bindSessionFile(s.laneId, join(machine.dir, 'lane.jsonl'))
+    const changed = vi.spyOn(s.binding.attachment!, 'stateChanged')
+    s.runtime.command.mockResolvedValueOnce({
+      type: 'response',
+      command: 'prompt',
+      success: false,
+      error: 'no',
+    })
+    const message = '/phosphor-prs hide https://github.com/acme/app/pull/7'
+    await command(s.context, s.sessionId, { type: 'prompt', message })
+    expect(changed).not.toHaveBeenCalled()
   })
 })

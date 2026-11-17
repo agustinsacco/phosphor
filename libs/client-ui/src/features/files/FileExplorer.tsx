@@ -3,7 +3,7 @@ import { memo, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
-import { showContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
+import { showContextMenu, useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { revealLabel } from '@/lib/reveal'
 import { ChevronIcon } from '@/components/icons'
 import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
@@ -80,23 +80,44 @@ export const FileExplorer = memo(function FileExplorer({
           </div>
         )}
       </div>
-      <div
-        role="status"
-        className="border-border text-text-tertiary shrink-0 border-t px-2 py-1 text-xs"
-      >
-        {controls.busy
-          ? 'Working…'
-          : controls.dropDir
-            ? 'Drop here · Option/Ctrl to copy'
-            : controls.selected.length
-              ? `${controls.selected.length} selected · right-click for actions`
-              : features.clipboardFiles
-                ? 'Drop files to import · right-click for actions'
-                : 'Right-click for actions'}
-      </div>
+      <ExplorerStatus source={source} controls={controls} />
     </div>
   )
 })
+
+/**
+ * What the explorer is doing, and how to reach its actions. A phone has no right-click (a row's
+ * long-press is its menu), so client-shell.css hides that hint there, and a line of only the
+ * hint with it.
+ */
+function ExplorerStatus({
+  source,
+  controls,
+}: {
+  source: FilesSource
+  controls: ReturnType<typeof useExplorer>
+}): React.JSX.Element {
+  const clipboard = source.features.clipboardFiles
+  const [state, hint] = controls.busy
+    ? ['Working…', null]
+    : controls.dropDir
+      ? ['Drop here · Option/Ctrl to copy', null]
+      : controls.selected.length
+        ? [`${controls.selected.length} selected`, ' · right-click for actions']
+        : clipboard
+          ? ['Drop files to import', ' · right-click for actions']
+          : [null, 'Right-click for actions']
+  return (
+    <div
+      role="status"
+      data-hint-only={state ? undefined : true}
+      className="border-border text-text-tertiary shrink-0 border-t px-2 py-1 text-xs"
+    >
+      {state}
+      {hint && <span data-pointer-hint>{hint}</span>}
+    </div>
+  )
+}
 
 /** New file and folder, in `entry`'s folder (the root without one), when the lane takes writes. */
 function createItems(source: FilesSource, entry?: DirEntry): ContextMenuItem[] {
@@ -136,8 +157,19 @@ function rowMenu(
     },
     ...(features.download && !entry.isDirectory
       ? [
-          { label: 'Download', hint: 'to Downloads', onClick: () => downloadEntry(source, entry) },
-          { label: 'Open in default app', onClick: () => downloadEntry(source, entry, 'open') },
+          {
+            label: 'Download',
+            hint: features.openDownloads ? 'to Downloads' : undefined,
+            onClick: () => downloadEntry(source, entry),
+          },
+          ...(features.openDownloads
+            ? [
+                {
+                  label: 'Open in default app',
+                  onClick: () => downloadEntry(source, entry, 'open'),
+                },
+              ]
+            : []),
         ]
       : []),
     ...createItems(source, entry),
@@ -168,6 +200,36 @@ const STATUS_DOTS: Record<string, { color: string; label: string }> = {
   '?': { color: 'var(--px-success)', label: 'untracked' },
   D: { color: 'var(--px-danger)', label: 'deleted' },
   R: { color: 'var(--px-info)', label: 'renamed' },
+}
+
+/**
+ * A row's menu and drag: right-click, the menu key, or a touch or pen long-press, which a phone
+ * shows as a sheet. Only a mouse drags, since a touch or pen hold is the menu a drag would race.
+ */
+function useRowGestures(
+  source: FilesSource,
+  entry: DirEntry,
+  controls: ReturnType<typeof useExplorer>,
+  row: React.RefObject<HTMLButtonElement | null>,
+) {
+  const menu = useMenuTriggers(
+    () => {
+      controls.context(entry)
+      row.current?.focus()
+      return rowMenu(source, entry, controls)
+    },
+    { title: entry.name },
+  )
+  const draggable = !controls.busy && !source.writeRefusal
+  return {
+    ...menu,
+    draggable,
+    onPointerDown: (event: React.PointerEvent<HTMLElement>): void => {
+      event.currentTarget.draggable = draggable && event.pointerType === 'mouse'
+      menu.onPointerDown(event)
+    },
+    onDragStart: (event: React.DragEvent): void => controls.dragStart(event, entry),
+  }
 }
 
 function ExplorerRow({
@@ -209,11 +271,7 @@ function ExplorerRow({
     }
   }
 
-  const onContextMenu = (event: React.MouseEvent): void => {
-    controls.context(entry)
-    ;(event.currentTarget as HTMLElement).focus()
-    showContextMenu(event, rowMenu(source, entry, controls))
-  }
+  const gestures = useRowGestures(source, entry, controls, rowRef)
 
   return (
     <>
@@ -224,10 +282,8 @@ function ExplorerRow({
         data-directory={entry.isDirectory}
         aria-pressed={controls.selected.some((e) => e.path === entry.path)}
         aria-expanded={entry.isDirectory ? isExpanded : undefined}
-        draggable={!controls.busy && !source.writeRefusal}
-        onDragStart={(event) => controls.dragStart(event, entry)}
+        {...gestures}
         onClick={onClick}
-        onContextMenu={onContextMenu}
         depth={depth}
         active={
           isActive ||

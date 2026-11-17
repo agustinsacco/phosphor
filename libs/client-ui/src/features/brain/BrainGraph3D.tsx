@@ -1,8 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { BrainGraph, BrainLink } from '@shared/brain'
-import { Button } from '@/components/form'
+import { Button, NeutralSegmented } from '@/components/form'
+import './explorer/knowledge.css'
+import { ENTITY_LABELS } from './explorer/KnowledgePrimitives'
 import { GRAPH_COLORS } from './graphColors'
-import { graphModel, type GraphNode, type GraphLink } from './graphModel'
+import { graphModel, graphNeighbors, type GraphNode, type GraphLink } from './graphModel'
+import type { GraphScene } from './graphScene'
 import { useGraphScene } from './useGraphScene'
 import { useBrainResource } from './useBrainResource'
 import { TooltipButton } from '@/components/Tooltip'
@@ -11,20 +14,31 @@ export function BrainGraph3D({
   graph,
   path = null,
   focus,
+  scope = 'all',
+  selectionPending = false,
   matches = null,
   onFocus,
+  onClear,
+  toolbar,
 }: {
   graph: BrainGraph
   path?: BrainLink[] | null
   focus: string | null
+  scope?: 'all' | 'near'
+  selectionPending?: boolean
   matches?: Set<string> | null
   onFocus: (id: string) => void
+  onClear?: () => void
+  toolbar?: React.ReactNode
 }): React.JSX.Element {
   const model = useMemo(() => graphModel(graph), [graph])
   const [dimensions, setDimensions] = useState<2 | 3>(3)
   const [edge, setEdge] = useState<GraphLink | null>(null)
   const pathMatches = useMemo(
-    () => (path ? new Set(path.flatMap((link) => [link.subjectId, link.objectId])) : matches),
+    () =>
+      path?.length
+        ? new Set([...(matches ?? []), ...path.flatMap((link) => [link.subjectId, link.objectId])])
+        : matches,
     [path, matches],
   )
   const pathIds = useMemo(() => (path ? new Set(path.map((link) => link.id)) : null), [path])
@@ -32,46 +46,33 @@ export function BrainGraph3D({
   const { scene, unavailable } = useGraphScene(
     container,
     model,
-    { focus, matches: pathMatches, path: pathIds },
+    { focus, matches: pathMatches, path: pathIds, scope },
     onFocus,
     setEdge,
     dimensions,
+    onClear,
+    selectionPending,
   )
   return (
     <section
       aria-label="Knowledge graph"
-      className="border-border bg-bg-secondary/40 relative flex min-h-64 flex-1 flex-col rounded-lg border"
+      className="bg-bg-secondary/40 relative flex min-h-64 min-w-0 flex-1 flex-col"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 p-3">
-        <GraphLegend nodes={model.nodes} />
-        <div className="flex gap-1">
-          <Button size="xs" aria-pressed={dimensions === 2} onClick={() => setDimensions(2)}>
-            2D
-          </Button>
-          <Button size="xs" aria-pressed={dimensions === 3} onClick={() => setDimensions(3)}>
-            3D
-          </Button>
-          <Button
-            size="xs"
-            aria-label="Zoom out"
-            disabled={!scene}
-            onClick={() => scene?.zoom(1 / 1.2)}
-          >
-            −
-          </Button>
-          <Button size="xs" aria-label="Zoom in" disabled={!scene} onClick={() => scene?.zoom(1.2)}>
-            +
-          </Button>
-          <Button size="xs" disabled={!scene} onClick={() => scene?.fit()}>
-            Fit
-          </Button>
-        </div>
+        {toolbar}
+        <GraphControls dimensions={dimensions} setDimensions={setDimensions} scene={scene} />
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div
           ref={container}
           aria-label="Memory relationships"
           className="absolute inset-0 touch-none"
+        />
+        <GraphAccess
+          nodes={model.nodes}
+          focus={focus}
+          matches={pathMatches ?? (focus ? graphNeighbors(model, focus) : null)}
+          onFocus={onFocus}
         />
         {unavailable && (
           <p role="status" className="text-text-tertiary p-6 text-center text-sm">
@@ -80,7 +81,9 @@ export function BrainGraph3D({
         )}
       </div>
       {edge && <EdgeDetail key={edge.id} edge={edge} />}
-      <GraphAccess nodes={model.nodes} focus={focus} matches={pathMatches} onFocus={onFocus} />
+      <div className="border-border border-t p-3">
+        <GraphLegend nodes={model.nodes} />
+      </div>
     </section>
   )
 }
@@ -163,9 +166,57 @@ function GraphLegend({ nodes }: { nodes: GraphNode[] }): React.JSX.Element {
             className="h-2 w-2 rounded-full"
             style={{ background: `var(${GRAPH_COLORS[kind]})` }}
           />
-          {kind}
+          {ENTITY_LABELS[kind]}
         </span>
       ))}
+    </div>
+  )
+}
+
+function GraphControls({
+  dimensions,
+  setDimensions,
+  scene,
+}: {
+  dimensions: 2 | 3
+  setDimensions: (value: 2 | 3) => void
+  scene: GraphScene | null
+}): React.JSX.Element {
+  return (
+    <div className="ml-auto flex flex-wrap items-center gap-1">
+      <NeutralSegmented
+        value={String(dimensions)}
+        options={[
+          { id: '2', label: '2D' },
+          { id: '3', label: '3D' },
+        ]}
+        onChange={(value) => setDimensions(Number(value) as 2 | 3)}
+      />
+      <TooltipButton
+        aria-label="Zoom out"
+        disabled={!scene}
+        className="graph-icon"
+        onClick={() => scene?.zoom(1 / 1.2)}
+      >
+        −
+      </TooltipButton>
+      <TooltipButton
+        aria-label="Zoom in"
+        disabled={!scene}
+        className="graph-icon"
+        onClick={() => scene?.zoom(1.2)}
+      >
+        +
+      </TooltipButton>
+      <TooltipButton
+        aria-label="Fit the graph"
+        tooltip="Fit the graph"
+        disabled={!scene}
+        className="graph-icon"
+        onClick={() => scene?.fit()}
+      >
+        ⤢
+      </TooltipButton>
     </div>
   )
 }

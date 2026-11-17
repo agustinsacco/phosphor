@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { clone, createSession, persist, setName } from './persistence.cjs'
 
 const roots: string[] = []
@@ -60,6 +60,15 @@ describe('fake pi persistence', () => {
     expect(session.lastEntryId).toBe(disk.at(-1)!.id)
     expect(session.messages).toEqual([user, result])
     expect(session.selectedName).toBe('manual')
+  })
+
+  it('names a new session’s file after the id its header records, as pi does', () => {
+    // A lane move refuses a transcript whose file name and header id disagree.
+    const session = fixture()
+    persist(session, { role: 'user', content: 'hello' })
+    expect(basename(session.sessionFile)).toMatch(/^[0-9TZ-]+_[0-9a-f-]{36}\.jsonl$/)
+    expect(basename(session.sessionFile).endsWith(`_${session.id}.jsonl`)).toBe(true)
+    expect(entries(session.sessionFile)[0]).toMatchObject({ type: 'session', id: session.id })
   })
 
   it('writes an early manual name without later adding the launch name', () => {

@@ -20,8 +20,8 @@ export function InstallAppTab(): React.JSX.Element {
       </Row>
       <h3 className="mb-2 mt-6 text-lg font-semibold">Notifications</h3>
       <p className="text-text-secondary text-base">
-        Push notifications are not available yet. While the app is open, lanes that need you are
-        marked in the lane list.
+        Push notifications are not available yet. While the app runs, lane updates land in
+        Notifications, with optional native notifications.
       </p>
     </div>
   )

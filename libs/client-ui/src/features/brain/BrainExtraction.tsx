@@ -1,255 +1,149 @@
 import { useCallback, useState } from 'react'
 import type { BrainExtractionView } from '@shared/brain'
-import { ipcErrorText } from '@shared/errors'
 import { Button, Tag } from '@/components/form'
-import { TooltipSummary } from '@/components/Tooltip'
-import { CodeBlock } from '@/components/markdown/CodeBlock'
+import { TooltipButton } from '@/components/Tooltip'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
-import { formatCount } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { useBrainResource } from './useBrainResource'
+import { useBrainModelName } from './useBrainModelName'
+import { BrainReadAgain } from './BrainReadAgain'
 import { elapsedTime } from './jobProgress'
-import { openBrainSource } from './openBrainSource'
+import { ExtractionCalls } from './ExtractionCalls'
+import { ExtractionSource } from './ExtractionSource'
 
 const OUTCOME = {
-  kept: 'Kept',
-  reconfirms: 'Re-confirms an existing memory',
-  folded: 'Folded into another claim',
-  enriches: 'Adds links to an existing memory',
-  held: 'Held back',
-  dropped: 'Dropped',
+  kept: 'kept',
+  reconfirms: 'reconfirmed',
+  folded: 'folded',
+  enriches: 'enriches',
+  held: 'held',
+  dropped: 'dropped',
 } as const
-
 export function BrainExtraction({
   jobId,
   onBack,
   onMemory,
 }: {
   jobId: string
-  onBack: () => void
-  onMemory: (id: string) => void
+  onBack?: () => void
+  onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:extraction', jobId), [jobId])
   const { data, error, retry } = useBrainResource(load)
   return (
-    <section aria-label="Extraction detail" className="space-y-4 p-4">
-      <Button size="sm" onClick={onBack}>
-        Back
-      </Button>
+    <section
+      aria-label="Extraction detail"
+      className="min-w-0 space-y-4 p-4 [overflow-wrap:anywhere]"
+    >
+      {onBack && (
+        <Button size="sm" onClick={onBack}>
+          Back to review
+        </Button>
+      )}
       {!data ? (
         <div role="status">
           {error || 'Loading extraction…'}
           {error && <Button onClick={retry}>Retry</Button>}
         </div>
       ) : (
-        <>
-          <header>
-            <h2 className="text-xl font-semibold">{data.title}</h2>
-            <p className="text-text-tertiary text-sm">
-              {data.model} · {data.thinking} thinking ·{' '}
-              {elapsedTime(data.finishedAt - data.startedAt)} · {relativeTime(data.finishedAt)}
-            </p>
-          </header>
-          {data.error && (
-            <p role="status" className="text-danger">
-              {data.error}
-            </p>
-          )}
-          <ExtractionOutcomes data={data} onMemory={onMemory} />
-          {data.calls.map((call, index) => (
-            <section key={index} className="border-border space-y-3 rounded border p-3">
-              <h3 className="font-medium">
-                {call.stage} · part {call.part}
-              </h3>
-              {call.error && <p role="status">{call.error}</p>}
-              <SectionLabel>Raw agent output</SectionLabel>
-              <div className="max-h-96 overflow-auto">
-                <CodeBlock
-                  code={formatAgentOutput(call.answer) || '(No final text returned)'}
-                  language="text"
-                  chatActions={false}
-                />
-              </div>
-              <details>
-                <TooltipSummary>Prompt</TooltipSummary>
-                <CodeBlock
-                  code={data.prompts[index] || 'Prompt unavailable: source lane is gone.'}
-                  language="text"
-                  chatActions={false}
-                />
-              </details>
-              <ExtractionTrace trace={call.trace} />
-            </section>
-          ))}
-          <ExtractionSource source={data.source} />
-        </>
+        <FinishedRead data={data} onMemory={onMemory} />
       )}
     </section>
   )
 }
-function ExtractionOutcomes({
+function FinishedRead({
   data,
   onMemory,
 }: {
   data: BrainExtractionView
-  onMemory: (id: string) => void
+  onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
+  const model = useBrainModelName(data.model)
   return (
-    <section className="space-y-2">
-      <SectionLabel>Candidates</SectionLabel>
-      <div className="flex flex-wrap gap-2">
-        {(['kept', 'folded', 'reconfirms', 'enriches', 'held', 'dropped'] as const).map(
-          (status) => (
-            <Tag key={status}>
-              {formatCount(
-                data.outcomes.filter((item) => item.status === status).length,
-                status === 'reconfirms' ? 'reconfirmed' : status,
-                status === 'reconfirms' ? 'reconfirmed' : status,
-              )}
-            </Tag>
-          ),
+    <>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold">{data.title}</h2>
+          <p className="text-text-tertiary text-sm">
+            {model} · {data.thinking} thinking · took{' '}
+            {elapsedTime(data.finishedAt - data.startedAt)} · {relativeTime(data.finishedAt)}
+          </p>
+        </div>
+        {data.job?.state === 'done' && (
+          <BrainReadAgain
+            job={data.job}
+            memories={data.laneMemories}
+            replaceable={data.replaceable}
+          />
         )}
-      </div>
-      <ol className="space-y-2">
-        {data.outcomes.map((outcome) => (
-          <li key={outcome.candidate} className="border-border rounded-md border p-3">
-            {outcome.memoryId ? (
-              <Button size="sm" onClick={() => onMemory(outcome.memoryId!)}>
-                {outcome.summary}
-              </Button>
-            ) : (
-              <p>{outcome.summary}</p>
-            )}
-            <p className="text-text-tertiary text-sm">
-              {OUTCOME[outcome.status]}
-              {outcome.reason && ` · ${outcome.reason}`}
-            </p>
+      </header>
+      {data.error && (
+        <p role="status" className="text-danger">
+          {data.error}
+        </p>
+      )}
+      <ExtractionOutcomes data={data} onMemory={onMemory} />
+      <section aria-label="Memories from this lane" className="space-y-2">
+        <SectionLabel>Memories from this lane · {data.memories.length}</SectionLabel>
+        <ul className="border-border bg-surface divide-border divide-y rounded-lg border">
+          {data.memories.map((memory) => (
+            <li key={memory.id}>
+              <TooltipButton
+                className="hover:bg-bg-secondary w-full px-4 py-3 text-left"
+                onClick={() => onMemory(memory.id, memory.summary)}
+              >
+                {memory.summary}
+              </TooltipButton>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <ExtractionCalls data={data} />
+      <ExtractionSource source={data.source} />
+    </>
+  )
+}
+export function ExtractionOutcomes({
+  data,
+  onMemory,
+}: {
+  data: BrainExtractionView
+  onMemory: (id: string, label: string) => void
+}): React.JSX.Element {
+  const [shown, setShown] = useState(20)
+  const counters = (Object.keys(OUTCOME) as (keyof typeof OUTCOME)[]).flatMap((status) => {
+    const count = data.outcomes.filter((item) => item.status === status).length
+    return count ? [`${count} ${OUTCOME[status]}`] : []
+  })
+  return (
+    <section aria-label="Read result" className="space-y-2">
+      <SectionLabel>Result{counters.length > 0 && ` · ${counters.join(', ')}`}</SectionLabel>
+      <ol className="border-border bg-surface divide-border divide-y rounded-lg border">
+        {data.outcomes.slice(0, shown).map((outcome) => (
+          <li key={outcome.candidate} className="space-y-1 px-4 py-3">
+            <div className="flex flex-wrap items-start gap-2">
+              {outcome.memoryId && !outcome.removed ? (
+                <TooltipButton
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => onMemory(outcome.memoryId!, outcome.summary)}
+                >
+                  {outcome.summary}
+                </TooltipButton>
+              ) : (
+                <span className="min-w-0 flex-1">{outcome.summary}</span>
+              )}
+              <Tag>{outcome.removed ? 'removed' : OUTCOME[outcome.status]}</Tag>
+            </div>
+            {outcome.reason && <p className="text-text-tertiary text-sm">{outcome.reason}</p>}
           </li>
         ))}
       </ol>
       {!data.outcomes.length && <p className="text-text-tertiary text-sm">No candidates parsed.</p>}
-      {data.memories.length > 0 && (
-        <details>
-          <TooltipSummary>
-            Produced {formatCount(data.memories.length, 'memory', 'memories')}
-          </TooltipSummary>
-          {data.memories.map((memory) => (
-            <div key={memory.id}>
-              <Button size="sm" onClick={() => onMemory(memory.id)}>
-                {memory.summary}
-              </Button>
-            </div>
-          ))}
-        </details>
+      {shown < data.outcomes.length && (
+        <Button size="sm" onClick={() => setShown(shown + 20)}>
+          Show more
+        </Button>
       )}
     </section>
   )
-}
-function ExtractionTrace({
-  trace,
-}: {
-  trace: BrainExtractionView['calls'][number]['trace']
-}): React.JSX.Element {
-  return (
-    <section className="space-y-2">
-      <SectionLabel>Trace</SectionLabel>
-      {!trace ? (
-        <p className="text-text-tertiary text-sm">No trace available.</p>
-      ) : (
-        <>
-          <p>
-            First token:{' '}
-            {trace.firstMessageUpdateMs === null
-              ? 'none'
-              : `${Math.round(trace.firstMessageUpdateMs)} ms`}{' '}
-            · {formatCount(trace.turns, 'turn')} ·{' '}
-            {formatCount(
-              trace.retries.filter((event) =>
-                ['auto_retry_start', 'summarization_retry_attempt_start'].includes(event.type),
-              ).length,
-              'retry',
-              'retries',
-            )}
-          </p>
-          <p>
-            Stop: {trace.stopReason ?? 'none'} · {trace.reason} ·{' '}
-            {formatCount(trace.usage.tokens, 'token')}
-          </p>
-          <p className="text-text-tertiary text-sm">
-            Input {trace.usage.input} · output {trace.usage.output} · cache read{' '}
-            {trace.usage.cacheRead} · cache write {trace.usage.cacheWrite}
-          </p>
-          {trace.providerError && <p>{trace.providerError}</p>}
-          {trace.retries.map((retry, index) => (
-            <p key={index} className="text-text-tertiary text-sm">
-              {retry.type} · attempt {retry.attempt ?? '—'} · {retry.delayMs ?? 0} ms ·{' '}
-              {retry.errorMessage ?? (retry.success ? 'succeeded' : '')}
-            </p>
-          ))}
-        </>
-      )}
-    </section>
-  )
-}
-function ExtractionSource({
-  source,
-}: {
-  source: BrainExtractionView['source']
-}): React.JSX.Element {
-  const [error, setError] = useState('')
-  const [opening, setOpening] = useState(false)
-  const open = async (): Promise<void> => {
-    setOpening(true)
-    setError('')
-    try {
-      await openBrainSource(source.sessionPath)
-    } catch (cause) {
-      setError(ipcErrorText(cause))
-    } finally {
-      setOpening(false)
-    }
-  }
-  return (
-    <details>
-      <TooltipSummary className="cursor-pointer">Source lane at extraction</TooltipSummary>
-      {!source.exists ? (
-        <p className="text-text-tertiary text-sm">Source lane is no longer available.</p>
-      ) : (
-        <>
-          <Button
-            size="sm"
-            disabled={opening}
-            onClick={() => {
-              void open()
-            }}
-          >
-            Open lane
-          </Button>
-          {error && <p role="status">{error}</p>}
-          <p className="text-text-tertiary text-sm">
-            Up to {source.leafId ?? 'the clone point'} · last 300 segments, each clipped to 4,000
-            characters.
-          </p>
-          <div className="max-h-96 space-y-3 overflow-auto">
-            {source.segments.map((segment, index) => (
-              <article key={index} className="border-border rounded-md border p-3">
-                <SectionLabel>{segment.label}</SectionLabel>
-                <pre className="text-sm whitespace-pre-wrap break-words">{segment.text}</pre>
-              </article>
-            ))}
-            {!source.segments.length && <p>No source segments available at this clone point.</p>}
-          </div>
-        </>
-      )}
-    </details>
-  )
-}
-
-function formatAgentOutput(answer: string): string {
-  try {
-    const parsed: unknown = JSON.parse(answer)
-    return JSON.stringify(parsed, null, 2)
-  } catch {
-    return answer
-  }
 }

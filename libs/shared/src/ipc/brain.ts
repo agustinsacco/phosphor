@@ -1,9 +1,13 @@
 import type {
   BrainConnectionPage,
   BrainEntityView,
+  BrainEntityKind,
+  BrainEntityPage,
+  BrainRecentMemories,
   BrainExtractionView,
   BrainFindResult,
   BrainGraph,
+  BrainHistory,
   BrainLaneRef,
   BrainMemoryDetail,
   BrainMemoryFilter,
@@ -18,6 +22,13 @@ import type {
 
 /** UI commands. Authority comes from the Desktop handler, never this DTO. */
 export interface BrainInvokeMap {
+  'brain:entities': {
+    args: [kind: BrainEntityKind | null, offset: number, limit: number]
+    result: BrainEntityPage
+  }
+  'brain:recent': { args: [limit: number]; result: BrainRecentMemories }
+  'brain:history': { args: [limit: number]; result: BrainHistory }
+  'brain:reread': { args: [jobId: string]; result: BrainStatus }
   'brain:status': { args: []; result: BrainStatus }
   /** Saves at once. Enabling downloads the model if it is missing; disabling keeps it. */
   'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }

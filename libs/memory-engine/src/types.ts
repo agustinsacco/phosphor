@@ -2,9 +2,13 @@ import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainConnectionPage,
   BrainEntityView,
+  BrainEntityKind,
+  BrainEntityPage,
+  BrainRecentMemories,
   BrainExtractionRecord,
   BrainFindResult,
   BrainGraph,
+  BrainHistory,
   BrainJob,
   BrainMemoryDetail,
   BrainMemoryFilter,
@@ -38,7 +42,7 @@ export type SqliteConstructor = new (path: string, options?: SqliteOptions) => S
 export type NewJob = Pick<
   BrainJob,
   'sessionId' | 'sessionPath' | 'title' | 'scope' | 'branch' | 'model' | 'leafId'
->
+> & { replaces?: string | null }
 export type JobPatch = Partial<
   Pick<
     BrainJob,
@@ -72,6 +76,9 @@ export interface BrainStore {
   /** Throws when the lane already has an unfinished job, or nothing changed since the last one. */
   enqueue(job: NewJob, state: 'waiting' | 'queued'): BrainJob
   job(id: string): BrainJob | undefined
+  history(limit: number): BrainHistory
+  /** All surviving memories from a lane, and those without independent support elsewhere. */
+  laneMemories(sessionId: string, exceptJobId?: string): { ids: string[]; replaceable: string[] }
   updateJob(id: string, patch: JobPatch): BrainJob
   /** Requeues a failed job under the same id, keeping its parts and frozen leaf. */
   retry(id: string): BrainJob
@@ -152,6 +159,8 @@ export interface Neighbour {
  * any process; `refresh` picks up rows committed since the last call.
  */
 export interface BrainSearch {
+  entities(kind: BrainEntityKind | null, offset: number, limit: number): BrainEntityPage
+  recent(limit: number): BrainRecentMemories
   /** Coalesced, chunked load; calls keep using the previous complete index while it refreshes. */
   refresh(): Promise<void>
   /** False while the vector index is still loading; searches then use words and names only. */

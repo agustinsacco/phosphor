@@ -45,7 +45,7 @@ export function PrHeader({
   ].filter(Boolean)
   return (
     <div className="px-3 pt-2.5">
-      <div className="flex min-h-6 items-center gap-2 pr-28">
+      <div data-pr-header-row className="flex min-h-6 items-center gap-2 pr-28">
         <span className="text-text-secondary min-w-0 truncate font-mono text-base">
           {repoOf(item)}
         </span>

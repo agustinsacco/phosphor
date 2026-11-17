@@ -1,0 +1,47 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="brain" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i class="done"></i><i class="done"></i><i><b id="brain-fill"></b></i>
+      </div>
+      <p class="step">4 of 4 · Context</p>
+      <div class="copy">
+        <h2 id="brain-title" class="title clip" data-start="0.2" data-duration="3.9">
+          <span class="in">Keep what you <em>approve</em></span>
+        </h2>
+        <div class="subs">
+          <p id="brain-sub" class="sub clip" data-start="0.6" data-duration="3.5">
+            <span class="in">Brain is opt-in on Desktop, with review on by default.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="brain-pan" class="pan">
+        <div id="brain-cam" class="cam">
+          <img class="plate" src="assets/shots/brain-graph.png" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#brain-cam')
+      PX.whipIn(tl, '#brain-pan')
+      cam.cut([724, 150, 800, 700]).move([790, 300, 660, 560], 0.5, 2.6, 1.5, 'power1.inOut')
+      PX.whipOut(tl, '#brain-pan', 4.1)
+      PX.title(tl, '#brain-title .in', 0.3, 4.1)
+      PX.line(tl, '#brain-sub .in', 0.7, 4.1)
+      PX.draw(tl, '#brain-fill', 0, 4.1, 0, 0.5)
+      window.__timelines['brain'] = tl
+    })()
+  </script>
+</template>

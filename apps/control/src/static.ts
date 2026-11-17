@@ -1,6 +1,6 @@
 import { open, realpath, type FileHandle } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
-import { createGzip } from 'node:zlib'
+import { staticResponse } from './static-response'
 
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -14,6 +14,8 @@ const types: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
@@ -22,6 +24,14 @@ const types: Record<string, string> = {
 }
 const inside = (root: string, path: string) => path.startsWith(root + sep)
 const hidden = (path: string) => path.split(/[\\/]/).some((part) => part.startsWith('.'))
+
+/**
+ * The web app's document policy. Its blob: images and media are Host files the page itself
+ * read into memory and typed by extension (apps/web/src/platform/file-bytes.ts); they never
+ * load from the network.
+ */
+const WEB_APP_POLICY =
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src blob:; font-src 'self'; connect-src 'self' https://*.ts.net:* wss://*.ts.net:*; manifest-src 'self'; worker-src 'self'; frame-src blob:; base-uri 'none'; form-action 'self'"
 
 export async function serveStatic(
   request: Request,
@@ -39,10 +49,7 @@ export async function serveStatic(
     // WebKit inherits CSP frame-ancestors into Blob previews and refuses them.
     // DENY protects the app from framing without propagating into opaque Blobs.
     headers.set('X-Frame-Options', 'DENY')
-    headers.set(
-      'Content-Security-Policy',
-      "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.ts.net:* wss://*.ts.net:*; manifest-src 'self'; worker-src 'self'; frame-src blob:; base-uri 'none'; form-action 'self'",
-    )
+    headers.set('Content-Security-Policy', WEB_APP_POLICY)
   }
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     headers.set('Allow', 'GET, HEAD')
@@ -68,46 +75,7 @@ export async function serveStatic(
       headers.set('Content-Type', type)
       if (immutable && status === 200)
         headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-      const gzip =
-        stat.size > 1024 &&
-        /^(text\/|application\/(javascript|json)|image\/svg\+xml)/.test(type) &&
-        /(?:^|,)\s*gzip\s*(?:,|$|;\s*q=(?:1(?:\.0*)?|0\.[0-9]*[1-9][0-9]*)(?:\s*,|\s*$))/.test(
-          request.headers.get('accept-encoding') ?? '',
-        )
-      if (/^(text\/|application\/(javascript|json)|image\/svg\+xml)/.test(type))
-        headers.set('Vary', 'Accept-Encoding')
-      if (gzip) headers.set('Content-Encoding', 'gzip')
-      else headers.set('Content-Length', String(stat.size))
-      if (request.method === 'HEAD') {
-        await handle.close()
-        return new Response(null, { status, headers })
-      }
-      const source = handle.createReadStream()
-      const stream = gzip ? source.pipe(createGzip()) : source
-      if (gzip) {
-        source.on('error', (error) => stream.destroy(error))
-        stream.on('close', () => source.destroy())
-      }
-      const iterator = stream[Symbol.asyncIterator]()
-      const body = new ReadableStream<Uint8Array>({
-        async pull(controller) {
-          try {
-            const chunk = await iterator.next()
-            if (chunk.done) controller.close()
-            else if (chunk.value instanceof Uint8Array) controller.enqueue(chunk.value)
-            else throw new Error('Invalid static stream')
-          } catch (error) {
-            source.destroy()
-            stream.destroy()
-            controller.error(error)
-          }
-        },
-        cancel() {
-          source.destroy()
-          stream.destroy()
-        },
-      })
-      return new Response(body, { status, headers })
+      return await staticResponse(handle, request, headers, status, stat.size)
     } catch {
       await handle?.close()
       return null

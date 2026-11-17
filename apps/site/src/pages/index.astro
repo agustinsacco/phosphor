@@ -2,523 +2,263 @@
 import Page from '../layouts/Page.astro'
 import Capture from '../components/Capture.astro'
 import SurfaceLab from '../components/SurfaceLab.astro'
-import SwarmStory from '../components/SwarmStory.astro'
-import Command from '../components/Command.astro'
-import {
-  connectors,
-  doc,
-  download,
-  guides,
-  packages,
-  piDoc,
-  releases,
-  repo,
-  shot,
-  subscriptions,
-} from '../lib/content'
+import ProductDetails from '../components/ProductDetails.astro'
+import StartHere from '../components/StartHere.astro'
+import { shot } from '../lib/content'
 ---
 
 <Page>
   <section class="hero container" aria-labelledby="hero-title">
     <div class="hero-copy">
-      <p class="eyebrow">The multi-agent IDE built on pi</p>
-      <h1 id="hero-title">One mission.<br /><span>Many agents.</span><br />Your IDE.</h1>
+      <p class="eyebrow">Phosphor / the open-source workspace built on pi</p>
+      <h1 id="hero-title">Your work.<br /><span>In context.</span></h1>
     </div>
     <div class="hero-summary">
-      <p class="hero-lede">
-        Take on work bigger than one prompt. Run independent tasks in isolated lanes, delegate
-        focused pieces inside each lane, and stay close to every decision, diff and result.
-      </p>
+      <p class="hero-lede">Many lanes. A clear next move.</p>
       <p>
-        A full editor, terminal and review environment around pi’s small, extensible agent harness.
-        Bring Astra, Opus 5.5, Sol 6.1, or another configured model. Use your existing subscriptions
-        or API keys. You choose the team.
+        Run coding agents in parallel, review what changed, and keep the decisions worth
+        remembering. From your Desktop to your own remote machines, the work stays inspectable.
       </p>
       <div class="hero-actions">
-        <a class="action action-primary" href="#install"
-          >Install Phosphor <span aria-hidden="true">↓</span></a
-        >
-        <a class="action action-text" href="#swarm"
-          >See a real mission <span aria-hidden="true">↓</span></a
-        >
+        <a class="action action-primary" href="#install">Install Phosphor ↓</a>
+        <a class="action action-text" href="/watch/">Watch the walkthroughs ↗</a>
       </div>
       <div class="hero-meta mono">
-        <span>macOS · Linux · Windows</span><span>Free · MIT</span><a href="#built"
-          >Built in Phosphor ↓</a
-        >
+        <span>macOS · Linux</span><span>Free · MIT</span><span>Desktop + Host-backed PWA</span>
       </div>
     </div>
     <div class="hero-proof">
       <Capture
-        image={shot('remote-hosts')}
-        alt="Curated replay of the Phosphor Remote Hosts lane: the parent records a scoped approval while four workstreams appear beside the Host worker’s parent guidance."
-        caption="Remote Hosts: one parent, four bounded workstreams"
-        provenance="Recorded work · curated replay"
-        sizes="(max-width: 480px) 92vw, (max-width: 1422px) 90vw, 1280px"
+        image={shot('home')}
+        alt="Phosphor’s workbench showing fictional parallel lanes, their current activity and project usage."
+        caption="One view of the work that needs you"
         eager
       />
     </div>
   </section>
 
-  <SwarmStory />
-
-  <section id="why" class="section problem" aria-labelledby="why-title">
-    <div class="container problem-grid">
-      <div>
-        <p class="eyebrow">Across the whole project</p>
-        <h2 id="why-title">Parallel work.<br />A clear next move.</h2>
-      </div>
-      <div class="problem-copy">
-        <p class="problem-lede">
-          A team inside one lane is only half the story. Work on several features at once, without
-          mixing their branches or losing the one task that needs your decision.
-        </p>
-        <p>
-          Phosphor gives each task a lane: its own agent, its own worktree, its own diff. The home
-          screen sorts lanes into Waiting on you, Ready to merge, Needs a push, In review, and
-          Running, so you know where to look next.
-        </p>
-      </div>
-    </div>
-    <div class="container">
-      <Capture
-        class="problem-board"
-        image={shot('home')}
-        alt="Phosphor’s lane dashboard with parallel sessions, a ready-to-merge task, and project usage."
-        caption="Lanes from Phosphor’s own development"
-      />
-    </div>
-  </section>
-
-  <section id="work" class="section">
+  <section id="why" class="section">
     <div class="container">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">01 / How it works</p><h2>
-            Start with<br />a chat.
+          <p class="eyebrow">01 / Work you can follow</p><h2>
+            Parallel work.<br />A clear next move.
           </h2>
         </div>
         <p class="section-intro">
-          Type what you want done. Every tool call and edit shows up as it happens, and each chat
-          runs on its own branch.
+          A lane gives a task its own conversation and, by default in a Git repository, its own
+          worktree. The local workbench keeps activity visible; the all-machines home brings
+          together Needs you, Working and Recent.
         </p>
+      </div>
+      <div class="numbered-notes">
+        <article id="transcript">
+          <span>01 / INSPECT</span><h3>Read the work.</h3><p>
+            Expand tool calls, inspect edits, and review Changes against the session baseline. A
+            confident final answer is not your acceptance test.
+          </p>
+        </article>
+        <article id="artifacts">
+          <span>02 / KEEP</span><h3>Keep the deliverable.</h3><p>
+            Plans, diagrams and HTML pages become versioned artifacts. Compare versions and return
+            to them after compaction.
+          </p>
+        </article>
+        <article id="sessions">
+          <span>03 / CONTINUE</span><h3>Keep your place.</h3><p>
+            Resume, fork or rewind a conversation. Steer an active turn or queue a follow-up without
+            losing the thread.
+          </p>
+        </article>
       </div>
       <Capture
         class="workflow-chat"
         image={shot('chat')}
-        alt="Phosphor’s chat-focused layout with a session sidebar, conversation, inline edit, and composer, with no auxiliary pane open."
-        caption="Chat first, with the agent’s work one click away"
+        alt="A fictional coding conversation with visible tool activity and the composer."
+        caption="The transcript is the working record"
+      />
+      <div class="source-line">
+        <a class="text-link" href="/guides/daily-work/">The daily workflow →</a><a
+          class="text-link"
+          href="/guides/#first-task">Start with one verifiable task →</a
+        >
+      </div>
+      <div id="work"><SurfaceLab /></div>
+    </div>
+  </section>
+
+  <section id="brain" class="section alternate">
+    <div class="container">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">02 / Brain · opt-in on Desktop</p><h2>
+            Keep the reason.<br />Not just the result.
+          </h2>
+        </div>
+        <p class="section-intro">
+          Choose which lanes Brain learns from. Review proposed memories and relationships, then
+          follow the evidence in a local knowledge graph. Later lanes can recall the decisions you
+          kept.
+        </p>
+      </div>
+      <Capture
+        image={shot('brain-graph')}
+        alt="Brain’s graph and memory browser connecting fictional people, projects and decisions."
+        caption="A graph you can question, with sources you can open"
       />
       <div class="numbered-notes">
         <article>
-          <span>01 / ISOLATE</span><h3>One task, one branch.</h3><p>
-            Open a folder, pick a model, and the session starts in its own Git worktree. Start a
-            second task and it gets a separate checkout.
+          <span>01 / OPT IN</span><h3>Choose what enters.</h3><p>
+            Enable Brain in Settings and download the local embedding model. Queue selected lanes;
+            there is no silent sweep of your conversations.
           </p>
         </article>
-        <article id="transcript">
-          <span>02 / INSPECT</span><h3>See what it actually did.</h3><p>
-            Expand any tool call for its arguments and output. Open an edit for its diff. Review
-            every changed file against where the session started, and revert what you don’t want.
+        <article>
+          <span>02 / REVIEW</span><h3>Check the connections.</h3><p>
+            Review identities, quotes and relationships before saving. Review is on by default.
+            Forget a memory or inspect how it was extracted.
           </p>
         </article>
-        <article id="artifacts">
-          <span>03 / KEEP</span><h3>Plans and docs stick around.</h3><p>
-            Plans, diagrams, and HTML pages the agent writes are saved as versioned artifacts.
-            Reopen the session later to read, edit, or compare versions.
+        <article>
+          <span>03 / RECALL</span><h3>Bring context forward.</h3><p>
+            New local lanes can search kept knowledge. Disputes, dates and other-branch context stay
+            labelled; knowledge is not an instruction.
           </p>
         </article>
-      </div>
-      <div class="source-line">
-        <a class="text-link" href="/guides/#first-task">Run your first task →</a><a
-          class="text-link"
-          href={doc('lanes.md')}>How lanes and PRs work ↗</a
-        ><a class="text-link" href={doc('extensions.md#the-artifact-tools-and-what-each-one-costs')}
-          >How artifacts work ↗</a
-        >
-      </div>
-      <SurfaceLab />
-      <details class="disclosure">
-        <summary>Changes and artifacts <span>+</span></summary><div class="capture-pair">
-          <Capture
-            image={shot('changes')}
-            alt="An inline edit with the Changes pane beside the conversation."
-            caption="Review the agent’s edits"
-          />
-          <Capture
-            image={shot('artifacts')}
-            alt="A document in the versioned artifact pane beside its conversation."
-            caption="Artifacts open next to the chat"
-          />
-        </div><p class="fineprint">
-          PR status comes from the gh CLI. Merges happen locally with git, not through GitHub.
-          Artifact HTML runs isolated with no network access. That isolation covers the page, not
-          the agent’s tools.
-        </p>
-      </details>
-      <p class="fineprint" id="sessions">
-        Resume old sessions, fork a conversation, or queue a follow-up while the agent is still
-        working. Recurring work can run as a <a class="text-link" href={doc('routines.md')}
-          >local routine</a
-        >: a new session on a schedule, on your machine while it’s awake, not in the cloud.
-      </p>
-    </div>
-  </section>
-
-  <section id="models" class="section alternate">
-    <div class="container">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">02 / Models and accounts</p><h2>
-            Use the plans<br />you already pay for.
-          </h2>
-        </div><p class="section-intro">
-          Sign in with a subscription, add an API key, or point at your own endpoint. Switch models
-          mid-session without losing the conversation.
-        </p>
-      </div>
-      <div class="subscription-grid">
-        {
-          subscriptions.map(({ name, plan, route }) => (
-            <article>
-              <>
-                <h3>{name}</h3>
-                <p class="mono">{plan}</p>
-                <p>{route}</p>
-              </>
-            </article>
-          ))
-        }
-      </div>
-      <div class="split closeup feature-detail">
-        <div class="copy-column">
-          <h3 class="subheading">Switch models<br />mid-session.</h3><p>
-            Search every model you’re signed into, across providers, with its context size and
-            price. Pick a different one for the next turn and the conversation carries over.
-          </p><p>
-            The chip names what actually serves the session, so you can tell your Claude
-            subscription (<code>pi-claude-cli</code>) from API-billed Anthropic.
-          </p>
-        </div>
-        <Capture
-          image={shot('models-picker')}
-          alt="The model menu in the composer: a search box, provider filters, and models with their context size and price."
-          caption="Every model you’re signed into, in one list"
-          provenance="Real session · cropped"
-          sizes="(max-width: 760px) 94vw, 560px"
-        />
-      </div>
-      <div class="split closeup closeup-flip feature-detail">
-        <div class="copy-column">
-          <h3 class="subheading">See what a<br />session costs.</h3><p>
-            The context meter shows tokens and cost as reported, an estimate of what’s filling the
-            context, and how much of your Claude or ChatGPT plan is left.
-          </p><a class="text-link" href={doc('chat.md#what-the-context-meters-popover-shows')}
-            >How the context meter works ↗</a
-          >
-        </div>
-        <Capture
-          image={shot('context-meter')}
-          alt="The context meter popover: context use by category, MCP servers, token and cost totals, and Claude plan usage."
-          caption="Context, cost, and plan usage for one session"
-          provenance="Real session · cropped"
-          sizes="(max-width: 760px) 94vw, 560px"
-        />
       </div>
       <aside class="boundary-note">
-        <strong>Out of allowance? Keep going.</strong><p>
-          Sign in to more than one plan: several Claude Max accounts, ChatGPT, Kimi. When a lane
-          hits a 5-hour or weekly limit, move it to another account or model and the conversation
-          comes with it. <a class="text-link" href="/guides/accounts/"
-            >Set up subscriptions and accounts →</a
-          >
+        <strong>Local storage, not fully offline.</strong><p>
+          Extraction uses the lane’s provider model and can consume quota. Embeddings and knowledge
+          stay on this Desktop; Brain does not sync to Hosts or run in the browser.
         </p>
       </aside>
-      <p class="fineprint">
-        Claude subscriptions need the Claude Code CLI and the pi-claude-cli package. Your provider
-        bills you for subscriptions and API usage. Phosphor itself is free. <a
-          class="text-link"
-          href="/guides/#sign-in">Pick a sign-in route →</a
-        >
-      </p>
-    </div>
-  </section>
-
-  <section id="extensions" class="section">
-    <div class="container">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">03 / Extensions</p><h2>
-            Coding works out of the box.<br />Install the rest.
-          </h2>
-        </div><p class="section-intro">
-          pi runs the agent loop and connects MCP services. Packages add tools on top: web search,
-          subagents, computer use. Phosphor installs, updates, and configures them from Settings.
-        </p>
-      </div>
-      <div class="package-grid">
-        {
-          packages.map(({ name, benefit, id, spec, recommended }) => (
-            <a class="package-card" href={`/guides/extensions/#${id}`}>
-              <>
-                <span class="mono">{spec.replace(/^npm:/, '')}</span>
-                <h3>
-                  {name} <span aria-hidden="true">↗</span>
-                </h3>
-                <p>{benefit}</p>
-                {recommended && <span class="badge">{recommended}</span>}
-              </>
-            </a>
-          ))
-        }
-      </div>
       <div class="source-line">
-        <a class="text-link" href="/guides/extensions/">Set up extensions →</a><a
+        <a class="action action-text" href="/guides/brain/">Set up Brain →</a><a
           class="text-link"
-          href={piDoc('extensions')}>How pi extensions work ↗</a
-        ><a class="text-link" href="https://pi.dev/packages">Browse pi packages ↗</a>
+          href="/watch/#brain-walkthrough">Follow the walkthrough →</a
+        >
       </div>
-      <aside class="boundary-note">
-        <strong>Built in vs. installed</strong><p>
-          Artifacts, the context breakdown, and a few other extensions ship with Phosphor. The
-          packages above are optional: install them in Settings → Extensions, then start a new
-          session. Packages run code with your permissions, so check what you install.
-        </p>
-      </aside>
     </div>
   </section>
 
-  <section id="connectors" class="section alternate">
+  <section id="review" class="section">
     <div class="container">
-      <span id="gateways"></span>
       <div class="section-heading">
         <div>
-          <p class="eyebrow">04 / Connectors</p><h2>
-            Your tools,<br />in the same session.
+          <p class="eyebrow">03 / Review and return</p><h2>
+            The next action.<br />With its evidence.
           </h2>
-        </div><p class="section-intro">
-          Connect the services you want the agent to use through pi’s built-in MCP. No more pasting
-          tickets and logs into the chat.
+        </div>
+        <p class="section-intro">
+          The PR pill opens checks, reviews, threads and activity. Slack pills return to threads
+          already in your conversation. Notifications bring you back to the lane that needs
+          attention.
         </p>
-      </div>
-      <div class="connector-grid">
-        {
-          connectors.map(({ name, use, id }) => (
-            <a href={`/guides/connectors/#${id}`}>
-              <>
-                <h3>
-                  {name} <span aria-hidden="true">↗</span>
-                </h3>
-                <p>{use}</p>
-              </>
-            </a>
-          ))
-        }
       </div>
       <Capture
-        image={shot('guide-connectors')}
-        alt="MCP Connectors settings with a connected-server list and the catalog of available services, using example configuration."
-        caption="Add, sign in, and check connections from Settings"
-        provenance="Settings demo · example data"
+        image={shot('lane-pr')}
+        alt="The lane PR inspector showing an illustrative pull request’s checks and review state."
+        caption="Checks, review and merge readiness are separate stages"
       />
-      <div class="source-line">
-        <a class="text-link" href="/guides/connectors/">Connect your first service →</a><a
-          class="text-link"
-          href="/guides/connectors/#custom">Add a custom MCP server →</a
-        >
+      <div class="split feature-detail">
+        <div>
+          <h3 class="subheading">Read-only on GitHub.<br />Deliberate in the lane.</h3><p>
+            Fix and Address draft a hand-off into the composer; nothing is sent automatically.
+            Missing checks are not passing checks. A Slack pill is a shortcut to a mentioned thread,
+            not an inbox or a background Slack reader.
+          </p><a class="text-link" href="/guides/daily-work/#merge"
+            >PRs, Slack and notifications →</a
+          >
+        </div>
+        <Capture
+          image={shot('slack-pill')}
+          alt="A Slack thread-link popup with fictional thread references from a conversation."
+          caption="Return to the source conversation"
+        />
       </div>
-      <p class="fineprint">
-        Setting up and checking a connector doesn’t call a model. Using its tools in a task does,
-        and may count against the service’s quota. pi stores OAuth tokens, not Phosphor. Slack needs
-        your own registered Slack app.
-      </p>
     </div>
   </section>
 
-  <section id="built" class="section">
+  <section id="machines" class="section alternate">
     <div class="container">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Built in the open</p><h2>Phosphor is built<br />in Phosphor.</h2>
+          <p class="eyebrow">04 / Machines and PWA</p><h2>Your computers.<br />Within reach.</h2>
         </div>
         <p class="section-intro">
-          The lane board under “The problem” is real work on this repo. Every green merge to main
-          that changes the app ships a release for all three platforms, and most installs update
-          themselves.
+          Run pi on your own Host. Reach its lanes from Desktop or a phone browser over your private
+          Tailscale network. The Host owns execution; the control service handles identity, never
+          your lane contents.
         </p>
       </div>
-      <div class="guide-grid proof-grid" id="feature-index">
-        <a href={repo}><h3>Source ↗</h3><p>All of it, MIT licensed. Issues and PRs are open.</p></a
-        ><a href={`${repo}/blob/main/docs/README.md`}
-          ><h3>Technical docs ↗</h3><p>
-            How each part works today, updated in the same commit as the code.
-          </p></a
-        ><a href={doc('known-issues.md')}
-          ><h3>Known issues ↗</h3><p>What’s broken right now, written down.</p></a
-        ><a href={releases}><h3>Releases ↗</h3><p>Every build, with checksums.</p></a>
+      <Capture
+        image={shot('machines')}
+        alt="Phosphor’s Machines page with fictional Host readiness and connection details."
+        caption="Select the machine before starting the work"
+      />
+      <div class="numbered-notes">
+        <article>
+          <span>01 / CONNECT</span><h3>Enroll deliberately.</h3><p>
+            Install the Host, compare its fingerprint and sign in to providers there. An online
+            machine is not automatically ready or authorized to run a lane.
+          </p>
+        </article>
+        <article>
+          <span>02 / CONTROL</span><h3>One controller.</h3><p>
+            Read from the browser, take control explicitly, and use the shared chat and review
+            surfaces. No local fallback when a Host is offline.
+          </p>
+        </article>
+        <article>
+          <span>03 / MOVE</span><h3>A copy, not magic.</h3><p>
+            Desktop can move an idle lane with a checked snapshot plan. The original remains;
+            credentials and running processes do not travel with it.
+          </p>
+        </article>
+      </div>
+      <div class="source-line">
+        <a class="action action-text" href="/guides/machines/">Connect a machine →</a><a
+          class="text-link"
+          href="/guides/machines/#browser">Use the PWA →</a
+        ><a class="text-link" href="/guides/machines/#moves">Move a lane →</a>
       </div>
     </div>
   </section>
 
-  <section id="faq" class="section alternate">
-    <div class="container faq-layout">
-      <div>
-        <p class="eyebrow">FAQ</p>
-        <h2>Questions<br />people ask.</h2>
-      </div>
-      <div class="faq">
-        <details>
-          <summary>What is pi, and do I need it? <span aria-hidden="true">+</span></summary>
-          <p>
-            Yes. pi is the agent harness: small, simple, and built to be extended. Phosphor is the
-            IDE around it. Every session is a real pi process, so your pi setup, extensions, and
-            sessions carry over. Install it with npm first (Node 22.19 or newer). <a
-              class="text-link"
-              href="https://pi.dev/docs">pi’s docs ↗</a
-            >
-          </p>
-        </details>
-        <details>
-          <summary
-            >How is this different from Claude Code or Codex in a terminal? <span aria-hidden="true"
-              >+</span
-            ></summary
-          >
-          <p>
-            A terminal gives you a scrolling log. Phosphor shows each tool call with its output,
-            each edit as a diff, and every file the agent changed since the session started, with a
-            revert button. Each task runs in its own worktree, and one screen shows which tasks need
-            you.
-          </p>
-        </details>
-        <details>
-          <summary
-            >Can I use my Claude or ChatGPT subscription? <span aria-hidden="true">+</span></summary
-          >
-          <p>
-            Yes. ChatGPT Plus and Pro sign in through pi. Claude Pro and Max run through the
-            official Claude Code CLI with the pi-claude-cli provider, and you can add more than one
-            Claude account. GitHub Copilot and Kimi For Coding work too, and so do API keys and
-            custom endpoints. Sign in to several, and a lane can move to another plan when one runs
-            out. <a class="text-link" href="/guides/accounts/">Subscriptions and accounts →</a>
-          </p>
-        </details>
-        <details>
-          <summary>What does it cost? <span aria-hidden="true">+</span></summary>
-          <p>
-            Nothing. Phosphor is free and MIT licensed. You pay your model provider, the same as you
-            would without it.
-          </p>
-        </details>
-        <details>
-          <summary
-            >Does the agent ask before running commands? <span aria-hidden="true">+</span></summary
-          >
-          <p>
-            No. pi runs tools with full permissions, and Phosphor doesn’t add prompts of its own.
-            Worktrees keep branches apart, not files or network access. If you want a confirmation
-            before risky commands, install a permission gate. The repo has an optional one, and
-            Phosphor shows its questions in a review sheet. <a
-              class="text-link"
-              href={doc('extensions.md#optional-permission-gate-and-scratch-cleanup')}
-              >The optional gate ↗</a
-            >
-          </p>
-        </details>
-        <details>
-          <summary>Does my code leave my machine? <span aria-hidden="true">+</span></summary>
-          <p>
-            Phosphor runs on your computer and needs no sign-up. Your model provider gets the
-            prompts and tool results you send it, and connected services see what the agent asks
-            them for. Your sessions don’t go through any Phosphor server. <a
-              class="text-link"
-              href="/guides/#trust">Permissions and data →</a
-            >
-          </p>
-        </details>
-        <details>
-          <summary>How many agents can I run at once? <span aria-hidden="true">+</span></summary>
-          <p>
-            As many as your machine can hold. Each live session is its own pi process, about 170 MB
-            when idle, and nothing closes idle ones for you yet. Right-click a lane and choose
-            Suspend to free that memory.
-          </p>
-        </details>
-        <details>
-          <summary>Does it run on Windows and Linux? <span aria-hidden="true">+</span></summary>
-          <p>
-            Yes. macOS gets a DMG, Linux an AppImage or .deb, and Windows an .exe installer. Windows
-            builds aren’t code-signed, so SmartScreen warns you on the first install.
-          </p>
-        </details>
-        <details>
-          <summary>Is there a cloud or remote version? <span aria-hidden="true">+</span></summary>
-          <p>
-            Remote-access foundations are being built in the open, including Host identity and
-            machine approval. They are not a shipping remote-execution service. Today’s agent
-            sessions run locally; routines need the computer awake. See the <a
-              class="text-link"
-              href={doc('remote-access.md')}>current remote-access boundary</a
-            >.
-          </p>
-        </details>
-      </div>
-    </div>
-  </section>
-
-  <section id="install" class="section install-section">
+  <section id="swarm" class="section">
     <div class="container">
       <div class="section-heading">
-        <div><p class="eyebrow">Start here</p><h2>Install it.<br />Give it a real task.</h2></div>
+        <div>
+          <p class="eyebrow">05 / Delegation with boundaries</p><h2>
+            One mission.<br />More than one agent.
+          </h2>
+        </div>
         <p class="section-intro">
-          Two commands on macOS or Linux. Phosphor needs pi on your PATH, so install pi first.
+          Independent tasks belong in separate lanes. Bounded pieces inside a mission can go to
+          subagents through pi-subagents. Give the parent scope, ownership and acceptance criteria;
+          inspect the results before integration.
         </p>
       </div>
-      <ol class="install-steps">
-        <li>
-          <span class="mono">1 / pi, the agent · Node 22.19+</span>
-          <Command cmd="npm install -g @earendil-works/pi-coding-agent" label="Install pi" />
-        </li>
-        <li>
-          <span class="mono">2 / Phosphor · macOS and Linux</span>
-          <Command
-            cmd={download.install}
-            label="Install Phosphor on macOS or Linux"
-          />
-        </li>
-      </ol>
-      <p class="fineprint">
-        On Windows, run the .exe from the <a class="text-link" href={download.latest} rel="nofollow"
-          >latest release</a
-        >. The script checks release checksums, but it’s still a script piped into your shell, so <a
-          class="text-link"
-          href={`${repo}/blob/main/tools/scripts/install.sh`}>read it first</a
-        > if you’d rather.
-      </p>
+      <Capture
+        image={shot('remote-hosts')}
+        alt="A fixture-driven Subagents pane demonstrating scoped tasks and parent coordination."
+        caption="Delegation is inspectable, not a promise of correctness"
+      />
+      <aside class="boundary-note">
+        <strong>Swarm is authorization, not an autopilot.</strong><p>
+          The per-lane switch authorizes proactive delegation when useful. It does not launch a
+          fixed team, assign models or approve a merge. Off removes future standing authorization;
+          it does not stop existing children.
+        </p>
+      </aside>
       <div class="source-line">
-        <a class="action action-primary" href="/guides/">Full install guide →</a><a
+        <a class="action action-text" href="/guides/swarm/">Work with a swarm →</a><a
           class="text-link"
-          href={download.latest}
-          rel="nofollow">Download the latest release ↗</a
+          href="/guides/swarm/#case-study">A historical development example →</a
         >
       </div>
-      <div class="guide-grid">
-        {
-          guides.slice(1).map(({ href, title, blurb }) => (
-            <a href={href}>
-              <h3>{title} →</h3>
-              <p>{blurb}</p>
-            </a>
-          ))
-        }
-      </div>
-      <p class="fineprint">
-        MIT licensed. Runs on your machine, not as a hosted service. The agent’s tools have full
-        permissions by default, and your providers see whatever you send them. <a
-          class="text-link"
-          href="/guides/#trust">Permissions and data →</a
-        >
-      </p>
     </div>
   </section>
+  <ProductDetails />
+  <StartHere />
 </Page>

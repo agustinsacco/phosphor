@@ -36,3 +36,29 @@ it('needs whitespace where the quote has it and none where it has none', () => {
     'Quote not found',
   )
 })
+it('matches a quote the model copied without the Markdown emphasis marks', () => {
+  const source = 'Plan.\n\n**Ledger cycles:** two weeks, `Tuesday` to *Monday*. Next line.'
+  const w = makeWindow([segment(source)])
+  const attempt = () =>
+    verifiedQuote({ segment: 's1', quote: 'Ledger cycles: two weeks, Tuesday to Monday.' }, w)
+  expect(attempt).not.toThrow()
+  const q = attempt()
+  expect(q).toEqual({
+    segment: 's1',
+    quote: 'Ledger cycles:** two weeks, `Tuesday` to *Monday*.',
+  })
+  expect(source.includes(q.quote)).toBe(true)
+})
+it('refuses a quote that is only emphasis marks', () => {
+  const w = makeWindow([segment('Harbor is **stable**.')])
+  expect(() => verifiedQuote({ segment: 's1', quote: '** `' }, w)).toThrow('Quote not found')
+})
+it.each([
+  ['Ledger charges a*b credits per batch.', 'Ledger charges ab credits per batch.'],
+  ['Harbor bills 2 * 3 seats.', 'Harbor bills 2 3 seats.'],
+  ['Kestrel raises x**2 retries.', 'Kestrel raises x2 retries.'],
+])('keeps an asterisk that is not an emphasis mark: %s', (source, quote) => {
+  const w = makeWindow([segment(source)])
+  expect(() => verifiedQuote({ segment: 's1', quote }, w)).toThrow('Quote not found')
+  expect(verifiedQuote({ segment: 's1', quote: source }, w).quote).toBe(source)
+})

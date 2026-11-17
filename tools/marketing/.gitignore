@@ -1,0 +1,10 @@
+node_modules/
+# Synced by scripts/sync-assets.mjs from shared/, the site fonts and the capture plates.
+films/*/assets/
+# Hyperframes working state, check reports, preview thumbnails and intermediate renders.
+.hyperframes/
+films/*/.hyperframes/
+films/*/.thumbnails/
+films/*/renders/
+films/*/snapshots/
+.work/

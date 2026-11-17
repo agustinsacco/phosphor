@@ -1,3 +1,4 @@
+import { NeutralSegmented as Segmented } from '@/components/form'
 import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { MachinePicker } from '@/features/machines/MachinePicker'
@@ -266,36 +267,6 @@ function BundledSkillNotice({ workspacePath }: { workspacePath: string }): React
           {failure}
         </p>
       )}
-    </div>
-  )
-}
-
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T
-  options: Array<{ id: T; label: string }>
-  onChange: (next: T) => void
-}): React.JSX.Element {
-  return (
-    <div className="border-border flex shrink-0 overflow-hidden rounded-md border">
-      {options.map((option) => (
-        <TooltipButton
-          key={option.id}
-          onClick={() => onChange(option.id)}
-          aria-pressed={option.id === value}
-          className={clsx(
-            'cursor-pointer px-2.5 py-1 text-base transition-colors',
-            option.id === value
-              ? 'bg-bg-secondary text-text font-medium'
-              : 'text-text-secondary hover:text-text',
-          )}
-        >
-          {option.label}
-        </TooltipButton>
-      ))}
     </div>
   )
 }

@@ -1,3 +1,6 @@
+import { usePaletteStore } from '@/features/palette/paletteStore'
+import { useChatFindRequest } from '@/features/chat/useChatFind'
+import { useNotificationsStore } from '@/stores/notifications'
 import { cancelAllPrompts } from '@/stores/prompt'
 import { clearRemoteStartMemory } from '@/features/home/remoteComposer'
 import { clearDraftMemory } from '@/stores/drafts'
@@ -8,6 +11,7 @@ import { useSkillsStore } from '@/stores/skills'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useMachinesStore } from '@/stores/machines'
+import { useLaneMoveStore } from '@/stores/laneMove'
 import { clearBrowserMemory } from './browserMemory'
 
 let cleanup: Promise<void> = Promise.resolve()
@@ -17,6 +21,8 @@ export const waitForCompactCleanup = (): Promise<void> => cleanup
 export function clearCompactUi(): void {
   useSessionsStore.getState().claimNav()
   cancelAllPrompts()
+  usePaletteStore.setState({ open: false })
+  useChatFindRequest.setState({ sessionId: null })
   clearRemoteStartMemory()
   clearBrowserMemory()
   clearDraftMemory()
@@ -25,7 +31,9 @@ export function clearCompactUi(): void {
   useSkillsStore.setState({ byWorkspace: {}, loading: {}, error: {}, selectedDir: null })
   useHomeSubmissionsStore.setState({ pending: {} })
   useExtensionUiStore.setState({ toasts: [] })
+  useNotificationsStore.setState({ items: [], open: false })
   useMachinesStore.setState({ view: { kind: 'list' }, adding: false })
+  useLaneMoveStore.getState().close()
   const sessions = Object.values(useSessionsStore.getState().live).filter(
     (entry) => entry.target?.kind === 'remote',
   )

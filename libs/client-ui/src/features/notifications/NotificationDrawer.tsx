@@ -30,7 +30,15 @@ const HOURS = 60 * 60 * 1000
  * the shell rather than a popover. New notices sit under New in the accent;
  * once seen they drop to Earlier in the muted tone until they age out.
  */
-export function NotificationDrawer(): React.JSX.Element {
+export function NotificationDrawer({
+  className,
+  permission,
+  onNavigate,
+}: {
+  className?: string
+  permission?: React.ReactNode
+  onNavigate?: () => void
+}): React.JSX.Element {
   const items = useNotificationsStore((s) => s.items)
   // Re-render each minute so "4m ago" keeps up while the drawer stays open.
   const [, setTick] = useState(0)
@@ -45,7 +53,10 @@ export function NotificationDrawer(): React.JSX.Element {
     <aside
       aria-label="Notifications"
       data-testid="notification-drawer"
-      className="bg-sidebar border-border flex h-full w-[var(--px-drawer-width)] shrink-0 flex-col border-l"
+      className={clsx(
+        'bg-sidebar border-border flex h-full w-[var(--px-drawer-width)] shrink-0 flex-col border-l',
+        className,
+      )}
     >
       <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
         <span className="text-text text-lg font-medium">Notifications</span>
@@ -65,13 +76,14 @@ export function NotificationDrawer(): React.JSX.Element {
         </DrawerButton>
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-2">
+        {permission}
         {items.length === 0 && (
           <p className="text-text-tertiary px-2 pt-6 text-center text-sm">
             Nothing yet. Lane updates and problems land here.
           </p>
         )}
         {fresh.length > 0 && <SectionLabel>New</SectionLabel>}
-        <NotificationList items={fresh} />
+        <NotificationList items={fresh} onNavigate={onNavigate} />
         {seen.length > 0 && (
           <div className="flex items-center pr-1">
             <SectionLabel>Earlier</SectionLabel>
@@ -83,7 +95,7 @@ export function NotificationDrawer(): React.JSX.Element {
             </TooltipButton>
           </div>
         )}
-        <NotificationList items={seen} />
+        <NotificationList items={seen} onNavigate={onNavigate} />
       </div>
       <p className="border-border text-text-tertiary border-t px-3 py-2 text-xs">
         Seen notices clear after {SEEN_TTL_MS / HOURS}h, new ones after {NEW_TTL_MS / HOURS}h.
@@ -92,12 +104,18 @@ export function NotificationDrawer(): React.JSX.Element {
   )
 }
 
-function NotificationList({ items }: { items: Notification[] }): React.JSX.Element | null {
+function NotificationList({
+  items,
+  onNavigate,
+}: {
+  items: Notification[]
+  onNavigate?: () => void
+}): React.JSX.Element | null {
   if (items.length === 0) return null
   return (
     <ol className="flex flex-col gap-px">
       {items.map((item) => (
-        <NotificationRow key={item.id} item={item} />
+        <NotificationRow key={item.id} item={item} onNavigate={onNavigate} />
       ))}
     </ol>
   )
@@ -111,14 +129,17 @@ function NotificationList({ items }: { items: Notification[] }): React.JSX.Eleme
  * reading, not acting, so the row stays put (and new) until you act on it or
  * close the drawer.
  */
-function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
+function NotificationRow({
+  item,
+  onNavigate,
+}: {
+  item: Notification
+  onNavigate?: () => void
+}): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const isNew = !item.seenAt
   const { markSeen, remove } = useNotificationsStore.getState()
-  const open = (): void => {
-    markSeen([item.id])
-    void Promise.resolve(item.onOpen?.()).catch(() => undefined)
-  }
+  const open = (): void => openDrawerNotice(item, onNavigate)
   const receipt = expanded ? item.receipt : undefined
   const heading = item.title ?? stripAnsi(item.message)
   return (
@@ -162,11 +183,16 @@ function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
           )}
           <ReceiptFacts facts={item.receipt?.facts} className="mt-1" />
         </TooltipButton>
-        {receipt && <ReceiptActions notice={item} open={open} className="relative mt-1.5" />}
+        {receipt && (
+          <ReceiptActions notice={item} open={open} done={onNavigate} className="relative mt-1.5" />
+        )}
         {item.pr && (
           <PrNoticeActions
             notice={item.pr}
-            done={() => markSeen([item.id])}
+            done={() => {
+              markSeen([item.id])
+              onNavigate?.()
+            }}
             className="relative mt-1.5"
           />
         )}
@@ -180,6 +206,15 @@ function NotificationRow({ item }: { item: Notification }): React.JSX.Element {
       </TooltipButton>
     </li>
   )
+}
+
+function openDrawerNotice(item: Notification, onNavigate?: () => void): void {
+  useNotificationsStore.getState().markSeen([item.id])
+  void Promise.resolve(item.onOpen?.())
+    .then(() => {
+      if (item.onOpen) onNavigate?.()
+    })
+    .catch(() => undefined)
 }
 
 /** The row's title and how long ago, which the remove button covers on hover. */

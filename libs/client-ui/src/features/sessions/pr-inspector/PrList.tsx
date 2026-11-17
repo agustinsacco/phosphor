@@ -37,8 +37,10 @@ export function PrList({
   prs: LanePrs
   selected: GhPrKey | undefined
   onSelect: (key: GhPrKey) => void
-  onTrack: (ref: GhPrRef) => void
-  onTrackOther: () => void
+  /** Absent: no `+` on suggestions (a sheet's overflow menu tracks them). */
+  onTrack?: (ref: GhPrRef) => void
+  /** Absent: no "Track a PR…" row. */
+  onTrackOther?: () => void
 }): React.JSX.Element {
   const list = useRef<HTMLDivElement>(null)
   const order = [...prs.owned, ...prs.reviewing, ...prs.mentioned]
@@ -88,22 +90,32 @@ export function PrList({
                   label={lanePrLabel(item, prs)}
                   selected={item.key === selected}
                   onSelect={() => onSelect(item.key)}
-                  onTrack={group === 'owned' || !item.ref ? undefined : () => onTrack(item.ref!)}
+                  onTrack={
+                    group === 'owned' || !item.ref || !onTrack
+                      ? undefined
+                      : () => onTrack(item.ref!)
+                  }
                 />
               ))}
             </div>
           ) : null,
         )}
       </div>
-      <TooltipButton
-        type="button"
-        data-pr-track
-        onClick={onTrackOther}
-        className="text-text-secondary hover:text-accent focus-visible:outline-accent mt-1 rounded-md px-2 py-1.5 text-left text-base hover:underline focus-visible:outline focus-visible:outline-2"
-      >
-        Track a PR…
-      </TooltipButton>
+      {onTrackOther && <TrackOther onClick={onTrackOther} />}
     </div>
+  )
+}
+
+function TrackOther({ onClick }: { onClick: () => void }): React.JSX.Element {
+  return (
+    <TooltipButton
+      type="button"
+      data-pr-track
+      onClick={onClick}
+      className="text-text-secondary hover:text-accent focus-visible:outline-accent mt-1 rounded-md px-2 py-1.5 text-left text-base hover:underline focus-visible:outline focus-visible:outline-2"
+    >
+      Track a PR…
+    </TooltipButton>
   )
 }
 

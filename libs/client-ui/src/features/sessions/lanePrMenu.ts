@@ -8,11 +8,13 @@ import { usePrStatusStore } from '@/stores/prStatus'
 import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
 import { alignLaneMachineFilter, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { machineCaps } from '@/stores/machineCaps'
+import { remoteLaneKey } from '@shared/remote-host'
 import { useSessionsStore } from '@/stores/sessions'
 import type { LaneActionPr } from './laneActions'
 import { laneStatusRefs, resolveLanePrs, type LanePr } from './lanePrs'
 import { useHostPrRoutes } from './remotePullRequests'
 import { usePrStatusRefresh } from './repoPrRefresh'
+import { useTrackedSignals } from './useLanePrs'
 import { openPullRequest } from './PrBadge'
 import { lanePrUrl, prMenuLabel } from './prBeads'
 
@@ -46,7 +48,8 @@ export async function showLocalLanePullRequests(
 
 /**
  * A Host lane's own PRs, as the lane's pill resolves them: the signals its Host
- * folded from the lane's file, read by number through that Host. A lane on an
+ * folded from the lane's file (with Track and Hide it has not read yet), read by
+ * number through that Host. A lane on an
  * older Host (no `prStatus`) has only its checkout branch's PR.
  */
 export function useRemoteLanePrs(hostId: string | undefined, lane: HostLaneView): LanePr[] {
@@ -57,7 +60,11 @@ export function useRemoteLanePrs(hostId: string | undefined, lane: HostLaneView)
     const host = hostId ? s.hosts[hostId] : undefined
     return host?.prStatus === true && machineCaps(host).can('workspaces.read')
   })
-  const signals = byNumber ? lane.pullRequests : undefined
+  // The lane's own Track and Hide show here before its Host's summary does, as on its pill.
+  const signals = useTrackedSignals(
+    byNumber && hostId ? remoteLaneKey(hostId, lane.laneId) : undefined,
+    byNumber ? lane.pullRequests : undefined,
+  )
   const branch = lane.branch ?? undefined
   const prs = useMemo(
     () => resolveLanePrs({ signals, branch, slice, status }),

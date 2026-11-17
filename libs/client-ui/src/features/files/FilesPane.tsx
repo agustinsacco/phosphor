@@ -1,11 +1,13 @@
 import { memo, useEffect, useLayoutEffect, useRef } from 'react'
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import { SplitListDetail } from '@/components/ListDetail'
 import { FileExplorer } from './FileExplorer'
 import { EditorPane } from './EditorPane'
 import { DownloadsBar } from './DownloadsBar'
 import { WorkspaceSearch } from './WorkspaceSearch'
 import { useWorkspaceSearchStore, workspaceSearch } from './workspaceSearchStore'
 import { attachFilesSource, useFilesStore, workspaceFiles } from '@/stores/files'
+import { closeAllEditorFiles } from './editorTabActions'
+import { runFileAction } from './fileActions'
 import type { FilesSource } from './filesSource'
 
 const FALLBACK_POLL_MS = 2_000
@@ -13,6 +15,7 @@ const FALLBACK_POLL_MS = 2_000
 /**
  * Files region: explorer tree (or, while open, the workspace search in its
  * place) + Monaco editor tabs, with live fs updates where the machine watches.
+ * A phone shows the tree, then the open file; its Back closes the file.
  */
 export const FilesPane = memo(function FilesPane({
   source,
@@ -56,21 +59,22 @@ export const FilesPane = memo(function FilesPane({
           {unavailable} Unsaved edits are kept.
         </p>
       )}
-      <PanelGroup direction="horizontal" autoSaveId={`phosphor-files-${workspacePath}`}>
-        <Panel defaultSize={32} minSize={16} className="bg-bg-secondary/40">
-          {searchOpen ? (
+      <SplitListDetail
+        autoSaveId={`phosphor-files-${workspacePath}`}
+        open={hasOpenFiles}
+        onBack={() => runFileAction(closeAllEditorFiles(workspacePath))}
+        backLabel="Files"
+        list={
+          searchOpen ? (
             <WorkspaceSearch workspacePath={workspacePath} />
           ) : (
             <div ref={explorerRef} className="contents">
               <FileExplorer source={source} />
             </div>
-          )}
-        </Panel>
-        <PanelResizeHandle className="pane-handle" />
-        <Panel minSize={30}>
-          <EditorPane source={source} />
-        </Panel>
-      </PanelGroup>
+          )
+        }
+        detail={(back) => <EditorPane source={source} back={back} />}
+      />
       <DownloadsBar />
     </div>
   )

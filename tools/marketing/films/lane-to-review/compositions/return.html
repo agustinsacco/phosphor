@@ -1,0 +1,70 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="return" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i class="done"></i><i class="done"></i><i><b id="return-fill"></b></i>
+      </div>
+      <p class="step">4 of 4 · Return</p>
+      <div class="copy">
+        <h2 id="return-title" class="title clip" data-start="0.2" data-duration="7.8">
+          <span class="in">Return to the right <em>thread</em></span>
+        </h2>
+        <div class="subs">
+          <p id="return-sub" class="sub clip" data-start="0.9" data-duration="3.5">
+            <span class="in">A Slack link already in the conversation, one click away.</span>
+          </p>
+          <p id="return-sub2" class="sub clip" data-start="4.5" data-duration="3.5">
+            <span class="in">Or a notice returns you to work that needs you.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="return-pan" class="pan">
+        <div id="return-cam" class="cam">
+          <img class="plate" src="assets/shots/slack-pill.png" alt="" />
+          <img id="return-drawer" class="plate next" src="assets/shots/notifications.png" alt="" />
+          <div
+            id="return-ring"
+            class="ring"
+            style="left: 708px; top: 66px; width: 312px; height: 44px"
+          ></div>
+          <div
+            id="return-ring2"
+            class="ring"
+            style="left: 1320px; top: 112px; width: 274px; height: 64px"
+          ></div>
+          <img id="return-cursor" class="cursor" src="assets/cursor.svg" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#return-cam')
+      const cursor = PX.cursor(tl, '#return-cursor')
+      PX.whipIn(tl, '#return-pan')
+      cam.cut([690, 0, 480, 250])
+      cursor.cut([860, 170]).move([946, 96], 0.6, 0.8)
+      PX.ring(tl, '#return-ring', 1.5, 3.6)
+      cursor.move([1574, 26], 3.5, 0.9).press(4.5)
+      cam.move([1040, 0, 560, 380], 3.5, 0.9)
+      PX.swap(tl, '#return-drawer', 4.5)
+      cam.move([1180, 40, 420, 330], 4.65, 1.1)
+      PX.ring(tl, '#return-ring2', 5.7, 7.8)
+      PX.title(tl, '#return-title .in', 0.3, 8)
+      PX.line(tl, '#return-sub .in', 1.0, 4.4)
+      PX.line(tl, '#return-sub2 .in', 4.6, 8)
+      PX.draw(tl, '#return-fill', 0, 8, 0, 1)
+      window.__timelines['return'] = tl
+    })()
+  </script>
+</template>

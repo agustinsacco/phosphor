@@ -82,7 +82,8 @@ afterEach(() => {
 it('is one bar: Back and the lane title with its Host and controller', () => {
   render()
   const header = container.querySelector('header')!
-  expect([...header.querySelectorAll(':scope > button')]).toHaveLength(2)
+  expect([...header.querySelectorAll(':scope > button')]).toHaveLength(3)
+  expect(button('Search lanes and pages')).not.toBeNull()
   expect(header.querySelector('select')).toBeNull()
   expect(header.textContent).toContain('Remote demo lane')
   expect(header.textContent).toContain(`${MOCK_HOST_ID}·Controlled by Another Desktop`)

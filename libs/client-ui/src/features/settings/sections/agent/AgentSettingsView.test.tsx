@@ -38,7 +38,7 @@ beforeEach(() => {
       return read
     }
     if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
-    if (channel === 'hosts:models') return []
+    if (channel === 'hosts:models') return { models: [] }
     if (channel === 'pi:agentSettingsScoped')
       return { global: { defaultThinkingLevel: 'high', retry: { maxRetries: 5 } }, project: {} }
     if (channel === 'pi:checkAgentSettings')

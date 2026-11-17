@@ -20,6 +20,7 @@ interface BrainState {
   queue: (lane: BrainLaneRef) => Promise<boolean>
   cancel: (id: string) => Promise<boolean>
   review: (id: string, keep: BrainReviewDecision | null, revision: number) => Promise<boolean>
+  reread: (id: string) => Promise<boolean>
   retry: (id: string) => Promise<boolean>
   reset: () => Promise<boolean>
   merge: (source: string, target: string) => Promise<boolean>
@@ -84,6 +85,7 @@ export const useBrain = create<BrainState>(() => ({
     update(() => window.phosphor.invoke('brain:cancel', id), 'Cancelled knowledge extraction'),
   review: (id, keep, revision) =>
     update(() => window.phosphor.invoke('brain:review', id, keep, revision)),
+  reread: (id) => update(() => window.phosphor.invoke('brain:reread', id)),
   retry: (id) => update(() => window.phosphor.invoke('brain:retry', id)),
   reset: () => update(() => window.phosphor.invoke('brain:reset'), 'Brain knowledge reset'),
   merge: (source, target) => update(() => window.phosphor.invoke('brain:merge', source, target)),

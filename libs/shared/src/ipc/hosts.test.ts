@@ -3,7 +3,7 @@ import type { LaneArchiveList } from '../lane-archive'
 import type { IpcInvokeMap, HostsSnapshot, TrafficPage, RemoteLaneCreate } from '../ipc'
 import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
-import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
+import type { MachineClaude, MachineModelList, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
 import type { RpcSlashCommand } from '../rpc'
 import type { SkillBundle, SkillInstallResult } from '../host-protocol-skill-share'
@@ -28,7 +28,7 @@ export interface BaselineHostsInvokeMap {
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
 
   // Read-only machine catalogues, independent of an open lane.
-  'hosts:models': { args: [hostId: string]; result: MachineModel[] }
+  'hosts:models': { args: [hostId: string]; result: MachineModelList }
   'hosts:commands': { args: [hostId: string, repositoryId?: string]; result: RpcSlashCommand[] }
 
   'hosts:claude': {

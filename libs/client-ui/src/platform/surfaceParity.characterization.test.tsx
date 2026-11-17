@@ -160,13 +160,7 @@ it.each([false, true])(
     const desktop = laneMenu(DESKTOP_PLATFORM, <RemoteLanes />)
     expect(desktop.map((row) => row.label)).toContain('Archive')
     for (const [name, platform, list] of BROWSER_LISTS)
-      expect(laneMenu(platform, list()), name).toEqual(
-        desktop.map((row) =>
-          row.label === 'Move to…' && !platform.nativeFiles
-            ? { ...row, disabled: true, text: 'Move to…Moving lanes requires Desktop.' }
-            : row,
-        ),
-      )
+      expect(laneMenu(platform, list()), name).toEqual(desktop)
   },
 )
 
@@ -197,14 +191,15 @@ it('Settings differs between clients only by the capabilities each declares', ()
     expect(ids(COMPACT_PLATFORM, machine)).toEqual(ids(WIDE_BROWSER_PLATFORM, machine))
   const desktop = ids(DESKTOP_PLATFORM, 'host')
   const browser = ids(WIDE_BROWSER_PLATFORM, 'host')
-  // writingAssist, localVoice, localBrain and appShortcuts are Desktop's; installableApp is the browser's.
+  // writingAssist, localVoice, localBrain and appShortcuts are Desktop's;
+  // notificationPermission and installableApp are the browser's.
   expect(desktop.filter((id) => !browser.includes(id))).toEqual([
     'writing',
     'voice',
     'brain',
     'keybindings',
   ])
-  expect(browser.filter((id) => !desktop.includes(id))).toEqual(['install'])
+  expect(browser.filter((id) => !desktop.includes(id))).toEqual(['notifications', 'install'])
   // This Mac's own sections need localLanes, so the browser lists none of them.
   expect(ids(WIDE_BROWSER_PLATFORM, 'local')).toEqual(ids(WIDE_BROWSER_PLATFORM, null))
   expect(ids(DESKTOP_PLATFORM, 'local')).toContain('agent')

@@ -506,7 +506,11 @@ close it; focus moves into the sheet and returns to the element on close.
   you can open 7s, the rest 5s. While the notification drawer is open, a
   notice it keeps lands there instead, and other toasts stack beside it.
 - **Notification drawer** — the bell at the right end of the top bar counts
-  new notices and opens a right-hand column styled like the left navigation.
+  new notices and opens a right-hand column styled like the left navigation,
+  on Desktop and in the wide browser. The phone's top-level tab headers carry
+  the same bell; it opens a full-height bottom sheet, with touch-sized rows and
+  visible remove buttons. Opening a lane keeps the wide drawer open and closes
+  only the phone sheet, leaving other notices new.
   It keeps what a toast leaves behind: lane notices, anything you can open,
   and every warning or error (a one-line "Copied" only toasts). One entry per
   lane, or per explicit key (a PR's is `pr:<prKey>`), updated in place, which
@@ -517,14 +521,17 @@ close it; focus moves into the sheet and returns to the element on close.
   / Retry. Other rows open what they point at.
   New entries sit under **New** in the accent colour; they become seen when
   you dismiss or open their toast, open the row or act on its receipt, go to
-  their lane, use Mark all seen, or close the drawer, and then move to
+  their lane, use Mark all seen, or explicitly close the drawer, and then move to
   **Earlier** in a muted tone. Expanding a receipt does not count. Rows can be removed one at a time and Earlier can be cleared. Seen
   entries age out 24h after they arrived, new ones after 72h, and the list
   holds at most 50. Entries are memory only and leave when their lane closes
-  (PR notices stay: they open the lane from its file).
+  (PR notices stay: they open the lane from its file or its Host). Browser notices also clear
+  on account loss. The browser's quiet permission offer and native delivery
+  contract are in [Web client](web-client.md#notifications).
 - **PR change notices** — `stores/prTransitions.ts` watches PR status and
-  speaks when a PR a This Mac lane owns (`features/sessions/prLaneIndex.ts`,
-  never a reviewed or mentioned one) changes in a way worth interrupting for
+  speaks when a PR a lane owns, This Mac's or a Host's
+  (`features/sessions/prLaneIndex.ts`, never a reviewed or mentioned one),
+  changes in a way worth interrupting for
   (the `important` changes of `prChanges`: failed checks, an approval,
   requested changes, a conflict, ready to merge, merged or closed). The first
   answer per PR after launch is only a baseline, a read that failed or found
@@ -538,9 +545,14 @@ close it; focus moves into the sheet and returns to the element on close.
   (a conflict), or Open on GitHub (ready to merge); merged has none. A
   hand-off drafts into that lane's composer and is never sent. While
   Phosphor is not the focused app, the same notice also goes to the
-  operating system (`app:notify`: title "#57 …", body "lane · repo");
-  clicking it brings the window forward and opens the lane on that PR. In
-  front of you the toast says it, so there is no native one.
+  operating system (`app:notify`: title "#57 …", body "lane · repo"; for a
+  Host lane, title "#57 Branch conflict" with a fixed word for the change kind
+  and body the machine label, which keeps repository and branch names, check
+  names, reviewers and the lane title off lock screens as Host attention does);
+  clicking it brings the window forward and
+  opens the lane on that PR. In front of you the toast says it, so there is no
+  native one. Desktop attaches the watch in `AppOverlays`, the browser shell in
+  `CompactApp` (see [Web client](web-client.md#notifications)).
 - **Status strip** — the bottom of the chat pane, only while a session has
   something to say: an MCP chip (`connected/enabled`, tool count, "N need
   attention"; opens Settings → MCP Connectors), a sub-agent chip (background
@@ -562,7 +574,12 @@ close it; focus moves into the sheet and returns to the element on close.
   and "Add folder on <Host>…" (where the Host lets this device add one) stand
   in for them. The same filtering applies on Host home,
   using the sidebar's selected machine rather than This Mac's home workspace.
-  Target switches refresh the command set.
+  Target switches refresh the command set. This Mac searches all scanned sessions
+  in the current cwd before rendering at most twelve matches, not just its first
+  eight. The browser opens the same palette from Search lanes and pages in its
+  header, phone Settings' title row and phone lane header, with a full-screen phone presentation.
+  Its inventory searches all Hosts and routes to browser pages, not native
+  workspaces or pane commands ([web client](web-client.md#palette-and-find-in-chat)).
   Distinct from the chat `/` command menu.
 - **Host home Files**: with no lane open and a Host selected in the sidebar,
   the top-bar Files button opens read-only configured-repository browsing.
@@ -784,7 +801,9 @@ the last 2000 lines in memory (`hosts:traffic`, nothing on disk), and the open
 panel polls every 500 ms from its last cursor, saying when older lines were
 dropped. Filters: peer, text, errors only, and pings (hidden by default). Pause
 stops polling, Clear empties the view, Copy puts the visible lines on the
-clipboard as tab-separated text with UTC milliseconds.
+clipboard as tab-separated text with UTC milliseconds. The log is Desktop's
+(`hostTrafficLog`): the browser has no `hosts:traffic`, so its Machines page has no
+debug log toggle.
 
 Add a machine is disabled while signed out. The guide checks this computer's
 account and read-only local Tailscale readiness, then shows a copyable terminal

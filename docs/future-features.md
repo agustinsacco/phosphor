@@ -10,30 +10,14 @@ and is deleted here. [Remote access](remote-access.md) owns what exists now.
 These operations are not implemented remotely. Their controls are hidden or
 refuse with the fixed unavailable hint; they never run against This Mac instead.
 
-| Surface         | Missing capability                                                                                                                                               |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, rules/MCP toggles inside a Host lane, worktree Merge into main                                               |
-| Files           | Content search, browser media/PDF previews, downloads and open-in-app, quick look, external imports, per-file Revert in Changes, Host file-list truncation flags |
-| Skills          | Catalogue install, upload, discovery and in-place edits                                                                                                          |
-| Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync               |
-| Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                                             |
-| Clients         | Web Push to a closed browser or installed PWA                                                                                                                    |
-| Portability     | Larger lane transfers, submodule/LFS support, browser relay, primitive copy/sync and sharing Desktop's local runtime                                             |
-
-## PWA attention and Web Push
-
-In-app attention, machine-titled Desktop notifications and Host read watermarks
-are built. A browser/PWA consumer needs Web Push from each Host when closed, with
-a minimal payload encrypted end to end to the device.
-The device registers with that Host over Tailscale. Control stores nothing new.
-iOS requires Home Screen installation and iOS 16.4 or newer.
-
-**Open questions.** Define event retention, subscription expiry, device-key
-registration and rotation, and which devices receive notifications.
-
-**Risks.** Push providers see delivery metadata. Names can reveal projects on lock
-screens. Duplicate or expired events must not resurrect read badges. Hosts need
-bounded retry queues and explicit subscription revocation.
+| Surface         | Missing capability                                                                                                                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, rules/MCP toggles inside a Host lane, worktree Merge into main                                                                                    |
+| Files           | Content search, Quick Look, external imports, per-file Revert in Changes, Host file-list truncation flags; in a browser, files over 100 MB to download or 50 MB to preview, and drag moves on a phone |
+| Skills          | Catalogue install, upload, discovery and in-place edits                                                                                                                                               |
+| Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync                                                    |
+| Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                                                                                  |
+| Portability     | Larger lane transfers, submodule/LFS support, primitive copy/sync and sharing Desktop's local runtime                                                                                                 |
 
 ## Share this computer
 
@@ -125,11 +109,12 @@ remains machine-local, consistent with AGENTS.md fact 5.
 
 ## Lane portability beyond bounded copies
 
-Desktop's [Move to…](lanes.md#moving-a-lane) copies saved lanes between folders
-and machines. Follow-ups are larger bundles and Host transcripts, submodule/LFS
-support, browser relay, and a detailed comparison of the target's skills,
-extensions, context files and MCP setup. The current dialog acknowledges these
-configuration differences; it does not sync them or promise provider cache hits.
+[Move to…](lanes.md#moving-a-lane) copies saved lanes between folders and
+machines, from Desktop and, between Hosts, from the browser. Follow-ups are
+larger bundles and Host transcripts, submodule/LFS support, and a detailed
+comparison of the target's skills, extensions, context files and MCP setup. The
+current dialog acknowledges these configuration differences; it does not sync
+them or promise provider cache hits.
 
 This is a snapshot copy, not a single-writer handoff: the source remains intact
 and the user chooses whether to delete it. Automatically retiring the source,

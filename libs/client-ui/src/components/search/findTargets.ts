@@ -99,6 +99,24 @@ export function openFindForFocus(): boolean {
   return true
 }
 
+/** Browser find takes only an actual transcript anchor, never the Desktop fallback. */
+export function openTranscriptFindForFocus(): boolean {
+  const focused = document.activeElement
+  const anchor =
+    focused && focused !== document.body && focused !== document.documentElement
+      ? focused
+      : lastPointerTarget
+  if (!anchor) return false
+  for (const target of targets) {
+    const element = target.element()
+    if (target.fallback && element?.contains(anchor) && visible(element)) {
+      target.open(selectionSeed())
+      return true
+    }
+  }
+  return false
+}
+
 /** Register `ref`'s element as a ⌘F surface for as long as the component is mounted. */
 export function useFindTarget(
   ref: React.RefObject<HTMLElement | null>,

@@ -9,6 +9,12 @@ export interface Platform {
   fileEditing: boolean
   terminal: boolean
   scriptedArtifacts: boolean
+  /** Image clipboard access is native rather than a permission-gated browser API. */
+  nativeImageClipboard: boolean
+  /**
+   * Files save, open and reveal through this device's file system: save dialogs, Downloads and
+   * default apps, and Host files stream into viewers. A browser downloads and holds them instead.
+   */
   nativeFiles: boolean
   machineSettings: boolean
   /** Spellcheck, autocomplete and prompt learning in text fields (Settings → Writing). */
@@ -29,8 +35,12 @@ export interface Platform {
   cancelSignIn: boolean
   /** Dictation runs on this device with a local speech model (Settings → Voice). */
   localVoice: boolean
+  /** This browser/device owns its native notification permission. Desktop uses OS settings. */
+  notificationPermission: boolean
   /** Brain knowledge and its embedding model live on this Desktop machine. */
   localBrain: boolean
+  /** Machines → Debug log: main keeps this client's control and Host traffic (`hosts:traffic`). */
+  hostTrafficLog: boolean
 }
 export const DESKTOP_PLATFORM: Platform = Object.freeze({
   formFactor: 'expanded',
@@ -39,6 +49,7 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   fileEditing: true,
   terminal: true,
   scriptedArtifacts: true,
+  nativeImageClipboard: true,
   nativeFiles: true,
   machineSettings: true,
   writingAssist: true,
@@ -51,6 +62,8 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   cancelSignIn: true,
   localVoice: true,
   localBrain: true,
+  hostTrafficLog: true,
+  notificationPermission: false,
 })
 export const COMPACT_PLATFORM: Platform = Object.freeze({
   formFactor: 'compact',
@@ -60,6 +73,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   // Host shells over the Host connection; a browser never opens a local one.
   terminal: true,
   scriptedArtifacts: false,
+  nativeImageClipboard: false,
   nativeFiles: false,
   // Host settings over the Host connection, after the explicit configuration access request.
   machineSettings: true,
@@ -73,6 +87,8 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   cancelSignIn: false,
   localVoice: false,
   localBrain: false,
+  hostTrafficLog: false,
+  notificationPermission: true,
 })
 /** A wide browser changes presentation, never its authority or native capabilities. */
 export const WIDE_BROWSER_PLATFORM: Platform = Object.freeze({

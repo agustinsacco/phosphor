@@ -119,8 +119,32 @@ export interface BrainPrefs {
   recall: boolean
   /** Extracted memories wait for approval; off saves them as soon as extraction ends. */
   review: boolean
+  /** Reader provider/modelId; null uses each lane's own model. Frozen when a job starts. */
+  model: string | null
 }
-export const DEFAULT_BRAIN_PREFS: BrainPrefs = { enabled: false, recall: true, review: true }
+export const DEFAULT_BRAIN_PREFS: BrainPrefs = {
+  enabled: false,
+  recall: true,
+  review: true,
+  model: null,
+}
+
+/** This value becomes one --model argument, never an option or multiple arguments. */
+export function checkBrainReaderModel(value: unknown): string | null {
+  if (value === null) return null
+  if (
+    typeof value !== 'string' ||
+    value.length > 200 ||
+    value.startsWith('-') ||
+    /[\s\p{Cc}]/u.test(value) ||
+    value.indexOf('/') <= 0 ||
+    value.indexOf('/') === value.length - 1
+  )
+    throw new Error(
+      'Invalid Brain reader model: use provider/modelId (at most 200 characters, no whitespace or control characters), or null.',
+    )
+  return value
+}
 
 export interface BrainEntity {
   id: string
@@ -175,15 +199,17 @@ export interface BrainQuote {
 }
 
 export type BrainJobStage = 'prepare' | 'extract' | 'identity' | 'reconcile' | 'embed'
-/** Queue entry for one lane. `done` entries stay only to refuse re-queuing an unchanged lane. */
+/** Queue entry for one lane. The latest `done` entry is its read history. */
 export interface BrainJob {
   id: string
+  /** Earlier finished read; replacement happens only when the new result is approved. */
+  replaces: string | null
   sessionId: string
   sessionPath: string
   title: string
   scope: string
   branch: string | null
-  /** "provider/id" of the lane's model, which every extraction call reuses. */
+  /** "provider/id" of the reader, frozen when extraction starts and reused by every call. */
   model: string
   /** waiting: the lane's agent is working; extraction starts once it is idle. */
   state: 'waiting' | 'queued' | 'running' | 'review' | 'empty' | 'failed' | 'done'
@@ -198,6 +224,10 @@ export interface BrainJob {
   usage: { tokens: number; cost: number } | null
   /** Where a running job is: `done` of `total` steps in `stage`. */
   progress: { stage: BrainJobStage; done: number; total: number } | null
+}
+export interface BrainHistory {
+  items: { job: BrainJob; memories: number; replaceable: number }[]
+  more: boolean
 }
 export interface BrainEmbeddingStatus {
   phase: 'missing' | 'downloading' | 'verifying' | 'testing' | 'ready' | 'error' | 'unsupported'
@@ -277,6 +307,9 @@ export type {
   BrainExtractionView,
 } from './brain-extraction'
 export type {
+  BrainEntityPage,
+  BrainRecentMemory,
+  BrainRecentMemories,
   BrainEntitySummary,
   BrainGraph,
   BrainConnection,

@@ -157,9 +157,15 @@ Reproducing defects live in [known issues](known-issues.md#host-lanes).
   Host public keys and aggregate counts. It never receives prompts, transcripts,
   paths, repository names, files, artifacts or provider credentials. It never
   probes submitted endpoints or proxies execution.
-- **Private keys stay on their owner.** The Host's identity private key stays on
-  the Host. Control stores only its public key. Desktop account tokens stay in
-  main's [account vault](settings.md#phosphor-account), not the renderer.
+- **Private keys stay on their owner.** The Host's identity and Web Push private
+  keys stay on the Host. Control stores only the identity's public key. Desktop
+  account tokens stay in main's [account vault](settings.md#phosphor-account), not
+  the renderer.
+- **Web Push bypasses Control.** A browser registers its push subscription with
+  each Host over the Host connection; Control stores no subscription. The Host
+  POSTs only to the allowlisted push services, encrypted end to end to the device,
+  and the push service sees timing, size and the endpoint
+  ([Web client](web-client.md#web-push)).
 - **No remote-to-local fallback.** Opaque Host resource keys are not local paths.
   Unrouted machine actions fail closed rather than touch this computer's files,
   providers or subprocesses.
@@ -168,10 +174,15 @@ Reproducing defects live in [known issues](known-issues.md#host-lanes).
   executables, environment, repositories and extension resources. A caller cannot
   supply spawn settings. Routine activation explicitly acknowledges unattended
   full tool access.
-- **Remote content stays remote or in memory.** Transcripts, artifacts, files and
-  terminal output are not cached on Desktop disk. Explicit Save/PDF export targets
-  This Mac. Artifact HTML remains sandboxed without `allow-same-origin` or network
-  access. Committed attachment paths are the documented prompt-only path exception.
+- **Remote viewing does not create a local content archive.** Transcripts,
+  artifacts, files and terminal output are not cached on Desktop disk merely by
+  viewing them. Explicit exports, file downloads and Open in default app save
+  selected content on This Mac ([Files](files.md)). Desktop's **Move to…** copies
+  a lane snapshot to the chosen machine, using a private temporary bundle even
+  between Hosts; a browser moves a lane between Hosts in the page's memory only
+  ([Moving a lane](lanes.md#moving-a-lane)). Artifact HTML remains
+  sandboxed without `allow-same-origin` or network access. Committed attachment
+  paths are the documented prompt-only path exception.
 
 ## Reference map
 

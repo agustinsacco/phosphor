@@ -87,3 +87,33 @@ test('browser Host settings load only after explicit configuration access', asyn
   settings = await openSettings(page, stack.origin, 'Accounts')
   await expect(settings).toContainText('Configuration access is not enabled')
 })
+
+for (const width of [360, 400, 1100]) {
+  test(`Settings keeps its notification bell without crowding Agent defaults at ${width}px`, async ({
+    page,
+    stack,
+  }) => {
+    await page.setViewportSize({ width, height: 850 })
+    await page.goto(stack.origin)
+    await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+    await expect(page.getByTestId('home-board')).toBeVisible()
+    const settings = await openSettings(page, stack.origin, 'Agent')
+    await settings.getByRole('button', { name: 'Enable configuration access', exact: true }).click()
+    await page.getByRole('button', { name: 'Enable for Synthetic Host', exact: true }).click()
+    await expect(
+      settings.getByRole('heading', { name: 'Agent defaults', exact: true }),
+    ).toBeVisible()
+    await expect(
+      settings.getByRole('button', { name: 'Reset Default model', exact: true }),
+    ).toBeInViewport({ ratio: 1 })
+    expect(await settings.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+    const header = page.locator(width < 900 ? '.page-shell-header' : '.compact-header')
+    await expect(header.getByTestId('notifications-button')).toBeVisible()
+    await expect(
+      header.getByRole('button', { name: 'Search lanes and pages', exact: true }),
+    ).toBeVisible()
+    await expect(page.locator('.compact-header')).toHaveCount(width < 900 ? 0 : 1)
+    await header.getByTestId('notifications-button').click()
+    await expect(page.getByTestId('notification-drawer')).toBeVisible()
+  })
+}

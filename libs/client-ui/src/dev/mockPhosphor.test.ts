@@ -51,9 +51,10 @@ it("lists This Mac's Claude provider by its package name, as the provider row ma
 })
 it('answers each delegated channel group from its owning mock module', async () => {
   const host = '00000000-0000-4000-8000-000000000099'
-  expect(await window.phosphor.invoke('hosts:models', host)).toMatchObject([
-    { id: 'claude-sonnet-4-5' },
-  ])
+  expect(await window.phosphor.invoke('hosts:models', host)).toMatchObject({
+    models: [{ id: 'claude-sonnet-4-5' }],
+    defaults: { model: { provider: 'anthropic', id: 'claude-sonnet-4-5' } },
+  })
   await expect(
     (async () => window.phosphor.invoke('hosts:machineTask', host, {} as never))(),
   ).rejects.toThrow('Private setup terminals')
@@ -105,4 +106,19 @@ it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
       (m) => m.id,
     ),
   ).not.toContain(knowledge.memories[0]!.id)
+})
+
+it('round trips the Brain reader preference through the browser bridge', async () => {
+  const status = await window.phosphor.invoke('brain:status')
+  expect(status.prefs).toHaveProperty('model', null)
+  const prefs = { ...status.prefs, model: 'harbor/reader' }
+  expect((await window.phosphor.invoke('brain:setPrefs', prefs)).prefs).toEqual(prefs)
+})
+
+it('dispatches both Knowledge overview reads in the browser harness', async () => {
+  const page = await window.phosphor.invoke('brain:entities', null, 0, 20)
+  expect(page.items).toHaveLength(20)
+  expect(page.more).toBe(true)
+  expect(page.kinds).toContain('person')
+  expect(await window.phosphor.invoke('brain:recent', 10)).toHaveProperty('items')
 })

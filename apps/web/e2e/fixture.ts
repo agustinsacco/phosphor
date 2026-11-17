@@ -2,7 +2,7 @@ import { expect, test as base } from '@playwright/test'
 import { createHash, generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto'
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createServer } from 'node:http'
 import { connect, type Socket } from 'node:net'
@@ -27,10 +27,18 @@ const endpoint = 'https://fixture.ts.net'
 /** A stopped Host's children can still be releasing state files; rm retries ENOTEMPTY. */
 const removeRoot = (root: string) =>
   rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+/**
+ * A new root under the real temp path: macOS's tmpdir() is under the /var symlink, and a
+ * Host refuses to land a moved lane under a symlinked folder.
+ */
+const createRoot = async () => mkdtemp(join(await realpath(tmpdir()), 'phosphor-web-'))
+
+/** The production stack runs no Host, so it seeds no lanes. */
+const UNSEEDED = { laneId: '', secondLaneId: '', repository: '' }
 
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
 export async function browserFixture(production = false) {
-  const root = await mkdtemp(join(tmpdir(), 'phosphor-web-'))
+  const root = await createRoot()
   const cleanups: (() => Promise<unknown>)[] = [() => removeRoot(root)]
   const close = async () => {
     const errors: unknown[] = []
@@ -321,8 +329,7 @@ export async function browserFixture(production = false) {
       upstream.write(head)
       socket.pipe(upstream).pipe(socket)
     })
-    if (production)
-      return { origin, state, hostId, close, owners, laneId: '', secondLaneId: '', ...gate.api }
+    if (production) return { origin, state, hostId, close, owners, ...UNSEEDED, ...gate.api }
 
     const reserve = createServer()
     await new Promise<void>((done) => reserve.listen(0, '127.0.0.1', done))
@@ -502,16 +509,9 @@ export async function browserFixture(production = false) {
         .toBe(true)
       await command({ type: 'control.release' }, laneId, control.fence)
     }
-    return {
-      origin,
-      state,
-      hostId,
-      close,
-      owners,
-      laneId: lanes[0]!,
-      secondLaneId: lanes[1]!,
-      ...gate.api,
-    }
+    // `repository` is the first lane's folder on the Host, which a spec may read and change.
+    const seeded = { laneId: lanes[0]!, secondLaneId: lanes[1]!, repository: repo }
+    return { origin, state, hostId, close, owners, ...seeded, ...gate.api }
   } catch (error) {
     await close()
     throw error

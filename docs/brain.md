@@ -1,7 +1,7 @@
 # Brain
 
 Brain is Desktop's machine-local knowledge graph. It learns only from lanes you queue: the
-lane's own model reads the lane in a few private, tool-less calls and proposes memories, the
+reader model reads the lane in a few private, tool-less calls and proposes memories, the
 people, projects and systems they name, and how those connect. You approve them, and agents in
 every lane can recall them. It is off by default and Desktop-only; the browser client and Hosts
 refuse every `brain:*` channel (`libs/shared/src/ipc-web-exclusions.ts`).
@@ -17,6 +17,11 @@ appear:
   skill. Lanes already running pick it up when restarted.
 - **Review before saving** (default on): proposals wait for approval. Off approves them as soon
   as a job finishes, with the defaults described under Review.
+- **Model that reads lanes** (default **Each lane's own model**): choose one provider/model for
+  every queued lane, including lanes without a model. A job keeps the model it first starts with,
+  even after this setting changes or you Retry it. Use **Use each lane's own model** to clear it.
+  A stored setting is checked when read as well as when written: a malformed value reads as its
+  default.
 - **Knowledge**: counts and an Open Brain button.
 - **Reset Brain knowledge**: after a confirmation, deletes every memory, entity, job, proposal
   and extraction record. Settings and the embedding model stay; review turns back on.
@@ -24,6 +29,40 @@ appear:
 Turning Brain off keeps the model and all knowledge, stops the queue and removes recall from new
 lanes. **Remove model** appears only while Brain is off and the model is on disk. The Brain item
 shows in the sidebar's top navigation only while Brain is on.
+
+## The Brain page
+
+The page header shows **Brain**, “N memories · M people and things”, and Settings.
+Underlined **Knowledge** and **Lanes** tabs separate exploration from reading and review.
+Arrow keys, Home and End select tabs. Knowledge opens first, except when there are no
+memories and at least one job: then Lanes opens. Switching tabs keeps the explorer trail
+and selected lane; explorer shortcuts act only on Knowledge. The Lanes tab and the sidebar's
+Brain row show the live count of jobs waiting for review, hidden at zero.
+
+Lanes is a plain list beside the selected lane's detail, with nonempty sections:
+
+- **To review**: proposed memory count, reader model name, and “reading again” on replacements.
+- **Reading**: running first, then queued, then waiting for the lane to be idle. A running row
+  has the working beacon and its reported step.
+- **Failed**: a shortened error on the row; the detail wraps the full error and offers Retry
+  and Dismiss.
+- **Read**: quieter rows from the newest finished reads, with memory count (or “Nothing kept”),
+  model name and relative finish time. Empty jobs join these rows by finish time as “Nothing
+  kept”; they offer Dismiss, never Read again.
+
+Selection follows the same job from reading through review into history. If it disappears,
+Brain chooses a review first, then a reading job, then a finished read (or a failed job when
+that is all that remains). Actions belong to the detail, not the list rows. With nothing to
+show, the list says “Right-click a lane and choose Queue for knowledge extraction.”
+
+A reading detail shows its model, elapsed time or queue line, Cancel, and the reported
+steps: Prepare, Read the conversation (part x of y), Match people and things, Compare with
+what Brain knows, and Index. It never invents a separate live relationship stage; **Find
+relationships** names the recorded links calls. Calls made so far use the same closed
+call disclosures as a finished read. Until the first record is saved it says “No calls yet.”,
+without an error notification. Once a record exists, reading and failed details also show the
+same candidate outcomes and reasons and **Source lane at extraction** (with Open lane) as a
+finished read. Every real load failure offers Retry.
 
 ## Queueing a lane
 
@@ -34,13 +73,37 @@ ready. A lane whose agent is working (`SessionActivity.busy`) waits until it is 
 nothing new since its last finished extraction by the same extractor version is refused; a new
 extractor version may read it once more. A failed job shows **Retry**, which requeues the same
 job and resumes from its saved steps. Jobs left running when the app quit resume where they
-stopped. The inbox shows each running job's step ("Reading the conversation 3 of 12", "Matching
-entities", …).
+stopped.
+
+## Read lanes and Read again
+
+The **Read** section of Lanes shows the newest 200 finished reads, with one history row per
+lane, and says when more exist. The list reloads when jobs or knowledge change; a failed load
+has Retry. Model names match the picker; unavailable names fall back to the id without its
+provider prefix. A row opens the finished read in the same pane.
+
+**Read again** in a finished read reads the whole lane, even if nothing changed.
+It confirms how many earlier memories will be replaced. Memories another lane also supports
+are kept. The lane must still be readable and have no queued, running or review job. Busy lanes
+wait as usual; leaf and model freeze at first start. Retry keeps the replacement intent.
+
+Earlier memories remain searchable while the new read runs and waits for review. Reconcile
+excludes the memories this read will replace; entity identity still reuses shared entities.
+Approval saves the checked candidates and removes the earlier, unshared memories from that lane
+in one transaction, including memories from older reads whose job rows are gone. Partial
+approval, or approval with no candidates checked, still replaces them. With review off, saving
+happens immediately. A citation or relationship supported by a different lane protects its
+memory unchanged. Entries a fork copied from its source lane are the same evidence, not another
+lane's support; a message written in the fork is. Replacing bumps the revision once. If the
+search index fails to refresh after an automatic save, the read still ends as done and the
+failure is logged. A rejected, cancelled or permanently failed reread removes no knowledge.
+An **empty** reread (nothing kept) also removes nothing. Rejecting or dismissing a reread keeps
+the earlier finished read in history. Successful saving replaces that history row.
 
 ## Reading a lane
 
-A job freezes the lane's leaf, model, thinking level and git branch when it first starts; a
-resume never moves them. It then reads the lane's path to that leaf, applies pi's
+A job freezes the lane's leaf, chosen reader model, thinking level and git branch when it first
+starts. A resume never moves them. It then reads the lane's path to that leaf, applies pi's
 `context_edit` entries, and keeps only user and assistant text. Tool calls, tool output,
 custom messages, branch summaries and compaction summaries are not evidence. Every segment is
 scrubbed of secrets, email addresses and phone numbers before any prompt. User messages longer
@@ -49,13 +112,14 @@ than 6,000 characters keep their first 4,000 and last 1,900 around an explicit
 
 The conversation is read in parts of at most 300,000 characters, with two segments of overlap.
 Each segment has a handle, role and ISO date. Most lanes fit in one part. A part can be about
-100,000 tokens. A lane whose model has a smaller context window fails with the provider's error.
+100,000 tokens. A reader model with a smaller context window fails with the provider's error.
 
-Each model call runs pi in print mode with no session, no tools and the lane's own provider,
-model, binary and Claude account:
+Each model call runs pi in print mode with no session and no tools. It uses the chosen reader
+provider and model, or the lane's own model when unset. The binary and Claude account come from
+the lane:
 
 ```
-pi -p --mode json --no-session --model <lane model> --thinking <t> --no-tools --no-mcp
+pi -p --mode json --no-session --model <reader model> --thinking <t> --no-tools --no-mcp
    --no-skills --no-prompt-templates --no-context-files --no-themes --no-approve --offline
    -e brain-fork-guard.mjs --system-prompt <call dir>/system.md        (prompt on stdin)
 ```
@@ -64,31 +128,39 @@ The prompt goes on stdin, so no transcript text sits in argv. The call runs in a
 directory under `<userData>/brain/calls/<job>/`, removed when the call ends, as a Claude
 one-shot (`claudeOneShotEnv`) with its own `PI_CLAUDE_CLI_STATE_DIR`, and without the lane's
 context-compression environment, so quotes match the source. The guard extension refuses any
-tool call. A call that takes longer than 600 seconds fails. Thinking is capped at `medium` for every
-call, never above the lane's own level.
+tool call. A call that takes longer than 600 seconds fails. With a reader model selected, thinking
+is `medium`. Otherwise it uses the lane's level, capped at `medium`. An unknown level also uses
+`medium`.
 
 A job calls extract, links, identity and reconcile. Each call's validated output is saved as a
 step, keyed by a hash of its input, so a retry or restart reuses it:
 
 1. **Extract**, once per part. The model sees the conversation, the entities this job already
-   knows (`r1…`), and the claim sentences kept from earlier parts. It keeps a claim only if a
-   future session would act differently, could not find it in about a minute in code, git,
-   issues or docs, and it will probably still hold in a month or records a decision with its
-   reason. When in doubt, it leaves the claim out. Zero to ten claims is normal; an empty answer
-   is valid. Each part keeps at most 25 claims. Extra claims are dropped with a recorded reason.
-   Preferences and user corrections matter most. Decisions include reasons and rejected options
-   when stated. Other claims cover durable ownership, outside-system quirks, non-obvious reusable
-   procedures, remaining risks and questions for a named person or team. Status, one-off events,
-   pull requests, code facts, unaccepted proposals, corrected statements, generic advice, secrets
-   and contact details do not pass.
+   knows (`r1…`), and the claim sentences kept from earlier parts. The prompt assumes any work
+   session, not only a coding one. Both speakers are evidence: the user's messages are
+   first-hand, and the assistant's replies report what it found in code, data, documents and
+   tools. Only the assistant's account of its own work is skipped. A claim is kept if a future
+   session would act differently, it would take real digging to learn again, and it will
+   probably still hold in a month or records a decision with its reason. Each part keeps every
+   claim that passes, up to 25; an empty answer is valid only when nothing passes. Extra claims
+   are dropped with a recorded reason. No kind of claim ranks first. The model looks for people
+   and structure (who is on which team, who leads, owns or decides what, which customer a
+   project is for), how systems, vendors, data and customers behave, decisions with reasons,
+   preferences and corrections, reusable procedures, remaining risks and open questions for a
+   named person or team. A standing role passes; a ticket event does not. Status, one-off
+   events, near-term dates, pull requests, code facts, file paths, the assistant's work log,
+   instructions for one task, unaccepted proposals, corrected statements, generic advice,
+   personal matters about a person (health, family, pay, performance, conduct), secrets and
+   contact details do not pass.
    It returns lasting entities (`n1…`), self-contained claims (`c1…`) with one or two quotes,
    typed links with their own quotes, and parent assessments for new projects, components,
    documents and teams. A stated parent needs a kept structural link whose subject is that entity.
    Missing or invalid parent assessments mean not stated. People are humans, never agents or bots.
    Pull requests, tickets, commits, branches and files are not entities. The model is asked for
    every lasting relationship the conversation shows between a kept claim's entities. A link
-   sits on a claim that mentions both ends, and its quote may come from any segment. The answer
-   rules are repeated after the conversation, because a long one buries them.
+   sits on a claim that mentions both ends, and its quote may come from any segment. A person is
+   linked only for a real role, never to a tool they merely use. The answer rules are repeated
+   after the conversation, because a long one buries them.
 2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
    more entities, those entities, existing links and short excerpts around each claim's quotes.
    Each excerpt stays in its segment, stops at an elision marker and adds at most 600 characters
@@ -121,8 +193,9 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
 Parsing drops the smallest invalid item and records why. A bad entity or claim cannot fail a
 lane. A bad link is dropped while its claim and known endpoint mentions remain. The first valid
 ref wins. Quotes match exactly in the cited segment, then any segment, then with flexible
-whitespace and straight/curly quotation marks, by a linear search. Flexible matches store the
-source's own substring.
+whitespace, straight/curly quotation marks and no Markdown emphasis marks (backticks, and
+asterisks that touch text and are not inside a word or number, so `a*b` and `2 * 3` keep theirs),
+by a linear search. Flexible matches store the source's own substring.
 Every quote stays within one unelided span. Only unusable JSON or missing entity/claim arrays (or the links array in a links call)
 gets one repair call; a second unusable answer fails visibly.
 
@@ -137,15 +210,27 @@ checkpoint, and both attempts count toward usage.
 
 ## Review
 
-**Review** shows, for one job:
+The selected review opens with its lane title, reader model name and finish time. **See how it
+was read** opens the finished-read view in the same pane, with **Back to review**. A replacement
+has an accent-soft note: “Approving replaces the N memories from the earlier read of this lane.”
+The held-back count remains visible.
 
-- **Who is this?** Every new entity: new, same as an existing one, or uncertain with its
-  candidates to pick from, each with the model's reason.
-- **Possible groups**: yes or no for each prefix question.
-- **Memories** by type, each with its links read as sentences ("Tom Lee → owns → Harbor CS
-  workflow") and a badge: new, adds a link to an existing memory, supersedes, conflicts or
-  resolves, with the target's sentence. Confirmations are collapsed into a count. "N held back"
-  appears when the budget held claims.
+- **Needs your call · n** contains only identities with a suggested existing match. Each row
+  shows the name, kind and wrapped reason. One candidate gets **Same as … / New**; multiple
+  candidates get a native select with short name/kind entries and the selected description
+  below. **Accept all** accepts suggestions; **All new** overrides identities to new.
+- **N new people and things · no decision needed** is closed initially. New or uncertain
+  identities with candidates still offer the same choices inside; those without candidates
+  are wrapping chips.
+- **Possible groups** keeps yes/no checkboxes and bulk choices.
+- **Memories · k of n selected** groups checklist rows by type. Each group has a checked,
+  unchecked or mixed checkbox for the entire group, including other pages. Rows show the
+  sentence with a non-shrinking outcome tag at its right, reason, existing target, supported links
+  and quotes. Groups page at 20.
+  Confirmations remain a separate disclosure.
+- A sticky action bar stays at the pane bottom even for a short review. It says “Nothing is searchable until you approve it.” with **Reject all**
+  and **Approve N** (or **Approve confirmations**). An empty ordinary approval is disabled
+  unless groups or confirmations are being saved; replacement reviews can approve zero.
 
 **Approve** stores the checked memories, the identity choices and confirmed groups in one
 transaction; **Reject** stores nothing. An uncertain entity without a choice becomes new, and only
@@ -161,50 +246,110 @@ entities nothing else uses; entities named only by superseded memories stay.
 
 ## Exploring
 
-The Brain page keeps memories and entities on the left and the graph on the right. Every read is
-one bounded call, so it stays fast at 100,000 entities and a million memories.
+The **Knowledge** tab keeps search and a browse/detail column beside the graph. On Desktop the
+graph is always visible; there is no hide-graph control. The explorer trail survives switching to
+**Lanes**. Names, summaries, evidence and controls wrap within their column.
 
 - **Find** (`/`): one box for people, projects and memories (`brain:find`): names, aliases and
-  keys, word and trigram matches, then nearest vectors. Arrow keys and Enter; Esc clears.
-- **Entity**: label, kind, aliases, description, source lanes and merged names. **Connections**
-  are grouped by predicate and direction in plain words ("Owns" / "Owned by", "Part of" /
-  "Contains", "For customer" / "Customer of", …) with counts; each neighbour is a chip that hops,
-  and **Show more** pages (`brain:connections`). **Memories** are grouped by type with filters for
-  type, state (superseded hidden by default) and lane, paged (`brain:entityMemories`).
-- **Memory**: sentence, type, state, dates, entity chips, each link with its own quote, quotes
-  with **Open in lane**, and its history (what it superseded, conflicts with or resolves).
-- **Trail**: a breadcrumb of where you have been, with Back and Forward (`Alt+←` / `Alt+→`,
-  or Backspace when focus is not in a field).
-- **Graph**: the selected entity's neighbourhood, one or two hops, at most 300 nodes
-  (`brain:neighbourhood`); with nothing selected, the best-connected entities
-  (`brain:overview`). Edges are directed, with arrows; hovering one shows its predicate and
-  memory. Clicking a node hops to it. A 2D/3D toggle switches layouts.
-- **Find a path to…**: up to three shortest supported routes between two entities, at most four
+  keys, word and trigram matches, then nearest vectors. Arrow keys and Enter; Esc clears the field.
+- **Overview**: a neutral kind filter shows All and only populated kinds (People, Teams,
+  Organizations, Projects, Systems, Documents, Concepts, Events). **Most connected** pages twenty
+  entities at a time (`brain:entities`), ranked by connections. Its memory count includes historical
+  memories, as on entity cards. **Recently learned** shows ten current memories from recent finished
+  reads (`brain:recent`), with the lane and learned time; a kind filter hides it.
+- **Entity**: name, kind tag, description, aliases, source lanes, merged names and memory count.
+  **Connections** reads from that entity's side in plain words (Owns / Owned by, Part of / Contains,
+  For customer / Customer of), with chips and paging (`brain:connections`). **Memories** has type
+  filters with counts and wrapping rows. State, source lane and Include superseded filters remain
+  available (`brain:entityMemories`).
+- **Memory**: type, state, learned time, summary and every named entity; evidence with matched
+  words highlighted and each quote’s stored label, unchanged. Quotes do not carry their own
+  session path, so one memory-level **Open in lane** opens the origin lane; no quote is attributed
+  to that lane. Supported links, History and Related rows remain available. Dates and scope remain in a disclosure. **See the read that produced this** opens its job
+  in Lanes. **Forget** removes the memory as before.
+- **Trail**: Back and Forward (`Alt+←` / `Alt+→`, or Backspace outside fields), then plain-text
+  Overview and the previous two steps plus the current selection. Older steps collapse to an
+  ellipsis. Clearing selection goes to Overview without deleting the forward trail.
+- **Graph**: selecting a node, row, chip or result keeps the bounded overview (`brain:overview`)
+  drawn. The selected node, its direct neighbours and links stay bright; the rest dims. The camera
+  stays unchanged for an in-view selection in **Whole graph** mode, never zooming into the
+  selection. If the selection is outside the view or newly added, it fits the whole graph. A
+  memory highlights every named entity and the links it supports. Selected things outside the
+  overview are included with their neighbours, still capped at 300 nodes: selection first, then
+  route nodes, direct neighbours and the rest of the overview.
+  A bounded-selection notice remains visible when the graph is truncated.
+- **Clear selection**: the selection chip's ✕, empty graph space, Esc outside fields/dialogs/menus,
+  or the Overview breadcrumb restores the whole graph and fits the camera. **Whole graph** is the
+  default; **Neighbours only** explicitly switches to one or two steps (`brain:neighbourhood`),
+  and fits that neighbourhood; clearing resets that choice. Fit fits everything currently shown.
+  Zoom and 2D/3D controls remain available. The legend along
+  the bottom lists only present kinds, with the filter’s plural words (People, Systems), and
+  shares its theme-token colours with the column's kind dots. The keyboard focus badge sits
+  inside the canvas, separate from both the legend and selection controls.
+  Node labels keep a twelve-CSS-pixel height as the camera zooms and draw over the spheres in
+  front of them. On every frame a label that would cover a more important one is hidden: a
+  selected or hovered label always shows, then lit nodes, link words and the rest by size.
+  Labels take no pointer hits; nodes and links do. Directed links show predicate words on
+  selection or hover; hovering a link loads its supporting memory and leaving the link or
+  canvas clears it. A hover counts only while a pointer is on the canvas. On an unselected
+  graph it lights the hovered node and its neighbours; with a selection it lights only the
+  hovered node and never dims the selection. Groups with no link between them stop repelling
+  at a fixed range, so they stay in view instead of drifting apart. Reduced motion uses
+  instantaneous camera moves.
+- **Find route to…**: up to three shortest supported routes between two entities, at most four
   hops, each hop with its memory, highlighted in the graph (`brain:path`).
 - **Merge into…**: folds one entity into another after a confirmation. Names, keys, links and
   memories move; the source is deleted and the merge is recorded. There is no split.
 
 Views reload when Brain's revision or generation changes, and a failed load offers Retry.
 
-## Inspecting an extraction
+The two browse reads run in the search worker and use **schema v5 unchanged**:
+`brain:entities(kind | null, offset, limit)` accepts limits 1–100, returns entity/count rows,
+`more` and populated `kinds`. It walks `entities_connections` in connection-count descending,
+row-number ascending order, leaving out memory-less and merged-away rows. Kind filtering may
+walk farther; finding populated kinds makes one entity-table pass. `brain:recent(limit)` accepts
+1–50, walks at most twenty finished jobs through `jobs_finished`, and reads their active/disputed
+memories through `memories_job`, newest read first and recorded time descending within each read.
+It stops when full. Memories without a surviving finished job are omitted. `learnedAt` is the
+memory's recorded time, not when the source originally said it. These are bounded result sets,
+not an assertion that every browse query has constant work at a million memories.
 
-**View extraction** on a memory, a review or a failed or empty job opens a read-only detail: lane,
-model, thinking, duration, every call (step, part, trace, the scrubbed answer with Copy, and its
-prompt rebuilt from the lane file and the saved step inputs), and every claim's outcome (kept,
-folded, confirmed, enriched, held back or dropped) and every rejected link with its reason.
+## Inspecting a finished read
+
+A Read row, **See how it was read** in review, or **See the read that produced this** on a
+memory opens the read on Lanes, selecting its row when present. An older read outside the
+newest 200 stays open without fabricating or selecting a list row. Missing records offer Retry.
+
+The header shows the lane, model name, thinking level, duration and relative finish time.
+**Read again** appears for a finished `done` job only. **Result** comes first, showing only
+nonzero counts of kept, folded, reconfirmed, enriches, held and dropped candidates. Outcome
+rows show the claim, outcome tag and reason; the first 20 have **Show more**. Forgotten
+memories say “removed”, not a dead link. **Memories from this lane** opens each memory on
+Knowledge. **How it was read · n calls** has one closed disclosure per call, named in plain
+words with part number and duration. Opening shows the scrubbed raw output with Copy,
+rebuilt prompt and diagnostics, without cost or token counts. Raw output, prompts and source
+text each have a capped, internally scrolling box.
+
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records store no
 prompt text; a prompt whose inputs are gone says so. Records are kept while their job is in the
-inbox or a memory references them, and expire after 30 days.
+inbox or is the latest finished read of its lane, without an age limit. These jobs also keep
+step inputs, so finished-read prompts can be rebuilt. Removing or replacing a job deletes its
+step inputs. A record without a job survives only while a memory references it, and expires
+30 days after it finished; its prompts are unavailable. With neither job nor memory, the record
+is pruned immediately.
 
 ## Storage
 
-`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 4, WAL) holds settings,
+`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 5, WAL) holds settings,
 the queue and its saved steps, proposals, extraction records, entities (names, aliases, keys),
 memories, the entities each memory mentions, relations (subject, predicate, object, the memory
 that states it), each link's and memory's quotes, evidence, and float and sign-bit vectors. Full
-text search covers memories, entity words and entity name trigrams. Opening a file from an
-earlier version deletes its knowledge, keeps settings with review on, and starts a new
-generation, the same routine as **Reset Brain knowledge**. The model lives under
+text search covers memories, entity words and entity name trigrams. Version 4 upgrades in place:
+one transaction adds the jobs `replaces` column and indexes for lane memories and finished reads,
+then sets version 5. Knowledge, settings, jobs and records stay. Version 5 opens unchanged. Newer
+versions are refused and left untouched. Opening versions 0 to 3 deletes its knowledge, keeps
+settings with review on, and starts a new generation, the same routine as **Reset Brain
+knowledge**. The model lives under
 `<userData>/brain/embeddings`.
 
 - Entities (`BRAIN_ENTITY_KINDS`): person, team, organization, project, component, document,
@@ -289,7 +434,7 @@ project's memories as context, and to report a dispute rather than pick a side.
 
 ## Limits
 
-- Extraction quality is the lane model's. Review catches a wrong link or identity; afterwards,
+- Extraction quality is the reader model's. Review catches a wrong link or identity; afterwards,
   Forget and Merge into… fix it.
 - A wrong merge cannot be undone except by Reset.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.

@@ -152,3 +152,16 @@ describe('ExtractionQueue', () => {
     expect(s.store.job(job.id)!.state).toBe('queued')
   })
 })
+
+it('dismisses an empty reread by removing it, not replacing the finished read', async () => {
+  const s = setup()
+  s.setReady(false)
+  const old = s.enqueue('rina')
+  s.store.updateJob(old.id, { state: 'done' })
+  const job = s.store.enqueue({ ...HARBOR_JOB, sessionId: 'rina', replaces: old.id }, 'queued')
+  s.store.updateJob(job.id, { state: 'empty' })
+  s.queue.cancel(job.id)
+  expect(s.store.job(job.id)).toBeUndefined()
+  expect(s.store.job(old.id)?.state).toBe('done')
+  await s.queue.dispose()
+})

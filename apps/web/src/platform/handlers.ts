@@ -1,3 +1,5 @@
+import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
+import { createBrowserNotifications } from './notifications'
 import type { IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { laneArchives } from '@phosphor/host-client/lane-archive'
@@ -8,6 +10,8 @@ import {
   laneSubagentInspect,
 } from '@phosphor/host-client/lane-reads'
 import { remoteSkillShare } from '@phosphor/host-client/skill-share'
+import { isHostLaneMove, type createHostLaneMoves } from '@phosphor/host-client/lane-move'
+import { parseLaneMoveRequest } from '@phosphor/shared/lane-move'
 import { downloadBytes } from '@phosphor/shared/download'
 import { zipSkillBundle } from '@phosphor/shared/zip-store'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
@@ -23,6 +27,8 @@ import { staticArtifactPreview } from './preview'
 import type { createBrowserDrafts } from './drafts'
 import type { createBrowserTerminals } from './terminals'
 import type { createBrowserSettings } from './settings'
+import type { createBrowserFileBytes } from './file-bytes'
+import type { BrowserPush } from './push'
 
 export type BrowserHandlers = {
   [C in WebSupportedChannel]: (
@@ -52,6 +58,22 @@ function machineHandlers(
     'hosts:skillInstall': (machine, bundle, overwrite) =>
       share.install(machine, bundle, overwrite === true),
     'skills:saveBundle': saveSkillBundle,
+  } satisfies Partial<BrowserHandlers>
+}
+const LANE_CANNOT_MOVE = 'This lane cannot move.'
+/**
+ * "Move to…" between Hosts, or between folders of one, relayed through the page's memory.
+ * The browser has no This Mac, so a request with `local` on either end is refused as malformed.
+ */
+function laneMoveHandlers(moves: () => ReturnType<typeof createHostLaneMoves>) {
+  const parse = (value: unknown) => {
+    const request = parseLaneMoveRequest(value)
+    if (!request || !isHostLaneMove(request)) throw new Error(LANE_CANNOT_MOVE)
+    return request
+  }
+  return {
+    'hosts:laneMovePlan': (request) => moves().plan(parse(request)),
+    'hosts:laneMove': (request) => moves().move(parse(request)),
   } satisfies Partial<BrowserHandlers>
 }
 /** The Host's folder dialog; the folders are the Host's, so the browser can browse them too. */
@@ -100,10 +122,17 @@ function settingsHandlers(settings: () => ReturnType<typeof createBrowserSetting
   } satisfies Partial<BrowserHandlers>
 }
 /** Lanes this tab opened, by handle: pi commands, Host reads and writes. The tab is window 1. */
-function laneHandlers(lanes: RemoteLanes, connection: Parameters<typeof laneArchives>[0]) {
+function laneHandlers(
+  lanes: RemoteLanes,
+  fileBytes: () => ReturnType<typeof createBrowserFileBytes>,
+  connection: Parameters<typeof laneArchives>[0],
+) {
   return {
     ...laneWriteHandlers(lanes),
     ...archiveHandlers(connection),
+    'hosts:fileDownload': (request) => fileBytes().download(request),
+    'hosts:fileDownloadCancel': (id) => fileBytes().cancel(id),
+    'hosts:filePreviewUrl': (request) => fileBytes().previewUrl(request),
     'hosts:exportLaneHtml': (id) => lanes.onLane(1, id, exportLaneHtml),
     'hosts:subagentHistory': (id) => lanes.onLane(1, id, laneSubagentHistory),
     'hosts:subagentInspect': (id, request) => lanes.onLane(1, id, laneSubagentInspect(request)),
@@ -138,9 +167,11 @@ function laneWriteHandlers(lanes: RemoteLanes) {
     },
   } satisfies Partial<BrowserHandlers>
 }
-/** Device preferences this browser keeps (preferences.ts): validated, allowlisted, small. */
+/** Browser-local clipboard access and validated, allowlisted device preferences. */
 function preferenceHandlers(prefs: ReturnType<typeof createBrowserPreferences>) {
   return {
+    'clipboard:writeImage': writeBrowserImage,
+    'clipboard:readImage': readBrowserImage,
     'app:setTheme': prefs.theme,
     'app:setFontPrefs': prefs.fonts,
     'app:setModelPicks': prefs.models,
@@ -169,7 +200,15 @@ function archiveHandlers(connection: Parameters<typeof laneArchives>[0]) {
     'hosts:purgeArchive': archives.purge,
   }
 }
-export function createBrowserHandlers(ports: {
+function externalUrl(value: string): string {
+  const url = new URL(value)
+  if (url.protocol !== 'https:' || url.username || url.password)
+    throw new Error('Only HTTPS links can be opened.')
+  return url.href
+}
+
+/** What the handlers are built over: the page's adapter services, each owned by index.ts. */
+export interface BrowserHandlerPorts {
   control: BrowserControl
   hosts: BrowserHosts
   lanes: RemoteLanes
@@ -179,10 +218,14 @@ export function createBrowserHandlers(ports: {
   settings: ReturnType<typeof createBrowserSettings>
   prefs: ReturnType<typeof createBrowserPreferences>
   drafts: ReturnType<typeof createBrowserDrafts>
+  laneMoves: ReturnType<typeof createHostLaneMoves>
+  fileBytes: ReturnType<typeof createBrowserFileBytes>
+  push: Pick<BrowserPush, 'project'>
   openExternal: (url: string) => void
   broadcastLogout: () => void
   machinesChanged: () => void
-}): BrowserHandlers {
+}
+export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandlers {
   const { control, hosts, lanes, resources, prefs, drafts } = ports
   const marks = laneMarks(hosts.connection)
   const read = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
@@ -211,7 +254,7 @@ export function createBrowserHandlers(ports: {
     ...githubHandlers(resources.repositories, hosts),
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
-    'hosts:snapshot': hosts.snapshot,
+    'hosts:snapshot': () => ports.push.project(hosts.snapshot()),
     'hosts:reconnect': hosts.reconnect,
     'hosts:setFocusedLane': (target) => lanes.setFocused(1, target),
     'hosts:openLane': (host, lane) => lanes.open(ports.window(), host, lane),
@@ -221,7 +264,8 @@ export function createBrowserHandlers(ports: {
     'hosts:takeControl': (host, lane) => lanes.action(host, lane, 'control.take'),
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
-    ...laneHandlers(lanes, hosts.connection),
+    ...laneHandlers(lanes, () => ports.fileBytes, hosts.connection),
+    ...laneMoveHandlers(() => ports.laneMoves),
     'hosts:setLaneMarks': marks.set,
     'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),
     'fs:listFiles': (key) => read('fs:listFiles', [key]),
@@ -261,12 +305,10 @@ export function createBrowserHandlers(ports: {
     'app:readDraftBlob': drafts.readBlob,
     'app:sweepDrafts': drafts.sweep,
     ...preferenceHandlers(prefs),
+    'app:notify': createBrowserNotifications().notify,
     'app:resumeTarget': () => ({ kind: 'none' }),
     'app:openExternal': (value) => {
-      const url = new URL(value)
-      if (url.protocol !== 'https:' || url.username || url.password)
-        throw new Error('Only HTTPS links can be opened.')
-      ports.openExternal(url.href)
+      ports.openExternal(externalUrl(value))
     },
   }
 }

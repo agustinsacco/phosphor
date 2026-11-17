@@ -12,6 +12,7 @@ import {
   ACCOUNT_ROWS,
   APPEARANCE_ROWS,
   INSTALL_ROWS,
+  NOTIFICATION_ROWS,
   KEYBINDING_ROWS,
   WRITING_ROWS,
 } from './search/rows/device'
@@ -74,6 +75,7 @@ export const TABS: SettingsSection[] = [
   device('brain', 'Brain', ['localBrain']),
   device('keybindings', 'Keybindings', ['appShortcuts']),
   device('account', 'Phosphor account'),
+  device('notifications', 'Notifications', ['notificationPermission']),
   device('install', 'App installation', ['installableApp']),
   device('about', 'About'),
   machineSection('agent', 'Agent', { local: true, host: 'agent' }),
@@ -184,6 +186,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...ADVANCED_ROWS,
   ...ACCOUNT_ROWS,
   ...INSTALL_ROWS,
+  ...NOTIFICATION_ROWS,
   ...ABOUT_ROWS,
   ...KEYBINDING_ROWS,
 ]

@@ -1,4 +1,6 @@
 import type { MachineModel, MachineProvider } from '@shared/host-protocol-machine'
+import type { ThinkingLevel } from '@shared/rpc'
+import { clampThinkingLevel } from '@shared/thinking'
 import { availabilityKey, unavailableModels } from '@/lib/modelAvailability'
 
 export interface ModelChoice {
@@ -27,16 +29,37 @@ export function hostModelUnavailability(
   return blocked
 }
 
-/** Signed-in providers' order first; it is a fallback, not a configured Host default. */
+/** One source of a new Host lane's model and thinking level. */
+export interface StartPreference {
+  model?: ModelChoice
+  thinking?: ThinkingLevel
+}
+
+/**
+ * The sources a new Host lane starts from, in the order they win: the last
+ * choice for this Host, the Host pi's own default, then This Mac's default
+ * (Desktop only). Both shells apply the same order.
+ */
+export interface RemoteStartPreferences {
+  last?: StartPreference
+  host?: StartPreference
+  desktop?: StartPreference
+}
+
+const preferenceOrder = (p: RemoteStartPreferences) => [p.last, p.host, p.desktop]
+
+/**
+ * The first preference the Host lists as usable, then signed-in providers'
+ * order. A preference the catalogue lacks or blocks falls through.
+ */
 export function defaultRemoteModel(
   models: readonly MachineModel[],
   providers: readonly MachineProvider[],
-  last?: ModelChoice,
-  desktop?: ModelChoice,
+  preferences: RemoteStartPreferences = {},
 ): MachineModel | undefined {
   const blocked = hostModelUnavailability(models, providers)
   const usable = models.filter((m) => !blocked.has(availabilityKey(m)))
-  for (const choice of [last, desktop]) {
+  for (const choice of preferenceOrder(preferences).map((p) => p?.model)) {
     const match = usable.find((m) => m.id === choice?.id && m.provider === choice.provider)
     if (match) return match
   }
@@ -47,15 +70,27 @@ export function defaultRemoteModel(
   return usable[0]
 }
 
-/** Explain the existing precedence without claiming the Host exposes default-model metadata. */
+/** The thinking level by the same order, clamped to what `model` supports. */
+export function remoteStartThinking(
+  model: MachineModel,
+  preferences: RemoteStartPreferences,
+): ThinkingLevel {
+  const level = preferenceOrder(preferences).find((p) => p?.thinking)?.thinking
+  return clampThinkingLevel(model, level ?? 'off')
+}
+
+/** Which rule chose `model`, for the chip's tooltip. */
 export function remoteModelExplanation(
   model: ModelChoice,
-  last?: ModelChoice,
-  desktop?: ModelChoice,
+  preferences: RemoteStartPreferences = {},
 ): string {
-  const matches = (choice?: ModelChoice) =>
-    choice?.provider === model.provider && choice.id === model.id
-  if (matches(last)) return 'Using your last selected model for this machine.'
-  if (matches(desktop)) return 'Using the Desktop default, available on this machine.'
-  return 'The Host does not expose a default model. Using the first available model; choose another if needed.'
+  const matches = (preference?: StartPreference) =>
+    preference?.model?.provider === model.provider && preference.model.id === model.id
+  if (matches(preferences.last)) return 'Using your last selected model for this machine.'
+  if (matches(preferences.host)) return 'Using this Host’s default model.'
+  if (matches(preferences.desktop)) return 'Using the Desktop default, available on this machine.'
+  const fallback = 'Using the first available model; choose another if needed.'
+  return preferences.host?.model
+    ? `This Host’s default model is not available. ${fallback}`
+    : `This Host reports no default model. ${fallback}`
 }

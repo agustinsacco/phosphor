@@ -1,10 +1,9 @@
-import { TooltipLabel } from '@/components/Tooltip'
+import './editor.css'
+import { EditorFooter } from './EditorFooter'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ipcErrorText } from '@shared/errors'
 import { ModalOverlay } from '@/components/Modal'
-import { Button } from '@/components/form'
 import { bytesToBase64 } from '@phosphor/shared/base64'
-import { formatShortcut } from '@/lib/shortcuts'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { annotatedName, type PendingImage } from '../attachments'
 import { COLORS, EditorToolbar, SIZES, TOOLS, type Size, type Tool } from './EditorToolbar'
@@ -103,6 +102,7 @@ export function ImageEditor({
   const [live, setLiveState] = useState<Scene | null>(null)
   const textEditRef = useRef<TextEdit | null>(null)
   const gesture = useRef<Gesture | null>(null)
+  const pointerId = useRef<number | null>(null)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -243,7 +243,7 @@ export function ImageEditor({
   }
 
   const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>): void => {
-    if (!present || event.button !== 0) return
+    if (!present || event.button !== 0 || gesture.current || event.isPrimary === false) return
     setDiscardArmed(false)
     if (textEditRef.current) {
       finishText()
@@ -280,6 +280,7 @@ export function ImageEditor({
       )
       return
     }
+    pointerId.current = event.pointerId
     event.currentTarget.setPointerCapture(event.pointerId)
     if (tool === 'select') {
       const grip =
@@ -317,7 +318,7 @@ export function ImageEditor({
 
   const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>): void => {
     const g = gesture.current
-    if (!g || !present) return
+    if (!g || !present || event.pointerId !== pointerId.current) return
     const p = toImagePoint(event)
     if (g.type === 'move') {
       const moved = translate(g.origin, p.x - g.start.x, p.y - g.start.y)
@@ -345,7 +346,9 @@ export function ImageEditor({
     setLive(addShape(present, next))
   }
 
-  const onPointerUp = (): void => {
+  const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+    if (event.pointerId !== pointerId.current) return
+    pointerId.current = null
     const g = gesture.current
     const result = liveRef.current
     gesture.current = null
@@ -353,6 +356,13 @@ export function ImageEditor({
     if (!g || !result) return
     if (g.type === 'draw' && isDegenerate(g.shape, 4 * unit)) return
     apply(result)
+  }
+
+  const cancelPointer = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+    if (event.pointerId !== pointerId.current) return
+    pointerId.current = null
+    gesture.current = null
+    setLive(null)
   }
 
   const onDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>): void => {
@@ -420,7 +430,10 @@ export function ImageEditor({
   const fromFiles = (files: File[]): boolean => {
     const file = files.find((f) => f.type.startsWith('image/'))
     if (!file) return false
-    void file.arrayBuffer().then((bytes) => addImage(bytesToBase64(bytes), file.type, 'layer'))
+    void file
+      .arrayBuffer()
+      .then((bytes) => addImage(bytesToBase64(bytes), file.type, 'layer'))
+      .catch((error) => toast(`That image could not be read: ${ipcErrorText(error)}`, 'error'))
     return true
   }
 
@@ -514,7 +527,7 @@ export function ImageEditor({
           event.stopPropagation()
           if (fromFiles([...event.dataTransfer.files])) event.preventDefault()
         }}
-        className="border-border bg-surface-raised flex h-[92vh] w-[94vw] flex-col overflow-hidden rounded-xl border shadow-2xl outline-none"
+        className="image-editor border-border bg-surface-raised flex h-[92vh] w-[94vw] flex-col overflow-hidden rounded-xl border shadow-2xl outline-none"
       >
         <EditorToolbar
           tool={tool}
@@ -551,7 +564,8 @@ export function ImageEditor({
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
+                onPointerCancel={cancelPointer}
+                onLostPointerCapture={cancelPointer}
                 onDoubleClick={onDoubleClick}
                 // Keeps focus on the editor (and on text being typed): a
                 // mousedown here would otherwise move it before our handler.
@@ -589,6 +603,7 @@ export function ImageEditor({
                       left: editing.at.x * zoom,
                       top: editing.at.y * zoom,
                       font: textFont(editing.size * zoom),
+                      '--annotation-font-size': `${editing.size * zoom}px`,
                       lineHeight: TEXT_LINE_HEIGHT,
                       color: editing.color,
                       textShadow: `0 0 3px ${contrastFor(editing.color)}, 0 0 1px ${contrastFor(editing.color)}`,
@@ -603,52 +618,17 @@ export function ImageEditor({
           )}
         </div>
 
-        <div className="border-border flex flex-wrap items-center gap-3 border-t px-4 py-2.5">
-          {discardArmed ? (
-            <>
-              <span className="text-text mr-auto text-base">Discard your annotations?</span>
-              <Button size="sm" onClick={() => setDiscardArmed(false)}>
-                Keep editing
-              </Button>
-              <Button size="sm" variant="danger" onClick={onCancel}>
-                Discard
-              </Button>
-            </>
-          ) : (
-            <>
-              <span className="text-text-tertiary mr-auto text-sm">
-                Hold Shift for a square or circle · {formatShortcut('mod', 'V')} pastes an image on
-                top · Esc closes
-              </span>
-              <TooltipLabel
-                className="text-text-secondary flex cursor-pointer items-center gap-2 text-base"
-                data-tooltip={
-                  replace
-                    ? 'The annotated image takes the original’s place'
-                    : 'Keeps the original and adds the annotated copy next to it'
-                }
-              >
-                <input
-                  type="checkbox"
-                  checked={replace}
-                  onChange={(event) => setReplace(event.target.checked)}
-                />
-                Replace original
-              </TooltipLabel>
-              <Button size="sm" onClick={cancel}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={!history || saving}
-                onClick={() => void done()}
-              >
-                {saving ? 'Saving…' : 'Done'}
-              </Button>
-            </>
-          )}
-        </div>
+        <EditorFooter
+          discardArmed={discardArmed}
+          onKeep={() => setDiscardArmed(false)}
+          onDiscard={onCancel}
+          replace={replace}
+          onReplace={setReplace}
+          onCancel={cancel}
+          onDone={() => void done()}
+          ready={!!history}
+          saving={saving}
+        />
       </div>
     </ModalOverlay>
   )

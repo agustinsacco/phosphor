@@ -11,6 +11,11 @@ test('production image retains direct guide resolution, static cache policy and 
     '/guides/accounts',
     '/guides/extensions',
     '/guides/connectors',
+    '/guides/brain',
+    '/guides/machines',
+    '/guides/swarm',
+    '/watch',
+    '/privacy',
   ]) {
     const response = await request.get(route, { maxRedirects: 0 })
     // Existing try_files resolves $uri/index.html without a slash redirect.
@@ -62,5 +67,22 @@ test('production image retains direct guide resolution, static cache policy and 
     '/fonts/missing.woff2',
   ]) {
     expect((await request.get(path)).status(), path).toBe(404)
+  }
+})
+
+test('production media supports native playback MIME and seeking', async ({ request }) => {
+  test.skip(!process.env.SITE_TEST_URL, 'Requires the production static server')
+  for (const stem of ['phosphor-overview', 'brain-walkthrough', 'lane-to-review']) {
+    const response = await request.get(`/media/${stem}.mp4`, {
+      headers: { Range: 'bytes=0-31' },
+    })
+    expect(response.status()).toBe(206)
+    expect(response.headers()['content-type']).toMatch(/^video\/mp4/)
+    expect(response.headers()['accept-ranges']).toBe('bytes')
+    expect(response.headers()['content-range']).toMatch(/^bytes 0-31\/\d+$/)
+    expect((await response.body()).length).toBe(32)
+    expect((await request.get(`/media/${stem}.webp`)).headers()['content-type']).toMatch(
+      /^image\/webp/,
+    )
   }
 })

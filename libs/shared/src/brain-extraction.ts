@@ -1,3 +1,5 @@
+import type { BrainJob } from './brain'
+
 export interface BrainTraceEvent {
   type: string
   atMs: number
@@ -41,6 +43,8 @@ export interface BrainExtractionOutcome {
   proposalIndex?: number
   /** Existing memory it confirms or enriches, or the approved memory. */
   memoryId?: string
+  /** The linked memory was forgotten. */
+  removed?: boolean
   /** Why a claim or one of its links was dropped or held, e.g. "quote not found in s4". */
   reason?: string
 }
@@ -79,6 +83,9 @@ export interface BrainSourceSegment {
   text: string
 }
 export interface BrainExtractionView extends BrainExtractionRecord {
+  job: BrainJob | null
+  replaceable: number
+  laneMemories: number
   /** Each call's prompt, rebuilt from the lane file; empty when the lane is gone. */
   prompts: string[]
   memories: { id: string; summary: string }[]

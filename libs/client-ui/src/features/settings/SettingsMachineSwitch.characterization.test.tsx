@@ -50,7 +50,7 @@ const invoke = vi.fn(async (channel: string, ...args: unknown[]): Promise<unknow
   if (channel === 'packages:list') return []
   if (channel === 'hosts:settingsRead')
     return mockSettingsRead(args[0] as string, args[1] as never, args[2] as string | undefined)
-  if (channel === 'hosts:models') return []
+  if (channel === 'hosts:models') return { models: [] }
   return undefined
 })
 /** The ready Host among the mixed demo Hosts. */

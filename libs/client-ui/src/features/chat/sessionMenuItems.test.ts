@@ -30,6 +30,7 @@ beforeEach(() => {
 
 it('lists every option enabled with its current value for a local session', () => {
   expect(table(currentSessionMenuItems('local', true))).toEqual([
+    ['Find in chat', undefined, false],
     ['Export HTML…', undefined, false],
     ['Compact now…', undefined, false],
     ['Auto-compaction', 'on', false],
@@ -51,7 +52,7 @@ it('shows the values pi reported', () => {
     nativeFiles: true,
     controlHint: undefined,
   })
-  expect(hints.map((item) => item.hint).slice(2)).toEqual([
+  expect(hints.map((item) => item.hint).slice(3)).toEqual([
     'off',
     'on',
     'one at a time',
@@ -64,6 +65,7 @@ it('gives a Host lane controller every option, Export included', () => {
     host.lanes[0]!.control.controller = { label: 'This Desktop', connected: true, self: true }
   })
   expect(table(currentSessionMenuItems(SESSION, true))).toEqual([
+    ['Find in chat', undefined, false],
     ['Export HTML…', undefined, false],
     ['Compact now…', undefined, false],
     ['Auto-compaction', 'on', false],
@@ -75,8 +77,9 @@ it('gives a Host lane controller every option, Export included', () => {
 
 it('tells a Host lane reader to take control first, but lets them export', () => {
   const items = table(currentSessionMenuItems(SESSION, true))
-  expect(items[0]).toEqual(['Export HTML…', undefined, false])
-  for (const row of items.slice(1)) expect(row.slice(1)).toEqual([TAKE_CONTROL_FIRST, true])
+  expect(items[0]).toEqual(['Find in chat', undefined, false])
+  expect(items[1]).toEqual(['Export HTML…', undefined, false])
+  for (const row of items.slice(2)) expect(row.slice(1)).toEqual([TAKE_CONTROL_FIRST, true])
 })
 
 it('says why when the Host is down or does not offer control', () => {
@@ -84,11 +87,11 @@ it('says why when the Host is down or does not offer control', () => {
     host.state = 'reconnecting'
     host.lanes[0]!.control.controller = { label: 'This Desktop', connected: true, self: true }
   })
-  expect(currentSessionMenuItems(SESSION, true)[1]!.hint).toBe(REMOTE_NOT_READY)
+  expect(currentSessionMenuItems(SESSION, true)[2]!.hint).toBe(REMOTE_NOT_READY)
   lane((host) => {
     host.capabilities = ['sessions.read']
   })
-  expect(currentSessionMenuItems(SESSION, true)[1]!.hint).toBe(
+  expect(currentSessionMenuItems(SESSION, true)[2]!.hint).toBe(
     featureNotOffered('sessions.control'),
   )
 })

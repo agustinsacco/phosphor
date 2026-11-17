@@ -354,7 +354,7 @@ test('real Host files and artifact isolation across two lanes', async ({
   await signIn(page, stack.origin)
   await openLane(page)
   await openPane(page, 'Files')
-  await page.getByRole('treeitem', { name: 'remote.txt', exact: true }).click()
+  await page.locator('[data-testid="file-explorer"] [data-path$="/remote.txt"]').click()
   await expect(page.getByText('HOST_A_ONLY synthetic file', { exact: false })).toBeVisible()
   await expect(page.getByText('HOST_B_ONLY synthetic file', { exact: false })).toHaveCount(0)
   await openPane(page, 'Artifacts')
@@ -365,7 +365,7 @@ test('real Host files and artifact isolation across two lanes', async ({
   await page.getByRole('button', { name: 'Back to lanes' }).click()
   await openLane(page, 'Second synthetic lane')
   await openPane(page, 'Files')
-  await page.getByRole('treeitem', { name: 'remote.txt', exact: true }).click()
+  await page.locator('[data-testid="file-explorer"] [data-path$="/remote.txt"]').click()
   await expect(page.getByText('HOST_B_ONLY synthetic file', { exact: false })).toBeVisible()
   await expect(page.getByText('HOST_A_ONLY synthetic file', { exact: false })).toHaveCount(0)
   await openPane(page, 'Artifacts')
@@ -455,7 +455,12 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       [
         () => window.phosphor.invoke('brain:status'),
         () =>
-          window.phosphor.invoke('brain:setPrefs', { enabled: true, recall: true, review: true }),
+          window.phosphor.invoke('brain:setPrefs', {
+            enabled: true,
+            recall: true,
+            review: true,
+            model: null,
+          }),
         () => window.phosphor.invoke('brain:download'),
         () => window.phosphor.invoke('brain:removeModel'),
         () => window.phosphor.invoke('brain:overview'),

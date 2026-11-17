@@ -1,7 +1,7 @@
 import type { LaneArchiveList } from '../lane-archive'
 import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
-import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
+import type { MachineClaude, MachineModelList, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
 import type { RpcSlashCommand } from '../rpc'
 import type { SkillBundle, SkillInstallResult } from '../host-protocol-skill-share'
@@ -27,7 +27,8 @@ export interface HostsInvokeMap {
   }
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
   // Read-only machine catalogues, independent of an open lane.
-  'hosts:models': { args: [hostId: string]; result: MachineModel[] }
+  /** The catalogue, and the Host pi's own defaults when it sets them (absent from older Hosts). */
+  'hosts:models': { args: [hostId: string]; result: MachineModelList }
   /** pi's `/` commands on the Host for one configured repository, so a new lane offers them. */
   'hosts:commands': { args: [hostId: string, repositoryId?: string]; result: RpcSlashCommand[] }
   'hosts:claude': {

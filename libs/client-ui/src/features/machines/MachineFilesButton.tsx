@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button } from '@/components/form'
-import { TooltipButton } from '@/components/Tooltip'
+import { UnderlinedTab } from '@/components/UnderlinedTabs'
 
 // The previewer brings Monaco; the Machines page loads it only when files open.
 const MachineFilesPane = lazy(() =>
@@ -19,13 +19,9 @@ export function MachineFilesButton({
   const [open, setOpen] = useState(false)
   return (
     <>
-      <TooltipButton
-        tooltip={`Browse files on ${machine.label}`}
-        className="machine-view-tab text-base"
-        onClick={() => setOpen(true)}
-      >
+      <UnderlinedTab tooltip={`Browse files on ${machine.label}`} onClick={() => setOpen(true)}>
         Machine files
-      </TooltipButton>
+      </UnderlinedTab>
       {open && (
         <ModalOverlay onClose={() => setOpen(false)}>
           <ModalPanel

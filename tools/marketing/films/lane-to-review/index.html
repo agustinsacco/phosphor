@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1280, height=720" />
+    <title>Close the loop on a lane</title>
+    <link rel="stylesheet" href="assets/film.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script src="assets/kit.js"></script>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="35.0"
+      data-fps="30"
+      data-width="1280"
+      data-height="720"
+    >
+      <div
+        id="read"
+        data-composition-id="read"
+        data-composition-src="compositions/read.html"
+        data-start="0"
+        data-duration="5.3"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="changes"
+        data-composition-id="changes"
+        data-composition-src="compositions/changes.html"
+        data-start="5.3"
+        data-duration="4.9"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="pr"
+        data-composition-id="pr"
+        data-composition-src="compositions/pr.html"
+        data-start="10.2"
+        data-duration="7.8"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="fix"
+        data-composition-id="fix"
+        data-composition-src="compositions/fix.html"
+        data-start="18.0"
+        data-duration="5.5"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="return"
+        data-composition-id="return"
+        data-composition-src="compositions/return.html"
+        data-start="23.5"
+        data-duration="8"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+      <div
+        id="close"
+        data-composition-id="close"
+        data-composition-src="compositions/close.html"
+        data-start="31.5"
+        data-duration="3.5"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1280"
+        data-height="720"
+      ></div>
+    </div>
+    <script>
+      window.__timelines['main'] = gsap.timeline({ paused: true })
+    </script>
+  </body>
+</html>

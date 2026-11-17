@@ -1,10 +1,11 @@
+import { UnderlinedTab } from '@/components/UnderlinedTabs'
 import clsx from 'clsx'
 import { Fragment } from 'react'
 import type { MachineView } from '@shared/control-api'
 import { CopyButton } from '@/components/CopyButton'
 import { Button } from '@/components/form'
 import { Spinner } from '@/components/icons'
-import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
+import { TooltipSummary } from '@/components/Tooltip'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { CopyCommand, Troubleshooting } from './MachineControls'
 import { MachineDetailHeader } from './MachineDetailHeader'
@@ -153,21 +154,16 @@ function MachineViews({ overview }: { overview: MachineOverview }): React.JSX.El
   const openSettings = useOpenSettings()
   return (
     <nav aria-label="Machine views" className="border-border flex gap-5 border-b">
-      <TooltipButton
-        tooltip="Machine readiness and diagnostics"
-        aria-current="page"
-        className="machine-view-tab text-base"
-      >
+      <UnderlinedTab tooltip="Machine readiness and diagnostics" aria-current="page">
         Overview
-      </TooltipButton>
-      <TooltipButton
+      </UnderlinedTab>
+      <UnderlinedTab
         tooltip={`Configure ${overview.label} in Settings`}
         aria-label="Machine settings"
-        className="machine-view-tab text-base"
         onClick={() => openSettings(overview.id, 'accounts')}
       >
         Settings
-      </TooltipButton>
+      </UnderlinedTab>
       <MachineFilesButton machine={overview} />
     </nav>
   )

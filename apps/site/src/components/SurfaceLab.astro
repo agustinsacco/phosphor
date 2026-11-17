@@ -27,8 +27,8 @@ const views = [
   <div class="section-heading">
     <h3 id="surface-title" class="subheading">Make room<br />for the code.</h3>
     <p class="section-intro" id="tools">
-      Open the file explorer and editor next to the chat, or give them the whole window. The same
-      session works as a chat app or as an IDE. Your call.
+      On Desktop, open the file explorer and editor next to the chat, or give them the whole window.
+      The same session works as a chat app or as an IDE. Your call.
     </p>
   </div>
   <Capture
@@ -39,8 +39,8 @@ const views = [
   <details class="disclosure">
     <summary>More layouts <span>+</span></summary>
     <p class="fineprint">
-      Files, Changes, Terminal, or Artifacts, one pane at a time. Dock it left or right, resize it,
-      or go fullscreen. Each session remembers its layout.
+      Files, Changes, Terminal, Artifacts or Subagents, one pane at a time. Dock it left or right,
+      resize it, or go fullscreen. Each session remembers its layout.
     </p>
     <fieldset class="surface-lab">
       <legend class="sr-only">Choose a layout</legend>
@@ -67,5 +67,24 @@ const views = [
       }
     </fieldset>
     <a class="text-link" href={doc('ui-shell.md#pane-system')}>How panes work ↗</a>
+  </details>
+  <details class="disclosure">
+    <summary>Changes and artifacts <span aria-hidden="true">+</span></summary>
+    <div class="capture-pair">
+      <Capture
+        image={shot('changes')}
+        alt="A fictional lane’s edits in the Changes pane."
+        caption="Review the observed edits"
+      />
+      <Capture
+        image={shot('artifacts')}
+        alt="A fictional versioned document in the Artifacts pane."
+        caption="Keep a deliverable beyond the turn"
+      />
+    </div>
+    <p class="fineprint">
+      Desktop’s HTML artifact preview is sandboxed without network access. That protects the page,
+      not the agent’s tools. The browser uses static alternatives or source.
+    </p>
   </details>
 </section>

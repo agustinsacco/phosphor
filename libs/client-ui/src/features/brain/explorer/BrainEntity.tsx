@@ -1,17 +1,11 @@
+import { formatCount } from '@/lib/format'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  BRAIN_MEMORY_TYPES,
-  BRAIN_PREDICATE_LABELS,
-  type BrainLink,
-  type BrainConnectionGroup,
-  type BrainEntityView,
-  type BrainMemoryFilter,
-  type BrainMemoryState,
-} from '@shared/brain'
+import { BRAIN_PREDICATE_LABELS, type BrainLink, type BrainConnectionGroup } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
-import { Button, Select } from '@/components/form'
+import { Button, Tag } from '@/components/form'
 import { useBrainResource } from '../useBrainResource'
-import { MEMORY_LABELS } from '../BrainMemory'
+import { EntityMemories } from './EntityMemories'
+import { EntityChip } from './KnowledgePrimitives'
 import type { BrainVisit } from './trail'
 import { EntityActions } from './EntityActions'
 
@@ -34,11 +28,14 @@ export function BrainEntity({
       </p>
     )
   return (
-    <article aria-label="Entity detail" className="space-y-4 p-3">
+    <article aria-label="Entity detail" className="min-w-0 space-y-4 py-3">
       <header>
-        <h2 className="text-xl font-semibold">{data.entity.label}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-semibold">{data.entity.label}</h2>
+          <Tag>{data.entity.kind}</Tag>
+        </div>
         <p className="text-text-tertiary text-sm">
-          {data.entity.kind} · {data.entity.memories} memories
+          {formatCount(data.entity.memories, 'memory', 'memories')}
         </p>
       </header>
       <p>{data.entity.description}</p>
@@ -60,7 +57,7 @@ export function BrainEntity({
           />
         ))}
       </section>
-      <EntityMemories id={id} sources={data.sources} onVisit={onVisit} />
+      <EntityMemories id={id} sources={data.sources} counts={data.memoryCounts} onVisit={onVisit} />
     </article>
   )
 }
@@ -113,13 +110,12 @@ function Connections({
       </h4>
       <div className="flex flex-wrap gap-1">
         {items.map(({ entity, link }) => (
-          <Button
-            size="xs"
+          <EntityChip
             key={link.id}
+            label={entity.label}
+            kind={entity.kind}
             onClick={() => onVisit({ kind: 'entity', id: entity.id, label: entity.label })}
-          >
-            {entity.label}
-          </Button>
+          />
         ))}
       </div>
       {error && <p role="status">{error}</p>}
@@ -135,133 +131,5 @@ function Connections({
         </Button>
       )}
     </section>
-  )
-}
-
-function EntityMemories({
-  id,
-  sources,
-  onVisit,
-}: {
-  id: string
-  sources: BrainEntityView['sources']
-  onVisit: (visit: BrainVisit) => void
-}): React.JSX.Element {
-  const [type, setType] = useState('')
-  const [lane, setLane] = useState('')
-  const [state, setState] = useState('')
-  const [superseded, setSuperseded] = useState(false)
-  const filter: BrainMemoryFilter = {
-    types: type ? [type as (typeof BRAIN_MEMORY_TYPES)[number]] : undefined,
-    states: [
-      ...(state ? [state as BrainMemoryState] : (['active', 'disputed'] as BrainMemoryState[])),
-      ...(superseded ? ['superseded' as const] : []),
-    ],
-    sessionId: lane || undefined,
-  }
-  return (
-    <section aria-label="Entity memories" className="space-y-3">
-      <h3 className="font-medium">Memories</h3>
-      <div className="flex flex-wrap gap-2">
-        <Select
-          label="Memory type"
-          value={type}
-          onChange={setType}
-          options={[
-            { value: '', label: 'All types' },
-            ...BRAIN_MEMORY_TYPES.map((t) => ({ value: t, label: MEMORY_LABELS[t] })),
-          ]}
-        />
-        <Select
-          label="Source lane"
-          value={lane}
-          onChange={setLane}
-          options={[
-            { value: '', label: 'All lanes' },
-            ...sources.map((s) => ({ value: s.sessionId, label: s.title })),
-          ]}
-        />
-        <Select
-          label="Memory state"
-          value={state}
-          onChange={setState}
-          options={[
-            { value: '', label: 'Active and disputed' },
-            { value: 'active', label: 'Active' },
-            { value: 'disputed', label: 'Disputed' },
-          ]}
-        />
-        <label className="text-sm">
-          <input
-            type="checkbox"
-            checked={superseded}
-            onChange={(e) => setSuperseded(e.target.checked)}
-          />{' '}
-          Include superseded
-        </label>
-      </div>
-      <MemoryPages key={JSON.stringify([id, filter])} id={id} filter={filter} onVisit={onVisit} />
-    </section>
-  )
-}
-
-function MemoryPages({
-  id,
-  filter,
-  onVisit,
-}: {
-  id: string
-  filter: BrainMemoryFilter
-  onVisit: (visit: BrainVisit) => void
-}): React.JSX.Element {
-  const [cursor, setCursor] = useState<string | null>(null)
-  const load = useCallback(
-    () => window.phosphor.invoke('brain:entityMemories', id, filter, cursor),
-    [id, filter, cursor],
-  )
-  const { data, error, retry } = useBrainResource(load)
-  const [previous, setPrevious] = useState<NonNullable<typeof data>['memories']>([])
-  const memories = [...previous, ...(data?.memories ?? [])]
-  return (
-    <div className="space-y-3">
-      {BRAIN_MEMORY_TYPES.map((type) => {
-        const group = memories.filter((m) => m.type === type)
-        return (
-          group.length > 0 && (
-            <section key={type}>
-              <h4 className="text-text-tertiary text-sm">{MEMORY_LABELS[type]}</h4>
-              {group.map((m) => (
-                <Button
-                  key={m.id}
-                  size="sm"
-                  className="mb-1 block w-full text-left"
-                  onClick={() => onVisit({ kind: 'memory', id: m.id, label: m.summary })}
-                >
-                  {m.summary} <span className="text-text-tertiary">· {m.state}</span>
-                </Button>
-              ))}
-            </section>
-          )
-        )
-      })}
-      {!data && (
-        <p role="status">
-          {error || 'Loading memories…'}
-          {error && <Button onClick={retry}>Retry</Button>}
-        </p>
-      )}
-      {data && !memories.length && <p>No memories match these filters</p>}
-      {data?.next && (
-        <Button
-          size="sm"
-          onClick={() => {
-            setPrevious(memories)
-            setCursor(data.next)
-          }}
-        >
-          Show more memories
-        </Button>
-      )}
-    </div>
   )
 }

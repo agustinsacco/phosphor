@@ -2,11 +2,13 @@ import { expect, it } from 'vitest'
 import {
   DEFAULT_BRAIN_PREFS,
   type BrainStatus,
+  type BrainExtractionView,
   type BrainProposalView,
   type BrainMemoryPage,
   type BrainEntityView,
   type BrainConnectionPage,
   type BrainPaths,
+  type BrainRecentMemories,
 } from '@shared/brain'
 import { createMockBrain } from './mockBrain'
 
@@ -113,7 +115,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
   expect(rina.entity.aliases).toContain('Tom Lee')
   await expect(call('brain:entity', ['tom'])).rejects.toThrow('Entity not found')
   const before = (await call('brain:status', [])) as BrainStatus
-  await call('brain:setPrefs', [{ enabled: true, recall: true, review: false }])
+  await call('brain:setPrefs', [{ enabled: true, recall: true, review: false, model: null }])
   now = 6000
   await call('brain:queue', [{ sessionPath: '/demo/Harbor/auto.jsonl', title: 'Harbor auto' }])
   await call('brain:status', [])
@@ -126,7 +128,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
 it('can extract and approve again after resetting every entity and memory', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ enabled: true, recall: true, review: true }])
+  await call('brain:setPrefs', [{ enabled: true, recall: true, review: true, model: null }])
   now = 6000
   await call('brain:status', [])
   await call('brain:reset', [])
@@ -145,7 +147,7 @@ it('can extract and approve again after resetting every entity and memory', asyn
 it('requeues a stale proposal and returns it to review after recomputing', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ enabled: true, review: true, recall: true }])
+  await call('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
   now = 6000
   await call('brain:status', [])
   const id = 'harbor-demo-review'
@@ -173,4 +175,129 @@ it('exposes the links call beside extraction in the invented extraction view', a
     ],
     prompts: [expect.any(String), expect.stringContaining('relationships')],
   })
+})
+
+it('carries and freezes the selected reader model in browser mock jobs', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  expect(await call('brain:status', [])).toMatchObject({ prefs: { model: null } })
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true, model: 'harbor/reader' }])
+  now = 6000
+  await call('brain:reset', [])
+  const queued = (await call('brain:queue', [
+    { sessionPath: '/demo/Harbor/reader.jsonl', title: 'Harbor reader' },
+  ])) as BrainStatus
+  const id = queued.jobs[0]!.id
+  expect(await call('brain:status', [])).toMatchObject({
+    jobs: [expect.objectContaining({ model: 'harbor/reader' })],
+  })
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true, model: 'ledger/reader' }])
+  now += 5000
+  expect(await call('brain:extraction', [id])).toMatchObject({
+    model: 'harbor/reader',
+    thinking: 'medium',
+  })
+})
+it('keeps finished reads in history and replaces the mocked lane only on approval', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  now = 6000
+  await call('brain:review', [
+    'harbor-demo-review',
+    { memories: [0], identities: {}, groups: [] },
+    0,
+  ])
+  const history = await call('brain:history', [20]).catch(String)
+  expect(history).toMatchObject({ items: [{ job: { id: 'harbor-demo-review' } }], more: false })
+  const queued = (await call('brain:reread', ['harbor-demo-review'])) as BrainStatus
+  expect(queued.jobs.at(-1)?.replaces).toBe('harbor-demo-review')
+  const count = queued.counts.memories
+  await call('brain:status', [])
+  now += 4000
+  const id = queued.jobs.at(-1)!.id
+  const proposal = (await call('brain:proposal', [id])) as BrainProposalView
+  expect(proposal.replacingMemories).toBe(count)
+  const saved = (await call('brain:review', [
+    id,
+    { memories: [0], identities: {}, groups: [] },
+    proposal.revision,
+  ])) as BrainStatus
+  expect(saved.counts.memories).toBe(1)
+  expect(await call('brain:history', [20])).toMatchObject({ items: [{ job: { id }, memories: 1 }] })
+})
+
+it('marks forgotten links removed in a finished mocked extraction', async () => {
+  const call = createMockBrain()
+  await call('brain:review', [
+    'harbor-demo-review',
+    { memories: [0], identities: {}, groups: [] },
+    0,
+  ])
+  const view = (await call('brain:extraction', ['harbor-demo-review'])) as BrainExtractionView
+  await call('brain:forget', [view.memories[0]!.id])
+  expect(await call('brain:extraction', ['harbor-demo-review'])).toMatchObject({
+    outcomes: [expect.anything(), expect.anything()],
+    job: { state: 'done' },
+  })
+  const after = (await call('brain:extraction', ['harbor-demo-review'])) as BrainExtractionView
+  expect(after.outcomes[0]).toMatchObject({ memoryId: view.memories[0]!.id, removed: true })
+})
+
+it('serves both browse reads with paging, kinds and memories learned from an approved mock read', async () => {
+  const call = createMockBrain()
+  const all = await call('brain:entities', [null, 0, 1])
+  expect(all).toMatchObject({
+    items: [{ entity: { id: 'harbor' }, memories: expect.any(Number) }],
+    more: true,
+    kinds: expect.arrayContaining(['person', 'organization']),
+  })
+  expect(await call('brain:entities', ['person', 0, 1])).toMatchObject({
+    items: [{ entity: { kind: 'person' } }],
+    more: true,
+  })
+  expect(await call('brain:entities', ['person', 1, 1])).toMatchObject({
+    items: [{ entity: { kind: 'person' } }],
+    more: false,
+  })
+  await call('brain:review', [
+    'harbor-demo-review',
+    { memories: [0], identities: {}, groups: [] },
+    0,
+  ])
+  const read = (await call('brain:extraction', ['harbor-demo-review'])) as BrainExtractionView
+  expect(await call('brain:recent', [10])).toMatchObject({
+    items: [
+      {
+        id: read.memories[0]!.id,
+        originTitle: 'Harbor identity review',
+        learnedAt: expect.any(Number),
+      },
+    ],
+  })
+})
+
+it('orders recent memories by finished job and caps eligibility at the newest twenty done jobs', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  const expected: string[] = []
+  for (let index = 0; index < 22; index++) {
+    now = 1_000_000 - index * 10000
+    const status = (await call('brain:queue', [
+      { sessionPath: `/demo/Harbor/read-${index}.jsonl`, title: `Harbor ${index}` },
+    ])) as BrainStatus
+    const id = status.jobs.at(-1)!.id
+    await call('brain:status', [])
+    now += 5000
+    const proposal = (await call('brain:proposal', [id])) as BrainProposalView
+    await call('brain:review', [
+      id,
+      { memories: [0, 1], identities: {}, groups: [] },
+      proposal.revision,
+    ])
+    expected.push(`${id}-1`, `${id}-0`)
+  }
+  const recent = (await call('brain:recent', [50])) as BrainRecentMemories
+  expect(recent.items.map((item) => item.id)).toEqual(expected.slice(0, 40))
 })

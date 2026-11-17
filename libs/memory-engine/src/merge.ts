@@ -66,30 +66,37 @@ export function merge(ctx: Context, sourceId: string, targetId: string): void {
 }
 export function forget(ctx: Context, id: string): void {
   transaction(ctx, () => {
-    const n = memoryNumber(ctx, id)
-    const state = one<{ state: string }>(ctx, 'SELECT state FROM memories WHERE n=?', n)!.state
-    const touched = new Set(
-      all<{ entity: number }>(ctx, 'SELECT entity FROM mentions WHERE memory=?', n).map(
-        (row) => row.entity,
-      ),
-    )
-    const evidence = new Set(
-      all<{ evidence: number }>(
-        ctx,
-        'SELECT evidence FROM citations WHERE memory=? UNION SELECT s.evidence FROM relation_support s JOIN relations r ON r.n=s.relation WHERE r.memory=?',
-        n,
-        n,
-      ).map((row) => row.evidence),
-    )
-    reactivatePartners(ctx, n)
-    run(ctx, 'DELETE FROM memory_words WHERE rowid=?', n)
-    run(ctx, 'DELETE FROM memories WHERE n=?', n)
-    if (state !== 'superseded') adjustCount(ctx, 'memories', -1)
-    cleanOrphans(ctx, touched, evidence)
-    recountEntities(ctx, touched)
+    removeMemory(ctx, id)
     bumpRevision(ctx)
     pruneExtractions(ctx)
   })
+}
+/**
+ * The caller owns the transaction, the revision bump and the extraction prune, so replacing a
+ * read is atomic and does that global work once, not once per memory.
+ */
+export function removeMemory(ctx: Context, id: string): void {
+  const n = memoryNumber(ctx, id)
+  const state = one<{ state: string }>(ctx, 'SELECT state FROM memories WHERE n=?', n)!.state
+  const touched = new Set(
+    all<{ entity: number }>(ctx, 'SELECT entity FROM mentions WHERE memory=?', n).map(
+      (row) => row.entity,
+    ),
+  )
+  const evidence = new Set(
+    all<{ evidence: number }>(
+      ctx,
+      'SELECT evidence FROM citations WHERE memory=? UNION SELECT s.evidence FROM relation_support s JOIN relations r ON r.n=s.relation WHERE r.memory=?',
+      n,
+      n,
+    ).map((row) => row.evidence),
+  )
+  reactivatePartners(ctx, n)
+  run(ctx, 'DELETE FROM memory_words WHERE rowid=?', n)
+  run(ctx, 'DELETE FROM memories WHERE n=?', n)
+  if (state !== 'superseded') adjustCount(ctx, 'memories', -1)
+  cleanOrphans(ctx, touched, evidence)
+  recountEntities(ctx, touched)
 }
 
 function repointRelations(

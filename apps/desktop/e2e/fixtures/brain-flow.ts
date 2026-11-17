@@ -4,15 +4,37 @@ import type { BrainLane } from './brain-lanes'
 export const brainNav = (page: Page) =>
   page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: 'Brain', exact: true })
+    .getByRole('button', { name: /^Brain(?: \d+ lanes? to review)?$/ })
 const laneRow = (page: Page, lane: BrainLane) =>
   page.getByTestId('session-row').filter({ hasText: lane.title }).first()
 export const inbox = (page: Page, lane: BrainLane) =>
   page
-    .getByRole('region', { name: 'Inbox', exact: true })
-    .getByRole('article')
-    .filter({ hasText: lane.title })
+    .getByRole('navigation', { name: 'Brain lanes', exact: true })
+    .getByRole('region', { name: /^(To review|Reading|Failed)$/ })
+    .getByRole('button', { name: lane.title, exact: true })
 export const status = (page: Page) => page.evaluate(() => window.phosphor.invoke('brain:status'))
+
+/**
+ * A stubbed read spawns four model calls and holds the first for three seconds. A loaded CI
+ * runner has taken more than four times as long, so a read gets its own budget, not the default.
+ */
+export const READ_TIMEOUT = 60_000
+/** Wait for the read of one lane, or of the first job when no lane is named, to settle. */
+export async function awaitRead(
+  page: Page,
+  lane: BrainLane | null,
+  state: 'review' | 'failed' = 'review',
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const { jobs } = await status(page)
+        return (lane ? jobs.find((job) => job.sessionPath === lane.source) : jobs[0])?.state
+      },
+      { timeout: READ_TIMEOUT },
+    )
+    .toBe(state)
+}
 
 export async function enableBrain(page: Page, lane: BrainLane): Promise<void> {
   const row = laneRow(page, lane)
@@ -22,7 +44,7 @@ export async function enableBrain(page: Page, lane: BrainLane): Promise<void> {
   await expect(page.getByText('Queue for knowledge extraction')).toHaveCount(0)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await page.getByRole('button', { name: 'Brain', exact: true }).click()
+  await page.getByRole('button', { name: /^Brain(?: \d+ lanes? to review)?$/ }).click()
   await page.getByRole('switch', { name: 'Brain', exact: true }).click()
   await expect(page.getByRole('switch', { name: 'Brain', exact: true })).toBeChecked()
   await expect(page.getByRole('switch', { name: 'Review before saving' })).toBeChecked()
@@ -37,9 +59,11 @@ export async function queueLane(page: Page, lane: BrainLane): Promise<void> {
 }
 
 export async function approveLane(page: Page, lane: BrainLane): Promise<string> {
-  await expect(inbox(page, lane).getByText('2 memories to review')).toBeVisible({ timeout: 30_000 })
+  await page.getByRole('tab', { name: /^Lanes/ }).click()
+  await awaitRead(page, lane)
+  await expect(inbox(page, lane)).toContainText('2 memories')
   const job = (await status(page)).jobs.find((job) => job.sessionPath === lane.source)!
-  await inbox(page, lane).getByRole('button', { name: 'Review', exact: true }).click()
+  await inbox(page, lane).click()
   const review = page.getByRole('region', { name: 'Review memories', exact: true })
   await expect(review.getByRole('region', { name: 'Who/what is this?', exact: true })).toBeVisible()
   await expect(review.getByText('Nothing is searchable until you approve it.')).toBeVisible()
@@ -56,8 +80,10 @@ export async function approveLane(page: Page, lane: BrainLane): Promise<string> 
     await expect(links.getByText('Tom Lee → owns → Ledger bridge', { exact: true })).toBeVisible()
     await expect(links.getByText('Ledger bridge → part of → Harbor', { exact: true })).toBeVisible()
     await expect(
-      review.getByRole('region', { name: 'Who/what is this?', exact: true }),
-    ).toContainText('same as Harbor')
+      review
+        .getByRole('combobox', { name: 'Identity for Harbor', exact: true })
+        .locator('option:checked'),
+    ).toHaveText('Harbor · project')
   }
   await review.getByRole('button', { name: 'Approve 2', exact: true }).click()
   await expect(review).toHaveCount(0)
@@ -65,6 +91,7 @@ export async function approveLane(page: Page, lane: BrainLane): Promise<string> 
 }
 
 export async function exploreBrain(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
   await page.keyboard.press('/')
   const search = page.getByRole('combobox', { name: 'Find a person, project or memory' })
   await expect(search).toBeFocused()
@@ -91,7 +118,7 @@ export async function exploreBrain(page: Page): Promise<void> {
   await expect(detail.getByRole('heading', { name: 'Harbor ledger', exact: true })).toBeVisible()
   await trail.getByRole('button', { name: 'Forward', exact: true }).click()
   await expect(detail.getByRole('heading', { name: 'Rina Okafor', exact: true })).toBeVisible()
-  await detail.getByRole('button', { name: 'Find a path to…', exact: true }).click()
+  await detail.getByRole('button', { name: 'Find route to…', exact: true }).click()
   const target = detail.getByRole('combobox', { name: 'Find an entity' })
   await target.fill('Harbor')
   await expect(detail.getByRole('option').first()).toContainText('Harbor')

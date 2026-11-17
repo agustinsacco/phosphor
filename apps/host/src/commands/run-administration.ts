@@ -1,6 +1,5 @@
 import { join } from 'node:path'
 import { HostArchives } from '../lanes/archive'
-import { hostStateDirectory } from '../lanes/state-dir'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import type { HostAttachments } from '../features/attachments'
 import type { RunContext } from './run'
@@ -30,6 +29,12 @@ import { createLaneTransferFeatures } from '../features/lane-transfer'
 import { hostTransferRuntime } from '../features/lane-transfer/runtime'
 import { checkReadiness, readinessPorts } from '../machine/readiness'
 import { hostUpdateProgram } from '../update/handoff'
+import { loadHostPty } from '../terminals/native'
+import { createTerminals } from '../terminals/service'
+import { terminalState } from '../terminals/state'
+import { hostStateDirectory } from '../lanes/state-dir'
+import { identityDirectory, type HostIdentity } from '../control/identity'
+import { startHostWebPush, type WebPushOptions } from '../push/web-push'
 
 interface AdministrationOptions {
   context: RunContext
@@ -171,6 +176,55 @@ export function createRunAdministration(options: AdministrationOptions) {
     }),
     features: () => features(options, featureContext, settings, archives),
   }
+}
+
+/** This run's Host terminals, when node-pty loads; their state lives beside the lanes'. */
+export function createRunTerminals(
+  context: RunContext,
+  options: {
+    epoch: string
+    store: HostStore
+    log: HostMachine['log']
+    env: Record<string, string>
+  },
+) {
+  const native = loadHostPty()
+  if (!native) return undefined
+  return createTerminals({
+    native,
+    epoch: options.epoch,
+    env: options.env,
+    context: {
+      store: options.store,
+      env: context.env,
+      home: context.home,
+      log: (event, fields) => options.log.write('host', event, fields),
+    },
+    ...terminalState(hostStateDirectory(context.env, context.home)),
+  })
+}
+
+/** Web Push for this run: its key beside the identity, subscriptions in the private state. */
+export function startRunWebPush(
+  context: RunContext,
+  options: Pick<WebPushOptions, 'authority' | 'lanesTopic' | 'receipt'> & {
+    identity: HostIdentity
+    controlUrl: string
+    log: HostMachine['log']['write']
+  },
+) {
+  return startHostWebPush({
+    identityDirectory: identityDirectory(context.configPath),
+    subscriptionsPath: join(hostStateDirectory(context.env, context.home), 'web-push.json'),
+    uid: context.uid,
+    hostId: options.identity.hostId,
+    machine: options.identity.label,
+    subject: options.controlUrl,
+    authority: options.authority,
+    lanesTopic: options.lanesTopic,
+    receipt: options.receipt,
+    log: (event, fields) => options.log('host', event, fields),
+  })
 }
 
 export function createRunControllerPresence(

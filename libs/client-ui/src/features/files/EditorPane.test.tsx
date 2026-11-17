@@ -37,7 +37,8 @@ const lane = (writeRefusal: string | null = null): FilesSource => ({
     clipboardFiles: false,
     revert: false,
     download: false,
-    streamPreview: false,
+    openDownloads: false,
+    hostPreview: null,
   },
 })
 const open = (file: Partial<OpenFile> & { path: string }) =>
@@ -106,7 +107,7 @@ it('streams a Host lane’s video through its handle and offers Download', async
     return {
       ...base,
       sessionId: 'remote-1',
-      features: { ...base.features, download: true, streamPreview: true },
+      features: { ...base.features, download: true, openDownloads: true, hostPreview: 'stream' },
     }
   }
   invoke.mockImplementation(async (channel: string) =>

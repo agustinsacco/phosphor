@@ -5,13 +5,14 @@ import {
   createRunAccounts,
   createRunAdministration,
   createRunControllerPresence,
+  createRunTerminals,
   runReadiness,
+  startRunWebPush,
 } from './run-administration'
 import { realpathSync } from 'node:fs'
 import { createAttachments, type HostAttachments } from '../features/attachments'
-import { loadHostPty } from '../terminals/native'
-import { createTerminals, type HostTerminals } from '../terminals/service'
-import { terminalState } from '../terminals/state'
+import type { HostTerminals } from '../terminals/service'
+import type { HostWebPush } from '../push/web-push'
 import { createAuthority } from '../api/authority'
 import { startApi } from '../api/server'
 import { randomBytes, randomInt } from 'node:crypto'
@@ -106,6 +107,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let live: ReturnType<typeof createHostLiveLanes>['live'] | undefined
   let commands: ReturnType<typeof createLaneCommands> | undefined
   let terminals: HostTerminals | undefined
+  let webPush: HostWebPush | undefined
   let lanes: LaneService | undefined
   // The store opens before the API; defer receipt delivery and presence until it starts.
   const sink: {
@@ -144,6 +146,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
     for (const close of [
       () => commands?.close(),
       () => terminals?.close(),
+      () => webPush?.close(),
       () => attachments?.close(),
       () => routines?.close(),
       () => live?.close(),
@@ -307,20 +310,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: log.write,
           nameLane,
         })
-        const native = loadHostPty()
-        if (native)
-          terminals = createTerminals({
-            native,
-            epoch,
-            env: machine.env,
-            context: {
-              store,
-              env: context.env,
-              home: context.home,
-              log: (event, fields) => log.write('host', event, fields),
-            },
-            ...terminalState(stateDirectory),
-          })
+        terminals = createRunTerminals(context, { epoch, store, log, env: machine.env })
         const activeRuntime = runtime
         const repositories = createRepositories({
           home: context.home,
@@ -369,7 +359,15 @@ async function runHostCommand(context: RunContext): Promise<number> {
           now: context.now ?? Date.now,
           log: log.write,
         })
-        const features = administrationFeatures()
+        webPush = await startRunWebPush(context, {
+          identity,
+          controlUrl: prepared.url,
+          authority,
+          lanesTopic: live.lanesTopic,
+          receipt: (laneId) => calls.call('lane.receipt', { laneId }),
+          log: log.write,
+        })
+        const features = [...administrationFeatures(), ...(webPush ? [webPush.feature] : [])]
         const calls = createLaneCalls({
           features,
           store,
@@ -392,6 +390,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           ],
           commands,
           calls,
+          webPushKey: webPush?.publicKey,
           streams: live.streams,
           lanesTopic: live.lanesTopic,
           controllerPresence: createRunControllerPresence(store, live),

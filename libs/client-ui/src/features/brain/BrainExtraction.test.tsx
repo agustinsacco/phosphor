@@ -10,79 +10,14 @@ import {
 import { BrainExtraction } from './BrainExtraction'
 import { mockBrainJob } from './mockBrainData'
 import { jobLine } from './BrainInbox'
+import { mockExtractionView } from './mockExtractionView'
 
 afterEach(() => vi.unstubAllGlobals())
-function extractionView(): BrainExtractionView {
-  const job = mockBrainJob()
-  return {
-    jobId: job.id,
-    sessionId: job.sessionId,
-    sessionPath: job.sessionPath,
-    title: job.title,
-    leafId: job.leafId,
-    model: job.model,
-    thinking: 'low',
-    startedAt: 0,
-    finishedAt: 5000,
-    calls: [
-      {
-        stage: 'extract',
-        part: 1,
-        entryIds: ['entry-1'],
-        inputHash: 'invented',
-        answer: '{ "claims": [] }',
-        trace: null,
-        error: null,
-      },
-      {
-        stage: 'links',
-        part: 1,
-        entryIds: ['entry-1'],
-        inputHash: 'links-hash',
-        answer: '{ "links": [] }',
-        trace: null,
-        error: null,
-      },
-      {
-        stage: 'reconcile',
-        part: 1,
-        entryIds: [],
-        inputHash: 'another',
-        answer: 'No old claims',
-        trace: null,
-        error: null,
-      },
-    ],
-    prompts: [
-      'Read the invented Harbor window.',
-      'Find relationships in the kept claims.',
-      'Compare the invented claims.',
-    ],
-    outcomes: [
-      {
-        candidate: 'w1:c2',
-        summary: 'Rejected owner link',
-        status: 'dropped',
-        reason: 'Link quote not found in s2',
-      },
-      { candidate: 'w1:c1', summary: 'Harbor decision', status: 'kept', memoryId: 'memory-1' },
-    ],
-    memories: [{ id: 'memory-1', summary: 'Harbor decision' }],
-    error: null,
-    source: {
-      sessionPath: job.sessionPath,
-      title: job.title,
-      leafId: job.leafId,
-      exists: false,
-      segments: [],
-    },
-  }
-}
 
 it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link reasons after retry', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const job = mockBrainJob()
-  const view = extractionView()
+  const view = mockExtractionView()
   const extraction = vi
     .fn<() => Promise<BrainExtractionView>>()
     .mockRejectedValueOnce(new Error('Harbor record unavailable'))
@@ -100,10 +35,18 @@ it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link re
     expect(container.textContent).toContain('Harbor record unavailable')
     const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')!
     await act(async () => retry.click())
-    expect(container.textContent).toContain('extract · part 1')
-    expect(container.textContent).toContain('links · part 1')
+    expect(container.querySelectorAll('details[open]')).toHaveLength(0)
+    for (const detail of container.querySelectorAll<HTMLDetailsElement>(
+      '[aria-label="How it was read"] details',
+    ))
+      await act(async () => {
+        detail.open = true
+        detail.dispatchEvent(new Event('toggle'))
+      })
+    expect(container.textContent).toContain('Read the conversation · part 1')
+    expect(container.textContent).toContain('Find relationships · part 1')
     expect(container.textContent).toContain('Find relationships in the kept claims.')
-    expect(container.textContent).toContain('reconcile · part 1')
+    expect(container.textContent).toContain('Compare with what Brain knows · part 1')
     expect(container.textContent).toContain('Read the invented Harbor window.')
     expect(container.textContent).toContain('Compare the invented claims.')
     expect(container.textContent).toContain('Link quote not found in s2')
@@ -113,7 +56,7 @@ it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link re
       (b) => b.textContent === 'Harbor decision',
     )!
     await act(async () => memory.click())
-    expect(onMemory).toHaveBeenCalledWith('memory-1')
+    expect(onMemory).toHaveBeenCalledWith('memory-1', 'Harbor decision')
   } finally {
     act(() => root.unmount())
     restore()
@@ -127,16 +70,16 @@ it('prints conversation and matching progress in the inbox', () => {
       0,
       0,
     ),
-  ).toBe('Reading the conversation 3 of 12')
+  ).toBe('Read the conversation · part 3 of 12')
   expect(
     jobLine(
       mockBrainJob({ state: 'running', progress: { stage: 'identity', done: 1, total: 2 } }),
       0,
       0,
     ),
-  ).toBe('Matching entities 1 of 2')
+  ).toBe('Match people and things · part 1 of 2')
 })
-it('omits part counts for a single-part stage', () => {
+it('includes the conversation part even for a single-part stage', () => {
   for (const done of [0, 1])
     expect(
       jobLine(
@@ -144,5 +87,103 @@ it('omits part counts for a single-part stage', () => {
         0,
         0,
       ),
-    ).toBe('Reading the conversation')
+    ).toBe('Read the conversation · part 1 of 1')
+})
+
+it('renders forgotten outcomes as removed, and offers Read again in a finished read header', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const data = mockExtractionView()
+  data.job = mockBrainJob({ state: 'done' })
+  data.laneMemories = 2
+  data.replaceable = 2
+  data.memories = []
+  data.outcomes[1]!.removed = true
+  const fake = createFakePhosphor({ 'brain:extraction': async () => data })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () =>
+      root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} onBack={() => {}} />),
+    )
+    expect(container.textContent).toContain('removed')
+    expect(
+      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Harbor decision'),
+    ).toBe(false)
+    expect(
+      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Read again'),
+    ).toBe(true)
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
+})
+
+it('puts only nonzero outcomes first, pages at twenty, and leaves model calls closed', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const data = mockExtractionView()
+  data.outcomes = Array.from({ length: 24 }, (_, index) => ({
+    candidate: `c${index}`,
+    summary: `Harbor claim ${index}`,
+    status: 'kept',
+  }))
+  const fake = createFakePhosphor({ 'brain:extraction': () => data })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    const result = container.querySelector('[aria-label="Read result"]')!
+    expect(result.textContent).toContain('Result · 24 kept')
+    expect(result.textContent).not.toContain('0 dropped')
+    expect(result.querySelectorAll('li')).toHaveLength(20)
+    expect(container.querySelectorAll('pre')).toHaveLength(0)
+    const more = [...result.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Show more',
+    )!
+    await act(async () => more.click())
+    expect(result.querySelectorAll('li')).toHaveLength(24)
+    expect(container.textContent).not.toMatch(/tokens|cost|demo\//)
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
+})
+
+it('caps raw output, prompts and source text with their own scroll containers', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const data = mockExtractionView()
+  data.calls = [{ ...data.calls[0]!, answer: 'Harbor output\n'.repeat(1500) }]
+  data.prompts = ['Ledger prompt\n'.repeat(1500)]
+  data.source.exists = true
+  data.source.segments = [
+    {
+      entryId: 'harbor-entry',
+      role: 'user',
+      observedAt: 0,
+      label: 'user · 2026-11-01',
+      text: 'Kestrel source\n'.repeat(1500),
+    },
+  ]
+  const fake = createFakePhosphor({ 'brain:extraction': () => data })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    for (const detail of container.querySelectorAll('details'))
+      await act(async () => {
+        detail.open = true
+        detail.dispatchEvent(new Event('toggle'))
+      })
+    expect(container.querySelectorAll('pre')).toHaveLength(3)
+    for (const pre of container.querySelectorAll('pre'))
+      expect(pre.closest('.max-h-96.overflow-auto')).not.toBeNull()
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
 })

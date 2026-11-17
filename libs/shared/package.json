@@ -4,6 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./browser-image-clipboard": {
+      "types": "./src/browser-image-clipboard.ts",
+      "default": "./src/browser-image-clipboard.ts"
+    },
+    "./notifications": {
+      "types": "./src/notifications.ts",
+      "default": "./src/notifications.ts"
+    },
     "./base64": {
       "types": "./src/base64.ts",
       "default": "./src/base64.ts"
@@ -308,6 +316,10 @@
       "types": "./src/host-protocol-pr-results.ts",
       "default": "./src/host-protocol-pr-results.ts"
     },
+    "./host-protocol-web-push": {
+      "types": "./src/host-protocol-web-push.ts",
+      "default": "./src/host-protocol-web-push.ts"
+    },
     "./host-protocol-file-bytes": {
       "types": "./src/host-protocol-file-bytes.ts",
       "default": "./src/host-protocol-file-bytes.ts"
@@ -367,6 +379,10 @@
     "./lane-move": {
       "types": "./src/lane-move.ts",
       "default": "./src/lane-move.ts"
+    },
+    "./lane-prs-command": {
+      "types": "./src/lane-prs-command.ts",
+      "default": "./src/lane-prs-command.ts"
     },
     "./brain-extraction": {
       "types": "./src/brain-extraction.ts",

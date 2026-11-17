@@ -17,7 +17,7 @@ export function MachinesPageActions({
   onToggleLog: () => void
   onOpenLog: () => void
 }): React.JSX.Element {
-  const { localLanes } = usePlatform()
+  const { localLanes, hostTrafficLog } = usePlatform()
   return (
     <>
       <span {...tooltipProps(signedIn ? undefined : 'Sign in with GitHub to add machines')}>
@@ -26,15 +26,17 @@ export function MachinesPageActions({
         </Button>
       </span>
       {localLanes && <HealthBadge signedIn={signedIn} onOpenLog={onOpenLog} />}
-      <TooltipButton
-        tooltip={logOpen ? 'Hide debug log' : 'Show debug log'}
-        aria-label="Debug log"
-        aria-pressed={logOpen}
-        onClick={onToggleLog}
-        className={`hover:bg-bg-secondary flex h-8 w-8 items-center justify-center rounded-sm transition-colors ${logOpen ? 'text-accent' : 'text-text-secondary hover:text-text'}`}
-      >
-        <TerminalIcon size={14} />
-      </TooltipButton>
+      {hostTrafficLog && (
+        <TooltipButton
+          tooltip={logOpen ? 'Hide debug log' : 'Show debug log'}
+          aria-label="Debug log"
+          aria-pressed={logOpen}
+          onClick={onToggleLog}
+          className={`hover:bg-bg-secondary flex h-8 w-8 items-center justify-center rounded-sm transition-colors ${logOpen ? 'text-accent' : 'text-text-secondary hover:text-text'}`}
+        >
+          <TerminalIcon size={14} />
+        </TooltipButton>
+      )}
     </>
   )
 }

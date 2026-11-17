@@ -1,6 +1,6 @@
 import { ARCHIVE_WEB } from './ipc-web-archive'
 import type { IpcInvokeChannel } from './ipc'
-import { BRAIN_WEB, connectorConfig, DESKTOP_TRANSFERS_WEB } from './ipc-web-exclusions'
+import { BRAIN_WEB, connectorConfig } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -32,7 +32,9 @@ export const IPC_WEB = {
   'hosts:skills': remote,
   'hosts:skillExport': remote,
   'hosts:skillInstall': remote,
-  ...DESKTOP_TRANSFERS_WEB,
+  // Host to Host only, relayed through the page's memory; This Mac is never an end.
+  'hosts:laneMovePlan': remote,
+  'hosts:laneMove': remote,
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,
@@ -53,6 +55,11 @@ export const IPC_WEB = {
   'hosts:takeControl': remote,
   'hosts:markRead': remote,
   'hosts:exportLaneHtml': remote,
+  // A Host file read whole into this tab (BROWSER_FILE_BYTES), saved as a browser download or
+  // shown from a Blob URL; cancelling only stops this tab's reads.
+  'hosts:fileDownload': remote,
+  'hosts:fileDownloadCancel': browser,
+  'hosts:filePreviewUrl': remote,
   'hosts:subagentHistory': remote,
   'hosts:subagentInspect': remote,
   ...ARCHIVE_WEB,
@@ -175,18 +182,14 @@ export const IPC_WEB = {
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
   'app:openExternal': browser,
-  'app:notify': unsupported('Native notifications require Desktop.'),
-  'clipboard:writeImage': unsupported(
-    'Native file and image clipboard integration is unavailable in the browser.',
-  ),
-  'clipboard:readImage': unsupported(
-    'Native file and image clipboard integration is unavailable in the browser.',
-  ),
+  'app:notify': browser,
+  'clipboard:writeImage': browser,
+  'clipboard:readImage': browser,
   'clipboard:writeFiles': unsupported(
-    'Native file and image clipboard integration is unavailable in the browser.',
+    'Native file clipboard integration is unavailable in the browser.',
   ),
   'clipboard:readFiles': unsupported(
-    'Native file and image clipboard integration is unavailable in the browser.',
+    'Native file clipboard integration is unavailable in the browser.',
   ),
   'writing:setPrefs': unsupported(
     'Native writing integration and prompt learning are unavailable in the browser.',

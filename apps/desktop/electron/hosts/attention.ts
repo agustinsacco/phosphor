@@ -1,5 +1,5 @@
 import type { HostAttention } from '@shared/ipc'
-import { receiptSummary } from '@shared/lane-receipt'
+import { attentionNotice } from '@phosphor/shared/notifications'
 import { createAttentionReceiver } from '@phosphor/host-client/attention'
 
 export interface AttentionPorts {
@@ -19,22 +19,10 @@ export function createHostAttention(ports: AttentionPorts) {
     publish: (attention) => {
       ports.publish(attention)
       const { hostId, laneId } = attention
-      if (!ports.focused(hostId, laneId))
-        ports.notify(
-          `${ports.label(hostId)} · ${attention.title}`,
-          notificationBody(attention),
-          () => ports.open(hostId, laneId),
-        )
+      if (!ports.focused(hostId, laneId)) {
+        const notice = attentionNotice(ports.label(hostId), attention)
+        ports.notify(notice.title, notice.body, () => ports.open(hostId, laneId))
+      }
     },
   })
-}
-
-/** Receipt facts only: the reply excerpt and paths stay off the lock screen. */
-function notificationBody(attention: HostAttention): string {
-  if (attention.receipt) return receiptSummary(attention.receipt)
-  return attention.kind === 'failed'
-    ? 'Stopped'
-    : attention.kind === 'finished'
-      ? 'Done'
-      : attention.kind
 }

@@ -2,7 +2,7 @@ import type { BrainExtractionRecord } from '@phosphor/shared/brain'
 import { expect, it } from 'vitest'
 import { extraction, fixture, lane, vector } from './test-support'
 
-it('links approved outcomes to memories and retains records until last memory is forgotten', () => {
+it('links approved outcomes to memories and retains records while the finished job exists, marking forgotten outcomes removed', () => {
   const { store } = fixture()
   const job = store.enqueue(lane(), 'queued')
   const record: BrainExtractionRecord = {
@@ -29,6 +29,10 @@ it('links approved outcomes to memories and retains records until last memory is
   store.forget(saved.memories[0]!.id)
   expect(store.extraction(job.id).memories).toHaveLength(1)
   store.forget(saved.memories[1]!.id)
+  expect(() => store.extraction(job.id)).not.toThrow()
+  expect(store.extraction(job.id).memories).toEqual([])
+  expect(store.extraction(job.id).outcomes[0]).toMatchObject({ removed: true })
+  store.removeJob(job.id)
   expect(() => store.extraction(job.id)).toThrow('Brain extraction not found')
 })
 it('applies explicit confirmations without duplicate quotes and moves observedAt forward', () => {
@@ -49,4 +53,55 @@ it('applies explicit confirmations without duplicate quotes and moves observedAt
   store.review(job.id, { memories: [], identities: {}, groups: [] }, store.revision())
   expect(store.memory(id).quotes).toHaveLength(1)
   expect(store.memory(id).memory.observedAt).toBe(9000)
+})
+
+it('keeps a record older than thirty days while its job exists', () => {
+  const { store } = fixture(40 * 86400000)
+  const job = store.enqueue(lane(), 'queued')
+  store.updateJob(job.id, { state: 'done' })
+  store.saveExtraction({
+    ...job,
+    jobId: job.id,
+    thinking: 'low',
+    calls: [],
+    outcomes: [],
+    startedAt: 1,
+    finishedAt: 2,
+  })
+  expect(() => store.extraction(job.id)).not.toThrow()
+  store.removeJob(job.id)
+  expect(() => store.extraction(job.id)).toThrow('Brain extraction not found')
+})
+
+it('expires only orphaned referenced records at 30 days, and prunes unreferenced orphans immediately', () => {
+  const { store, db } = fixture(40 * 86400000)
+  const first = store.enqueue(lane(), 'queued')
+  store.saveExtraction({
+    ...first,
+    jobId: first.id,
+    thinking: 'low',
+    calls: [],
+    outcomes: [],
+    startedAt: 1,
+    finishedAt: 2,
+  })
+  store.propose(extraction(first.id))
+  store.review(first.id, { memories: [0], identities: {}, groups: [] }, 0)
+  expect(() => store.extraction(first.id)).not.toThrow()
+  // Orphan a referenced record without invoking prune until the next write.
+  db.prepare('DELETE FROM jobs WHERE id=?').run(first.id)
+  const next = store.enqueue(lane(), 'queued')
+  store.saveExtraction({
+    ...next,
+    jobId: next.id,
+    thinking: 'low',
+    calls: [],
+    outcomes: [],
+    startedAt: 1,
+    finishedAt: 2,
+  })
+  expect(() => store.extraction(first.id)).toThrow('Brain extraction not found')
+  expect(store.snapshot().counts.memories).toBe(1)
+  store.removeJob(next.id)
+  expect(() => store.extraction(next.id)).toThrow('Brain extraction not found')
 })

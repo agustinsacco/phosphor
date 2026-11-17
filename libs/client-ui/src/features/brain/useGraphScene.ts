@@ -16,13 +16,17 @@ function hasWebGL(): boolean {
 export function useGraphScene(
   container: React.RefObject<HTMLDivElement | null>,
   model: GraphModel,
-  selection: GraphSelection,
+  { focus: selectedFocus, matches, path, scope }: GraphSelection,
   onFocus: (id: string) => void,
   onEdge: (link: GraphLink | null) => void,
   dimensions: 2 | 3,
+  onClear?: () => void,
+  selectionPending = false,
 ): { scene: GraphScene | null; unavailable: boolean } {
   const [scene, setScene] = useState<GraphScene | null>(null)
   const [unavailable, setUnavailable] = useState(false)
+  const clear = useRef(onClear)
+  clear.current = onClear
   const focus = useRef(onFocus)
   const edge = useRef(onEdge)
   edge.current = onEdge
@@ -44,6 +48,7 @@ export function useGraphScene(
           element,
           (id) => focus.current(id),
           (link) => edge.current(link),
+          () => clear.current?.(),
         )
         setScene(instance.current)
       })
@@ -61,12 +66,10 @@ export function useGraphScene(
     }
   }, [container])
   useEffect(() => {
+    // A pending memory read is not a cleared selection; retain its current camera and scene.
+    if (selectionPending) return
     try {
-      scene?.update(model, {
-        focus: selection.focus,
-        matches: selection.matches,
-        path: selection.path,
-      })
+      scene?.update(model, { focus: selectedFocus, matches, path, scope })
     } catch {
       instance.current?.dispose()
       instance.current = null
@@ -74,7 +77,7 @@ export function useGraphScene(
       container.current?.replaceChildren()
       setUnavailable(true)
     }
-  }, [scene, model, selection.focus, selection.matches, selection.path, container])
+  }, [scene, model, selectedFocus, matches, path, scope, selectionPending, container])
   useEffect(() => {
     scene?.dimensions(dimensions)
   }, [scene, dimensions])

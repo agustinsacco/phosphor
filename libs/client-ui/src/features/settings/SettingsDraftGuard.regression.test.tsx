@@ -39,7 +39,7 @@ beforeEach(() => {
   invoke.mockReset().mockImplementation(async (channel, hostId, section, repositoryId) => {
     if (channel === 'hosts:settingsRead') return mockSettingsRead(hostId, section, repositoryId)
     if (channel === 'hosts:settingsPatch') throw new Error('Host is busy')
-    if (channel === 'hosts:models') return []
+    if (channel === 'hosts:models') return { models: [] }
     return undefined
   })
   vi.mocked(promptChoice).mockReset().mockResolvedValue(undefined)

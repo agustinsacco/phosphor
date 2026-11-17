@@ -1,0 +1,61 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="fix" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i class="done"></i><i><b id="fix-fill"></b></i><i></i>
+      </div>
+      <p class="step">3 of 4 · Hand off</p>
+      <div class="copy">
+        <h2 id="fix-title" class="title clip" data-start="0.1" data-duration="5.4">
+          <span class="in">Fix <em>drafts</em> the hand-off</span>
+        </h2>
+        <div class="subs">
+          <p id="fix-sub" class="sub clip" data-start="0.9" data-duration="4.6">
+            <span class="in">You read it and send it yourself. GitHub stays read-only.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="fix-pan" class="pan">
+        <div id="fix-cam" class="cam">
+          <img class="plate" src="assets/shots/lane-pr.png" alt="" />
+          <div
+            id="fix-ring"
+            class="ring"
+            style="left: 1236px; top: 284px; width: 43px; height: 28px"
+          ></div>
+          <div
+            id="fix-ring2"
+            class="ring"
+            style="left: 1204px; top: 356px; width: 75px; height: 28px"
+          ></div>
+          <img id="fix-cursor" class="cursor" src="assets/cursor.svg" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#fix-cam')
+      const cursor = PX.cursor(tl, '#fix-cursor')
+      cam.cut([572, 36, 720, 548]).move([796, 262, 500, 200], 0.2, 1.4)
+      cursor.cut([1120, 500]).move([1150, 440], 0.4, 1)
+      PX.ring(tl, '#fix-ring', 1.7, 5.1)
+      PX.ring(tl, '#fix-ring2', 2.1, 5.1)
+      PX.whipOut(tl, '#fix-pan', 5.5)
+      PX.title(tl, '#fix-title .in', 0.2, 5.5)
+      PX.line(tl, '#fix-sub .in', 1.0, 5.5)
+      PX.draw(tl, '#fix-fill', 0, 5.5, 0, 1)
+      window.__timelines['fix'] = tl
+    })()
+  </script>
+</template>

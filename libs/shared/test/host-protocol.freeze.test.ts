@@ -23,6 +23,12 @@ import { FILE_BYTES_LIMITS, FILE_BYTES_METHOD } from '@phosphor/shared/host-prot
 import { ROUTINE_OPS } from '@phosphor/shared/host-protocol-routines'
 import { LANE_PR_WIRE_LIMITS, PR_STATUS_METHODS } from '@phosphor/shared/host-protocol-pr-status'
 import {
+  WEB_PUSH_LIMITS,
+  WEB_PUSH_METHODS,
+  WEB_PUSH_SERVICE_SUFFIX,
+  WEB_PUSH_SERVICES,
+} from '@phosphor/shared/host-protocol-web-push'
+import {
   CLIENT_FRAMES,
   HOST_FRAMES,
   LANE_OP_TYPES,
@@ -318,6 +324,20 @@ describe('Host API constants and op lists', () => {
     expect(HOST_PROTOCOL_VERSION).toBe(1)
   })
 
+  it('keeps the Web Push methods, bounds and push services exactly', () => {
+    expect(WEB_PUSH_METHODS).toStrictEqual(['notifications.subscribe', 'notifications.unsubscribe'])
+    expect(WEB_PUSH_LIMITS).toStrictEqual({
+      subscriptions: 20,
+      endpointChars: 2048,
+      payloadBytes: 3072,
+    })
+    expect(WEB_PUSH_SERVICES).toStrictEqual([
+      'fcm.googleapis.com',
+      'updates.push.services.mozilla.com',
+      'web.push.apple.com',
+    ])
+    expect(WEB_PUSH_SERVICE_SUFFIX).toBe('.notify.windows.com')
+  })
   it('keeps the call method and command op lists exactly, in order', () => {
     expect(HOST_CALL_METHODS).toStrictEqual([
       'host.repositories',

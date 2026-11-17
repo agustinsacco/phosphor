@@ -174,7 +174,7 @@ it('switches to machine-wide skills and shows that machines models/providers wit
     method === 'hosts:skills'
       ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
       : method === 'hosts:models'
-        ? [{ id: 'm', name: 'Host model', provider: 'p', reasoning: false }]
+        ? { models: [{ id: 'm', name: 'Host model', provider: 'p', reasoning: false }] }
         : [{ id: 'p', name: 'Host provider', status: 'ready' }],
   )
   vi.stubGlobal('phosphor', { invoke })
@@ -214,7 +214,7 @@ it('does not restart a delayed catalogue on unchanged periodic snapshots', async
         finish = resolve
       })
     if (method === 'hosts:models')
-      return [{ id: 'm', name: 'Delayed model', provider: 'p', reasoning: false }]
+      return { models: [{ id: 'm', name: 'Delayed model', provider: 'p', reasoning: false }] }
     return [{ id: 'p', name: 'Provider', status: 'ready' }]
   })
   vi.stubGlobal('phosphor', { invoke })
@@ -245,7 +245,7 @@ it('reloads after a coalesced ready-to-ready reconnect and ignores the old failu
     .mockImplementation(async (method) => {
       if (method === 'hosts:skills') return { skills: [], probe: 'rpc', userRoot: 'opaque' }
       if (method === 'hosts:models')
-        return [{ id: 'm', name: 'Reconnected model', provider: 'p', reasoning: false }]
+        return { models: [{ id: 'm', name: 'Reconnected model', provider: 'p', reasoning: false }] }
       return [{ id: 'p', name: 'Provider', status: 'ready' }]
     })
     .mockImplementationOnce(
@@ -418,4 +418,15 @@ it('retains the detail and surfaces a failed Trash operation, allowing retry', a
   await act(async () => choiceButton('Move to Trash').click())
   expect(invoke).toHaveBeenCalledTimes(2)
   expect(useSkillsStore.getState().selectedDir).toBeNull()
+})
+
+it('characterizes the neutral Skills filter selection and styling', async () => {
+  await render()
+  expect(button('Discover').getAttribute('aria-pressed')).toBe('true')
+  expect(button('Discover').className).toContain('bg-bg-secondary text-text font-medium')
+  expect(button('Yours').getAttribute('aria-pressed')).toBe('false')
+  await act(async () => button('Yours').click())
+  expect(useSkillsStore.getState().tab).toBe('yours')
+  expect(button('Yours').getAttribute('aria-pressed')).toBe('true')
+  expect(button('Discover').getAttribute('aria-pressed')).toBe('false')
 })

@@ -1,0 +1,68 @@
+---
+import type { films } from '../lib/films'
+interface Props {
+  film: (typeof films)[number]
+}
+const { film } = Astro.props
+---
+
+<section class="film" id={film.id} aria-labelledby={`${film.id}-title`}>
+  <p class="eyebrow">Watch / at your pace</p>
+  <h2 id={`${film.id}-title`}>{film.title}</h2>
+  <p id={`${film.id}-description`}>{film.description}</p>
+  <video
+    controls
+    preload="none"
+    playsinline
+    poster={`/media/${film.id}.webp`}
+    aria-label={film.title}
+    aria-describedby={`${film.id}-description ${film.id}-transcript`}
+  >
+    <source src={`/media/${film.id}.mp4`} type="video/mp4" />
+    <p>
+      Your browser cannot play this video. Read the steps below or <a href={`/media/${film.id}.mp4`}
+        >download the MP4</a
+      >.
+    </p>
+  </video>
+  <p class="fineprint">
+    Illustrative demo fixtures, not private sessions or a live benchmark. Silent and text-led; the
+    same workflow is described below.
+  </p>
+  <div id={`${film.id}-transcript`} class="film-transcript">
+    <h3>Text walkthrough</h3>
+    <ol>{film.steps.map((step) => <li>{step}</li>)}</ol>
+  </div>
+  <a class="text-link" href={film.guide}>Follow the full guide →</a>
+</section>
+<style>
+  .film {
+    padding-block: 4rem;
+    border-top: 1px solid var(--px-border);
+    scroll-margin-top: 6rem;
+  }
+  h2 {
+    max-width: 22ch;
+    margin-bottom: 1.2rem;
+  }
+  video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--px-sidebar);
+    border: 1px solid var(--px-border-strong);
+    margin-block: 2rem 1rem;
+  }
+  .film-transcript {
+    max-width: 55rem;
+    margin-block: 2rem;
+  }
+  ol {
+    list-style: decimal;
+    padding-left: 1.5rem;
+    color: var(--px-text-secondary);
+  }
+  li {
+    padding: 0.4rem 0 0.4rem 0.5rem;
+  }
+</style>

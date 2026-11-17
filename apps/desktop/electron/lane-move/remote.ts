@@ -1,225 +1,59 @@
 import { open } from 'node:fs/promises'
+import { LANE_TRANSFER_LIMITS as LIMIT } from '@shared/host-protocol-lane-transfer'
 import {
-  LANE_TRANSFER_LIMITS as LIMIT,
-  parseLaneTargetPlan,
-  type LaneMoveMarks,
-  type LaneMoveNotice,
-  type LaneSourceFacts,
-  type LaneTargetPlan,
-} from '@shared/host-protocol-lane-transfer'
-import {
-  parseLaneChunk,
-  parseLaneExported,
-  parseLaneImported,
-  parseLaneInspection,
-  parseLaneJobStatus,
-  parseTransferStarted,
-  type LaneInspection,
-} from '@shared/host-protocol-lane-transfer-calls'
-import type { HostCapability } from '@shared/remote-host'
-import type { createHostConnection } from '@phosphor/host-client/connection'
+  remoteLaneTransfer as hostLaneTransfer,
+  type LaneTransferConnection,
+  type LaneUpload,
+} from '@phosphor/host-client/lane-transfer'
 
-type Connection = (
-  hostId: string,
-) => Pick<ReturnType<typeof createHostConnection>, 'snapshot' | 'incarnation' | 'call'> | undefined
+/** The fixed sentences a transfer throws, for callers that already import this module. */
+export { LANE_MOVE_ERRORS } from '@phosphor/host-client/lane-transfer'
 
-export const LANE_MOVE_ERRORS = {
-  offline: 'This machine is not connected.',
-  outdated: 'Update this machine’s Host to move lanes.',
-  read: 'This machine does not let this device read its lanes.',
-  control: 'This machine does not let this device create lanes.',
-  unconfirmed:
-    'The machine did not confirm the move. Check its lanes before trying again; nothing was retried.',
-  failed: 'The machine could not finish the move.',
-} as const
-
-const POLL_MS = 400
-const JOB_DEADLINE_MS = 15 * 60 * 1000
-
-type Channel = ReturnType<typeof hostChannel>
-
-/** Calls to one Host that fail closed when its connection or grants change mid-move. */
-function hostChannel(connection: Connection, hostId: string) {
-  const c = connection(hostId)
-  const generation = c?.incarnation().generation
-  const ready = (capability: HostCapability) =>
-    !!c &&
-    connection(hostId) === c &&
-    c.incarnation().generation === generation &&
-    c.snapshot().state === 'ready' &&
-    c.snapshot().capabilities.includes(capability)
-  function available(capability: HostCapability): void {
-    if (!c || c.snapshot().state !== 'ready') throw new Error(LANE_MOVE_ERRORS.offline)
-    if (c.snapshot().laneTransfer !== true) throw new Error(LANE_MOVE_ERRORS.outdated)
-    if (!ready(capability))
-      throw new Error(
-        capability === 'sessions.read' ? LANE_MOVE_ERRORS.read : LANE_MOVE_ERRORS.control,
-      )
-  }
-  async function call(capability: HostCapability, method: string, params: unknown, doubt: string) {
-    available(capability)
-    if (!c) throw new Error(LANE_MOVE_ERRORS.offline)
-    const result = await c.call(method, params).catch(() => null)
-    if (!result || !ready(capability)) throw new Error(doubt)
-    if (!result.ok)
-      throw new Error(result.error.code === 'unsupported' ? LANE_MOVE_ERRORS.outdated : doubt)
-    return result.data
-  }
-  /** Poll a job until it is done or refused; past the deadline its outcome is in doubt. */
-  async function settle<T>(
-    capability: HostCapability,
-    method: string,
-    params: unknown,
-    value: (v: unknown) => T | null,
-    doubt: string,
-  ) {
-    const deadline = Date.now() + JOB_DEADLINE_MS
-    while (Date.now() < deadline) {
-      const status = parseLaneJobStatus(await call(capability, method, params, doubt), value)
-      if (!status) throw new Error(doubt)
-      if (!('state' in status)) return status
-      if (status.state === 'done') return status
-      await new Promise((resolve) => setTimeout(resolve, POLL_MS))
-    }
-    throw new Error(doubt)
-  }
-  return { available, call, settle }
-}
-
-async function readExport(
-  host: Channel,
-  exportId: string,
-  path: string,
-): Promise<{ size: number; sha256: string } | { blockers: string[] }> {
-  const fail = LANE_MOVE_ERRORS.failed
-  const status = await host.settle(
-    'sessions.control',
-    'laneTransfer.exportStatus',
-    { exportId },
-    parseLaneExported,
-    fail,
-  )
-  if (!('state' in status)) return status
-  const { size, sha256 } = status.value
-  if (size > LIMIT.bundleBytes) throw new Error(fail)
-  const file = await open(path, 'wx', 0o600)
-  try {
-    for (let offset = 0; offset < size;) {
-      const data = parseLaneChunk(
-        await host.call('sessions.control', 'laneTransfer.read', { exportId, offset }, fail),
-      )
-      if (!data) throw new Error(fail)
-      const bytes = Buffer.from(data, 'base64')
-      if (offset + bytes.length > size) throw new Error(fail)
-      await file.writeFile(bytes)
-      offset += bytes.length
-    }
-  } finally {
-    await file.close()
-  }
-  return { size, sha256 }
-}
-
-/** Copy a lane's bundle from its Host into `path` on this Mac. */
-async function download(
-  host: Channel,
+/** Copy a lane's bundle from its Host into a new private file at `path` on this Mac. */
+async function downloadTo(
+  host: ReturnType<typeof hostLaneTransfer>,
   laneId: string,
   path: string,
 ): Promise<{ size: number; sha256: string } | { blockers: string[] }> {
-  const fail = LANE_MOVE_ERRORS.failed
-  const started = await host.call('sessions.control', 'laneTransfer.export', { laneId }, fail)
-  const refused = parseLaneInspection(started)
-  if (refused && 'blockers' in refused) return refused
-  const exportId = parseTransferStarted(started, 'exportId')
-  if (!exportId) throw new Error(fail)
-  try {
-    return await readExport(host, exportId, path)
-  } finally {
-    await host
-      .call('sessions.control', 'laneTransfer.release', { exportId }, fail)
-      .catch(() => undefined)
-  }
+  return host.download(laneId, async () => {
+    const file = await open(path, 'wx', 0o600)
+    return {
+      write: (bytes) => file.writeFile(bytes),
+      close: () => file.close(),
+    }
+  })
 }
 
-export interface LaneUpload {
-  path: string
-  size: number
-  sha256: string
-  repositoryId: string
-  branchPrefix: string
-  sameMachine: boolean
-  notice: LaneMoveNotice
-  marks: LaneMoveMarks
-}
-
-/** Send the bundle at `path` and add it as a lane of `repositoryId`. */
-async function upload(
-  host: Channel,
-  input: LaneUpload,
+/** Send the bundle at `path` and add it as a lane of `input.repositoryId`. */
+async function uploadFrom(
+  host: ReturnType<typeof hostLaneTransfer>,
+  { path, ...input }: LaneUpload & { path: string },
 ): Promise<{ laneId: string } | { blockers: string[] }> {
-  const { path, ...begin } = input
-  const fail = LANE_MOVE_ERRORS.failed
-  const importId = parseTransferStarted(
-    await host.call('sessions.control', 'laneTransfer.begin', begin, fail),
-    'importId',
-  )
-  if (!importId) throw new Error(fail)
   const file = await open(path, 'r')
   try {
     const buffer = Buffer.alloc(LIMIT.chunkBytes)
-    for (let offset = 0; offset < input.size;) {
-      const { bytesRead } = await file.read(buffer, 0, buffer.length, offset)
-      if (!bytesRead) throw new Error(fail)
-      const data = buffer.subarray(0, bytesRead).toString('base64')
-      await host.call('sessions.control', 'laneTransfer.chunk', { importId, offset, data }, fail)
-      offset += bytesRead
-    }
+    return await host.upload(input, async (offset, length) => {
+      const { bytesRead } = await file.read(buffer, 0, length, offset)
+      return buffer.subarray(0, bytesRead)
+    })
   } finally {
     await file.close()
   }
-  // From here the Host may be writing: any doubt is "unconfirmed", never a retry.
-  const doubt = LANE_MOVE_ERRORS.unconfirmed
-  await host.call('sessions.control', 'laneTransfer.commit', { importId }, doubt)
-  const status = await host.settle(
-    'sessions.control',
-    'laneTransfer.importStatus',
-    { importId },
-    parseLaneImported,
-    doubt,
-  )
-  return 'state' in status ? status.value : status
 }
 
 /**
- * One Host's half of a lane move. A replaced connection, a lost capability or
- * an answer that does not parse fails closed, and a write whose outcome is in
- * doubt is reported as unconfirmed, never retried.
+ * One Host's half of a Desktop lane move, through a private file on This Mac,
+ * also when both ends are Hosts. The calls, checks and fixed errors are the
+ * shared `@phosphor/host-client/lane-transfer`; only where the bytes live is
+ * Desktop's.
  */
-export function remoteLaneTransfer(connection: Connection, hostId: string) {
-  const host = hostChannel(connection, hostId)
-  const fail = LANE_MOVE_ERRORS.failed
+export function remoteLaneTransfer(connection: LaneTransferConnection, hostId: string) {
+  const host = hostLaneTransfer(connection, hostId)
   return {
     available: host.available,
-    async inspect(laneId: string): Promise<LaneInspection> {
-      const data = await host.call('sessions.control', 'laneTransfer.inspect', { laneId }, fail)
-      const parsed = parseLaneInspection(data)
-      if (!parsed) throw new Error(fail)
-      return parsed
-    },
-    async check(
-      repositoryId: string,
-      source: LaneSourceFacts,
-      branchPrefix: string,
-      sameMachine: boolean,
-    ): Promise<LaneTargetPlan> {
-      const params = { repositoryId, source, branchPrefix, sameMachine }
-      const plan = parseLaneTargetPlan(
-        await host.call('sessions.control', 'laneTransfer.check', params, fail),
-      )
-      if (!plan) throw new Error(fail)
-      return plan
-    },
-    download: (laneId: string, path: string) => download(host, laneId, path),
-    upload: (input: LaneUpload) => upload(host, input),
+    inspect: host.inspect,
+    check: host.check,
+    download: (laneId: string, path: string) => downloadTo(host, laneId, path),
+    upload: (input: LaneUpload & { path: string }) => uploadFrom(host, input),
   }
 }

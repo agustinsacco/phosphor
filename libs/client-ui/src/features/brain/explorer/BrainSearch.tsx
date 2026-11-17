@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { BrainFindResult } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
@@ -257,7 +258,7 @@ function SearchOption({
       <span className="block">{visit.label}</span>
       <span className="text-text-tertiary text-sm">
         {entity
-          ? `${entity.kind} · ${entity.memories} memories${alias ? ` · matched alias: ${alias}` : ''}`
+          ? `${entity.kind} · ${formatCount(entity.memories, 'memory', 'memories')}${alias ? ` · matched alias: ${alias}` : ''}`
           : `${memory?.type} · ${memory?.state}`}
       </span>
     </TooltipButton>

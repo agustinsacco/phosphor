@@ -26,7 +26,10 @@ afterEach(() => {
 
 it('puts Archive below Machines and enabled Brain after Archive', async () => {
   useBrain.setState({
-    status: { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } },
+    status: {
+      ...mockBrainStatus(),
+      prefs: { enabled: true, recall: true, review: true, model: null },
+    },
   })
   await act(async () => root.render(<PageLinks activePage="brain" onPage={onPage} />))
   const buttons = [...container.querySelectorAll('button')]
@@ -44,7 +47,10 @@ it('hides Brain while off and reacts to enabling without hiding other pages', as
   expect(container.textContent).toContain('Machines')
   act(() =>
     useBrain.setState({
-      status: { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } },
+      status: {
+        ...mockBrainStatus(),
+        prefs: { enabled: true, recall: true, review: true, model: null },
+      },
     }),
   )
   expect(container.textContent).toContain('Brain')
@@ -52,7 +58,10 @@ it('hides Brain while off and reacts to enabling without hiding other pages', as
 
 it('does not load or offer local Brain on a browser platform', async () => {
   useBrain.setState({
-    status: { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } },
+    status: {
+      ...mockBrainStatus(),
+      prefs: { enabled: true, recall: true, review: true, model: null },
+    },
   })
   await act(async () =>
     root.render(
@@ -63,4 +72,37 @@ it('does not load or offer local Brain on a browser platform', async () => {
   )
   expect(container.textContent).not.toContain('Brain')
   expect(window.phosphor.invoke).not.toHaveBeenCalled()
+})
+
+it('counts only review jobs at the right edge and removes the count live at zero', async () => {
+  const { mockBrainJob } = await import('@/features/brain/mockBrainData')
+  const status = {
+    ...mockBrainStatus(),
+    prefs: { enabled: true, recall: true, review: true, model: null },
+    jobs: [
+      mockBrainJob(),
+      mockBrainJob({ id: 'ledger' }),
+      mockBrainJob({ id: 'running', state: 'running' }),
+    ],
+  }
+  useBrain.setState({ status })
+  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  const count = container.querySelector('[aria-label="2 lanes to review"]')!
+  expect(count.textContent).toBe('2')
+  expect(count.className).toContain('ml-auto')
+  await act(async () => useBrain.setState({ status: { ...status, jobs: [] } }))
+  expect(container.querySelector('[aria-label$="lanes to review"]')).toBeNull()
+})
+
+it('names one review lane in the singular', async () => {
+  const { mockBrainJob } = await import('@/features/brain/mockBrainData')
+  useBrain.setState({
+    status: {
+      ...mockBrainStatus(),
+      prefs: { enabled: true, recall: true, review: true, model: null },
+      jobs: [mockBrainJob()],
+    },
+  })
+  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  expect(container.querySelector('[aria-label="1 lane to review"]')).not.toBeNull()
 })

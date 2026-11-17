@@ -36,7 +36,7 @@ it.each(['ready', 'down', 'reconnecting'] as const)(
       channel === 'hosts:skills'
         ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
         : channel === 'hosts:models'
-          ? [{ id: 'm', name: 'Unavailable model', provider: 'p', reasoning: false }]
+          ? { models: [{ id: 'm', name: 'Unavailable model', provider: 'p', reasoning: false }] }
           : channel === 'hosts:providers'
             ? [{ id: 'p', name: 'Provider', status: 'not_ready' }]
             : {},
@@ -97,14 +97,16 @@ it.each([
     channel === 'hosts:skills'
       ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
       : channel === 'hosts:models'
-        ? [
-            {
-              id: `model-${host}`,
-              name: `Model for ${host}`,
-              provider: 'p',
-              reasoning: host === 'a',
-            },
-          ]
+        ? {
+            models: [
+              {
+                id: `model-${host}`,
+                name: `Model for ${host}`,
+                provider: 'p',
+                reasoning: host === 'a',
+              },
+            ],
+          }
         : channel === 'hosts:providers'
           ? [{ id: 'p', name: 'Provider', status: 'ready' }]
           : {},

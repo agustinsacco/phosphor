@@ -1,0 +1,34 @@
+{
+  "width": 1280,
+  "height": 720,
+  "fps": 30,
+  "crf": 19,
+  "films": [
+    {
+      "id": "phosphor-overview",
+      "duration": 25,
+      "posterAt": 1.0,
+      "plates": ["home", "chat", "artifacts", "lane-pr", "brain-graph", "machines", "mobile"]
+    },
+    {
+      "id": "brain-walkthrough",
+      "duration": 39,
+      "posterAt": 1.0,
+      "plates": [
+        "brain-setup",
+        "brain-ready",
+        "brain-queue",
+        "brain-review",
+        "brain-graph",
+        "brain-memory",
+        "brain-recall"
+      ]
+    },
+    {
+      "id": "lane-to-review",
+      "duration": 35,
+      "posterAt": 1.0,
+      "plates": ["chat", "changes", "lane-pr", "slack-pill", "notifications"]
+    }
+  ]
+}

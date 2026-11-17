@@ -1,5 +1,5 @@
 import * as gitExec from '@phosphor/session-runtime/git/git-exec'
-import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, rm, readFile, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
@@ -11,7 +11,8 @@ let root: string, store: HostStore
 const run = (args: string[]) => git(root, args, { isolateEnv: true, trim: true })
 beforeEach(async () => {
   vi.mocked(gitExec.git).mockReset()
-  root = await mkdtemp(join(tmpdir(), 'host-delete-'))
+  // The store keeps repositories by realpath; macOS's tmpdir is under the /var -> /private/var link.
+  root = await realpath(await mkdtemp(join(tmpdir(), 'host-delete-')))
   store = await openStore(join(root, 'state'), process.getuid?.())
   await run(['init', '-b', 'main'])
   await run(['config', 'user.name', 'Test'])
@@ -50,7 +51,8 @@ it('keeps unmerged, current and checked-out branches; removes a squash-proven br
   expect(await deleteLandedBranch(root, 'feature')).toBe(true)
   await expect(run(['show-ref', '--verify', 'refs/heads/feature'])).rejects.toThrow()
   expect(await deleteLandedBranch(root, 'main')).toBe(false)
-})
+  // Dozens of real git commands: I/O-bound, near vitest's 5s default on a busy machine.
+}, 20_000)
 it('stops before trashing, marks removed and publishes, but refuses lost admission', async () => {
   const repo = store.syncRepositories([root])[0]
   if (!repo) throw new Error('fixture')
@@ -406,7 +408,8 @@ it('proves lanes against a develop-only trunk and keeps unmerged, current and tr
   expect(await run(['for-each-ref', '--format=%(refname)', 'refs/heads'])).toBe(
     'refs/heads/develop\nrefs/heads/unmerged',
   )
-})
+  // Dozens of real git commands: I/O-bound, near vitest's 5s default on a busy machine.
+}, 20_000)
 
 it('forgets a lane whose folder left the Host, keeping its transcript and worktree', async () => {
   const repo = store.syncRepositories([root])[0]

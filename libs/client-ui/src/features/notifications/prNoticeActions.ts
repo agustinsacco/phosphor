@@ -8,21 +8,35 @@ import { navigateToLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import type { PrNotice, PrNoticeAction } from './prNotice'
 
+/** A Host lane, the way every Host lane notice goes there; navigateToLane says why it could not. */
+async function openPrHostLane(hostId: string, laneId: string): Promise<string | null> {
+  if (!(await navigateToLane({ hostId, laneId }))) return null
+  const { activeSessionId, live } = useSessionsStore.getState()
+  const entry = activeSessionId ? live[activeSessionId] : undefined
+  return entry?.target?.kind === 'remote' &&
+    entry.target.hostId === hostId &&
+    entry.laneId === laneId
+    ? activeSessionId
+    : null
+}
+
 /**
- * Go to the lane that owns the PR: its running session the way every lane
- * notice goes there, or its file when it is not running. Resolves to the
- * session id once that lane is on screen; null when the user went elsewhere
- * first or the lane is gone (which says so).
+ * Go to the lane that owns the PR: a Host lane, or a This Mac lane's running
+ * session the way every lane notice goes there, or its file when it is not
+ * running. Resolves to the session id once that lane is on screen; null when
+ * the user went elsewhere first or the lane is gone (which says so).
  */
 export async function openPrLane(notice: Pick<PrNotice, 'lane'>): Promise<string | null> {
+  const { lane } = notice
+  if ('hostId' in lane) return openPrHostLane(lane.hostId, lane.laneId)
   const sessions = useSessionsStore.getState()
-  const running = Object.values(sessions.live).find((entry) => entry.diskPath === notice.lane.path)
+  const running = Object.values(sessions.live).find((entry) => entry.diskPath === lane.path)
   if (running)
     return (await navigateToLane({ sessionId: running.phosphorId })) ? running.phosphorId : null
-  const meta = sessions.disk[notice.lane.workspacePath]?.find((m) => m.path === notice.lane.path)
+  const meta = sessions.disk[lane.workspacePath]?.find((m) => m.path === lane.path)
   try {
-    if (!meta) throw new Error(`${notice.lane.title} is no longer on This Mac.`)
-    const sessionId = await sessions.openDiskSession(notice.lane.workspacePath, meta)
+    if (!meta) throw new Error(`${lane.title} is no longer on This Mac.`)
+    const sessionId = await sessions.openDiskSession(lane.workspacePath, meta)
     return useSessionsStore.getState().activeSessionId === sessionId ? sessionId : null
   } catch (error) {
     useExtensionUiStore

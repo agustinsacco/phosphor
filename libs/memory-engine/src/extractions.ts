@@ -2,13 +2,13 @@ import type { BrainExtractionRecord, BrainExtractionOutcome } from '@phosphor/sh
 import { scrubExcerpt } from './secrets'
 import { all, one, run, type Context } from './database'
 
-/** Hard expiry applies even to inbox jobs or referenced records. Never deletes knowledge. */
+/** Jobs retain records without expiry; orphaned records need memories and expire after 30 days. */
 export function pruneExtractions(ctx: Context): void {
   run(
     ctx,
-    `DELETE FROM extractions WHERE finished_at < ? OR (
-    NOT EXISTS (SELECT 1 FROM memories WHERE memories.job_id=extractions.job_id) AND
-    NOT EXISTS (SELECT 1 FROM jobs WHERE jobs.id=extractions.job_id AND jobs.state!='done'))`,
+    `DELETE FROM extractions WHERE
+    NOT EXISTS (SELECT 1 FROM jobs WHERE jobs.id=extractions.job_id) AND
+    (finished_at < ? OR NOT EXISTS (SELECT 1 FROM memories WHERE memories.job_id=extractions.job_id))`,
     ctx.now() - 30 * 86_400_000,
   )
 }
@@ -62,7 +62,12 @@ export function extraction(
   return {
     ...row,
     calls: JSON.parse(row.calls) as BrainExtractionRecord['calls'],
-    outcomes: JSON.parse(row.outcomes) as BrainExtractionOutcome[],
+    outcomes: (JSON.parse(row.outcomes) as BrainExtractionOutcome[]).map((outcome) => ({
+      ...outcome,
+      ...(outcome.memoryId && !one(ctx, 'SELECT 1 FROM memories WHERE id=?', outcome.memoryId)
+        ? { removed: true }
+        : {}),
+    })),
     memories: all(ctx, 'SELECT id, summary FROM memories WHERE job_id=?', jobId),
   }
 }

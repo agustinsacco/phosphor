@@ -1,3 +1,4 @@
+import { requestChatFind } from './useChatFind'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { laneControlHint } from '@/features/machines/useLaneControl'
 import { exportSession } from '@/features/sessions/sessionActions'
@@ -30,6 +31,7 @@ export interface SessionMenuState {
    * may. Host lanes fence them to the controller (`laneControlHint`).
    */
   controlHint: string | undefined
+  onFind?: () => void
 }
 
 /**
@@ -43,6 +45,7 @@ export function sessionMenuItems({
   meta,
   nativeFiles,
   controlHint,
+  onFind,
 }: SessionMenuState): ContextMenuItem[] {
   const blocked = controlHint !== undefined
   const autoCompaction = meta?.autoCompactionEnabled ?? true
@@ -52,6 +55,10 @@ export function sessionMenuItems({
   const setting = (on: boolean): string => controlHint ?? (on ? 'on' : 'off')
   const mode = (value: QueueMode): string => controlHint ?? QUEUE_MODE_HINT[value]
   return [
+    {
+      label: 'Find in chat',
+      onClick: onFind ?? (() => requestChatFind(sessionId)),
+    },
     {
       label: 'Export HTML…',
       // Any viewer: a Host lane's export needs no lane control.
@@ -96,11 +103,12 @@ export function sessionMenuItems({
 export function currentSessionMenuItems(
   sessionId: string,
   nativeFiles: boolean,
+  onFind?: () => void,
 ): ContextMenuItem[] {
   const meta = useChatStore.getState().sessions[sessionId]?.meta
   const remote = sessionHostLane(sessionId)
   const controlHint = remote ? laneControlHint(remote) : undefined
-  return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint })
+  return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint, onFind })
 }
 
 const nextMode = (mode: QueueMode): QueueMode => (mode === 'all' ? 'one-at-a-time' : 'all')

@@ -1,0 +1,20 @@
+{
+  "name": "@phosphor/marketing-films",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reproducible Hyperframes sources for the Phosphor site's product films.",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "sync": "node scripts/sync-assets.mjs",
+    "check": "node scripts/build-films.mjs check",
+    "build": "node scripts/build-films.mjs build",
+    "verify": "node scripts/build-films.mjs verify",
+    "test": "node --test scripts/films.test.mjs"
+  },
+  "devDependencies": {
+    "hyperframes": "0.9.49"
+  }
+}

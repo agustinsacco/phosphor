@@ -54,6 +54,16 @@ export function requestStatus(
   return 0
 }
 
+/** A client holds at most `connectionsPerClient` sockets at once. */
+function admits(
+  connections: Iterable<ReturnType<typeof createConnection>>,
+  clientId: string,
+  limits: ConnectionPorts['limits'],
+) {
+  const held = [...connections].filter((c) => c.clientId() === clientId).length
+  return held < (limits?.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient)
+}
+
 export function startApi(options: {
   authority: Authority
   origin: string
@@ -270,10 +280,9 @@ export function startApi(options: {
         origin: options.origin,
         hello,
         key: options.key,
+        webPushKey: options.lanes?.webPushKey,
         log: options.log,
-        admit: (clientId) =>
-          [...connections.values()].filter((c) => c.clientId() === clientId).length <
-          (options.connectionLimits?.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient),
+        admit: (clientId) => admits(connections.values(), clientId, options.connectionLimits),
       })
       connections.set(ws, connection)
       ws.on('close', () => {

@@ -1,9 +1,13 @@
 import { useEffect } from 'react'
 import { machineReadGeneration } from './machineReadGeneration'
 import type { SkillsListResult } from '@shared/skills'
-import { parseMachineModels, parseMachineProviders } from '@shared/host-protocol-machine'
+import { parseMachineModelList, parseMachineProviders } from '@shared/host-protocol-machine'
 import { create } from 'zustand'
-import type { MachineModel, MachineProvider } from '@shared/host-protocol-machine'
+import type {
+  MachineModel,
+  MachineModelDefaults,
+  MachineProvider,
+} from '@shared/host-protocol-machine'
 import { hostFeatureRefusal } from './hostRefusals'
 import { useRemoteLanesStore } from './remoteLanes'
 import { useSkillsStore } from './skills'
@@ -13,6 +17,8 @@ export const MODELS_READ_FAILED = 'Could not read models.'
 
 export interface MachineCatalogue {
   models: MachineModel[]
+  /** The Host pi's own new-session defaults, when it sets them; an older Host has none. */
+  defaults?: MachineModelDefaults
   providers: MachineProvider[]
   error: string | null
   status: 'idle' | 'loading' | 'ready' | 'error'
@@ -33,8 +39,24 @@ export function machineCatalogueKey(
 export const useMachineCataloguesStore = create<{
   catalogues: Record<string, MachineCatalogue>
   load: (hostId: string | null, workspacePath?: string, force?: boolean) => Promise<void>
+  adoptDefaults: (hostId: string, defaults: MachineModelDefaults | undefined) => void
 }>((set, get) => ({
   catalogues: {},
+  /**
+   * After this client saved the Host pi's machine-wide defaults: a ready
+   * catalogue takes them as the next read would answer, and one still loading
+   * reads again, as its answer may predate the save.
+   */
+  adoptDefaults(hostId, defaults) {
+    const key = machineCatalogueKey(hostId)
+    const entry = get().catalogues[key]
+    if (entry?.status === 'loading') return void get().load(hostId, undefined, true)
+    if (entry?.status !== 'ready') return
+    const next: MachineCatalogue = { ...entry }
+    if (defaults) next.defaults = defaults
+    else delete next.defaults
+    set((s) => ({ catalogues: { ...s.catalogues, [key]: next } }))
+  },
   async load(hostId, workspacePath, force = false) {
     // A consumer leaving a page does not own another consumer's catalogue.
     if (!hostId) return
@@ -67,14 +89,14 @@ export const useMachineCataloguesStore = create<{
         useSkillsStore.setState((s) => ({
           byWorkspace: { ...s.byWorkspace, [`host:${hostId}/machine`]: skills },
         }))
-      const models = parseMachineModels(await window.phosphor.invoke('hosts:models', hostId))
+      const list = parseMachineModelList(await window.phosphor.invoke('hosts:models', hostId))
       if (!current()) return
       const providers = parseMachineProviders(
         await window.phosphor.invoke('hosts:providers', hostId),
       )
       if (!current()) return
-      if (!models || !providers) throw new Error(MODELS_READ_FAILED)
-      finish({ models, providers, status: 'ready' })
+      if (!list || !providers) throw new Error(MODELS_READ_FAILED)
+      finish({ ...list, providers, status: 'ready' })
     } catch {
       if (current()) finish({ error: MODELS_READ_FAILED, status: 'error' })
     }

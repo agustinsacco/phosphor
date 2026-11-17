@@ -31,13 +31,12 @@ import {
 import { artifactLibrary } from '../artifacts/artifact-sync'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
 import { routeRemoteRead } from '@phosphor/host-client/read-features'
-import { laneFileReader } from '@phosphor/host-client/file-bytes'
 import {
-  cancelHostDownload,
-  downloadHostFile,
+  laneFileReader,
   parseDownloadRequest,
   parseLaneFile,
-} from '../fs/host-download'
+} from '@phosphor/host-client/file-bytes'
+import { cancelHostDownload, downloadHostFile } from '../fs/host-download'
 import { grantRemotePreview } from '../fs/file-protocol'
 import { createRemoteLanes } from '../hosts/remote-lanes'
 import type { RemoteLanes } from '@phosphor/host-client/remote-lanes'

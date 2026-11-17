@@ -81,3 +81,13 @@
     white-space: nowrap;
   }
 }
+
+/* A phone's sheet draws the actions above the header, so its first row needs no room for them. */
+.pr-inspector[data-sheet] [data-pr-header-row] {
+  padding-right: 0;
+}
+
+/* A phone's sections: equal segments, scrolling sideways only when too narrow. */
+.pr-segments {
+  grid-auto-columns: minmax(max-content, 1fr);
+}

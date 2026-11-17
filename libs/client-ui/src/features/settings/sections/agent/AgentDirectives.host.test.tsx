@@ -50,7 +50,7 @@ beforeEach(() => {
       return read
     }
     if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
-    if (channel === 'hosts:models') return []
+    if (channel === 'hosts:models') return { models: [] }
     return undefined
   })
   vi.mocked(promptChoice).mockReset().mockResolvedValue(undefined)

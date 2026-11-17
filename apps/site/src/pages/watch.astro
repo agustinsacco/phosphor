@@ -1,0 +1,31 @@
+---
+import Page from '../layouts/Page.astro'
+import Film from '../components/Film.astro'
+import { films } from '../lib/films'
+---
+
+<Page
+  title="Watch Phosphor | Product tour and practical walkthroughs"
+  description="Text-led tours of Phosphor’s lanes, reviewed Brain knowledge and PR workflow. Play only when you choose, or follow the written steps."
+>
+  <div class="container watch-page">
+    <header class="page-intro">
+      <p class="eyebrow">Watch / learn by following the work</p>
+      <h1>A closer look.<br /><span>On your terms.</span></h1>
+      <p>
+        Short, silent walkthroughs. Native playback controls, no autoplay, no external player.
+        Prefer reading? Every film has a text walkthrough and a complete guide.
+      </p>
+      <nav class="source-line" aria-label="Choose a walkthrough">
+        {
+          films.map((film) => (
+            <a class="text-link" href={`#${film.id}`}>
+              {film.title} ↓
+            </a>
+          ))
+        }
+      </nav>
+    </header>
+    {films.map((film) => <Film film={film} />)}
+  </div>
+</Page>

@@ -101,6 +101,7 @@ export function mockBrainStatus(): BrainStatus {
 export function mockBrainJob(patch: Partial<BrainJob> = {}): BrainJob {
   return {
     id: 'harbor-job',
+    replaces: null,
     sessionId: 'harbor-lane',
     sessionPath: '/demo/Harbor/lane.jsonl',
     title: 'Harbor planning',
@@ -125,6 +126,7 @@ export function mockBrainProposal(job = mockBrainJob(), revision = 0): BrainProp
   return {
     job,
     revision,
+    replacingMemories: 0,
     identities: sample.entities.slice(0, 4).map((entity, index) => ({
       ...entity,
       ref: entity.id,

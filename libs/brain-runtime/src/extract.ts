@@ -19,7 +19,7 @@ import { EMBEDDING_MAX_TEXTS } from './embedding/model-manifest'
 async function frozenLane(job: BrainJob, store: BrainStore): Promise<LaneMeta> {
   const saved = store.part(job.id, 'prepare', 'frozen-v4')
   if (saved) return JSON.parse(saved.output) as LaneMeta
-  const lane = await readLane(job.sessionPath)
+  const lane = await readLane(job.sessionPath, store.snapshot().prefs.model)
   store.savePart(job.id, {
     part: 'prepare',
     inputHash: 'frozen-v4',
@@ -124,6 +124,9 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
     search,
     vectors.map((v) => new Float32Array(v)),
     ask,
+    context.job.replaces
+      ? store.laneMemories(context.job.sessionId, context.job.id).replaceable
+      : [],
   )
   progress('reconcile', 1, 1)
   recordClaims(context.record, folded)
@@ -190,7 +193,13 @@ async function embedAndPropose(
       { memories: proposal.memories.map((_m, i) => i), identities: {}, groups: [] },
       computedRevision,
     )
-    await search.refresh()
+    // The result is saved. A failed index refresh must not turn a finished read into a failure.
+    await search.refresh().catch((error: unknown) => {
+      options.log?.('Brain search refresh failed after saving', {
+        jobId: job.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
   }
   options.log?.('Brain extraction finished', {
     jobId: job.id,

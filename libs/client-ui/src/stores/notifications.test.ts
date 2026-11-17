@@ -130,3 +130,16 @@ describe('notification inbox', () => {
     expect(inbox().items.map((item) => item.message)).toEqual(['a'])
   })
 })
+
+it('closing after phone navigation preserves unrelated unread notices', () => {
+  const first = inbox().record({ message: 'First lane', sessionId: 'first', kind: 'info' })!
+  const second = inbox().record({ message: 'Second lane', sessionId: 'second', kind: 'info' })!
+  inbox().setOpen(true)
+  inbox().markSeen([first.id])
+  inbox().closeAfterNavigation()
+  expect(inbox().open).toBe(false)
+  expect(inbox().items.find((item) => item.id === second.id)?.seenAt).toBeUndefined()
+  expect(unseenCount(inbox())).toBe(1)
+  inbox().setOpen(true)
+  expect(unseenCount(inbox())).toBe(1)
+})

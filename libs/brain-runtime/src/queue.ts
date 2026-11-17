@@ -82,7 +82,7 @@ export class ExtractionQueue {
     if (job?.state === 'review' || job?.state === 'done')
       throw new Error('Review this proposal to dismiss it.')
     if (this.active?.id === id) this.active.abort.abort()
-    if (job?.state === 'empty') this.options.store.updateJob(id, { state: 'done' })
+    if (job?.state === 'empty' && !job.replaces) this.options.store.updateJob(id, { state: 'done' })
     else this.options.store.removeJob(id)
     if (job && this.active?.id !== id && (job.state === 'queued' || job.state === 'waiting'))
       this.options.cancelled?.(job)

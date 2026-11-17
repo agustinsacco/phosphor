@@ -65,6 +65,8 @@ export interface BrainProposedMemory {
 export interface BrainProposalView {
   job: BrainJob
   revision: number
+  /** Existing lane memories an approval will remove; zero for an ordinary read. */
+  replacingMemories: number
   identities: BrainIdentity[]
   groups: BrainGroupQuestion[]
   memories: BrainProposedMemory[]

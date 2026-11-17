@@ -170,3 +170,12 @@ export function catalogueEmptyText(
   }
   return 'No models configured. Sign in to a provider in Settings → Accounts, or add API keys to pi.'
 }
+
+/** Picker name, else a provider-free id; Settings passes the full stored id as its fallback. */
+export function recordedModelName(
+  models: readonly CatalogueModel[],
+  model: string,
+  fallback = model.slice(model.indexOf('/') + 1),
+): string {
+  return models.find((entry) => `${entry.provider}/${entry.id}` === model)?.name ?? fallback
+}

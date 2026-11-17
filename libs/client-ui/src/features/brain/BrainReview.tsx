@@ -1,9 +1,12 @@
+import { formatCount } from '@/lib/format'
+import { relativeTime } from '@/lib/time'
+import { useBrainModelName } from './useBrainModelName'
 import { useCallback, useEffect, useState } from 'react'
-import type { BrainProposalView, BrainReviewDecision } from '@shared/brain'
+import type { BrainJob, BrainProposalView, BrainReviewDecision } from '@shared/brain'
 import { Button } from '@/components/form'
 import { ipcErrorText } from '@shared/errors'
 import { jobLine } from './jobProgress'
-import { TooltipSummary } from '@/components/Tooltip'
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useBrain } from './useBrain'
 import { useBrainResource } from './useBrainResource'
 import { buildReviewDecision } from './reviewDecision'
@@ -37,15 +40,7 @@ export function BrainReview({
     if (data) setStale(false)
   }, [data])
   return (
-    <section className="space-y-3 p-3">
-      <div className="flex gap-2">
-        <Button size="sm" onClick={onClose}>
-          Back to graph
-        </Button>
-        <Button size="sm" onClick={() => onExtraction(jobId)}>
-          View extraction
-        </Button>
-      </div>
+    <section className="flex min-h-full min-w-0 flex-col p-3 [overflow-wrap:anywhere]">
       {stale ? (
         <div role="status">
           <p>Brain changed; refreshing this review</p>
@@ -65,6 +60,7 @@ export function BrainReview({
           key={`${jobId}:${data.revision}`}
           proposal={data}
           onClose={onClose}
+          onExtraction={() => onExtraction(jobId)}
           onStale={async () => {
             setStale(true)
             await useBrain.getState().refresh()
@@ -80,9 +76,11 @@ function ReviewProposal({
   proposal,
   onClose,
   onStale,
+  onExtraction,
 }: {
   proposal: BrainProposalView
   onClose: () => void
+  onExtraction: () => void
   onStale: () => Promise<void>
 }): React.JSX.Element {
   const [keep, setKeep] = useState(() => proposal.memories.map((m) => m.index))
@@ -101,31 +99,17 @@ function ReviewProposal({
   }
   const confirmationsOnly = !proposal.memories.length && proposal.confirmations.length > 0
   return (
-    <section aria-label="Review memories" className="space-y-4">
-      <h2 className="text-xl font-semibold">{proposal.job.title}</h2>
+    <section aria-label="Review memories" className="flex min-w-0 flex-1 flex-col gap-4">
+      <ReviewHeader job={proposal.job} onExtraction={onExtraction} />
       {error && <p role="alert">{error}</p>}
-      <p className="text-text-tertiary text-sm">Nothing is searchable until you approve it.</p>
+      {proposal.job.replaces && (
+        <p className="bg-accent-soft text-text-secondary rounded-lg p-3 text-sm">
+          Approving replaces the {proposal.replacingMemories} memories from the earlier read of this
+          lane.
+        </p>
+      )}
       {proposal.held > 0 && <p>{proposal.held} held back · inspect the extraction for reasons</p>}
-      <div className="flex gap-2">
-        <Button
-          variant="primary"
-          disabled={saving || (!keep.length && !confirmationsOnly && !groups.length)}
-          onClick={() => {
-            void review(buildReviewDecision(keep, identities, groups))
-          }}
-        >
-          {confirmationsOnly ? 'Approve confirmations' : `Approve ${keep.length}`}
-        </Button>
-        <Button
-          disabled={saving}
-          onClick={() => {
-            void review(null)
-          }}
-        >
-          Reject all
-        </Button>
-      </div>
-      <fieldset disabled={saving} className="space-y-4">
+      <fieldset disabled={saving} className="min-w-0 space-y-4">
         <ReviewIdentities proposal={proposal} overrides={identities} onChange={setIdentities} />
         <ReviewGroups proposal={proposal} selected={groups} onChange={setGroups} />
         <ReviewMemories proposal={proposal} selected={keep} onChange={setKeep} />
@@ -133,8 +117,8 @@ function ReviewProposal({
       {proposal.confirmations.length > 0 && (
         <details>
           <TooltipSummary>
-            {confirmationsOnly ? 'Confirms' : 'Also confirms'} {proposal.confirmations.length}{' '}
-            existing memories
+            {confirmationsOnly ? 'Confirms' : 'Also confirms'}{' '}
+            {formatCount(proposal.confirmations.length, 'existing memory', 'existing memories')}
           </TooltipSummary>
           <ReviewPage>
             {proposal.confirmations.map((m) => (
@@ -143,6 +127,69 @@ function ReviewProposal({
           </ReviewPage>
         </details>
       )}
+      <ReviewActions
+        saving={saving}
+        disabled={!proposal.job.replaces && !keep.length && !confirmationsOnly && !groups.length}
+        label={confirmationsOnly ? 'Approve confirmations' : `Approve ${keep.length}`}
+        onApprove={() => {
+          void review(buildReviewDecision(keep, identities, groups))
+        }}
+        onReject={() => {
+          void review(null)
+        }}
+      />
     </section>
+  )
+}
+
+function ReviewActions({
+  saving,
+  disabled,
+  label,
+  onApprove,
+  onReject,
+}: {
+  saving: boolean
+  disabled: boolean
+  label: string
+  onApprove: () => void
+  onReject: () => void
+}): React.JSX.Element {
+  return (
+    <div className="border-border bg-bg sticky bottom-0 mt-auto flex flex-wrap items-center justify-end gap-2 border-t py-3">
+      <p className="text-text-tertiary mr-auto text-sm">
+        Nothing is searchable until you approve it.
+      </p>
+      <Button disabled={saving} onClick={onReject}>
+        Reject all
+      </Button>
+      <Button variant="primary" disabled={saving || disabled} onClick={onApprove}>
+        {label}
+      </Button>
+    </div>
+  )
+}
+
+function ReviewHeader({
+  job,
+  onExtraction,
+}: {
+  job: BrainJob
+  onExtraction: () => void
+}): React.JSX.Element {
+  const model = useBrainModelName(job.model)
+  return (
+    <header>
+      <h2 className="text-xl font-semibold">{job.title}</h2>
+      <p className="text-text-tertiary text-sm">
+        Read by {model} · {relativeTime(job.finishedAt ?? job.queuedAt)}
+      </p>
+      <TooltipButton
+        className="text-text-secondary hover:text-text text-sm underline"
+        onClick={onExtraction}
+      >
+        See how it was read
+      </TooltipButton>
+    </header>
   )
 }

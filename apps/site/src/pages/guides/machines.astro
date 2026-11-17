@@ -1,0 +1,160 @@
+---
+import Guide from '../../layouts/Guide.astro'
+import Capture from '../../components/Capture.astro'
+import { doc, shot } from '../../lib/content'
+const sections: [string, string][] = [
+  ['setup', '1. Connect your machine'],
+  ['control', '2. Open a remote lane'],
+  ['browser', '3. Use the browser or phone'],
+  ['moves', 'Move a lane deliberately'],
+  ['limits', 'Recovery and boundaries'],
+]
+---
+
+<Guide
+  title="Your machines. One working view."
+  description="Run pi on a computer you own and reach it from Desktop or the browser. The Host owns execution; Phosphor’s control service handles identity, not your code."
+  sections={sections}
+  eyebrow="Guide / Machines and PWA"
+>
+  <section id="setup">
+    <h2>1. Bring a machine online</h2>
+    <p>
+      This is private remote access, not a cloud runner. Local Desktop lanes need no Phosphor
+      account. Remote access needs GitHub sign-in to Phosphor, an execution machine with pi, and
+      Tailscale on both computers on the same tailnet. Enable MagicDNS and HTTPS certificates.
+    </p>
+    <ol>
+      <li>
+        In Desktop, sign in and open <strong>Machines → Add a machine</strong>. Follow the readiness
+        checks and copy its signed Host install command to the execution machine.
+      </li>
+      <li>
+        The command runs <code>phosphor setup</code>, prepares the service and Tailscale Serve, and
+        prints an enrollment code and fingerprint.
+      </li>
+      <li>
+        Choose <strong>I have a code</strong> in Desktop, enter the code, compare the fingerprint and
+        approve the machine.
+      </li>
+      <li>
+        Open that machine’s Provider settings, or run <code>phosphor providers login PROVIDER</code> on
+        the Host. Add a repository there. Credentials stay on the execution machine.
+      </li>
+      <li>
+        Check readiness; <code>phosphor doctor</code> diagnoses setup. An online directory row alone is
+        not permission to execute or proof that pi is ready.
+      </li>
+    </ol>
+    <Capture
+      image={shot('machines')}
+      alt="Machines showing fictional computers and their connection readiness in Phosphor."
+      caption="Know where the next lane will run"
+    />
+    <p>
+      Use Tailscale Serve, never Funnel or a public tunnel. Lane traffic goes directly over private
+      HTTPS/WSS to the Host, not through the control service. <a href={doc('host.md#commands')}
+        >Host installation and command reference</a
+      >.
+    </p>
+  </section>
+  <section id="control">
+    <h2>2. Open a lane on that Host</h2>
+    <p>
+      Select the machine and one of its repositories, choose an available model and create a lane.
+      Its files, provider accounts, tools and processes belong to that Host. If the Host is
+      unavailable, Phosphor does not quietly start a local lane instead.
+    </p>
+    <p>
+      A lane has one controller. Reading it does not acquire control. Use <strong
+        >Take control</strong
+      > before prompting or changing it, and release control explicitly when handing it over. Disconnecting
+      does not release control.
+    </p>
+    <p>
+      Chat, files, changes, terminals, artifacts and routines use the Host’s supported capabilities.
+      Machine configuration requires a separate <strong>Enable configuration access</strong> confirmation.
+      This is not automatic synchronization of local settings or credentials.
+    </p>
+  </section>
+  <section id="browser">
+    <h2>3. Check in from the browser or phone</h2>
+    <p>
+      Open the <a href="https://phosphor-app.saccolabs.com/">Phosphor web app</a> on a device that can
+      reach your private tailnet and sign in. The Host must allow the app’s browser origin. You can install
+      the PWA from Settings → App installation where your browser supports it.
+    </p>
+    <Capture
+      image={shot('mobile')}
+      alt="Phosphor’s phone layout showing a fictional Host lane with shared chat controls."
+      caption="A smaller screen, the same Host lane"
+      sizes="(max-width: 700px) 90vw, 420px"
+      class="phone-capture"
+    />
+    <p>
+      On a phone, Home shows lanes that need you, Machines selects computers, and Library holds
+      Skills, Routines and Artifacts. Inside a lane, its title opens the pane and session menu; PR
+      and Slack pills remain directly accessible.
+    </p>
+    <p>
+      The browser is remote-only. It has no This Mac lanes, native file editor, split panes or
+      Brain. It is not an offline execution environment. Configuration access lasts only for the
+      current browser page; closing or reloading it clears that opt-in.
+    </p>
+  </section>
+  <section id="moves">
+    <h2>Move a lane, not a running process</h2>
+    <p>
+      The lane menu offers <strong>Move to…</strong> when work is idle. It stops an idle open lane first,
+      then shows a checked plan for a destination machine and workspace. The browser moves Host lanes
+      between Hosts, holding the copy only in the page’s memory; This Mac stays a Desktop destination.
+    </p>
+    <p>
+      A move is a snapshot copy: the original stays untouched and the destination is not resumed
+      automatically. It preserves the saved conversation, artifact versions and child-run history.
+      Choose Open to continue at the destination, and read the notice about old paths and moved
+      attachments.
+    </p>
+    <ul>
+      <li>
+        Commit tracked and untracked changes first; dirty Git work blocks a transfer. Ignored files
+        do not move.
+      </li>
+      <li>
+        For the same origin on another machine, the destination needs the source branch’s exact
+        commit. For a different Git workspace, a fresh branch starts from that destination’s default
+        branch; source code stays behind.
+      </li>
+      <li>
+        Provider/model availability, pi version and destination setup are checked. Skills,
+        extensions, MCP and accounts belong to the destination.
+      </li>
+      <li>
+        Workspace files, credentials, terminal processes and routine schedules are not copied. For
+        the same repository on the same machine, use Clone instead.
+      </li>
+    </ul>
+    <p>
+      Keep both Hosts connected for a Host-to-Host move. If the outcome is unconfirmed, inspect the
+      destination before retrying; it is not permission to copy again.
+    </p>
+  </section>
+  <section id="limits">
+    <h2>Keep the execution boundary visible</h2>
+    <p>
+      The control service stores identity and machine metadata, never lane transcripts, repository
+      paths or provider credentials. Tools still have the execution machine’s access: private
+      transport and controller grants are not an agent sandbox.
+    </p>
+    <p>
+      Connection loss disables actions; reconnect and inspect state before repeating an uncertain
+      operation. Host routines run on the Host and need it awake with its service running. Brain
+      remains local to Desktop and does not follow a lane transfer.
+    </p>
+    <p>
+      <a href={doc('remote-access.md')}>Remote access contract</a> · <a href={doc('web-client.md')}
+        >Browser capabilities</a
+      > · <a href={doc('lanes.md#moving-a-lane')}>Transfer checks and limits</a>
+    </p>
+  </section>
+</Guide>

@@ -6,8 +6,9 @@ const { dirname, join } = require('node:path')
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-')
 
 function createSession({ sessionFile, folder, cwd, launchName }) {
-  sessionFile ??= join(folder, `${stamp()}_${randomUUID()}.jsonl`)
   const id = randomUUID()
+  // A new file is named after the id its header records, as pi names it.
+  sessionFile ??= join(folder, `${stamp()}_${id}.jsonl`)
   const messages = existsSync(sessionFile)
     ? readFileSync(sessionFile, 'utf8')
         .split('\n')

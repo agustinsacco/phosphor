@@ -19,8 +19,7 @@ import { attachRow } from './items/measureRow'
 import { spacingFor } from './items/spacing'
 import { activeActivityId, buildTranscriptRows } from './items/transcriptRows'
 import { FindBar } from '@/components/search/FindBar'
-import { useFind } from '@/components/search/useFind'
-import { useFindTarget } from '@/components/search/findTargets'
+import { useChatFind } from './useChatFind'
 import { useTranscriptFind } from './useTranscriptFind'
 
 export const MessageList = memo(function MessageList({
@@ -297,11 +296,8 @@ export const MessageList = memo(function MessageList({
     if (last.kind === 'user' && last.optimistic) jumpToBottom()
   }, [items, jumpToBottom])
 
-  // ⌘F. The fallback surface: focus in the composer, the top bar or nowhere
-  // at all still means "find in this session".
-  const find = useFind()
-  const { show: showFind } = find
-  useFindTarget(containerRef, showFind, true)
+  // Desktop's ⌘F fallback; browser shortcuts require a transcript anchor.
+  const find = useChatFind(sessionId, containerRef)
   const releaseFollowForFind = useCallback((): void => {
     if (scrollRef.current) releaseFollow(scrollRef.current)
   }, [releaseFollow])
@@ -351,7 +347,10 @@ export const MessageList = memo(function MessageList({
   return (
     // `transcript-enter` plays once per mount: on a lane switch (ChatView is
     // keyed by session) and when history replaces the skeleton.
-    <div ref={containerRef} className="transcript-enter relative flex-1 overflow-hidden">
+    <div
+      ref={containerRef}
+      className="transcript-enter relative flex min-h-0 flex-1 flex-col overflow-hidden"
+    >
       <FindBar
         find={find}
         total={matches.total}
@@ -386,7 +385,7 @@ export const MessageList = memo(function MessageList({
          * blocks, tables, tool output — brings its own scroller, so nothing
          * legitimate is clipped here.
          */
-        className="h-full overflow-y-auto overflow-x-hidden pt-4 outline-none"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-4 outline-none"
       >
         <div
           className="relative mx-auto w-full max-w-3xl px-6"

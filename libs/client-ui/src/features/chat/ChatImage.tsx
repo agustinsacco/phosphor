@@ -1,4 +1,6 @@
-import { TooltipButton } from '@/components/Tooltip'
+import { ImageButton, ImageLightboxFrame } from '@/components/ImageActions'
+import { downloadBytes } from '@phosphor/shared/download'
+import { base64ToBytes } from '@phosphor/shared/base64'
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { ipcErrorText } from '@shared/errors'
@@ -14,9 +16,7 @@ export function imageUrl(img: ImageContent): string {
 /**
  * Copy a chat image to the system clipboard and toast the outcome.
  *
- * The write goes through main (`clipboard:writeImage`): the renderer is
- * sandboxed, and the web ClipboardItem API would drop gif/webp/bmp. The
- * browser harness implements the same channel best-effort (png/jpeg).
+ * Desktop writes through main; the browser adapter uses the local Clipboard API.
  */
 export async function copyChatImage(img: ImageContent): Promise<void> {
   try {
@@ -28,6 +28,15 @@ export async function copyChatImage(img: ImageContent): Promise<void> {
   } catch (error) {
     useExtensionUiStore.getState().pushToast(`Copy failed: ${ipcErrorText(error)}`, 'error')
   }
+}
+
+/** Download original bytes as an octet stream, never navigate to authored image content. */
+export function saveChatImage(img: ImageContent): void {
+  const extension =
+    { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }[
+      img.mimeType
+    ] ?? 'img'
+  downloadBytes(`image.${extension}`, base64ToBytes(img.data))
 }
 
 /**
@@ -72,20 +81,12 @@ export function ChatImage({
 
   return (
     <>
-      <TooltipButton
+      <ImageButton
         type="button"
         onClick={() => (onOpen ? onOpen() : setOpen(true))}
-        onContextMenu={(event) => {
-          // Copy, not the OS menu: right-click on a chat image is "copy
-          // this", per the interaction contract.
-          event.preventDefault()
-          event.stopPropagation()
-          void copyChatImage(image)
-        }}
-        tooltip={{
-          label: onOpen ? 'Annotate image' : 'Open image',
-          description: 'Right-click to copy',
-        }}
+        onCopy={() => void copyChatImage(image)}
+        onSave={() => saveChatImage(image)}
+        annotate={!!onOpen}
         className={clsx(
           'hover:ring-accent/50 hover:shadow-md inline-flex max-w-full shrink-0 overflow-hidden rounded-lg outline-none transition-all hover:ring-2',
           onOpen ? 'cursor-pointer' : 'cursor-zoom-in',
@@ -97,7 +98,7 @@ export function ChatImage({
           draggable={false}
           className={clsx('block max-w-full', className)}
         />
-      </TooltipButton>
+      </ImageButton>
       {open && <ImageLightbox image={image} onClose={() => setOpen(false)} copy={copyChatImage} />}
     </>
   )
@@ -119,16 +120,18 @@ export function ImageLightbox({
 }): React.JSX.Element {
   return (
     <ModalOverlay onClose={onClose} backdrop="photo">
-      <img
-        src={imageUrl(image)}
-        alt="Attached image, full size"
-        onContextMenu={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          void copy(image)
-        }}
-        className="max-h-[90vh] max-w-[92vw] cursor-zoom-out rounded-lg object-contain shadow-2xl"
-      />
+      <ImageLightboxFrame onCopy={() => void copy(image)} onSave={() => saveChatImage(image)}>
+        <img
+          src={imageUrl(image)}
+          alt="Attached image, full size"
+          onContextMenu={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void copy(image)
+          }}
+          className="max-h-[90vh] max-w-[92vw] cursor-zoom-out rounded-lg object-contain shadow-2xl"
+        />
+      </ImageLightboxFrame>
     </ModalOverlay>
   )
 }

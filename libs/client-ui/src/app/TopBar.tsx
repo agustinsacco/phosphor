@@ -19,6 +19,7 @@ import {
   TerminalIcon,
 } from '@/components/icons'
 import { SessionMenu } from '@/features/chat/SessionMenu'
+import { requestChatFind } from '@/features/chat/useChatFind'
 import { BranchControl } from '@/features/worktrees/BranchControl'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -182,7 +183,15 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
       </IconButton>
       <ArtifactsButton sessionId={sessionId} active={rightPane === 'artifacts'} />
       <SubagentsButton sessionId={sessionId} active={rightPane === 'subagents'} />
-      <SessionMenu sessionId={sessionId} />
+      <SessionMenu
+        sessionId={sessionId}
+        onFind={() => {
+          const layout = useLayoutStore.getState()
+          if (rightPane && sessionPanes(layout, sessionId).expanded)
+            layout.toggleRightExpanded(sessionId)
+          requestChatFind(sessionId)
+        }}
+      />
     </>
   )
 }

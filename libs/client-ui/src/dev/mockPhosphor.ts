@@ -28,7 +28,7 @@ import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockLocalRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockHostConnectionInvoke } from './mockHostConnectionInvoke'
-import { base64ToBytes, bytesToBase64 } from '@phosphor/shared/base64'
+import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
 import type {
   ConnectorAuthPush,
   ConnectorAuthState,
@@ -888,54 +888,6 @@ function runMockJob(lines: string[], exitCode = 0): { jobId: string } {
   return { jobId }
 }
 
-/** Best-effort: the web clipboard needs permission and offers png only. */
-async function mockClipboardReadImage(): Promise<{ data: string; mimeType: string } | null> {
-  try {
-    for (const item of await navigator.clipboard.read()) {
-      if (!item.types.includes('image/png')) continue
-      const blob = await item.getType('image/png')
-      return { data: bytesToBase64(await blob.arrayBuffer()), mimeType: 'image/png' }
-    }
-  } catch {
-    // Permission refused or no clipboard: same as an empty one.
-  }
-  return null
-}
-
-/**
- * Best-effort clipboard image write for the browser harness. The async
- * clipboard accepts png/jpeg natively, so gif/webp/bmp are rasterized to
- * png first. Permission or type failures are swallowed — a copy attempt
- * must never crash the harness.
- */
-async function mockClipboardWriteImage(image: { data: string; mimeType: string }): Promise<void> {
-  const write = (mime: string, blob: Blob): Promise<void> =>
-    navigator.clipboard.write([new ClipboardItem({ [mime]: blob })])
-  try {
-    if (image.mimeType === 'image/png' || image.mimeType === 'image/jpeg') {
-      const bytes = base64ToBytes(image.data)
-      await write(image.mimeType, new Blob([bytes], { type: image.mimeType }))
-    } else {
-      const img = new Image()
-      img.src = `data:${image.mimeType};base64,${image.data}`
-      await img.decode()
-      const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      canvas.getContext('2d')?.drawImage(img, 0, 0)
-      const png = await new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error('PNG encode failed'))),
-          'image/png',
-        ),
-      )
-      await write('image/png', png)
-    }
-  } catch {
-    // Clipboard permission or an unsupported type.
-  }
-}
-
 /** Context composition, as the bundled extension would report it. */
 const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   totalTokens: 51350,
@@ -982,6 +934,7 @@ export function installMockPhosphor(): void {
 
     invoke: (channel: string, ...args: unknown[]) => {
       // All v4 Brain channels use the bounded, invented Explorer and review fixtures.
+      // Includes read history and reread; Brain remains local-only in the real web bridge.
       if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
       if (channel.startsWith('routines:')) return mockLocalRoutineCall(channel, args)
       if (MACHINE_SETTINGS_MOCK.has(channel))
@@ -1924,9 +1877,9 @@ export function installMockPhosphor(): void {
           mockFileClipboard = { paths: args[0] as string[], cut: args[1] as boolean }
           return Promise.resolve(undefined)
         case 'clipboard:writeImage':
-          return mockClipboardWriteImage(args[0] as { data: string; mimeType: string })
+          return writeBrowserImage(args[0] as { data: string; mimeType: string })
         case 'clipboard:readImage':
-          return mockClipboardReadImage()
+          return readBrowserImage()
         // Writing: no spellchecker and no clipboard here, but autocomplete can
         // learn in memory, seeded so the ghost text shows on a fresh harness.
         case 'writing:prompts':
