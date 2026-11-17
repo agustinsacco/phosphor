@@ -306,3 +306,26 @@ it('chooses from the reloaded list when a merge closes other pairs for the remov
   await click('Merge into Rina Okafor')
   expect(detail).toHaveBeenLastCalledWith('tidy-8')
 })
+
+it('explains limited checks without calling them common-name caps or exhaustive coverage', async () => {
+  const page = await call('brain:tidy', null, null, 20)
+  page.coverage = {
+    phase: 'done',
+    cursor: 0,
+    entities: 103,
+    memories: 204,
+    totalEntities: 103,
+    totalMemories: 204,
+    limitedChecks: 7,
+    startedAt: 1,
+    finishedAt: 2,
+  }
+  list.mockResolvedValue(page)
+  await render()
+  expect(container.textContent).toContain('Checked all 204 memories and 103 people and things')
+  expect(container.textContent).toContain(
+    '7 checks were cut short to stay fast, so a repeat could be missed there.',
+  )
+  expect(container.textContent).not.toContain('Common-name')
+  expect(container.textContent).not.toContain('complete')
+})
