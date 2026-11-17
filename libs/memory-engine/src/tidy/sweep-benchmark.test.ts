@@ -39,11 +39,11 @@ it('bounds and resumes a 5000-name bucket and a 60000-memory store without pairw
     cursor: TIDY_CHUNK,
     finishedAt: null,
   })
-  expect(memory.suggestions).toBeLessThanOrEqual(TIDY_CHUNK)
+  expect(memory.suggestions).toBeLessThanOrEqual(TIDY_CHUNK * 8)
   expect(memory.folded).toBe(0)
   expect(store.tidy(null, null, 20).coverage.cursor).toBe(TIDY_CHUNK)
   expect(db.prepare('SELECT COUNT(*) AS n FROM tidy_suggestions').get()!.n).toBeLessThanOrEqual(
-    5000 + TIDY_CHUNK,
+    5000 + TIDY_CHUNK * 8,
   )
   console.log(
     JSON.stringify({

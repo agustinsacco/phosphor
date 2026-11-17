@@ -17,14 +17,19 @@ interface EntityWindow {
 }
 export interface MemoryCandidateCache {
   windows: Map<number, EntityWindow>
+  windowLimit: number
   siblings: Map<string, ReturnType<typeof siblingEntities>>
 }
-export function memoryCandidateCache(): MemoryCandidateCache {
-  return { windows: new Map(), siblings: new Map() }
+export function memoryCandidateCache(windowLimit = 128): MemoryCandidateCache {
+  return { windows: new Map(), siblings: new Map(), windowLimit }
 }
 function entityWindow(ctx: Context, entity: number, cache: MemoryCandidateCache): EntityWindow {
   const saved = cache.windows.get(entity)
-  if (saved) return saved
+  if (saved) {
+    cache.windows.delete(entity)
+    cache.windows.set(entity, saved)
+    return saved
+  }
   // Numeric row order is insertion order; the mentions index bounds this lookup even for hubs.
   const rows = all<Omit<Candidate, 'vector'> & { state: string; vector: Uint8Array | null }>(
     ctx,
@@ -41,6 +46,9 @@ function entityWindow(ctx: Context, entity: number, cache: MemoryCandidateCache)
           : [],
       ),
   }
+  // Eviction permits re-reading, never drops candidates or changes coverage.
+  if (cache.windows.size >= cache.windowLimit)
+    cache.windows.delete(cache.windows.keys().next().value!)
   cache.windows.set(entity, result)
   return result
 }
