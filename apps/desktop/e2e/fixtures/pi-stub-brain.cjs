@@ -110,7 +110,7 @@ function extract({ registry, segments }, fold) {
 
 function relationships(text) {
   return [
-    ...[...text.matchAll(/([A-Z][a-z]+ [A-Z][a-z]+) owns (?:the )?([^.\n]+)\./g)].map((m) => ({
+    ...[...text.matchAll(/([A-Z][a-z]+(?: [A-Z][a-z]+)?) owns (?:the )?([^.\n]+)\./g)].map((m) => ({
       m,
       predicate: 'owns',
       subjectKind: 'person',
@@ -188,8 +188,13 @@ function tidy(rows, fold) {
           : a.type === 'entity' &&
             b.type === 'entity' &&
             a.kind === b.kind &&
-            !!a.description &&
-            fold(a.description) === fold(b.description)
+            ((!!a.description && fold(a.description) === fold(b.description)) ||
+              (fold(a.name).split(' ')[0] === fold(b.name).split(' ')[0] &&
+                a.neighbours.some((left) =>
+                  b.neighbours.some(
+                    (right) => fold(left.name) === fold(right.name) && left.link === right.link,
+                  ),
+                )))
       return {
         ref,
         verdict: same ? 'same' : 'different',
@@ -229,7 +234,8 @@ async function runBrain(argv) {
     const input = stageInput(system, prompt)
     if (failOnce(input.stage)) throw new Error('Brain stub extract failed once')
     // The inbox polls every two seconds: keep this stage visible across one real poll.
-    if (input.stage === 'extract') await new Promise((resolve) => setTimeout(resolve, 3000))
+    if (['extract', 'tidy'].includes(input.stage))
+      await new Promise((resolve) => setTimeout(resolve, 3000))
     const { fold } = await import('@phosphor/memory-engine/text')
     emit(answer(input, fold))
   } catch (error) {

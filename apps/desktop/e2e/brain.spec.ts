@@ -1,3 +1,9 @@
+import {
+  seedBrainTidyLanes,
+  readTidyLane,
+  openTidyNotice,
+  mergeSwapAndUndo,
+} from './fixtures/brain-tidy-flow'
 import { test, expect, type Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -14,6 +20,7 @@ import {
 } from './fixtures/brain-inspection'
 import {
   approveLane,
+  READ_TIMEOUT,
   awaitRead,
   enableBrain,
   exploreBrain,
@@ -435,6 +442,48 @@ test('Brain caps long read text and anchors a short review action bar', async ()
     await expectReviewBarAtBottom(page)
     await page.getByRole('button', { name: 'See how it was read', exact: true }).click()
     await expectBoundedReadText(page)
+  } finally {
+    await shutdown(h)
+  }
+})
+
+test('Brain Tidy reviews shared names, opens its rolling notice, checks, swaps the survivor and undoes', async () => {
+  // Two reads and a Tidy model batch each get their own budget on a loaded runner.
+  test.setTimeout(240_000)
+  const seed = await seedBrainTidyLanes()
+  const h = await launch({
+    workspace: seed.workspace,
+    agentDir: seed.agent,
+    userDataDir: seed.profile,
+    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
+  })
+  const { page } = h
+  try {
+    await enableBrain(page, seed.harbor)
+    await readTidyLane(page, seed.harbor)
+    await readTidyLane(page, seed.ledger)
+    const count = (await status(page)).tidy.open
+    expect(count).toBeGreaterThan(0)
+    await expect(page.getByRole('tab', { name: /^Tidy/ })).toContainText(String(count))
+    await page.getByRole('tab', { name: /^Tidy/ }).click()
+    const people = page.getByRole('region', { name: 'Same person or thing?', exact: true })
+    await expect(people).toContainText('Rina Okafor')
+    await openTidyNotice(page, count)
+    await page.getByRole('button', { name: 'Tidy now', exact: true }).click()
+    await expect(
+      page.getByRole('status').filter({ hasText: /^Checking \d+ of \d+$/ }),
+    ).toBeVisible()
+    const detail = page.getByRole('article', { name: 'Tidy suggestion', exact: true })
+    await expect(detail).toContainText('Same supported fixture assertion.', {
+      timeout: READ_TIMEOUT,
+    })
+    await expect(detail).toContainText('Checked by')
+    await mergeSwapAndUndo(page)
+    for (const lane of [seed.harbor, seed.ledger])
+      expect(await readFile(lane.source, 'utf8')).toBe(lane.original)
+  } catch (error) {
+    await attachBrainFailure(page)
+    throw error
   } finally {
     await shutdown(h)
   }
