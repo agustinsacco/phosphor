@@ -8,6 +8,7 @@ import {
 import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision } from '../prefs'
 import { sweepEntity } from './sweep-entities'
+import { memoryCandidateCache } from './memory-candidates'
 import { sweepMemory } from './sweep-memories'
 
 export const TIDY_CHUNK = 128
@@ -100,8 +101,9 @@ export function sweep(ctx: Context, input: BrainTidyTouched | 'all'): BrainTidyS
       c.cappedBuckets += found.capped
     }
     fingerprintMemories(ctx, memories)
+    const cache = memoryCandidateCache()
     for (const n of memories) {
-      const found = sweepMemory(ctx, n)
+      const found = sweepMemory(ctx, n, cache)
       result.suggestions += found.suggestions
       c.cappedBuckets += found.capped
       result.operationIds.push(...found.operations)
