@@ -1,13 +1,24 @@
 import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import { all, one, type Context } from '../database'
+import { siblingEntities } from './entity-name-candidates'
 import { sweep } from './sweep'
 import type { Selection } from './rows'
 
 /** A saved approval/change must never be reported as failed because maintenance failed. */
-export function afterChange(ctx: Context, touched: BrainTidyTouched): void {
+export function afterChange(
+  ctx: Context,
+  touched: BrainTidyTouched,
+  preferredEntityId?: string,
+): void {
   if (!touched.entityIds.length && !touched.memoryIds.length) return
   try {
-    sweep(ctx, touched)
+    const entityIds = preferredEntityId
+      ? [
+          ...touched.entityIds,
+          ...siblingEntities(ctx, preferredEntityId).items.map((peer) => peer.id),
+        ]
+      : touched.entityIds
+    sweep(ctx, { ...touched, entityIds }, preferredEntityId)
   } catch (error) {
     process.emitWarning(
       `Brain saved the change, but local Tidy failed: ${error instanceof Error ? error.message : String(error)}. Run Tidy again to retry.`,
@@ -23,14 +34,18 @@ export function afterOperation(ctx: Context, operation: string | null): void {
     operation,
   )
   if (!row || row.subject_type !== 'entity') return
-  afterChange(ctx, {
-    entityIds: [row.first_id, row.second_id],
-    memoryIds: all<{ memory_id: string }>(
-      ctx,
-      'SELECT memory_id FROM tidy_operation_memories WHERE operation_id=?',
-      operation,
-    ).map((r) => r.memory_id),
-  })
+  afterChange(
+    ctx,
+    {
+      entityIds: [row.second_id],
+      memoryIds: all<{ memory_id: string }>(
+        ctx,
+        'SELECT memory_id FROM tidy_operation_memories WHERE operation_id=?',
+        operation,
+      ).map((r) => r.memory_id),
+    },
+    row.second_id,
+  )
 }
 export function afterUndo(ctx: Context, selection: Selection): void {
   afterChange(ctx, {

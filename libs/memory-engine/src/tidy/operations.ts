@@ -1,11 +1,12 @@
 import { clearSubject } from './suggestions'
-import { all, one, transaction, type Context } from '../database'
+import { all, transaction, type Context } from '../database'
 import { entityNumber } from '../entities'
 import { memoryNumber } from '../knowledge'
 import { mergeRows } from '../merge'
 import { bumpRevision } from '../prefs'
 import { checkRevision, journal, undo } from './journal'
 import { fingerprintMemories } from './fingerprints'
+import { memoryActionGuards } from './action-guards'
 import { conflictMemories, foldMemories } from './memory-actions'
 import type { JournalInput } from './journal'
 import type { Selection } from './rows'
@@ -75,12 +76,8 @@ export function changeMemories(
 ): string {
   const source = memoryNumber(ctx, sourceId),
     target = memoryNumber(ctx, targetId)
-  if (source === target) throw new Error('Choose two different Brain memories.')
-  for (const n of [source, target])
-    if (
-      one<{ state: string }>(ctx, 'SELECT state FROM memories WHERE n=?', n)!.state === 'superseded'
-    )
-      throw new Error('This memory is no longer current.')
+  const refusal = memoryActionGuards[kind](ctx, source, target)
+  if (refusal) throw new Error(refusal)
   const selection = memorySelection(ctx, source, target)
   const id = journal(
     ctx,
