@@ -1,4 +1,12 @@
 import type {
+  BrainTidyAction,
+  BrainTidyChanges,
+  BrainTidyKind,
+  BrainTidyMutation,
+  BrainTidyPage,
+  BrainTidySuggestionDetail,
+} from '../brain-tidy'
+import type {
   BrainConnectionPage,
   BrainEntityView,
   BrainEntityKind,
@@ -22,6 +30,20 @@ import type {
 
 /** UI commands. Authority comes from the Desktop handler, never this DTO. */
 export interface BrainInvokeMap {
+  'brain:tidy': {
+    args: [kind: BrainTidyKind | null, cursor: string | null, limit: number]
+    result: BrainTidyPage
+  }
+  'brain:tidySuggestion': { args: [id: string]; result: BrainTidySuggestionDetail }
+  'brain:tidyRun': { args: []; result: BrainStatus }
+  'brain:tidyCancel': { args: []; result: BrainStatus }
+  'brain:tidyApply': {
+    args: [id: string, action: BrainTidyAction, revision: number]
+    result: BrainTidyMutation
+  }
+  'brain:tidyDismiss': { args: [id: string, revision: number]; result: BrainStatus }
+  'brain:tidyChanges': { args: [limit: number]; result: BrainTidyChanges }
+  'brain:tidyUndo': { args: [operationId: string, revision: number]; result: BrainStatus }
   'brain:entities': {
     args: [kind: BrainEntityKind | null, offset: number, limit: number]
     result: BrainEntityPage
@@ -50,7 +72,10 @@ export interface BrainInvokeMap {
   /** Deletes all knowledge, jobs and records. Keeps settings and the embedding model. */
   'brain:reset': { args: []; result: BrainStatus }
   /** Folds `sourceId` into `targetId`: names, links and memories move; the source is deleted. */
-  'brain:merge': { args: [sourceId: string, targetId: string]; result: BrainStatus }
+  'brain:merge': {
+    args: [sourceId: string, targetId: string, revision: number]
+    result: BrainTidyMutation
+  }
   /** Typeahead over entities and memories. */
   'brain:find': { args: [query: string, limit: number]; result: BrainFindResult }
   /** The best-connected entities, when nothing is selected. */

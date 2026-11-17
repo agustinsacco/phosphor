@@ -1,3 +1,4 @@
+import { BRAIN_TIDY_KINDS, checkBrainTidyAction } from '@phosphor/shared/brain-tidy'
 import { BRAIN_ENTITY_KINDS } from '@phosphor/shared/brain'
 import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
@@ -21,6 +22,7 @@ export { checkDecision, checkLane, checkPrefs } from './brain-checks'
 /** Desktop-only. Lazy acquisition keeps a failed startup retryable. */
 export function registerBrainHandlers(service: () => Promise<BrainService>): void {
   const api = async (): Promise<BrainApi> => (await service()).api
+  registerTidyHandlers(api)
   handle('brain:entities', async (_event, kind, offset, limit) => {
     if (kind !== null && !BRAIN_ENTITY_KINDS.includes(kind))
       throw new Error('Invalid Brain entity kind.')
@@ -49,11 +51,11 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
     (await api()).review(id(job), checkDecision(decision), revisionOf(revision)),
   )
   handle('brain:reset', async () => (await api()).reset())
-  handle('brain:merge', async (_event, source, target) => {
+  handle('brain:merge', async (_event, source, target, revision) => {
     const from = id(source)
     const to = id(target)
     if (from === to) throw new Error('Choose a different entity to merge into.')
-    return (await api()).merge(from, to)
+    return (await api()).merge(from, to, revisionOf(revision))
   })
   handle('brain:find', async (_event, query, limit) =>
     (await api()).find(text(query, 500), limitOf(limit)),
@@ -77,4 +79,25 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
   handle('brain:memory', async (_event, memory) => (await api()).memory(id(memory)))
   handle('brain:path', async (_event, from, to) => (await api()).path(id(from), id(to)))
   handle('brain:forget', async (_event, memory) => (await api()).forget(id(memory)))
+}
+
+function registerTidyHandlers(api: () => Promise<BrainApi>): void {
+  handle('brain:tidy', async (_event, kind, cursor, limit) => {
+    if (kind !== null && !BRAIN_TIDY_KINDS.includes(kind))
+      throw new Error('Invalid Brain Tidy kind.')
+    return (await api()).tidy(kind, cursorOf(cursor), limitOf(limit))
+  })
+  handle('brain:tidySuggestion', async (_event, value) => (await api()).tidySuggestion(id(value)))
+  handle('brain:tidyRun', async () => (await api()).tidyRun())
+  handle('brain:tidyCancel', async () => (await api()).tidyCancel())
+  handle('brain:tidyApply', async (_event, value, action, revision) =>
+    (await api()).tidyApply(id(value), checkBrainTidyAction(action), revisionOf(revision)),
+  )
+  handle('brain:tidyDismiss', async (_event, value, revision) =>
+    (await api()).tidyDismiss(id(value), revisionOf(revision)),
+  )
+  handle('brain:tidyChanges', async (_event, limit) => (await api()).tidyChanges(limitOf(limit)))
+  handle('brain:tidyUndo', async (_event, value, revision) =>
+    (await api()).tidyUndo(id(value), revisionOf(revision)),
+  )
 }

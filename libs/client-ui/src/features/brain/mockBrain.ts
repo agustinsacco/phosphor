@@ -1,3 +1,4 @@
+import { emptyBrainTidyPage } from '@shared/brain-tidy'
 import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import type {
   BrainExtractionView,
@@ -246,6 +247,8 @@ class MockBrain {
         this.state.prefs.review = true
         return this.status()
       case 'brain:merge':
+        if (args[2] !== this.state.revision)
+          throw new Error('Brain changed; refresh Tidy and try again.')
         this.explorer.merge(args[0] as string, args[1] as string)
         break
       case 'brain:forget':
@@ -262,7 +265,7 @@ class MockBrain {
         throw new Error(`Unknown Brain channel: ${channel}`)
     }
     this.state.revision++
-    return this.status()
+    return { ...this.status(), ...(channel === 'brain:merge' ? { operationId: null } : {}) }
   }
   private extraction(id: string): BrainExtractionView {
     const record = this.records.get(id)
@@ -289,6 +292,9 @@ class MockBrain {
   }
   call(channel: string, args: unknown[]): unknown {
     this.tick()
+    if (channel === 'brain:tidy') return emptyBrainTidyPage(this.state.revision)
+    if (channel === 'brain:tidyChanges') return { items: [], revision: this.state.revision }
+    if (channel.startsWith('brain:tidy')) throw new Error('Brain Tidy is not ready.')
     switch (channel) {
       case 'brain:history':
         return this.history.history(args[0] as number)

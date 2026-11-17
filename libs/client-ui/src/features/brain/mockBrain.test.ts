@@ -110,7 +110,11 @@ it('cancels jobs, rejects all, retries downloads, removes only while off, and re
 it('merges mentions and links, and auto-approves when review is off', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:merge', ['tom', 'rina'])
+  await call('brain:merge', [
+    'tom',
+    'rina',
+    ((await call('brain:status', [])) as BrainStatus).revision,
+  ])
   const rina = (await call('brain:entity', ['rina'])) as BrainEntityView
   expect(rina.entity.aliases).toContain('Tom Lee')
   await expect(call('brain:entity', ['tom'])).rejects.toThrow('Entity not found')
@@ -151,7 +155,11 @@ it('requeues a stale proposal and returns it to review after recomputing', async
   now = 6000
   await call('brain:status', [])
   const id = 'harbor-demo-review'
-  await call('brain:merge', ['tom', 'rina'])
+  await call('brain:merge', [
+    'tom',
+    'rina',
+    ((await call('brain:status', [])) as BrainStatus).revision,
+  ])
   await expect(call('brain:proposal', [id])).rejects.toThrow(
     'Brain changed; refreshing this review',
   )

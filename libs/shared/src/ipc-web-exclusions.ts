@@ -10,6 +10,14 @@ const localBrain = {
 
 /** Brain reads one machine's local database and runs its own lanes' models: Desktop only. */
 export const BRAIN_WEB = {
+  'brain:tidy': localBrain,
+  'brain:tidyApply': localBrain,
+  'brain:tidyCancel': localBrain,
+  'brain:tidyChanges': localBrain,
+  'brain:tidyDismiss': localBrain,
+  'brain:tidyRun': localBrain,
+  'brain:tidySuggestion': localBrain,
+  'brain:tidyUndo': localBrain,
   'brain:entities': localBrain,
   'brain:recent': localBrain,
   'brain:status': localBrain,

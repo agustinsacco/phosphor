@@ -96,7 +96,7 @@ it('checks explorer arguments: predicates, directions, hops, filters and cursors
 
 it('refuses merging an entity into itself', async () => {
   await expect(call('brain:merge', 'harbor', 'harbor')).rejects.toThrow('different entity')
-  await expect(call('brain:merge', 'harbor-2', 'harbor')).resolves.toBe('merged')
+  await expect(call('brain:merge', 'harbor-2', 'harbor', 0)).resolves.toBe('merged')
 })
 
 it('registers extraction inspection and rejects invalid job ids', async () => {
@@ -159,4 +159,19 @@ it('checks browse kind, offset and limit and recent limit before reading', async
   await expect(call('brain:entities', null, 0, 1)).resolves.toBe('entities')
   await expect(call('brain:recent', 50)).resolves.toBe('recent')
   expect(api.recent).toHaveBeenCalledWith(50)
+})
+
+it('checks Tidy arguments before invoking its API', async () => {
+  for (const args of [
+    ['unknown', null, 20],
+    [null, 1, 20],
+    [null, null, 51],
+  ])
+    await expect(call('brain:tidy', ...args)).rejects.toThrow('Invalid Brain')
+  await expect(call('brain:tidyApply', 's', { kind: 'merge' }, 0)).rejects.toThrow(
+    'Invalid Brain Tidy action',
+  )
+  await expect(call('brain:tidyDismiss', 's', -1)).rejects.toThrow('revision')
+  await expect(call('brain:tidyUndo', 'op', -1)).rejects.toThrow('revision')
+  await expect(call('brain:merge', 'a', 'b')).rejects.toThrow('revision')
 })

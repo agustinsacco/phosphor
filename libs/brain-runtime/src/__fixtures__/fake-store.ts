@@ -1,4 +1,9 @@
 import {
+  emptyBrainTidySummary,
+  emptyBrainTidyPage,
+  emptyBrainTidyCoverage,
+} from '@phosphor/shared/brain-tidy'
+import {
   DEFAULT_BRAIN_PREFS,
   type BrainExtractionRecord,
   type BrainJob,
@@ -248,8 +253,34 @@ export class FakeBrainStore implements BrainStore {
   path(): BrainPaths {
     return { paths: [], entities: [], memories: [] }
   }
-  merge(): void {
+  tidySummary = emptyBrainTidySummary
+  tidy = () => emptyBrainTidyPage(this.rev)
+  tidySuggestion(): never {
+    throw new Error('No suggestion')
+  }
+  tidyApply(): string | null {
     this.rev++
+    return 'operation'
+  }
+  tidyDismiss(): void {
+    this.rev++
+  }
+  tidyChanges = () => ({ items: [], revision: this.rev })
+  tidyUndo(): void {
+    this.rev++
+  }
+  sweep = () => ({
+    coverage: emptyBrainTidyCoverage(),
+    suggestions: 0,
+    folded: 0,
+    operationIds: [],
+  })
+  pendingPairs = () => []
+  recordVerdicts(): void {}
+  flag = () => 'flag'
+  merge(): string {
+    this.rev++
+    return 'operation'
   }
   forget(id: string): void {
     this.details = this.details.filter((d) => d.memory.id !== id)

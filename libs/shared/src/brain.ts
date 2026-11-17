@@ -1,3 +1,5 @@
+import type { BrainTidySummary } from './brain-tidy'
+
 /**
  * Brain: machine-local knowledge learned only from lanes the user queues. Private model calls
  * read the conversation in parts, the user approves what they propose, and every lane can recall it.
@@ -248,6 +250,7 @@ export interface BrainSnapshot {
   jobs: BrainJob[]
 }
 export interface BrainStatus extends BrainSnapshot {
+  tidy: BrainTidySummary
   supported: boolean
   embedding: BrainEmbeddingStatus
 }

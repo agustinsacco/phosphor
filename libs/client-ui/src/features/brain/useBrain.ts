@@ -88,7 +88,12 @@ export const useBrain = create<BrainState>(() => ({
   reread: (id) => update(() => window.phosphor.invoke('brain:reread', id)),
   retry: (id) => update(() => window.phosphor.invoke('brain:retry', id)),
   reset: () => update(() => window.phosphor.invoke('brain:reset'), 'Brain knowledge reset'),
-  merge: (source, target) => update(() => window.phosphor.invoke('brain:merge', source, target)),
+  merge: (source, target): Promise<boolean> =>
+    update(() => {
+      const status = useBrain.getState().status
+      if (!status) throw new Error('Load Brain before merging.')
+      return window.phosphor.invoke('brain:merge', source, target, status.revision)
+    }),
   forget: (id) => update(() => window.phosphor.invoke('brain:forget', id), 'Memory forgotten'),
 }))
 

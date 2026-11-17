@@ -68,7 +68,7 @@ it('queues a lane, completes review, refreshes search and exposes bounded explor
     entities: [],
     memories: [],
   })
-  await s.service.api.merge('a', 'b')
+  await s.service.api.merge('a', 'b', (await s.service.api.status()).revision)
   await s.service.api.forget('missing')
   expect(s.search.refreshes).toBe(3)
 })

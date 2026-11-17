@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain-tidy": {
+      "types": "./src/brain-tidy.ts",
+      "default": "./src/brain-tidy.ts"
+    },
     "./browser-image-clipboard": {
       "types": "./src/browser-image-clipboard.ts",
       "default": "./src/browser-image-clipboard.ts"
