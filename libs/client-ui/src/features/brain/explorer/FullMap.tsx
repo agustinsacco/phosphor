@@ -24,15 +24,20 @@ export function FullMap({
   onOpen: (visit: BrainVisit) => void
   onClose: () => void
 }): React.JSX.Element {
-  const [inspected, setInspected] = useState<string | null>(null)
+  const opened: BrainVisit | null = entityId
+    ? { kind: 'entity', id: entityId, label: label ?? entityId }
+    : null
+  // The selection starts on the profile's own entity and can be cleared like any other.
+  const [selected, setSelected] = useState<BrainVisit | null>(opened)
+  const inspected = selected && selected.id !== entityId ? selected.id : null
   return (
     <section
       aria-label="Full map"
       className="relative flex min-h-0 flex-1 flex-col"
       onKeyDown={(event) => {
-        if (!inspected || !pageKeyTarget(event, 'Escape')) return
+        if (!selected || !pageKeyTarget(event, 'Escape')) return
         event.preventDefault()
-        setInspected(null)
+        setSelected(null)
       }}
     >
       <header className="border-border flex items-center gap-2 border-b px-3 py-1.5">
@@ -40,22 +45,22 @@ export function FullMap({
           Full map
         </h2>
         <Button size="xs" onClick={onClose}>
-          Back to profile
+          {entityId ? 'Back to profile' : 'Close full map'}
         </Button>
       </header>
       <ExplorerGraph
-        entityId={inspected ?? entityId}
-        label={label}
+        entityId={selected?.id ?? null}
+        label={selected?.label}
         path={path}
-        onVisit={(visit) => setInspected(visit.id)}
-        onClear={() => setInspected(null)}
+        onVisit={setSelected}
+        onClear={() => setSelected(null)}
       />
       {inspected && (
         <Inspector
           key={inspected}
           id={inspected}
           onOpen={onOpen}
-          onClose={() => setInspected(null)}
+          onClose={() => setSelected(opened)}
         />
       )}
     </section>

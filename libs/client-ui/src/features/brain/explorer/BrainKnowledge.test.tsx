@@ -390,7 +390,7 @@ it('regression: at 1060px or less the start page still opens the full map', asyn
   expect(section('Map')).toBeNull()
   await click('Full map', section('Profile'))
   expect(section('Full map')).not.toBeNull()
-  await click('Back to profile')
+  await click('Close full map')
   expect(section('Recently learned')).not.toBeNull()
 })
 
