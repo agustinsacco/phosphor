@@ -1,0 +1,73 @@
+import { BRAIN_TIDY_KINDS, type BrainTidySuggestion } from '@shared/brain-tidy'
+import type { MockExplorer } from '../mockExplorer'
+
+/** Made-up pairs with separate records, including same-name people in different lanes. */
+export function seedMockTidy(
+  explorer: MockExplorer,
+  count: number,
+  now: number,
+): BrainTidySuggestion[] {
+  return Array.from({ length: count }, (_, index) => {
+    const kind = BRAIN_TIDY_KINDS[index % 4]!
+    const id = `tidy-${index}`
+    const subjects: BrainTidySuggestion['subjects'] = []
+    if (kind === 'same_entity') {
+      for (let side = 0; side < 2; side++) {
+        const entity = {
+          ...structuredClone(explorer.entities.find((e) => e.id === 'rina')!),
+          id: `${id}-${side}`,
+          label: side ? 'Rina' : 'Rina Okafor',
+          description: side
+            ? 'Harbor migration lead, mentioned in Kestrel planning.'
+            : 'Ledger migration owner.',
+        }
+        explorer.entities.push(entity)
+        const detail = structuredClone(explorer.details[1]!)
+        detail.memory.id = `${entity.id}-memory`
+        detail.memory.entityIds = [entity.id]
+        detail.memory.links = []
+        explorer.details.push(detail)
+        subjects.push({ type: 'entity', id: entity.id, label: entity.label })
+      }
+    } else {
+      for (let side = 0; side < (kind === 'flagged' ? 1 : 2); side++) {
+        const detail = structuredClone(explorer.details[0]!)
+        detail.memory.id = `${id}-${side}`
+        detail.memory.summary =
+          kind === 'conflict'
+            ? `Harbor Ledger invoices are sent ${side ? 'monthly' : 'weekly'}.`
+            : `Harbor Ledger keeps migration receipts${side ? ' for each release' : ''}.`
+        detail.memory.links = []
+        detail.quotes = [
+          { before: '', quote: detail.memory.summary, after: '', label: 'You · Ledger planning' },
+        ]
+        explorer.details.push(detail)
+        subjects.push({ type: 'memory', id: detail.memory.id, label: detail.memory.summary })
+      }
+    }
+    return {
+      id,
+      kind,
+      subjects,
+      source: kind === 'flagged' ? 'flag' : kind === 'conflict' ? 'check' : 'sweep',
+      state: 'open',
+      reason:
+        kind === 'flagged'
+          ? 'The lane verified that receipts are no longer retained.'
+          : kind === 'conflict'
+            ? 'The invoice schedules disagree.'
+            : 'These records share a name or assertion.',
+      verdict:
+        kind === 'conflict'
+          ? { kind: 'conflict', reason: 'The invoice schedules disagree.' }
+          : null,
+      model: kind === 'conflict' ? 'demo/harbor-model' : null,
+      flag:
+        kind === 'flagged'
+          ? { problem: 'outdated', sessionId: 'harbor-lane', title: 'Harbor planning' }
+          : null,
+      createdAt: now,
+      updatedAt: now,
+    }
+  })
+}

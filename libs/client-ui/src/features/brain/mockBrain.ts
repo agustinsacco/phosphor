@@ -1,4 +1,4 @@
-import { emptyBrainTidyPage } from '@shared/brain-tidy'
+import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
 import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import type {
   BrainExtractionView,
@@ -25,7 +25,12 @@ class MockBrain {
   private downloading: number | null = null
   private resets = 0
   private computedRevisions = new Map<string, number>()
-  constructor(private now: () => number) {
+  private tidy: MockTidy
+  constructor(
+    private now: () => number,
+    options: MockTidyOptions,
+  ) {
+    this.tidy = new MockTidy(this.explorer, this.state, now, options)
     this.state.jobs = [
       mockBrainJob({
         id: 'harbor-demo-review',
@@ -46,6 +51,8 @@ class MockBrain {
     }
   }
   private status(): BrainStatus {
+    this.tidy.tick()
+    this.state.tidy = this.tidy.summary()
     this.state.counts = {
       memories: this.explorer.details.length,
       entities: this.explorer.entities.length,
@@ -236,6 +243,7 @@ class MockBrain {
           args[2] as number,
         )
       case 'brain:reset':
+        this.tidy.reset()
         this.explorer.entities = []
         this.explorer.details = []
         this.records.clear()
@@ -246,12 +254,13 @@ class MockBrain {
         this.state.generation = `mock-generation-${++this.resets}`
         this.state.prefs.review = true
         return this.status()
-      case 'brain:merge':
-        if (args[2] !== this.state.revision)
-          throw new Error('Brain changed; refresh Tidy and try again.')
-        this.explorer.merge(args[0] as string, args[1] as string)
-        break
+      case 'brain:merge': {
+        const operationId = this.tidy.merge(args[0] as string, args[1] as string, args[2] as number)
+        this.state.revision++
+        return Object.assign(this.status(), { operationId })
+      }
       case 'brain:forget':
+        this.tidy.forget(args[0] as string)
         this.explorer.details = this.explorer.details.filter(({ memory }) => memory.id !== args[0])
         break
       case 'brain:retry': {
@@ -265,7 +274,7 @@ class MockBrain {
         throw new Error(`Unknown Brain channel: ${channel}`)
     }
     this.state.revision++
-    return { ...this.status(), ...(channel === 'brain:merge' ? { operationId: null } : {}) }
+    return this.status()
   }
   private extraction(id: string): BrainExtractionView {
     const record = this.records.get(id)
@@ -292,9 +301,7 @@ class MockBrain {
   }
   call(channel: string, args: unknown[]): unknown {
     this.tick()
-    if (channel === 'brain:tidy') return emptyBrainTidyPage(this.state.revision)
-    if (channel === 'brain:tidyChanges') return { items: [], revision: this.state.revision }
-    if (channel.startsWith('brain:tidy')) throw new Error('Brain Tidy is not ready.')
+    if (channel.startsWith('brain:tidy')) return this.tidy.call(channel, args)
     switch (channel) {
       case 'brain:history':
         return this.history.history(args[0] as number)
@@ -369,8 +376,9 @@ class MockBrain {
 /** Every local Brain channel; invented graph and clock-driven model/queue, no inference. */
 export function createMockBrain(
   now: () => number = () => Date.now(),
+  tidy: MockTidyOptions = {},
 ): (channel: string, args: unknown[]) => Promise<unknown> {
-  const mock = new MockBrain(now)
+  const mock = new MockBrain(now, tidy)
   return async (channel, args) => structuredClone(mock.call(channel, args))
 }
 export const mockBrainCall = createMockBrain()
