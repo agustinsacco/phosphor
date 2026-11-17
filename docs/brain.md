@@ -299,11 +299,11 @@ graph is always visible; there is no hide-graph control. The explorer trail surv
 - **Find route to…**: up to three shortest supported routes between two entities, at most four
   hops, each hop with its memory, highlighted in the graph (`brain:path`).
 - **Merge into…**: folds one entity into another after a confirmation. Names, keys, links and
-  memories move; the source is deleted and the merge is recorded. There is no split.
+  memories move; the source is deleted and the merge is journaled. Recent changes in Tidy can undo it.
 
 Views reload when Brain's revision or generation changes, and a failed load offers Retry.
 
-The two browse reads run in the search worker and use **schema v5 unchanged**:
+The two browse reads run in the search worker and keep the browse indexes introduced in **schema v5**:
 `brain:entities(kind | null, offset, limit)` accepts limits 1–100, returns entity/count rows,
 `more` and populated `kinds`. It walks `entities_connections` in connection-count descending,
 row-number ascending order, leaving out memory-less and merged-away rows. Kind filtering may
@@ -340,17 +340,63 @@ is pruned immediately.
 
 ## Storage
 
-`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 5, WAL) holds settings,
+`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 6, WAL) holds settings,
 the queue and its saved steps, proposals, extraction records, entities (names, aliases, keys),
-memories, the entities each memory mentions, relations (subject, predicate, object, the memory
-that states it), each link's and memory's quotes, evidence, and float and sign-bit vectors. Full
-text search covers memories, entity words and entity name trigrams. Version 4 upgrades in place:
-one transaction adds the jobs `replaces` column and indexes for lane memories and finished reads,
-then sets version 5. Knowledge, settings, jobs and records stay. Version 5 opens unchanged. Newer
-versions are refused and left untouched. Opening versions 0 to 3 deletes its knowledge, keeps
-settings with review on, and starts a new generation, the same routine as **Reset Brain
-knowledge**. The model lives under
-`<userData>/brain/embeddings`.
+memories, mentions, supported relations, citations, evidence, float/sign-bit vectors, Tidy
+suggestions, a bounded operation journal, and the saved sweep cursor and run checkpoint.
+Full text search covers memories, entity words and entity name trigrams.
+
+Versions 4 and 5 upgrade in place in one transaction. Version 4 first gains the jobs `replaces`
+column and lane-memory/finished-read indexes; both versions then gain the Tidy tables and
+indexes and become version 6. Knowledge, preferences, jobs and records stay. A failed upgrade
+rolls back completely. Version 6 opens without altering its run checkpoint; the runtime owns
+interrupted-run recovery. Newer versions are refused. Opening versions 0 to 3 deletes their
+knowledge, keeps preferences with review on, and starts a new generation, as **Reset Brain
+knowledge** does. The model lives under `<userData>/brain/embeddings`.
+
+### Tidy storage and local sweep
+
+Suggestions have indexed kind, source, state, subject ids, reasons, verdict, reader model and
+lane-flag fields. A canonical two-subject pair key does not depend on its suggestion kind;
+dismissed and cleared pairs stay suppressed. A flag key combines the memory and lane session:
+one open flag per memory, at most five open flags per lane, and a lane can flag a particular
+memory only once. Missing or superseded memories refuse flags without changing the revision.
+Known states are validated on write; unfamiliar future kinds are omitted from reads.
+
+An approval commits before sweeping its touched records. Entity merges and undo also sweep
+changed mention sets. A sweep failure emits a warning and does not roll back or report the
+saved approval/change as failed; running Tidy again retries local detection. Each whole-Brain
+sweep call walks at most 128 entity or memory rows from a saved numeric cursor and fixed pass
+watermarks. Coverage reports records visited, totals, capped buckets and completion, not an
+exhaustive comparison of every pair. Name/alias buckets inspect at most 16 candidates, eight
+names per entity; a one-word person name also offers full-name token matches. The sweep never
+merges entities automatically. Near-memory detection checks at most 32 candidates for each of
+four mentioned entities and requires matching project scope/branch and cosine at least 0.92.
+Similarity only raises a suggestion. Two memories supporting one link are not a defect.
+
+Only exact repeats fold automatically: the folded sentence, type, project scope, branch,
+validity dates and complete mentioned-entity set must match. Disputed or historical memories
+are not automatically folded. Fingerprints are indexed and updated when mentions change;
+upgrades create the index empty and the sweep fills it incrementally, not during startup.
+Folding preserves the survivor's sentence and unions mentions, citations and supported links;
+a copied quote with the same entry id is not independent support. Different scopes, branches
+or validity periods cannot be folded.
+
+Every merge, fold, dispute and replacement records a reversible operation. The newest 200
+operations retain versioned, validated before-images of changed source rows, with an expected
+after-row digest; float vectors use base64 blobs. Counts, FTS indexes and sign bits are rebuilt,
+not journaled. Undo restores only the operation's contributions and refuses when later edits
+prevent a clean restoration; new survivor facts stay. Search's normal refresh reloads vectors
+restored below its previous watermark. Undo drops its before-images immediately but retains
+the operation's one-line record. Undo also remembers the pair as dismissed, including automatic
+folds and manual entity merges, so the next sweep does not repeat the undone change.
+
+Forget remains permanent. It deletes suggestions about that memory, redacts its journal rows
+and preserves only safe operation ids/labels; an operation whose undo would restore forgotten
+text becomes unavailable. A merge can still be undone for its other memories. Reset erases
+all Tidy state as well as the knowledge. These guarantees do not change existing proposal and
+extraction-record retention: source transcripts retained for finished reads can still contain
+the original statement until those records are removed under the retention rules above.
 
 - Entities (`BRAIN_ENTITY_KINDS`): person, team, organization, project, component, document,
   concept, event. Shared across projects.
@@ -436,5 +482,5 @@ project's memories as context, and to report a dispute rather than pick a side.
 
 - Extraction quality is the reader model's. Review catches a wrong link or identity; afterwards,
   Forget and Merge into… fix it.
-- A wrong merge cannot be undone except by Reset.
+- A merge or fold can be undone while its journal is retained and later changes permit a clean restoration. Forget is never undone.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.
