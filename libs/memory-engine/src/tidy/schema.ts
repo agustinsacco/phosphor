@@ -36,7 +36,7 @@ CREATE TABLE tidy_sweep(singleton INTEGER PRIMARY KEY CHECK(singleton=1), phase 
 INSERT INTO tidy_sweep VALUES(1,'entities',0,0,0,0,0,0,0,0,NULL,NULL);
 CREATE TABLE tidy_run(singleton INTEGER PRIMARY KEY CHECK(singleton=1), state TEXT NOT NULL,
   done INTEGER NOT NULL, total INTEGER NOT NULL, found INTEGER NOT NULL, error TEXT, model TEXT,
-  started_at INTEGER, finished_at INTEGER);
-INSERT INTO tidy_run VALUES(1,'idle',0,0,0,NULL,NULL,NULL,NULL);
+  started_at INTEGER, finished_at INTEGER, folded INTEGER NOT NULL DEFAULT 0, message TEXT);
+INSERT INTO tidy_run VALUES(1,'idle',0,0,0,NULL,NULL,NULL,NULL,0,NULL);
 PRAGMA user_version=6;
 `

@@ -53,18 +53,39 @@ it('persists the run checkpoint faithfully and leaves interrupted recovery to th
   const { store, path } = searchFixture()
   const checkpoint = {
     state: 'checking' as const,
-    done: 12,
+    checked: 12,
     total: 40,
-    found: 3,
+    suggestions: 3,
+    folded: 2,
+    message: 'Checking small clusters.',
     error: null,
-    model: 'harbor/reader',
     startedAt: 1,
     finishedAt: null,
   }
-  store.saveTidyRunState(checkpoint)
+  store.writeRun(checkpoint)
   const reopened = openBrainStore({ path, Database: DatabaseSync })
   try {
-    expect(reopened.tidyRunState()).toEqual(checkpoint)
+    expect(reopened.readRun()).toEqual(checkpoint)
+    for (const state of [
+      'queued',
+      'sweeping',
+      'checking',
+      'done',
+      'failed',
+      'cancelled',
+    ] as const) {
+      const value = {
+        ...checkpoint,
+        state,
+        finishedAt: 9,
+        error: 'Invented transport failure',
+        message: 'Retry available.',
+      }
+      reopened.writeRun(value)
+      expect(reopened.readRun()).toEqual(value)
+    }
+    reopened.reset()
+    expect(reopened.readRun()).toBeNull()
   } finally {
     reopened.close()
   }
