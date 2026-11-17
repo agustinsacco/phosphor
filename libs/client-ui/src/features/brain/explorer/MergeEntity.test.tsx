@@ -81,8 +81,8 @@ async function answer() {
 it('confirms descriptions and memory counts for both records, then offers Undo', async () => {
   await render()
   const prompt = usePromptStore.getState().requests[0]!
-  expect(prompt.message).toContain('Tom Lee · 1 memories: Ledger support lead')
-  expect(prompt.message).toContain('Rina Okafor · 1 memories: Ledger migration owner')
+  expect(prompt.message).toContain('Tom Lee · 1 memory: Ledger support lead')
+  expect(prompt.message).toContain('Rina Okafor · 1 memory: Ledger migration owner')
   expect(prompt.message).toContain('You can Undo')
   expect(prompt.message).not.toContain('cannot be undone')
   await answer()

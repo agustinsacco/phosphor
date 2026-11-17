@@ -172,3 +172,27 @@ it('removes Tidy notices when Brain is switched off and re-enabling establishes 
   observe(newer)
   expect(notices()).toEqual([])
 })
+it('counts one repeat, one thing to tidy and a run that folded nothing in plain words', async () => {
+  const observe = createTidyNotices(),
+    status = enabled()
+  observe(status)
+  observe({ ...status, tidy: { ...status.tidy, automaticFolds: 1, newestAutomaticFoldAt: 10 } })
+  expect(notices()[0]!.message).toBe('Brain folded 1 exact repeat')
+  const folded = {
+    ...status,
+    tidy: { ...status.tidy, automaticFolds: 1, newestAutomaticFoldAt: 10 },
+  }
+  observe({ ...folded, tidy: { ...folded.tidy, open: 1, newestSuggestionAt: 20 } })
+  expect(notices().find((n) => n.key === 'brain:tidy')!.message).toBe('Brain has 1 thing to tidy')
+  list.mockResolvedValue({
+    ...emptyBrainTidyPage(),
+    run: { ...(await list()).run!, suggestions: 1, folded: 0 },
+  })
+  const ran = { ...folded, tidy: { ...folded.tidy, open: 1, newestSuggestionAt: 20 } }
+  observe({ ...ran, tidy: { ...ran.tidy, running: true } })
+  observe(ran)
+  await flush()
+  expect(notices().find((n) => n.key === 'brain:tidy:finished')!.message).toBe(
+    'Brain Tidy found 1 thing to tidy.',
+  )
+})

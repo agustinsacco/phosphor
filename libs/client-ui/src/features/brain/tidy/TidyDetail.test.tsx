@@ -205,7 +205,9 @@ it('labels an unknown flag title as unverified plain text', async () => {
   await render(3, (d) => {
     d.suggestion.flag!.title = '<b>Kestrel review</b>'
   })
-  expect(container.textContent).toContain('A lane calling itself <b>Kestrel review</b>')
+  expect(container.textContent).toContain(
+    'A lane calling itself <b>Kestrel review</b> says this is outdated.',
+  )
   expect(container.querySelector('b')).toBeNull()
 })
 
@@ -241,7 +243,30 @@ it('uses the known lane name instead of the caller-supplied flag title', async (
   await render(3, (d) => {
     d.suggestion.flag!.title = 'Untrusted Kestrel title'
   })
-  expect(container.textContent).toContain('Harbor verified title')
+  expect(container.textContent).toContain('Harbor verified title says this is outdated.')
   expect(container.textContent).not.toContain('Untrusted Kestrel title')
   expect(container.textContent).not.toContain('A lane calling itself')
+})
+
+it('offers only Forget and Keep on a flag, which has no pair to call different', async () => {
+  await render(3)
+  const labels = [...container.querySelectorAll('button')].map((b) => b.textContent)
+  expect(labels).toContain('Forget')
+  expect(labels).toContain('Keep')
+  expect(labels).not.toContain('Not the same')
+})
+it.each([
+  ['wrong', 'says this is wrong.'],
+  ['duplicate', 'says this is a duplicate.'],
+] as const)('says a %s flag in a sentence', async (problem, sentence) => {
+  await render(3, (d) => {
+    d.suggestion.flag!.problem = problem
+  })
+  expect(container.textContent).toContain(`A lane calling itself Harbor planning ${sentence}`)
+})
+it('counts one memory of an entity in the singular', async () => {
+  await render(0, (d) => {
+    if (d.subjects[0]?.type === 'entity') d.subjects[0].value.entity.memories = 1
+  })
+  expect(container.textContent).toMatch(/· 1 memory(?!\w)/)
 })
