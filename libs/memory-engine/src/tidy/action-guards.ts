@@ -74,6 +74,7 @@ export function actionRefusal(
   if (kind === 'keep' || kind === 'forget') return row.kind === 'flagged' ? null : mismatch
   if (!row.second_id || row.first_id === row.second_id) return mismatch
   if (kind === 'merge') return row.subject_type === 'entity' ? null : mismatch
+  if (kind === 'unname') return 'Removing a shared name is not available yet.'
   if (row.subject_type !== 'memory') return mismatch
   const first = one<{ n: number }>(ctx, 'SELECT n FROM memories WHERE id=?', row.first_id)!.n
   const second = one<{ n: number }>(ctx, 'SELECT n FROM memories WHERE id=?', row.second_id)!.n

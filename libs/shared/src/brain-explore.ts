@@ -27,15 +27,19 @@ export interface BrainGraph {
   centerId: string | null
   truncated: boolean
 }
-/** One neighbour reached by one link. */
+/** One neighbour through one predicate and direction, however many memories state it. */
 export interface BrainConnection {
   entity: BrainEntitySummary
+  /** The newest link to this neighbour through this predicate and direction. */
   link: BrainLink
+  /** How many memories support this connection. */
+  supports: number
 }
 /** Neighbours through one predicate in one direction: `out` reads entity → neighbour. */
 export interface BrainConnectionGroup {
   predicate: BrainPredicate
   direction: 'out' | 'in'
+  /** Distinct neighbours, not supporting rows. */
   total: number
   items: BrainConnection[]
   /** Cursor for `brain:connections`, null when `items` is everything. */
@@ -47,8 +51,10 @@ export interface BrainConnectionPage {
 }
 export interface BrainEntityView {
   entity: BrainEntitySummary
-  /** Lanes its memories came from, newest first. */
-  sources: BrainOrigin[]
+  /** Lanes its current memories came from, newest first, with how many each holds. */
+  sources: (BrainOrigin & { memories: number })[]
+  /** Newest observation among its current memories. */
+  lastLearnedAt: number | null
   groups: BrainConnectionGroup[]
   memoryCounts: Record<BrainMemoryType, number>
   /** Labels of entities merged into this one. */
@@ -94,11 +100,20 @@ export interface BrainPaths {
   memories: BrainMemory[]
 }
 
-/** Browse uses v5's connection rank and its existing (including historical) mention count. */
+/**
+ * Browse order. `connected` is v5's connection rank; `recent` is the newest observation among an
+ * entity's current memories (none last); `name` is the label without case, then id.
+ */
+export const BRAIN_ENTITY_SORTS = ['connected', 'recent', 'name'] as const
+export type BrainEntitySort = (typeof BRAIN_ENTITY_SORTS)[number]
 export interface BrainEntityPage {
   items: { entity: BrainEntity; memories: number }[]
   more: boolean
   kinds: BrainEntityKind[]
+  /** Entities per populated kind, whatever the kind filter. */
+  counts: Partial<Record<BrainEntityKind, number>>
+  /** Entities matching the kind filter. */
+  total: number
 }
 export interface BrainRecentMemory {
   id: string

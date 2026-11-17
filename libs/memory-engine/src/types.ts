@@ -1,4 +1,5 @@
 import type { BrainTidyStore } from './tidy/types'
+import type { BrainEntitySort } from '@phosphor/shared/brain-explore'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainConnectionPage,
@@ -160,7 +161,12 @@ export interface Neighbour {
  * any process; `refresh` picks up rows committed since the last call.
  */
 export interface BrainSearch {
-  entities(kind: BrainEntityKind | null, offset: number, limit: number): BrainEntityPage
+  entities(
+    kind: BrainEntityKind | null,
+    offset: number,
+    limit: number,
+    sort: BrainEntitySort,
+  ): BrainEntityPage
   recent(limit: number): BrainRecentMemories
   /** Coalesced, chunked load; calls keep using the previous complete index while it refreshes. */
   refresh(): Promise<void>

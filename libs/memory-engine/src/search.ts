@@ -139,7 +139,7 @@ export function openBrainSearch(options: Pick<OpenStoreOptions, 'path' | 'Databa
   return {
     refresh: () => indexes.refresh(),
     ready: () => indexes.loaded,
-    entities: (kind, offset, limit) => entities(ctx, kind, offset, limit),
+    entities: (kind, offset, limit, sort) => entities(ctx, kind, offset, limit, sort),
     recent: (limit) => recent(ctx, limit),
     nearestEntities: (vectors, k) =>
       vectors.map((vector) => (indexes.loaded ? indexes.entities.nearest(vector, k) : [])),

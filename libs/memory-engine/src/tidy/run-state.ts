@@ -15,9 +15,9 @@ const states = [
 export function readRun(ctx: Context): BrainTidyRun | null {
   const row = one<BrainTidyRun>(
     ctx,
-    `SELECT state,done AS checked,total,found AS suggestions,folded,error,message,started_at AS startedAt,finished_at AS finishedAt FROM tidy_run WHERE singleton=1`,
+    `SELECT state,done AS checked,total,found AS suggestions,folded,error,message,model,started_at AS startedAt,finished_at AS finishedAt FROM tidy_run WHERE singleton=1`,
   )!
-  return states.includes(row.state) ? row : null
+  return states.includes(row.state) ? { ...row, settled: 0 } : null
 }
 export function writeRun(ctx: Context, value: BrainTidyRun): void {
   if (

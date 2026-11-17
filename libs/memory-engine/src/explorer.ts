@@ -68,6 +68,7 @@ function connectionPage(
       predicate,
       memoryId: row.memoryId,
     },
+    supports: 1,
   }))
   const last = selected.at(-1)
   return { items, next: rows.length > limit && last ? cursor([last.observed_at, last.n]) : null }
@@ -114,9 +115,15 @@ export function entity(ctx: Context, id: string): BrainEntityView {
     groups,
     sources: all(
       ctx,
-      'SELECT m.origin_session AS sessionId,m.origin_title AS title FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.origin_session IS NOT NULL GROUP BY m.origin_session ORDER BY MAX(m.observed_at) DESC LIMIT 50',
+      'SELECT m.origin_session AS sessionId,m.origin_title AS title,COUNT(*) AS memories FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.origin_session IS NOT NULL GROUP BY m.origin_session ORDER BY MAX(m.observed_at) DESC LIMIT 50',
       n,
     ),
+    lastLearnedAt:
+      one<{ newest: number | null }>(
+        ctx,
+        "SELECT MAX(m.observed_at) AS newest FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed')",
+        n,
+      )?.newest ?? null,
     memoryCounts: Object.fromEntries(
       BRAIN_MEMORY_TYPES.map((type) => [type, counts.find((row) => row.type === type)?.total ?? 0]),
     ) as BrainEntityView['memoryCounts'],

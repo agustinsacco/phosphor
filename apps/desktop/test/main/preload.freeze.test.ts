@@ -186,7 +186,7 @@ it.each(subscriptions)(
   },
 )
 
-it('forwards the reviewed Tidy channels and revision-bearing merge unchanged', async () => {
+it('forwards the reviewed Tidy channels and revision-bearing entity edits unchanged', async () => {
   electron.ipcRenderer.invoke.mockResolvedValue({})
   await api.invoke('brain:tidy', null, null, 20)
   await api.invoke('brain:tidySuggestion', 'suggestion')
@@ -197,6 +197,9 @@ it('forwards the reviewed Tidy channels and revision-bearing merge unchanged', a
   await api.invoke('brain:tidyChanges', 20)
   await api.invoke('brain:tidyUndo', 'operation', 4)
   await api.invoke('brain:merge', 'rina', 'rina-okafor', 4)
+  await api.invoke('brain:describe', 'harbor', 'Harbor billing system', 5)
+  await api.invoke('brain:removeName', 'kestrel', 'Harbor', 6)
+  await api.invoke('brain:split', 'tom', ['m1'], { label: 'Tom Lee', kind: 'person' }, 7)
   expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
     ['brain:tidy', null, null, 20],
     ['brain:tidySuggestion', 'suggestion'],
@@ -207,6 +210,9 @@ it('forwards the reviewed Tidy channels and revision-bearing merge unchanged', a
     ['brain:tidyChanges', 20],
     ['brain:tidyUndo', 'operation', 4],
     ['brain:merge', 'rina', 'rina-okafor', 4],
+    ['brain:describe', 'harbor', 'Harbor billing system', 5],
+    ['brain:removeName', 'kestrel', 'Harbor', 6],
+    ['brain:split', 'tom', ['m1'], { label: 'Tom Lee', kind: 'person' }, 7],
   ])
 })
 

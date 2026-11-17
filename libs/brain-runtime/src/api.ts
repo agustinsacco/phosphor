@@ -202,7 +202,7 @@ function readApi({
   | 'path'
 > {
   return {
-    entities: (kind, offset, limit) => search.entities(kind, offset, limit),
+    entities: (kind, offset, limit, sort) => search.entities(kind, offset, limit, sort),
     recent: (limit) => search.recent(limit),
     find: async (query, limit) => {
       const rows = await options.embeddings.embed([query], 'query').catch(() => [])

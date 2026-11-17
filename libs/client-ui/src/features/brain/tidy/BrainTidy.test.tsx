@@ -365,6 +365,8 @@ it.each(['done', 'cancelled', 'failed'] as const)(
       finishedAt: 2,
       message: 'Checking 2 of 8',
       error: state === 'failed' ? 'Reader unavailable.' : null,
+      model: null,
+      settled: 0,
     }
     list.mockResolvedValue(page)
     await render()
@@ -399,6 +401,8 @@ it.each(['skipped', 'interrupted'] as const)(
       finishedAt: 2,
       message: 'A reason with no magic words.',
       error: state === 'interrupted' ? 'A stopped run.' : null,
+      model: null,
+      settled: 0,
     }
     list.mockResolvedValue(page)
     await render()

@@ -254,17 +254,17 @@ it('marks forgotten links removed in a finished mocked extraction', async () => 
 
 it('serves both browse reads with paging, kinds and memories learned from an approved mock read', async () => {
   const call = createMockBrain()
-  const all = await call('brain:entities', [null, 0, 1])
+  const all = await call('brain:entities', [null, 0, 1, 'connected'])
   expect(all).toMatchObject({
     items: [{ entity: { id: 'harbor' }, memories: expect.any(Number) }],
     more: true,
     kinds: expect.arrayContaining(['person', 'organization']),
   })
-  expect(await call('brain:entities', ['person', 0, 1])).toMatchObject({
+  expect(await call('brain:entities', ['person', 0, 1, 'connected'])).toMatchObject({
     items: [{ entity: { kind: 'person' } }],
     more: true,
   })
-  expect(await call('brain:entities', ['person', 1, 1])).toMatchObject({
+  expect(await call('brain:entities', ['person', 1, 1, 'connected'])).toMatchObject({
     items: [{ entity: { kind: 'person' } }],
     more: false,
   })

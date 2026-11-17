@@ -29,7 +29,7 @@ function BrowsePages({
 }): React.JSX.Element {
   const [offset, setOffset] = useState(0)
   const load = useCallback(
-    () => window.phosphor.invoke('brain:entities', kind || null, offset, 20),
+    () => window.phosphor.invoke('brain:entities', kind || null, offset, 20, 'connected'),
     [kind, offset],
   )
   const { data, error, retry } = useBrainResource(load)
