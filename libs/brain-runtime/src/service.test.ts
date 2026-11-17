@@ -2,6 +2,7 @@ import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
+import { NO_MODEL } from './tidy/check'
 import { pipelineSetup } from './__fixtures__/pipeline'
 import type { BrainMemoryDetail } from '@phosphor/shared/brain-explore'
 import type { BrainService } from './types'
@@ -219,6 +220,10 @@ it('binds Tidy to the store: a run persists its progress and a lane flag reaches
   ).toMatchObject({ status: 'filed' })
   expect(flagged).toHaveBeenCalledOnce()
   await s.service.api.tidyRun()
-  await vi.waitFor(() => expect(s.store.readRun()?.state).toBe('done'))
-  expect((await s.service.api.tidy(null, null, 20)).run).toMatchObject({ state: 'done' })
+  // No read has finished in this fake store, so the model check is skipped with its reason.
+  await vi.waitFor(() => expect(s.store.readRun()?.state).toBe('skipped'))
+  expect((await s.service.api.tidy(null, null, 20)).run).toMatchObject({
+    state: 'skipped',
+    message: NO_MODEL,
+  })
 })
