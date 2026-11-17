@@ -20,6 +20,8 @@ it.skipIf(process.env.BRAIN_EXPLORER_BENCH !== '1')(
       const count = Number(process.env.BRAIN_BENCH_MEMORIES ?? 1_000_000)
       const entities = Math.max(100, Math.floor(count / 10))
       buildBenchmark(db, entities, count)
+      // A real Brain file is checkpointed; reading through a fresh 5 GB WAL measures the build.
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
       const deep = (id: string, pages: number) => () => {
         let next: string | null = null
         for (let i = 0; i < pages; i++) next = store.connections(id, 'part_of', 'in', next).next
@@ -41,7 +43,13 @@ it.skipIf(process.env.BRAIN_EXPLORER_BENCH !== '1')(
       const leaf = store.connections('entity-1234', 'part_of', 'out', null)
       expect(leaf.items).toHaveLength(1)
       expect(leaf.items[0]).toMatchObject({ entity: { id: 'entity-1' }, supports: 10 })
-      expect(store.entity('entity-1').groups[0]!.items).toHaveLength(8)
+      // The hub's one parent, stated ten times, and the first page of its 50,000 children.
+      const groups = store.entity('entity-1').groups
+      expect(groups.map((g) => [g.direction, g.items.length])).toEqual([
+        ['out', 1],
+        ['in', 8],
+      ])
+      expect(groups[0]!.items[0]!.supports).toBe(10)
     } finally {
       db.close()
       store.close()
