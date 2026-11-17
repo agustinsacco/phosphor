@@ -1,3 +1,4 @@
+import { afterChange, afterOperation } from './tidy/hooks'
 import { mergeEntities } from './tidy/operations'
 import { tidyStore } from './tidy/store'
 import { randomUUID } from 'node:crypto'
@@ -71,7 +72,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     propose: (value) => propose(ctx, value),
     proposal: (id) => proposal(ctx, id),
     storedProposal: (id) => storedProposal(ctx, id),
-    review: (id, decision, expected) => review(ctx, id, decision, expected),
+    review: (id, decision, expected) => afterChange(ctx, review(ctx, id, decision, expected)),
     overview: (limit) => graph.overview(ctx, limit),
     neighbourhood: (id, hops, limit) => graph.neighbourhood(ctx, id, hops, limit),
     path: (from, to) => graph.path(ctx, from, to),
@@ -80,7 +81,11 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
       explorer.connections(ctx, id, predicate, direction, cursor),
     entityMemories: (id, filter, cursor) => explorer.entityMemories(ctx, id, filter, cursor),
     memory: (id) => memory(ctx, id),
-    merge: (source, target, expected) => mergeEntities(ctx, source, target, expected),
+    merge: (source, target, expected) => {
+      const operation = mergeEntities(ctx, source, target, expected)
+      afterOperation(ctx, operation)
+      return operation
+    },
     forget: (id) => forget(ctx, id),
     reset: () => reset(ctx),
     close: () => ctx.db.close(),

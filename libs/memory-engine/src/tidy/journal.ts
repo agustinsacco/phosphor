@@ -1,3 +1,4 @@
+import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision, revision } from '../prefs'
@@ -170,6 +171,7 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
     const names = deltas.filter((d) => d.table === 'entity_names').map((d) => Number(d.image.key.n))
     restore(ctx, deltas)
     rebuild(ctx, selection, names)
+    fingerprintMemories(ctx, selection.memories)
     suppressPair(ctx, op.subject_type, op.first_id, op.second_id, op.suggestion_id)
     run(ctx, 'UPDATE tidy_operations SET undone_at=? WHERE id=?', ctx.now(), id)
     run(ctx, 'DELETE FROM tidy_operation_rows WHERE operation_id=?', id)

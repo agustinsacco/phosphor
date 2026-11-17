@@ -1,8 +1,8 @@
-import { all, one, type Context } from '../database'
+import { all, one, run, type Context } from '../database'
 import { cosine, decodeVector } from '../vectors'
 import { writeFingerprint } from './fingerprints'
 import { changeMemories } from './operations'
-import { offer, pairKnown } from './suggestions'
+import { offer, pairKnown, pairKey, type SuggestionRow } from './suggestions'
 
 export function sweepMemory(
   ctx: Context,
@@ -23,7 +23,19 @@ export function sweepMemory(
   )
   if (exact.length > 16) result.capped++
   for (const peer of exact.slice(0, 16)) {
-    if (peer.n === n || pairKnown(ctx, 'memory', row.id, peer.id)) continue
+    if (peer.n === n) continue
+    const previous = one<SuggestionRow>(
+      ctx,
+      'SELECT * FROM tidy_suggestions WHERE pair_key=?',
+      pairKey('memory', row.id, peer.id),
+    )
+    if (
+      previous &&
+      (previous.state !== 'open' ||
+        previous.kind !== 'same_memory' ||
+        (previous.verdict !== null && previous.verdict !== 'same'))
+    )
+      continue
     if (
       one(
         ctx,
@@ -37,7 +49,16 @@ export function sweepMemory(
       continue
     const source = n > peer.n ? row.id : peer.id,
       target = n > peer.n ? peer.id : row.id
-    result.operations.push(changeMemories(ctx, source, target, 'fold', { automatic: true }))
+    result.operations.push(
+      changeMemories(ctx, source, target, 'fold', { automatic: true, suggestionId: previous?.id }),
+    )
+    if (previous)
+      run(
+        ctx,
+        "UPDATE tidy_suggestions SET state='applied',updated_at=? WHERE id=?",
+        ctx.now(),
+        previous.id,
+      )
     return result
   }
   return nearMemory(ctx, n, row, result)

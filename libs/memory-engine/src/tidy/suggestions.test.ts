@@ -75,7 +75,7 @@ it('accepted merges dismiss their pair on undo; missing subjects close and unkno
   )!
   store.tidyUndo(operation, store.revision())
   store.sweep({ entityIds: ['rina-1', 'rina-2'], memoryIds: [] })
-  expect(store.tidy(null, null, 20).items).toEqual([])
+  expect(store.tidy('same_entity', null, 20).items).toEqual([])
   const flag = store.flag({
     memoryId: 'memory-1',
     sessionId: 'harbor',
@@ -84,7 +84,7 @@ it('accepted merges dismiss their pair on undo; missing subjects close and unkno
     problem: 'outdated',
   })
   db.prepare("UPDATE tidy_suggestions SET kind='future_kind' WHERE id=?").run(flag.suggestionId)
-  expect(store.tidy(null, null, 20).items).toEqual([])
+  expect(store.tidy('flagged', null, 20).items).toEqual([])
   db.prepare("UPDATE tidy_suggestions SET kind='flagged' WHERE id=?").run(flag.suggestionId)
   db.exec('DELETE FROM memory_words WHERE rowid=1; DELETE FROM memories WHERE n=1')
   expect(store.tidy(null, null, 20).items).toEqual([])

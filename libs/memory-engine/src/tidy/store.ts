@@ -1,3 +1,4 @@
+import { afterOperation, afterUndo } from './hooks'
 import type { Context } from '../database'
 import type { BrainTidyStore } from './types'
 import { tidyRunState, saveTidyRunState } from './run-state'
@@ -15,11 +16,15 @@ export function tidyStore(ctx: Context): BrainTidyStore {
     tidySummary: () => summary(ctx),
     tidy: (kind, cursor, limit) => page(ctx, kind, cursor, limit),
     tidySuggestion: (id) => detail(ctx, id),
-    tidyApply: (id, action, revision) => apply(ctx, id, action, revision),
+    tidyApply: (id, action, revision) => {
+      const operation = apply(ctx, id, action, revision)
+      afterOperation(ctx, operation)
+      return operation
+    },
     tidyDismiss: (id, revision) => dismiss(ctx, id, revision),
     tidyChanges: (limit) => changes(ctx, limit),
     tidyUndo: (id, revision) => {
-      undoOperation(ctx, id, revision)
+      afterUndo(ctx, undoOperation(ctx, id, revision))
     },
     sweep: (input) => sweep(ctx, input),
     pendingPairs: (limit) => pendingPairs(ctx, limit),

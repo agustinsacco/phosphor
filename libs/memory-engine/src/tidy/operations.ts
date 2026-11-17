@@ -98,7 +98,5 @@ export function changeMemories(
   return id
 }
 export function undoOperation(ctx: Context, id: string, expected: number): Selection {
-  const selection = undo(ctx, id, expected)
-  fingerprintMemories(ctx, selection.memories)
-  return selection
+  return undo(ctx, id, expected)
 }

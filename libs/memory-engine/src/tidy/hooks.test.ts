@@ -43,6 +43,7 @@ it('entity merges sweep changed mention sets, which can expose an exact memory r
   data.memories = [data.memories[0]!]
   data.memoryVectors = [vector()]
   approve(store, data)
+  data.computedRevision = store.revision()
   approve(store, { ...data, origin: { sessionId: 'ledger', title: 'Ledger' } })
   const people = store.overview(20).nodes.filter((e) => e.kind === 'person')
   const projects = store.overview(20).nodes.filter((e) => e.kind === 'component')
