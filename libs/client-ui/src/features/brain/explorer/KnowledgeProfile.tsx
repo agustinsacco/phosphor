@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { BrainEntityView, BrainLink } from '@shared/brain'
 import { Button } from '@/components/form'
-import type { ContextMenuItem } from '@/components/ContextMenu'
+import { EntityEditDialog, profileMenu, type EntityEdit } from './EntityEdits'
 import { useBrain } from '../useBrain'
 import { useBrainResource } from '../useBrainResource'
 import { useEntityView } from './useEntityView'
@@ -27,8 +27,6 @@ export interface ProfileProps {
   onLit: (ids: string[] | null) => void
   onOpenRead: (jobId: string) => void
   onFullMap: () => void
-  /** Extra ⋯ items for this entity (split, rename, describe) once they exist. */
-  menu?: (view: BrainEntityView) => ContextMenuItem[]
 }
 
 /** The middle pane of Knowledge: a profile that reads like a page, with its own tabs. */
@@ -64,7 +62,6 @@ function Profile({
   onLit,
   onOpenRead,
   onFullMap,
-  menu,
 }: ProfileProps & { view: BrainEntityView }): React.JSX.Element {
   const saving = useBrain((s) => s.saving)
   const state = useProfileState(visit.memoryId, connectionsRequest)
@@ -80,10 +77,6 @@ function Profile({
     onOpenRead,
     onMemory: (id, label) => onVisit({ kind: 'memory', id, label }),
   }
-  const items: ContextMenuItem[] = [
-    ...(menu?.(view) ?? []),
-    { label: 'Show on full map', onClick: onFullMap, separatorAbove: !!menu },
-  ]
   return (
     <article aria-label={view.entity.label} className="flex min-h-0 flex-1 flex-col">
       <ProfileHeader
@@ -97,7 +90,7 @@ function Profile({
           onPath(null)
           setTool(next)
         }}
-        menu={items}
+        menu={profileMenu(view, state.setEdit, onFullMap)}
         saving={saving}
       />
       <div
@@ -123,6 +116,9 @@ function Profile({
           />
         )}
       </div>
+      {state.edit && (
+        <EntityEditDialog edit={state.edit} view={view} onClose={() => state.setEdit(null)} />
+      )}
     </article>
   )
 }
@@ -138,12 +134,13 @@ function profileTabs(view: BrainEntityView, map: boolean): { value: ProfileTab; 
   ]
 }
 
-/** Tab, memory filters, the open memory and the route or merge tool, for one profile. */
+/** Tab, memory filters, the open memory, the route or merge tool and an open edit dialog. */
 function useProfileState(memoryId: string | undefined, connectionsRequest: number) {
   const [tab, setTab] = useState<ProfileTab>('memories')
   const [filters, setFilters] = useState<MemoryFilters>(NO_MEMORY_FILTERS)
   const [openId, setOpenId] = useState<string | null>(memoryId ?? null)
   const [tool, setTool] = useState<ProfileTool | null>(null)
+  const [edit, setEdit] = useState<EntityEdit | null>(null)
   useEffect(() => {
     if (!memoryId) return
     setOpenId(memoryId)
@@ -153,7 +150,7 @@ function useProfileState(memoryId: string | undefined, connectionsRequest: numbe
   useEffect(() => {
     if (connectionsRequest) setTab('connections')
   }, [connectionsRequest])
-  return { tab, setTab, filters, setFilters, openId, setOpenId, tool, setTool }
+  return { tab, setTab, filters, setFilters, openId, setOpenId, tool, setTool, edit, setEdit }
 }
 
 function ProfileBody({
