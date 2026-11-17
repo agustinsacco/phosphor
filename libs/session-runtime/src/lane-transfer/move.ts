@@ -15,6 +15,7 @@ import {
   inspectTargetGit,
   planMove,
   prepareTarget,
+  takenBranchBlocker,
   type PreparedFolder,
   type WorktreePort,
 } from './target'
@@ -98,6 +99,8 @@ export async function checkTarget(
   source: LaneSourceFacts,
 ): Promise<LaneTargetPlan> {
   const plan = planMove({ ...input, source, target: await inspectTargetGit(input.root) })
+  const taken = await takenBranchBlocker(input.root, plan)
+  if (taken) plan.blockers.push(taken)
   if (input.maxTranscriptBytes !== undefined && source.transcriptBytes > input.maxTranscriptBytes)
     plan.blockers.push('This Host limits moved transcripts to 32 MiB.')
   if (input.maxTitleLength !== undefined && (source.title?.length ?? 0) > input.maxTitleLength)

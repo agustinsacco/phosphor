@@ -155,7 +155,8 @@ export const localLanes = {
         attachmentsDir: input.sameMachine ? null : laneAttachmentsDir,
         sessionTaken: sessionTaken(paths()),
       })
-      return { sessionPath: installed.sessionFile, workspace: root }
+      // The folder the lane runs in: a new worktree's, not its repository's, when it made one.
+      return { sessionPath: installed.sessionFile, workspace: prepared.folder.cwd }
     } catch (error) {
       await prepared.folder.undo()
       throw error
