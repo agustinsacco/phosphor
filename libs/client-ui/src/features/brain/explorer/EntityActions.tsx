@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import type { BrainEntity, BrainPaths, BrainLink } from '@shared/brain'
 import { TooltipButton } from '@/components/Tooltip'
-import { promptText } from '@/stores/prompt'
+import { MergeEntity } from './MergeEntity'
 import { useBrain } from '../useBrain'
 import { useBrainResource } from '../useBrainResource'
 import { BrainSearch } from './BrainSearch'
@@ -56,15 +56,9 @@ export function EntityActions({
           </TooltipButton>
         )}
       </div>
-      {mode && (
-        <BrainSearch
-          entitiesOnly
-          exclude={entity.id}
-          onSelect={(visit) => {
-            if (mode === 'merge') void mergeEntity(entity, visit, onVisit)
-            else setTarget(visit)
-          }}
-        />
+      {mode && <BrainSearch entitiesOnly exclude={entity.id} onSelect={setTarget} />}
+      {mode === 'merge' && target && (
+        <MergeEntity key={target.id} sourceId={entity.id} target={target} onVisit={onVisit} />
       )}
       {mode === 'path' && target && (
         <PathResults
@@ -160,20 +154,4 @@ export function PathChain({
       ))}
     </ol>
   )
-}
-
-async function mergeEntity(
-  entity: BrainEntity,
-  visit: BrainVisit,
-  onVisit: (visit: BrainVisit) => void,
-): Promise<void> {
-  const answer = await promptText({
-    title: `Merge ${entity.label} into ${visit.label}?`,
-    message:
-      'All names, links and memories move to the target. The source entity is deleted. This cannot be undone. Type MERGE to confirm.',
-    submitLabel: 'Merge',
-    placeholder: 'MERGE',
-  })
-  if (answer !== 'MERGE') return
-  if (await useBrain.getState().merge(entity.id, visit.id)) onVisit(visit)
 }
