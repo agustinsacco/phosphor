@@ -105,7 +105,6 @@ function TidyDetailFrame({
 }): React.JSX.Element {
   const { suggestion, subjects } = data
   const allowed = data.allowed
-  const pair = tidyEntityPair(data)
   const perSide = (id: string): React.ReactNode => (
     <div className="flex flex-wrap gap-2">
       {allowed.includes('fold') && (
@@ -123,6 +122,9 @@ function TidyDetailFrame({
   useEffect(() => {
     const primary = primaryAction(data)
     keys.current = { primary: primary && !busy ? () => onApply(primary) : undefined }
+    return () => {
+      keys.current = {}
+    }
   })
   return (
     <DecisionFrame

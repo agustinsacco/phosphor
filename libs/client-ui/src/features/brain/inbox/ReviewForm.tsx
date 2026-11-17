@@ -58,6 +58,9 @@ export function ReviewForm({
   }
   useEffect(() => {
     keys.current = { primary: neverRead ? reject : approve, reject }
+    return () => {
+      keys.current = {}
+    }
   })
   const questions = questionCount(proposal)
   return (

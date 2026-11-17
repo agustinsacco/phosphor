@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useBrain } from '../useBrain'
 import type { useTidyPage } from '../tidy/useTidyPage'
 import { TidyDecision } from '../tidy/TidyDecision'
@@ -37,8 +37,9 @@ export function BrainInbox({
     previous.current = order ? order.split('\n') : []
     if (current !== selected) onSelect(current)
   }, [order, current, selected, onSelect])
-  // A fresh holder per item: a decision still loading never answers for the previous one.
-  const keys = useMemo<React.RefObject<DecisionKeys>>(() => ({ current: {} }), [current])
+  // Each decision fills this while mounted and empties it on unmount, so one still loading
+  // never answers for the previous one.
+  const keys = useRef<DecisionKeys>({})
   const [context, setContext] = useState<string[]>([])
   const item = items.find((entry) => entry.key === current)
   const onKeyDown = (event: React.KeyboardEvent): void => {

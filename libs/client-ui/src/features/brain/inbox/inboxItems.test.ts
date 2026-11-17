@@ -15,7 +15,7 @@ function suggestion(id: string, kind: BrainTidySuggestion['kind']): BrainTidySug
     kind,
     state: 'open',
     reason: 'These records share a name.',
-    source: 'local',
+    source: 'sweep',
     model: null,
     verdict: null,
     flag: null,
