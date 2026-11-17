@@ -30,11 +30,11 @@ export async function openTidyNotice(page: Page, count: number): Promise<void> {
   await page.getByTestId('notifications-button').click()
   const drawer = page.getByRole('complementary', { name: 'Notifications' })
   const notice = drawer.getByRole('button', {
-    name: `Open Tidy: Brain has ${count} things to tidy`,
+    name: `Open Tidy: Brain has ${count} ${count === 1 ? 'thing' : 'things'} to tidy`,
     exact: true,
   })
   await expect(notice).toHaveCount(1)
-  await expect(drawer.getByText(/^Brain has \d+ things to tidy$/)).toHaveCount(1)
+  await expect(drawer.getByText(/^Brain has \d+ things? to tidy$/)).toHaveCount(1)
   await notice.click()
   await expect(page.getByRole('tab', { name: /^Tidy/ })).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('button', { name: 'Close notifications', exact: true }).click()
