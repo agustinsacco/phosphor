@@ -295,16 +295,24 @@ The **Knowledge** tab keeps search and a browse/detail column beside the graph. 
 graph is always visible; there is no hide-graph control. The explorer trail survives switching to
 **Lanes**. Names, summaries, evidence and controls wrap within their column.
 
-- **Find** (`/`): one box for people, projects and memories (`brain:find`): names, aliases and
-  keys, word and trigram matches, then nearest vectors. Arrow keys and Enter; Esc clears the field.
+- **Find** (`/`): one box for people, projects and memories (`brain:find`). Its memories are the
+  top of the ranking `brain_search` uses (see Recall), read as an agent with no project would:
+  the same order, up to the requested limit (at most 50). People and things matched by name,
+  alias or key come first, then word and trigram matches, then nearby ones by meaning. Arrow keys
+  and Enter; Esc clears the field.
 - **Overview**: a neutral kind filter shows All and only populated kinds (People, Teams,
   Organizations, Projects, Systems, Documents, Concepts, Events). **Most connected** pages twenty
-  entities at a time (`brain:entities`), ranked by connections. Its memory count includes historical
-  memories, as on entity cards. **Recently learned** shows ten current memories from recent finished
+  entities at a time (`brain:entities`), ranked by connections. Memory counts here and on entity
+  cards count current memories (active and disputed) only, as the profile's type counts do.
+  **Recently learned** shows ten current memories from recent finished
   reads (`brain:recent`), with the lane and learned time; a kind filter hides it.
-- **Entity**: name, kind tag, description, aliases, source lanes, merged names and memory count.
-  **Connections** reads from that entity's side in plain words (Owns / Owned by, Part of / Contains,
-  For customer / Customer of), with chips and paging (`brain:connections`). **Memories** has type
+- **Entity**: name, kind tag, description, aliases, source lanes with how many current memories
+  each taught, merged names, memory count and when Brain last learned something about it (the
+  newest current memory). **Connections** reads from that entity's side in plain words (Owns /
+  Owned by, Part of / Contains, For customer / Customer of), with chips and paging
+  (`brain:connections`). Each row is one neighbour within a link and direction, carrying its
+  newest link and how many memories support it; group totals count distinct neighbours, and the
+  entity's connection count counts distinct (neighbour, link) pairs. **Memories** has type
   filters with counts and wrapping rows. State, source lane and Include superseded filters remain
   available (`brain:entityMemories`).
 - **Memory**: type, state, learned time, summary and every named entity; evidence with matched
@@ -321,7 +329,10 @@ graph is always visible; there is no hide-graph control. The explorer trail surv
   selection. If the selection is outside the view or newly added, it fits the whole graph. A
   memory highlights every named entity and the links it supports. Selected things outside the
   overview are included with their neighbours, still capped at 300 nodes: selection first, then
-  route nodes, direct neighbours and the rest of the overview.
+  route nodes, direct neighbours and the rest of the overview. `brain:overview` and
+  `brain:neighbourhood` payloads carry at most 300 nodes and 1,500 links: one link per pair and
+  link word (the newest read), from at most eight per link word and direction per node, centre
+  first. A hub's neighbourhood on a million-memory Brain is about 70 KB.
   A bounded-selection notice remains visible when the graph is truncated.
 - **Clear selection**: the selection chip's ✕, empty graph space, Esc outside fields/dialogs/menus,
   or the Overview breadcrumb restores the whole graph and fits the camera. **Whole graph** is the
@@ -347,14 +358,32 @@ graph is always visible; there is no hide-graph control. The explorer trail surv
   memories move; the source is deleted and the merge is journaled. The confirmation shows both
   descriptions and memory counts, so identical names remain distinguishable. Its toast and
   Tidy's Recent changes offer Undo; later edits can prevent a clean undo.
+- **Entity edits**, each taking the revision like a merge, refusing a stale one, and journaled
+  with a one-line Recent changes summary and Undo:
+  - **Describe** (`brain:describe`) replaces the description: trimmed, scrubbed, 1–160 characters.
+  - **Remove a name** (`brain:removeName`) removes one alias, never the label.
+  - **Split** (`brain:split`) moves 1–200 chosen memories, all naming the record, to a new record
+    with the owner's label (1–80 characters) and kind: their mentions and the links they support
+    go with them. The original keeps the rest, its aliases, keys and merge history. Splitting off
+    every memory is refused (that is a rename), and the two records are remembered as separate.
 
 Views reload when Brain's revision or generation changes, and a failed load offers Retry.
 
 The two browse reads run in the search worker and keep the browse indexes introduced in **schema v5**:
-`brain:entities(kind | null, offset, limit)` accepts limits 1–100, returns entity/count rows,
-`more` and populated `kinds`. It walks `entities_connections` in connection-count descending,
-row-number ascending order, leaving out memory-less and merged-away rows. Kind filtering may
-walk farther; finding populated kinds makes one entity-table pass. `brain:recent(limit)` accepts
+`brain:entities(kind | null, offset, limit, sort)` accepts limits 1–100, returns entity/count rows,
+`more`, populated `kinds`, `counts` per populated kind (whatever the kind filter) and `total`
+for the filter, leaving out memory-less and merged-away rows. Finding the kinds and counts makes
+one entity-table pass. Sorts:
+
+- `connected` walks `entities_connections`: connection count descending, then row number.
+- `name`: label case-insensitively, then id.
+- `recent`: the newest current memory naming the entity, newest first; ties and entities with
+  none by row number. It reads current memories newest first through `memories_recent` and stops
+  once it has the page, so work grows with the offset, not the Brain. A kind whose entities hold
+  at most 20,000 current memories is ordered from their own mentions instead.
+
+On the 100,000-entity, million-memory benchmark Brain each sort's first page, a page at offset
+2,000 and a rare kind each take 15–25 ms warm. `brain:recent(limit)` accepts
 1–50, walks at most twenty finished jobs through `jobs_finished`, and reads their active/disputed
 memories through `memories_job`, newest read first and recorded time descending within each read.
 It stops when full. Memories without a surviving finished job are omitted. `learnedAt` is the
@@ -414,7 +443,11 @@ suggestion returns null rather than an error. Details include engine-owned `allo
 apply uses the same guards. Either two-memory suggestion kind supports dispute and replacement.
 Folding also requires active memories with no history or dispute. `foldRefusal` distinguishes
 applicability from history, and an existing dispute cannot be added twice. Settled or missing
-subjects offer no actions.
+subjects offer no actions. A same person or thing pair whose records share a name also allows
+`unname` while one of them holds that name as an alias: it removes the name from that record
+(never its label), closes the pair as not the same, and is undoable like **Remove a name**.
+Every refusal is an error carrying one plain sentence the page shows; a stale revision is
+"Brain changed; refresh Tidy and try again." and writes nothing.
 
 An approval commits before sweeping its touched records. Entity merges and undo also sweep
 changed mention sets. Inside the change, this maintenance sweeps at most 128 touched memories
@@ -430,15 +463,21 @@ warning and does not roll back or report the saved approval/change as failed; ru
 again retries local detection. Each whole-Brain
 sweep call walks at most 128 entity or memory rows from a saved numeric cursor and fixed pass
 watermarks. Coverage reports records visited, totals, limited checks and pass completion, not an
-exhaustive comparison of every pair. Name/alias buckets inspect at most 16 candidates, eight
-names per entity; a one-word person name also offers full-name token matches. The sweep never
-merges entities automatically. Reasons name the matching labels or alias; shared full-name
-evidence takes precedence over one-word matches. After a merge, suggestions about the removed
+exhaustive comparison of every pair; the cursor's own fields never leave the engine. A pass in
+progress reports the totals it set out to check; a finished pass reports today's memory and
+entity counts, because every memory saved since is swept as it lands or by the maintenance batches
+right after. Name/alias buckets inspect at most 16 candidates, eight
+names per entity; a one-word person name also offers full-name token matches. Records pair with
+their own kind, except that an exact name (folded label or alias) also pairs a component, an
+organization and a project with one another, because lanes store one vendor or system under
+different kinds: "Same name, stored as a component and as an organization." A merge keeps the
+survivor's kind. The sweep never merges entities automatically. Reasons name the matching labels
+or alias; shared full-name evidence takes precedence over one-word matches. After a merge, suggestions about the removed
 record close, and a bounded sweep reconnects the survivor to remaining matching records and
 compares the merged records' memories again.
 
 Near-memory detection uses the four mentioned entities with the fewest memories, plus up to
-16 same-kind name-matching siblings for each, through those same bounded name buckets. Each
+16 name-matching siblings for each, through those same bounded name buckets. Each
 identity contributes its newest 256 stored memories (numeric insertion order). The sweep scores
 those windows by cosine, retains the best 32 candidates across all identities, and offers at
 most eight pairs per swept memory at cosine 0.84 or above. Project and branch differences are
@@ -446,6 +485,22 @@ shown in the reason, not excluded from comparison. The threshold admits observed
 paraphrases and contradictions while excluding the observed topic-only pairs at 0.80 or below.
 Similarity only raises a question, never applies a change. Two memories supporting one link
 are not a defect.
+
+A near pair whose negation words differ in number (no, not, never, without, cannot, n't,
+instead of) is offered as **These disagree** with the reason "These may disagree.", and goes to
+the model check like any unjudged pair. Below 0.84 the sweep queues pairs **only for the model
+check**:
+
+- a possible disagreement: two facts, two decisions or two preferences from different lanes or
+  projects, at cosine 0.6 or above, sharing at least two people or things (disagreements across
+  lanes usually score 0.55–0.75);
+- a looser paraphrase: any pair at 0.75 or above sharing at least two people or things.
+
+These are stored as kind `unchecked` and appear on no page, count, badge or action until the
+model answers: `same` shows the pair as **Said twice**, `conflict` or `replaces` as **These
+disagree**, and `different` clears it quietly. A surfaced pair counts as new from that moment. A
+memory queues at most two, one sweep call at most sixteen, and at most 400 wait unjudged; a
+fuller queue leaves the rest for the next pass and counts them as limited checks.
 
 A sweep call caches up to 128 entity vector windows in least-recently-used order (about 96 MiB
 of vectors); eviction permits a re-read without changing candidates. Folds invalidate the
@@ -470,7 +525,10 @@ Folding preserves the survivor's sentence and unions mentions, citations and sup
 a copied quote with the same entry id is not independent support. Different scopes, branches
 or validity periods cannot be folded.
 
-Every merge, fold, dispute and replacement records a reversible operation. The newest 200
+Every merge, fold, dispute and replacement, and every entity edit (split, removed name,
+description), records a reversible operation. An entity edit captures only the tables it
+changes: a description only the record, a removed name only its names, a split its moved
+mentions and links and the record it created. The newest 200
 operations retain versioned, validated before-images of changed source rows, with an expected
 after-row digest. Unchanged rows an undo depends on are kept as guards: key and digest only,
 never a before-image, and never a vector. A fold guards both memories' quotes, mentions, links
@@ -485,15 +543,21 @@ those records. A later quote, or a mention of someone else, leaves a merge undoa
 mention goes back to the restored person and the later quote stays. Dispute and
 replacement undo preserve independent additions and recompute dispute state from surviving links. Search's normal refresh reloads vectors
 restored below its previous watermark. Undo drops its before-images immediately but retains
-the operation's one-line record. Undo also remembers the pair as dismissed, including automatic
-folds and manual entity merges, so the next sweep does not repeat the undone change.
+the operation's one-line record. Undoing a merge, fold, dispute or replacement also remembers the
+pair as dismissed, including automatic folds and manual entity merges, so the next sweep does not
+repeat the undone change. Undoing a split deletes the record it created last, keeps quotes added
+to the moved memories since, and refuses when anything written later names the new record; a
+constraint a later change introduced becomes the same plain "Later changes" refusal.
 
 Forget remains permanent, including knowledge folded into the memory at any depth. Fold
 ancestry references survive intervening undo and retention pruning, so Forget redacts all
 reachable retained before-images. It deletes suggestions about that memory and preserves only
 safe operation ids/labels; an operation whose undo would restore forgotten text becomes unavailable.
-Folding scrubs removed subjects' suggestion text (even after undo), while an open lane flag moves
-to the survivor if it has no open flag or prior flag from that lane; otherwise it closes. The fold's journal records the move, so undoing the fold puts the flag back on the memory the lane flagged, and Forget of that memory erases its flags wherever they sit. A merge can still be undone for its other memories. Reset erases
+That includes a description, name or merge label in any retained before-image that quotes the
+forgotten memory, whichever operation holds it.
+Folding scrubs removed subjects' suggestion text (even after undo), except on the suggestion the
+fold applies, which keeps its reason, so its settled detail still shows the model's sentence. An
+open lane flag moves to the survivor if it has no open flag or prior flag from that lane; otherwise it closes. The fold's journal records the move, so undoing the fold puts the flag back on the memory the lane flagged, and Forget of that memory erases its flags wherever they sit. A merge can still be undone for its other memories. Reset erases
 all Tidy state as well as the knowledge. These guarantees do not change existing proposal and
 extraction-record retention: source transcripts retained for finished reads can still contain
 the original statement until those records are removed under the retention rules above.
@@ -534,16 +598,17 @@ EmbeddingGemma vectors of 60,000 made-up sentences it returns 99.9% of the exact
 
 ## Tidy checks and lane flags
 
-**Tidy now** first runs bounded local sweep chunks, then checks at most forty oldest unjudged
-pairs, eight per call. It shares the Brain reader queue with lane reads: neither runs beside
+**Tidy now** first runs bounded local sweep chunks, then checks at most forty unjudged pairs,
+eight per call: every visible suggestion first, oldest first, and only then pairs queued for the
+model alone, so those never take a visible suggestion's place. It shares the Brain reader queue with lane reads: neither runs beside
 another. The check only proposes; it never applies a model verdict. For two memories,
 `different` clears and remembers the pair. The model never takes two people or things off the
 owner's list: for an entity pair, `different` records the verdict and its reason, keeps the
 sweep's reason, and leaves the suggestion open. The page then says "Checked by <model>, which
 thinks these are different. Merge only if you know they are the same." and still offers Merge
 and Not the same; only Not the same closes it. A pair with a verdict is not sent to the model
-again. `conflict` and `replaces` remain for review, with the proposed newer side when
-supported. Uncertain answers are `different`, not permission to merge people by name. A
+again. `conflict` and `replaces` remain for review as **These disagree**, with the proposed newer
+side when supported, and `same` on two memories as **Said twice**. Uncertain answers are `different`, not permission to merge people by name. A
 different project or branch alone never decides a verdict: the model judges whether the
 assertion is limited to its project or branch or holds anywhere, so two contradicting standing
 preferences of one person in two projects are a `conflict`.
@@ -556,12 +621,16 @@ local pass still runs. It uses the same private, tool-less, session-less one-sho
 
 Only bounded pair evidence leaves this machine, sent to that reader model's provider: memory
 sentence, type, dates, project scope, branch, entity names and up to two quotes of 300 characters;
-entity names, aliases, kind, description, memory count and up to five neighbours with link words.
+entity names, aliases, kind, description, memory count and up to five distinct neighbours with link
+words.
 It sends neither the whole Brain nor whole lanes. Text is scrubbed and escaped inside a
 `background-data` wrapper with no instruction authority. Model reasons and verdicts are stored
 with the exact reader model id, not usage or cost figures. Progress is saved between calls.
 Cancel stops further calls; an interrupted run retains progress and offers Retry rather than
-silently calling a model on startup. A failed batch leaves its pairs unjudged while later
+silently calling a model on startup. The run records the exact model it used (`model`). A
+verdict counts as checked only when it was recorded: a pair the owner settled, merged or forgot
+while the model read it counts in `settled` instead, and the run says "Checked 11 pairs; you
+settled 1 while it ran." A failed batch leaves its pairs unjudged while later
 batches continue. Malformed items and unknown handles are dropped and counted; Retry checks
 only pairs still without a verdict.
 
@@ -602,6 +671,11 @@ ask the owner to review. Both tools use the version 5 local bridge.
 - **Branch.** The asking lane's branch is read per search; memories that hold only on another
   branch are listed apart.
 
+The Brain page's Find (`brain:find`) returns the top of this same ranking, read for an agent with
+no project, up to 50 memories. On the benchmark Brain a 20-result query takes 34 ms (p50, 47 ms
+p95) at 100,000 memories and about 300 ms at a million, in the search worker; while the index
+loads, word-only search stays under 30 ms.
+
 The tool returns one briefing, never evidence text:
 
 ```text
@@ -629,6 +703,6 @@ project's memories as context, and to report a dispute rather than pick a side.
 
 - Extraction quality is the reader model's. Review catches a wrong link or identity; afterwards,
   Forget and Merge into… fix it.
-- A merge, fold, dispute or replacement can be undone while its journal is retained and later
-  changes permit a clean restoration. Forget is never undone.
+- A merge, fold, dispute, replacement, split, removed name or description can be undone while its
+  journal is retained and later changes permit a clean restoration. Forget is never undone.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.
