@@ -26,7 +26,8 @@ export async function createBrainBridge(invoke: BridgeInvoke) {
   const flagTimes: number[] = []
   const limitedInvoke: BridgeInvoke = async (method, params) => {
     if (method === 'flag') {
-      const now = Date.now()
+      // Monotonic, so a wall-clock step cannot hold the window shut.
+      const now = performance.now()
       while (flagTimes.length && flagTimes[0]! <= now - 60_000) flagTimes.shift()
       if (flagTimes.length >= 10)
         return {

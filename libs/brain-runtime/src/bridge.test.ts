@@ -90,7 +90,7 @@ it('protocol 4 clients fail cleanly and flags reject unknown keys and oversize f
 
 it('limits flags across twelve claimed sessions and sockets, while search and later flags recover', async () => {
   let now = 1000
-  const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const clock = vi.spyOn(performance, 'now').mockImplementation(() => now)
   const invoke = vi.fn(async () => ({ status: 'filed', message: 'Filed.' }))
   const bridge = await createBrainBridge(invoke)
   const input = (i: number) => ({
