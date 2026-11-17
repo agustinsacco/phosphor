@@ -154,6 +154,8 @@ export function createTidyRunner(context: TidyRunContext): TidyRunner {
         finishedAt: null,
         message: 'Waiting for the Brain reader.',
         error: null,
+        model: null,
+        settled: 0,
       }
       update({})
       const task = context.queue.enqueueTask(execute)

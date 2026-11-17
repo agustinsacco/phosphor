@@ -18,6 +18,9 @@ export function tidyApi(
   | 'tidyChanges'
   | 'tidyUndo'
   | 'merge'
+  | 'describe'
+  | 'removeName'
+  | 'split'
 > {
   return {
     tidy: async (kind, cursor, limit) => ({
@@ -49,6 +52,15 @@ export function tidyApi(
         operationId = store.merge(source, target, revision)
       })
       return { ...result, operationId }
+    },
+    describe: async () => {
+      throw new Error('Changing a description is not available yet.')
+    },
+    removeName: async () => {
+      throw new Error('Removing a name is not available yet.')
+    },
+    split: async () => {
+      throw new Error('Splitting a record is not available yet.')
     },
   }
 }

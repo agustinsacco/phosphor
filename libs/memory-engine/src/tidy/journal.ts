@@ -70,6 +70,9 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     fold: 'Folded two memories',
     dispute: 'Kept two memories as disputed',
     replace: 'Replaced one memory with another',
+    split: 'Split one record into two',
+    unname: 'Removed a name from a record',
+    describe: 'Changed a description',
   }
   run(
     ctx,

@@ -336,7 +336,7 @@ export class FakeBrainSearch implements BrainSearchPort {
     return this.result
   }
   async entities() {
-    return { items: [], more: false, kinds: [] }
+    return { items: [], more: false, kinds: [], counts: {}, total: 0 }
   }
   async recent() {
     return { items: [] }

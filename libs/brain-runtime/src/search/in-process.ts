@@ -9,7 +9,7 @@ export function inProcessSearch(
     const search = open(path)
     return {
       refresh: () => search.refresh(),
-      entities: async (kind, offset, limit) => search.entities(kind, offset, limit),
+      entities: async (kind, offset, limit, sort) => search.entities(kind, offset, limit, sort),
       recent: async (limit) => search.recent(limit),
       ready: async () => search.ready(),
       recall: async (input) => search.recall(input),

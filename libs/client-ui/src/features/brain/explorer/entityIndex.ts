@@ -21,7 +21,5 @@ export async function loadEntityIndex(
   limit: number,
   sort: EntitySort,
 ): Promise<EntityIndexPage> {
-  void sort
-  const page = await window.phosphor.invoke('brain:entities', kind, offset, limit)
-  return { ...page, counts: {}, total: null }
+  return window.phosphor.invoke('brain:entities', kind, offset, limit, sort)
 }

@@ -1,4 +1,5 @@
 import { BRAIN_TIDY_KINDS, checkBrainTidyAction } from '@shared/brain-tidy'
+import { BRAIN_ENTITY_KINDS } from '@shared/brain'
 
 const invalid = (): never => {
   throw new Error('Invalid Brain request.')
@@ -37,5 +38,34 @@ export function checkMockTidyArguments(channel: string, args: unknown[]): void {
       text(args[0], 200)
       revision(args[1])
       break
+    case 'brain:describe':
+      text(args[0], 200)
+      if (typeof args[1] !== 'string') invalid()
+      text((args[1] as string).trim(), 160)
+      revision(args[2])
+      break
+    case 'brain:removeName':
+      text(args[0], 200)
+      text(args[1], 200)
+      revision(args[2])
+      break
+    case 'brain:split':
+      checkMockSplit(args)
+      break
   }
+}
+
+function checkMockSplit(args: unknown[]): void {
+  text(args[0], 200)
+  const ids = args[1]
+  if (!Array.isArray(ids) || !ids.length || ids.length > 200 || new Set(ids).size !== ids.length)
+    invalid()
+  for (const id of ids as unknown[]) text(id, 200)
+  const target = args[2] as Record<string, unknown> | null
+  if (!target || typeof target !== 'object' || Object.keys(target).sort().join() !== 'kind,label')
+    invalid()
+  if (typeof target!.label !== 'string') invalid()
+  text((target!.label as string).trim(), 80)
+  if (!(BRAIN_ENTITY_KINDS as readonly unknown[]).includes(target!.kind)) invalid()
+  revision(args[3])
 }

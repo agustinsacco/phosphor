@@ -35,10 +35,14 @@ it.skipIf(process.env.BRAIN_BROWSE_BENCH !== '1')(
         entities: entityCount,
         memories: count,
         buildMs: built - start,
-        allMs: measure(path, (ctx) => entities(ctx, null, 0, 20)),
-        deepPageMs: measure(path, (ctx) => entities(ctx, null, 2000, 20)),
-        commonKindMs: measure(path, (ctx) => entities(ctx, 'project', 0, 20)),
-        rareKindMs: measure(path, (ctx) => entities(ctx, 'event', 0, 20)),
+        allMs: measure(path, (ctx) => entities(ctx, null, 0, 20, 'connected')),
+        deepPageMs: measure(path, (ctx) => entities(ctx, null, 2000, 20, 'connected')),
+        commonKindMs: measure(path, (ctx) => entities(ctx, 'project', 0, 20, 'connected')),
+        rareKindMs: measure(path, (ctx) => entities(ctx, 'event', 0, 20, 'connected')),
+        recentSortMs: measure(path, (ctx) => entities(ctx, null, 0, 20, 'recent')),
+        recentDeepMs: measure(path, (ctx) => entities(ctx, null, 2000, 20, 'recent')),
+        nameSortMs: measure(path, (ctx) => entities(ctx, null, 0, 20, 'name')),
+        nameKindMs: measure(path, (ctx) => entities(ctx, 'project', 0, 20, 'name')),
         kindsMs: measure(path, (ctx) =>
           ctx.db.prepare('SELECT DISTINCT kind FROM entities WHERE memories>0').all(),
         ),
@@ -48,7 +52,7 @@ it.skipIf(process.env.BRAIN_BROWSE_BENCH !== '1')(
       writeFileSync(join(process.cwd(), '.brain-browse-benchmark.json'), timings + '\n')
       console.log(timings)
       const ctx: Context = { db, now: Date.now, id: () => 'synthetic' }
-      expect(entities(ctx, 'event', 0, 20).items).toHaveLength(1)
+      expect(entities(ctx, 'event', 0, 20, 'connected').items).toHaveLength(1)
       expect(recent(ctx, 10).items).toHaveLength(10)
     } finally {
       db.close()

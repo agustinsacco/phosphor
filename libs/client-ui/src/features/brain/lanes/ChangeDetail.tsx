@@ -7,6 +7,9 @@ const CHANGE_WORDS: Record<BrainTidyOperation['kind'], string> = {
   merge: 'Combined names, links and memories.',
   replace: 'One memory replaced the other.',
   dispute: 'Kept both memories as disputed.',
+  split: 'Moved some memories to a new person or thing.',
+  unname: 'Removed a shared name from one of them.',
+  describe: 'Changed the description.',
 }
 
 /** One Tidy change: what it did, who did it, and Undo while it still applies. */

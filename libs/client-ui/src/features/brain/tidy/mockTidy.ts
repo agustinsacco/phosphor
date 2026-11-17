@@ -13,6 +13,7 @@ import {
 import type { BrainStatus } from '@shared/brain'
 import type { MockExplorer } from '../mockExplorer'
 import { seedMockTidy, mockTidyPermissions } from './mockTidyData'
+import { mockEdit } from './mockEdits'
 
 export interface MockTidyOptions {
   count?: number
@@ -163,6 +164,13 @@ export class MockTidy {
     })
     return id
   }
+  /** `brain:describe`, `brain:removeName` and `brain:split`: journaled, so Undo restores them. */
+  edit(channel: string, args: unknown[]): string {
+    checkMockTidyArguments(channel, args)
+    this.check(args.at(-1))
+    const edit = mockEdit(this.explorer, channel, args)
+    return this.journal(edit.kind, edit.summary, edit.apply)
+  }
   merge(source: string, target: string, revision: number): string {
     this.check(revision)
     return this.journal(
@@ -237,6 +245,8 @@ export class MockTidy {
           folded: 0,
           message: null,
           error: null,
+          model: null,
+          settled: 0,
         }
         break
       case 'brain:tidyCancel':
