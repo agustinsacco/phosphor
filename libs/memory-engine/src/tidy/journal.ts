@@ -167,6 +167,10 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
     if (!op) throw new Error('This Brain change is no longer available to undo.')
     if (op.undone_at !== null) throw new Error('This Brain change was already undone.')
     const deltas = undoRows(ctx, id)
+    if (!deltas.length)
+      throw new Error(
+        'This Brain change is no longer available to undo because a memory was forgotten.',
+      )
     const selection = selectionOf(deltas)
     const names = deltas.filter((d) => d.table === 'entity_names').map((d) => Number(d.image.key.n))
     restore(ctx, deltas)

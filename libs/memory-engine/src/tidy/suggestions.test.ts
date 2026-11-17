@@ -116,6 +116,11 @@ it('Forget and Reset erase forgotten text from every tidy text column but ids ma
       .map((r) => JSON.stringify(r))
       .join('\n')
   expect(text()).not.toContain('Ledger erasure sentinel')
+  expect(
+    db
+      .prepare('SELECT first_id,second_id FROM tidy_operations WHERE id=?')
+      .get(result.operationIds[0]!),
+  ).toEqual({ first_id: 'memory-2', second_id: 'memory-1' })
   expect(() => store.tidyUndo(result.operationIds[0]!, store.revision())).toThrow(
     'no longer available',
   )
