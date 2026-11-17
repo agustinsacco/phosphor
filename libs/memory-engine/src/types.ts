@@ -181,3 +181,5 @@ export interface OpenStoreOptions {
   id?: () => string
 }
 export type * from './proposal-types'
+
+export type { BrainTidyStoredRun } from './tidy/types'

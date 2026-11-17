@@ -7,9 +7,9 @@ import { openBrainStore } from './store'
 import { openBrainSearch } from './search'
 import { fixture } from './test-support'
 
-it('creates fresh databases at version 5', () => {
+it('creates fresh databases at version 6', () => {
   const { db } = fixture()
-  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 5 })
+  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
 })
 it('migrates a real v4 database in place without dropping any knowledge or extraction', () => {
   const dir = mkdtempSync(join(tmpdir(), 'brain-v5-'))
@@ -38,7 +38,7 @@ it('migrates a real v4 database in place without dropping any knowledge or extra
     const store = openBrainStore({ path, Database: Defensive })
     try {
       const inspect = new DatabaseSync(path)
-      expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 5 })
+      expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
       expect(tables.map((t) => inspect.prepare(`SELECT * FROM ${t}`).all())).toEqual(before)
       inspect.close()
       expect(store.job('job')).toMatchObject({ state: 'done', replaces: null })
@@ -74,7 +74,7 @@ function schemaObjects(db: DatabaseSync) {
       sql: String(row.sql).replace(/\s+/g, '').replaceAll('"', ''),
     }))
 }
-it('fresh and upgraded v5 schemas have identical objects and a failed upgrade remains v4', () => {
+it('fresh and upgraded v6 schemas have identical objects and a failed upgrade remains v4', () => {
   const dir = mkdtempSync(join(tmpdir(), 'brain-upgrade-'))
   const path = join(dir, 'brain.sqlite')
   try {
@@ -112,7 +112,7 @@ it('fresh and upgraded v5 schemas have identical objects and a failed upgrade re
   }
 })
 
-it('reopens v5 unchanged and refuses newer databases without resetting them', () => {
+it('reopens v6 unchanged and refuses newer databases without resetting them', () => {
   const dir = mkdtempSync(join(tmpdir(), 'brain-forward-'))
   const path = join(dir, 'brain.sqlite')
   try {
@@ -124,13 +124,13 @@ it('reopens v5 unchanged and refuses newer databases without resetting them', ()
     expect(current.snapshot()).toEqual(before)
     current.close()
     const inspect = new DatabaseSync(path)
-    inspect.exec('PRAGMA user_version=6')
+    inspect.exec('PRAGMA user_version=7')
     const objects = schemaObjects(inspect)
     const meta = inspect.prepare('SELECT * FROM meta').all()
     expect(() => openBrainStore({ path, Database: DatabaseSync })).toThrow(
       'This Brain database requires a newer application.',
     )
-    expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
+    expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
     expect(inspect.prepare('SELECT * FROM meta').all()).toEqual(meta)
     expect(schemaObjects(inspect)).toEqual(objects)
     inspect.close()

@@ -1,18 +1,26 @@
+import { tidySchema } from './tidy/schema'
 import { all, one, run, transaction, type Context } from './database'
 import { prefs, setPrefs } from './prefs'
 
 export function initialize(ctx: Context): void {
   ctx.db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL')
   const version = one<{ user_version: number }>(ctx, 'PRAGMA user_version')!.user_version
-  if (version > 5) throw new Error('This Brain database requires a newer application.')
-  if (version === 4) {
+  if (version > 6) throw new Error('This Brain database requires a newer application.')
+  if (version === 4 || version === 5) {
     transaction(ctx, () => {
-      ctx.db.exec('ALTER TABLE jobs ADD COLUMN replaces TEXT')
-      ctx.db.exec('CREATE INDEX memories_origin ON memories(origin_session)')
-      ctx.db.exec('CREATE INDEX jobs_finished ON jobs(state, finished_at DESC)')
-      ctx.db.exec('PRAGMA user_version = 5')
+      if (version === 4) {
+        ctx.db.exec('ALTER TABLE jobs ADD COLUMN replaces TEXT')
+        ctx.db.exec('CREATE INDEX memories_origin ON memories(origin_session)')
+        ctx.db.exec('CREATE INDEX jobs_finished ON jobs(state, finished_at DESC)')
+      }
+      ctx.db.exec(tidySchema)
     })
-  } else if (version !== 5) reset(ctx)
+  } else if (version !== 6) reset(ctx)
+  // Never resume model work on startup: the owner must click Tidy now again.
+  run(
+    ctx,
+    "UPDATE tidy_run SET state='idle',error='Tidy was interrupted; run Tidy again.' WHERE state IN ('queued','sweeping','checking')",
+  )
 }
 export function reset(ctx: Context): void {
   const hasMeta = one(ctx, "SELECT 1 FROM sqlite_master WHERE name='meta'")
@@ -31,6 +39,7 @@ export function reset(ctx: Context): void {
           ctx.db.exec(`DROP TABLE IF EXISTS "${name.replaceAll('"', '""')}"`)
       }
       ctx.db.exec(schema)
+      ctx.db.exec(tidySchema)
       for (const [key, value] of Object.entries({
         revision: '0',
         generation: ctx.id(),

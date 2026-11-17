@@ -13,6 +13,8 @@ import type {
 } from '@phosphor/shared/brain-tidy'
 
 export interface BrainTidyStore {
+  tidyRunState(): BrainTidyStoredRun
+  saveTidyRunState(value: BrainTidyStoredRun): void
   tidySummary(): BrainTidySummary
   tidy(kind: BrainTidyKind | null, cursor: string | null, limit: number): BrainTidyPage
   tidySuggestion(id: string): BrainTidySuggestionDetail
@@ -27,4 +29,16 @@ export interface BrainTidyStore {
   recordVerdicts(judgements: BrainTidyJudgement[]): void
   /** One open flag per memory; at most five open flags per lane. Returns the suggestion id. */
   flag(input: BrainTidyFlag): string
+}
+
+/** Persisted queue checkpoint; terminal success is idle, no model work resumes on startup. */
+export interface BrainTidyStoredRun {
+  state: 'idle' | 'queued' | 'sweeping' | 'checking' | 'failed' | 'skipped' | 'cancelled'
+  done: number
+  total: number
+  found: number
+  error: string | null
+  model: string | null
+  startedAt: number | null
+  finishedAt: number | null
 }

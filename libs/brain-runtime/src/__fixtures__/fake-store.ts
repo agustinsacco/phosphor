@@ -1,3 +1,4 @@
+import type { BrainTidyStoredRun } from '@phosphor/memory-engine/types'
 import {
   emptyBrainTidySummary,
   emptyBrainTidyPage,
@@ -252,6 +253,20 @@ export class FakeBrainStore implements BrainStore {
   }
   path(): BrainPaths {
     return { paths: [], entities: [], memories: [] }
+  }
+  private tidyRun: BrainTidyStoredRun = {
+    state: 'idle',
+    done: 0,
+    total: 0,
+    found: 0,
+    error: null,
+    model: null,
+    startedAt: null,
+    finishedAt: null,
+  }
+  tidyRunState = () => this.tidyRun
+  saveTidyRunState(value: BrainTidyStoredRun): void {
+    this.tidyRun = value
   }
   tidySummary = emptyBrainTidySummary
   tidy = () => emptyBrainTidyPage(this.rev)
