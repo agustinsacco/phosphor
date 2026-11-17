@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { fixture, vector } from '../test-support'
 import { encodeVector } from '../vectors'
 import { seed } from './test-support'
@@ -125,10 +125,10 @@ it('caches a 256-memory hub window once per 128-memory chunk, not across calls',
     const statement = prepare(sql)
     if (sql.includes('FROM mentions WHERE entity=?') && sql.includes('memory_vectors')) {
       const all = statement.all.bind(statement)
-      statement.all = (...args) => {
+      vi.spyOn(statement, 'all').mockImplementation((...args) => {
         windowsRead++
         return all(...args)
-      }
+      })
     }
     return statement
   }
@@ -144,6 +144,7 @@ it('caches a 256-memory hub window once per 128-memory chunk, not across calls',
     store.sweep('all')
     expect(windowsRead).toBe(2)
   } finally {
+    vi.restoreAllMocks()
     db.prepare = prepare
   }
 })
