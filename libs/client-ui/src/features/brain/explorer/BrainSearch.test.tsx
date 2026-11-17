@@ -70,12 +70,12 @@ it('debounces, ignores stale responses, and clears with Escape', async () => {
   expect(container.querySelector('input')!.value).toBe('')
   expect(container.querySelector('[role="listbox"]')).toBeNull()
 })
-it('supports arrows/Enter, alias matches, and slash focuses search', async () => {
-  await act(async () => root.render(<BrainSearch shortcut onSelect={select} />))
+it('supports arrows/Enter and alias matches, and leaves / to the page', async () => {
+  await act(async () => root.render(<BrainSearch onSelect={select} />))
   await act(async () => {
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
   })
-  expect(document.activeElement).toBe(container.querySelector('input'))
+  expect(document.activeElement).not.toBe(container.querySelector('input'))
   await type('Harbor')
   await act(async () => vi.advanceTimersByTimeAsync(200))
   expect(container.textContent).toContain('matched alias: Harbor customer')

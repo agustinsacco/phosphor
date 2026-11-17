@@ -1,10 +1,11 @@
 import { formatCount } from '@/lib/format'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { BrainFindResult } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { Button, TextInput } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { useBrain } from '../useBrain'
+import { ENTITY_WORDS } from '../memoryLabels'
 import type { BrainVisit } from './trail'
 
 /** Search is remote and bounded. Cancelling a timer or selection ignores every older reply. */
@@ -40,16 +41,13 @@ export function useBrainFind(query: string) {
 interface SearchProps {
   onSelect: (visit: BrainVisit) => void
   entitiesOnly?: boolean
-  shortcut?: boolean
   exclude?: string
-  onQuery?: (query: string) => void
 }
+/** A search field with its own results: the other end of a route or a merge. */
 export function BrainSearch({
   onSelect,
   entitiesOnly = false,
-  shortcut = false,
   exclude,
-  onQuery,
 }: SearchProps): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -59,14 +57,11 @@ export function BrainSearch({
   const change = (value: string): void => {
     setQuery(value)
     setActive(0)
-    onQuery?.(value)
   }
   const choose = (visit: BrainVisit): void => {
     onSelect(visit)
     change('')
   }
-  const input = useRef<HTMLInputElement>(null)
-  useSearchShortcut(input, shortcut)
   const key = (event: React.KeyboardEvent): void => {
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -83,11 +78,10 @@ export function BrainSearch({
       choose(visits[active]!)
     }
   }
-  const label = entitiesOnly ? 'Find an entity' : 'Find a person, project or memory'
+  const label = entitiesOnly ? 'Find a person or thing' : 'Find a person, project or memory'
   return (
     <section aria-label={entitiesOnly ? 'Choose entity' : 'Find knowledge'} className="space-y-2">
       <TextInput
-        ref={input}
         role="combobox"
         aria-label={label}
         placeholder={label}
@@ -131,27 +125,6 @@ function searchVisits(
       : []),
   ]
 }
-function useSearchShortcut(
-  input: React.RefObject<HTMLInputElement | null>,
-  enabled: boolean,
-): void {
-  useEffect(() => {
-    if (!enabled) return
-    const focus = (event: KeyboardEvent): void => {
-      const target = event.target as HTMLElement
-      if (
-        event.key === '/' &&
-        !event.defaultPrevented &&
-        !target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')
-      ) {
-        event.preventDefault()
-        input.current?.focus()
-      }
-    }
-    window.addEventListener('keydown', focus)
-    return () => window.removeEventListener('keydown', focus)
-  }, [enabled, input])
-}
 function SearchResults({
   resource,
   listId,
@@ -186,7 +159,7 @@ function SearchResults({
         <p role="status">Finding…</p>
       ) : (
         <>
-          {!visits.length && <p role="status">No matching entities or memories</p>}
+          {!visits.length && <p role="status">No match. Try a first name or a project.</p>}
           {(['entity', 'memory'] as const).map((kind) => {
             const group = visits.filter((v) => v.kind === kind)
             return (
@@ -194,10 +167,10 @@ function SearchResults({
                 <div
                   key={kind}
                   role="group"
-                  aria-label={kind === 'entity' ? 'Entities' : 'Memories'}
+                  aria-label={kind === 'entity' ? 'People and things' : 'Memories'}
                 >
-                  <h3 className="text-text-tertiary text-xs">
-                    {kind === 'entity' ? 'Entities' : 'Memories'}
+                  <h3 className="text-text-tertiary font-mono text-xs uppercase tracking-wider">
+                    {kind === 'entity' ? 'People and things' : 'Memories'}
                   </h3>
                   {group.map((visit) => (
                     <SearchOption
@@ -258,7 +231,7 @@ function SearchOption({
       <span className="block">{visit.label}</span>
       <span className="text-text-tertiary text-sm">
         {entity
-          ? `${entity.kind} · ${formatCount(entity.memories, 'memory', 'memories')}${alias ? ` · matched alias: ${alias}` : ''}`
+          ? `${ENTITY_WORDS[entity.kind]} · ${formatCount(entity.memories, 'memory', 'memories')}${alias ? ` · matched alias: ${alias}` : ''}`
           : `${memory?.type} · ${memory?.state}`}
       </span>
     </TooltipButton>
