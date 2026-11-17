@@ -470,7 +470,7 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
         () => window.phosphor.invoke('brain:entityMemories', 'synthetic-entity', {}, null),
         () => window.phosphor.invoke('brain:memory', 'synthetic-memory'),
         () => window.phosphor.invoke('brain:path', 'synthetic-from', 'synthetic-to'),
-        () => window.phosphor.invoke('brain:merge', 'synthetic-from', 'synthetic-to'),
+        () => window.phosphor.invoke('brain:merge', 'synthetic-from', 'synthetic-to', 0),
         () => window.phosphor.invoke('brain:cancel', 'synthetic-job'),
         () => window.phosphor.invoke('brain:proposal', 'synthetic-job'),
         () => window.phosphor.invoke('brain:find', 'Harbor', 12),
@@ -480,6 +480,20 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
         () => window.phosphor.invoke('brain:review', 'synthetic-job', null, 0),
         () => window.phosphor.invoke('brain:extraction', 'synthetic-job'),
         () => window.phosphor.invoke('brain:forget', 'synthetic-memory'),
+        () => window.phosphor.invoke('brain:tidy', null, null, 20),
+        () => window.phosphor.invoke('brain:tidySuggestion', 'synthetic-suggestion'),
+        () => window.phosphor.invoke('brain:tidyRun'),
+        () => window.phosphor.invoke('brain:tidyCancel'),
+        () =>
+          window.phosphor.invoke(
+            'brain:tidyApply',
+            'synthetic-suggestion',
+            { kind: 'merge', survivorId: 'synthetic-entity' },
+            0,
+          ),
+        () => window.phosphor.invoke('brain:tidyDismiss', 'synthetic-suggestion', 0),
+        () => window.phosphor.invoke('brain:tidyChanges', 20),
+        () => window.phosphor.invoke('brain:tidyUndo', 'synthetic-operation', 0),
       ].map(async (request) => {
         try {
           await request()
@@ -490,6 +504,6 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       }),
     )
   })
-  expect(failures).toHaveLength(21)
+  expect(failures).toHaveLength(29)
   for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
 })

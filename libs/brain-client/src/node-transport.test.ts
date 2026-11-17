@@ -71,7 +71,7 @@ describe('createNodeBrainTransport', () => {
     expect(brain.requests[0]!.endsWith('\n')).toBe(true)
     expect(brain.requests[0]!.indexOf('\n')).toBe(brain.requests[0]!.length - 1)
     expect(JSON.parse(brain.requests[0]!)).toEqual({
-      version: 4,
+      version: 5,
       token: TOKEN,
       method: 'search',
       params: { query: 'Harbor' },
@@ -217,5 +217,24 @@ describe('brainConnectionFromEnv', () => {
     expect(
       brainConnectionFromEnv({ PHOSPHOR_BRAIN_ENDPOINT: '/s', PHOSPHOR_BRAIN_TOKEN: 't' }),
     ).toEqual({ endpoint: '/s', token: 't' })
+  })
+})
+
+it('protocol 5 against a protocol 4 server fails with the existing unavailable message', async () => {
+  const brain = await fakeBrain((socket, line) => {
+    const input = JSON.parse(line) as { version: number }
+    expect(input.version).toBe(5)
+    socket.end(
+      JSON.stringify(
+        input.version === 4
+          ? { ok: true, data: {} }
+          : { ok: false, error: 'Brain request unavailable' },
+      ) + '\n',
+    )
+  })
+  const client = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
+  await expect(client.request('search', { query: 'Harbor' })).rejects.toMatchObject({
+    code: 'remote',
+    message: 'Brain request unavailable',
   })
 })

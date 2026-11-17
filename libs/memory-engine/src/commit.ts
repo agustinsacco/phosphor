@@ -13,6 +13,7 @@ export interface CommitContext {
   resolve: (ref: string) => string
   evidence: Map<string, number>
   touched: Set<number>
+  touchedMemories?: Set<number>
 }
 export function insertEvidence(commit: CommitContext, index: number): number {
   const { ctx, proposal } = commit
@@ -38,6 +39,7 @@ export function insertCitations(
   citations: Citation[],
 ): void {
   const { ctx, proposal } = commit
+  commit.touchedMemories?.add(memory)
   for (const c of citations) {
     const excerpt = proposal.evidence[c.evidence]!
     const quote = scrubExcerpt(c.quote)
@@ -208,6 +210,7 @@ export function applyMemory(
   addLinks(commit, current.n, item)
   if (item.target && item.action !== 'enrich') {
     const target = memoryNumber(ctx, item.target)
+    commit.touchedMemories?.add(target)
     for (const row of all<{ entity: number }>(
       ctx,
       'SELECT entity FROM mentions WHERE memory=?',

@@ -1,9 +1,11 @@
+import type { BrainTidySummary, BrainTidyFlag } from './brain-tidy'
+
 /**
  * Brain: machine-local knowledge learned only from lanes the user queues. Private model calls
  * read the conversation in parts, the user approves what they propose, and every lane can recall it.
  * No credentials or database paths cross this contract.
  */
-export const BRAIN_PROTOCOL = 4
+export const BRAIN_PROTOCOL = 5
 /** Pinned local embedding model. No hosted embedding or silent model fallback. */
 export const BRAIN_EMBEDDING_MODEL = {
   id: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
@@ -115,7 +117,7 @@ export type BrainMemoryState = (typeof BRAIN_MEMORY_STATES)[number]
 
 export interface BrainPrefs {
   enabled: boolean
-  /** Lane agents get brain_search. */
+  /** Lane agents get brain_search and brain_flag. */
   recall: boolean
   /** Extracted memories wait for approval; off saves them as soon as extraction ends. */
   review: boolean
@@ -248,6 +250,7 @@ export interface BrainSnapshot {
   jobs: BrainJob[]
 }
 export interface BrainStatus extends BrainSnapshot {
+  tidy: BrainTidySummary
   supported: boolean
   embedding: BrainEmbeddingStatus
 }
@@ -286,9 +289,14 @@ export interface BrainRecall {
   degradation: string[]
 }
 export type { BrainInvokeMap } from './ipc/brain'
-/** Lane agents can only read. Approval, queueing and forgetting stay with the user. */
+export interface BrainFlagResponse {
+  status: 'filed' | 'already_flagged' | 'limit' | 'unavailable'
+  message: string
+}
+/** Agents recall and flag for review. Approval, queueing and forgetting stay with the user. */
 export interface BrainAgentMap {
   search: { request: BrainQuery; result: BrainRecall }
+  flag: { request: BrainTidyFlag; result: BrainFlagResponse }
 }
 export type BrainAgentMethod = keyof BrainAgentMap
 export interface BrainAgentRequest {

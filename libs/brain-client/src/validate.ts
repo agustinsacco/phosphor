@@ -3,6 +3,7 @@ import {
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
   type BrainAgentMap,
+  type BrainFlagResponse,
   type BrainAgentMethod,
   type BrainMemory,
   type BrainRecall,
@@ -23,6 +24,7 @@ export function validateBrainRequest<M extends BrainAgentMethod>(
   method: M,
   input: unknown,
 ): BrainAgentMap[M]['request'] {
+  if (method === 'flag') return validateFlag(input) as BrainAgentMap[M]['request']
   if (method !== 'search' || !record(input)) throw new Error('Invalid Brain request.')
   const text = input.query
   const keys = new Set(['query', 'limit', 'sessionId', 'cwd'])
@@ -107,5 +109,38 @@ export function isBrainRecall(v: unknown): v is BrainRecall {
         strings(e.aliases) &&
         typeof e.description === 'string',
     )
+  )
+}
+
+function validateFlag(input: unknown): BrainAgentMap['flag']['request'] {
+  const bounded = (value: unknown, max: number): value is string =>
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= max &&
+    !value.includes('\0')
+  if (
+    !record(input) ||
+    Object.keys(input).some(
+      (key) => !['memoryId', 'problem', 'reason', 'sessionId', 'title'].includes(key),
+    ) ||
+    !bounded(input.memoryId, 200) ||
+    !bounded(input.sessionId, 256) ||
+    !bounded(input.title, 120) ||
+    !bounded(input.reason, 300) ||
+    !member(input.problem, ['wrong', 'outdated', 'duplicate'])
+  )
+    throw new Error(
+      'Invalid Brain flag: use a known memory, a problem and a reason of 1 to 300 characters.',
+    )
+  return input as unknown as BrainAgentMap['flag']['request']
+}
+export function isBrainFlagResponse(input: unknown): input is BrainFlagResponse {
+  return (
+    record(input) &&
+    Object.keys(input).length === 2 &&
+    member(input.status, ['filed', 'already_flagged', 'limit', 'unavailable']) &&
+    typeof input.message === 'string' &&
+    input.message.length > 0 &&
+    input.message.length <= 300
   )
 }

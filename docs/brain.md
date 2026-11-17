@@ -33,7 +33,8 @@ shows in the sidebar's top navigation only while Brain is on.
 ## The Brain page
 
 The page header shows **Brain**, “N memories · M people and things”, and Settings.
-Underlined **Knowledge** and **Lanes** tabs separate exploration from reading and review.
+Underlined **Knowledge**, **Lanes** and **Tidy** tabs separate exploration, reading and review,
+and knowledge cleanup. Tidy is available only while local Brain is on.
 Arrow keys, Home and End select tabs. Knowledge opens first, except when there are no
 memories and at least one job: then Lanes opens. Switching tabs keeps the explorer trail
 and selected lane; explorer shortcuts act only on Knowledge. The Lanes tab and the sidebar's
@@ -63,6 +64,50 @@ call disclosures as a finished read. Until the first record is saved it says “
 without an error notification. Once a record exists, reading and failed details also show the
 same candidate outcomes and reasons and **Source lane at extraction** (with Open lane) as a
 finished read. Every real load failure offers Retry.
+
+### Tidy
+
+Tidy's tab badge counts open suggestions. Like Lanes, it keeps a grouped list beside the
+selected detail. **Same person or thing?**, **Said twice**, **These disagree** and **Flagged by a
+lane** show their counts and reasons; empty groups disappear. Show more loads twenty more
+suggestions. Up and Down move between rows and Enter opens one. Switching tabs preserves the
+selection and comparison controls, alongside the Knowledge trail and selected lane.
+
+**Tidy now** looks for repeats locally, then asks the reader model to judge at most forty pairs.
+Its tooltip names the pinned reader, or the newest finished read's model. The status line shows
+local work, model progress, the last coverage and partial coverage. Cancel stops a run. A
+cancelled, failed, skipped (no model to check with) or interrupted (Phosphor closed mid-run) run
+shows its reason and Retry. No cost or token counts appear.
+
+A comparison starts with its reason and whether a local rule or the named model found it.
+Entities show descriptions, other names, memory counts, links and source lanes. Memories show
+scope, branch, dates and labelled quotes. The two sides stack when the comparison pane is narrow;
+each opens its record on Knowledge. Entity merges default to the record with more memories and
+have a **Swap surviving record** control. Both “Said twice” and “These disagree” offer the actions
+the engine currently allows: either memory can survive a fold, both can stay disputed, or either
+side can replace the other. Different project, branch or dates, or existing replacement/dispute
+history, prevent folding; a quiet line shows the engine's reason. **Not the same** dismisses an
+open pair. A lane flag offers only **Keep**, or a confirmed permanent **Forget**. It says in one
+sentence who flagged what: “Harbor planning says this is outdated.” (or “is wrong.”, “is a
+duplicate.”), naming the flagging lane as Phosphor's own lane list does; a lane missing from that
+list shows as “A lane calling itself … says this is outdated.”, because the title came from the
+flag. Open the lane resolves only a local lane
+already known to the sidebar, never a path supplied by the flag.
+
+A decision selects the next visible suggestion. Successful changes offer Undo in their toast.
+**Recent changes** lists the newest fifty journal operations with their time, automatic/by-you
+origin and Undo. Refused undo shows the engine's reason. Failed actions reload rather than replay:
+a changed revision says “Brain changed. Check this again.”; an already-settled suggestion advances
+to the next. Every failed read offers Retry, and older replies cannot overwrite newer reads.
+
+Automatic folds produce one “Brain folded N exact repeats” toast and panel notice opening Recent
+changes. New suggestions replace the single `brain:tidy` notice: “Brain has N things to tidy”.
+Counts of one read in the singular (“1 exact repeat”, “1 memory”). A completed Tidy run
+announces its result only while Tidy is not visible: “Found N things to tidy and folded M exact
+repeats.”, leaving out a part that is zero, or “Nothing to tidy.” when both are. Notices open Brain on
+Tidy. Existing startup suggestions and decreasing counts are silent; disabling Brain removes its
+Tidy notices. While visible, enabled Brain checks status every ten seconds to discover lane flags,
+or every two seconds during work. These reads never start a sweep or a model call.
 
 ## Queueing a lane
 
@@ -299,11 +344,13 @@ graph is always visible; there is no hide-graph control. The explorer trail surv
 - **Find route to…**: up to three shortest supported routes between two entities, at most four
   hops, each hop with its memory, highlighted in the graph (`brain:path`).
 - **Merge into…**: folds one entity into another after a confirmation. Names, keys, links and
-  memories move; the source is deleted and the merge is recorded. There is no split.
+  memories move; the source is deleted and the merge is journaled. The confirmation shows both
+  descriptions and memory counts, so identical names remain distinguishable. Its toast and
+  Tidy's Recent changes offer Undo; later edits can prevent a clean undo.
 
 Views reload when Brain's revision or generation changes, and a failed load offers Retry.
 
-The two browse reads run in the search worker and use **schema v5 unchanged**:
+The two browse reads run in the search worker and keep the browse indexes introduced in **schema v5**:
 `brain:entities(kind | null, offset, limit)` accepts limits 1–100, returns entity/count rows,
 `more` and populated `kinds`. It walks `entities_connections` in connection-count descending,
 row-number ascending order, leaving out memory-less and merged-away rows. Kind filtering may
@@ -340,17 +387,116 @@ is pruned immediately.
 
 ## Storage
 
-`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 5, WAL) holds settings,
+`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 6, WAL) holds settings,
 the queue and its saved steps, proposals, extraction records, entities (names, aliases, keys),
-memories, the entities each memory mentions, relations (subject, predicate, object, the memory
-that states it), each link's and memory's quotes, evidence, and float and sign-bit vectors. Full
-text search covers memories, entity words and entity name trigrams. Version 4 upgrades in place:
-one transaction adds the jobs `replaces` column and indexes for lane memories and finished reads,
-then sets version 5. Knowledge, settings, jobs and records stay. Version 5 opens unchanged. Newer
-versions are refused and left untouched. Opening versions 0 to 3 deletes its knowledge, keeps
-settings with review on, and starts a new generation, the same routine as **Reset Brain
-knowledge**. The model lives under
-`<userData>/brain/embeddings`.
+memories, mentions, supported relations, citations, evidence, float/sign-bit vectors, Tidy
+suggestions, a bounded operation journal, and the saved sweep cursor and run checkpoint.
+Full text search covers memories, entity words and entity name trigrams.
+
+Versions 4 and 5 upgrade in place in one transaction. Version 4 first gains the jobs `replaces`
+column and lane-memory/finished-read indexes; both versions then gain the Tidy tables and
+indexes and become version 6. Knowledge, preferences, jobs and records stay. A failed upgrade
+rolls back completely. Version 6 opens without altering its run checkpoint; the runtime owns
+interrupted-run recovery. Newer versions are refused. Opening versions 0 to 3 deletes their
+knowledge, keeps preferences with review on, and starts a new generation, as **Reset Brain
+knowledge** does. The model lives under `<userData>/brain/embeddings`.
+
+### Tidy storage and local sweep
+
+Suggestions have indexed kind, source, state, subject ids, reasons, verdict, reader model and
+lane-flag fields. A canonical two-subject pair key does not depend on its suggestion kind;
+dismissed and cleared pairs stay suppressed. A flag key combines the memory and lane session;
+flag limits are under Tidy checks and lane flags. Missing or superseded memories refuse flags
+without changing the revision.
+Known states are validated on write; unfamiliar future kinds are omitted from reads.
+Suggestion details remain readable after they settle, with only surviving subjects; a removed
+suggestion returns null rather than an error. Details include engine-owned `allowed` actions;
+apply uses the same guards. Either two-memory suggestion kind supports dispute and replacement.
+Folding also requires active memories with no history or dispute. `foldRefusal` distinguishes
+applicability from history, and an existing dispute cannot be added twice. Settled or missing
+subjects offer no actions.
+
+An approval commits before sweeping its touched records. Entity merges and undo also sweep
+changed mention sets. Inside the change, this maintenance sweeps at most 128 touched memories
+(lowest row numbers first). The rest lose their fingerprints and wait in memory; after the change
+returns, the runtime sweeps them 128 at a time, yielding between batches, refreshing search and
+notifying after each, and stopping on dispose or reset. If Phosphor closes first, the missing
+fingerprints bring those memories into **Tidy now**: when a whole-Brain pass reaches its last
+memory, it reads the memory table in windows of 4,096 rows from a second cursor and sweeps the
+active memories that have no fingerprint, 128 per call. The pass is done only when that closing
+walk finds none left, so a memory deferred behind the cursor is covered in the same pass. Only a
+sweep writes a memory's fingerprint. A sweep failure emits a
+warning and does not roll back or report the saved approval/change as failed; running Tidy
+again retries local detection. Each whole-Brain
+sweep call walks at most 128 entity or memory rows from a saved numeric cursor and fixed pass
+watermarks. Coverage reports records visited, totals, limited checks and pass completion, not an
+exhaustive comparison of every pair. Name/alias buckets inspect at most 16 candidates, eight
+names per entity; a one-word person name also offers full-name token matches. The sweep never
+merges entities automatically. Reasons name the matching labels or alias; shared full-name
+evidence takes precedence over one-word matches. After a merge, suggestions about the removed
+record close, and a bounded sweep reconnects the survivor to remaining matching records and
+compares the merged records' memories again.
+
+Near-memory detection uses the four mentioned entities with the fewest memories, plus up to
+16 same-kind name-matching siblings for each, through those same bounded name buckets. Each
+identity contributes its newest 256 stored memories (numeric insertion order). The sweep scores
+those windows by cosine, retains the best 32 candidates across all identities, and offers at
+most eight pairs per swept memory at cosine 0.84 or above. Project and branch differences are
+shown in the reason, not excluded from comparison. The threshold admits observed 0.86
+paraphrases and contradictions while excluding the observed topic-only pairs at 0.80 or below.
+Similarity only raises a question, never applies a change. Two memories supporting one link
+are not a defect.
+
+A sweep call caches up to 128 entity vector windows in least-recently-used order (about 96 MiB
+of vectors); eviction permits a re-read without changing candidates. Folds invalidate the
+windows because mentions changed. Limited checks count:
+
+- a memory that mentions more than four people or things;
+- more than 16 same-name records offered together as siblings;
+- more than eight names on one record;
+- more than 256 memories about one person or thing;
+- a name shared by more than 16 records.
+
+These are checks cut short, not distinct records or cache evictions. The page shows the count
+quietly under coverage and explains that a repeat could be missed there. An older partner beyond
+a memory window can be missed. A single memory scores at most 4 × 17 × 256 vectors before the
+shared best-32 cut.
+
+Only exact repeats fold automatically: the folded sentence, type, project scope, branch,
+validity dates and complete mentioned-entity set must match. Disputed or historical memories
+are not automatically folded. Fingerprints are indexed and updated when mentions change;
+upgrades create the index empty and the sweep fills it incrementally, not during startup.
+Folding preserves the survivor's sentence and unions mentions, citations and supported links;
+a copied quote with the same entry id is not independent support. Different scopes, branches
+or validity periods cannot be folded.
+
+Every merge, fold, dispute and replacement records a reversible operation. The newest 200
+operations retain versioned, validated before-images of changed source rows, with an expected
+after-row digest. Unchanged rows an undo depends on are kept as guards: key and digest only,
+never a before-image, and never a vector. A fold guards both memories' quotes, mentions, links
+and evidence. A merge guards only the memories whose mentions or relations it rewrote: their
+rows that name the survivor and their memory links. Float vectors use base64 blobs. Counts, FTS
+indexes and sign bits are rebuilt, not journaled. Undo restores only the rows the operation
+changed and refuses when later edits prevent a clean restoration; new survivor facts stay.
+Added support, mentions or links on a fold's memories refuse its undo rather than lose later
+contributions. A merge refuses only when a later write depends on it: a relation or mention
+naming the survivor on a memory it rewrote, or a later merge, fold, dispute or replacement on
+those records. A later quote, or a mention of someone else, leaves a merge undoable: the
+mention goes back to the restored person and the later quote stays. Dispute and
+replacement undo preserve independent additions and recompute dispute state from surviving links. Search's normal refresh reloads vectors
+restored below its previous watermark. Undo drops its before-images immediately but retains
+the operation's one-line record. Undo also remembers the pair as dismissed, including automatic
+folds and manual entity merges, so the next sweep does not repeat the undone change.
+
+Forget remains permanent, including knowledge folded into the memory at any depth. Fold
+ancestry references survive intervening undo and retention pruning, so Forget redacts all
+reachable retained before-images. It deletes suggestions about that memory and preserves only
+safe operation ids/labels; an operation whose undo would restore forgotten text becomes unavailable.
+Folding scrubs removed subjects' suggestion text (even after undo), while an open lane flag moves
+to the survivor if it has no open flag or prior flag from that lane; otherwise it closes. The fold's journal records the move, so undoing the fold puts the flag back on the memory the lane flagged, and Forget of that memory erases its flags wherever they sit. A merge can still be undone for its other memories. Reset erases
+all Tidy state as well as the knowledge. These guarantees do not change existing proposal and
+extraction-record retention: source transcripts retained for finished reads can still contain
+the original statement until those records are removed under the retention rules above.
 
 - Entities (`BRAIN_ENTITY_KINDS`): person, team, organization, project, component, document,
   concept, event. Shared across projects.
@@ -386,12 +532,59 @@ neighbours below 2,000 items are exact; above, a Hamming scan keeps the closest 
 EmbeddingGemma vectors of 60,000 made-up sentences it returns 99.9% of the exact top 10
 (recall@10 0.9992, 400 queries); at a million that is extrapolated, not measured.
 
+## Tidy checks and lane flags
+
+**Tidy now** first runs bounded local sweep chunks, then checks at most forty oldest unjudged
+pairs, eight per call. It shares the Brain reader queue with lane reads: neither runs beside
+another. The check only proposes; it never applies a model verdict. For two memories,
+`different` clears and remembers the pair. The model never takes two people or things off the
+owner's list: for an entity pair, `different` records the verdict and its reason, keeps the
+sweep's reason, and leaves the suggestion open. The page then says "Checked by <model>, which
+thinks these are different. Merge only if you know they are the same." and still offers Merge
+and Not the same; only Not the same closes it. A pair with a verdict is not sent to the model
+again. `conflict` and `replaces` remain for review, with the proposed newer side when
+supported. Uncertain answers are `different`, not permission to merge people by name. A
+different project or branch alone never decides a verdict: the model judges whether the
+assertion is limited to its project or branch or holds anywhere, so two contradicting standing
+preferences of one person in two projects are a `conflict`.
+
+The check uses **Model that reads lanes** when pinned, otherwise the model of the newest
+finished read whose launch is available. It tries the newest five finished reads for an account
+and launch, even with a pinned model; without one it explains why the check was skipped. The
+local pass still runs. It uses the same private, tool-less, session-less one-shot path and
+600-second timeout as lane reads, with thinking capped at medium and one transport retry.
+
+Only bounded pair evidence leaves this machine, sent to that reader model's provider: memory
+sentence, type, dates, project scope, branch, entity names and up to two quotes of 300 characters;
+entity names, aliases, kind, description, memory count and up to five neighbours with link words.
+It sends neither the whole Brain nor whole lanes. Text is scrubbed and escaped inside a
+`background-data` wrapper with no instruction authority. Model reasons and verdicts are stored
+with the exact reader model id, not usage or cost figures. Progress is saved between calls.
+Cancel stops further calls; an interrupted run retains progress and offers Retry rather than
+silently calling a model on startup. A failed batch leaves its pairs unjudged while later
+batches continue. Malformed items and unknown handles are dropped and counted; Retry checks
+only pairs still without a verdict.
+
+With recall on, **brain_flag** takes `{ ref, problem, reason }`: a memory's bracket number from
+the latest search briefing in that lane, `wrong`, `outdated` or `duplicate`, and 1–300 characters
+of evidence. The extension retains only that briefing's displayed number-to-id map per session.
+Unknown numbers require another search. The server accepts active or disputed memories, one
+open flag per memory, at most five open flags per lane session and at most fifty open flags in
+the whole Brain; the same lane cannot flag the same memory twice. The local bridge accepts ten
+flag requests a minute from all lanes together, so a lane cannot dodge the limits by claiming
+another lane's id. It records the claimed lane id and title; the page trusts only the id, to find
+the lane in Phosphor's own list. Reasons are
+untrusted, bounded data, never instructions. A flag adds a review suggestion, not a knowledge
+change. The skill asks agents to flag only user contradictions, verified wrong or outdated
+facts, or duplicate recalled memories—never a guess, an agent preference or mere irrelevance.
+
 ## Recall
 
 When Brain and recall are on, lane startup (`SessionStartupRuntime.recall`) adds
 `PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN`, `-e brain-ext/brain.mjs` and
 `--skill skills/brain`. The endpoint is a local socket; the token is random per app run. Recall
-never blocks a lane: any failure starts it without Brain. The one tool only reads.
+never blocks a lane: any failure starts it without Brain. Search stays read-only; flags only
+ask the owner to review. Both tools use the version 5 local bridge.
 
 `brain_search(query, limit?)` returns 8 memories by default, up to 20:
 
@@ -436,5 +629,6 @@ project's memories as context, and to report a dispute rather than pick a side.
 
 - Extraction quality is the reader model's. Review catches a wrong link or identity; afterwards,
   Forget and Merge into… fix it.
-- A wrong merge cannot be undone except by Reset.
+- A merge, fold, dispute or replacement can be undone while its journal is retained and later
+  changes permit a clean restoration. Forget is never undone.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.

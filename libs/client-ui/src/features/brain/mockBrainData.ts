@@ -1,3 +1,4 @@
+import { emptyBrainTidySummary } from '@shared/brain-tidy'
 import {
   BRAIN_EMBEDDING_MODEL,
   DEFAULT_BRAIN_PREFS,
@@ -83,6 +84,7 @@ export function mockBrainData(): { entities: BrainEntity[]; details: BrainMemory
 export function mockBrainStatus(): BrainStatus {
   return {
     supported: true,
+    tidy: emptyBrainTidySummary(),
     prefs: { ...DEFAULT_BRAIN_PREFS },
     revision: 0,
     generation: 'mock-generation-0',

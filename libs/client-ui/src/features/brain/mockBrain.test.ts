@@ -110,7 +110,11 @@ it('cancels jobs, rejects all, retries downloads, removes only while off, and re
 it('merges mentions and links, and auto-approves when review is off', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:merge', ['tom', 'rina'])
+  await call('brain:merge', [
+    'tom',
+    'rina',
+    ((await call('brain:status', [])) as BrainStatus).revision,
+  ])
   const rina = (await call('brain:entity', ['rina'])) as BrainEntityView
   expect(rina.entity.aliases).toContain('Tom Lee')
   await expect(call('brain:entity', ['tom'])).rejects.toThrow('Entity not found')
@@ -151,7 +155,11 @@ it('requeues a stale proposal and returns it to review after recomputing', async
   now = 6000
   await call('brain:status', [])
   const id = 'harbor-demo-review'
-  await call('brain:merge', ['tom', 'rina'])
+  await call('brain:merge', [
+    'tom',
+    'rina',
+    ((await call('brain:status', [])) as BrainStatus).revision,
+  ])
   await expect(call('brain:proposal', [id])).rejects.toThrow(
     'Brain changed; refreshing this review',
   )
@@ -300,4 +308,9 @@ it('orders recent memories by finished job and caps eligibility at the newest tw
   }
   const recent = (await call('brain:recent', [50])) as BrainRecentMemories
   expect(recent.items.map((item) => item.id)).toEqual(expected.slice(0, 40))
+})
+
+it('returns null for an absent mock Tidy suggestion', async () => {
+  const call = createMockBrain()
+  await expect(call('brain:tidySuggestion', ['missing'])).resolves.toBeNull()
 })

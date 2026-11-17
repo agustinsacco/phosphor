@@ -108,7 +108,7 @@ it('merge repoints mentions, keys, names and duplicate support, removes self-lin
     ],
     memoryVectors: [vector()],
   })
-  store.merge(source.id, target.id)
+  store.merge(source.id, target.id, store.revision())
   expect(store.memory(old.id).memory.entityIds).not.toContain(source.id)
   expect(store.memory(old.id).memory.links).toHaveLength(1)
   expect(store.memory(old.id).linkQuotes[store.memory(old.id).memory.links[0]!.id]).toHaveLength(1)

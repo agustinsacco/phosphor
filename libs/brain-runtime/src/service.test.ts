@@ -2,7 +2,9 @@ import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
+import { NO_MODEL } from './tidy/check'
 import { pipelineSetup } from './__fixtures__/pipeline'
+import type { BrainMemoryDetail } from '@phosphor/shared/brain-explore'
 import type { BrainService } from './types'
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -68,7 +70,7 @@ it('queues a lane, completes review, refreshes search and exposes bounded explor
     entities: [],
     memories: [],
   })
-  await s.service.api.merge('a', 'b')
+  await s.service.api.merge('a', 'b', (await s.service.api.status()).revision)
   await s.service.api.forget('missing')
   expect(s.search.refreshes).toBe(3)
 })
@@ -201,4 +203,27 @@ it('rereads a finished lane through busy waiting, rejects missing files and unfi
   await expect(s.service.api.reread(old.id)).rejects.toThrow(
     "This lane's file is gone, so Brain cannot read it again.",
   )
+})
+it('binds Tidy to the store: a run persists its progress and a lane flag reaches the engine', async () => {
+  const s = await setup()
+  s.store.prefs.recall = true
+  s.store.details.push({ memory: { id: 'm1', state: 'active' } } as BrainMemoryDetail)
+  const flagged = vi.spyOn(s.store, 'flag')
+  expect(
+    await s.service.agent('flag', {
+      memoryId: 'm1',
+      problem: 'wrong',
+      reason: 'Tom Lee said Harbor bills monthly.',
+      sessionId: 'lane-1',
+      title: 'Harbor billing',
+    }),
+  ).toMatchObject({ status: 'filed' })
+  expect(flagged).toHaveBeenCalledOnce()
+  await s.service.api.tidyRun()
+  // No read has finished in this fake store, so the model check is skipped with its reason.
+  await vi.waitFor(() => expect(s.store.readRun()?.state).toBe('skipped'))
+  expect((await s.service.api.tidy(null, null, 20)).run).toMatchObject({
+    state: 'skipped',
+    message: NO_MODEL,
+  })
 })

@@ -1,9 +1,15 @@
-import type { BrainAgentMethod, BrainQuery, BrainRecall } from '@phosphor/shared/brain'
+import type {
+  BrainAgentMethod,
+  BrainQuery,
+  BrainRecall,
+  BrainAgentMap,
+} from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
 import type { BrainServiceOptions, BrainRecallLaunch, BrainSearchPort } from './types'
 import { projectContext } from './lane'
 import { createBrainBridge } from './bridge'
+import { fileBrainFlag, flagResponse, type BrainFlagPort } from './tidy/flag'
 
 const unavailable = (): BrainRecall => ({
   status: 'unavailable',
@@ -21,14 +27,15 @@ export function createRecall(
   options: BrainServiceOptions,
   search: BrainSearchPort,
   accepting: () => boolean = () => true,
+  flags?: BrainFlagPort,
 ) {
   let bridge: ReturnType<typeof createBrainBridge> | undefined
   let disposed = false
   const enabled = (): boolean =>
     !disposed && accepting() && store.snapshot().prefs.enabled && store.snapshot().prefs.recall
-  async function agent(method: BrainAgentMethod, input: BrainQuery): Promise<BrainRecall> {
+  async function recall(input: BrainQuery): Promise<BrainRecall> {
     if (!enabled()) return unavailable()
-    const params = validateBrainRequest(method, input)
+    const params = validateBrainRequest('search', input)
     const project = params.cwd ? await projectContext(params.cwd) : { scope: null, branch: null }
     const vector = await options.embeddings
       .embed([params.query], 'query')
@@ -44,6 +51,19 @@ export function createRecall(
       limit: params.limit ?? 8,
     })
     return result
+  }
+  async function agent<M extends BrainAgentMethod>(
+    method: M,
+    input: BrainAgentMap[M]['request'],
+  ): Promise<BrainAgentMap[M]['result']> {
+    const result =
+      method === 'search'
+        ? await recall(validateBrainRequest('search', input))
+        : enabled() && flags
+          ? fileBrainFlag(store, flags, input)
+          : flagResponse('unavailable')
+    if (method === 'flag' && result.status === 'filed') options.onChange?.()
+    return result as BrainAgentMap[M]['result']
   }
   async function recallLaunch(): Promise<BrainRecallLaunch | undefined> {
     try {

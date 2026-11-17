@@ -49,7 +49,7 @@ export function formatBytes(n: number): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }
 
-/** "1 memory", "3 memories": a count with the right noun. */
+/** "1 memory", "10,000 memories": a count with the right noun. */
 export function formatCount(n: number, singular: string, plural = `${singular}s`): string {
-  return `${n} ${n === 1 ? singular : plural}`
+  return `${n.toLocaleString()} ${n === 1 ? singular : plural}`
 }

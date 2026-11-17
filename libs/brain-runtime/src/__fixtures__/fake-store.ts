@@ -1,3 +1,9 @@
+import type { BrainTidyRun } from '@phosphor/shared/brain-tidy'
+import {
+  emptyBrainTidySummary,
+  emptyBrainTidyPage,
+  emptyBrainTidyCoverage,
+} from '@phosphor/shared/brain-tidy'
 import {
   DEFAULT_BRAIN_PREFS,
   type BrainExtractionRecord,
@@ -248,14 +254,47 @@ export class FakeBrainStore implements BrainStore {
   path(): BrainPaths {
     return { paths: [], entities: [], memories: [] }
   }
-  merge(): void {
+  private tidyRun: BrainTidyRun | null = null
+  readRun = () => this.tidyRun
+  writeRun(value: BrainTidyRun): void {
+    this.tidyRun = structuredClone(value)
+  }
+  tidySummary = emptyBrainTidySummary
+  tidy = () => emptyBrainTidyPage(this.rev)
+  tidySuggestion(): null {
+    return null
+  }
+  tidyApply(): string | null {
     this.rev++
+    return 'operation'
+  }
+  tidyDismiss(): void {
+    this.rev++
+  }
+  tidyChanges = () => ({ items: [], revision: this.rev })
+  tidyUndo(): void {
+    this.rev++
+  }
+  sweep = () => ({
+    coverage: emptyBrainTidyCoverage(),
+    suggestions: 0,
+    folded: 0,
+    operationIds: [],
+  })
+  takeTidyMaintenance = (): string[] => []
+  pendingPairs = () => []
+  recordVerdicts(): void {}
+  flag = () => ({ status: 'filed' as const, suggestionId: 'flag' })
+  merge(): string {
+    this.rev++
+    return 'operation'
   }
   forget(id: string): void {
     this.details = this.details.filter((d) => d.memory.id !== id)
     this.rev++
   }
   reset(): void {
+    this.tidyRun = null
     this.jobs = []
     this.parts.clear()
     this.proposals.clear()

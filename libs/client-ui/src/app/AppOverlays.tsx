@@ -7,7 +7,7 @@ import { PromptHost } from '@/components/PromptHost'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
 import { FeedbackModal } from '@/features/feedback/FeedbackModal'
-import { useBrainSync } from '@/features/brain/useBrain'
+import { useBrainSync } from '@/features/brain/useBrainSync'
 import { attachPrTransitions } from '@/stores/prTransitions'
 import { useEffect } from 'react'
 

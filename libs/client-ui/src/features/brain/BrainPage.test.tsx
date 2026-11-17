@@ -85,7 +85,7 @@ beforeEach(() => {
     'brain:memory': (id) => explorer.memory(id),
     'brain:merge': (source, target) => {
       explorer.merge(source, target)
-      return { ...status, revision: ++status.revision }
+      return { ...status, revision: ++status.revision, operationId: null }
     },
     'brain:retry': () => status,
     'brain:path': (from, to) => explorer.path(from, to),

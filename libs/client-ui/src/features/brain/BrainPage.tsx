@@ -4,10 +4,14 @@ import { UnderlinedTabs } from '@/components/UnderlinedTabs'
 import { Tag, Button } from '@/components/form'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { usePlatform } from '@/platform/Platform'
-import { useBrain, useBrainSync } from './useBrain'
+import { useBrain } from './useBrain'
+import { useBrainSync } from './useBrainSync'
 import { BrainKnowledge } from './explorer/BrainKnowledge'
 import { useExplorer } from './explorer/useExplorer'
 import { BrainLanes } from './BrainLanes'
+import { BrainTidy } from './tidy/BrainTidy'
+import { useBrainTab } from './tidy/tidyNavigation'
+import type { BrainStatus } from '@shared/brain'
 import { formatCount } from '@/lib/format'
 
 export function BrainPage(): React.JSX.Element {
@@ -60,32 +64,13 @@ export function BrainPage(): React.JSX.Element {
 
 function BrainContent(): React.JSX.Element {
   const status = useBrain((s) => s.status)!
-  const [tab, setTab] = useState<'knowledge' | 'lanes'>(() =>
-    !status.counts.memories && status.jobs.length ? 'lanes' : 'knowledge',
-  )
+  const { tab, setTab, recent } = useBrainTab(status)
   const explorer = useExplorer(tab === 'knowledge')
   const [selected, setSelected] = useState<string | null>(null)
   const [readId, setReadId] = useState<string | null>(null)
-  const reviews = status.jobs.filter((job) => job.state === 'review').length
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <UnderlinedTabs
-        id="brain"
-        label="Brain views"
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { value: 'knowledge', label: 'Knowledge' },
-          {
-            value: 'lanes',
-            label: (
-              <>
-                Lanes {reviews > 0 && <Tag className="bg-accent-soft text-accent">{reviews}</Tag>}
-              </>
-            ),
-          },
-        ]}
-      />
+      <BrainTabs tab={tab} setTab={setTab} status={status} />
       <div
         id="brain-panel-knowledge"
         role="tabpanel"
@@ -123,6 +108,67 @@ function BrainContent(): React.JSX.Element {
           />
         )}
       </div>
+      {status.prefs.enabled && (
+        <div
+          id="brain-panel-tidy"
+          role="tabpanel"
+          aria-labelledby="brain-tab-tidy"
+          className={tab === 'tidy' ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'hidden'}
+        >
+          <BrainTidy
+            active={tab === 'tidy'}
+            recent={recent}
+            onVisit={(visit) => {
+              explorer.onVisit(visit)
+              setTab('knowledge')
+            }}
+          />
+        </div>
+      )}
     </div>
+  )
+}
+
+function BrainTabs({
+  tab,
+  setTab,
+  status,
+}: {
+  tab: 'knowledge' | 'lanes' | 'tidy'
+  setTab: (tab: 'knowledge' | 'lanes' | 'tidy') => void
+  status: BrainStatus
+}): React.JSX.Element {
+  const reviews = status.jobs.filter((job) => job.state === 'review').length
+  return (
+    <UnderlinedTabs
+      id="brain"
+      label="Brain views"
+      value={tab}
+      onChange={setTab}
+      tabs={[
+        { value: 'knowledge', label: 'Knowledge' },
+        {
+          value: 'lanes',
+          label: (
+            <>Lanes {reviews > 0 && <Tag className="bg-accent-soft text-accent">{reviews}</Tag>}</>
+          ),
+        },
+        ...(status.prefs.enabled
+          ? [
+              {
+                value: 'tidy' as const,
+                label: (
+                  <>
+                    Tidy{' '}
+                    {status.tidy.open > 0 && (
+                      <Tag className="bg-accent-soft text-accent">{status.tidy.open}</Tag>
+                    )}
+                  </>
+                ),
+              },
+            ]
+          : []),
+      ]}
+    />
   )
 }

@@ -1,3 +1,5 @@
+import { createTidyRunner, type TidyRunner } from './tidy/run'
+import { tidyApi } from './tidy/api'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
@@ -11,6 +13,7 @@ import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
 import { readLane } from './lane'
+import type { TidyMaintenance } from './tidy/maintenance'
 
 interface ApiContext {
   store: BrainStore
@@ -19,6 +22,7 @@ interface ApiContext {
   queue: ExtractionQueue
   changed(): void
   startModel(run: () => Promise<void>): void
+  maintenance: Pick<TidyMaintenance, 'reset'>
 }
 function checkPrefs(prefs: BrainPrefs): void {
   if (
@@ -78,10 +82,8 @@ async function reread(id: string, context: ApiContext): Promise<void> {
 }
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
-  const status = (): BrainStatus => {
-    const embedding = options.embeddings.status()
-    return { ...store.snapshot(), supported: embedding.phase !== 'unsupported', embedding }
-  }
+  const tidy = createTidyRunner({ ...context, runState: store })
+  const status = (): BrainStatus => apiStatus(context, tidy)
   const mutate = async (run: () => void): Promise<BrainStatus> => {
     run()
     await search.refresh()
@@ -132,6 +134,7 @@ export function createApi(context: ApiContext): BrainApi {
     reset: async () => {
       await queue.pause()
       try {
+        context.maintenance.reset()
         store.reset()
         await Promise.all(
           ['calls', 'forks'].map((name) =>
@@ -145,7 +148,7 @@ export function createApi(context: ApiContext): BrainApi {
         queue.resume()
       }
     },
-    merge: async (source, target) => mutate(() => store.merge(source, target)),
+    ...tidyApi(context, tidy, status, mutate),
     ...readApi(context),
     forget: async (id) => mutate(() => store.forget(id)),
   }
@@ -217,5 +220,18 @@ function readApi({
     entityMemories: async (id, filter, cursor) => store.entityMemories(id, filter, cursor),
     memory: async (id) => store.memory(id),
     path: async (from, to) => store.path(from, to),
+  }
+}
+
+function apiStatus({ store, options }: ApiContext, tidy: TidyRunner): BrainStatus {
+  const embedding = options.embeddings.status()
+  return {
+    ...store.snapshot(),
+    tidy: {
+      ...store.tidySummary(),
+      running: ['queued', 'sweeping', 'checking'].includes(tidy.current()?.state ?? ''),
+    },
+    supported: embedding.phase !== 'unsupported',
+    embedding,
   }
 }

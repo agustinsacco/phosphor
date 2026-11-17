@@ -1,9 +1,9 @@
-import type { BrainQuery, BrainRecall } from '@phosphor/shared/brain'
+import type { BrainQuery, BrainRecall, BrainAgentMap } from '@phosphor/shared/brain'
 import type { BrainTransport } from './port'
-import { isBrainRecall, validateBrainRequest } from './validate'
+import { isBrainRecall, isBrainFlagResponse, validateBrainRequest } from './validate'
 
 export type { BrainConnection, BrainTransport } from './port'
-export { formatBrainRecall } from './format'
+export { formatBrainRecall, brainBriefing } from './format'
 
 export type BrainClientErrorCode =
   'invalid_connection' | 'connection' | 'timeout' | 'aborted' | 'oversized' | 'malformed' | 'remote'
@@ -18,9 +18,27 @@ export class BrainClientError extends Error {
 }
 export interface BrainClient {
   search(query: BrainQuery, signal?: AbortSignal): Promise<BrainRecall>
+  flag(
+    input: BrainAgentMap['flag']['request'],
+    signal?: AbortSignal,
+  ): Promise<BrainAgentMap['flag']['result']>
 }
 export function createBrainClient(transport: BrainTransport): BrainClient {
   return {
+    async flag(input, signal) {
+      try {
+        validateBrainRequest('flag', input)
+      } catch {
+        throw new BrainClientError(
+          'malformed',
+          'Brain flag needs a known memory and a reason of 1 to 300 characters.',
+        )
+      }
+      const data: unknown = await transport.request('flag', input, signal)
+      if (!isBrainFlagResponse(data))
+        throw new BrainClientError('malformed', 'Brain flag returned an invalid result')
+      return data
+    },
     async search(query, signal) {
       try {
         validateBrainRequest('search', query)

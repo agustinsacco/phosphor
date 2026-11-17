@@ -185,3 +185,35 @@ it.each(subscriptions)(
     expect(electron.ipcRenderer.removeListener).toHaveBeenCalledTimes(2)
   },
 )
+
+it('forwards the reviewed Tidy channels and revision-bearing merge unchanged', async () => {
+  electron.ipcRenderer.invoke.mockResolvedValue({})
+  await api.invoke('brain:tidy', null, null, 20)
+  await api.invoke('brain:tidySuggestion', 'suggestion')
+  await api.invoke('brain:tidyRun')
+  await api.invoke('brain:tidyCancel')
+  await api.invoke('brain:tidyApply', 'suggestion', { kind: 'fold', survivorId: 'harbor' }, 3)
+  await api.invoke('brain:tidyDismiss', 'suggestion', 3)
+  await api.invoke('brain:tidyChanges', 20)
+  await api.invoke('brain:tidyUndo', 'operation', 4)
+  await api.invoke('brain:merge', 'rina', 'rina-okafor', 4)
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
+    ['brain:tidy', null, null, 20],
+    ['brain:tidySuggestion', 'suggestion'],
+    ['brain:tidyRun'],
+    ['brain:tidyCancel'],
+    ['brain:tidyApply', 'suggestion', { kind: 'fold', survivorId: 'harbor' }, 3],
+    ['brain:tidyDismiss', 'suggestion', 3],
+    ['brain:tidyChanges', 20],
+    ['brain:tidyUndo', 'operation', 4],
+    ['brain:merge', 'rina', 'rina-okafor', 4],
+  ])
+})
+
+it('preserves a null Tidy detail when Forget or Reset removed its suggestion', async () => {
+  const response = Promise.resolve(null)
+  electron.ipcRenderer.invoke.mockReturnValue(response)
+  const result = api.invoke('brain:tidySuggestion', 'forgotten')
+  expect(result).toBe(response)
+  await expect(result).resolves.toBeNull()
+})

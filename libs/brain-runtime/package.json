@@ -184,6 +184,34 @@
       "types": "./src/stages/reconcile.ts",
       "default": "./src/stages/reconcile.ts"
     },
+    "./tidy/api": {
+      "types": "./src/tidy/api.ts",
+      "default": "./src/tidy/api.ts"
+    },
+    "./tidy/check": {
+      "types": "./src/tidy/check.ts",
+      "default": "./src/tidy/check.ts"
+    },
+    "./tidy/flag": {
+      "types": "./src/tidy/flag.ts",
+      "default": "./src/tidy/flag.ts"
+    },
+    "./tidy/maintenance": {
+      "types": "./src/tidy/maintenance.ts",
+      "default": "./src/tidy/maintenance.ts"
+    },
+    "./tidy/parse": {
+      "types": "./src/tidy/parse.ts",
+      "default": "./src/tidy/parse.ts"
+    },
+    "./tidy/prompt": {
+      "types": "./src/tidy/prompt.ts",
+      "default": "./src/tidy/prompt.ts"
+    },
+    "./tidy/run": {
+      "types": "./src/tidy/run.ts",
+      "default": "./src/tidy/run.ts"
+    },
     "./transcript": {
       "types": "./src/transcript.ts",
       "default": "./src/transcript.ts"

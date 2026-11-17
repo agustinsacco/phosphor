@@ -1,3 +1,4 @@
+import type { BrainTidyStore } from './tidy/types'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainConnectionPage,
@@ -68,7 +69,7 @@ export interface JobPart {
 }
 
 /** The single writer: queue, proposals, review and the Explorer's indexed reads. Synchronous. */
-export interface BrainStore {
+export interface BrainStore extends BrainTidyStore {
   snapshot(): BrainSnapshot
   setPrefs(prefs: BrainPrefs): BrainPrefs
   revision(): number
@@ -128,7 +129,7 @@ export interface BrainStore {
   ): BrainMemoryPage
   memory(id: string): BrainMemoryDetail
   path(fromId: string, toId: string): BrainPaths
-  merge(sourceId: string, targetId: string): void
+  merge(sourceId: string, targetId: string, revision: number): string
   forget(memoryId: string): void
   /**
    * Drops all knowledge, jobs, proposals and records in one transaction, recreates the schema,

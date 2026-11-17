@@ -12,10 +12,19 @@ export interface QueueOptions {
   now(): number
 }
 
+interface QueueTask {
+  older: Set<string>
+  abort: AbortController
+  run(signal: AbortSignal): Promise<void>
+  resolve(): void
+  reject(error: unknown): void
+}
+
 /** A single fork at a time. Waiting lanes never block an older runnable job. */
 export class ExtractionQueue {
   private active: { id: string; abort: AbortController; done: Promise<void> } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
+  private tasks: QueueTask[] = []
   private disposed = false
   private paused = false
 
@@ -39,6 +48,7 @@ export class ExtractionQueue {
   async pause(): Promise<void> {
     this.paused = true
     clearTimeout(this.timer)
+    this.cancelTasks()
     this.active?.abort.abort()
     await this.active?.done
   }
@@ -68,6 +78,20 @@ export class ExtractionQueue {
     if (waiting) this.timer = setTimeout(() => this.kick(), 2000)
     if (this.active || !this.options.ready()) return
     const job = store.snapshot().jobs.find((j) => j.state === 'queued')
+    const task = this.tasks[0]
+    if (task && (!job || !task.older.has(job.id))) {
+      this.tasks.shift()
+      const done = Promise.resolve()
+        .then(() => task.run(task.abort.signal))
+        .then(task.resolve, task.reject)
+        .finally(() => {
+          this.active = undefined
+          this.options.changed()
+          this.kick()
+        })
+      this.active = { id: 'tidy', abort: task.abort, done }
+      return
+    }
     if (!job) return
     const abort = new AbortController()
     store.updateJob(job.id, { state: 'running', startedAt: this.options.now(), error: null })
@@ -75,6 +99,40 @@ export class ExtractionQueue {
     // Start on a microtask so cancellation always sees the active run first.
     const done = Promise.resolve().then(() => this.execute(job, abort))
     this.active = { id: job.id, abort, done }
+  }
+
+  /** A lane-less task shares the worker and waits behind already runnable lane reads. */
+  enqueueTask(run: QueueTask['run']): { done: Promise<void>; cancel(): void } {
+    if (!this.accepting) throw new Error('Brain is resetting.')
+    const abort = new AbortController()
+    let task: QueueTask
+    const done = new Promise<void>((resolve, reject) => {
+      task = {
+        older: new Set(this.options.store.snapshot().jobs.map((job) => job.id)),
+        abort,
+        run,
+        resolve,
+        reject,
+      }
+      this.tasks.push(task)
+    })
+    const cancel = (): void => {
+      abort.abort()
+      const index = this.tasks.indexOf(task)
+      if (index >= 0) {
+        this.tasks.splice(index, 1)
+        task.reject(new Error('Brain Tidy cancelled.'))
+      }
+    }
+    this.kick()
+    return { done, cancel }
+  }
+
+  private cancelTasks(): void {
+    for (const task of this.tasks.splice(0)) {
+      task.abort.abort()
+      task.reject(new Error('Brain Tidy cancelled.'))
+    }
   }
 
   cancel(id: string): void {
@@ -93,6 +151,7 @@ export class ExtractionQueue {
   async dispose(): Promise<void> {
     this.disposed = true
     clearTimeout(this.timer)
+    this.cancelTasks()
     this.active?.abort.abort()
     await this.active?.done
   }

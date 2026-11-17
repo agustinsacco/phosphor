@@ -1,6 +1,7 @@
 import { ArchiveNotices } from '@/features/archive/ArchiveNotices'
 import { formatCount } from '@/lib/format'
-import { useBrain, useBrainSync } from '@/features/brain/useBrain'
+import { useBrain } from '@/features/brain/useBrain'
+import { useBrainSync } from '@/features/brain/useBrainSync'
 import { usePlatform } from '@/platform/Platform'
 import type { GlobalPage } from '@/stores/layout'
 import { NavigationItem } from './NavigationItem'

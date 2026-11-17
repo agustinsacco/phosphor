@@ -1,6 +1,7 @@
 import { BRAIN_EMBEDDING_MODEL, type BrainPrefs, type BrainStatus } from '@shared/brain'
 import { Button, Row, SectionTitle, Toggle } from '@/components/form'
-import { useBrain, useBrainSync } from '@/features/brain/useBrain'
+import { useBrain } from '@/features/brain/useBrain'
+import { useBrainSync } from '@/features/brain/useBrainSync'
 import { formatBytes, formatCount } from '@/lib/format'
 import { useNavigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
@@ -43,7 +44,7 @@ export function BrainTab(): React.JSX.Element {
         <>
           <Row
             title="Recall in lanes"
-            description="Agents in every lane can look up what you approved when it helps. They get one tool, brain_search, and a skill that says when to use it. New lanes pick this up."
+            description="Agents in new lanes get brain_search to recall approved knowledge and brain_flag to suggest a correction for you to review on Tidy, never to change Brain."
           >
             <Toggle
               on={status.prefs.recall}

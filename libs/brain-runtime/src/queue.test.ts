@@ -165,3 +165,52 @@ it('dismisses an empty reread by removing it, not replacing the finished read', 
   expect(s.store.job(old.id)?.state).toBe('done')
   await s.queue.dispose()
 })
+
+it('orders Tidy behind earlier reads and ahead of reads queued while it runs', async () => {
+  const s = setup()
+  const first = s.enqueue('rina')
+  s.queue.kick()
+  await flush()
+  const order: string[] = []
+  let finish!: () => void
+  const tidy = s.queue.enqueueTask(async () => {
+    order.push('tidy')
+    await new Promise<void>((resolve) => {
+      finish = resolve
+    })
+  })
+  const later = s.enqueue('tom')
+  s.queue.kick()
+  expect(order).toEqual([])
+  expect(s.runs.map((r) => r.id)).toEqual([first.id])
+  s.runs[0]!.finish()
+  await flush()
+  expect(order).toEqual(['tidy'])
+  expect(s.runs).toHaveLength(1)
+  finish()
+  await tidy.done
+  await flush()
+  expect(s.runs.map((r) => r.id)).toEqual([first.id, later.id])
+  await s.queue.dispose()
+})
+
+it('cancels queued Tidy without invoking it and pause aborts active Tidy', async () => {
+  const s = setup()
+  s.enqueue('rina')
+  s.queue.kick()
+  const run = vi.fn(async () => {})
+  const waiting = s.queue.enqueueTask(run)
+  waiting.cancel()
+  await expect(waiting.done).rejects.toThrow('cancelled')
+  expect(run).not.toHaveBeenCalled()
+  await s.queue.pause()
+  s.store.jobs = []
+  s.queue.resume()
+  const active = s.queue.enqueueTask(async (signal) => {
+    await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve()))
+  })
+  await flush()
+  await s.queue.pause()
+  await active.done
+  await s.queue.dispose()
+})

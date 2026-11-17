@@ -1,5 +1,6 @@
+import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import type { BrainReviewDecision } from '@phosphor/shared/brain'
-import { run, transaction, type Context } from './database'
+import { all, run, transaction, type Context } from './database'
 import {
   addNames,
   cleanOrphans,
@@ -108,7 +109,9 @@ export function review(
   jobId: string,
   decision: BrainReviewDecision | null,
   expectedRevision: number,
-): void {
+): BrainTidyTouched {
+  const touched = new Set<number>(),
+    touchedMemories = new Set<number>()
   transaction(ctx, () => {
     const value = readProposal(ctx, jobId)
     if (expectedRevision !== revision(ctx) || value.computedRevision !== revision(ctx))
@@ -119,7 +122,6 @@ export function review(
       return
     }
     if (decision) validateDecision(ctx, value, decision)
-    const touched = new Set<number>()
     if (decision) {
       const commit: CommitContext = {
         ctx,
@@ -127,6 +129,7 @@ export function review(
         resolve: resolver(ctx, value, decision),
         evidence: new Map(),
         touched,
+        touchedMemories,
       }
       for (const index of new Set(decision.memories)) {
         const item = value.memories[index]!
@@ -172,6 +175,25 @@ export function review(
     run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
     pruneExtractions(ctx)
   })
+  return touchedIds(ctx, touched, touchedMemories)
+}
+function touchedIds(
+  ctx: Context,
+  touched: Set<number>,
+  touchedMemories: Set<number>,
+): BrainTidyTouched {
+  return {
+    entityIds: all<{ id: string }>(
+      ctx,
+      'SELECT id FROM entities WHERE n IN (SELECT value FROM json_each(?))',
+      JSON.stringify([...touched]),
+    ).map((r) => r.id),
+    memoryIds: all<{ id: string }>(
+      ctx,
+      'SELECT id FROM memories WHERE n IN (SELECT value FROM json_each(?))',
+      JSON.stringify([...touchedMemories]),
+    ).map((r) => r.id),
+  }
 }
 
 function identityChanged(

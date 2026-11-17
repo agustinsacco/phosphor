@@ -13,7 +13,7 @@ import { validateBrainRequest } from '@phosphor/brain-client/validate'
 const MAX_BYTES = 512 * 1024
 export type BridgeInvoke = (method: BrainAgentMethod, params: unknown) => Promise<unknown>
 
-/** One random read-only token per service lifetime, carried only over a private local socket. */
+/** One random recall/flag token per service lifetime, carried only over a private local socket. */
 export async function createBrainBridge(invoke: BridgeInvoke) {
   const directory = await mkdtemp(join(tmpdir(), 'ph-brain-'))
   await chmod(directory, 0o700)
@@ -23,6 +23,22 @@ export async function createBrainBridge(invoke: BridgeInvoke) {
       ? `\\\\.\\pipe\\phosphor-brain-${randomBytes(12).toString('hex')}`
       : join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
+  const flagTimes: number[] = []
+  const limitedInvoke: BridgeInvoke = async (method, params) => {
+    if (method === 'flag') {
+      // Monotonic, so a wall-clock step cannot hold the window shut.
+      const now = performance.now()
+      while (flagTimes.length && flagTimes[0]! <= now - 60_000) flagTimes.shift()
+      if (flagTimes.length >= 10)
+        return {
+          status: 'limit',
+          message:
+            'Brain accepts ten flag requests per minute. Try again shortly; Brain knowledge has not changed.',
+        }
+      flagTimes.push(now)
+    }
+    return invoke(method, params)
+  }
   const server = createServer((socket) => {
     if (sockets.size >= 32) {
       socket.destroy()
@@ -30,7 +46,7 @@ export async function createBrainBridge(invoke: BridgeInvoke) {
     }
     sockets.add(socket)
     socket.once('close', () => sockets.delete(socket))
-    accept(socket, token, invoke)
+    accept(socket, token, limitedInvoke)
   })
   try {
     await new Promise<void>((resolve, reject) => {
@@ -105,11 +121,14 @@ async function respond(
     } | null
     if (
       !input ||
+      typeof input !== 'object' ||
+      Array.isArray(input) ||
+      Object.keys(input).some((key) => !['version', 'token', 'method', 'params'].includes(key)) ||
       input.version !== BRAIN_PROTOCOL ||
       typeof input.token !== 'string' ||
       input.token.length !== token.length ||
       !timingSafeEqual(Buffer.from(input.token), Buffer.from(token)) ||
-      input.method !== 'search'
+      (input.method !== 'search' && input.method !== 'flag')
     )
       throw new Error('Denied')
     const params = validateBrainRequest(input.method, input.params)

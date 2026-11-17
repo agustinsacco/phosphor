@@ -1,3 +1,4 @@
+import { eraseTidyMemory } from './tidy/erase'
 import { all, one, run, transaction, type Context } from './database'
 import {
   addNames,
@@ -12,9 +13,9 @@ import { memoryNumber } from './knowledge'
 import { bumpRevision } from './prefs'
 import { pruneExtractions } from './extractions'
 
-export function merge(ctx: Context, sourceId: string, targetId: string): void {
+export function mergeRows(ctx: Context, sourceId: string, targetId: string): void {
   if (sourceId === targetId) throw new Error('Choose two different Brain entities.')
-  transaction(ctx, () => {
+  {
     const source = entityNumber(ctx, sourceId)
     const target = entityNumber(ctx, targetId)
     const label = entity(ctx, sourceId)!.label
@@ -61,8 +62,7 @@ export function merge(ctx: Context, sourceId: string, targetId: string): void {
     touched.delete(source)
     recountEntities(ctx, touched)
     adjustCount(ctx, 'entities', -1)
-    bumpRevision(ctx)
-  })
+  }
 }
 export function forget(ctx: Context, id: string): void {
   transaction(ctx, () => {
@@ -77,6 +77,7 @@ export function forget(ctx: Context, id: string): void {
  */
 export function removeMemory(ctx: Context, id: string): void {
   const n = memoryNumber(ctx, id)
+  eraseTidyMemory(ctx, id, n)
   const state = one<{ state: string }>(ctx, 'SELECT state FROM memories WHERE n=?', n)!.state
   const touched = new Set(
     all<{ entity: number }>(ctx, 'SELECT entity FROM mentions WHERE memory=?', n).map(

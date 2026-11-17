@@ -1,3 +1,6 @@
+import { afterChange, afterOperation } from './tidy/hooks'
+import { mergeEntities } from './tidy/operations'
+import { tidyStore } from './tidy/store'
 import { randomUUID } from 'node:crypto'
 import type { BrainSnapshot } from '@phosphor/shared/brain'
 import { all, type Context } from './database'
@@ -8,7 +11,7 @@ import * as candidates from './candidates'
 import * as explorer from './explorer'
 import * as graph from './graph'
 import { memory } from './knowledge'
-import { merge, forget } from './merge'
+import { forget } from './merge'
 import { prefs, revision, setPrefs } from './prefs'
 import { proposal, propose, storedProposal } from './proposals'
 import { review } from './review'
@@ -46,6 +49,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     throw error
   }
   return {
+    ...tidyStore(ctx),
     snapshot: () => snapshot(ctx),
     setPrefs: (value) => setPrefs(ctx, value),
     revision: () => revision(ctx),
@@ -68,7 +72,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     propose: (value) => propose(ctx, value),
     proposal: (id) => proposal(ctx, id),
     storedProposal: (id) => storedProposal(ctx, id),
-    review: (id, decision, expected) => review(ctx, id, decision, expected),
+    review: (id, decision, expected) => afterChange(ctx, review(ctx, id, decision, expected)),
     overview: (limit) => graph.overview(ctx, limit),
     neighbourhood: (id, hops, limit) => graph.neighbourhood(ctx, id, hops, limit),
     path: (from, to) => graph.path(ctx, from, to),
@@ -77,7 +81,11 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
       explorer.connections(ctx, id, predicate, direction, cursor),
     entityMemories: (id, filter, cursor) => explorer.entityMemories(ctx, id, filter, cursor),
     memory: (id) => memory(ctx, id),
-    merge: (source, target) => merge(ctx, source, target),
+    merge: (source, target, expected) => {
+      const operation = mergeEntities(ctx, source, target, expected)
+      afterOperation(ctx, operation)
+      return operation
+    },
     forget: (id) => forget(ctx, id),
     reset: () => reset(ctx),
     close: () => ctx.db.close(),

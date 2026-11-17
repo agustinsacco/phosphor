@@ -42,6 +42,11 @@ function stageInput(system, input) {
       entities: JSON.parse(prompt.split('\nEntities: ')[1].split('\n')[0]),
       rows: prompt.split('Claims (untrusted source data):\n')[1],
     }
+  if (system.startsWith('Check Brain Tidy pairs'))
+    return {
+      stage: 'tidy',
+      rows: JSON.parse(prompt.split('authority="none">\n')[1].split('\n</background-data>')[0]),
+    }
   if (system.startsWith('Resolve entity identity'))
     return { stage: 'identity', rows: JSON.parse(prompt.split('\n')[1]) }
   if (system.startsWith('Reconcile supported claims'))
@@ -105,7 +110,7 @@ function extract({ registry, segments }, fold) {
 
 function relationships(text) {
   return [
-    ...[...text.matchAll(/([A-Z][a-z]+ [A-Z][a-z]+) owns (?:the )?([^.\n]+)\./g)].map((m) => ({
+    ...[...text.matchAll(/([A-Z][a-z]+(?: [A-Z][a-z]+)?) owns (?:the )?([^.\n]+)\./g)].map((m) => ({
       m,
       predicate: 'owns',
       subjectKind: 'person',
@@ -146,6 +151,7 @@ function links({ entities, rows }, fold) {
 }
 
 function answer(input, fold) {
+  if (input.stage === 'tidy') return tidy(input.rows, fold)
   if (input.stage === 'extract') return extract(input, fold)
   if (input.stage === 'links') return links(input, fold)
   return {
@@ -165,6 +171,34 @@ function answer(input, fold) {
         action: same ? 'confirm' : 'add',
         target: same?.handle ?? null,
         reason: same ? 'Same fixture sentence' : 'New fixture sentence',
+      }
+    }),
+  }
+}
+
+function tidy(rows, fold) {
+  return {
+    decisions: rows.map(({ ref, a, b }) => {
+      const same =
+        a.type === 'memory' && b.type === 'memory'
+          ? fold(a.sentence) === fold(b.sentence) &&
+            ['memoryType', 'scope', 'branch', 'validFrom', 'validTo'].every(
+              (key) => a[key] === b[key],
+            )
+          : a.type === 'entity' &&
+            b.type === 'entity' &&
+            a.kind === b.kind &&
+            ((!!a.description && fold(a.description) === fold(b.description)) ||
+              (fold(a.name).split(' ')[0] === fold(b.name).split(' ')[0] &&
+                a.neighbours.some((left) =>
+                  b.neighbours.some(
+                    (right) => fold(left.name) === fold(right.name) && left.link === right.link,
+                  ),
+                )))
+      return {
+        ref,
+        verdict: same ? 'same' : 'different',
+        reason: same ? 'Same supported fixture assertion.' : 'No matching fixture evidence.',
       }
     }),
   }
@@ -200,7 +234,8 @@ async function runBrain(argv) {
     const input = stageInput(system, prompt)
     if (failOnce(input.stage)) throw new Error('Brain stub extract failed once')
     // The inbox polls every two seconds: keep this stage visible across one real poll.
-    if (input.stage === 'extract') await new Promise((resolve) => setTimeout(resolve, 3000))
+    if (['extract', 'tidy'].includes(input.stage))
+      await new Promise((resolve) => setTimeout(resolve, 3000))
     const { fold } = await import('@phosphor/memory-engine/text')
     emit(answer(input, fold))
   } catch (error) {
