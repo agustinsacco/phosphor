@@ -61,7 +61,10 @@ it('bounds model cards, remembers different, transforms conflicts, and pages sug
   ])
   expect(store.pendingPairs(40).some((p) => p.suggestionId === pair.suggestionId)).toBe(false)
   store.sweep({ entityIds: pair.subjects.map((s) => s.id), memoryIds: [] })
-  expect(store.tidy(null, null, 50).items.some((s) => s.id === pair.suggestionId)).toBe(false)
+  // The model never removes a pair of people or things from the owner's list.
+  expect(store.tidy(null, null, 50).items.some((s) => s.id === pair.suggestionId)).toBe(
+    pair.subjects[0]!.type === 'entity',
+  )
 })
 it('accepted merges dismiss their pair on undo; missing subjects close and unknown kinds are skipped', () => {
   const { store, db } = fixture()
@@ -194,4 +197,47 @@ it('caps open flags at fifty even when every caller claims a different lane', ()
   expect(store.tidy('flagged', null, 50).items).toHaveLength(50)
   store.tidyDismiss(store.tidy('flagged', null, 50).items[0]!.id, revision)
   expect(flag(51).status).toBe('filed')
+})
+it('a model "different" leaves an entity pair open for the owner and never asks again', () => {
+  const { store, db } = fixture()
+  seed(db, 2)
+  store.sweep('all')
+  const pair = store.tidy('same_entity', null, 20).items[0]!
+  store.recordVerdicts([
+    {
+      suggestionId: pair.id,
+      model: 'harbor/reader',
+      verdict: { kind: 'different', reason: 'Only the name matches.' },
+    },
+  ])
+  const open = store.tidy('same_entity', null, 20).items.find((s) => s.id === pair.id)
+  expect(open).toMatchObject({
+    state: 'open',
+    source: 'check',
+    model: 'harbor/reader',
+    verdict: { kind: 'different', reason: 'Only the name matches.' },
+  })
+  expect(store.pendingPairs(40).some((p) => p.suggestionId === pair.id)).toBe(false)
+  store.sweep({ entityIds: ['rina-1', 'rina-2'], memoryIds: [] })
+  expect(store.tidy('same_entity', null, 20).items.map((s) => s.id)).toEqual([pair.id])
+  store.tidyDismiss(pair.id, store.revision())
+  expect(store.tidy('same_entity', null, 20).items).toEqual([])
+})
+it('a model "different" still clears a memory pair quietly', () => {
+  const { store, db } = fixture()
+  seed(db, 2)
+  db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
+  store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
+  const pair = store.tidy('same_memory', null, 20).items[0]!
+  store.recordVerdicts([
+    {
+      suggestionId: pair.id,
+      model: 'harbor/reader',
+      verdict: { kind: 'different', reason: 'Different Ledger areas.' },
+    },
+  ])
+  expect(store.tidy('same_memory', null, 20).items).toEqual([])
+  expect(db.prepare('SELECT state FROM tidy_suggestions WHERE id=?').get(pair.id)).toEqual({
+    state: 'cleared',
+  })
 })

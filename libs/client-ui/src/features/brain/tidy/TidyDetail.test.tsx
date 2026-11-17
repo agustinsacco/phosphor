@@ -64,6 +64,23 @@ it('compares full entities, defaults to the larger record, swaps and visits Know
   await click('View in Knowledge')
   expect(visit).toHaveBeenCalledWith({ kind: 'entity', id: 'tidy-0-0', label: 'Rina Okafor' })
 })
+it('warns under the reason when the checked model thinks an open entity pair is different', async () => {
+  await render(0, (d) => {
+    d.suggestion.source = 'check'
+    d.suggestion.model = 'demo/harbor-model'
+    d.suggestion.verdict = { kind: 'different', reason: 'Only the name matches.' }
+  })
+  const header = container.querySelector('header')!
+  expect(header.textContent).toContain(
+    'Checked by harbor-model, which thinks these are different. Merge only if you know they are the same.',
+  )
+  expect(header.textContent!.indexOf('These records share a name')).toBeLessThan(
+    header.textContent!.indexOf('which thinks these are different'),
+  )
+  const labels = [...container.querySelectorAll('button')].map((b) => b.textContent)
+  expect(labels).toContain('Not the same')
+  expect(labels.some((label) => label?.startsWith('Merge into'))).toBe(true)
+})
 it('shows scope, dates and labelled evidence and folds either memory', async () => {
   await render(1)
   expect(container.textContent).toContain('Project: /demo/Harbor · Branch: All branches')
