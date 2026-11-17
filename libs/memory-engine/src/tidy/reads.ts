@@ -6,11 +6,11 @@ import {
   type BrainTidyChanges,
   type BrainTidyOperation,
 } from '@phosphor/shared/brain-tidy'
-import { all, type Context } from '../database'
+import { all, one, type Context } from '../database'
 import { entity } from '../explorer'
 import { memory } from '../knowledge'
 import { revision } from '../prefs'
-import { closeMissing, openSuggestion, suggestion, type SuggestionRow } from './suggestions'
+import { closeMissing, suggestion, type SuggestionRow } from './suggestions'
 import { coverage } from './sweep'
 
 function limitOf(limit: number): void {
@@ -69,18 +69,21 @@ export function page(
     run: null,
   }
 }
-export function detail(ctx: Context, id: string): BrainTidySuggestionDetail {
-  const row = openSuggestion(ctx, id)
-  closeMissing(ctx, [row])
-  if (row.state !== 'open') throw new Error('This Tidy suggestion is no longer available.')
-  const item = suggestion(ctx, row)!
+export function detail(ctx: Context, id: string): BrainTidySuggestionDetail | null {
+  const row = one<SuggestionRow>(ctx, 'SELECT * FROM tidy_suggestions WHERE id=?', id)
+  if (!row) return null
+  if (row.state === 'open') closeMissing(ctx, [row])
+  const item = suggestion(ctx, row)
+  if (!item) return null
   return {
     suggestion: item,
-    subjects: item.subjects.map((s) =>
-      s.type === 'entity'
-        ? { type: 'entity', value: entity(ctx, s.id) }
-        : { type: 'memory', value: memory(ctx, s.id) },
-    ),
+    subjects: item.subjects.flatMap((s): BrainTidySuggestionDetail['subjects'] => {
+      const table = s.type === 'entity' ? 'entities' : 'memories'
+      if (!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, s.id)) return []
+      return s.type === 'entity'
+        ? [{ type: 'entity', value: entity(ctx, s.id) }]
+        : [{ type: 'memory', value: memory(ctx, s.id) }]
+    }),
     revision: revision(ctx),
   }
 }

@@ -261,8 +261,8 @@ export class FakeBrainStore implements BrainStore {
   }
   tidySummary = emptyBrainTidySummary
   tidy = () => emptyBrainTidyPage(this.rev)
-  tidySuggestion(): never {
-    throw new Error('No suggestion')
+  tidySuggestion(): null {
+    return null
   }
   tidyApply(): string | null {
     this.rev++

@@ -19,7 +19,7 @@ export interface BrainTidyStore {
   writeRun(value: BrainTidyRun): void
   tidySummary(): BrainTidySummary
   tidy(kind: BrainTidyKind | null, cursor: string | null, limit: number): BrainTidyPage
-  tidySuggestion(id: string): BrainTidySuggestionDetail
+  tidySuggestion(id: string): BrainTidySuggestionDetail | null
   tidyApply(id: string, action: BrainTidyAction, revision: number): string | null
   tidyDismiss(id: string, revision: number): void
   tidyChanges(limit: number): BrainTidyChanges

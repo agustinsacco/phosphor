@@ -209,3 +209,11 @@ it('forwards the reviewed Tidy channels and revision-bearing merge unchanged', a
     ['brain:merge', 'rina', 'rina-okafor', 4],
   ])
 })
+
+it('preserves a null Tidy detail when Forget or Reset removed its suggestion', async () => {
+  const response = Promise.resolve(null)
+  electron.ipcRenderer.invoke.mockReturnValue(response)
+  const result = api.invoke('brain:tidySuggestion', 'forgotten')
+  expect(result).toBe(response)
+  await expect(result).resolves.toBeNull()
+})

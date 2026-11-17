@@ -292,6 +292,7 @@ class MockBrain {
   }
   call(channel: string, args: unknown[]): unknown {
     this.tick()
+    if (channel === 'brain:tidySuggestion') return null
     if (channel === 'brain:tidy') return emptyBrainTidyPage(this.state.revision)
     if (channel === 'brain:tidyChanges') return { items: [], revision: this.state.revision }
     if (channel.startsWith('brain:tidy')) throw new Error('Brain Tidy is not ready.')

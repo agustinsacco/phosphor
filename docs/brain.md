@@ -362,6 +362,8 @@ dismissed and cleared pairs stay suppressed. A flag key combines the memory and 
 one open flag per memory, at most five open flags per lane, and a lane can flag a particular
 memory only once. Missing or superseded memories refuse flags without changing the revision.
 Known states are validated on write; unfamiliar future kinds are omitted from reads.
+Suggestion details remain readable after they settle, with only surviving subjects; a removed
+suggestion returns null rather than an error.
 
 An approval commits before sweeping its touched records. Entity merges and undo also sweep
 changed mention sets. A sweep failure emits a warning and does not roll back or report the

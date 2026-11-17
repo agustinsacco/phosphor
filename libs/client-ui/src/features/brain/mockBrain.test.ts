@@ -309,3 +309,8 @@ it('orders recent memories by finished job and caps eligibility at the newest tw
   const recent = (await call('brain:recent', [50])) as BrainRecentMemories
   expect(recent.items.map((item) => item.id)).toEqual(expected.slice(0, 40))
 })
+
+it('returns null for an absent mock Tidy suggestion', async () => {
+  const call = createMockBrain()
+  await expect(call('brain:tidySuggestion', ['missing'])).resolves.toBeNull()
+})

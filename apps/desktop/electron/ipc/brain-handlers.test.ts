@@ -11,6 +11,7 @@ const { checkDecision, checkLane, checkPrefs, registerBrainHandlers } =
 const { IPC_WEB } = await import('@phosphor/shared/ipc-web')
 
 const api = {
+  tidySuggestion: vi.fn(async () => null),
   entities: vi.fn(async () => 'entities'),
   recent: vi.fn(async () => 'recent'),
   status: vi.fn(async () => 'status'),
@@ -174,4 +175,9 @@ it('checks Tidy arguments before invoking its API', async () => {
   await expect(call('brain:tidyDismiss', 's', -1)).rejects.toThrow('revision')
   await expect(call('brain:tidyUndo', 'op', -1)).rejects.toThrow('revision')
   await expect(call('brain:merge', 'a', 'b')).rejects.toThrow('revision')
+})
+
+it('forwards an absent Tidy suggestion as null, not an error', async () => {
+  await expect(call('brain:tidySuggestion', 'settled-or-forgotten')).resolves.toBeNull()
+  expect(api.tidySuggestion).toHaveBeenCalledWith('settled-or-forgotten')
 })

@@ -51,7 +51,7 @@ it('bounds model cards, remembers different, transforms conflicts, and pages sug
         expect(card.neighbours.length).toBeLessThanOrEqual(5)
       }
   const pair = pairs[0]!
-  expect(store.tidySuggestion(pair.suggestionId).subjects).toHaveLength(2)
+  expect(store.tidySuggestion(pair.suggestionId)?.subjects).toHaveLength(2)
   store.recordVerdicts([
     {
       suggestionId: pair.suggestionId,
@@ -146,4 +146,32 @@ it('Forget erases a journaled entity description that repeats the forgotten sent
     .map((r) => JSON.stringify(r))
     .join('\n')
   expect(text).not.toContain('Ledger description erasure sentinel')
+})
+
+it('reads open and settled suggestions with only surviving subjects, or null after removal', () => {
+  const { store, db } = fixture()
+  seed(db, 2)
+  store.sweep('all')
+  const id = store.tidy('same_entity', null, 20).items[0]!.id
+  expect(store.tidySuggestion(id)).toMatchObject({ suggestion: { state: 'open' } })
+  expect(store.tidySuggestion(id)?.subjects).toHaveLength(2)
+  store.tidyApply(id, { kind: 'merge', survivorId: 'rina-1' }, store.revision())
+  expect(store.tidySuggestion(id)).toMatchObject({ suggestion: { state: 'applied' } })
+  expect(store.tidySuggestion(id)?.subjects).toHaveLength(1)
+  const flag = store.flag({
+    memoryId: 'memory-1',
+    sessionId: 'harbor',
+    title: 'Harbor',
+    problem: 'wrong',
+    reason: 'Verified correction.',
+  })
+  store.tidyDismiss(flag.suggestionId!, store.revision())
+  expect(store.tidySuggestion(flag.suggestionId!)).toMatchObject({
+    suggestion: { state: 'dismissed' },
+  })
+  store.forget('memory-1')
+  expect(store.tidySuggestion(flag.suggestionId!)).toBeNull()
+  store.reset()
+  expect(store.tidySuggestion(id)).toBeNull()
+  expect(store.tidySuggestion('missing')).toBeNull()
 })
