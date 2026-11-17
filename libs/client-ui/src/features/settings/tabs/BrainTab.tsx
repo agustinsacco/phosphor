@@ -1,6 +1,7 @@
 import { BRAIN_EMBEDDING_MODEL, type BrainPrefs, type BrainStatus } from '@shared/brain'
 import { Button, Row, SectionTitle, Toggle } from '@/components/form'
-import { useBrain, useBrainSync } from '@/features/brain/useBrain'
+import { useBrain } from '@/features/brain/useBrain'
+import { useBrainSync } from '@/features/brain/useBrainSync'
 import { formatBytes, formatCount } from '@/lib/format'
 import { useNavigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'

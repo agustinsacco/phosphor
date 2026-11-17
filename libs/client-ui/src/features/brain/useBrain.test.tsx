@@ -4,7 +4,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { brainInFlight, useBrain, useBrainSync } from './useBrain'
+import { brainInFlight, useBrain } from './useBrain'
+import { useBrainSync } from './useBrainSync'
 import { mockBrainJob, mockBrainStatus } from './mockBrainData'
 
 let root: Root
