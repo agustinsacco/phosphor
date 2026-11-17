@@ -2,6 +2,7 @@ import { expect, expectTypeOf, it } from 'vitest'
 import {
   checkBrainTidyAction,
   type BrainTidyAction,
+  type BrainTidyRun,
   type BrainTidySuggestionDetail,
 } from './brain-tidy'
 
@@ -36,7 +37,7 @@ it('freezes the engine-owned action availability fields on suggestion details', 
 })
 
 it('freezes explicit Tidy run states, including skipped and interrupted', () => {
-  expectTypeOf<import('./brain-tidy').BrainTidyRun['state']>().toEqualTypeOf<
+  expectTypeOf<BrainTidyRun['state']>().toEqualTypeOf<
     'queued' | 'sweeping' | 'checking' | 'done' | 'cancelled' | 'failed' | 'skipped' | 'interrupted'
   >()
 })
