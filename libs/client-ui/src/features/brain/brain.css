@@ -154,6 +154,10 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 13rem minmax(0, 1fr);
   }
+  /* The queue shares its pane with the Tidy check, so it gets a little more room. */
+  .brain-inbox {
+    grid-template-rows: 16rem minmax(0, 1fr);
+  }
   .brain-pane--start {
     border-right: 0;
     border-bottom: 1px solid var(--px-border);

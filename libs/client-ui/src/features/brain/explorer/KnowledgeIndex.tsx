@@ -114,8 +114,10 @@ function IndexFilters({
           />
         ))}
       </div>
-      <div className="text-text-tertiary flex items-center justify-between gap-2 text-sm">
-        <span role="status">{index.resultLine}</span>
+      <div className="text-text-tertiary flex flex-wrap items-center justify-between gap-x-2 text-sm">
+        <span role="status" className="whitespace-nowrap">
+          {index.resultLine}
+        </span>
         {index.searching ? (
           <span>By best match</span>
         ) : (

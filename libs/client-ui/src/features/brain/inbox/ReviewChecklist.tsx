@@ -138,7 +138,7 @@ function ChecklistRow({
       <input
         id={id}
         type="checkbox"
-        className="mt-1"
+        className="mt-1 self-start"
         aria-label={`Keep: ${memory.summary}`}
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
