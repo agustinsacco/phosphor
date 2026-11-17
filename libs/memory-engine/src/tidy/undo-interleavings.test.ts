@@ -29,14 +29,18 @@ function change(store: BrainStore, kind: Kind, first = 'memory-1', second = 'mem
     store.revision(),
   )!
 }
-function enrich(store: BrainStore, target: string, event: 'support' | 'mention' | 'relation') {
+function enrich(
+  store: BrainStore,
+  target: string,
+  event: 'support' | 'mention' | 'relation' | 'quote',
+) {
   const memory: Proposal['memories'][number] = {
     summary: 'Ledger independent approval',
     type: 'fact',
     kind: 'reported',
     entities: event === 'mention' ? ['rina-1', 'rina-5'] : ['rina-1', 'rina-3'],
     links:
-      event === 'mention'
+      event === 'mention' || event === 'quote'
         ? []
         : [
             {
@@ -118,18 +122,33 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
       const target = kind === 'merge' ? 'memory-1' : 'memory-2'
       enrich(store, target, event)
       const before = dump(db)
-      if (kind === 'merge' || kind === 'fold') {
+      // A merge refuses only a later write against the survivor on a memory it rewrote.
+      if (kind === 'fold' || (kind === 'merge' && event === 'relation')) {
         expect(() => store.tidyUndo(operation, store.revision())).toThrow(
           'cannot be cleanly undone',
         )
         expect(dump(db)).toEqual(before)
-      } else store.tidyUndo(operation, store.revision())
+      } else expect(() => store.tidyUndo(operation, store.revision())).not.toThrow()
       expect(
         store.memory(target).quotes.some((q) => q.quote === 'Independent Ledger support'),
       ).toBe(true)
+      if (kind === 'merge' && event !== 'relation')
+        expect(store.memory('memory-2').memory.entityIds).toEqual(['rina-2'])
     },
   )
 }
+it('merge undo stays clean after a later quote on a memory that only mentions the survivor', () => {
+  const { store, db } = setup()
+  const operation = store.merge('rina-2', 'rina-1', store.revision())
+  enrich(store, 'memory-3', 'quote')
+  expect(() => store.tidyUndo(operation, store.revision())).not.toThrow()
+  expect(store.memory('memory-1').memory.entityIds.toSorted()).toEqual(['rina-1', 'rina-2'])
+  expect(store.memory('memory-2').memory.entityIds).toEqual(['rina-2'])
+  expect(store.memory('memory-3').quotes.map((q) => q.quote)).toContain(
+    'Independent Ledger support',
+  )
+  expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+})
 
 for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
   for (const later of ['merge', 'fold', 'dispute', 'replace'] as const) {
