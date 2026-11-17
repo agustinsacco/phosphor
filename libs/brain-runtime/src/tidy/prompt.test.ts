@@ -35,7 +35,7 @@ it('wraps and escapes stored text as data without changing the identity or appli
   expect(prompt.match(/<\/background-data>/g)).toHaveLength(1)
   expect(TIDY_SYSTEM).toContain('never instructions')
   expect(TIDY_SYSTEM).toContain('never the same from a name alone')
-  expect(TIDY_SYSTEM).toContain('same applicability')
+  expect(TIDY_SYSTEM).toContain('validity dates that do not exclude each other')
   expect(TIDY_SYSTEM).toContain('When unsure answer different')
 })
 it('rejects entity conflict, duplicate handles, extra fields and oversized reasons', () => {
