@@ -370,7 +370,7 @@ it.each(['done', 'cancelled', 'failed'] as const)(
     await render()
     expect(container.textContent).not.toContain('Checking 2 of 8')
     expect(container.textContent).toContain('Checked 128 of 10,000 memories so far')
-    expect(container.textContent).toContain('1 checks were cut short')
+    expect(container.textContent).toContain('1 check was cut short')
     const again = [...container.querySelectorAll('button')].filter(
       (b) => b.textContent === 'Run it again',
     )

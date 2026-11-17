@@ -87,9 +87,11 @@ have a **Swap surviving record** control. Both “Said twice” and “These dis
 the engine currently allows: either memory can survive a fold, both can stay disputed, or either
 side can replace the other. Different project, branch or dates, or existing replacement/dispute
 history, prevent folding; a quiet line shows the engine's reason. **Not the same** dismisses an
-open suggestion. A lane flag offers **Keep**, or a confirmed permanent **Forget**. It names the
-flagging lane as Phosphor's own lane list does; a lane missing from that list shows as “A lane
-calling itself …”, because the title came from the flag. Open the lane resolves only a local lane
+open pair. A lane flag offers only **Keep**, or a confirmed permanent **Forget**. It says in one
+sentence who flagged what: “Harbor planning says this is outdated.” (or “is wrong.”, “is a
+duplicate.”), naming the flagging lane as Phosphor's own lane list does; a lane missing from that
+list shows as “A lane calling itself … says this is outdated.”, because the title came from the
+flag. Open the lane resolves only a local lane
 already known to the sidebar, never a path supplied by the flag.
 
 A decision selects the next visible suggestion. Successful changes offer Undo in their toast.
@@ -100,7 +102,9 @@ to the next. Every failed read offers Retry, and older replies cannot overwrite 
 
 Automatic folds produce one “Brain folded N exact repeats” toast and panel notice opening Recent
 changes. New suggestions replace the single `brain:tidy` notice: “Brain has N things to tidy”.
-A completed Tidy run announces its result only while Tidy is not visible. Notices open Brain on
+Counts of one read in the singular (“1 exact repeat”, “1 memory”). A completed Tidy run
+announces its result only while Tidy is not visible: “Found N things to tidy and folded M exact
+repeats.”, leaving out a part that is zero, or “Nothing to tidy.” when both are. Notices open Brain on
 Tidy. Existing startup suggestions and decreasing counts are silent; disabling Brain removes its
 Tidy notices. While visible, enabled Brain checks status every ten seconds to discover lane flags,
 or every two seconds during work. These reads never start a sweep or a model call.

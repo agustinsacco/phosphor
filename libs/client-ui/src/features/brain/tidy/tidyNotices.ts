@@ -1,3 +1,5 @@
+import { formatCount } from '@/lib/format'
+import { tidyFindings } from './tidyWording'
 import type { BrainStatus } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -49,7 +51,7 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
       next.newestAutomaticFoldAt !== old.newestAutomaticFoldAt
     )
       notify(
-        `Brain folded ${next.automaticFolds - old.automaticFolds} exact repeats`,
+        `Brain folded ${formatCount(next.automaticFolds - old.automaticFolds, 'exact repeat')}`,
         'brain:tidy:folds',
         true,
       )
@@ -59,7 +61,7 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
       next.open > old.open &&
       next.newestSuggestionAt !== old.newestSuggestionAt
     )
-      notify(`Brain has ${next.open} things to tidy`, 'brain:tidy')
+      notify(`Brain has ${formatCount(next.open, 'thing to tidy', 'things to tidy')}`, 'brain:tidy')
     if (old.running && !next.running && !tidyIsVisible()) {
       const ticket = ++request
       void window.phosphor
@@ -70,7 +72,7 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
           const run = page.run
           if (run?.state === 'done')
             notify(
-              `Brain Tidy found ${run.suggestions} things to tidy and folded ${run.folded} exact repeats${run.message ? `. ${run.message}` : ''}`,
+              `Brain Tidy ${tidyFindings(run.suggestions, run.folded) ?? 'found nothing to tidy'}.${run.message ? ` ${run.message}` : ''}`,
               'brain:tidy:finished',
             )
           if (run?.state === 'failed')

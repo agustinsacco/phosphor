@@ -268,5 +268,6 @@ it('counts one memory of an entity in the singular', async () => {
   await render(0, (d) => {
     if (d.subjects[0]?.type === 'entity') d.subjects[0].value.entity.memories = 1
   })
-  expect(container.textContent).toMatch(/· 1 memory(?!\w)/)
+  expect(container.textContent).toContain('· 1 memory')
+  expect(container.textContent).not.toContain('· 1 memories')
 })

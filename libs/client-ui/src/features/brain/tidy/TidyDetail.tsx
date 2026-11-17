@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { sessionTitle } from '@/lib/sessionTitle'
-import type { BrainTidyAction, BrainTidySuggestionDetail } from '@shared/brain-tidy'
+import type {
+  BrainTidyAction,
+  BrainTidyProblem,
+  BrainTidySuggestionDetail,
+} from '@shared/brain-tidy'
 import { Button } from '@/components/form'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
@@ -66,7 +70,8 @@ export function TidyDetail({
       <TidySubjects subjects={subjects} onVisit={onVisit} action={perSide} />
       <TidyFooter
         allowed={allowed}
-        open={suggestion.state === 'open'}
+        // "Not the same" answers a pair; a flag has one memory and its own Keep.
+        notSame={suggestion.state === 'open' && suggestion.kind !== 'flagged'}
         busy={busy}
         onApply={onApply}
         onDismiss={onDismiss}
@@ -87,6 +92,11 @@ async function confirmForget(apply: (action: BrainTidyAction) => void): Promise<
     })) === 'forget'
   )
     apply({ kind: 'forget' })
+}
+const FLAG_SENTENCE: Record<BrainTidyProblem, string> = {
+  wrong: 'says this is wrong.',
+  outdated: 'says this is outdated.',
+  duplicate: 'says this is a duplicate.',
 }
 function FlagLane({
   flag,
@@ -117,8 +127,8 @@ function FlagLane({
   return (
     <div className="space-y-2">
       <p>
-        {flag.problem} ·{' '}
-        {lane || liveId ? (title ?? 'Untitled lane') : `A lane calling itself ${flag.title}`}
+        {lane || liveId ? (title ?? 'Untitled lane') : `A lane calling itself ${flag.title}`}{' '}
+        {FLAG_SENTENCE[flag.problem]}
       </p>
       <Button
         disabled={!path && !liveId}
@@ -140,7 +150,7 @@ function FlagLane({
 
 function TidyFooter({
   allowed,
-  open,
+  notSame,
   busy,
   onApply,
   onDismiss,
@@ -149,7 +159,7 @@ function TidyFooter({
   onSwap,
 }: {
   allowed: BrainTidyAction['kind'][]
-  open: boolean
+  notSame: boolean
   busy: boolean
   onApply: (action: BrainTidyAction) => void
   onDismiss: () => void
@@ -190,7 +200,7 @@ function TidyFooter({
           Keep
         </Button>
       )}
-      {open && (
+      {notSame && (
         <Button disabled={busy} onClick={onDismiss}>
           Not the same
         </Button>

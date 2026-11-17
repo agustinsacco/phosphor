@@ -99,7 +99,9 @@ it('announces a finished click only while elsewhere, without a second suggestion
   observe({ ...status, tidy: { ...status.tidy, open: 8, newestSuggestionAt: 10 } })
   await flush()
   expect(notices()).toHaveLength(1)
-  expect(notices()[0]!.message).toBe('Brain Tidy found 8 things to tidy and folded 2 exact repeats')
+  expect(notices()[0]!.message).toBe(
+    'Brain Tidy found 8 things to tidy and folded 2 exact repeats.',
+  )
   useLayoutStore.setState({ page: 'brain' })
   useTidyNavigation.setState({ tab: 'tidy' })
   observe({ ...status, tidy: { ...status.tidy, running: true } })

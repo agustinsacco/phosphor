@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/format'
 import type { BrainTidySubjectDetail } from '@shared/brain-tidy'
 import { BRAIN_PREDICATE_LABELS } from '@shared/brain'
 import { Button } from '@/components/form'
@@ -67,7 +68,7 @@ function EntitySubject({
   return (
     <>
       <p className="text-text-secondary text-sm">
-        {entity.kind} · {entity.memories} memories
+        {entity.kind} · {formatCount(entity.memories, 'memory', 'memories')}
       </p>
       <p>{entity.description || 'No description'}</p>
       <p className="text-text-secondary text-sm">
