@@ -36,19 +36,27 @@ function failed(error: unknown): void {
 // A poll started before an action must not overwrite that action’s returned status.
 let mutationVersion = 0
 
-async function update(operation: () => Promise<BrainStatus>, toast?: string): Promise<boolean> {
-  mutationVersion++
+export async function mutateBrain<T extends BrainStatus>(operation: () => Promise<T>): Promise<T> {
+  const version = ++mutationVersion
   useBrain.setState({ saving: true })
   try {
     const status = await operation()
-    useBrain.setState({ status: status.supported ? status : null, error: '' })
+    if (version === mutationVersion)
+      useBrain.setState({ status: status.supported ? status : null, error: '' })
+    return status
+  } finally {
+    if (version === mutationVersion) useBrain.setState({ saving: false })
+  }
+}
+
+async function update(operation: () => Promise<BrainStatus>, toast?: string): Promise<boolean> {
+  try {
+    await mutateBrain(operation)
     if (toast) brainToast(toast)
     return true
   } catch (error) {
     failed(error)
     return false
-  } finally {
-    useBrain.setState({ saving: false })
   }
 }
 
