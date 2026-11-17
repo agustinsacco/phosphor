@@ -71,6 +71,19 @@ function enrich(store: BrainStore, target: string, event: 'support' | 'mention' 
     ],
   })
 }
+/** Every knowledge row; entity counters are left out because `setup` inserts rows without them. */
+function knowledge(db: Parameters<typeof dump>[0]) {
+  const rows = dump(db)
+  rows.entities = rows.entities!.map((row) => {
+    const {
+      memories: _memories,
+      connections: _connections,
+      ...rest
+    } = row as Record<string, unknown>
+    return rest
+  })
+  return rows
+}
 it('fold undo never cascades away later independent support with an older evidence date', () => {
   const { store, db } = setup()
   const operation = change(store, 'fold')
@@ -219,3 +232,35 @@ it('undoing both overlapping disputes in forward order leaves no stranded disput
     expect(store.memory(id).related).toEqual([])
   }
 })
+
+for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
+  it(`${kind} undo stays clean after a later approval that touches none of its records`, () => {
+    const { store, db } = setup()
+    const operation = change(store, kind)
+    approve(store, { origin: { sessionId: 'kestrel-lane', title: 'Kestrel' } })
+    const learned = store.snapshot().counts.memories
+    store.tidyUndo(operation, store.revision())
+    expect(store.snapshot().counts.memories).toBe(
+      learned + (kind === 'fold' || kind === 'replace' ? 1 : 0),
+    )
+    expect(store.memory('memory-1').memory.state).toBe('active')
+    expect(store.memory('memory-2').memory.state).toBe('active')
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+  })
+  for (const later of ['merge', 'fold', 'dispute', 'replace'] as const) {
+    it(`${kind} then ${later}, undone newest first, restores the knowledge exactly`, () => {
+      const { store, db } = setup()
+      const original = knowledge(db)
+      const operation = change(store, kind)
+      const target = kind === 'merge' ? 'memory-1' : 'memory-2'
+      if (later === 'fold' && (kind === 'dispute' || kind === 'replace')) return
+      const second =
+        later === 'merge'
+          ? store.merge('rina-1', 'rina-3', store.revision())
+          : change(store, later, target, 'memory-3')
+      store.tidyUndo(second, store.revision())
+      store.tidyUndo(operation, store.revision())
+      expect(knowledge(db)).toEqual(original)
+    })
+  }
+}
