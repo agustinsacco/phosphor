@@ -383,6 +383,10 @@
     "./brain-review": {
       "types": "./src/brain-review.ts",
       "default": "./src/brain-review.ts"
+    },
+    "./ipc-web-archive": {
+      "types": "./src/ipc-web-archive.ts",
+      "default": "./src/ipc-web-archive.ts"
     }
   },
   "dependencies": {

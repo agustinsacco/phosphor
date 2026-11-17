@@ -33,6 +33,8 @@ const gh = vi.hoisted(() => ({
   heads: vi.fn<(repo: string, branch: string) => Promise<string[] | null>>(),
 }))
 vi.mock('../pi/session-watcher', () => ({ notifyWorkspaceSessions: vi.fn() }))
+// Archived owners are covered by the archive suites; this one has no Electron app.
+vi.mock('../archive/state', () => ({ assertNoArchivedOwners: async () => {} }))
 vi.mock('../fs/gh-cli', () => ({
   ghEvidence: (repoPath: string) => ({
     mergedPrHeads: (branch: string) => gh.heads(repoPath, branch),
