@@ -382,6 +382,16 @@ const baselineScope = {
   'feedback:state': 'app',
   'feedback:submit': 'app',
   'feedback:dismiss': 'app',
+  // Lane archives: archiving runs on the lane's machine; the Archive page reads,
+  // restores and purges each machine's archives through app-level channels.
+  'sessions:archive': 'machine',
+  'sessions:archives': 'app',
+  'sessions:restoreArchive': 'app',
+  'sessions:purgeArchive': 'app',
+  'hosts:archiveLane': 'app',
+  'hosts:archives': 'app',
+  'hosts:restoreArchive': 'app',
+  'hosts:purgeArchive': 'app',
 } as const
 it('freezes every IPC_SCOPE classification', () => {
   expect(IPC_SCOPE).toEqual(baselineScope)

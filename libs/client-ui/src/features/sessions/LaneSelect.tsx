@@ -98,7 +98,7 @@ export function LaneBulkBar({
         disabled={running || count === 0}
         className="bg-danger rounded-md px-2.5 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {running ? 'Delete in progress' : 'Delete…'}
+        {running ? 'Archive in progress' : 'Archive…'}
       </TooltipButton>
       <TooltipButton
         onClick={onCancel}

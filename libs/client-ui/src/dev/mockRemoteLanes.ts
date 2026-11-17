@@ -1,3 +1,4 @@
+import { mockHostArchive } from './mockHostArchives'
 import { withLaneMarks, type LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import type { HostLaneView, HostsSnapshot } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
@@ -15,6 +16,7 @@ export const mockRemoteHosts: HostsSnapshot = {
   [MOCK_HOST_ID]: {
     state: 'ready',
     connectionToken: 'mock-connection-1',
+    laneArchive: true,
     capabilities: ['sessions.read', 'sessions.control'],
     repositories: [{ id: '0000000000000001', name: 'Demo repository', path: '/remote/demo' }],
     lanes: [
@@ -126,6 +128,10 @@ export const REMOTE_LANE_MOCK: ReadonlySet<string> = new Set([
   'hosts:releaseControl',
   'hosts:setLaneMarks',
   'hosts:deleteLane',
+  'hosts:archiveLane',
+  'hosts:archives',
+  'hosts:restoreArchive',
+  'hosts:purgeArchive',
   'hosts:exportLaneHtml',
   'hosts:subagentHistory',
   'hosts:subagentInspect',
@@ -147,6 +153,15 @@ export function mockRemoteLaneInvoke(channel: string, args: unknown[]): Promise<
     case 'hosts:setLaneMarks':
       mockRemoteLaneMarks(args[1], args[2] as LaneMarksChange)
       return Promise.resolve(undefined)
+    case 'hosts:archiveLane':
+    case 'hosts:archives':
+    case 'hosts:restoreArchive':
+    case 'hosts:purgeArchive':
+      return Promise.resolve().then(() =>
+        mockHostArchive(channel, args, mockRemoteHosts, () => {
+          for (const listener of listeners) listener()
+        }),
+      )
     case 'hosts:deleteLane':
       return Promise.resolve({ branchKept: false })
     case 'hosts:exportLaneHtml':

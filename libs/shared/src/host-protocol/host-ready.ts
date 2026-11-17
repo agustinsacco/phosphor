@@ -50,6 +50,7 @@ export function parseReadyFrame(
     (v.settings !== undefined && typeof v.settings !== 'boolean') ||
     (v.machineShell !== undefined && typeof v.machineShell !== 'boolean') ||
     (v.laneMarks !== undefined && typeof v.laneMarks !== 'boolean') ||
+    (v.laneArchive !== undefined && typeof v.laneArchive !== 'boolean') ||
     (v.laneTransfer !== undefined && typeof v.laneTransfer !== 'boolean') ||
     (v.fileBytes !== undefined && typeof v.fileBytes !== 'boolean') ||
     (v.prStatus !== undefined && typeof v.prStatus !== 'boolean') ||
@@ -70,6 +71,7 @@ export function parseReadyFrame(
     ...(v.settings !== undefined ? { settings: v.settings as boolean } : {}),
     ...(v.machineShell !== undefined ? { machineShell: v.machineShell as boolean } : {}),
     ...(v.laneMarks !== undefined ? { laneMarks: v.laneMarks as boolean } : {}),
+    ...(v.laneArchive !== undefined ? { laneArchive: v.laneArchive as boolean } : {}),
     ...(v.laneTransfer !== undefined ? { laneTransfer: v.laneTransfer as boolean } : {}),
     ...(v.fileBytes !== undefined ? { fileBytes: v.fileBytes as boolean } : {}),
     ...(v.prStatus !== undefined ? { prStatus: v.prStatus as boolean } : {}),

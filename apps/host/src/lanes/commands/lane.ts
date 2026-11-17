@@ -1,3 +1,4 @@
+import type { LaneArchiveOp } from '@phosphor/shared/lane-archive'
 import type { LaneMarksChange } from '@phosphor/shared/host-protocol-lane-marks'
 import type { DeleteLaneOp } from '@phosphor/shared/host-protocol-repositories'
 import type { HostAttachments } from '../../features/attachments'
@@ -8,7 +9,10 @@ import { log, rejected, terminal, type ReceiptPorts } from './receipts'
 import type { CommandState, Execution, Job, LaneCommandPorts, LaneQueue } from './state'
 
 export type LanePorts = ReceiptPorts &
-  Pick<LaneCommandPorts, 'publish' | 'summaryFor' | 'deleteLane' | 'resumeLane' | 'stopLane'> & {
+  Pick<
+    LaneCommandPorts,
+    'publish' | 'summaryFor' | 'deleteLane' | 'archives' | 'resumeLane' | 'stopLane'
+  > & {
     store: Pick<
       HostStore,
       'takeControl' | 'releaseControl' | 'markRead' | 'setLaneMarks' | 'getLane'
@@ -42,6 +46,7 @@ export function executeLane(
       setLaneMarks(state, ports, queue, admitted.laneId, op)
       break
     case 'lane.delete':
+    case 'lane.archive':
       return deleteLane(state, ports, job, queue, { admitted, op, allowed })
     case 'lane.resume':
     case 'lane.stop': {
@@ -157,20 +162,25 @@ export function deleteLane(
   ports: LanePorts,
   job: Job,
   queue: LaneQueue,
-  input: { admitted: LaneAdmission; op: DeleteLaneOp; allowed: () => boolean },
+  input: {
+    admitted: LaneAdmission
+    op: DeleteLaneOp | Extract<LaneArchiveOp, { type: 'lane.archive' }>
+    allowed: () => boolean
+  },
 ): Execution | void {
   const { requestId } = job.frame
-  if (!ports.deleteLane) return rejected(state, ports, job, 'unsupported', true)
-  const remove = ports.deleteLane
+  const op = input.op
+  const remove =
+    op.type === 'lane.archive'
+      ? ports.archives && ((allowed: () => boolean) => ports.archives!.execute(op, allowed))
+      : ports.deleteLane && ((allowed: () => boolean) => ports.deleteLane!(op, allowed))
+  if (!remove) return rejected(state, ports, job, 'unsupported', true)
   const deletable = deletionAllowed(ports, job, input.admitted, input.allowed)
-  const completion = dispatch(state, ports, job, queue, () => remove(input.op, deletable)).then(
-    (result) => {
-      if (!result.answered)
-        return terminal(state, ports, job, { requestId, status: 'unknown' }, true)
-      if (!result.value.ok) return rejected(state, ports, job, result.value.code, true)
-      terminal(state, ports, job, { requestId, status: 'done', data: result.value.data }, true)
-    },
-  )
+  const completion = dispatch(state, ports, job, queue, () => remove(deletable)).then((result) => {
+    if (!result.answered) return terminal(state, ports, job, { requestId, status: 'unknown' }, true)
+    if (!result.value.ok) return rejected(state, ports, job, result.value.code, true)
+    terminal(state, ports, job, { requestId, status: 'done', data: result.value.data }, true)
+  })
   return { completion, detached: false }
 }
 

@@ -120,11 +120,11 @@ it('uses the local context-menu host and gates controller actions for a viewer',
   menu()
   expect(button('Rename').disabled).toBe(true)
   expect(button('Stop').disabled).toBe(true)
-  expect(button('Delete').disabled).toBe(true)
+  expect(button('Archive').disabled).toBe(true)
   expect(button('Take control').disabled).toBe(false)
   expect(document.body.textContent).not.toContain('Fork')
   // A viewer is told how to get the action, not that it does not exist.
-  for (const action of ['Rename', 'Stop', 'Delete'])
+  for (const action of ['Rename', 'Stop', 'Archive'])
     expect(button(action).textContent).toContain(TAKE_CONTROL_FIRST)
   expect(document.body.textContent).not.toContain(featureNotOffered('sessions.control'))
 })
@@ -139,7 +139,7 @@ it('a controller of a stopped lane can delete it, and rename says why it waits',
   host.lanes[0] = { ...host.lanes[0]!, activity: 'stopped' }
   render()
   menu()
-  expect(button('Delete').disabled).toBe(false)
+  expect(button('Archive').disabled).toBe(false)
   expect(button('Rename').disabled).toBe(true)
   expect(button('Rename').textContent).toContain(ONLY_WHILE_RUNNING)
 })
@@ -161,17 +161,14 @@ it('renames inline through the remote session and waits for success', async () =
     name: 'My remote title',
   })
 })
-it('keeps a failed delete in its confirm and sends explicit resource options', async () => {
+it('keeps a failed archive in its confirm without exposing transport details', async () => {
   invoke.mockRejectedValue(new Error('private details'))
   render()
   menu()
-  act(() => button('Delete').click())
-  await act(async () => button('Delete session').click())
-  expect(invoke).toHaveBeenCalledWith('hosts:deleteLane', MOCK_HOST_ID, mockRemoteInfo.laneId, {
-    removeWorktree: false,
-    removeBranch: false,
-  })
-  expect(document.querySelector('[role=alert]')?.textContent).toContain('could not delete')
+  act(() => button('Archive').click())
+  await act(async () => button('Archive lane').click())
+  expect(invoke).toHaveBeenCalledWith('hosts:archiveLane', MOCK_HOST_ID, mockRemoteInfo.laneId)
+  expect(document.querySelector('[role=alert]')?.textContent).toContain('could not archive')
   expect(document.body.textContent).not.toContain('private details')
   expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
 })
@@ -208,12 +205,12 @@ it('delete requires workspace-write capability even for the current controller',
   }))
   render()
   menu()
-  expect(button('Delete').disabled).toBe(true)
-  expect(button('Delete').textContent).toContain(featureNotOffered('workspaces.write'))
+  expect(button('Archive').disabled).toBe(true)
+  expect(button('Archive').textContent).toContain(featureNotOffered('workspaces.write'))
 })
 
 it.each([false, true])(
-  'exclusive worktree deletion closes the open lane and reports branchKept %s',
+  'worktree archiving closes the open lane without removal options or legacy branch notices (%s)',
   async (branchKept) => {
     invoke.mockResolvedValue({ branchKept })
     const toast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast').mockReturnValue(1)
@@ -221,19 +218,16 @@ it.each([false, true])(
     host.lanes[0] = { ...host.lanes[0]!, worktree: true }
     render()
     menu()
-    act(() => button('Delete').click())
+    act(() => button('Archive').click())
     const options = [...document.querySelectorAll<HTMLInputElement>('input[type=checkbox]')]
-    expect(options.filter((input) => input.checked)).toHaveLength(3)
-    await act(async () => button('Delete lane').click())
-    expect(invoke).toHaveBeenCalledWith('hosts:deleteLane', MOCK_HOST_ID, mockRemoteInfo.laneId, {
-      removeWorktree: true,
-      removeBranch: true,
-    })
+    expect(options).toHaveLength(0)
+    await act(async () => button('Archive lane').click())
+    expect(invoke).toHaveBeenCalledWith('hosts:archiveLane', MOCK_HOST_ID, mockRemoteInfo.laneId)
+    expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:deleteLane')).toBe(false)
     await act(async () => {
       await vi.waitFor(() => expect(useSessionsStore.getState().activeSessionId).toBeNull())
     })
-    if (branchKept) expect(toast).toHaveBeenCalledWith("Branch kept: it isn't merged yet.", 'info')
-    else expect(toast).not.toHaveBeenCalled()
+    expect(toast).not.toHaveBeenCalled()
     toast.mockRestore()
   },
 )

@@ -383,6 +383,26 @@
     "./lane-transfer/transcript": {
       "types": "./src/lane-transfer/transcript.ts",
       "default": "./src/lane-transfer/transcript.ts"
+    },
+    "./directory-size": {
+      "types": "./src/directory-size.ts",
+      "default": "./src/directory-size.ts"
+    },
+    "./map-limit": {
+      "types": "./src/map-limit.ts",
+      "default": "./src/map-limit.ts"
+    },
+    "./lane-archive/files": {
+      "types": "./src/lane-archive/files.ts",
+      "default": "./src/lane-archive/files.ts"
+    },
+    "./lane-archive/inventory": {
+      "types": "./src/lane-archive/inventory.ts",
+      "default": "./src/lane-archive/inventory.ts"
+    },
+    "./lane-archive/storage": {
+      "types": "./src/lane-archive/storage.ts",
+      "default": "./src/lane-archive/storage.ts"
     }
   },
   "nx": {

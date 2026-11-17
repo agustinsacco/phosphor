@@ -9,6 +9,7 @@ type ReadyView = Pick<
   | 'configurationSupported'
   | 'machineShell'
   | 'laneMarks'
+  | 'laneArchive'
   | 'laneTransfer'
   | 'fileBytes'
   | 'prStatus'
@@ -26,6 +27,7 @@ export function readyView(frame: Extract<HostFrame, { type: 'ready' }>): ReadyVi
     configurationSupported: frame.settings === true,
     machineShell: frame.machineShell === true,
     laneMarks: frame.laneMarks === true,
+    laneArchive: frame.laneArchive === true,
     laneTransfer: frame.laneTransfer === true,
     fileBytes: frame.fileBytes === true,
     prStatus: frame.prStatus === true,

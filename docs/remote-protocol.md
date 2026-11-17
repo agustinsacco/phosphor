@@ -348,6 +348,12 @@ to the lane's file without a pi event) reaches the lane's summary
 Track and Hide on a Host without it: host-v0.2.80 announces `prStatus` but not
 this, and a write there would never show.
 
+The additive `laneArchive` boolean in `ready` says the Host accepts `lane.archive`,
+`archive.restore`, `archive.purge` and the `archive.list` call
+([Lane archives](host.md#lane-archives)). Clients project it as
+`HostConnectionView.laneArchive`. Without it, clients disable Archive and send
+none of these; they never fall back to `lane.delete`.
+
 ### Machine configuration operations
 
 `machine.settings.read`, `machine.settings.patch` and `machine.settings.check`

@@ -23,7 +23,7 @@ import {
   type LocalWorktreeModal,
 } from './LocalFolderMenuRows'
 import { SessionRow } from './LocalLaneRow'
-import { confirmSessionDelete, deleteLocalRow } from './localLaneDelete'
+import { confirmSessionDelete, archiveLocalRow } from './localLaneDelete'
 import { PendingSessionRow } from './LocalPendingLaneRow'
 import { SessionList } from './SessionList'
 import { SessionRowSkeletons } from './SidebarPrimitives'
@@ -192,6 +192,7 @@ function LocalGroupRows({
                   confirmSessionDelete({
                     title,
                     sessionId: phosphorId,
+                    archive: true,
                     workspacePath: live[phosphorId]!.workspacePath,
                   })
                 }
@@ -355,7 +356,7 @@ export function useLocalRows(workspacePath: string, onOpenTree: (meta: SessionMe
           isUnseen(seenSessions, meta.path, meta.lastActivityAt)),
       git: gitByCwd[meta.cwd || workspacePath],
       onOpenTree: () => onOpenTree(meta),
-      onDelete: (title: string) => deleteLocalRow(meta, title, workspacePath),
+      onDelete: (title: string) => archiveLocalRow(meta, title, workspacePath),
     }
   }
   return { live, gitByCwd, activeSessionId, rowProps }

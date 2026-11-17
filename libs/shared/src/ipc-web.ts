@@ -1,3 +1,4 @@
+import { ARCHIVE_WEB } from './ipc-web-archive'
 import type { IpcInvokeChannel } from './ipc'
 import { BRAIN_WEB, connectorConfig } from './ipc-web-exclusions'
 
@@ -61,6 +62,7 @@ export const IPC_WEB = {
   'hosts:filePreviewUrl': remote,
   'hosts:subagentHistory': remote,
   'hosts:subagentInspect': remote,
+  ...ARCHIVE_WEB,
   'hosts:deleteLane': remote,
   'hosts:listFolders': remote,
   'hosts:addRepository': remote,

@@ -37,6 +37,7 @@ export function createTerminals(options: TerminalOptions) {
     ) => subscribe(state, () => reap(state), frame, send, clientId, configuration),
     feature: terminalFeature(state),
     close: () => close(state),
+    reap: () => reap(state),
     loginRunner: (
       owner: string,
       started: (id: string) => void,

@@ -160,17 +160,17 @@ it('lists the shared lane actions in the sheet, with the same hints as every lan
     'Export HTML…',
     'Copy debug info',
     'Copy spend',
-    'Delete',
+    'Archive',
     `New lane on ${MOCK_HOST_ID}`,
   ])
   const row = (label: string) => rows.find((b) => b.textContent?.startsWith(label))!
-  expect(row('Delete').disabled).toBe(true)
-  expect(row('Delete').textContent).toContain('Take control first.')
+  expect(row('Archive').disabled).toBe(true)
+  expect(row('Archive').textContent).toContain('Take control first.')
   expect(row('Pin').disabled).toBe(true)
   expect(row('Pin').textContent).toContain('Update this Host')
 })
 
-it('lets the controller delete the lane from the sheet (regression)', () => {
+it('lets the controller archive the lane from the sheet (regression)', () => {
   controller(true)
   act(() =>
     useRemoteLanesStore.setState((s) => ({
@@ -178,18 +178,19 @@ it('lets the controller delete the lane from the sheet (regression)', () => {
         [MOCK_HOST_ID]: {
           ...s.hosts[MOCK_HOST_ID]!,
           capabilities: ['sessions.read', 'sessions.control', 'workspaces.write'],
+          laneArchive: true,
         },
       },
     })),
   )
   render()
   act(() => button(/^Lane menu/)!.click())
-  const remove = button(/^Delete/)
+  const remove = button(/^Archive/)
   expect(remove?.disabled).toBe(false)
   if (!remove) return
   act(() => remove.click())
   expect(sheet()?.getAttribute('aria-label')).not.toBe('Lane menu')
-  expect(document.body.textContent).toContain('Delete session')
+  expect(document.body.textContent).toContain('Archive lane')
 })
 
 const sessionRow = (label: string): HTMLButtonElement | undefined =>

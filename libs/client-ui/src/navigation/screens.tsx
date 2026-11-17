@@ -28,6 +28,10 @@ const Artifacts = lazy(() =>
   import('@/features/artifacts/ArtifactsPage').then((m) => ({ default: m.ArtifactsPage })),
 )
 
+const Archive = lazy(() =>
+  import('@/features/archive/ArchivePage').then((m) => ({ default: m.ArchivePage })),
+)
+
 const Brain = lazy(() =>
   import('@/features/brain/BrainPage').then((m) => ({ default: m.BrainPage })),
 )
@@ -54,6 +58,14 @@ export const SCREENS = {
     icon: MachinesIcon,
     component: Machines,
     title: 'Machines',
+    scope: 'both',
+    expanded: 'page',
+    compact: 'page',
+  },
+  archive: {
+    icon: ArtifactsIcon,
+    component: Archive,
+    title: 'Archive',
     scope: 'both',
     expanded: 'page',
     compact: 'page',

@@ -6,9 +6,18 @@ function identity(host: HostConnectionView | undefined): string {
     host?.state,
     host?.connectionToken,
     host?.cursor?.epoch,
+    host?.laneArchive,
     host?.capabilities
       .filter((cap) =>
-        ['skills.read', 'routines', 'artifacts.read', 'machine.configure'].includes(cap),
+        [
+          'skills.read',
+          'sessions.read',
+          'sessions.control',
+          'workspaces.write',
+          'routines',
+          'artifacts.read',
+          'machine.configure',
+        ].includes(cap),
       )
       .sort(),
   ])

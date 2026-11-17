@@ -18,6 +18,8 @@ export interface Upload extends AttachmentOwner {
 export interface AttachmentPorts {
   directory: string
   laneExists(laneId: string): boolean
+  /** Storage retention only, never permission to upload into an archived lane. */
+  laneRetained?(laneId: string): boolean
   log?: (event: string) => void
   now?: () => number
 }

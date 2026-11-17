@@ -1,3 +1,4 @@
+import type { LaneArchiveOp } from '@phosphor/shared/lane-archive'
 import type { DeleteLaneOp, RepositoryOp } from '@phosphor/shared/host-protocol-repositories'
 import type { FileWriteOp } from '@phosphor/shared/host-protocol-writes'
 import type {
@@ -31,6 +32,12 @@ export interface LaneCommandClient {
   caps: readonly HostCapability[]
 }
 export interface LaneCommandPorts {
+  archives?: {
+    execute(
+      op: LaneArchiveOp,
+      allowed: () => boolean,
+    ): Promise<{ ok: true; data?: unknown } | { ok: false; code: RejectCode }>
+  }
   moveClaudeAccount?: (
     laneId: string,
     accountId: string,

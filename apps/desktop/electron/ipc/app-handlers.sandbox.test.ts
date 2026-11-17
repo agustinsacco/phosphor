@@ -45,6 +45,7 @@ vi.mock('../pi/pi-paths', () => ({
 }))
 vi.mock('@phosphor/session-runtime/pi/session-cwd', () => ({ repointSessionCwd: mocks.repoint }))
 vi.mock('../registry', () => ({ registry: { list: mocks.live } }))
+vi.mock('../archive/state', () => ({ hasArchivedFolder: async () => false }))
 vi.mock('../pi/context-budget', () => ({}))
 vi.mock('../pi/context-files', () => ({}))
 vi.mock('../pi/stub', () => ({}))

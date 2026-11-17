@@ -30,7 +30,19 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     roots: state.roots,
     resourceRoot: machine.resourceRoot,
   })
-  return { ...createRuntimeOperations(state, service, deleteLane), life: state.life, drain }
+  return {
+    ...createRuntimeOperations(state, service, deleteLane),
+    life: state.life,
+    drain,
+    async mutateStoppedSession<T>(path: string, change: () => Promise<T>): Promise<T> {
+      state.paths.cancelSessionOpens(path)
+      return state.paths.withSessionPath(path, async () => {
+        if (state.registry.list().some((lane) => lane.diskPath === path))
+          throw new Error('Stop the lane before changing its saved files.')
+        return change()
+      })
+    },
+  }
 }
 
 export type HostRuntime = ReturnType<typeof createHostRuntime>

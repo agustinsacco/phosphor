@@ -19,7 +19,7 @@ import {
 const LANE = mockRemoteHosts[MOCK_HOST_ID]!.lanes[0]!
 const BASE_CAPS: HostCapability[] = ['sessions.read', 'sessions.control', 'workspaces.write']
 const caps = (capabilities: HostCapability[], laneMarks?: boolean) =>
-  machineCaps({ state: 'ready', capabilities, laneMarks })
+  machineCaps({ state: 'ready', capabilities, laneMarks, laneArchive: true })
 
 function handlers(): LaneActionHandlers {
   return {
@@ -82,7 +82,7 @@ describe('hostLaneContext', () => {
       'Export HTML…',
       'Copy debug info',
       'Copy spend',
-      'Delete',
+      'Archive',
     ])
     const own = hostMenu(state(), { ...handlers(), open: undefined })
     expect(own.map((entry) => entry.label)).not.toContain('Open')
@@ -99,7 +99,7 @@ describe('hostLaneContext', () => {
 
   it('tells a reader to take control first and keeps reader actions open', () => {
     const items = hostMenu(state({}, false), handlers())
-    for (const label of ['Rename…', 'Stop', 'Delete']) {
+    for (const label of ['Rename…', 'Stop', 'Archive']) {
       expect(item(items, label)?.disabled, label).toBe(true)
       expect(item(items, label)?.hint, label).toBe(TAKE_CONTROL_FIRST)
     }
@@ -173,12 +173,12 @@ describe('hostLaneContext', () => {
     expect(item(pinned, 'Unpin')).toBeDefined()
   })
 
-  it('holds Delete without workspaces.write even for the controller', () => {
+  it('holds Archive without workspaces.write even for the controller', () => {
     const items = hostMenu(
       state({ caps: caps(['sessions.read', 'sessions.control'], true) }),
       handlers(),
     )
-    expect(item(items, 'Delete')).toMatchObject({
+    expect(item(items, 'Archive')).toMatchObject({
       disabled: true,
       hint: featureNotOffered('workspaces.write'),
     })
