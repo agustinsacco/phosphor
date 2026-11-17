@@ -128,6 +128,31 @@ it('lists the index thirty at a time with only present kinds, and opens a profil
   expect(rows()[0]!.getAttribute('aria-current')).toBe('true')
 })
 
+it('counts every kind and the filter total, and sorts the index as chosen', async () => {
+  await render()
+  const all = explorer.browse(null, 0, 100, 'connected')
+  const kinds = section('Kinds')
+  expect(button(`All${all.total}`, kinds)).toBeDefined()
+  expect(section('Index').textContent).toContain(`${all.total} people and things`)
+  await click('People2', kinds)
+  expect(section('Index').textContent).toContain('2 people and things')
+  // Counts per kind ignore the filter.
+  expect(button(`All${all.total}`, kinds)).toBeDefined()
+  const sort = container.querySelector<HTMLSelectElement>('select[aria-label="Sort"]')!
+  await act(async () => {
+    sort.value = 'name'
+    sort.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(browse).toHaveBeenLastCalledWith('person', 0, 30, 'name')
+  await click(`All${all.total}`, kinds)
+  const byName = explorer.browse(null, 0, 30, 'name').items.map((item) => item.entity.label)
+  expect(byName).not.toEqual(all.items.slice(0, 30).map((item) => item.entity.label))
+  expect(rows().map((row) => row.querySelector('span.flex-1')?.textContent)).toEqual(byName)
+  await type('Harbor')
+  expect(container.querySelector('select[aria-label="Sort"]')).toBeNull()
+  expect(section('Index').textContent).toContain('By best match')
+})
+
 it('pages the index by reloading every shown row in one bounded pass', async () => {
   explorer.entities.push(
     ...Array.from({ length: 20 }, (_, i) => ({

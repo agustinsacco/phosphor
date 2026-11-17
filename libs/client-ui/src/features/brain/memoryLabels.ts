@@ -1,4 +1,5 @@
 import type { BrainEntityKind, BrainMemoryType } from '@shared/brain'
+import type { BrainEntitySort } from '@shared/brain-explore'
 
 /** Plural group names for memory types, one spelling everywhere on the page. */
 export const MEMORY_LABELS: Record<BrainMemoryType, string> = {
@@ -39,4 +40,11 @@ export const ENTITY_WORDS: Record<BrainEntityKind, string> = {
   document: 'document',
   concept: 'concept',
   event: 'event',
+}
+
+/** The index's sort select. */
+export const ENTITY_SORT_LABELS: Record<BrainEntitySort, string> = {
+  connected: 'Most connected',
+  recent: 'Recently learned',
+  name: 'A to Z',
 }

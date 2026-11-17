@@ -1,9 +1,8 @@
-import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@shared/brain'
+import { BRAIN_ENTITY_KINDS, type BrainEntityKind, type BrainEntityPage } from '@shared/brain'
+import type { BrainEntitySort } from '@shared/brain-explore'
 import { formatCount } from '@/lib/format'
-import { useBrain } from '../useBrain'
 import { useBrainFind } from './BrainSearch'
 import { useEntityPages } from './useEntityPages'
-import type { EntitySort } from './entityIndex'
 import type { BrainVisit } from './trail'
 
 export interface IndexRow {
@@ -17,11 +16,10 @@ export interface IndexRow {
  * The index rows: a debounced search while there is a query, otherwise the browse pages for
  * one kind and sort. Both keep their own error and Retry.
  */
-export function useIndexRows(query: string, kind: BrainEntityKind | '', sort: EntitySort) {
+export function useIndexRows(query: string, kind: BrainEntityKind | '', sort: BrainEntitySort) {
   const searching = !!query.trim()
   const find = useBrainFind(query)
   const browse = useEntityPages(kind || null, sort, !searching)
-  const total = useBrain((s) => s.status?.counts.entities ?? 0)
   const entities: IndexRow[] = searching
     ? (find.data?.entities ?? [])
         .filter((entity) => !kind || entity.kind === kind)
@@ -42,8 +40,11 @@ export function useIndexRows(query: string, kind: BrainEntityKind | '', sort: En
         meta: '',
       }))
     : []
+  // Counts per kind ignore the kind filter, so All is their sum whichever chip is pressed.
   const counts = browse.data?.counts ?? {}
-  const countAll = Object.values(counts).reduce((sum, value) => sum + (value ?? 0), 0) || total
+  const countAll = browse.data
+    ? Object.values(counts).reduce((sum, value) => sum + (value ?? 0), 0)
+    : undefined
   return {
     searching,
     entities,
@@ -69,10 +70,8 @@ export function useIndexRows(query: string, kind: BrainEntityKind | '', sort: En
 function resultLine(
   searching: boolean,
   found: number | null,
-  browse: { total: number | null; items: unknown[]; more: boolean } | null,
+  browse: BrainEntityPage | null,
 ): string {
   if (searching) return found === null ? 'Searching…' : formatCount(found, 'result')
-  if (!browse) return 'Loading…'
-  if (browse.total !== null) return formatCount(browse.total, 'result')
-  return `${browse.items.length}${browse.more ? '+' : ''} shown`
+  return browse ? formatCount(browse.total, 'person or thing', 'people and things') : 'Loading…'
 }

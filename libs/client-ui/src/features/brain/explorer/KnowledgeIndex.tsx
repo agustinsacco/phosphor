@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { BrainEntityKind } from '@shared/brain'
+import { BRAIN_ENTITY_SORTS, type BrainEntitySort } from '@shared/brain-explore'
 import { Button, Select, TextInput } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
-import { ENTITY_LABELS } from '../memoryLabels'
+import { ENTITY_LABELS, ENTITY_SORT_LABELS } from '../memoryLabels'
 import { KindDot } from './KnowledgePrimitives'
-import { ENTITY_SORT_LABELS, type EntitySort } from './entityIndex'
 import { useIndexRows, type IndexRow } from './useIndexRows'
 import type { BrainVisit } from './trail'
 
@@ -22,7 +22,7 @@ export function KnowledgeIndex({
 }): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<BrainEntityKind | ''>('')
-  const [sort, setSort] = useState<EntitySort>('connected')
+  const [sort, setSort] = useState<BrainEntitySort>('connected')
   const [active, setActive] = useState(-1)
   const input = useRef<HTMLInputElement>(null)
   const listId = useId()
@@ -97,8 +97,8 @@ function IndexFilters({
   index: IndexRows
   kind: BrainEntityKind | ''
   onKind: (kind: BrainEntityKind | '') => void
-  sort: EntitySort
-  onSort: (sort: EntitySort) => void
+  sort: BrainEntitySort
+  onSort: (sort: BrainEntitySort) => void
 }): React.JSX.Element {
   return (
     <>
@@ -124,7 +124,7 @@ function IndexFilters({
             value={sort}
             onChange={onSort}
             className="border-0 bg-transparent px-1 py-0 text-sm"
-            options={(Object.keys(ENTITY_SORT_LABELS) as EntitySort[]).map((value) => ({
+            options={BRAIN_ENTITY_SORTS.map((value) => ({
               value,
               label: ENTITY_SORT_LABELS[value],
             }))}
