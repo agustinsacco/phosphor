@@ -326,3 +326,11 @@ it('ends the local pass at its time bound even when coverage is not complete', a
   expect(s.sweep).toHaveBeenCalledOnce()
   expect(s.calls).not.toHaveBeenCalled()
 })
+
+it('records an explicit skipped state when no lane can supply a reader', async () => {
+  const s = setup(8, false)
+  s.runner.start()
+  await vi.waitFor(() => expect(s.runner.current()?.finishedAt).not.toBeNull())
+  expect(s.runner.current()?.state).toBe('skipped')
+  expect(s.runner.current()?.message).toBe(NO_MODEL)
+})

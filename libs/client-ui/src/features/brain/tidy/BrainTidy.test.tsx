@@ -339,3 +339,48 @@ it('requests Recent changes within the Desktop limit instead of failing every lo
   expect(container.textContent).not.toContain('Invalid Brain request.')
   expect(changes).toHaveBeenCalledWith(50)
 })
+
+it.each(['done', 'cancelled', 'failed'] as const)(
+  'renders %s by state without hiding partial coverage behind progress messages',
+  async (state) => {
+    const page = await call('brain:tidy', null, null, 20)
+    page.coverage = {
+      phase: 'memories',
+      cursor: 128,
+      entities: 10,
+      memories: 128,
+      totalEntities: 10,
+      totalMemories: 10000,
+      limitedChecks: 1,
+      startedAt: 1,
+      finishedAt: null,
+    }
+    page.run = {
+      state,
+      checked: 2,
+      total: 8,
+      suggestions: 3,
+      folded: 1,
+      startedAt: 1,
+      finishedAt: 2,
+      message: 'Checking 2 of 8',
+      error: state === 'failed' ? 'Reader unavailable.' : null,
+    }
+    list.mockResolvedValue(page)
+    await render()
+    expect(container.textContent).not.toContain('Checking 2 of 8')
+    expect(container.textContent).toContain('Checked 128 of 10,000 memories so far')
+    expect(container.textContent).toContain('1 checks were cut short')
+    const again = [...container.querySelectorAll('button')].filter(
+      (b) => b.textContent === 'Run it again',
+    )
+    expect(again).toHaveLength(state === 'failed' ? 1 : 0)
+    expect([...container.querySelectorAll('button')].some((b) => b.textContent === 'Retry')).toBe(
+      false,
+    )
+    if (state === 'done') expect(container.textContent).toContain('Found 3 things to tidy')
+    if (state === 'cancelled')
+      expect(container.textContent).toContain('Tidy cancelled after checking 2 of 8 pairs.')
+    if (state === 'failed') expect(container.textContent).toContain('Reader unavailable.')
+  },
+)
