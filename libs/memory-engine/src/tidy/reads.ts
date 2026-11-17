@@ -12,7 +12,7 @@ import { memory } from '../knowledge'
 import { revision } from '../prefs'
 import { closeMissing, suggestion, type SuggestionRow } from './suggestions'
 import { allowedActions } from './action-guards'
-import { coverage } from './sweep'
+import { publicCoverage } from './sweep'
 
 function limitOf(limit: number): void {
   if (!Number.isInteger(limit) || limit < 1 || limit > 50)
@@ -66,7 +66,7 @@ export function page(
         : null,
     counts,
     revision: revision(ctx),
-    coverage: coverage(ctx),
+    coverage: publicCoverage(ctx),
     run: null,
   }
 }

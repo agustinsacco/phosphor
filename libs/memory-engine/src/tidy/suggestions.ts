@@ -12,9 +12,14 @@ import { bumpRevision } from '../prefs'
 import { checkRevision } from './journal'
 import { flagKey } from './flag-keys'
 
+/**
+ * A pair only the model check sees. Pages, counts and actions never show it; a `same` verdict
+ * surfaces it as `same_memory`, `conflict` or `replaces` as `conflict`, `different` clears it.
+ */
+export const UNCHECKED = 'unchecked'
 export interface SuggestionRow {
   id: string
-  kind: BrainTidyKind
+  kind: BrainTidyKind | typeof UNCHECKED
   source: BrainTidySource
   state: BrainTidySuggestion['state']
   subject_type: 'entity' | 'memory'
@@ -51,6 +56,7 @@ export function offer(
   first: string,
   second: string,
   reason: string,
+  kind: SuggestionRow['kind'] = type === 'entity' ? 'same_entity' : 'same_memory',
 ): boolean {
   if (first === second || pairKnown(ctx, type, first, second)) return false
   const now = ctx.now()
@@ -59,7 +65,7 @@ export function offer(
     `INSERT INTO tidy_suggestions(id,pair_key,kind,source,state,subject_type,first_id,second_id,reason,created_at,updated_at) VALUES (?,?,?,'sweep','open',?,?,?,?,?,?)`,
     ctx.id(),
     pairKey(type, first, second),
-    type === 'entity' ? 'same_entity' : 'same_memory',
+    kind,
     type,
     first,
     second,
@@ -117,6 +123,7 @@ export function closeMissing(ctx: Context, rows: SuggestionRow[]): void {
 }
 export function suggestion(ctx: Context, row: SuggestionRow): BrainTidySuggestion | null {
   if (
+    row.kind === UNCHECKED ||
     !BRAIN_TIDY_KINDS.includes(row.kind) ||
     !['sweep', 'check', 'flag'].includes(row.source) ||
     (row.problem !== null && !['wrong', 'outdated', 'duplicate'].includes(row.problem))

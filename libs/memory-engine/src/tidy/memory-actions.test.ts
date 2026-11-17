@@ -62,7 +62,9 @@ it.each(['dispute', 'replace'] as const)('journals and undoes the %s action', (k
     "UPDATE memories SET summary='Rina no longer leads Ledger.' WHERE n=2; UPDATE memory_words SET summary='Rina no longer leads Ledger.' WHERE rowid=2",
   )
   store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
-  const suggestion = store.tidy('same_memory', null, 20).items[0]!
+  // "no longer" makes the near pair a possible disagreement, not a repeat.
+  const suggestion = store.tidy('conflict', null, 20).items[0]!
+  expect(suggestion.reason).toBe('These may disagree.')
   store.recordVerdicts([
     {
       suggestionId: suggestion.id,

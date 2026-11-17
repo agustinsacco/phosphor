@@ -13,7 +13,10 @@ function countSweeps(db: DatabaseSync): () => number {
   let swept = 0
   db.prepare = (sql) => {
     const statement = prepare(sql)
-    if (sql === 'SELECT id,scope,branch,state FROM memories WHERE n=?') {
+    if (
+      sql ===
+      'SELECT id,type,summary,scope,branch,origin_session AS lane,state FROM memories WHERE n=?'
+    ) {
       const get = statement.get.bind(statement)
       vi.spyOn(statement, 'get').mockImplementation((...args) => {
         swept++

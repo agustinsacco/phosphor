@@ -12,6 +12,7 @@ const { IPC_WEB } = await import('@phosphor/shared/ipc-web')
 
 const api = {
   tidySuggestion: vi.fn(async () => null),
+  tidyApply: vi.fn(async (): Promise<unknown> => 'applied'),
   entities: vi.fn(async () => 'entities'),
   recent: vi.fn(async () => 'recent'),
   status: vi.fn(async () => 'status'),
@@ -182,6 +183,15 @@ it('checks Tidy arguments before invoking its API', async () => {
   await expect(call('brain:tidyDismiss', 's', -1)).rejects.toThrow('revision')
   await expect(call('brain:tidyUndo', 'op', -1)).rejects.toThrow('revision')
   await expect(call('brain:merge', 'a', 'b')).rejects.toThrow('revision')
+})
+
+it('passes a dispute through and returns its refusal sentence unchanged', async () => {
+  await expect(call('brain:tidyApply', 's', { kind: 'dispute' }, 4)).resolves.toBe('applied')
+  expect(api.tidyApply).toHaveBeenLastCalledWith('s', { kind: 'dispute' }, 4)
+  api.tidyApply.mockRejectedValueOnce(new Error('Brain changed; refresh Tidy and try again.'))
+  await expect(call('brain:tidyApply', 's', { kind: 'dispute' }, 3)).rejects.toThrow(
+    'Brain changed; refresh Tidy and try again.',
+  )
 })
 
 it('forwards an absent Tidy suggestion as null, not an error', async () => {

@@ -283,7 +283,7 @@ export class FakeBrainStore implements BrainStore {
   })
   takeTidyMaintenance = (): string[] => []
   pendingPairs = () => []
-  recordVerdicts(): void {}
+  recordVerdicts = () => ({ recorded: 0, settled: 0 })
   flag = () => ({ status: 'filed' as const, suggestionId: 'flag' })
   merge(): string {
     this.rev++

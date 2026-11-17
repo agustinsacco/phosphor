@@ -8,7 +8,7 @@ import {
 import type { BrainTidyCard, BrainTidyJudgement, BrainTidyPair } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision } from '../prefs'
-import { closeMissing, type SuggestionRow } from './suggestions'
+import { closeMissing, UNCHECKED, type SuggestionRow } from './suggestions'
 
 function card(ctx: Context, type: 'entity' | 'memory', id: string): BrainTidyCard {
   if (type === 'entity') {
@@ -80,14 +80,23 @@ function card(ctx: Context, type: 'entity' | 'memory', id: string): BrainTidyCar
     ).map((r) => r.quote.slice(0, 300)),
   }
 }
+/**
+ * The pairs one click checks, oldest first: every visible suggestion before any model-only pair,
+ * so queued candidates only fill the budget visible suggestions leave.
+ */
 export function pendingPairs(ctx: Context, limit: number): BrainTidyPair[] {
   if (!Number.isInteger(limit) || limit < 1 || limit > 40)
     throw new Error('Invalid Tidy pair limit.')
-  const rows = all<SuggestionRow>(
-    ctx,
-    "SELECT * FROM tidy_suggestions WHERE state='open' AND verdict IS NULL AND second_id IS NOT NULL AND kind IN ('same_entity','same_memory','conflict') ORDER BY created_at,id LIMIT ?",
-    limit,
-  )
+  const pending = (kinds: string, room: number) =>
+    room > 0
+      ? all<SuggestionRow>(
+          ctx,
+          `SELECT * FROM tidy_suggestions WHERE state='open' AND verdict IS NULL AND second_id IS NOT NULL AND kind IN (${kinds}) ORDER BY created_at,id LIMIT ?`,
+          room,
+        )
+      : []
+  const visible = pending("'same_entity','same_memory','conflict'", limit)
+  const rows = [...visible, ...pending(`'${UNCHECKED}'`, limit - visible.length)]
   closeMissing(ctx, rows)
   return rows
     .filter((r) => r.state === 'open')
@@ -97,10 +106,17 @@ export function pendingPairs(ctx: Context, limit: number): BrainTidyPair[] {
     }))
 }
 
-export function recordVerdicts(ctx: Context, judgements: BrainTidyJudgement[]): void {
+/**
+ * Records the verdicts whose pair is still open. `settled` counts the rest: the owner answered,
+ * merged or forgot the pair while the model was reading it.
+ */
+export function recordVerdicts(
+  ctx: Context,
+  judgements: BrainTidyJudgement[],
+): { recorded: number; settled: number } {
   if (judgements.length > 40) throw new Error('Too many Tidy verdicts.')
-  transaction(ctx, () => {
-    let changed = false
+  return transaction(ctx, () => {
+    let recorded = 0
     for (const judgement of judgements) {
       const row = one<SuggestionRow>(
         ctx,
@@ -124,21 +140,29 @@ export function recordVerdicts(ctx: Context, judgements: BrainTidyJudgement[]): 
         throw new Error('Invalid newer memory in Tidy verdict.')
       // The model never takes two people or things off the owner's list; only "Not the same" does.
       const kept = v.kind === 'different' && row.subject_type === 'entity'
+      const now = ctx.now()
       run(
         ctx,
-        `UPDATE tidy_suggestions SET kind=?,source='check',state=?,verdict=?,verdict_reason=?,newer_id=?,model=?,reason=?,updated_at=? WHERE id=?`,
-        ['conflict', 'replaces'].includes(v.kind) ? 'conflict' : row.kind,
+        `UPDATE tidy_suggestions SET kind=?,source='check',state=?,verdict=?,verdict_reason=?,newer_id=?,model=?,reason=?,created_at=?,updated_at=? WHERE id=?`,
+        ['conflict', 'replaces'].includes(v.kind)
+          ? 'conflict'
+          : row.subject_type === 'entity'
+            ? 'same_entity'
+            : 'same_memory',
         v.kind === 'different' && !kept ? 'cleared' : 'open',
         v.kind,
         v.reason,
         v.kind === 'replaces' ? v.newerId : null,
         judgement.model,
         kept ? row.reason : v.reason,
-        ctx.now(),
+        // A model-only pair is new to the owner when it surfaces.
+        row.kind === UNCHECKED ? now : row.created_at,
+        now,
         row.id,
       )
-      changed = true
+      recorded++
     }
-    if (changed) bumpRevision(ctx)
+    if (recorded) bumpRevision(ctx)
+    return { recorded, settled: judgements.length - recorded }
   })
 }

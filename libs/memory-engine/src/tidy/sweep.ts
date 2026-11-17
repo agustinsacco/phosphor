@@ -10,7 +10,7 @@ import { bumpRevision } from '../prefs'
 import { recountEntities } from '../entities'
 import { sweepEntity } from './sweep-entities'
 import { memoryCandidateCache } from './memory-candidates'
-import { sweepMemory } from './sweep-memories'
+import { sweepBudget, sweepMemory } from './sweep-memories'
 
 export const TIDY_CHUNK = 128
 /** Rows the closing pass reads per call while looking for memories without a fingerprint. */
@@ -31,6 +31,22 @@ export function coverage(ctx: Context): Cursor {
   return row.phase === 'entities' || row.phase === 'memories' || row.phase === 'done'
     ? { ...row, phase: row.phase }
     : { ...emptyBrainTidyCoverage(), entityMax: 0, memoryMax: 0 }
+}
+/**
+ * What the page shows: no cursor internals. A finished pass reports today's counts, because every
+ * memory saved since is swept as it lands (or by maintenance right after); a pass in progress
+ * reports the totals it set out to check.
+ */
+export function publicCoverage(ctx: Context, c: Cursor = coverage(ctx)): BrainTidyCoverage {
+  const { entityMax: _entities, memoryMax: _memories, unkeyed: _unkeyed, ...shown } = c
+  if (shown.phase !== 'done') return shown
+  const counts = Object.fromEntries(
+    all<{ key: string; value: string }>(
+      ctx,
+      "SELECT key,value FROM meta WHERE key IN ('memories','entities')",
+    ).map((row) => [row.key, Number(row.value)]),
+  )
+  return { ...shown, totalMemories: counts.memories ?? 0, totalEntities: counts.entities ?? 0 }
 }
 function start(ctx: Context): Cursor {
   const c = { ...emptyBrainTidyCoverage(), startedAt: ctx.now(), entityMax: 0, memoryMax: 0 }
@@ -106,8 +122,9 @@ export function sweep(
     }
     fingerprintMemories(ctx, memories)
     const cache = memoryCandidateCache()
+    const budget = memories.length ? sweepBudget(ctx) : { modelOnly: 0 }
     for (const n of memories) {
-      const found = sweepMemory(ctx, n, cache)
+      const found = sweepMemory(ctx, n, cache, budget)
       result.suggestions += found.suggestions
       c.limitedChecks += found.capped
       result.operationIds.push(...found.operations)
@@ -115,7 +132,7 @@ export function sweep(
     result.folded = result.operationIds.length
     if (result.suggestions) bumpRevision(ctx)
     if (input === 'all') save(ctx, c)
-    result.coverage = c
+    result.coverage = publicCoverage(ctx, c)
     return result
   })
 }

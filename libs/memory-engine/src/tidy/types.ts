@@ -45,7 +45,8 @@ export interface BrainTidyStore {
   takeTidyMaintenance(): string[]
   /** At most 40 unjudged, open, two-subject pairs. */
   pendingPairs(limit: number): BrainTidyPair[]
-  recordVerdicts(judgements: BrainTidyJudgement[]): void
+  /** `settled`: verdicts for pairs the owner answered, merged or forgot while they were checked. */
+  recordVerdicts(judgements: BrainTidyJudgement[]): { recorded: number; settled: number }
   /** One open flag per memory; at most five open flags per lane. Returns the suggestion id. */
   flag(input: BrainTidyFlag): BrainTidyFlagResult
 }
