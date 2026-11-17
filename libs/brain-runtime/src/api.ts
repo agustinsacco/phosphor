@@ -80,7 +80,7 @@ async function reread(id: string, context: ApiContext): Promise<void> {
 }
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
-  const tidy = createTidyRunner(context)
+  const tidy = createTidyRunner({ ...context, runState: store })
   const status = (): BrainStatus => apiStatus(context, tidy)
   const mutate = async (run: () => void): Promise<BrainStatus> => {
     run()

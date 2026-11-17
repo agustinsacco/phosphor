@@ -69,7 +69,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       }),
     now: options.now ?? Date.now,
   })
-  const recall = createRecall(store, options, search, () => queue.accepting)
+  const recall = createRecall(store, options, search, () => queue.accepting, store)
   const setup = modelSetup(options, changed, () => queue.kick())
   store.requeueInterrupted()
   if (store.snapshot().prefs.enabled) setup.start(() => options.embeddings.setEnabled(true))
