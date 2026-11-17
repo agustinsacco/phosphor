@@ -1,7 +1,7 @@
 import { ArchiveNotices } from '@/features/archive/ArchiveNotices'
-import { formatCount } from '@/lib/format'
 import { useBrain } from '@/features/brain/useBrain'
 import { useBrainSync } from '@/features/brain/useBrainSync'
+import { inboxCount } from '@/features/brain/inbox/inboxItems'
 import { usePlatform } from '@/platform/Platform'
 import type { GlobalPage } from '@/stores/layout'
 import { NavigationItem } from './NavigationItem'
@@ -22,9 +22,7 @@ export function PageLinks({
 }): React.JSX.Element {
   useBrainSync()
   const enabled = useBrain((s) => s.status?.prefs.enabled)
-  const reviews = useBrain(
-    (s) => s.status?.jobs.filter((job) => job.state === 'review').length ?? 0,
-  )
+  const decisions = useBrain((s) => inboxCount(s.status))
   const localBrain = usePlatform().localBrain
   return (
     <>
@@ -38,12 +36,12 @@ export function PageLinks({
             icon={<Icon />}
             active={activePage === page}
             trailing={
-              page === 'brain' && reviews > 0 ? (
+              page === 'brain' && decisions > 0 ? (
                 <span
                   className="text-accent ml-auto text-xs tabular-nums"
-                  aria-label={`${formatCount(reviews, 'lane')} to review`}
+                  aria-label={`${decisions} to decide`}
                 >
-                  {reviews}
+                  {decisions}
                 </span>
               ) : (
                 trailing?.[page]
