@@ -8,13 +8,31 @@ import { useBrainModelName } from '../useBrainModelName'
 
 export function tidyStatus(page: BrainTidyPage | null): string {
   if (!page) return 'Loading Tidy…'
-  const { run, coverage } = page
-  if (run?.state === 'queued') return 'Waiting for the lane reader…'
-  if (run?.state === 'sweeping') return 'Looking for repeats…'
-  if (run?.state === 'checking') return `Checking ${run.checked} of ${run.total}`
-  if (run?.error || run?.message) return run.error ?? run.message!
-  if (run?.state === 'cancelled') return 'Tidy cancelled. You can continue with Tidy now.'
-  if (!coverage.startedAt) return 'Look for repeats and disagreements.'
+  const run = page.run
+  switch (run?.state) {
+    case 'queued':
+      return 'Waiting for the lane reader…'
+    case 'sweeping':
+      return 'Looking for repeats…'
+    case 'checking':
+      return `Checking ${run.checked} of ${run.total}`
+    case 'done':
+      return `Found ${run.suggestions} things to tidy and folded ${run.folded} exact repeats.`
+    case 'cancelled':
+      return `Tidy cancelled after checking ${run.checked} of ${run.total} pairs.`
+    case 'skipped':
+      return run.message ?? 'The model check was skipped.'
+    case 'interrupted':
+      return run.error ?? 'Tidy was interrupted when Phosphor closed.'
+    case 'failed':
+      return run.error ?? 'Tidy could not finish.'
+    default:
+      return tidyCoverage(page) || 'Look for repeats and disagreements.'
+  }
+}
+
+function tidyCoverage({ coverage }: BrainTidyPage): string {
+  if (coverage.startedAt === null) return ''
   const covered = coverage.memories.toLocaleString(),
     total = coverage.totalMemories.toLocaleString()
   const line =
@@ -44,7 +62,7 @@ export function TidyHeader({
   )
   const model = useBrainModelName(status.prefs.model ?? history.data?.items[0]?.job.model ?? '')
   const running = status.tidy.running
-  const retry = !!page?.run && !!(page.run.error || page.run.message) && !running
+  const retry = !!page?.run && ['failed', 'skipped', 'interrupted'].includes(page.run.state)
   const tooltip = model
     ? `Brain looks for repeats on this computer, then sends up to 40 pairs of memories or names to ${model} to judge them.`
     : 'Brain looks for repeats on this computer. When a reader model is available, it sends up to 40 pairs of memories or names to that model to judge them. Otherwise the model check is skipped.'
@@ -54,7 +72,9 @@ export function TidyHeader({
         Tidy now
       </Button>
       <div className="text-text-secondary min-w-0 flex-1 text-sm">
+        {page?.run?.state === 'skipped' && <p>{tidyCoverage(page)}</p>}
         <p role="status">{tidyStatus(page)}</p>
+        {page?.run && !running && page.run.state !== 'skipped' && <p>{tidyCoverage(page)}</p>}
         {!!page?.coverage.limitedChecks && (
           <p>
             {page.coverage.limitedChecks.toLocaleString()} checks were cut short to stay fast, so a
@@ -74,7 +94,7 @@ export function TidyHeader({
       )}
       {retry && (
         <Button disabled={busy} onClick={onRun}>
-          Retry
+          Run it again
         </Button>
       )}
     </header>

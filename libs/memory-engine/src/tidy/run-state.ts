@@ -1,7 +1,16 @@
 import type { BrainTidyRun } from '@phosphor/shared/brain-tidy'
 import { one, run, type Context } from '../database'
 
-const states = ['queued', 'sweeping', 'checking', 'done', 'failed', 'cancelled']
+const states = [
+  'queued',
+  'sweeping',
+  'checking',
+  'done',
+  'failed',
+  'cancelled',
+  'skipped',
+  'interrupted',
+]
 /** The runtime owns interrupted-run recovery; the engine never starts or normalises a run. */
 export function readRun(ctx: Context): BrainTidyRun | null {
   const row = one<BrainTidyRun>(

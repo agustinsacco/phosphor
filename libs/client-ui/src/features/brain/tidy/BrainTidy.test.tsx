@@ -384,3 +384,29 @@ it.each(['done', 'cancelled', 'failed'] as const)(
     if (state === 'failed') expect(container.textContent).toContain('Reader unavailable.')
   },
 )
+
+it.each(['skipped', 'interrupted'] as const)(
+  'offers Run it again for %s without parsing the reason',
+  async (state) => {
+    const page = await call('brain:tidy', null, null, 20)
+    page.run = {
+      state,
+      checked: 0,
+      total: 8,
+      suggestions: 0,
+      folded: 0,
+      startedAt: 1,
+      finishedAt: 2,
+      message: 'A reason with no magic words.',
+      error: state === 'interrupted' ? 'A stopped run.' : null,
+    }
+    list.mockResolvedValue(page)
+    await render()
+    expect(container.textContent).toContain(
+      state === 'skipped' ? 'A reason with no magic words.' : 'A stopped run.',
+    )
+    expect(
+      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Run it again'),
+    ).toBe(true)
+  },
+)

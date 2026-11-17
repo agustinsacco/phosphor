@@ -153,7 +153,7 @@ it('reopens an in-flight persisted run as interrupted without starting any model
   try {
     const page = await reopened.api.tidy(null, null, 50)
     expect(page.run).toMatchObject({
-      state: 'failed',
+      state: 'interrupted',
       checked: 0,
       total: 7,
       error: expect.stringContaining('interrupted'),

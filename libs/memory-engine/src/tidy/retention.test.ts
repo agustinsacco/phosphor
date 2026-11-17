@@ -73,6 +73,8 @@ it('persists the run checkpoint faithfully and leaves interrupted recovery to th
       'done',
       'failed',
       'cancelled',
+      'skipped',
+      'interrupted',
     ] as const) {
       const value = {
         ...checkpoint,

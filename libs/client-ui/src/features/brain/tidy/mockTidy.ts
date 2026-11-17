@@ -17,6 +17,8 @@ import { seedMockTidy, mockTidyPermissions } from './mockTidyData'
 export interface MockTidyOptions {
   count?: number
   failFirstLoad?: boolean
+  /** Terminal checkpoint fixtures exercise the same state-driven header as Desktop. */
+  runOutcome?: 'done' | 'skipped' | 'interrupted'
   /** A lane flag arrives this many milliseconds after the first Tidy read. */
   flagAfterMs?: number
 }
@@ -85,8 +87,11 @@ export class MockTidy {
       run.state = elapsed < 2000 ? 'sweeping' : elapsed < 6000 ? 'checking' : 'done'
       run.checked = Math.min(run.total, Math.max(0, Math.floor((elapsed - 2000) / 500)))
       if (run.state === 'done') {
+        run.state = this.options.runOutcome ?? 'done'
         run.finishedAt = this.now()
-        run.checked = run.total
+        run.checked = run.state === 'done' ? run.total : 0
+        if (run.state === 'skipped') run.message = 'No finished lane can supply a reader model.'
+        if (run.state === 'interrupted') run.error = 'Tidy was interrupted when Phosphor closed.'
         run.suggestions = this.items.filter((s) => s.state === 'open').length
         this.page.coverage = {
           phase: 'done',

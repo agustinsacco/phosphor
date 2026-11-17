@@ -135,3 +135,15 @@ it.each([
   const call = createMockBrain(() => 10000)
   await expect(call(channel as string, args as unknown[])).rejects.toThrow('Invalid')
 })
+
+it.each(['skipped', 'interrupted'] as const)(
+  'serves an explicit %s checkpoint in the browser harness',
+  async (state) => {
+    let now = 10000
+    const call = createMockBrain(() => now, { runOutcome: state })
+    await call('brain:tidyRun', [])
+    now += 10000
+    expect(((await call('brain:tidy', [null, null, 20])) as BrainTidyPage).run?.state).toBe(state)
+    expect(((await call('brain:status', [])) as BrainStatus).tidy.running).toBe(false)
+  },
+)

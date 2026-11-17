@@ -100,7 +100,9 @@ function setup(count = 8, finished = true) {
   const runner = createTidyRunner(context)
   const finish = async () => {
     await vi.waitFor(() =>
-      expect(['done', 'failed', 'cancelled']).toContain(runner.current()?.state),
+      expect(['done', 'failed', 'cancelled', 'skipped', 'interrupted']).toContain(
+        runner.current()?.state,
+      ),
     )
     return runner.current()!
   }
@@ -180,7 +182,7 @@ it.each([null, 'example/pinned'])(
     const s = setup(8, false)
     s.store.prefs.model = model
     s.runner.start()
-    expect(await s.finish()).toMatchObject({ state: 'done', message: NO_MODEL })
+    expect(await s.finish()).toMatchObject({ state: 'skipped', message: NO_MODEL })
     expect(s.sweep).toHaveBeenCalledWith('all')
     expect(s.calls).not.toHaveBeenCalled()
   },
@@ -199,7 +201,7 @@ it('bounds the click at forty, cancels between calls and persists progress acros
   expect(createTidyRunner(s.context).current()).toMatchObject({ checked: 8 })
   s.context.runState.writeRun({ ...s.runner.current()!, state: 'checking' })
   expect(createTidyRunner(s.context).current()).toMatchObject({
-    state: 'failed',
+    state: 'interrupted',
     checked: 8,
     error: expect.stringContaining('interrupted'),
   })

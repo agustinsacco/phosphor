@@ -65,7 +65,8 @@ export interface BrainTidyCoverage {
   finishedAt: number | null
 }
 export interface BrainTidyRun {
-  state: 'queued' | 'sweeping' | 'checking' | 'done' | 'cancelled' | 'failed'
+  state:
+    'queued' | 'sweeping' | 'checking' | 'done' | 'cancelled' | 'failed' | 'skipped' | 'interrupted'
   checked: number
   total: number
   suggestions: number

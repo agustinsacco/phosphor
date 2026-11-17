@@ -65,7 +65,7 @@ async function check(
   const model = await tidyModel(context.store, context.options)
   signal.throwIfAborted()
   if (!model) {
-    update({ message: NO_MODEL })
+    update({ state: 'skipped', message: NO_MODEL })
     return
   }
   if (!ids.length) {
@@ -113,7 +113,7 @@ export function createTidyRunner(context: TidyRunContext): TidyRunner {
   }
   if (active(run))
     update({
-      state: 'failed',
+      state: 'interrupted',
       finishedAt: now(),
       error:
         'Tidy was interrupted when Phosphor closed. Run it again to check the remaining pairs.',
@@ -123,7 +123,10 @@ export function createTidyRunner(context: TidyRunContext): TidyRunner {
       await sweep(context, signal, update)
       await check(context, signal, update)
       signal.throwIfAborted()
-      update({ state: run?.error ? 'failed' : 'done', finishedAt: now() })
+      update({
+        state: run?.error ? 'failed' : run?.state === 'skipped' ? 'skipped' : 'done',
+        finishedAt: now(),
+      })
     } catch (error) {
       update({
         state: signal.aborted ? 'cancelled' : 'failed',
