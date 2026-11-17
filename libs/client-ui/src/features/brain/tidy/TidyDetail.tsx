@@ -210,11 +210,13 @@ function TidyVerdict({
     <header className="space-y-2">
       <p className="font-medium">{suggestion.reason}</p>
       <p className="text-text-tertiary text-sm">
-        {suggestion.verdict
-          ? `Checked by ${model}`
-          : suggestion.source === 'sweep'
-            ? 'Found on this computer'
-            : 'Flagged by a lane'}
+        {suggestion.verdict?.kind === 'different'
+          ? `Checked by ${model}, which thinks these are different. Merge only if you know they are the same.`
+          : suggestion.verdict
+            ? `Checked by ${model}`
+            : suggestion.source === 'sweep'
+              ? 'Found on this computer'
+              : 'Flagged by a lane'}
       </p>
       {suggestion.verdict && (
         <p>

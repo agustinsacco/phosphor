@@ -50,11 +50,13 @@ export function seedMockTidy(
         subjects.push({ type: 'memory', id: detail.memory.id, label: detail.memory.summary })
       }
     }
+    // Every second people pair was checked: the model thinks they differ, and it stays open.
+    const different = kind === 'same_entity' && index % 8 === 4
     return {
       id,
       kind,
       subjects,
-      source: kind === 'flagged' ? 'flag' : kind === 'conflict' ? 'check' : 'sweep',
+      source: kind === 'flagged' ? 'flag' : kind === 'conflict' || different ? 'check' : 'sweep',
       state: 'open',
       reason:
         kind === 'flagged'
@@ -65,8 +67,10 @@ export function seedMockTidy(
       verdict:
         kind === 'conflict'
           ? { kind: 'conflict', reason: 'The invoice schedules disagree.' }
-          : null,
-      model: kind === 'conflict' ? 'demo/harbor-model' : null,
+          : different
+            ? { kind: 'different', reason: 'Only the name matches; the descriptions differ.' }
+            : null,
+      model: kind === 'conflict' || different ? 'demo/harbor-model' : null,
       flag:
         kind === 'flagged'
           ? { problem: 'outdated', sessionId: 'harbor-lane', title: 'Harbor planning' }

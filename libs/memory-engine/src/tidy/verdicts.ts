@@ -121,16 +121,18 @@ export function recordVerdicts(ctx: Context, judgements: BrainTidyJudgement[]): 
         throw new Error('Only memories can disagree or replace one another.')
       if (v.kind === 'replaces' && ![row.first_id, row.second_id].includes(v.newerId))
         throw new Error('Invalid newer memory in Tidy verdict.')
+      // The model never takes two people or things off the owner's list; only "Not the same" does.
+      const kept = v.kind === 'different' && row.subject_type === 'entity'
       run(
         ctx,
         `UPDATE tidy_suggestions SET kind=?,source='check',state=?,verdict=?,verdict_reason=?,newer_id=?,model=?,reason=?,updated_at=? WHERE id=?`,
         ['conflict', 'replaces'].includes(v.kind) ? 'conflict' : row.kind,
-        v.kind === 'different' ? 'cleared' : 'open',
+        v.kind === 'different' && !kept ? 'cleared' : 'open',
         v.kind,
         v.reason,
         v.kind === 'replaces' ? v.newerId : null,
         judgement.model,
-        v.reason,
+        kept ? row.reason : v.reason,
         ctx.now(),
         row.id,
       )

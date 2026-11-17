@@ -147,3 +147,15 @@ it.each(['skipped', 'interrupted'] as const)(
     expect(((await call('brain:status', [])) as BrainStatus).tidy.running).toBe(false)
   },
 )
+
+it('keeps a checked people pair the model thinks are different open, with Merge offered', async () => {
+  const call = createMockBrain(() => 10000)
+  const detail = (await call('brain:tidySuggestion', ['tidy-4'])) as BrainTidySuggestionDetail
+  expect(detail.suggestion).toMatchObject({
+    kind: 'same_entity',
+    state: 'open',
+    source: 'check',
+    verdict: { kind: 'different' },
+  })
+  expect(detail.allowed).toEqual(['merge'])
+})

@@ -532,9 +532,14 @@ EmbeddingGemma vectors of 60,000 made-up sentences it returns 99.9% of the exact
 
 **Tidy now** first runs bounded local sweep chunks, then checks at most forty oldest unjudged
 pairs, eight per call. It shares the Brain reader queue with lane reads: neither runs beside
-another. The check only proposes; it never applies a model verdict. `different` clears and
-remembers the pair; `conflict` and `replaces` remain for review, with the proposed newer side
-when supported. Uncertain answers are `different`, not permission to merge people by name. A
+another. The check only proposes; it never applies a model verdict. For two memories,
+`different` clears and remembers the pair. The model never takes two people or things off the
+owner's list: for an entity pair, `different` records the verdict and its reason, keeps the
+sweep's reason, and leaves the suggestion open. The page then says "Checked by <model>, which
+thinks these are different. Merge only if you know they are the same." and still offers Merge
+and Not the same; only Not the same closes it. A pair with a verdict is not sent to the model
+again. `conflict` and `replaces` remain for review, with the proposed newer side when
+supported. Uncertain answers are `different`, not permission to merge people by name. A
 different project or branch alone never decides a verdict: the model judges whether the
 assertion is limited to its project or branch or holds anywhere, so two contradicting standing
 preferences of one person in two projects are a `conflict`.
