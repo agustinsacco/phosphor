@@ -257,9 +257,14 @@ function FoldedIdentities({
     return existing ? [{ identity, existing }] : []
   })
   if (!folded.length && !confirmations) return null
+  const fresh = folded.filter(
+    (identity) => identityChoice(identity, choices.identities) === 'new',
+  ).length
+  const matched = folded.length - fresh
   const line = [
-    folded.length &&
-      `${formatCount(folded.length, 'person or thing', 'people and things')} matched without doubt`,
+    matched &&
+      `${formatCount(matched, 'person or thing', 'people and things')} matched without doubt`,
+    fresh && formatCount(fresh, 'new person or thing', 'new people and things'),
     confirmations &&
       `${formatCount(confirmations, 'memory confirms', 'memories confirm')} what Brain knows`,
   ]
