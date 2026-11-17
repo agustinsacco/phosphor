@@ -95,3 +95,13 @@ it('rejects folding different validity periods and a stale apply without modifyi
   ).toThrow('validity dates')
   expect(dump(db)).toEqual(before)
 })
+
+it('can suggest near repeats among disputed memories but never folds disputed exact sentences', () => {
+  const { store, db } = shared()
+  db.exec(
+    "UPDATE memories SET state='disputed'; UPDATE memories SET summary='Rina is responsible for Ledger.' WHERE n=2",
+  )
+  const result = store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
+  expect(result.folded).toBe(0)
+  expect(store.tidy('same_memory', null, 20).items).toHaveLength(1)
+})
