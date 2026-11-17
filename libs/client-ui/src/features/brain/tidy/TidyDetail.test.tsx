@@ -183,3 +183,48 @@ it('offers no mutation buttons for a settled or missing-subject comparison', asy
   })
   expect(container.querySelector('button')).toBeNull()
 })
+
+it('labels an unknown flag title as unverified plain text', async () => {
+  await render(3, (d) => {
+    d.suggestion.flag!.title = '<b>Kestrel review</b>'
+  })
+  expect(container.textContent).toContain('A lane calling itself <b>Kestrel review</b>')
+  expect(container.querySelector('b')).toBeNull()
+})
+
+it('uses the known lane name instead of the caller-supplied flag title', async () => {
+  useSessionsStore.setState({
+    disk: {
+      '/demo/Harbor': [
+        {
+          sessionId: 'harbor-lane',
+          path: '/demo/Harbor/known.jsonl',
+          cwd: '/demo/Harbor',
+          name: 'Harbor verified title',
+          firstUserText: 'Harbor planning',
+          createdAt: '2026-11-06',
+          userMessages: 1,
+          assistantMessages: 0,
+          toolCalls: 0,
+          totalTokens: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          cost: 0,
+          headroomSavedTokens: 0,
+          entryCount: 1,
+          branchCount: 0,
+          mtimeMs: 1,
+          lastActivityAt: '2026-11-06',
+        },
+      ],
+    },
+  })
+  await render(3, (d) => {
+    d.suggestion.flag!.title = 'Untrusted Kestrel title'
+  })
+  expect(container.textContent).toContain('Harbor verified title')
+  expect(container.textContent).not.toContain('Untrusted Kestrel title')
+  expect(container.textContent).not.toContain('A lane calling itself')
+})
