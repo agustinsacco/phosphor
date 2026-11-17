@@ -167,7 +167,8 @@ function placeRings(
   rings.forEach((ids, index) => {
     const radius = index === 0 ? inner : outer
     ids.forEach((id, position) => {
-      const angle = (position / ids.length) * 2 * Math.PI - Math.PI / 2 + (index ? Math.PI / ids.length : 0)
+      const angle =
+        (position / ids.length) * 2 * Math.PI - Math.PI / 2 + (index ? Math.PI / ids.length : 0)
       const node = byId.get(id)!
       placed.push({
         ...node,
@@ -268,7 +269,11 @@ function edgesBetween(links: MapLinkInput[], drawn: Set<string>): MapEdge[] {
     const [from, to] = [link.subjectId, link.objectId].sort() as [string, string]
     const key = `${from}|${to}`
     const edge = edges.get(key) ?? { key, from, to, links: [] }
-    if (!edge.links.some((known) => known.predicate === link.predicate && known.subjectId === link.subjectId))
+    if (
+      !edge.links.some(
+        (known) => known.predicate === link.predicate && known.subjectId === link.subjectId,
+      )
+    )
       edge.links.push(link)
     edges.set(key, edge)
   }

@@ -82,9 +82,7 @@ function ChecklistSection({
           {group.label} · {group.memories.length}
         </span>
       </label>
-      {group.held && (
-        <p className="text-text-tertiary pl-6 text-sm">Not kept unless you tick it</p>
-      )}
+      {group.held && <p className="text-text-tertiary pl-6 text-sm">Not kept unless you tick it</p>}
       <ul className="divide-border divide-y">
         {shown.map((memory) => (
           <li key={memory.index}>
@@ -93,9 +91,7 @@ function ChecklistSection({
               proposal={proposal}
               checked={keep.includes(memory.index)}
               onChange={(checked) =>
-                onChange(
-                  checked ? [...keep, memory.index] : keep.filter((i) => i !== memory.index),
-                )
+                onChange(checked ? [...keep, memory.index] : keep.filter((i) => i !== memory.index))
               }
             />
           </li>

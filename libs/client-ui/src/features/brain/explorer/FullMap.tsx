@@ -83,10 +83,14 @@ function Inspector({
             <KindDot kind={data.entity.kind} />
             <span className="min-w-0">
               {data.entity.label}{' '}
-              <span className="text-text-tertiary font-normal">{ENTITY_WORDS[data.entity.kind]}</span>
+              <span className="text-text-tertiary font-normal">
+                {ENTITY_WORDS[data.entity.kind]}
+              </span>
             </span>
           </h3>
-          {data.entity.description && <p className="text-text-secondary">{data.entity.description}</p>}
+          {data.entity.description && (
+            <p className="text-text-secondary">{data.entity.description}</p>
+          )}
           <p className="text-text-tertiary">
             {formatCount(data.entity.memories, 'memory', 'memories')} ·{' '}
             {formatCount(data.entity.connections, 'link')}

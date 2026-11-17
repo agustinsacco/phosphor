@@ -41,7 +41,9 @@ let fake: ReturnType<typeof createFakePhosphor>
 const openDiskSession = vi.fn(async () => 'harbor-live')
 const refreshDisk = vi.fn(async () => {})
 const history = vi.fn(async (_limit: number) => ({
-  items: [{ job: { sessionId: 'harbor-lane', sessionPath: meta.path }, memories: 1, replaceable: 1 }],
+  items: [
+    { job: { sessionId: 'harbor-lane', sessionPath: meta.path }, memories: 1, replaceable: 1 },
+  ],
   more: false,
 }))
 beforeEach(() => {

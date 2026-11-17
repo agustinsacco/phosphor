@@ -84,9 +84,7 @@ export function openQuestions(
   proposal: BrainProposalView,
   choices: Record<string, string>,
 ): BrainIdentity[] {
-  return proposal.identities.filter(
-    (identity) => isRequired(identity) && !choices[identity.ref],
-  )
+  return proposal.identities.filter((identity) => isRequired(identity) && !choices[identity.ref])
 }
 
 export function chosenEntity(
@@ -106,7 +104,9 @@ export function differingDescription(
   choices: Record<string, string>,
 ): BrainEntity | null {
   const existing = chosenEntity(identity, choices)
-  return existing && identity.description.trim() && !same(existing.description, identity.description)
+  return existing &&
+    identity.description.trim() &&
+    !same(existing.description, identity.description)
     ? existing
     : null
 }
@@ -118,22 +118,18 @@ export interface ChecklistGroup {
   memories: BrainProposedMemory[]
 }
 export function checklistGroups(proposal: BrainProposalView): ChecklistGroup[] {
-  const plain = REVIEW_TYPE_ORDER.map(
-    (type): ChecklistGroup => ({
-      id: type,
-      label: MEMORY_LABELS[type],
-      held: false,
-      memories: proposal.memories.filter((m) => !holdOf(m) && m.type === type),
-    }),
-  )
-  const held = (['temporary', 'personal'] as const).map(
-    (hold): ChecklistGroup => ({
-      id: hold,
-      label: HOLD_LABELS[hold],
-      held: true,
-      memories: proposal.memories.filter((m) => holdOf(m) === hold),
-    }),
-  )
+  const plain = REVIEW_TYPE_ORDER.map((type): ChecklistGroup => ({
+    id: type,
+    label: MEMORY_LABELS[type],
+    held: false,
+    memories: proposal.memories.filter((m) => !holdOf(m) && m.type === type),
+  }))
+  const held = (['temporary', 'personal'] as const).map((hold): ChecklistGroup => ({
+    id: hold,
+    label: HOLD_LABELS[hold],
+    held: true,
+    memories: proposal.memories.filter((m) => holdOf(m) === hold),
+  }))
   return [...plain, ...held].filter((group) => group.memories.length > 0)
 }
 
@@ -161,7 +157,12 @@ export function approveBlock(proposal: BrainProposalView, choices: ReviewChoices
   const open = openQuestions(proposal, choices.identities).length
   if (open) return `Answer ${formatCount(open, 'question')}`
   const confirmationsOnly = !proposal.memories.length && proposal.confirmations.length > 0
-  if (!proposal.job.replaces && !choices.keep.length && !confirmationsOnly && !choices.groups.length)
+  if (
+    !proposal.job.replaces &&
+    !choices.keep.length &&
+    !confirmationsOnly &&
+    !choices.groups.length
+  )
     return 'Tick a memory to approve'
   return null
 }

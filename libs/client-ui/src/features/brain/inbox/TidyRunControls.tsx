@@ -55,7 +55,10 @@ export function TidyRunControls({
       )}
       {history.error && (
         <p role="status">
-          {history.error} <Button size="xs" onClick={history.retry}>Retry</Button>
+          {history.error}{' '}
+          <Button size="xs" onClick={history.retry}>
+            Retry
+          </Button>
         </p>
       )}
     </section>

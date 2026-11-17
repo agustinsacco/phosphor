@@ -98,8 +98,8 @@ export function ReviewForm({
     >
       {proposal.held > 0 && (
         <p className="text-text-tertiary text-sm">
-          {formatCount(proposal.held, 'more claim was', 'more claims were')} over this read’s
-          limit and held back. See how it was read for the reasons.
+          {formatCount(proposal.held, 'more claim was', 'more claims were')} over this read’s limit
+          and held back. See how it was read for the reasons.
         </p>
       )}
       <fieldset disabled={saving} className="min-w-0 space-y-4">

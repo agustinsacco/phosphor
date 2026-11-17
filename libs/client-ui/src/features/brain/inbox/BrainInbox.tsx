@@ -45,17 +45,15 @@ export function BrainInbox({
     for (const key of ['j', 'k', 'a', 'r'])
       if (pageKeyTarget(event, key)) {
         event.preventDefault()
-        if (key === 'j' || key === 'k') onSelect(moveInboxSelection(items, current, key === 'j' ? 1 : -1))
+        if (key === 'j' || key === 'k')
+          onSelect(moveInboxSelection(items, current, key === 'j' ? 1 : -1))
         else if (key === 'a') keys.current.primary?.()
         else if (item?.kind === 'review') keys.current.reject?.()
       }
   }
   return (
     <div className="brain-panes brain-inbox" onKeyDown={onKeyDown}>
-      <section
-        aria-label="Decisions"
-        className="brain-pane brain-pane--side brain-pane--start"
-      >
+      <section aria-label="Decisions" className="brain-pane brain-pane--side brain-pane--start">
         <div className="brain-scroll">
           <InboxQueue
             groups={groups}
@@ -94,9 +92,7 @@ export function BrainInbox({
             onVisit={onVisit}
           />
         ) : (
-          <p className="text-text-tertiary p-6">
-            {tidy.page ? 'Nothing to decide.' : 'Loading…'}
-          </p>
+          <p className="text-text-tertiary p-6">{tidy.page ? 'Nothing to decide.' : 'Loading…'}</p>
         )}
       </section>
       <aside

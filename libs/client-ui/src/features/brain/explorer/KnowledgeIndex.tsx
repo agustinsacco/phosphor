@@ -240,12 +240,19 @@ function IndexOption({
       className={clsx('brain-row items-center py-1', active && 'bg-sidebar-hover')}
       onClick={() => onChoose(row.visit)}
     >
-      {row.kind ? <KindDot kind={row.kind} /> : <span aria-hidden="true" className="w-2 shrink-0" />}
+      {row.kind ? (
+        <KindDot kind={row.kind} />
+      ) : (
+        <span aria-hidden="true" className="w-2 shrink-0" />
+      )}
       <span className={clsx('min-w-0 flex-1', row.kind ? 'truncate' : 'brain-clamp text-sm')}>
         {row.visit.label}
       </span>
       {row.meta && (
-        <span className="text-text-tertiary text-sm tabular-nums" aria-label={`${row.meta} memories`}>
+        <span
+          className="text-text-tertiary text-sm tabular-nums"
+          aria-label={`${row.meta} memories`}
+        >
           {row.meta}
         </span>
       )}

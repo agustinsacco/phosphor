@@ -94,7 +94,12 @@ export function BrainLanes({
             onMemory={onMemory}
           />
         ) : change ? (
-          <ChangeDetail change={change} busy={actions.busy} message={actions.message} onUndo={undo} />
+          <ChangeDetail
+            change={change}
+            busy={actions.busy}
+            message={actions.message}
+            onUndo={undo}
+          />
         ) : (
           <p className="text-text-tertiary p-6">
             {history ? 'Choose a read or a change.' : 'Loading…'}

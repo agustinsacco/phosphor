@@ -66,7 +66,8 @@ export function MemoryRow({
   onToggle: () => void
   actions: MemoryRowActions
 }): React.JSX.Element {
-  const state = memory.state === 'disputed' ? 'disputed' : memory.state === 'superseded' ? 'replaced' : ''
+  const state =
+    memory.state === 'disputed' ? 'disputed' : memory.state === 'superseded' ? 'replaced' : ''
   return (
     <li className="border-border border-b">
       <TooltipButton
@@ -83,7 +84,9 @@ export function MemoryRow({
             {state && (
               <>
                 {' · '}
-                <b className={state === 'disputed' ? 'text-warning font-semibold' : 'font-semibold'}>
+                <b
+                  className={state === 'disputed' ? 'text-warning font-semibold' : 'font-semibold'}
+                >
                   {state}
                 </b>
               </>
@@ -153,14 +156,16 @@ export function MemoryOpen({
             className="text-text-secondary block text-left text-sm hover:underline"
             onClick={() => actions.onMemory(m.id, m.summary)}
           >
-            {kind === 'conflicts' ? 'Disagrees with' : kind === 'resolves' ? 'Answers' : 'Replaced'}:{' '}
-            {m.summary}
+            {kind === 'conflicts' ? 'Disagrees with' : kind === 'resolves' ? 'Answers' : 'Replaced'}
+            : {m.summary}
           </TooltipButton>
         ),
       )}
       <MemoryButtons data={data} actions={actions} />
       <details className="text-sm">
-        <TooltipSummary className="text-text-tertiary cursor-pointer">Dates and scope</TooltipSummary>
+        <TooltipSummary className="text-text-tertiary cursor-pointer">
+          Dates and scope
+        </TooltipSummary>
         <MemoryTags memory={data.memory} />
       </details>
     </div>

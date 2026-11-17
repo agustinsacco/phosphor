@@ -33,7 +33,8 @@ it('draws 24 neighbours with no touching nodes or labels, all inside the box', (
       for (const b of layout.nodes.slice(i + 1))
         expect(Math.hypot(a.x - b.x, a.y - b.y), `${a.id}/${b.id}`).toBeGreaterThan(a.r + b.r)
     const boxes = layout.nodes.flatMap((node) => (node.caption ? [node.caption.box] : []))
-    for (const [i, a] of boxes.entries()) for (const b of boxes.slice(i + 1)) expect(overlap(a, b)).toBe(false)
+    for (const [i, a] of boxes.entries())
+      for (const b of boxes.slice(i + 1)) expect(overlap(a, b)).toBe(false)
     for (const node of layout.nodes) {
       expect(node.x - node.r).toBeGreaterThanOrEqual(0)
       expect(node.x + node.r).toBeLessThanOrEqual(width)
@@ -114,9 +115,9 @@ it('puts second steps on an outer ring and draws one edge per pair', () => {
 })
 
 it('draws nothing for an unknown centre or an empty box', () => {
-  expect(layoutMap({ centerId: 'x', ...neighbours(2), hops: 1, width: 300, height: 300 }).nodes).toEqual(
-    [],
-  )
+  expect(
+    layoutMap({ centerId: 'x', ...neighbours(2), hops: 1, width: 300, height: 300 }).nodes,
+  ).toEqual([])
   expect(
     layoutMap({ centerId: 'harbor', ...neighbours(2), hops: 1, width: 0, height: 300 }).nodes,
   ).toEqual([])

@@ -57,7 +57,10 @@ function ContextCard({
       <h3 className="flex items-start gap-2 font-medium">
         <KindDot kind={entity.kind} />
         <span className="min-w-0">
-          {entity.label} <span className="text-text-tertiary text-sm font-normal">{ENTITY_WORDS[entity.kind]}</span>
+          {entity.label}{' '}
+          <span className="text-text-tertiary text-sm font-normal">
+            {ENTITY_WORDS[entity.kind]}
+          </span>
         </span>
       </h3>
       {entity.description && <p className="text-text-secondary text-sm">{entity.description}</p>}

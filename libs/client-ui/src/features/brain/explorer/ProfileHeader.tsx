@@ -31,7 +31,10 @@ export function ProfileTrail({
 }): React.JSX.Element {
   const start = Math.max(0, trail.index - 2)
   return (
-    <nav aria-label="Brain trail" className="text-text-secondary flex min-w-0 items-center gap-1 text-sm">
+    <nav
+      aria-label="Brain trail"
+      className="text-text-secondary flex min-w-0 items-center gap-1 text-sm"
+    >
       <TooltipButton
         aria-label="Back"
         tooltip={{ label: 'Back', shortcut: ['['] }}
@@ -141,7 +144,13 @@ export function ProfileHeader({
         {lastLearned && ` · ${lastLearned}`}
       </p>
       <div className="-mx-4">
-        <UnderlinedTabs id="brain-profile" label="Profile views" value={tab} onChange={onTab} tabs={tabs} />
+        <UnderlinedTabs
+          id="brain-profile"
+          label="Profile views"
+          value={tab}
+          onChange={onTab}
+          tabs={tabs}
+        />
       </div>
     </div>
   )

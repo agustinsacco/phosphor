@@ -115,14 +115,20 @@ function ReadActions({ data }: { data: BrainExtractionView }): React.JSX.Element
                 : 'Brain reads only the messages after this read'
             }
             onClick={() => {
-              void useBrain.getState().queue({ sessionPath: data.source.sessionPath, title: data.title })
+              void useBrain
+                .getState()
+                .queue({ sessionPath: data.source.sessionPath, title: data.title })
             }}
           >
             Read new messages
           </Button>
         )}
         {data.job?.state === 'done' && (
-          <BrainReadAgain job={data.job} memories={data.laneMemories} replaceable={data.replaceable} />
+          <BrainReadAgain
+            job={data.job}
+            memories={data.laneMemories}
+            replaceable={data.replaceable}
+          />
         )}
         {data.source.exists && (
           <Button

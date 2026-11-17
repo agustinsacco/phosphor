@@ -9,9 +9,7 @@ import { agoWords, durationWords, progressLine } from '../jobProgress'
  * does not read.
  */
 export type LaneSelection =
-  | { type: 'job'; id: string }
-  | { type: 'change'; id: string | null }
-  | { type: 'never' }
+  { type: 'job'; id: string } | { type: 'change'; id: string | null } | { type: 'never' }
 export type LaneGroupId = 'reading' | 'refreshing' | 'queued' | 'failed' | 'read'
 export const LANE_GROUP_LABELS: Record<LaneGroupId, string> = {
   reading: 'Reading',
@@ -45,9 +43,7 @@ export function laneGroups(jobs: BrainJob[], history: BrainHistory | null): Lane
     refreshing: [],
     queued: jobs.filter((job) => job.state === 'queued' || job.state === 'waiting').map(row),
     failed: jobs.filter((job) => job.state === 'failed').map(row),
-    read: [...read.values()].toSorted(
-      (a, b) => (b.job.finishedAt ?? 0) - (a.job.finishedAt ?? 0),
-    ),
+    read: [...read.values()].toSorted((a, b) => (b.job.finishedAt ?? 0) - (a.job.finishedAt ?? 0)),
   }
   return (Object.keys(LANE_GROUP_LABELS) as LaneGroupId[])
     .map((id) => ({ id, label: LANE_GROUP_LABELS[id], rows: groups[id] }))

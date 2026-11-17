@@ -14,7 +14,9 @@ function moveFocus(event: KeyboardEvent<HTMLDivElement>): void {
   const index = rows.indexOf(document.activeElement as HTMLButtonElement)
   if (index < 0) return
   event.preventDefault()
-  rows[Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus()
+  rows[
+    Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))
+  ]?.focus()
 }
 
 export function InboxQueue({

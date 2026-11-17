@@ -85,7 +85,12 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
         })
         .catch((cause: unknown) => {
           if (ticket === request)
-            notify(`${ipcErrorText(cause)} Open the Brain Inbox to retry.`, 'brain:tidy:finished', false, true)
+            notify(
+              `${ipcErrorText(cause)} Open the Brain Inbox to retry.`,
+              'brain:tidy:finished',
+              false,
+              true,
+            )
         })
     }
   }

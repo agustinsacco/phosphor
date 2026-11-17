@@ -12,7 +12,8 @@ export function visitTrail(trail: BrainTrail, visit: BrainVisit): BrainTrail {
   if (
     current?.id === visit.id &&
     current.kind === visit.kind &&
-    (current.kind === 'memory' || current.memoryId === (visit.kind === 'entity' ? visit.memoryId : undefined))
+    (current.kind === 'memory' ||
+      current.memoryId === (visit.kind === 'entity' ? visit.memoryId : undefined))
   )
     return trail
   return { items: [...trail.items.slice(0, trail.index + 1), visit], index: trail.index + 1 }

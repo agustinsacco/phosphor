@@ -72,10 +72,7 @@ export function BrainKnowledge({
   return (
     <div
       ref={root}
-      className={clsx(
-        'brain-panes brain-knowledge',
-        (narrow || full) && 'brain-knowledge--narrow',
-      )}
+      className={clsx('brain-panes brain-knowledge', (narrow || full) && 'brain-knowledge--narrow')}
       onKeyDown={onKeyDown}
     >
       <section aria-label="Index" className="brain-pane brain-pane--side brain-pane--start">
@@ -121,7 +118,12 @@ export function BrainKnowledge({
                 onFullMap={() => setFull(true)}
               />
             ) : visit?.kind === 'memory' ? (
-              <MemoryVisit key={visit.id} visit={visit} onReplace={state.replace} actions={actions} />
+              <MemoryVisit
+                key={visit.id}
+                visit={visit}
+                onReplace={state.replace}
+                actions={actions}
+              />
             ) : (
               <KnowledgeStart onVisit={onVisit} />
             )}

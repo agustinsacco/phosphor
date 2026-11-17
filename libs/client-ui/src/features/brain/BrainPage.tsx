@@ -93,7 +93,11 @@ function BrainContent(): React.JSX.Element {
   const [inboxItem, setInboxItem] = useState<string | null>(null)
   const [lane, setLane] = useState<LaneSelection | null>(null)
   const [searchRequest, setSearchRequest] = useState(0)
-  useBrainTargets(target, { setInboxItem, setLane, focusSearch: () => setSearchRequest((n) => n + 1) })
+  useBrainTargets(target, {
+    setInboxItem,
+    setLane,
+    focusSearch: () => setSearchRequest((n) => n + 1),
+  })
   const openEntity = (id: string, label: string, memoryId?: string): void => {
     explorer.onVisit({ kind: 'entity', id, label, memoryId })
     setTab('knowledge')
@@ -188,12 +192,7 @@ function BrainTabs({
         {
           value: 'inbox',
           label: (
-            <>
-              Inbox{' '}
-              {count > 0 && (
-<Tag className="bg-accent-soft text-accent">{count}</Tag>
-              )}
-            </>
+            <>Inbox {count > 0 && <Tag className="bg-accent-soft text-accent">{count}</Tag>}</>
           ),
         },
         { value: 'knowledge', label: 'Knowledge' },

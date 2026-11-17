@@ -64,9 +64,7 @@ export function TidyDecision({
     return (
       <DecisionFrame {...frame}>
         <p role="status">
-          {settled
-            ? 'This suggestion was already settled.'
-            : detail.error || 'Loading suggestion…'}{' '}
+          {settled ? 'This suggestion was already settled.' : detail.error || 'Loading suggestion…'}{' '}
           {detail.error && <Button onClick={detail.retry}>Retry</Button>}
         </p>
       </DecisionFrame>

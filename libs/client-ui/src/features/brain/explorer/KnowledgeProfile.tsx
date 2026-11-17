@@ -149,11 +149,7 @@ function Profile({
               />
             )}
             {shown === 'connections' && (
-              <ProfileConnections
-                view={view}
-                onEntity={actions.onEntity}
-                onHover={onHover}
-              />
+              <ProfileConnections view={view} onEntity={actions.onEntity} onHover={onHover} />
             )}
             {shown === 'lanes' && (
               <ProfileLanes
@@ -176,7 +172,9 @@ function About({ view }: { view: BrainEntityView }): React.JSX.Element {
   const { entity, merged } = view
   const names = [
     ...entity.aliases.map((name) => ({ name, merged: merged.includes(name) })),
-    ...merged.filter((name) => !entity.aliases.includes(name)).map((name) => ({ name, merged: true })),
+    ...merged
+      .filter((name) => !entity.aliases.includes(name))
+      .map((name) => ({ name, merged: true })),
   ]
   return (
     <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 py-3 text-sm">
@@ -216,7 +214,8 @@ export function MemoryVisit({
   const first = data?.memory.entityIds[0]
   const entity = data?.entities.find((e) => e.id === first)
   useEffect(() => {
-    if (entity) onReplace({ kind: 'entity', id: entity.id, label: entity.label, memoryId: visit.id })
+    if (entity)
+      onReplace({ kind: 'entity', id: entity.id, label: entity.label, memoryId: visit.id })
   }, [entity, onReplace, visit.id])
   if (!data || entity)
     return (

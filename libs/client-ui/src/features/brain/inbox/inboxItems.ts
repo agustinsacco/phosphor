@@ -50,13 +50,11 @@ export function inboxGroups(jobs: BrainJob[], page: BrainTidyPage | null): Inbox
         ? reviews
         : suggestions
             .filter((item) => item.kind === id)
-            .map(
-              (suggestion): InboxItem => ({
-                key: `suggestion:${suggestion.id}`,
-                kind: 'suggestion',
-                suggestion,
-              }),
-            )
+            .map((suggestion): InboxItem => ({
+              key: `suggestion:${suggestion.id}`,
+              kind: 'suggestion',
+              suggestion,
+            }))
     const total = id === 'lanes' ? items.length : Math.max(items.length, page?.counts[id] ?? 0)
     return { id, label: INBOX_GROUP_LABELS[id], items, total }
   }).filter((group) => group.items.length > 0)

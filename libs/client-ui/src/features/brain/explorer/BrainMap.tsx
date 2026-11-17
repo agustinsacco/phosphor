@@ -51,7 +51,14 @@ export function BrainMap({
   const layout = useMemo(
     () =>
       data
-        ? layoutMap({ centerId: entityId, nodes: data.nodes, links: data.links, hops, width, height })
+        ? layoutMap({
+            centerId: entityId,
+            nodes: data.nodes,
+            links: data.links,
+            hops,
+            width,
+            height,
+          })
         : null,
     [data, entityId, hops, width, height],
   )
@@ -103,10 +110,17 @@ export function BrainMap({
         )}
       </div>
       {kinds.length > 0 && (
-        <ul aria-label="Legend" className="border-border text-text-tertiary flex flex-wrap gap-x-3 gap-y-1 border-t px-3 py-1.5 text-sm">
+        <ul
+          aria-label="Legend"
+          className="border-border text-text-tertiary flex flex-wrap gap-x-3 gap-y-1 border-t px-3 py-1.5 text-sm"
+        >
           {kinds.map((kind) => (
             <li key={kind} className="flex items-center gap-1">
-              <span aria-hidden="true" className="size-2 rounded-full" style={{ background: `var(${GRAPH_COLORS[kind]})` }} />
+              <span
+                aria-hidden="true"
+                className="size-2 rounded-full"
+                style={{ background: `var(${GRAPH_COLORS[kind]})` }}
+              />
               {ENTITY_LABELS[kind]}
             </li>
           ))}
@@ -184,7 +198,8 @@ function MapDrawing({
           key={node.id}
           node={node}
           dim={
-            (!!highlight.lit && !highlight.lit.includes(node.id)) || (node.ring === 2 && !highlight.hover)
+            (!!highlight.lit && !highlight.lit.includes(node.id)) ||
+            (node.ring === 2 && !highlight.hover)
           }
           onHover={onHover}
           onVisit={onVisit}
@@ -211,7 +226,9 @@ function MapNodeMark({
       role="button"
       tabIndex={0}
       aria-label={node.ring === 0 ? `${name} (selected)` : name}
-      className={clsx('cursor-pointer outline-none focus-visible:[&>circle]:stroke-[var(--px-accent)]')}
+      className={clsx(
+        'cursor-pointer outline-none focus-visible:[&>circle]:stroke-[var(--px-accent)]',
+      )}
       opacity={dim ? 0.45 : 1}
       onClick={() => onVisit(node.id, node.label)}
       onKeyDown={(event) => {

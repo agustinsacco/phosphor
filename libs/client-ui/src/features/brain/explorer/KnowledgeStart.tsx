@@ -49,7 +49,8 @@ export function KnowledgeStart({
                 <span className="min-w-0">
                   <span className="brain-clamp block">{memory.summary}</span>
                   <span className="text-text-tertiary block text-sm">
-                    {memory.originTitle ?? 'Unknown lane'} · learned {relativeTime(memory.learnedAt)}
+                    {memory.originTitle ?? 'Unknown lane'} · learned{' '}
+                    {relativeTime(memory.learnedAt)}
                   </span>
                 </span>
               </TooltipButton>

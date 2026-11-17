@@ -24,8 +24,8 @@ export function ProfileConnections({
   if (!view.groups.length)
     return (
       <p className="text-text-tertiary py-3 text-sm">
-        No connections yet. They appear when a read says how {view.entity.label} relates to
-        someone or something else.
+        No connections yet. They appear when a read says how {view.entity.label} relates to someone
+        or something else.
       </p>
     )
   return (

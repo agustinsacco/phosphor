@@ -11,5 +11,7 @@ export function pageKeyTarget(event: React.KeyboardEvent, key: string): boolean 
   if (event.key !== key || event.metaKey || event.ctrlKey || ignoreShortcut(event.nativeEvent))
     return false
   const target = event.target as HTMLElement
-  return !target.closest(TYPING) && !target.closest('[data-modal-overlay]') && !shortcutOverlayOpen()
+  return (
+    !target.closest(TYPING) && !target.closest('[data-modal-overlay]') && !shortcutOverlayOpen()
+  )
 }
