@@ -456,16 +456,22 @@ or validity periods cannot be folded.
 
 Every merge, fold, dispute and replacement records a reversible operation. The newest 200
 operations retain versioned, validated before-images of changed source rows, with an expected
-after-row digest; float vectors use base64 blobs. Counts, FTS indexes and sign bits are rebuilt,
+after-row digest; merge and fold also retain unchanged memory dependencies as undo guards.
+Float vectors use base64 blobs. Counts, FTS indexes and sign bits are rebuilt,
 not journaled. Undo restores only the operation's contributions and refuses when later edits
-prevent a clean restoration; new survivor facts stay. Search's normal refresh reloads vectors
+prevent a clean restoration; new survivor facts stay. Added support, mentions or links on a
+merge/fold's touched memories refuse undo rather than lose later contributions. Dispute and
+replacement undo preserve independent additions and recompute dispute state from surviving links. Search's normal refresh reloads vectors
 restored below its previous watermark. Undo drops its before-images immediately but retains
 the operation's one-line record. Undo also remembers the pair as dismissed, including automatic
 folds and manual entity merges, so the next sweep does not repeat the undone change.
 
-Forget remains permanent. It deletes suggestions about that memory, redacts its journal rows
-and preserves only safe operation ids/labels; an operation whose undo would restore forgotten
-text becomes unavailable. A merge can still be undone for its other memories. Reset erases
+Forget remains permanent, including knowledge folded into the memory at any depth. Fold
+ancestry references survive intervening undo and retention pruning, so Forget redacts all
+reachable retained before-images. It deletes suggestions about that memory and preserves only
+safe operation ids/labels; an operation whose undo would restore forgotten text becomes unavailable.
+Folding scrubs removed subjects' suggestion text (even after undo), while an open lane flag moves
+to the survivor if it has no open flag or prior flag from that lane; otherwise it closes. A merge can still be undone for its other memories. Reset erases
 all Tidy state as well as the knowledge. These guarantees do not change existing proposal and
 extraction-record retention: source transcripts retained for finished reads can still contain
 the original statement until those records are removed under the retention rules above.
