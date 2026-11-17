@@ -1,5 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import type { DatabaseSync } from 'node:sqlite'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { openBrainStore } from '../store'
 import { encodeBits } from '../bits'
 import { encodeVector } from '../vectors'
 import { approve, extraction, fixture } from '../test-support'
@@ -107,4 +111,53 @@ it('an approval that adds 200 memories sweeps at most 128 of them inside the mut
   approve(store, { memories, memoryVectors: memories.map((_, i) => spread(i)) })
   expect(store.snapshot().counts.memories).toBe(200)
   expect(swept()).toBe(128)
+  expect(store.takeTidyMaintenance()).toHaveLength(72)
+})
+
+it('hands the deferred hub memories over once, and batches of 128 finish the maintenance', () => {
+  const { store, db } = fixture()
+  hub(db, 2100)
+  const swept = countSweeps(db)
+  store.merge('rina-2', 'rina-1', store.revision())
+  const rest = store.takeTidyMaintenance()
+  expect(rest).toHaveLength(2102 - 128)
+  expect(store.takeTidyMaintenance()).toEqual([])
+  while (rest.length) store.sweep({ entityIds: [], memoryIds: rest.splice(0, 128) })
+  expect(swept()).toBe(2102)
+  expect(fingerprints(db)).toBe(2101)
+  expect(store.tidySummary().automaticFolds).toBe(1)
+})
+
+it('drops deferred ids from before a reset', () => {
+  const { store, db } = fixture()
+  hub(db, 300)
+  store.merge('rina-2', 'rina-1', store.revision())
+  store.reset()
+  expect(store.takeTidyMaintenance()).toEqual([])
+})
+
+it('a restart before the batches loses nothing that "Tidy now" does not recover', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'brain-maintenance-'))
+  const path = join(dir, 'brain.sqlite')
+  try {
+    const first = openBrainStore({ path, Database: DatabaseSync })
+    const db = new DatabaseSync(path)
+    hub(db, 2100)
+    db.close()
+    first.merge('rina-2', 'rina-1', first.revision())
+    first.close()
+    const reopened = openBrainStore({ path, Database: DatabaseSync })
+    try {
+      expect(reopened.takeTidyMaintenance()).toEqual([])
+      expect(reopened.tidySummary().automaticFolds).toBe(0)
+      let pass = reopened.sweep('all')
+      while (pass.coverage.phase !== 'done') pass = reopened.sweep('all')
+      expect(reopened.tidySummary().automaticFolds).toBe(1)
+      expect(reopened.snapshot().counts.memories).toBe(2101)
+    } finally {
+      reopened.close()
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

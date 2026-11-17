@@ -2,6 +2,7 @@ import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import { all, one, type Context } from '../database'
 import { siblingEntities } from './entity-name-candidates'
 import { sweep } from './sweep'
+import { deferMaintenance } from './maintenance'
 import type { Selection } from './rows'
 
 /** A saved approval/change must never be reported as failed because maintenance failed. */
@@ -18,7 +19,8 @@ export function afterChange(
           ...siblingEntities(ctx, preferredEntityId).items.map((peer) => peer.id),
         ]
       : touched.entityIds
-    sweep(ctx, { ...touched, entityIds }, preferredEntityId)
+    const memoryIds = deferMaintenance(ctx, touched.memoryIds)
+    sweep(ctx, { entityIds, memoryIds }, preferredEntityId)
   } catch (error) {
     process.emitWarning(
       `Brain saved the change, but local Tidy failed: ${error instanceof Error ? error.message : String(error)}. Run Tidy again to retry.`,

@@ -26,6 +26,11 @@ export interface BrainTidyStore {
   tidyUndo(operationId: string, revision: number): void
   /** One bounded chunk per call. 'all' resumes the saved cursor; a finished pass starts anew. */
   sweep(touched: BrainTidyTouched | 'all'): BrainTidySweep
+  /**
+   * Touched memories a merge, undo or approval left unswept (beyond the first 128), once each.
+   * The caller sweeps them in bounded batches; they have no fingerprints until then.
+   */
+  takeTidyMaintenance(): string[]
   /** At most 40 unjudged, open, two-subject pairs. */
   pendingPairs(limit: number): BrainTidyPair[]
   recordVerdicts(judgements: BrainTidyJudgement[]): void

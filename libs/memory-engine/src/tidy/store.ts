@@ -8,6 +8,7 @@ import { apply } from './apply'
 import { undoOperation } from './operations'
 import { pendingPairs, recordVerdicts } from './verdicts'
 import { sweep } from './sweep'
+import { takeMaintenance } from './maintenance'
 
 export function tidyStore(ctx: Context): BrainTidyStore {
   return {
@@ -27,6 +28,7 @@ export function tidyStore(ctx: Context): BrainTidyStore {
       afterUndo(ctx, undoOperation(ctx, id, revision))
     },
     sweep: (input) => sweep(ctx, input),
+    takeTidyMaintenance: () => takeMaintenance(ctx),
     pendingPairs: (limit) => pendingPairs(ctx, limit),
     recordVerdicts: (judgements) => recordVerdicts(ctx, judgements),
     flag: (input) => flag(ctx, input),

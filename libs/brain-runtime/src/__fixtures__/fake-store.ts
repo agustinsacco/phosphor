@@ -281,6 +281,7 @@ export class FakeBrainStore implements BrainStore {
     folded: 0,
     operationIds: [],
   })
+  takeTidyMaintenance = (): string[] => []
   pendingPairs = () => []
   recordVerdicts(): void {}
   flag = () => ({ status: 'filed' as const, suggestionId: 'flag' })

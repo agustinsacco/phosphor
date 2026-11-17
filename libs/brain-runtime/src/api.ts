@@ -13,6 +13,7 @@ import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
 import { readLane } from './lane'
+import type { TidyMaintenance } from './tidy/maintenance'
 
 interface ApiContext {
   store: BrainStore
@@ -21,6 +22,7 @@ interface ApiContext {
   queue: ExtractionQueue
   changed(): void
   startModel(run: () => Promise<void>): void
+  maintenance: Pick<TidyMaintenance, 'reset'>
 }
 function checkPrefs(prefs: BrainPrefs): void {
   if (
@@ -132,6 +134,7 @@ export function createApi(context: ApiContext): BrainApi {
     reset: async () => {
       await queue.pause()
       try {
+        context.maintenance.reset()
         store.reset()
         await Promise.all(
           ['calls', 'forks'].map((name) =>

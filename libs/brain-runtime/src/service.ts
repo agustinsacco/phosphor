@@ -5,6 +5,7 @@ import { ExtractionQueue } from './queue'
 import { extractJob } from './extract'
 import { createRecall } from './recall'
 import { createApi } from './api'
+import { createTidyMaintenance } from './tidy/maintenance'
 
 /** Setup runs in the background: saving a preference must not wait for a model download. */
 function modelSetup(options: BrainServiceOptions, changed: () => void, kick: () => void) {
@@ -52,8 +53,13 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
   const store = options.openStore(join(options.directory, 'brain.sqlite'))
   const search = options.openSearch(join(options.directory, 'brain.sqlite'))
   let disposed = false
-  const changed = (): void => {
+  const notify = (): void => {
     if (!disposed) options.onChange?.()
+  }
+  const maintenance = createTidyMaintenance({ store, search, notify, log: options.log })
+  const changed = (): void => {
+    notify()
+    maintenance.schedule()
   }
   const queue = new ExtractionQueue({
     store,
@@ -77,7 +83,15 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
   changed()
   queue.kick()
   return {
-    api: createApi({ store, options, search, queue, changed, startModel: setup.start }),
+    api: createApi({
+      store,
+      options,
+      search,
+      queue,
+      changed,
+      startModel: setup.start,
+      maintenance,
+    }),
     agent: recall.agent,
     recallLaunch: recall.recallLaunch,
     async dispose() {
@@ -85,6 +99,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       disposed = true
       options.embeddings.dispose()
       await queue.dispose()
+      await maintenance.stop()
       await setup.settled()
       await recall.dispose()
       await search.close()
