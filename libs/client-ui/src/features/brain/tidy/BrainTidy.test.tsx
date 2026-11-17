@@ -204,9 +204,94 @@ it('keeps a swapped survivor, not just the row, after hiding and reopening Tidy'
 it('keeps the open detail when a reload moves its row beyond the loaded page', async () => {
   await render()
   list.mockImplementation(async (...args) => {
-    const page = await mock('brain:tidy', args) as BrainTidyPage
+    const page = (await mock('brain:tidy', args)) as BrainTidyPage
     return { ...page, items: page.items.filter((item) => item.id !== 'tidy-0') }
   })
   await act(async () => useBrain.setState({ status: { ...status, revision: 1 } }))
   expect(detail).toHaveBeenLastCalledWith('tidy-0')
+})
+
+it('keeps an open suggestion outside the page after a failed action and compares its revision', async () => {
+  apply.mockImplementationOnce(async () => {
+    await call('brain:tidyDismiss', 'tidy-59', 0)
+    list.mockImplementation(async (...args) => {
+      const page = (await mock('brain:tidy', args)) as BrainTidyPage
+      return { ...page, items: page.items.filter((item) => item.id !== 'tidy-0') }
+    })
+    throw new Error('Action refused')
+  })
+  await render()
+  await click('Merge into Rina Okafor')
+  expect(container.textContent).toContain('Brain changed. Check this again.')
+  expect(container.textContent).not.toContain('already settled')
+  expect(detail).toHaveBeenLastCalledWith('tidy-0')
+})
+
+it('does not interpret a detail load error as settled and offers a read-only Retry', async () => {
+  apply.mockImplementationOnce(async () => {
+    detail.mockRejectedValueOnce(new Error('Detail transport unavailable'))
+    throw new Error('Action refused')
+  })
+  await render()
+  await click('Merge into Rina Okafor')
+  expect(container.textContent).toContain('Detail transport unavailable')
+  expect(container.textContent).not.toContain('already settled')
+  await click('Retry')
+  expect(container.querySelector('[aria-label="Tidy suggestion"]')).not.toBeNull()
+  expect(apply).toHaveBeenCalledOnce()
+})
+
+it('advances when an ordinary refresh reports a settled suggestion with missing subjects', async () => {
+  await render()
+  await call('brain:tidyApply', 'tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0)
+  const settled = await call('brain:tidySuggestion', 'tidy-0')
+  expect(settled?.suggestion.state).toBe('applied')
+  expect(settled?.subjects).toHaveLength(1)
+  await act(async () => useBrain.setState({ status: { ...status, revision: 1 } }))
+  expect(container.textContent).toContain('This suggestion was already settled.')
+  expect(detail).toHaveBeenLastCalledWith('tidy-4')
+})
+
+it('advances from an explicitly removed suggestion rather than leaving it loading forever', async () => {
+  detail.mockResolvedValueOnce(null)
+  await render()
+  expect(container.textContent).toContain('This suggestion was already settled.')
+  expect(detail).toHaveBeenLastCalledWith('tidy-4')
+})
+
+it('ends on Nothing to tidy after deciding the final suggestion', async () => {
+  mock = createMockBrain(() => 10000, { count: 1 })
+  await render()
+  await click('Merge into Rina Okafor')
+  expect(container.textContent).toContain('Nothing to tidy.')
+  expect(container.querySelector('[aria-label="Tidy suggestion"]')).toBeNull()
+})
+
+it('handles an explicit null after a failed action as removed', async () => {
+  apply.mockImplementationOnce(async () => {
+    detail.mockResolvedValueOnce(null)
+    throw new Error('Action refused')
+  })
+  await render()
+  await click('Merge into Rina Okafor')
+  expect(container.textContent).toContain('This suggestion was already settled.')
+  expect(detail).toHaveBeenLastCalledWith('tidy-4')
+})
+
+it('ignores a late detail response for the previous selected row', async () => {
+  const old = await call('brain:tidySuggestion', 'tidy-0')
+  let resolve!: (value: typeof old) => void
+  detail.mockImplementationOnce(
+    () =>
+      new Promise((r) => {
+        resolve = r
+      }),
+  )
+  await render()
+  await act(async () =>
+    container.querySelectorAll<HTMLButtonElement>('[data-tidy-row]')[1]!.click(),
+  )
+  await act(async () => resolve(old))
+  await click('Merge into Rina Okafor')
+  expect(apply.mock.calls[0]![0]).toBe('tidy-4')
 })

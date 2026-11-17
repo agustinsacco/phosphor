@@ -7,6 +7,8 @@ import { useBrainResource } from '../useBrainResource'
 import { useBrain } from '../useBrain'
 import { useTidyPage } from './useTidyPage'
 import { useTidyActions } from './useTidyActions'
+import { useTidyDetail } from './useTidyDetail'
+import type { BrainTidyPage } from '@shared/brain-tidy'
 import { TidyHeader } from './TidyHeader'
 import { TidyList, type TidySelection } from './TidyList'
 import { TidyDetail } from './TidyDetail'
@@ -31,9 +33,9 @@ export function BrainTidy({
         onRun={() => actions.run()}
         onCancel={() => actions.run(true)}
       />
-      {actions.message && (
+      {(actions.message || state.settled) && (
         <p role="status" className="p-3 [overflow-wrap:anywhere]">
-          {actions.message}
+          {actions.message || state.settled}
         </p>
       )}
       <ListDetail
@@ -53,10 +55,7 @@ function useTidyView(active: boolean, recent: number) {
   const [selected, setSelected] = useState<TidySelection>(null)
   const { page, error, loading, reload } = useTidyPage(active)
   const id = selected?.type === 'suggestion' ? selected.id : ''
-  const detail = useBrainResource(
-    useCallback(() => window.phosphor.invoke('brain:tidySuggestion', id), [id]),
-    !!id,
-  )
+  const detail = useTidyDetail(id)
   const summary = useBrain((s) => JSON.stringify(s.status?.tidy))
   const changes = useBrainResource(
     useCallback(() => window.phosphor.invoke('brain:tidyChanges', 100), []),
@@ -69,10 +68,8 @@ function useTidyView(active: boolean, recent: number) {
   }, [changes.data])
   const operations = changes.data?.items ?? previousChanges?.items ?? []
   useEffect(() => {
-    if (!page) return
-    if (selected?.type === 'operation') return
-    if (!selected || !page.items.some((s) => s.id === selected.id))
-      setSelected(page.items[0] ? { type: 'suggestion', id: page.items[0].id } : null)
+    // Absence from a bounded page does not mean the selected record was removed.
+    if (page?.items[0] && !selected) setSelected({ type: 'suggestion', id: page.items[0].id })
   }, [page, selected])
   const openedRecent = useRef(0)
   useEffect(() => {
@@ -81,16 +78,22 @@ function useTidyView(active: boolean, recent: number) {
       setSelected({ type: 'operation', id: changes.data.items[0].id })
     }
   }, [recent, changes.data])
-  const selectNext = (): void => {
-    const index = page?.items.findIndex((s) => s.id === selected?.id) ?? -1
-    const next = page?.items[index + 1] ?? page?.items.find((s) => s.id !== selected?.id)
-    setSelected(next ? { type: 'suggestion', id: next.id } : null)
-  }
+  const selectNext = useCallback(
+    (fresh: BrainTidyPage | null = page): void => {
+      const index = page?.items.findIndex((s) => s.id === selected?.id) ?? -1
+      const nextId = page?.items[index + 1]?.id
+      const next =
+        fresh?.items.find((s) => s.id === nextId) ?? fresh?.items.find((s) => s.id !== selected?.id)
+      setSelected(next ? { type: 'suggestion', id: next.id } : null)
+    },
+    [page, selected],
+  )
+  const settled = useSettledSuggestion(id, detail, reload, selectNext)
   const actions = useTidyActions({
     detail: detail.data,
     page,
     reload,
-    retryDetail: detail.retry,
+    reloadDetail: detail.reload,
     retryChanges: changes.retry,
     selected,
     selectNext,
@@ -109,6 +112,7 @@ function useTidyView(active: boolean, recent: number) {
     setSelected,
     actions,
     operation,
+    settled,
   }
 }
 type TidyView = ReturnType<typeof useTidyView>
@@ -171,7 +175,7 @@ function TidyDetailPane({
     <div className="h-full min-w-0 overflow-y-auto [overflow-wrap:anywhere]">
       {back}
       {id &&
-        (detail.data ? (
+        (detail.data?.suggestion.state === 'open' ? (
           <TidyDetail
             key={`${id}:${detail.data.revision}`}
             data={detail.data}
@@ -212,4 +216,25 @@ function TidyDetailPane({
       )}
     </div>
   )
+}
+
+function useSettledSuggestion(
+  id: string,
+  detail: ReturnType<typeof useTidyDetail>,
+  reload: () => Promise<BrainTidyPage | null>,
+  selectNext: (page: BrainTidyPage | null) => void,
+): string {
+  const [message, setMessage] = useState('')
+  useEffect(() => {
+    if (!id || !detail.loaded || detail.data?.suggestion.state === 'open') return
+    let alive = true
+    setMessage('This suggestion was already settled.')
+    void reload().then((page) => {
+      if (alive && page) selectNext(page)
+    })
+    return () => {
+      alive = false
+    }
+  }, [id, detail.loaded, detail.data, reload, selectNext])
+  return message
 }

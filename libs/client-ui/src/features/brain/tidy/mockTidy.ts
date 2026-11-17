@@ -212,16 +212,22 @@ export class MockTidy {
       case 'brain:tidy':
         return this.list(args)
       case 'brain:tidySuggestion': {
-        const suggestion = this.items.find((s) => s.id === args[0] && s.state === 'open')
-        if (!suggestion) throw new Error('This suggestion was already settled.')
+        const suggestion = this.items.find((s) => s.id === args[0])
+        if (!suggestion) return null
         return {
           suggestion,
           revision: this.state.revision,
-          subjects: suggestion.subjects.map((s) =>
-            s.type === 'entity'
-              ? { type: 'entity', value: this.explorer.entity(s.id) }
-              : { type: 'memory', value: this.explorer.memory(s.id) },
-          ),
+          subjects: suggestion.subjects
+            .filter((s) =>
+              s.type === 'entity'
+                ? this.explorer.entities.some((e) => e.id === s.id)
+                : this.explorer.details.some((d) => d.memory.id === s.id),
+            )
+            .map((s) =>
+              s.type === 'entity'
+                ? { type: 'entity', value: this.explorer.entity(s.id) }
+                : { type: 'memory', value: this.explorer.memory(s.id) },
+            ),
         }
       }
       case 'brain:tidyChanges':

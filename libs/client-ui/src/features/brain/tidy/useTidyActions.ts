@@ -4,13 +4,14 @@ import type { BrainTidyAction, BrainTidyPage, BrainTidySuggestionDetail } from '
 import { ipcErrorText } from '@shared/errors'
 import { brainToast, mutateBrain, useBrain } from '../useBrain'
 import type { TidySelection } from './TidyList'
+import type { TidyDetailRead } from './useTidyDetail'
 import { tidyChangeToast } from './tidyActions'
 
 export function useTidyActions({
   detail,
   page,
   reload,
-  retryDetail,
+  reloadDetail,
   retryChanges,
   selectNext,
   selected,
@@ -18,14 +19,14 @@ export function useTidyActions({
   detail: BrainTidySuggestionDetail | null
   page: BrainTidyPage | null
   reload: () => Promise<BrainTidyPage | null>
-  retryDetail: () => void
+  reloadDetail: () => Promise<TidyDetailRead>
   retryChanges: () => void
-  selectNext: () => void
+  selectNext: (page: BrainTidyPage | null) => void
   selected: TidySelection
 }) {
   const { message, busy, perform } = useTidyMutation({
     reload,
-    retryDetail,
+    reloadDetail,
     retryChanges,
     selectNext,
     selected,
@@ -89,13 +90,13 @@ export function useTidyActions({
 
 function useTidyMutation({
   reload,
-  retryDetail,
+  reloadDetail,
   retryChanges,
   selectNext,
   selected,
 }: Pick<
   Parameters<typeof useTidyActions>[0],
-  'reload' | 'retryDetail' | 'retryChanges' | 'selectNext' | 'selected'
+  'reload' | 'reloadDetail' | 'retryChanges' | 'selectNext' | 'selected'
 >) {
   const [message, setMessage] = useState('')
   const busy = useBrain((s) => s.saving)
@@ -107,26 +108,25 @@ function useTidyMutation({
     setMessage('')
     try {
       await mutateBrain(call)
-      if (advance) selectNext()
-      await reload()
+      const fresh = await reload()
+      if (advance) selectNext(fresh)
       retryChanges()
     } catch (cause) {
       const fresh = await reload()
-      retryDetail()
+      const read = selected?.type === 'suggestion' ? await reloadDetail() : null
       retryChanges()
-      if (
-        fresh &&
-        selected?.type === 'suggestion' &&
-        !fresh.items.some((s) => s.id === selected.id)
-      ) {
+      if (read?.ok && read.value?.suggestion.state !== 'open') {
         setMessage('This suggestion was already settled.')
-        selectNext()
-      } else
+        selectNext(fresh)
+      } else if (read && !read.ok && read.error) setMessage(read.error)
+      else {
+        const currentRevision = read?.ok ? read.value?.revision : fresh?.revision
         setMessage(
-          fresh && fresh.revision !== revision
+          currentRevision !== undefined && currentRevision !== revision
             ? 'Brain changed. Check this again.'
             : ipcErrorText(cause),
         )
+      }
     }
   }
   return { message, busy, perform }

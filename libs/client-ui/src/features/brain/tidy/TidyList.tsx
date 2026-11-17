@@ -122,8 +122,8 @@ function TidyRow({
       onClick={onClick}
       className={`hover:bg-bg-secondary w-full min-w-0 rounded-md px-2 py-2 text-left [overflow-wrap:anywhere] ${selected ? 'bg-sidebar-active' : ''}`}
     >
-      <span className="block font-medium">{label}</span>
-      <span className="text-text-tertiary block text-sm">{reason}</span>
+      <span className="line-clamp-2 font-medium">{label}</span>
+      <span className="text-text-tertiary line-clamp-2 text-sm">{reason}</span>
     </TooltipButton>
   )
 }
