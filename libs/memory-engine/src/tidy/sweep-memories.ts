@@ -10,12 +10,13 @@ export function sweepMemory(
 ): { suggestions: number; operations: string[]; capped: number } {
   const result = { suggestions: 0, operations: [] as string[], capped: 0 }
   const fingerprint = writeFingerprint(ctx, n)
-  if (!fingerprint) return result
-  const row = one<{ id: string; scope: string; branch: string | null }>(
+  const row = one<{ id: string; scope: string; branch: string | null; state: string }>(
     ctx,
-    'SELECT id,scope,branch FROM memories WHERE n=?',
+    'SELECT id,scope,branch,state FROM memories WHERE n=?',
     n,
-  )!
+  )
+  if (!row || row.state === 'superseded') return result
+  if (!fingerprint) return nearMemory(ctx, n, row, result)
   const exact = all<{ n: number; id: string }>(
     ctx,
     'SELECT m.n,m.id FROM (SELECT memory FROM tidy_memory_keys WHERE fingerprint=? ORDER BY memory LIMIT 17) k JOIN memories m ON m.n=k.memory',
@@ -81,6 +82,7 @@ function nearMemory(
     n,
   )
   if (entities.length > 4) result.capped++
+  const fingerprint = writeFingerprint(ctx, n)
   const seen = new Set<number>([n])
   for (const { entity } of entities.slice(0, 4)) {
     const candidates = all<{
@@ -100,7 +102,7 @@ function nearMemory(
       if (seen.has(peer.n)) continue
       seen.add(peer.n)
       // A near pass must not reserve an exact pair before its cursor reaches the peer.
-      if (writeFingerprint(ctx, peer.n) === writeFingerprint(ctx, n)) continue
+      if (fingerprint && writeFingerprint(ctx, peer.n) === fingerprint) continue
       if (
         peer.scope !== row.scope ||
         peer.branch !== row.branch ||
