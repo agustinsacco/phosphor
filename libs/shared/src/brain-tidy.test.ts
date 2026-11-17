@@ -31,6 +31,6 @@ it.each([
 it('freezes the engine-owned action availability fields on suggestion details', () => {
   expectTypeOf<BrainTidySuggestionDetail['allowed']>().toEqualTypeOf<BrainTidyAction['kind'][]>()
   expectTypeOf<BrainTidySuggestionDetail['foldRefusal']>().toEqualTypeOf<
-    'applicability' | 'history' | null | undefined
+    'applicability' | 'history' | null
   >()
 })
