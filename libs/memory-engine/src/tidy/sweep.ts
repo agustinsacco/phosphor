@@ -19,7 +19,7 @@ interface Cursor extends BrainTidyCoverage {
 export function coverage(ctx: Context): Cursor {
   const row = one<Cursor>(
     ctx,
-    `SELECT phase,cursor,entities,memories,total_entities AS totalEntities,total_memories AS totalMemories,entity_max AS entityMax,memory_max AS memoryMax,capped_buckets AS cappedBuckets,started_at AS startedAt,finished_at AS finishedAt FROM tidy_sweep WHERE singleton=1`,
+    `SELECT phase,cursor,entities,memories,total_entities AS totalEntities,total_memories AS totalMemories,entity_max AS entityMax,memory_max AS memoryMax,limited_checks AS limitedChecks,started_at AS startedAt,finished_at AS finishedAt FROM tidy_sweep WHERE singleton=1`,
   )!
   return ['entities', 'memories', 'done'].includes(row.phase)
     ? row
@@ -45,7 +45,7 @@ function start(ctx: Context): Cursor {
 function save(ctx: Context, c: Cursor): void {
   run(
     ctx,
-    'UPDATE tidy_sweep SET phase=?,cursor=?,entities=?,memories=?,total_entities=?,total_memories=?,entity_max=?,memory_max=?,capped_buckets=?,started_at=?,finished_at=? WHERE singleton=1',
+    'UPDATE tidy_sweep SET phase=?,cursor=?,entities=?,memories=?,total_entities=?,total_memories=?,entity_max=?,memory_max=?,limited_checks=?,started_at=?,finished_at=? WHERE singleton=1',
     c.phase,
     c.cursor,
     c.entities,
@@ -54,7 +54,7 @@ function save(ctx: Context, c: Cursor): void {
     c.totalMemories,
     c.entityMax,
     c.memoryMax,
-    c.cappedBuckets,
+    c.limitedChecks,
     c.startedAt,
     c.finishedAt,
   )
@@ -102,14 +102,14 @@ export function sweep(
     for (const id of entities) {
       const found = sweepEntity(ctx, id, preferredEntityId)
       result.suggestions += found.suggestions
-      c.cappedBuckets += found.capped
+      c.limitedChecks += found.capped
     }
     fingerprintMemories(ctx, memories)
     const cache = memoryCandidateCache()
     for (const n of memories) {
       const found = sweepMemory(ctx, n, cache)
       result.suggestions += found.suggestions
-      c.cappedBuckets += found.capped
+      c.limitedChecks += found.capped
       result.operationIds.push(...found.operations)
     }
     result.folded = result.operationIds.length

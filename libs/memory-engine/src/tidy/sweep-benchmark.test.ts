@@ -22,7 +22,7 @@ it('bounds and resumes a 5000-name bucket and a 60000-memory store without pairw
     totalMemories: 60000,
     cursor: TIDY_CHUNK,
   })
-  expect(first.coverage.cappedBuckets).toBeGreaterThan(0)
+  expect(first.coverage.limitedChecks).toBeGreaterThan(0)
   expect(first.suggestions).toBeLessThanOrEqual(TIDY_CHUNK)
   expect(first.coverage.finishedAt).toBeNull()
   const second = store.sweep('all')

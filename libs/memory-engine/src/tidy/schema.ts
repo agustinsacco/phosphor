@@ -32,7 +32,7 @@ CREATE INDEX tidy_memory_keys_fingerprint ON tidy_memory_keys(fingerprint,memory
 CREATE TABLE tidy_sweep(singleton INTEGER PRIMARY KEY CHECK(singleton=1), phase TEXT NOT NULL,
   cursor INTEGER NOT NULL, entities INTEGER NOT NULL, memories INTEGER NOT NULL,
   total_entities INTEGER NOT NULL, total_memories INTEGER NOT NULL, entity_max INTEGER NOT NULL,
-  memory_max INTEGER NOT NULL, capped_buckets INTEGER NOT NULL, started_at INTEGER, finished_at INTEGER);
+  memory_max INTEGER NOT NULL, limited_checks INTEGER NOT NULL, started_at INTEGER, finished_at INTEGER);
 INSERT INTO tidy_sweep VALUES(1,'entities',0,0,0,0,0,0,0,0,NULL,NULL);
 CREATE TABLE tidy_run(singleton INTEGER PRIMARY KEY CHECK(singleton=1), state TEXT NOT NULL,
   done INTEGER NOT NULL, total INTEGER NOT NULL, found INTEGER NOT NULL, error TEXT, model TEXT,

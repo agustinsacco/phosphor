@@ -60,7 +60,7 @@ export interface BrainTidyCoverage {
   memories: number
   totalEntities: number
   totalMemories: number
-  cappedBuckets: number
+  limitedChecks: number
   startedAt: number | null
   finishedAt: number | null
 }
@@ -188,7 +188,7 @@ export function emptyBrainTidyCoverage(): BrainTidyCoverage {
     memories: 0,
     totalEntities: 0,
     totalMemories: 0,
-    cappedBuckets: 0,
+    limitedChecks: 0,
     startedAt: null,
     finishedAt: null,
   }

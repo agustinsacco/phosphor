@@ -21,7 +21,7 @@ export function tidyStatus(page: BrainTidyPage | null): string {
     coverage.phase === 'done'
       ? `Checked all ${total} memories`
       : `Checked ${covered} of ${total} memories so far`
-  return `${line}${coverage.finishedAt ? ` · ${relativeTime(coverage.finishedAt)}` : ''}${coverage.cappedBuckets ? ' · Common-name groups were capped' : ''}`
+  return `${line}${coverage.finishedAt ? ` · ${relativeTime(coverage.finishedAt)}` : ''}${coverage.limitedChecks ? ' · Common-name groups were capped' : ''}`
 }
 
 export function TidyHeader({

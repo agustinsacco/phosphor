@@ -93,7 +93,7 @@ it('caps a hub at its newest 256 memories, reporting the excluded 300th-newest p
   )
   const result = store.sweep('all')
   expect(store.tidy('same_memory', null, 20).items).toEqual([])
-  expect(result.coverage.cappedBuckets).toBeGreaterThan(0)
+  expect(result.coverage.limitedChecks).toBeGreaterThan(0)
 })
 
 it('uses the four most specific entities rather than the first four ids', () => {

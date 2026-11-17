@@ -94,7 +94,7 @@ export class MockTidy {
           totalEntities: this.explorer.entities.length,
           memories: this.explorer.details.length,
           totalMemories: this.explorer.details.length,
-          cappedBuckets: 0,
+          limitedChecks: 0,
           startedAt: run.startedAt,
           finishedAt: this.now(),
         }
