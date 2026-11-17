@@ -352,6 +352,16 @@ it('opens the full map in place of profile and map, and goes back', async () => 
   expect(section('Harbor')).not.toBeNull()
 })
 
+it('regression: Escape clears the full map selection, as its Clear selection hint says', async () => {
+  await render()
+  await click('Full map', section('Map'))
+  await click('Focus Harbor', section('Graph entities'))
+  expect(button('Clear selection')).toBeDefined()
+  await key('Escape', button('Focus Harbor'))
+  expect(button('Clear selection')).toBeUndefined()
+  expect(section('Full map')).not.toBeNull()
+})
+
 it('regression: at 1060px or less the start page still opens the full map', async () => {
   vi.stubGlobal(
     'ResizeObserver',
