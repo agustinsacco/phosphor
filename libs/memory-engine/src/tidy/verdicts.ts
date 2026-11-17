@@ -82,20 +82,23 @@ function card(ctx: Context, type: 'entity' | 'memory', id: string): BrainTidyCar
 export function pendingPairs(ctx: Context, limit: number): BrainTidyPair[] {
   if (!Number.isInteger(limit) || limit < 1 || limit > 40)
     throw new Error('Invalid Tidy pair limit.')
-  closeMissing(ctx)
-  return all<SuggestionRow>(
+  const rows = all<SuggestionRow>(
     ctx,
     "SELECT * FROM tidy_suggestions WHERE state='open' AND verdict IS NULL AND second_id IS NOT NULL AND kind IN ('same_entity','same_memory','conflict') ORDER BY created_at,id LIMIT ?",
     limit,
-  ).map((r) => ({
-    suggestionId: r.id,
-    subjects: [card(ctx, r.subject_type, r.first_id), card(ctx, r.subject_type, r.second_id!)],
-  }))
+  )
+  closeMissing(ctx, rows)
+  return rows
+    .filter((r) => r.state === 'open')
+    .map((r) => ({
+      suggestionId: r.id,
+      subjects: [card(ctx, r.subject_type, r.first_id), card(ctx, r.subject_type, r.second_id!)],
+    }))
 }
+
 export function recordVerdicts(ctx: Context, judgements: BrainTidyJudgement[]): void {
   if (judgements.length > 40) throw new Error('Too many Tidy verdicts.')
   transaction(ctx, () => {
-    closeMissing(ctx)
     let changed = false
     for (const judgement of judgements) {
       const row = one<SuggestionRow>(
@@ -104,6 +107,8 @@ export function recordVerdicts(ctx: Context, judgements: BrainTidyJudgement[]): 
         judgement.suggestionId,
       )
       if (!row) continue
+      closeMissing(ctx, [row])
+      if (row.state !== 'open') continue
       const v = judgement.verdict
       checkBrainReaderModel(judgement.model)
       if (

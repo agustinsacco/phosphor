@@ -5,8 +5,7 @@ import { pruneExtractions } from '../extractions'
 import { bumpRevision } from '../prefs'
 import { checkRevision } from './journal'
 import { changeMemories, mergeChange } from './operations'
-import { closeMissing, openSuggestion } from './suggestions'
-import { subjectExists } from './reads'
+import { subjectExists, openSuggestion } from './suggestions'
 
 export function apply(
   ctx: Context,
@@ -69,7 +68,6 @@ export function apply(
       ctx.now(),
       id,
     )
-    closeMissing(ctx)
     return operation
   })
 }

@@ -6,7 +6,7 @@ import {
   type BrainTidyChanges,
   type BrainTidyOperation,
 } from '@phosphor/shared/brain-tidy'
-import { all, one, type Context } from '../database'
+import { all, type Context } from '../database'
 import { entity } from '../explorer'
 import { memory } from '../knowledge'
 import { revision } from '../prefs'
@@ -38,7 +38,6 @@ export function page(
       throw new Error('Invalid Tidy cursor.')
     ;[time, id] = value as [number, string]
   }
-  closeMissing(ctx)
   const rows = all<SuggestionRow>(
     ctx,
     `SELECT * FROM tidy_suggestions WHERE state='open' AND ${kind ? 'kind=?' : "kind IN ('same_entity','same_memory','conflict','flagged')"} AND (created_at<? OR (created_at=? AND id<?)) ORDER BY created_at DESC,id DESC LIMIT ?`,
@@ -48,6 +47,7 @@ export function page(
     id,
     limit + 1,
   )
+  closeMissing(ctx, rows)
   const counts = { same_entity: 0, same_memory: 0, conflict: 0, flagged: 0 }
   for (const row of all<{ kind: BrainTidyKind; count: number }>(
     ctx,
@@ -56,7 +56,9 @@ export function page(
     if (BRAIN_TIDY_KINDS.includes(row.kind)) counts[row.kind] = row.count
   const last = rows.slice(0, limit).at(-1)
   return {
-    items: rows.slice(0, limit).flatMap((r) => suggestion(ctx, r) ?? []),
+    items: rows
+      .slice(0, limit)
+      .flatMap((r) => (r.state === 'open' ? (suggestion(ctx, r) ?? []) : [])),
     next:
       rows.length > limit && last
         ? Buffer.from(JSON.stringify([last.created_at, last.id])).toString('base64url')
@@ -68,8 +70,9 @@ export function page(
   }
 }
 export function detail(ctx: Context, id: string): BrainTidySuggestionDetail {
-  closeMissing(ctx)
   const row = openSuggestion(ctx, id)
+  closeMissing(ctx, [row])
+  if (row.state !== 'open') throw new Error('This Tidy suggestion is no longer available.')
   const item = suggestion(ctx, row)!
   return {
     suggestion: item,
@@ -89,11 +92,4 @@ export function changes(ctx: Context, limit: number): BrainTidyChanges {
     limit,
   )
   return { items: rows.map((r) => ({ ...r, automatic: !!r.automatic })), revision: revision(ctx) }
-}
-export function subjectExists(ctx: Context, row: SuggestionRow): boolean {
-  const table = row.subject_type === 'entity' ? 'entities' : 'memories'
-  return (
-    !!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, row.first_id) &&
-    (!row.second_id || !!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, row.second_id))
-  )
 }

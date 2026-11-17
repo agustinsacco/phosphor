@@ -84,14 +84,35 @@ export function suppressPair(
     suggestionId,
   )
 }
-export function closeMissing(ctx: Context): void {
-  run(
-    ctx,
-    `UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE state='open' AND (
-    (subject_type='entity' AND (NOT EXISTS(SELECT 1 FROM entities WHERE id=first_id) OR NOT EXISTS(SELECT 1 FROM entities WHERE id=second_id))) OR
-    (subject_type='memory' AND (NOT EXISTS(SELECT 1 FROM memories WHERE id=first_id) OR (second_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM memories WHERE id=second_id)))))`,
-    ctx.now(),
+export function clearSubject(ctx: Context, type: 'entity' | 'memory', id: string): void {
+  for (const column of ['first_id', 'second_id'])
+    run(
+      ctx,
+      `UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE subject_type=? AND ${column}=? AND state='open'`,
+      ctx.now(),
+      type,
+      id,
+    )
+}
+export function subjectExists(ctx: Context, row: SuggestionRow): boolean {
+  const table = row.subject_type === 'entity' ? 'entities' : 'memories'
+  return (
+    !!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, row.first_id) &&
+    (!row.second_id || !!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, row.second_id))
   )
+}
+/** Reads clean only their bounded page; writes invalidate removed subjects through their indexes. */
+export function closeMissing(ctx: Context, rows: SuggestionRow[]): void {
+  for (const row of rows)
+    if (!subjectExists(ctx, row)) {
+      run(
+        ctx,
+        "UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE id=? AND state='open'",
+        ctx.now(),
+        row.id,
+      )
+      row.state = 'cleared'
+    }
 }
 export function suggestion(ctx: Context, row: SuggestionRow): BrainTidySuggestion | null {
   if (

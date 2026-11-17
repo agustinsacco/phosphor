@@ -1,3 +1,4 @@
+import { clearSubject } from './suggestions'
 import { all, one, transaction, type Context } from '../database'
 import { entityNumber } from '../entities'
 import { memoryNumber } from '../knowledge'
@@ -43,6 +44,7 @@ export function mergeChange(
     },
     () => mergeRows(ctx, source, target),
   )
+  clearSubject(ctx, 'entity', source)
   fingerprintMemories(ctx, memories)
   bumpRevision(ctx)
   return id
@@ -93,6 +95,7 @@ export function changeMemories(
         ? foldMemories(ctx, source, target)
         : conflictMemories(ctx, source, target, kind === 'replace'),
   )
+  if (kind === 'fold') clearSubject(ctx, 'memory', sourceId)
   fingerprintMemories(ctx, selection.memories)
   bumpRevision(ctx)
   return id

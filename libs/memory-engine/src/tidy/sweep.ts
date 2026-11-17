@@ -9,7 +9,6 @@ import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision } from '../prefs'
 import { sweepEntity } from './sweep-entities'
 import { sweepMemory } from './sweep-memories'
-import { closeMissing } from './suggestions'
 
 export const TIDY_CHUNK = 128
 interface Cursor extends BrainTidyCoverage {
@@ -108,7 +107,6 @@ export function sweep(ctx: Context, input: BrainTidyTouched | 'all'): BrainTidyS
       result.operationIds.push(...found.operations)
     }
     result.folded = result.operationIds.length
-    closeMissing(ctx)
     if (result.suggestions) bumpRevision(ctx)
     if (input === 'all') save(ctx, c)
     result.coverage = c
