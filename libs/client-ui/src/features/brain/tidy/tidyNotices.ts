@@ -4,14 +4,14 @@ import type { BrainStatus } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useNotificationsStore } from '@/stores/notifications'
-import { openTidy, tidyIsVisible } from './tidyNavigation'
+import { inboxIsVisible, openTidy } from '../brainNavigation'
 
 function notify(message: string, key: string, recent = false, error = false): void {
   useExtensionUiStore.getState().notify({
     message,
     key,
     kind: error ? 'error' : 'info',
-    openLabel: recent ? 'Open Tidy recent changes' : 'Open Tidy',
+    openLabel: recent ? 'Open recent changes' : 'Open Brain Inbox',
     onOpen: () => openTidy(recent),
   })
 }
@@ -62,12 +62,12 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
       next.newestSuggestionAt !== old.newestSuggestionAt
     )
       notify(`Brain has ${formatCount(next.open, 'thing to tidy', 'things to tidy')}`, 'brain:tidy')
-    if (old.running && !next.running && !tidyIsVisible()) {
+    if (old.running && !next.running && !inboxIsVisible()) {
       const ticket = ++request
       void window.phosphor
         .invoke('brain:tidy', null, null, 1)
         .then((page) => {
-          if (ticket !== request || tidyIsVisible() || previous?.generation !== status.generation)
+          if (ticket !== request || inboxIsVisible() || previous?.generation !== status.generation)
             return
           const run = page.run
           if (run?.state === 'done')
@@ -77,7 +77,7 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
             )
           if (run?.state === 'failed')
             notify(
-              run.error ?? 'Brain Tidy could not finish. Open Tidy to retry.',
+              run.error ?? 'Brain Tidy could not finish. Open the Brain Inbox to retry.',
               'brain:tidy:finished',
               false,
               true,
@@ -85,7 +85,12 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
         })
         .catch((cause: unknown) => {
           if (ticket === request)
-            notify(`${ipcErrorText(cause)} Open Tidy to retry.`, 'brain:tidy:finished', false, true)
+            notify(
+              `${ipcErrorText(cause)} Open the Brain Inbox to retry.`,
+              'brain:tidy:finished',
+              false,
+              true,
+            )
         })
     }
   }

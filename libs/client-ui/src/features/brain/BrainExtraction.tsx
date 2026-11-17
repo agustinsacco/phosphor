@@ -7,7 +7,7 @@ import { relativeTime } from '@/lib/time'
 import { useBrainResource } from './useBrainResource'
 import { useBrainModelName } from './useBrainModelName'
 import { BrainReadAgain } from './BrainReadAgain'
-import { elapsedTime } from './jobProgress'
+import { durationWords } from './jobProgress'
 import { ExtractionCalls } from './ExtractionCalls'
 import { ExtractionSource } from './ExtractionSource'
 
@@ -66,7 +66,7 @@ function FinishedRead({
           <h2 className="text-xl font-semibold">{data.title}</h2>
           <p className="text-text-tertiary text-sm">
             {model} · {data.thinking} thinking · took{' '}
-            {elapsedTime(data.finishedAt - data.startedAt)} · {relativeTime(data.finishedAt)}
+            {durationWords(data.finishedAt - data.startedAt)} · {relativeTime(data.finishedAt)}
           </p>
         </div>
         {data.job?.state === 'done' && (

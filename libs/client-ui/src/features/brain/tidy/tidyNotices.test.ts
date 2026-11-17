@@ -10,7 +10,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useLayoutStore } from '@/stores/layout'
 import { createTidyNotices } from './tidyNotices'
-import { useTidyNavigation } from './tidyNavigation'
+import { useBrainNavigation } from '../brainNavigation'
 
 let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 const list = vi.fn<() => Promise<BrainTidyPage>>()
@@ -19,7 +19,7 @@ beforeEach(() => {
   useNotificationsStore.setState({ items: [], open: false })
   useExtensionUiStore.setState({ toasts: [] })
   useLayoutStore.setState({ page: null })
-  useTidyNavigation.setState({ request: 0, tab: 'knowledge', recent: false })
+  useBrainNavigation.setState({ request: 0, tab: null, target: null })
   list.mockReset().mockResolvedValue({
     ...emptyBrainTidyPage(),
     run: {
@@ -69,7 +69,7 @@ it('treats existing suggestions and automatic folds at startup as a silent basel
   expect(notices()).toEqual([])
   expect(useExtensionUiStore.getState().toasts).toEqual([])
 })
-it('replaces one rolling notice only on an increase, and opens Brain on Tidy', async () => {
+it('replaces one rolling notice only on an increase, and opens the Brain Inbox', async () => {
   const observe = createTidyNotices(),
     status = enabled()
   observe(status)
@@ -82,16 +82,16 @@ it('replaces one rolling notice only on an increase, and opens Brain on Tidy', a
   expect(notices()[0]!.message).toBe('Brain has 5 things to tidy')
   await notices()[0]!.onOpen?.()
   expect(useLayoutStore.getState().page).toBe('brain')
-  expect(useTidyNavigation.getState()).toMatchObject({ request: 1, recent: false })
+  expect(useBrainNavigation.getState()).toMatchObject({ request: 1, target: { tab: 'inbox' } })
 })
-it('keeps one automatic-fold toast in the panel opening Recent changes', async () => {
+it('keeps one automatic-fold toast in the panel opening Lanes › Recent changes', async () => {
   const observe = createTidyNotices(),
     status = enabled()
   observe(status)
   observe({ ...status, tidy: { ...status.tidy, automaticFolds: 3, newestAutomaticFoldAt: 10 } })
   expect(notices()[0]!.message).toBe('Brain folded 3 exact repeats')
   await notices()[0]!.onOpen?.()
-  expect(useTidyNavigation.getState().recent).toBe(true)
+  expect(useBrainNavigation.getState().target).toEqual({ tab: 'lanes', recent: true })
 })
 it('announces a finished click only while elsewhere, without a second suggestions notice', async () => {
   const observe = createTidyNotices(),
@@ -105,7 +105,7 @@ it('announces a finished click only while elsewhere, without a second suggestion
     'Brain Tidy found 8 things to tidy and folded 2 exact repeats.',
   )
   useLayoutStore.setState({ page: 'brain' })
-  useTidyNavigation.setState({ tab: 'tidy' })
+  useBrainNavigation.setState({ tab: 'inbox' })
   observe({ ...status, tidy: { ...status.tidy, running: true } })
   observe(status)
   await flush()
@@ -119,7 +119,7 @@ it('offers a route to Retry when the completion read fails, then succeeds on the
   observe({ ...status, tidy: { ...status.tidy, running: true } })
   observe(status)
   await flush()
-  expect(notices()[0]!.message).toContain('Open Tidy to retry')
+  expect(notices()[0]!.message).toContain('Open the Brain Inbox to retry')
   observe({ ...status, tidy: { ...status.tidy, running: true } })
   observe(status)
   await flush()
