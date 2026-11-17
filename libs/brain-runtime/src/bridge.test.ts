@@ -87,3 +87,54 @@ it('protocol 4 clients fail cleanly and flags reject unknown keys and oversize f
     await bridge.close()
   }
 })
+
+it('limits flags across twelve claimed sessions and sockets, while search and later flags recover', async () => {
+  let now = 1000
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const invoke = vi.fn(async () => ({ status: 'filed', message: 'Filed.' }))
+  const bridge = await createBrainBridge(invoke)
+  const input = (i: number) => ({
+    version: 5,
+    token: bridge.token,
+    method: 'flag',
+    params: {
+      memoryId: `memory-${i}`,
+      sessionId: `claimed-lane-${i}`,
+      title: 'Harbor review',
+      problem: 'wrong',
+      reason: 'The lane verified a different policy.',
+    },
+  })
+  try {
+    const results = []
+    for (let i = 0; i < 12; i++) results.push(await request(bridge.endpoint, input(i)))
+    expect(results.slice(0, 10)).toEqual(
+      Array.from({ length: 10 }, () => ({
+        ok: true,
+        data: { status: 'filed', message: 'Filed.' },
+      })),
+    )
+    expect(results.slice(10)).toEqual(
+      Array.from({ length: 2 }, () => ({
+        ok: true,
+        data: { status: 'limit', message: expect.any(String) },
+      })),
+    )
+    expect(invoke).toHaveBeenCalledTimes(10)
+    await request(bridge.endpoint, {
+      version: 5,
+      token: bridge.token,
+      method: 'search',
+      params: { query: 'Harbor' },
+    })
+    expect(invoke).toHaveBeenCalledTimes(11)
+    now += 60_000
+    expect(await request(bridge.endpoint, input(12))).toMatchObject({
+      ok: true,
+      data: { status: 'filed' },
+    })
+  } finally {
+    clock.mockRestore()
+    await bridge.close()
+  }
+})

@@ -175,3 +175,23 @@ it('reads open and settled suggestions with only surviving subjects, or null aft
   expect(store.tidySuggestion(id)).toBeNull()
   expect(store.tidySuggestion('missing')).toBeNull()
 })
+
+it('caps open flags at fifty even when every caller claims a different lane', () => {
+  const { store, db } = fixture()
+  seed(db, 51)
+  const flag = (n: number) =>
+    store.flag({
+      memoryId: `memory-${n}`,
+      sessionId: `claimed-lane-${n}`,
+      title: 'Harbor review',
+      problem: 'wrong',
+      reason: 'The lane verified a different policy.',
+    })
+  for (let n = 1; n <= 50; n++) expect(flag(n).status).toBe('filed')
+  const revision = store.revision()
+  expect(flag(51).status).toBe('limit')
+  expect(store.revision()).toBe(revision)
+  expect(store.tidy('flagged', null, 50).items).toHaveLength(50)
+  store.tidyDismiss(store.tidy('flagged', null, 50).items[0]!.id, revision)
+  expect(flag(51).status).toBe('filed')
+})
