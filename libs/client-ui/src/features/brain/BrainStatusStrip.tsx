@@ -53,10 +53,11 @@ export function BrainStatusStrip({
 
 function TidyCheckLine({ page }: { page: BrainTidyPage | null }): React.JSX.Element {
   const prefModel = useBrain((s) => s.status?.prefs.model ?? '')
-  const model = useBrainModelName(prefModel)
+  const run = page?.run
+  // The model the run reports, else the one it will use.
+  const model = useBrainModelName(run?.model ?? prefModel)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const run = page?.run
   const cancel = async (): Promise<void> => {
     setBusy(true)
     setError('')

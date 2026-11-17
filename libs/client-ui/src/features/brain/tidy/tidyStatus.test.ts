@@ -27,6 +27,22 @@ it.each([
 ])('a finished run that found %i and folded %i reads "%s"', (suggestions, folded, text) => {
   expect(tidyStatus(finished(suggestions, folded))).toBe(text)
 })
+it('names the model that checked the pairs, and what the owner settled meanwhile', () => {
+  const page = finished(2, 0)
+  page.run = {
+    ...page.run!,
+    total: 40,
+    checked: 40,
+    model: 'pi-claude-cli/claude-opus-5',
+    settled: 3,
+  }
+  expect(tidyStatus(page, 'Claude Opus 5')).toBe(
+    'Found 2 things to tidy. Checked 40 pairs with Claude Opus 5. You settled 3 while it ran.',
+  )
+  expect(tidyStatus({ ...page, run: { ...page.run!, settled: 0 } }, '')).toBe(
+    'Found 2 things to tidy. Checked 40 pairs with pi-claude-cli/claude-opus-5.',
+  )
+})
 it('counts one memory, one person or thing and one pair in the singular', () => {
   const page = emptyBrainTidyPage()
   page.coverage = {

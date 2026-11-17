@@ -22,6 +22,7 @@ export function TidyRunControls({
     !status.prefs.model,
   )
   const model = useBrainModelName(status.prefs.model ?? history.data?.items[0]?.job.model ?? '')
+  const runModel = useBrainModelName(page?.run?.model ?? '')
   const actions = useTidyActions({ detail: null, page, reload })
   const running = status.tidy.running
   const tooltip = model
@@ -39,7 +40,7 @@ export function TidyRunControls({
         {model ? `Check with ${model}` : 'Check for repeats'}
       </Button>
       <p role="status" className="text-text-secondary">
-        {tidyStatus(page)}
+        {tidyStatus(page, runModel)}
       </p>
       {coverage && <p className="text-text-tertiary">{coverage}</p>}
       {!!page?.coverage.limitedChecks && (

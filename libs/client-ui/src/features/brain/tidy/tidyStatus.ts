@@ -3,8 +3,11 @@ import { relativeTime } from '@/lib/time'
 import { formatCount } from '@/lib/format'
 import { tidyFindings } from './tidyWording'
 
-/** One line for the latest Tidy run, or the coverage of the current pass when none ran. */
-export function tidyStatus(page: BrainTidyPage | null): string {
+/**
+ * One line for the latest Tidy run, or the coverage of the current pass when none ran.
+ * `model` is the display name of the model the run used, when one ran.
+ */
+export function tidyStatus(page: BrainTidyPage | null, model = ''): string {
   if (!page) return 'Loading Tidy…'
   const run = page.run
   switch (run?.state) {
@@ -16,7 +19,13 @@ export function tidyStatus(page: BrainTidyPage | null): string {
       return `Checking ${run.checked} of ${run.total}`
     case 'done': {
       const findings = tidyFindings(run.suggestions, run.folded)
-      return findings ? `${findings[0]!.toUpperCase()}${findings.slice(1)}.` : 'Nothing to tidy.'
+      return [
+        findings ? `${findings[0]!.toUpperCase()}${findings.slice(1)}.` : 'Nothing to tidy.',
+        run.model && `Checked ${formatCount(run.total, 'pair')} with ${model || run.model}.`,
+        run.settled > 0 && `You settled ${run.settled.toLocaleString()} while it ran.`,
+      ]
+        .filter(Boolean)
+        .join(' ')
     }
     case 'cancelled':
       return `Tidy cancelled after checking ${run.checked.toLocaleString()} of ${formatCount(run.total, 'pair')}.`
