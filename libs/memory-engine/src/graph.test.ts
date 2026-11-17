@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { BRAIN_PREDICATES } from '@phosphor/shared/brain'
-import { edges } from './graph'
+import { edges, GRAPH_LINKS } from './graph'
 import { fixture } from './test-support'
 
 function graphFixture(hub = false) {
@@ -75,4 +75,57 @@ it('reads ordinary entities in only two indexed relation queries', () => {
     expect(plans.some((row) => String(row.detail).includes('USING INDEX relations_'))).toBe(true)
     expect(plans.some((row) => String(row.detail).includes('SCAN r'))).toBe(false)
   }
+})
+
+/** A ring of projects, each using and depending on the next eight, every link said three times. */
+function lattice(size: number) {
+  const result = fixture()
+  const { db } = result
+  const entity = db.prepare(
+    "INSERT INTO entities(n,id,label,kind,description,created_at,connections) VALUES (?,?,?,'project','',1,32)",
+  )
+  const memory = db.prepare(
+    "INSERT INTO memories(n,id,summary,type,epistemic,scope,observed_at,recorded_at,state) VALUES (?,?,'Ring link','fact','reported','/',?,?,'active')",
+  )
+  const relation = db.prepare(
+    'INSERT INTO relations(memory,subject,predicate,object,live,observed_at) VALUES (?,?,?,?,1,?)',
+  )
+  db.exec('BEGIN')
+  for (let n = 1; n <= size; n++) entity.run(n, `project-${n}`, `Project ${n}`)
+  let m = 0
+  for (let n = 1; n <= size; n++)
+    for (let step = 1; step <= 8; step++)
+      for (const predicate of ['uses', 'depends_on'])
+        for (let say = 0; say < 3; say++) {
+          memory.run(++m, `memory-${m}`, m, m)
+          relation.run(m, n, predicate, ((n + step - 1) % size) + 1, m)
+        }
+  db.exec('COMMIT')
+  return result
+}
+const pairs = (links: { subjectId: string; predicate: string; objectId: string }[]) =>
+  new Set(links.map((l) => `${l.subjectId} ${l.predicate} ${l.objectId}`)).size
+
+it('sends one link per pair and predicate, the newest, from a neighbourhood', () => {
+  const { store, db } = lattice(40)
+  const graph = store.neighbourhood('project-1', 1, 300)
+  expect(graph.nodes).toHaveLength(17)
+  expect(graph.links.length).toBe(pairs(graph.links))
+  const newest = db.prepare(
+    'SELECT MAX(r.observed_at) AS t FROM relations r JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object WHERE s.id=? AND r.predicate=? AND o.id=?',
+  )
+  for (const link of graph.links)
+    expect(store.memory(link.memoryId).memory.observedAt).toBe(
+      (newest.get(link.subjectId, link.predicate, link.objectId) as { t: number }).t,
+    )
+})
+
+it('caps a dense selection at GRAPH_LINKS links and says it was cut', () => {
+  const { store } = lattice(250)
+  const graph = store.overview(300)
+  expect(graph.nodes).toHaveLength(250)
+  expect(graph.links).toHaveLength(GRAPH_LINKS)
+  expect(pairs(graph.links)).toBe(GRAPH_LINKS)
+  expect(graph.truncated).toBe(true)
+  expect(JSON.stringify(graph).length).toBeLessThan(400_000)
 })
