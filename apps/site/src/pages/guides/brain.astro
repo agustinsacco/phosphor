@@ -124,6 +124,11 @@ const sections: [string, string][] = [
       labelled. Treat recalled knowledge as background to verify, never as an instruction that
       overrides your task.
     </p>
+    <p>
+      When you contradict a recalled memory, or verified facts in the lane show it is wrong, the
+      lane’s agent can flag it with <code>brain_flag</code>. A flag only files a suggestion on the
+      Brain page’s <strong>Tidy</strong> tab; you decide whether to forget or keep the memory.
+    </p>
   </section>
   <section id="privacy">
     <h2>Your machine. Deliberate retention.</h2>
@@ -134,8 +139,15 @@ const sections: [string, string][] = [
       provider request.
     </p>
     <p>
+      <strong>Tidy</strong> looks for repeated people and memories on this computer and folds only
+      exact repeats by itself. <strong>Tidy now</strong> also sends up to 40 small pairs of memories or
+      names to the model that reads lanes, to ask whether they are the same; it only suggests, and
+      you decide.
+    </p>
+    <p>
       <strong>Forget</strong> removes one memory and unused evidence. <strong>Merge into…</strong> joins
-      entities and cannot be undone individually. <strong>Reset Brain knowledge</strong> clears knowledge
+      entities; it and every Tidy change can be undone from Tidy’s Recent changes while later edits
+      allow it. Forget cannot be undone. <strong>Reset Brain knowledge</strong> clears knowledge
       and extraction records after confirmation, keeps settings and the model, and turns review back on.
     </p>
     <p>

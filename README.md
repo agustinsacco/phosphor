@@ -135,16 +135,19 @@ Settings → Brain, read the model terms and download the local embedding model.
 Queue selected local lanes for extraction; review proposed identities, memories,
 relationships and source quotes before saving. Review is on by default but can be
 disabled. Explore entities in 2D/3D, follow supported paths, inspect extraction,
-Forget memories or merge duplicate entities. A merge has no individual undo.
+Forget memories or merge duplicate entities. The Tidy tab finds repeats locally and
+lists them as suggestions. Merges and Tidy changes can be undone; Forget cannot.
 
 ![Brain enabled with local search ready and review on, using fictional data](apps/site/src/assets/shots/brain-ready.webp)
 
 ![Brain’s local knowledge graph with fictional people and projects](apps/site/src/assets/shots/brain-graph.webp)
 
 New or restarted local lanes can use read-only `brain_search` to recall a bounded
-briefing with dates, disputes, sources and branch context. **Local does not mean
+briefing with dates, disputes, sources and branch context, and `brain_flag` to
+file a suggestion about a wrong memory. **Local does not mean
 fully offline:** extraction calls the lane’s provider model with scrubbed user and
-assistant text and can consume quota; later recall can enter provider context.
+assistant text and can consume quota; **Tidy now** sends up to 40 small pairs of
+memories or names to the model that reads lanes; later recall can enter provider context.
 Brain does not sync to Hosts or run in the PWA. Turning it off retains knowledge;
 Reset clears it while keeping settings and the embedding model.
 [Brain guide](https://phosphor.saccolabs.com/guides/brain/) · [Contract](docs/brain.md).

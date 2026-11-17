@@ -75,8 +75,9 @@ selection and comparison controls, alongside the Knowledge trail and selected la
 
 **Tidy now** looks for repeats locally, then asks the reader model to judge at most forty pairs.
 Its tooltip names the pinned reader, or the newest finished read's model. The status line shows
-local work, model progress, the last coverage and partial coverage. Cancel stops a run; failed or
-skipped checks show their reason and Retry. No cost or token counts appear.
+local work, model progress, the last coverage and partial coverage. Cancel stops a run. A
+cancelled, failed, skipped (no model to check with) or interrupted (Phosphor closed mid-run) run
+shows its reason and Retry. No cost or token counts appear.
 
 A comparison starts with its reason and whether a local rule or the named model found it.
 Entities show descriptions, other names, memory counts, links and source lanes. Memories show
@@ -86,8 +87,10 @@ have a **Swap surviving record** control. Both “Said twice” and “These dis
 the engine currently allows: either memory can survive a fold, both can stay disputed, or either
 side can replace the other. Different project, branch or dates, or existing replacement/dispute
 history, prevent folding; a quiet line shows the engine's reason. **Not the same** dismisses an
-open suggestion. A lane flag offers **Keep**, or a confirmed permanent **Forget**; Open the lane resolves
-only a local lane already known to the sidebar, never a path supplied by the flag.
+open suggestion. A lane flag offers **Keep**, or a confirmed permanent **Forget**. It names the
+flagging lane as Phosphor's own lane list does; a lane missing from that list shows as “A lane
+calling itself …”, because the title came from the flag. Open the lane resolves only a local lane
+already known to the sidebar, never a path supplied by the flag.
 
 A decision selects the next visible suggestion. Successful changes offer Undo in their toast.
 **Recent changes** lists the newest fifty journal operations with their time, automatic/by-you
@@ -398,9 +401,9 @@ knowledge** does. The model lives under `<userData>/brain/embeddings`.
 
 Suggestions have indexed kind, source, state, subject ids, reasons, verdict, reader model and
 lane-flag fields. A canonical two-subject pair key does not depend on its suggestion kind;
-dismissed and cleared pairs stay suppressed. A flag key combines the memory and lane session:
-one open flag per memory, at most five open flags per lane, and a lane can flag a particular
-memory only once. Missing or superseded memories refuse flags without changing the revision.
+dismissed and cleared pairs stay suppressed. A flag key combines the memory and lane session;
+flag limits are under Tidy checks and lane flags. Missing or superseded memories refuse flags
+without changing the revision.
 Known states are validated on write; unfamiliar future kinds are omitted from reads.
 Suggestion details remain readable after they settle, with only surviving subjects; a removed
 suggestion returns null rather than an error. Details include engine-owned `allowed` actions;
@@ -410,8 +413,13 @@ applicability from history, and an existing dispute cannot be added twice. Settl
 subjects offer no actions.
 
 An approval commits before sweeping its touched records. Entity merges and undo also sweep
-changed mention sets. A sweep failure emits a warning and does not roll back or report the
-saved approval/change as failed; running Tidy again retries local detection. Each whole-Brain
+changed mention sets. Inside the change, this maintenance sweeps at most 128 touched memories
+(lowest row numbers first). The rest lose their fingerprints and wait in memory; after the change
+returns, the runtime sweeps them 128 at a time, yielding between batches, refreshing search and
+notifying after each, and stopping on dispose or reset. If Phosphor closes first, the missing
+fingerprints bring those memories into the next **Tidy now** pass. A sweep failure emits a
+warning and does not roll back or report the saved approval/change as failed; running Tidy
+again retries local detection. Each whole-Brain
 sweep call walks at most 128 entity or memory rows from a saved numeric cursor and fixed pass
 watermarks. Coverage reports records visited, totals, limited checks and pass completion, not an
 exhaustive comparison of every pair. Name/alias buckets inspect at most 16 candidates, eight
@@ -516,7 +524,10 @@ EmbeddingGemma vectors of 60,000 made-up sentences it returns 99.9% of the exact
 pairs, eight per call. It shares the Brain reader queue with lane reads: neither runs beside
 another. The check only proposes; it never applies a model verdict. `different` clears and
 remembers the pair; `conflict` and `replaces` remain for review, with the proposed newer side
-when supported. Uncertain answers are `different`, not permission to merge people by name.
+when supported. Uncertain answers are `different`, not permission to merge people by name. A
+different project or branch alone never decides a verdict: the model judges whether the
+assertion is limited to its project or branch or holds anywhere, so two contradicting standing
+preferences of one person in two projects are a `conflict`.
 
 The check uses **Model that reads lanes** when pinned, otherwise the model of the newest
 finished read whose launch is available. It tries the newest five finished reads for an account
@@ -539,8 +550,11 @@ With recall on, **brain_flag** takes `{ ref, problem, reason }`: a memory's brac
 the latest search briefing in that lane, `wrong`, `outdated` or `duplicate`, and 1–300 characters
 of evidence. The extension retains only that briefing's displayed number-to-id map per session.
 Unknown numbers require another search. The server accepts active or disputed memories, one
-open flag per memory and at most five open flags per lane session; the same lane cannot flag the
-same memory twice. It records the lane id and title so the owner can open it. Reasons are
+open flag per memory, at most five open flags per lane session and at most fifty open flags in
+the whole Brain; the same lane cannot flag the same memory twice. The local bridge accepts ten
+flag requests a minute from all lanes together, so a lane cannot dodge the limits by claiming
+another lane's id. It records the claimed lane id and title; the page trusts only the id, to find
+the lane in Phosphor's own list. Reasons are
 untrusted, bounded data, never instructions. A flag adds a review suggestion, not a knowledge
 change. The skill asks agents to flag only user contradictions, verified wrong or outdated
 facts, or duplicate recalled memories—never a guess, an agent preference or mere irrelevance.
@@ -596,5 +610,6 @@ project's memories as context, and to report a dispute rather than pick a side.
 
 - Extraction quality is the reader model's. Review catches a wrong link or identity; afterwards,
   Forget and Merge into… fix it.
-- A merge or fold can be undone while its journal is retained and later changes permit a clean restoration. Forget is never undone.
+- A merge, fold, dispute or replacement can be undone while its journal is retained and later
+  changes permit a clean restoration. Forget is never undone.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.
