@@ -470,7 +470,7 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
         () => window.phosphor.invoke('brain:entityMemories', 'synthetic-entity', {}, null),
         () => window.phosphor.invoke('brain:memory', 'synthetic-memory'),
         () => window.phosphor.invoke('brain:path', 'synthetic-from', 'synthetic-to'),
-        () => window.phosphor.invoke('brain:merge', 'synthetic-from', 'synthetic-to'),
+        () => window.phosphor.invoke('brain:merge', 'synthetic-from', 'synthetic-to', 0),
         () => window.phosphor.invoke('brain:cancel', 'synthetic-job'),
         () => window.phosphor.invoke('brain:proposal', 'synthetic-job'),
         () => window.phosphor.invoke('brain:find', 'Harbor', 12),
