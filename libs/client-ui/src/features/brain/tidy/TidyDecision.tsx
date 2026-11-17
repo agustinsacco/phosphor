@@ -115,23 +115,13 @@ function TidyDetailFrame({
       )}
       {allowed.includes('replace') && (
         <Button size="sm" disabled={busy} onClick={() => onApply({ kind: 'replace', newerId: id })}>
-          This one replaces the other
+          This one replaces that one
         </Button>
       )}
     </div>
   )
   useEffect(() => {
-    const first = subjects[0]?.value
-    const primary: BrainTidyAction | null =
-      pair && allowed.includes('merge')
-        ? { kind: 'merge', survivorId: pair.a.id }
-        : allowed.includes('fold') && first && 'memory' in first
-          ? { kind: 'fold', survivorId: first.memory.id }
-          : allowed.includes('dispute')
-            ? { kind: 'dispute' }
-            : allowed.includes('keep')
-              ? { kind: 'keep' }
-              : null
+    const primary = primaryAction(data)
     keys.current = { primary: primary && !busy ? () => onApply(primary) : undefined }
   })
   return (
@@ -155,6 +145,19 @@ function TidyDetailFrame({
       <TidySubjects subjects={subjects} onVisit={onVisit} action={perSide} />
     </DecisionFrame>
   )
+}
+
+/** What `a` does: merge a pair, fold a repeat, dispute a disagreement, keep a flag. */
+function primaryAction(data: BrainTidySuggestionDetail): BrainTidyAction | null {
+  const { allowed, subjects, suggestion } = data
+  const pair = tidyEntityPair(data)
+  const first = subjects[0]?.value
+  if (pair && allowed.includes('merge')) return { kind: 'merge', survivorId: pair.a.id }
+  if (suggestion.kind === 'same_memory' && allowed.includes('fold') && first && 'memory' in first)
+    return { kind: 'fold', survivorId: first.memory.id }
+  if (allowed.includes('dispute')) return { kind: 'dispute' }
+  if (allowed.includes('keep')) return { kind: 'keep' }
+  return null
 }
 
 function TidyReason({ suggestion }: { suggestion: BrainTidySuggestion }): React.JSX.Element {
