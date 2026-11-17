@@ -200,3 +200,13 @@ it('keeps a swapped survivor, not just the row, after hiding and reopening Tidy'
   )!
   expect(merge.textContent).toBe('Merge into Rina')
 })
+
+it('keeps the open detail when a reload moves its row beyond the loaded page', async () => {
+  await render()
+  list.mockImplementation(async (...args) => {
+    const page = await mock('brain:tidy', args) as BrainTidyPage
+    return { ...page, items: page.items.filter((item) => item.id !== 'tidy-0') }
+  })
+  await act(async () => useBrain.setState({ status: { ...status, revision: 1 } }))
+  expect(detail).toHaveBeenLastCalledWith('tidy-0')
+})
