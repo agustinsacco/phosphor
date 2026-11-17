@@ -119,3 +119,35 @@ it('offers at most five neighbour names and their link words per entity', () => 
   expect(prompt).toContain('"name":"Harbor 4","link":"owns"')
   expect(prompt).not.toContain('Harbor 5')
 })
+
+it('never lets a different project or branch alone decide the verdict', () => {
+  const preference = (id: string, sentence: string, scope: string, branch: string | null) => ({
+    type: 'memory' as const,
+    id,
+    sentence,
+    memoryType: 'preference' as const,
+    scope,
+    branch,
+    validFrom: null,
+    validTo: null,
+    observedAt: 0,
+    entities: ['Rina Okafor'],
+    quotes: [],
+  })
+  const prompt = tidyPrompt([
+    {
+      suggestionId: 'rina-preferences',
+      subjects: [
+        preference('harbor', 'Rina Okafor prefers tabs.', '/projects/harbor', 'billing'),
+        preference('kestrel', 'Rina Okafor prefers spaces.', '/projects/kestrel', null),
+      ],
+    },
+  ])
+  expect(prompt).toContain('"scope":"/projects/harbor","branch":"billing"')
+  expect(prompt).toContain('"scope":"/projects/kestrel","branch":null')
+  expect(TIDY_SYSTEM).not.toMatch(/same applicability/)
+  expect(TIDY_SYSTEM).toContain('A different project or branch alone never decides the verdict')
+  expect(TIDY_SYSTEM).toContain(
+    'Two standing preferences of one person that contradict each other are a conflict, even across projects',
+  )
+})
