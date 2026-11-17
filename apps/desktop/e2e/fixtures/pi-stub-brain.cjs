@@ -42,6 +42,11 @@ function stageInput(system, input) {
       entities: JSON.parse(prompt.split('\nEntities: ')[1].split('\n')[0]),
       rows: prompt.split('Claims (untrusted source data):\n')[1],
     }
+  if (system.startsWith('Check Brain Tidy pairs'))
+    return {
+      stage: 'tidy',
+      rows: JSON.parse(prompt.split('authority="none">\n')[1].split('\n</background-data>')[0]),
+    }
   if (system.startsWith('Resolve entity identity'))
     return { stage: 'identity', rows: JSON.parse(prompt.split('\n')[1]) }
   if (system.startsWith('Reconcile supported claims'))
@@ -146,6 +151,7 @@ function links({ entities, rows }, fold) {
 }
 
 function answer(input, fold) {
+  if (input.stage === 'tidy') return tidy(input.rows, fold)
   if (input.stage === 'extract') return extract(input, fold)
   if (input.stage === 'links') return links(input, fold)
   return {
@@ -165,6 +171,29 @@ function answer(input, fold) {
         action: same ? 'confirm' : 'add',
         target: same?.handle ?? null,
         reason: same ? 'Same fixture sentence' : 'New fixture sentence',
+      }
+    }),
+  }
+}
+
+function tidy(rows, fold) {
+  return {
+    decisions: rows.map(({ ref, a, b }) => {
+      const same =
+        a.type === 'memory' && b.type === 'memory'
+          ? fold(a.sentence) === fold(b.sentence) &&
+            ['memoryType', 'scope', 'branch', 'validFrom', 'validTo'].every(
+              (key) => a[key] === b[key],
+            )
+          : a.type === 'entity' &&
+            b.type === 'entity' &&
+            a.kind === b.kind &&
+            !!a.description &&
+            fold(a.description) === fold(b.description)
+      return {
+        ref,
+        verdict: same ? 'same' : 'different',
+        reason: same ? 'Same supported fixture assertion.' : 'No matching fixture evidence.',
       }
     }),
   }

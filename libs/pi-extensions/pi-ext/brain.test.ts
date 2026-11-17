@@ -14,20 +14,23 @@ interface Params {
 }
 afterEach(() => vi.unstubAllEnvs())
 
-it('is inert without connection env and installs one explicit tool with no turn hooks', () => {
+it('is inert without connection env and installs two explicit tools with no turn hooks', () => {
   vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', '')
   vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', '')
   const pi = { registerTool: vi.fn(), on: vi.fn() }
   brainExtension(pi)
   expect(pi.registerTool).not.toHaveBeenCalled()
-  registerBrain(pi, { search: vi.fn() })
-  expect(pi.registerTool.mock.calls.map(([tool]) => tool.name)).toEqual(['brain_search'])
+  registerBrain(pi, { search: vi.fn(), flag: vi.fn() })
+  expect(pi.registerTool.mock.calls.map(([tool]) => tool.name)).toEqual([
+    'brain_search',
+    'brain_flag',
+  ])
   expect(pi.on).not.toHaveBeenCalled()
 })
 
 it('sends cwd and session identity and returns the formatted briefing without evidence', async () => {
   const tools: ToolDefinition<Params, Context, unknown>[] = []
-  const client: BrainClient = { search: vi.fn(async () => HARBOR_RECALL) }
+  const client: BrainClient = { search: vi.fn(async () => HARBOR_RECALL), flag: vi.fn() }
   registerBrain(
     { registerTool: (tool) => tools.push(tool as ToolDefinition<Params, Context, unknown>) },
     client,
@@ -56,6 +59,7 @@ it('sends cwd and session identity and returns the formatted briefing without ev
 it('surfaces transport failures instead of inventing a no-match', async () => {
   const tools: ToolDefinition<Params, Context, unknown>[] = []
   const client: BrainClient = {
+    flag: vi.fn(),
     search: vi.fn(async () => {
       throw new Error('Brain unavailable')
     }),

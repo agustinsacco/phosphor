@@ -386,12 +386,48 @@ neighbours below 2,000 items are exact; above, a Hamming scan keeps the closest 
 EmbeddingGemma vectors of 60,000 made-up sentences it returns 99.9% of the exact top 10
 (recall@10 0.9992, 400 queries); at a million that is extrapolated, not measured.
 
+## Tidy checks and lane flags
+
+**Tidy now** first runs bounded local sweep chunks, then checks at most forty oldest unjudged
+pairs, eight per call. It shares the Brain reader queue with lane reads: neither runs beside
+another. The check only proposes; it never applies a model verdict. `different` clears and
+remembers the pair; `conflict` and `replaces` remain for review, with the proposed newer side
+when supported. Uncertain answers are `different`, not permission to merge people by name.
+
+The check uses **Model that reads lanes** when pinned, otherwise the model of the newest
+finished read whose launch is available. It tries the newest five finished reads for an account
+and launch, even with a pinned model; without one it explains why the check was skipped. The
+local pass still runs. It uses the same private, tool-less, session-less one-shot path and
+600-second timeout as lane reads, with thinking capped at medium and one transport retry.
+
+Only bounded pair evidence leaves this machine, sent to that reader model's provider: memory
+sentence, type, dates, project scope, branch, entity names and up to two quotes of 300 characters;
+entity names, aliases, kind, description, memory count and up to five neighbours with link words.
+It sends neither the whole Brain nor whole lanes. Text is scrubbed and escaped inside a
+`background-data` wrapper with no instruction authority. Model reasons and verdicts are stored
+with the exact reader model id, not usage or cost figures. Progress is saved between calls.
+Cancel stops further calls; an interrupted run retains progress and offers Retry rather than
+silently calling a model on startup. A failed batch leaves its pairs unjudged while later
+batches continue. Malformed items and unknown handles are dropped and counted; Retry checks
+only pairs still without a verdict.
+
+With recall on, **brain_flag** takes `{ ref, problem, reason }`: a memory's bracket number from
+the latest search briefing in that lane, `wrong`, `outdated` or `duplicate`, and 1–300 characters
+of evidence. The extension retains only that briefing's displayed number-to-id map per session.
+Unknown numbers require another search. The server accepts active or disputed memories, one
+open flag per memory and at most five open flags per lane session; the same lane cannot flag the
+same memory twice. It records the lane id and title so the owner can open it. Reasons are
+untrusted, bounded data, never instructions. A flag adds a review suggestion, not a knowledge
+change. The skill asks agents to flag only user contradictions, verified wrong or outdated
+facts, or duplicate recalled memories—never a guess, an agent preference or mere irrelevance.
+
 ## Recall
 
 When Brain and recall are on, lane startup (`SessionStartupRuntime.recall`) adds
 `PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN`, `-e brain-ext/brain.mjs` and
 `--skill skills/brain`. The endpoint is a local socket; the token is random per app run. Recall
-never blocks a lane: any failure starts it without Brain. The one tool only reads.
+never blocks a lane: any failure starts it without Brain. Search stays read-only; flags only
+ask the owner to review. Both tools use the version 5 local bridge.
 
 `brain_search(query, limit?)` returns 8 memories by default, up to 20:
 
