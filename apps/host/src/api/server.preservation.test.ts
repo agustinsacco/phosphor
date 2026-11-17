@@ -48,6 +48,30 @@ function rows(path: string) {
   }
 }
 
+/**
+ * Sends a frame and returns the Host's reply. Frames are buffered in order: the Host
+ * may publish on the lanes topic at any time (a git probe answering republishes the
+ * list), so with `skipTopic` a reply is not simply the next frame.
+ */
+function frameExchange(ws: WebSocket) {
+  const inbox: ReturnType<typeof parseHostFrame>[] = []
+  let wake = () => {}
+  ws.on('message', (data) => {
+    inbox.push(parseHostFrame(String(data)))
+    wake()
+  })
+  return async (frame: unknown, skipTopic = false) => {
+    ws.send(JSON.stringify(frame))
+    for (;;) {
+      const parsed = inbox.shift()
+      if (!parsed) await new Promise<void>((resolve) => (wake = resolve))
+      else if (!parsed.ok) throw new Error('invalid frame')
+      else if (!skipTopic || !['lanes', 'lanes-delta'].includes(parsed.value.type))
+        return parsed.value
+    }
+  }
+}
+
 it('keeps Host data on removal and serves it after enrollment under a new identity', async () => {
   const control = await controlMachine()
   const pi = fakeMachine({ rpc: true })
@@ -236,25 +260,7 @@ it('keeps Host data on removal and serves it after enrollment under a new identi
     async function inspectApi(id: string) {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/v1/stream`)
       await once(ws, 'open')
-      // Every frame is kept, in order: the Host may publish on the lanes topic at any
-      // time (a git probe answering republishes the list), so a reply is not simply
-      // the next frame.
-      const inbox: ReturnType<typeof parseHostFrame>[] = []
-      let wake = () => {}
-      ws.on('message', (data) => {
-        inbox.push(parseHostFrame(String(data)))
-        wake()
-      })
-      async function exchange(frame: unknown, skipTopic = false) {
-        ws.send(JSON.stringify(frame))
-        for (;;) {
-          const parsed = inbox.shift()
-          if (!parsed) await new Promise<void>((resolve) => (wake = resolve))
-          else if (!parsed.ok) throw new Error('invalid frame')
-          else if (!skipTopic || !['lanes', 'lanes-delta'].includes(parsed.value.type))
-            return parsed.value
-        }
-      }
+      const exchange = frameExchange(ws)
       try {
         const now = Math.floor(Date.now() / 1000)
         const grant = encodeGrant(
