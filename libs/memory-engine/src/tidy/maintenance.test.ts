@@ -4,57 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { openBrainStore } from '../store'
-import { encodeBits } from '../bits'
-import { encodeVector } from '../vectors'
 import { approve, extraction, fixture } from '../test-support'
-import { seed } from './test-support'
+import { hub, spread } from './test-support'
 
-/** A sparse vector per memory so the hub raises no near repeats; only the planted pair matches. */
-function spread(n: number): Float32Array {
-  const result = new Float32Array(768)
-  result[n % 768] = 1
-  result[(n * 7 + 3) % 768] = 1
-  return result
-}
-/** Entities 1 and 2 are two "Rina Okafor" records; the hub's memories all mention entity 1. */
-function hub(db: DatabaseSync, size: number): void {
-  seed(db, 2)
-  const memory = db.prepare('INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-  const mention = db.prepare('INSERT INTO mentions VALUES (?,?)')
-  const vectors = db.prepare('INSERT INTO memory_vectors VALUES (?,?)')
-  const bits = db.prepare('INSERT INTO memory_bits VALUES (?,?)')
-  const words = db.prepare('INSERT INTO memory_words(rowid,summary) VALUES (?,?)')
-  db.exec('BEGIN')
-  for (let i = 1; i <= size; i++) {
-    const n = i + 2
-    // The last two become exact repeats once entity 2 is merged into entity 1.
-    const planted = i > size - 2
-    const summary = planted ? 'Rina reviews Kestrel releases.' : `Rina reviews Harbor change ${i}.`
-    memory.run(
-      n,
-      `hub-${String(i).padStart(5, '0')}`,
-      summary,
-      'fact',
-      'reported',
-      '/Harbor',
-      null,
-      null,
-      null,
-      n,
-      n,
-      'active',
-      `lane-${n}`,
-      'Ledger',
-      null,
-    )
-    mention.run(n, planted && i === size ? 2 : 1)
-    vectors.run(n, encodeVector(spread(n)))
-    bits.run(n, encodeBits(spread(n)))
-    words.run(n, summary)
-  }
-  db.exec('COMMIT')
-  db.prepare("UPDATE meta SET value=? WHERE key='memories'").run(String(size + 2))
-}
 /** Counts per-memory sweeps: each one reads its memory row through this statement exactly once. */
 function countSweeps(db: DatabaseSync): () => number {
   const prepare = db.prepare.bind(db)
