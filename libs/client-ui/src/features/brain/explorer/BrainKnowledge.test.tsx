@@ -352,6 +352,28 @@ it('opens the full map in place of profile and map, and goes back', async () => 
   expect(section('Harbor')).not.toBeNull()
 })
 
+it('regression: at 1060px or less the start page still opens the full map', async () => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private readonly report: ResizeObserverCallback) {}
+      observe(): void {
+        this.report(
+          [{ contentRect: { width: 900, height: 600 } } as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        )
+      }
+      disconnect(): void {}
+    },
+  )
+  await render()
+  expect(section('Map')).toBeNull()
+  await click('Full map', section('Profile'))
+  expect(section('Full map')).not.toBeNull()
+  await click('Back to profile')
+  expect(section('Recently learned')).not.toBeNull()
+})
+
 it('starts with what Brain learned last, and says what to do when Brain is empty', async () => {
   await render()
   expect(section('Recently learned').textContent).toContain('Harbor planning')
