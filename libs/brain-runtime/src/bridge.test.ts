@@ -138,3 +138,37 @@ it('limits flags across twelve claimed sessions and sockets, while search and la
     await bridge.close()
   }
 })
+
+it('a wall-clock step back does not hold the flag window shut', async () => {
+  let wall = 10_000_000_000,
+    monotonic = 1000
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => wall)
+  const steady = vi.spyOn(performance, 'now').mockImplementation(() => monotonic)
+  const invoke = vi.fn(async () => ({ status: 'filed', message: 'Filed.' }))
+  const bridge = await createBrainBridge(invoke)
+  const input = (i: number) => ({
+    version: 5,
+    token: bridge.token,
+    method: 'flag',
+    params: {
+      memoryId: `memory-${i}`,
+      sessionId: 'kestrel-lane',
+      title: 'Kestrel review',
+      problem: 'outdated',
+      reason: 'The lane verified a newer Kestrel release date.',
+    },
+  })
+  try {
+    for (let i = 0; i < 10; i++) await request(bridge.endpoint, input(i))
+    wall -= 3_600_000
+    monotonic += 60_000
+    expect(await request(bridge.endpoint, input(10))).toMatchObject({
+      ok: true,
+      data: { status: 'filed' },
+    })
+  } finally {
+    clock.mockRestore()
+    steady.mockRestore()
+    await bridge.close()
+  }
+})
