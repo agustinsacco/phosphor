@@ -50,6 +50,7 @@ export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
       const image = decodeImage(ctx, 'relations', row.before_image)
       if (image.row?.memory === n) relations.add(Number(image.key.n))
     }
+    const evidence = forgottenEvidence(ctx, rows, n, relations)
     for (const row of rows) {
       if (!knownTable(row.table_name)) {
         eraseBeforeImages(ctx, op.id)
@@ -58,6 +59,7 @@ export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
       const image = decodeImage(ctx, row.table_name, row.before_image)
       const value = image.row ?? currentRow(ctx, row.table_name, image.key) ?? image.key
       if (
+        (row.table_name === 'evidence' && evidence.has(Number(value.n))) ||
         value.memory === n ||
         (row.table_name === 'memories' && value.n === n) ||
         (row.table_name === 'memory_links' && (value.source === n || value.target === n)) ||
@@ -92,4 +94,21 @@ function retainedText(
   return Object.values(image.row ?? {}).some(
     (text) => typeof text === 'string' && forgotten.some((phrase) => text.includes(phrase)),
   )
+}
+
+function forgottenEvidence(
+  ctx: Context,
+  rows: { table_name: string; before_image: string }[],
+  n: number,
+  relations: Set<number>,
+): Set<number> {
+  const evidence = new Set<number>()
+  for (const row of rows) {
+    if (row.table_name !== 'citations' && row.table_name !== 'relation_support') continue
+    const image = decodeImage(ctx, row.table_name, row.before_image)
+    const value = image.row ?? image.key
+    if (value.memory === n || relations.has(Number(value.relation)))
+      evidence.add(Number(value.evidence))
+  }
+  return evidence
 }

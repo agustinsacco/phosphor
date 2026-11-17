@@ -1,3 +1,10 @@
+import {
+  captureMemoryGuards,
+  checkDependents,
+  memoryGuard,
+  restoreLinkedStates,
+  type Delta,
+} from './undo-guards'
 import { inheritFoldReferences } from './fold-ancestry'
 import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
@@ -14,8 +21,6 @@ import {
   knownTable,
   rowKey,
   rowKeys,
-  type Image,
-  type Row,
   type Rows,
   type RowTable,
   type Selection,
@@ -40,8 +45,13 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     'SELECT id,n FROM memories WHERE n IN (SELECT value FROM json_each(?))',
     JSON.stringify(references.memories),
   )
+  const guarded = input.kind === 'merge' || input.kind === 'fold'
+  if (guarded) captureMemoryGuards(ctx, before, references.memories)
   action()
-  const after = capture(ctx, input.selection)
+  const after = capture(
+    ctx,
+    guarded ? { ...input.selection, memories: references.memories } : input.selection,
+  )
   // A row can leave the selected neighbourhood without being deleted (shared evidence).
   for (const [table, rows] of before)
     for (const [key, row] of rows) {
@@ -71,7 +81,7 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     input.subjects.first,
     input.subjects.second,
   )
-  saveDelta(ctx, id, before, after)
+  saveDelta(ctx, id, before, after, guarded)
   for (const m of memories)
     run(ctx, 'INSERT INTO tidy_operation_memories VALUES (?,?,?)', id, m.id, m.n)
   if (input.kind === 'fold') inheritFoldReferences(ctx, input.subjects.first, input.subjects.second)
@@ -86,14 +96,14 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     )
   return id
 }
-function saveDelta(ctx: Context, id: string, before: Rows, after: Rows): void {
+function saveDelta(ctx: Context, id: string, before: Rows, after: Rows, guarded: boolean): void {
   for (const table of Object.keys(rowKeys) as RowTable[]) {
     const old = before.get(table)!,
       next = after.get(table)!
     for (const key of new Set([...old.keys(), ...next.keys()])) {
       const previous = old.get(key) ?? null,
         current = next.get(key) ?? null
-      if (hash(previous) === hash(current)) continue
+      if (hash(previous) === hash(current) && !(guarded && memoryGuard(table))) continue
       run(
         ctx,
         'INSERT INTO tidy_operation_rows VALUES (?,?,?,?,?)',
@@ -105,11 +115,6 @@ function saveDelta(ctx: Context, id: string, before: Rows, after: Rows): void {
       )
     }
   }
-}
-interface Delta {
-  table: RowTable
-  image: Image
-  current: Row | null
 }
 function undoRows(ctx: Context, id: string): Delta[] {
   return all<{ table_name: string; before_image: string; after_hash: string | null }>(
@@ -160,6 +165,7 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
   return transaction(ctx, () => {
     checkRevision(ctx, expected)
     const op = one<{
+      kind: string
       undone_at: number | null
       subject_type: 'entity' | 'memory'
       first_id: string
@@ -174,8 +180,10 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
         'This Brain change is no longer available to undo because a memory was forgotten.',
       )
     const selection = selectionOf(deltas)
+    if (op.kind === 'merge' || op.kind === 'fold') checkDependents(ctx, deltas, selection.memories)
     const names = deltas.filter((d) => d.table === 'entity_names').map((d) => Number(d.image.key.n))
     restore(ctx, deltas)
+    restoreLinkedStates(ctx, selection.memories)
     rebuild(ctx, selection, names)
     fingerprintMemories(ctx, selection.memories)
     suppressPair(ctx, op.subject_type, op.first_id, op.second_id, op.suggestion_id)
@@ -196,6 +204,12 @@ function selectionOf(deltas: Delta[]): Selection {
     }
   return affected(rows, new Map(), {
     entities: [...(rows.get('entities')?.values() ?? [])].map((r) => Number(r.n)),
-    memories: [...(rows.get('memories')?.values() ?? [])].map((r) => Number(r.n)),
+    memories: [
+      ...[...(rows.get('memories')?.values() ?? [])].map((r) => Number(r.n)),
+      ...[...(rows.get('memory_links')?.values() ?? [])].flatMap((r) => [
+        Number(r.source),
+        Number(r.target),
+      ]),
+    ],
   })
 }
