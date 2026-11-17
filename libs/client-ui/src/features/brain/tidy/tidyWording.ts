@@ -67,8 +67,23 @@ export function tidyEntityPair(
     : { a: left.value.entity, b: right.value.entity }
 }
 
-/** A name B shares with A, in B's own spelling, so "Not the same" can take it off B. */
-export function sharedName(a: EntityView, b: EntityView): string | null {
-  const names = new Set([a.label, ...a.aliases].map((name) => name.toLocaleLowerCase()))
-  return [b.label, ...b.aliases].find((name) => names.has(name.toLocaleLowerCase())) ?? null
+/**
+ * A name one record holds as another name and the other record also uses, so "Not the same"
+ * can take it off. B first, as A is the one a merge would keep; a label is never removed.
+ */
+export function unnameTarget(pair: {
+  a: EntityView
+  b: EntityView
+}): { entity: EntityView; name: string } | null {
+  const names = (entity: EntityView): Set<string> =>
+    new Set([entity.label, ...entity.aliases].map((name) => name.toLocaleLowerCase()))
+  for (const [entity, other] of [
+    [pair.b, pair.a],
+    [pair.a, pair.b],
+  ] as const) {
+    const theirs = names(other)
+    const name = entity.aliases.find((alias) => theirs.has(alias.toLocaleLowerCase()))
+    if (name) return { entity, name }
+  }
+  return null
 }

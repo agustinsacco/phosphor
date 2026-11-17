@@ -15,7 +15,7 @@ import { TidySubjects } from './TidySubjects'
 import { FlagLane } from './FlagLane'
 import { useTidyDetail } from './useTidyDetail'
 import { useTidyActions } from './useTidyActions'
-import { tidyEntityPair, tidyOpinion, tidyTitle } from './tidyWording'
+import { tidyEntityPair, tidyOpinion, tidyTitle, unnameTarget } from './tidyWording'
 
 /** One Tidy suggestion in the Inbox frame: both sides, the reason, and its actions in the bar. */
 export function TidyDecision({
@@ -187,6 +187,7 @@ function TidyBarActions({
   const allowed = data.allowed
   const pair = tidyEntityPair(data)
   const pairOpen = data.suggestion.kind !== 'flagged'
+  const unname = pair && allowed.includes('unname') ? unnameTarget(pair) : null
   return (
     <>
       {pair && allowed.includes('merge') && (
@@ -229,6 +230,15 @@ function TidyBarActions({
       {pairOpen && (
         <Button disabled={busy} onClick={onDismiss}>
           Not the same
+        </Button>
+      )}
+      {unname && (
+        <Button
+          disabled={busy}
+          tooltip={`Keep both, and stop matching “${unname.name}” to ${unname.entity.label}`}
+          onClick={() => onApply({ kind: 'unname', entityId: unname.entity.id, name: unname.name })}
+        >
+          Not the same; remove “{unname.name}” from {unname.entity.label}
         </Button>
       )}
     </>

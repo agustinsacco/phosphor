@@ -234,3 +234,38 @@ it('takes the primary action from the a key the Inbox forwards', async () => {
   await act(async () => keys.current.primary?.())
   expect(apply.mock.lastCall?.[1]).toEqual({ kind: 'dispute' })
 })
+
+it('offers to take a shared name off one record, never a label, once Brain allows it', async () => {
+  const names = (a: string[], b: string[]) => (d: BrainTidySuggestionDetail) => {
+    const [left, right] = d.subjects
+    if (left?.type === 'entity') left.value.entity.aliases = a
+    if (right?.type === 'entity') right.value.entity.aliases = b
+  }
+  patch = names(['Rina'], [])
+  await render(0)
+  expect(labels().filter((label) => label?.startsWith('Not the same;'))).toEqual([])
+  fresh()
+  patch = (d) => {
+    names(['Rina'], [])(d)
+    d.allowed = [...d.allowed, 'unname']
+  }
+  apply.mockImplementationOnce(async () => ({
+    ...((await call('brain:status', [])) as BrainStatus),
+    operationId: 'op-1',
+  }))
+  await render(0)
+  // "Rina" is B's own name, so it comes off A, where it is only another name.
+  await click('Not the same; remove “Rina” from Rina Okafor')
+  expect(apply).toHaveBeenLastCalledWith(
+    'tidy-0',
+    { kind: 'unname', entityId: 'tidy-0-0', name: 'Rina' },
+    0,
+  )
+  fresh()
+  patch = (d) => {
+    names(['Rina'], ['Rina Okafor'])(d)
+    d.allowed = [...d.allowed, 'unname']
+  }
+  await render(0)
+  expect(labels()).toContain('Not the same; remove “Rina Okafor” from Rina')
+})
