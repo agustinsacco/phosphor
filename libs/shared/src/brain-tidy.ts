@@ -32,6 +32,8 @@ export type BrainTidySubjectDetail =
 export interface BrainTidySuggestionDetail {
   suggestion: BrainTidySuggestion
   subjects: BrainTidySubjectDetail[]
+  allowed: BrainTidyAction['kind'][]
+  foldRefusal?: 'applicability' | 'history' | null
   revision: number
 }
 export type BrainTidyAction =

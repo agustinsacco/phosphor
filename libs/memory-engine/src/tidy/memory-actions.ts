@@ -1,30 +1,12 @@
+import { foldGuard, disputeGuard, replaceGuard } from './action-guards'
 import { all, one, run, type Context } from '../database'
 import { reactivatePartners } from '../commit'
 import { adjustCount, cleanOrphans, recountEntities } from '../entities'
 
-export function sameApplicability(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-  return ['scope', 'branch', 'valid_from', 'valid_to'].every((key) => a[key] === b[key])
-}
 export function foldMemories(ctx: Context, source: number, target: number): void {
+  const refusal = foldGuard(ctx, source, target)
+  if (refusal) throw new Error(refusal)
   const a = one<Record<string, unknown>>(ctx, 'SELECT * FROM memories WHERE n=?', source)!
-  const b = one<Record<string, unknown>>(ctx, 'SELECT * FROM memories WHERE n=?', target)!
-  if (!sameApplicability(a, b))
-    throw new Error(
-      'These memories have different scope, branch or validity dates; they cannot be folded.',
-    )
-  if (
-    a.state !== 'active' ||
-    b.state !== 'active' ||
-    one(
-      ctx,
-      'SELECT 1 FROM memory_links WHERE source IN (?,?) OR target IN (?,?) LIMIT 1',
-      source,
-      target,
-      source,
-      target,
-    )
-  )
-    throw new Error('Resolve the history or dispute before folding these memories.')
   const evidence = new Set(
     all<{ evidence: number }>(
       ctx,
@@ -112,6 +94,8 @@ export function conflictMemories(
   second: number,
   replace: boolean,
 ): void {
+  const refusal = (replace ? replaceGuard : disputeGuard)(ctx, first, second)
+  if (refusal) throw new Error(refusal)
   if (replace) {
     reactivatePartners(ctx, second)
     run(

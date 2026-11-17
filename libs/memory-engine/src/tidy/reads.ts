@@ -11,6 +11,7 @@ import { entity } from '../explorer'
 import { memory } from '../knowledge'
 import { revision } from '../prefs'
 import { closeMissing, suggestion, type SuggestionRow } from './suggestions'
+import { allowedActions } from './action-guards'
 import { coverage } from './sweep'
 
 function limitOf(limit: number): void {
@@ -77,6 +78,7 @@ export function detail(ctx: Context, id: string): BrainTidySuggestionDetail | nu
   if (!item) return null
   return {
     suggestion: item,
+    ...allowedActions(ctx, row),
     subjects: item.subjects.flatMap((s): BrainTidySuggestionDetail['subjects'] => {
       const table = s.type === 'entity' ? 'entities' : 'memories'
       if (!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, s.id)) return []

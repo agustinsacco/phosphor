@@ -5,7 +5,8 @@ import { pruneExtractions } from '../extractions'
 import { bumpRevision } from '../prefs'
 import { checkRevision } from './journal'
 import { changeMemories, mergeChange } from './operations'
-import { subjectExists, openSuggestion } from './suggestions'
+import { actionRefusal } from './action-guards'
+import { openSuggestion } from './suggestions'
 
 export function apply(
   ctx: Context,
@@ -17,22 +18,18 @@ export function apply(
   return transaction(ctx, () => {
     checkRevision(ctx, expected)
     const row = openSuggestion(ctx, id)
-    if (!subjectExists(ctx, row))
-      throw new Error('A subject of this suggestion is no longer available.')
+    const refusal = actionRefusal(ctx, row, action.kind)
+    if (refusal) throw new Error(refusal)
     const ids = [row.first_id, row.second_id]
     let operation: string | null = null
-    if (row.kind === 'same_entity' && action.kind === 'merge' && ids.includes(action.survivorId)) {
+    if (action.kind === 'merge' && ids.includes(action.survivorId)) {
       operation = mergeChange(
         ctx,
         ids.find((s) => s !== action.survivorId)!,
         action.survivorId,
         id,
       )
-    } else if (
-      row.kind === 'same_memory' &&
-      action.kind === 'fold' &&
-      ids.includes(action.survivorId)
-    ) {
+    } else if (action.kind === 'fold' && ids.includes(action.survivorId)) {
       operation = changeMemories(
         ctx,
         ids.find((s) => s !== action.survivorId)!,
@@ -40,13 +37,9 @@ export function apply(
         'fold',
         { suggestionId: id },
       )
-    } else if (row.kind === 'conflict' && action.kind === 'dispute') {
+    } else if (action.kind === 'dispute') {
       operation = changeMemories(ctx, row.first_id, row.second_id!, 'dispute', { suggestionId: id })
-    } else if (
-      row.kind === 'conflict' &&
-      action.kind === 'replace' &&
-      ids.includes(action.newerId)
-    ) {
+    } else if (action.kind === 'replace' && ids.includes(action.newerId)) {
       operation = changeMemories(
         ctx,
         action.newerId,
@@ -54,7 +47,7 @@ export function apply(
         'replace',
         { suggestionId: id },
       )
-    } else if (row.kind === 'flagged' && (action.kind === 'forget' || action.kind === 'keep')) {
+    } else if (action.kind === 'forget' || action.kind === 'keep') {
       if (action.kind === 'forget') {
         removeMemory(ctx, row.first_id)
         pruneExtractions(ctx)

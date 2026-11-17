@@ -25,7 +25,7 @@ function pair(kind: 'same_entity' | 'same_memory' | 'conflict' = 'same_memory') 
 it('offers merge for entities and no actions after settlement or a missing subject', () => {
   const { store, db, id } = pair('same_entity')
   expect(store.tidySuggestion(id)).toMatchObject({ allowed: ['merge'], foldRefusal: null })
-  db.exec('DELETE FROM entities WHERE n=2')
+  db.exec("UPDATE tidy_suggestions SET second_id='missing'")
   expect(store.tidySuggestion(id)).toMatchObject({ allowed: [], foldRefusal: null })
   const settled = pair('same_entity')
   settled.store.tidyDismiss(settled.id, settled.store.revision())

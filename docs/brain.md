@@ -363,7 +363,11 @@ one open flag per memory, at most five open flags per lane, and a lane can flag 
 memory only once. Missing or superseded memories refuse flags without changing the revision.
 Known states are validated on write; unfamiliar future kinds are omitted from reads.
 Suggestion details remain readable after they settle, with only surviving subjects; a removed
-suggestion returns null rather than an error.
+suggestion returns null rather than an error. Details include engine-owned `allowed` actions;
+apply uses the same guards. Either two-memory suggestion kind supports dispute and replacement.
+Folding also requires active memories with no history or dispute. `foldRefusal` distinguishes
+applicability from history, and an existing dispute cannot be added twice. Settled or missing
+subjects offer no actions.
 
 An approval commits before sweeping its touched records. Entity merges and undo also sweep
 changed mention sets. A sweep failure emits a warning and does not roll back or report the

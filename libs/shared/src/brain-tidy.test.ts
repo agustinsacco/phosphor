@@ -1,5 +1,9 @@
-import { expect, it } from 'vitest'
-import { checkBrainTidyAction } from './brain-tidy'
+import { expect, expectTypeOf, it } from 'vitest'
+import {
+  checkBrainTidyAction,
+  type BrainTidyAction,
+  type BrainTidySuggestionDetail,
+} from './brain-tidy'
 
 it.each([
   { kind: 'merge', survivorId: 'rina' },
@@ -22,4 +26,11 @@ it.each([
   { kind: 'delete' },
 ])('rejects malformed action %j', (action) => {
   expect(() => checkBrainTidyAction(action)).toThrow('Invalid Brain Tidy action.')
+})
+
+it('freezes the engine-owned action availability fields on suggestion details', () => {
+  expectTypeOf<BrainTidySuggestionDetail['allowed']>().toEqualTypeOf<BrainTidyAction['kind'][]>()
+  expectTypeOf<BrainTidySuggestionDetail['foldRefusal']>().toEqualTypeOf<
+    'applicability' | 'history' | null | undefined
+  >()
 })
