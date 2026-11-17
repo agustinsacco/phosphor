@@ -8,7 +8,7 @@ import {
   type Delta,
   type Guards,
 } from './undo-guards'
-import { inheritFoldReferences } from './fold-ancestry'
+import { inheritFoldReferences, movedFlagTable, returnMovedFlags } from './fold-ancestry'
 import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
@@ -151,8 +151,9 @@ function undoGuards(ctx: Context, kind: string, survivorId: string, deltas: Delt
 function undoRows(ctx: Context, id: string): Delta[] {
   return all<{ table_name: string; before_image: string; after_hash: string | null }>(
     ctx,
-    'SELECT table_name,before_image,after_hash FROM tidy_operation_rows WHERE operation_id=?',
+    'SELECT table_name,before_image,after_hash FROM tidy_operation_rows WHERE operation_id=? AND table_name!=?',
     id,
+    movedFlagTable,
   ).map((row) => {
     if (!knownTable(row.table_name))
       throw new Error('This Brain change needs a newer application to undo.')
@@ -218,6 +219,7 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
       checkDependents(ctx, deltas, undoGuards(ctx, op.kind, op.second_id, deltas))
     const names = deltas.filter((d) => d.table === 'entity_names').map((d) => Number(d.image.key.n))
     restore(ctx, deltas)
+    if (op.kind === 'fold') returnMovedFlags(ctx, id, op.second_id)
     restoreLinkedStates(ctx, selection.memories)
     rebuild(ctx, selection, names)
     fingerprintMemories(ctx, selection.memories)

@@ -1,5 +1,6 @@
 import { all, one, run, type Context } from '../database'
 import { currentRow, decodeImage, knownTable } from './rows'
+import { flagKeyPrefix } from './flag-keys'
 
 /** Forget runs this before deleting live rows, while changed relation keys can still be resolved. */
 export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
@@ -8,6 +9,14 @@ export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
     "DELETE FROM tidy_suggestions WHERE subject_type='memory' AND (first_id=? OR second_id=?)",
     id,
     id,
+  )
+  // A flag keeps the flagged memory in its key wherever a fold has moved it.
+  const prefix = flagKeyPrefix(id)
+  run(
+    ctx,
+    'DELETE FROM tidy_suggestions WHERE pair_key>=? AND pair_key<?',
+    prefix,
+    `${prefix.slice(0, -1)}/`,
   )
   const ops = all<{ id: string; kind: string }>(
     ctx,

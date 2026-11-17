@@ -485,7 +485,7 @@ ancestry references survive intervening undo and retention pruning, so Forget re
 reachable retained before-images. It deletes suggestions about that memory and preserves only
 safe operation ids/labels; an operation whose undo would restore forgotten text becomes unavailable.
 Folding scrubs removed subjects' suggestion text (even after undo), while an open lane flag moves
-to the survivor if it has no open flag or prior flag from that lane; otherwise it closes. A merge can still be undone for its other memories. Reset erases
+to the survivor if it has no open flag or prior flag from that lane; otherwise it closes. The fold's journal records the move, so undoing the fold puts the flag back on the memory the lane flagged, and Forget of that memory erases its flags wherever they sit. A merge can still be undone for its other memories. Reset erases
 all Tidy state as well as the knowledge. These guarantees do not change existing proposal and
 extraction-record retention: source transcripts retained for finished reads can still contain
 the original statement until those records are removed under the retention rules above.

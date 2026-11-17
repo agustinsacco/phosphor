@@ -94,7 +94,7 @@ export function changeMemories(
         : conflictMemories(ctx, source, target, kind === 'replace'),
   )
   if (kind === 'fold') {
-    settleFoldSuggestions(ctx, sourceId, targetId)
+    settleFoldSuggestions(ctx, id, sourceId, targetId)
     clearSubject(ctx, 'memory', sourceId)
   }
   fingerprintMemories(ctx, selection.memories)

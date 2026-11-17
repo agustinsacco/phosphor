@@ -10,6 +10,7 @@ import {
 import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision } from '../prefs'
 import { checkRevision } from './journal'
+import { flagKey } from './flag-keys'
 
 export interface SuggestionRow {
   id: string
@@ -213,7 +214,7 @@ export function flag(ctx: Context, input: BrainTidyFlag): BrainTidyFlagResult {
       input.memoryId,
     )
     if (existing) return { status: 'already_flagged', suggestionId: existing.id }
-    const key = `flag:${Buffer.from(input.memoryId).toString('hex')}.${Buffer.from(input.sessionId).toString('hex')}`
+    const key = flagKey(input.memoryId, input.sessionId)
     const previous = one<{ id: string }>(
       ctx,
       'SELECT id FROM tidy_suggestions WHERE pair_key=?',
