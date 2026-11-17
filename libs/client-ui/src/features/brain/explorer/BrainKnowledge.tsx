@@ -79,6 +79,7 @@ export function BrainKnowledge({
               view={view}
               trail={trail}
               map={narrow ? map : null}
+              narrow={narrow}
               onOpenRead={onOpenRead}
             />
           </section>
@@ -99,12 +100,15 @@ function ProfilePane({
   view,
   trail,
   map,
+  narrow,
   onOpenRead,
 }: {
   state: ExplorerState
   view: KnowledgeView
   trail: React.ReactNode
   map: React.ReactNode | null
+  /** No map column: the start page offers the full map itself. */
+  narrow: boolean
   onOpenRead: (jobId: string) => void
 }): React.JSX.Element {
   const { current, entity } = view
@@ -132,7 +136,13 @@ function ProfilePane({
         actions={view.actions}
       />
     )
-  return <KnowledgeStart trail={state.trail.items.length ? trail : null} onVisit={state.onVisit} />
+  return (
+    <KnowledgeStart
+      trail={state.trail.items.length ? trail : null}
+      onVisit={state.onVisit}
+      onFullMap={narrow ? () => view.setFull(true) : null}
+    />
+  )
 }
 
 type KnowledgeView = ReturnType<typeof useKnowledgeView>

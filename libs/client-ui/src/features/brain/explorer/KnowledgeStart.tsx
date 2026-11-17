@@ -11,19 +11,29 @@ import type { BrainVisit } from './trail'
 export function KnowledgeStart({
   trail,
   onVisit,
+  onFullMap,
 }: {
   /** Back and forward, once there is a trail to walk. */
   trail: React.ReactNode
   onVisit: (visit: BrainVisit) => void
+  /** Set when the map has no column of its own. */
+  onFullMap: (() => void) | null
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:recent', 20), [])
   const { data, error, retry } = useBrainResource(load)
   return (
     <div className="brain-scroll px-4 py-3">
       {trail}
-      <p className="text-text-secondary pb-3">
-        Pick someone or something in the index, or open one of the newest memories.
-      </p>
+      <div className="flex flex-wrap items-start gap-2 pb-3">
+        <p className="text-text-secondary min-w-0 flex-1">
+          Pick someone or something in the index, or open one of the newest memories.
+        </p>
+        {onFullMap && (
+          <Button size="xs" onClick={onFullMap}>
+            Full map
+          </Button>
+        )}
+      </div>
       <section aria-label="Recently learned">
         <SectionLabel>Recently learned</SectionLabel>
         {!data && (
