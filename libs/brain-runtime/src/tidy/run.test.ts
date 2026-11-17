@@ -310,3 +310,19 @@ it('advances local sweep chunks before the first model call and stops at the cov
   expect(s.sweep.mock.invocationCallOrder[1]).toBeLessThan(s.calls.mock.invocationCallOrder[0]!)
   expect(s.runner.current()).toMatchObject({ suggestions: 3, folded: 1 })
 })
+
+it('ends the local pass at its time bound even when coverage is not complete', async () => {
+  const s = setup(0)
+  let tick = 0
+  s.options.now = () => (tick++ ? 3000 : 0)
+  s.sweep.mockReturnValue({
+    coverage: emptyBrainTidyCoverage(),
+    suggestions: 0,
+    folded: 0,
+    operationIds: [],
+  })
+  s.runner.start()
+  expect(await s.finish()).toMatchObject({ state: 'done', total: 0 })
+  expect(s.sweep).toHaveBeenCalledOnce()
+  expect(s.calls).not.toHaveBeenCalled()
+})

@@ -108,7 +108,8 @@ export function createTidyRunner(context: TidyRunContext): TidyRunner {
     update({
       state: 'failed',
       finishedAt: now(),
-      error: 'Brain Tidy was interrupted. Retry to continue with unjudged pairs.',
+      error:
+        'Tidy was interrupted when Phosphor closed. Run it again to check the remaining pairs.',
     })
   const execute = async (signal: AbortSignal): Promise<void> => {
     try {
