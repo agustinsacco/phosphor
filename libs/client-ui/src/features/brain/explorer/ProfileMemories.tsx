@@ -141,23 +141,7 @@ function MemoryPages({
   onOpen: (id: string | null) => void
   actions: MemoryRowActions
 }): React.JSX.Element {
-  const [cursor, setCursor] = useState<string | null>(null)
-  const filterKey = JSON.stringify(filter)
-  const load = useCallback(
-    () =>
-      window.phosphor.invoke(
-        'brain:entityMemories',
-        id,
-        JSON.parse(filterKey) as BrainMemoryFilter,
-        cursor,
-      ),
-    [id, filterKey, cursor],
-  )
-  const { data, error, retry } = useBrainResource(load)
-  const [previous, setPrevious] = useState<BrainMemory[]>([])
-  const memories = [
-    ...new Map([...previous, ...(data?.memories ?? [])].map((m) => [m.id, m])).values(),
-  ]
+  const { data, error, retry, memories, more } = useMemoryPages(id, filter)
   const listed = memories.some((memory) => memory.id === openId)
   return (
     <div className="space-y-2 pt-2">
@@ -203,16 +187,41 @@ function MemoryPages({
         </p>
       )}
       {data?.next && (
-        <Button
-          size="xs"
-          onClick={() => {
-            setPrevious(memories)
-            setCursor(data.next)
-          }}
-        >
+        <Button size="xs" onClick={more}>
           Show more memories
         </Button>
       )}
     </div>
   )
+}
+
+/** Rows from every page loaded so far, newest first; a new page appends without repeats. */
+function useMemoryPages(id: string, filter: BrainMemoryFilter) {
+  const [cursor, setCursor] = useState<string | null>(null)
+  const filterKey = JSON.stringify(filter)
+  const load = useCallback(
+    () =>
+      window.phosphor.invoke(
+        'brain:entityMemories',
+        id,
+        JSON.parse(filterKey) as BrainMemoryFilter,
+        cursor,
+      ),
+    [id, filterKey, cursor],
+  )
+  const { data, error, retry } = useBrainResource(load)
+  const [previous, setPrevious] = useState<BrainMemory[]>([])
+  const memories = [
+    ...new Map([...previous, ...(data?.memories ?? [])].map((m) => [m.id, m])).values(),
+  ]
+  return {
+    data,
+    error,
+    retry,
+    memories,
+    more: (): void => {
+      setPrevious(memories)
+      setCursor(data?.next ?? null)
+    },
+  }
 }

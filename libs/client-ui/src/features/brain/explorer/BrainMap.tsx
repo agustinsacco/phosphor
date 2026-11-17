@@ -43,26 +43,7 @@ export function BrainMap({
 }): React.JSX.Element {
   const box = useRef<HTMLDivElement>(null)
   const { width, height } = useBoxSize(box, MAP_FALLBACK)
-  const load = useCallback(
-    () => window.phosphor.invoke('brain:neighbourhood', entityId, hops),
-    [entityId, hops],
-  )
-  const { data, error, retry } = useBrainResource(load)
-  const layout = useMemo(
-    () =>
-      data
-        ? layoutMap({
-            centerId: entityId,
-            nodes: data.nodes,
-            links: data.links,
-            hops,
-            width,
-            height,
-          })
-        : null,
-    [data, entityId, hops, width, height],
-  )
-  const kinds = BRAIN_ENTITY_KINDS.filter((kind) => layout?.nodes.some((n) => n.kind === kind))
+  const { layout, error, retry } = useMapLayout(entityId, hops, width, height)
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="border-border flex flex-wrap items-center gap-2 border-b px-3 py-1.5">
@@ -72,10 +53,7 @@ export function BrainMap({
         <NeutralSegmented
           value={String(hops) as '1' | '2'}
           onChange={(value) => onHops(Number(value) as 1 | 2)}
-          options={[
-            { id: '1', label: '1 step' },
-            { id: '2', label: '2 steps' },
-          ]}
+          options={HOP_OPTIONS}
         />
         <Button size="xs" onClick={onFull}>
           Full map
@@ -109,24 +87,60 @@ export function BrainMap({
           </Button>
         )}
       </div>
-      {kinds.length > 0 && (
-        <ul
-          aria-label="Legend"
-          className="border-border text-text-tertiary flex flex-wrap gap-x-3 gap-y-1 border-t px-3 py-1.5 text-sm"
-        >
-          {kinds.map((kind) => (
-            <li key={kind} className="flex items-center gap-1">
-              <span
-                aria-hidden="true"
-                className="size-2 rounded-full"
-                style={{ background: `var(${GRAPH_COLORS[kind]})` }}
-              />
-              {ENTITY_LABELS[kind]}
-            </li>
-          ))}
-        </ul>
-      )}
+      {layout && <MapLegend nodes={layout.nodes} />}
     </div>
+  )
+}
+
+const HOP_OPTIONS = [
+  { id: '1' as const, label: '1 step' },
+  { id: '2' as const, label: '2 steps' },
+]
+
+/** The neighbourhood from Brain, laid out for the box it has now. */
+function useMapLayout(entityId: string, hops: 1 | 2, width: number, height: number) {
+  const load = useCallback(
+    () => window.phosphor.invoke('brain:neighbourhood', entityId, hops),
+    [entityId, hops],
+  )
+  const { data, error, retry } = useBrainResource(load)
+  const layout = useMemo(
+    () =>
+      data
+        ? layoutMap({
+            centerId: entityId,
+            nodes: data.nodes,
+            links: data.links,
+            hops,
+            width,
+            height,
+          })
+        : null,
+    [data, entityId, hops, width, height],
+  )
+  return { layout, error, retry }
+}
+
+/** Words for every colour on the map, never colour alone. */
+function MapLegend({ nodes }: { nodes: MapNode[] }): React.JSX.Element | null {
+  const kinds = BRAIN_ENTITY_KINDS.filter((kind) => nodes.some((n) => n.kind === kind))
+  if (!kinds.length) return null
+  return (
+    <ul
+      aria-label="Legend"
+      className="border-border text-text-tertiary flex flex-wrap gap-x-3 gap-y-1 border-t px-3 py-1.5 text-sm"
+    >
+      {kinds.map((kind) => (
+        <li key={kind} className="flex items-center gap-1">
+          <span
+            aria-hidden="true"
+            className="size-2 rounded-full"
+            style={{ background: `var(${GRAPH_COLORS[kind]})` }}
+          />
+          {ENTITY_LABELS[kind]}
+        </li>
+      ))}
+    </ul>
   )
 }
 

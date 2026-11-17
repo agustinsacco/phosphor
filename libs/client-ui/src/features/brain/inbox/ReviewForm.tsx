@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { BrainProposalView } from '@shared/brain'
 import { Button } from '@/components/form'
-import { TooltipButton } from '@/components/Tooltip'
 import { formatCount } from '@/lib/format'
 import { brainToast, useBrain } from '../useBrain'
 import { useBrainModelName } from '../useBrainModelName'
@@ -31,31 +30,9 @@ export function ReviewForm({
   const [choices, setChoices] = useState<ReviewChoices>(() => initialChoices(proposal))
   const saving = useBrain((s) => s.saving)
   const model = useBrainModelName(job.model)
-  const [error, setError] = useState('')
   const block = approveBlock(proposal, choices)
   const neverRead = false
-  const submit = async (approve: boolean): Promise<void> => {
-    if (approve && block) return
-    setError('')
-    const decision = approve ? reviewDecision(proposal, choices) : null
-    if (await useBrain.getState().review(job.id, decision, proposal.revision))
-      brainToast(
-        approve
-          ? `Approved ${formatCount(decision!.memories.length, 'memory', 'memories')} from ${job.title}`
-          : `Rejected the read of ${job.title}`,
-      )
-    else {
-      const message = useBrain.getState().error
-      setError(message)
-      if (message.startsWith('Brain changed')) await onStale()
-    }
-  }
-  const approve = (): void => {
-    void submit(true)
-  }
-  const reject = (): void => {
-    void submit(false)
-  }
+  const { error, approve, reject } = useReviewSubmit(proposal, choices, block, onStale)
   useEffect(() => {
     keys.current = { primary: neverRead ? reject : approve, reject }
     return () => {
@@ -70,33 +47,25 @@ export function ReviewForm({
       title={job.title}
       subtitle={`${formatCount(proposal.memories.length, 'memory', 'memories')}${questions ? ` · ${formatCount(questions, 'question')}` : ''} · read by ${model}`}
       aside={
-        <TooltipButton
-          className="text-text-secondary hover:text-text text-sm underline"
+        <Button
+          size="xs"
+          tooltip="The model calls, the result of each claim and the source"
           onClick={onExtraction}
         >
           See how it was read
-        </TooltipButton>
+        </Button>
       }
       bar={
-        <DecisionBar note={replacementNote(proposal)} error={error}>
-          <Button
-            variant={neverRead ? 'secondary' : 'primary'}
-            disabled={saving || !!block}
-            tooltip={block ?? { label: 'Save the ticked memories', shortcut: ['A'] }}
-            onClick={approve}
-          >
-            {approveLabel(proposal, choices.keep.length)}
-          </Button>
-          <Button
-            variant={neverRead ? 'primary' : 'secondary'}
-            disabled={saving}
-            tooltip={{ label: 'Save nothing from this read', shortcut: ['R'] }}
-            onClick={reject}
-          >
-            Reject read
-          </Button>
-          {block && <span className="text-text-secondary text-sm">{block}</span>}
-        </DecisionBar>
+        <ReviewBar
+          proposal={proposal}
+          keep={choices.keep.length}
+          block={block}
+          neverRead={neverRead}
+          saving={saving}
+          error={error}
+          onApprove={approve}
+          onReject={reject}
+        />
       }
     >
       {proposal.held > 0 && (
@@ -114,6 +83,84 @@ export function ReviewForm({
         />
       </fieldset>
     </DecisionFrame>
+  )
+}
+
+/** Approve or reject; a stale review refreshes rather than failing silently. */
+function useReviewSubmit(
+  proposal: BrainProposalView,
+  choices: ReviewChoices,
+  block: string | null,
+  onStale: () => Promise<void>,
+) {
+  const { job } = proposal
+  const [error, setError] = useState('')
+  const submit = async (approve: boolean): Promise<void> => {
+    if (approve && block) return
+    setError('')
+    const decision = approve ? reviewDecision(proposal, choices) : null
+    if (await useBrain.getState().review(job.id, decision, proposal.revision))
+      brainToast(
+        approve
+          ? `Approved ${formatCount(decision!.memories.length, 'memory', 'memories')} from ${job.title}`
+          : `Rejected the read of ${job.title}`,
+      )
+    else {
+      const message = useBrain.getState().error
+      setError(message)
+      if (message.startsWith('Brain changed')) await onStale()
+    }
+  }
+  return {
+    error,
+    approve: (): void => {
+      void submit(true)
+    },
+    reject: (): void => {
+      void submit(false)
+    },
+  }
+}
+
+function ReviewBar({
+  proposal,
+  keep,
+  block,
+  neverRead,
+  saving,
+  error,
+  onApprove,
+  onReject,
+}: {
+  proposal: BrainProposalView
+  keep: number
+  block: string | null
+  neverRead: boolean
+  saving: boolean
+  error: string
+  onApprove: () => void
+  onReject: () => void
+}): React.JSX.Element {
+  return (
+    <DecisionBar note={replacementNote(proposal)} error={error}>
+      <Button
+        variant={neverRead ? 'secondary' : 'primary'}
+        disabled={saving || !!block}
+        tooltip={block ?? { label: 'Save the ticked memories', shortcut: ['A'] }}
+        onClick={onApprove}
+      >
+        {approveLabel(proposal, keep)}
+      </Button>
+      <Button
+        variant={neverRead ? 'primary' : 'secondary'}
+        disabled={saving}
+        tooltip={{ label: 'Save nothing from this read', shortcut: ['R'] }}
+        onClick={onReject}
+      >
+        Reject read
+      </Button>
+      {block && <span className="text-text-secondary text-sm">{block}</span>}
+    </DecisionBar>
   )
 }
 

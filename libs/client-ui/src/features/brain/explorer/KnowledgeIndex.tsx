@@ -1,23 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@shared/brain'
+import type { BrainEntityKind } from '@shared/brain'
 import { Button, Select, TextInput } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
-import { formatCount } from '@/lib/format'
-import { useBrain } from '../useBrain'
 import { ENTITY_LABELS } from '../memoryLabels'
-import { useBrainFind } from './BrainSearch'
 import { KindDot } from './KnowledgePrimitives'
-import { useEntityPages } from './useEntityPages'
 import { ENTITY_SORT_LABELS, type EntitySort } from './entityIndex'
+import { useIndexRows, type IndexRow } from './useIndexRows'
 import type { BrainVisit } from './trail'
-
-interface IndexRow {
-  visit: BrainVisit
-  kind: BrainEntityKind | null
-  meta: string
-}
 
 /** The fixed index: search, kinds, sort, then compact rows. Only the rows scroll. */
 export function KnowledgeIndex({
@@ -38,31 +29,8 @@ export function KnowledgeIndex({
   useEffect(() => {
     if (searchRequest) input.current?.focus()
   }, [searchRequest])
-  const searching = !!query.trim()
-  const find = useBrainFind(query)
-  const browse = useEntityPages(kind || null, sort, !searching)
-  const total = useBrain((s) => s.status?.counts.entities ?? 0)
-  const entities: IndexRow[] = searching
-    ? (find.data?.entities ?? [])
-        .filter((entity) => !kind || entity.kind === kind)
-        .map((entity) => ({
-          visit: { kind: 'entity', id: entity.id, label: entity.label },
-          kind: entity.kind,
-          meta: String(entity.memories),
-        }))
-    : (browse.data?.items ?? []).map(({ entity, memories }) => ({
-        visit: { kind: 'entity', id: entity.id, label: entity.label },
-        kind: entity.kind,
-        meta: String(memories),
-      }))
-  const memories: IndexRow[] = searching
-    ? (find.data?.memories ?? []).map((memory) => ({
-        visit: { kind: 'memory', id: memory.id, label: memory.summary },
-        kind: null,
-        meta: '',
-      }))
-    : []
-  const rows = [...entities, ...memories]
+  const index = useIndexRows(query, kind, sort)
+  const { rows } = index
   const choose = (visit: BrainVisit): void => {
     onVisit(visit)
     setActive(-1)
@@ -82,18 +50,6 @@ export function KnowledgeIndex({
       choose(rows[Math.max(0, active)]!.visit)
     }
   }
-  const counts = browse.data?.counts ?? {}
-  const kinds = BRAIN_ENTITY_KINDS.filter((k) => (browse.data?.kinds ?? []).includes(k))
-  const countAll = Object.values(counts).reduce((sum, value) => sum + (value ?? 0), 0) || total
-  const resultLine = searching
-    ? find.data
-      ? formatCount(rows.length, 'result')
-      : 'Searching…'
-    : browse.data
-      ? browse.data.total !== null
-        ? formatCount(browse.data.total, 'result')
-        : `${browse.data.items.length}${browse.data.more ? '+' : ''} shown`
-      : 'Loading…'
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-border space-y-2 border-b p-2">
@@ -114,80 +70,129 @@ export function KnowledgeIndex({
           }}
           onKeyDown={onKey}
         />
-        <div role="group" aria-label="Kinds" className="flex flex-wrap gap-1">
-          <KindChip pressed={!kind} onClick={() => setKind('')} label="All" count={countAll} />
-          {kinds.map((k) => (
-            <KindChip
-              key={k}
-              pressed={kind === k}
-              onClick={() => setKind(k)}
-              label={ENTITY_LABELS[k]}
-              count={counts[k]}
-            />
-          ))}
-        </div>
-        <div className="text-text-tertiary flex items-center justify-between gap-2 text-sm">
-          <span role="status">{resultLine}</span>
-          {searching ? (
-            <span>By best match</span>
-          ) : (
-            <Select
-              label="Sort"
-              value={sort}
-              onChange={setSort}
-              className="border-0 bg-transparent px-1 py-0 text-sm"
-              options={(Object.keys(ENTITY_SORT_LABELS) as EntitySort[]).map((value) => ({
-                value,
-                label: ENTITY_SORT_LABELS[value],
-              }))}
-            />
-          )}
-        </div>
+        <IndexFilters index={index} kind={kind} onKind={setKind} sort={sort} onSort={setSort} />
       </div>
       <div className="brain-scroll p-1">
-        <div id={listId} role="listbox" aria-label="People and things">
-          {entities.map((row, index) => (
-            <IndexOption
-              key={row.visit.id}
-              row={row}
-              id={`${listId}-${index}`}
-              active={index === active}
-              current={row.visit.id === selectedId}
-              onChoose={choose}
-            />
-          ))}
-          {memories.length > 0 && (
-            <div role="group" aria-label="Memories">
-              <SectionLabel>Memories</SectionLabel>
-              {memories.map((row, index) => (
-                <IndexOption
-                  key={row.visit.id}
-                  row={row}
-                  id={`${listId}-${entities.length + index}`}
-                  active={entities.length + index === active}
-                  current={false}
-                  onChoose={choose}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        <IndexState
-          searching={searching}
-          empty={!rows.length}
-          error={searching ? find.error : browse.error}
-          loaded={searching ? !!find.data : !!browse.data}
-          retry={searching ? find.retry : browse.retry}
-          more={!searching && !!browse.data?.more}
-          onMore={browse.more}
+        <IndexList
+          index={index}
+          listId={listId}
+          active={active}
+          selectedId={selectedId}
+          onChoose={choose}
         />
-        {find.data?.degradation.map((note) => (
-          <p key={note} className="text-text-tertiary p-2 text-sm">
-            {note}
-          </p>
-        ))}
       </div>
     </div>
+  )
+}
+
+type IndexRows = ReturnType<typeof useIndexRows>
+
+function IndexFilters({
+  index,
+  kind,
+  onKind,
+  sort,
+  onSort,
+}: {
+  index: IndexRows
+  kind: BrainEntityKind | ''
+  onKind: (kind: BrainEntityKind | '') => void
+  sort: EntitySort
+  onSort: (sort: EntitySort) => void
+}): React.JSX.Element {
+  return (
+    <>
+      <div role="group" aria-label="Kinds" className="flex flex-wrap gap-1">
+        <KindChip pressed={!kind} onClick={() => onKind('')} label="All" count={index.countAll} />
+        {index.kinds.map((k) => (
+          <KindChip
+            key={k}
+            pressed={kind === k}
+            onClick={() => onKind(k)}
+            label={ENTITY_LABELS[k]}
+            count={index.counts[k]}
+          />
+        ))}
+      </div>
+      <div className="text-text-tertiary flex items-center justify-between gap-2 text-sm">
+        <span role="status">{index.resultLine}</span>
+        {index.searching ? (
+          <span>By best match</span>
+        ) : (
+          <Select
+            label="Sort"
+            value={sort}
+            onChange={onSort}
+            className="border-0 bg-transparent px-1 py-0 text-sm"
+            options={(Object.keys(ENTITY_SORT_LABELS) as EntitySort[]).map((value) => ({
+              value,
+              label: ENTITY_SORT_LABELS[value],
+            }))}
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
+function IndexList({
+  index,
+  listId,
+  active,
+  selectedId,
+  onChoose,
+}: {
+  index: IndexRows
+  listId: string
+  active: number
+  selectedId: string | null
+  onChoose: (visit: BrainVisit) => void
+}): React.JSX.Element {
+  const { entities, memories } = index
+  return (
+    <>
+      <div id={listId} role="listbox" aria-label="People and things">
+        {entities.map((row, at) => (
+          <IndexOption
+            key={row.visit.id}
+            row={row}
+            id={`${listId}-${at}`}
+            active={at === active}
+            current={row.visit.id === selectedId}
+            onChoose={onChoose}
+          />
+        ))}
+        {memories.length > 0 && (
+          <div role="group" aria-label="Memories">
+            <SectionLabel>Memories</SectionLabel>
+            {memories.map((row, at) => (
+              <IndexOption
+                key={row.visit.id}
+                row={row}
+                id={`${listId}-${entities.length + at}`}
+                active={entities.length + at === active}
+                current={false}
+                onChoose={onChoose}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      <IndexState
+        searching={index.searching}
+        empty={!index.rows.length}
+        error={index.error}
+        loaded={index.loaded}
+        retry={index.retry}
+        more={index.more}
+        onMore={index.onMore}
+      />
+      {index.degradation.map((note) => (
+        <p key={note} className="text-text-tertiary p-2 text-sm">
+          {note}
+        </p>
+      ))}
+    </>
   )
 }
 

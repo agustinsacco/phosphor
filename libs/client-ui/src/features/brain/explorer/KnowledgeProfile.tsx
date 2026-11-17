@@ -67,29 +67,10 @@ function Profile({
   menu,
 }: ProfileProps & { view: BrainEntityView }): React.JSX.Element {
   const saving = useBrain((s) => s.saving)
-  const [tab, setTab] = useState<ProfileTab>('memories')
-  const [filters, setFilters] = useState<MemoryFilters>(NO_MEMORY_FILTERS)
-  const [openId, setOpenId] = useState<string | null>(visit.memoryId ?? null)
-  const [tool, setTool] = useState<ProfileTool | null>(null)
-  useEffect(() => {
-    if (!visit.memoryId) return
-    setOpenId(visit.memoryId)
-    setFilters(NO_MEMORY_FILTERS)
-    setTab('memories')
-  }, [visit.memoryId])
-  useEffect(() => {
-    if (connectionsRequest) setTab('connections')
-  }, [connectionsRequest])
+  const state = useProfileState(visit.memoryId, connectionsRequest)
+  const { tab, setTab, tool, setTool } = state
   // The Map tab only exists while the map has no column of its own.
   const shown: ProfileTab = tab === 'map' && !map ? 'memories' : tab
-  const memories = Object.values(view.memoryCounts).reduce((sum, n) => sum + n, 0)
-  const neighbours = view.groups.reduce((sum, group) => sum + group.total, 0)
-  const tabs: { value: ProfileTab; label: string }[] = [
-    { value: 'memories', label: `Memories ${memories}` },
-    { value: 'connections', label: `Connections ${neighbours}` },
-    { value: 'lanes', label: `Lanes ${view.sources.length}` },
-    ...(map ? [{ value: 'map' as const, label: 'Map' }] : []),
-  ]
   const actions: MemoryRowActions = {
     onEntity: (id, label) => onVisit({ kind: 'entity', id, label }),
     onMap: (ids) => {
@@ -110,7 +91,7 @@ function Profile({
         view={view}
         lastLearned=""
         tab={shown}
-        tabs={tabs}
+        tabs={profileTabs(view, !!map)}
         onTab={setTab}
         tool={tool}
         onTool={(next) => {
@@ -129,48 +110,108 @@ function Profile({
         {shown === 'map' ? (
           map
         ) : (
-          <>
-            {tool && (
-              <div className="pt-3">
-                <ProfileToolPanel
-                  entity={view.entity}
-                  tool={tool}
-                  onClose={() => setTool(null)}
-                  onVisit={onVisit}
-                  onPath={(path) => {
-                    onPath(path)
-                    if (path) onFullMap()
-                  }}
-                />
-              </div>
-            )}
-            <About view={view} />
-            {shown === 'memories' && (
-              <ProfileMemories
-                view={view}
-                openId={openId}
-                onOpen={setOpenId}
-                filters={filters}
-                onFilters={setFilters}
-                actions={actions}
-              />
-            )}
-            {shown === 'connections' && (
-              <ProfileConnections view={view} onEntity={actions.onEntity} onHover={onHover} />
-            )}
-            {shown === 'lanes' && (
-              <ProfileLanes
-                view={view}
-                onLane={(lane) => {
-                  setFilters({ ...NO_MEMORY_FILTERS, lane })
-                  setTab('memories')
-                }}
-              />
-            )}
-          </>
+          <ProfileBody
+            view={view}
+            tab={shown}
+            state={state}
+            actions={actions}
+            onVisit={onVisit}
+            onHover={onHover}
+            onPath={(path) => {
+              onPath(path)
+              if (path) onFullMap()
+            }}
+          />
         )}
       </div>
     </article>
+  )
+}
+
+function profileTabs(view: BrainEntityView, map: boolean): { value: ProfileTab; label: string }[] {
+  const memories = Object.values(view.memoryCounts).reduce((sum, n) => sum + n, 0)
+  const neighbours = view.groups.reduce((sum, group) => sum + group.total, 0)
+  return [
+    { value: 'memories', label: `Memories ${memories}` },
+    { value: 'connections', label: `Connections ${neighbours}` },
+    { value: 'lanes', label: `Lanes ${view.sources.length}` },
+    ...(map ? [{ value: 'map' as const, label: 'Map' }] : []),
+  ]
+}
+
+/** Tab, memory filters, the open memory and the route or merge tool, for one profile. */
+function useProfileState(memoryId: string | undefined, connectionsRequest: number) {
+  const [tab, setTab] = useState<ProfileTab>('memories')
+  const [filters, setFilters] = useState<MemoryFilters>(NO_MEMORY_FILTERS)
+  const [openId, setOpenId] = useState<string | null>(memoryId ?? null)
+  const [tool, setTool] = useState<ProfileTool | null>(null)
+  useEffect(() => {
+    if (!memoryId) return
+    setOpenId(memoryId)
+    setFilters(NO_MEMORY_FILTERS)
+    setTab('memories')
+  }, [memoryId])
+  useEffect(() => {
+    if (connectionsRequest) setTab('connections')
+  }, [connectionsRequest])
+  return { tab, setTab, filters, setFilters, openId, setOpenId, tool, setTool }
+}
+
+function ProfileBody({
+  view,
+  tab,
+  state,
+  actions,
+  onVisit,
+  onHover,
+  onPath,
+}: {
+  view: BrainEntityView
+  tab: ProfileTab
+  state: ReturnType<typeof useProfileState>
+  actions: MemoryRowActions
+  onVisit: (visit: BrainVisit) => void
+  onHover: (id: string | null) => void
+  onPath: (path: BrainLink[] | null) => void
+}): React.JSX.Element {
+  const { tool, setTool, filters, setFilters, openId, setOpenId, setTab } = state
+  return (
+    <>
+      {tool && (
+        <div className="pt-3">
+          <ProfileToolPanel
+            entity={view.entity}
+            tool={tool}
+            onClose={() => setTool(null)}
+            onVisit={onVisit}
+            onPath={onPath}
+          />
+        </div>
+      )}
+      <About view={view} />
+      {tab === 'memories' && (
+        <ProfileMemories
+          view={view}
+          openId={openId}
+          onOpen={setOpenId}
+          filters={filters}
+          onFilters={setFilters}
+          actions={actions}
+        />
+      )}
+      {tab === 'connections' && (
+        <ProfileConnections view={view} onEntity={actions.onEntity} onHover={onHover} />
+      )}
+      {tab === 'lanes' && (
+        <ProfileLanes
+          view={view}
+          onLane={(lane) => {
+            setFilters({ ...NO_MEMORY_FILTERS, lane })
+            setTab('memories')
+          }}
+        />
+      )}
+    </>
   )
 }
 

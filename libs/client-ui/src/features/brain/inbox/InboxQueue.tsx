@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react'
-import type { BrainTidyPage } from '@shared/brain-tidy'
+import type { useTidyPage } from '../tidy/useTidyPage'
 import { Button } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
@@ -23,21 +23,20 @@ export function InboxQueue({
   groups,
   selected,
   onSelect,
-  page,
-  error,
-  loading,
-  onRetry,
-  onMore,
+  tidy,
 }: {
   groups: InboxGroup[]
   selected: string | null
   onSelect: (key: string) => void
-  page: BrainTidyPage | null
-  error: string
-  loading: boolean
-  onRetry: () => void
-  onMore: () => void
+  tidy: ReturnType<typeof useTidyPage>
 }): React.JSX.Element {
+  const { page, error, loading } = tidy
+  const onRetry = (): void => {
+    void tidy.reload()
+  }
+  const onMore = (): void => {
+    void tidy.reload(true)
+  }
   return (
     <div className="min-w-0 space-y-3 p-2" onKeyDown={moveFocus}>
       {groups.map((group) => (

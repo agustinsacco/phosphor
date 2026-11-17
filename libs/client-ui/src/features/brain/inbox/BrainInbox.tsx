@@ -9,7 +9,13 @@ import { InboxContext } from './InboxContext'
 import { ReviewDecision } from './ReviewDecision'
 import { TidyRunControls } from './TidyRunControls'
 import type { DecisionKeys } from './DecisionFrame'
-import { inboxGroups, inboxOrder, keepInboxSelection, moveInboxSelection } from './inboxItems'
+import {
+  inboxGroups,
+  inboxOrder,
+  keepInboxSelection,
+  moveInboxSelection,
+  type InboxItem,
+} from './inboxItems'
 
 /** Every decision in one queue: lane reads to review first, then Tidy suggestions by kind. */
 export function BrainInbox({
@@ -28,15 +34,9 @@ export function BrainInbox({
   const jobs = useBrain((s) => s.status!.jobs)
   const groups = inboxGroups(jobs, tidy.page)
   const items = inboxOrder(groups)
-  const previous = useRef<string[]>([])
   // A notice can ask for a suggestion before its page has loaded.
   const waiting = !tidy.page && !!selected?.startsWith('suggestion:')
-  const current = waiting ? selected : keepInboxSelection(previous.current, items, selected)
-  const order = items.map((item) => item.key).join('\n')
-  useEffect(() => {
-    previous.current = order ? order.split('\n') : []
-    if (current !== selected) onSelect(current)
-  }, [order, current, selected, onSelect])
+  const current = useInboxSelection(items, selected, onSelect, waiting)
   // Each decision fills this while mounted and empties it on unmount, so one still loading
   // never answers for the previous one.
   const keys = useRef<DecisionKeys>({})
@@ -56,20 +56,7 @@ export function BrainInbox({
     <div className="brain-panes brain-inbox" onKeyDown={onKeyDown}>
       <section aria-label="Decisions" className="brain-pane brain-pane--side brain-pane--start">
         <div className="brain-scroll">
-          <InboxQueue
-            groups={groups}
-            selected={current}
-            onSelect={onSelect}
-            page={tidy.page}
-            error={tidy.error}
-            loading={tidy.loading}
-            onRetry={() => {
-              void tidy.reload()
-            }}
-            onMore={() => {
-              void tidy.reload(true)
-            }}
-          />
+          <InboxQueue groups={groups} selected={current} onSelect={onSelect} tidy={tidy} />
         </div>
         <TidyRunControls page={tidy.page} reload={tidy.reload} />
       </section>
@@ -104,4 +91,21 @@ export function BrainInbox({
       </aside>
     </div>
   )
+}
+
+/** The selection in force: kept while it exists, else the item after it, then before it. */
+function useInboxSelection(
+  items: InboxItem[],
+  selected: string | null,
+  onSelect: (key: string | null) => void,
+  waiting: boolean,
+): string | null {
+  const previous = useRef<string[]>([])
+  const current = waiting ? selected : keepInboxSelection(previous.current, items, selected)
+  const order = items.map((item) => item.key).join('\n')
+  useEffect(() => {
+    previous.current = order ? order.split('\n') : []
+    if (current !== selected) onSelect(current)
+  }, [order, current, selected, onSelect])
+  return current
 }
