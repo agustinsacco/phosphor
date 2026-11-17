@@ -64,6 +64,7 @@ export function TidyList({
                   <TidyRow
                     label={item.subjects.map((s) => s.label).join(' · ')}
                     reason={item.reason}
+                    disabled={busy}
                     selected={selected?.type === 'suggestion' && selected.id === item.id}
                     onClick={() => onSelect({ type: 'suggestion', id: item.id })}
                   />
@@ -87,6 +88,7 @@ export function TidyList({
                 <TidyRow
                   label={op.summary}
                   reason={`${op.automatic ? 'Automatic' : 'By you'} · ${relativeTime(op.createdAt)}${op.undoneAt ? ' · Undone' : ''}`}
+                  disabled={busy}
                   selected={selected?.type === 'operation' && selected.id === op.id}
                   onClick={() => onSelect({ type: 'operation', id: op.id })}
                 />
@@ -107,16 +109,19 @@ function TidyRow({
   label,
   reason,
   selected,
+  disabled,
   onClick,
 }: {
   label: string
   reason: string
   selected: boolean
+  disabled: boolean
   onClick: () => void
 }): React.JSX.Element {
   return (
     <TooltipButton
       data-tidy-row
+      disabled={disabled}
       aria-current={selected ? 'true' : undefined}
       tooltip={label}
       onClick={onClick}

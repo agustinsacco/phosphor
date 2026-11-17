@@ -99,13 +99,15 @@ function useTidyMutation({
   'reload' | 'reloadDetail' | 'retryChanges' | 'selectNext' | 'selected'
 >) {
   const [message, setMessage] = useState('')
-  const busy = useBrain((s) => s.saving)
+  const [pending, setPending] = useState(false)
+  const saving = useBrain((s) => s.saving)
   const perform = async (
     call: () => Promise<BrainStatus>,
     revision: number,
     advance = false,
   ): Promise<void> => {
     setMessage('')
+    setPending(true)
     try {
       await mutateBrain(call)
       const fresh = await reload()
@@ -127,7 +129,9 @@ function useTidyMutation({
             : ipcErrorText(cause),
         )
       }
+    } finally {
+      setPending(false)
     }
   }
-  return { message, busy, perform }
+  return { message, busy: saving || pending, perform }
 }

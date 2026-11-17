@@ -4,7 +4,7 @@ import { ipcErrorText } from '@shared/errors'
 import { useBrain } from '../useBrain'
 
 /** Reload the already-visible pages together; a late page never restores removed rows. */
-export function useTidyPage(active: boolean) {
+export function useTidyPage(active: boolean, navigation = 0) {
   const status = useBrain((s) => s.status)
   const [page, setPage] = useState<BrainTidyPage | null>(null)
   const [error, setError] = useState('')
@@ -48,7 +48,7 @@ export function useTidyPage(active: boolean) {
   useEffect(() => {
     if (active) void reload()
     return invalidate
-  }, [active, reload, invalidate, status?.revision, status?.generation, summary])
+  }, [active, reload, invalidate, status?.revision, status?.generation, summary, navigation])
   useEffect(() => {
     if (!active || !status?.tidy.running) return
     const timer = setInterval(() => {

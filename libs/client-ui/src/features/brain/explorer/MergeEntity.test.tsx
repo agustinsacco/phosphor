@@ -20,6 +20,7 @@ let root: Root,
   restore: () => void
 let status = mockBrainStatus()
 const merge = vi.fn(),
+  undo = vi.fn(),
   read = vi.fn(),
   visit = vi.fn()
 beforeEach(() => {
@@ -34,12 +35,13 @@ beforeEach(() => {
     revision: status.revision + 1,
     operationId: 'merge-1',
   }))
+  undo.mockReset().mockImplementation(async () => ({ ...status, revision: status.revision + 1 }))
   fake = createFakePhosphor({
     'brain:entity': read,
     'brain:merge': merge,
     'brain:status': () => status,
     'brain:tidy': () => emptyBrainTidyPage(status.revision),
-    'brain:tidyUndo': () => ({ ...status, revision: 2 }),
+    'brain:tidyUndo': undo,
   })
   restore = installFakePhosphor(fake)
   container = document.createElement('div')
@@ -119,4 +121,38 @@ it('keeps a same-revision refusal verbatim rather than interpreting its wording'
   await click('Review merge…')
   await answer()
   expect(merge).toHaveBeenCalledTimes(2)
+})
+
+it('uses the current revision when Undo is opened from the confirmation toast', async () => {
+  await render()
+  await answer()
+  const toast = useExtensionUiStore.getState().toasts[0]!
+  status = { ...status, revision: 5 }
+  await act(async () => {
+    await toast.onOpen?.()
+  })
+  expect(undo).toHaveBeenCalledWith('merge-1', 5)
+  expect(useExtensionUiStore.getState().toasts[0]!.message).toBe('Change undone')
+})
+it('reloads Recent changes and distinguishes a raced Undo from an engine refusal', async () => {
+  const { useTidyNavigation } = await import('../tidy/tidyNavigation')
+  await render()
+  await answer()
+  const toast = useExtensionUiStore.getState().toasts[0]!
+  undo.mockImplementationOnce(async () => {
+    status = { ...status, revision: 6 }
+    throw new Error('Revision mismatch')
+  })
+  await act(async () => {
+    await toast.onOpen?.()
+  })
+  expect(useExtensionUiStore.getState().toasts[0]!.message).toBe('Brain changed. Check this again.')
+  expect(useTidyNavigation.getState().recent).toBe(true)
+  undo.mockRejectedValueOnce(new Error('Later facts prevent a clean undo.'))
+  await act(async () => {
+    await toast.onOpen?.()
+  })
+  expect(useExtensionUiStore.getState().toasts[0]!.message).toBe(
+    'Later facts prevent a clean undo.',
+  )
 })

@@ -53,14 +53,14 @@ export function BrainTidy({
 
 function useTidyView(active: boolean, recent: number) {
   const [selected, setSelected] = useState<TidySelection>(null)
-  const { page, error, loading, reload } = useTidyPage(active)
+  const { page, error, loading, reload } = useTidyPage(active, recent)
   const id = selected?.type === 'suggestion' ? selected.id : ''
   const detail = useTidyDetail(id)
   const summary = useBrain((s) => JSON.stringify(s.status?.tidy))
   const changes = useBrainResource(
     useCallback(() => window.phosphor.invoke('brain:tidyChanges', 100), []),
     active,
-    summary,
+    `${summary}:${recent}`,
   )
   const [previousChanges, setPreviousChanges] = useState(changes.data)
   useEffect(() => {
