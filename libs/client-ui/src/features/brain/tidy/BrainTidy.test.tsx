@@ -187,3 +187,18 @@ it('leaves a refused Undo visible with the engine reason', async () => {
   await click('Undo')
   expect(undo).toHaveBeenCalledTimes(2)
 })
+
+it('advances in the visible grouped order rather than the interleaved response order', async () => {
+  await render()
+  await click('Merge into Rina Okafor')
+  expect(detail).toHaveBeenLastCalledWith('tidy-4')
+})
+
+it('keeps a swapped survivor, not just the row, after hiding and reopening Tidy', async () => {
+  await render()
+  await click('Swap surviving record')
+  await render(false)
+  await render()
+  const merge = [...container.querySelectorAll('button')].find((b) => b.textContent?.startsWith('Merge into'))!
+  expect(merge.textContent).toBe('Merge into Rina')
+})
