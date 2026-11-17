@@ -61,7 +61,11 @@ export function ReviewQuestions({
           <QuestionCard key={`group-${group.index}`} label={`Group ${group.parent.label}`}>
             <p className="font-medium">Are these part of one {group.parent.label}?</p>
             <p className="text-text-secondary text-sm">{group.labels.join(', ')}</p>
-            <div role="group" aria-label={`Group ${group.parent.label}`} className="flex flex-wrap gap-2">
+            <div
+              role="group"
+              aria-label={`Group ${group.parent.label}`}
+              className="flex flex-wrap gap-2"
+            >
               <Choice pressed={yes} onClick={() => set(true)}>
                 Yes, one {group.parent.label}
               </Choice>
@@ -72,7 +76,12 @@ export function ReviewQuestions({
           </QuestionCard>
         )
       })}
-      <FoldedIdentities proposal={proposal} choices={choices} onDescribe={describe} />
+      <FoldedIdentities
+        proposal={proposal}
+        choices={choices}
+        onChoose={choose}
+        onDescribe={describe}
+      />
     </section>
   )
 }
@@ -104,7 +113,12 @@ function Choice({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <Button size="sm" variant={pressed ? 'primary' : 'secondary'} aria-pressed={pressed} onClick={onClick}>
+    <Button
+      size="sm"
+      variant={pressed ? 'primary' : 'secondary'}
+      aria-pressed={pressed}
+      onClick={onClick}
+    >
       {children}
     </Button>
   )
@@ -137,7 +151,11 @@ function IdentityQuestion({
       </p>
       {identity.reason && <p className="text-text-tertiary text-sm">{identity.reason}</p>}
       {shown && <CandidateFacts candidate={shown} />}
-      <div role="group" aria-label={`Identity for ${identity.label}`} className="flex flex-wrap gap-2">
+      <div
+        role="group"
+        aria-label={`Identity for ${identity.label}`}
+        className="flex flex-wrap gap-2"
+      >
         {first && (
           <Choice pressed={value === first.id} onClick={() => onChoose(first.id)}>
             Yes, {first.label}
@@ -147,7 +165,11 @@ function IdentityQuestion({
           {identity.kind === 'person' ? 'Someone new' : 'Something new'}
         </Choice>
         {others.map((candidate) => (
-          <Choice key={candidate.id} pressed={value === candidate.id} onClick={() => onChoose(candidate.id)}>
+          <Choice
+            key={candidate.id}
+            pressed={value === candidate.id}
+            onClick={() => onChoose(candidate.id)}
+          >
             {candidate.label} · {ENTITY_WORDS[candidate.kind]}
           </Choice>
         ))}
@@ -219,10 +241,12 @@ export function DescriptionChoice({
 function FoldedIdentities({
   proposal,
   choices,
+  onChoose,
   onDescribe,
 }: {
   proposal: BrainProposalView
   choices: ReviewChoices
+  onChoose: (ref: string, value: string) => void
   onDescribe: (ref: string, use: boolean) => void
 }): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
@@ -260,12 +284,14 @@ function FoldedIdentities({
         />
       ))}
       {open && (
-        <ul className="text-text-secondary space-y-1 pl-4 text-sm">
+        <ul className="text-text-secondary space-y-1.5 pl-4 text-sm">
           {folded.map((identity) => (
-            <li key={identity.ref}>
-              {identity.label} · {ENTITY_WORDS[identity.kind]} ·{' '}
-              {identity.decision === 'reuse' ? 'already known' : 'new'}
-            </li>
+            <FoldedIdentity
+              key={identity.ref}
+              identity={identity}
+              value={identityChoice(identity, choices.identities)}
+              onChoose={(value) => onChoose(identity.ref, value)}
+            />
           ))}
           {proposal.confirmations.map((item) => (
             <li key={item.id}>Confirms: {item.summary}</li>
@@ -273,5 +299,49 @@ function FoldedIdentities({
         </ul>
       )}
     </div>
+  )
+}
+
+/** A match Brain was sure of, which the owner can still overrule. */
+function FoldedIdentity({
+  identity,
+  value,
+  onChoose,
+}: {
+  identity: BrainIdentity
+  value: string | null
+  onChoose: (value: string) => void
+}): React.JSX.Element {
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span>
+        {identity.label} · {ENTITY_WORDS[identity.kind]}
+      </span>
+      <span
+        role="group"
+        aria-label={`Identity for ${identity.label}`}
+        className="flex flex-wrap gap-1"
+      >
+        {identity.candidates.map((candidate) => (
+          <Button
+            key={candidate.id}
+            size="xs"
+            aria-pressed={value === candidate.id}
+            className={value === candidate.id ? 'bg-accent-soft' : undefined}
+            onClick={() => onChoose(candidate.id)}
+          >
+            {candidate.label}
+          </Button>
+        ))}
+        <Button
+          size="xs"
+          aria-pressed={value === 'new'}
+          className={value === 'new' ? 'bg-accent-soft' : undefined}
+          onClick={() => onChoose('new')}
+        >
+          {identity.kind === 'person' ? 'Someone new' : 'Something new'}
+        </Button>
+      </span>
+    </li>
   )
 }
