@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { sessionTitle } from '@/lib/sessionTitle'
 import type { BrainTidyAction, BrainTidySuggestionDetail } from '@shared/brain-tidy'
 import { Button } from '@/components/form'
 import { useSessionsStore } from '@/stores/sessions'
@@ -92,12 +93,12 @@ function FlagLane({
 }: {
   flag: NonNullable<BrainTidySuggestionDetail['suggestion']['flag']>
 }): React.JSX.Element {
-  const path = useSessionsStore(
-    (s) =>
-      Object.values(s.disk)
-        .flat()
-        .find((lane) => lane.sessionId === flag.sessionId)?.path,
+  const lane = useSessionsStore((s) =>
+    Object.values(s.disk)
+      .flat()
+      .find((lane) => lane.sessionId === flag.sessionId),
   )
+  const path = lane?.path
   const live = useSessionsStore((s) => s.live)
   const liveId = useChatStore((s) =>
     Object.keys(live).find(
@@ -105,10 +106,19 @@ function FlagLane({
         live[id]?.target?.kind !== 'remote' && s.sessions[id]?.meta?.sessionId === flag.sessionId,
     ),
   )
+  const title = useChatStore((s) => {
+    const chat = liveId ? s.sessions[liveId] : undefined
+    const first = chat?.items.find((item) => item.kind === 'user')
+    return sessionTitle({
+      explicitName: chat?.meta?.sessionName ?? lane?.name,
+      firstUserText: (first?.kind === 'user' ? first.text : undefined) ?? lane?.firstUserText,
+    })
+  })
   return (
     <div className="space-y-2">
       <p>
-        {flag.problem} · {flag.title}
+        {flag.problem} ·{' '}
+        {lane || liveId ? (title ?? 'Untitled lane') : `A lane calling itself ${flag.title}`}
       </p>
       <Button
         disabled={!path && !liveId}
