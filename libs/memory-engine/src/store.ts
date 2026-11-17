@@ -1,3 +1,4 @@
+import { mergeEntities } from './tidy/operations'
 import { tidyStore } from './tidy/store'
 import { randomUUID } from 'node:crypto'
 import type { BrainSnapshot } from '@phosphor/shared/brain'
@@ -79,10 +80,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
       explorer.connections(ctx, id, predicate, direction, cursor),
     entityMemories: (id, filter, cursor) => explorer.entityMemories(ctx, id, filter, cursor),
     memory: (id) => memory(ctx, id),
-    merge: (_source, _target, expected) => {
-      if (expected !== revision(ctx)) throw new Error('Brain changed; refresh Tidy and try again.')
-      throw new Error('Brain Tidy is not ready.')
-    },
+    merge: (source, target, expected) => mergeEntities(ctx, source, target, expected),
     forget: (id) => forget(ctx, id),
     reset: () => reset(ctx),
     close: () => ctx.db.close(),

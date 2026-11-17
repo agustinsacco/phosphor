@@ -292,7 +292,7 @@ export class FakeBrainStore implements BrainStore {
   })
   pendingPairs = () => []
   recordVerdicts(): void {}
-  flag = () => 'flag'
+  flag = () => ({ status: 'filed' as const, suggestionId: 'flag' })
   merge(): string {
     this.rev++
     return 'operation'

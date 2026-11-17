@@ -2,6 +2,7 @@ import type {
   BrainTidyAction,
   BrainTidyChanges,
   BrainTidyFlag,
+  BrainTidyFlagResult,
   BrainTidyJudgement,
   BrainTidyKind,
   BrainTidyPage,
@@ -28,7 +29,7 @@ export interface BrainTidyStore {
   pendingPairs(limit: number): BrainTidyPair[]
   recordVerdicts(judgements: BrainTidyJudgement[]): void
   /** One open flag per memory; at most five open flags per lane. Returns the suggestion id. */
-  flag(input: BrainTidyFlag): string
+  flag(input: BrainTidyFlag): BrainTidyFlagResult
 }
 
 /** Persisted queue checkpoint; terminal success is idle, no model work resumes on startup. */

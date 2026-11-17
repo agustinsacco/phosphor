@@ -59,6 +59,7 @@ class SearchIndexes {
   private closed = false
   private generation: string | undefined
   private revision: string | undefined
+  private vectorEpoch: string | undefined
   private pending: Promise<void> | null = null
   private again = false
   constructor(private ctx: Context) {
@@ -69,7 +70,7 @@ class SearchIndexes {
     return Object.fromEntries(
       all<{ key: string; value: string }>(
         this.ctx,
-        "SELECT key,value FROM meta WHERE key IN ('generation','revision')",
+        "SELECT key,value FROM meta WHERE key IN ('generation','revision','vector_epoch')",
       ).map((row) => [row.key, row.value]),
     )
   }
@@ -98,7 +99,7 @@ class SearchIndexes {
       const meta = this.meta()
       if (this.loaded && this.generation === meta.generation && this.revision === meta.revision)
         return
-      const rebuild = this.generation !== meta.generation
+      const rebuild = this.generation !== meta.generation || this.vectorEpoch !== meta.vector_epoch
       if (rebuild) this.loaded = false
       const current = (): boolean => {
         if (this.closed) return false
@@ -114,6 +115,7 @@ class SearchIndexes {
       this.memories = memories
       this.generation = meta.generation
       this.revision = meta.revision
+      this.vectorEpoch = meta.vector_epoch
       this.loaded = true
       passes++
     }

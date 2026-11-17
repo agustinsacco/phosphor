@@ -201,3 +201,8 @@ export function emptyBrainTidyPage(revision = 0): BrainTidyPage {
     run: null,
   }
 }
+
+export interface BrainTidyFlagResult {
+  status: 'filed' | 'already_flagged' | 'limit' | 'unavailable'
+  suggestionId: string | null
+}

@@ -16,7 +16,8 @@ CREATE INDEX tidy_suggestions_lane ON tidy_suggestions(session_id,state);
 CREATE TABLE tidy_operations(id TEXT PRIMARY KEY, kind TEXT NOT NULL,
   automatic INTEGER NOT NULL CHECK(automatic IN (0,1)), summary TEXT NOT NULL,
   created_at INTEGER NOT NULL, undone_at INTEGER,
-  suggestion_id TEXT REFERENCES tidy_suggestions(id) ON DELETE SET NULL);
+  suggestion_id TEXT REFERENCES tidy_suggestions(id) ON DELETE SET NULL,
+  subject_type TEXT NOT NULL CHECK(subject_type IN ('entity','memory')), first_id TEXT NOT NULL, second_id TEXT NOT NULL);
 CREATE INDEX tidy_operations_recent ON tidy_operations(created_at DESC,id);
 CREATE INDEX tidy_operations_automatic ON tidy_operations(automatic,created_at DESC);
 CREATE TABLE tidy_operation_rows(operation_id TEXT NOT NULL REFERENCES tidy_operations(id) ON DELETE CASCADE,
