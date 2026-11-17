@@ -130,6 +130,18 @@ function ReadActions({ data }: { data: BrainExtractionView }): React.JSX.Element
             replaceable={data.replaceable}
           />
         )}
+        {data.job?.state === 'empty' && (
+          <Button
+            size="xs"
+            disabled={saving}
+            tooltip="Take this read off the list"
+            onClick={() => {
+              void useBrain.getState().cancel(data.job!.id)
+            }}
+          >
+            Dismiss
+          </Button>
+        )}
         {data.source.exists && (
           <Button
             size="xs"
