@@ -178,9 +178,10 @@ it.each(['next batch', 'transport retry'])(
       Array.from({ length: 7 }, (_, i) => `Harbor retains Ledger policy ${i}.`),
     )
     const pairs = s.store.pendingPairs(40)
-    const subject = pairs[mode === 'next batch' ? 8 : 0]!.subjects.find(
-      (subject) => subject.type === 'memory',
-    )!
+    const subject = pairs
+      .slice(mode === 'next batch' ? 8 : 0, mode === 'next batch' ? 16 : 8)
+      .flatMap((pair) => pair.subjects)
+      .find((subject) => subject.type === 'memory')!
     expect(subject.type).toBe('memory')
     if (subject.type !== 'memory') throw new Error('Expected a memory pair')
     const normal = s.call.getMockImplementation()!
