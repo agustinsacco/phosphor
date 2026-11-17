@@ -40,11 +40,14 @@ export function tidyCaller(
 ) {
   const job = { id: `tidy-${randomUUID()}` }
   let part = 0
-  return async (pairs: BrainTidyPair[]) => {
+  return async (loadPairs: () => BrainTidyPair[]) => {
     for (let attempt = 0; ; attempt++) {
       signal.throwIfAborted()
       let reason: CallTrace['reason'] | undefined
       try {
+        // Reload after every transport delay too; no erased card is retained for a retry.
+        const pairs = loadPairs()
+        if (!pairs.length) return { judgements: [], dropped: 0, missing: 0 }
         const result = await (options.runModelCall ?? runModelCall)({
           directory: options.directory,
           job,

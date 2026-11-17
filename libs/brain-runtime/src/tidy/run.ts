@@ -56,15 +56,19 @@ async function check(
   signal: AbortSignal,
   update: (patch: Partial<BrainTidyRun>) => void,
 ) {
-  const pairs = context.store.pendingPairs(40).slice(0, 40)
-  update({ total: pairs.length })
+  // Keep only handles across calls: Forget may erase a later batch while a call is in flight.
+  const ids = context.store
+    .pendingPairs(40)
+    .slice(0, 40)
+    .map((pair) => pair.suggestionId)
+  update({ total: ids.length })
   const model = await tidyModel(context.store, context.options)
   signal.throwIfAborted()
   if (!model) {
     update({ message: NO_MODEL })
     return
   }
-  if (!pairs.length) {
+  if (!ids.length) {
     update({ message: 'No pairs need a model check.' })
     return
   }
@@ -72,24 +76,27 @@ async function check(
   let checked = 0,
     dropped = 0,
     missing = 0
-  for (let offset = 0; offset < pairs.length; offset += 8) {
+  for (let offset = 0; offset < ids.length; offset += 8) {
     signal.throwIfAborted()
-    update({ state: 'checking', message: `Checking ${checked} of ${pairs.length}` })
+    update({ state: 'checking', message: `Checking ${checked} of ${ids.length}` })
+    const batch = new Set(ids.slice(offset, offset + 8))
     try {
-      const result = await call(pairs.slice(offset, offset + 8))
+      const result = await call(() =>
+        context.store.pendingPairs(40).filter((pair) => batch.has(pair.suggestionId)),
+      )
       signal.throwIfAborted()
       context.store.recordVerdicts(result.judgements)
       checked += result.judgements.length
       dropped += result.dropped
       missing += result.missing
-      update({ checked, message: `Checking ${checked} of ${pairs.length}` })
+      update({ checked, message: `Checking ${checked} of ${ids.length}` })
     } catch (error) {
       if (signal.aborted) throw error
       update({ error: `${message(error)} Retry to check the unjudged pairs.` })
     }
   }
   update({
-    message: `Checked ${checked} of ${pairs.length} pairs.${dropped ? ` Dropped ${dropped} invalid answers.` : ''}${missing ? ` ${missing} pairs were left unjudged; Retry to check them.` : ''}`,
+    message: `Checked ${checked} of ${ids.length} pairs.${dropped ? ` Dropped ${dropped} invalid answers.` : ''}${missing ? ` ${missing} pairs were left unjudged; Retry to check them.` : ''}`,
   })
   if (missing) update({ error: 'Some pairs had no usable verdict. Retry to check them.' })
 }
