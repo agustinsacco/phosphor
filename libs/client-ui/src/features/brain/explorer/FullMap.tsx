@@ -6,6 +6,7 @@ import { ENTITY_WORDS } from '../memoryLabels'
 import { ExplorerGraph } from './ExplorerGraph'
 import { KindDot } from './KnowledgePrimitives'
 import { useEntityView } from './useEntityView'
+import { pageKeyTarget } from '../pageKeys'
 import type { BrainVisit } from './trail'
 
 /** The whole graph in 3D, given the width of profile and map. A click inspects; it never walks. */
@@ -25,7 +26,15 @@ export function FullMap({
 }): React.JSX.Element {
   const [inspected, setInspected] = useState<string | null>(null)
   return (
-    <section aria-label="Full map" className="relative flex min-h-0 flex-1 flex-col">
+    <section
+      aria-label="Full map"
+      className="relative flex min-h-0 flex-1 flex-col"
+      onKeyDown={(event) => {
+        if (!inspected || !pageKeyTarget(event, 'Escape')) return
+        event.preventDefault()
+        setInspected(null)
+      }}
+    >
       <header className="border-border flex items-center gap-2 border-b px-3 py-1.5">
         <h2 className="min-w-0 flex-1 truncate font-mono text-xs font-medium tracking-wider uppercase">
           Full map
