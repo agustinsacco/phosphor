@@ -2,7 +2,7 @@ import { ipcErrorText } from '@shared/errors'
 import type { BrainTidyMutation } from '@shared/brain-tidy'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { brainToast, mutateBrain, useBrain } from '../useBrain'
-import { openTidy } from './tidyNavigation'
+import { openTidy } from '../brainNavigation'
 
 /** The toast's labelled action uses a fresh revision, never an old pre-change revision. */
 export function tidyChangeToast(result: BrainTidyMutation, message: string): void {

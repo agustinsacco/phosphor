@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { emptyBrainTidyPage, type BrainTidyPage, type BrainTidyRun } from '@shared/brain-tidy'
-import { tidyStatus } from './TidyHeader'
+import { tidyStatus } from './tidyStatus'
 
 function finished(suggestions: number, folded: number): BrainTidyPage {
   const run: BrainTidyRun = {
