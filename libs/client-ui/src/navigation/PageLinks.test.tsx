@@ -106,3 +106,18 @@ it('names one review lane in the singular', async () => {
   await act(async () => root.render(<PageLinks onPage={onPage} />))
   expect(container.querySelector('[aria-label="1 lane to review"]')).not.toBeNull()
 })
+
+it('counts the whole Brain Inbox: reviews and open Tidy suggestions', async () => {
+  const { mockBrainJob } = await import('@/features/brain/mockBrainData')
+  const base = mockBrainStatus()
+  useBrain.setState({
+    status: {
+      ...base,
+      prefs: { enabled: true, recall: true, review: true, model: null },
+      jobs: [mockBrainJob(), mockBrainJob({ id: 'queued', state: 'queued' })],
+      tidy: { ...base.tidy, open: 3 },
+    },
+  })
+  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  expect(container.querySelector('[aria-label="4 to decide"]')?.textContent).toBe('4')
+})
