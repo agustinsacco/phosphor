@@ -59,7 +59,11 @@ function save(ctx: Context, c: Cursor): void {
     c.finishedAt,
   )
 }
-export function sweep(ctx: Context, input: BrainTidyTouched | 'all'): BrainTidySweep {
+export function sweep(
+  ctx: Context,
+  input: BrainTidyTouched | 'all',
+  preferredEntityId?: string,
+): BrainTidySweep {
   return transaction(ctx, () => {
     let c = coverage(ctx)
     const result: BrainTidySweep = { coverage: c, suggestions: 0, folded: 0, operationIds: [] }
@@ -96,7 +100,7 @@ export function sweep(ctx: Context, input: BrainTidyTouched | 'all'): BrainTidyS
       }
     }
     for (const id of entities) {
-      const found = sweepEntity(ctx, id)
+      const found = sweepEntity(ctx, id, preferredEntityId)
       result.suggestions += found.suggestions
       c.cappedBuckets += found.capped
     }

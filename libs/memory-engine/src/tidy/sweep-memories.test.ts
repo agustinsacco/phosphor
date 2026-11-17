@@ -148,3 +148,19 @@ it('caches a 256-memory hub window once per 128-memory chunk, not across calls',
     db.prepare = prepare
   }
 })
+
+it.each(['manual', 'suggested'])(
+  'a %s entity merge compares its memories again without a whole-Brain pass',
+  (mode) => {
+    const { store } = memoryPair(0.86, false)
+    // No memory pass ran before the merge: only the merge hook can discover this pair.
+    if (mode === 'manual') store.merge('rina-2', 'rina-1', store.revision())
+    else {
+      store.sweep({ entityIds: ['rina-1'], memoryIds: [] })
+      const id = store.tidy('same_entity', null, 20).items[0]!.id
+      store.tidyApply(id, { kind: 'merge', survivorId: 'rina-1' }, store.revision())
+    }
+    expect(store.tidy('same_memory', null, 20).items).toHaveLength(1)
+    expect(store.snapshot().counts.memories).toBe(2)
+  },
+)
