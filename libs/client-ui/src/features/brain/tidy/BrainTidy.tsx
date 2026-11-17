@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ListDetail } from '@/components/ListDetail'
 import { Button } from '@/components/form'
 import { relativeTime } from '@/lib/time'
@@ -74,9 +74,12 @@ function useTidyView(active: boolean, recent: number) {
     if (!selected || !page.items.some((s) => s.id === selected.id))
       setSelected(page.items[0] ? { type: 'suggestion', id: page.items[0].id } : null)
   }, [page, selected])
+  const openedRecent = useRef(0)
   useEffect(() => {
-    if (recent && changes.data?.items[0])
+    if (recent !== openedRecent.current && changes.data?.items[0]) {
+      openedRecent.current = recent
       setSelected({ type: 'operation', id: changes.data.items[0].id })
+    }
   }, [recent, changes.data])
   const selectNext = (): void => {
     const index = page?.items.findIndex((s) => s.id === selected?.id) ?? -1

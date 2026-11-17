@@ -9,6 +9,7 @@ import { BrainKnowledge } from './explorer/BrainKnowledge'
 import { useExplorer } from './explorer/useExplorer'
 import { BrainLanes } from './BrainLanes'
 import { BrainTidy } from './tidy/BrainTidy'
+import { useBrainTab } from './tidy/tidyNavigation'
 import type { BrainStatus } from '@shared/brain'
 import { formatCount } from '@/lib/format'
 
@@ -62,9 +63,7 @@ export function BrainPage(): React.JSX.Element {
 
 function BrainContent(): React.JSX.Element {
   const status = useBrain((s) => s.status)!
-  const [tab, setTab] = useState<'knowledge' | 'lanes' | 'tidy'>(() =>
-    !status.counts.memories && status.jobs.length ? 'lanes' : 'knowledge',
-  )
+  const { tab, setTab, recent } = useBrainTab(status)
   const explorer = useExplorer(tab === 'knowledge')
   const [selected, setSelected] = useState<string | null>(null)
   const [readId, setReadId] = useState<string | null>(null)
@@ -117,6 +116,7 @@ function BrainContent(): React.JSX.Element {
         >
           <BrainTidy
             active={tab === 'tidy'}
+            recent={recent}
             onVisit={(visit) => {
               explorer.onVisit(visit)
               setTab('knowledge')

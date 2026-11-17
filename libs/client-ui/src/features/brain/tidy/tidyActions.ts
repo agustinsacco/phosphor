@@ -11,6 +11,7 @@ export function tidyChangeToast(result: BrainTidyMutation, message: string): voi
     kind: 'success',
     ...(id
       ? {
+          title: 'Brain',
           openLabel: 'Undo',
           onOpen: async () => {
             try {

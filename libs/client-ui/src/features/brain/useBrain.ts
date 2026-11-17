@@ -4,6 +4,7 @@ import type { BrainLaneRef, BrainPrefs, BrainStatus, BrainReviewDecision } from 
 import { ipcErrorText } from '@shared/errors'
 import { usePlatform } from '@/platform/Platform'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { createTidyNotices } from './tidy/tidyNotices'
 
 export const brainToast = (text: string, kind: 'success' | 'error' = 'success'): void => {
   useExtensionUiStore.getState().pushToast(text, kind)
@@ -23,7 +24,6 @@ interface BrainState {
   reread: (id: string) => Promise<boolean>
   retry: (id: string) => Promise<boolean>
   reset: () => Promise<boolean>
-  merge: (source: string, target: string) => Promise<boolean>
   forget: (id: string) => Promise<boolean>
 }
 
@@ -96,19 +96,14 @@ export const useBrain = create<BrainState>(() => ({
   reread: (id) => update(() => window.phosphor.invoke('brain:reread', id)),
   retry: (id) => update(() => window.phosphor.invoke('brain:retry', id)),
   reset: () => update(() => window.phosphor.invoke('brain:reset'), 'Brain knowledge reset'),
-  merge: (source, target): Promise<boolean> =>
-    update(() => {
-      const status = useBrain.getState().status
-      if (!status) throw new Error('Load Brain before merging.')
-      return window.phosphor.invoke('brain:merge', source, target, status.revision)
-    }),
   forget: (id) => update(() => window.phosphor.invoke('brain:forget', id), 'Memory forgotten'),
 }))
 
 export function brainInFlight(status: BrainStatus | null): boolean {
   return (
     !!status &&
-    (['downloading', 'verifying', 'testing'].includes(status.embedding.phase) ||
+    (status.tidy.running ||
+      ['downloading', 'verifying', 'testing'].includes(status.embedding.phase) ||
       status.jobs.some((job) => ['waiting', 'queued', 'running'].includes(job.state)))
   )
 }
@@ -120,26 +115,35 @@ function subscribe(): () => void {
   if (subscribers === 1) {
     let timer: ReturnType<typeof setTimeout> | undefined
     let active = true
+    const notice = createTidyNotices()
+    notice(useBrain.getState().status)
     const schedule = (): void => {
       clearTimeout(timer)
       if (
         active &&
         document.visibilityState !== 'hidden' &&
-        brainInFlight(useBrain.getState().status)
+        (brainInFlight(useBrain.getState().status) || useBrain.getState().status?.prefs.enabled)
       ) {
-        timer = setTimeout(() => {
-          void useBrain.getState().refresh().then(schedule)
-        }, 2000)
+        timer = setTimeout(
+          () => {
+            void useBrain.getState().refresh().then(schedule)
+          },
+          brainInFlight(useBrain.getState().status) ? 2000 : 10000,
+        )
       }
     }
     const visible = (): void => {
       if (document.visibilityState !== 'hidden') void useBrain.getState().refresh()
       schedule()
     }
-    const off = useBrain.subscribe(schedule)
+    const off = useBrain.subscribe((state) => {
+      notice(state.status)
+      schedule()
+    })
     document.addEventListener('visibilitychange', visible)
     stop = () => {
       active = false
+      notice(null)
       clearTimeout(timer)
       off()
       document.removeEventListener('visibilitychange', visible)
@@ -155,7 +159,7 @@ function subscribe(): () => void {
   }
 }
 
-/** Shared consumers own one visible-window poller, only while work is in flight. */
+/** One visible-window poller: fast during work, quiet while enabled to discover lane flags. */
 export function useBrainSync(ready = true): void {
   const supported = usePlatform().localBrain
   useEffect(() => {
