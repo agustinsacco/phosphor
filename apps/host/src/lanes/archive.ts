@@ -184,7 +184,7 @@ export class HostArchives {
     const lane = store.getLane(record.id)
     const session = await sessions.start({
       repository: record.cwd,
-      ...(lane?.provider && lane.model ? { provider: lane.provider, model: lane.model } : {}),
+      ...(lane?.model ? { provider: lane.model.provider, model: lane.model.id } : {}),
     })
     try {
       await sessions.attach(record.id, session.sessionId)
