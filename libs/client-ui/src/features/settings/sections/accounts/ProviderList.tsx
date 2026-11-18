@@ -23,7 +23,10 @@ const GROUPS = [
   },
 ] as const
 
-type ListSource = Pick<ProviderAccountsSource, 'providers' | 'flow' | 'busy' | 'signIn' | 'cancel'>
+type ListSource = Pick<
+  ProviderAccountsSource,
+  'providers' | 'flow' | 'busy' | 'signIn' | 'cancel' | 'signOut'
+>
 
 /**
  * pi's providers, grouped by what signing in spends, each with its sign-in
@@ -95,7 +98,7 @@ function ProviderRow({
           {provider.error && <p className="text-danger mt-1 text-sm">{provider.error}</p>}
         </div>
         {source.signIn && (
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-3">
             {flow && source.cancel ? (
               <TooltipButton
                 onClick={() => source.cancel?.(provider.id)}
@@ -104,14 +107,26 @@ function ProviderRow({
                 Cancel
               </TooltipButton>
             ) : (
-              <Button
-                variant="secondary"
-                // One sign-in at a time: pi writes a single auth.json.
-                disabled={source.busy}
-                onClick={() => source.signIn?.(provider.id)}
-              >
-                {ready ? 'Sign in again' : 'Sign in'}
-              </Button>
+              <>
+                {ready && source.signOut && (
+                  <TooltipButton
+                    disabled={source.busy}
+                    onClick={() => source.signOut?.(provider.id)}
+                    tooltip={`Remove pi’s sign-in for ${provider.name}`}
+                    className="text-text-secondary hover:text-text text-base disabled:opacity-40"
+                  >
+                    Sign out
+                  </TooltipButton>
+                )}
+                <Button
+                  variant="secondary"
+                  // One sign-in at a time: pi writes a single auth.json.
+                  disabled={source.busy}
+                  onClick={() => source.signIn?.(provider.id)}
+                >
+                  {ready ? 'Sign in again' : 'Sign in'}
+                </Button>
+              </>
             )}
           </div>
         )}

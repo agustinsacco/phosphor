@@ -40,5 +40,6 @@ export function useHostProviders(): ProviderAccountsSource {
     busy: !programs.available || programs.busy || settings.saving || settings.loading,
     signIn: (id) => programs.login(id),
     cancel: undefined,
+    signOut: (id) => programs.task({ task: 'provider.logout', name: id }),
   }
 }

@@ -149,4 +149,10 @@ export interface PiInvokeMap {
   'pi:startLogin': { args: [providerId: LoginProviderId]; result: void }
   /** Abort a `pi:startLogin` in progress. No-op if nothing is running. */
   'pi:cancelLogin': { args: [providerId: LoginProviderId]; result: void }
+  /**
+   * Sign pi out of one provider with `pi auth logout <id>`, which removes what
+   * `/login` stored. Rejects when pi still answers ready afterwards: an
+   * environment variable or models.json holds a key that sign-out cannot remove.
+   */
+  'pi:logout': { args: [providerId: LoginProviderId]; result: void }
 }

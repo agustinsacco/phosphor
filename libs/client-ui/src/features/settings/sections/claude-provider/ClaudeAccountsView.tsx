@@ -34,10 +34,12 @@ const ROUTING_OPTIONS: { value: ClaudeRoutingMode; title: string; detail: string
 ]
 
 async function confirmRemove(account: ClaudeAccountModel): Promise<boolean> {
+  // The first account is the CLI's own login, not a private credential folder.
+  const cli =
+    account.id === 'default' ? ' It is the Claude CLI’s own login, so `claude` signs out too.' : ''
   const choice = await promptChoice({
-    title: `Remove ${account.label}?`,
-    message:
-      'This signs the account out on this machine and forgets it. Saved lanes bound to it follow the routing rule when they resume.',
+    title: `Sign out of ${account.label}?`,
+    message: `This signs the account out on this machine and removes it from the list.${cli} Saved lanes bound to it follow the routing rule when they resume.`,
     choices: [{ value: 'remove', label: 'Sign out and remove', primary: true }],
   })
   return choice === 'remove'

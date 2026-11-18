@@ -182,6 +182,7 @@ export const IPC_SCOPE = {
   'pi:loginTerminal': 'machine',
   'pi:startLogin': 'machine',
   'pi:cancelLogin': 'machine',
+  'pi:logout': 'machine',
   'skills:list': 'machine',
   'skills:restoreBundled': 'machine',
   'skills:readFile': 'machine',

@@ -86,7 +86,10 @@ export function ClaudeAccountRow({
   )
 }
 
-/** Reorder, sign in again, remove. Remove waits while lanes on the account are running. */
+/**
+ * Reorder, sign in again, sign out. Signing out also forgets the account, and
+ * waits while lanes on it are running.
+ */
 export function ClaudeAccountActions({
   account,
   index,
@@ -130,10 +133,14 @@ export function ClaudeAccountActions({
       <TooltipButton
         onClick={onRemove}
         disabled={busy || running}
-        tooltip={running ? 'Stop or move the lanes running on this account first' : undefined}
+        tooltip={
+          running
+            ? 'Stop or move the lanes running on this account first'
+            : 'Sign this account out and remove it'
+        }
         className="text-danger text-base hover:underline disabled:opacity-40"
       >
-        Remove
+        Sign out
       </TooltipButton>
     </>
   )

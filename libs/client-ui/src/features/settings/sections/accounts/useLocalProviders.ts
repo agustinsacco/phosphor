@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import type { LoginFlowState, SubscriptionProviderStatus } from '@shared/models'
 import { errorText } from '@shared/errors'
 import { readLocalSubscriptionAuth } from '@/stores/localSubscriptionAuth'
+import { useModelCatalogueStore } from '@/stores/modelCatalogue'
+import { promptChoice } from '@/stores/prompt'
 import type { ProviderAccountsSource } from './accountsModel'
 import { useLocalRead } from '../../machine/ScopeRefresh'
 
@@ -25,6 +27,42 @@ function useLoginTerminal(refresh: () => void, setError: (error: string | null) 
       refresh()
     },
   }
+}
+
+async function confirmSignOut(name: string): Promise<boolean> {
+  const choice = await promptChoice({
+    title: `Sign out of ${name}?`,
+    message: `pi removes its saved sign-in for ${name} on this Mac. Lanes on its models stop working until you sign in again. A key in an environment variable or models.json stays.`,
+    choices: [{ value: 'sign-out', label: 'Sign out', primary: true }],
+  })
+  return choice === 'sign-out'
+}
+
+/** `pi auth logout`, after a confirmation. The picker re-reads, so its models go. */
+function useSignOut(
+  providers: SubscriptionProviderStatus[] | null,
+  refresh: () => Promise<void>,
+  setError: (error: string | null) => void,
+) {
+  const [signingOut, setSigningOut] = useState(false)
+  const signOut = async (id: SubscriptionProviderStatus['id']): Promise<void> => {
+    const name = providers?.find((p) => p.id === id)?.name ?? id
+    if (!(await confirmSignOut(name).catch(() => false))) return
+    setError(null)
+    setSigningOut(true)
+    try {
+      await window.phosphor.invoke('pi:logout', id)
+    } catch (caught) {
+      setError(errorText(caught))
+    } finally {
+      setSigningOut(false)
+    }
+    // Even a refused sign-out may have removed the stored half.
+    await refresh()
+    const catalogue = useModelCatalogueStore.getState()
+    if (catalogue.status !== 'idle') void catalogue.refresh()
+  }
+  return { signingOut, signOut }
 }
 
 /**
@@ -59,6 +97,7 @@ export function useLocalProviders(): ProviderAccountsSource {
     [refresh],
   )
   const terminal = useLoginTerminal(() => void refresh(), setError)
+  const { signingOut, signOut } = useSignOut(providers, refresh, setError)
   return {
     status: loadError
       ? { error: loadError, retry: () => void refresh() }
@@ -69,7 +108,7 @@ export function useLocalProviders(): ProviderAccountsSource {
     providers: providers ?? [],
     flow,
     error,
-    busy: flow !== null,
+    busy: flow !== null || signingOut,
     signIn: (id) => {
       const providerId = id as SubscriptionProviderStatus['id']
       setError(null)
@@ -83,6 +122,7 @@ export function useLocalProviders(): ProviderAccountsSource {
       void window.phosphor.invoke('pi:cancelLogin', id as SubscriptionProviderStatus['id'])
       setFlow(null)
     },
+    signOut: (id) => void signOut(id as SubscriptionProviderStatus['id']),
     terminal,
   }
 }
