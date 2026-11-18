@@ -120,6 +120,16 @@ it('splits memories, their mentions and links onto a new record and undoes it ex
   expect(() => store.entity(node.id)).toThrow('not found')
 })
 
+it('refuses to split off every current memory while a superseded mention remains', () => {
+  const { store, db, tom, vendor } = twoToms()
+  const target = { label: 'Tom Lee (Northwind)', kind: 'person' as const }
+  const ledger = store.entityMemories(tom, {}, null).memories.find((m) => !vendor.includes(m.id))!
+  db.prepare("UPDATE memories SET state='superseded' WHERE id=?").run(ledger.id)
+  const current = store.entityMemories(tom, {}, null).memories.map((m) => m.id)
+  expect(current.toSorted()).toEqual(vendor.toSorted())
+  expect(() => store.split(tom, current, target, store.revision())).toThrow('is a rename')
+})
+
 it('keeps a later quote through a split undo, and refuses when later knowledge names the new record', () => {
   const { store, db, tom, harbor, vendor } = twoToms()
   const target = { label: 'Tom Lee (Northwind)', kind: 'person' as const }
