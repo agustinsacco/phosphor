@@ -19,6 +19,8 @@ import { tidyChangeToast } from '../tidy/tidyActions'
 export type EntityEdit = 'split' | 'removeName' | 'describe'
 
 const DESCRIPTION_MAX = 160
+/** `brain:split` takes a new name of 1 to 80 characters. */
+const SPLIT_LABEL_MAX = 80
 
 /** The profile's ⋯ menu: the three edits, then the full map. */
 export function profileMenu(
@@ -299,7 +301,7 @@ function SplitTarget({
         aria-label="New name"
         placeholder="New name"
         value={label}
-        maxLength={200}
+        maxLength={SPLIT_LABEL_MAX}
         className="min-w-0 flex-1"
         onChange={(event) => onLabel(event.target.value)}
       />

@@ -44,7 +44,7 @@ export function BrainTab(): React.JSX.Element {
         <>
           <Row
             title="Recall in lanes"
-            description="Agents in new lanes get brain_search to recall approved knowledge and brain_flag to suggest a correction for you to review on Tidy, never to change Brain."
+            description="Agents in new lanes get brain_search to recall approved knowledge and brain_flag to suggest a correction for you to review in the Brain Inbox, never to change Brain."
           >
             <Toggle
               on={status.prefs.recall}

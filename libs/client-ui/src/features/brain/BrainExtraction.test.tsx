@@ -10,7 +10,7 @@ import {
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { BrainExtraction } from './BrainExtraction'
 import { mockBrainJob } from './mockBrainData'
-import { jobLine } from './jobProgress'
+import { callDuration, progressLine } from './jobProgress'
 import { mockExtractionView } from './mockExtractionView'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -64,31 +64,22 @@ it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link re
     fake.dispose()
   }
 })
-it('prints conversation and matching progress in the inbox', () => {
-  expect(
-    jobLine(
-      mockBrainJob({ state: 'running', progress: { stage: 'extract', done: 3, total: 12 } }),
-      0,
-      0,
-    ),
-  ).toBe('Read the conversation · part 3 of 12')
-  expect(
-    jobLine(
-      mockBrainJob({ state: 'running', progress: { stage: 'identity', done: 1, total: 2 } }),
-      0,
-      0,
-    ),
-  ).toBe('Match people and things · part 1 of 2')
+it('names the step and part of a running read', () => {
+  expect(progressLine({ stage: 'extract', done: 3, total: 12 })).toBe(
+    'Read the conversation · part 3 of 12',
+  )
+  expect(progressLine({ stage: 'identity', done: 1, total: 2 })).toBe(
+    'Match people and things · part 1 of 2',
+  )
+  expect(progressLine({ stage: 'reconcile', done: 1, total: 1 })).toBe(
+    'Compare with what Brain knows',
+  )
 })
 it('includes the conversation part even for a single-part stage', () => {
   for (const done of [0, 1])
-    expect(
-      jobLine(
-        mockBrainJob({ state: 'running', progress: { stage: 'extract', done, total: 1 } }),
-        0,
-        0,
-      ),
-    ).toBe('Read the conversation · part 1 of 1')
+    expect(progressLine({ stage: 'extract', done, total: 1 })).toBe(
+      'Read the conversation · part 1 of 1',
+    )
 })
 
 it('says how long each call took in words, never as a clock', async () => {
@@ -124,6 +115,7 @@ it('says how long each call took in words, never as a clock', async () => {
     expect(calls).toContain('Read the conversation · part 1 · 4 h 1 min')
     expect(calls).toContain(' · 42 s')
     expect(calls).not.toContain('241:11')
+    expect([0, 59_900, 60_000].map(callDuration)).toEqual(['1 s', '59 s', '1 min'])
   } finally {
     act(() => root.unmount())
     restore()

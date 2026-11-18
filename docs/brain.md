@@ -422,12 +422,14 @@ Three counts follow: **kept**, **confirmed what Brain knew** and **left out**. T
 **Read new messages** reads only what came after this read and is off when nothing came;
 **Read again** (finished `done` reads only) reads the whole lane after a confirmation that says
 how many earlier memories will be replaced; **Dismiss** removes an empty read; **Open lane**.
-**Memories from this lane** opens each memory on Knowledge. **What happened to each claim** lists
-each candidate with its outcome and reason, the first twenty with **Show more**; forgotten
-memories say “removed”, not a dead link. **How it was read · n calls** has one closed disclosure
-per call, named in plain words with part number and duration. Opening one shows the scrubbed raw
-output with Copy, the rebuilt prompt and diagnostics, without cost or token counts. Raw output,
-prompts and source text each scroll inside a capped box.
+**See these memories · N memories**, closed at first, opens each memory on Knowledge (a review's
+**See how it was read** shows the same list open, as **Memories from this lane**). **What
+happened to each claim** lists each candidate with its outcome and reason, the first twenty with
+**Show more**; forgotten memories say “removed”, not a dead link. **How it was read · n calls**
+has one closed disclosure per call, named in plain words with part number and how long it took
+in words (“42 s”, “3 min”), never a clock. Opening one shows the scrubbed raw output with Copy,
+the rebuilt prompt and diagnostics, without cost or token counts. Raw output, prompts and source
+text each scroll inside a capped box.
 
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records store no
 prompt text; a prompt whose inputs are gone says so. Records are kept while their job is in the
