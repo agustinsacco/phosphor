@@ -21,6 +21,8 @@ let call: ReturnType<typeof createMockBrain>
 let selected: string | null
 /** Rewrites each `brain:tidy` page, as a sweep that adds newer rows would. */
 let patchPage: ((page: BrainTidyPage, args: unknown[]) => BrainTidyPage) | null
+/** Holds every brain:review until it resolves, so a second key lands while the first saves. */
+let reviewGate: Promise<void> | null
 const calls: { channel: string; args: unknown[] }[] = []
 const onEntity = vi.fn()
 const CHANNELS: IpcInvokeChannel[] = [
@@ -56,12 +58,14 @@ beforeEach(async () => {
   call = createMockBrain(() => 10000)
   calls.length = 0
   patchPage = null
+  reviewGate = null
   onEntity.mockClear()
   const handlers = Object.fromEntries(
     CHANNELS.map((channel) => [
       channel,
       async (...args: unknown[]) => {
         calls.push({ channel, args })
+        if (channel === 'brain:review' && reviewGate) await reviewGate
         const result = await call(channel, args)
         if (channel === 'brain:tidy' && patchPage) return patchPage(result as BrainTidyPage, args)
         if (channel === 'brain:review' || channel.startsWith('brain:tidy'))
@@ -159,6 +163,18 @@ it('approves with a, then opens the next decision and drops the review from the 
   expect(calls.find((c) => c.channel === 'brain:review')?.args[1]).not.toBeNull()
   expect(section('Decisions').textContent).not.toContain('Harbor identity review')
   expect(selected).toMatch(/^suggestion:/)
+})
+
+it('sends one brain:review for a double a, and r does nothing while it saves', async () => {
+  let release = (): void => {}
+  reviewGate = new Promise((resolve) => (release = resolve))
+  await render()
+  await press('a')
+  await press('a')
+  await press('r')
+  await act(async () => release())
+  expect(calls.filter((c) => c.channel === 'brain:review')).toHaveLength(1)
+  expect(section('Decisions').textContent).not.toContain('Harbor identity review')
 })
 
 it('rejects a review with r, and r does nothing on a Tidy suggestion', async () => {
