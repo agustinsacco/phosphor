@@ -20,7 +20,7 @@ let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 let call: ReturnType<typeof createMockBrain>
 let selected: string | null
 /** Rewrites each `brain:tidy` page, as a sweep that adds newer rows would. */
-let patchPage: ((page: BrainTidyPage) => BrainTidyPage) | null
+let patchPage: ((page: BrainTidyPage, args: unknown[]) => BrainTidyPage) | null
 const calls: { channel: string; args: unknown[] }[] = []
 const onEntity = vi.fn()
 const CHANNELS: IpcInvokeChannel[] = [
@@ -63,7 +63,7 @@ beforeEach(async () => {
       async (...args: unknown[]) => {
         calls.push({ channel, args })
         const result = await call(channel, args)
-        if (channel === 'brain:tidy' && patchPage) return patchPage(result as BrainTidyPage)
+        if (channel === 'brain:tidy' && patchPage) return patchPage(result as BrainTidyPage, args)
         if (channel === 'brain:review' || channel.startsWith('brain:tidy'))
           useBrain.setState({ status: (await call('brain:status', [])) as BrainStatus })
         return result
@@ -209,6 +209,31 @@ it('shows the header and count of a kind whose suggestions are not loaded yet', 
   await render()
   const people = section('Decisions').querySelector('[aria-label="Same person or thing?"]')
   expect(people?.textContent ?? '').toContain('Same person or thing? · 3')
+})
+
+it('loads a kind the newest page left out from its own group, and keeps it on reload', async () => {
+  let failed = false
+  patchPage = (page, [kind]) => {
+    if (kind === 'same_entity' && !failed) {
+      failed = true
+      throw new Error('Tidy is temporarily unavailable.')
+    }
+    return kind
+      ? page
+      : { ...page, items: page.items.filter((item) => item.kind !== 'same_entity') }
+  }
+  await render()
+  const people = () => section('Decisions').querySelector('[aria-label="Same person or thing?"]')!
+  const rows = () => people().querySelectorAll('[data-inbox-row]').length
+  expect(rows()).toBe(0)
+  await act(async () => button('Show 3 more', people())!.click())
+  expect(section('Decisions').textContent).toContain('Tidy is temporarily unavailable.')
+  await act(async () => button('Retry')!.click())
+  expect(lastCall('brain:tidy')).toEqual(['same_entity', null, 20])
+  expect(rows()).toBe(3)
+  expect(button('Show 3 more', people())).toBeUndefined()
+  await bumpRevision()
+  expect(rows()).toBe(3)
 })
 
 it('shows what Brain knows about the people and things in the open decision', async () => {

@@ -45,7 +45,7 @@ it('groups reviews oldest first, then Tidy suggestions in the fixed kind order',
         suggestion('repeat', 'same_memory'),
         { ...suggestion('done', 'conflict'), state: 'applied' },
       ],
-      { same_entity: 3, same_memory: 1, conflict: 1, flagged: 1 },
+      { same_entity: 3, same_memory: 1, conflict: 0, flagged: 1 },
     ),
   )
   expect(groups.map((group) => [group.label, group.total])).toEqual([

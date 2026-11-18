@@ -57,8 +57,10 @@ Knowledge search; ⌘K stays the global command palette.
 The left column is the queue, grouped by kind with counts: **From lanes** (reads to review),
 **Same person or thing?**, **Said twice**, **These disagree** and **Flagged by a lane**. Empty
 groups disappear. Each row is a title and one line: “2 memories to review · read again”, or a
-suggestion's reason. **Show more suggestions** loads twenty more. With nothing waiting it says
-“Nothing to decide.” and how decisions arrive. `j` and `k` move the selection, `a` takes the
+suggestion's reason. The queue loads the newest twenty suggestions; a kind shows its header and
+count even before any of its rows has loaded, and **Show N more** under it loads up to twenty
+more of that kind (`brain:tidy` with the kind), which later reloads keep. With nothing waiting
+it says “Nothing to decide.” and how decisions arrive. `j` and `k` move the selection, `a` takes the
 decision's primary action and `r` rejects a review; ↑ and ↓ move focus between rows. After a
 decision the next item opens: the one after it, else the one before. A reload never swaps the
 open suggestion for another: when newer suggestions push it beyond the loaded rows it stays

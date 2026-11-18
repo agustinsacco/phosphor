@@ -1,4 +1,5 @@
-import type { KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent } from 'react'
+import type { BrainTidyKind } from '@shared/brain-tidy'
 import type { useTidyPage } from '../tidy/useTidyPage'
 import { Button } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
@@ -30,12 +31,9 @@ export function InboxQueue({
   onSelect: (key: string) => void
   tidy: ReturnType<typeof useTidyPage>
 }): React.JSX.Element {
-  const { page, error, loading } = tidy
+  const { page, error } = tidy
   const onRetry = (): void => {
     void tidy.reload()
-  }
-  const onMore = (): void => {
-    void tidy.reload(true)
   }
   return (
     <div className="min-w-0 space-y-3 p-2" onKeyDown={moveFocus}>
@@ -51,13 +49,11 @@ export function InboxQueue({
               </li>
             ))}
           </ul>
+          {group.id !== 'lanes' && group.items.length < group.total && (
+            <ShowMore kind={group.id} left={group.total - group.items.length} tidy={tidy} />
+          )}
         </section>
       ))}
-      {page?.next && (
-        <Button size="sm" disabled={loading} onClick={onMore}>
-          {loading ? 'Loading…' : 'Show more suggestions'}
-        </Button>
-      )}
       {error && (
         <p role="status" className="p-2 text-sm">
           {error}{' '}
@@ -84,6 +80,33 @@ export function InboxQueue({
         <kbd>j</kbd> <kbd>k</kbd> move · <kbd>a</kbd> approve or apply · <kbd>r</kbd> reject
       </p>
     </div>
+  )
+}
+
+/** Loads up to twenty more of one kind, whose rows the newest page did not bring. */
+function ShowMore({
+  kind,
+  left,
+  tidy,
+}: {
+  kind: BrainTidyKind
+  left: number
+  tidy: ReturnType<typeof useTidyPage>
+}): React.JSX.Element {
+  // Only this kind's button says Loading: the page also reloads on every status change.
+  const [pending, setPending] = useState(false)
+  return (
+    <Button
+      size="xs"
+      className="ml-2"
+      disabled={pending}
+      onClick={() => {
+        setPending(true)
+        void tidy.reload(kind).finally(() => setPending(false))
+      }}
+    >
+      {pending ? 'Loading…' : `Show ${Math.min(20, left)} more`}
+    </Button>
   )
 }
 

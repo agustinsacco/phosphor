@@ -82,7 +82,8 @@ export function inboxGroups(
             }))
     const total = id === 'lanes' ? items.length : Math.max(items.length, page?.counts[id] ?? 0)
     return { id, label: INBOX_GROUP_LABELS[id], items, total }
-  }).filter((group) => group.items.length > 0)
+    // A kind shows from its count, even before any of its rows has loaded.
+  }).filter((group) => group.total > 0)
 }
 
 export function inboxOrder(groups: InboxGroup[]): InboxItem[] {
