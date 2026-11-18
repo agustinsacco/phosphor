@@ -68,3 +68,26 @@ it.each([
   const call = createMockBrain(() => 10000)
   await expect(call(channel, args)).rejects.toThrow('Invalid')
 })
+
+it('refuses to split off every current memory while a superseded one remains, as Desktop does', async () => {
+  const call = createMockBrain(() => 10000)
+  await call('brain:tidy', [null, null, 20])
+  await call('brain:tidyApply', ['tidy-2', { kind: 'replace', newerId: 'tidy-2-1' }, 0])
+  const named = async (states: string[]): Promise<string[]> => {
+    const ids: string[] = []
+    for (let cursor: string | null = null; ;) {
+      const page = (await call('brain:entityMemories', ['harbor', { states }, cursor])) as {
+        memories: { id: string }[]
+        next: string | null
+      }
+      ids.push(...page.memories.map((m) => m.id))
+      if (!(cursor = page.next)) return ids
+    }
+  }
+  expect(await named(['superseded'])).toContain('tidy-2-0')
+  const current = await named(['active', 'disputed'])
+  const target = { label: 'Harbor vendor', kind: 'organization' }
+  await expect(
+    call('brain:split', ['harbor', current, target, await revision(call)]),
+  ).rejects.toThrow('rename')
+})
