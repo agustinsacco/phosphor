@@ -39,7 +39,9 @@ export function mockEdit(explorer: MockExplorer, channel: string, args: unknown[
   const own = explorer.details.filter((d) => d.memory.entityIds.includes(entity.id))
   if (ids.some((id) => !own.some((d) => d.memory.id === id)))
     throw new Error(`Every memory to split off must mention ${entity.label}.`)
-  if (ids.length >= own.length)
+  // Like Desktop: at least one current memory stays; a superseded one counts for nothing.
+  const current = own.filter((d) => d.memory.state !== 'superseded')
+  if (current.filter((d) => ids.includes(d.memory.id)).length >= current.length)
     throw new Error('Splitting off every memory is a rename; keep at least one.')
   return {
     kind: 'split',
