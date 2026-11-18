@@ -60,11 +60,11 @@ groups disappear. Each row is a title and one line: “2 memories to review · r
 suggestion's reason. The queue loads the newest twenty suggestions; a kind shows its header and
 count even before any of its rows has loaded, and **Show N more** under it loads up to twenty
 more of that kind (`brain:tidy` with the kind), which later reloads keep. With nothing waiting
-it says “Nothing to decide.” and how decisions arrive. `j` and `k` move the selection, `a` takes the
-decision's primary action and `r` rejects a review; ↑ and ↓ move focus between rows. After a
-decision the next item opens: the one after it, else the one before. A reload never swaps the
-open suggestion for another: when newer suggestions push it beyond the loaded rows it stays
-open, last in its group, until it is applied, dismissed or cleared.
+it says “Nothing to decide.” and how decisions arrive. `j` and `k` move the selection, `a`
+takes the decision's primary action and `r` rejects a review; ↑ and ↓ move focus between rows.
+After a decision the next item opens: the one after it, else the one before. A reload never
+swaps the open suggestion for another: when newer suggestions push it beyond the loaded rows it
+stays open, last in its group, until it is applied, dismissed or cleared.
 
 Under the queue, **Tidy check** starts a check: **Check with <model>** (the pinned reader, or
 the newest read's model) or **Check for repeats** when no model is known. Its tooltip says
@@ -376,8 +376,9 @@ outside the overview are included with their neighbours, still capped at 300 nod
 first, then route nodes, direct neighbours and the rest. `brain:overview` and
 `brain:neighbourhood` payloads carry at most 300 nodes and 1,500 links: one link per pair and
 link word (the newest read), from at most eight neighbours per link word and direction per node
-(one slot per neighbour, so a pair said many times hides no other), centre first. A hub's neighbourhood on a million-memory Brain is about 70 KB. A notice says when the
-graph is truncated. **Neighbours only** switches to one or two steps (`brain:neighbourhood`) and fits that
+(one slot per neighbour, so a pair said many times hides no other), centre first. A hub's
+neighbourhood on a million-memory Brain is about 70 KB. A notice says when the graph is
+truncated. **Neighbours only** switches to one or two steps (`brain:neighbourhood`) and fits that
 neighbourhood; clearing resets it. Fit, zoom and 2D/3D remain. The legend lists only present
 kinds in the theme's kind colours; the keyboard focus badge sits inside the canvas, clear of the
 legend and selection controls. Node labels keep a twelve-pixel height, draw over spheres in front
