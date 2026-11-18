@@ -170,6 +170,21 @@ it('counts only recorded verdicts, says what the owner settled and records the m
     message: 'Checked 11 pairs; you settled 1 while it ran.',
   })
 })
+it('counts a pair settled before its batch is sent as settled, never as unexplained', async () => {
+  const s = setup(12)
+  // The owner settles pair-10 while the model reads the first batch of eight.
+  s.calls.mockImplementationOnce(async (input) => {
+    s.pending.splice(
+      s.pending.findIndex((pair) => pair.suggestionId === 'pair-10'),
+      1,
+    )
+    return answer(input)
+  })
+  s.runner.start()
+  const run = await s.finish()
+  expect(run).toMatchObject({ state: 'done', checked: 11, settled: 1, total: 12 })
+  expect(run.message).toBe('Checked 11 pairs; you settled 1 while it ran.')
+})
 it('uses the newest launchable finished read, without an empty session path', async () => {
   const s = setup()
   const newer = s.store.enqueue(
