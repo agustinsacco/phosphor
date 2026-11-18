@@ -34,7 +34,8 @@ export function ReviewForm({
   const neverRead = false
   const { error, approve, reject } = useReviewSubmit(proposal, choices, block, onStale)
   useEffect(() => {
-    keys.current = { primary: neverRead ? reject : approve, reject }
+    // Like the bar's buttons: nothing while a save runs.
+    keys.current = saving ? {} : { primary: neverRead ? reject : approve, reject }
     return () => {
       keys.current = {}
     }
@@ -96,7 +97,8 @@ function useReviewSubmit(
   const { job } = proposal
   const [error, setError] = useState('')
   const submit = async (approve: boolean): Promise<void> => {
-    if (approve && block) return
+    // Read live: a second key can land before the render that disables the bar.
+    if (useBrain.getState().saving || (approve && block)) return
     setError('')
     const decision = approve ? reviewDecision(proposal, choices) : null
     if (await useBrain.getState().review(job.id, decision, proposal.revision))
