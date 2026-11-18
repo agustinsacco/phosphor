@@ -83,20 +83,26 @@ async function check(
     signal.throwIfAborted()
     update({ state: 'checking', message: `Checking ${checked} of ${ids.length}` })
     const batch = new Set(ids.slice(offset, offset + 8))
+    // A pair the owner settled before its batch was sent is no longer pending, so it is not
+    // sent and gets no verdict: it counts as settled.
+    let sent = batch.size
     try {
-      const result = await call(() =>
-        context.store.pendingPairs(40).filter((pair) => batch.has(pair.suggestionId)),
-      )
+      const result = await call(() => {
+        const pairs = context.store.pendingPairs(40).filter((pair) => batch.has(pair.suggestionId))
+        sent = pairs.length
+        return pairs
+      })
       signal.throwIfAborted()
       const recorded = context.store.recordVerdicts(result.judgements)
       checked += recorded.recorded
-      settled += recorded.settled
+      settled += recorded.settled + batch.size - sent
       dropped += result.dropped
       missing += result.missing
       update({ checked, settled, message: `Checking ${checked} of ${ids.length}` })
     } catch (error) {
       if (signal.aborted) throw error
-      update({ error: `${message(error)} Retry to check the unjudged pairs.` })
+      settled += batch.size - sent
+      update({ settled, error: `${message(error)} Retry to check the unjudged pairs.` })
     }
   }
   update({
