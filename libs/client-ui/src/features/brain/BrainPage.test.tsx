@@ -244,6 +244,17 @@ it('routes a second notice to its own item', async () => {
   expect(detailed.at(-1)).toBe('tidy-5')
 })
 
+it('never replays a consumed request on a page mounted later', async () => {
+  await render()
+  await act(async () => openBrain({ tab: 'lanes' }))
+  expect(selectedTab()).toBe('brain-tab-lanes')
+  act(() => root.unmount())
+  root = createRoot(container)
+  await render()
+  expect(selectedTab()).toBe('brain-tab-inbox')
+  expect(useBrainNavigation.getState().request).toBe(1)
+})
+
 it('opens a profile from the Inbox and keeps the Inbox selection across tabs', async () => {
   await render()
   await press('j', section('Decisions'))

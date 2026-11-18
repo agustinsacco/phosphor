@@ -11,6 +11,7 @@ export type BrainTarget =
   | { tab: 'lanes'; recent?: boolean; jobId?: string }
   | { tab: 'knowledge'; search?: boolean }
 export const useBrainNavigation = create<{
+  /** Counts every openBrain() and never goes back, so each request has its own number. */
   request: number
   target: BrainTarget | null
   /** The tab on screen while the page is open; notices stay quiet about what it shows. */
@@ -43,7 +44,8 @@ export function useBrainTab(status: BrainStatus) {
     if (!request || !next) return
     setTab(next.tab)
     setTarget({ value: next, request })
-    useBrainNavigation.setState({ request: 0, target: null })
+    // Only the target is consumed: a page mounted later must not replay it.
+    useBrainNavigation.setState({ target: null })
   }, [request])
   useEffect(() => {
     useBrainNavigation.setState({ tab })
