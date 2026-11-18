@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest'
 import { BRAIN_PREDICATES } from '@phosphor/shared/brain'
 import { edges, GRAPH_LINKS } from './graph'
 import { fixture } from './test-support'
+import { walk } from './walk'
 
 function graphFixture(hub = false) {
   const { db } = fixture()
@@ -50,6 +51,36 @@ it('keeps predicate/direction order, newest ties and eight links per predicate/d
       '3',
       '4',
     ])
+  }
+})
+
+/** Harbor owns Kestrel (said once, oldest) and Ledger (said nine times since). */
+function repeatedPair(hub: boolean) {
+  const { db } = fixture()
+  db.exec(`
+    INSERT INTO entities(n,id,label,kind,created_at,connections) VALUES
+      (1,'harbor','Harbor','project',1,${hub ? 201 : 2}),
+      (2,'ledger','Ledger','project',1,1),
+      (3,'kestrel','Kestrel','project',1,1);
+  `)
+  const memory = db.prepare(
+    "INSERT INTO memories(n,id,summary,type,epistemic,scope,observed_at,recorded_at,state) VALUES (?,?,'Harbor owns it','fact','reported','/',?,?,'active')",
+  )
+  const relation = db.prepare(
+    "INSERT INTO relations(memory,subject,predicate,object,live,observed_at) VALUES (?,1,'owns',?,1,?)",
+  )
+  for (let n = 1; n <= 10; n++) {
+    memory.run(n, `memory-${n}`, n, n)
+    relation.run(n, n === 1 ? 3 : 2, n)
+  }
+  return { db, now: () => 1, id: () => 'unused' }
+}
+
+it('gives each neighbour one slot, so a pair said many times hides no other neighbour', () => {
+  for (const hub of [false, true]) {
+    const ctx = repeatedPair(hub)
+    expect(edges(ctx, 'harbor').map((link) => link.objectId)).toContain('kestrel')
+    expect(walk(ctx, ['harbor'], new Set(['harbor'])).entities).toContain('kestrel')
   }
 })
 
