@@ -3,6 +3,7 @@ import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { BrainStatus } from '@shared/brain'
+import type { BrainTidyPage } from '@shared/brain-tidy'
 import type { IpcInvokeChannel } from '@shared/ipc'
 import {
   createFakePhosphor,
@@ -18,6 +19,8 @@ let root: Root, container: HTMLDivElement
 let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 let call: ReturnType<typeof createMockBrain>
 let selected: string | null
+/** Rewrites each `brain:tidy` page, as a sweep that adds newer rows would. */
+let patchPage: ((page: BrainTidyPage) => BrainTidyPage) | null
 const calls: { channel: string; args: unknown[] }[] = []
 const onEntity = vi.fn()
 const CHANNELS: IpcInvokeChannel[] = [
@@ -52,6 +55,7 @@ beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   call = createMockBrain(() => 10000)
   calls.length = 0
+  patchPage = null
   onEntity.mockClear()
   const handlers = Object.fromEntries(
     CHANNELS.map((channel) => [
@@ -59,6 +63,7 @@ beforeEach(async () => {
       async (...args: unknown[]) => {
         calls.push({ channel, args })
         const result = await call(channel, args)
+        if (channel === 'brain:tidy' && patchPage) return patchPage(result as BrainTidyPage)
         if (channel === 'brain:review' || channel.startsWith('brain:tidy'))
           useBrain.setState({ status: (await call('brain:status', [])) as BrainStatus })
         return result
@@ -93,6 +98,20 @@ function button(text: string, scope: ParentNode = container): HTMLButtonElement 
   )
 }
 const reviewTitle = () => section('Review memories')?.querySelector('h2')?.textContent
+const lastCall = (channel: string) => calls.findLast((c) => c.channel === channel)?.args
+/** Open the second Same person or thing? pair, then reload with it beyond the loaded page. */
+async function pushOpenSuggestionOffThePage(): Promise<string> {
+  await render()
+  await press('j')
+  await press('j')
+  const open = selected!
+  expect(open).toBe('suggestion:tidy-4')
+  // Still open and still counted, but older than every row the reload brought back.
+  patchPage = (page) => ({ ...page, items: page.items.filter((item) => item.id !== 'tidy-4') })
+  const status = useBrain.getState().status!
+  await act(async () => useBrain.setState({ status: { ...status, revision: status.revision + 1 } }))
+  return open
+}
 
 it('lists every decision by kind with counts and opens the oldest review first', async () => {
   await render()
@@ -136,6 +155,20 @@ it('rejects a review with r, and r does nothing on a Tidy suggestion', async () 
   await press('k')
   await press('r')
   expect(calls.find((c) => c.channel === 'brain:review')?.args[1]).toBeNull()
+})
+
+it('keeps the open detail when a reload moves its row beyond the loaded page', async () => {
+  const open = await pushOpenSuggestionOffThePage()
+  expect(selected).toBe(open)
+  expect(lastCall('brain:tidySuggestion')).toEqual(['tidy-4'])
+  expect(section('Tidy suggestion')).not.toBeNull()
+  expect(section('Decisions').querySelector('[aria-current="true"]')).not.toBeNull()
+})
+
+it('applies with a, after such a reload, the suggestion the owner sees', async () => {
+  await pushOpenSuggestionOffThePage()
+  await press('a')
+  expect(lastCall('brain:tidyApply')?.[0]).toBe('tidy-4')
 })
 
 it('shows what Brain knows about the people and things in the open decision', async () => {
