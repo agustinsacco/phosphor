@@ -130,6 +130,8 @@ export interface SplitTarget {
 /**
  * Moves the chosen memories' mentions, and the links they support, from one record to a new one
  * named `target.label`. Aliases, keys and merge history stay on the original. Undoable.
+ * At least one current (active or disputed) memory must stay. A superseded memory moves only
+ * when chosen; one left behind stays on the original, and Undo never touches it.
  */
 export function splitEntity(
   ctx: Context,
@@ -150,20 +152,21 @@ export function splitEntity(
   return transaction(ctx, () => {
     checkRevision(ctx, expected)
     const entity = record(ctx, id)
-    const moving = all<{ n: number }>(
+    const chosen = all<{ n: number; current: number }>(
       ctx,
-      'SELECT a.memory AS n FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.id IN (SELECT value FROM json_each(?))',
+      "SELECT a.memory AS n,m.state IN ('active','disputed') AS current FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.id IN (SELECT value FROM json_each(?))",
       entity.n,
       JSON.stringify(memoryIds),
-    ).map((row) => row.n)
-    if (moving.length !== memoryIds.length)
+    )
+    if (chosen.length !== memoryIds.length)
       throw new Error(`Every memory to split off must name ${entity.label}.`)
-    const total = one<{ total: number }>(
+    const moving = chosen.map((row) => row.n)
+    const current = one<{ total: number }>(
       ctx,
-      'SELECT COUNT(*) AS total FROM mentions WHERE entity=?',
+      "SELECT COUNT(*) AS total FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed')",
       entity.n,
     )!.total
-    if (moving.length >= total)
+    if (chosen.filter((row) => row.current).length >= current)
       throw new Error(
         `Splitting off every memory is a rename; keep at least one memory on ${entity.label}.`,
       )

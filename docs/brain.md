@@ -360,7 +360,9 @@ entities nothing else uses; entities named only by superseded memories stay.
   - **Split** (`brain:split`) moves 1–200 chosen memories, all naming the record, to a new record
     with the owner's label (1–80 characters) and kind: their mentions and the links they support
     go with them. The original keeps the rest, its aliases, keys and merge history. Splitting off
-    every memory is refused (that is a rename), and the two records are remembered as separate.
+    every current (active or disputed) memory is refused (that is a rename), and the two records
+    are remembered as separate. A superseded memory moves only when chosen; one left behind stays
+    on the original, and undoing the split never touches it.
   - Each takes the revision like a merge, refuses a stale one, and is journaled with a one-line
     Recent changes summary and Undo.
 

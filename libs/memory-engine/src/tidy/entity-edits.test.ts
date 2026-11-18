@@ -130,6 +130,33 @@ it('refuses to split off every current memory while a superseded mention remains
   expect(() => store.split(tom, current, target, store.revision())).toThrow('is a rename')
 })
 
+it('leaves an unchosen superseded memory on the original, moves a chosen one, and undoes both', () => {
+  const { store, db, tom, vendor } = twoToms()
+  const target = { label: 'Tom Lee (Northwind)', kind: 'person' as const }
+  // Newest first: the renewal quote, then the account rep (with its Harbor link).
+  const [renewal, rep] = vendor as [string, string]
+  db.prepare(
+    "INSERT INTO tidy_suggestions(id,pair_key,kind,source,state,subject_type,first_id,second_id,reason,created_at,updated_at) VALUES ('pair','memory:pair','conflict','sweep','open','memory',?,?,'These disagree.',1,1)",
+  ).run(rep, renewal)
+  store.tidyApply('pair', { kind: 'replace', newerId: rep }, store.revision())
+  expect(store.memory(renewal).memory.state).toBe('superseded')
+  const before = dump(db)
+  const names = (id: string) => store.memory(id).memory.entityIds
+  const left = store.split(tom, [rep], target, store.revision())
+  const created = store.overview(300).nodes.find((node) => node.label === target.label)!.id
+  expect(names(renewal)).toContain(tom)
+  expect(names(renewal)).not.toContain(created)
+  store.tidyUndo(left, store.revision())
+  expect(dump(db)).toEqual(before)
+  const moved = store.split(tom, [rep, renewal], target, store.revision())
+  const again = store.overview(300).nodes.find((node) => node.label === target.label)!.id
+  expect(names(renewal)).toEqual(expect.arrayContaining([again]))
+  expect(names(renewal)).not.toContain(tom)
+  expect(store.entity(tom).entity.memories).toBe(1)
+  store.tidyUndo(moved, store.revision())
+  expect(dump(db)).toEqual(before)
+})
+
 it('keeps a later quote through a split undo, and refuses when later knowledge names the new record', () => {
   const { store, db, tom, harbor, vendor } = twoToms()
   const target = { label: 'Tom Lee (Northwind)', kind: 'person' as const }
