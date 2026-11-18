@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { BrainTidyPage, BrainTidySuggestion } from '@shared/brain-tidy'
 import { useBrain } from '../useBrain'
 import type { useTidyPage } from '../tidy/useTidyPage'
 import { TidyDecision } from '../tidy/TidyDecision'
@@ -10,6 +11,7 @@ import { ReviewDecision } from './ReviewDecision'
 import { TidyRunControls } from './TidyRunControls'
 import type { DecisionKeys } from './DecisionFrame'
 import {
+  heldSuggestion,
   inboxGroups,
   inboxOrder,
   keepInboxSelection,
@@ -32,7 +34,8 @@ export function BrainInbox({
   onVisit: (visit: BrainVisit) => void
 }): React.JSX.Element {
   const jobs = useBrain((s) => s.status!.jobs)
-  const groups = inboxGroups(jobs, tidy.page)
+  const { held, onSettled } = useHeldSuggestion(tidy.page, selected)
+  const groups = inboxGroups(jobs, tidy.page, held)
   const items = inboxOrder(groups)
   // A notice can ask for a suggestion before its page has loaded.
   const waiting = !tidy.page && !!selected?.startsWith('suggestion:')
@@ -78,6 +81,7 @@ export function BrainInbox({
             keys={keys}
             onContext={setContext}
             onVisit={onVisit}
+            onSettled={onSettled}
           />
         ) : (
           <p className="text-text-tertiary p-6">{tidy.page ? 'Nothing to decide.' : 'Loading…'}</p>
@@ -91,6 +95,18 @@ export function BrainInbox({
       </aside>
     </div>
   )
+}
+
+/** The open suggestion as last loaded, held in the queue while it is still open (heldSuggestion). */
+function useHeldSuggestion(page: BrainTidyPage | null, selected: string | null) {
+  const [seen, setSeen] = useState<BrainTidySuggestion | null>(null)
+  const [settled, setSettled] = useState<string | null>(null)
+  const loaded = page?.items.find(
+    (item) => item.state === 'open' && `suggestion:${item.id}` === selected,
+  )
+  if (loaded && loaded !== seen) setSeen(loaded)
+  const onSettled = useCallback((id: string) => setSettled(`suggestion:${id}`), [])
+  return { held: heldSuggestion(page, loaded ?? seen, selected, settled), onSettled }
 }
 
 /** The selection in force: kept while it exists, else the item after it, then before it. */

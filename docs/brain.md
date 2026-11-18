@@ -60,7 +60,9 @@ groups disappear. Each row is a title and one line: “2 memories to review · r
 suggestion's reason. **Show more suggestions** loads twenty more. With nothing waiting it says
 “Nothing to decide.” and how decisions arrive. `j` and `k` move the selection, `a` takes the
 decision's primary action and `r` rejects a review; ↑ and ↓ move focus between rows. After a
-decision the next item opens: the one after it, else the one before.
+decision the next item opens: the one after it, else the one before. A reload never swaps the
+open suggestion for another: when newer suggestions push it beyond the loaded rows it stays
+open, last in its group, until it is applied, dismissed or cleared.
 
 Under the queue, **Tidy check** starts a check: **Check with <model>** (the pinned reader, or
 the newest read's model) or **Check for repeats** when no model is known. Its tooltip says

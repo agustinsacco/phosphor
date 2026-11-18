@@ -38,12 +38,37 @@ export function inboxCount(status: BrainStatus | null): number {
   return status ? status.jobs.filter(inboxReview).length + status.tidy.open : 0
 }
 
-export function inboxGroups(jobs: BrainJob[], page: BrainTidyPage | null): InboxGroup[] {
+/**
+ * The open suggestion while a reload no longer brings it back. The page is newest first, so a
+ * sweep that adds suggestions pushes the oldest open ones off it: absence alone is not "gone".
+ * It is gone once every open suggestion of its kind is loaded without it, or once its own
+ * detail said it was settled (`settled`).
+ */
+export function heldSuggestion(
+  page: BrainTidyPage | null,
+  seen: BrainTidySuggestion | null,
+  selected: string | null,
+  settled: string | null,
+): BrainTidySuggestion | null {
+  if (!page || !seen || selected !== `suggestion:${seen.id}` || settled === selected) return null
+  const loaded = page.items.filter((item) => item.state === 'open' && item.kind === seen.kind)
+  if (loaded.some((item) => item.id === seen.id)) return null
+  return loaded.length < page.counts[seen.kind] ? seen : null
+}
+
+/** `held` (see heldSuggestion) stays last in its kind: it is older than every loaded row. */
+export function inboxGroups(
+  jobs: BrainJob[],
+  page: BrainTidyPage | null,
+  held: BrainTidySuggestion | null = null,
+): InboxGroup[] {
   const reviews = jobs
     .filter(inboxReview)
     .toSorted((a, b) => a.queuedAt - b.queuedAt)
     .map((job): InboxItem => ({ key: `review:${job.id}`, kind: 'review', job }))
-  const suggestions = (page?.items ?? []).filter((item) => item.state === 'open')
+  const loaded = (page?.items ?? []).filter((item) => item.state === 'open')
+  const suggestions =
+    held && !loaded.some((item) => item.id === held.id) ? [...loaded, held] : loaded
   return INBOX_GROUPS.map((id) => {
     const items =
       id === 'lanes'

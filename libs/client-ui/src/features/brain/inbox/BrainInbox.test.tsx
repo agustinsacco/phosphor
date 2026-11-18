@@ -99,17 +99,31 @@ function button(text: string, scope: ParentNode = container): HTMLButtonElement 
 }
 const reviewTitle = () => section('Review memories')?.querySelector('h2')?.textContent
 const lastCall = (channel: string) => calls.findLast((c) => c.channel === channel)?.args
-/** Open the second Same person or thing? pair, then reload with it beyond the loaded page. */
-async function pushOpenSuggestionOffThePage(): Promise<string> {
+async function dismissElsewhere(id: string): Promise<void> {
+  const { revision } = (await call('brain:status', [])) as BrainStatus
+  await call('brain:tidyDismiss', [id, revision])
+}
+const bumpRevision = async (): Promise<void> => {
+  const status = useBrain.getState().status!
+  await act(async () => useBrain.setState({ status: { ...status, revision: status.revision + 1 } }))
+}
+/**
+ * Open the second Same person or thing? pair, then reload with it beyond the loaded page.
+ * `older` more pairs of its kind are counted but not loaded either.
+ */
+async function pushOpenSuggestionOffThePage(older = 0): Promise<string> {
   await render()
   await press('j')
   await press('j')
   const open = selected!
   expect(open).toBe('suggestion:tidy-4')
   // Still open and still counted, but older than every row the reload brought back.
-  patchPage = (page) => ({ ...page, items: page.items.filter((item) => item.id !== 'tidy-4') })
-  const status = useBrain.getState().status!
-  await act(async () => useBrain.setState({ status: { ...status, revision: status.revision + 1 } }))
+  patchPage = (page) => ({
+    ...page,
+    items: page.items.filter((item) => item.id !== 'tidy-4'),
+    counts: { ...page.counts, same_entity: page.counts.same_entity + older },
+  })
+  await bumpRevision()
   return open
 }
 
@@ -169,6 +183,22 @@ it('applies with a, after such a reload, the suggestion the owner sees', async (
   await pushOpenSuggestionOffThePage()
   await press('a')
   expect(lastCall('brain:tidyApply')?.[0]).toBe('tidy-4')
+})
+
+it('moves on from a held suggestion once its kind is loaded without it', async () => {
+  await pushOpenSuggestionOffThePage()
+  await dismissElsewhere('tidy-4')
+  await bumpRevision()
+  expect(selected).toBe('suggestion:tidy-1')
+})
+
+it('moves on from a held suggestion once its detail says it was settled', async () => {
+  await pushOpenSuggestionOffThePage(5)
+  expect(selected).toBe('suggestion:tidy-4')
+  await dismissElsewhere('tidy-4')
+  await bumpRevision()
+  expect(container.textContent).not.toContain('This suggestion was already settled.')
+  expect(selected).toBe('suggestion:tidy-1')
 })
 
 it('shows what Brain knows about the people and things in the open decision', async () => {

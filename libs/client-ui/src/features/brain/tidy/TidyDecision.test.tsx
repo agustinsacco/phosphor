@@ -24,6 +24,7 @@ const apply = vi.fn<(id: string, action: BrainTidyAction, revision: number) => P
 const dismiss = vi.fn<(id: string, revision: number) => Promise<unknown>>()
 const visit = vi.fn()
 const reload = vi.fn(async (): Promise<BrainTidyPage | null> => null)
+const settled = vi.fn()
 
 beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -33,6 +34,7 @@ beforeEach(async () => {
   dismiss.mockReset().mockImplementation((...args) => call('brain:tidyDismiss', args))
   visit.mockClear()
   reload.mockClear()
+  settled.mockClear()
   fake = createFakePhosphor({
     'brain:tidySuggestion': async (id) => {
       const value = (await call('brain:tidySuggestion', [id])) as BrainTidySuggestionDetail
@@ -74,6 +76,7 @@ async function render(index: number): Promise<void> {
         keys={keys}
         onContext={() => {}}
         onVisit={visit}
+        onSettled={settled}
       />,
     ),
   )
@@ -202,13 +205,14 @@ it('shows a refused action as a sentence in the action bar', async () => {
   expect(labels()).toContain('Keep both as disputed')
 })
 
-it('says when the suggestion was settled elsewhere and reloads the queue', async () => {
+it('says when the suggestion was settled elsewhere, tells the Inbox and reloads the queue', async () => {
   patch = (d) => {
     d.suggestion.state = 'applied'
     d.allowed = []
   }
   await render(0)
   expect(container.textContent).toContain('This suggestion was already settled.')
+  expect(settled).toHaveBeenCalledWith('tidy-0')
   expect(reload).toHaveBeenCalled()
   expect(bar()).toBeNull()
 })

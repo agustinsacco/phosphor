@@ -25,6 +25,7 @@ export function TidyDecision({
   keys,
   onContext,
   onVisit,
+  onSettled,
 }: {
   suggestion: BrainTidySuggestion
   page: BrainTidyPage | null
@@ -32,6 +33,8 @@ export function TidyDecision({
   keys: React.RefObject<DecisionKeys>
   onContext: (entityIds: string[]) => void
   onVisit: (visit: BrainVisit) => void
+  /** Its detail says it was applied, dismissed, cleared or removed: the Inbox may move on. */
+  onSettled: (id: string) => void
 }): React.JSX.Element {
   const detail = useTidyDetail(suggestion.id)
   const actions = useTidyActions({
@@ -53,8 +56,10 @@ export function TidyDecision({
   }, [data, onContext])
   const settled = detail.loaded && data?.suggestion.state !== 'open'
   useEffect(() => {
-    if (settled) void reload()
-  }, [settled, reload])
+    if (!settled) return
+    onSettled(suggestion.id)
+    void reload()
+  }, [settled, reload, onSettled, suggestion.id])
   const frame = {
     label: 'Tidy suggestion',
     eyebrow: INBOX_GROUP_LABELS[suggestion.kind],

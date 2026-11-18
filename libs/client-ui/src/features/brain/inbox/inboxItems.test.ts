@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 import type { BrainTidyPage, BrainTidySuggestion } from '@shared/brain-tidy'
 import { mockBrainJob, mockBrainStatus } from '../mockBrainData'
 import {
+  heldSuggestion,
   inboxCount,
   inboxGroups,
   inboxOrder,
@@ -24,6 +25,7 @@ function suggestion(id: string, kind: BrainTidySuggestion['kind']): BrainTidySug
     updatedAt: 0,
   }
 }
+const none: BrainTidyPage['counts'] = { same_entity: 0, same_memory: 0, conflict: 0, flagged: 0 }
 function page(items: BrainTidySuggestion[], counts: BrainTidyPage['counts']): BrainTidyPage {
   return { items, counts, next: null, revision: 0 } as unknown as BrainTidyPage
 }
@@ -100,4 +102,29 @@ it('moves with j and k without leaving the list', () => {
   expect(moveInboxSelection(items, 'review:a', -1)).toBe('review:a')
   expect(moveInboxSelection(items, null, 1)).toBe('review:a')
   expect(moveInboxSelection([], null, 1)).toBeNull()
+})
+
+it('holds the open suggestion a reload pushed off the page until it is really gone', () => {
+  const [a, b, c, fresh] = ['a', 'b', 'c', 'new'].map((id) => suggestion(id, 'same_entity'))
+  const before = inboxOrder(inboxGroups([], page([a!, b!, c!], { ...none, same_entity: 3 })))
+  const previous = before.map((item) => item.key)
+  const after = page([fresh!, a!, b!], { ...none, same_entity: 4 })
+  const held = heldSuggestion(after, c!, 'suggestion:c', null)
+  expect(held).toBe(c)
+  const items = inboxOrder(inboxGroups([], after, held))
+  expect(items.map((item) => item.key)).toEqual([
+    'suggestion:new',
+    'suggestion:a',
+    'suggestion:b',
+    'suggestion:c',
+  ])
+  expect(keepInboxSelection(previous, items, 'suggestion:c')).toBe('suggestion:c')
+  // Gone: its detail said so, or every open one of its kind is loaded without it.
+  expect(heldSuggestion(after, c!, 'suggestion:c', 'suggestion:c')).toBeNull()
+  expect(
+    heldSuggestion(page([fresh!, a!, b!], { ...none, same_entity: 3 }), c!, 'suggestion:c', null),
+  ).toBeNull()
+  // Nothing to hold: another selection, or the row is still loaded.
+  expect(heldSuggestion(after, c!, 'suggestion:a', null)).toBeNull()
+  expect(heldSuggestion(after, a!, 'suggestion:a', null)).toBeNull()
 })
