@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { BrainExtractionView } from '@shared/brain'
+import type { BrainForkTrace } from '@shared/brain-extraction'
 import {
   createFakePhosphor,
   installFakePhosphor,
@@ -88,6 +89,46 @@ it('includes the conversation part even for a single-part stage', () => {
         0,
       ),
     ).toBe('Read the conversation · part 1 of 1')
+})
+
+it('says how long each call took in words, never as a clock', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const view = mockExtractionView()
+  const trace = (totalMs: number): BrainForkTrace => ({
+    firstStdoutMs: null,
+    firstMessageStartMs: null,
+    firstMessageUpdateMs: null,
+    agentStarts: 1,
+    turns: 1,
+    messageUpdates: 1,
+    retries: [],
+    compactions: [],
+    stopReason: 'stop',
+    usage: { tokens: 0, cost: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    totalMs,
+    reason: 'completed',
+  })
+  view.calls[0]!.trace = trace((241 * 60 + 11) * 1000)
+  view.calls[1]!.trace = trace(42_400)
+  const fake = createFakePhosphor({ 'brain:extraction': async () => view })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () =>
+      root.render(
+        <BrainExtraction jobId="harbor-demo-review" onMemory={vi.fn()} onBack={vi.fn()} />,
+      ),
+    )
+    const calls = container.querySelector('[aria-label="How it was read"]')!.textContent
+    expect(calls).toContain('Read the conversation · part 1 · 4 h 1 min')
+    expect(calls).toContain(' · 42 s')
+    expect(calls).not.toContain('241:11')
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
 })
 
 it('renders forgotten outcomes as removed, and offers Read again in a finished read header', async () => {

@@ -84,6 +84,15 @@ it('saves exactly once per toggle and shows enabled rows immediately', async () 
   })
 })
 
+it('sends lane flags to the Brain Inbox, not to a Tidy tab that no longer exists', async () => {
+  status.prefs.enabled = true
+  await render()
+  expect(container.textContent).toContain(
+    'brain_flag to suggest a correction for you to review in the Brain Inbox',
+  )
+  expect(container.textContent).not.toContain('on Tidy')
+})
+
 it('shows download progress and checking text without downloading again', async () => {
   status.prefs.enabled = true
   status.embedding = { ...status.embedding, phase: 'downloading', receivedBytes: 64.2 * 1024 ** 2 }

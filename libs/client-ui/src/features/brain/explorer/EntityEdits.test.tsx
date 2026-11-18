@@ -138,6 +138,8 @@ it('splits the ticked memories into a new record with its own name and kind', as
   expect(button('Split off')!.disabled).toBe(true)
   await act(async () => boxes()[0]!.click())
   expect(button('Split off 1 memory')!.disabled).toBe(true)
+  // The engine takes 1 to 80 characters for the new name.
+  expect(dialog().querySelector<HTMLInputElement>('[aria-label="New name"]')!.maxLength).toBe(80)
   await type('New name', 'Harbor docks')
   const kind = dialog().querySelector<HTMLSelectElement>('select[aria-label="Kind"]')!
   await act(async () => {
