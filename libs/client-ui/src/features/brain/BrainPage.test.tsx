@@ -22,6 +22,8 @@ let root: Root, container: HTMLDivElement
 let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 let mock: ReturnType<typeof createMockBrain>
 let patchStatus: ((status: BrainStatus) => BrainStatus) | null
+/** Every suggestion whose detail the Inbox loaded, in order: the last one is on screen. */
+const detailed: string[] = []
 const CHANNELS: IpcInvokeChannel[] = [
   'brain:status',
   'brain:setPrefs',
@@ -49,11 +51,13 @@ beforeEach(async () => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   mock = createMockBrain(() => 10000)
   patchStatus = null
+  detailed.length = 0
   await mock('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
   const handlers = Object.fromEntries(
     CHANNELS.map((channel) => [
       channel,
       async (...args: unknown[]) => {
+        if (channel === 'brain:tidySuggestion') detailed.push(args[0] as string)
         const result = await mock(channel, args)
         return channel === 'brain:status' && patchStatus
           ? patchStatus(result as BrainStatus)
@@ -106,6 +110,10 @@ const press = (key: string, target: Element, init: KeyboardEventInit = {}) =>
     target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...init })),
   )
 const search = () => container.querySelector<HTMLInputElement>('[role="combobox"]')
+const goToAnyone = () =>
+  [...container.querySelectorAll('button')].find((b) =>
+    b.textContent?.includes('Go to anyone or anything'),
+  )!
 
 it('opens on the Inbox with its count, and shows the Brain totals in the title', async () => {
   await render()
@@ -147,10 +155,7 @@ it('focuses Knowledge search with / from anywhere on the page, but not from a fi
 
 it('goes to Knowledge search from the header button', async () => {
   await render()
-  const go = [...container.querySelectorAll('button')].find((b) =>
-    b.textContent?.includes('Go to anyone or anything'),
-  )!
-  await act(async () => go.click())
+  await act(async () => goToAnyone().click())
   expect(selectedTab()).toBe('brain-tab-knowledge')
   expect(document.activeElement).toBe(search())
 })
@@ -204,6 +209,39 @@ it('routes a notice to the Inbox, and an automatic change to Lanes › Recent ch
   expect(selectedTab()).toBe('brain-tab-inbox')
   await act(async () => openBrain({ tab: 'inbox', item: 'suggestion:tidy-2' }))
   expect(section('Tidy suggestion')).not.toBeNull()
+})
+
+it('selects Recent changes on a second Open recent changes', async () => {
+  await mock('brain:tidy', [null, null, 20])
+  await mock('brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0])
+  await render()
+  await act(async () => openTidy(true))
+  const read = section('Brain lanes').querySelector<HTMLButtonElement>(
+    'section:not([aria-label="Recent changes"]) button',
+  )!
+  await act(async () => read.click())
+  expect(section('Recent changes').querySelector('[aria-current="true"]')).toBeNull()
+  await act(async () => openTidy(true))
+  expect(section('Recent changes').querySelector('[aria-current="true"]')).not.toBeNull()
+  expect(section('Change detail').textContent).toContain('Combined names, links and memories.')
+})
+
+it('focuses the search again on a second click of the header button', async () => {
+  await render()
+  await act(async () => goToAnyone().click())
+  expect(document.activeElement).toBe(search())
+  search()!.blur()
+  await act(async () => goToAnyone().click())
+  expect(selectedTab()).toBe('brain-tab-knowledge')
+  expect(document.activeElement).toBe(search())
+})
+
+it('routes a second notice to its own item', async () => {
+  await render()
+  await act(async () => openBrain({ tab: 'inbox', item: 'suggestion:tidy-2' }))
+  expect(detailed.at(-1)).toBe('tidy-2')
+  await act(async () => openBrain({ tab: 'inbox', item: 'suggestion:tidy-5' }))
+  expect(detailed.at(-1)).toBe('tidy-5')
 })
 
 it('opens a profile from the Inbox and keeps the Inbox selection across tabs', async () => {
