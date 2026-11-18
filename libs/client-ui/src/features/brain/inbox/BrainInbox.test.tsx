@@ -201,6 +201,16 @@ it('moves on from a held suggestion once its detail says it was settled', async 
   expect(selected).toBe('suggestion:tidy-1')
 })
 
+it('shows the header and count of a kind whose suggestions are not loaded yet', async () => {
+  patchPage = (page) => ({
+    ...page,
+    items: page.items.filter((item) => item.kind !== 'same_entity'),
+  })
+  await render()
+  const people = section('Decisions').querySelector('[aria-label="Same person or thing?"]')
+  expect(people?.textContent ?? '').toContain('Same person or thing? · 3')
+})
+
 it('shows what Brain knows about the people and things in the open decision', async () => {
   await render()
   const context = section('What Brain knows')

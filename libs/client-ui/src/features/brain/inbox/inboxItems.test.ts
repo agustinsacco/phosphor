@@ -128,3 +128,12 @@ it('holds the open suggestion a reload pushed off the page until it is really go
   expect(heldSuggestion(after, c!, 'suggestion:a', null)).toBeNull()
   expect(heldSuggestion(after, a!, 'suggestion:a', null)).toBeNull()
 })
+
+it('shows a kind with open suggestions before any of them is loaded', () => {
+  const repeats = ['r1', 'r2'].map((id) => suggestion(id, 'same_memory'))
+  const groups = inboxGroups([], page(repeats, { ...none, same_entity: 5, same_memory: 45 }))
+  expect(groups.map((group) => [group.id, group.items.length, group.total])).toEqual([
+    ['same_entity', 0, 5],
+    ['same_memory', 2, 45],
+  ])
+})
