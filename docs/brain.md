@@ -375,8 +375,8 @@ view or new. A memory highlights every named entity and the links it supports. S
 outside the overview are included with their neighbours, still capped at 300 nodes: selection
 first, then route nodes, direct neighbours and the rest. `brain:overview` and
 `brain:neighbourhood` payloads carry at most 300 nodes and 1,500 links: one link per pair and
-link word (the newest read), from at most eight per link word and direction per node, centre
-first. A hub's neighbourhood on a million-memory Brain is about 70 KB. A notice says when the
+link word (the newest read), from at most eight neighbours per link word and direction per node
+(one slot per neighbour, so a pair said many times hides no other), centre first. A hub's neighbourhood on a million-memory Brain is about 70 KB. A notice says when the
 graph is truncated. **Neighbours only** switches to one or two steps (`brain:neighbourhood`) and fits that
 neighbourhood; clearing resets it. Fit, zoom and 2D/3D remain. The legend lists only present
 kinds in the theme's kind colours; the keyboard focus badge sits inside the canvas, clear of the
@@ -688,7 +688,8 @@ ask the owner to review. Both tools use the version 5 local bridge.
   whose meaning matches (cosine 0.35 or more).
 - **Walk.** Two hops out along live links, three for structural ones (part of, for customer,
   owns, member of, documents), at most 200 entities and 400 links, never through an entity with
-  more than 200 connections unless the query named it.
+  more than 200 connections unless the query named it. From each entity it follows the newest
+  link to each of at most eight neighbours per link word and direction.
 - **Ranking.** Reciprocal rank fusion weighs meaning, words, named entities and walked links 2,
   1, 1 and 0.5; the lane's own project counts 1.25 times; freshness only breaks near-ties
   (half-lives: open 30 days, risk 60, decision and fact 180, procedure and preference 365).

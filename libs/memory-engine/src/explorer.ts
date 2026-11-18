@@ -12,6 +12,7 @@ import {
 import { all, one, type Bind, type Context } from './database'
 import { entity as entitySummary, entityNumber, referencedEntities } from './entities'
 import { memoryCards } from './knowledge'
+import { newerLink, pairProbe, sideIndex } from './relation-pairs'
 
 const PAGE_SIZE = 40
 function cursor(value: number[]): string {
@@ -31,17 +32,6 @@ function decode(value: string | null): number[] | null {
     /* Report invalid cursors consistently. */
   }
   throw new Error('Brain page cursor is invalid.')
-}
-type Side = 'subject' | 'object'
-const sideIndex = (side: Side) => (side === 'subject' ? 'relations_out' : 'relations_in')
-/**
- * A subquery about one (entity, neighbour) pair, run through the index of whichever side has
- * fewer connections. Binds the entity's own connection count once.
- */
-function pairProbe(own: Side, other: Side, query: (from: string, pair: string) => string): string {
-  const pair = `x.${other}=r.${other} AND x.live=1 AND x.predicate=r.predicate AND x.${own}=r.${own}`
-  const through = (side: Side) => query(`relations x INDEXED BY ${sideIndex(side)}`, pair)
-  return `CASE WHEN e.connections<=? THEN (${through(other)}) ELSE (${through(own)}) END`
 }
 /**
  * One row per neighbour through this predicate and direction. The walk follows the entity's own
@@ -67,12 +57,7 @@ function connectionPage(
   )
   if (!self) throw new Error('Brain entity not found.')
   const key = decode(after)
-  const newer = pairProbe(
-    own,
-    other,
-    (from, pair) =>
-      `SELECT 1 FROM ${from} WHERE ${pair} AND x.observed_at>=r.observed_at AND (x.observed_at>r.observed_at OR x.n>r.n)`,
-  )
+  const newer = newerLink(own, other)
   const supports = pairProbe(
     own,
     other,

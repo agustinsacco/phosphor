@@ -34,23 +34,35 @@ function graphFixture(hub = false) {
   return { db, now: () => 1, id: () => 'unused' }
 }
 
-it('keeps predicate/direction order, newest ties and eight links per predicate/direction', () => {
+it('keeps predicate/direction order and one link per neighbour, the newest by rowid on ties', () => {
   for (const hub of [false, true]) {
     const ctx = graphFixture(hub)
-    const links = edges(ctx, 'harbor')
-    expect(links.map((link) => link.id)).toEqual([
-      '13',
-      '12',
-      '11',
-      '10',
-      '9',
-      '8',
-      '7',
-      '6',
-      '2',
-      '3',
-      '4',
-    ])
+    // Harbor owns Ledger is said ten times (1 and 5–13); only its newest link, 13, is kept.
+    expect(edges(ctx, 'harbor').map((link) => link.id)).toEqual(['13', '2', '3', '4'])
+  }
+})
+
+it('keeps the eight newest neighbours per predicate and direction', () => {
+  for (const hub of [false, true]) {
+    const { db } = fixture()
+    db.exec(
+      `INSERT INTO entities(n,id,label,kind,created_at,connections) VALUES (1,'harbor','Harbor','project',1,${hub ? 201 : 10})`,
+    )
+    for (let n = 2; n <= 11; n++) {
+      db.prepare(
+        "INSERT INTO entities(n,id,label,kind,created_at,connections) VALUES (?,?,'Project','project',1,1)",
+      ).run(n, `project-${n}`)
+      db.prepare(
+        "INSERT INTO memories(n,id,summary,type,epistemic,scope,observed_at,recorded_at,state) VALUES (?,?,'Harbor owns it','fact','reported','/',?,?,'active')",
+      ).run(n, `memory-${n}`, n, n)
+      db.prepare(
+        "INSERT INTO relations(memory,subject,predicate,object,live,observed_at) VALUES (?,1,'owns',?,1,?)",
+      ).run(n, n, n)
+    }
+    const ctx = { db, now: () => 1, id: () => 'unused' }
+    expect(edges(ctx, 'harbor').map((link) => link.objectId)).toEqual(
+      [11, 10, 9, 8, 7, 6, 5, 4].map((n) => `project-${n}`),
+    )
   }
 })
 
