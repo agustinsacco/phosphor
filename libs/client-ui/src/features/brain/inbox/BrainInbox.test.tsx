@@ -265,12 +265,12 @@ it('starts a model check from under the queue and says nothing is left when empt
   await render()
   await act(async () => button('Check for repeats')!.click())
   expect(calls.some((c) => c.channel === 'brain:tidyRun')).toBe(true)
-  useBrain.setState({ status: { ...useBrain.getState().status!, jobs: [] } })
+  // The review first, while its proposal is current; then every suggestion.
   for (let left = 30; left && section('Decisions').querySelector('[data-inbox-row]'); left--)
     await act(async () => {
       const first = section('Decisions').querySelector<HTMLButtonElement>('[data-inbox-row]')!
       first.click()
-      const dismiss = button('Not the same') ?? button('Keep')
+      const dismiss = button('Reject read') ?? button('Not the same') ?? button('Keep')
       dismiss?.click()
     })
   expect(section('Decisions').textContent).toContain('Nothing to decide.')

@@ -13,9 +13,25 @@ import type {
   BrainStatus,
 } from '@shared/brain'
 import { mockBrainJob, mockBrainProposal, mockBrainStatus } from './mockBrainData'
-import { applyMockReview } from './mockReview'
+import { mockDemoJobs, mockStartingJobs, withDemoQuestions } from './mockBrainDemo'
+import { applyMockReview, checkMockDecision } from './mockReview'
+import { mockExtractionRecord } from './mockExtractionRecord'
 import { MockExplorer } from './mockExplorer'
 import { MockReadHistory } from './mockReadHistory'
+
+export interface MockBrainOptions extends MockTidyOptions {
+  /** The browser harness: a required question, held claims and a never-read review. */
+  demoReviews?: boolean
+}
+/** A lane with one of these is already queued or waiting for the owner. */
+const UNFINISHED: readonly BrainJob['state'][] = [
+  'waiting',
+  'queued',
+  'running',
+  'refreshing',
+  'review',
+]
+const FINISHED: readonly BrainJob['state'][] = ['done', 'empty', 'rejected']
 
 class MockBrain {
   private state = mockBrainStatus()
@@ -26,25 +42,16 @@ class MockBrain {
   private resets = 0
   private computedRevisions = new Map<string, number>()
   private tidy: MockTidy
+  private demo: boolean
   constructor(
     private now: () => number,
-    options: MockTidyOptions,
+    options: MockBrainOptions,
   ) {
     this.tidy = new MockTidy(this.explorer, this.state, now, options)
-    this.state.jobs = [
-      mockBrainJob({
-        id: 'harbor-demo-review',
-        sessionPath: '/demo/Harbor/planning-demo.jsonl',
-        title: 'Harbor identity review',
-      }),
-      mockBrainJob({
-        id: 'harbor-demo-failed',
-        sessionPath: '/demo/Harbor/failed-demo.jsonl',
-        title: 'Ledger extraction to retry',
-        state: 'failed',
-        error: 'Invented provider timeout · Retry resumes the same job',
-      }),
-    ]
+    this.demo = !!options.demoReviews
+    this.state.jobs = [...mockStartingJobs(), ...(this.demo ? mockDemoJobs() : [])]
+    // The demo review adds two held claims to the usual two memories.
+    if (this.demo) this.state.jobs[0]!.memories = 4
     for (const job of this.state.jobs) {
       this.records.set(job.id, this.extractionRecord(job.id))
       this.computedRevisions.set(job.id, this.state.revision)
@@ -57,11 +64,16 @@ class MockBrain {
       memories: this.explorer.details.length,
       entities: this.explorer.entities.length,
     }
+    const read = [...this.history.jobs, ...this.state.jobs].filter((job) =>
+      FINISHED.includes(job.state),
+    )
+    this.state.readSessionIds = [...new Set(read.map((job) => job.sessionId))].slice(0, 5000)
     return this.state
   }
   private review(id: string, decision: BrainReviewDecision | null, revision: number): BrainStatus {
     if (this.state.revision !== revision) throw new Error('Brain changed; refreshing this review')
     const proposal = this.proposal(id)
+    checkMockDecision(proposal, decision)
     if (decision) {
       if (proposal.job.replaces)
         this.explorer.details = this.explorer.details.filter(
@@ -75,22 +87,26 @@ class MockBrain {
             (d) => d.memory.jobId === id && d.memory.summary === outcome.summary,
           )?.memory.id
     }
-    if (decision || !proposal.job.replaces) this.history.finish(proposal.job, this.now())
-    this.state.jobs = this.state.jobs.filter((item) => item.id !== id)
+    const job = this.state.jobs.find((item) => item.id === id)!
+    if (decision) this.history.finish(proposal.job, this.now())
+    // Rejecting Read again keeps the earlier read; rejecting a read keeps it as rejected.
+    if (decision || proposal.job.replaces)
+      this.state.jobs = this.state.jobs.filter((item) => item.id !== id)
+    else Object.assign(job, { state: 'rejected', finishedAt: this.now(), progress: null })
     this.state.revision++
     return this.status()
   }
   private proposal(id: string): BrainProposalView {
-    const job = this.state.jobs.find((item) => item.id === id && item.state === 'review')
-    if (!job) throw new Error('Review not found')
+    const job = this.state.jobs.find((item) => item.id === id)
+    if (job?.state === 'refreshing') throw new Error('Brain changed; refreshing this review')
+    if (job?.state !== 'review') throw new Error('Review not found')
     if (this.computedRevisions.get(id) !== this.state.revision) {
-      job.state = 'queued'
-      job.startedAt = null
-      job.finishedAt = null
-      job.progress = null
+      // Recomputed as the same review: its first start stays, the attempt starts on a tick.
+      Object.assign(job, { state: 'refreshing', runStartedAt: null, progress: null })
       throw new Error('Brain changed; refreshing this review')
     }
-    const proposal = mockBrainProposal(job, this.state.revision)
+    const plain = mockBrainProposal(job, this.state.revision)
+    const proposal = this.demo && job.id === 'harbor-demo-review' ? withDemoQuestions(plain) : plain
     if (job.replaces) {
       proposal.replacingMemories = this.history.memories(job.sessionId).length
       proposal.confirmations = []
@@ -110,26 +126,21 @@ class MockBrain {
       if (this.state.embedding.phase === 'ready') this.downloading = null
     }
     if (!this.state.prefs.enabled || this.state.embedding.phase !== 'ready') return
-    const job = this.state.jobs.find((j) => ['queued', 'running'].includes(j.state))
+    // One attempt at a time; a waiting refresh goes before any queued read, as on Desktop.
+    const jobs = this.state.jobs
+    const job =
+      jobs.find((j) => j.runStartedAt !== null && ['running', 'refreshing'].includes(j.state)) ??
+      jobs.find((j) => j.state === 'refreshing') ??
+      jobs.find((j) => j.state === 'queued')
     if (!job) return
-    if (job.state === 'queued') {
-      if (job.startedAt === null) {
-        job.model = this.state.prefs.model ?? job.model
-        this.records.set(job.id, {
-          ...this.extractionRecord(job.id),
-          thinking: this.state.prefs.model === null ? 'low' : 'medium',
-        })
-      }
-      job.state = 'running'
-      job.startedAt = this.now()
-      job.progress = { stage: 'extract', done: 1, total: 4 }
-      return
-    }
-    if (this.now() - (job.startedAt ?? this.now()) < 4000) return
-    this.records.set(job.id, this.extractionRecord(job.id))
-    job.state = 'review'
+    if (job.state === 'queued' || job.runStartedAt === null) return this.start(job)
+    if (this.now() - job.runStartedAt < 4000) return
+    const refreshed = job.state === 'refreshing'
+    Object.assign(job, { state: 'review', runStartedAt: null, progress: null })
     this.computedRevisions.set(job.id, this.state.revision)
-    job.progress = null
+    // A refresh recomputes the same review: same read, same record, same finish.
+    if (refreshed) return
+    this.records.set(job.id, this.extractionRecord(job.id))
     job.memories = 2
     job.finishedAt = this.now()
     if (!this.state.prefs.review)
@@ -139,23 +150,49 @@ class MockBrain {
         this.state.revision,
       )
   }
+  /** A read's first start freezes its model; every attempt, refresh included, restarts the clock. */
+  private start(job: BrainJob): void {
+    if (job.state === 'queued') {
+      if (job.startedAt === null) {
+        job.model = this.state.prefs.model ?? job.model
+        this.records.set(job.id, {
+          ...this.extractionRecord(job.id),
+          thinking: this.state.prefs.model === null ? 'low' : 'medium',
+        })
+      }
+      job.state = 'running'
+      job.startedAt ??= this.now()
+      job.progress = { stage: 'extract', done: 1, total: 4 }
+    } else job.progress = { stage: 'reconcile', done: 1, total: 1 }
+    job.runStartedAt = this.now()
+  }
   private download(): BrainStatus {
     this.downloading = this.now()
     this.state.embedding.phase = 'downloading'
     return this.status()
   }
+  /** Read again (`previous`) reads from the start; a lane read before continues after it. */
   private queue(lane: BrainLaneRef, previous?: BrainJob): BrainStatus {
     if (!this.state.prefs.enabled) throw new Error('Turn Brain on first.')
-    if (this.state.jobs.some((job) => job.sessionPath === lane.sessionPath))
+    if (
+      this.state.jobs.some(
+        (job) => job.sessionPath === lane.sessionPath && UNFINISHED.includes(job.state),
+      )
+    )
       throw new Error('This lane is already queued.')
+    const earlier = this.history.jobs.find((job) => job.sessionPath === lane.sessionPath)
+    const id = crypto.randomUUID()
     this.state.jobs.push(
       mockBrainJob({
-        id: crypto.randomUUID(),
-        ...lane,
+        id,
+        sessionPath: lane.sessionPath,
+        title: lane.title,
         replaces: previous?.id ?? null,
-        sessionId: previous?.sessionId ?? lane.sessionPath,
+        sessionId: previous?.sessionId ?? earlier?.sessionId ?? lane.sessionPath,
         state: 'queued',
         memories: 0,
+        leafId: `leaf-${id}`,
+        fromLeafId: previous ? null : (earlier?.leafId ?? null),
         queuedAt: this.now(),
         startedAt: null,
         finishedAt: null,
@@ -165,78 +202,7 @@ class MockBrain {
   }
   private extractionRecord(id: string): BrainExtractionView {
     const job = this.state.jobs.find((j) => j.id === id)!
-    return {
-      job,
-      replaceable: 0,
-      laneMemories: 0,
-      jobId: id,
-      sessionId: job.sessionId,
-      sessionPath: job.sessionPath,
-      title: job.title,
-      leafId: job.leafId,
-      model: job.model,
-      thinking: this.records.get(id)?.thinking ?? 'low',
-      calls: [
-        {
-          stage: 'extract',
-          part: 1,
-          entryIds: ['s1'],
-          inputHash: 'demo-hash',
-          answer: JSON.stringify({ claims: ['Harbor Ledger is built for Harbor.'] }),
-          trace: null,
-          error: null,
-        },
-        {
-          stage: 'links',
-          part: 1,
-          entryIds: ['s1'],
-          inputHash: 'demo-links-hash',
-          answer: JSON.stringify({
-            links: [
-              {
-                claim: 'c1',
-                subject: 'ledger',
-                predicate: 'for_customer',
-                object: 'harbor',
-                segment: 's1',
-                quote: 'Harbor Ledger is built for Harbor.',
-              },
-            ],
-          }),
-          trace: null,
-          error: null,
-        },
-      ],
-      prompts: [
-        'Extract supported claims from this invented Harbor planning window.',
-        'Find lasting relationships in the kept Harbor claims and their excerpts.',
-      ],
-      outcomes: [
-        {
-          candidate: 'w1:c1',
-          summary: 'Harbor Ledger is built for Harbor.',
-          status: 'kept',
-          proposalIndex: 0,
-        },
-        {
-          candidate: 'w1:c2',
-          summary: 'Unverified ownership link',
-          status: 'dropped',
-          reason: 'Link quote not found in s1',
-        },
-      ],
-      error: null,
-      startedAt: job.startedAt ?? this.now(),
-      finishedAt: this.now(),
-      memories: [],
-      source: {
-        sessionPath: job.sessionPath,
-        title: job.title,
-        leafId: job.leafId,
-        exists: false,
-        segments: [],
-      },
-    }
+    return mockExtractionRecord(job, this.records.get(id)?.thinking ?? 'low', this.now())
   }
   private mutation(channel: string, args: unknown[]): BrainStatus {
     switch (channel) {
@@ -391,9 +357,12 @@ class MockBrain {
 /** Every local Brain channel; invented graph and clock-driven model/queue, no inference. */
 export function createMockBrain(
   now: () => number = () => Date.now(),
-  tidy: MockTidyOptions = {},
+  options: MockBrainOptions = {},
 ): (channel: string, args: unknown[]) => Promise<unknown> {
-  const mock = new MockBrain(now, tidy)
+  const mock = new MockBrain(now, options)
   return async (channel, args) => structuredClone(mock.call(channel, args))
 }
-export const mockBrainCall = createMockBrain(() => Date.now(), { flagAfterMs: 20000 })
+export const mockBrainCall = createMockBrain(() => Date.now(), {
+  flagAfterMs: 20000,
+  demoReviews: true,
+})
