@@ -1,5 +1,6 @@
 import { unlinkSync } from 'node:fs'
-import { unlink } from 'node:fs/promises'
+import { unlink, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
 import { extractJob } from './extract'
@@ -110,4 +111,41 @@ it('still reports an unrelated missing file as a failed refresh', async () => {
     }),
   )
   expect(s.runner).not.toHaveBeenCalled()
+})
+
+it('fails a queued read of a deleted lane with a plain sentence, not the archived path', async () => {
+  const s = await pipelineSetup()
+  cleanups.push(s.cleanup)
+  s.store.jobs = []
+  const ledger = join(s.directory, 'ledger.jsonl')
+  await writeFile(
+    ledger,
+    s.entries
+      .map((entry) => (entry.type === 'session' ? { ...entry, id: 'ledger-lane' } : entry))
+      .map((entry) => JSON.stringify(entry))
+      .join('\n'),
+  )
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  const answer = s.runner.getMockImplementation()!
+  s.runner.mockImplementationOnce(async (input) => {
+    await gate
+    return answer(input)
+  })
+  const service = await createBrainService(s.options)
+  cleanups.push(() => service.dispose())
+  const harbor = (await service.api.queue({ sessionPath: s.file, title: 'Harbor' })).jobs[0]!.id
+  await vi.waitFor(() => expect(s.runner).toHaveBeenCalled())
+  const status = await service.api.queue({ sessionPath: ledger, title: 'Ledger' })
+  const id = status.jobs.find((job) => job.sessionId === 'ledger-lane')!.id
+  expect(s.store.job(id)?.state).toBe('queued')
+  await unlink(ledger)
+  release()
+  await vi.waitFor(() => expect(s.store.job(harbor)?.state).toBe('review'))
+  await vi.waitFor(() =>
+    expect(s.store.job(id)).toMatchObject({
+      state: 'failed',
+      error: "This lane was deleted, so Brain can't read it.",
+    }),
+  )
 })
