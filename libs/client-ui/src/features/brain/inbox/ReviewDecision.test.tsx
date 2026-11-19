@@ -4,6 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { BrainProposalView, BrainReviewDecision, BrainStatus } from '@shared/brain'
 import {
+  BRAIN_NEVER_READ_REFRESH_REFUSAL,
+  BRAIN_REVIEW_CHANGED,
+  BRAIN_REVIEW_REFRESHING,
+} from '@shared/brain-review'
+import {
   createFakePhosphor,
   installFakePhosphor,
 } from '../../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
@@ -181,6 +186,45 @@ it('refreshes a stale review, says so, and approves the new proposal', async () 
   await click('Approve 2')
   expect(review).toHaveBeenCalledTimes(2)
   expect(review.mock.calls[1]![2]).toBe(1)
+})
+
+it('regression: keeps a refusal that cannot refresh beside Reject, with the owner’s ticks', async () => {
+  review.mockRejectedValueOnce(new Error(BRAIN_NEVER_READ_REFRESH_REFUSAL))
+  await render()
+  const keep = container.querySelector<HTMLInputElement>(
+    `[aria-label="Keep: ${proposal.memories[0]!.summary}"]`,
+  )!
+  await act(async () => keep.click())
+  await click('Approve 1 of 2')
+  const bar = container.querySelector('[aria-label="Decision actions"]')!
+  expect(bar.textContent).toContain(BRAIN_NEVER_READ_REFRESH_REFUSAL)
+  expect(button('Reject read', bar)).toBeDefined()
+  expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
+  expect(
+    container.querySelector<HTMLInputElement>(
+      `[aria-label="Keep: ${proposal.memories[0]!.summary}"]`,
+    )!.checked,
+  ).toBe(false)
+  expect(proposalRead).toHaveBeenCalledOnce()
+})
+
+it('regression: shows a load refusal that cannot refresh with Retry, not as refreshing', async () => {
+  proposalRead.mockRejectedValueOnce(new Error(BRAIN_NEVER_READ_REFRESH_REFUSAL))
+  await render()
+  expect(container.textContent).toContain(BRAIN_NEVER_READ_REFRESH_REFUSAL)
+  expect(container.textContent).not.toContain('Refreshing this review')
+  await click('Retry')
+  expect(container.querySelector('[aria-label="Review memories"]')).not.toBeNull()
+})
+
+it('reloads the review on either exact reload sentence', async () => {
+  for (const sentence of [BRAIN_REVIEW_CHANGED, BRAIN_REVIEW_REFRESHING]) {
+    review.mockRejectedValueOnce(new Error(sentence))
+    await render()
+    const loads = proposalRead.mock.calls.length
+    await click('Approve 2')
+    expect(proposalRead.mock.calls.length).toBe(loads + 1)
+  }
 })
 
 it('waits while Brain recomputes a review and reloads it once it is back', async () => {
