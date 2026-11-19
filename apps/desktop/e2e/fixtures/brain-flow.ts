@@ -82,6 +82,12 @@ export async function queueLane(page: Page, lane: BrainLane): Promise<void> {
   await page.getByText('Queue for knowledge extraction', { exact: true }).click()
 }
 
+/** A lane Brain has read before offers its new messages instead of a first read. */
+export async function readNewMessages(page: Page, lane: BrainLane): Promise<void> {
+  await laneRow(page, lane).click({ button: 'right' })
+  await page.getByText('Read new messages for Brain', { exact: true }).click()
+}
+
 export async function approveLane(page: Page, lane: BrainLane): Promise<string> {
   await brainTab(page, 'Inbox').click()
   await awaitRead(page, lane)

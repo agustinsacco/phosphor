@@ -27,6 +27,7 @@ import {
   enableBrain,
   exploreBrain,
   queueLane,
+  readNewMessages,
   readRow,
   resetBrain,
   reviewRow,
@@ -95,10 +96,8 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
         }),
       ]),
     )
-    await queueLane(page, seed.harbor)
-    await expect(
-      page.getByText('Nothing new in this lane since its last extraction.'),
-    ).toBeVisible()
+    await readNewMessages(page, seed.harbor)
+    await expect(page.getByText('Nothing new in this lane since its last read.')).toBeVisible()
     await rereadHarbor(page, seed.harbor, firstJob)
     await resetBrain(page)
     for (const lane of [seed.harbor, seed.ledger])
@@ -186,7 +185,10 @@ async function rereadHarbor(page: Page, lane: BrainLane, earlier: string): Promi
   const next = await approveLane(page, lane)
   expect(next).not.toBe(earlier)
   await brainTab(page, 'Lanes').click()
-  await expect(row).toContainText('2 memories')
+  // Both reads stay, newest first; the replaced one now counts nothing of its own.
+  await expect(row).toHaveCount(2)
+  await expect(row.nth(0)).toContainText('2 memories from this read')
+  await expect(row.nth(1)).toContainText('0 memories from this read')
   const fresh = await page.evaluate((id) => window.phosphor.invoke('brain:extraction', id), next)
   expect(fresh.memories).toHaveLength(2)
   for (const memory of old.memories) {
@@ -202,7 +204,7 @@ async function rereadHarbor(page: Page, lane: BrainLane, earlier: string): Promi
     (await page.evaluate(() => window.phosphor.invoke('brain:history', 20))).items
       .filter((i) => i.job.sessionId === old.sessionId)
       .map((i) => i.job.id),
-  ).toEqual([next])
+  ).toEqual([next, earlier])
 }
 test('Brain reads a queued lane with the reader selected in Settings', async () => {
   const seed = await seedBrainLanes()
