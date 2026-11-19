@@ -35,3 +35,12 @@ it('does not hide a read error by using the archived twin', async () => {
   await writeFile(`${file}.archived`, JSON.stringify({ id: 'parked' }))
   await expect(readLaneEntries(file)).rejects.toMatchObject({ code: 'EISDIR' })
 })
+
+it('reports a lane with neither transcript as deleted, keeping ENOENT for missing-file checks', async () => {
+  const { file } = await setup()
+  await expect(readLaneEntries(file)).rejects.toMatchObject({
+    message: "This lane was deleted, so Brain can't read it.",
+    code: 'ENOENT',
+    path: file,
+  })
+})

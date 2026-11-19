@@ -1,5 +1,6 @@
 import { brainLaneNeverRead, type BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
+import { DeletedLaneError } from './transcript'
 
 export interface QueueOptions {
   store: BrainStore
@@ -297,11 +298,10 @@ export class ExtractionQueue {
       await this.options.run(job, abort.signal)
     } catch (error) {
       if (!abort.signal.aborted && this.options.store.job(job.id)) {
-        const missing = error as NodeJS.ErrnoException | null
         // The lane can disappear after preflight, before the runner opens its archived twin.
         if (
-          missing?.code === 'ENOENT' &&
-          missing.path === `${job.sessionPath}.archived` &&
+          error instanceof DeletedLaneError &&
+          error.path === job.sessionPath &&
           this.options.store.storedProposal(job.id)
         )
           this.exclude(job)

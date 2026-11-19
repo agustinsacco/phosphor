@@ -210,7 +210,9 @@ in the bounded history.
 Brain reads archived lanes too: when the stored transcript path is missing, it reads only that
 path's `.archived` twin in the same folder. This applies to queued reads, review refreshes,
 current-title exclusions and the source shown in a read's record; it never searches for another
-transcript.
+transcript. When neither file exists, a read with no review yet fails with “This lane was
+deleted, so Brain can't read it.”, and a pending review stays in the Inbox as described under
+Lanes Brain never reads.
 
 A job freezes the lane's leaf, chosen reader model, thinking level and git branch when it first
 starts. A resume never moves them. It then reads the lane's path to that leaf, applies pi's
