@@ -356,19 +356,68 @@ it('queues a lane it read before from where that read ended, and Read again from
   expect(again).toMatchObject({ fromLeafId: null, replaces: read.id })
 })
 
-it('keeps a rejected read as rejected, and lets its lane be queued again', async () => {
+it('moves a rejected read into history, as Desktop does, and continues the lane after it', async () => {
   const call = createMockBrain(() => 6000)
   const status = (await call('brain:review', ['harbor-demo-review', null, 0])) as BrainStatus
-  expect(status.jobs.find((job) => job.id === 'harbor-demo-review')).toMatchObject({
-    state: 'rejected',
-    finishedAt: 6000,
-  })
+  expect(status.jobs.map((job) => job.id)).not.toContain('harbor-demo-review')
   expect(status.readSessionIds).toContain('harbor-lane')
-  expect(await call('brain:history', [20])).toMatchObject({ items: [] })
+  const history = (await call('brain:history', [20])) as BrainHistory
+  expect(history.items).toEqual([
+    expect.objectContaining({
+      job: expect.objectContaining({
+        id: 'harbor-demo-review',
+        state: 'rejected',
+        finishedAt: 6000,
+      }),
+      memories: 0,
+    }),
+  ])
+  await expect(call('brain:reread', ['harbor-demo-review'])).rejects.toThrow(
+    'Only finished Brain reads can be read again.',
+  )
   await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
-  await expect(
-    call('brain:queue', [{ sessionPath: '/demo/Harbor/planning-demo.jsonl', title: 'Harbor' }]),
-  ).resolves.toMatchObject({ jobs: expect.arrayContaining([expect.anything()]) })
+  const lane = { sessionPath: '/demo/Harbor/planning-demo.jsonl', title: 'Harbor' }
+  const queued = ((await call('brain:queue', [lane])) as BrainStatus).jobs.at(-1)!
+  expect(queued.fromLeafId).toBe(history.items[0]!.job.leafId)
+})
+
+it('keeps the earlier read when Read again is rejected, and lists both', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  const decision = { descriptions: [], memories: [0], identities: {}, groups: [] }
+  await call('brain:review', ['harbor-demo-review', decision, 0])
+  const read = ((await call('brain:history', [20])) as BrainHistory).items[0]!.job
+  const again = ((await call('brain:reread', [read.id])) as BrainStatus).jobs.at(-1)!
+  now = 6000
+  await call('brain:status', [])
+  now += 4000
+  const status = (await call('brain:status', [])) as BrainStatus
+  expect(status.jobs.find((job) => job.id === again.id)?.state).toBe('review')
+  await call('brain:review', [again.id, null, status.revision])
+  const history = (await call('brain:history', [20])) as BrainHistory
+  expect(history.items.map((item) => [item.job.id, item.job.state, item.memories])).toEqual([
+    [again.id, 'rejected', 0],
+    [read.id, 'done', 1],
+  ])
+})
+
+it('refuses to queue or read again a lane Brain never reads, and drops its queued read', async () => {
+  const call = createMockBrain(() => 0)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  const titled = { sessionPath: '/demo/Rina/weekly.jsonl', title: 'Rina Okafor 1:1' }
+  await expect(call('brain:queue', [titled])).rejects.toThrow('its title matches a rule')
+  const lane = { sessionPath: '/demo/Harbor/off.jsonl', title: 'Harbor off' }
+  const queued = ((await call('brain:queue', [lane])) as BrainStatus).jobs.at(-1)!
+  const status = (await call('brain:neverRead', [queued.sessionId, true])) as BrainStatus
+  expect(status.jobs.map((job) => job.id)).not.toContain(queued.id)
+  await expect(call('brain:queue', [lane])).rejects.toThrow('Brain is set not to read this lane.')
+  const decision = { descriptions: [], memories: [0], identities: {}, groups: [] }
+  await call('brain:review', ['harbor-demo-review', decision, 0])
+  await call('brain:neverRead', ['harbor-lane', true])
+  await expect(call('brain:reread', ['harbor-demo-review'])).rejects.toThrow(
+    'Brain is set not to read this lane.',
+  )
 })
 
 it('refuses a review decision Desktop would refuse', async () => {
