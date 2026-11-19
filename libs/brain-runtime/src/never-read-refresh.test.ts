@@ -65,3 +65,16 @@ it.each(['id', 'title'] as const)(
     expect(s.runner).not.toHaveBeenCalled()
   },
 )
+
+it('does not resurrect a review rejected while opening waits on the current lane file', async () => {
+  const s = await setup()
+  s.store.rev++
+  const update = vi.spyOn(s.store, 'updateJob')
+  const opening = s.service.api.proposal(s.id).catch((error: unknown) => error)
+  await s.service.api.review(s.id, null, 0)
+  await opening
+  await new Promise((resolve) => setTimeout(resolve, 80))
+  expect(s.store.job(s.id)?.state).toBe('rejected')
+  expect(update.mock.calls.some(([, patch]) => patch.state === 'refreshing')).toBe(false)
+  expect(s.runner).not.toHaveBeenCalled()
+})
