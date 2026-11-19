@@ -443,11 +443,18 @@ it('refuses a review decision Desktop would refuse', async () => {
   for (const decision of [
     { memories: [0], identities: {}, groups: [] },
     { descriptions: [''], confirmations: [], memories: [0], identities: {}, groups: [] },
-    { descriptions: ['nobody'], confirmations: [], memories: [0], identities: {}, groups: [] },
   ])
     await expect(call('brain:review', ['harbor-demo-review', decision, 0])).rejects.toThrow(
       'Invalid review selection.',
     )
+  // A ref the proposal does not have passes Desktop's shape check; the engine refuses it.
+  await expect(
+    call('brain:review', [
+      'harbor-demo-review',
+      { descriptions: ['nobody'], confirmations: [], memories: [0], identities: {}, groups: [] },
+      0,
+    ]),
+  ).rejects.toThrow('Brain description choice is invalid.')
   await expect(
     call('brain:review', [
       'harbor-demo-review',
