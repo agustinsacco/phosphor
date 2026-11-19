@@ -35,6 +35,7 @@ it.each(['never-read', 'deleted'] as const)(
           identities: {},
           groups: [],
           descriptions: [],
+          confirmations: [],
         },
         proposal.revision,
       ),

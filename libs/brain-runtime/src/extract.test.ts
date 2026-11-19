@@ -100,7 +100,10 @@ it('auto-approves review-off jobs and refreshes the reader', async () => {
   s.store.prefs.review = false
   await extractJob(s.job, signal(), s.store, s.options, s.search)
   expect(s.store.reviews).toEqual([
-    { id: s.job.id, decision: { memories: [0], identities: {}, groups: [], descriptions: [] } },
+    {
+      id: s.job.id,
+      decision: { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
+    },
   ])
   expect(s.search.refreshes).toBe(1)
 })

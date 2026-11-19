@@ -57,7 +57,7 @@ it.each(['id', 'title'] as const)(
     await expect(
       s.service.api.review(
         s.id,
-        { memories: [0], identities: {}, groups: [], descriptions: [] },
+        { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
         0,
       ),
     ).rejects.toThrow(cannotRefresh)

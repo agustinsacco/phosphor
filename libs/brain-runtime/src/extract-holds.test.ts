@@ -85,7 +85,7 @@ it('never saves a held claim with review off', async () => {
   expect(s.store.reviews).toEqual([
     {
       id: s.job.id,
-      decision: { memories: [0], identities: {}, groups: [], descriptions: [] },
+      decision: { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
     },
   ])
   expect(s.store.job(s.job.id)!.state).toBe('done')
