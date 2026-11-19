@@ -1,0 +1,134 @@
+import { afterEach, expect, it } from 'vitest'
+import { extractJob } from './extract'
+import { answerFor, pipelineSetup } from './__fixtures__/pipeline'
+import { RAW_EXTRACTION } from './__fixtures__/lane'
+import type { ModelCallInput } from './model-call'
+import { parseStageExtraction } from './stage-parse'
+import { makeWindow } from './windows'
+
+const cleanups: (() => Promise<void>)[] = []
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0)) await cleanup()
+})
+/** The fixture lane says "Rina Okafor owns Harbor billing. Tom Lee reviews schema changes." */
+function answer(hold: unknown) {
+  const value = structuredClone(RAW_EXTRACTION) as unknown as {
+    entities: unknown[]
+    claims: Record<string, unknown>[]
+  }
+  value.entities.push({
+    ref: 'n3',
+    label: 'Tom Lee',
+    kind: 'person',
+    aliases: [],
+    description: '',
+    keys: [],
+  })
+  value.claims.push({
+    ...value.claims[0]!,
+    ref: 'c2',
+    text: 'Tom Lee reviews schema changes.',
+    type: 'fact',
+    mentions: ['n3'],
+    links: [],
+    quotes: [{ segment: 's1', quote: 'Tom Lee reviews schema changes.' }],
+    hold,
+  })
+  return value
+}
+async function run(options: { review: boolean; hold: unknown; identity?: 'new' | 'uncertain' }) {
+  const s = await pipelineSetup()
+  cleanups.push(s.cleanup)
+  s.store.prefs.review = options.review
+  if (options.identity === 'uncertain') {
+    s.store.cards = [
+      {
+        id: 'stored-rina',
+        label: 'Rina Okafor',
+        kind: 'person',
+        aliases: [],
+        description: 'Harbor lead',
+        neighbours: [],
+        memories: 3,
+      },
+    ]
+    s.store.matches = [[{ entityId: 'stored-rina', channel: 'name', score: 1 }]]
+  }
+  s.runner.mockImplementation(async (input: ModelCallInput) => ({
+    text:
+      input.stage === 'extract'
+        ? JSON.stringify(answer(options.hold))
+        : input.stage === 'identity' && options.identity === 'uncertain'
+          ? answerFor(input).replaceAll('"new"', '"uncertain"')
+          : answerFor(input),
+    usage: { tokens: 10, cost: 0 },
+  }))
+  await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
+  return s
+}
+
+it("keeps the model's hold on a claim through to the proposal, and ignores an unknown one", async () => {
+  const held = await run({ review: true, hold: 'personal' })
+  expect(held.store.storedProposal(held.job.id)!.memories.map((m) => m.hold)).toEqual([
+    null,
+    'personal',
+  ])
+  const unknown = await run({ review: true, hold: 'secret' })
+  expect(unknown.store.storedProposal(unknown.job.id)!.memories.map((m) => m.hold)).toEqual([
+    null,
+    null,
+  ])
+})
+
+it('never saves a held claim with review off', async () => {
+  const s = await run({ review: false, hold: 'temporary' })
+  expect(s.store.reviews).toEqual([
+    {
+      id: s.job.id,
+      decision: { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
+    },
+  ])
+  expect(s.store.job(s.job.id)!.state).toBe('done')
+})
+
+it('keeps a read with a required identity in review even with review off', async () => {
+  const s = await run({ review: false, hold: null, identity: 'uncertain' })
+  expect(s.store.reviews).toEqual([])
+  expect(s.store.job(s.job.id)!.state).toBe('review')
+  const entities = s.store.storedProposal(s.job.id)!.entities
+  expect(entities.find((e) => e.label === 'Rina Okafor')).toMatchObject({
+    decision: 'uncertain',
+    required: true,
+  })
+  expect(entities.find((e) => e.label === 'Tom Lee')).toMatchObject({ required: false })
+})
+
+it('marks a claim the backstop finds temporary or personal when the model did not', () => {
+  const said = Date.UTC(2026, 10, 18)
+  const text = 'Rina Okafor will be on leave in December. Harbor still bills weekly.'
+  const window = makeWindow([{ entryId: 'u', role: 'user', label: 'You', observedAt: said, text }])
+  const claim = (ref: string, sentence: string, quote: string, mentions: string[]) => ({
+    ref,
+    text: sentence,
+    type: 'fact',
+    epistemic: 'reported',
+    mentions,
+    links: [],
+    validFrom: null,
+    validTo: null,
+    branch: false,
+    quotes: [{ segment: 's1', quote }],
+  })
+  const parsed = parseStageExtraction(
+    JSON.stringify({
+      entities: [RAW_EXTRACTION.entities[0], RAW_EXTRACTION.entities[1]],
+      claims: [
+        claim('c1', 'Rina Okafor will be on leave in December.', 'on leave in December', ['n1']),
+        claim('c2', 'Harbor still bills weekly.', 'Harbor still bills weekly.', ['n2']),
+      ],
+      parents: [],
+    }),
+    window,
+  )
+  expect(parsed.claims.map((c) => c.hold)).toEqual(['personal', 'temporary'])
+})

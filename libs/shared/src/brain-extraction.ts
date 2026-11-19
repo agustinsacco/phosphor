@@ -39,7 +39,9 @@ export interface BrainExtractionOutcome {
   /** Window and claim ref in the model's answer, e.g. "w2:c4". */
   candidate: string
   summary: string
-  status: 'kept' | 'folded' | 'reconfirms' | 'enriches' | 'held' | 'dropped'
+  /** `noted`: a remark about the read that keeps and drops nothing, e.g. a part that returned
+   * the claim cap. It counts as neither kept, confirmed nor left out. */
+  status: 'kept' | 'folded' | 'reconfirms' | 'enriches' | 'held' | 'dropped' | 'noted'
   proposalIndex?: number
   /** Existing memory it confirms or enriches, or the approved memory. */
   memoryId?: string

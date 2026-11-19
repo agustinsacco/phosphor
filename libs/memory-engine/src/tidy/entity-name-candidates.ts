@@ -21,12 +21,32 @@ interface Name {
 function names(ctx: Context, n: number): Name[] {
   return all<Name>(ctx, 'SELECT name,folded FROM entity_names WHERE entity=? ORDER BY n LIMIT 9', n)
 }
+/** One vendor can be read as a component, an organization or a project by different lanes. */
+const NAMESAKE_KINDS = ['component', 'organization', 'project']
+const article = (kind: string): string => (/^[aeiou]/.test(kind) ? `an ${kind}` : `a ${kind}`)
+/** Same kind, or an exact name shared across the kinds one thing is often stored as. */
+function comparable(entity: NamedEntity, peer: NamedEntity, exact: boolean): boolean {
+  return (
+    peer.kind === entity.kind ||
+    (exact && NAMESAKE_KINDS.includes(entity.kind) && NAMESAKE_KINDS.includes(peer.kind))
+  )
+}
 function evidence(
   entity: NamedEntity,
   peer: NamedEntity,
   name: string,
   full?: string,
 ): EntityNameMatch {
+  if (peer.kind !== entity.kind) {
+    const [first, second] = [entity.kind, peer.kind].sort(
+      (a, b) => NAMESAKE_KINDS.indexOf(a) - NAMESAKE_KINDS.indexOf(b),
+    )
+    return {
+      ...peer,
+      strength: 2,
+      reason: `Same name, stored as ${article(first!)} and as ${article(second!)}.`,
+    }
+  }
   if (fold(entity.label) === fold(peer.label))
     return { ...peer, strength: 3, reason: `Both are named "${entity.label}".` }
   return full
@@ -57,7 +77,7 @@ export function entityNameCandidates(
       buckets.push(
         rows
           .slice(0, NAME_BUCKET_LIMIT)
-          .filter((peer) => peer.id !== id && peer.kind === entity.kind)
+          .filter((peer) => peer.id !== id && comparable(entity, peer, probe === name.folded))
           .map((peer) =>
             evidence(
               entity,

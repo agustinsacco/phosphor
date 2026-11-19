@@ -1,14 +1,17 @@
 import {
+  BRAIN_ENTITY_KINDS,
   BRAIN_MEMORY_STATES,
   checkBrainReaderModel,
+  checkBrainNeverRead,
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
+  type BrainEntityKind,
   type BrainLaneRef,
   type BrainMemoryFilter,
   type BrainPredicate,
   type BrainPrefs,
 } from '@phosphor/shared/brain'
-import type { BrainReviewDecision } from '@phosphor/shared/brain-review'
+import { checkBrainReviewDecision } from '@phosphor/shared/brain-review'
 
 /** Renderer input is untrusted: every Brain argument is checked here before it reaches the API. */
 export const fail = (message: string): never => {
@@ -31,48 +34,24 @@ export function checkPrefs(value: unknown): BrainPrefs {
   if (
     !prefs ||
     typeof prefs !== 'object' ||
-    Object.keys(prefs).sort().join() !== 'enabled,model,recall,review' ||
+    Object.keys(prefs).sort().join() !== 'enabled,model,neverRead,recall,review' ||
     (['enabled', 'recall', 'review'] as const).some((key) => typeof prefs[key] !== 'boolean')
   )
     fail('Invalid Brain settings.')
   checkBrainReaderModel(prefs.model)
-  return prefs as BrainPrefs
+  return { ...(prefs as BrainPrefs), neverRead: checkBrainNeverRead(prefs.neverRead) }
 }
 
+/** The title may be empty (an untitled lane); the engine reads the current title from the file. */
 export function checkLane(value: unknown): BrainLaneRef {
   const lane = value as Partial<BrainLaneRef> | null
-  return { sessionPath: text(lane?.sessionPath), title: text(lane?.title, 500) }
+  const title = lane?.title
+  if (typeof title !== 'string' || title.length > 500) fail('Invalid Brain request.')
+  return { sessionPath: text(lane?.sessionPath), title: title as string }
 }
 
-const indexes = (value: unknown, max: number): number[] =>
-  Array.isArray(value) &&
-  value.length <= max &&
-  new Set(value).size === value.length &&
-  value.every((index) => Number.isInteger(index) && index >= 0 && index < max)
-    ? (value as number[])
-    : fail('Invalid review selection.')
-
-/** What to save from a proposal. Null rejects it whole. */
-export function checkDecision(value: unknown): BrainReviewDecision | null {
-  if (value === null) return null
-  if (!record(value) || !exactKeys(value, ['memories', 'identities', 'groups']))
-    return fail('Invalid review selection.')
-  const identities = value.identities
-  if (
-    !record(identities) ||
-    Object.keys(identities).length > 400 ||
-    Object.entries(identities).some(
-      ([ref, choice]) =>
-        ref.length > 64 || typeof choice !== 'string' || !choice || choice.length > 200,
-    )
-  )
-    fail('Invalid review selection.')
-  return {
-    memories: indexes(value.memories, 400),
-    identities: identities as Record<string, string>,
-    groups: indexes(value.groups, 100),
-  }
-}
+/** What to save from a proposal, shape and sizes only. Null rejects it whole. */
+export const checkDecision = checkBrainReviewDecision
 
 export const revisionOf = (value: unknown): number =>
   Number.isSafeInteger(value) && (value as number) >= 0
@@ -113,5 +92,37 @@ export function checkFilter(value: unknown): BrainMemoryFilter {
     ...(value.types === undefined ? {} : { types: members(value.types, BRAIN_MEMORY_TYPES) }),
     ...(value.states === undefined ? {} : { states: members(value.states, BRAIN_MEMORY_STATES) }),
     ...(value.sessionId === undefined ? {} : { sessionId: id(value.sessionId) }),
+  }
+}
+
+/** Stored descriptions are 1–160 characters once trimmed. */
+export const descriptionOf = (value: unknown): string => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  return trimmed.length > 0 && trimmed.length <= 160
+    ? trimmed
+    : fail('A description needs 1 to 160 characters.')
+}
+
+/** What to split off: 1–200 distinct memory ids, and the new record's label and kind. */
+export function checkSplit(
+  memoryIds: unknown,
+  target: unknown,
+): { memoryIds: string[]; target: { label: string; kind: BrainEntityKind } } {
+  if (
+    !Array.isArray(memoryIds) ||
+    memoryIds.length < 1 ||
+    memoryIds.length > 200 ||
+    new Set(memoryIds).size !== memoryIds.length
+  )
+    fail('Choose 1 to 200 memories to split off.')
+  if (!record(target) || Object.keys(target).sort().join() !== 'kind,label')
+    fail('Invalid Brain request.')
+  const { label, kind } = target as Record<string, unknown>
+  const trimmed = typeof label === 'string' ? label.trim() : ''
+  if (!trimmed || trimmed.length > 80) fail('A name needs 1 to 80 characters.')
+  if (!(BRAIN_ENTITY_KINDS as readonly unknown[]).includes(kind)) fail('Invalid Brain entity kind.')
+  return {
+    memoryIds: (memoryIds as unknown[]).map(id),
+    target: { label: trimmed, kind: kind as BrainEntityKind },
   }
 }

@@ -114,11 +114,16 @@ export function currentRow(ctx: Context, table: RowTable, key: Row): Row | null 
     ) ?? null
   )
 }
-export function capture(ctx: Context, selection: Selection): Rows {
+/** `only` narrows the capture to the tables an edit can change; the rest read as empty. */
+export function capture(ctx: Context, selection: Selection, only?: ReadonlySet<RowTable>): Rows {
   const rows: Rows = new Map()
   const e = JSON.stringify(selection.entities),
     m = JSON.stringify(selection.memories)
   const select = (table: RowTable, where: string, ...args: Bind[]): Row[] => {
+    if (only && !only.has(table)) {
+      rows.set(table, new Map())
+      return []
+    }
     const found = all<Row>(
       ctx,
       `SELECT ${columns(ctx, table).join(',')} FROM ${table} WHERE ${where}`,

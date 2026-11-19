@@ -1,6 +1,7 @@
 import type { BrainTidyAction, BrainTidySuggestionDetail } from '@phosphor/shared/brain-tidy'
 import { one, type Context } from '../database'
 import { subjectExists, type SuggestionRow } from './suggestions'
+import { removableNames } from './entity-edits'
 
 export function sameApplicability(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
   return ['scope', 'branch', 'valid_from', 'valid_to'].every((key) => a[key] === b[key])
@@ -74,6 +75,12 @@ export function actionRefusal(
   if (kind === 'keep' || kind === 'forget') return row.kind === 'flagged' ? null : mismatch
   if (!row.second_id || row.first_id === row.second_id) return mismatch
   if (kind === 'merge') return row.subject_type === 'entity' ? null : mismatch
+  if (kind === 'unname')
+    return row.subject_type !== 'entity'
+      ? mismatch
+      : removableNames(ctx, row.first_id, row.second_id).length
+        ? null
+        : 'These records share no other name that one of them could lose.'
   if (row.subject_type !== 'memory') return mismatch
   const first = one<{ n: number }>(ctx, 'SELECT n FROM memories WHERE id=?', row.first_id)!.n
   const second = one<{ n: number }>(ctx, 'SELECT n FROM memories WHERE id=?', row.second_id)!.n
@@ -83,7 +90,15 @@ export function allowedActions(
   ctx: Context,
   row: SuggestionRow,
 ): Pick<BrainTidySuggestionDetail, 'allowed' | 'foldRefusal'> {
-  const kinds: BrainTidyAction['kind'][] = ['merge', 'fold', 'dispute', 'replace', 'forget', 'keep']
+  const kinds: BrainTidyAction['kind'][] = [
+    'merge',
+    'unname',
+    'fold',
+    'dispute',
+    'replace',
+    'forget',
+    'keep',
+  ]
   const allowed = kinds.filter((kind) => actionRefusal(ctx, row, kind) === null)
   let refusal: 'applicability' | 'history' | null = null
   if (

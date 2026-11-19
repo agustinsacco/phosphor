@@ -19,16 +19,24 @@ export function freshness(memory: BrainMemory, now: number): number {
   const days = Math.max(0, now - Math.max(memory.observedAt, effective)) / 86_400_000
   return 0.5 + 0.5 * 2 ** (-days / HALF_LIFE_DAYS[memory.type])
 }
-interface Nearest {
+export interface Nearest {
   entities: Neighbour[]
   memories: Neighbour[]
 }
-export function recall(
-  ctx: Context,
-  input: SearchInput,
-  nearest: Nearest,
-  degradation: string[],
-): BrainRecall {
+/** How many neighbours of the query vector the ranking reads; `brain:find` reads the same. */
+export const NEAREST = { entities: 20, memories: 50 }
+interface Ranking {
+  /** Every current memory a route reached, best first. */
+  hits: BrainHit[]
+  focus: string[]
+  routes: ReturnType<typeof walk>
+  strong: Set<string>
+}
+/**
+ * The hybrid ranking behind `brain_search` and the Brain page's search: semantic, word, named
+ * and linked routes fused by reciprocal rank, then scope and freshness.
+ */
+export function rank(ctx: Context, input: SearchInput, nearest: Nearest): Ranking {
   const candidates = entitySeeds(ctx, input.query, 20)
   const focus = named(seedEntities(ctx, candidates), input.query).map((item) => item.id)
   const semantic = nearest.memories.filter((item) => item.score >= 0.35).map((item) => item.id)
@@ -70,9 +78,17 @@ export function recall(
       scores.set(id, old)
     })
   const hits = rankedHits(ctx, input, scores, new Set(routes.memories))
+  return { hits, focus, routes, strong: new Set([...exact, ...lexical]) }
+}
+export function recall(
+  ctx: Context,
+  input: SearchInput,
+  nearest: Nearest,
+  degradation: string[],
+): BrainRecall {
+  const { hits, focus, routes, strong } = rank(ctx, input, nearest)
   const selected = hits.slice(0, Math.min(20, Math.max(0, input.limit)))
   const shown = new Set(selected.map((item) => item.memory.id))
-  const strong = new Set([...exact, ...lexical])
   const entities = new Map(
     referencedEntities(ctx, [
       ...selected.map((item) => item.memory),

@@ -1,8 +1,10 @@
-import type { BrainExtractionOutcome } from '@phosphor/shared/brain'
+import type { BrainEntityKind, BrainExtractionOutcome } from '@phosphor/shared/brain'
 import type { EvidenceExcerpt, ProposalMemory } from '@phosphor/memory-engine/types'
 import type { ExtractedPart, StageEntity, StageParent } from '../stage-types'
 import { fold, tokens } from '@phosphor/memory-engine/text'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
+import { withoutUser } from '../stage-owner'
+import { holdClaim, strongerHold } from '../stage-hold'
 
 export interface FoldedClaim {
   ref: string
@@ -95,6 +97,7 @@ export function claimKey(memory: ProposalMemory): string {
 export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob {
   const job: FoldedJob = { entities: [], claims: [], evidence: [], parents: [], outcomes: [] }
   const redirects = new Map<string, string>()
+  const kinds = new Map(parts.flatMap((p) => p.extraction.entities.map((e) => [e.ref, e.kind])))
   for (const part of parts) {
     job.outcomes.push(...(part.extraction.outcomes ?? []))
     for (const entity of part.extraction.entities) {
@@ -108,9 +111,9 @@ export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob 
           status: 'folded',
           reason: `Same full name/alias as ${target.ref}, without contradictory keys`,
         })
-      } else job.entities.push(structuredClone(entity))
+      } else job.entities.push(withoutUser(structuredClone(entity)))
     }
-    appendClaims(job, part, sessionId)
+    appendClaims(job, part, sessionId, kinds)
     job.parents.push(...part.extraction.parents)
   }
   job.parents = job.parents.map((p) => ({ ...p, entity: redirect(p.entity, redirects) }))
@@ -127,6 +130,7 @@ export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob 
       ...claim.memory.citations,
     ])
     previous.memory.links.push(...claim.memory.links)
+    previous.memory.hold = strongerHold(previous.memory.hold ?? null, claim.memory.hold ?? null)
     job.outcomes.push({
       candidate: claim.ref,
       summary: claim.memory.summary,
@@ -140,7 +144,12 @@ export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob 
 function uniqueCitations<T extends { evidence: number; quote: string }>(citations: T[]): T[] {
   return [...new Map(citations.map((c) => [`${c.evidence}:${c.quote}`, c])).values()]
 }
-function appendClaims(job: FoldedJob, part: ExtractedPart, sessionId: string): void {
+function appendClaims(
+  job: FoldedJob,
+  part: ExtractedPart,
+  sessionId: string,
+  kinds: ReadonlyMap<string, BrainEntityKind>,
+): void {
   const citation = (q: { segment: string; quote: string }) => {
     const segment = part.window.segments[Number(q.segment.slice(1)) - 1]!
     let evidence = job.evidence.findIndex(
@@ -157,7 +166,9 @@ function appendClaims(job: FoldedJob, part: ExtractedPart, sessionId: string): v
     }
     return { evidence, quote: scrubExcerpt(q.quote) }
   }
-  for (const c of part.extraction.claims)
+  // A refresh reuses parts saved by an earlier extractor, so the hold backstop runs here too. It
+  // only raises a hold, so the model's own hold stays.
+  for (const c of part.extraction.claims.map((claim) => holdClaim(claim, kinds, part.window)))
     job.claims.push({
       ref: c.ref,
       memory: {
@@ -178,6 +189,7 @@ function appendClaims(job: FoldedJob, part: ExtractedPart, sessionId: string): v
         action: 'add',
         target: null,
         reason: 'New supported claim',
+        hold: c.hold ?? null,
       },
     })
 }

@@ -40,6 +40,7 @@ export const BRAIN_PREDICATES = [
   'uses',
   'decided',
   'prefers',
+  'leads',
 ] as const
 export type BrainPredicate = (typeof BRAIN_PREDICATES)[number]
 /** Extraction-only endpoint rules; review may re-point an identity across kinds. */
@@ -78,6 +79,7 @@ export const BRAIN_LINK_RULES: Record<
     subject: ['person', 'team', 'organization'],
     object: ['component', 'project', 'concept', 'document', 'organization'],
   },
+  leads: { subject: ['person'], object: ['team', 'project'] },
 }
 /** Predicates that place an entity: recall follows them one hop further than the rest. */
 export const BRAIN_STRUCTURAL_PREDICATES = [
@@ -89,6 +91,7 @@ export const BRAIN_STRUCTURAL_PREDICATES = [
 ] as const satisfies readonly BrainPredicate[]
 /** Plain words for each predicate, from the subject's side and from the object's side. */
 export const BRAIN_PREDICATE_LABELS: Record<BrainPredicate, { out: string; in: string }> = {
+  leads: { out: 'Leads', in: 'Led by' },
   owns: { out: 'Owns', in: 'Owned by' },
   works_on: { out: 'Works on', in: 'Worked on by' },
   member_of: { out: 'Member of', in: 'Members' },
@@ -123,12 +126,15 @@ export interface BrainPrefs {
   review: boolean
   /** Reader provider/modelId; null uses each lane's own model. Frozen when a job starts. */
   model: string | null
+  /** Whole-word title patterns and individually excluded lanes. */
+  neverRead: { titles: string[]; sessionIds: string[] }
 }
 export const DEFAULT_BRAIN_PREFS: BrainPrefs = {
   enabled: false,
   recall: true,
   review: true,
   model: null,
+  neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
 }
 
 /** This value becomes one --model argument, never an option or multiple arguments. */
@@ -201,7 +207,17 @@ export interface BrainQuote {
 }
 
 export type BrainJobStage = 'prepare' | 'extract' | 'identity' | 'reconcile' | 'embed'
-/** Queue entry for one lane. The latest `done` entry is its read history. */
+export type BrainJobState =
+  | 'waiting'
+  | 'queued'
+  | 'running'
+  | 'refreshing'
+  | 'review'
+  | 'empty'
+  | 'failed'
+  | 'done'
+  | 'rejected'
+/** One lane read. Up to twenty finished reads per lane retain their leaves and records. */
 export interface BrainJob {
   id: string
   /** Earlier finished read; replacement happens only when the new result is approved. */
@@ -214,21 +230,32 @@ export interface BrainJob {
   /** "provider/id" of the reader, frozen when extraction starts and reused by every call. */
   model: string
   /** waiting: the lane's agent is working; extraction starts once it is idle. */
-  state: 'waiting' | 'queued' | 'running' | 'review' | 'empty' | 'failed' | 'done'
+  state: BrainJobState
   /** Memories proposed by the run, shown as the review count. */
   memories: number
   /** Last lane entry the run reads; frozen when the job first starts. */
   leafId: string | null
   error: string | null
   queuedAt: number
+  /** First start, unchanged by retries or refreshes. */
   startedAt: number | null
+  /** Current attempt start, or null outside a running attempt. */
+  runStartedAt: number | null
+  /** Continue after this lane entry; null starts from the beginning. */
+  fromLeafId: string | null
   finishedAt: number | null
   usage: { tokens: number; cost: number } | null
   /** Where a running job is: `done` of `total` steps in `stage`. */
   progress: { stage: BrainJobStage; done: number; total: number } | null
 }
 export interface BrainHistory {
-  items: { job: BrainJob; memories: number; replaceable: number }[]
+  items: {
+    job: BrainJob
+    /** Current (active or disputed) memories produced by this read, never superseded ones. */
+    memories: number
+    /** Unshared memories across the whole lane that Read again replaces, including older reads. */
+    replaceable: number
+  }[]
   more: boolean
 }
 export interface BrainEmbeddingStatus {
@@ -241,11 +268,13 @@ export interface BrainEmbeddingStatus {
 }
 export interface BrainSnapshot {
   prefs: BrainPrefs
-  /** Bumped by every approved change; review refuses a stale revision. */
+  /** General change counter for explorer and Tidy guards; reviews use a knowledge-only guard. */
   revision: number
   /** New after every reset, so views reload even when the revision repeats. */
   generation: string
   counts: { memories: number; entities: number }
+  /** The newest 5,000 lane ids with a finished read (done, empty or rejected). */
+  readSessionIds: string[]
   /** The inbox: every job that is not done, oldest first. */
   jobs: BrainJob[]
 }
@@ -254,7 +283,7 @@ export interface BrainStatus extends BrainSnapshot {
   supported: boolean
   embedding: BrainEmbeddingStatus
 }
-/** The sidebar knows a lane's live title; the handler reads everything else from the file. */
+/** The title the caller shows, empty for an untitled lane. Brain reads the current title from the file. */
 export interface BrainLaneRef {
   sessionPath: string
   title: string
@@ -338,3 +367,11 @@ export type {
   BrainProposalView,
   BrainReviewDecision,
 } from './brain-review'
+
+export {
+  brainLaneNeverRead,
+  brainNeverReadReason,
+  brainTitleNeverRead,
+  checkBrainNeverRead,
+  setBrainLaneNeverRead,
+} from './brain-never-read'

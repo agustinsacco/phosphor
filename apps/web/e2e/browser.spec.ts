@@ -74,6 +74,76 @@ async function openPane(page: Page, name: string) {
     .getByRole('button', { name, exact: true })
     .click()
 }
+/** Calls every Brain channel straight through the bridge; each one should refuse. */
+async function directBrainFailures(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const lane = { sessionPath: '/synthetic/source.jsonl', title: 'Synthetic' }
+    return Promise.all(
+      [
+        () => window.phosphor.invoke('brain:status'),
+        () =>
+          window.phosphor.invoke('brain:setPrefs', {
+            neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+            enabled: true,
+            recall: true,
+            review: true,
+            model: null,
+          }),
+        () => window.phosphor.invoke('brain:download'),
+        () => window.phosphor.invoke('brain:removeModel'),
+        () => window.phosphor.invoke('brain:overview'),
+        () => window.phosphor.invoke('brain:entity', 'synthetic-entity'),
+        () => window.phosphor.invoke('brain:neighbourhood', 'synthetic-entity', 2),
+        () => window.phosphor.invoke('brain:connections', 'synthetic-entity', 'owns', 'out', null),
+        () => window.phosphor.invoke('brain:entityMemories', 'synthetic-entity', {}, null),
+        () => window.phosphor.invoke('brain:memory', 'synthetic-memory'),
+        () => window.phosphor.invoke('brain:path', 'synthetic-from', 'synthetic-to'),
+        () => window.phosphor.invoke('brain:merge', 'synthetic-from', 'synthetic-to', 0),
+        () => window.phosphor.invoke('brain:describe', 'synthetic-entity', 'Synthetic', 0),
+        () => window.phosphor.invoke('brain:removeName', 'synthetic-entity', 'Synthetic', 0),
+        () =>
+          window.phosphor.invoke(
+            'brain:split',
+            'synthetic-entity',
+            ['synthetic-memory'],
+            { label: 'Synthetic', kind: 'person' },
+            0,
+          ),
+        () => window.phosphor.invoke('brain:cancel', 'synthetic-job'),
+        () => window.phosphor.invoke('brain:proposal', 'synthetic-job'),
+        () => window.phosphor.invoke('brain:find', 'Harbor', 12),
+        () => window.phosphor.invoke('brain:retry', 'synthetic-job'),
+        () => window.phosphor.invoke('brain:reset'),
+        () => window.phosphor.invoke('brain:queue', lane),
+        () => window.phosphor.invoke('brain:review', 'synthetic-job', null, 0),
+        () => window.phosphor.invoke('brain:extraction', 'synthetic-job'),
+        () => window.phosphor.invoke('brain:forget', 'synthetic-memory'),
+        () => window.phosphor.invoke('brain:tidy', null, null, 20),
+        () => window.phosphor.invoke('brain:tidySuggestion', 'synthetic-suggestion'),
+        () => window.phosphor.invoke('brain:tidyRun'),
+        () => window.phosphor.invoke('brain:tidyCancel'),
+        () =>
+          window.phosphor.invoke(
+            'brain:tidyApply',
+            'synthetic-suggestion',
+            { kind: 'merge', survivorId: 'synthetic-entity' },
+            0,
+          ),
+        () => window.phosphor.invoke('brain:tidyDismiss', 'synthetic-suggestion', 0),
+        () => window.phosphor.invoke('brain:tidyChanges', 20),
+        () => window.phosphor.invoke('brain:tidyUndo', 'synthetic-operation', 0),
+      ].map(async (request) => {
+        try {
+          await request()
+          return ''
+        } catch (error) {
+          return String(error)
+        }
+      }),
+    )
+  })
+}
+
 async function openLane(page: Page, title = 'Synthetic acceptance lane') {
   await page.getByRole('button', { name: title, exact: true }).click()
   await expect(page.getByText('No controller', { exact: true })).toBeVisible()
@@ -449,61 +519,7 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       .getByRole('navigation', { name: 'Main navigation' })
       .getByRole('button', { name: 'Brain' }),
   ).toHaveCount(0)
-  const failures = await page.evaluate(async () => {
-    const lane = { sessionPath: '/synthetic/source.jsonl', title: 'Synthetic' }
-    return Promise.all(
-      [
-        () => window.phosphor.invoke('brain:status'),
-        () =>
-          window.phosphor.invoke('brain:setPrefs', {
-            enabled: true,
-            recall: true,
-            review: true,
-            model: null,
-          }),
-        () => window.phosphor.invoke('brain:download'),
-        () => window.phosphor.invoke('brain:removeModel'),
-        () => window.phosphor.invoke('brain:overview'),
-        () => window.phosphor.invoke('brain:entity', 'synthetic-entity'),
-        () => window.phosphor.invoke('brain:neighbourhood', 'synthetic-entity', 2),
-        () => window.phosphor.invoke('brain:connections', 'synthetic-entity', 'owns', 'out', null),
-        () => window.phosphor.invoke('brain:entityMemories', 'synthetic-entity', {}, null),
-        () => window.phosphor.invoke('brain:memory', 'synthetic-memory'),
-        () => window.phosphor.invoke('brain:path', 'synthetic-from', 'synthetic-to'),
-        () => window.phosphor.invoke('brain:merge', 'synthetic-from', 'synthetic-to', 0),
-        () => window.phosphor.invoke('brain:cancel', 'synthetic-job'),
-        () => window.phosphor.invoke('brain:proposal', 'synthetic-job'),
-        () => window.phosphor.invoke('brain:find', 'Harbor', 12),
-        () => window.phosphor.invoke('brain:retry', 'synthetic-job'),
-        () => window.phosphor.invoke('brain:reset'),
-        () => window.phosphor.invoke('brain:queue', lane),
-        () => window.phosphor.invoke('brain:review', 'synthetic-job', null, 0),
-        () => window.phosphor.invoke('brain:extraction', 'synthetic-job'),
-        () => window.phosphor.invoke('brain:forget', 'synthetic-memory'),
-        () => window.phosphor.invoke('brain:tidy', null, null, 20),
-        () => window.phosphor.invoke('brain:tidySuggestion', 'synthetic-suggestion'),
-        () => window.phosphor.invoke('brain:tidyRun'),
-        () => window.phosphor.invoke('brain:tidyCancel'),
-        () =>
-          window.phosphor.invoke(
-            'brain:tidyApply',
-            'synthetic-suggestion',
-            { kind: 'merge', survivorId: 'synthetic-entity' },
-            0,
-          ),
-        () => window.phosphor.invoke('brain:tidyDismiss', 'synthetic-suggestion', 0),
-        () => window.phosphor.invoke('brain:tidyChanges', 20),
-        () => window.phosphor.invoke('brain:tidyUndo', 'synthetic-operation', 0),
-      ].map(async (request) => {
-        try {
-          await request()
-          return ''
-        } catch (error) {
-          return String(error)
-        }
-      }),
-    )
-  })
-  expect(failures).toHaveLength(29)
+  const failures = await directBrainFailures(page)
+  expect(failures).toHaveLength(32)
   for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
 })

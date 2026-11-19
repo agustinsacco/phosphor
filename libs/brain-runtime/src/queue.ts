@@ -1,14 +1,19 @@
-import type { BrainJob } from '@phosphor/shared/brain'
+import { brainLaneNeverRead, type BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
+import type { LaneReadCheck } from './lane-read-rules'
+import { DeletedLaneError, type LaneEntry } from './transcript'
 
 export interface QueueOptions {
   store: BrainStore
   busy(path: string): boolean
   ready(): boolean
-  run(job: BrainJob, signal: AbortSignal): Promise<void>
+  /** entries: the transcript the start check read, when it had to read one. */
+  run(job: BrainJob, signal: AbortSignal, entries?: LaneEntry[]): Promise<void>
   changed(): void
   /** Only queued/waiting jobs; the runner records active cancellation itself. */
-  cancelled?(job: BrainJob): void
+  cancelled?(job: BrainJob, reason?: string): void
+  /** Whether a job's lane may be read now: at every start, and ahead of time for reviews. */
+  check?(job: BrainJob): Promise<LaneReadCheck>
   now(): number
 }
 
@@ -20,11 +25,18 @@ interface QueueTask {
   reject(error: unknown): void
 }
 
+const titleRules = (store: BrainStore): string =>
+  JSON.stringify(store.snapshot().prefs.neverRead.titles)
+
 /** A single fork at a time. Waiting lanes never block an older runnable job. */
 export class ExtractionQueue {
   private active: { id: string; abort: AbortController; done: Promise<void> } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
   private tasks: QueueTask[] = []
+  private checking: Promise<void> | undefined
+  private blocked = new Set<string>()
+  /** The title rules every waiting and queued job was last checked against. */
+  private checkedRules: string
   private disposed = false
   private paused = false
 
@@ -40,9 +52,19 @@ export class ExtractionQueue {
   }
 
   recompute(id: string): void {
-    this.options.store.updateJob(id, { state: 'queued', error: null, progress: null })
+    this.options.store.updateJob(id, {
+      state: 'refreshing',
+      runStartedAt: null,
+      error: null,
+      progress: null,
+    })
     this.options.changed()
     this.kick()
+  }
+
+  abortRefresh(id: string): void {
+    if (this.options.store.job(id)?.state === 'refreshing' && this.active?.id === id)
+      this.active.abort.abort()
   }
 
   async pause(): Promise<void> {
@@ -51,6 +73,7 @@ export class ExtractionQueue {
     this.cancelTasks()
     this.active?.abort.abort()
     await this.active?.done
+    await this.checking
   }
 
   resume(): void {
@@ -58,28 +81,92 @@ export class ExtractionQueue {
     this.kick()
   }
 
-  constructor(private readonly options: QueueOptions) {}
+  constructor(private readonly options: QueueOptions) {
+    this.checkedRules = titleRules(options.store)
+  }
 
   kick(): void {
     if (!this.accepting) return
-    clearTimeout(this.timer)
-    const { store, busy, changed } = this.options
-    let waiting = false
+    this.updateWaiting()
+    if (this.checking || this.active) return
+    const rules = titleRules(this.options.store)
+    if (
+      !this.options.check ||
+      !this.options.store.snapshot().jobs.some((job) => this.needsCheck(job, rules))
+    ) {
+      this.checkedRules = rules
+      this.start()
+      return
+    }
+    this.checking = this.checkPending(rules).finally(() => {
+      this.checking = undefined
+      if (this.accepting) this.start()
+    })
+  }
+
+  /**
+   * Reviews are checked ahead of time, so a blocked one is never marked refreshing. Waiting and
+   * queued reads are checked when they start, and that read is handed to the run; ahead of time
+   * only after the title rules change. Ids are excluded synchronously by updateWaiting.
+   */
+  private needsCheck(job: BrainJob, rules: string): boolean {
+    if (job.state === 'waiting' || job.state === 'queued') return rules !== this.checkedRules
+    if (job.state === 'refreshing') return true
+    const proposal = this.options.store.storedProposal(job.id)
+    return (
+      job.state === 'review' &&
+      proposal !== undefined &&
+      proposal.computedRevision !== this.options.store.knowledgeRevision()
+    )
+  }
+
+  /** Lane files are read only when they changed; a pass that changes nothing notifies nobody. */
+  private async checkPending(rules: string): Promise<void> {
+    const { store, check, changed } = this.options
+    const blocked = new Set<string>()
     for (const job of store.snapshot().jobs) {
-      if (job.state !== 'waiting' && job.state !== 'queued') continue
-      const isBusy = busy(job.sessionPath)
-      waiting ||= isBusy
-      const state = isBusy ? 'waiting' : 'queued'
-      if (job.state !== state) {
-        store.updateJob(job.id, { state })
-        changed()
+      if (!this.needsCheck(job, rules)) continue
+      try {
+        const { refusal, retitled } = await check!(job)
+        if (!this.accepting) return
+        if (!['waiting', 'queued', 'review', 'refreshing'].includes(store.job(job.id)?.state ?? ''))
+          continue
+        if (refusal) blocked.add(job.id)
+        if ((refusal && this.exclude(job, refusal)) || retitled) changed()
+      } catch (error) {
+        if (this.accepting && store.storedProposal(job.id)) {
+          store.updateJob(job.id, {
+            state: 'failed',
+            finishedAt: this.options.now(),
+            error:
+              error instanceof Error
+                ? error.message.slice(0, 300)
+                : 'Could not refresh this review.',
+          })
+          changed()
+        }
+        // The runner reports unreadable new lanes when they start, not while waiting.
       }
     }
+    this.blocked = blocked
+    this.checkedRules = rules
+  }
+
+  private start(): void {
+    if (!this.accepting) return
+    clearTimeout(this.timer)
+    const { store, changed } = this.options
+    this.refreshStaleReviews()
+    const waiting = this.updateWaiting()
     if (waiting) this.timer = setTimeout(() => this.kick(), 2000)
     if (this.active || !this.options.ready()) return
-    const job = store.snapshot().jobs.find((j) => j.state === 'queued')
+    const jobs = store.snapshot().jobs
+    const refresh = jobs
+      .filter((j) => j.state === 'refreshing' && !this.blocked.has(j.id))
+      .sort((a, b) => (a.startedAt ?? a.queuedAt) - (b.startedAt ?? b.queuedAt))[0]
+    const job = refresh ?? jobs.find((j) => j.state === 'queued')
     const task = this.tasks[0]
-    if (task && (!job || !task.older.has(job.id))) {
+    if (!refresh && task && (!job || !task.older.has(job.id))) {
       this.tasks.shift()
       const done = Promise.resolve()
         .then(() => task.run(task.abort.signal))
@@ -94,11 +181,59 @@ export class ExtractionQueue {
     }
     if (!job) return
     const abort = new AbortController()
-    store.updateJob(job.id, { state: 'running', startedAt: this.options.now(), error: null })
+    const running = store.updateJob(job.id, {
+      state: refresh ? 'refreshing' : 'running',
+      startedAt: job.startedAt ?? this.options.now(),
+      runStartedAt: this.options.now(),
+      error: null,
+    })
     changed()
     // Start on a microtask so cancellation always sees the active run first.
-    const done = Promise.resolve().then(() => this.execute(job, abort))
+    const done = Promise.resolve().then(() => this.execute(running, abort))
     this.active = { id: job.id, abort, done }
+  }
+
+  private refreshStaleReviews(): void {
+    const { store, changed } = this.options
+    for (const job of store.snapshot().jobs) {
+      if (job.state !== 'review' || this.blocked.has(job.id)) continue
+      const proposal = store.storedProposal(job.id)
+      if (!proposal || proposal.computedRevision === store.knowledgeRevision()) continue
+      store.updateJob(job.id, {
+        state: 'refreshing',
+        runStartedAt: null,
+        error: null,
+        progress: null,
+      })
+      changed()
+    }
+  }
+
+  private updateWaiting(): boolean {
+    const { store, busy, changed } = this.options
+    let waiting = false
+    const { prefs, jobs } = store.snapshot()
+    for (const job of jobs) {
+      if (job.state !== 'waiting' && job.state !== 'queued') continue
+      if (
+        brainLaneNeverRead(
+          { ...prefs.neverRead, titles: this.options.check ? [] : prefs.neverRead.titles },
+          job,
+        )
+      ) {
+        this.exclude(job)
+        changed()
+        continue
+      }
+      const isBusy = busy(job.sessionPath)
+      waiting ||= isBusy
+      const state = isBusy ? 'waiting' : 'queued'
+      if (job.state !== state) {
+        store.updateJob(job.id, { state })
+        changed()
+      }
+    }
+    return waiting
   }
 
   /** A lane-less task shares the worker and waits behind already runnable lane reads. */
@@ -137,7 +272,7 @@ export class ExtractionQueue {
 
   cancel(id: string): void {
     const job = this.options.store.job(id)
-    if (job?.state === 'review' || job?.state === 'done')
+    if (job?.state === 'review' || job?.state === 'refreshing' || job?.state === 'done')
       throw new Error('Review this proposal to dismiss it.')
     if (this.active?.id === id) this.active.abort.abort()
     if (job?.state === 'empty' && !job.replaces) this.options.store.updateJob(id, { state: 'done' })
@@ -154,20 +289,52 @@ export class ExtractionQueue {
     this.cancelTasks()
     this.active?.abort.abort()
     await this.active?.done
+    await this.checking
+  }
+
+  /** Returns whether the store changed: a review already in review stays as it is. */
+  private exclude(job: BrainJob, reason?: string): boolean {
+    const { store } = this.options
+    // Retry and pre-upgrade recomputes can be queued/running while still owning a review.
+    if (store.storedProposal(job.id)) {
+      this.blocked.add(job.id)
+      if (store.job(job.id)?.state === 'review') return false
+      store.updateJob(job.id, { state: 'review', runStartedAt: null })
+    } else {
+      store.removeJob(job.id)
+      this.options.cancelled?.(job, reason)
+    }
+    return true
   }
 
   private async execute(job: BrainJob, abort: AbortController): Promise<void> {
     try {
+      const check = this.options.check ? await this.options.check(job) : null
+      // The check may have stored the lane's current title; the read records that one.
+      const current = this.options.store.job(job.id)
+      if (abort.signal.aborted || !current) return
+      if (check?.refusal) {
+        this.exclude(job, check.refusal)
+        return
+      }
       // The runner observes pre-start cancellation too, so it can record the failure phase.
-      await this.options.run(job, abort.signal)
+      await this.options.run(current, abort.signal, check?.entries)
     } catch (error) {
       if (!abort.signal.aborted && this.options.store.job(job.id)) {
-        this.options.store.updateJob(job.id, {
-          state: 'failed',
-          finishedAt: this.options.now(),
-          error:
-            error instanceof Error ? error.message.slice(0, 300) : 'Knowledge extraction failed.',
-        })
+        // The lane can disappear after preflight, before the runner opens its archived twin.
+        if (
+          error instanceof DeletedLaneError &&
+          error.path === job.sessionPath &&
+          this.options.store.storedProposal(job.id)
+        )
+          this.exclude(job)
+        else
+          this.options.store.updateJob(job.id, {
+            state: 'failed',
+            finishedAt: this.options.now(),
+            error:
+              error instanceof Error ? error.message.slice(0, 300) : 'Knowledge extraction failed.',
+          })
       }
     } finally {
       this.active = undefined

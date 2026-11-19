@@ -28,6 +28,10 @@
       "types": "./src/zip-store.ts",
       "default": "./src/zip-store.ts"
     },
+    "./brain-never-read": {
+      "types": "./src/brain-never-read.ts",
+      "default": "./src/brain-never-read.ts"
+    },
     "./brain": {
       "types": "./src/brain.ts",
       "default": "./src/brain.ts"
@@ -407,6 +411,10 @@
     "./ipc-web-archive": {
       "types": "./src/ipc-web-archive.ts",
       "default": "./src/ipc-web-archive.ts"
+    },
+    "./session-title": {
+      "types": "./src/session-title.ts",
+      "default": "./src/session-title.ts"
     }
   },
   "dependencies": {

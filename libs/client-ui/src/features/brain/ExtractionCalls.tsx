@@ -4,7 +4,7 @@ import { TooltipSummary } from '@/components/Tooltip'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { formatCount } from '@/lib/format'
-import { BRAIN_STAGE_LABELS, elapsedTime } from './jobProgress'
+import { BRAIN_STAGE_LABELS, callDuration } from './jobProgress'
 
 export function ExtractionCalls({
   data,
@@ -34,7 +34,7 @@ function Call({
     <details className="min-w-0 p-3" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <TooltipSummary>
         {BRAIN_STAGE_LABELS[call.stage]} · part {call.part}
-        {call.trace && ` · ${elapsedTime(call.trace.totalMs)}`}
+        {call.trace && ` · ${callDuration(call.trace.totalMs)}`}
       </TooltipSummary>
       {open && (
         <div className="mt-3 min-w-0 space-y-3">

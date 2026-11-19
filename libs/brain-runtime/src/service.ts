@@ -6,6 +6,8 @@ import { extractJob } from './extract'
 import { createRecall } from './recall'
 import { createApi } from './api'
 import { createTidyMaintenance } from './tidy/maintenance'
+import { currentReadCheck } from './lane-read-rules'
+import { LaneFiles } from './lane-files'
 
 /** Setup runs in the background: saving a preference must not wait for a model download. */
 function modelSetup(options: BrainServiceOptions, changed: () => void, kick: () => void) {
@@ -61,17 +63,20 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     notify()
     maintenance.schedule()
   }
+  const files = new LaneFiles()
   const queue = new ExtractionQueue({
     store,
     busy: (path) => options.lanes.busy(path),
     ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
-    run: (job, signal) => extractJob(job, signal, store, options, search),
+    run: (job, signal, entries) => extractJob(job, signal, store, options, search, entries),
     changed,
-    cancelled: (job) =>
+    check: (job) => currentReadCheck(store, files, job),
+    cancelled: (job, reason) =>
       options.log?.('Brain job cancelled', {
         jobId: job.id,
         model: job.model,
         phase: job.state,
+        ...(reason ? { reason } : {}),
       }),
     now: options.now ?? Date.now,
   })
@@ -88,6 +93,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       options,
       search,
       queue,
+      files,
       changed,
       startModel: setup.start,
       maintenance,

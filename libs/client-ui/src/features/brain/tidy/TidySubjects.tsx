@@ -2,9 +2,11 @@ import { formatCount } from '@/lib/format'
 import type { BrainTidySubjectDetail } from '@shared/brain-tidy'
 import { BRAIN_PREDICATE_LABELS } from '@shared/brain'
 import { Button } from '@/components/form'
-import { MemoryQuotes, MemoryTags } from '../BrainMemory'
+import { MemoryQuotes } from '../MemoryQuotes'
+import { MemoryTags } from '../explorer/MemoryRow'
 import type { BrainVisit } from '../explorer/trail'
 import './tidy.css'
+import { brainLaneTitle } from '../laneTitle'
 
 export function subjectVisit(subject: BrainTidySubjectDetail): BrainVisit {
   return subject.type === 'entity'
@@ -84,7 +86,7 @@ function EntitySubject({
         )}
       </ul>
       <p className="text-text-secondary text-sm">
-        Source lanes: {sources.map((s) => s.title).join(', ') || 'None'}
+        Source lanes: {sources.map((s) => brainLaneTitle(s.title)).join(', ') || 'None'}
       </p>
     </>
   )

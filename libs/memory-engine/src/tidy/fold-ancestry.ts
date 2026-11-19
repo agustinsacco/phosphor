@@ -15,12 +15,17 @@ export function inheritFoldReferences(ctx: Context, source: string, target: stri
 
 /** Journal rows that record a lane flag a fold moved; undo reads them, never restores them. */
 export const movedFlagTable = 'tidy_suggestions'
-/** Keep pair suppression but never strand forgotten text on a removed subject. */
+/**
+ * Keep pair suppression but never strand forgotten text on a removed subject. The suggestion the
+ * fold applies keeps its reason: it names the surviving memory, so Forget of that memory still
+ * deletes it, and Recent changes keeps the model's sentence.
+ */
 export function settleFoldSuggestions(
   ctx: Context,
   operation: string,
   source: string,
   target: string,
+  applying: string | undefined,
 ): void {
   const flag = one<{ id: string; session_id: string }>(
     ctx,
@@ -50,9 +55,10 @@ export function settleFoldSuggestions(
     ctx,
     `UPDATE tidy_suggestions SET reason='One of these was folded into another memory.',
       verdict_reason=NULL,title=CASE WHEN kind='flagged' THEN '' ELSE title END
-      WHERE subject_type='memory' AND (first_id=? OR second_id=?)`,
+      WHERE subject_type='memory' AND (first_id=? OR second_id=?) AND id IS NOT ?`,
     source,
     source,
+    applying ?? null,
   )
 }
 /** An undone fold puts each flag it moved back on the memory the lane flagged. */

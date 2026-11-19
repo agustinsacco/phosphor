@@ -35,8 +35,15 @@ it('starts the injected reader/writer, saves prefs immediately, and awaits setup
       }),
   )
   expect(
-    (await s.service.api.setPrefs({ enabled: true, recall: false, review: true, model: null }))
-      .prefs.enabled,
+    (
+      await s.service.api.setPrefs({
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: false,
+        review: true,
+        model: null,
+      })
+    ).prefs.enabled,
   ).toBe(true)
   expect(set).toHaveBeenCalledWith(true)
   finish()
@@ -51,7 +58,11 @@ it('queues a lane, completes review, refreshes search and exposes bounded explor
   const job = (await s.service.api.status()).jobs[0]!,
     p = await s.service.api.proposal(job.id)
   expect(p.memories).toHaveLength(1)
-  await s.service.api.review(job.id, { memories: [0], identities: {}, groups: [] }, p.revision)
+  await s.service.api.review(
+    job.id,
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+    p.revision,
+  )
   expect(s.search.refreshes).toBe(1)
   expect(await s.service.api.overview()).toMatchObject({ nodes: [], truncated: false })
   expect(await s.service.api.neighbourhood('harbor', 2)).toMatchObject({ centerId: 'harbor' })
@@ -85,7 +96,11 @@ it.each(['proposal', 'review'] as const)(
     await expect(
       method === 'proposal'
         ? s.service.api.proposal(job.id)
-        : s.service.api.review(job.id, { memories: [0], identities: {}, groups: [] }, 0),
+        : s.service.api.review(
+            job.id,
+            { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+            0,
+          ),
     ).rejects.toThrow('Brain changed; refreshing this review')
     expect(s.store.reviews).toEqual([])
     await review(s.service)
@@ -128,7 +143,13 @@ it('supports download retry and removal only while off; disabled startup leaves 
   expect(download).toHaveBeenCalledOnce()
   await s.service.api.removeModel()
   expect(remove).toHaveBeenCalledOnce()
-  await s.service.api.setPrefs({ enabled: true, recall: true, review: true, model: null })
+  await s.service.api.setPrefs({
+    neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    enabled: true,
+    recall: true,
+    review: true,
+    model: null,
+  })
   await expect(s.service.api.removeModel()).rejects.toThrow('Turn off Brain')
 })
 it('deletes only the obsolete prototype artifacts on startup', async () => {
@@ -175,7 +196,7 @@ it('reset stops admission and waits for an active cancelled call before clearing
   expect(s.search.refreshes).toBe(1)
 })
 
-it('stale review recomputation reuses extract parts and refreshes identity decisions', async () => {
+it('an unrelated knowledge change reuses every unchanged decision prompt', async () => {
   const s = await setup()
   await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
   await review(s.service)
@@ -184,7 +205,7 @@ it('stale review recomputation reuses extract parts and refreshes identity decis
   await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
   await review(s.service)
   expect(s.runner.mock.calls.filter(([call]) => call.stage === 'extract')).toHaveLength(1)
-  expect(s.runner.mock.calls.filter(([call]) => call.stage === 'identity')).toHaveLength(2)
+  expect(s.runner.mock.calls.filter(([call]) => call.stage === 'identity')).toHaveLength(1)
 })
 
 it('rereads a finished lane through busy waiting, rejects missing files and unfinished lanes', async () => {
@@ -192,7 +213,11 @@ it('rereads a finished lane through busy waiting, rejects missing files and unfi
   await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
   await review(s.service)
   const old = s.store.snapshot().jobs[0]!
-  await s.service.api.review(old.id, { memories: [0], identities: {}, groups: [] }, s.store.rev)
+  await s.service.api.review(
+    old.id,
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+    s.store.rev,
+  )
   expect(s.service.api.reread).toBeTypeOf('function')
   vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
   const result = await s.service.api.reread(old.id)
@@ -226,4 +251,65 @@ it('binds Tidy to the store: a run persists its progress and a lane flag reaches
     state: 'skipped',
     message: NO_MODEL,
   })
+})
+
+it('approving one of three reviews refreshes the other two without paying twice', async () => {
+  const s = await setup()
+  const ids: string[] = []
+  for (const name of ['harbor', 'ledger', 'kestrel']) {
+    const file = join(s.directory, `${name}.jsonl`)
+    await writeFile(
+      file,
+      s.entries
+        .map((e) => JSON.stringify(e.type === 'session' ? { ...e, id: name } : e))
+        .join('\n'),
+    )
+    const status = await s.service.api.queue({ sessionPath: file, title: name })
+    const id = status.jobs.at(-1)!.id
+    await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+    ids.push(id)
+  }
+  const starts = ids.map((id) => s.store.job(id)!.startedAt)
+  s.runner.mockClear()
+  const proposal = await s.service.api.proposal(ids[0]!)
+  await s.service.api.review(
+    ids[0]!,
+    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
+    proposal.revision,
+  )
+  await vi.waitFor(() => {
+    for (const id of ids.slice(1)) {
+      expect(s.store.job(id)?.state).toBe('review')
+      expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
+    }
+  })
+  expect(s.runner).not.toHaveBeenCalled()
+  expect(ids.map((id) => s.store.job(id)!.startedAt)).toEqual(starts)
+})
+it('changed identity candidate descriptions reach a new prompt while extraction stays cached', async () => {
+  const s = await setup()
+  s.store.matches = [[{ entityId: 'rina', channel: 'name', score: 1 }]]
+  s.store.cards = [
+    {
+      id: 'rina',
+      label: 'Rina Okafor',
+      aliases: ['Rina'],
+      kind: 'person',
+      description: 'Harbor lead',
+      neighbours: [],
+      memories: 1,
+    },
+  ]
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await review(s.service)
+  const id = s.store.snapshot().jobs[0]!.id
+  s.runner.mockClear()
+  s.store.cards[0]!.description = 'Ledger lead'
+  s.store.rev++
+  await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
+  await review(s.service)
+  expect(s.runner).toHaveBeenCalledOnce()
+  expect(s.runner.mock.calls[0]![0].stage).toBe('identity')
+  expect(s.runner.mock.calls[0]![0].prompt).toContain('Ledger lead')
+  expect(s.runner.mock.calls[0]![0].prompt).not.toContain('Harbor lead')
 })

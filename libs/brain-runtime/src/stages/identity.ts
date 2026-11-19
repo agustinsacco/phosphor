@@ -318,5 +318,13 @@ function addDecision(
       .map((c) => c.id),
     reason,
     auto,
+    required: decision === 'uncertain' && !candidate && exactNamesake(row),
   })
+}
+/** Exactly one stored entity of its kind goes by one of its names: the owner must say which. */
+function exactNamesake(row: Row): boolean {
+  return (
+    row.candidates.filter((c) => !c.local && c.exact && c.card.kind === row.entity.kind).length ===
+    1
+  )
 }

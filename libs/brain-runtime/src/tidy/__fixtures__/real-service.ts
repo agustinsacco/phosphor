@@ -1,3 +1,4 @@
+import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -35,7 +36,13 @@ export async function realService() {
   const directory = await mkdtemp(join(tmpdir(), 'brain-tidy-integration-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const store = openBrainStore({ path: join(directory, 'brain.sqlite'), Database: DatabaseSync })
-  store.setPrefs({ enabled: true, recall: true, review: true, model: 'example/reader' })
+  store.setPrefs({
+    enabled: true,
+    recall: true,
+    review: true,
+    model: 'example/reader',
+    neverRead: DEFAULT_BRAIN_PREFS.neverRead,
+  })
   const call = vi.fn(async (input: ModelCallInput) => {
     if (input.stage !== 'tidy') throw new Error('Only fake Tidy calls are expected')
     const pairs = JSON.parse(input.prompt.split('authority="none">\n')[1]!.split('\n</')[0]!) as {
@@ -147,7 +154,7 @@ export async function approveRead(
     origin: { sessionId: job.sessionId, title: job.title },
     scope: job.scope,
     branch: null,
-    computedRevision: store.revision(),
+    computedRevision: store.knowledgeRevision(),
     entities,
     memoryVectors,
     entityVectors,
@@ -172,8 +179,14 @@ export async function approveRead(
   })
   return service.api.review(
     job.id,
-    { memories: summaries.map((_, i) => i), identities: {}, groups: [] },
-    store.revision(),
+    {
+      memories: summaries.map((_, i) => i),
+      identities: {},
+      groups: [],
+      descriptions: [],
+      confirmations: [],
+    },
+    store.knowledgeRevision(),
   )
 }
 

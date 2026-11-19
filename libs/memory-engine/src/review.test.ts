@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { approve, extraction, fixture, lane, vector } from './test-support'
 
-const keep = (memories: number[]) => ({ memories, identities: {}, groups: [] })
+const keep = (memories: number[]) => ({
+  memories,
+  identities: {},
+  groups: [],
+  descriptions: [],
+  confirmations: [],
+})
 describe('Brain v4 review transaction', () => {
   it('approves only referenced identities and evidence with bounded quotes', () => {
     const { store, db } = fixture()
@@ -56,7 +62,13 @@ describe('Brain v4 review transaction', () => {
     store.propose({ ...next, jobId: job.id, computedRevision: store.revision() })
     store.review(
       job.id,
-      { memories: [0], identities: { harbor: 'new' }, groups: [] },
+      {
+        descriptions: [],
+        confirmations: [],
+        memories: [0],
+        identities: { harbor: 'new' },
+        groups: [],
+      },
       store.revision(),
     )
     expect(store.memory(old.id).memory.state).toBe('active')
@@ -76,7 +88,11 @@ describe('Brain v4 review transaction', () => {
       ],
     })
     store.propose(data)
-    store.review(job.id, { memories: [], identities: {}, groups: [0] }, 0)
+    store.review(
+      job.id,
+      { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [0] },
+      0,
+    )
     expect(store.snapshot().counts).toEqual({ memories: 3, entities: 4 })
     const parent = store.overview(300).nodes.find((item) => item.label === 'Harbor group')!
     const fact = store.entityMemories(parent.id, {}, null).memories[0]!
@@ -98,7 +114,11 @@ describe('Brain v4 review transaction', () => {
     })
     store.propose(data)
     expect(store.proposal(job.id).groups[0]?.parent.entityId).toBe('harbor')
-    store.review(job.id, { memories: [], identities: {}, groups: [0] }, 0)
+    store.review(
+      job.id,
+      { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [0] },
+      0,
+    )
     const harbors = store.overview(300).nodes.filter((item) => item.label === 'Harbor')
     expect(harbors).toHaveLength(1)
     expect(store.snapshot().counts).toEqual({ memories: 2, entities: 3 })
@@ -210,9 +230,13 @@ it('rolls back all created rows when a later identity collides with a stable key
   data.entities[0]!.keys = [{ namespace: 'ledger', value: '27' }]
   data.entities[2]!.keys = [{ namespace: 'ledger', value: '27' }]
   store.propose(data)
-  expect(() => store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, 0)).toThrow(
-    'identifier already belongs',
-  )
+  expect(() =>
+    store.review(
+      job.id,
+      { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
+      0,
+    ),
+  ).toThrow('identifier already belongs')
   expect(store.snapshot().counts).toEqual({ memories: 0, entities: 0 })
   expect(db.prepare('SELECT * FROM evidence').all()).toEqual([])
   expect(store.storedProposal(job.id)).toBeDefined()

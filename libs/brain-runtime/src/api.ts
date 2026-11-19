@@ -4,15 +4,26 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   checkBrainReaderModel,
+  brainNeverReadReason,
+  checkBrainNeverRead,
+  setBrainLaneNeverRead,
   type BrainLaneRef,
   type BrainPrefs,
   type BrainStatus,
 } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
+import { BRAIN_REVIEW_REFRESHING } from '@phosphor/shared/brain-review'
 import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
-import { readLane } from './lane'
+import { laneInfo } from './lane'
+import type { LaneFiles } from './lane-files'
+import {
+  currentReadCheck,
+  currentTitle,
+  NEVER_READ_REFRESH_REFUSAL,
+  DELETED_LANE_REFRESH_REFUSAL,
+} from './lane-read-rules'
 import type { TidyMaintenance } from './tidy/maintenance'
 
 interface ApiContext {
@@ -20,6 +31,7 @@ interface ApiContext {
   options: BrainServiceOptions
   search: BrainSearchPort
   queue: ExtractionQueue
+  files: LaneFiles
   changed(): void
   startModel(run: () => Promise<void>): void
   maintenance: Pick<TidyMaintenance, 'reset'>
@@ -31,10 +43,11 @@ function checkPrefs(prefs: BrainPrefs): void {
   )
     throw new Error('Invalid Brain preferences.')
   checkBrainReaderModel(prefs.model)
+  checkBrainNeverRead(prefs.neverRead)
 }
 async function enqueue(
   ref: BrainLaneRef,
-  { store, options, queue }: ApiContext,
+  { store, options, queue, files }: ApiContext,
   replaces?: string,
 ): Promise<void> {
   const check = () => {
@@ -42,19 +55,25 @@ async function enqueue(
     if (!store.snapshot().prefs.enabled) throw new Error('Turn on Brain before queueing a lane.')
   }
   check()
-  const lane = await readLane(ref.sessionPath, store.snapshot().prefs.model).catch(
-    (error: unknown) => {
+  const lane = await files
+    .read(ref.sessionPath)
+    .then((entries) => laneInfo(entries, store.snapshot().prefs.model))
+    .catch((error: unknown) => {
       if (replaces && (error as NodeJS.ErrnoException).code === 'ENOENT')
         throw new Error("This lane's file is gone, so Brain cannot read it again.")
       throw error
-    },
-  )
+    })
   check()
+  const refusal = brainNeverReadReason(store.snapshot().prefs.neverRead, {
+    sessionId: lane.sessionId,
+    title: lane.title ?? '',
+  })
+  if (refusal) throw new Error(refusal)
   store.enqueue(
     {
       replaces,
       sessionPath: ref.sessionPath,
-      title: ref.title,
+      title: lane.title ?? '',
       sessionId: lane.sessionId,
       scope: lane.scope,
       branch: lane.branch,
@@ -80,6 +99,36 @@ async function reread(id: string, context: ApiContext): Promise<void> {
     throw new Error('This lane is already queued.')
   await enqueue(previous, context, id)
 }
+async function currentReview(
+  id: string,
+  { store, queue, files, changed }: ApiContext,
+  intent: 'view' | 'approve',
+): Promise<void> {
+  const job = store.job(id)
+  const proposal = store.storedProposal(id)
+  if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
+    const check = await currentReadCheck(store, files, job)
+    if (check.retitled) changed()
+    const reason = check.refusal
+    const refusal =
+      reason === DELETED_LANE_REFRESH_REFUSAL ? reason : reason ? NEVER_READ_REFRESH_REFUSAL : null
+    const latest = store.storedProposal(id)
+    if (!latest || latest.computedRevision === store.knowledgeRevision()) return
+    if (refusal) {
+      if (intent === 'view') return
+      throw new Error(refusal)
+    }
+    if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
+    queue.recompute(id)
+    throw new Error(BRAIN_REVIEW_REFRESHING)
+  }
+  if (intent === 'view' && job && proposal) {
+    // The never-read note follows the lane's current name. An unreadable lane keeps its stored one.
+    const current = await currentTitle(store, files, job).catch(() => null)
+    if (current?.retitled) changed()
+  }
+  if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
+}
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
   const tidy = createTidyRunner({ ...context, runState: store })
@@ -91,13 +140,7 @@ export function createApi(context: ApiContext): BrainApi {
     queue.kick()
     return status()
   }
-  const current = (id: string): void => {
-    const proposal = store.storedProposal(id)
-    if (proposal && proposal.computedRevision !== store.revision()) {
-      queue.recompute(id)
-      throw new Error('Brain changed; refreshing this review')
-    }
-  }
+
   return {
     status: async () => status(),
     history: async (limit) => store.history(limit),
@@ -124,11 +167,12 @@ export function createApi(context: ApiContext): BrainApi {
     },
     extraction: async (id) => extractionView(store, id),
     proposal: async (id) => {
-      current(id)
+      await currentReview(id, context, 'view')
       return store.proposal(id)
     },
     review: async (id, decision, revision) => {
-      current(id)
+      if (decision !== null) await currentReview(id, context, 'approve')
+      else queue.abortRefresh(id)
       return mutate(() => store.review(id, decision, revision))
     },
     reset: async () => {
@@ -157,9 +201,15 @@ export function createApi(context: ApiContext): BrainApi {
 function modelApi(
   context: ApiContext,
   status: () => BrainStatus,
-): Pick<BrainApi, 'setPrefs' | 'download' | 'removeModel'> {
+): Pick<BrainApi, 'setPrefs' | 'neverRead' | 'download' | 'removeModel'> {
   const { store, options, changed, queue, startModel } = context
   return {
+    neverRead: async (sessionId, never) => {
+      store.setPrefs(setBrainLaneNeverRead(store.snapshot().prefs, sessionId, never))
+      changed()
+      queue.kick()
+      return status()
+    },
     setPrefs: async (prefs) => {
       checkPrefs(prefs)
       const previous = store.snapshot().prefs
@@ -202,7 +252,7 @@ function readApi({
   | 'path'
 > {
   return {
-    entities: (kind, offset, limit) => search.entities(kind, offset, limit),
+    entities: (kind, offset, limit, sort) => search.entities(kind, offset, limit, sort),
     recent: (limit) => search.recent(limit),
     find: async (query, limit) => {
       const rows = await options.embeddings.embed([query], 'query').catch(() => [])

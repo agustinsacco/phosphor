@@ -7,8 +7,11 @@ const MEMORY_CANDIDATE_LIMIT = 32
 interface Candidate {
   n: number
   id: string
+  type: string
   scope: string
   branch: string | null
+  /** The lane that taught it (`origin_session`), when known. */
+  lane: string | null
   vector: Float32Array
 }
 interface EntityWindow {
@@ -33,7 +36,7 @@ function entityWindow(ctx: Context, entity: number, cache: MemoryCandidateCache)
   // Numeric row order is insertion order; the mentions index bounds this lookup even for hubs.
   const rows = all<Omit<Candidate, 'vector'> & { state: string; vector: Uint8Array | null }>(
     ctx,
-    `SELECT m.n,m.id,m.scope,m.branch,m.state,v.vector FROM (SELECT memory FROM mentions WHERE entity=? ORDER BY memory DESC LIMIT 257) a JOIN memories m ON m.n=a.memory LEFT JOIN memory_vectors v ON v.memory=m.n ORDER BY m.n DESC`,
+    `SELECT m.n,m.id,m.type,m.scope,m.branch,m.origin_session AS lane,m.state,v.vector FROM (SELECT memory FROM mentions WHERE entity=? ORDER BY memory DESC LIMIT 257) a JOIN memories m ON m.n=a.memory LEFT JOIN memory_vectors v ON v.memory=m.n ORDER BY m.n DESC`,
     entity,
   )
   const result = {

@@ -1,8 +1,10 @@
 import type { BrainJob, BrainJobStage } from '@phosphor/shared/brain'
 import type { BrainStore, Proposal, ProposalEntity } from '@phosphor/memory-engine/types'
 import type { BrainServiceOptions, BrainSearchPort } from './types'
-import { readLane, type LaneMeta } from './lane'
-import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
+import type { LaneMeta } from './lane'
+import { prepareRead } from './prepare-read'
+import { incrementalSegments, withoutOverlapClaims } from './incremental'
+import type { LaneEntry } from './transcript'
 import { transcriptWindows } from './windows'
 import { callThinking } from './call-trace'
 import { ExtractionRecord } from './extraction-record'
@@ -16,24 +18,14 @@ import { applyClaimBudget } from './stages/budget'
 import type { StageAsk } from './stage-types'
 import { EMBEDDING_MAX_TEXTS } from './embedding/model-manifest'
 
-async function frozenLane(job: BrainJob, store: BrainStore): Promise<LaneMeta> {
-  const saved = store.part(job.id, 'prepare', 'frozen-v4')
-  if (saved) return JSON.parse(saved.output) as LaneMeta
-  const lane = await readLane(job.sessionPath, store.snapshot().prefs.model)
-  store.savePart(job.id, {
-    part: 'prepare',
-    inputHash: 'frozen-v4',
-    output: JSON.stringify(lane),
-    prepare: { leafId: lane.leafId, model: lane.model, branch: lane.branch },
-  })
-  return lane
-}
 export async function extractJob(
   job: BrainJob,
   signal: AbortSignal,
   store: BrainStore,
   options: BrainServiceOptions,
   search: BrainSearchPort,
+  /** The transcript the queue's start check read, if it had to. */
+  checked?: LaneEntry[],
 ): Promise<void> {
   let record: ExtractionRecord | undefined
   const progress = (stage: BrainJobStage, done: number, total: number): void => {
@@ -43,19 +35,17 @@ export async function extractJob(
   }
   try {
     progress('prepare', 0, 1)
-    const lane = await frozenLane(job, store)
+    const { lane, entries } = await prepareRead(job, store, checked)
     record = new ExtractionRecord(
       { ...job, leafId: lane.leafId, model: lane.model, branch: lane.branch },
       store,
       options.now ?? Date.now,
       callThinking(lane.thinking),
     )
-    const segments = transcriptSegments(
-      transcriptAtLeaf(await readEntries(job.sessionPath), lane.leafId),
-    )
+    const { source, selected } = incrementalSegments(entries, lane.leafId, lane.fromLeafId ?? null)
     progress('prepare', 1, 1)
     const ask = await stageCaller({ job, lane, store, options, signal, record })
-    const windows = transcriptWindows(segments)
+    const windows = selected.some((s) => s.role !== 'context') ? transcriptWindows(selected) : []
     progress('extract', 0, windows.length)
     const parts = await extractWindows(
       job.id,
@@ -63,9 +53,23 @@ export async function extractJob(
       store,
       ask,
       (done, total) => progress('extract', done, total),
-      segments,
+      source,
+      lane.alreadyKept ?? [],
     )
-    const folded = foldParts(parts, lane.sessionId)
+    const folded = foldParts(parts.map(withoutOverlapClaims), lane.sessionId)
+    if (lane.branched)
+      folded.outcomes.unshift({
+        candidate: 'read:branch',
+        summary: 'Lane branched since its previous read',
+        status: 'dropped',
+        reason: lane.fromLeafId
+          ? `Reading new messages after common ancestor ${lane.fromLeafId}`
+          : 'No shared ancestor remains; reading from the beginning',
+      })
+    if (job.fromLeafId !== null) {
+      const mentioned = new Set(folded.claims.flatMap((c) => c.memory.entities))
+      folded.entities = folded.entities.filter((e) => mentioned.has(e.ref))
+    }
     recordClaims(record, folded)
     await finishExtraction(
       { job, lane, store, options, signal, search, record, progress, ask },
@@ -94,7 +98,7 @@ interface ExtractionContext {
 }
 async function finishExtraction(context: ExtractionContext, folded: FoldedJob): Promise<void> {
   const { store, options, signal, search, ask, progress } = context
-  const computedRevision = store.revision()
+  const computedRevision = store.knowledgeRevision()
   progress('identity', 0, 1)
   const entityVectors = await embedDocuments(
     options,
@@ -137,13 +141,42 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
     confirmations,
   })
 }
+/** With review off, held claims are never saved and a required question keeps the read in review. */
+async function approveWithoutReview(context: ExtractionContext, proposal: Proposal): Promise<void> {
+  const { job, store, options, search } = context
+  if (
+    store.snapshot().prefs.review ||
+    store.job(job.id)?.state !== 'review' ||
+    proposal.entities.some((entity) => entity.required)
+  )
+    return
+  store.review(
+    job.id,
+    {
+      memories: proposal.memories.flatMap((memory, i) => (memory.hold ? [] : [i])),
+      identities: {},
+      groups: [],
+      descriptions: [],
+      // Held confirmations wait for a tick, and nobody ticks with review off.
+      confirmations: [],
+    },
+    proposal.computedRevision,
+  )
+  // The result is saved. A failed index refresh must not turn a finished read into a failure.
+  await search.refresh().catch((error: unknown) => {
+    options.log?.('Brain search refresh failed after saving', {
+      jobId: job.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
+}
 async function embedAndPropose(
   context: ExtractionContext,
   folded: FoldedJob,
   entities: ProposalEntity[],
   fields: Pick<Proposal, 'computedRevision' | 'groups' | 'held' | 'confirmations'>,
 ): Promise<void> {
-  const { job, lane, store, options, signal, search, record, progress } = context
+  const { job, lane, store, options, signal, record, progress } = context
   const { computedRevision, groups, held, confirmations } = fields
   progress('embed', 0, 1)
   const memoryVectors = await embedDocuments(
@@ -187,20 +220,7 @@ async function embedAndPropose(
     finishedAt: (options.now ?? Date.now)(),
     progress: { stage: 'embed', done: 1, total: 1 },
   })
-  if (!store.snapshot().prefs.review && store.job(job.id)?.state === 'review') {
-    store.review(
-      job.id,
-      { memories: proposal.memories.map((_m, i) => i), identities: {}, groups: [] },
-      computedRevision,
-    )
-    // The result is saved. A failed index refresh must not turn a finished read into a failure.
-    await search.refresh().catch((error: unknown) => {
-      options.log?.('Brain search refresh failed after saving', {
-        jobId: job.id,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-  }
+  await approveWithoutReview(context, proposal)
   options.log?.('Brain extraction finished', {
     jobId: job.id,
     calls: record.record.calls.length,

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { BrainLaneRef, BrainPrefs, BrainStatus, BrainReviewDecision } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { brainLaneTitle } from './laneTitle'
 
 export const brainToast = (text: string, kind: 'success' | 'error' = 'success'): void => {
   useExtensionUiStore.getState().pushToast(text, kind)
@@ -15,6 +16,7 @@ interface BrainState {
   setPrefs: (prefs: BrainPrefs) => Promise<boolean>
   download: () => Promise<boolean>
   removeModel: () => Promise<boolean>
+  neverRead: (sessionId: string, never: boolean) => Promise<boolean>
   queue: (lane: BrainLaneRef) => Promise<boolean>
   cancel: (id: string) => Promise<boolean>
   review: (id: string, keep: BrainReviewDecision | null, revision: number) => Promise<boolean>
@@ -81,10 +83,12 @@ export const useBrain = create<BrainState>(() => ({
   setPrefs: (prefs) => update(() => window.phosphor.invoke('brain:setPrefs', prefs)),
   download: () => update(() => window.phosphor.invoke('brain:download')),
   removeModel: () => update(() => window.phosphor.invoke('brain:removeModel')),
+  neverRead: (sessionId, never) =>
+    update(() => window.phosphor.invoke('brain:neverRead', sessionId, never)),
   queue: (lane) =>
     update(
       () => window.phosphor.invoke('brain:queue', lane),
-      `Queued ${lane.title} for knowledge extraction`,
+      `Queued ${brainLaneTitle(lane.title)} for knowledge extraction`,
     ),
   cancel: (id) =>
     update(() => window.phosphor.invoke('brain:cancel', id), 'Cancelled knowledge extraction'),
@@ -101,6 +105,6 @@ export function brainInFlight(status: BrainStatus | null): boolean {
     !!status &&
     (status.tidy.running ||
       ['downloading', 'verifying', 'testing'].includes(status.embedding.phase) ||
-      status.jobs.some((job) => ['waiting', 'queued', 'running'].includes(job.state)))
+      status.jobs.some((job) => ['waiting', 'queued', 'running', 'refreshing'].includes(job.state)))
   )
 }

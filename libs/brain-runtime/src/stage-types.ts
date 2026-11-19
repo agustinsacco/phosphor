@@ -7,6 +7,7 @@ import type {
 } from '@phosphor/shared/brain'
 import type { EntityKey, ProposalEntity } from '@phosphor/memory-engine/types'
 import type { TranscriptWindow } from './windows'
+import type { ClaimHold } from './stage-hold'
 
 export interface StageEntity {
   ref: string
@@ -15,6 +16,9 @@ export interface StageEntity {
   aliases: string[]
   description: string
   keys: EntityKey[]
+  /** The person who is the user, as the conversation names them. At most one per part; it never
+   * reaches identity or a proposal. */
+  user?: true
 }
 export interface StageQuote {
   segment: string
@@ -38,6 +42,8 @@ export interface StageClaim {
   validFrom: number | null
   validTo: number | null
   branch: boolean
+  /** Saved only when the owner ticks it. Absent in parts checkpointed before holds existed. */
+  hold?: ClaimHold | null
 }
 export interface StageParent {
   entity: string
@@ -71,6 +77,7 @@ export interface IdentityResult {
 }
 
 export interface SegmentInput {
+  context?: boolean
   entryId: string
   index: number
   start: number

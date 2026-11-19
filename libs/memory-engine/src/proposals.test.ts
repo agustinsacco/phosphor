@@ -22,10 +22,12 @@ describe('Brain v4 proposals', () => {
       .entityMemories(harbor, {}, null)
       .memories.find((item) => item.summary.includes('owns'))!
     expect(
-      store.memoryMatches(
-        [{ entityIds: [tom], links: [{ subjectId: tom, predicate: 'owns', objectId: harbor }] }],
-        5,
-      )[0],
+      store
+        .memoryMatches(
+          [{ entityIds: [tom], links: [{ subjectId: tom, predicate: 'owns', objectId: harbor }] }],
+          5,
+        )[0]!
+        .map((match) => match.id),
     ).toContain(old.id)
   })
   it("ignores a job's new entity refs but still finds owners of an existing object", () => {
@@ -47,15 +49,17 @@ describe('Brain v4 proposals', () => {
       .entityMemories(harbor, {}, null)
       .memories.find((item) => item.summary.includes('owns'))!
     expect(
-      store.memoryMatches(
-        [
-          {
-            entityIds: ['w1:n1'],
-            links: [{ subjectId: 'w1:n1', predicate: 'owns', objectId: harbor }],
-          },
-        ],
-        5,
-      )[0],
+      store
+        .memoryMatches(
+          [
+            {
+              entityIds: ['w1:n1'],
+              links: [{ subjectId: 'w1:n1', predicate: 'owns', objectId: harbor }],
+            },
+          ],
+          5,
+        )[0]!
+        .map((match) => match.id),
     ).toContain(owned.id)
   })
   it('replaces proposals and both vector kinds without old rows', () => {

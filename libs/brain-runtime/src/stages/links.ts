@@ -1,3 +1,4 @@
+import { sourceCheckpoint } from '../source-checkpoint'
 import { BRAIN_STRUCTURAL_PREDICATES } from '@phosphor/shared/brain'
 import type { BrainStore, TranscriptSegment } from '@phosphor/memory-engine/types'
 import type { Registry, StageAsk, StageExtraction, StageLinks } from '../stage-types'
@@ -6,6 +7,7 @@ import { inputHash } from '../windows'
 import { linksInput } from '../stage-links-input'
 import { rebuildPrompt } from '../stage-input'
 import { parseStageLinks } from '../stage-links-parse'
+import { filterLinks } from './link-filter'
 
 export async function addLinks(
   jobId: string,
@@ -18,11 +20,11 @@ export async function addLinks(
   ask: StageAsk,
 ): Promise<StageExtraction> {
   const input = linksInput(extraction, registry, window, source)
-  if (!input.rows.length) return extraction
+  if (!input.rows.length) return filterLinks(extraction, registry)
   const prompt = rebuildPrompt('links', { links: input }, source)
   const hash = inputHash(prompt),
     part = `links:${key}`
-  const saved = store.part(jobId, part, hash)
+  const saved = sourceCheckpoint(store, jobId, part, hash)
   const result = saved
     ? (JSON.parse(saved.output) as StageLinks)
     : await ask(
@@ -34,6 +36,9 @@ export async function addLinks(
         { links: input },
       )
   if (!saved) store.savePart(jobId, { part, inputHash: hash, output: JSON.stringify(result) })
+  return filterLinks(merged(extraction, result), registry)
+}
+function merged(extraction: StageExtraction, result: StageLinks): StageExtraction {
   return {
     ...extraction,
     outcomes: [...(extraction.outcomes ?? []), ...result.outcomes],

@@ -4,7 +4,7 @@ import { all, transaction, type Context } from '../database'
 import { entityNumber } from '../entities'
 import { memoryNumber } from '../knowledge'
 import { mergeRows } from '../merge'
-import { bumpRevision } from '../prefs'
+import { bumpKnowledgeRevision } from '../prefs'
 import { checkRevision, journal, undo } from './journal'
 import { fingerprintMemories } from './fingerprints'
 import { memoryActionGuards } from './action-guards'
@@ -48,7 +48,7 @@ export function mergeChange(
   )
   clearSubject(ctx, 'entity', source)
   fingerprintMemories(ctx, memories)
-  bumpRevision(ctx)
+  bumpKnowledgeRevision(ctx)
   return id
 }
 
@@ -94,11 +94,11 @@ export function changeMemories(
         : conflictMemories(ctx, source, target, kind === 'replace'),
   )
   if (kind === 'fold') {
-    settleFoldSuggestions(ctx, id, sourceId, targetId)
+    settleFoldSuggestions(ctx, id, sourceId, targetId, options.suggestionId)
     clearSubject(ctx, 'memory', sourceId)
   }
   fingerprintMemories(ctx, selection.memories)
-  bumpRevision(ctx)
+  bumpKnowledgeRevision(ctx)
   return id
 }
 export function undoOperation(ctx: Context, id: string, expected: number): Selection {

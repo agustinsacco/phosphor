@@ -68,13 +68,29 @@
       "types": "./src/extraction-view.ts",
       "default": "./src/extraction-view.ts"
     },
+    "./incremental": {
+      "types": "./src/incremental.ts",
+      "default": "./src/incremental.ts"
+    },
     "./lane": {
       "types": "./src/lane.ts",
       "default": "./src/lane.ts"
     },
+    "./lane-files": {
+      "types": "./src/lane-files.ts",
+      "default": "./src/lane-files.ts"
+    },
+    "./lane-read-rules": {
+      "types": "./src/lane-read-rules.ts",
+      "default": "./src/lane-read-rules.ts"
+    },
     "./model-call": {
       "types": "./src/model-call.ts",
       "default": "./src/model-call.ts"
+    },
+    "./prepare-read": {
+      "types": "./src/prepare-read.ts",
+      "default": "./src/prepare-read.ts"
     },
     "./queue": {
       "types": "./src/queue.ts",
@@ -104,9 +120,17 @@
       "types": "./src/service.ts",
       "default": "./src/service.ts"
     },
+    "./source-checkpoint": {
+      "types": "./src/source-checkpoint.ts",
+      "default": "./src/source-checkpoint.ts"
+    },
     "./stage-call": {
       "types": "./src/stage-call.ts",
       "default": "./src/stage-call.ts"
+    },
+    "./stage-hold": {
+      "types": "./src/stage-hold.ts",
+      "default": "./src/stage-hold.ts"
     },
     "./stage-input": {
       "types": "./src/stage-input.ts",
@@ -119,6 +143,10 @@
     "./stage-links-parse": {
       "types": "./src/stage-links-parse.ts",
       "default": "./src/stage-links-parse.ts"
+    },
+    "./stage-owner": {
+      "types": "./src/stage-owner.ts",
+      "default": "./src/stage-owner.ts"
     },
     "./stage-parse": {
       "types": "./src/stage-parse.ts",
@@ -176,6 +204,10 @@
       "types": "./src/stages/identity.ts",
       "default": "./src/stages/identity.ts"
     },
+    "./stages/link-filter": {
+      "types": "./src/stages/link-filter.ts",
+      "default": "./src/stages/link-filter.ts"
+    },
     "./stages/links": {
       "types": "./src/stages/links.ts",
       "default": "./src/stages/links.ts"
@@ -183,6 +215,10 @@
     "./stages/reconcile": {
       "types": "./src/stages/reconcile.ts",
       "default": "./src/stages/reconcile.ts"
+    },
+    "./stages/reconcile-candidates": {
+      "types": "./src/stages/reconcile-candidates.ts",
+      "default": "./src/stages/reconcile-candidates.ts"
     },
     "./tidy/api": {
       "types": "./src/tidy/api.ts",

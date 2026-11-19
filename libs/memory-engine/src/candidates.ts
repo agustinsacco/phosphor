@@ -3,7 +3,8 @@ import { all, one, type Context } from './database'
 import { entity, entityNumber } from './entities'
 import { memoryCards } from './knowledge'
 import { fold, tokens } from './text'
-import type { ClaimProbe, EntityCard, EntityMatch, ProposalEntity } from './types'
+import type { ClaimProbe, EntityCard, EntityMatch, MemoryMatch, ProposalEntity } from './types'
+import { cosine, decodeVector } from './vectors'
 
 export const STOPWORDS = new Set(
   'a an the is it to of in on for and or what who how why do does did can be by with about my me i we you that this as at from there their our know tell'.split(
@@ -190,48 +191,134 @@ export function entityCards(ctx: Context, ids: string[]): EntityCard[] {
 function knownNumber(ctx: Context, id: string): number | undefined {
   return one<{ n: number }>(ctx, 'SELECT n FROM entities WHERE id=?', id)?.n
 }
-export function memoryMatches(ctx: Context, probes: ClaimProbe[], limit: number): string[][] {
-  return probes.map((probe) => {
-    const found = new Set<string>()
-    const add = (rows: { id: string }[]) => rows.forEach((row) => found.add(row.id))
-    for (const link of probe.links) {
-      const subject = knownNumber(ctx, link.subjectId)
-      const object = knownNumber(ctx, link.objectId)
-      if (subject !== undefined && object !== undefined)
-        add(
-          all(
-            ctx,
-            `SELECT m.id FROM relations r JOIN memories m ON m.n=r.memory WHERE r.subject=? AND r.live=1 AND r.predicate=? AND r.object=? ORDER BY r.observed_at DESC LIMIT ?`,
-            subject,
-            link.predicate,
-            object,
-            limit,
-          ),
-        )
-      // A new owner of an existing thing may replace its old owner.
-      if (link.predicate === 'owns' && object !== undefined)
-        add(
-          all(
-            ctx,
-            `SELECT m.id FROM relations r JOIN memories m ON m.n=r.memory WHERE r.object=? AND r.live=1 AND r.predicate='owns' ORDER BY r.observed_at DESC LIMIT ?`,
-            object,
-            limit,
-          ),
-        )
-    }
+/** How many of an entity's newest memories a claim about it is compared with. */
+const ENTITY_WINDOW = 128
+/** A superseded memory this close to a claim is offered as replaced earlier. */
+const REPLACED_SIMILARITY = 0.85
+interface StoredMemory {
+  id: string
+  state: string
+  vector: Uint8Array | null
+}
+const STORED = 'm.id,m.state,v.vector'
+const VECTOR = 'LEFT JOIN memory_vectors v ON v.memory=m.n'
+/** One entity's window scored against every claim naming it. Its vectors are not kept. */
+interface ScoredWindow {
+  ids: string[]
+  current: boolean[]
+  /** By probe index: each row's cosine to that probe, in window order; 0 without vectors. */
+  scores: Map<number, Float64Array>
+}
+/**
+ * Loads each named entity's window once, scores it against all claims naming it, and drops its
+ * vectors before the next one, so a read naming hundreds of entities holds one window's
+ * vectors at a time (about 384 KiB) instead of all of them.
+ */
+function scoredWindows(
+  ctx: Context,
+  probes: ClaimProbe[],
+  numbers: Map<string, number | undefined>,
+): Map<number, ScoredWindow> {
+  const naming = new Map<number, Set<number>>()
+  probes.forEach((probe, index) => {
     for (const id of probe.entityIds) {
-      const n = knownNumber(ctx, id)
-      if (n !== undefined)
-        add(
-          all(
-            ctx,
-            `SELECT m.id FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed') ORDER BY m.observed_at DESC LIMIT ?`,
-            n,
-            limit,
-          ),
-        )
+      if (!numbers.has(id)) numbers.set(id, knownNumber(ctx, id))
+      const n = numbers.get(id)
+      if (n !== undefined) naming.set(n, (naming.get(n) ?? new Set()).add(index))
     }
-    return [...found].slice(0, limit)
   })
+  const windows = new Map<number, ScoredWindow>()
+  for (const [n, named] of naming) {
+    const rows = all<StoredMemory>(
+      ctx,
+      `SELECT ${STORED} FROM mentions a JOIN memories m ON m.n=a.memory ${VECTOR} WHERE a.entity=? ORDER BY a.memory DESC LIMIT ?`,
+      n,
+      ENTITY_WINDOW,
+    )
+    const scores = new Map([...named].map((index) => [index, new Float64Array(rows.length)]))
+    rows.forEach((row, i) => {
+      if (!row.vector) return
+      const vector = decodeVector(row.vector)
+      for (const index of named) {
+        const probe = probes[index]!.vector
+        if (probe) scores.get(index)![i] = cosine(probe, vector)
+      }
+    })
+    windows.set(n, {
+      ids: rows.map((row) => row.id),
+      current: rows.map((row) => CURRENT.has(row.state)),
+      scores,
+    })
+  }
+  return windows
+}
+/**
+ * Memories that may say the same thing as each claim: those stating one of its links, and the
+ * entity matches most similar to it among each named entity's newest memories, so a busy
+ * person's recent unrelated memories cannot hide a close one. Superseded memories in those
+ * windows come back only when very close. At most `limit` per channel.
+ */
+export function memoryMatches(ctx: Context, probes: ClaimProbe[], limit: number): MemoryMatch[][] {
+  const numbers = new Map<string, number | undefined>()
+  const windows = scoredWindows(ctx, probes, numbers)
+  return probes.map((probe, index) => {
+    const score = (row: StoredMemory): number =>
+      probe.vector && row.vector ? cosine(probe.vector, decodeVector(row.vector)) : 0
+    const linked = new Map<string, MemoryMatch>()
+    for (const row of linkMatches(ctx, probe, limit))
+      if (!linked.has(row.id))
+        linked.set(row.id, { id: row.id, channel: 'link', similarity: score(row) })
+    const named = new Map<string, MemoryMatch>()
+    for (const id of probe.entityIds) {
+      const n = numbers.get(id)
+      if (n === undefined) continue
+      const window = windows.get(n)!
+      const scores = window.scores.get(index)!
+      window.ids.forEach((memoryId, i) => {
+        if (linked.has(memoryId) || named.has(memoryId)) return
+        const similarity = scores[i]!
+        if (window.current[i]) named.set(memoryId, { id: memoryId, channel: 'entity', similarity })
+        else if (similarity >= REPLACED_SIMILARITY)
+          named.set(memoryId, { id: memoryId, channel: 'replaced', similarity })
+      })
+    }
+    // A stable sort keeps the newest first among equally similar memories.
+    const ranked = [...named.values()].sort((a, b) => b.similarity - a.similarity)
+    return [
+      ...[...linked.values()].slice(0, limit),
+      ...ranked.filter((m) => m.channel === 'entity').slice(0, limit),
+      ...ranked.filter((m) => m.channel === 'replaced').slice(0, limit),
+    ]
+  })
+}
+const CURRENT = new Set(['active', 'disputed'])
+function linkMatches(ctx: Context, probe: ClaimProbe, limit: number): StoredMemory[] {
+  const rows: StoredMemory[] = []
+  for (const link of probe.links) {
+    const subject = knownNumber(ctx, link.subjectId)
+    const object = knownNumber(ctx, link.objectId)
+    if (subject !== undefined && object !== undefined)
+      rows.push(
+        ...all<StoredMemory>(
+          ctx,
+          `SELECT ${STORED} FROM relations r JOIN memories m ON m.n=r.memory ${VECTOR} WHERE r.subject=? AND r.live=1 AND r.predicate=? AND r.object=? ORDER BY r.observed_at DESC LIMIT ?`,
+          subject,
+          link.predicate,
+          object,
+          limit,
+        ),
+      )
+    // A new owner of an existing thing may replace its old owner.
+    if (link.predicate === 'owns' && object !== undefined)
+      rows.push(
+        ...all<StoredMemory>(
+          ctx,
+          `SELECT ${STORED} FROM relations r JOIN memories m ON m.n=r.memory ${VECTOR} WHERE r.object=? AND r.live=1 AND r.predicate='owns' ORDER BY r.observed_at DESC LIMIT ?`,
+          object,
+          limit,
+        ),
+      )
+  }
+  return rows
 }
 export { memoryCards }

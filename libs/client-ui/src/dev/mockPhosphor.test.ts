@@ -92,7 +92,7 @@ it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
   await window.phosphor.invoke(
     'brain:review',
     id,
-    { memories: [0], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     proposal.revision,
   )
   const knowledge = await window.phosphor.invoke('brain:entityMemories', 'ledger', {}, null)
@@ -116,7 +116,7 @@ it('round trips the Brain reader preference through the browser bridge', async (
 })
 
 it('dispatches both Knowledge overview reads in the browser harness', async () => {
-  const page = await window.phosphor.invoke('brain:entities', null, 0, 20)
+  const page = await window.phosphor.invoke('brain:entities', null, 0, 20, 'connected')
   expect(page.items).toHaveLength(20)
   expect(page.more).toBe(true)
   expect(page.kinds).toContain('person')

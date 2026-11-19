@@ -3,48 +3,35 @@ import { randomUUID } from 'node:crypto'
 import type { BrainFindResult } from '@phosphor/shared/brain'
 import { all, type Context } from './database'
 import { entity, referencedEntities } from './entities'
-import { memoryCards } from './knowledge'
-import { recall } from './recall'
-import { entitySeeds, lexicalIds } from './seeds'
+import { NEAREST, rank, recall, type Nearest } from './recall'
+import { entitySeeds } from './seeds'
 import { VectorIndex } from './vector-index'
 import type { BrainSearch, OpenStoreOptions } from './types'
 
+/**
+ * The Brain page's search. Memories are the top of the ranking `brain_search` uses, read for an
+ * agent with no project; people and things matched by name or alias come first, then nearby ones.
+ */
 function find(
   ctx: Context,
   query: string,
   vector: Float32Array | null,
   limit: number,
-  entitiesIndex: VectorIndex,
-  memoriesIndex: VectorIndex,
+  nearest: Nearest,
   degradation: string[],
 ): BrainFindResult {
   const cap = Math.min(50, Math.max(0, limit))
-  if (!query.trim()) return { entities: [], memories: [], referenced: [], degradation }
-  const entityLexical = entitySeeds(ctx, query, cap)
-  const memoryLexical = lexicalIds(ctx, query, cap)
+  if (!query.trim() || !cap) return { entities: [], memories: [], referenced: [], degradation }
+  const input = { query, vector, limit: cap, scope: null, branch: null, now: ctx.now() }
+  const memories = rank(ctx, input, nearest)
+    .hits.slice(0, cap)
+    .map((hit) => hit.memory)
   const entityIds = [
     ...new Set([
-      ...entityLexical,
-      ...(vector && entityLexical.length < cap
-        ? entitiesIndex
-            .nearest(vector, cap)
-            .filter((item) => item.score >= 0.35)
-            .map((item) => item.id)
-        : []),
+      ...entitySeeds(ctx, query, cap),
+      ...nearest.entities.filter((item) => item.score >= 0.35).map((item) => item.id),
     ]),
   ].slice(0, cap)
-  const memoryIds = [
-    ...new Set([
-      ...memoryLexical,
-      ...(vector && memoryLexical.length < cap
-        ? memoriesIndex
-            .nearest(vector, cap)
-            .filter((item) => item.score >= 0.35)
-            .map((item) => item.id)
-        : []),
-    ]),
-  ].slice(0, cap)
-  const memories = memoryCards(ctx, memoryIds)
   return {
     entities: entityIds.map((id) => entity(ctx, id)!).filter(Boolean),
     memories,
@@ -136,37 +123,22 @@ export function openBrainSearch(options: Pick<OpenStoreOptions, 'path' | 'Databa
   const indexes = new SearchIndexes(ctx)
   const degradation = () =>
     indexes.loaded ? [] : ['Semantic index loading; words and names only.']
+  const nearest = (vector: Float32Array | null): Nearest => ({
+    entities: indexes.loaded && vector ? indexes.entities.nearest(vector, NEAREST.entities) : [],
+    memories: indexes.loaded && vector ? indexes.memories.nearest(vector, NEAREST.memories) : [],
+  })
   return {
     refresh: () => indexes.refresh(),
     ready: () => indexes.loaded,
-    entities: (kind, offset, limit) => entities(ctx, kind, offset, limit),
+    entities: (kind, offset, limit, sort) => entities(ctx, kind, offset, limit, sort),
     recent: (limit) => recent(ctx, limit),
     nearestEntities: (vectors, k) =>
       vectors.map((vector) => (indexes.loaded ? indexes.entities.nearest(vector, k) : [])),
     nearestMemories: (vectors, k) =>
       vectors.map((vector) => (indexes.loaded ? indexes.memories.nearest(vector, k) : [])),
-    recall: (input) =>
-      recall(
-        ctx,
-        input,
-        {
-          entities:
-            indexes.loaded && input.vector ? indexes.entities.nearest(input.vector, 20) : [],
-          memories:
-            indexes.loaded && input.vector ? indexes.memories.nearest(input.vector, 50) : [],
-        },
-        degradation(),
-      ),
+    recall: (input) => recall(ctx, input, nearest(input.vector), degradation()),
     find: (query, vector, limit) =>
-      find(
-        ctx,
-        query,
-        indexes.loaded ? vector : null,
-        limit,
-        indexes.entities,
-        indexes.memories,
-        degradation(),
-      ),
+      find(ctx, query, indexes.loaded ? vector : null, limit, nearest(vector), degradation()),
     close: () => indexes.close(),
   }
 }

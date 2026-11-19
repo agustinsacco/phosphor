@@ -2,7 +2,6 @@ import { expect, it } from 'vitest'
 import { BRAIN_PREDICATE_LABELS } from '@shared/brain'
 import { createMockBrain } from '../mockBrain'
 import { initialTrail, moveTrail, visitTrail } from './trail'
-import { buildReviewDecision } from '../reviewDecision'
 
 it('keeps backward and forward hops and truncates the forward branch on a new visit', () => {
   const first = visitTrail(initialTrail, { kind: 'entity', id: 'harbor', label: 'Harbor' })
@@ -11,14 +10,6 @@ it('keeps backward and forward hops and truncates the forward branch on a new vi
   expect(moveTrail(moveTrail(second, -1), 1)).toEqual(second)
   const branch = visitTrail(moveTrail(second, -1), { kind: 'entity', id: 'rina', label: 'Rina' })
   expect(branch.items.map((item) => item.id)).toEqual(['harbor', 'rina'])
-})
-
-it('builds review decisions with explicit identities and selected group indexes', () => {
-  expect(buildReviewDecision([4, 1], { n1: 'rina', n2: 'new' }, [2])).toEqual({
-    memories: [1, 4],
-    identities: { n1: 'rina', n2: 'new' },
-    groups: [2],
-  })
 })
 
 it('uses plain directional connection labels', () => {

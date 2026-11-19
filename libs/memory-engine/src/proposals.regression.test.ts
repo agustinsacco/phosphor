@@ -21,7 +21,11 @@ describe('Brain graph regressions', () => {
       target: ids.find((old) => old.summary === memory.summary)!.id,
     }))
     store.propose(next)
-    store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, store.revision())
+    store.review(
+      job.id,
+      { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
+      store.revision(),
+    )
     for (const id of new Set(ids.map((memory) => memory.id))) {
       expect(store.memory(id).memory.links).toHaveLength(1)
       expect(store.memory(id).quotes).toHaveLength(1)
@@ -48,7 +52,11 @@ describe('Brain graph regressions', () => {
     ]
     next.memoryVectors = next.memoryVectors.slice(0, 1)
     store.propose(next)
-    store.review(job.id, { memories: [0], identities: {}, groups: [] }, store.revision())
+    store.review(
+      job.id,
+      { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+      store.revision(),
+    )
     expect(store.memory(old.id).memory.state).toBe('superseded')
     expect(store.entity(tom.id).entity.label).toBe('Tom Lee')
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])

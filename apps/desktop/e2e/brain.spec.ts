@@ -2,7 +2,7 @@ import {
   seedBrainTidyLanes,
   readTidyLane,
   openTidyNotice,
-  mergeSwapAndUndo,
+  mergeOtherAndUndo,
 } from './fixtures/brain-tidy-flow'
 import { test, expect, type Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -13,7 +13,7 @@ import { seedBrainLanes } from './fixtures/brain-lanes'
 import {
   attachBrainFailure,
   expectGraphFocusClear,
-  expectReviewOutcomeAligned,
+  expectReviewRowAligned,
   watchBrainErrors,
   expectBoundedReadText,
   expectReviewBarAtBottom,
@@ -22,11 +22,15 @@ import {
   approveLane,
   READ_TIMEOUT,
   awaitRead,
+  brainNav,
+  brainTab,
   enableBrain,
   exploreBrain,
-  inbox,
   queueLane,
+  readNewMessages,
+  readRow,
   resetBrain,
+  reviewRow,
   status,
 } from './fixtures/brain-flow'
 
@@ -45,14 +49,17 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     await enableBrain(page, seed.harbor)
     const noReadErrors = await watchBrainErrors(page)
     await queueLane(page, seed.harbor)
-    await page.getByRole('tab', { name: /^Lanes/ }).click()
-    await expect(inbox(page, seed.harbor)).toContainText('Read the conversation')
+    await brainTab(page, 'Lanes').click()
+    await expect(readRow(page, seed.harbor, 'Reading')).toContainText('Read the conversation')
     await awaitRead(page, null)
     await noReadErrors()
     expect((await status(page)).counts).toEqual({ memories: 0, entities: 0 })
+    await expect(brainNav(page)).toHaveAccessibleName('Brain 1 to decide')
+    await expect(brainTab(page, 'Inbox')).toContainText('1')
     const firstJob = await approveLane(page, seed.harbor)
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 2, entities: 3 })
-    await expect(page.getByRole('region', { name: 'Extraction detail' })).toBeVisible()
+    await expect(brainNav(page)).toHaveAccessibleName('Brain')
+    await expectFinishedRead(page, seed.harbor)
     await noReadErrors()
     const harbor = await directedGraph(page, firstJob)
     await graphSelection(page)
@@ -60,9 +67,9 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
 
     await writeFile(seed.armed, 'armed\n')
     await queueLane(page, seed.ledger)
-    await page.getByRole('tab', { name: /^Lanes/ }).click()
+    await brainTab(page, 'Lanes').click()
     await awaitRead(page, seed.ledger, 'failed')
-    await inbox(page, seed.ledger).click()
+    await readRow(page, seed.ledger, 'Failed').click()
     const failed = page.getByRole('region', { name: 'Failed read', exact: true })
     await expect(failed.getByRole('button', { name: 'Retry', exact: true })).toBeVisible()
     const failedJob = (await status(page)).jobs.find(
@@ -89,10 +96,8 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
         }),
       ]),
     )
-    await queueLane(page, seed.harbor)
-    await expect(
-      page.getByText('Nothing new in this lane since its last extraction.'),
-    ).toBeVisible()
+    await readNewMessages(page, seed.harbor)
+    await expect(page.getByText('Nothing new in this lane since its last read.')).toBeVisible()
     await rereadHarbor(page, seed.harbor, firstJob)
     await resetBrain(page)
     for (const lane of [seed.harbor, seed.ledger])
@@ -104,6 +109,18 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     await shutdown(h)
   }
 })
+
+/** The approved read moves to Lanes › Read, with what it kept and how long it took in words. */
+async function expectFinishedRead(page: Page, lane: BrainLane): Promise<void> {
+  await brainTab(page, 'Lanes').click()
+  const row = readRow(page, lane, 'Read')
+  await expect(row).toContainText('2 memories')
+  await row.click()
+  const read = page.getByRole('article', { name: 'Read detail', exact: true })
+  await expect(read.getByRole('heading', { name: lane.title, exact: true })).toBeVisible()
+  await expect(read).toContainText(/took (?:less than a minute|\d+ min)/)
+  await expect(read).not.toContainText(/took \d+:\d{2}/)
+}
 
 async function directedGraph(page: Page, firstJob: string) {
   const extraction = await page.evaluate(
@@ -144,32 +161,34 @@ async function directedGraph(page: Page, firstJob: string) {
 }
 
 async function rereadHarbor(page: Page, lane: BrainLane, earlier: string): Promise<void> {
-  const history = page.getByRole('region', { name: 'Read', exact: true })
-  const row = history.getByRole('button', { name: lane.title, exact: true })
+  await brainTab(page, 'Lanes').click()
+  const row = readRow(page, lane, 'Read')
   await expect(row).toContainText('2 memories')
   await row.click()
-  await page
-    .getByRole('region', { name: 'Extraction detail', exact: true })
-    .getByRole('button', { name: 'Read again', exact: true })
-    .click()
+  const detail = page.getByRole('article', { name: 'Read detail', exact: true })
+  await detail.getByRole('button', { name: 'Read again', exact: true }).click()
   const confirm = page.getByRole('dialog', { name: `Read “${lane.title}” again?` })
   await expect(confirm).toContainText('The 2 memories from the earlier read stay until you approve')
   await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await row.click()
-  const detail = page.getByRole('region', { name: 'Extraction detail', exact: true })
   await expect(detail).toBeVisible()
   const old = await page.evaluate((id) => window.phosphor.invoke('brain:extraction', id), earlier)
   expect(old.prompts.every((p) => !p.startsWith('Prompt not available'))).toBe(true)
   await detail.getByRole('button', { name: 'Read again', exact: true }).click()
   await confirm.getByRole('button', { name: 'Read again', exact: true }).click()
-  await expect(inbox(page, lane)).toContainText('reading again')
+  await brainTab(page, 'Inbox').click()
+  await awaitRead(page, lane)
+  await expect(reviewRow(page, lane)).toContainText('2 memories to review · read again')
   for (const memory of old.memories)
     expect(
       await page.evaluate((id) => window.phosphor.invoke('brain:memory', id), memory.id),
     ).toHaveProperty('memory.id', memory.id)
   const next = await approveLane(page, lane)
   expect(next).not.toBe(earlier)
-  await expect(row).toContainText('2 memories')
+  await brainTab(page, 'Lanes').click()
+  // Both reads stay, newest first; the replaced one now counts nothing of its own.
+  await expect(row).toHaveCount(2)
+  await expect(row.nth(0)).toContainText('2 memories from this read')
+  await expect(row.nth(1)).toContainText('0 memories from this read')
   const fresh = await page.evaluate((id) => window.phosphor.invoke('brain:extraction', id), next)
   expect(fresh.memories).toHaveLength(2)
   for (const memory of old.memories) {
@@ -185,7 +204,7 @@ async function rereadHarbor(page: Page, lane: BrainLane, earlier: string): Promi
     (await page.evaluate(() => window.phosphor.invoke('brain:history', 20))).items
       .filter((i) => i.job.sessionId === old.sessionId)
       .map((i) => i.job.id),
-  ).toEqual([next])
+  ).toEqual([next, earlier])
 }
 test('Brain reads a queued lane with the reader selected in Settings', async () => {
   const seed = await seedBrainLanes()
@@ -218,12 +237,13 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
       .toBe('pi-claude-cli/claude-opus-5')
     await page.keyboard.press('Escape')
     await queueLane(page, seed.harbor)
-    await page.getByRole('tab', { name: /^Lanes/ }).click()
+    await brainTab(page, 'Inbox').click()
     await awaitRead(page, seed.harbor)
-    await expect(inbox(page, seed.harbor)).toContainText('2 memories')
-    await expect(inbox(page, seed.harbor)).toContainText('Claude Opus 5')
-    await inbox(page, seed.harbor).click()
-    await page.getByRole('button', { name: 'See how it was read', exact: true }).click()
+    await expect(reviewRow(page, seed.harbor)).toContainText('2 memories to review')
+    await reviewRow(page, seed.harbor).click()
+    const review = page.getByRole('article', { name: 'Review memories', exact: true })
+    await expect(review).toContainText('read by Claude Opus 5')
+    await review.getByRole('button', { name: 'See how it was read', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Extraction detail' })).toContainText(
       'Claude Opus 5 · medium thinking',
     )
@@ -267,6 +287,8 @@ test('Brain review wraps a 300-character identity description without sideways s
     const identity = proposal.identities[0]!
     identity.decision = 'reuse'
     identity.entityId = 'harbor-candidate'
+    // Unsure, so it is asked as a question with the candidate's description in view.
+    identity.auto = false
     identity.candidates = [
       {
         id: 'harbor-candidate',
@@ -285,44 +307,33 @@ test('Brain review wraps a 300-character identity description without sideways s
         description: 'Another project.',
       },
     ]
+    // Leave the Inbox first, so the review loads the replaced proposal when it opens again.
+    await brainTab(page, 'Knowledge').click()
     await h.app.evaluate(({ ipcMain }, value) => {
       ipcMain.removeHandler('brain:proposal')
       ipcMain.handle('brain:proposal', () => value)
     }, proposal)
-    const lanes = page.getByRole('tab', { name: /^Lanes/ })
-    if (await lanes.count()) await lanes.click()
-    await page
-      .getByRole('button', { name: 'Review', exact: true })
-      .or(page.locator('.page-shell').getByRole('button', { name: seed.harbor.title, exact: true }))
-      .click()
-    const review = page.getByRole('region', { name: 'Review memories', exact: true })
-    await expect(review).toBeVisible()
-    expect(
-      await review.evaluate((element) => {
-        let pane: HTMLElement | SVGElement | null = element
-        while (pane && !['auto', 'scroll'].includes(getComputedStyle(pane).overflowY))
-          pane = pane.parentElement
-        if (!pane) throw new Error('Missing review scroll container')
-        return { scroll: pane.scrollWidth, client: pane.clientWidth }
-      }),
-    ).toEqual(expect.objectContaining({ scroll: expect.any(Number) }))
-    const fits = await review.evaluate((element) => {
-      let pane: HTMLElement | SVGElement | null = element
-      while (pane && !['auto', 'scroll'].includes(getComputedStyle(pane).overflowY))
-        pane = pane.parentElement
-      return !!pane && pane.scrollWidth <= pane.clientWidth
-    })
+    await brainTab(page, 'Inbox').click()
+    await reviewRow(page, seed.harbor).click()
+    const review = page.getByRole('article', { name: 'Review memories', exact: true })
+    await expect(review.getByText(identity.candidates[0]!.description)).toBeVisible()
+    const fits = await review
+      .locator('.brain-scroll')
+      .evaluate((pane) => pane.scrollWidth <= pane.clientWidth)
     expect(fits, 'review scrollWidth <= clientWidth').toBe(true)
-    await expectReviewOutcomeAligned(page)
+    await expectReviewRowAligned(page)
     await expectBrainPanesToFit(page)
   } finally {
     await shutdown(h)
   }
 })
 
+/** The 3D graph lives in the full map: a click inspects and selects, Escape clears. */
 async function graphSelection(page: Page): Promise<void> {
-  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-  const nodes = page.getByRole('list', { name: 'Graph entities' })
+  await brainTab(page, 'Knowledge').click()
+  await page.getByRole('button', { name: 'Full map', exact: true }).click()
+  const full = page.getByRole('region', { name: 'Full map', exact: true })
+  const nodes = full.getByRole('list', { name: 'Graph entities' })
   await expect(nodes.getByRole('button')).toHaveCount(3)
   const count = await nodes.getByRole('button').count()
   expect(count).toBe(3)
@@ -330,10 +341,11 @@ async function graphSelection(page: Page): Promise<void> {
   // The accessible list is visually hidden; keyboard activation exercises the same node action.
   await rina.focus()
   await rina.press('Enter')
-  await expect(page.getByRole('button', { name: 'Whole graph', exact: true })).toHaveAttribute(
+  await expect(full.getByRole('button', { name: 'Whole graph', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
+  await expect(full.getByRole('complementary', { name: 'Inspector' })).toContainText('Rina Okafor')
   await expect(nodes.getByRole('button')).toHaveCount(count)
   await expectGraphFocusClear(page)
   await expect(nodes.getByRole('button', { name: 'Focus Harbor', exact: true })).toHaveAttribute(
@@ -341,23 +353,25 @@ async function graphSelection(page: Page): Promise<void> {
     'false',
   )
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: 'Clear selection', exact: true })).toHaveCount(0)
+  await expect(full.getByRole('button', { name: 'Clear selection', exact: true })).toHaveCount(0)
+  await expect(full.getByRole('complementary', { name: 'Inspector' })).toHaveCount(0)
   await expect(nodes.getByRole('button', { name: 'Focus Harbor', exact: true })).toHaveAttribute(
     'data-highlighted',
     'true',
   )
   await rina.focus()
   await rina.press('Enter')
-  await page.getByRole('button', { name: 'Neighbours only', exact: true }).click()
+  await full.getByRole('button', { name: 'Neighbours only', exact: true }).click()
   await expect(nodes.getByRole('button')).toHaveCount(2)
-  await page.getByRole('button', { name: '2 steps', exact: true }).click()
+  await full.getByRole('button', { name: '2 steps', exact: true }).click()
   await expect(nodes.getByRole('button')).toHaveCount(3)
-  await page.getByRole('button', { name: 'Whole graph', exact: true }).click()
+  await full.getByRole('button', { name: 'Whole graph', exact: true }).click()
   await expect(nodes.getByRole('button')).toHaveCount(count)
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Whole graph', exact: true })).toHaveCount(0)
+  await full.getByRole('button', { name: 'Clear selection', exact: true }).click()
+  await expect(full.getByRole('button', { name: 'Whole graph', exact: true })).toHaveCount(0)
   await expect(nodes.getByRole('button')).toHaveCount(count)
   await expectBrainPanesToFit(page)
+  await full.getByRole('button', { name: 'Close full map', exact: true }).click()
 }
 
 async function expectBrainPanesToFit(page: Page): Promise<void> {
@@ -370,9 +384,7 @@ async function expectBrainPanesToFit(page: Page): Promise<void> {
           page.locator('.page-shell').evaluate((shell) => {
             const panes = [
               shell,
-              ...shell.querySelectorAll<HTMLElement>(
-                '.brain-knowledge-column, [aria-label="Graph explorer"], [aria-label="Brain lanes"], .brain-lane-detail',
-              ),
+              ...shell.querySelectorAll<HTMLElement>('.brain-pane, .brain-scroll'),
             ]
             return panes
               .filter(
@@ -421,7 +433,7 @@ test('Brain caps long read text and anchors a short review action bar', async ()
         text: 'Kestrel source\n'.repeat(1500),
       },
     ]
-    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
+    await brainTab(page, 'Knowledge').click()
     await h.app.evaluate(
       ({ ipcMain }, value) => {
         ipcMain.removeHandler('brain:proposal')
@@ -437,8 +449,8 @@ test('Brain caps long read text and anchors a short review action bar', async ()
       },
       { proposal, record },
     )
-    await page.getByRole('tab', { name: /^Lanes/ }).click()
-    await inbox(page, seed.harbor).click()
+    await brainTab(page, 'Inbox').click()
+    await reviewRow(page, seed.harbor).click()
     await expectReviewBarAtBottom(page)
     await page.getByRole('button', { name: 'See how it was read', exact: true }).click()
     await expectBoundedReadText(page)
@@ -447,7 +459,7 @@ test('Brain caps long read text and anchors a short review action bar', async ()
   }
 })
 
-test('Brain Tidy reviews shared names, opens its rolling notice, checks, swaps the survivor and undoes', async () => {
+test('Brain Tidy reviews shared names, opens its rolling notice, checks, keeps the other side and undoes', async () => {
   // Two reads and a Tidy model batch each get their own budget on a loaded runner.
   test.setTimeout(240_000)
   const seed = await seedBrainTidyLanes()
@@ -464,12 +476,18 @@ test('Brain Tidy reviews shared names, opens its rolling notice, checks, swaps t
     await readTidyLane(page, seed.ledger)
     const count = (await status(page)).tidy.open
     expect(count).toBeGreaterThan(0)
-    await expect(page.getByRole('tab', { name: /^Tidy/ })).toContainText(String(count))
-    await page.getByRole('tab', { name: /^Tidy/ }).click()
-    const people = page.getByRole('region', { name: 'Same person or thing?', exact: true })
+    await expect(brainTab(page, 'Inbox')).toContainText(String(count))
+    await expect(brainNav(page)).toHaveAccessibleName(`Brain ${count} to decide`)
+    await brainTab(page, 'Inbox').click()
+    const people = page
+      .getByRole('region', { name: 'Decisions', exact: true })
+      .getByRole('region', { name: 'Same person or thing?', exact: true })
     await expect(people).toContainText('Rina Okafor')
     await openTidyNotice(page, count)
-    await page.getByRole('button', { name: 'Tidy now', exact: true }).click()
+    await page
+      .getByRole('region', { name: 'Tidy check', exact: true })
+      .getByRole('button', { name: /^Check (?:with .+|for repeats)$/ })
+      .click()
     await expect(
       page.getByRole('status').filter({ hasText: /^Checking \d+ of \d+$/ }),
     ).toBeVisible()
@@ -478,7 +496,7 @@ test('Brain Tidy reviews shared names, opens its rolling notice, checks, swaps t
       timeout: READ_TIMEOUT,
     })
     await expect(detail).toContainText('Checked by')
-    await mergeSwapAndUndo(page)
+    await mergeOtherAndUndo(page)
     for (const lane of [seed.harbor, seed.ledger])
       expect(await readFile(lane.source, 'utf8')).toBe(lane.original)
   } catch (error) {

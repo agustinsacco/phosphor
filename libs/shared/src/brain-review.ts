@@ -12,6 +12,17 @@ import type {
   BrainQuote,
 } from './brain'
 
+/**
+ * The review is being recomputed because knowledge changed since it was read. The page shows
+ * it as refreshing and loads it again; it is the only load or approval refusal that does.
+ */
+export const BRAIN_REVIEW_REFRESHING = 'Brain changed; refreshing this review'
+/** Knowledge changed between opening a review and approving it: the page reloads it. */
+export const BRAIN_REVIEW_CHANGED = 'Brain changed while you were reviewing. Reopen the review.'
+/** A stale review of a lane Brain is set never to read: it cannot refresh, only be rejected. */
+export const BRAIN_NEVER_READ_REFRESH_REFUSAL =
+  "Brain changed since this was read, and this lane is set to never be read, so it can't be refreshed. Reject it instead."
+
 /** One entity the lane mentions, and what Brain thinks it is. */
 export interface BrainIdentity {
   /** Job-local ref; proposed memories and links use it. */
@@ -28,6 +39,8 @@ export interface BrainIdentity {
   reason: string
   /** Decided by an identifier or exact-name rule, without a model call. */
   auto: boolean
+  /** An unsure exact-name match requires a choice before approval. */
+  required: boolean
 }
 /** Entities that share a name prefix but no stated parent: "Are these part of one Harbor?" */
 export interface BrainGroupQuestion {
@@ -61,6 +74,8 @@ export interface BrainProposedMemory {
   target: { id: string; summary: string } | null
   reason: string
   quotes: BrainQuote[]
+  /** Temporary or personal claims are saved only when explicitly selected. */
+  hold: 'temporary' | 'personal' | null
 }
 export interface BrainProposalView {
   job: BrainJob
@@ -70,7 +85,8 @@ export interface BrainProposalView {
   identities: BrainIdentity[]
   groups: BrainGroupQuestion[]
   memories: BrainProposedMemory[]
-  /** Saved with any approval; identity overrides turn dependent claims into new memories. */
+  /** Saved with any approval, except held ones, which wait for a tick (`decision.confirmations`).
+   * Identity overrides turn dependent claims into new memories. */
   confirmations: { id: string; summary: string; claim: Omit<BrainProposedMemory, 'index'> }[]
   /** Claims over the per-job budget, held back and listed in the extraction record. */
   held: number
@@ -84,4 +100,74 @@ export interface BrainReviewDecision {
   identities: Record<string, string>
   /** Group question indexes the user confirmed. */
   groups: number[]
+  /** Identity refs whose read description replaces the stored description. */
+  descriptions: string[]
+  /** Indexes into the proposal's `confirmations` the owner ticked. Only held ones may be listed:
+   * a held confirmation changes nothing unless it is here; the others apply with any approval. */
+  confirmations: number[]
+}
+
+/** How Desktop and the engine refuse a review decision, word for word. */
+export const BRAIN_DECISION_REFUSALS = {
+  /** Malformed or oversized input, refused before any proposal is read. */
+  selection: 'Invalid review selection.',
+  index: 'Brain proposal index is invalid.',
+  identity: 'Brain identity override is invalid.',
+  description: 'Brain description choice is invalid.',
+  confirmation: 'Brain confirmation choice is invalid.',
+} as const
+/** Approval that would save something naming an unanswered required identity. */
+export function brainRequiredAnswerRefusal(label: string): string {
+  return `Say whether “${label}” is someone Brain already knows or someone new before approving.`
+}
+
+/** A proposal holds at most 300 memories and confirmations together. */
+const CONFIRMATIONS = 300
+const record = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+const refuse = (message: string): never => {
+  throw new Error(message)
+}
+const indexes = (value: unknown, max: number, message: string): number[] =>
+  Array.isArray(value) &&
+  value.length <= max &&
+  new Set(value).size === value.length &&
+  value.every((index) => Number.isInteger(index) && index >= 0 && index < max)
+    ? (value as number[])
+    : refuse(message)
+
+/**
+ * The decision's shape and sizes, checked before any proposal is read: exactly these keys,
+ * unique integer indexes, at most 400 memories, 100 groups, 300 confirmations, and 400
+ * identity answers and descriptions with refs of at most 64 characters. Null rejects.
+ */
+export function checkBrainReviewDecision(value: unknown): BrainReviewDecision | null {
+  const { selection, confirmation } = BRAIN_DECISION_REFUSALS
+  if (value === null) return null
+  const keys = ['memories', 'identities', 'groups', 'descriptions', 'confirmations']
+  if (!record(value) || !Object.keys(value).every((key) => keys.includes(key)))
+    return refuse(selection)
+  const identities = value.identities
+  if (
+    !record(identities) ||
+    Object.keys(identities).length > 400 ||
+    Object.entries(identities).some(
+      ([ref, choice]) =>
+        ref.length > 64 || typeof choice !== 'string' || !choice || choice.length > 200,
+    )
+  )
+    refuse(selection)
+  if (
+    !Array.isArray(value.descriptions) ||
+    value.descriptions.length > 400 ||
+    Array.from(value.descriptions).some((ref) => typeof ref !== 'string' || !ref || ref.length > 64)
+  )
+    refuse(selection)
+  return {
+    descriptions: value.descriptions as string[],
+    memories: indexes(value.memories, 400, selection),
+    identities: identities as Record<string, string>,
+    groups: indexes(value.groups, 100, selection),
+    confirmations: indexes(value.confirmations, CONFIRMATIONS, confirmation),
+  }
 }

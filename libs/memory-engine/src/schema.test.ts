@@ -36,7 +36,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
         expect(store.snapshot().generation).toBeTruthy()
         store.close()
         const db = new DatabaseSync(path)
-        expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
+        expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
         expect(db.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
         expect(
           db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'memory_fts%'").all(),
@@ -50,7 +50,13 @@ describe('Brain v4 SQLite schema and preferences', () => {
   )
   it('resets all knowledge and jobs, retains prefs with review on and changes generation', () => {
     const { store } = fixture()
-    store.setPrefs({ enabled: true, recall: false, review: false, model: null })
+    store.setPrefs({
+      neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+      enabled: true,
+      recall: false,
+      review: false,
+      model: null,
+    })
     approve(store)
     const generation = store.snapshot().generation
     store.reset()

@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { BrainStatus } from '@shared/brain'
+import { DEFAULT_BRAIN_PREFS, type BrainStatus } from '@shared/brain'
 import { mockBrainStatus } from '@/features/brain/mockBrainData'
 import { useBrain } from '@/features/brain/useBrain'
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
@@ -39,10 +39,12 @@ beforeEach(() => {
   })
   vi.stubGlobal('phosphor', { invoke })
   container = document.createElement('div')
+  document.body.append(container)
   root = createRoot(container)
 })
 afterEach(() => {
   act(() => root.unmount())
+  container.remove()
   vi.unstubAllGlobals()
 })
 const render = async (): Promise<void> => {
@@ -63,7 +65,7 @@ it('saves exactly once per toggle and shows enabled rows immediately', async () 
   expect(terms.href).toBe('https://ai.google.dev/gemma/terms')
   await click('Brain')
   expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:setPrefs')).toEqual([
-    ['brain:setPrefs', { enabled: true, recall: true, review: true, model: null }],
+    ['brain:setPrefs', { ...DEFAULT_BRAIN_PREFS, enabled: true }],
   ])
   expect(container.textContent).toContain('Recall in lanes')
   expect(container.textContent).toContain('Review before saving')
@@ -74,6 +76,7 @@ it('saves exactly once per toggle and shows enabled rows immediately', async () 
     recall: false,
     review: true,
     model: null,
+    neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
   await click('Review before saving')
   expect(invoke).toHaveBeenLastCalledWith('brain:setPrefs', {
@@ -81,7 +84,17 @@ it('saves exactly once per toggle and shows enabled rows immediately', async () 
     recall: false,
     review: false,
     model: null,
+    neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
+})
+
+it('sends lane flags to the Brain Inbox, not to a Tidy tab that no longer exists', async () => {
+  status.prefs.enabled = true
+  await render()
+  expect(container.textContent).toContain(
+    'brain_flag to suggest a correction for you to review in the Brain Inbox',
+  )
+  expect(container.textContent).not.toContain('on Tidy')
 })
 
 it('shows download progress and checking text without downloading again', async () => {
@@ -218,3 +231,66 @@ it('recovers a failed catalogue load when the reader picker is reopened', async 
     hydrate.mockRestore()
   }
 })
+
+it('edits title rules, retains a failed draft for retry and leaves individual lane switches alone', async () => {
+  status.prefs.enabled = true
+  status.prefs.neverRead = { titles: ['1:1'], sessionIds: ['harbor-lane'] }
+  await render()
+  const field = () =>
+    container.querySelector<HTMLInputElement>('[aria-label="Lane title pattern"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      field(),
+      'Harbor prep',
+    )
+    field().dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  invoke.mockRejectedValueOnce(new Error('Demo save failed'))
+  await click('Add pattern')
+  expect(field().value).toBe('Harbor prep')
+  expect(container.querySelector('[role=alert]')?.textContent).toContain('Demo save failed')
+  await click('Add pattern')
+  expect(field().value).toBe('')
+  expect(container.querySelector('[role=alert]')).toBeNull()
+  expect(status.prefs.neverRead).toEqual({
+    titles: ['1:1', 'Harbor prep'],
+    sessionIds: ['harbor-lane'],
+  })
+  const remove = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) => b.textContent === 'Remove 1:1',
+  )!
+  await act(async () => remove.click())
+  expect(status.prefs.neverRead).toEqual({ titles: ['Harbor prep'], sessionIds: ['harbor-lane'] })
+})
+
+it.each(['duplicate', 'limit'] as const)(
+  'explains why a never-read pattern cannot be added: %s',
+  async (reason) => {
+    status.prefs.enabled = true
+    status.prefs.neverRead = {
+      titles:
+        reason === 'duplicate' ? ['Harbor'] : Array.from({ length: 50 }, (_, i) => `Harbor ${i}`),
+      sessionIds: [],
+    }
+    await render()
+    const field = container.querySelector<HTMLInputElement>('[aria-label="Lane title pattern"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        field,
+        'harbor',
+      )
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const add = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent === 'Add pattern',
+    )!
+    expect(add.disabled).toBe(true)
+    expect(container.textContent).toContain(
+      reason === 'duplicate' ? 'Already in the list' : 'Up to 50 patterns',
+    )
+    expect(field.getAttribute('aria-describedby')).toBeTruthy()
+    expect(document.getElementById(field.getAttribute('aria-describedby')!)?.textContent).toBe(
+      reason === 'duplicate' ? 'Already in the list' : 'Up to 50 patterns',
+    )
+  },
+)

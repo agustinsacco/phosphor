@@ -1,4 +1,4 @@
-import { all, run, type Context } from '../database'
+import { all, one, run, type Context } from '../database'
 import { capture, rowKey, type Image, type Row, type Rows, type RowTable } from './rows'
 
 export interface Delta {
@@ -53,16 +53,47 @@ export function captureMemoryGuards(ctx: Context, before: Rows, memories: number
   for (const [table, rows] of capture(ctx, { entities: [], memories }))
     for (const [key, row] of rows) before.get(table)!.set(key, row)
 }
-export function checkDependents(ctx: Context, deltas: Delta[], guards: Guards): void {
+function knownKeys(deltas: Delta[]): Map<RowTable, Set<string>> {
   const known = new Map<RowTable, Set<string>>()
   for (const delta of deltas) {
     if (!known.has(delta.table)) known.set(delta.table, new Set())
     known.get(delta.table)!.add(rowKey(delta.table, delta.image.key))
   }
+  return known
+}
+export function checkDependents(ctx: Context, deltas: Delta[], guards: Guards): void {
+  const known = knownKeys(deltas)
   for (const [table, rows] of capture(ctx, { entities: [], memories: guards.memories }))
     for (const [key, row] of rows)
       if (guards.covers(table, row) && !known.get(table)?.has(key))
         throw new Error('Later changes touch this Brain change; it cannot be cleanly undone.')
+}
+/** Rows that name a record; quotes and evidence a later write adds elsewhere stay. */
+const NAMING = new Set<RowTable>([
+  'entities',
+  'entity_names',
+  'entity_keys',
+  'entity_vectors',
+  'merges',
+  'mentions',
+  'relations',
+])
+/**
+ * A split's undo deletes the record it created, so nothing written later may name that record,
+ * and the original must still exist to take its memories back.
+ */
+export function checkSplitDependents(
+  ctx: Context,
+  deltas: Delta[],
+  originalId: string,
+  createdId: string,
+): void {
+  const later = 'Later changes touch this Brain change; it cannot be cleanly undone.'
+  const created = one<{ n: number }>(ctx, 'SELECT n FROM entities WHERE id=?', createdId)
+  if (!one(ctx, 'SELECT 1 FROM entities WHERE id=?', originalId) || !created) throw new Error(later)
+  const known = knownKeys(deltas)
+  for (const [table, rows] of capture(ctx, { entities: [created.n], memories: [] }, NAMING))
+    for (const key of rows.keys()) if (!known.get(table)?.has(key)) throw new Error(later)
 }
 
 /** State is a projection of the surviving history, not of one operation's before-image. */

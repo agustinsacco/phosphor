@@ -130,13 +130,19 @@ export function approve(store: BrainStore, input: Partial<Proposal> = {}): strin
     lane({ sessionId: input.origin?.sessionId ?? 'harbor-lane', leafId: input.jobId ?? 'leaf-1' }),
     'queued',
   )
-  const data = extraction(job.id, { computedRevision: store.revision(), ...input })
+  const data = extraction(job.id, { computedRevision: store.knowledgeRevision(), ...input })
   data.jobId = job.id
   store.propose(data)
   const proposal = store.proposal(job.id)
   store.review(
     job.id,
-    { memories: data.memories.map((_, index) => index), identities: {}, groups: [] },
+    {
+      memories: data.memories.map((_, index) => index),
+      identities: {},
+      groups: [],
+      descriptions: [],
+      confirmations: [],
+    },
     proposal.revision,
   )
   return store

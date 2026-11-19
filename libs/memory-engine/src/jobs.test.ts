@@ -13,17 +13,17 @@ describe('Brain jobs', () => {
       )
     },
   )
-  it('refuses an unchanged done leaf, retains only the newest done marker, and orders the inbox', () => {
+  it('refuses an unchanged done leaf, retains earlier done markers, and orders the inbox', () => {
     const { store } = fixture()
     const first = store.enqueue(lane(), 'waiting')
     store.updateJob(first.id, { state: 'done' })
     expect(store.snapshot().jobs).toEqual([])
     expect(() => store.enqueue(lane(), 'queued')).toThrow(
-      'Nothing new in this lane since its last extraction.',
+      'Nothing new in this lane since its last read.',
     )
     const second = store.enqueue(lane({ leafId: 'leaf-2' }), 'queued')
     store.updateJob(second.id, { state: 'done' })
-    expect(store.job(first.id)).toBeUndefined()
+    expect(store.job(first.id)?.leafId).toBe('leaf-1')
     expect(() => store.enqueue(lane({ leafId: 'leaf-2' }), 'queued')).toThrow('Nothing new')
     const third = store.enqueue(lane(), 'waiting')
     const fourth = store.enqueue(lane({ sessionId: 'other' }), 'queued')
@@ -76,7 +76,7 @@ describe('Brain jobs', () => {
     expect(store.job(job.id)).toMatchObject(patch)
     store.updateJob(job.id, { state: 'done' })
     expect(() => store.enqueue(lane({ leafId: 'leaf-at-start' }), 'queued')).toThrow(
-      'Nothing new in this lane since its last extraction.',
+      'Nothing new in this lane since its last read.',
     )
     const next = store.enqueue(lane(), 'queued')
     store.savePart(next.id, {
@@ -112,12 +112,15 @@ it('retries the same failed job with frozen leaf and hash-keyed checkpoints', ()
   store.removeJob(job.id)
   expect(db.prepare('SELECT * FROM job_parts').all()).toEqual([])
 })
-it('allows unchanged finished leaves only when their extractor version changed', () => {
+it('queues only new messages after a version-5 read under extractor version 6', () => {
   const { store, db } = fixture()
   const job = store.enqueue(lane(), 'queued')
   store.updateJob(job.id, { state: 'done' })
-  db.prepare('UPDATE jobs SET extractor=3 WHERE id=?').run(job.id)
-  expect(store.enqueue(lane(), 'queued').id).not.toBe(job.id)
+  db.prepare('UPDATE jobs SET extractor=5 WHERE id=?').run(job.id)
+  expect(() => store.enqueue(lane(), 'queued')).toThrow('Nothing new')
+  const next = store.enqueue(lane({ leafId: 'new' }), 'queued')
+  expect(next.fromLeafId).toBe(job.leafId)
+  expect(db.prepare('SELECT extractor FROM jobs WHERE id=?').get(next.id)).toEqual({ extractor: 6 })
 })
 
 it('saves prepare metadata atomically, freezes null leaves too, and refuses replacement', () => {
@@ -144,19 +147,119 @@ it('saves prepare metadata atomically, freezes null leaves too, and refuses repl
   ).toThrow('frozen')
 })
 
-it.each(['done', 'empty'] as const)(
-  'requeues version 4 %s leaves once under version 5',
+it.each(['done', 'empty', 'rejected'] as const)(
+  'uses %s reads as incremental cursors and retains every leaf',
   (state) => {
-    const { store, db } = fixture()
+    const { store } = fixture()
     const old = store.enqueue(lane(), 'queued')
     store.updateJob(old.id, { state })
-    db.prepare('UPDATE jobs SET extractor=4 WHERE id=?').run(old.id)
-    expect(() => store.enqueue(lane(), 'queued')).not.toThrow()
-    const next = store.snapshot().jobs.find((job) => job.state === 'queued')!
-    expect(db.prepare('SELECT extractor FROM jobs WHERE id=?').get(next.id)).toEqual({
-      extractor: 5,
-    })
-    store.updateJob(next.id, { state })
     expect(() => store.enqueue(lane(), 'queued')).toThrow('Nothing new')
+    const next = store.enqueue(lane({ leafId: 'new' }), 'queued')
+    expect(next.fromLeafId).toBe('leaf-1')
+    store.updateJob(next.id, { state: 'done' })
+    expect(store.history(20).items.map((row) => row.job.leafId)).toEqual(['new', 'leaf-1'])
   },
 )
+it('retains at most twenty finished reads per lane, including their step inputs', () => {
+  const { store } = fixture()
+  let first = ''
+  for (let i = 0; i < 22; i++) {
+    const job = store.enqueue(lane({ leafId: `leaf-${i}` }), 'queued')
+    if (i === 0) first = job.id
+    store.savePart(job.id, { part: 'window', inputHash: 'hash', output: 'read' })
+    store.updateJob(job.id, { state: 'done' })
+  }
+  expect(store.history(200).items).toHaveLength(20)
+  expect(store.job(first)).toBeUndefined()
+  expect(store.part(first, 'window', 'hash')).toBeUndefined()
+})
+
+it('refuses a never-read lane even at the store enqueue boundary', () => {
+  const { store } = fixture()
+  store.setPrefs({
+    ...store.snapshot().prefs,
+    neverRead: { titles: ['1-1'], sessionIds: ['harbor-lane'] },
+  })
+  expect(() => store.enqueue(lane(), 'queued')).toThrow('Brain is set not to read this lane.')
+  expect(() =>
+    store.enqueue(lane({ sessionId: 'ledger', title: 'Rina 1-1 prep' }), 'queued'),
+  ).toThrow('Brain never reads this lane because its title matches a rule in Settings › Brain.')
+  expect(store.snapshot().jobs).toEqual([])
+})
+
+it('persists the attempt start, clears it on finish and refuses moving the first start', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  store.updateJob(job.id, { state: 'running', startedAt: 10, runStartedAt: 30 })
+  expect(store.job(job.id)).toMatchObject({ startedAt: 10, runStartedAt: 30 })
+  expect(() => store.updateJob(job.id, { startedAt: 40 })).toThrow('first read start cannot change')
+  store.updateJob(job.id, { state: 'done' })
+  expect(store.job(job.id)).toMatchObject({ startedAt: 10, runStartedAt: null })
+})
+
+it.each([false, true])(
+  'does not move the cursor backwards when an older read finishes last (same queued time: %s)',
+  (tie) => {
+    const { store, db } = fixture()
+    const base = store.enqueue(lane({ leafId: 'a' }), 'queued')
+    store.updateJob(base.id, { state: 'done' })
+    const first = store.enqueue(lane({ leafId: 'b' }), 'queued')
+    store.updateJob(first.id, { state: 'failed' })
+    const second = store.enqueue(lane({ leafId: 'c' }), 'queued')
+    if (tie) db.prepare('UPDATE jobs SET queued_at=? WHERE id=?').run(first.queuedAt, second.id)
+    expect(first.fromLeafId).toBe('a')
+    expect(second.fromLeafId).toBe('a')
+    store.updateJob(second.id, { state: 'done', finishedAt: 2000 })
+    // An older retry may still finish late after upgrading an app that allowed it.
+    store.updateJob(first.id, { state: 'done', finishedAt: 3000 })
+    const next = store.enqueue(lane({ leafId: 'd' }), 'queued')
+    expect(next.fromLeafId).toBe('c')
+  },
+)
+it.each(['queued', 'waiting', 'failed', 'done', 'empty', 'rejected'] as const)(
+  'refuses Retry when a later %s read exists and leaves Dismiss available',
+  (state) => {
+    const { store } = fixture()
+    const first = store.enqueue(lane({ leafId: 'b' }), 'queued')
+    store.updateJob(first.id, { state: 'failed' })
+    const second = store.enqueue(lane({ leafId: 'c' }), 'queued')
+    store.updateJob(second.id, { state })
+    expect(() => store.retry(first.id)).toThrow(
+      'A later read of this lane already covers these messages.',
+    )
+    expect(store.job(first.id)?.state).toBe('failed')
+    store.removeJob(first.id)
+    expect(store.job(first.id)).toBeUndefined()
+    expect(store.job(second.id)?.state).toBe(state)
+  },
+)
+
+it('keeps an empty lane title empty, so a rule naming the placeholder never matches it', () => {
+  const { store } = fixture()
+  store.setPrefs({
+    ...store.snapshot().prefs,
+    neverRead: { titles: ['Untitled lane'], sessionIds: [] },
+  })
+  const job = store.enqueue(lane({ title: '' }), 'queued')
+  expect(job.title).toBe('')
+  expect(store.snapshot().jobs[0]?.title).toBe('')
+})
+
+it('keeps an untitled lane’s stored title empty, for the app to name', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane({ title: '' }), 'queued')
+  expect(job.title).toBe('')
+  expect(store.job(job.id)?.title).toBe('')
+  expect(store.snapshot().jobs[0]?.title).toBe('')
+  store.updateJob(job.id, { state: 'done' })
+  expect(store.history(5).items[0]?.job.title).toBe('')
+})
+
+it('stores a lane’s current title as bookkeeping, without a revision change', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane({ title: 'Tom sync' }), 'queued')
+  const before = [store.revision(), store.knowledgeRevision()]
+  store.updateJob(job.id, { title: 'Tom 1:1' })
+  expect(store.job(job.id)?.title).toBe('Tom 1:1')
+  expect([store.revision(), store.knowledgeRevision()]).toEqual(before)
+})

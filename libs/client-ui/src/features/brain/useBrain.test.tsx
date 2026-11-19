@@ -74,9 +74,9 @@ it('classifies download, verification, testing and all queued job states as in f
   expect(brainInFlight(null)).toBe(false)
   for (const phase of ['downloading', 'verifying', 'testing'] as const)
     expect(brainInFlight({ ...status, embedding: { ...status.embedding, phase } })).toBe(true)
-  for (const state of ['waiting', 'queued', 'running'] as const)
+  for (const state of ['waiting', 'queued', 'running', 'refreshing'] as const)
     expect(brainInFlight({ ...status, jobs: [mockBrainJob({ state })] })).toBe(true)
-  for (const state of ['review', 'empty', 'failed', 'done'] as const)
+  for (const state of ['review', 'empty', 'failed', 'done', 'rejected'] as const)
     expect(brainInFlight({ ...status, jobs: [mockBrainJob({ state })] })).toBe(false)
 })
 
@@ -121,7 +121,11 @@ it('stores each mutation’s returned status and confirms queue, cancel and forg
   await store.removeModel()
   await store.queue(lane)
   await store.cancel('job')
-  await store.review('job', { memories: [0], identities: {}, groups: [] }, 3)
+  await store.review(
+    'job',
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+    3,
+  )
   await store.forget('memory')
   expect(invoke.mock.calls).toEqual([
     ['brain:setPrefs', status.prefs],
@@ -129,7 +133,12 @@ it('stores each mutation’s returned status and confirms queue, cancel and forg
     ['brain:removeModel'],
     ['brain:queue', lane],
     ['brain:cancel', 'job'],
-    ['brain:review', 'job', { memories: [0], identities: {}, groups: [] }, 3],
+    [
+      'brain:review',
+      'job',
+      { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+      3,
+    ],
     ['brain:forget', 'memory'],
   ])
   expect(useBrain.getState().status).toEqual(status)
@@ -149,7 +158,13 @@ it('does not let an older status request overwrite an action’s returned status
   const reading = useBrain.getState().refresh()
   const enabled = {
     ...mockBrainStatus(),
-    prefs: { enabled: true, recall: true, review: true, model: null },
+    prefs: {
+      enabled: true,
+      recall: true,
+      review: true,
+      model: null,
+      neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    },
   }
   invoke.mockResolvedValue(enabled)
   await useBrain.getState().setPrefs(enabled.prefs)

@@ -103,6 +103,23 @@ export function createEntity(
   adjustCount(ctx, 'entities', 1)
   return id
 }
+/**
+ * Rebuilds the in-memory search indexes on their next refresh. Needed whenever a vector or its
+ * bits change under an existing number, which an incremental refresh would not see.
+ */
+export function bumpVectorEpoch(ctx: Context): void {
+  run(
+    ctx,
+    "INSERT INTO meta VALUES ('vector_epoch','1') ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1",
+  )
+}
+/** A new vector for an existing entity: the stored vector, its sign bits and the indexes. */
+export function replaceEntityVector(ctx: Context, n: number, vector: Float32Array): void {
+  run(ctx, 'INSERT OR REPLACE INTO entity_vectors VALUES (?,?)', n, encodeVector(vector))
+  run(ctx, 'DELETE FROM entity_bits WHERE entity=?', n)
+  run(ctx, 'INSERT INTO entity_bits VALUES (?,?)', n, encodeBits(vector))
+  bumpVectorEpoch(ctx)
+}
 export function adjustCount(ctx: Context, key: 'entities' | 'memories', delta: number): void {
   run(ctx, 'UPDATE meta SET value=CAST(value AS INTEGER)+? WHERE key=?', delta, key)
 }
@@ -130,11 +147,18 @@ export function cleanOrphans(
       n,
     )
 }
+/**
+ * Memories are current (active or disputed) ones; a connection is a distinct neighbour through
+ * one predicate in one direction.
+ */
 export function recountEntities(ctx: Context, touched: Set<number>): void {
   for (const n of touched) {
     run(
       ctx,
-      `UPDATE entities SET memories=(SELECT COUNT(*) FROM mentions WHERE entity=?), connections=(SELECT COUNT(*) FROM relations WHERE subject=? AND live=1)+(SELECT COUNT(*) FROM relations WHERE object=? AND live=1) WHERE n=?`,
+      `UPDATE entities SET memories=(SELECT COUNT(*) FROM mentions a CROSS JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed')),
+        connections=(SELECT COUNT(*) FROM (SELECT DISTINCT object,predicate FROM relations WHERE subject=? AND live=1))
+          +(SELECT COUNT(*) FROM (SELECT DISTINCT subject,predicate FROM relations WHERE object=? AND live=1))
+        WHERE n=?`,
       n,
       n,
       n,

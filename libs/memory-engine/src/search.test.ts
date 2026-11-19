@@ -1,6 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it, vi } from 'vitest'
-import { VectorIndex } from './vector-index'
 import { approve, extraction, searchFixture, vector } from './test-support'
 import { freshness } from './recall'
 import { named } from './seeds'
@@ -121,16 +120,61 @@ it('find ranks exact keys and exact names ahead of word and trigram candidates',
   }
 })
 
-it('find does not scan vectors whose results would be truncated behind a full lexical page', async () => {
-  const { store, search } = searchFixture()
-  approve(store)
-  await search.refresh()
-  const lexical = search.find('Harbor', null, 1)
-  const nearest = vi.spyOn(VectorIndex.prototype, 'nearest')
-  try {
-    expect(search.find('Harbor', vector(), 1)).toEqual(lexical)
-    expect(nearest).not.toHaveBeenCalled()
-  } finally {
-    nearest.mockRestore()
-  }
+/** A made-up Brain whose memories sit at different distances from the query vector. */
+async function rankedBrain() {
+  const fixture = searchFixture()
+  const data = extraction('ranked')
+  const sentences = [
+    'Rina Okafor owns the Harbor billing service.',
+    'Harbor bills Ledger customers weekly.',
+    'Tom Lee archives Harbor invoices.',
+    'Rina reviews Ledger refunds on Fridays.',
+    'Kestrel replaces the Harbor export job.',
+    'Harbor keeps invoices for seven years.',
+  ]
+  approve(fixture.store, {
+    jobId: 'ranked',
+    memories: sentences.map((summary, i) => ({
+      ...data.memories[i % 2]!,
+      summary,
+      citations: [{ evidence: 0, quote: summary }],
+      links: [],
+    })),
+    memoryVectors: sentences.map((_, i) => vector(1, i / 3, i % 2)),
+  })
+  await fixture.search.refresh()
+  return fixture
+}
+it.each(['Harbor', 'Rina', 'Ledger refunds', 'invoices'])(
+  'find returns the memories brain_search ranks first for "%s", in its order',
+  async (query) => {
+    const { search } = await rankedBrain()
+    const now = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'], now })
+    try {
+      for (const limit of [1, 3, 8, 20]) {
+        const recall = search.recall({
+          query,
+          vector: vector(1, 0.4),
+          limit,
+          scope: null,
+          branch: null,
+          now,
+        })
+        const found = search.find(query, vector(1, 0.4), limit)
+        expect(recall.hits.length).toBeGreaterThan(0)
+        expect(found.memories.map((m) => m.id)).toEqual(recall.hits.map((hit) => hit.memory.id))
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  },
+)
+it('find lists people and things matched by name or alias before nearby ones, within the limit', async () => {
+  const { search } = await rankedBrain()
+  const found = search.find('Rina', vector(1, 0.4), 50)
+  expect(found.entities[0]?.label).toBe('Rina Okafor')
+  expect(found.memories.length).toBeLessThanOrEqual(50)
+  expect(search.find('Rina', vector(1, 0.4), 2).memories).toHaveLength(2)
+  expect(search.find('Rina', vector(1, 0.4), 2).entities.length).toBeLessThanOrEqual(2)
 })

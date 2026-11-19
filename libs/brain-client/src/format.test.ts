@@ -176,3 +176,9 @@ it('shows a path only when every step cites a memory shown in the briefing', () 
       for (const [, ref] of line.matchAll(/\[(\d+)\]/gu)) expect(shown).toContain(ref)
   }
 })
+
+it('words a leads step as the person leading, whichever way the path walked it', () => {
+  const path = HARBOR_BRIEFING.paths[0]!.map((link) => ({ ...link, predicate: 'leads' as const }))
+  const text = formatBrainRecall({ ...HARBOR_BRIEFING, paths: [path] }, '/projects/harbor')
+  expect(text).toContain('\nPath: Rina Okafor leads Harbor [4]\n')
+})

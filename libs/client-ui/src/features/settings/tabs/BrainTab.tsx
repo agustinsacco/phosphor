@@ -8,6 +8,7 @@ import { usePlatform } from '@/platform/Platform'
 import { promptText } from '@/stores/prompt'
 import { useSettingsUiStore } from '../settingsUiStore'
 import { BrainReaderModel } from './BrainReaderModel'
+import { BrainNeverRead } from './BrainNeverRead'
 
 export function BrainTab(): React.JSX.Element {
   useBrainSync()
@@ -44,7 +45,7 @@ export function BrainTab(): React.JSX.Element {
         <>
           <Row
             title="Recall in lanes"
-            description="Agents in new lanes get brain_search to recall approved knowledge and brain_flag to suggest a correction for you to review on Tidy, never to change Brain."
+            description="Agents in new lanes get brain_search to recall approved knowledge and brain_flag to suggest a correction for you to review in the Brain Inbox, never to change Brain."
           >
             <Toggle
               on={status.prefs.recall}
@@ -62,11 +63,7 @@ export function BrainTab(): React.JSX.Element {
               onChange={(review) => save({ review })}
             />
           </Row>
-          <BrainReaderModel
-            model={status.prefs.model}
-            saving={saving}
-            onChange={(model) => save({ model })}
-          />
+          <BrainReadingPrefs status={status} saving={saving} />
           <Row
             title="Knowledge"
             description={
@@ -82,6 +79,33 @@ export function BrainTab(): React.JSX.Element {
       <BrainModelState />
       <BrainReset saving={saving} />
     </div>
+  )
+}
+
+function BrainReadingPrefs({
+  status,
+  saving,
+}: {
+  status: BrainStatus
+  saving: boolean
+}): React.JSX.Element {
+  const save = (patch: Partial<BrainPrefs>) =>
+    useBrain.getState().setPrefs({ ...status.prefs, ...patch })
+  return (
+    <>
+      <BrainReaderModel
+        model={status.prefs.model}
+        saving={saving}
+        onChange={(model) => {
+          void save({ model })
+        }}
+      />
+      <BrainNeverRead
+        prefs={status.prefs.neverRead}
+        saving={saving}
+        onChange={(neverRead) => save({ neverRead })}
+      />
+    </>
   )
 }
 

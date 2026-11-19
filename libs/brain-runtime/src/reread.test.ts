@@ -15,7 +15,13 @@ async function setup() {
   cleanup.push(s.cleanup)
   const path = join(s.directory, 'brain.sqlite')
   const store = openBrainStore({ path, Database: DatabaseSync })
-  store.setPrefs({ enabled: true, recall: true, review: true, model: null })
+  store.setPrefs({
+    neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    enabled: true,
+    recall: true,
+    review: true,
+    model: null,
+  })
   const service = await createBrainService({ ...s.options, openStore: () => store })
   cleanup.push(() => service.dispose())
   const search = openBrainSearch({ path, Database: DatabaseSync })
@@ -36,7 +42,7 @@ async function setup() {
   const first = store.snapshot().jobs[0]!
   await service.api.review(
     first.id,
-    { memories: [0], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     store.revision(),
   )
   return { ...s, store, service, first, recall, path }
@@ -50,7 +56,13 @@ it.each([true, false])(
     expect(before.job?.state).toBe('done')
     const oldIds = s.recall()
     expect(oldIds).toHaveLength(1)
-    s.store.setPrefs({ enabled: true, recall: true, review, model: null })
+    s.store.setPrefs({
+      neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+      enabled: true,
+      recall: true,
+      review,
+      model: null,
+    })
     vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
     const queued = await s.service.api.reread(s.first.id)
     const next = queued.jobs[0]!
@@ -63,21 +75,23 @@ it.each([true, false])(
     if (review) {
       expect(s.recall()).toEqual(oldIds)
       const db = new DatabaseSync(s.path)
-      db.exec("UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='revision'")
+      db.exec(
+        "UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key IN ('revision','knowledge_revision')",
+      )
       db.close()
       await expect(s.service.api.proposal(next.id)).rejects.toThrow('refreshing this review')
       await vi.waitFor(() => expect(s.store.job(next.id)?.state).toBe('review'))
       expect((await s.service.api.proposal(next.id)).replacingMemories).toBe(1)
       await s.service.api.review(
         next.id,
-        { memories: [0], identities: {}, groups: [] },
+        { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
         s.store.revision(),
       )
     }
     expect(s.recall()).toHaveLength(1)
     expect(s.recall()).not.toEqual(oldIds)
-    expect(s.store.job(s.first.id)).toBeUndefined()
-    expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id])
+    expect(s.store.job(s.first.id)?.state).toBe('done')
+    expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id, s.first.id])
     const reconcilePrompts = s.runner.mock.calls
       .filter(([call]) => call.stage === 'reconcile')
       .map(([call]) => call.prompt)
@@ -92,7 +106,13 @@ it.each([true, false])(
 )
 it('keeps a saved reread finished when the search refresh fails afterwards', async () => {
   const s = await setup()
-  s.store.setPrefs({ enabled: true, recall: true, review: false, model: null })
+  s.store.setPrefs({
+    neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    enabled: true,
+    recall: true,
+    review: false,
+    model: null,
+  })
   const oldIds = s.recall()
   vi.spyOn(s.search, 'refresh').mockRejectedValue(new Error('search worker exited'))
   const queued = await s.service.api.reread(s.first.id)
@@ -100,7 +120,44 @@ it('keeps a saved reread finished when the search refresh fails afterwards', asy
   await vi.waitFor(() => expect(['done', 'failed']).toContain(s.store.job(next.id)?.state))
   // The replacement is already saved, so the read is finished, not a failure to retry.
   expect(s.store.job(next.id)).toMatchObject({ state: 'done', error: null })
-  expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id])
+  expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id, s.first.id])
   expect(s.recall()).toHaveLength(1)
   expect(s.recall()).not.toEqual(oldIds)
+})
+
+it('queues only new messages with two context-only segments and the lane memories already kept', async () => {
+  const s = await setup()
+  const { appendFile } = await import('node:fs/promises')
+  await appendFile(
+    s.file,
+    '\n' +
+      JSON.stringify({
+        type: 'message',
+        id: 'new-leaf',
+        timestamp: '2026-11-08T12:00:00Z',
+        message: { role: 'user', content: 'Harbor retains invoices for seven years.' },
+      }),
+  )
+  s.runner.mockClear()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await vi.waitFor(() =>
+    expect(['review', 'empty']).toContain(s.store.snapshot().jobs.at(-1)?.state),
+  )
+  const job = s.store.snapshot().jobs.at(-1)!
+  expect(job.fromLeafId).toBe(s.first.leafId)
+  const read = s.runner.mock.calls.find(([call]) => call.stage === 'extract')![0]
+  expect(read.prompt).toContain('[s1] context')
+  expect(read.prompt).toContain('[s2] context')
+  expect(read.prompt).toContain('[s3] user')
+  expect(read.prompt).toContain('Already kept from earlier parts')
+  expect(read.prompt).toContain('- Rina Okafor owns Harbor billing.')
+  // The fixture reader repeats only the old claim; overlap may inform, never extract it anew.
+  const record = await s.service.api.extraction(job.id)
+  expect(record.outcomes).toContainEqual(
+    expect.objectContaining({
+      status: 'dropped',
+      reason: 'Claim supported only by previously read context',
+    }),
+  )
+  expect(record.prompts).toEqual(s.runner.mock.calls.map(([call]) => call.prompt))
 })

@@ -82,7 +82,7 @@ it('confirms descriptions and memory counts for both records, then offers Undo',
   await render()
   const prompt = usePromptStore.getState().requests[0]!
   expect(prompt.message).toContain('Tom Lee · 1 memory: Ledger support lead')
-  expect(prompt.message).toContain('Rina Okafor · 1 memory: Ledger migration owner')
+  expect(prompt.message).toContain('Rina Okafor · 2 memories: Ledger migration owner')
   expect(prompt.message).toContain('You can Undo')
   expect(prompt.message).not.toContain('cannot be undone')
   await answer()
@@ -135,7 +135,7 @@ it('uses the current revision when Undo is opened from the confirmation toast', 
   expect(useExtensionUiStore.getState().toasts[0]!.message).toBe('Change undone')
 })
 it('reloads Recent changes and distinguishes a raced Undo from an engine refusal', async () => {
-  const { useTidyNavigation } = await import('../tidy/tidyNavigation')
+  const { useBrainNavigation } = await import('../brainNavigation')
   await render()
   await answer()
   const toast = useExtensionUiStore.getState().toasts[0]!
@@ -147,7 +147,7 @@ it('reloads Recent changes and distinguishes a raced Undo from an engine refusal
     await toast.onOpen?.()
   })
   expect(useExtensionUiStore.getState().toasts[0]!.message).toBe('Brain changed. Check this again.')
-  expect(useTidyNavigation.getState().recent).toBe(true)
+  expect(useBrainNavigation.getState().target).toEqual({ tab: 'lanes', recent: true })
   undo.mockRejectedValueOnce(new Error('Later facts prevent a clean undo.'))
   await act(async () => {
     await toast.onOpen?.()

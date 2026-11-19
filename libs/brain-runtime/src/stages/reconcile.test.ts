@@ -320,3 +320,27 @@ it('never offers excluded reread memories from link/entity or vector candidates'
   expect(input).not.toContain('"id":"old"')
   expect(input).toContain('"id":"other"')
 })
+
+it('asks the same reconcile prompt for a held claim as before holds existed', async () => {
+  const prompts: string[] = []
+  const ask = trackAsk(async (_s, _p, prompt, validate) => {
+    prompts.push(prompt)
+    return validate(
+      JSON.stringify({
+        decisions: [{ ref: 'c1', action: 'add', target: null, reason: 'Different cadence' }],
+      }),
+    )
+  })
+  for (const hold of [undefined, 'temporary'] as const) {
+    const store = new FakeBrainStore(),
+      search = new FakeBrainSearch(),
+      claim = memory('Harbor currently bills weekly.')
+    if (hold) claim.hold = hold
+    store.oldMemories = [old('Harbor bills monthly.')]
+    search.memoryNeighbours = [[{ id: 'old', score: 0.9 }]]
+    await reconcile(job([claim]), identities, store, search, [new Float32Array([1])], ask.ask)
+  }
+  expect(prompts).toHaveLength(2)
+  expect(prompts[1]).toBe(prompts[0])
+  expect(prompts[1]).not.toContain('hold')
+})

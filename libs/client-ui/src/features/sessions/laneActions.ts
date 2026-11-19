@@ -7,6 +7,7 @@ export type LaneActionId =
   | 'rename'
   | 'tree'
   | 'knowledge'
+  | 'neverRead'
   | 'completion'
   | 'restoreWorktree'
   | 'makeRoutine'
@@ -29,7 +30,9 @@ export type LaneActionId =
 export interface LaneActionContext {
   pinned: boolean
   /** Only local persisted lanes supply a knowledge handler. */
-  knowledge?: 'queue' | 'cancel'
+  knowledge?: 'queue' | 'new' | 'cancel'
+  /** Undefined hides the per-lane switch; title rules cannot be overridden by it. */
+  brainExclusion?: 'title' | 'lane' | null
   markers: LanePrefs['markers']
   /** The lane's own PRs, lead first, as the "Pull requests" submenu names them. */
   prs: LaneActionPr[]
@@ -101,11 +104,7 @@ export function laneActions(
     ...order,
     ...offer('rename', 'Rename…', handlers.rename),
     ...offer('tree', 'Session tree…', handlers.tree),
-    ...offer(
-      'knowledge',
-      ctx.knowledge === 'cancel' ? 'Cancel knowledge extraction' : 'Queue for knowledge extraction',
-      ctx.knowledge ? handlers.knowledge : undefined,
-    ),
+    ...knowledgeActions(ctx, handlers, offer),
     ...(ctx.completed === undefined
       ? []
       : offer(
@@ -143,6 +142,38 @@ export function laneActions(
     danger: true,
   }))
   return [...lane, ...section(copies), ...section(remove)]
+}
+
+/** Title rules cannot be undone by a lane switch; never offer an action that cannot work. */
+function knowledgeActions(
+  ctx: LaneActionContext,
+  handlers: LaneActionHandlers,
+  offer: (id: LaneActionId, label: string, onClick?: () => void) => ContextMenuItem[],
+): ContextMenuItem[] {
+  if (ctx.brainExclusion === 'title')
+    return [
+      {
+        label: 'Brain never reads this lane (title rule in Settings › Brain)',
+        disabled: true,
+        onClick: () => {},
+      },
+    ]
+  const label =
+    ctx.knowledge === 'cancel'
+      ? 'Cancel knowledge extraction'
+      : ctx.knowledge === 'new'
+        ? 'Read new messages for Brain'
+        : 'Queue for knowledge extraction'
+  return [
+    ...(ctx.brainExclusion === 'lane'
+      ? []
+      : offer('knowledge', label, ctx.knowledge ? handlers.knowledge : undefined)),
+    ...offer(
+      'neverRead',
+      ctx.brainExclusion === 'lane' ? 'Let Brain read this lane' : 'Never let Brain read this lane',
+      ctx.brainExclusion === undefined ? undefined : handlers.neverRead,
+    ),
+  ]
 }
 
 /**

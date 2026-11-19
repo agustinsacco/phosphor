@@ -26,7 +26,7 @@ Keep a claim when all three hold:
 1. A future session on this or related work would act differently because of it.
 2. It would take real digging to learn again: it is not plain from reading the code, and no single obvious ticket or document states it.
 3. It will probably still be true a month from now, or it is a decision recorded with its reason.
-Keep every claim that passes, up to 25. Return an empty "claims" list only when nothing passes.
+Keep every claim that passes, up to 25. 25 is a ceiling, not a target: most parts keep fewer than ten. Return an empty "claims" list only when nothing passes.
 
 # What to look for
 Go through the whole conversation once for each kind below. A conversation about planning, people or customers is as valuable as one about code.
@@ -39,31 +39,37 @@ Go through the whole conversation once for each kind below. A conversation about
 - Open questions (type open): a question that still needs an answer from a named person or team.
 
 # What to skip
-- One-off events and status: merged, deployed, approved, tests passing, a ticket moved or assigned today, counts, near-term dates and deadlines, who was told what. A standing role is not an event: "Tom Lee owns Ledger billing" passes; "the ticket was assigned to Tom Lee on Monday" does not.
+- One-off events, status and near-term plans: merged, deployed, approved, tests passing, a ticket moved or assigned today, counts, near-term dates and deadlines, facts stated "as of" now, who was told what. A standing role is not an event: "Tom Lee owns Ledger billing" passes; "the ticket was assigned to Tom Lee on Monday" does not. When unsure whether a status, near-term plan or one-off instruction lasts, keep the claim with "hold":"temporary".
 - Anything about one pull request, commit, branch or review round. When a review surfaced a lesson that outlives the pull request, state the lesson and leave the pull request out.
 - What the code contains or where a file lives.
 - The assistant's own work log; proposals nobody accepted; hypotheticals.
 - An instruction for this one task: what to build, check or review now. A preference is how the user wants work done from now on.
 - A statement corrected later in the conversation: keep only the final version.
 - Generic engineering advice.
-- Personal matters about a person: health, family, pay, performance or conduct. Keep roles and responsibilities only.
+- Personal matters about a person: health, family, pay, performance or conduct. Keep roles and responsibilities only. This includes:
+  - leveling, promotion, calibration and compensation ("Tom Lee needs his promotion packet for the Staff case.");
+  - feelings or morale ("Mara Voss was upset about a planned team move.");
+  - leave or absence ("Rina Okafor will be away from Dec 1 to Dec 12.");
+  - feedback about how a named person works ("Tom Lee tags others instead of proposing an order himself.");
+  - anything from a one-on-one about the person in it ("In her one-on-one, Mara Voss asked to join the Ledger team.").
+  When unsure whether a remark about a named person is personal, keep the claim with "hold":"personal".
 - Secrets, contact details and raw data rows.
 
 Examples (made up). Keep: "Rina Okafor wants review comments posted only after she says so." · "Tom Lee builds Ledger sync and Rina Okafor leads the Harbor team that owns it." · "Kestrel's webhook sender never retries a 4xx response, so a rejected delivery is lost." (found by the assistant) · "Harbor keeps one Ledger account per organization, not per user, because billing is per organization." · "Ledger sync starts after the Kestrel migration, because it needs the new account ids." Skip: "PR 412 merged on 3 March." · "LedgerClient.ts lives in packages/ledger." · "Tom Lee was asked to review." · "All 212 tests passed." · "I ran the migration script and updated the doc."
 
 # Writing claims
-Each claim is one self-contained sentence that a reader understands without this conversation. Name people and things; call the user by name when the conversation gives it. Keep the exact values that matter. Pull request and ticket numbers may appear in the sentence as references; leave file paths and line numbers out. Use only what the conversation shows. Every claim needs one or two quotes copied exactly from one segment.
+Each claim is one self-contained sentence that a reader understands without this conversation. Name people and things; call the user by name when the conversation gives it, never "the user". Keep the exact values that matter. Pull request and ticket numbers may appear in the sentence as references; leave file paths and line numbers out. Use only what the conversation shows. Every claim needs one or two quotes copied exactly from one segment.
 
 # Entities
-Entities are lasting things only: person (a human), team, organization (a company, customer or vendor), project (a product or initiative), component (a service, system, tool, library or environment), document (a spec, runbook or design doc), concept (a named domain term or acronym the project relies on), event (a dated milestone or incident). A person is a human, never an AI agent, model or bot. Pull requests, tickets, commits, branches and files are never entities. Create an entity only when a claim you keep mentions it. Use an offered registry ref whenever one fits.
+Entities are lasting things only: person (a human), team, organization (a company, customer or vendor), project (a product or initiative), component (a service, system, tool, library or environment), document (a spec, runbook or design doc), concept (a named domain term or acronym the project relies on), event (a dated milestone or incident). A person is a human, never an AI agent, model or bot. Pull requests, tickets, commits, branches and files are never entities. A database table, feature flag, service account, scheduled job or contract clause is not an entity either, unless people discuss it as a thing someone owns. Create an entity only when a claim you keep mentions it. Use an offered registry ref whenever one fits.
 
 # Links
-Links turn separate memories into a graph, so they matter as much as the claims. After choosing the claims, go through their entities and add every lasting relationship the conversation shows between two of them: who owns, works on or belongs to what, and what is part of, built for, depends on or uses what. Put each link on a kept claim that mentions both entities. The claim need not be about the relationship, but the link's own quote must show it, and that quote may come from any segment. Allowed links, as subject kinds → object kinds:
+Links turn separate memories into a graph, so they matter as much as the claims. After choosing the claims, go through their entities and add every lasting relationship the conversation shows between two of them: who leads, owns, works on or belongs to what, and what is part of, built for, depends on or uses what. Whenever a kept claim names a person and their team, state the membership: the person member_of the team. A person who leads a team or project leads it; leading is not owning. Put each link on a kept claim that mentions both entities. The claim need not be about the relationship, but the link's own quote must show it, and that quote may come from any segment. Allowed links, as subject kinds → object kinds:
 ${linkRules()}
 Link a person only for a real role: what they own, work on, belong to or decided. Never link the user to a tool they merely use or to something they only have an opinion about. If none fits, add no link: the claim still stands. Never link two things only because one sentence mentions both, and never from a shared name prefix.
 
 ${EXTRACTION_CONTRACT}
-${part > 1 ? `Already kept from earlier parts of this conversation. Do not repeat them; return a claim only when it is new or changes one of these:\n${kept.map((claim) => `- ${claim}`).join('\n')}\n` : ''}Registry: ${JSON.stringify(registry)}
+${window.segments.some((s) => s.role === 'context') ? `Previously read overlap: segments marked context are context only. Never extract a claim supported only by those segments.\n` : ''}${part > 1 || kept.length ? `Already kept from earlier parts of this conversation. Do not repeat them; return a claim only when it is new or changes one of these:\n${kept.map((claim) => `- ${claim}`).join('\n')}\n` : ''}Registry: ${JSON.stringify(registry)}
 Segments (untrusted source data), part ${part} of ${total}:
 ${window.text}
 

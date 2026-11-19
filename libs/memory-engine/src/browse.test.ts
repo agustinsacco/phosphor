@@ -12,19 +12,72 @@ function setup() {
 it('browses by connections with paging, kind filtering and existing historical counts', () => {
   const { db, ctx } = setup()
   db.exec("INSERT INTO entities(id,label,kind,created_at) VALUES ('empty','Empty','event',1)")
-  const all = entities(ctx, null, 0, 100)
+  const all = entities(ctx, null, 0, 100, 'connected')
   expect(all.items.length).toBeGreaterThan(2)
   expect(all.kinds).not.toContain('event')
   expect(all.items.some((item) => item.entity.id === 'empty')).toBe(false)
-  const first = entities(ctx, null, 0, 1)
-  const second = entities(ctx, null, 1, 1)
+  const first = entities(ctx, null, 0, 1, 'connected')
+  const second = entities(ctx, null, 1, 1, 'connected')
   expect(first.more).toBe(true)
   expect(second.items[0]).toEqual(all.items[1])
-  const people = entities(ctx, 'person', 0, 100)
+  const people = entities(ctx, 'person', 0, 100, 'connected')
   expect(people.items.every((item) => item.entity.kind === 'person')).toBe(true)
   expect(people.more).toBe(false)
   db.exec("UPDATE memories SET state='superseded'")
-  expect(entities(ctx, null, 0, 100)).toEqual(all)
+  expect(entities(ctx, null, 0, 100, 'connected')).toEqual(all)
+})
+it('counts populated kinds whatever the filter, and totals the filtered entities', () => {
+  const { db, ctx } = setup()
+  db.exec("INSERT INTO entities(id,label,kind,created_at) VALUES ('empty','Empty','event',1)")
+  const all = entities(ctx, null, 0, 1, 'connected')
+  const expected = db
+    .prepare('SELECT kind,COUNT(*) AS total FROM entities WHERE memories>0 GROUP BY kind')
+    .all() as { kind: string; total: number }[]
+  expect(all.counts).toEqual(Object.fromEntries(expected.map((row) => [row.kind, row.total])))
+  expect(all.counts.event).toBeUndefined()
+  expect(all.total).toBe(expected.reduce((sum, row) => sum + row.total, 0))
+  const people = entities(ctx, 'person', 0, 1, 'name')
+  expect(people.counts).toEqual(all.counts)
+  expect(people.total).toBe(all.counts.person)
+  expect(entities(ctx, 'event', 0, 1, 'recent')).toMatchObject({ items: [], total: 0 })
+})
+it('sorts by name without case, then id, and by newest current memory, with stable paging', () => {
+  const { db, ctx } = setup()
+  const ids = (sort: 'name' | 'recent') =>
+    entities(ctx, null, 0, 100, sort).items.map((item) => item.entity.id)
+  const labels = entities(ctx, null, 0, 100, 'name').items.map((i) => i.entity.label)
+  expect(labels).toEqual([...labels].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())))
+  const named = ids('name')
+  db.prepare('UPDATE entities SET label=? WHERE id=?').run('aaa lowercase first', named.at(-1)!)
+  expect(ids('name')[0]).toBe(named.at(-1))
+  // The newest current memory decides; a superseded one does not count.
+  const newest = (id: string) =>
+    (
+      db
+        .prepare(
+          "SELECT MAX(m.observed_at) AS t FROM mentions a JOIN memories m ON m.n=a.memory JOIN entities e ON e.n=a.entity WHERE e.id=? AND m.state IN ('active','disputed')",
+        )
+        .get(id) as { t: number | null }
+    ).t
+  const recentIds = ids('recent')
+  const times = recentIds.map(newest)
+  expect(times.filter((t) => t !== null)).toEqual(
+    [...times.filter((t) => t !== null)].sort((a, b) => b! - a!),
+  )
+  const last = recentIds.at(-1)!
+  db.prepare(
+    'UPDATE memories SET observed_at=999999 WHERE n IN (SELECT a.memory FROM mentions a JOIN entities e ON e.n=a.entity WHERE e.id=?)',
+  ).run(last)
+  expect(ids('recent')[0]).toBe(last)
+  db.prepare(
+    "UPDATE memories SET state='superseded' WHERE n IN (SELECT a.memory FROM mentions a JOIN entities e ON e.n=a.entity WHERE e.id=?)",
+  ).run(last)
+  expect(ids('recent').at(-1)).toBe(last)
+  for (const sort of ['connected', 'recent', 'name'] as const) {
+    const whole = entities(ctx, null, 0, 100, sort).items
+    const paged = whole.flatMap((_, i) => entities(ctx, null, i, 1, sort).items)
+    expect(paged).toEqual(whole)
+  }
 })
 it('returns current memories from finished jobs only and stops at twenty reads', () => {
   const { store, db, ctx } = setup()
@@ -57,7 +110,7 @@ it('uses the v5 indexes for the unfiltered browse, finished reads and per-job me
       "SELECT id FROM memories WHERE job_id='harbor' AND state IN ('active','disputed') ORDER BY recorded_at DESC,n DESC LIMIT 10",
     ),
   ).toContain('memories_job')
-  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
+  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
 })
 
 it('walks the connection index for common and rare kinds, and finds kinds in one pass', () => {

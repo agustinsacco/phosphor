@@ -9,6 +9,7 @@ export interface LaneEntry {
   id?: string
   parentId?: string | null
   cwd?: string
+  name?: string
   timestamp?: string | number
   provider?: string
   modelId?: string
@@ -50,6 +51,29 @@ export async function readEntries(path: string): Promise<LaneEntry[]> {
   for await (const chunk of createReadStream(path)) append(decoder.push(chunk as Buffer))
   append(decoder.end())
   return entries
+}
+
+/** Neither the stored transcript nor its archived twin exists. ENOENT stays, so missing-file checks match. */
+export class DeletedLaneError extends Error {
+  readonly code = 'ENOENT'
+  constructor(readonly path: string) {
+    super("This lane was deleted, so Brain can't read it.")
+  }
+}
+
+/** Archiving parks the same transcript beside its stored path; no other name is eligible. */
+export async function readLaneEntries(path: string): Promise<LaneEntry[]> {
+  try {
+    return await readEntries(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  try {
+    return await readEntries(`${path}.archived`)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw new DeletedLaneError(path)
+    throw error
+  }
 }
 
 export function transcriptSegments(entries: LaneEntry[]): TranscriptSegment[] {

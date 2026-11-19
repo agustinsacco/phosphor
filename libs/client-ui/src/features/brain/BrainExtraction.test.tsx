@@ -9,8 +9,8 @@ import {
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { BrainExtraction } from './BrainExtraction'
 import { mockBrainJob } from './mockBrainData'
-import { jobLine } from './BrainInbox'
-import { mockExtractionView } from './mockExtractionView'
+import { callDuration, progressLine } from './jobProgress'
+import { mockCallTrace, mockExtractionView } from './mockExtractionView'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -63,31 +63,49 @@ it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link re
     fake.dispose()
   }
 })
-it('prints conversation and matching progress in the inbox', () => {
-  expect(
-    jobLine(
-      mockBrainJob({ state: 'running', progress: { stage: 'extract', done: 3, total: 12 } }),
-      0,
-      0,
-    ),
-  ).toBe('Read the conversation · part 3 of 12')
-  expect(
-    jobLine(
-      mockBrainJob({ state: 'running', progress: { stage: 'identity', done: 1, total: 2 } }),
-      0,
-      0,
-    ),
-  ).toBe('Match people and things · part 1 of 2')
+it('names the step and part of a running read', () => {
+  expect(progressLine({ stage: 'extract', done: 3, total: 12 })).toBe(
+    'Read the conversation · part 3 of 12',
+  )
+  expect(progressLine({ stage: 'identity', done: 1, total: 2 })).toBe(
+    'Match people and things · part 1 of 2',
+  )
+  expect(progressLine({ stage: 'reconcile', done: 1, total: 1 })).toBe(
+    'Compare with what Brain knows',
+  )
 })
 it('includes the conversation part even for a single-part stage', () => {
   for (const done of [0, 1])
-    expect(
-      jobLine(
-        mockBrainJob({ state: 'running', progress: { stage: 'extract', done, total: 1 } }),
-        0,
-        0,
+    expect(progressLine({ stage: 'extract', done, total: 1 })).toBe(
+      'Read the conversation · part 1 of 1',
+    )
+})
+
+it('says how long each call took in words, never as a clock', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const view = mockExtractionView()
+  view.calls[0]!.trace = mockCallTrace((241 * 60 + 11) * 1000)
+  view.calls[1]!.trace = mockCallTrace(42_400)
+  const fake = createFakePhosphor({ 'brain:extraction': async () => view })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () =>
+      root.render(
+        <BrainExtraction jobId="harbor-demo-review" onMemory={vi.fn()} onBack={vi.fn()} />,
       ),
-    ).toBe('Read the conversation · part 1 of 1')
+    )
+    const calls = container.querySelector('[aria-label="How it was read"]')!.textContent
+    expect(calls).toContain('Read the conversation · part 1 · 4 h 1 min')
+    expect(calls).toContain(' · 42 s')
+    expect(calls).not.toContain('241:11')
+    expect([0, 59_900, 60_000].map(callDuration)).toEqual(['1 s', '59 s', '1 min'])
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
 })
 
 it('renders forgotten outcomes as removed, and offers Read again in a finished read header', async () => {
@@ -185,5 +203,50 @@ it('caps raw output, prompts and source text with their own scroll containers', 
     act(() => root.unmount())
     restore()
     fake.dispose()
+  }
+})
+
+it('says how long the model spent on a read, in words, even when its review refreshed days later', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const data = mockExtractionView()
+  // Read on Monday, refreshed on Wednesday: the record spans two days, its calls 4 h 1 min.
+  data.startedAt = 0
+  data.finishedAt = 2 * 86_400_000
+  const parts = [(200 * 60 + 11) * 1000, 40 * 60_000, 60_000]
+  data.calls.forEach((call, index) => (call.trace = mockCallTrace(parts[index]!)))
+  const fake = createFakePhosphor({ 'brain:extraction': async () => data })
+  const restore = installFakePhosphor(fake)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    expect(container.textContent).toContain('took 4 h 1 min')
+    expect(container.textContent).not.toContain('241:11')
+    expect(container.textContent).not.toContain('2 days')
+  } finally {
+    act(() => root.unmount())
+    restore()
+    fake.dispose()
+  }
+})
+
+it('shows no duration when a call has no trace or the read made no calls', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const untraced = mockExtractionView()
+  untraced.calls[0]!.trace = mockCallTrace(60_000)
+  const uncalled = { ...mockExtractionView(), calls: [], prompts: [] }
+  for (const data of [untraced, uncalled]) {
+    const fake = createFakePhosphor({ 'brain:extraction': async () => data })
+    const restore = installFakePhosphor(fake)
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+      expect(container.querySelector('header')!.textContent).not.toContain('took')
+    } finally {
+      act(() => root.unmount())
+      restore()
+      fake.dispose()
+    }
   }
 })

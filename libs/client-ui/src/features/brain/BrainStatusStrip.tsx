@@ -1,0 +1,105 @@
+import { useState } from 'react'
+import type { BrainTidyPage } from '@shared/brain-tidy'
+import { ipcErrorText } from '@shared/errors'
+import { Button } from '@/components/form'
+import { PhosphorLoader } from '@/components/PhosphorLoader'
+import { TooltipButton } from '@/components/Tooltip'
+import { formatCount } from '@/lib/format'
+import { mutateBrain, useBrain } from './useBrain'
+import { useBrainModelName } from './useBrainModelName'
+import { progressLine } from './jobProgress'
+import { brainLaneTitle } from './laneTitle'
+
+/**
+ * One thin line under the tabs, only while Brain reads a lane, refreshes a review or checks
+ * pairs. A refresh waiting its turn is not running yet, so it says nothing.
+ */
+export function BrainStatusStrip({
+  page,
+  onLanes,
+}: {
+  page: BrainTidyPage | null
+  onLanes: () => void
+}): React.JSX.Element | null {
+  const jobs = useBrain((s) => s.status?.jobs ?? [])
+  const checking = useBrain((s) => s.status?.tidy.running ?? false)
+  const running = jobs.find((job) => job.state === 'running')
+  const refreshing = jobs.find((job) => job.state === 'refreshing' && job.runStartedAt !== null)
+  const queued = jobs.filter((job) => job.state === 'queued' || job.state === 'waiting').length
+  if (!running && !refreshing && !queued && !checking) return null
+  return (
+    <div
+      role="status"
+      className="border-border bg-bg-secondary/60 text-text-secondary flex shrink-0 flex-col gap-1 border-b px-4 py-1.5 text-sm"
+    >
+      {(running || refreshing || queued > 0) && (
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {(running || refreshing) && <PhosphorLoader size={14} decorative />}
+          <span className="min-w-0 flex-1">
+            {running ? (
+              <>
+                Reading <b className="text-text font-medium">{brainLaneTitle(running.title)}</b>
+                {running.progress && ` · ${progressLine(running.progress)}`}
+                {queued > 0 && ` · ${queued} queued`}
+              </>
+            ) : refreshing ? (
+              <>
+                Refreshing the review of{' '}
+                <b className="text-text font-medium">{brainLaneTitle(refreshing.title)}</b>
+                {queued > 0 && ` · ${queued} queued`}
+              </>
+            ) : (
+              `${formatCount(queued, 'lane')} queued`
+            )}
+          </span>
+          <TooltipButton className="text-accent hover:underline" onClick={onLanes}>
+            Lanes
+          </TooltipButton>
+        </div>
+      )}
+      {checking && <TidyCheckLine page={page} />}
+    </div>
+  )
+}
+
+function TidyCheckLine({ page }: { page: BrainTidyPage | null }): React.JSX.Element {
+  const prefModel = useBrain((s) => s.status?.prefs.model ?? '')
+  const run = page?.run
+  // The model the run reports, else the one it will use.
+  const model = useBrainModelName(run?.model ?? prefModel)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const cancel = async (): Promise<void> => {
+    setBusy(true)
+    setError('')
+    try {
+      await mutateBrain(() => window.phosphor.invoke('brain:tidyCancel'))
+    } catch (cause) {
+      setError(ipcErrorText(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const line =
+    run?.state === 'checking'
+      ? `Checking ${run.checked} of ${formatCount(run.total, 'pair')}${model ? ` with ${model}` : ''}`
+      : run?.state === 'queued'
+        ? 'Tidy waits for the lane reader'
+        : 'Looking for repeats'
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <PhosphorLoader size={14} decorative />
+      <span className="min-w-0 flex-1">{line}</span>
+      {error && <span role="alert">{error}</span>}
+      <Button
+        size="xs"
+        disabled={busy}
+        onClick={() => {
+          void cancel()
+        }}
+      >
+        Cancel
+      </Button>
+    </div>
+  )
+}

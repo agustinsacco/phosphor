@@ -7,7 +7,15 @@ import {
 import { all, one, type Context } from './database'
 import { entity, entityNumber, referencedEntities } from './entities'
 import { memoryCards } from './knowledge'
+import { newerLink, sideIndex } from './relation-pairs'
 
+const LINK = `CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id AS objectId,m.id AS memoryId`
+const ENDS =
+  'JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory'
+/**
+ * Per predicate and direction, the newest link to each of at most `perPredicate` neighbours,
+ * newest first: one slot per neighbour, so a pair said many times never hides another.
+ */
 export function edges(ctx: Context, id: string, perPredicate = 8): BrainLink[] {
   const row = one<{ n: number; connections: number }>(
     ctx,
@@ -17,37 +25,49 @@ export function edges(ctx: Context, id: string, perPredicate = 8): BrainLink[] {
   if (!row) throw new Error('Brain entity not found.')
   const { n, connections } = row
   if (connections <= 200) return ordinaryEdges(ctx, n, perPredicate)
+  // A hub reads each range newest first and skips a link when a newer one joins the same pair.
   return BRAIN_PREDICATES.flatMap((predicate) =>
-    (['subject', 'object'] as const).flatMap((column) =>
-      all<BrainLink>(
+    (['subject', 'object'] as const).flatMap((own) => {
+      const other = own === 'subject' ? 'object' : 'subject'
+      return all<BrainLink>(
         ctx,
-        `SELECT CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id AS objectId,m.id AS memoryId FROM relations r JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory WHERE r.${column}=? AND r.live=1 AND r.predicate=? ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
+        `SELECT ${LINK} FROM relations r INDEXED BY ${sideIndex(own)} JOIN entities e ON e.n=r.${other} ${ENDS} WHERE r.${own}=? AND r.live=1 AND r.predicate=? AND ${newerLink(own, other)} IS NULL ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
         n,
         predicate,
+        connections,
         perPredicate,
-      ),
-    ),
+      )
+    }),
   )
 }
 /** Low-degree nodes need two indexed reads, not one for every predicate and direction. */
 function ordinaryEdges(ctx: Context, n: number, perPredicate: number): BrainLink[] {
-  const directions = (['subject', 'object'] as const).map((column) => {
-    const groups = new Map<string, BrainLink[]>()
+  const directions = (['subject', 'object'] as const).map((own) => {
+    const groups = new Map<string, Map<string, BrainLink>>()
     for (const link of all<BrainLink>(
       ctx,
-      `SELECT CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id AS objectId,m.id AS memoryId FROM relations r JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory WHERE r.${column}=? AND r.live=1 ORDER BY r.observed_at DESC,r.n DESC`,
+      `SELECT ${LINK} FROM relations r ${ENDS} WHERE r.${own}=? AND r.live=1 ORDER BY r.observed_at DESC,r.n DESC`,
       n,
     )) {
-      const group = groups.get(link.predicate) ?? []
-      if (group.length < perPredicate) group.push(link)
-      groups.set(link.predicate, group)
+      // Newest first, so the first link to a neighbour is its newest.
+      const neighbours = groups.get(link.predicate) ?? new Map<string, BrainLink>()
+      const neighbour = own === 'subject' ? link.objectId : link.subjectId
+      if (neighbours.size < perPredicate && !neighbours.has(neighbour))
+        neighbours.set(neighbour, link)
+      groups.set(link.predicate, neighbours)
     }
     return groups
   })
   return BRAIN_PREDICATES.flatMap((predicate) =>
-    directions.flatMap((groups) => groups.get(predicate) ?? []),
+    directions.flatMap((groups) => [...(groups.get(predicate)?.values() ?? [])]),
   )
 }
+/**
+ * Links one graph payload carries with its at most 300 nodes. Each is one pair and predicate (its
+ * newest link), read from at most eight neighbours per predicate and direction per node, centre
+ * first.
+ */
+export const GRAPH_LINKS = 1500
 export function graph(
   ctx: Context,
   ids: string[],
@@ -56,14 +76,25 @@ export function graph(
 ): BrainGraph {
   const selected = new Set(ids)
   const links = new Map<string, BrainLink>()
-  for (const id of ids)
-    for (const link of edges(ctx, id))
-      if (selected.has(link.subjectId) && selected.has(link.objectId)) links.set(link.id, link)
+  let cut = false
+  for (const id of ids) {
+    for (const link of edges(ctx, id)) {
+      if (!selected.has(link.subjectId) || !selected.has(link.objectId)) continue
+      const pair = `${link.subjectId}\n${link.predicate}\n${link.objectId}`
+      if (links.has(pair)) continue
+      if (links.size >= GRAPH_LINKS) {
+        cut = true
+        break
+      }
+      links.set(pair, link)
+    }
+    if (cut) break
+  }
   return {
     nodes: ids.map((id) => entity(ctx, id)!).filter(Boolean),
     links: [...links.values()],
     centerId,
-    truncated,
+    truncated: truncated || cut,
   }
 }
 export function overview(ctx: Context, limit: number): BrainGraph {

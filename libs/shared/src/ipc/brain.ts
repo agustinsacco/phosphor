@@ -45,12 +45,18 @@ export interface BrainInvokeMap {
   'brain:tidyChanges': { args: [limit: number]; result: BrainTidyChanges }
   'brain:tidyUndo': { args: [operationId: string, revision: number]; result: BrainStatus }
   'brain:entities': {
-    args: [kind: BrainEntityKind | null, offset: number, limit: number]
+    args: [
+      kind: BrainEntityKind | null,
+      offset: number,
+      limit: number,
+      sort: 'connected' | 'recent' | 'name',
+    ]
     result: BrainEntityPage
   }
   'brain:recent': { args: [limit: number]; result: BrainRecentMemories }
   'brain:history': { args: [limit: number]; result: BrainHistory }
   'brain:reread': { args: [jobId: string]; result: BrainStatus }
+  'brain:neverRead': { args: [sessionId: string, never: boolean]; result: BrainStatus }
   'brain:status': { args: []; result: BrainStatus }
   /** Saves at once. Enabling downloads the model if it is missing; disabling keeps it. */
   'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }
@@ -74,6 +80,29 @@ export interface BrainInvokeMap {
   /** Folds `sourceId` into `targetId`: names, links and memories move; the source is deleted. */
   'brain:merge': {
     args: [sourceId: string, targetId: string, revision: number]
+    result: BrainTidyMutation
+  }
+  /** Replaces an entity's description (trimmed, 1–160 characters). Undoable. */
+  'brain:describe': {
+    args: [entityId: string, description: string, revision: number]
+    result: BrainTidyMutation
+  }
+  /** Removes one alias, never the label. Undoable; refuses a stale revision. */
+  'brain:removeName': {
+    args: [entityId: string, name: string, revision: number]
+    result: BrainTidyMutation
+  }
+  /**
+   * Moves 1–200 of an entity's memories, with the mentions and links they support, to a new
+   * entity named `target.label`. The original keeps the rest and its aliases. Undoable.
+   */
+  'brain:split': {
+    args: [
+      entityId: string,
+      memoryIds: string[],
+      target: { label: string; kind: BrainEntityKind },
+      revision: number,
+    ]
     result: BrainTidyMutation
   }
   /** Typeahead over entities and memories. */

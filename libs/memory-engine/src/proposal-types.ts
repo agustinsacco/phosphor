@@ -6,6 +6,7 @@ import type {
   BrainMemoryType,
   BrainOrigin,
   BrainPredicate,
+  BrainProposedMemory,
   BrainSourceSegment,
 } from '@phosphor/shared/brain'
 
@@ -48,6 +49,9 @@ export interface ProposalEntity {
   candidates: string[]
   reason: string
   auto: boolean
+  /** Uncertain, with exactly one existing entity of its kind under one of its names: approval
+   * waits until the owner says which. Absent in proposals stored before it existed. */
+  required?: boolean
 }
 /** Subject and object are job refs or existing entity ids. */
 export interface ProposalLink {
@@ -71,6 +75,8 @@ export interface ProposalMemory {
   action: 'add' | 'enrich' | 'supersede' | 'conflict' | 'resolve_open'
   target: string | null
   reason: string
+  /** Saved only when the owner ticks it, never with review off. Absent in older proposals. */
+  hold?: BrainProposedMemory['hold']
 }
 /** "Are these part of one parent?" Members are job refs or existing entity ids. */
 export interface ProposalGroup {
@@ -126,5 +132,17 @@ export interface EntityMatch {
 export interface ClaimProbe {
   entityIds: string[]
   links: { subjectId: string; predicate: BrainPredicate; objectId: string }[]
+  /** The claim's embedding. Matches are scored against it; without it they score 0. */
+  vector?: Float32Array
+}
+/** An existing memory that may say the same thing as a claim, and how it was found. */
+export interface MemoryMatch {
+  id: string
+  /** `link`: it states the claim's link, or owns the claim's owned thing. `entity`: it names
+   * one of the claim's entities. `replaced`: a superseded memory naming one of them, at cosine
+   * 0.85 or more, so a claim that only repeats it can be dropped. */
+  channel: 'link' | 'entity' | 'replaced'
+  /** Cosine similarity to the probe's vector; 0 without one. */
+  similarity: number
 }
 export type MemoryCard = BrainMemory

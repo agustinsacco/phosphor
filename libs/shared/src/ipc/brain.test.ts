@@ -50,6 +50,7 @@ export interface BaselineBrainInvokeMap {
 
   'brain:history': { args: [limit: number]; result: BrainHistory }
   'brain:reread': { args: [jobId: string]; result: BrainStatus }
+  'brain:neverRead': { args: [sessionId: string, never: boolean]; result: BrainStatus }
   'brain:status': { args: []; result: BrainStatus }
   /** Saves at once. Enabling downloads the model if it is missing; disabling keeps it. */
   'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }
@@ -75,11 +76,33 @@ export interface BaselineBrainInvokeMap {
     args: [sourceId: string, targetId: string, revision: number]
     result: BrainTidyMutation
   }
+  'brain:describe': {
+    args: [entityId: string, description: string, revision: number]
+    result: BrainTidyMutation
+  }
+  'brain:removeName': {
+    args: [entityId: string, name: string, revision: number]
+    result: BrainTidyMutation
+  }
+  'brain:split': {
+    args: [
+      entityId: string,
+      memoryIds: string[],
+      target: { label: string; kind: BrainEntityKind },
+      revision: number,
+    ]
+    result: BrainTidyMutation
+  }
   /** Typeahead over entities and memories. */
   'brain:find': { args: [query: string, limit: number]; result: BrainFindResult }
   /** The best-connected entities, when nothing is selected. */
   'brain:entities': {
-    args: [kind: BrainEntityKind | null, offset: number, limit: number]
+    args: [
+      kind: BrainEntityKind | null,
+      offset: number,
+      limit: number,
+      sort: 'connected' | 'recent' | 'name',
+    ]
     result: BrainEntityPage
   }
   'brain:recent': { args: [limit: number]; result: BrainRecentMemories }
@@ -117,6 +140,7 @@ it('pins the reader preference on both sides of the IPC contract', () => {
     recall: boolean
     review: boolean
     model: string | null
+    neverRead: { titles: string[]; sessionIds: string[] }
   }>()
   expectTypeOf<BrainInvokeMap['brain:status']['result']['prefs']>().toEqualTypeOf<BrainPrefs>()
 })

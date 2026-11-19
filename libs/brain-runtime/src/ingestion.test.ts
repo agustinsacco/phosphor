@@ -3,6 +3,7 @@ import { transcriptSegments } from './transcript'
 import { makeWindow, transcriptWindows } from './windows'
 import { LANE_ENTRIES } from './__fixtures__/lane'
 import { extractPrompt, EXTRACTION_SYSTEM } from './stage-prompts/extract'
+import { linksPrompt } from './stage-prompts/links'
 import { CALL_TIMEOUT_MS, callThinking } from './call-trace'
 
 it('reads only user and assistant text, not calls, results or context', () => {
@@ -80,4 +81,74 @@ it('repeats the answer rules after the source, where a long conversation would b
 it('allows ten minutes and medium thinking for every stage', () => {
   expect(CALL_TIMEOUT_MS).toBe(600000)
   expect(callThinking('high')).toBe('medium')
+})
+it('asks for the user by name, marked once as the user, and never "the user"', () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  expect(prompt).toContain('call the user by name when the conversation gives it, never "the user"')
+  expect(prompt).toContain('add the user as a person entity with "user":true')
+  expect(prompt).toContain('leave the field out when the name is not given')
+})
+it('asks both calls to state team membership whenever a claim names a person and their team', () => {
+  expect(extractPrompt(makeWindow([]), [])).toContain(
+    'Whenever a kept claim names a person and their team, state the membership: the person member_of the team.',
+  )
+  expect(linksPrompt([], [])).toContain(
+    '- When a claim names a person and their team, link the person member_of the team.',
+  )
+})
+it('drops leveling, feelings, absence, feedback on how someone works and one-on-one remarks, each with an example', () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  for (const line of [
+    '  - leveling, promotion, calibration and compensation ("Tom Lee needs his promotion packet',
+    '  - feelings or morale ("Mara Voss was upset',
+    '  - leave or absence ("Rina Okafor will be away',
+    '  - feedback about how a named person works ("Tom Lee tags others',
+    '  - anything from a one-on-one about the person in it ("In her one-on-one',
+  ])
+    expect(prompt).toContain(line)
+  expect(prompt).toContain('- One-off events, status and near-term plans:')
+  expect(prompt).toContain('facts stated "as of" now')
+})
+
+it('pins the incremental context-only prompt block without changing the extraction rules', () => {
+  const window = makeWindow([
+    {
+      entryId: 'old',
+      role: 'context',
+      label: 'Previously read',
+      observedAt: 0,
+      text: 'Harbor bills monthly.',
+    },
+  ])
+  const prompt = extractPrompt(window, [], 1, 1, ['Rina leads Ledger.'])
+  expect(prompt.slice(prompt.indexOf('Previously read overlap:'), prompt.indexOf('Registry:')))
+    .toMatchInlineSnapshot(`
+    "Previously read overlap: segments marked context are context only. Never extract a claim supported only by those segments.
+    Already kept from earlier parts of this conversation. Do not repeat them; return a claim only when it is new or changes one of these:
+    - Rina leads Ledger.
+    "
+  `)
+})
+
+it('asks for a hold instead of a guess when a claim might be personal or temporary', () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  expect(prompt).toContain('"branch":false,"hold":null,"quotes"')
+  expect(prompt).toContain(
+    'When unsure whether a remark about a named person is personal, keep the claim with "hold":"personal".',
+  )
+  expect(prompt).toContain(
+    'When unsure whether a status, near-term plan or one-off instruction lasts, keep the claim with "hold":"temporary".',
+  )
+})
+
+it('asks both calls for who leads a team or project, apart from who owns it', () => {
+  const extract = extractPrompt(makeWindow([]), [])
+  const links = linksPrompt([], [])
+  for (const prompt of [extract, links]) {
+    expect(prompt).toContain('who leads, owns, works on or belongs to what')
+    expect(prompt).toContain(
+      'A person who leads a team or project leads it; leading is not owning.',
+    )
+    expect(prompt).toContain('leads: person → team, project')
+  }
 })

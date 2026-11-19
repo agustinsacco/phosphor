@@ -8,7 +8,7 @@ Call `brain_search` before answering “what do we know about…”, when starti
 Search with the name itself (a project, customer, person or named concept) or a short topic. One call returns a briefing:
 
 - **About** lists what the query named.
-- **Path** lines show how things connect, such as who owns a project, what it is part of and which customer it serves. Each step cites the numbered memory that supports it.
+- **Path** lines show how things connect, such as who leads a team or project, who owns it, what it is part of and which customer it serves. Each step cites the numbered memory that supports it.
 - Memories come grouped. Disputed ones come first, with both sides shown. Then risks, open items, decisions, facts and how things are done. **Planned** memories have not taken effect yet. **Other branches only** memories hold on another git branch.
 - **See also** names linked people and systems. Search one when it matters to the task.
 - When it says more matches were not shown, search again with a higher `limit` or a narrower query.

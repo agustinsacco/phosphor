@@ -1,4 +1,5 @@
 import type { BrainTidyStore } from './tidy/types'
+import type { BrainEntitySort } from '@phosphor/shared/brain-explore'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainConnectionPage,
@@ -27,6 +28,7 @@ import type {
   EntityCard,
   EntityMatch,
   MemoryCard,
+  MemoryMatch,
   Proposal,
   ProposalResult,
 } from './proposal-types'
@@ -50,6 +52,7 @@ export type JobPatch = Partial<
     | 'state'
     | 'error'
     | 'startedAt'
+    | 'runStartedAt'
     | 'finishedAt'
     | 'usage'
     | 'memories'
@@ -57,6 +60,7 @@ export type JobPatch = Partial<
     | 'model'
     | 'branch'
     | 'progress'
+    | 'title'
   >
 >
 /** A checkpointed step of a job, reused only for identical input. */
@@ -65,7 +69,7 @@ export interface JobPart {
   inputHash: string
   output: string
   /** First prepare checkpoint: persisted atomically with the job metadata. */
-  prepare?: Pick<BrainJob, 'leafId' | 'model' | 'branch'>
+  prepare?: Pick<BrainJob, 'leafId' | 'model' | 'branch'> & { fromLeafId?: string | null }
 }
 
 /** The single writer: queue, proposals, review and the Explorer's indexed reads. Synchronous. */
@@ -73,11 +77,15 @@ export interface BrainStore extends BrainTidyStore {
   snapshot(): BrainSnapshot
   setPrefs(prefs: BrainPrefs): BrainPrefs
   revision(): number
+  /** Memories, identities, names, links and states only; excludes Tidy bookkeeping. */
+  knowledgeRevision(): number
 
   /** Throws when the lane already has an unfinished job, or nothing changed since the last one. */
   enqueue(job: NewJob, state: 'waiting' | 'queued'): BrainJob
   job(id: string): BrainJob | undefined
   history(limit: number): BrainHistory
+  /** The newest sixty current summaries from this lane, frozen into prepare context. */
+  laneContext(sessionId: string): string[]
   /** All surviving memories from a lane, and those without independent support elsewhere. */
   laneMemories(sessionId: string, exceptJobId?: string): { ids: string[]; replaceable: string[] }
   updateJob(id: string, patch: JobPatch): BrainJob
@@ -87,7 +95,7 @@ export interface BrainStore extends BrainTidyStore {
   removeJob(id: string): void
   /** Jobs left running by a previous app run go back to the queue. */
   requeueInterrupted(): void
-  part(jobId: string, part: string, inputHash: string): JobPart | undefined
+  part(jobId: string, part: string, inputHash?: string): JobPart | undefined
   savePart(jobId: string, part: JobPart): void
 
   /** Exact, word and trigram candidates for each probe, at most `limit` each. */
@@ -97,10 +105,12 @@ export interface BrainStore extends BrainTidyStore {
   ): EntityMatch[][]
   entityCards(ids: string[]): EntityCard[]
   /**
-   * Active or disputed memories that share a link or entities with each probe. Ids that are not
-   * stored entities (a job's new refs) match nothing.
+   * Active or disputed memories that share a link or entities with each probe, and superseded
+   * ones very close to it, at most `limit` per channel. Entity matches come from each entity's
+   * newest memories, most similar first. Ids that are not stored entities (a job's new refs)
+   * match nothing.
    */
-  memoryMatches(probes: ClaimProbe[], limit: number): string[][]
+  memoryMatches(probes: ClaimProbe[], limit: number): MemoryMatch[][]
   memoryCards(ids: string[]): MemoryCard[]
 
   /** Stores a proposal; the job moves to review, or empty when there is nothing to review. */
@@ -160,7 +170,12 @@ export interface Neighbour {
  * any process; `refresh` picks up rows committed since the last call.
  */
 export interface BrainSearch {
-  entities(kind: BrainEntityKind | null, offset: number, limit: number): BrainEntityPage
+  entities(
+    kind: BrainEntityKind | null,
+    offset: number,
+    limit: number,
+    sort: BrainEntitySort,
+  ): BrainEntityPage
   recent(limit: number): BrainRecentMemories
   /** Coalesced, chunked load; calls keep using the previous complete index while it refreshes. */
   refresh(): Promise<void>

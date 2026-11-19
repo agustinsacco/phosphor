@@ -21,7 +21,11 @@ it('links approved outcomes to memories and retains records while the finished j
   }
   store.saveExtraction(record)
   store.propose(extraction(job.id))
-  store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, 0)
+  store.review(
+    job.id,
+    { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
+    0,
+  )
   const saved = store.extraction(job.id)
   expect(saved.outcomes[0]?.memoryId).toBe(
     saved.memories.find((item) => item.summary.includes('owns'))?.id,
@@ -39,7 +43,11 @@ it('applies explicit confirmations without duplicate quotes and moves observedAt
   const { store } = fixture()
   const first = store.enqueue(lane(), 'queued')
   store.propose(extraction(first.id))
-  store.review(first.id, { memories: [0], identities: {}, groups: [] }, 0)
+  store.review(
+    first.id,
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+    0,
+  )
   const id = store.entityMemories(store.overview(300).nodes[0]!.id, {}, null).memories[0]!.id
   const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
   const data = extraction(job.id, {
@@ -50,7 +58,11 @@ it('applies explicit confirmations without duplicate quotes and moves observedAt
   })
   data.evidence[0]!.observedAt = 9000
   store.propose(data)
-  store.review(job.id, { memories: [], identities: {}, groups: [] }, store.revision())
+  store.review(
+    job.id,
+    { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
+    store.revision(),
+  )
   expect(store.memory(id).quotes).toHaveLength(1)
   expect(store.memory(id).memory.observedAt).toBe(9000)
 })
@@ -86,7 +98,11 @@ it('expires only orphaned referenced records at 30 days, and prunes unreferenced
     finishedAt: 2,
   })
   store.propose(extraction(first.id))
-  store.review(first.id, { memories: [0], identities: {}, groups: [] }, 0)
+  store.review(
+    first.id,
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+    0,
+  )
   expect(() => store.extraction(first.id)).not.toThrow()
   // Orphan a referenced record without invoking prune until the next write.
   db.prepare('DELETE FROM jobs WHERE id=?').run(first.id)
@@ -104,4 +120,32 @@ it('expires only orphaned referenced records at 30 days, and prunes unreferenced
   expect(store.snapshot().counts.memories).toBe(1)
   store.removeJob(next.id)
   expect(() => store.extraction(next.id)).toThrow('Brain extraction not found')
+})
+
+it('prunes a displaced twenty-first read record even when its memories remain', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  store.propose(extraction(job.id))
+  store.review(
+    job.id,
+    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
+    0,
+  )
+  store.saveExtraction({
+    ...job,
+    jobId: job.id,
+    thinking: 'low',
+    calls: [],
+    outcomes: [],
+    startedAt: 1,
+    finishedAt: 2,
+  })
+  const memory = store.extraction(job.id).memories[0]!.id
+  for (let i = 0; i < 20; i++) {
+    const next = store.enqueue(lane({ leafId: `later-${i}` }), 'queued')
+    store.updateJob(next.id, { state: 'done' })
+  }
+  expect(store.job(job.id)).toBeUndefined()
+  expect(store.memory(memory).memory.jobId).toBe(job.id)
+  expect(() => store.extraction(job.id)).toThrow('Brain extraction not found')
 })

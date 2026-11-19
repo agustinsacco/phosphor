@@ -1,5 +1,10 @@
 import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import type { BrainReviewDecision } from '@phosphor/shared/brain'
+import {
+  BRAIN_DECISION_REFUSALS,
+  BRAIN_REVIEW_CHANGED,
+  brainRequiredAnswerRefusal,
+} from '@phosphor/shared/brain-review'
 import { all, run, transaction, type Context } from './database'
 import {
   addNames,
@@ -8,13 +13,16 @@ import {
   entity,
   entityNumber,
   recountEntities,
+  refreshEntityWords,
+  replaceEntityVector,
 } from './entities'
+import { scrubExcerpt } from './secrets'
 import { applyMemory, activeMemoryNumber, insertCitations, type CommitContext } from './commit'
 import { linkOutcome, pruneExtractions } from './extractions'
-import { job, removeJob, updateJob } from './jobs'
+import { job, updateJob } from './jobs'
 import { laneMemories } from './history'
 import { removeMemory } from './merge'
-import { bumpRevision, revision } from './prefs'
+import { bumpKnowledgeRevision, knowledgeRevision } from './prefs'
 import { readProposal } from './proposals'
 import type { Proposal, ProposalMemory } from './types'
 
@@ -25,15 +33,40 @@ function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDe
   ] as const) {
     for (const index of indexes)
       if (!Number.isInteger(index) || index < 0 || index >= length)
-        throw new Error('Brain proposal index is invalid.')
+        throw new Error(BRAIN_DECISION_REFUSALS.index)
   }
   for (const [ref, target] of Object.entries(decision.identities)) {
     if (
       !value.entities.some((item) => item.ref === ref) ||
       (target !== 'new' && !entity(ctx, target))
     )
-      throw new Error('Brain identity override is invalid.')
+      throw new Error(BRAIN_DECISION_REFUSALS.identity)
   }
+  for (const ref of decision.descriptions)
+    if (!value.entities.find((item) => item.ref === ref)?.description.trim())
+      throw new Error(BRAIN_DECISION_REFUSALS.description)
+  const ticked = decision.confirmations
+  if (
+    new Set(ticked).size !== ticked.length ||
+    ticked.some((index) => !Number.isInteger(index) || !value.confirmations[index]?.claim.hold)
+  )
+    throw new Error(BRAIN_DECISION_REFUSALS.confirmation)
+  // Every ref this approval resolves: ticked memories, confirmed groups, and confirmations that
+  // become new memories because the owner changed one of their identities.
+  const used = new Set([
+    ...decision.memories.flatMap((index) => claimRefs(value.memories[index]!)),
+    ...decision.groups.flatMap((index) => {
+      const group = value.groups[index]!
+      return [...group.members, ...(group.parent.entityId ? [group.parent.entityId] : [])]
+    }),
+    ...appliedConfirmations(value, decision)
+      .filter((confirmation) => identityChanged(confirmation.claim, value, decision))
+      .flatMap((confirmation) => claimRefs(confirmation.claim)),
+  ])
+  const unanswered = value.entities.find(
+    (item) => item.required && used.has(item.ref) && !(item.ref in decision.identities),
+  )
+  if (unanswered) throw new Error(brainRequiredAnswerRefusal(unanswered.label))
 }
 function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) {
   const resolved = new Map<string, string>()
@@ -55,7 +88,18 @@ function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) 
         ? item.entityId
         : null
     const id = reuse ?? createEntity(ctx, item, value.entityVectors[index])
-    if (reuse) addNames(ctx, entityNumber(ctx, reuse), [item.label, ...item.aliases], item.keys)
+    if (reuse) {
+      const n = entityNumber(ctx, reuse)
+      addNames(ctx, n, [item.label, ...item.aliases], item.keys)
+      // The read's description replaces the stored one only when the owner chose it, and its
+      // vector (label, kind and this description) replaces the stored vector with it.
+      if (decision.descriptions.includes(ref)) {
+        run(ctx, 'UPDATE entities SET description=? WHERE n=?', scrubExcerpt(item.description), n)
+        refreshEntityWords(ctx, n)
+        const vector = value.entityVectors[index]
+        if (vector) replaceEntityVector(ctx, n, vector)
+      }
+    }
     resolved.set(ref, id)
     return id
   }
@@ -114,13 +158,13 @@ export function review(
     touchedMemories = new Set<number>()
   transaction(ctx, () => {
     const value = readProposal(ctx, jobId)
-    if (expectedRevision !== revision(ctx) || value.computedRevision !== revision(ctx))
-      throw new Error('Brain changed while you were reviewing. Reopen the review.')
+    if (
+      decision !== null &&
+      (expectedRevision !== knowledgeRevision(ctx) ||
+        value.computedRevision !== knowledgeRevision(ctx))
+    )
+      throw new Error(BRAIN_REVIEW_CHANGED)
     const current = job(ctx, jobId)!
-    if (!decision && current.replaces) {
-      removeJob(ctx, jobId)
-      return
-    }
     if (decision) validateDecision(ctx, value, decision)
     if (decision) {
       const commit: CommitContext = {
@@ -141,34 +185,18 @@ export function review(
         linkOutcome(ctx, jobId, index, id)
       }
       applyGroups(commit, decision.groups)
-      for (const confirmation of value.confirmations) {
-        if (identityChanged(confirmation.claim, value, decision)) {
-          applyMemory(
-            commit,
-            { ...confirmation.claim, action: 'add', target: null },
-            confirmation.vector,
-          )
-        } else {
-          const target = activeMemoryNumber(ctx, confirmation.memoryId)
-          if (target !== undefined) insertCitations(commit, target, confirmation.claim.citations)
-        }
-      }
+      const confirmed = applyConfirmations(commit, decision)
       const replaced = current.replaces
         ? laneMemories(ctx, current.sessionId, jobId).replaceable
         : []
       for (const id of replaced) removeMemory(ctx, id)
       cleanOrphans(ctx, touched)
       recountEntities(ctx, touched)
-      if (
-        decision.memories.length ||
-        decision.groups.length ||
-        value.confirmations.length ||
-        replaced.length
-      )
-        bumpRevision(ctx)
+      if (decision.memories.length || decision.groups.length || confirmed || replaced.length)
+        bumpKnowledgeRevision(ctx)
     }
     updateJob(ctx, jobId, {
-      state: 'done',
+      state: decision ? 'done' : 'rejected',
       memories: decision?.memories.length ?? 0,
       finishedAt: ctx.now(),
     })
@@ -176,6 +204,37 @@ export function review(
     pruneExtractions(ctx)
   })
   return touchedIds(ctx, touched, touchedMemories)
+}
+/** Every confirmation that is not held, and the held ones the owner ticked. */
+function appliedConfirmations(
+  value: Proposal,
+  decision: BrainReviewDecision,
+): Proposal['confirmations'] {
+  return value.confirmations.filter(
+    (confirmation, index) => !confirmation.claim.hold || decision.confirmations.includes(index),
+  )
+}
+/**
+ * A confirmation adds its quotes to the memory it repeats, or becomes a new memory when the
+ * owner changed one of its identities. A held one does neither unless ticked. Returns how many
+ * applied.
+ */
+function applyConfirmations(commit: CommitContext, decision: BrainReviewDecision): number {
+  const { ctx, proposal } = commit
+  const applied = appliedConfirmations(proposal, decision)
+  for (const confirmation of applied) {
+    if (identityChanged(confirmation.claim, proposal, decision)) {
+      applyMemory(
+        commit,
+        { ...confirmation.claim, action: 'add', target: null },
+        confirmation.vector,
+      )
+    } else {
+      const target = activeMemoryNumber(ctx, confirmation.memoryId)
+      if (target !== undefined) insertCitations(commit, target, confirmation.claim.citations)
+    }
+  }
+  return applied.length
 }
 function touchedIds(
   ctx: Context,
@@ -196,18 +255,18 @@ function touchedIds(
   }
 }
 
+/** Every entity ref a claim names, in its mentions and its links. */
+function claimRefs(item: ProposalMemory): string[] {
+  return [...item.entities, ...item.links.flatMap((link) => [link.subject, link.object])]
+}
 function identityChanged(
   item: ProposalMemory,
   value: Proposal,
   decision: BrainReviewDecision,
 ): boolean {
-  return [...item.entities, ...item.links.flatMap((link) => [link.subject, link.object])].some(
-    (ref) => {
-      const override = decision.identities[ref]
-      const old = value.entities.find((entity) => entity.ref === ref)
-      return (
-        override !== undefined && override !== (old?.decision === 'reuse' ? old.entityId : 'new')
-      )
-    },
-  )
+  return claimRefs(item).some((ref) => {
+    const override = decision.identities[ref]
+    const old = value.entities.find((entity) => entity.ref === ref)
+    return override !== undefined && override !== (old?.decision === 'reuse' ? old.entityId : 'new')
+  })
 }

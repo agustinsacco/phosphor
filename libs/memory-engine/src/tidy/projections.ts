@@ -1,5 +1,5 @@
 import { all, one, run, type Context } from '../database'
-import { recountEntities, refreshEntityWords } from '../entities'
+import { bumpVectorEpoch, recountEntities, refreshEntityWords } from '../entities'
 import { encodeBits } from '../bits'
 import { decodeVector } from '../vectors'
 import type { Rows, Selection } from './rows'
@@ -61,15 +61,20 @@ export function rebuild(ctx: Context, selection: Selection, removedNames: number
     if (vector)
       run(ctx, 'INSERT INTO memory_bits VALUES (?,?)', n, encodeBits(decodeVector(vector.vector)))
   }
-  recountEntities(ctx, new Set(selection.entities))
+  // A restored state changes the current count of every entity the memory names.
+  const counted = new Set(selection.entities)
+  for (const row of all<{ entity: number }>(
+    ctx,
+    'SELECT DISTINCT entity FROM mentions WHERE memory IN (SELECT value FROM json_each(?))',
+    JSON.stringify(selection.memories),
+  ))
+    counted.add(row.entity)
+  recountEntities(ctx, counted)
   run(ctx, "UPDATE meta SET value=(SELECT COUNT(*) FROM entities) WHERE key='entities'")
   run(
     ctx,
     "UPDATE meta SET value=(SELECT COUNT(*) FROM memories WHERE state!='superseded') WHERE key='memories'",
   )
   // Undo restores old numeric keys, below the search worker's incremental watermark.
-  run(
-    ctx,
-    "INSERT INTO meta VALUES ('vector_epoch','1') ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1",
-  )
+  bumpVectorEpoch(ctx)
 }

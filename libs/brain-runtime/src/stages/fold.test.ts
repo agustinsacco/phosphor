@@ -60,3 +60,37 @@ it('records every link rejected because folded endpoints became the same entity'
     }),
   )
 })
+
+it('marks holds on claims from a part saved before holds existed, keeping a hold the model gave', () => {
+  const said = [
+    'Rina Okafor is currently reviewing Harbor billing.',
+    'Rina Okafor is up for promotion this cycle.',
+    'Harbor billing runs nightly.',
+    'Harbor billing closes the books monthly.',
+  ]
+  const window = makeWindow([
+    { entryId: 'u', role: 'user', label: 'You', observedAt: 0, text: said.join(' ') },
+  ])
+  const [base] = RAW_EXTRACTION.claims
+  const claim = (ref: string, text: string, mentions: string[]) => {
+    const { hold: _hold, ...saved } = { ...base!, hold: null }
+    return { ...saved, ref, text, mentions, links: [], quotes: [{ segment: 's1', quote: text }] }
+  }
+  const extraction = {
+    ...structuredClone(RAW_EXTRACTION),
+    claims: [
+      claim('c1', said[0]!, ['n1', 'n2']),
+      claim('c2', said[1]!, ['n1']),
+      claim('c3', said[2]!, ['n2']),
+      { ...claim('c4', said[3]!, ['n2']), hold: 'temporary' as const },
+    ],
+  }
+  expect(extraction.claims[0]).not.toHaveProperty('hold')
+  const job = foldParts([{ key: 'w1', window, extraction }], 'lane')
+  expect(job.claims.map((c) => [c.ref, c.memory.hold])).toEqual([
+    ['c1', 'temporary'],
+    ['c2', 'personal'],
+    ['c3', null],
+    ['c4', 'temporary'],
+  ])
+})

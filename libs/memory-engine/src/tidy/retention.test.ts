@@ -61,6 +61,8 @@ it('persists the run checkpoint faithfully and leaves interrupted recovery to th
     error: null,
     startedAt: 1,
     finishedAt: null,
+    model: null,
+    settled: 0,
   }
   store.writeRun(checkpoint)
   const reopened = openBrainStore({ path, Database: DatabaseSync })

@@ -28,7 +28,13 @@ it('puts Archive below Machines and enabled Brain after Archive', async () => {
   useBrain.setState({
     status: {
       ...mockBrainStatus(),
-      prefs: { enabled: true, recall: true, review: true, model: null },
+      prefs: {
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: true,
+        review: true,
+        model: null,
+      },
     },
   })
   await act(async () => root.render(<PageLinks activePage="brain" onPage={onPage} />))
@@ -49,7 +55,13 @@ it('hides Brain while off and reacts to enabling without hiding other pages', as
     useBrain.setState({
       status: {
         ...mockBrainStatus(),
-        prefs: { enabled: true, recall: true, review: true, model: null },
+        prefs: {
+          neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+          enabled: true,
+          recall: true,
+          review: true,
+          model: null,
+        },
       },
     }),
   )
@@ -60,7 +72,13 @@ it('does not load or offer local Brain on a browser platform', async () => {
   useBrain.setState({
     status: {
       ...mockBrainStatus(),
-      prefs: { enabled: true, recall: true, review: true, model: null },
+      prefs: {
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: true,
+        review: true,
+        model: null,
+      },
     },
   })
   await act(async () =>
@@ -74,11 +92,17 @@ it('does not load or offer local Brain on a browser platform', async () => {
   expect(window.phosphor.invoke).not.toHaveBeenCalled()
 })
 
-it('counts only review jobs at the right edge and removes the count live at zero', async () => {
+it('counts review jobs at the right edge and removes the count live at zero', async () => {
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   const status = {
     ...mockBrainStatus(),
-    prefs: { enabled: true, recall: true, review: true, model: null },
+    prefs: {
+      enabled: true,
+      recall: true,
+      review: true,
+      model: null,
+      neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    },
     jobs: [
       mockBrainJob(),
       mockBrainJob({ id: 'ledger' }),
@@ -87,22 +111,54 @@ it('counts only review jobs at the right edge and removes the count live at zero
   }
   useBrain.setState({ status })
   await act(async () => root.render(<PageLinks onPage={onPage} />))
-  const count = container.querySelector('[aria-label="2 lanes to review"]')!
+  const count = container.querySelector('[aria-label="2 to decide"]')!
   expect(count.textContent).toBe('2')
   expect(count.className).toContain('ml-auto')
   await act(async () => useBrain.setState({ status: { ...status, jobs: [] } }))
-  expect(container.querySelector('[aria-label$="lanes to review"]')).toBeNull()
+  expect(container.querySelector('[aria-label$="to decide"]')).toBeNull()
 })
 
-it('names one review lane in the singular', async () => {
+it('counts one review', async () => {
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   useBrain.setState({
     status: {
       ...mockBrainStatus(),
-      prefs: { enabled: true, recall: true, review: true, model: null },
+      prefs: {
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: true,
+        review: true,
+        model: null,
+      },
       jobs: [mockBrainJob()],
     },
   })
   await act(async () => root.render(<PageLinks onPage={onPage} />))
-  expect(container.querySelector('[aria-label="1 lane to review"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="1 to decide"]')).not.toBeNull()
+})
+
+it('counts the whole Brain Inbox: reviews and open Tidy suggestions', async () => {
+  const { mockBrainJob } = await import('@/features/brain/mockBrainData')
+  const base = mockBrainStatus()
+  useBrain.setState({
+    status: {
+      ...base,
+      prefs: {
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: true,
+        review: true,
+        model: null,
+      },
+      jobs: [
+        mockBrainJob(),
+        mockBrainJob({ id: 'refreshing', state: 'refreshing' }),
+        mockBrainJob({ id: 'queued', state: 'queued' }),
+      ],
+      tidy: { ...base.tidy, open: 3 },
+    },
+  })
+  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  // A review Brain is refreshing still waits for the owner.
+  expect(container.querySelector('[aria-label="5 to decide"]')?.textContent).toBe('5')
 })
