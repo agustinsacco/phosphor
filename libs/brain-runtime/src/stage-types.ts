@@ -7,6 +7,7 @@ import type {
 } from '@phosphor/shared/brain'
 import type { EntityKey, ProposalEntity } from '@phosphor/memory-engine/types'
 import type { TranscriptWindow } from './windows'
+import type { ClaimHold } from './stage-hold'
 
 export interface StageEntity {
   ref: string
@@ -41,6 +42,8 @@ export interface StageClaim {
   validFrom: number | null
   validTo: number | null
   branch: boolean
+  /** Saved only when the owner ticks it. Absent in parts checkpointed before holds existed. */
+  hold?: ClaimHold | null
 }
 export interface StageParent {
   entity: string
