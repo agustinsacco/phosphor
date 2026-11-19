@@ -3,7 +3,6 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { BrainExtractionView } from '@shared/brain'
-import type { BrainForkTrace } from '@shared/brain-extraction'
 import {
   createFakePhosphor,
   installFakePhosphor,
@@ -11,7 +10,7 @@ import {
 import { BrainExtraction } from './BrainExtraction'
 import { mockBrainJob } from './mockBrainData'
 import { callDuration, progressLine } from './jobProgress'
-import { mockExtractionView } from './mockExtractionView'
+import { mockCallTrace, mockExtractionView } from './mockExtractionView'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -85,22 +84,8 @@ it('includes the conversation part even for a single-part stage', () => {
 it('says how long each call took in words, never as a clock', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const view = mockExtractionView()
-  const trace = (totalMs: number): BrainForkTrace => ({
-    firstStdoutMs: null,
-    firstMessageStartMs: null,
-    firstMessageUpdateMs: null,
-    agentStarts: 1,
-    turns: 1,
-    messageUpdates: 1,
-    retries: [],
-    compactions: [],
-    stopReason: 'stop',
-    usage: { tokens: 0, cost: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    totalMs,
-    reason: 'completed',
-  })
-  view.calls[0]!.trace = trace((241 * 60 + 11) * 1000)
-  view.calls[1]!.trace = trace(42_400)
+  view.calls[0]!.trace = mockCallTrace((241 * 60 + 11) * 1000)
+  view.calls[1]!.trace = mockCallTrace(42_400)
   const fake = createFakePhosphor({ 'brain:extraction': async () => view })
   const restore = installFakePhosphor(fake)
   const container = document.createElement('div')
@@ -221,11 +206,14 @@ it('caps raw output, prompts and source text with their own scroll containers', 
   }
 })
 
-it('says how long a long read took in words, never as minutes and seconds', async () => {
+it('says how long the model spent on a read, in words, even when its review refreshed days later', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const data = mockExtractionView()
+  // Read on Monday, refreshed on Wednesday: the record spans two days, its calls 4 h 1 min.
   data.startedAt = 0
-  data.finishedAt = (241 * 60 + 11) * 1000
+  data.finishedAt = 2 * 86_400_000
+  const parts = [(200 * 60 + 11) * 1000, 40 * 60_000, 60_000]
+  data.calls.forEach((call, index) => (call.trace = mockCallTrace(parts[index]!)))
   const fake = createFakePhosphor({ 'brain:extraction': async () => data })
   const restore = installFakePhosphor(fake)
   const container = document.createElement('div')
@@ -234,9 +222,31 @@ it('says how long a long read took in words, never as minutes and seconds', asyn
     await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
     expect(container.textContent).toContain('took 4 h 1 min')
     expect(container.textContent).not.toContain('241:11')
+    expect(container.textContent).not.toContain('2 days')
   } finally {
     act(() => root.unmount())
     restore()
     fake.dispose()
+  }
+})
+
+it('shows no duration when a call has no trace or the read made no calls', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const untraced = mockExtractionView()
+  untraced.calls[0]!.trace = mockCallTrace(60_000)
+  const uncalled = { ...mockExtractionView(), calls: [], prompts: [] }
+  for (const data of [untraced, uncalled]) {
+    const fake = createFakePhosphor({ 'brain:extraction': async () => data })
+    const restore = installFakePhosphor(fake)
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+      expect(container.querySelector('header')!.textContent).not.toContain('took')
+    } finally {
+      act(() => root.unmount())
+      restore()
+      fake.dispose()
+    }
   }
 })

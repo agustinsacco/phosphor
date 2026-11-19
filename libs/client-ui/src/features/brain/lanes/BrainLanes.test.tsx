@@ -13,7 +13,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { PromptHost } from '@/components/PromptHost'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { mockBrainJob, mockBrainStatus } from '../mockBrainData'
-import { mockExtractionView } from '../mockExtractionView'
+import { mockCallTrace, mockExtractionView } from '../mockExtractionView'
 import { useBrain } from '../useBrain'
 import { BrainLanes } from './BrainLanes'
 import type { LaneSelection } from './laneGroups'
@@ -202,10 +202,13 @@ it('says what a finished read kept and offers each way to read the lane again', 
     laneMemories: 3,
     replaceable: 2,
     source: { ...view.source, exists: true },
+    // Its review refreshed two days later; the model spent 1 min on its three calls.
+    finishedAt: view.startedAt + 2 * 86_400_000,
+    calls: view.calls.map((call) => ({ ...call, trace: mockCallTrace(20_000) })),
   })
   await render([], { type: 'job', id: 'harbor-read' })
   const detail = section('Read detail')
-  expect(detail.textContent).toContain('took less than a minute')
+  expect(detail.textContent).toContain('took 1 min')
   expect([...detail.querySelectorAll('dd')].map((dd) => dd.textContent)).toHaveLength(3)
   expect(detail.textContent).toContain('Covered: Whole lane')
   await click('Read new messages', detail)
