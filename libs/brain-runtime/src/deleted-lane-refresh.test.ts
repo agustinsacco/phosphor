@@ -1,3 +1,4 @@
+import { unlinkSync } from 'node:fs'
 import { unlink } from 'node:fs/promises'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
@@ -65,5 +66,25 @@ it('returns an interrupted refreshing job with a missing lane to review on start
   )
   expect(s.store.storedProposal(s.job.id)).toBe(proposal)
   await expect(service.api.proposal(s.job.id)).resolves.toMatchObject({ revision: 0 })
+  expect(s.runner).not.toHaveBeenCalled()
+})
+
+it('keeps the review if the transcript disappears after the queue checks it', async () => {
+  const s = await pipelineSetup()
+  cleanups.push(s.cleanup)
+  await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
+  const proposal = s.store.storedProposal(s.job.id)
+  s.store.rev++
+  s.runner.mockClear()
+  const part = s.store.part.bind(s.store)
+  const preparing = vi.spyOn(s.store, 'part').mockImplementationOnce((...args) => {
+    unlinkSync(s.file)
+    return part(...args)
+  })
+  const service = await createBrainService(s.options)
+  cleanups.push(() => service.dispose())
+  await vi.waitFor(() => expect(preparing).toHaveBeenCalled())
+  await vi.waitFor(() => expect(s.store.job(s.job.id)?.state).toBe('review'))
+  expect(s.store.storedProposal(s.job.id)).toBe(proposal)
   expect(s.runner).not.toHaveBeenCalled()
 })
