@@ -83,6 +83,7 @@ async function directBrainFailures(page: Page): Promise<string[]> {
         () => window.phosphor.invoke('brain:status'),
         () =>
           window.phosphor.invoke('brain:setPrefs', {
+            neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
             enabled: true,
             recall: true,
             review: true,

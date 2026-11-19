@@ -121,7 +121,7 @@ it('stores each mutation’s returned status and confirms queue, cancel and forg
   await store.removeModel()
   await store.queue(lane)
   await store.cancel('job')
-  await store.review('job', { memories: [0], identities: {}, groups: [] }, 3)
+  await store.review('job', { descriptions: [], memories: [0], identities: {}, groups: [] }, 3)
   await store.forget('memory')
   expect(invoke.mock.calls).toEqual([
     ['brain:setPrefs', status.prefs],
@@ -149,7 +149,13 @@ it('does not let an older status request overwrite an action’s returned status
   const reading = useBrain.getState().refresh()
   const enabled = {
     ...mockBrainStatus(),
-    prefs: { enabled: true, recall: true, review: true, model: null },
+    prefs: {
+      enabled: true,
+      recall: true,
+      review: true,
+      model: null,
+      neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    },
   }
   invoke.mockResolvedValue(enabled)
   await useBrain.getState().setPrefs(enabled.prefs)

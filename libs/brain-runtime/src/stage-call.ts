@@ -137,16 +137,19 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
   return async (stage, _part, prompt, validate, entryIds = [], metadata: StageInput = {}) => {
     // Extract and links checkpoint their parsed parts; decision stages keep the accepted answer, so
     // a Retry never asks again for decisions it already has. A changed prompt is a new question,
-    // and so is the same prompt once the store has moved on.
+    // never the same question just because unrelated knowledge changed. Identity rows contain
+    // candidate ids, names, aliases, keys, descriptions and neighbours. Reconcile rows contain
+    // the claim and every offered memory's id, summary, type and links: no hidden store input.
     const hash = inputHash(prompt)
     const key = stage === 'extract' || stage === 'links' ? null : `answer:${stage}:${hash}`
-    const against = `${store.revision()}:${hash}`
+    const against = hash
     const accept = <T>(answer: string, value: T): T => {
       if (key && scrubExcerpt(answer) === answer)
         store.savePart(job.id, { part: key, inputHash: against, output: answer })
       return value
     }
-    const accepted = key && store.part(job.id, key, against)
+    // Old revision-prefixed parts already name the exact prompt; keep those answers usable.
+    const accepted = key && store.part(job.id, key)
     if (accepted) return validate(accepted.output)
     const { answer, part } = await run(stage, prompt, SYSTEM[stage], entryIds, metadata)
     try {

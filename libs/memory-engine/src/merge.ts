@@ -10,7 +10,7 @@ import {
 } from './entities'
 import { reactivatePartners } from './commit'
 import { memoryNumber } from './knowledge'
-import { bumpRevision } from './prefs'
+import { bumpKnowledgeRevision } from './prefs'
 import { pruneExtractions } from './extractions'
 
 export function mergeRows(ctx: Context, sourceId: string, targetId: string): void {
@@ -67,7 +67,7 @@ export function mergeRows(ctx: Context, sourceId: string, targetId: string): voi
 export function forget(ctx: Context, id: string): void {
   transaction(ctx, () => {
     removeMemory(ctx, id)
-    bumpRevision(ctx)
+    bumpKnowledgeRevision(ctx)
     pruneExtractions(ctx)
   })
 }

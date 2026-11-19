@@ -195,6 +195,7 @@ it('forwards the reviewed Tidy channels and revision-bearing entity edits unchan
   await api.invoke('brain:tidyApply', 'suggestion', { kind: 'fold', survivorId: 'harbor' }, 3)
   await api.invoke('brain:tidyDismiss', 'suggestion', 3)
   await api.invoke('brain:tidyChanges', 20)
+  await api.invoke('brain:neverRead', 'lane', true)
   await api.invoke('brain:tidyUndo', 'operation', 4)
   await api.invoke('brain:merge', 'rina', 'rina-okafor', 4)
   await api.invoke('brain:describe', 'harbor', 'Harbor billing system', 5)
@@ -208,6 +209,7 @@ it('forwards the reviewed Tidy channels and revision-bearing entity edits unchan
     ['brain:tidyApply', 'suggestion', { kind: 'fold', survivorId: 'harbor' }, 3],
     ['brain:tidyDismiss', 'suggestion', 3],
     ['brain:tidyChanges', 20],
+    ['brain:neverRead', 'lane', true],
     ['brain:tidyUndo', 'operation', 4],
     ['brain:merge', 'rina', 'rina-okafor', 4],
     ['brain:describe', 'harbor', 'Harbor billing system', 5],

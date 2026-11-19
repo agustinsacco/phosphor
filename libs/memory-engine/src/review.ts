@@ -14,7 +14,7 @@ import { linkOutcome, pruneExtractions } from './extractions'
 import { job, removeJob, updateJob } from './jobs'
 import { laneMemories } from './history'
 import { removeMemory } from './merge'
-import { bumpRevision, revision } from './prefs'
+import { bumpKnowledgeRevision, knowledgeRevision } from './prefs'
 import { readProposal } from './proposals'
 import type { Proposal, ProposalMemory } from './types'
 
@@ -114,7 +114,10 @@ export function review(
     touchedMemories = new Set<number>()
   transaction(ctx, () => {
     const value = readProposal(ctx, jobId)
-    if (expectedRevision !== revision(ctx) || value.computedRevision !== revision(ctx))
+    if (
+      expectedRevision !== knowledgeRevision(ctx) ||
+      value.computedRevision !== knowledgeRevision(ctx)
+    )
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
     const current = job(ctx, jobId)!
     if (!decision && current.replaces) {
@@ -165,7 +168,7 @@ export function review(
         value.confirmations.length ||
         replaced.length
       )
-        bumpRevision(ctx)
+        bumpKnowledgeRevision(ctx)
     }
     updateJob(ctx, jobId, {
       state: 'done',

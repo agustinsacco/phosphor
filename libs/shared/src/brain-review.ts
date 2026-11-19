@@ -28,6 +28,8 @@ export interface BrainIdentity {
   reason: string
   /** Decided by an identifier or exact-name rule, without a model call. */
   auto: boolean
+  /** An unsure exact-name match requires a choice before approval. */
+  required: boolean
 }
 /** Entities that share a name prefix but no stated parent: "Are these part of one Harbor?" */
 export interface BrainGroupQuestion {
@@ -61,6 +63,8 @@ export interface BrainProposedMemory {
   target: { id: string; summary: string } | null
   reason: string
   quotes: BrainQuote[]
+  /** Temporary or personal claims are saved only when explicitly selected. */
+  hold: 'temporary' | 'personal' | null
 }
 export interface BrainProposalView {
   job: BrainJob
@@ -84,4 +88,6 @@ export interface BrainReviewDecision {
   identities: Record<string, string>
   /** Group question indexes the user confirmed. */
   groups: number[]
+  /** Identity refs whose read description replaces the stored description. */
+  descriptions: string[]
 }

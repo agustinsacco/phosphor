@@ -94,7 +94,7 @@ interface ExtractionContext {
 }
 async function finishExtraction(context: ExtractionContext, folded: FoldedJob): Promise<void> {
   const { store, options, signal, search, ask, progress } = context
-  const computedRevision = store.revision()
+  const computedRevision = store.knowledgeRevision()
   progress('identity', 0, 1)
   const entityVectors = await embedDocuments(
     options,
@@ -190,7 +190,12 @@ async function embedAndPropose(
   if (!store.snapshot().prefs.review && store.job(job.id)?.state === 'review') {
     store.review(
       job.id,
-      { memories: proposal.memories.map((_m, i) => i), identities: {}, groups: [] },
+      {
+        memories: proposal.memories.map((_m, i) => i),
+        identities: {},
+        groups: [],
+        descriptions: [],
+      },
       computedRevision,
     )
     // The result is saved. A failed index refresh must not turn a finished read into a failure.

@@ -98,6 +98,7 @@ export function proposal(ctx: Context, jobId: string): BrainProposalView {
     held: value.held,
     identities: value.entities.map((item) => ({
       ...item,
+      required: false,
       candidates: item.candidates.map((id) => entity(ctx, id)!).filter(Boolean),
     })),
     groups: value.groups.map((item, index) => ({
@@ -123,6 +124,7 @@ function claimView(
 ): Omit<BrainProposedMemory, 'index'> {
   return {
     ...item,
+    hold: null,
     links: item.links.map((link) => ({
       subject: link.subject,
       object: link.object,

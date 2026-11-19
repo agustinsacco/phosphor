@@ -1,3 +1,4 @@
+import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { BrainService } from '@phosphor/brain-runtime/types'
 
@@ -17,6 +18,7 @@ const api = {
   recent: vi.fn(async () => 'recent'),
   status: vi.fn(async () => 'status'),
   setPrefs: vi.fn(async () => 'saved'),
+  neverRead: vi.fn(async () => 'saved'),
   queue: vi.fn(async () => 'queued'),
   review: vi.fn(async () => 'reviewed'),
   merge: vi.fn(async () => 'merged'),
@@ -43,7 +45,13 @@ it('registers every Brain channel in the shared contract', () => {
 })
 
 it('accepts the Brain switches and reader model', async () => {
-  const prefs = { enabled: true, recall: false, review: true, model: null }
+  const prefs = {
+    enabled: true,
+    recall: false,
+    review: true,
+    model: null,
+    neverRead: DEFAULT_BRAIN_PREFS.neverRead,
+  }
   expect(checkPrefs(prefs)).toEqual(prefs)
   await expect(call('brain:setPrefs', prefs)).resolves.toBe('saved')
   for (const bad of [
@@ -64,7 +72,12 @@ it('passes a lane reference and refuses empty or oversized fields', async () => 
 })
 
 it('checks review decisions and revisions before the service sees them', async () => {
-  const decision = { memories: [0, 2], identities: { n1: 'new', n2: 'harbor' }, groups: [0] }
+  const decision = {
+    memories: [0, 2],
+    identities: { n1: 'new', n2: 'harbor' },
+    groups: [0],
+    descriptions: [],
+  }
   expect(checkDecision(null)).toBeNull()
   expect(checkDecision(decision)).toEqual(decision)
   for (const bad of [
@@ -113,7 +126,13 @@ it('registers extraction inspection and rejects invalid job ids', async () => {
 it.each([null, 'harbor/reader', 'harbor/team/reader', `p/${'m'.repeat(198)}`])(
   'passes reader model %s through IPC',
   async (model) => {
-    const prefs = { enabled: true, recall: true, review: true, model }
+    const prefs = {
+      enabled: true,
+      recall: true,
+      review: true,
+      model,
+      neverRead: DEFAULT_BRAIN_PREFS.neverRead,
+    }
     await expect(call('brain:setPrefs', prefs)).resolves.toBe('saved')
     expect(api.setPrefs).toHaveBeenLastCalledWith(prefs)
   },
@@ -137,7 +156,13 @@ it.each([
 ])('refuses invalid reader model %j at the handler', async (model) => {
   api.setPrefs.mockClear()
   await expect(
-    call('brain:setPrefs', { enabled: true, recall: true, review: true, model }),
+    call('brain:setPrefs', {
+      enabled: true,
+      recall: true,
+      review: true,
+      model,
+      neverRead: DEFAULT_BRAIN_PREFS.neverRead,
+    }),
   ).rejects.toThrow('Invalid Brain reader model')
   expect(api.setPrefs).not.toHaveBeenCalled()
 })
@@ -241,4 +266,18 @@ it('checks entity edits before invoking the API', async () => {
     'Invalid Brain request.',
   )
   await expect(call('brain:split', 'tom', ['m1'], target, 1.5)).rejects.toThrow('revision')
+})
+
+it('forwards an individual lane exclusion and bounds the title settings', async () => {
+  await expect(call('brain:neverRead', 'harbor-lane', true)).resolves.toBe('saved')
+  expect(api.neverRead).toHaveBeenCalledWith('harbor-lane', true)
+  for (const neverRead of [
+    { titles: ['x'.repeat(81)], sessionIds: [] },
+    { titles: Array(51).fill('Harbor'), sessionIds: [] },
+    { titles: [], sessionIds: Array(5001).fill('harbor-lane') },
+  ]) {
+    await expect(call('brain:setPrefs', { ...DEFAULT_BRAIN_PREFS, neverRead })).rejects.toThrow(
+      'Invalid Brain never-read settings.',
+    )
+  }
 })

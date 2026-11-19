@@ -1,5 +1,9 @@
 import { BRAIN_TIDY_KINDS, checkBrainTidyAction } from '@phosphor/shared/brain-tidy'
-import { BRAIN_ENTITY_KINDS } from '@phosphor/shared/brain'
+import {
+  BRAIN_ENTITY_KINDS,
+  setBrainLaneNeverRead,
+  DEFAULT_BRAIN_PREFS,
+} from '@phosphor/shared/brain'
 import { BRAIN_ENTITY_SORTS } from '@phosphor/shared/brain-explore'
 import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
@@ -43,6 +47,10 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
   })
   handle('brain:reread', async (_event, job) => (await api()).reread(id(job)))
   handle('brain:status', async () => (await api()).status())
+  handle('brain:neverRead', async (_event, sessionId, never) => {
+    setBrainLaneNeverRead(DEFAULT_BRAIN_PREFS, sessionId, never)
+    return (await api()).neverRead(sessionId, never)
+  })
   handle('brain:setPrefs', async (_event, prefs) => (await api()).setPrefs(checkPrefs(prefs)))
   handle('brain:download', async () => (await api()).download())
   handle('brain:removeModel', async () => (await api()).removeModel())

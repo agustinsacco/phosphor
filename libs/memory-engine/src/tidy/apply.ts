@@ -2,7 +2,7 @@ import { checkBrainTidyAction, type BrainTidyAction } from '@phosphor/shared/bra
 import { run, transaction, type Context } from '../database'
 import { removeMemory } from '../merge'
 import { pruneExtractions } from '../extractions'
-import { bumpRevision } from '../prefs'
+import { bumpRevision, bumpKnowledgeRevision } from '../prefs'
 import { checkRevision } from './journal'
 import { changeMemories, mergeChange } from './operations'
 import { actionRefusal } from './action-guards'
@@ -57,13 +57,14 @@ export function apply(
       )
         throw new Error('That is not a name these records share.')
       operation = removeNameChange(ctx, action.entityId, action.name, id)
-      bumpRevision(ctx)
+      bumpKnowledgeRevision(ctx)
     } else if (action.kind === 'forget' || action.kind === 'keep') {
       if (action.kind === 'forget') {
         removeMemory(ctx, row.first_id)
         pruneExtractions(ctx)
       }
-      bumpRevision(ctx)
+      if (action.kind === 'forget') bumpKnowledgeRevision(ctx)
+      else bumpRevision(ctx)
     } else throw new Error('This action does not apply to this Tidy suggestion.')
     run(
       ctx,
