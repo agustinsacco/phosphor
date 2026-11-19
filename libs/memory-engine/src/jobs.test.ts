@@ -196,3 +196,40 @@ it('persists the attempt start, clears it on finish and refuses moving the first
   store.updateJob(job.id, { state: 'done' })
   expect(store.job(job.id)).toMatchObject({ startedAt: 10, runStartedAt: null })
 })
+
+it.each([false, true])(
+  'does not move the cursor backwards when an older read finishes last (same queued time: %s)',
+  (tie) => {
+    const { store, db } = fixture()
+    const base = store.enqueue(lane({ leafId: 'a' }), 'queued')
+    store.updateJob(base.id, { state: 'done' })
+    const first = store.enqueue(lane({ leafId: 'b' }), 'queued')
+    store.updateJob(first.id, { state: 'failed' })
+    const second = store.enqueue(lane({ leafId: 'c' }), 'queued')
+    if (tie) db.prepare('UPDATE jobs SET queued_at=? WHERE id=?').run(first.queuedAt, second.id)
+    expect(first.fromLeafId).toBe('a')
+    expect(second.fromLeafId).toBe('a')
+    store.updateJob(second.id, { state: 'done', finishedAt: 2000 })
+    // An older retry may still finish late after upgrading an app that allowed it.
+    store.updateJob(first.id, { state: 'done', finishedAt: 3000 })
+    const next = store.enqueue(lane({ leafId: 'd' }), 'queued')
+    expect(next.fromLeafId).toBe('c')
+  },
+)
+it.each(['queued', 'waiting', 'failed', 'done', 'empty', 'rejected'] as const)(
+  'refuses Retry when a later %s read exists and leaves Dismiss available',
+  (state) => {
+    const { store } = fixture()
+    const first = store.enqueue(lane({ leafId: 'b' }), 'queued')
+    store.updateJob(first.id, { state: 'failed' })
+    const second = store.enqueue(lane({ leafId: 'c' }), 'queued')
+    store.updateJob(second.id, { state })
+    expect(() => store.retry(first.id)).toThrow(
+      'A later read of this lane already covers these messages.',
+    )
+    expect(store.job(first.id)?.state).toBe('failed')
+    store.removeJob(first.id)
+    expect(store.job(first.id)).toBeUndefined()
+    expect(store.job(second.id)?.state).toBe(state)
+  },
+)
