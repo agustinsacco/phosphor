@@ -136,11 +136,14 @@ that read's leaf, regardless of extractor version. Use **Read again** to apply a
 extractor from the beginning. A failed job shows **Retry**, which requeues the same job and
 resumes from its saved steps. If a later read of that lane exists, Retry refuses; Dismiss
 remains available. The incremental cursor follows queue order, not completion order, so an
-older read finishing late never moves it backwards. Jobs left running when the app quit resume where they stopped.
+older read finishing late never moves it backwards. Jobs left running when the app quit resume
+where they stopped.
 
 ### Lanes Brain never reads
 
-Both Queue and Read again refuse an excluded lane. Changing the rules cancels its queued and
+Both Queue and Read again refuse an excluded lane. Title rules use the current name from the
+lane file, or the sidebar's first-prompt title when unnamed, never a title supplied by the UI.
+An empty lane displays “Untitled lane”; that placeholder never matches a title rule. Changing the rules cancels its queued and
 waiting jobs, not its pending review; the Inbox still offers that review, with Reject as its
 primary action. Refresh also skips excluded lanes using their current names. A stale review
 can always be rejected, because rejection saves nothing; approving one that cannot be refreshed
@@ -329,8 +332,8 @@ reuses the parent and one fact per member ("X is part of Harbor"), quoted as "St
 review". If knowledge changed since the proposal was computed, the review says “Refreshing
 this review: Brain changed since it was read.” It stays a review (`refreshing`), retains its
 previous memory count, and recomputes identity and reconcile from saved extract and links
-steps. A refresh never sends the conversation to the model again; it
-asks again only the questions whose inputs changed. Even after an extractor prompt upgrade it reuses validated source windows by
+steps. A refresh never sends the conversation to the model again; it asks again only the
+questions whose inputs changed. Even after an extractor prompt upgrade it reuses validated source windows by
 part name whenever the read has a stored proposal or prepare checkpoint, including Retry and
 interrupted pre-upgrade recomputes; missing windows are read normally. New reads and Read again
 create new jobs without saved source windows. An upgrade may change a decision's

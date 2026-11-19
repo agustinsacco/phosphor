@@ -15,6 +15,7 @@ type JobRow = Omit<BrainJob, 'usage' | 'progress'> & {
 function decode(row: JobRow): BrainJob {
   return {
     ...row,
+    title: row.title || 'Untitled lane',
     progress: row.progress ? (JSON.parse(row.progress) as BrainJob['progress']) : null,
     usage: row.usage ? (JSON.parse(row.usage) as BrainJob['usage']) : null,
   }
@@ -108,7 +109,7 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
       progress: null,
     }
     save(ctx, result)
-    return result
+    return { ...result, title: result.title || 'Untitled lane' }
   })
 }
 export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {

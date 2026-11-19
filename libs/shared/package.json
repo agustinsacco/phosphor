@@ -4,78 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./brain-tidy": {
-      "types": "./src/brain-tidy.ts",
-      "default": "./src/brain-tidy.ts"
-    },
-    "./browser-image-clipboard": {
-      "types": "./src/browser-image-clipboard.ts",
-      "default": "./src/browser-image-clipboard.ts"
-    },
-    "./notifications": {
-      "types": "./src/notifications.ts",
-      "default": "./src/notifications.ts"
-    },
-    "./base64": {
-      "types": "./src/base64.ts",
-      "default": "./src/base64.ts"
-    },
-    "./download": {
-      "types": "./src/download.ts",
-      "default": "./src/download.ts"
-    },
-    "./zip-store": {
-      "types": "./src/zip-store.ts",
-      "default": "./src/zip-store.ts"
-    },
-    "./brain-never-read": {
-      "types": "./src/brain-never-read.ts",
-      "default": "./src/brain-never-read.ts"
-    },
-    "./brain": {
-      "types": "./src/brain.ts",
-      "default": "./src/brain.ts"
-    },
-    "./web-auth": {
-      "types": "./src/web-auth.ts",
-      "default": "./src/web-auth.ts"
-    },
-    "./machine-prompt": {
-      "types": "./src/machine-prompt.ts",
-      "default": "./src/machine-prompt.ts"
-    },
-    "./lane-receipt": {
-      "types": "./src/lane-receipt.ts",
-      "default": "./src/lane-receipt.ts"
-    },
-    "./lane-excerpt": {
-      "types": "./src/lane-excerpt.ts",
-      "default": "./src/lane-excerpt.ts"
-    },
-    "./external-tool-marker": {
-      "types": "./src/external-tool-marker.ts",
-      "default": "./src/external-tool-marker.ts"
-    },
-    "./host-protocol-repositories": {
-      "types": "./src/host-protocol-repositories.ts",
-      "default": "./src/host-protocol-repositories.ts"
-    },
-    "./host-protocol-lane-marks": {
-      "types": "./src/host-protocol-lane-marks.ts",
-      "default": "./src/host-protocol-lane-marks.ts"
-    },
-    "./host-protocol-providers": {
-      "types": "./src/host-protocol-providers.ts",
-      "default": "./src/host-protocol-providers.ts"
-    },
-    "./host-protocol-attachments": {
-      "types": "./src/host-protocol-attachments.ts",
-      "default": "./src/host-protocol-attachments.ts"
-    },
-    "./host-protocol-terminals": {
-      "types": "./src/host-protocol-terminals.ts",
-      "default": "./src/host-protocol-terminals.ts"
-    },
     "./account": {
       "types": "./src/account.ts",
       "default": "./src/account.ts"
@@ -83,10 +11,6 @@
     "./agent-directives": {
       "types": "./src/agent-directives.ts",
       "default": "./src/agent-directives.ts"
-    },
-    "./global-instructions": {
-      "types": "./src/global-instructions.ts",
-      "default": "./src/global-instructions.ts"
     },
     "./ansi": {
       "types": "./src/ansi.ts",
@@ -96,21 +20,53 @@
       "types": "./src/artifacts.ts",
       "default": "./src/artifacts.ts"
     },
+    "./base64": {
+      "types": "./src/base64.ts",
+      "default": "./src/base64.ts"
+    },
+    "./brain": {
+      "types": "./src/brain.ts",
+      "default": "./src/brain.ts"
+    },
+    "./brain-explore": {
+      "types": "./src/brain-explore.ts",
+      "default": "./src/brain-explore.ts"
+    },
+    "./brain-extraction": {
+      "types": "./src/brain-extraction.ts",
+      "default": "./src/brain-extraction.ts"
+    },
+    "./brain-never-read": {
+      "types": "./src/brain-never-read.ts",
+      "default": "./src/brain-never-read.ts"
+    },
+    "./brain-review": {
+      "types": "./src/brain-review.ts",
+      "default": "./src/brain-review.ts"
+    },
+    "./brain-tidy": {
+      "types": "./src/brain-tidy.ts",
+      "default": "./src/brain-tidy.ts"
+    },
     "./branchName": {
       "types": "./src/branchName.ts",
       "default": "./src/branchName.ts"
+    },
+    "./browser-image-clipboard": {
+      "types": "./src/browser-image-clipboard.ts",
+      "default": "./src/browser-image-clipboard.ts"
     },
     "./claude-limits": {
       "types": "./src/claude-limits.ts",
       "default": "./src/claude-limits.ts"
     },
-    "./claude-session-account": {
-      "types": "./src/claude-session-account.ts",
-      "default": "./src/claude-session-account.ts"
-    },
     "./claude-paths": {
       "types": "./src/claude-paths.ts",
       "default": "./src/claude-paths.ts"
+    },
+    "./claude-session-account": {
+      "types": "./src/claude-session-account.ts",
+      "default": "./src/claude-session-account.ts"
     },
     "./command-approval": {
       "types": "./src/command-approval.ts",
@@ -128,9 +84,17 @@
       "types": "./src/control-api.ts",
       "default": "./src/control-api.ts"
     },
+    "./download": {
+      "types": "./src/download.ts",
+      "default": "./src/download.ts"
+    },
     "./errors": {
       "types": "./src/errors.ts",
       "default": "./src/errors.ts"
+    },
+    "./external-tool-marker": {
+      "types": "./src/external-tool-marker.ts",
+      "default": "./src/external-tool-marker.ts"
     },
     "./feedback": {
       "types": "./src/feedback.ts",
@@ -140,9 +104,17 @@
       "types": "./src/file-kinds.ts",
       "default": "./src/file-kinds.ts"
     },
+    "./github-pr-refs": {
+      "types": "./src/github-pr-refs.ts",
+      "default": "./src/github-pr-refs.ts"
+    },
     "./glob": {
       "types": "./src/glob.ts",
       "default": "./src/glob.ts"
+    },
+    "./global-instructions": {
+      "types": "./src/global-instructions.ts",
+      "default": "./src/global-instructions.ts"
     },
     "./host-grant": {
       "types": "./src/host-grant.ts",
@@ -152,29 +124,141 @@
       "types": "./src/host-protocol.ts",
       "default": "./src/host-protocol.ts"
     },
+    "./host-protocol-artifacts": {
+      "types": "./src/host-protocol-artifacts.ts",
+      "default": "./src/host-protocol-artifacts.ts"
+    },
+    "./host-protocol-attachments": {
+      "types": "./src/host-protocol-attachments.ts",
+      "default": "./src/host-protocol-attachments.ts"
+    },
+    "./host-protocol-file-bytes": {
+      "types": "./src/host-protocol-file-bytes.ts",
+      "default": "./src/host-protocol-file-bytes.ts"
+    },
+    "./host-protocol-files": {
+      "types": "./src/host-protocol-files.ts",
+      "default": "./src/host-protocol-files.ts"
+    },
+    "./host-protocol-github": {
+      "types": "./src/host-protocol-github.ts",
+      "default": "./src/host-protocol-github.ts"
+    },
+    "./host-protocol-lane-marks": {
+      "types": "./src/host-protocol-lane-marks.ts",
+      "default": "./src/host-protocol-lane-marks.ts"
+    },
+    "./host-protocol-lane-transfer": {
+      "types": "./src/host-protocol-lane-transfer.ts",
+      "default": "./src/host-protocol-lane-transfer.ts"
+    },
+    "./host-protocol-lane-transfer-calls": {
+      "types": "./src/host-protocol-lane-transfer-calls.ts",
+      "default": "./src/host-protocol-lane-transfer-calls.ts"
+    },
+    "./host-protocol-machine": {
+      "types": "./src/host-protocol-machine.ts",
+      "default": "./src/host-protocol-machine.ts"
+    },
+    "./host-protocol-pr-results": {
+      "types": "./src/host-protocol-pr-results.ts",
+      "default": "./src/host-protocol-pr-results.ts"
+    },
+    "./host-protocol-pr-status": {
+      "types": "./src/host-protocol-pr-status.ts",
+      "default": "./src/host-protocol-pr-status.ts"
+    },
+    "./host-protocol-providers": {
+      "types": "./src/host-protocol-providers.ts",
+      "default": "./src/host-protocol-providers.ts"
+    },
+    "./host-protocol-repositories": {
+      "types": "./src/host-protocol-repositories.ts",
+      "default": "./src/host-protocol-repositories.ts"
+    },
+    "./host-protocol-routines": {
+      "types": "./src/host-protocol-routines.ts",
+      "default": "./src/host-protocol-routines.ts"
+    },
+    "./host-protocol-skill-share": {
+      "types": "./src/host-protocol-skill-share.ts",
+      "default": "./src/host-protocol-skill-share.ts"
+    },
+    "./host-protocol-terminals": {
+      "types": "./src/host-protocol-terminals.ts",
+      "default": "./src/host-protocol-terminals.ts"
+    },
     "./host-protocol-testing": {
       "types": "./src/host-protocol-testing/index.ts",
       "default": "./src/host-protocol-testing/index.ts"
+    },
+    "./host-protocol-web-push": {
+      "types": "./src/host-protocol-web-push.ts",
+      "default": "./src/host-protocol-web-push.ts"
+    },
+    "./host-protocol-writes": {
+      "types": "./src/host-protocol-writes.ts",
+      "default": "./src/host-protocol-writes.ts"
     },
     "./host-release": {
       "types": "./src/host-release.ts",
       "default": "./src/host-release.ts"
     },
-    "./ipc-scope": {
-      "types": "./src/ipc-scope.ts",
-      "default": "./src/ipc-scope.ts"
-    },
     "./ipc": {
       "types": "./src/ipc.ts",
       "default": "./src/ipc.ts"
     },
-    "./machine-settings-result": {
-      "types": "./src/machine-settings-result.ts",
-      "default": "./src/machine-settings-result.ts"
+    "./ipc-scope": {
+      "types": "./src/ipc-scope.ts",
+      "default": "./src/ipc-scope.ts"
     },
-    "./machine-settings-result-sections": {
-      "types": "./src/machine-settings-result-sections.ts",
-      "default": "./src/machine-settings-result-sections.ts"
+    "./ipc-web": {
+      "types": "./src/ipc-web.ts",
+      "default": "./src/ipc-web.ts"
+    },
+    "./ipc-web-archive": {
+      "types": "./src/ipc-web-archive.ts",
+      "default": "./src/ipc-web-archive.ts"
+    },
+    "./ipc-web-exclusions": {
+      "types": "./src/ipc-web-exclusions.ts",
+      "default": "./src/ipc-web-exclusions.ts"
+    },
+    "./lane-archive": {
+      "types": "./src/lane-archive.ts",
+      "default": "./src/lane-archive.ts"
+    },
+    "./lane-excerpt": {
+      "types": "./src/lane-excerpt.ts",
+      "default": "./src/lane-excerpt.ts"
+    },
+    "./lane-move": {
+      "types": "./src/lane-move.ts",
+      "default": "./src/lane-move.ts"
+    },
+    "./lane-prs-command": {
+      "types": "./src/lane-prs-command.ts",
+      "default": "./src/lane-prs-command.ts"
+    },
+    "./lane-receipt": {
+      "types": "./src/lane-receipt.ts",
+      "default": "./src/lane-receipt.ts"
+    },
+    "./lane-transfer-runtime": {
+      "types": "./src/lane-transfer-runtime.ts",
+      "default": "./src/lane-transfer-runtime.ts"
+    },
+    "./machine-agent-behavior": {
+      "types": "./src/machine-agent-behavior.ts",
+      "default": "./src/machine-agent-behavior.ts"
+    },
+    "./machine-prompt": {
+      "types": "./src/machine-prompt.ts",
+      "default": "./src/machine-prompt.ts"
+    },
+    "./machine-settings": {
+      "types": "./src/machine-settings.ts",
+      "default": "./src/machine-settings.ts"
     },
     "./machine-settings-change": {
       "types": "./src/machine-settings-change.ts",
@@ -188,49 +272,41 @@
       "types": "./src/machine-settings-mcp.ts",
       "default": "./src/machine-settings-mcp.ts"
     },
-    "./standard-packages": {
-      "types": "./src/standard-packages.ts",
-      "default": "./src/standard-packages.ts"
+    "./machine-settings-result": {
+      "types": "./src/machine-settings-result.ts",
+      "default": "./src/machine-settings-result.ts"
     },
-    "./machine-agent-behavior": {
-      "types": "./src/machine-agent-behavior.ts",
-      "default": "./src/machine-agent-behavior.ts"
-    },
-    "./machine-settings": {
-      "types": "./src/machine-settings.ts",
-      "default": "./src/machine-settings.ts"
-    },
-    "./mcp-inspection": {
-      "types": "./src/mcp-inspection.ts",
-      "default": "./src/mcp-inspection.ts"
+    "./machine-settings-result-sections": {
+      "types": "./src/machine-settings-result-sections.ts",
+      "default": "./src/machine-settings-result-sections.ts"
     },
     "./mcp": {
       "types": "./src/mcp.ts",
       "default": "./src/mcp.ts"
     },
-    "./web-access": {
-      "types": "./src/web-access.ts",
-      "default": "./src/web-access.ts"
+    "./mcp-inspection": {
+      "types": "./src/mcp-inspection.ts",
+      "default": "./src/mcp-inspection.ts"
     },
     "./mcp-write-policy": {
       "types": "./src/mcp-write-policy.ts",
       "default": "./src/mcp-write-policy.ts"
     },
-    "./subscription-providers": {
-      "types": "./src/subscription-providers.ts",
-      "default": "./src/subscription-providers.ts"
-    },
     "./models": {
       "types": "./src/models.ts",
       "default": "./src/models.ts"
     },
-    "./platform-name": {
-      "types": "./src/platform-name.ts",
-      "default": "./src/platform-name.ts"
+    "./notifications": {
+      "types": "./src/notifications.ts",
+      "default": "./src/notifications.ts"
     },
     "./paths": {
       "types": "./src/paths.ts",
       "default": "./src/paths.ts"
+    },
+    "./platform-name": {
+      "types": "./src/platform-name.ts",
+      "default": "./src/platform-name.ts"
     },
     "./remote-host": {
       "types": "./src/remote-host.ts",
@@ -239,6 +315,10 @@
     "./routines": {
       "types": "./src/routines.ts",
       "default": "./src/routines.ts"
+    },
+    "./routines-types": {
+      "types": "./src/routines-types.ts",
+      "default": "./src/routines-types.ts"
     },
     "./rpc": {
       "types": "./src/rpc.ts",
@@ -252,6 +332,10 @@
       "types": "./src/session-order.ts",
       "default": "./src/session-order.ts"
     },
+    "./session-title": {
+      "types": "./src/session-title.ts",
+      "default": "./src/session-title.ts"
+    },
     "./skillBundleFiles": {
       "types": "./src/skillBundleFiles.ts",
       "default": "./src/skillBundleFiles.ts"
@@ -264,6 +348,10 @@
       "types": "./src/skillsCatalog.ts",
       "default": "./src/skillsCatalog.ts"
     },
+    "./standard-packages": {
+      "types": "./src/standard-packages.ts",
+      "default": "./src/standard-packages.ts"
+    },
     "./subagent-evidence": {
       "types": "./src/subagent-evidence.ts",
       "default": "./src/subagent-evidence.ts"
@@ -275,6 +363,18 @@
     "./subagent-inspect": {
       "types": "./src/subagent-inspect.ts",
       "default": "./src/subagent-inspect.ts"
+    },
+    "./subscription-providers": {
+      "types": "./src/subscription-providers.ts",
+      "default": "./src/subscription-providers.ts"
+    },
+    "./tailscale-executable": {
+      "types": "./src/tailscale-executable.ts",
+      "default": "./src/tailscale-executable.ts"
+    },
+    "./tailscale-status": {
+      "types": "./src/tailscale-status.ts",
+      "default": "./src/tailscale-status.ts"
     },
     "./text-search": {
       "types": "./src/text-search.ts",
@@ -292,6 +392,14 @@
       "types": "./src/voice.ts",
       "default": "./src/voice.ts"
     },
+    "./web-access": {
+      "types": "./src/web-access.ts",
+      "default": "./src/web-access.ts"
+    },
+    "./web-auth": {
+      "types": "./src/web-auth.ts",
+      "default": "./src/web-auth.ts"
+    },
     "./workspace-search": {
       "types": "./src/workspace-search.ts",
       "default": "./src/workspace-search.ts"
@@ -304,113 +412,9 @@
       "types": "./src/writing.ts",
       "default": "./src/writing.ts"
     },
-    "./host-protocol-github": {
-      "types": "./src/host-protocol-github.ts",
-      "default": "./src/host-protocol-github.ts"
-    },
-    "./github-pr-refs": {
-      "types": "./src/github-pr-refs.ts",
-      "default": "./src/github-pr-refs.ts"
-    },
-    "./host-protocol-files": {
-      "types": "./src/host-protocol-files.ts",
-      "default": "./src/host-protocol-files.ts"
-    },
-    "./host-protocol-pr-status": {
-      "types": "./src/host-protocol-pr-status.ts",
-      "default": "./src/host-protocol-pr-status.ts"
-    },
-    "./host-protocol-pr-results": {
-      "types": "./src/host-protocol-pr-results.ts",
-      "default": "./src/host-protocol-pr-results.ts"
-    },
-    "./host-protocol-web-push": {
-      "types": "./src/host-protocol-web-push.ts",
-      "default": "./src/host-protocol-web-push.ts"
-    },
-    "./host-protocol-file-bytes": {
-      "types": "./src/host-protocol-file-bytes.ts",
-      "default": "./src/host-protocol-file-bytes.ts"
-    },
-    "./host-protocol-machine": {
-      "types": "./src/host-protocol-machine.ts",
-      "default": "./src/host-protocol-machine.ts"
-    },
-    "./host-protocol-artifacts": {
-      "types": "./src/host-protocol-artifacts.ts",
-      "default": "./src/host-protocol-artifacts.ts"
-    },
-    "./host-protocol-routines": {
-      "types": "./src/host-protocol-routines.ts",
-      "default": "./src/host-protocol-routines.ts"
-    },
-    "./routines-types": {
-      "types": "./src/routines-types.ts",
-      "default": "./src/routines-types.ts"
-    },
-    "./tailscale-executable": {
-      "types": "./src/tailscale-executable.ts",
-      "default": "./src/tailscale-executable.ts"
-    },
-    "./tailscale-status": {
-      "types": "./src/tailscale-status.ts",
-      "default": "./src/tailscale-status.ts"
-    },
-    "./host-protocol-writes": {
-      "types": "./src/host-protocol-writes.ts",
-      "default": "./src/host-protocol-writes.ts"
-    },
-    "./ipc-web": {
-      "types": "./src/ipc-web.ts",
-      "default": "./src/ipc-web.ts"
-    },
-    "./host-protocol-skill-share": {
-      "types": "./src/host-protocol-skill-share.ts",
-      "default": "./src/host-protocol-skill-share.ts"
-    },
-    "./host-protocol-lane-transfer": {
-      "types": "./src/host-protocol-lane-transfer.ts",
-      "default": "./src/host-protocol-lane-transfer.ts"
-    },
-    "./host-protocol-lane-transfer-calls": {
-      "types": "./src/host-protocol-lane-transfer-calls.ts",
-      "default": "./src/host-protocol-lane-transfer-calls.ts"
-    },
-    "./ipc-web-exclusions": {
-      "types": "./src/ipc-web-exclusions.ts",
-      "default": "./src/ipc-web-exclusions.ts"
-    },
-    "./lane-transfer-runtime": {
-      "types": "./src/lane-transfer-runtime.ts",
-      "default": "./src/lane-transfer-runtime.ts"
-    },
-    "./lane-move": {
-      "types": "./src/lane-move.ts",
-      "default": "./src/lane-move.ts"
-    },
-    "./lane-prs-command": {
-      "types": "./src/lane-prs-command.ts",
-      "default": "./src/lane-prs-command.ts"
-    },
-    "./brain-extraction": {
-      "types": "./src/brain-extraction.ts",
-      "default": "./src/brain-extraction.ts"
-    },
-    "./lane-archive": {
-      "types": "./src/lane-archive.ts",
-      "default": "./src/lane-archive.ts"
-    },
-    "./brain-explore": {
-      "types": "./src/brain-explore.ts",
-      "default": "./src/brain-explore.ts"
-    },
-    "./brain-review": {
-      "types": "./src/brain-review.ts",
-      "default": "./src/brain-review.ts"
-    },
-    "./ipc-web-archive": {
-      "types": "./src/ipc-web-archive.ts",
-      "default": "./src/ipc-web-archive.ts"
+    "./zip-store": {
+      "types": "./src/zip-store.ts",
+      "default": "./src/zip-store.ts"
     }
   },
   "dependencies": {
