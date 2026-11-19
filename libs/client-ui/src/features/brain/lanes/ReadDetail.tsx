@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import type { BrainExtractionView } from '@shared/brain'
+import type { BrainExtractionView, BrainHistory } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { Button } from '@/components/form'
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
@@ -15,14 +15,17 @@ import { ExtractionCalls } from '../ExtractionCalls'
 import { ExtractionSource } from '../ExtractionSource'
 import { openBrainSource } from '../openBrainSource'
 import { durationWords } from '../jobProgress'
-import { readCounts } from './laneGroups'
+import { coverageLine, readCounts } from './laneGroups'
 
 /** A finished read: what it kept, what it covered, and the ways to read the lane again. */
 export function ReadDetail({
   jobId,
+  history,
   onMemory,
 }: {
   jobId: string
+  /** Finished reads, to date the read this one continues. */
+  history: BrainHistory | null
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:extraction', jobId), [jobId])
@@ -38,14 +41,16 @@ export function ReadDetail({
         )}
       </p>
     )
-  return <FinishedRead data={data} onMemory={onMemory} />
+  return <FinishedRead data={data} history={history} onMemory={onMemory} />
 }
 
 function FinishedRead({
   data,
+  history,
   onMemory,
 }: {
   data: BrainExtractionView
+  history: BrainHistory | null
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
   const model = useBrainModelName(data.model)
@@ -79,7 +84,9 @@ function FinishedRead({
           <Count label="left out" value={counts.left} />
         </dl>
       )}
-      <p className="text-text-secondary text-sm">Covered the whole lane.</p>
+      {data.job && (
+        <p className="text-text-secondary text-sm">Covered: {coverageLine(data.job, history)}</p>
+      )}
       <ReadActions data={data} />
       {!rejected && <ReadMemories data={data} onMemory={onMemory} />}
       <details>

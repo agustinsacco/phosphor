@@ -4,6 +4,7 @@ import type { BrainTidyOperation } from '@shared/brain-tidy'
 import { mockBrainJob } from '../mockBrainData'
 import { agoWords, durationWords } from '../jobProgress'
 import {
+  coverageLine,
   jobsAhead,
   keepLaneSelection,
   laneGroups,
@@ -171,4 +172,19 @@ it('counts a review waiting to refresh as ahead of every queued read', () => {
     mockBrainJob({ id: 'b', state: 'refreshing', runStartedAt: null }),
   ]
   expect(jobsAhead(jobs, 'a')).toBe(1)
+})
+
+it('says what a read covered', () => {
+  const previous = mockBrainJob({ id: 'previous', state: 'done', leafId: 'leaf-7', finishedAt: 7 })
+  const history = { items: [{ job: previous, memories: 1, replaceable: 1 }], more: false }
+  expect(coverageLine(mockBrainJob({ fromLeafId: null }), history)).toBe('Whole lane')
+  expect(coverageLine(mockBrainJob({ id: 'next', fromLeafId: 'leaf-7' }), history)).toBe(
+    `New messages after ${new Date(7).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`,
+  )
+  expect(coverageLine(mockBrainJob({ fromLeafId: 'leaf-gone' }), history)).toBe(
+    'New messages since the previous read',
+  )
+  expect(coverageLine(mockBrainJob({ fromLeafId: 'leaf-7' }), null)).toBe(
+    'New messages since the previous read',
+  )
 })

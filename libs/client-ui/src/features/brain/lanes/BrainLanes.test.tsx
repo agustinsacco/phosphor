@@ -132,6 +132,7 @@ it('lists reads by state and Recent changes, and opens the first read in progres
     'Queued',
     'Read',
     'Recent changes',
+    'Never read',
   ])
   expect(section('Reading').textContent).toContain('Reading · 3 min')
   expect(section('Queued').textContent).toContain('Queued 2 h ago · 1 ahead')

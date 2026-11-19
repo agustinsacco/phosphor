@@ -174,6 +174,28 @@ export function readCounts(outcomes: BrainExtractionOutcome[]): {
   }
 }
 
+/** "Nov 12, 2026, 3:40 PM": a read's finish, precise enough to tell two reads a day apart. */
+function readTime(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+/**
+ * What a read covered: the whole lane, or what came after the read it continues. That read is
+ * often gone (a finished read replaces its lane's older one), so the date is shown when known.
+ */
+export function coverageLine(job: BrainJob, history: BrainHistory | null): string {
+  if (job.fromLeafId === null) return 'Whole lane'
+  const previous = history?.items.find(
+    (item) =>
+      item.job.id !== job.id &&
+      item.job.sessionId === job.sessionId &&
+      item.job.leafId === job.fromLeafId,
+  )?.job.finishedAt
+  return previous
+    ? `New messages after ${readTime(previous)}`
+    : 'New messages since the previous read'
+}
+
 /** A finished read's second line: what is left of it, and when. */
 export function readLine(row: LaneRow, now: number): string {
   if (row.job.state === 'empty') return 'Nothing worth keeping'
