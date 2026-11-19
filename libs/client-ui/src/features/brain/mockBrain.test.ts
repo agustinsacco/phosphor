@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import {
   DEFAULT_BRAIN_PREFS,
+  brainLaneNeverRead,
+  type BrainHistory,
   type BrainStatus,
   type BrainExtractionView,
   type BrainProposalView,
@@ -156,7 +158,7 @@ it('can extract and approve again after resetting every entity and memory', asyn
   ).resolves.toMatchObject({ counts: { memories: 1, entities: 2 } })
 })
 
-it('requeues a stale proposal and returns it to review after recomputing', async () => {
+it('refreshes a stale proposal as a review and returns it after recomputing', async () => {
   let now = 0
   const call = createMockBrain(() => now)
   await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
@@ -171,8 +173,16 @@ it('requeues a stale proposal and returns it to review after recomputing', async
   await expect(call('brain:proposal', [id])).rejects.toThrow(
     'Brain changed; refreshing this review',
   )
+  // A refresh stays a review: it keeps its first start and times only this attempt.
   expect(await call('brain:status', [])).toMatchObject({
-    jobs: expect.arrayContaining([expect.objectContaining({ id, state: 'running' })]),
+    jobs: expect.arrayContaining([
+      expect.objectContaining({
+        id,
+        state: 'refreshing',
+        startedAt: 1793966400000,
+        runStartedAt: 6000,
+      }),
+    ]),
   })
   now += 4000
   expect(await call('brain:proposal', [id])).toMatchObject({
@@ -321,4 +331,75 @@ it('orders recent memories by finished job and caps eligibility at the newest tw
 it('returns null for an absent mock Tidy suggestion', async () => {
   const call = createMockBrain()
   await expect(call('brain:tidySuggestion', ['missing'])).resolves.toBeNull()
+})
+
+it('queues a lane it read before from where that read ended, and Read again from the start', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  now = 6000
+  const decision = { descriptions: [], memories: [0], identities: {}, groups: [] }
+  await call('brain:review', ['harbor-demo-review', decision, 0])
+  const read = ((await call('brain:history', [20])) as BrainHistory).items[0]!.job
+  const lane = { sessionPath: read.sessionPath, title: read.title }
+  const queued = ((await call('brain:queue', [lane])) as BrainStatus).jobs.at(-1)!
+  expect(queued).toMatchObject({ fromLeafId: read.leafId, sessionId: read.sessionId })
+  expect(queued.leafId).not.toBe(read.leafId)
+  await call('brain:cancel', [queued.id])
+  const again = ((await call('brain:reread', [read.id])) as BrainStatus).jobs.at(-1)!
+  expect(again).toMatchObject({ fromLeafId: null, replaces: read.id })
+})
+
+it('keeps a rejected read as rejected, and lets its lane be queued again', async () => {
+  const call = createMockBrain(() => 6000)
+  const status = (await call('brain:review', ['harbor-demo-review', null, 0])) as BrainStatus
+  expect(status.jobs.find((job) => job.id === 'harbor-demo-review')).toMatchObject({
+    state: 'rejected',
+    finishedAt: 6000,
+  })
+  expect(status.readSessionIds).toContain('harbor-lane')
+  expect(await call('brain:history', [20])).toMatchObject({ items: [] })
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  await expect(
+    call('brain:queue', [{ sessionPath: '/demo/Harbor/planning-demo.jsonl', title: 'Harbor' }]),
+  ).resolves.toMatchObject({ jobs: expect.arrayContaining([expect.anything()]) })
+})
+
+it('refuses a review decision Desktop would refuse', async () => {
+  const call = createMockBrain(() => 0)
+  for (const decision of [
+    { memories: [0], identities: {}, groups: [] },
+    { descriptions: [''], memories: [0], identities: {}, groups: [] },
+    { descriptions: ['nobody'], memories: [0], identities: {}, groups: [] },
+  ])
+    await expect(call('brain:review', ['harbor-demo-review', decision, 0])).rejects.toThrow(
+      'Invalid review selection.',
+    )
+})
+
+it('gives the harness a required question, held claims and a never-read review', async () => {
+  // As the browser harness passes it; the default mock keeps the plain reviews tests rely on.
+  const options = { flagAfterMs: 20000, demoReviews: true }
+  const call = createMockBrain(() => 0, options)
+  const status = (await call('brain:status', [])) as BrainStatus
+  const never = status.jobs.filter((job) => brainLaneNeverRead(status.prefs.neverRead, job))
+  expect(never.map((job) => job.state)).toEqual(['review'])
+  const proposal = (await call('brain:proposal', ['harbor-demo-review'])) as BrainProposalView
+  const required = proposal.identities.filter((identity) => identity.required)
+  expect(required).toHaveLength(1)
+  expect(proposal.memories.flatMap((memory) => memory.hold ?? []).sort()).toEqual([
+    'personal',
+    'temporary',
+  ])
+  const ref = required[0]!.ref
+  const held = proposal.memories.find((memory) => memory.hold === 'temporary')!
+  await call('brain:review', [
+    'harbor-demo-review',
+    { descriptions: [ref], memories: [0, held.index], identities: { [ref]: 'rina' }, groups: [] },
+    proposal.revision,
+  ])
+  const rina = (await call('brain:entity', ['rina'])) as BrainEntityView
+  expect(rina.entity.description).toBe(required[0]!.description)
+  const tom = (await call('brain:entityMemories', ['tom', {}, null])) as BrainMemoryPage
+  expect(tom.memories.map((memory) => memory.summary)).toContain(held.summary)
 })

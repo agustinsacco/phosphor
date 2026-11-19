@@ -449,3 +449,14 @@ it('uses singular counts', async () => {
   expect(section('Rina Okafor').textContent).toContain('1 memory ·')
   expect(section('Rina Okafor').textContent).not.toContain('1 memories')
 })
+
+it('shows who leads a team as Leads, and the team as Led by', async () => {
+  await render()
+  await visit('entity', 'rina', 'Rina Okafor')
+  await act(async () => tab('Connections').click())
+  const heads = () => [...section('Connections').querySelectorAll('th')].map((th) => th.textContent)
+  expect(heads().some((head) => head?.startsWith('Leads'))).toBe(true)
+  await click('Ledger team1 memory', section('Connections'))
+  await act(async () => tab('Connections').click())
+  expect(heads().some((head) => head?.startsWith('Led by'))).toBe(true)
+})
