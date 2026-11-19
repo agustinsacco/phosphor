@@ -20,8 +20,9 @@ export const LANE_GROUP_LABELS: Record<LaneGroupId, string> = {
 }
 export interface LaneRow {
   job: BrainJob
-  /** Memories still in Brain from this read; a running job's count is its proposal size. */
+  /** Memories this read kept that are still in Brain; a running job's count is its proposal size. */
   memories: number
+  /** Lane-wide: what Read again would replace. */
   replaceable: number
 }
 export interface LaneGroup {
@@ -196,10 +197,10 @@ export function coverageLine(job: BrainJob, history: BrainHistory | null): strin
     : 'New messages since the previous read'
 }
 
-/** A finished read's second line: what is left of it, and when. */
+/** A finished read's second line: what is left of what this read kept, and when. */
 export function readLine(row: LaneRow, now: number): string {
   if (row.job.state === 'empty') return 'Nothing worth keeping'
   if (row.job.state === 'rejected') return 'Rejected'
   const when = row.job.finishedAt === null ? '' : ` · ${agoWords(now - row.job.finishedAt)}`
-  return `${formatCount(row.memories, 'memory', 'memories')}${when}`
+  return `${formatCount(row.memories, 'memory', 'memories')} from this read${when}`
 }
