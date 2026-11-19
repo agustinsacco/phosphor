@@ -38,7 +38,10 @@ export async function extractWindows(
     const kept = [...alreadyKept, ...output.flatMap((p) => p.extraction.claims.map((c) => c.text))]
     const prompt = extractPrompt(window, offered, part, total, kept)
     const hash = inputHash(prompt)
-    const saved = store.part(jobId, key, hash)
+    // A refresh reconsiders knowledge, never the already-validated source extraction.
+    const saved =
+      store.part(jobId, key, hash) ??
+      (store.job(jobId)?.state === 'refreshing' ? store.part(jobId, key) : undefined)
     const extraction = saved
       ? (JSON.parse(saved.output) as StageExtraction)
       : await ask(

@@ -317,7 +317,13 @@ entities that a saved memory or group uses are created. A confirmed group create
 parent and one fact per member ("X is part of Harbor"), quoted as "Stated by you in review". If
 knowledge changed since the proposal was computed, the review says “Refreshing this review: Brain
 changed since it was read.” It stays a review (`refreshing`), retains its previous memory count,
-and recomputes identity and reconcile from saved extract steps. The queue refreshes stale reviews
+and recomputes identity and reconcile from saved extract and links steps. A refresh never
+re-reads the conversation; it asks again only the questions whose inputs changed. Even after an
+extractor prompt upgrade it reuses validated source windows by part name, only while refreshing;
+missing windows are read normally. New reads, failed-read retries and Read again still require
+an exact input hash. An upgrade may change a decision's candidate format, so its first refresh
+can ask that changed identity or reconcile question again, but never re-extracts saved windows.
+The queue refreshes stale reviews
 in the background, oldest first, before new reads. A finished refresh never changes knowledge.
 The internal `knowledge_revision` counter tracks memories, entities, names, aliases, descriptions,
 links, states and merges; Tidy suggestions, verdicts, dismissals, flags, coverage and run state
