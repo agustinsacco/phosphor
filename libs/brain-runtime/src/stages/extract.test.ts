@@ -265,6 +265,13 @@ it('marks holds on claims a refresh reuses from a window saved before holds exis
   const store = new FakeBrainStore(),
     job = store.enqueue(HARBOR_JOB, 'queued')
   store.updateJob(job.id, { state: 'refreshing' })
+  store.proposals.set(job.id, extraction(job.id))
+  store.savePart(job.id, {
+    part: 'prepare',
+    inputHash: 'frozen-v4',
+    output: '{}',
+    prepare: { leafId: job.leafId, model: job.model, branch: job.branch },
+  })
   const text = 'Harbor currently bills weekly.'
   const source = [{ entryId: 'new', role: 'user' as const, label: 'You', observedAt: 0, text }]
   const harbor = { ref: 'n1', label: 'Harbor', kind: 'project', aliases: [], description: '' }
