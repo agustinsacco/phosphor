@@ -64,6 +64,7 @@ export function BrainNeverRead({
           aria-label="Lane title pattern"
           className="min-w-0 flex-1"
           maxLength={80}
+          disabled={saving}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
         />

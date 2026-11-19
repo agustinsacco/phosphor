@@ -39,3 +39,43 @@ it('upgrades v6 in place without losing the read or its checkpoints', () => {
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+it('rolls back both nullable columns and the version if a v6 upgrade is interrupted', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'harbor-v7-rollback-'))
+  const path = join(directory, 'brain.sqlite')
+  try {
+    const old = new DatabaseSync(path)
+    old.exec(readFileSync(new URL('./__fixtures__/schema-v4.sql', import.meta.url), 'utf8'))
+    old.exec(
+      'ALTER TABLE jobs ADD COLUMN replaces TEXT; CREATE INDEX memories_origin ON memories(origin_session); CREATE INDEX jobs_finished ON jobs(state, finished_at DESC);',
+    )
+    old.exec(tidySchema)
+    old.close()
+    class Interrupted extends DatabaseSync {
+      override exec(sql: string): void {
+        if (sql.includes('run_started_at')) {
+          super.exec('ALTER TABLE jobs ADD COLUMN from_leaf TEXT')
+          throw new Error('Interrupted read metadata upgrade')
+        }
+        super.exec(sql)
+      }
+    }
+    expect(() => openBrainStore({ path, Database: Interrupted })).toThrow(
+      'Interrupted read metadata upgrade',
+    )
+    const inspect = new DatabaseSync(path)
+    try {
+      expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 6 })
+      expect(
+        inspect
+          .prepare('PRAGMA table_info(jobs)')
+          .all()
+          .map((row) => row.name),
+      ).not.toContain('from_leaf')
+    } finally {
+      inspect.close()
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})

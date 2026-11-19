@@ -106,12 +106,13 @@ or every two seconds during work; these reads never start a sweep or a model cal
 ### Lanes
 
 The left column lists reads by state, each group with its count: **Reading**, **Queued**,
-**Failed** and **Read** (the newest 200 finished reads; it says when there are more). Rows are the lane's title and one line: the reported step and how long it has run, the
-queue position, the error, or “2 memories · 5 min ago” (“Nothing worth keeping” for an empty
-read). Times are words (“3 min”, “1 h 20 min”), never a clock. **Recent changes** follows:
-the newest fifty Tidy journal operations with who made them (Automatic or By you), when, and
-**Undo**. With nothing read it says “Right-click a lane and choose Queue for knowledge
-extraction.” Reviews are not here; they belong to the Inbox.
+**Failed** and **Read** (the newest 200 finished reads; it says when there are more). Rows are
+the lane's title and one line: the reported step and how long it has run, the queue position,
+the error, or “2 memories · 5 min ago” (“Nothing worth keeping” for an empty read). Times are
+words (“3 min”, “1 h 20 min”), never a clock. **Recent changes** follows: the newest fifty
+Tidy journal operations with who made them (Automatic or By you), when, and **Undo**. With
+nothing read it says “Right-click a lane and choose Queue for knowledge extraction.” Reviews
+are not here; they belong to the Inbox.
 
 The middle column shows the selection. A reading job shows its model and step list (Prepare,
 Read the conversation (part x of y), Match people and things, Compare with what Brain knows,
@@ -127,13 +128,13 @@ selection on.
 Right-click a local lane and choose **Queue for knowledge extraction** when Brain has never
 read it, or **Read new messages for Brain** after a finished read. A queued, waiting or
 running lane offers **Cancel knowledge extraction** instead. The queue
-(`libs/brain-runtime/src/queue.ts`) runs one lane at a time and only while the embedding model is
-ready. A lane whose agent is working (`SessionActivity.busy`) waits until it is idle. A lane with
-nothing new since its newest finished read (`done`, `empty` or `rejected`) is refused with
-“Nothing new in this lane since its last read.” Queue reads only entries after that read's leaf,
-regardless of extractor version. Use **Read again** to apply a newer extractor from the beginning. A failed job shows **Retry**, which requeues the same
-job and resumes from its saved steps. Jobs left running when the app quit resume where they
-stopped.
+(`libs/brain-runtime/src/queue.ts`) runs one lane at a time and only while the embedding model
+is ready. A lane whose agent is working (`SessionActivity.busy`) waits until it is idle. A
+lane with nothing new since its newest finished read (`done`, `empty` or `rejected`) is
+refused with “Nothing new in this lane since its last read.” Queue reads only entries after
+that read's leaf, regardless of extractor version. Use **Read again** to apply a newer
+extractor from the beginning. A failed job shows **Retry**, which requeues the same job and
+resumes from its saved steps. Jobs left running when the app quit resume where they stopped.
 
 ### Lanes Brain never reads
 
@@ -153,10 +154,11 @@ Brain retains up to twenty finished reads per lane, with each read's leaf, curso
 and extraction record. Each row counts only the current (active or disputed) memories produced
 by that read. Its Read again count remains lane-wide: every unshared memory from the lane,
 including older reads. After replacement, older rows can show zero; they stay in history.
-Rejected reviews remain as `rejected` (nothing saved); a read with
-nothing worth keeping remains `empty`. The next queue continues after either, as after approval. The list reloads when jobs or knowledge change; a failed load
-has Retry. Model names match the picker; unavailable names fall back to the id without its
-provider prefix. A row opens the finished read in the same pane.
+Rejected reviews remain as `rejected` (nothing saved); a read with nothing worth keeping
+remains `empty`. The next queue continues after either, as after approval. The list reloads
+when jobs or knowledge change; a failed load has Retry. Model names match the picker;
+unavailable names fall back to the id without its provider prefix. A row opens the finished
+read in the same pane.
 
 **Read again** in a finished read reads the whole lane, even if nothing changed.
 It confirms how many earlier memories will be replaced. Memories another lane also supports
@@ -165,16 +167,17 @@ wait as usual; leaf and model freeze at first start. Retry keeps the replacement
 
 Earlier memories remain searchable while the new read runs and waits for review. Reconcile
 excludes the memories this read will replace; entity identity still reuses shared entities.
-Approval saves the checked candidates and removes the earlier, unshared memories from that lane
-in one transaction, including memories from older reads whose job rows are gone. Partial
+Approval saves the checked candidates and removes the earlier, unshared memories from that
+lane in one transaction, including memories from older reads whose job rows are gone. Partial
 approval, or approval with no candidates checked, still replaces them. With review off, saving
 happens immediately. A citation or relationship supported by a different lane protects its
-memory unchanged. Entries a fork copied from its source lane are the same evidence, not another
-lane's support; a message written in the fork is. Replacing bumps the revision once. If the
-search index fails to refresh after an automatic save, the read still ends as done and the
-failure is logged. A rejected, cancelled or permanently failed reread removes no knowledge.
-An **empty** reread (nothing kept) also removes nothing. Rejecting or dismissing a reread keeps
-the earlier finished read in history. Successful saving keeps both finished reads in the bounded history.
+memory unchanged. Entries a fork copied from its source lane are the same evidence, not
+another lane's support; a message written in the fork is. Replacing bumps the revision once.
+If the search index fails to refresh after an automatic save, the read still ends as done and
+the failure is logged. A rejected, cancelled or permanently failed reread removes no
+knowledge. An **empty** reread (nothing kept) also removes nothing. Rejecting or dismissing a
+reread keeps the earlier finished read in history. Successful saving keeps both finished reads
+in the bounded history.
 
 ## Reading a lane
 
@@ -315,28 +318,29 @@ in one line.
   and **Reject read** (`r`). A read again says “Replaces N memories from the last read”.
 
 **Approve** stores the ticked memories, the identity choices and confirmed groups in one
-transaction; **Reject** stores nothing. An uncertain entity without a choice becomes new, and only
-entities that a saved memory or group uses are created. A confirmed group creates or reuses the
-parent and one fact per member ("X is part of Harbor"), quoted as "Stated by you in review". If
-knowledge changed since the proposal was computed, the review says “Refreshing this review: Brain
-changed since it was read.” It stays a review (`refreshing`), retains its previous memory count,
-and recomputes identity and reconcile from saved extract and links steps. A refresh never
-re-reads the conversation; it asks again only the questions whose inputs changed. Even after an
-extractor prompt upgrade it reuses validated source windows by part name, only while refreshing;
-missing windows are read normally. New reads, failed-read retries and Read again still require
-an exact input hash. An upgrade may change a decision's candidate format, so its first refresh
-can ask that changed identity or reconcile question again, but never re-extracts saved windows.
-The queue refreshes stale reviews
-in the background, oldest first, before new reads. A finished refresh never changes knowledge.
-The internal `knowledge_revision` counter tracks memories, entities, names, aliases, descriptions,
-links, states and merges; Tidy suggestions, verdicts, dismissals, flags, coverage and run state
-change only the general revision used by the explorer and Tidy guards. Approval uses the knowledge
-guard too. Accepted identity and reconcile answers are keyed by their complete prompt, not either
-revision: unchanged questions, including answers saved by older apps, never call the model again.
-A changed candidate changes only the prompt that contains it. The job's `startedAt` is its first
-start, and `runStartedAt` is the current attempt (null while not running or refreshing). Read
-durations come from recorded model calls, not elapsed time across app quits. With review off, the defaults apply: uncertain becomes new, groups are skipped
-and conflicts are saved as disputed.
+transaction; **Reject** stores nothing. An uncertain entity without a choice becomes new, and
+only entities that a saved memory or group uses are created. A confirmed group creates or
+reuses the parent and one fact per member ("X is part of Harbor"), quoted as "Stated by you in
+review". If knowledge changed since the proposal was computed, the review says “Refreshing
+this review: Brain changed since it was read.” It stays a review (`refreshing`), retains its
+previous memory count, and recomputes identity and reconcile from saved extract and links
+steps. A refresh never re-reads the conversation; it asks again only the questions whose
+inputs changed. Even after an extractor prompt upgrade it reuses validated source windows by
+part name, only while refreshing; missing windows are read normally. New reads, failed-read
+retries and Read again still require an exact input hash. An upgrade may change a decision's
+candidate format, so its first refresh can ask that changed identity or reconcile question
+again, but never re-extracts saved windows. The queue refreshes stale reviews in the
+background, oldest first, before new reads. A finished refresh never changes knowledge. The
+internal `knowledge_revision` counter tracks memories, entities, names, aliases, descriptions,
+links, states and merges; Tidy suggestions, verdicts, dismissals, flags, coverage and run
+state change only the general revision used by the explorer and Tidy guards. Approval uses the
+knowledge guard too. Accepted identity and reconcile answers are keyed by their complete
+prompt, not either revision: unchanged questions, including answers saved by older apps, never
+call the model again. A changed candidate changes only the prompt that contains it. The job's
+`startedAt` is its first start, and `runStartedAt` is the current attempt (null while not
+running or refreshing). Read durations come from recorded model calls, not elapsed time across
+app quits. With review off, the defaults apply: uncertain becomes new, groups are skipped and
+conflicts are saved as disputed.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both
 sides until one is superseded or forgotten. **Forget** deletes one memory, then any evidence and
@@ -476,14 +480,14 @@ in words (“42 s”, “3 min”), never a clock. Opening one shows the scrubbe
 the rebuilt prompt and diagnostics, without cost or token counts. Raw output, prompts and source
 text each scroll inside a capped box.
 
-**Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records store no
-prompt text; a prompt whose inputs are gone says so. Records are kept while their job is in the
-inbox or is one of its lane's twenty retained finished reads, without an age limit. These jobs also keep
-step inputs, so finished-read prompts can be rebuilt. Removing or replacing a job deletes its
-step inputs. Records displaced by the twenty-read cap are deleted with their jobs. Any other record without
-a job survives only while a memory references it, and expires
-30 days after it finished; its prompts are unavailable. With neither job nor memory, the record
-is pruned immediately.
+**Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records
+store no prompt text; a prompt whose inputs are gone says so. Records are kept while their job
+is in the inbox or is one of its lane's twenty retained finished reads, without an age limit.
+These jobs also keep step inputs, so finished-read prompts can be rebuilt. Removing or
+replacing a job deletes its step inputs. Records displaced by the twenty-read cap are deleted
+with their jobs. Any other record without a job survives only while a memory references it,
+and expires 30 days after it finished; its prompts are unavailable. With neither job nor
+memory, the record is pruned immediately.
 
 ## Storage
 
@@ -493,12 +497,13 @@ memories, mentions, supported relations, citations, evidence, float/sign-bit vec
 suggestions, a bounded operation journal, and the saved sweep cursor and run checkpoint.
 Full text search covers memories, entity words and entity name trigrams.
 
-Versions 4 and 5 upgrade in place in one transaction. Version 4 first gains the jobs `replaces`
-column and lane-memory/finished-read indexes; both versions then gain the Tidy tables and
-indexes and become version 6. Versions 4, 5 and 6 then gain nullable job columns `from_leaf`
-and `run_started_at` and become version 7. Knowledge, preferences, jobs and records stay. A failed upgrade
-rolls back completely. Version 7 opens without altering its run checkpoint; the runtime owns
-interrupted-run recovery. Newer versions are refused. An older app refuses a version 7 Brain; it never resets it. Opening versions 0 to 3 deletes their
+Versions 4 and 5 upgrade in place in one transaction. Version 4 first gains the jobs
+`replaces` column and lane-memory/finished-read indexes; both versions then gain the Tidy
+tables and indexes and become version 6. Versions 4, 5 and 6 then gain nullable job columns
+`from_leaf` and `run_started_at` and become version 7. Knowledge, preferences, jobs and
+records stay. A failed upgrade rolls back completely. Version 7 opens without altering its run
+checkpoint; the runtime owns interrupted-run recovery. Newer versions are refused. An older
+app refuses a version 7 Brain; it never resets it. Opening versions 0 to 3 deletes their
 knowledge, keeps preferences with review on, and starts a new generation, as **Reset Brain
 knowledge** does. The model lives under `<userData>/brain/embeddings`.
 

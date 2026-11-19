@@ -314,3 +314,24 @@ it('returns null for an absent mock Tidy suggestion', async () => {
   const call = createMockBrain()
   await expect(call('brain:tidySuggestion', ['missing'])).resolves.toBeNull()
 })
+
+it('enforces never-read argument bounds in the browser mock, too', async () => {
+  const call = createMockBrain()
+  expect(await call('brain:neverRead', ['harbor-lane', true])).toMatchObject({
+    prefs: { neverRead: { sessionIds: ['harbor-lane'] } },
+  })
+  expect(await call('brain:neverRead', ['harbor-lane', false])).toMatchObject({
+    prefs: { neverRead: { sessionIds: [] } },
+  })
+  for (const args of [
+    ['', true],
+    ['x'.repeat(201), true],
+    ['harbor', 1],
+  ])
+    await expect(call('brain:neverRead', args)).rejects.toThrow('Invalid Brain never-read lane.')
+  await expect(
+    call('brain:setPrefs', [
+      { ...DEFAULT_BRAIN_PREFS, neverRead: { titles: Array(51).fill('Harbor'), sessionIds: [] } },
+    ]),
+  ).rejects.toThrow('Invalid Brain never-read settings.')
+})

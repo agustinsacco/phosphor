@@ -138,7 +138,7 @@ export async function stageCaller(context: CallContext): Promise<StageAsk> {
     // Extract and links checkpoint their parsed parts; decision stages keep the accepted answer, so
     // a Retry never asks again for decisions it already has. A changed prompt is a new question,
     // never the same question just because unrelated knowledge changed. Identity rows contain
-    // candidate ids, names, aliases, keys, descriptions and neighbours. Reconcile rows contain
+    // the entity's keys and candidate ids, names, aliases, descriptions and neighbours. Reconcile rows contain
     // the claim and every offered memory's id, summary, type and links: no hidden store input.
     const hash = inputHash(prompt)
     const key = stage === 'extract' || stage === 'links' ? null : `answer:${stage}:${hash}`
