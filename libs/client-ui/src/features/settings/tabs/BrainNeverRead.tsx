@@ -18,12 +18,7 @@ export function BrainNeverRead({
   const [error, setError] = useState('')
   const reasonId = useId()
   const title = draft.trim()
-  const reason =
-    prefs.titles.length >= 50
-      ? 'Up to 50 patterns'
-      : title && prefs.titles.some((pattern) => pattern.toLowerCase() === title.toLowerCase())
-        ? 'Already in the list'
-        : ''
+  const reason = patternAddRefusal(prefs.titles, title)
   const canAdd = !saving && title.length > 0 && title.length <= 80 && !reason
   const save = async (titles: string[]): Promise<boolean> => {
     try {
@@ -110,4 +105,11 @@ function BrainTitlePatterns({
       ))}
     </ul>
   )
+}
+
+function patternAddRefusal(patterns: string[], title: string): string {
+  if (patterns.length >= 50) return 'Up to 50 patterns'
+  return title && patterns.some((pattern) => pattern.toLowerCase() === title.toLowerCase())
+    ? 'Already in the list'
+    : ''
 }

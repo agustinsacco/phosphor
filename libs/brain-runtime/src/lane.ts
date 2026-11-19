@@ -65,7 +65,6 @@ export function laneMetadata(
   const selectedModel = readerModel ?? (provider && model ? `${provider}/${model}` : null)
   if (!selectedModel) throw new Error('This lane has no model to read it with.')
   return {
-    title: laneTitle(entries),
     sessionId: header.id,
     cwd: header.cwd,
     model: selectedModel,
@@ -75,8 +74,9 @@ export function laneMetadata(
 }
 
 export async function readLane(path: string, readerModel: string | null = null): Promise<LaneMeta> {
-  const meta = laneMetadata(await readEntries(path), readerModel)
-  return { ...meta, ...(await projectContext(meta.cwd)) }
+  const entries = await readEntries(path)
+  const meta = laneMetadata(entries, readerModel)
+  return { ...meta, title: laneTitle(entries), ...(await projectContext(meta.cwd)) }
 }
 
 /** Session names are append-only metadata; the UI or an earlier read may be out of date. */

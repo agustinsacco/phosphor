@@ -76,6 +76,10 @@
       "types": "./src/lane.ts",
       "default": "./src/lane.ts"
     },
+    "./lane-read-rules": {
+      "types": "./src/lane-read-rules.ts",
+      "default": "./src/lane-read-rules.ts"
+    },
     "./model-call": {
       "types": "./src/model-call.ts",
       "default": "./src/model-call.ts"
@@ -111,6 +115,10 @@
     "./service": {
       "types": "./src/service.ts",
       "default": "./src/service.ts"
+    },
+    "./source-checkpoint": {
+      "types": "./src/source-checkpoint.ts",
+      "default": "./src/source-checkpoint.ts"
     },
     "./stage-call": {
       "types": "./src/stage-call.ts",
