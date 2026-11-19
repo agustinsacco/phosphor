@@ -162,9 +162,11 @@ An empty lane displays “Untitled lane”; that placeholder never matches a tit
 waiting jobs, not its pending review; the Inbox still offers that review, with Reject as its
 primary action. Refresh also skips excluded lanes using their current names. A stale review
 can always be rejected, because rejection saves nothing; approving one that cannot be refreshed
-asks you to reject it instead. A deleted lane's refresh fails once with that remedy and is not
-retried automatically. These stored proposals still open so the owner can inspect them and
-Reject; approval shows the refusal in place. Recall is unaffected. A title-rule match takes precedence in the lane menu:
+asks you to reject it instead. If neither the stored transcript nor its `.archived` twin
+exists, the pending review stays in the Inbox and any waiting refresh returns to review; Brain
+makes no model call and does not offer a failing Retry. Its stored proposal still opens for
+inspection and Reject works. Approve is refused with “This lane was deleted, so this review
+can't be refreshed. Reject it.” Recall is unaffected. A title-rule match takes precedence in the lane menu:
 **Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
 per-lane switch that could falsely promise to override the title rule. A lane excluded only by
 its id offers **Let Brain read this lane**, with no Queue. Other lanes offer their ordinary

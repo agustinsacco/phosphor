@@ -17,7 +17,7 @@ import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
 import { readLane } from './lane'
 import {
-  currentNeverReadReason,
+  currentReadRefusal,
   NEVER_READ_REFRESH_REFUSAL,
   DELETED_LANE_REFRESH_REFUSAL,
 } from './lane-read-rules'
@@ -102,13 +102,9 @@ async function currentReview(
   const job = store.job(id)
   const proposal = store.storedProposal(id)
   if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-    const refusal = await currentNeverReadReason(store, job)
-      .then((reason) => (reason ? NEVER_READ_REFRESH_REFUSAL : null))
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.message === DELETED_LANE_REFRESH_REFUSAL)
-          return DELETED_LANE_REFRESH_REFUSAL
-        throw error
-      })
+    const reason = await currentReadRefusal(store, job)
+    const refusal =
+      reason === DELETED_LANE_REFRESH_REFUSAL ? reason : reason ? NEVER_READ_REFRESH_REFUSAL : null
     const latest = store.storedProposal(id)
     if (!latest || latest.computedRevision === store.knowledgeRevision()) return
     if (refusal) {

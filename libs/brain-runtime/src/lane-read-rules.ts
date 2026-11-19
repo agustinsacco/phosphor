@@ -3,11 +3,8 @@ import type { BrainStore } from '@phosphor/memory-engine/types'
 import { laneTitle } from './lane'
 import { readLaneEntries } from './transcript'
 
-/** Exclusions follow the current lane, not the title captured by an earlier read. */
-export async function currentNeverReadReason(
-  store: BrainStore,
-  job: BrainJob,
-): Promise<string | null> {
+/** Eligibility follows the current transcript; an unreadable review stays available to reject. */
+export async function currentReadRefusal(store: BrainStore, job: BrainJob): Promise<string | null> {
   const prefs = () => store.snapshot().prefs.neverRead
   const byId = brainNeverReadReason({ ...prefs(), titles: [] }, job)
   if (byId) return byId
@@ -16,9 +13,10 @@ export async function currentNeverReadReason(
       (error as NodeJS.ErrnoException).code === 'ENOENT' &&
       (job.state === 'review' || job.state === 'refreshing' || store.storedProposal(job.id))
     )
-      throw new Error(DELETED_LANE_REFRESH_REFUSAL)
+      return null
     throw error
   })
+  if (entries === null) return DELETED_LANE_REFRESH_REFUSAL
   const title = laneTitle(entries) ?? ''
   return brainNeverReadReason(prefs(), { ...job, title })
 }
