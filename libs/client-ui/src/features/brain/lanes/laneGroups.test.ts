@@ -101,6 +101,18 @@ it('counts what a read kept, confirmed and left out', () => {
   ).toEqual({ kept: 2, confirmed: 2, left: 2 })
 })
 
+it('never counts a noted outcome as kept, confirmed or left out', () => {
+  const noted: BrainExtractionOutcome = {
+    candidate: 'w2:cap',
+    summary: 'Part 2 returned 25 claims, the most one part may keep',
+    status: 'noted',
+  }
+  expect(readCounts([noted])).toEqual({ kept: 0, confirmed: 0, left: 0 })
+  expect(
+    readCounts([noted, { candidate: 'w2:c1', summary: 'Harbor bills monthly.', status: 'kept' }]),
+  ).toEqual({ kept: 1, confirmed: 0, left: 0 })
+})
+
 it('keeps a selection that exists or was asked for by id, else the first read', () => {
   const groups = laneGroups([mockBrainJob({ id: 'running', state: 'running' })], null)
   const changes = [{ id: 'op-2' }, { id: 'op-1' }] as BrainTidyOperation[]

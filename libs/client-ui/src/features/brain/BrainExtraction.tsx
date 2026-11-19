@@ -18,6 +18,7 @@ const OUTCOME = {
   enriches: 'enriches',
   held: 'held',
   dropped: 'dropped',
+  noted: 'noted',
 } as const
 export function BrainExtraction({
   jobId,

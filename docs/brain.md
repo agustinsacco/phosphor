@@ -433,7 +433,8 @@ how many earlier memories will be replaced; **Dismiss** removes an empty read; *
 **See these memories · N memories**, closed at first, opens each memory on Knowledge (a review's
 **See how it was read** shows the same list open, as **Memories from this lane**). **What
 happened to each claim** lists each candidate with its outcome and reason, the first twenty with
-**Show more**; forgotten memories say “removed”, not a dead link. **How it was read · n calls**
+**Show more**; forgotten memories say “removed”, not a dead link. A remark about the read that
+keeps and drops nothing shows as “noted” and counts in none of the three. **How it was read · n calls**
 has one closed disclosure per call, named in plain words with part number and how long it took
 in words (“42 s”, “3 min”), never a clock. Opening one shows the scrubbed raw output with Copy,
 the rebuilt prompt and diagnostics, without cost or token counts. Raw output, prompts and source

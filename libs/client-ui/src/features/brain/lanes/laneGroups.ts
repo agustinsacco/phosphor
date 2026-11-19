@@ -121,13 +121,30 @@ export function readCounts(outcomes: BrainExtractionOutcome[]): {
   confirmed: number
   left: number
 } {
-  const count = (statuses: BrainExtractionOutcome['status'][]): number =>
-    outcomes.filter((outcome) => statuses.includes(outcome.status) && !outcome.removed).length
-  return {
-    kept: count(['kept', 'enriches']),
-    confirmed: count(['reconfirms', 'folded']),
-    left: outcomes.filter((o) => o.status === 'held' || o.status === 'dropped').length,
+  const counts = { kept: 0, confirmed: 0, left: 0 }
+  for (const outcome of outcomes) {
+    const status = outcome.status
+    switch (status) {
+      case 'kept':
+      case 'enriches':
+        if (!outcome.removed) counts.kept++
+        break
+      case 'reconfirms':
+      case 'folded':
+        if (!outcome.removed) counts.confirmed++
+        break
+      case 'held':
+      case 'dropped':
+        counts.left++
+        break
+      case 'noted':
+        // A remark about the read: nothing was kept, confirmed or left out.
+        break
+      default:
+        status satisfies never
+    }
   }
+  return counts
 }
 
 /** A finished read's second line: what is left of it, and when. */
