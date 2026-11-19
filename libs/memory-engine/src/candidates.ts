@@ -202,6 +202,56 @@ interface StoredMemory {
 }
 const STORED = 'm.id,m.state,v.vector'
 const VECTOR = 'LEFT JOIN memory_vectors v ON v.memory=m.n'
+/** One entity's window scored against every claim naming it. Its vectors are not kept. */
+interface ScoredWindow {
+  ids: string[]
+  current: boolean[]
+  /** By probe index: each row's cosine to that probe, in window order; 0 without vectors. */
+  scores: Map<number, Float64Array>
+}
+/**
+ * Loads each named entity's window once, scores it against all claims naming it, and drops its
+ * vectors before the next one, so a read naming hundreds of entities holds one window's
+ * vectors at a time (about 384 KiB) instead of all of them.
+ */
+function scoredWindows(
+  ctx: Context,
+  probes: ClaimProbe[],
+  numbers: Map<string, number | undefined>,
+): Map<number, ScoredWindow> {
+  const naming = new Map<number, Set<number>>()
+  probes.forEach((probe, index) => {
+    for (const id of probe.entityIds) {
+      if (!numbers.has(id)) numbers.set(id, knownNumber(ctx, id))
+      const n = numbers.get(id)
+      if (n !== undefined) naming.set(n, (naming.get(n) ?? new Set()).add(index))
+    }
+  })
+  const windows = new Map<number, ScoredWindow>()
+  for (const [n, named] of naming) {
+    const rows = all<StoredMemory>(
+      ctx,
+      `SELECT ${STORED} FROM mentions a JOIN memories m ON m.n=a.memory ${VECTOR} WHERE a.entity=? ORDER BY a.memory DESC LIMIT ?`,
+      n,
+      ENTITY_WINDOW,
+    )
+    const scores = new Map([...named].map((index) => [index, new Float64Array(rows.length)]))
+    rows.forEach((row, i) => {
+      if (!row.vector) return
+      const vector = decodeVector(row.vector)
+      for (const index of named) {
+        const probe = probes[index]!.vector
+        if (probe) scores.get(index)![i] = cosine(probe, vector)
+      }
+    })
+    windows.set(n, {
+      ids: rows.map((row) => row.id),
+      current: rows.map((row) => CURRENT.has(row.state)),
+      scores,
+    })
+  }
+  return windows
+}
 /**
  * Memories that may say the same thing as each claim: those stating one of its links, and the
  * entity matches most similar to it among each named entity's newest memories, so a busy
@@ -209,21 +259,9 @@ const VECTOR = 'LEFT JOIN memory_vectors v ON v.memory=m.n'
  * windows come back only when very close. At most `limit` per channel.
  */
 export function memoryMatches(ctx: Context, probes: ClaimProbe[], limit: number): MemoryMatch[][] {
-  const windows = new Map<number, StoredMemory[]>()
-  const window = (n: number): StoredMemory[] => {
-    let rows = windows.get(n)
-    if (!rows) {
-      rows = all<StoredMemory>(
-        ctx,
-        `SELECT ${STORED} FROM mentions a JOIN memories m ON m.n=a.memory ${VECTOR} WHERE a.entity=? ORDER BY a.memory DESC LIMIT ?`,
-        n,
-        ENTITY_WINDOW,
-      )
-      windows.set(n, rows)
-    }
-    return rows
-  }
-  return probes.map((probe) => {
+  const numbers = new Map<string, number | undefined>()
+  const windows = scoredWindows(ctx, probes, numbers)
+  return probes.map((probe, index) => {
     const score = (row: StoredMemory): number =>
       probe.vector && row.vector ? cosine(probe.vector, decodeVector(row.vector)) : 0
     const linked = new Map<string, MemoryMatch>()
@@ -232,15 +270,17 @@ export function memoryMatches(ctx: Context, probes: ClaimProbe[], limit: number)
         linked.set(row.id, { id: row.id, channel: 'link', similarity: score(row) })
     const named = new Map<string, MemoryMatch>()
     for (const id of probe.entityIds) {
-      const n = knownNumber(ctx, id)
+      const n = numbers.get(id)
       if (n === undefined) continue
-      for (const row of window(n)) {
-        if (linked.has(row.id) || named.has(row.id)) continue
-        const similarity = score(row)
-        if (CURRENT.has(row.state)) named.set(row.id, { id: row.id, channel: 'entity', similarity })
+      const window = windows.get(n)!
+      const scores = window.scores.get(index)!
+      window.ids.forEach((memoryId, i) => {
+        if (linked.has(memoryId) || named.has(memoryId)) return
+        const similarity = scores[i]!
+        if (window.current[i]) named.set(memoryId, { id: memoryId, channel: 'entity', similarity })
         else if (similarity >= REPLACED_SIMILARITY)
-          named.set(row.id, { id: row.id, channel: 'replaced', similarity })
-      }
+          named.set(memoryId, { id: memoryId, channel: 'replaced', similarity })
+      })
     }
     // A stable sort keeps the newest first among equally similar memories.
     const ranked = [...named.values()].sort((a, b) => b.similarity - a.similarity)

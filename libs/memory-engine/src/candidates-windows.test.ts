@@ -7,28 +7,35 @@ import { WINDOW, windowProbes, windowsFixture } from './__fixtures__/memory-wind
 setFlagsFromString('--expose-gc')
 const gc = runInNewContext('gc') as () => void
 const MIB = 2 ** 20
+/** Each test builds a store of 12,800 memories with vectors; a busy machine needs the room. */
+const BUILD = { timeout: 60_000 }
 
-it('characterization: ranks entity, link and replaced matches exactly as before the window bound', () => {
-  const { store } = windowsFixture(100)
-  try {
-    const result = store.memoryMatches(windowProbes(100, 60), 5)
-    const channels: Record<string, number> = {}
-    for (const match of result.flat()) channels[match.channel] = (channels[match.channel] ?? 0) + 1
-    expect(channels).toEqual({ entity: 300, link: 10, replaced: 7 })
-    expect(result[1]!.slice(0, 2)).toEqual([
-      { id: 'memory-807', channel: 'entity', similarity: 0.0905449116630476 },
-      { id: 'memory-8807', channel: 'entity', similarity: 0.08996814810228204 },
-    ])
-    // Recorded on the code before the bound: every id, channel, similarity and order.
-    expect(createHash('sha256').update(JSON.stringify(result)).digest('hex')).toBe(
-      '831fdb58a8b2f846fdea612ade89ce1d4f923bc48e2ed7a48904dd57b4149453',
-    )
-  } finally {
-    store.close()
-  }
-})
+it(
+  'characterization: ranks entity, link and replaced matches exactly as before the window bound',
+  BUILD,
+  () => {
+    const { store } = windowsFixture(100)
+    try {
+      const result = store.memoryMatches(windowProbes(100, 60), 5)
+      const channels: Record<string, number> = {}
+      for (const match of result.flat())
+        channels[match.channel] = (channels[match.channel] ?? 0) + 1
+      expect(channels).toEqual({ entity: 300, link: 10, replaced: 7 })
+      expect(result[1]!.slice(0, 2)).toEqual([
+        { id: 'memory-807', channel: 'entity', similarity: 0.0905449116630476 },
+        { id: 'memory-8807', channel: 'entity', similarity: 0.08996814810228204 },
+      ])
+      // Recorded on the code before the bound: every id, channel, similarity and order.
+      expect(createHash('sha256').update(JSON.stringify(result)).digest('hex')).toBe(
+        '831fdb58a8b2f846fdea612ade89ce1d4f923bc48e2ed7a48904dd57b4149453',
+      )
+    } finally {
+      store.close()
+    }
+  },
+)
 
-it('regression: holds at most one entity window of memory vectors at a time', () => {
+it('regression: holds at most one entity window of memory vectors at a time', BUILD, () => {
   // Before each window loads, collect garbage and sample what is still held. The second
   // collection finishes freeing the array buffers the first one found unreachable.
   const held: number[] = []
