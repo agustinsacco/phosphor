@@ -214,6 +214,13 @@ export function parseStageExtraction(
     candidate('claim', 'c'),
     outcomes,
   )
+  if (rawClaims.length === MAX_PART_CLAIMS)
+    outcomes.push({
+      candidate: 'cap',
+      summary: `This part returned ${MAX_PART_CLAIMS} claims, the most one part may keep`,
+      status: 'noted',
+      reason: 'More claims may have passed the test than one part can return.',
+    })
   const parents: StageParent[] = []
   for (const value of Array.isArray(data.parents) ? data.parents : []) {
     try {

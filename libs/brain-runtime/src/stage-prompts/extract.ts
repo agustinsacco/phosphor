@@ -26,7 +26,7 @@ Keep a claim when all three hold:
 1. A future session on this or related work would act differently because of it.
 2. It would take real digging to learn again: it is not plain from reading the code, and no single obvious ticket or document states it.
 3. It will probably still be true a month from now, or it is a decision recorded with its reason.
-Keep every claim that passes, up to 25. Return an empty "claims" list only when nothing passes.
+Keep every claim that passes, up to 25. 25 is a ceiling, not a target: most parts keep fewer than ten. Return an empty "claims" list only when nothing passes.
 
 # What to look for
 Go through the whole conversation once for each kind below. A conversation about planning, people or customers is as valuable as one about code.
@@ -55,7 +55,7 @@ Examples (made up). Keep: "Rina Okafor wants review comments posted only after s
 Each claim is one self-contained sentence that a reader understands without this conversation. Name people and things; call the user by name when the conversation gives it, never "the user". Keep the exact values that matter. Pull request and ticket numbers may appear in the sentence as references; leave file paths and line numbers out. Use only what the conversation shows. Every claim needs one or two quotes copied exactly from one segment.
 
 # Entities
-Entities are lasting things only: person (a human), team, organization (a company, customer or vendor), project (a product or initiative), component (a service, system, tool, library or environment), document (a spec, runbook or design doc), concept (a named domain term or acronym the project relies on), event (a dated milestone or incident). A person is a human, never an AI agent, model or bot. Pull requests, tickets, commits, branches and files are never entities. Create an entity only when a claim you keep mentions it. Use an offered registry ref whenever one fits.
+Entities are lasting things only: person (a human), team, organization (a company, customer or vendor), project (a product or initiative), component (a service, system, tool, library or environment), document (a spec, runbook or design doc), concept (a named domain term or acronym the project relies on), event (a dated milestone or incident). A person is a human, never an AI agent, model or bot. Pull requests, tickets, commits, branches and files are never entities. A database table, feature flag, service account, scheduled job or contract clause is not an entity either, unless people discuss it as a thing someone owns. Create an entity only when a claim you keep mentions it. Use an offered registry ref whenever one fits.
 
 # Links
 Links turn separate memories into a graph, so they matter as much as the claims. After choosing the claims, go through their entities and add every lasting relationship the conversation shows between two of them: who owns, works on or belongs to what, and what is part of, built for, depends on or uses what. Put each link on a kept claim that mentions both entities. The claim need not be about the relationship, but the link's own quote must show it, and that quote may come from any segment. Allowed links, as subject kinds → object kinds:

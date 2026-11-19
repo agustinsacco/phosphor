@@ -197,8 +197,10 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    tools. Only the assistant's account of its own work is skipped. A claim is kept if a future
    session would act differently, it would take real digging to learn again, and it will
    probably still hold in a month or records a decision with its reason. Each part keeps every
-   claim that passes, up to 25; an empty answer is valid only when nothing passes. Extra claims
-   are dropped with a recorded reason. No kind of claim ranks first. The model looks for people
+   claim that passes, up to 25, a ceiling rather than a target (most parts keep fewer than
+   ten); an empty answer is valid only when nothing passes. Extra claims are dropped with a
+   recorded reason, and a part that returns exactly 25 gets a noted outcome. No kind of claim
+   ranks first. The model looks for people
    and structure (who is on which team, who leads, owns or decides what, which customer a
    project is for), how systems, vendors, data and customers behave, decisions with reasons,
    preferences and corrections, reusable procedures, remaining risks and open questions for a
@@ -211,7 +213,9 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    typed links with their own quotes, and parent assessments for new projects, components,
    documents and teams. A stated parent needs a kept structural link whose subject is that entity.
    Missing or invalid parent assessments mean not stated. People are humans, never agents or bots.
-   Pull requests, tickets, commits, branches and files are not entities. The model is asked for
+   Pull requests, tickets, commits, branches and files are not entities, nor are database
+   tables, feature flags, service accounts, scheduled jobs or contract clauses unless people
+   discuss one as a thing someone owns. The model is asked for
    every lasting relationship the conversation shows between a kept claim's entities. A link
    sits on a claim that mentions both ends, and its quote may come from any segment. A person is
    linked only for a real role, never to a tool they merely use. Claims call the user by name
