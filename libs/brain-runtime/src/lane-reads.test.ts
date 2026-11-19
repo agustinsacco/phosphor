@@ -155,3 +155,36 @@ it('reads a stale review lane at most twice when the Inbox opens and refreshes i
   })
   expect(readsOf(s.file)).toBeLessThanOrEqual(2)
 })
+
+it('re-checks unchanged waiting lanes from their remembered titles when the rules change', async () => {
+  const s = await setup({ busy: true })
+  vi.mocked(s.options.lanes.busy).mockReturnValue(true)
+  const ledger = join(s.directory, 'ledger.jsonl')
+  await appendFile(s.file, '\n' + JSON.stringify({ type: 'session_info', name: 'Harbor sync' }))
+  await writeFile(
+    ledger,
+    [
+      ...s.entries.map((entry) =>
+        entry.type === 'session' ? { ...entry, id: 'ledger-lane' } : entry,
+      ),
+      { type: 'session_info', name: 'Ledger planning' },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n'),
+  )
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor sync' })
+  const status = await s.service.api.queue({ sessionPath: ledger, title: 'Ledger planning' })
+  expect(status.jobs.map((job) => job.state)).toEqual(['waiting', 'waiting'])
+  await s.service.api.setPrefs({
+    ...s.store.prefs,
+    neverRead: { ...s.store.prefs.neverRead, titles: ['Ledger'] },
+  })
+  await vi.waitFor(() =>
+    expect(s.store.jobs.map((job) => [job.sessionId, job.state])).toEqual([
+      ['harbor-lane', 'waiting'],
+    ]),
+  )
+  // Queue's own check of each lane, and nothing since.
+  expect([readsOf(s.file), readsOf(ledger)]).toEqual([1, 1])
+  expect(s.runner).not.toHaveBeenCalled()
+})
