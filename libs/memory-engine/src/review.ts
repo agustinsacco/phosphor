@@ -1,5 +1,6 @@
 import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import type { BrainReviewDecision } from '@phosphor/shared/brain'
+import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
 import { all, run, transaction, type Context } from './database'
 import {
   addNames,
@@ -161,7 +162,7 @@ export function review(
       (expectedRevision !== knowledgeRevision(ctx) ||
         value.computedRevision !== knowledgeRevision(ctx))
     )
-      throw new Error('Brain changed while you were reviewing. Reopen the review.')
+      throw new Error(BRAIN_REVIEW_CHANGED)
     const current = job(ctx, jobId)!
     if (decision) validateDecision(ctx, value, decision)
     if (decision) {

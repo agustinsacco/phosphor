@@ -12,6 +12,17 @@ import type {
   BrainQuote,
 } from './brain'
 
+/**
+ * The review is being recomputed because knowledge changed since it was read. The page shows
+ * it as refreshing and loads it again; it is the only load or approval refusal that does.
+ */
+export const BRAIN_REVIEW_REFRESHING = 'Brain changed; refreshing this review'
+/** Knowledge changed between opening a review and approving it: the page reloads it. */
+export const BRAIN_REVIEW_CHANGED = 'Brain changed while you were reviewing. Reopen the review.'
+/** A stale review of a lane Brain is set never to read: it cannot refresh, only be rejected. */
+export const BRAIN_NEVER_READ_REFRESH_REFUSAL =
+  "Brain changed since this was read, and this lane is set to never be read, so it can't be refreshed. Reject it instead."
+
 /** One entity the lane mentions, and what Brain thinks it is. */
 export interface BrainIdentity {
   /** Job-local ref; proposed memories and links use it. */

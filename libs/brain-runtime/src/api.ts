@@ -12,6 +12,7 @@ import {
   type BrainStatus,
 } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
+import { BRAIN_REVIEW_REFRESHING } from '@phosphor/shared/brain-review'
 import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
@@ -115,13 +116,11 @@ async function currentReview(
       if (intent === 'view') return
       throw new Error(refusal)
     }
-    if (store.job(id)?.state === 'refreshing')
-      throw new Error('Brain changed; refreshing this review')
+    if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
     queue.recompute(id)
-    throw new Error('Brain changed; refreshing this review')
+    throw new Error(BRAIN_REVIEW_REFRESHING)
   }
-  if (store.job(id)?.state === 'refreshing')
-    throw new Error('Brain changed; refreshing this review')
+  if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
 }
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context

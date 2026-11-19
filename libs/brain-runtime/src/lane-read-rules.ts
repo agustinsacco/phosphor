@@ -1,4 +1,5 @@
 import { brainNeverReadReason, type BrainJob } from '@phosphor/shared/brain'
+import { BRAIN_NEVER_READ_REFRESH_REFUSAL } from '@phosphor/shared/brain-review'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { laneTitle } from './lane'
 import { readEntries } from './transcript'
@@ -23,8 +24,8 @@ export async function currentNeverReadReason(
   return brainNeverReadReason(prefs(), { ...job, title })
 }
 
-export const NEVER_READ_REFRESH_REFUSAL =
-  "Brain changed since this was read, and this lane is set to never be read, so it can't be refreshed. Reject it instead."
+/** Shared, so the review page can tell it from the sentences that reload a review. */
+export const NEVER_READ_REFRESH_REFUSAL = BRAIN_NEVER_READ_REFRESH_REFUSAL
 
 export const DELETED_LANE_REFRESH_REFUSAL =
   "This lane was deleted, so this review can't be refreshed. Reject it."

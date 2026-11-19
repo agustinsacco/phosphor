@@ -2,6 +2,7 @@ import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
 import { mockBrainPrefs } from './mockBrainPrefs'
 import type { BrainEntitySort } from '@shared/brain-explore'
 import { brainLaneNeverRead, brainNeverReadReason } from '@shared/brain'
+import { BRAIN_REVIEW_REFRESHING } from '@shared/brain-review'
 import type {
   BrainExtractionView,
   BrainEntityKind,
@@ -73,7 +74,7 @@ class MockBrain {
     return this.state
   }
   private review(id: string, decision: BrainReviewDecision | null, revision: number): BrainStatus {
-    if (this.state.revision !== revision) throw new Error('Brain changed; refreshing this review')
+    if (this.state.revision !== revision) throw new Error(BRAIN_REVIEW_REFRESHING)
     const proposal = this.proposal(id)
     checkMockDecision(proposal, decision)
     if (decision) {
@@ -98,12 +99,12 @@ class MockBrain {
   }
   private proposal(id: string): BrainProposalView {
     const job = this.state.jobs.find((item) => item.id === id)
-    if (job?.state === 'refreshing') throw new Error('Brain changed; refreshing this review')
+    if (job?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
     if (job?.state !== 'review') throw new Error('Review not found')
     if (this.computedRevisions.get(id) !== this.state.revision) {
       // Recomputed as the same review: its first start stays, the attempt starts on a tick.
       Object.assign(job, { state: 'refreshing', runStartedAt: null, progress: null })
-      throw new Error('Brain changed; refreshing this review')
+      throw new Error(BRAIN_REVIEW_REFRESHING)
     }
     const plain = mockBrainProposal(job, this.state.revision)
     const proposal = this.demo && job.id === 'harbor-demo-review' ? withDemoQuestions(plain) : plain

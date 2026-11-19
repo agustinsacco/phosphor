@@ -1,4 +1,5 @@
 import type { BrainTidyRun } from '@phosphor/shared/brain-tidy'
+import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
 import {
   emptyBrainTidySummary,
   emptyBrainTidyPage,
@@ -250,7 +251,7 @@ export class FakeBrainStore implements BrainStore {
   }
   review(id: string, decision: BrainReviewDecision | null, revision: number): void {
     if (decision !== null && revision !== this.knowledgeRevision())
-      throw new Error('Brain changed while you were reviewing. Reopen the review.')
+      throw new Error(BRAIN_REVIEW_CHANGED)
     this.reviews.push({ id, decision })
     this.updateJob(id, {
       state: decision ? 'done' : 'rejected',
