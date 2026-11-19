@@ -11,7 +11,6 @@ import type {
   BrainMemoryFilter,
   BrainProposalView,
   BrainPredicate,
-  BrainReviewDecision,
   BrainStatus,
 } from '@shared/brain'
 import { mockBrainJob, mockBrainProposal, mockBrainStatus } from './mockBrainData'
@@ -73,10 +72,12 @@ class MockBrain {
     this.state.readSessionIds = [...new Set(read.map((job) => job.sessionId))].slice(0, 5000)
     return this.state
   }
-  private review(id: string, decision: BrainReviewDecision | null, revision: number): BrainStatus {
+  private review(id: string, value: unknown, revision: number): BrainStatus {
     if (this.state.revision !== revision) throw new Error(BRAIN_REVIEW_REFRESHING)
     const proposal = this.proposal(id)
-    checkMockDecision(proposal, decision)
+    const decision = checkMockDecision(proposal, value, (entityId) =>
+      this.explorer.entities.some((entity) => entity.id === entityId),
+    )
     if (decision) {
       if (proposal.job.replaces)
         this.explorer.details = this.explorer.details.filter(
@@ -228,11 +229,7 @@ class MockBrain {
   private mutation(channel: string, args: unknown[]): BrainStatus {
     switch (channel) {
       case 'brain:review':
-        return this.review(
-          args[0] as string,
-          args[1] as BrainReviewDecision | null,
-          args[2] as number,
-        )
+        return this.review(args[0] as string, args[1], args[2] as number)
       case 'brain:reset':
         this.tidy.reset()
         this.explorer.entities = []

@@ -1,35 +1,96 @@
-import type { BrainMemoryDetail, BrainProposalView, BrainReviewDecision } from '@shared/brain'
+import type {
+  BrainMemoryDetail,
+  BrainProposalView,
+  BrainProposedMemory,
+  BrainReviewDecision,
+} from '@shared/brain'
+import {
+  BRAIN_DECISION_REFUSALS,
+  brainRequiredAnswerRefusal,
+  checkBrainReviewDecision,
+} from '@shared/brain-review'
 import { mockBrainData } from './mockBrainData'
 import type { MockExplorer } from './mockExplorer'
 
-const DECISION_KEYS = ['memories', 'identities', 'groups', 'descriptions', 'confirmations']
+type Claim = Pick<BrainProposedMemory, 'entities' | 'links'>
+const claimRefs = (claim: Claim): string[] => [
+  ...claim.entities,
+  ...claim.links.flatMap((link) => [link.subject, link.object]),
+]
+/** The owner answered one of the claim's identities differently from Brain's suggestion. */
+function identityChanged(
+  proposal: BrainProposalView,
+  decision: BrainReviewDecision,
+  claim: Claim,
+): boolean {
+  return claimRefs(claim).some((ref) => {
+    const override = decision.identities[ref]
+    const identity = proposal.identities.find((item) => item.ref === ref)
+    return (
+      override !== undefined &&
+      override !== (identity?.decision === 'reuse' ? identity.entityId : 'new')
+    )
+  })
+}
+/** Every ref this approval resolves: ticked memories, confirmed groups, and confirmations
+ * (not held, or ticked) that become new memories because an identity changed. */
+function usedRefs(proposal: BrainProposalView, decision: BrainReviewDecision): Set<string> {
+  const memories = proposal.memories.filter((memory) => decision.memories.includes(memory.index))
+  const groups = proposal.groups.filter((group) => decision.groups.includes(group.index))
+  const confirmations = proposal.confirmations.filter(
+    (item, index) =>
+      (!item.claim.hold || decision.confirmations.includes(index)) &&
+      identityChanged(proposal, decision, item.claim),
+  )
+  return new Set([
+    ...memories.flatMap(claimRefs),
+    ...groups.flatMap((group) => [
+      ...group.members,
+      ...(group.parent.entityId ? [group.parent.entityId] : []),
+    ]),
+    ...confirmations.flatMap((item) => claimRefs(item.claim)),
+  ])
+}
 
-/** The shape Desktop's checkDecision accepts; descriptions must name this proposal's refs. */
+/**
+ * Refuses what Desktop refuses, in its words, before anything changes: the shape and sizes its
+ * IPC check accepts, then the engine's rules in the engine's order (indexes, identity answers,
+ * descriptions, held-only confirmation ticks, required answers). `known` says whether an
+ * existing record id is in the mock's Brain.
+ */
 export function checkMockDecision(
   proposal: BrainProposalView,
-  decision: BrainReviewDecision | null,
-): void {
-  if (decision === null) return
-  const refs = new Set(proposal.identities.map((identity) => identity.ref))
-  const valid =
-    Object.keys(decision).every((key) => DECISION_KEYS.includes(key)) &&
-    Array.isArray(decision.memories) &&
-    Array.isArray(decision.groups) &&
-    !!decision.identities &&
-    typeof decision.identities === 'object' &&
-    Array.isArray(decision.descriptions) &&
-    decision.descriptions.every((ref) => typeof ref === 'string' && refs.has(ref))
-  if (!valid) throw new Error('Invalid review selection.')
-  // As the engine: unique ticks on held confirmations only.
-  const ticked: unknown = decision.confirmations
+  value: unknown,
+  known: (entityId: string) => boolean,
+): BrainReviewDecision | null {
+  const decision = checkBrainReviewDecision(value)
+  if (!decision) return null
+  const { index, identity, description, confirmation } = BRAIN_DECISION_REFUSALS
+  const refuse = (message: string): never => {
+    throw new Error(message)
+  }
   if (
-    !Array.isArray(ticked) ||
-    new Set(ticked).size !== ticked.length ||
-    ticked.some(
-      (index) => !Number.isInteger(index) || !proposal.confirmations[index as number]?.claim.hold,
-    )
+    decision.memories.some((i) => !proposal.memories.some((memory) => memory.index === i)) ||
+    decision.groups.some((i) => !proposal.groups.some((group) => group.index === i))
   )
-    throw new Error('Brain confirmation choice is invalid.')
+    refuse(index)
+  for (const [ref, target] of Object.entries(decision.identities))
+    if (
+      !proposal.identities.some((item) => item.ref === ref) ||
+      (target !== 'new' && !known(target))
+    )
+      refuse(identity)
+  for (const ref of decision.descriptions)
+    if (!proposal.identities.find((item) => item.ref === ref)?.description.trim())
+      refuse(description)
+  if (decision.confirmations.some((i) => !proposal.confirmations[i]?.claim.hold))
+    refuse(confirmation)
+  const used = usedRefs(proposal, decision)
+  const unanswered = proposal.identities.find(
+    (item) => item.required && used.has(item.ref) && !(item.ref in decision.identities),
+  )
+  if (unanswered) refuse(brainRequiredAnswerRefusal(unanswered.label))
+  return decision
 }
 
 /**
