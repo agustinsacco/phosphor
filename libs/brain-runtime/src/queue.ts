@@ -110,8 +110,19 @@ export class ExtractionQueue {
           this.options.cancelled?.(job, reason)
           changed()
         }
-      } catch {
-        // The runner reports unreadable lanes when they start, not while waiting.
+      } catch (error) {
+        if (this.accepting && (job.state === 'review' || job.state === 'refreshing')) {
+          store.updateJob(job.id, {
+            state: 'failed',
+            finishedAt: this.options.now(),
+            error:
+              error instanceof Error
+                ? error.message.slice(0, 300)
+                : 'Could not refresh this review.',
+          })
+          changed()
+        }
+        // The runner reports unreadable new lanes when they start, not while waiting.
       }
     }
   }

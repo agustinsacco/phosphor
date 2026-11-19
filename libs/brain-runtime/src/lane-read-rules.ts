@@ -11,9 +11,20 @@ export async function currentNeverReadReason(
   const prefs = () => store.snapshot().prefs.neverRead
   const byId = brainNeverReadReason({ ...prefs(), titles: [] }, job)
   if (byId) return byId
-  const title = laneTitle(await readEntries(job.sessionPath)) ?? ''
+  const entries = await readEntries(job.sessionPath).catch((error: unknown) => {
+    if (
+      (error as NodeJS.ErrnoException).code === 'ENOENT' &&
+      (job.state === 'review' || job.state === 'refreshing' || store.storedProposal(job.id))
+    )
+      throw new Error(DELETED_LANE_REFRESH_REFUSAL)
+    throw error
+  })
+  const title = laneTitle(entries) ?? ''
   return brainNeverReadReason(prefs(), { ...job, title })
 }
 
 export const NEVER_READ_REFRESH_REFUSAL =
   "Brain changed since this was read, and this lane is set to never be read, so it can't be refreshed. Reject it instead."
+
+export const DELETED_LANE_REFRESH_REFUSAL =
+  "This lane was deleted, so this review can't be refreshed. Reject it."

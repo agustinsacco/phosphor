@@ -142,7 +142,10 @@ older read finishing late never moves it backwards. Jobs left running when the a
 
 Both Queue and Read again refuse an excluded lane. Changing the rules cancels its queued and
 waiting jobs, not its pending review; the Inbox still offers that review, with Reject as its
-primary action. Recall is unaffected. A title-rule match takes precedence in the lane menu:
+primary action. Refresh also skips excluded lanes using their current names. A stale review
+can always be rejected, because rejection saves nothing; approving one that cannot be refreshed
+asks you to reject it instead. A deleted lane's refresh fails once with that remedy and is not
+retried automatically. Recall is unaffected. A title-rule match takes precedence in the lane menu:
 **Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
 per-lane switch that could falsely promise to override the title rule. A lane excluded only by
 its id offers **Let Brain read this lane**, with no Queue. Other lanes offer their ordinary
@@ -326,8 +329,8 @@ reuses the parent and one fact per member ("X is part of Harbor"), quoted as "St
 review". If knowledge changed since the proposal was computed, the review says “Refreshing
 this review: Brain changed since it was read.” It stays a review (`refreshing`), retains its
 previous memory count, and recomputes identity and reconcile from saved extract and links
-steps. A refresh never re-reads the conversation; it asks again only the questions whose
-inputs changed. Even after an extractor prompt upgrade it reuses validated source windows by
+steps. A refresh never sends the conversation to the model again; it
+asks again only the questions whose inputs changed. Even after an extractor prompt upgrade it reuses validated source windows by
 part name whenever the read has a stored proposal or prepare checkpoint, including Retry and
 interrupted pre-upgrade recomputes; missing windows are read normally. New reads and Read again
 create new jobs without saved source windows. An upgrade may change a decision's
