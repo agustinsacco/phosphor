@@ -442,7 +442,7 @@ is pruned immediately.
 
 ## Storage
 
-`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 6, WAL) holds settings,
+`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 7, WAL) holds settings,
 the queue and its saved steps, proposals, extraction records, entities (names, aliases, keys),
 memories, mentions, supported relations, citations, evidence, float/sign-bit vectors, Tidy
 suggestions, a bounded operation journal, and the saved sweep cursor and run checkpoint.
@@ -450,9 +450,10 @@ Full text search covers memories, entity words and entity name trigrams.
 
 Versions 4 and 5 upgrade in place in one transaction. Version 4 first gains the jobs `replaces`
 column and lane-memory/finished-read indexes; both versions then gain the Tidy tables and
-indexes and become version 6. Knowledge, preferences, jobs and records stay. A failed upgrade
-rolls back completely. Version 6 opens without altering its run checkpoint; the runtime owns
-interrupted-run recovery. Newer versions are refused. Opening versions 0 to 3 deletes their
+indexes and become version 6. Versions 4, 5 and 6 then gain nullable job columns `from_leaf`
+and `run_started_at` and become version 7. Knowledge, preferences, jobs and records stay. A failed upgrade
+rolls back completely. Version 7 opens without altering its run checkpoint; the runtime owns
+interrupted-run recovery. Newer versions are refused. An older app refuses a version 7 Brain; it never resets it. Opening versions 0 to 3 deletes their
 knowledge, keeps preferences with review on, and starts a new generation, as **Reset Brain
 knowledge** does. The model lives under `<userData>/brain/embeddings`.
 

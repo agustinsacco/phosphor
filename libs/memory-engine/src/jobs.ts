@@ -5,7 +5,8 @@ import type { JobPart, JobPatch, NewJob } from './types'
 
 const columns = `id, session_id AS sessionId, session_path AS sessionPath, title, scope, branch,
  model, state, memories, leaf_id AS leafId, error, queued_at AS queuedAt,
- started_at AS startedAt, finished_at AS finishedAt, usage, progress, replaces`
+ started_at AS startedAt, finished_at AS finishedAt, usage, progress, replaces,
+ from_leaf AS fromLeafId, run_started_at AS runStartedAt`
 type JobRow = Omit<BrainJob, 'usage' | 'progress'> & {
   usage: string | null
   progress: string | null
@@ -13,8 +14,6 @@ type JobRow = Omit<BrainJob, 'usage' | 'progress'> & {
 function decode(row: JobRow): BrainJob {
   return {
     ...row,
-    fromLeafId: null,
-    runStartedAt: row.state === 'running' ? row.startedAt : null,
     progress: row.progress ? (JSON.parse(row.progress) as BrainJob['progress']) : null,
     usage: row.usage ? (JSON.parse(row.usage) as BrainJob['usage']) : null,
   }
@@ -40,7 +39,7 @@ export function finishedJobs(ctx: Context, limit: number): BrainJob[] {
 function save(ctx: Context, value: BrainJob): void {
   run(
     ctx,
-    `INSERT INTO jobs VALUES (${Array(19).fill('?').join(',')})`,
+    `INSERT INTO jobs VALUES (${Array(21).fill('?').join(',')})`,
     value.id,
     value.sessionId,
     value.sessionPath,
@@ -60,6 +59,8 @@ function save(ctx: Context, value: BrainJob): void {
     value.progress ? JSON.stringify(value.progress) : null,
     null,
     value.replaces,
+    value.fromLeafId,
+    value.runStartedAt,
   )
 }
 export const BRAIN_EXTRACTOR_VERSION = 5
@@ -119,11 +120,12 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
   )
     throw new Error('Brain job metadata is frozen outside its first prepare checkpoint.')
   const updated = { ...existing, ...patch }
+  if (updated.state !== 'running' && updated.state !== 'refreshing') updated.runStartedAt = null
   // Updating columns rather than REPLACE preserves proposal foreign keys.
   run(
     ctx,
     `UPDATE jobs SET state=?, error=?, started_at=?, finished_at=?, usage=?, memories=?,
-      leaf_id=?, model=?, branch=?, progress=? WHERE id=?`,
+      leaf_id=?, model=?, branch=?, progress=?, run_started_at=? WHERE id=?`,
     updated.state,
     updated.error,
     updated.startedAt,
@@ -134,6 +136,7 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
     updated.model,
     updated.branch,
     updated.progress ? JSON.stringify(updated.progress) : null,
+    updated.runStartedAt,
     id,
   )
   if (updated.state === 'done') {

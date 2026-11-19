@@ -5,7 +5,7 @@ import { prefs, setPrefs } from './prefs'
 export function initialize(ctx: Context): void {
   ctx.db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL')
   const version = one<{ user_version: number }>(ctx, 'PRAGMA user_version')!.user_version
-  if (version > 6) throw new Error('This Brain database requires a newer application.')
+  if (version > 7) throw new Error('This Brain database requires a newer application.')
   if (version === 4 || version === 5) {
     transaction(ctx, () => {
       if (version === 4) {
@@ -14,8 +14,11 @@ export function initialize(ctx: Context): void {
         ctx.db.exec('CREATE INDEX jobs_finished ON jobs(state, finished_at DESC)')
       }
       ctx.db.exec(tidySchema)
+      ctx.db.exec(readMetadataSchema)
     })
-  } else if (version !== 6) reset(ctx)
+  } else if (version === 6) {
+    transaction(ctx, () => ctx.db.exec(readMetadataSchema))
+  } else if (version !== 7) reset(ctx)
 }
 export function reset(ctx: Context): void {
   const hasMeta = one(ctx, "SELECT 1 FROM sqlite_master WHERE name='meta'")
@@ -35,6 +38,7 @@ export function reset(ctx: Context): void {
       }
       ctx.db.exec(schema)
       ctx.db.exec(tidySchema)
+      ctx.db.exec(readMetadataSchema)
       for (const [key, value] of Object.entries({
         revision: '0',
         generation: ctx.id(),
@@ -127,4 +131,10 @@ CREATE TABLE extractions(job_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, sess
   leaf_id TEXT, model TEXT NOT NULL, thinking TEXT NOT NULL, calls TEXT NOT NULL, outcomes TEXT NOT NULL, error TEXT,
   started_at INTEGER NOT NULL, finished_at INTEGER NOT NULL);
 PRAGMA user_version = 5;
+`
+
+const readMetadataSchema = `
+ALTER TABLE jobs ADD COLUMN from_leaf TEXT;
+ALTER TABLE jobs ADD COLUMN run_started_at INTEGER;
+PRAGMA user_version = 7;
 `
