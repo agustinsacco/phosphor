@@ -105,12 +105,17 @@ export function createApi(context: ApiContext): BrainApi {
     const job = store.job(id)
     const proposal = store.storedProposal(id)
     if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-      if (await currentNeverReadReason(store, job)) throw new Error(NEVER_READ_REFRESH_REFUSAL)
+      const refusal = await currentNeverReadReason(store, job)
+      const latest = store.storedProposal(id)
+      if (!latest || latest.computedRevision === store.knowledgeRevision()) return
+      if (refusal) throw new Error(NEVER_READ_REFRESH_REFUSAL)
       if (store.job(id)?.state === 'refreshing')
         throw new Error('Brain changed; refreshing this review')
       queue.recompute(id)
       throw new Error('Brain changed; refreshing this review')
     }
+    if (store.job(id)?.state === 'refreshing')
+      throw new Error('Brain changed; refreshing this review')
   }
   return {
     status: async () => status(),
