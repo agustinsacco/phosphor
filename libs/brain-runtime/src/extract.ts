@@ -137,13 +137,40 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
     confirmations,
   })
 }
+/** With review off, held claims are never saved and a required question keeps the read in review. */
+async function approveWithoutReview(context: ExtractionContext, proposal: Proposal): Promise<void> {
+  const { job, store, options, search } = context
+  if (
+    store.snapshot().prefs.review ||
+    store.job(job.id)?.state !== 'review' ||
+    proposal.entities.some((entity) => entity.required)
+  )
+    return
+  store.review(
+    job.id,
+    {
+      memories: proposal.memories.flatMap((memory, i) => (memory.hold ? [] : [i])),
+      identities: {},
+      groups: [],
+      descriptions: [],
+    },
+    proposal.computedRevision,
+  )
+  // The result is saved. A failed index refresh must not turn a finished read into a failure.
+  await search.refresh().catch((error: unknown) => {
+    options.log?.('Brain search refresh failed after saving', {
+      jobId: job.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
+}
 async function embedAndPropose(
   context: ExtractionContext,
   folded: FoldedJob,
   entities: ProposalEntity[],
   fields: Pick<Proposal, 'computedRevision' | 'groups' | 'held' | 'confirmations'>,
 ): Promise<void> {
-  const { job, lane, store, options, signal, search, record, progress } = context
+  const { job, lane, store, options, signal, record, progress } = context
   const { computedRevision, groups, held, confirmations } = fields
   progress('embed', 0, 1)
   const memoryVectors = await embedDocuments(
@@ -187,30 +214,7 @@ async function embedAndPropose(
     finishedAt: (options.now ?? Date.now)(),
     progress: { stage: 'embed', done: 1, total: 1 },
   })
-  // With review off, held claims are never saved and a required question keeps the read in review.
-  if (
-    !store.snapshot().prefs.review &&
-    store.job(job.id)?.state === 'review' &&
-    !proposal.entities.some((entity) => entity.required)
-  ) {
-    store.review(
-      job.id,
-      {
-        memories: proposal.memories.flatMap((memory, i) => (memory.hold ? [] : [i])),
-        identities: {},
-        groups: [],
-        descriptions: [],
-      },
-      computedRevision,
-    )
-    // The result is saved. A failed index refresh must not turn a finished read into a failure.
-    await search.refresh().catch((error: unknown) => {
-      options.log?.('Brain search refresh failed after saving', {
-        jobId: job.id,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-  }
+  await approveWithoutReview(context, proposal)
   options.log?.('Brain extraction finished', {
     jobId: job.id,
     calls: record.record.calls.length,
