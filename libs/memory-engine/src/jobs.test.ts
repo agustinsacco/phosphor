@@ -112,13 +112,15 @@ it('retries the same failed job with frozen leaf and hash-keyed checkpoints', ()
   store.removeJob(job.id)
   expect(db.prepare('SELECT * FROM job_parts').all()).toEqual([])
 })
-it('uses the previous finished leaf regardless of extractor version', () => {
+it('queues only new messages after a version-5 read under extractor version 6', () => {
   const { store, db } = fixture()
   const job = store.enqueue(lane(), 'queued')
   store.updateJob(job.id, { state: 'done' })
-  db.prepare('UPDATE jobs SET extractor=3 WHERE id=?').run(job.id)
+  db.prepare('UPDATE jobs SET extractor=5 WHERE id=?').run(job.id)
   expect(() => store.enqueue(lane(), 'queued')).toThrow('Nothing new')
-  expect(store.enqueue(lane({ leafId: 'new' }), 'queued').fromLeafId).toBe(job.leafId)
+  const next = store.enqueue(lane({ leafId: 'new' }), 'queued')
+  expect(next.fromLeafId).toBe(job.leafId)
+  expect(db.prepare('SELECT extractor FROM jobs WHERE id=?').get(next.id)).toEqual({ extractor: 6 })
 })
 
 it('saves prepare metadata atomically, freezes null leaves too, and refuses replacement', () => {
