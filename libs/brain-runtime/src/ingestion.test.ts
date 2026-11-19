@@ -3,6 +3,7 @@ import { transcriptSegments } from './transcript'
 import { makeWindow, transcriptWindows } from './windows'
 import { LANE_ENTRIES } from './__fixtures__/lane'
 import { extractPrompt, EXTRACTION_SYSTEM } from './stage-prompts/extract'
+import { linksPrompt } from './stage-prompts/links'
 import { CALL_TIMEOUT_MS, callThinking } from './call-trace'
 
 it('reads only user and assistant text, not calls, results or context', () => {
@@ -86,4 +87,12 @@ it('asks for the user by name, marked once as the user, and never "the user"', (
   expect(prompt).toContain('call the user by name when the conversation gives it, never "the user"')
   expect(prompt).toContain('add the user as a person entity with "user":true')
   expect(prompt).toContain('leave the field out when the name is not given')
+})
+it('asks both calls to state team membership whenever a claim names a person and their team', () => {
+  expect(extractPrompt(makeWindow([]), [])).toContain(
+    'Whenever a kept claim names a person and their team, state the membership: the person member_of the team.',
+  )
+  expect(linksPrompt([], [])).toContain(
+    '- When a claim names a person and their team, link the person member_of the team.',
+  )
 })

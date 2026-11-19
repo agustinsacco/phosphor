@@ -197,44 +197,44 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    tools. Only the assistant's account of its own work is skipped. A claim is kept if a future
    session would act differently, it would take real digging to learn again, and it will
    probably still hold in a month or records a decision with its reason. Each part keeps every
-   claim that passes, up to 25, a ceiling rather than a target (most parts keep fewer than
-   ten); an empty answer is valid only when nothing passes. Extra claims are dropped with a
-   recorded reason, and a part that returns exactly 25 gets a noted outcome. No kind of claim
-   ranks first. The model looks for people
-   and structure (who is on which team, who leads, owns or decides what, which customer a
-   project is for), how systems, vendors, data and customers behave, decisions with reasons,
-   preferences and corrections, reusable procedures, remaining risks and open questions for a
-   named person or team. A standing role passes; a ticket event does not. Status, one-off
-   events, near-term dates, pull requests, code facts, file paths, the assistant's work log,
-   instructions for one task, unaccepted proposals, corrected statements, generic advice,
-   personal matters about a person (health, family, pay, performance, conduct), secrets and
-   contact details do not pass.
+   claim that passes, up to 25, a ceiling rather than a target (most parts keep fewer than ten);
+   an empty answer is valid only when nothing passes. Extra claims are dropped with a recorded
+   reason, and a part that returns exactly 25 gets a noted outcome. No kind of claim ranks
+   first. The model looks for people and structure (who is on which team, who leads, owns or
+   decides what, which customer a project is for), how systems, vendors, data and customers
+   behave, decisions with reasons, preferences and corrections, reusable procedures, remaining
+   risks and open questions for a named person or team. A standing role passes; a ticket event
+   does not. Status, one-off events, near-term dates, pull requests, code facts, file paths, the
+   assistant's work log, instructions for one task, unaccepted proposals, corrected statements,
+   generic advice, personal matters about a person (health, family, pay, performance, conduct),
+   secrets and contact details do not pass.
    It returns lasting entities (`n1…`), self-contained claims (`c1…`) with one or two quotes,
    typed links with their own quotes, and parent assessments for new projects, components,
-   documents and teams. A stated parent needs a kept structural link whose subject is that entity.
-   Missing or invalid parent assessments mean not stated. People are humans, never agents or bots.
-   Pull requests, tickets, commits, branches and files are not entities, nor are database
-   tables, feature flags, service accounts, scheduled jobs or contract clauses unless people
-   discuss one as a thing someone owns. The model is asked for
-   every lasting relationship the conversation shows between a kept claim's entities. A link
-   sits on a claim that mentions both ends, and its quote may come from any segment. A person is
-   linked only for a real role, never to a tool they merely use. Claims call the user by name
-   when the conversation gives it: the model then adds the user as a person entity marked as
-   the user. A part that marks more than one person marks none, and later parts learn the mark
-   from the entities they are offered. Parsing turns a leading "The user" or "The user's" into
-   that name and adds the mention once; with no marked person the sentence stays as written.
-   The mark never reaches identity or review. The answer rules are repeated after the
-   conversation, because a long one buries them.
+   documents and teams. A stated parent needs a kept structural link whose subject is that
+   entity. Missing or invalid parent assessments mean not stated. People are humans, never
+   agents or bots. Pull requests, tickets, commits, branches and files are not entities, nor are
+   database tables, feature flags, service accounts, scheduled jobs or contract clauses unless
+   people discuss one as a thing someone owns. The model is asked for every lasting relationship
+   the conversation shows between a kept claim's entities, and for member_of whenever a claim
+   names a person and their team. A link sits on a claim that mentions both ends, and its quote
+   may come from any segment. A person is linked only for a real role, never to a tool they
+   merely use. Claims call the user by name when the conversation gives it: the model then adds
+   the user as a person entity marked as the user. A part that marks more than one person marks
+   none, and later parts learn the mark from the entities they are offered. Parsing turns a
+   leading "The user" or "The user's" into that name and adds the mention once; with no marked
+   person the sentence stays as written. The mark never reaches identity or review. The answer
+   rules are repeated after the conversation, because a long one buries them.
 2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
    more entities, those entities, existing links and short excerpts around each claim's quotes.
    Each excerpt stays in its segment, stops at an elision marker and adds at most 600 characters
    on each side. Overlapping excerpts merge. Links join two entities the claim already mentions,
    obey the same endpoint-kind rules and need their own verified quote from a claim excerpt's
-   segment. Duplicate links are dropped. A new structural link can supply a previously unstated
-   parent. A fixed filter then runs over both calls' links: it drops a uses or prefers link from
-   the user, and a works_on link beside owns for the same pair in one claim, each with a
-   recorded outcome. When no claim mentions two entities, this call is skipped. Its validated result has a
-   separate per-part checkpoint; the extraction checkpoint stays unchanged.
+   segment; a person named with their team is linked member_of it. Duplicate links are dropped.
+   A new structural link can supply a previously unstated parent. A fixed filter then runs over
+   both calls' links: it drops a uses or prefers link from the user, and a works_on link beside
+   owns for the same pair in one claim, each with a recorded outcome. When no claim mentions two
+   entities, this call is skipped. Its validated result has a separate per-part checkpoint; the
+   extraction checkpoint stays unchanged.
 3. **Fold** (code). Claims with the same text and links merge their quotes; entities with the
    same name merge within the lane. A person merges this way only on a full name.
 4. **Identity.** Each new entity gets up to 12 candidates: the store's exact keys, names and
@@ -252,16 +252,16 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    similarity to the claim rather than recency, so a busy person's newer memories cannot hide a
    close one. Paraphrases can match without shared entities. A superseded memory among those
    entities' newest memories at cosine 0.85 or more is offered too, marked replaced earlier, so
-   a read cannot bring back a memory the owner or a later read replaced.
-   Same text and links confirm deterministically; otherwise the model picks add, confirm (same
-   assertion, nothing new), enrich (same assertion, new supported links), supersede, conflict,
-   or resolve an open question. A claim that repeats a replaced memory (the model says so, or
-   its text and links equal it and no current memory's do) is dropped, and the outcome says
-   "Repeats a memory that was replaced earlier". A claim answered add whose own sentence says
-   it supersedes, replaces or no longer holds something, while something it could change was
-   offered, is asked about once more with a short correction on its row; if the answer still
-   adds, it is kept and a noted outcome says so. Within one lane, a later claim replaces an
-   earlier one. Cosine offers candidates but never decides.
+   a read cannot bring back a memory the owner or a later read replaced. Same text and links
+   confirm deterministically; otherwise the model picks add, confirm (same assertion, nothing
+   new), enrich (same assertion, new supported links), supersede, conflict, or resolve an open
+   question. A claim that repeats a replaced memory (the model says so, or its text and links
+   equal it and no current memory's do) is dropped, and the outcome says "Repeats a memory that
+   was replaced earlier". A claim answered add whose own sentence says it supersedes, replaces
+   or no longer holds something, while something it could change was offered, is asked about
+   once more with a short correction on its row; if the answer still adds, it is kept and a
+   noted outcome says so. Within one lane, a later claim replaces an earlier one. Cosine offers
+   candidates but never decides.
 6. **Propose.** At most 300 claims per job: structural links first, then decisions, risks and
    open questions, then the rest; anything held back is recorded. New memories and entity cards
    are embedded and the proposal is stored with the store revision it was computed against.

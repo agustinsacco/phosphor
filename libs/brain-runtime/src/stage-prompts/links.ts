@@ -13,6 +13,7 @@ Each claim below was kept for a long-term memory. Under it are the entities it m
 - Use only these links, as subject kinds → object kinds:
 ${linkRules()}
 - prefers and decided describe a standing preference or a decision about the object, not a single use of it.
+- When a claim names a person and their team, link the person member_of the team.
 - State each relationship once, on the claim whose excerpt shows it best. Do not repeat a link a claim already has.
 - Never link two things only because one sentence mentions both, and never from a shared name prefix. When no allowed link fits, add none. An empty "links" list is a correct answer.
 
