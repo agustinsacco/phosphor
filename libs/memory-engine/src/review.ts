@@ -115,8 +115,9 @@ export function review(
   transaction(ctx, () => {
     const value = readProposal(ctx, jobId)
     if (
-      expectedRevision !== knowledgeRevision(ctx) ||
-      value.computedRevision !== knowledgeRevision(ctx)
+      decision !== null &&
+      (expectedRevision !== knowledgeRevision(ctx) ||
+        value.computedRevision !== knowledgeRevision(ctx))
     )
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
     const current = job(ctx, jobId)!

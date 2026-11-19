@@ -6,9 +6,7 @@ import { extractJob } from './extract'
 import { createRecall } from './recall'
 import { createApi } from './api'
 import { createTidyMaintenance } from './tidy/maintenance'
-import { brainNeverReadReason } from '@phosphor/shared/brain'
-import { laneTitle } from './lane'
-import { readEntries } from './transcript'
+import { currentNeverReadReason } from './lane-read-rules'
 
 /** Setup runs in the background: saving a preference must not wait for a model download. */
 function modelSetup(options: BrainServiceOptions, changed: () => void, kick: () => void) {
@@ -70,10 +68,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
     run: (job, signal) => extractJob(job, signal, store, options, search),
     changed,
-    refusal: async (job) => {
-      const title = laneTitle(await readEntries(job.sessionPath)) ?? ''
-      return brainNeverReadReason(store.snapshot().prefs.neverRead, { ...job, title })
-    },
+    refusal: (job) => currentNeverReadReason(store, job),
     cancelled: (job, reason) =>
       options.log?.('Brain job cancelled', {
         jobId: job.id,
