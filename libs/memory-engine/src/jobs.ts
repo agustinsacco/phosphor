@@ -150,18 +150,19 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
     id,
   )
   if (['done', 'empty', 'rejected'].includes(updated.state)) {
-    run(
-      ctx,
-      `DELETE FROM jobs WHERE session_id=? AND state IN ('done','empty','rejected') AND id NOT IN
-       (SELECT id FROM jobs WHERE session_id=? AND state IN ('done','empty','rejected')
-        ORDER BY finished_at DESC, queued_at DESC, rowid DESC LIMIT 20)`,
-      updated.sessionId,
-      updated.sessionId,
-    )
+    pruneFinishedReads(ctx, updated.sessionId)
     pruneExtractions(ctx)
   }
   return updated
 }
+/** Finished jobs and their source records share the same per-lane cap, even with live memories. */
+function pruneFinishedReads(ctx: Context, sessionId: string): void {
+  const displaced = `SELECT id FROM jobs WHERE session_id=? AND state IN ('done','empty','rejected')
+    ORDER BY finished_at DESC, queued_at DESC, rowid DESC LIMIT -1 OFFSET 20`
+  run(ctx, `DELETE FROM extractions WHERE job_id IN (${displaced})`, sessionId)
+  run(ctx, `DELETE FROM jobs WHERE id IN (${displaced})`, sessionId)
+}
+
 export function removeJob(ctx: Context, id: string): void {
   run(ctx, 'DELETE FROM jobs WHERE id=?', id)
   pruneExtractions(ctx)

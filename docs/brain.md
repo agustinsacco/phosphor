@@ -480,7 +480,8 @@ text each scroll inside a capped box.
 prompt text; a prompt whose inputs are gone says so. Records are kept while their job is in the
 inbox or is one of its lane's twenty retained finished reads, without an age limit. These jobs also keep
 step inputs, so finished-read prompts can be rebuilt. Removing or replacing a job deletes its
-step inputs. A record without a job survives only while a memory references it, and expires
+step inputs. Records displaced by the twenty-read cap are deleted with their jobs. Any other record without
+a job survives only while a memory references it, and expires
 30 days after it finished; its prompts are unavailable. With neither job nor memory, the record
 is pruned immediately.
 

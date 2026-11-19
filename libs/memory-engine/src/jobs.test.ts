@@ -186,3 +186,13 @@ it('refuses a never-read lane even at the store enqueue boundary', () => {
   ).toThrow('Brain never reads this lane because its title matches a rule in Settings › Brain.')
   expect(store.snapshot().jobs).toEqual([])
 })
+
+it('persists the attempt start, clears it on finish and refuses moving the first start', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  store.updateJob(job.id, { state: 'running', startedAt: 10, runStartedAt: 30 })
+  expect(store.job(job.id)).toMatchObject({ startedAt: 10, runStartedAt: 30 })
+  expect(() => store.updateJob(job.id, { startedAt: 40 })).toThrow('first read start cannot change')
+  store.updateJob(job.id, { state: 'done' })
+  expect(store.job(job.id)).toMatchObject({ startedAt: 10, runStartedAt: null })
+})
