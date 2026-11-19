@@ -106,3 +106,68 @@ export interface BrainReviewDecision {
    * a held confirmation changes nothing unless it is here; the others apply with any approval. */
   confirmations: number[]
 }
+
+/** How Desktop and the engine refuse a review decision, word for word. */
+export const BRAIN_DECISION_REFUSALS = {
+  /** Malformed or oversized input, refused before any proposal is read. */
+  selection: 'Invalid review selection.',
+  index: 'Brain proposal index is invalid.',
+  identity: 'Brain identity override is invalid.',
+  description: 'Brain description choice is invalid.',
+  confirmation: 'Brain confirmation choice is invalid.',
+} as const
+/** Approval that would save something naming an unanswered required identity. */
+export function brainRequiredAnswerRefusal(label: string): string {
+  return `Say whether “${label}” is someone Brain already knows or someone new before approving.`
+}
+
+/** A proposal holds at most 300 memories and confirmations together. */
+const CONFIRMATIONS = 300
+const record = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+const refuse = (message: string): never => {
+  throw new Error(message)
+}
+const indexes = (value: unknown, max: number, message: string): number[] =>
+  Array.isArray(value) &&
+  value.length <= max &&
+  new Set(value).size === value.length &&
+  value.every((index) => Number.isInteger(index) && index >= 0 && index < max)
+    ? (value as number[])
+    : refuse(message)
+
+/**
+ * The decision's shape and sizes, checked before any proposal is read: exactly these keys,
+ * unique integer indexes, at most 400 memories, 100 groups, 300 confirmations, and 400
+ * identity answers and descriptions with refs of at most 64 characters. Null rejects.
+ */
+export function checkBrainReviewDecision(value: unknown): BrainReviewDecision | null {
+  const { selection, confirmation } = BRAIN_DECISION_REFUSALS
+  if (value === null) return null
+  const keys = ['memories', 'identities', 'groups', 'descriptions', 'confirmations']
+  if (!record(value) || !Object.keys(value).every((key) => keys.includes(key)))
+    return refuse(selection)
+  const identities = value.identities
+  if (
+    !record(identities) ||
+    Object.keys(identities).length > 400 ||
+    Object.entries(identities).some(
+      ([ref, choice]) =>
+        ref.length > 64 || typeof choice !== 'string' || !choice || choice.length > 200,
+    )
+  )
+    refuse(selection)
+  if (
+    !Array.isArray(value.descriptions) ||
+    value.descriptions.length > 400 ||
+    Array.from(value.descriptions).some((ref) => typeof ref !== 'string' || !ref || ref.length > 64)
+  )
+    refuse(selection)
+  return {
+    descriptions: value.descriptions as string[],
+    memories: indexes(value.memories, 400, selection),
+    identities: identities as Record<string, string>,
+    groups: indexes(value.groups, 100, selection),
+    confirmations: indexes(value.confirmations, CONFIRMATIONS, confirmation),
+  }
+}

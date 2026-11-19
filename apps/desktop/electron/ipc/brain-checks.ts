@@ -11,7 +11,7 @@ import {
   type BrainPredicate,
   type BrainPrefs,
 } from '@phosphor/shared/brain'
-import type { BrainReviewDecision } from '@phosphor/shared/brain-review'
+import { checkBrainReviewDecision } from '@phosphor/shared/brain-review'
 
 /** Renderer input is untrusted: every Brain argument is checked here before it reaches the API. */
 export const fail = (message: string): never => {
@@ -47,52 +47,8 @@ export function checkLane(value: unknown): BrainLaneRef {
   return { sessionPath: text(lane?.sessionPath), title: text(lane?.title, 500) }
 }
 
-const indexes = (value: unknown, max: number, message = 'Invalid review selection.'): number[] =>
-  Array.isArray(value) &&
-  value.length <= max &&
-  new Set(value).size === value.length &&
-  value.every((index) => Number.isInteger(index) && index >= 0 && index < max)
-    ? (value as number[])
-    : fail(message)
-/** A proposal holds at most 300 memories and confirmations together. */
-const CONFIRMATIONS = 300
-
-/** What to save from a proposal. Null rejects it whole. */
-export function checkDecision(value: unknown): BrainReviewDecision | null {
-  if (value === null) return null
-  if (
-    !record(value) ||
-    !exactKeys(value, ['memories', 'identities', 'groups', 'descriptions', 'confirmations'])
-  )
-    return fail('Invalid review selection.')
-  const identities = value.identities
-  if (
-    !record(identities) ||
-    Object.keys(identities).length > 400 ||
-    Object.entries(identities).some(
-      ([ref, choice]) =>
-        ref.length > 64 || typeof choice !== 'string' || !choice || choice.length > 200,
-    )
-  )
-    fail('Invalid review selection.')
-  if (
-    !Array.isArray(value.descriptions) ||
-    value.descriptions.length > 400 ||
-    Array.from(value.descriptions).some((ref) => typeof ref !== 'string' || !ref || ref.length > 64)
-  )
-    fail('Invalid review selection.')
-  return {
-    descriptions: value.descriptions as string[],
-    memories: indexes(value.memories, 400),
-    identities: identities as Record<string, string>,
-    groups: indexes(value.groups, 100),
-    confirmations: indexes(
-      value.confirmations,
-      CONFIRMATIONS,
-      'Brain confirmation choice is invalid.',
-    ),
-  }
-}
+/** What to save from a proposal, shape and sizes only. Null rejects it whole. */
+export const checkDecision = checkBrainReviewDecision
 
 export const revisionOf = (value: unknown): number =>
   Number.isSafeInteger(value) && (value as number) >= 0

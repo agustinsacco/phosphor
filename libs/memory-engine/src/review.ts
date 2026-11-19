@@ -1,6 +1,10 @@
 import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import type { BrainReviewDecision } from '@phosphor/shared/brain'
-import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
+import {
+  BRAIN_DECISION_REFUSALS,
+  BRAIN_REVIEW_CHANGED,
+  brainRequiredAnswerRefusal,
+} from '@phosphor/shared/brain-review'
 import { all, run, transaction, type Context } from './database'
 import {
   addNames,
@@ -29,24 +33,24 @@ function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDe
   ] as const) {
     for (const index of indexes)
       if (!Number.isInteger(index) || index < 0 || index >= length)
-        throw new Error('Brain proposal index is invalid.')
+        throw new Error(BRAIN_DECISION_REFUSALS.index)
   }
   for (const [ref, target] of Object.entries(decision.identities)) {
     if (
       !value.entities.some((item) => item.ref === ref) ||
       (target !== 'new' && !entity(ctx, target))
     )
-      throw new Error('Brain identity override is invalid.')
+      throw new Error(BRAIN_DECISION_REFUSALS.identity)
   }
   for (const ref of decision.descriptions)
     if (!value.entities.find((item) => item.ref === ref)?.description.trim())
-      throw new Error('Brain description choice is invalid.')
+      throw new Error(BRAIN_DECISION_REFUSALS.description)
   const ticked = decision.confirmations
   if (
     new Set(ticked).size !== ticked.length ||
     ticked.some((index) => !Number.isInteger(index) || !value.confirmations[index]?.claim.hold)
   )
-    throw new Error('Brain confirmation choice is invalid.')
+    throw new Error(BRAIN_DECISION_REFUSALS.confirmation)
   // Every ref this approval resolves: ticked memories, confirmed groups, and confirmations that
   // become new memories because the owner changed one of their identities.
   const used = new Set([
@@ -62,10 +66,7 @@ function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDe
   const unanswered = value.entities.find(
     (item) => item.required && used.has(item.ref) && !(item.ref in decision.identities),
   )
-  if (unanswered)
-    throw new Error(
-      `Say whether “${unanswered.label}” is someone Brain already knows or someone new before approving.`,
-    )
+  if (unanswered) throw new Error(brainRequiredAnswerRefusal(unanswered.label))
 }
 function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) {
   const resolved = new Map<string, string>()
