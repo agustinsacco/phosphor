@@ -245,3 +245,13 @@ it('displays an empty lane title as a placeholder without treating the placehold
   expect(store.job(job.id)?.title).toBe('Untitled lane')
   expect(store.snapshot().jobs[0]?.title).toBe('Untitled lane')
 })
+
+it('keeps an untitled lane’s stored title empty, for the app to name', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane({ title: '' }), 'queued')
+  expect(job.title).toBe('')
+  expect(store.job(job.id)?.title).toBe('')
+  expect(store.snapshot().jobs[0]?.title).toBe('')
+  store.updateJob(job.id, { state: 'done' })
+  expect(store.history(5).items[0]?.job.title).toBe('')
+})

@@ -419,6 +419,19 @@ it('makes Reject the primary action for a lane Brain is set never to read', asyn
   expect(review).toHaveBeenLastCalledWith('harbor-job', null, 0)
 })
 
+it('names an untitled lane “Untitled lane”, which no title rule matches', async () => {
+  proposal = { ...proposal, job: mockBrainJob({ title: '' }) }
+  status = {
+    ...status,
+    prefs: { ...status.prefs, neverRead: { titles: ['lane'], sessionIds: [] } },
+  }
+  useBrain.setState({ status })
+  await render()
+  expect(container.querySelector('h2')?.textContent).toBe('Untitled lane')
+  expect(container.textContent).not.toContain('never read this lane')
+  expect(button('Approve 2')!.classList.contains('bg-accent')).toBe(true)
+})
+
 it('says a read of new messages reads only those', async () => {
   proposal = { ...proposal, job: mockBrainJob({ fromLeafId: 'leaf-0' }) }
   await render()
