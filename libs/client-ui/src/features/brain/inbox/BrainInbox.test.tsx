@@ -277,16 +277,19 @@ it('starts a model check from under the queue and says nothing is left when empt
 })
 
 it('says a review is refreshing in its queue row', async () => {
-  const status = useBrain.getState().status!
-  useBrain.setState({
-    status: {
-      ...status,
-      jobs: status.jobs.map((job) =>
-        job.id === 'harbor-demo-review' ? { ...job, state: 'refreshing' as const } : job,
-      ),
-    },
-  })
+  // After the first render: loading the Tidy page stores the mock's own status.
   await render()
+  const status = useBrain.getState().status!
+  await act(async () =>
+    useBrain.setState({
+      status: {
+        ...status,
+        jobs: status.jobs.map((job) =>
+          job.id === 'harbor-demo-review' ? { ...job, state: 'refreshing' as const } : job,
+        ),
+      },
+    }),
+  )
   expect(section('From lanes').textContent).toContain(
     'Refreshing · Brain changed since it was read',
   )
