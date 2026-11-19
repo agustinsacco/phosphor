@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { BrainPrefs } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { Button, TextInput } from '@/components/form'
@@ -16,13 +16,10 @@ export function BrainNeverRead({
 }): React.JSX.Element {
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
+  const reasonId = useId()
   const title = draft.trim()
-  const canAdd =
-    !saving &&
-    title.length > 0 &&
-    title.length <= 80 &&
-    prefs.titles.length < 50 &&
-    !prefs.titles.some((pattern) => pattern.toLowerCase() === title.toLowerCase())
+  const reason = patternAddRefusal(prefs.titles, title)
+  const canAdd = !saving && title.length > 0 && title.length <= 80 && !reason
   const save = async (titles: string[]): Promise<boolean> => {
     try {
       const saved = await onChange({ ...prefs, titles })
@@ -62,6 +59,7 @@ export function BrainNeverRead({
       >
         <TextInput
           aria-label="Lane title pattern"
+          aria-describedby={reason ? reasonId : undefined}
           className="min-w-0 flex-1"
           maxLength={80}
           disabled={saving}
@@ -72,6 +70,11 @@ export function BrainNeverRead({
           Add pattern
         </Button>
       </form>
+      {reason && (
+        <p id={reasonId} className="text-text-secondary">
+          {reason}
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-danger wrap-anywhere">
           {error}
@@ -102,4 +105,11 @@ function BrainTitlePatterns({
       ))}
     </ul>
   )
+}
+
+function patternAddRefusal(patterns: string[], title: string): string {
+  if (patterns.length >= 50) return 'Up to 50 patterns'
+  return title && patterns.some((pattern) => pattern.toLowerCase() === title.toLowerCase())
+    ? 'Already in the list'
+    : ''
 }

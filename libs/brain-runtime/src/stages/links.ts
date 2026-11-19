@@ -1,3 +1,4 @@
+import { sourceCheckpoint } from '../source-checkpoint'
 import { BRAIN_STRUCTURAL_PREDICATES } from '@phosphor/shared/brain'
 import type { BrainStore, TranscriptSegment } from '@phosphor/memory-engine/types'
 import type { Registry, StageAsk, StageExtraction, StageLinks } from '../stage-types'
@@ -23,10 +24,7 @@ export async function addLinks(
   const prompt = rebuildPrompt('links', { links: input }, source)
   const hash = inputHash(prompt),
     part = `links:${key}`
-  // A refresh reconsiders knowledge, never the already-validated source extraction.
-  const saved =
-    store.part(jobId, part, hash) ??
-    (store.job(jobId)?.state === 'refreshing' ? store.part(jobId, part) : undefined)
+  const saved = sourceCheckpoint(store, jobId, part, hash)
   const result = saved
     ? (JSON.parse(saved.output) as StageLinks)
     : await ask(

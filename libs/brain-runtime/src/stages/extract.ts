@@ -1,3 +1,4 @@
+import { sourceCheckpoint } from '../source-checkpoint'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { ExtractedPart, Registry, StageAsk, StageExtraction } from '../stage-types'
 import type { TranscriptWindow } from '../windows'
@@ -38,10 +39,7 @@ export async function extractWindows(
     const kept = [...alreadyKept, ...output.flatMap((p) => p.extraction.claims.map((c) => c.text))]
     const prompt = extractPrompt(window, offered, part, total, kept)
     const hash = inputHash(prompt)
-    // A refresh reconsiders knowledge, never the already-validated source extraction.
-    const saved =
-      store.part(jobId, key, hash) ??
-      (store.job(jobId)?.state === 'refreshing' ? store.part(jobId, key) : undefined)
+    const saved = sourceCheckpoint(store, jobId, key, hash)
     const extraction = saved
       ? (JSON.parse(saved.output) as StageExtraction)
       : await ask(

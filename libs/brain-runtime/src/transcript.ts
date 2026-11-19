@@ -9,6 +9,7 @@ export interface LaneEntry {
   id?: string
   parentId?: string | null
   cwd?: string
+  name?: string
   timestamp?: string | number
   provider?: string
   modelId?: string

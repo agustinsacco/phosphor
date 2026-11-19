@@ -16,6 +16,11 @@ import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
 import { readLane } from './lane'
+import {
+  currentNeverReadReason,
+  NEVER_READ_REFRESH_REFUSAL,
+  DELETED_LANE_REFRESH_REFUSAL,
+} from './lane-read-rules'
 import type { TidyMaintenance } from './tidy/maintenance'
 
 interface ApiContext {
@@ -56,14 +61,14 @@ async function enqueue(
   check()
   const refusal = brainNeverReadReason(store.snapshot().prefs.neverRead, {
     sessionId: lane.sessionId,
-    title: ref.title,
+    title: lane.title ?? '',
   })
   if (refusal) throw new Error(refusal)
   store.enqueue(
     {
       replaces,
       sessionPath: ref.sessionPath,
-      title: ref.title,
+      title: lane.title ?? '',
       sessionId: lane.sessionId,
       scope: lane.scope,
       branch: lane.branch,
@@ -89,6 +94,35 @@ async function reread(id: string, context: ApiContext): Promise<void> {
     throw new Error('This lane is already queued.')
   await enqueue(previous, context, id)
 }
+async function currentReview(
+  id: string,
+  { store, queue }: ApiContext,
+  intent: 'view' | 'approve',
+): Promise<void> {
+  const job = store.job(id)
+  const proposal = store.storedProposal(id)
+  if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
+    const refusal = await currentNeverReadReason(store, job)
+      .then((reason) => (reason ? NEVER_READ_REFRESH_REFUSAL : null))
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.message === DELETED_LANE_REFRESH_REFUSAL)
+          return DELETED_LANE_REFRESH_REFUSAL
+        throw error
+      })
+    const latest = store.storedProposal(id)
+    if (!latest || latest.computedRevision === store.knowledgeRevision()) return
+    if (refusal) {
+      if (intent === 'view') return
+      throw new Error(refusal)
+    }
+    if (store.job(id)?.state === 'refreshing')
+      throw new Error('Brain changed; refreshing this review')
+    queue.recompute(id)
+    throw new Error('Brain changed; refreshing this review')
+  }
+  if (store.job(id)?.state === 'refreshing')
+    throw new Error('Brain changed; refreshing this review')
+}
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
   const tidy = createTidyRunner({ ...context, runState: store })
@@ -100,15 +134,7 @@ export function createApi(context: ApiContext): BrainApi {
     queue.kick()
     return status()
   }
-  const current = (id: string): void => {
-    if (store.job(id)?.state === 'refreshing')
-      throw new Error('Brain changed; refreshing this review')
-    const proposal = store.storedProposal(id)
-    if (proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-      queue.recompute(id)
-      throw new Error('Brain changed; refreshing this review')
-    }
-  }
+
   return {
     status: async () => status(),
     history: async (limit) => store.history(limit),
@@ -135,11 +161,12 @@ export function createApi(context: ApiContext): BrainApi {
     },
     extraction: async (id) => extractionView(store, id),
     proposal: async (id) => {
-      current(id)
+      await currentReview(id, context, 'view')
       return store.proposal(id)
     },
     review: async (id, decision, revision) => {
-      current(id)
+      if (decision !== null) await currentReview(id, context, 'approve')
+      else queue.abortRefresh(id)
       return mutate(() => store.review(id, decision, revision))
     },
     reset: async () => {

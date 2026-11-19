@@ -1,3 +1,4 @@
+import { extraction } from '@phosphor/memory-engine/test-support'
 import { expect, it } from 'vitest'
 import { extractWindows } from './extract'
 import { FakeBrainStore, HARBOR_JOB } from '../__fixtures__/fake-store'
@@ -239,6 +240,13 @@ it('reuses an old-hash parsed links part during refresh without re-reading its s
     s.store.savePart(s.job.id, { ...part, inputHash: 'old-link-rules' })
   }
   s.store.updateJob(s.job.id, { state: 'refreshing' })
+  s.store.proposals.set(s.job.id, extraction(s.job.id))
+  s.store.savePart(s.job.id, {
+    part: 'prepare',
+    inputHash: 'frozen-v4',
+    output: '{}',
+    prepare: { leafId: s.job.leafId, model: s.job.model, branch: s.job.branch },
+  })
   const ask = trackAsk(async (_stage, _part, _prompt, validate) =>
     validate(JSON.stringify({ links: [] })),
   )
@@ -266,6 +274,13 @@ it('filters the links a refresh reuses from a part saved before the link rules',
     s.store.savePart(s.job.id, { ...part, inputHash: 'old', output: JSON.stringify(saved) })
   }
   s.store.updateJob(s.job.id, { state: 'refreshing' })
+  s.store.proposals.set(s.job.id, extraction(s.job.id))
+  s.store.savePart(s.job.id, {
+    part: 'prepare',
+    inputHash: 'frozen-v4',
+    output: '{}',
+    prepare: { leafId: s.job.leafId, model: s.job.model, branch: s.job.branch },
+  })
   const ask = trackAsk()
   const parts = await extractWindows(
     s.job.id,

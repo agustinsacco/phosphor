@@ -79,6 +79,7 @@ export class FakeBrainStore implements BrainStore {
       throw new Error('This lane is already queued.')
     const job: BrainJob = {
       ...input,
+      title: input.title || 'Untitled lane',
       replaces: input.replaces ?? null,
       id: `job-${++this.next}`,
       state,
@@ -248,7 +249,7 @@ export class FakeBrainStore implements BrainStore {
     }
   }
   review(id: string, decision: BrainReviewDecision | null, revision: number): void {
-    if (revision !== this.knowledgeRevision())
+    if (decision !== null && revision !== this.knowledgeRevision())
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
     this.reviews.push({ id, decision })
     this.updateJob(id, {

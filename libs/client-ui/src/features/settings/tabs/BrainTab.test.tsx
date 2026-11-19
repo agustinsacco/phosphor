@@ -262,3 +262,35 @@ it('edits title rules, retains a failed draft for retry and leaves individual la
   await act(async () => remove.click())
   expect(status.prefs.neverRead).toEqual({ titles: ['Harbor prep'], sessionIds: ['harbor-lane'] })
 })
+
+it.each(['duplicate', 'limit'] as const)(
+  'explains why a never-read pattern cannot be added: %s',
+  async (reason) => {
+    status.prefs.enabled = true
+    status.prefs.neverRead = {
+      titles:
+        reason === 'duplicate' ? ['Harbor'] : Array.from({ length: 50 }, (_, i) => `Harbor ${i}`),
+      sessionIds: [],
+    }
+    await render()
+    const field = container.querySelector<HTMLInputElement>('[aria-label="Lane title pattern"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        field,
+        'harbor',
+      )
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const add = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent === 'Add pattern',
+    )!
+    expect(add.disabled).toBe(true)
+    expect(container.textContent).toContain(
+      reason === 'duplicate' ? 'Already in the list' : 'Up to 50 patterns',
+    )
+    expect(field.getAttribute('aria-describedby')).toBeTruthy()
+    expect(document.getElementById(field.getAttribute('aria-describedby')!)?.textContent).toBe(
+      reason === 'duplicate' ? 'Already in the list' : 'Up to 50 patterns',
+    )
+  },
+)

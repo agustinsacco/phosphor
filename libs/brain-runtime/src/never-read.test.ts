@@ -1,3 +1,4 @@
+import { appendFile } from 'node:fs/promises'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
 import { pipelineSetup } from './__fixtures__/pipeline'
@@ -18,6 +19,7 @@ it.each(['Rina 1-1 prep', 'Harbor ONE ON ONE'])(
   'refuses Queue for a never-read title: %s',
   async (title) => {
     const s = await setup()
+    await appendFile(s.file, '\n' + JSON.stringify({ type: 'session_info', name: title }))
     await expect(s.service.api.queue({ sessionPath: s.file, title })).rejects.toThrow(
       'Brain never reads this lane because its title matches a rule in Settings › Brain.',
     )
@@ -60,11 +62,12 @@ it('cancels waiting and queued jobs when an id or title becomes excluded, but pr
   vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
   const waiting = (await s.service.api.queue({ sessionPath: s.file, title: 'Ledger' })).jobs[0]!
   expect(waiting.state).toBe('waiting')
+  await appendFile(s.file, '\n' + JSON.stringify({ type: 'session_info', name: 'Ledger' }))
   await s.service.api.setPrefs({
     ...s.store.prefs,
     neverRead: { ...s.store.prefs.neverRead, titles: ['Ledger'] },
   })
-  expect(s.store.job(waiting.id)).toBeUndefined()
+  await vi.waitFor(() => expect(s.store.job(waiting.id)).toBeUndefined())
   s.store.jobs.push({ ...waiting, id: 'pending', state: 'review' })
   await s.service.api.neverRead(waiting.sessionId, true)
   expect(s.store.job('pending')?.state).toBe('review')

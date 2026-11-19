@@ -6,6 +6,7 @@ import { extractJob } from './extract'
 import { createRecall } from './recall'
 import { createApi } from './api'
 import { createTidyMaintenance } from './tidy/maintenance'
+import { currentNeverReadReason } from './lane-read-rules'
 
 /** Setup runs in the background: saving a preference must not wait for a model download. */
 function modelSetup(options: BrainServiceOptions, changed: () => void, kick: () => void) {
@@ -67,11 +68,13 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
     run: (job, signal) => extractJob(job, signal, store, options, search),
     changed,
-    cancelled: (job) =>
+    refusal: (job) => currentNeverReadReason(store, job),
+    cancelled: (job, reason) =>
       options.log?.('Brain job cancelled', {
         jobId: job.id,
         model: job.model,
         phase: job.state,
+        ...(reason ? { reason } : {}),
       }),
     now: options.now ?? Date.now,
   })
