@@ -140,9 +140,9 @@ class MockBrain {
     this.computedRevisions.set(job.id, this.state.revision)
     // A refresh recomputes the same review: same read, same record, same finish.
     if (refreshed) return
+    job.finishedAt = this.now()
     this.records.set(job.id, this.extractionRecord(job.id))
     job.memories = 2
-    job.finishedAt = this.now()
     if (!this.state.prefs.review)
       this.review(
         job.id,

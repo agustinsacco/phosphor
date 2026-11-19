@@ -68,7 +68,8 @@ export function mockExtractionRecord(
     ],
     error: null,
     startedAt: job.startedAt ?? now,
-    finishedAt: now,
+    // A finished invented read ends when its job did, so "took" stays short.
+    finishedAt: job.finishedAt ?? now,
     memories: [],
     source: {
       sessionPath: job.sessionPath,
