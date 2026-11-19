@@ -67,7 +67,7 @@ export interface JobPart {
   inputHash: string
   output: string
   /** First prepare checkpoint: persisted atomically with the job metadata. */
-  prepare?: Pick<BrainJob, 'leafId' | 'model' | 'branch'>
+  prepare?: Pick<BrainJob, 'leafId' | 'model' | 'branch'> & { fromLeafId?: string | null }
 }
 
 /** The single writer: queue, proposals, review and the Explorer's indexed reads. Synchronous. */
@@ -83,6 +83,8 @@ export interface BrainStore extends BrainTidyStore {
   job(id: string): BrainJob | undefined
   history(limit: number): BrainHistory
   /** All surviving memories from a lane, and those without independent support elsewhere. */
+  /** The newest sixty current summaries from this lane, frozen into prepare context. */
+  laneContext(sessionId: string): string[]
   laneMemories(sessionId: string, exceptJobId?: string): { ids: string[]; replaceable: string[] }
   updateJob(id: string, patch: JobPatch): BrainJob
   /** Requeues a failed job under the same id, keeping its parts and frozen leaf. */

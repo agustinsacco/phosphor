@@ -6,7 +6,7 @@ import type { BrainSnapshot } from '@phosphor/shared/brain'
 import { all, type Context } from './database'
 import { extraction, saveExtraction, pruneExtractions } from './extractions'
 import * as jobs from './jobs'
-import { history, laneMemories } from './history'
+import { history, laneContext, laneMemories } from './history'
 import * as candidates from './candidates'
 import * as explorer from './explorer'
 import * as graph from './graph'
@@ -61,6 +61,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     enqueue: (value, state) => jobs.enqueue(ctx, value, state),
     job: (id) => jobs.job(ctx, id),
     history: (limit) => history(ctx, limit),
+    laneContext: (sessionId) => laneContext(ctx, sessionId),
     laneMemories: (sessionId, exceptJobId) => laneMemories(ctx, sessionId, exceptJobId),
     updateJob: (id, patch) => jobs.updateJob(ctx, id, patch),
     retry: (id) => jobs.retry(ctx, id),

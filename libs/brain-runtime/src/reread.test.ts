@@ -90,8 +90,8 @@ it.each([true, false])(
     }
     expect(s.recall()).toHaveLength(1)
     expect(s.recall()).not.toEqual(oldIds)
-    expect(s.store.job(s.first.id)).toBeUndefined()
-    expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id])
+    expect(s.store.job(s.first.id)?.state).toBe('done')
+    expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id, s.first.id])
     const reconcilePrompts = s.runner.mock.calls
       .filter(([call]) => call.stage === 'reconcile')
       .map(([call]) => call.prompt)
@@ -120,7 +120,7 @@ it('keeps a saved reread finished when the search refresh fails afterwards', asy
   await vi.waitFor(() => expect(['done', 'failed']).toContain(s.store.job(next.id)?.state))
   // The replacement is already saved, so the read is finished, not a failure to retry.
   expect(s.store.job(next.id)).toMatchObject({ state: 'done', error: null })
-  expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id])
+  expect(s.store.history(20).items.map((i) => i.job.id)).toEqual([next.id, s.first.id])
   expect(s.recall()).toHaveLength(1)
   expect(s.recall()).not.toEqual(oldIds)
 })

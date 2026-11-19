@@ -39,7 +39,7 @@ describe('Brain jobs', () => {
       const retry = store.enqueue(lane(), 'queued')
       expect(retry.id).not.toBe(first.id)
       store.removeJob(first.id)
-      expect(store.job(first.id)?.leafId).toBe('leaf-1')
+      expect(store.job(first.id)).toBeUndefined()
       expect(db.prepare('SELECT COUNT(*) AS n FROM proposals').get()).toEqual({ n: 0 })
       expect(db.prepare('SELECT COUNT(*) AS n FROM proposal_vectors').get()).toEqual({ n: 0 })
     },

@@ -53,3 +53,13 @@ export function history(ctx: Context, limit: number): BrainHistory {
     more: rows.length > limit,
   }
 }
+
+/** Bounded context for incremental extraction; reconciliation still searches all of Brain. */
+export function laneContext(ctx: Context, sessionId: string): string[] {
+  return all<{ summary: string }>(
+    ctx,
+    `SELECT summary FROM memories WHERE origin_session=? AND state IN ('active','disputed')
+     ORDER BY recorded_at DESC, n DESC LIMIT 60`,
+    sessionId,
+  ).map((row) => row.summary)
+}

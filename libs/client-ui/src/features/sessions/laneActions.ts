@@ -29,7 +29,7 @@ export type LaneActionId =
 export interface LaneActionContext {
   pinned: boolean
   /** Only local persisted lanes supply a knowledge handler. */
-  knowledge?: 'queue' | 'cancel'
+  knowledge?: 'queue' | 'new' | 'cancel'
   markers: LanePrefs['markers']
   /** The lane's own PRs, lead first, as the "Pull requests" submenu names them. */
   prs: LaneActionPr[]
@@ -103,7 +103,11 @@ export function laneActions(
     ...offer('tree', 'Session tree…', handlers.tree),
     ...offer(
       'knowledge',
-      ctx.knowledge === 'cancel' ? 'Cancel knowledge extraction' : 'Queue for knowledge extraction',
+      ctx.knowledge === 'cancel'
+        ? 'Cancel knowledge extraction'
+        : ctx.knowledge === 'new'
+          ? 'Read new messages for Brain'
+          : 'Queue for knowledge extraction',
       ctx.knowledge ? handlers.knowledge : undefined,
     ),
     ...(ctx.completed === undefined

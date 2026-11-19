@@ -43,7 +43,8 @@ it('uses indexed reads and one grouped count for the history page', () => {
   store.history(20)
   store.laneMemories('harbor-lane')
   const historySql = statements.find(
-    (sql) => sql.includes("WHERE state='done'") && sql.includes('finished_at'),
+    (sql) =>
+      sql.includes("WHERE state IN ('done','empty','rejected')") && sql.includes('finished_at'),
   )!
   const countSql = statements.find((sql) => sql.includes('GROUP BY m.origin_session'))!
   const laneSql = statements.find((sql) => sql.includes('WHERE m.origin_session=?'))!

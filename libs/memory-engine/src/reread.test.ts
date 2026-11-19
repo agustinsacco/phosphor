@@ -55,7 +55,7 @@ it.each([{ selected: [0] }, { selected: [] }])(
     expect(db.prepare('SELECT * FROM proposal_vectors').all()).toEqual([])
   },
 )
-it('rejection of a replacing job preserves the previous done job; normal rejection stays done', () => {
+it('rejection of a replacing job preserves the previous done job; normal rejection stays rejected', () => {
   const { store } = fixture()
   const ids = approve(store)
   const old = store.memory(ids[0]!).memory.jobId!
@@ -63,12 +63,12 @@ it('rejection of a replacing job preserves the previous done job; normal rejecti
   store.propose(extraction(job.id, { computedRevision: store.revision() }))
   store.review(job.id, null, store.revision())
   expect(store.job(old)?.state).toBe('done')
-  expect(store.job(job.id)).toBeUndefined()
+  expect(store.job(job.id)?.state).toBe('rejected')
   expect(ids.map((id) => store.memory(id).memory.id)).toEqual(ids)
   const normal = store.enqueue(lane({ sessionId: 'ledger' }), 'queued')
   store.propose(extraction(normal.id, { computedRevision: store.revision() }))
   store.review(normal.id, null, store.revision())
-  expect(store.job(normal.id)?.state).toBe('done')
+  expect(store.job(normal.id)?.state).toBe('rejected')
 })
 
 it.each(['citation', 'relation'] as const)(
@@ -101,7 +101,12 @@ it.each(['citation', 'relation'] as const)(
     expect(store.memory(ids[0]!).quotes).toEqual(before.quotes)
     expect(store.memory(ids[0]!).linkQuotes).toEqual(before.linkQuotes)
     expect(() => store.memory(ids[1]!)).toThrow('Brain memory not found')
-    expect(store.history(10)).toMatchObject({ items: [{ memories: 1, replaceable: 0 }] })
+    expect(store.history(10)).toMatchObject({
+      items: [
+        { memories: 1, replaceable: 0 },
+        { memories: 1, replaceable: 0 },
+      ],
+    })
     expect(store.snapshot().counts.memories).toBe(1)
   },
 )
@@ -133,6 +138,7 @@ it('replaces all lane provenance, including memories whose old job is gone, but 
   const first = store.memory(ids[0]!).memory.jobId!
   const last = store.enqueue(lane({ leafId: 'later' }), 'queued')
   store.updateJob(last.id, { state: 'done' })
+  store.removeJob(first)
   expect(store.job(first)).toBeUndefined()
   db.prepare('UPDATE memories SET origin_session=NULL WHERE id=?').run(ids[1]!)
   const job = store.enqueue(lane({ leafId: 'new', replaces: last.id }), 'queued')

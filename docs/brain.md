@@ -102,8 +102,7 @@ or every two seconds during work; these reads never start a sweep or a model cal
 ### Lanes
 
 The left column lists reads by state, each group with its count: **Reading**, **Queued**,
-**Failed** and **Read** (the newest 200 finished reads, one per lane; it says when there are
-more). Rows are the lane's title and one line: the reported step and how long it has run, the
+**Failed** and **Read** (the newest 200 finished reads; it says when there are more). Rows are the lane's title and one line: the reported step and how long it has run, the
 queue position, the error, or “2 memories · 5 min ago” (“Nothing worth keeping” for an empty
 read). Times are words (“3 min”, “1 h 20 min”), never a clock. **Recent changes** follows:
 the newest fifty Tidy journal operations with who made them (Automatic or By you), when, and
@@ -121,19 +120,23 @@ selection on.
 
 ## Queueing a lane
 
-Right-click a local lane and choose **Queue for knowledge extraction**; a queued, waiting or
+Right-click a local lane and choose **Queue for knowledge extraction** when Brain has never
+read it, or **Read new messages for Brain** after a finished read. A queued, waiting or
 running lane offers **Cancel knowledge extraction** instead. The queue
 (`libs/brain-runtime/src/queue.ts`) runs one lane at a time and only while the embedding model is
 ready. A lane whose agent is working (`SessionActivity.busy`) waits until it is idle. A lane with
-nothing new since its last finished extraction by the same extractor version is refused; a new
-extractor version may read it once more. A failed job shows **Retry**, which requeues the same
+nothing new since its newest finished read (`done`, `empty` or `rejected`) is refused with
+“Nothing new in this lane since its last read.” Queue reads only entries after that read's leaf,
+regardless of extractor version. Use **Read again** to apply a newer extractor from the beginning. A failed job shows **Retry**, which requeues the same
 job and resumes from its saved steps. Jobs left running when the app quit resume where they
 stopped.
 
 ## Read lanes and Read again
 
-The **Read** section of Lanes shows the newest 200 finished reads, with one history row per
-lane, and says when more exist. The list reloads when jobs or knowledge change; a failed load
+The **Read** section of Lanes shows the newest 200 finished reads and says when more exist.
+Brain retains up to twenty finished reads per lane, with each read's leaf, cursor, saved steps
+and extraction record. Rejected reviews remain as `rejected` (nothing saved); a read with
+nothing worth keeping remains `empty`. The next queue continues after either, as after approval. The list reloads when jobs or knowledge change; a failed load
 has Retry. Model names match the picker; unavailable names fall back to the id without its
 provider prefix. A row opens the finished read in the same pane.
 
@@ -153,7 +156,7 @@ lane's support; a message written in the fork is. Replacing bumps the revision o
 search index fails to refresh after an automatic save, the read still ends as done and the
 failure is logged. A rejected, cancelled or permanently failed reread removes no knowledge.
 An **empty** reread (nothing kept) also removes nothing. Rejecting or dismissing a reread keeps
-the earlier finished read in history. Successful saving replaces that history row.
+the earlier finished read in history. Successful saving keeps both finished reads in the bounded history.
 
 ## Reading a lane
 
@@ -164,6 +167,14 @@ custom messages, branch summaries and compaction summaries are not evidence. Eve
 scrubbed of secrets, email addresses and phone numbers before any prompt. User messages longer
 than 6,000 characters keep their first 4,000 and last 1,900 around an explicit
 `[… N chars omitted …]` marker. Assistant text is never elided. No quote may cross a marker.
+
+An incremental read begins after its previous leaf with two earlier segments marked **context
+only**. Claims supported only by those overlap segments are dropped and recorded, even if the
+reader proposes them. If the lane branched, it starts after the deepest common ancestor and
+records that fallback; if no shared ancestor remains, it starts at the beginning. The newest
+sixty current lane memories are frozen as **Already kept** context for the first and later
+parts. Reconcile still compares claims against all of Brain. **Read again** has no cursor and
+reads the entire selected path.
 
 The conversation is read in parts of at most 300,000 characters, with two segments of overlap.
 Each segment has a handle, role and ISO date. Most lanes fit in one part. A part can be about
@@ -443,7 +454,7 @@ text each scroll inside a capped box.
 
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records store no
 prompt text; a prompt whose inputs are gone says so. Records are kept while their job is in the
-inbox or is the latest finished read of its lane, without an age limit. These jobs also keep
+inbox or is one of its lane's twenty retained finished reads, without an age limit. These jobs also keep
 step inputs, so finished-read prompts can be rebuilt. Removing or replacing a job deletes its
 step inputs. A record without a job survives only while a memory references it, and expires
 30 days after it finished; its prompts are unavailable. With neither job nor memory, the record
