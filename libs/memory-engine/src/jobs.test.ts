@@ -171,3 +171,16 @@ it('retains at most twenty finished reads per lane, including their step inputs'
   expect(store.job(first)).toBeUndefined()
   expect(store.part(first, 'window', 'hash')).toBeUndefined()
 })
+
+it('refuses a never-read lane even at the store enqueue boundary', () => {
+  const { store } = fixture()
+  store.setPrefs({
+    ...store.snapshot().prefs,
+    neverRead: { titles: ['1-1'], sessionIds: ['harbor-lane'] },
+  })
+  expect(() => store.enqueue(lane(), 'queued')).toThrow('Brain is set not to read this lane.')
+  expect(() =>
+    store.enqueue(lane({ sessionId: 'ledger', title: 'Rina 1-1 prep' }), 'queued'),
+  ).toThrow('Brain never reads this lane because its title matches a rule in Settings › Brain.')
+  expect(store.snapshot().jobs).toEqual([])
+})

@@ -55,3 +55,13 @@ export function setBrainLaneNeverRead(
     neverRead: checkBrainNeverRead({ ...prefs.neverRead, sessionIds: [...sessionIds] }),
   }
 }
+
+/** The same plain refusal at the API and store boundary; title rules take precedence. */
+export function brainNeverReadReason(
+  prefs: BrainPrefs['neverRead'],
+  lane: { sessionId: string; title: string },
+): string | null {
+  if (brainTitleNeverRead(prefs, lane.title))
+    return 'Brain never reads this lane because its title matches a rule in Settings › Brain.'
+  return prefs.sessionIds.includes(lane.sessionId) ? 'Brain is set not to read this lane.' : null
+}

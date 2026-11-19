@@ -1,6 +1,7 @@
-import type { BrainJob } from '@phosphor/shared/brain'
+import { brainNeverReadReason, type BrainJob } from '@phosphor/shared/brain'
 import { all, one, run, transaction, type Context } from './database'
 import { pruneExtractions } from './extractions'
+import { prefs } from './prefs'
 import type { JobPart, JobPatch, NewJob } from './types'
 
 const columns = `id, session_id AS sessionId, session_path AS sessionPath, title, scope, branch,
@@ -67,6 +68,8 @@ export const BRAIN_EXTRACTOR_VERSION = 5
 
 export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'): BrainJob {
   return transaction(ctx, () => {
+    const refusal = brainNeverReadReason(prefs(ctx).neverRead, value)
+    if (refusal) throw new Error(refusal)
     if (value.replaces) {
       const previous = job(ctx, value.replaces)
       if (previous?.state !== 'done')

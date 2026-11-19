@@ -98,6 +98,7 @@ it('sends explicit identity overrides, confirmed groups and the exact memory ind
       memories: [1],
       identities: { harbor: 'new', ledger: 'ledger-other', rina: 'rina', tom: 'new' },
       groups: [0],
+      descriptions: [],
     },
     0,
   )
@@ -112,7 +113,7 @@ it('sends only what the owner answered, and answers no group for him', async () 
   await click('Approve 2')
   expect(review).toHaveBeenCalledWith(
     'harbor-job',
-    { memories: [0, 1], identities: {}, groups: [] },
+    { memories: [0, 1], identities: {}, groups: [], descriptions: [] },
     0,
   )
 })
@@ -136,7 +137,7 @@ it('approves confirmations alone, and a read again with nothing new', async () =
   await click('Approve confirmations')
   expect(review).toHaveBeenLastCalledWith(
     'harbor-job',
-    { memories: [], identities: {}, groups: [] },
+    { memories: [], identities: {}, groups: [], descriptions: [] },
     0,
   )
 })

@@ -22,6 +22,10 @@ appear:
   even after this setting changes or you Retry it. Use **Use each lane's own model** to clear it.
   A stored setting is checked when read as well as when written: a malformed value reads as its
   default.
+- **Never read matching lane titles**: title patterns, seeded with `1:1`, `1-1`, `one on one`
+  and `1on1`. They match case-insensitively, never inside a longer word or number (`Rina 1-1 prep`
+  matches; `2021-11-12` does not). Add or remove up to fifty patterns of eighty characters each.
+  The lane menu switches individual lanes (at most 5,000). A failed save retains the draft for retry.
 - **Knowledge**: counts and an Open Brain button.
 - **Reset Brain knowledge**: after a confirmation, deletes every memory, entity, job, proposal
   and extraction record. Settings and the embedding model stay; review turns back on.
@@ -130,6 +134,17 @@ nothing new since its newest finished read (`done`, `empty` or `rejected`) is re
 regardless of extractor version. Use **Read again** to apply a newer extractor from the beginning. A failed job shows **Retry**, which requeues the same
 job and resumes from its saved steps. Jobs left running when the app quit resume where they
 stopped.
+
+### Lanes Brain never reads
+
+Both Queue and Read again refuse an excluded lane. Changing the rules cancels its queued and
+waiting jobs, not its pending review; the Inbox still offers that review, with Reject as its
+primary action. Recall is unaffected. A title-rule match takes precedence in the lane menu:
+**Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
+per-lane switch that could falsely promise to override the title rule. A lane excluded only by
+its id offers **Let Brain read this lane**, with no Queue. Other lanes offer their ordinary
+Queue/New messages action and **Never let Brain read this lane**. Removing an id never overrides
+a title rule.
 
 ## Read lanes and Read again
 

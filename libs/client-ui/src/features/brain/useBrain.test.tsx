@@ -129,7 +129,7 @@ it('stores each mutation’s returned status and confirms queue, cancel and forg
     ['brain:removeModel'],
     ['brain:queue', lane],
     ['brain:cancel', 'job'],
-    ['brain:review', 'job', { memories: [0], identities: {}, groups: [] }, 3],
+    ['brain:review', 'job', { memories: [0], identities: {}, groups: [], descriptions: [] }, 3],
     ['brain:forget', 'memory'],
   ])
   expect(useBrain.getState().status).toEqual(status)

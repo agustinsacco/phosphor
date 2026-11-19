@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -32,7 +33,7 @@ let refusal = ''
 beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mock = createMockBrain(() => 10_000)
-  await mock('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
+  await mock('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   refusal = ''
   sent.mockReset()
   onClose.mockReset()
