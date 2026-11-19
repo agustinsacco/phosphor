@@ -126,5 +126,16 @@ export interface EntityMatch {
 export interface ClaimProbe {
   entityIds: string[]
   links: { subjectId: string; predicate: BrainPredicate; objectId: string }[]
+  /** The claim's embedding. Matches are scored against it; without it they score 0. */
+  vector?: Float32Array
+}
+/** An existing memory that may say the same thing as a claim, and how it was found. */
+export interface MemoryMatch {
+  id: string
+  /** `link`: it states the claim's link, or owns the claim's owned thing. `entity`: it names
+   * one of the claim's entities. */
+  channel: 'link' | 'entity'
+  /** Cosine similarity to the probe's vector; 0 without one. */
+  similarity: number
 }
 export type MemoryCard = BrainMemory

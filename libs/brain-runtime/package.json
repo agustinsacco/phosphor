@@ -184,6 +184,10 @@
       "types": "./src/stages/reconcile.ts",
       "default": "./src/stages/reconcile.ts"
     },
+    "./stages/reconcile-candidates": {
+      "types": "./src/stages/reconcile-candidates.ts",
+      "default": "./src/stages/reconcile-candidates.ts"
+    },
     "./tidy/api": {
       "types": "./src/tidy/api.ts",
       "default": "./src/tidy/api.ts"

@@ -233,10 +233,13 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    reuse a named candidate, new, or uncertain. Three or more entities sharing a leading name
    with no parent become a review question ("Are these part of one Harbor?"). No separate model
    call looks for parents.
-5. **Reconcile.** Each claim is compared with up to five existing memories: ones with the same
-   link, ones naming the same entities, and near vectors (cosine 0.7 or more), plus earlier
-   claims from this lane. Earlier claims rank by same text, shared link pair, cosine at least
-   0.7 (highest first), then shared entity. Paraphrases can match without shared entities.
+5. **Reconcile.** Each claim is compared with up to five candidates: existing memories that
+   state the same link or own the same thing, near vectors (cosine 0.7 or more), the newest 128
+   memories of each entity it names, and earlier claims from this lane. They rank together by
+   evidence strength: same text and links, same text, a shared link between the same two
+   entities, cosine at least 0.7 (highest first), and then a shared entity alone, ranked by
+   similarity to the claim rather than recency, so a busy person's newer memories cannot hide a
+   close one. Paraphrases can match without shared entities.
    Same text and links confirm deterministically; otherwise the model picks add, confirm (same
    assertion, nothing new), enrich (same assertion, new supported links), supersede, conflict,
    or resolve an open question. Within one lane, a later claim replaces an earlier one.

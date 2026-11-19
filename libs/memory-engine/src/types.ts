@@ -28,6 +28,7 @@ import type {
   EntityCard,
   EntityMatch,
   MemoryCard,
+  MemoryMatch,
   Proposal,
   ProposalResult,
 } from './proposal-types'
@@ -98,10 +99,11 @@ export interface BrainStore extends BrainTidyStore {
   ): EntityMatch[][]
   entityCards(ids: string[]): EntityCard[]
   /**
-   * Active or disputed memories that share a link or entities with each probe. Ids that are not
-   * stored entities (a job's new refs) match nothing.
+   * Active or disputed memories that share a link or entities with each probe, at most `limit`
+   * per channel. Entity matches come from each entity's newest memories, most similar first. Ids
+   * that are not stored entities (a job's new refs) match nothing.
    */
-  memoryMatches(probes: ClaimProbe[], limit: number): string[][]
+  memoryMatches(probes: ClaimProbe[], limit: number): MemoryMatch[][]
   memoryCards(ids: string[]): MemoryCard[]
 
   /** Stores a proposal; the job moves to review, or empty when there is nothing to review. */

@@ -1,6 +1,5 @@
 import type {
   BrainStore,
-  MemoryCard,
   ProposalEntity,
   ProposalMemory,
   Citation,
@@ -10,54 +9,12 @@ import type { StageAsk } from '../stage-types'
 import type { BrainSearchPort } from '../types'
 import { validDecisions, object, text } from '../stage-parse'
 import { reconcilePrompt } from '../stage-prompts/reconcile'
-import { type FoldedJob, type FoldedClaim, linkKey } from './fold'
-import { cosine } from '@phosphor/memory-engine/vectors'
-import { fold } from '@phosphor/memory-engine/text'
+import type { FoldedJob } from './fold'
+import { type Card, type Row, candidateRows, same } from './reconcile-candidates'
 
-interface Card {
-  id: string
-  summary: string
-  type: string
-  links: { subject: string; predicate: string; object: string }[]
-  local: boolean
-}
-interface Row {
-  claim: FoldedClaim
-  vector: Float32Array
-  comparison: ProposalMemory
-  candidates: Card[]
-}
 const uniqueCitations = (items: Citation[]): Citation[] => [
   ...new Map(items.map((c) => [`${c.evidence}:${c.quote}`, c])).values(),
 ]
-function resolvedMemory(memory: ProposalMemory, entities: ProposalEntity[]): ProposalMemory {
-  const resolve = (id: string): string => entities.find((e) => e.ref === id)?.entityId ?? id
-  return {
-    ...memory,
-    entities: memory.entities.map(resolve),
-    links: memory.links.map((l) => ({
-      ...l,
-      subject: resolve(l.subject),
-      object: resolve(l.object),
-    })),
-  }
-}
-function card(memory: MemoryCard): Card {
-  return {
-    id: memory.id,
-    summary: memory.summary,
-    type: memory.type,
-    local: false,
-    links: memory.links.map((l) => ({
-      subject: l.subjectId,
-      predicate: l.predicate,
-      object: l.objectId,
-    })),
-  }
-}
-function same(memory: ProposalMemory, other: Card): boolean {
-  return fold(memory.summary) === fold(other.summary) && linkKey(memory) === linkKey(other)
-}
 function decisions(answer: string, rows: Row[]) {
   return validDecisions(answer, (v) => {
     const d = object(v),
@@ -175,87 +132,6 @@ function priority(action: ProposalMemory['action'] | 'confirm'): number {
   return { add: 0, confirm: 1, enrich: 2, conflict: 3, supersede: 4, resolve_open: 4 }[action]
 }
 
-async function candidateRows(
-  job: FoldedJob,
-  entities: ProposalEntity[],
-  store: BrainStore,
-  search: BrainSearchPort,
-  vectors: Float32Array[],
-  excluded: string[],
-): Promise<Row[]> {
-  const normalized = job.claims.map((c) => resolvedMemory(c.memory, entities))
-  const matches = store.memoryMatches(
-    normalized.map((m) => ({
-      entityIds: m.entities,
-      links: m.links.map((l) => ({
-        subjectId: l.subject,
-        predicate: l.predicate,
-        objectId: l.object,
-      })),
-    })),
-    5,
-  )
-  const semantic = await search.nearestMemories(vectors, 5)
-  const old = new Map(
-    store
-      .memoryCards([
-        ...new Set([
-          ...matches.flat(),
-          ...semantic.flatMap((m) => m.filter((v) => v.score >= 0.7).map((v) => v.id)),
-        ]),
-      ])
-      .filter((m) => !excluded.includes(m.id))
-      .map((m) => [m.id, card(m)]),
-  )
-  return job.claims.map((claim, index): Row => {
-    const ids = [
-      ...new Set([
-        ...(matches[index] ?? []),
-        ...(semantic[index] ?? []).filter((m) => m.score >= 0.7).map((m) => m.id),
-      ]),
-    ]
-    const comparison = normalized[index]!
-    const prior = job.claims
-      .slice(0, index)
-      .map((c, j) => ({
-        c,
-        m: normalized[j]!,
-        rank: closeness(normalized[j]!, comparison, cosine(vectors[j]!, vectors[index]!)),
-        j,
-      }))
-      .filter((item) => item.rank >= 0)
-      .sort((a, b) => b.rank - a.rank || b.j - a.j)
-      .slice(0, 5)
-      .map(({ c, m }) => ({
-        id: c.ref,
-        summary: m.summary,
-        type: m.type,
-        links: m.links,
-        local: true,
-      }))
-    const offered = [...ids.flatMap((id) => (old.has(id) ? [old.get(id)!] : [])), ...prior]
-    // An exact duplicate is always offered, so the deterministic fold or confirm can see it.
-    const equal = offered.filter((card) => same(comparison, card))
-    return {
-      claim,
-      comparison,
-      vector: vectors[index]!,
-      candidates: [...equal, ...offered.filter((card) => !equal.includes(card))].slice(0, 5),
-    }
-  })
-}
-/**
- * How close an earlier claim in this job is to a later one: the same text, then a shared link
- * between the same entities, then semantic similarity, then any shared entity. Unrelated claims are -1 and never offered.
- */
-function closeness(earlier: ProposalMemory, later: ProposalMemory, similarity: number): number {
-  if (fold(earlier.summary) === fold(later.summary)) return 4
-  const pairs = new Set(later.links.map((l) => `${l.subject}|${l.object}`))
-  if (earlier.links.some((l) => pairs.has(`${l.subject}|${l.object}`))) return 3
-  if (similarity >= 0.7) return 1 + similarity
-  if (earlier.entities.some((e) => later.entities.includes(e))) return 1
-  return -1
-}
 function applyDecision(
   {
     job,

@@ -26,6 +26,7 @@ import type {
   EntityMatch,
   EntityCard,
   MemoryCard,
+  MemoryMatch,
   ClaimProbe,
   SearchInput,
 } from '@phosphor/memory-engine/types'
@@ -159,8 +160,10 @@ export class FakeBrainStore implements BrainStore {
   entityCards(ids: string[]): EntityCard[] {
     return this.cards.filter((c) => ids.includes(c.id))
   }
-  memoryMatches(probes: ClaimProbe[], _limit: number): string[][] {
-    return probes.map((_p, i) => this.matchesMemory[i] ?? [])
+  memoryMatches(probes: ClaimProbe[], _limit: number): MemoryMatch[][] {
+    return probes.map((_p, i) =>
+      (this.matchesMemory[i] ?? []).map((id) => ({ id, channel: 'entity', similarity: 0 })),
+    )
   }
   memoryCards(ids: string[]): MemoryCard[] {
     return this.oldMemories.filter((c) => ids.includes(c.id))
