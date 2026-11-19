@@ -326,8 +326,9 @@ this review: Brain changed since it was read.” It stays a review (`refreshing`
 previous memory count, and recomputes identity and reconcile from saved extract and links
 steps. A refresh never re-reads the conversation; it asks again only the questions whose
 inputs changed. Even after an extractor prompt upgrade it reuses validated source windows by
-part name, only while refreshing; missing windows are read normally. New reads, failed-read
-retries and Read again still require an exact input hash. An upgrade may change a decision's
+part name whenever the read has a stored proposal or prepare checkpoint, including Retry and
+interrupted pre-upgrade recomputes; missing windows are read normally. New reads and Read again
+create new jobs without saved source windows. An upgrade may change a decision's
 candidate format, so its first refresh can ask that changed identity or reconcile question
 again, but never re-extracts saved windows. The queue refreshes stale reviews in the
 background, oldest first, before new reads. A finished refresh never changes knowledge. The
