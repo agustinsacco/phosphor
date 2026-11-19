@@ -108,6 +108,10 @@
       "types": "./src/stage-call.ts",
       "default": "./src/stage-call.ts"
     },
+    "./stage-hold": {
+      "types": "./src/stage-hold.ts",
+      "default": "./src/stage-hold.ts"
+    },
     "./stage-input": {
       "types": "./src/stage-input.ts",
       "default": "./src/stage-input.ts"
