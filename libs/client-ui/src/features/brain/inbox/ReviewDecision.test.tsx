@@ -312,6 +312,19 @@ it('shows a held confirmation in its held group, unticked, and sends its own ind
   )
 })
 
+it('approves ordinary confirmations while a held one stays unticked', async () => {
+  proposal.memories = []
+  const plain = proposal.confirmations[0]!
+  proposal.confirmations = [
+    plain,
+    { ...plain, id: 'm-tom', claim: { ...plain.claim, hold: 'personal' } },
+  ]
+  await render()
+  expect(container.textContent).toContain('1 memory confirms what Brain knows')
+  await click('Approve confirmations')
+  expect(review.mock.calls[0]![1]).toMatchObject({ memories: [], confirmations: [] })
+})
+
 it('blocks Approve when the only thing to save is a held confirmation nobody ticked', async () => {
   proposal.memories = []
   proposal.confirmations[0]!.claim.hold = 'temporary'
