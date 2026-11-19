@@ -227,13 +227,14 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    later parts learn the mark from the entities they are offered. Parsing turns a leading "The
    user" or "The user's" into that name and adds the mention once; with no marked person the
    sentence stays as written. The mark never reaches identity or review. A claim the model kept
-   although unsure comes back held, temporary or personal, and parsing adds holds by fixed rules
-   that only mark, never drop: personal for a claim naming a person that speaks of promotion,
-   calibration, leveling or L1–L9, being upset, absence, leave or vacation, or performance
-   reviews; temporary for "as of", "currently", "still", "this week" or "this sprint", a ticket
-   or pull request as its subject, or a date (in the sentence or its validity) within 60 days
-   after it was said. The answer rules are repeated after the conversation, because a long one
-   buries them.
+   although unsure comes back held, temporary or personal, and fixed rules add holds that only
+   mark, never drop, both when a part is parsed and when the proposal is assembled (so a refresh
+   that reuses parts read before holds existed marks them too): personal for a claim naming a
+   person that speaks of promotion, calibration, leveling or L1–L9, being upset, absence, leave
+   or vacation, or performance reviews; temporary for "as of", "currently", "still", "this week"
+   or "this sprint", a ticket or pull request as its subject, or a date (in the sentence or its
+   validity) within 60 days after it was said. The answer rules are repeated after the
+   conversation, because a long one buries them.
 2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
    more entities, those entities, existing links and short excerpts around each claim's quotes.
    Each excerpt stays in its segment, stops at an elision marker and adds at most 600 characters
