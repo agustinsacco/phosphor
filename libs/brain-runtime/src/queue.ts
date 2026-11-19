@@ -77,8 +77,19 @@ export class ExtractionQueue {
   kick(): void {
     if (!this.accepting) return
     this.updateWaiting()
-    if (this.checking) return
-    if (!this.options.refusal || this.active) {
+    if (this.checking || this.active) return
+    if (
+      !this.options.refusal ||
+      !this.options.store
+        .snapshot()
+        .jobs.some(
+          (job) =>
+            ['waiting', 'queued', 'refreshing'].includes(job.state) ||
+            (job.state === 'review' &&
+              this.options.store.storedProposal(job.id)?.computedRevision !==
+                this.options.store.knowledgeRevision()),
+        )
+    ) {
       this.start()
       return
     }
@@ -99,6 +110,8 @@ export class ExtractionQueue {
       try {
         const reason = await refusal!(job)
         if (!this.accepting) return
+        if (!['waiting', 'queued', 'review', 'refreshing'].includes(store.job(job.id)?.state ?? ''))
+          continue
         if (reason && (job.state === 'review' || job.state === 'refreshing')) {
           this.blocked.add(job.id)
           if (store.job(job.id)?.state === 'refreshing') {
@@ -111,7 +124,7 @@ export class ExtractionQueue {
           changed()
         }
       } catch (error) {
-        if (this.accepting && (job.state === 'review' || job.state === 'refreshing')) {
+        if (this.accepting && ['review', 'refreshing'].includes(store.job(job.id)?.state ?? '')) {
           store.updateJob(job.id, {
             state: 'failed',
             finishedAt: this.options.now(),
