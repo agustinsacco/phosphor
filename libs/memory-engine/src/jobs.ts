@@ -86,7 +86,7 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
     if (unfinished) throw new Error('This lane is already queued.')
     const last = one<{ leaf_id: string | null }>(
       ctx,
-      "SELECT leaf_id FROM jobs WHERE session_id=? AND state IN ('done','empty','rejected') ORDER BY finished_at DESC, queued_at DESC, rowid DESC LIMIT 1",
+      "SELECT leaf_id FROM jobs WHERE session_id=? AND state IN ('done','empty','rejected') ORDER BY queued_at DESC, rowid DESC LIMIT 1",
       value.sessionId,
     )
     if (!value.replaces && last && last.leaf_id === value.leafId) {
@@ -178,7 +178,18 @@ export function requeueInterrupted(ctx: Context): void {
 }
 
 export function retry(ctx: Context, id: string): BrainJob {
-  if (job(ctx, id)?.state !== 'failed') throw new Error('Only failed Brain jobs can be retried.')
+  const current = job(ctx, id)
+  if (current?.state !== 'failed') throw new Error('Only failed Brain jobs can be retried.')
+  const later = one(
+    ctx,
+    `SELECT id FROM jobs WHERE session_id=? AND
+      (queued_at > ? OR (queued_at = ? AND rowid > (SELECT rowid FROM jobs WHERE id=?))) LIMIT 1`,
+    current.sessionId,
+    current.queuedAt,
+    current.queuedAt,
+    id,
+  )
+  if (later) throw new Error('A later read of this lane already covers these messages.')
   return updateJob(ctx, id, { state: 'queued', error: null, finishedAt: null, progress: null })
 }
 export function part(

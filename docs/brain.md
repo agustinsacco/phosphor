@@ -134,7 +134,9 @@ lane with nothing new since its newest finished read (`done`, `empty` or `reject
 refused with “Nothing new in this lane since its last read.” Queue reads only entries after
 that read's leaf, regardless of extractor version. Use **Read again** to apply a newer
 extractor from the beginning. A failed job shows **Retry**, which requeues the same job and
-resumes from its saved steps. Jobs left running when the app quit resume where they stopped.
+resumes from its saved steps. If a later read of that lane exists, Retry refuses; Dismiss
+remains available. The incremental cursor follows queue order, not completion order, so an
+older read finishing late never moves it backwards. Jobs left running when the app quit resume where they stopped.
 
 ### Lanes Brain never reads
 
