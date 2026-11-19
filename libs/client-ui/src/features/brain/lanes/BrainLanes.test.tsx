@@ -136,7 +136,7 @@ it('lists reads by state and Recent changes, and opens the first read in progres
   ])
   expect(section('Reading').textContent).toContain('Reading · 3 min')
   expect(section('Queued').textContent).toContain('Queued 2 h ago · 1 ahead')
-  expect(section('Read').textContent).toContain('3 memories · 2 h ago')
+  expect(section('Read').textContent).toContain('3 memories from this read · 2 h ago')
   expect(list.textContent).not.toContain('review')
   expect(selection).toEqual({ type: 'job', id: 'running' })
 })
@@ -317,12 +317,16 @@ it('says a read covered the new messages after the read it continues', async () 
   })
   const latest = mockBrainJob({
     id: 'latest',
-    state: 'empty',
+    state: 'done',
     fromLeafId: 'leaf-7',
     finishedAt: NOW,
   })
+  // Two reads of one lane: each row counts what that read kept; replaceable is lane-wide.
   history.mockResolvedValue({
-    items: [{ job: previous, memories: 3, replaceable: 2 }],
+    items: [
+      { job: latest, memories: 2, replaceable: 3 },
+      { job: previous, memories: 1, replaceable: 3 },
+    ],
     more: false,
   })
   extraction.mockImplementation(async (id) => ({
@@ -330,7 +334,11 @@ it('says a read covered the new messages after the read it continues', async () 
     jobId: id,
     job: id === 'latest' ? latest : previous,
   }))
-  await render([latest], { type: 'job', id: 'latest' })
+  await render([], { type: 'job', id: 'latest' })
+  expect([...section('Read').querySelectorAll('li')].map((row) => row.textContent)).toEqual([
+    'Harbor planning2 memories from this read · just now',
+    'Harbor planning1 memory from this read · 1 day ago',
+  ])
   expect(section('Read detail').textContent).toContain(
     `Covered: New messages after ${when(previous.finishedAt!)}`,
   )

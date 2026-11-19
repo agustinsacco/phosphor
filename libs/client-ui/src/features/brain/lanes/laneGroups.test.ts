@@ -61,7 +61,7 @@ it('says what each row is doing in honest time', () => {
     memories: 1,
     replaceable: 1,
   }
-  expect(readLine(row, now)).toBe('1 memory · 2 min ago')
+  expect(readLine(row, now)).toBe('1 memory from this read · 2 min ago')
   expect(readLine({ ...row, job: { ...row.job, state: 'empty' } }, now)).toBe(
     'Nothing worth keeping',
   )

@@ -250,7 +250,13 @@ it('keeps finished reads in history and replaces the mocked lane only on approva
     proposal.revision,
   ])) as BrainStatus
   expect(saved.counts.memories).toBe(1)
-  expect(await call('brain:history', [20])).toMatchObject({ items: [{ job: { id }, memories: 1 }] })
+  // Both reads stay listed; Read again replaced every memory of the first one.
+  expect(await call('brain:history', [20])).toMatchObject({
+    items: [
+      { job: { id }, memories: 1, replaceable: 1 },
+      { job: { id: 'harbor-demo-review' }, memories: 0, replaceable: 1 },
+    ],
+  })
 })
 
 it('marks forgotten links removed in a finished mocked extraction', async () => {
