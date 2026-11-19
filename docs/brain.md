@@ -313,9 +313,18 @@ in one line.
 transaction; **Reject** stores nothing. An uncertain entity without a choice becomes new, and only
 entities that a saved memory or group uses are created. A confirmed group creates or reuses the
 parent and one fact per member ("X is part of Harbor"), quoted as "Stated by you in review". If
-Brain changed since the proposal was computed, the review says “Refreshing this review: Brain
-changed since it was read.”, recomputes identity and reconcile from the saved extract steps, and
-returns to review. With review off, the defaults apply: uncertain becomes new, groups are skipped
+knowledge changed since the proposal was computed, the review says “Refreshing this review: Brain
+changed since it was read.” It stays a review (`refreshing`), retains its previous memory count,
+and recomputes identity and reconcile from saved extract steps. The queue refreshes stale reviews
+in the background, oldest first, before new reads. A finished refresh never changes knowledge.
+The internal `knowledge_revision` counter tracks memories, entities, names, aliases, descriptions,
+links, states and merges; Tidy suggestions, verdicts, dismissals, flags, coverage and run state
+change only the general revision used by the explorer and Tidy guards. Approval uses the knowledge
+guard too. Accepted identity and reconcile answers are keyed by their complete prompt, not either
+revision: unchanged questions, including answers saved by older apps, never call the model again.
+A changed candidate changes only the prompt that contains it. The job's `startedAt` is its first
+start, and `runStartedAt` is the current attempt (null while not running or refreshing). Read
+durations come from recorded model calls, not elapsed time across app quits. With review off, the defaults apply: uncertain becomes new, groups are skipped
 and conflicts are saved as disputed.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both
@@ -467,7 +476,7 @@ is pruned immediately.
 
 ## Storage
 
-`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 6, WAL) holds settings,
+`<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 7, WAL) holds settings,
 the queue and its saved steps, proposals, extraction records, entities (names, aliases, keys),
 memories, mentions, supported relations, citations, evidence, float/sign-bit vectors, Tidy
 suggestions, a bounded operation journal, and the saved sweep cursor and run checkpoint.
@@ -475,9 +484,10 @@ Full text search covers memories, entity words and entity name trigrams.
 
 Versions 4 and 5 upgrade in place in one transaction. Version 4 first gains the jobs `replaces`
 column and lane-memory/finished-read indexes; both versions then gain the Tidy tables and
-indexes and become version 6. Knowledge, preferences, jobs and records stay. A failed upgrade
-rolls back completely. Version 6 opens without altering its run checkpoint; the runtime owns
-interrupted-run recovery. Newer versions are refused. Opening versions 0 to 3 deletes their
+indexes and become version 6. Versions 4, 5 and 6 then gain nullable job columns `from_leaf`
+and `run_started_at` and become version 7. Knowledge, preferences, jobs and records stay. A failed upgrade
+rolls back completely. Version 7 opens without altering its run checkpoint; the runtime owns
+interrupted-run recovery. Newer versions are refused. An older app refuses a version 7 Brain; it never resets it. Opening versions 0 to 3 deletes their
 knowledge, keeps preferences with review on, and starts a new generation, as **Reset Brain
 knowledge** does. The model lives under `<userData>/brain/embeddings`.
 

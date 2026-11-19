@@ -1,5 +1,5 @@
 import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
-import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
+import { mockBrainPrefs } from './mockBrainPrefs'
 import type { BrainEntitySort } from '@shared/brain-explore'
 import type {
   BrainExtractionView,
@@ -7,7 +7,6 @@ import type {
   BrainJob,
   BrainLaneRef,
   BrainMemoryFilter,
-  BrainPrefs,
   BrainProposalView,
   BrainPredicate,
   BrainReviewDecision,
@@ -134,7 +133,11 @@ class MockBrain {
     job.memories = 2
     job.finishedAt = this.now()
     if (!this.state.prefs.review)
-      this.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, this.state.revision)
+      this.review(
+        job.id,
+        { descriptions: [], memories: [0, 1], identities: {}, groups: [] },
+        this.state.revision,
+      )
   }
   private download(): BrainStatus {
     this.downloading = this.now()
@@ -320,9 +323,12 @@ class MockBrain {
       }
       case 'brain:status':
         return this.status()
+      case 'brain:neverRead':
       case 'brain:setPrefs':
-        this.state.prefs = { ...DEFAULT_BRAIN_PREFS, ...(args[0] as BrainPrefs) }
-        return this.state.prefs.enabled && this.state.embedding.phase === 'missing'
+        this.state.prefs = mockBrainPrefs(channel, args, this.state.prefs)
+        return channel === 'brain:setPrefs' &&
+          this.state.prefs.enabled &&
+          this.state.embedding.phase === 'missing'
           ? this.download()
           : this.status()
       case 'brain:download':

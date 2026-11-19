@@ -23,6 +23,7 @@ export const BRAIN_WEB = {
   'brain:status': localBrain,
   'brain:history': localBrain,
   'brain:reread': localBrain,
+  'brain:neverRead': localBrain,
   'brain:setPrefs': localBrain,
   'brain:download': localBrain,
   'brain:removeModel': localBrain,

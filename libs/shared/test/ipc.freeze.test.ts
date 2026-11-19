@@ -66,6 +66,7 @@ const expectedEntries = [
   ['brain:memory', 'app'],
   ['brain:merge', 'app'],
   ['brain:neighbourhood', 'app'],
+  ['brain:neverRead', 'app'],
   ['brain:overview', 'app'],
   ['brain:path', 'app'],
   ['brain:proposal', 'app'],

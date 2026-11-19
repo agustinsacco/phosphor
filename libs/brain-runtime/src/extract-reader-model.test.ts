@@ -11,7 +11,13 @@ async function setup(model: string | null, thinking: string) {
   const s = await pipelineSetup()
   afterEach(s.cleanup)
   const { store } = fixture()
-  store.setPrefs({ enabled: true, recall: true, review: true, model })
+  store.setPrefs({
+    neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    enabled: true,
+    recall: true,
+    review: true,
+    model,
+  })
   await writeFile(
     s.file,
     [...s.entries, { type: 'thinking_level_change', thinkingLevel: thinking }]

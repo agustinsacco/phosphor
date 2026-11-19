@@ -2,6 +2,7 @@ import {
   BRAIN_ENTITY_KINDS,
   BRAIN_MEMORY_STATES,
   checkBrainReaderModel,
+  checkBrainNeverRead,
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
   type BrainEntityKind,
@@ -33,12 +34,12 @@ export function checkPrefs(value: unknown): BrainPrefs {
   if (
     !prefs ||
     typeof prefs !== 'object' ||
-    Object.keys(prefs).sort().join() !== 'enabled,model,recall,review' ||
+    Object.keys(prefs).sort().join() !== 'enabled,model,neverRead,recall,review' ||
     (['enabled', 'recall', 'review'] as const).some((key) => typeof prefs[key] !== 'boolean')
   )
     fail('Invalid Brain settings.')
   checkBrainReaderModel(prefs.model)
-  return prefs as BrainPrefs
+  return { ...(prefs as BrainPrefs), neverRead: checkBrainNeverRead(prefs.neverRead) }
 }
 
 export function checkLane(value: unknown): BrainLaneRef {
@@ -57,7 +58,7 @@ const indexes = (value: unknown, max: number): number[] =>
 /** What to save from a proposal. Null rejects it whole. */
 export function checkDecision(value: unknown): BrainReviewDecision | null {
   if (value === null) return null
-  if (!record(value) || !exactKeys(value, ['memories', 'identities', 'groups']))
+  if (!record(value) || !exactKeys(value, ['memories', 'identities', 'groups', 'descriptions']))
     return fail('Invalid review selection.')
   const identities = value.identities
   if (
@@ -69,7 +70,14 @@ export function checkDecision(value: unknown): BrainReviewDecision | null {
     )
   )
     fail('Invalid review selection.')
+  if (
+    !Array.isArray(value.descriptions) ||
+    value.descriptions.length > 400 ||
+    Array.from(value.descriptions).some((ref) => typeof ref !== 'string' || !ref || ref.length > 64)
+  )
+    fail('Invalid review selection.')
   return {
+    descriptions: value.descriptions as string[],
     memories: indexes(value.memories, 400),
     identities: identities as Record<string, string>,
     groups: indexes(value.groups, 100),

@@ -183,3 +183,26 @@ it('keeps dropped outcome refs local to their part', async () => {
     status: 'dropped',
   })
 })
+
+it("supplies a prior read's already-kept summaries to the first part", async () => {
+  const store = new FakeBrainStore(),
+    job = store.enqueue(HARBOR_JOB, 'queued')
+  const segments = [
+    {
+      entryId: 'new',
+      role: 'user' as const,
+      label: 'You',
+      observedAt: 0,
+      text: 'Harbor bills monthly.',
+    },
+  ]
+  const ask = trackAsk(async (_s, _p, prompt, validate) => {
+    expect(prompt).toContain('Already kept from earlier parts of this conversation.')
+    expect(prompt).toContain('- Rina Okafor leads Ledger.')
+    return validate(JSON.stringify(empty))
+  })
+  await extractWindows(job.id, [makeWindow(segments)], store, ask.ask, () => {}, segments, [
+    'Rina Okafor leads Ledger.',
+  ])
+  expect(ask.spy).toHaveBeenCalledOnce()
+})

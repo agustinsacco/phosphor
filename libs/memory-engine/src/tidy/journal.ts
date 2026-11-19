@@ -13,7 +13,7 @@ import { inheritFoldReferences, movedFlagTable, returnMovedFlags } from './fold-
 import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
-import { bumpRevision, revision } from '../prefs'
+import { bumpKnowledgeRevision, revision } from '../prefs'
 import { suppressPair } from './suggestions'
 import { affected, rebuild } from './projections'
 import {
@@ -249,7 +249,7 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
     run(ctx, 'UPDATE tidy_operations SET undone_at=? WHERE id=?', ctx.now(), id)
     run(ctx, 'DELETE FROM tidy_operation_rows WHERE operation_id=?', id)
     run(ctx, 'DELETE FROM tidy_operation_memories WHERE operation_id=?', id)
-    bumpRevision(ctx)
+    bumpKnowledgeRevision(ctx)
     return selection
   })
 }

@@ -52,6 +52,7 @@ export type JobPatch = Partial<
     | 'state'
     | 'error'
     | 'startedAt'
+    | 'runStartedAt'
     | 'finishedAt'
     | 'usage'
     | 'memories'
@@ -75,6 +76,8 @@ export interface BrainStore extends BrainTidyStore {
   snapshot(): BrainSnapshot
   setPrefs(prefs: BrainPrefs): BrainPrefs
   revision(): number
+  /** Memories, identities, names, links and states only; excludes Tidy bookkeeping. */
+  knowledgeRevision(): number
 
   /** Throws when the lane already has an unfinished job, or nothing changed since the last one. */
   enqueue(job: NewJob, state: 'waiting' | 'queued'): BrainJob
@@ -89,7 +92,7 @@ export interface BrainStore extends BrainTidyStore {
   removeJob(id: string): void
   /** Jobs left running by a previous app run go back to the queue. */
   requeueInterrupted(): void
-  part(jobId: string, part: string, inputHash: string): JobPart | undefined
+  part(jobId: string, part: string, inputHash?: string): JobPart | undefined
   savePart(jobId: string, part: JobPart): void
 
   /** Exact, word and trigram candidates for each probe, at most `limit` each. */

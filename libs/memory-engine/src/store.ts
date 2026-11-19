@@ -12,7 +12,7 @@ import * as explorer from './explorer'
 import * as graph from './graph'
 import { memory } from './knowledge'
 import { forget } from './merge'
-import { prefs, revision, setPrefs } from './prefs'
+import { prefs, revision, knowledgeRevision, setPrefs } from './prefs'
 import { proposal, propose, storedProposal } from './proposals'
 import { review } from './review'
 import { initialize, reset } from './schema'
@@ -32,6 +32,10 @@ function snapshot(ctx: Context): BrainSnapshot {
     revision: Number(meta.revision),
     generation: meta.generation!,
     jobs: jobs.jobs(ctx),
+    readSessionIds: all<{ sessionId: string }>(
+      ctx,
+      "SELECT session_id AS sessionId FROM jobs WHERE state IN ('done','empty','rejected') GROUP BY session_id ORDER BY MAX(queued_at) DESC LIMIT 5000",
+    ).map((row) => row.sessionId),
     counts: { memories: Number(meta.memories), entities: Number(meta.entities) },
   }
 }
@@ -53,6 +57,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     snapshot: () => snapshot(ctx),
     setPrefs: (value) => setPrefs(ctx, value),
     revision: () => revision(ctx),
+    knowledgeRevision: () => knowledgeRevision(ctx),
     enqueue: (value, state) => jobs.enqueue(ctx, value, state),
     job: (id) => jobs.job(ctx, id),
     history: (limit) => history(ctx, limit),

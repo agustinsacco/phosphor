@@ -35,6 +35,7 @@ import type { BrainSearchPort } from '../types'
 export class FakeBrainStore implements BrainStore {
   prefs: BrainPrefs = { ...DEFAULT_BRAIN_PREFS }
   rev = 0
+  knowledgeRev: number | null = null
   generation = 'generation-1'
   jobs: BrainJob[] = []
   records = new Map<string, BrainExtractionRecord>()
@@ -54,11 +55,18 @@ export class FakeBrainStore implements BrainStore {
       revision: this.rev,
       generation: this.generation,
       counts: { memories: this.details.length, entities: this.cards.length },
+      readSessionIds: this.jobs
+        .filter((j) => ['done', 'empty', 'rejected'].includes(j.state))
+        .map((j) => j.sessionId)
+        .slice(-5000),
       jobs: this.jobs.filter((j) => j.state !== 'done').map((j) => ({ ...j })),
     }
   }
   revision(): number {
     return this.rev
+  }
+  knowledgeRevision(): number {
+    return this.knowledgeRev ?? this.rev
   }
   setPrefs(prefs: BrainPrefs): BrainPrefs {
     return (this.prefs = { ...prefs })
@@ -81,6 +89,8 @@ export class FakeBrainStore implements BrainStore {
       error: null,
       queuedAt: this.next,
       startedAt: null,
+      runStartedAt: null,
+      fromLeafId: null,
       finishedAt: null,
       usage: null,
       progress: null,
@@ -117,6 +127,7 @@ export class FakeBrainStore implements BrainStore {
       if (patch[field] !== undefined && patch[field] !== job[field])
         throw new Error('Brain job metadata is frozen outside its first prepare checkpoint.')
     Object.assign(job, patch)
+    if (job.state !== 'running' && job.state !== 'refreshing') job.runStartedAt = null
     return job
   }
   retry(id: string): BrainJob {
@@ -131,8 +142,10 @@ export class FakeBrainStore implements BrainStore {
   requeueInterrupted(): void {
     for (const job of this.jobs) if (job.state === 'running') job.state = 'queued'
   }
-  part(id: string, part: string, hash: string): JobPart | undefined {
-    return this.parts.get(`${id}:${part}:${hash}`)
+  part(id: string, part: string, hash?: string): JobPart | undefined {
+    return hash === undefined
+      ? [...this.parts.entries()].find(([key]) => key.startsWith(`${id}:${part}:`))?.[1]
+      : this.parts.get(`${id}:${part}:${hash}`)
   }
   savePart(id: string, part: JobPart): void {
     if (part.part === 'prepare') {
@@ -191,10 +204,15 @@ export class FakeBrainStore implements BrainStore {
       job,
       revision: p.computedRevision,
       replacingMemories: job.replaces ? this.laneMemories(job.sessionId, id).replaceable.length : 0,
-      identities: p.entities.map((e) => ({ ...e, candidates: this.entityCards(e.candidates) })),
+      identities: p.entities.map((e) => ({
+        ...e,
+        required: false,
+        candidates: this.entityCards(e.candidates),
+      })),
       groups: p.groups.map((g, index) => ({ ...g, index, labels: [] })),
       memories: p.memories.map((m, index) => ({
         ...m,
+        hold: null,
         index,
         quotes: [],
         links: [],
@@ -205,6 +223,7 @@ export class FakeBrainStore implements BrainStore {
         summary: '',
         claim: {
           ...c.claim,
+          hold: null,
           target: null,
           links: c.claim.links.map((l) => ({ ...l, quote: l.citation.quote })),
           quotes: c.claim.citations.map((q) => ({
@@ -219,7 +238,7 @@ export class FakeBrainStore implements BrainStore {
     }
   }
   review(id: string, decision: BrainReviewDecision | null, revision: number): void {
-    if (revision !== this.rev)
+    if (revision !== this.knowledgeRevision())
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
     this.reviews.push({ id, decision })
     this.updateJob(id, { state: 'done', memories: decision?.memories.length ?? 0 })
@@ -272,6 +291,7 @@ export class FakeBrainStore implements BrainStore {
     return 'operation'
   }
   tidyDismiss(): void {
+    this.knowledgeRev = this.knowledgeRevision()
     this.rev++
   }
   tidyChanges = () => ({ items: [], revision: this.rev })

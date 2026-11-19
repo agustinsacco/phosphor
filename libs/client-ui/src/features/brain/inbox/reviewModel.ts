@@ -140,6 +140,7 @@ export function reviewDecision(
 ): BrainReviewDecision {
   void proposal
   return {
+    descriptions: [],
     memories: choices.keep.toSorted((a, b) => a - b),
     identities: { ...choices.identities },
     groups: choices.groups.toSorted((a, b) => a - b),

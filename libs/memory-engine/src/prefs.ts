@@ -1,4 +1,9 @@
-import { checkBrainReaderModel, DEFAULT_BRAIN_PREFS, type BrainPrefs } from '@phosphor/shared/brain'
+import {
+  checkBrainNeverRead,
+  checkBrainReaderModel,
+  DEFAULT_BRAIN_PREFS,
+  type BrainPrefs,
+} from '@phosphor/shared/brain'
 import { one, run, type Context } from './database'
 
 /** A stored value is checked like a written one: a bad field reads as its default. */
@@ -15,6 +20,7 @@ export function prefs(ctx: Context): BrainPrefs {
     recall: flag('recall'),
     review: flag('review'),
     model: storedModel(value.model),
+    neverRead: storedNeverRead(value.neverRead),
   }
 }
 function storedModel(value: unknown): string | null {
@@ -26,6 +32,7 @@ function storedModel(value: unknown): string | null {
 }
 export function setPrefs(ctx: Context, value: BrainPrefs): BrainPrefs {
   checkBrainReaderModel(value.model)
+  checkBrainNeverRead(value.neverRead)
   const merged = { ...prefs(ctx), ...value }
   run(ctx, "INSERT OR REPLACE INTO meta VALUES ('prefs', ?)", JSON.stringify(merged))
   return merged
@@ -33,7 +40,26 @@ export function setPrefs(ctx: Context, value: BrainPrefs): BrainPrefs {
 export function revision(ctx: Context): number {
   return Number(one<{ value: string }>(ctx, "SELECT value FROM meta WHERE key='revision'")!.value)
 }
+/** Only stored knowledge changes invalidate lane reviews; Tidy bookkeeping uses revision alone.
+ * Seed lazily from the old counter so proposals made before this upgrade retain their meaning. */
+export function knowledgeRevision(ctx: Context): number {
+  const stored = one<{ value: string }>(
+    ctx,
+    "SELECT value FROM meta WHERE key='knowledge_revision'",
+  )
+  return stored ? Number(stored.value) : revision(ctx)
+}
+export function bumpKnowledgeRevision(ctx: Context): void {
+  const next = knowledgeRevision(ctx) + 1
+  run(ctx, "INSERT OR REPLACE INTO meta VALUES ('knowledge_revision', ?)", String(next))
+  bumpRevision(ctx)
+}
 export function bumpRevision(ctx: Context): void {
+  run(
+    ctx,
+    "INSERT OR IGNORE INTO meta VALUES ('knowledge_revision', ?)",
+    String(knowledgeRevision(ctx)),
+  )
   run(ctx, "UPDATE meta SET value = CAST(value AS INTEGER) + 1 WHERE key='revision'")
 }
 
@@ -46,4 +72,12 @@ export function nextNumber(ctx: Context, table: 'entities' | 'memories'): number
     : (one<{ n: number }>(ctx, `SELECT MAX(n) AS n FROM ${table}`)?.n ?? 0) + 1
   run(ctx, 'INSERT OR REPLACE INTO meta VALUES (?,?)', key, String(next))
   return next
+}
+
+function storedNeverRead(value: unknown): BrainPrefs['neverRead'] {
+  try {
+    return checkBrainNeverRead(value)
+  } catch {
+    return DEFAULT_BRAIN_PREFS.neverRead
+  }
 }

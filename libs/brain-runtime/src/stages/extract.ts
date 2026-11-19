@@ -16,6 +16,7 @@ export async function extractWindows(
   ask: StageAsk,
   progress: (done: number, total: number) => void,
   source: TranscriptSegment[],
+  alreadyKept: string[] = [],
 ): Promise<ExtractedPart[]> {
   const output: ExtractedPart[] = []
   const registry: Registry = []
@@ -34,7 +35,7 @@ export async function extractWindows(
     const offered = selected.map((e, i) => ({ ...e, ref: `r${i + 1}` }))
     const part = output.length + 1,
       total = windows.length
-    const kept = output.flatMap((p) => p.extraction.claims.map((c) => c.text))
+    const kept = [...alreadyKept, ...output.flatMap((p) => p.extraction.claims.map((c) => c.text))]
     const prompt = extractPrompt(window, offered, part, total, kept)
     const hash = inputHash(prompt)
     const saved = store.part(jobId, key, hash)

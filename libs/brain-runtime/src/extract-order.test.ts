@@ -76,7 +76,7 @@ async function ingest(order: string[]) {
     }
     s.store.review(
       job.id,
-      { memories: p.memories.map((_m, i) => i), identities: {}, groups: [] },
+      { descriptions: [], memories: p.memories.map((_m, i) => i), identities: {}, groups: [] },
       s.store.revision(),
     )
   }
