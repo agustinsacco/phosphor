@@ -246,7 +246,10 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    assertion, nothing new), enrich (same assertion, new supported links), supersede, conflict,
    or resolve an open question. A claim that repeats a replaced memory (the model says so, or
    its text and links equal it and no current memory's do) is dropped, and the outcome says
-   "Repeats a memory that was replaced earlier". Within one lane, a later claim replaces an
+   "Repeats a memory that was replaced earlier". A claim answered add whose own sentence says
+   it supersedes, replaces or no longer holds something, while something it could change was
+   offered, is asked about once more with a short correction on its row; if the answer still
+   adds, it is kept and a noted outcome says so. Within one lane, a later claim replaces an
    earlier one. Cosine offers candidates but never decides.
 6. **Propose.** At most 300 claims per job: structural links first, then decisions, risks and
    open questions, then the rest; anything held back is recorded. New memories and entity cards

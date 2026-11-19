@@ -8,7 +8,7 @@ import type {
 import type { StageAsk } from '../stage-types'
 import type { BrainSearchPort } from '../types'
 import { validDecisions, object, text } from '../stage-parse'
-import { reconcilePrompt } from '../stage-prompts/reconcile'
+import { reconcilePrompt, SUPERSEDE_CORRECTION } from '../stage-prompts/reconcile'
 import type { FoldedJob } from './fold'
 import { type Card, type Row, candidateRows, same } from './reconcile-candidates'
 
@@ -92,6 +92,7 @@ export async function reconcile(
     const result = await reconcileDecisions(batch, ask, i / 20 + 1)
     for (const d of result) selected.set(d.ref, d)
   }
+  await recheckReplacing(pending, selected, ask, job)
   // Only state-changing actions compete for a target; confirmations add evidence and never do.
   const winners = new Map<string, ReturnType<typeof decisions>[number]>()
   for (const row of rows) {
@@ -121,14 +122,16 @@ export async function reconcile(
   return confirmations
 }
 
+const promptRow = (r: Row) => ({
+  claim: { ...r.claim, memory: r.comparison },
+  candidates: r.candidates.map((c, j) => ({ ...c, handle: `M${j + 1}` })),
+})
+const NO_DECISION = 'No reconciliation decision returned'
 async function reconcileDecisions(batch: Row[], ask: StageAsk, part: number) {
   const result: ReturnType<typeof decisions> = []
   let missing = batch
   for (let attempt = 0; attempt < 2 && missing.length; attempt++) {
-    const rows = missing.map((r) => ({
-      claim: { ...r.claim, memory: r.comparison },
-      candidates: r.candidates.map((c, j) => ({ ...c, handle: `M${j + 1}` })),
-    }))
+    const rows = missing.map(promptRow)
     result.push(
       ...(await ask('reconcile', part, reconcilePrompt(rows), (a) => decisions(a, missing), [], {
         rows,
@@ -141,10 +144,56 @@ async function reconcileDecisions(batch: Row[], ask: StageAsk, part: number) {
       ref: r.claim.ref,
       action: 'add' as const,
       target: undefined,
-      reason: 'No reconciliation decision returned',
+      reason: NO_DECISION,
     })),
   )
   return result
+}
+/** A claim whose own sentence says it changes something earlier. */
+const SAYS_REPLACES = /\b(?:supersed(?:e|es|ed|ing)|replac(?:e|es|ed|ing)|no longer)\b/i
+/**
+ * A claim that says it supersedes, replaces or no longer holds something, answered add while
+ * something it could replace was offered, is asked about once more. The correction rides on its
+ * prompt row, so the record rebuilds the prompt like any other.
+ */
+async function recheckReplacing(
+  pending: Row[],
+  selected: Map<string, ReturnType<typeof decisions>[number]>,
+  ask: StageAsk,
+  job: FoldedJob,
+): Promise<void> {
+  const doubtful = pending.filter((row) => {
+    const d = selected.get(row.claim.ref)
+    return (
+      d?.action === 'add' &&
+      d.reason !== NO_DECISION &&
+      SAYS_REPLACES.test(row.comparison.summary) &&
+      row.candidates.some((c) => !c.replaced)
+    )
+  })
+  const first = Math.ceil(pending.length / 20) + 1
+  for (let i = 0; i < doubtful.length; i += 20) {
+    const batch = doubtful.slice(i, i + 20)
+    const rows = batch.map((r) => ({ ...promptRow(r), correction: SUPERSEDE_CORRECTION }))
+    const answers = await ask(
+      'reconcile',
+      first + i / 20,
+      reconcilePrompt(rows),
+      (a) => decisions(a, batch),
+      [],
+      { rows },
+    )
+    for (const d of answers) if (d.action !== 'add') selected.set(d.ref, d)
+    for (const row of batch)
+      if (selected.get(row.claim.ref)?.action === 'add')
+        job.outcomes.push({
+          candidate: `${row.claim.ref}:supersede`,
+          summary: row.claim.memory.summary,
+          status: 'noted',
+          reason:
+            'Its sentence says it replaces something, but asked twice, reconcile found nothing it replaces.',
+        })
+  }
 }
 
 function priority(action: Action): number {

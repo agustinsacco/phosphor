@@ -2,3 +2,6 @@ export const RECONCILE_SYSTEM = `Reconcile supported claims, not similarity scor
 export function reconcilePrompt(rows: unknown[]): string {
   return `For each claim return exactly one {ref,action,target,reason} in {"decisions":[]}. action: add (target:null), confirm (same assertion, adds nothing new), enrich (same assertion, adds supported links), supersede (explicit change), conflict (incompatible assertions), resolve_open (answers open question), repeats_replaced (says again what a candidate marked "replaced":true said; such a candidate was replaced earlier, is no longer current, and no other action may target it). Every non-add target must be an offered M handle for that claim. Two claims that say the same thing in different words are the same assertion. Earlier job claims are labelled local and older in this lane.\n${JSON.stringify(rows)}`
 }
+/** Sent once, on its row, for a claim answered add whose sentence says it replaces something. */
+export const SUPERSEDE_CORRECTION =
+  'Your earlier answer added this claim, but its own sentence says it supersedes, replaces or no longer holds something. If an offered candidate is what it changes, answer supersede with that target (or conflict when both cannot hold); answer add only when none of them is.'
