@@ -1,3 +1,4 @@
+import { extraction } from '@phosphor/memory-engine/test-support'
 import { trackAsk } from '../__fixtures__/stage-ask'
 import { expect, it } from 'vitest'
 import { extractWindows } from './extract'
@@ -213,6 +214,15 @@ it.each(['refreshing', 'running'] as const)(
     const store = new FakeBrainStore(),
       job = store.enqueue(HARBOR_JOB, 'queued')
     store.updateJob(job.id, { state })
+    if (state === 'refreshing') {
+      store.proposals.set(job.id, extraction(job.id))
+      store.savePart(job.id, {
+        part: 'prepare',
+        inputHash: 'frozen-v4',
+        output: '{}',
+        prepare: { leafId: job.leafId, model: job.model, branch: job.branch },
+      })
+    }
     const source = [
       {
         entryId: 'new',
