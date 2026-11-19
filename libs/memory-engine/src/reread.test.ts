@@ -103,7 +103,7 @@ it.each(['citation', 'relation'] as const)(
     expect(() => store.memory(ids[1]!)).toThrow('Brain memory not found')
     expect(store.history(10)).toMatchObject({
       items: [
-        { memories: 1, replaceable: 0 },
+        { memories: 0, replaceable: 0 },
         { memories: 1, replaceable: 0 },
       ],
     })

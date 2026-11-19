@@ -150,7 +150,10 @@ a title rule.
 
 The **Read** section of Lanes shows the newest 200 finished reads and says when more exist.
 Brain retains up to twenty finished reads per lane, with each read's leaf, cursor, saved steps
-and extraction record. Rejected reviews remain as `rejected` (nothing saved); a read with
+and extraction record. Each row counts only the current (active or disputed) memories produced
+by that read. Its Read again count remains lane-wide: every unshared memory from the lane,
+including older reads. After replacement, older rows can show zero; they stay in history.
+Rejected reviews remain as `rejected` (nothing saved); a read with
 nothing worth keeping remains `empty`. The next queue continues after either, as after approval. The list reloads when jobs or knowledge change; a failed load
 has Retry. Model names match the picker; unavailable names fall back to the id without its
 provider prefix. A row opens the finished read in the same pane.

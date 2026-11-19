@@ -217,7 +217,7 @@ export type BrainJobState =
   | 'failed'
   | 'done'
   | 'rejected'
-/** Queue entry for one lane. The latest `done` entry is its read history. */
+/** One lane read. Up to twenty finished reads per lane retain their leaves and records. */
 export interface BrainJob {
   id: string
   /** Earlier finished read; replacement happens only when the new result is approved. */
@@ -249,7 +249,13 @@ export interface BrainJob {
   progress: { stage: BrainJobStage; done: number; total: number } | null
 }
 export interface BrainHistory {
-  items: { job: BrainJob; memories: number; replaceable: number }[]
+  items: {
+    job: BrainJob
+    /** Current (active or disputed) memories produced by this read, never superseded ones. */
+    memories: number
+    /** Unshared memories across the whole lane that Read again replaces, including older reads. */
+    replaceable: number
+  }[]
   more: boolean
 }
 export interface BrainEmbeddingStatus {

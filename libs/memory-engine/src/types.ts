@@ -82,9 +82,9 @@ export interface BrainStore extends BrainTidyStore {
   enqueue(job: NewJob, state: 'waiting' | 'queued'): BrainJob
   job(id: string): BrainJob | undefined
   history(limit: number): BrainHistory
-  /** All surviving memories from a lane, and those without independent support elsewhere. */
   /** The newest sixty current summaries from this lane, frozen into prepare context. */
   laneContext(sessionId: string): string[]
+  /** All surviving memories from a lane, and those without independent support elsewhere. */
   laneMemories(sessionId: string, exceptJobId?: string): { ids: string[]; replaceable: string[] }
   updateJob(id: string, patch: JobPatch): BrainJob
   /** Requeues a failed job under the same id, keeping its parts and frozen leaf. */
