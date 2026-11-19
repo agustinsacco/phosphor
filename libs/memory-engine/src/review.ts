@@ -39,6 +39,12 @@ function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDe
   for (const ref of decision.descriptions)
     if (!value.entities.find((item) => item.ref === ref)?.description.trim())
       throw new Error('Brain description choice is invalid.')
+  const ticked = decision.confirmations
+  if (
+    new Set(ticked).size !== ticked.length ||
+    ticked.some((index) => !Number.isInteger(index) || !value.confirmations[index]?.claim.hold)
+  )
+    throw new Error('Brain confirmation choice is invalid.')
   const used = new Set([
     ...decision.memories.flatMap((index) => {
       const item = value.memories[index]!
@@ -170,32 +176,14 @@ export function review(
         linkOutcome(ctx, jobId, index, id)
       }
       applyGroups(commit, decision.groups)
-      for (const confirmation of value.confirmations) {
-        if (identityChanged(confirmation.claim, value, decision)) {
-          // Turned into a new memory nobody ticked: a held claim is never saved that way.
-          if (confirmation.claim.hold) continue
-          applyMemory(
-            commit,
-            { ...confirmation.claim, action: 'add', target: null },
-            confirmation.vector,
-          )
-        } else {
-          const target = activeMemoryNumber(ctx, confirmation.memoryId)
-          if (target !== undefined) insertCitations(commit, target, confirmation.claim.citations)
-        }
-      }
+      const confirmed = applyConfirmations(commit, decision)
       const replaced = current.replaces
         ? laneMemories(ctx, current.sessionId, jobId).replaceable
         : []
       for (const id of replaced) removeMemory(ctx, id)
       cleanOrphans(ctx, touched)
       recountEntities(ctx, touched)
-      if (
-        decision.memories.length ||
-        decision.groups.length ||
-        value.confirmations.length ||
-        replaced.length
-      )
+      if (decision.memories.length || decision.groups.length || confirmed || replaced.length)
         bumpKnowledgeRevision(ctx)
     }
     updateJob(ctx, jobId, {
@@ -207,6 +195,37 @@ export function review(
     pruneExtractions(ctx)
   })
   return touchedIds(ctx, touched, touchedMemories)
+}
+/** Every confirmation that is not held, and the held ones the owner ticked. */
+function appliedConfirmations(
+  value: Proposal,
+  decision: BrainReviewDecision,
+): Proposal['confirmations'] {
+  return value.confirmations.filter(
+    (confirmation, index) => !confirmation.claim.hold || decision.confirmations.includes(index),
+  )
+}
+/**
+ * A confirmation adds its quotes to the memory it repeats, or becomes a new memory when the
+ * owner changed one of its identities. A held one does neither unless ticked. Returns how many
+ * applied.
+ */
+function applyConfirmations(commit: CommitContext, decision: BrainReviewDecision): number {
+  const { ctx, proposal } = commit
+  const applied = appliedConfirmations(proposal, decision)
+  for (const confirmation of applied) {
+    if (identityChanged(confirmation.claim, proposal, decision)) {
+      applyMemory(
+        commit,
+        { ...confirmation.claim, action: 'add', target: null },
+        confirmation.vector,
+      )
+    } else {
+      const target = activeMemoryNumber(ctx, confirmation.memoryId)
+      if (target !== undefined) insertCitations(commit, target, confirmation.claim.citations)
+    }
+  }
+  return applied.length
 }
 function touchedIds(
   ctx: Context,
