@@ -256,3 +256,66 @@ it('refuses any other action on a replaced memory, and repeats_replaced on a cur
     reason: 'No reconciliation decision returned',
   })
 })
+
+it('regression: a shared link counts only with the same predicate, so uses links cannot crowd out a close depends_on paraphrase', async () => {
+  const { store } = fixture()
+  const base = extraction('')
+  const harbor = base.entities[0]!
+  const ledger = { ...harbor, ref: 'ledger', label: 'Ledger', aliases: [] }
+  const paraphrase = 'Harbor cannot start without Ledger.'
+  const uses = ['exports', 'refunds', 'invoices', 'audits', 'retries'].map(
+    (topic) => `Harbor uses Ledger for ${topic}.`,
+  )
+  const summaries = [paraphrase, ...uses]
+  approve(store, {
+    entities: [harbor, ledger],
+    entityVectors: [vector(0, 0, 1), vector(0, 0, 1)],
+    memories: summaries.map((summary, i) => ({
+      ...base.memories[0]!,
+      summary,
+      entities: ['harbor', 'ledger'],
+      links: i
+        ? [
+            {
+              subject: 'harbor',
+              predicate: 'uses' as const,
+              object: 'ledger',
+              citation: { evidence: i, quote: summary },
+            },
+          ]
+        : [],
+      citations: [{ evidence: i, quote: summary }],
+    })),
+    evidence: summaries.map((summary, i) => ({
+      sessionId: 'harbor-lane',
+      entryId: `entry-${i + 1}`,
+      role: 'user' as const,
+      label: 'You',
+      observedAt: 10 + i,
+      text: summary,
+    })),
+    // The paraphrase is close to the claim; the uses memories are not.
+    memoryVectors: summaries.map((_, i) => (i ? vector(0, 1, i) : vector(1, 0.1))),
+  })
+  const nodes = store.overview(300).nodes
+  const id = (label: string) => nodes.find((n) => n.label === label)!.id
+  const ids = new Map(
+    store.entityMemories(id('Harbor'), {}, null).memories.map((m) => [m.summary, m.id] as const),
+  )
+  const search = new FakeBrainSearch()
+  search.memoryNeighbours = [[{ id: ids.get(paraphrase)!, score: 0.95 }]]
+  const job = claim('Harbor needs Ledger running before it starts.', [id('Harbor'), id('Ledger')])
+  job.claims[0]!.memory.links = [
+    {
+      subject: id('Harbor'),
+      predicate: 'depends_on',
+      object: id('Ledger'),
+      citation: { evidence: 0, quote: 'Harbor needs Ledger running before it starts.' },
+    },
+  ]
+  const { ask, offered } = offeredIds()
+  await reconcile(job, [], store, search, [vector(1)], ask)
+  expect(offered[0]).toHaveLength(5)
+  expect(offered[0]).toContain(ids.get(paraphrase))
+  expect(offered[0]![0]).toBe(ids.get(paraphrase))
+})
