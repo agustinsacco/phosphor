@@ -56,14 +56,14 @@ async function enqueue(
   check()
   const refusal = brainNeverReadReason(store.snapshot().prefs.neverRead, {
     sessionId: lane.sessionId,
-    title: ref.title,
+    title: lane.title ?? '',
   })
   if (refusal) throw new Error(refusal)
   store.enqueue(
     {
       replaces,
       sessionPath: ref.sessionPath,
-      title: ref.title,
+      title: lane.title ?? '',
       sessionId: lane.sessionId,
       scope: lane.scope,
       branch: lane.branch,

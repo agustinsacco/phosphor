@@ -5,6 +5,7 @@ import { readEntries, type LaneEntry } from './transcript'
 export interface LaneMeta {
   sessionId: string
   cwd: string
+  title: string | null
   scope: string
   branch: string | null
   model: string
@@ -64,6 +65,7 @@ export function laneMetadata(
   const selectedModel = readerModel ?? (provider && model ? `${provider}/${model}` : null)
   if (!selectedModel) throw new Error('This lane has no model to read it with.')
   return {
+    title: laneTitle(entries),
     sessionId: header.id,
     cwd: header.cwd,
     model: selectedModel,
@@ -75,4 +77,12 @@ export function laneMetadata(
 export async function readLane(path: string, readerModel: string | null = null): Promise<LaneMeta> {
   const meta = laneMetadata(await readEntries(path), readerModel)
   return { ...meta, ...(await projectContext(meta.cwd)) }
+}
+
+/** Session names are append-only metadata; the UI or an earlier read may be out of date. */
+export function laneTitle(entries: LaneEntry[]): string | null {
+  return (
+    entries.findLast((entry) => entry.type === 'session_info' && typeof entry.name === 'string')
+      ?.name ?? null
+  )
 }

@@ -8,7 +8,8 @@ export interface QueueOptions {
   run(job: BrainJob, signal: AbortSignal): Promise<void>
   changed(): void
   /** Only queued/waiting jobs; the runner records active cancellation itself. */
-  cancelled?(job: BrainJob): void
+  cancelled?(job: BrainJob, reason?: string): void
+  refusal?(job: BrainJob): Promise<string | null>
   now(): number
 }
 
@@ -25,6 +26,7 @@ export class ExtractionQueue {
   private active: { id: string; abort: AbortController; done: Promise<void> } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
   private tasks: QueueTask[] = []
+  private checking: Promise<void> | undefined
   private disposed = false
   private paused = false
 
@@ -56,6 +58,7 @@ export class ExtractionQueue {
     this.cancelTasks()
     this.active?.abort.abort()
     await this.active?.done
+    await this.checking
   }
 
   resume(): void {
@@ -66,6 +69,38 @@ export class ExtractionQueue {
   constructor(private readonly options: QueueOptions) {}
 
   kick(): void {
+    if (!this.accepting) return
+    this.updateWaiting()
+    if (this.checking) return
+    if (!this.options.refusal || this.active) {
+      this.start()
+      return
+    }
+    this.checking = this.checkPending().finally(() => {
+      this.checking = undefined
+      if (this.accepting) this.start()
+    })
+  }
+
+  private async checkPending(): Promise<void> {
+    const { store, refusal, changed } = this.options
+    for (const job of store.snapshot().jobs) {
+      if (!['waiting', 'queued'].includes(job.state)) continue
+      try {
+        const reason = await refusal!(job)
+        if (!this.accepting) return
+        if (reason && ['waiting', 'queued'].includes(store.job(job.id)?.state ?? '')) {
+          store.removeJob(job.id)
+          this.options.cancelled?.(job, reason)
+          changed()
+        }
+      } catch {
+        // The runner reports unreadable lanes when they start, not while waiting.
+      }
+    }
+  }
+
+  private start(): void {
     if (!this.accepting) return
     clearTimeout(this.timer)
     const { store, changed } = this.options
@@ -128,7 +163,12 @@ export class ExtractionQueue {
     const { prefs, jobs } = store.snapshot()
     for (const job of jobs) {
       if (job.state !== 'waiting' && job.state !== 'queued') continue
-      if (brainLaneNeverRead(prefs.neverRead, job)) {
+      if (
+        brainLaneNeverRead(
+          { ...prefs.neverRead, titles: this.options.refusal ? [] : prefs.neverRead.titles },
+          job,
+        )
+      ) {
         store.removeJob(job.id)
         this.options.cancelled?.(job)
         changed()
@@ -198,10 +238,18 @@ export class ExtractionQueue {
     this.cancelTasks()
     this.active?.abort.abort()
     await this.active?.done
+    await this.checking
   }
 
   private async execute(job: BrainJob, abort: AbortController): Promise<void> {
     try {
+      const refusal = this.options.refusal ? await this.options.refusal(job) : null
+      if (abort.signal.aborted || !this.options.store.job(job.id)) return
+      if (refusal) {
+        this.options.store.removeJob(job.id)
+        this.options.cancelled?.(job, refusal)
+        return
+      }
       // The runner observes pre-start cancellation too, so it can record the failure phase.
       await this.options.run(job, abort.signal)
     } catch (error) {
