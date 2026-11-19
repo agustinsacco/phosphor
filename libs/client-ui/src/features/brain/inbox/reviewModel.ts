@@ -233,10 +233,15 @@ export function reviewDecision(
   }
 }
 
+/** No new memories, and ordinary confirmations that apply with any approval. */
+function confirmationsOnly(proposal: BrainProposalView): boolean {
+  return !proposal.memories.length && plainConfirmations(proposal).length > 0
+}
+
 /** Counts ticked rows, held confirmations included. */
 export function approveLabel(proposal: BrainProposalView, ticked: number): string {
   const total = checklistTotal(proposal)
-  if (!total && proposal.confirmations.length) return 'Approve confirmations'
+  if (!ticked && confirmationsOnly(proposal)) return 'Approve confirmations'
   return ticked < total ? `Approve ${ticked} of ${total}` : `Approve ${ticked}`
 }
 
@@ -244,9 +249,14 @@ export function approveLabel(proposal: BrainProposalView, ticked: number): strin
 export function approveBlock(proposal: BrainProposalView, choices: ReviewChoices): string | null {
   const open = openQuestions(proposal, choices.identities).length
   if (open) return `Answer ${formatCount(open, 'question')}`
-  // Confirmations that are not held apply without a tick; held ones are checklist rows.
-  const confirmationsOnly = !checklistTotal(proposal) && plainConfirmations(proposal).length > 0
-  if (!proposal.job.replaces && !tickCount(choices) && !confirmationsOnly && !choices.groups.length)
+  // Confirmations that are not held apply without a tick, so a read with no new memories can
+  // approve them alone; an unticked held confirmation is simply not saved.
+  if (
+    !proposal.job.replaces &&
+    !tickCount(choices) &&
+    !confirmationsOnly(proposal) &&
+    !choices.groups.length
+  )
     return 'Tick a memory to approve'
   return null
 }

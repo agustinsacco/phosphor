@@ -396,8 +396,8 @@ in one line.
   says again what a stored memory says) sits in its held group as “Confirms “<memory>””;
   ticked, it is sent in `decision.confirmations` and its quote is added to that memory.
 - The fixed bar has **Approve N** (or **Approve k of n**, counting held confirmations, or
-  **Approve confirmations** when only confirmations that are not held remain; `a`)
-  and **Reject read** (`r`). Approve is off with “Answer 1 question” while a required question
+  **Approve confirmations** when the read has no new memories and nothing is ticked, so only its
+  ordinary confirmations apply; `a`) and **Reject read** (`r`). Approve is off with “Answer 1 question” while a required question
   is open. A read again says “Replaces N memories from the last read”; a read of a lane Brain
   read before says “Reads new messages only”.
 - A review of a lane the never-read rule matches (its title or its own switch, checked by
