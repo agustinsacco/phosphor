@@ -457,6 +457,20 @@ it('refuses a review decision Desktop would refuse', async () => {
   ).rejects.toThrow('Brain confirmation choice is invalid.')
 })
 
+it('refuses ticking a confirmation that is not held, out of range or twice, as the engine does', async () => {
+  const call = createMockBrain(() => 0)
+  const proposal = (await call('brain:proposal', ['harbor-demo-review'])) as BrainProposalView
+  expect(proposal.confirmations.map((item) => item.claim.hold)).toEqual([null])
+  for (const confirmations of [[0], [1], [-1], [0, 0]])
+    await expect(
+      call('brain:review', [
+        'harbor-demo-review',
+        { descriptions: [], confirmations, memories: [0], identities: {}, groups: [] },
+        0,
+      ]),
+    ).rejects.toThrow('Brain confirmation choice is invalid.')
+})
+
 it('gives the harness a required question, held claims and a never-read review', async () => {
   // As the browser harness passes it; the default mock keeps the plain reviews tests rely on.
   const options = { flagAfterMs: 20000, demoReviews: true }

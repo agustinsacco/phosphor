@@ -241,6 +241,49 @@ it('holds temporary and personal claims last and unticked, and sends one once ti
   expect(review.mock.calls[0]![1]!.memories).toEqual([0, 1, 2])
 })
 
+it('shows a held confirmation in its held group, unticked, and sends its own index once ticked', async () => {
+  const plain = proposal.confirmations[0]!
+  proposal.confirmations.push({
+    id: 'memory-held',
+    summary: 'Rina Okafor owns the Ledger migration.',
+    claim: { ...plain.claim, hold: 'personal', summary: 'Rina Okafor is up for promotion.' },
+  })
+  await render()
+  expect(
+    button('▸ 3 people and things matched without doubt · 1 memory confirms what Brain knows'),
+  ).toBeDefined()
+  const group = container.querySelector('[aria-label="About a person"]')!
+  expect(group.textContent).toContain('Not kept unless you tick it')
+  const box = group.querySelector<HTMLInputElement>(
+    '[aria-label="Keep: Rina Okafor is up for promotion."]',
+  )!
+  expect(box.checked).toBe(false)
+  expect(button('Approve 2 of 3')).toBeDefined()
+  await act(async () => box.click())
+  await click('Approve 3')
+  expect(review).toHaveBeenLastCalledWith(
+    'harbor-job',
+    { descriptions: [], confirmations: [1], memories: [0, 1], identities: {}, groups: [] },
+    0,
+  )
+})
+
+it('blocks Approve when the only thing to save is a held confirmation nobody ticked', async () => {
+  proposal.memories = []
+  proposal.confirmations[0]!.claim.hold = 'temporary'
+  await render()
+  expect(container.textContent).not.toContain('confirms what Brain knows')
+  expect(button('Approve 0 of 1')!.disabled).toBe(true)
+  expect(container.textContent).toContain('Tick a memory to approve')
+  await act(async () =>
+    container
+      .querySelector<HTMLInputElement>('[aria-label="Probably temporary"] [aria-label^="Keep: "]')!
+      .click(),
+  )
+  await click('Approve 1')
+  expect(review.mock.calls[0]![1]).toMatchObject({ memories: [], confirmations: [0] })
+})
+
 it('asks a required question with no default and blocks Approve until it is answered', async () => {
   proposal.identities.find((identity) => identity.ref === 'rina')!.required = true
   await render()
