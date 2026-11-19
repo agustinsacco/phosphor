@@ -148,7 +148,8 @@ waiting jobs, not its pending review; the Inbox still offers that review, with R
 primary action. Refresh also skips excluded lanes using their current names. A stale review
 can always be rejected, because rejection saves nothing; approving one that cannot be refreshed
 asks you to reject it instead. A deleted lane's refresh fails once with that remedy and is not
-retried automatically. Recall is unaffected. A title-rule match takes precedence in the lane menu:
+retried automatically. These stored proposals still open so the owner can inspect them and
+Reject; approval shows the refusal in place. Recall is unaffected. A title-rule match takes precedence in the lane menu:
 **Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
 per-lane switch that could falsely promise to override the title rule. A lane excluded only by
 its id offers **Let Brain read this lane**, with no Queue. Other lanes offer their ordinary
