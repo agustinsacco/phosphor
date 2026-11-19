@@ -22,7 +22,10 @@ it.each(['never-read', 'deleted'] as const)(
     else await unlink(s.file)
     s.store.rev++
     await service.api.setPrefs(s.store.prefs)
-    if (kind === 'deleted') await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('failed'))
+    if (kind === 'deleted') {
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      expect(s.store.job(id)?.state).toBe('review')
+    }
     await expect(service.api.proposal(id)).resolves.toMatchObject({ revision: 0 })
     const proposal = await service.api.proposal(id)
     expect(proposal.revision).toBe(0)
