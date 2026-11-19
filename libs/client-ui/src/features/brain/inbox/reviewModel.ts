@@ -36,14 +36,12 @@ export interface ReviewChoices {
 
 /** Claims Brain holds back until the owner ticks them. */
 export function holdOf(memory: BrainProposedMemory): ReviewHold | null {
-  void memory
-  return null
+  return memory.hold
 }
 
 /** An unsure identity whose exact name Brain already knows: approval waits for an answer. */
 export function isRequired(identity: BrainIdentity): boolean {
-  void identity
-  return false
+  return identity.required
 }
 
 export function initialChoices(proposal: BrainProposalView): ReviewChoices {
@@ -133,14 +131,20 @@ export function checklistGroups(proposal: BrainProposalView): ChecklistGroup[] {
   return [...plain, ...held].filter((group) => group.memories.length > 0)
 }
 
-/** Only answered or changed identities are sent; descriptions only for chosen records. */
+/**
+ * Only answered or changed identities are sent. A ticked description goes only while its
+ * identity still becomes an existing record that is described differently, so switching to
+ * Someone new drops it.
+ */
 export function reviewDecision(
   proposal: BrainProposalView,
   choices: ReviewChoices,
 ): BrainReviewDecision {
-  void proposal
   return {
-    descriptions: [],
+    descriptions: choices.descriptions.filter((ref) => {
+      const identity = proposal.identities.find((item) => item.ref === ref)
+      return !!identity && differingDescription(identity, choices.identities) !== null
+    }),
     memories: choices.keep.toSorted((a, b) => a - b),
     identities: { ...choices.identities },
     groups: choices.groups.toSorted((a, b) => a - b),
