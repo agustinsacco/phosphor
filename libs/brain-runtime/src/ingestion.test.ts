@@ -96,3 +96,16 @@ it('asks both calls to state team membership whenever a claim names a person and
     '- When a claim names a person and their team, link the person member_of the team.',
   )
 })
+it('drops leveling, feelings, absence, feedback on how someone works and one-on-one remarks, each with an example', () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  for (const line of [
+    '  - leveling, promotion, calibration and compensation ("Tom Lee needs his promotion packet',
+    '  - feelings or morale ("Mara Voss was upset',
+    '  - leave or absence ("Rina Okafor will be away',
+    '  - feedback about how a named person works ("Tom Lee tags others',
+    '  - anything from a one-on-one about the person in it ("In her one-on-one',
+  ])
+    expect(prompt).toContain(line)
+  expect(prompt).toContain('- One-off events, status and near-term plans:')
+  expect(prompt).toContain('facts stated "as of" now')
+})

@@ -39,14 +39,19 @@ Go through the whole conversation once for each kind below. A conversation about
 - Open questions (type open): a question that still needs an answer from a named person or team.
 
 # What to skip
-- One-off events and status: merged, deployed, approved, tests passing, a ticket moved or assigned today, counts, near-term dates and deadlines, who was told what. A standing role is not an event: "Tom Lee owns Ledger billing" passes; "the ticket was assigned to Tom Lee on Monday" does not.
+- One-off events, status and near-term plans: merged, deployed, approved, tests passing, a ticket moved or assigned today, counts, near-term dates and deadlines, facts stated "as of" now, who was told what. A standing role is not an event: "Tom Lee owns Ledger billing" passes; "the ticket was assigned to Tom Lee on Monday" does not.
 - Anything about one pull request, commit, branch or review round. When a review surfaced a lesson that outlives the pull request, state the lesson and leave the pull request out.
 - What the code contains or where a file lives.
 - The assistant's own work log; proposals nobody accepted; hypotheticals.
 - An instruction for this one task: what to build, check or review now. A preference is how the user wants work done from now on.
 - A statement corrected later in the conversation: keep only the final version.
 - Generic engineering advice.
-- Personal matters about a person: health, family, pay, performance or conduct. Keep roles and responsibilities only.
+- Personal matters about a person: health, family, pay, performance or conduct. Keep roles and responsibilities only. This includes:
+  - leveling, promotion, calibration and compensation ("Tom Lee needs his promotion packet for the Staff case.");
+  - feelings or morale ("Mara Voss was upset about a planned team move.");
+  - leave or absence ("Rina Okafor will be away from Dec 1 to Dec 12.");
+  - feedback about how a named person works ("Tom Lee tags others instead of proposing an order himself.");
+  - anything from a one-on-one about the person in it ("In her one-on-one, Mara Voss asked to join the Ledger team.").
 - Secrets, contact details and raw data rows.
 
 Examples (made up). Keep: "Rina Okafor wants review comments posted only after she says so." · "Tom Lee builds Ledger sync and Rina Okafor leads the Harbor team that owns it." · "Kestrel's webhook sender never retries a 4xx response, so a rejected delivery is lost." (found by the assistant) · "Harbor keeps one Ledger account per organization, not per user, because billing is per organization." · "Ledger sync starts after the Kestrel migration, because it needs the new account ids." Skip: "PR 412 merged on 3 March." · "LedgerClient.ts lives in packages/ledger." · "Tom Lee was asked to review." · "All 212 tests passed." · "I ran the migration script and updated the doc."

@@ -204,10 +204,13 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    decides what, which customer a project is for), how systems, vendors, data and customers
    behave, decisions with reasons, preferences and corrections, reusable procedures, remaining
    risks and open questions for a named person or team. A standing role passes; a ticket event
-   does not. Status, one-off events, near-term dates, pull requests, code facts, file paths, the
-   assistant's work log, instructions for one task, unaccepted proposals, corrected statements,
-   generic advice, personal matters about a person (health, family, pay, performance, conduct),
-   secrets and contact details do not pass.
+   does not. Status, one-off events, near-term plans and dates, facts stated "as of" now, pull
+   requests, code facts, file paths, the assistant's work log, instructions for one task,
+   unaccepted proposals, corrected statements, generic advice, personal matters about a person
+   (health, family, pay, leveling, promotion and calibration, performance, conduct, feelings or
+   morale, leave or absence, feedback about how they work, and anything from a one-on-one about
+   the person in it), secrets and contact details do not pass; the prompt gives a made-up
+   example of each personal kind.
    It returns lasting entities (`n1…`), self-contained claims (`c1…`) with one or two quotes,
    typed links with their own quotes, and parent assessments for new projects, components,
    documents and teams. A stated parent needs a kept structural link whose subject is that
