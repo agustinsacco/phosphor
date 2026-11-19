@@ -59,13 +59,17 @@ function card(memory: MemoryCard): Card {
     ...(memory.state === 'superseded' ? { replaced: true as const } : {}),
   }
 }
-/** A link between the same two entities, or two owners of one thing. */
+/**
+ * The same whole link (subject, predicate and object), or two owners of one thing, which may
+ * replace each other. `uses(Harbor, Ledger)` is not evidence for `depends_on(Harbor, Ledger)`.
+ */
 function sharesLink(claim: Pick<Card, 'links'>, other: Pick<Card, 'links'>): boolean {
   return claim.links.some((l) =>
     other.links.some(
       (o) =>
-        (l.subject === o.subject && l.object === o.object) ||
-        (l.predicate === 'owns' && o.predicate === 'owns' && l.object === o.object),
+        l.predicate === o.predicate &&
+        l.object === o.object &&
+        (l.subject === o.subject || l.predicate === 'owns'),
     ),
   )
 }

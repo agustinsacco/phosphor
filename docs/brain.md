@@ -318,8 +318,10 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
 5. **Reconcile.** Each claim is compared with up to five candidates: existing memories that
    state the same link or own the same thing, near vectors (cosine 0.7 or more), the newest 128
    memories of each entity it names, and earlier claims from this lane. They rank together by
-   evidence strength: same text and links, same text, a shared link between the same two
-   entities, cosine at least 0.7 (highest first), and then a shared entity alone, ranked by
+   evidence strength: same text and links, same text, a shared link (the same subject,
+   predicate and object, or another owner of the same thing; `uses(Harbor, Ledger)` does not
+   count for `depends_on(Harbor, Ledger)`), cosine at least 0.7 (highest first), and then a
+   shared entity alone, ranked by
    similarity to the claim rather than recency, so a busy person's newer memories cannot hide a
    close one. Paraphrases can match without shared entities. A superseded memory among those
    entities' newest memories at cosine 0.85 or more is offered too, marked replaced earlier, so
