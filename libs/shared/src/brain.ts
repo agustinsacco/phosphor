@@ -283,7 +283,7 @@ export interface BrainStatus extends BrainSnapshot {
   supported: boolean
   embedding: BrainEmbeddingStatus
 }
-/** The sidebar knows a lane's live title; the handler reads everything else from the file. */
+/** The title the caller shows, empty for an untitled lane. Brain reads the current title from the file. */
 export interface BrainLaneRef {
   sessionPath: string
   title: string

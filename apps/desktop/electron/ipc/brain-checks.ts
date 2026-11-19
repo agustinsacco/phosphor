@@ -42,9 +42,12 @@ export function checkPrefs(value: unknown): BrainPrefs {
   return { ...(prefs as BrainPrefs), neverRead: checkBrainNeverRead(prefs.neverRead) }
 }
 
+/** The title may be empty (an untitled lane); the engine reads the current title from the file. */
 export function checkLane(value: unknown): BrainLaneRef {
   const lane = value as Partial<BrainLaneRef> | null
-  return { sessionPath: text(lane?.sessionPath), title: text(lane?.title, 500) }
+  const title = lane?.title
+  if (typeof title !== 'string' || title.length > 500) fail('Invalid Brain request.')
+  return { sessionPath: text(lane?.sessionPath), title: title as string }
 }
 
 /** What to save from a proposal, shape and sizes only. Null rejects it whole. */
