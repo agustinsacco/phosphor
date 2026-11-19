@@ -196,7 +196,7 @@ it('reset stops admission and waits for an active cancelled call before clearing
   expect(s.search.refreshes).toBe(1)
 })
 
-it('stale review recomputation reuses extract parts and refreshes identity decisions', async () => {
+it('an unrelated knowledge change reuses every unchanged decision prompt', async () => {
   const s = await setup()
   await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
   await review(s.service)
@@ -205,7 +205,7 @@ it('stale review recomputation reuses extract parts and refreshes identity decis
   await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
   await review(s.service)
   expect(s.runner.mock.calls.filter(([call]) => call.stage === 'extract')).toHaveLength(1)
-  expect(s.runner.mock.calls.filter(([call]) => call.stage === 'identity')).toHaveLength(2)
+  expect(s.runner.mock.calls.filter(([call]) => call.stage === 'identity')).toHaveLength(1)
 })
 
 it('rereads a finished lane through busy waiting, rejects missing files and unfinished lanes', async () => {

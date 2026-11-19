@@ -214,3 +214,39 @@ it('cancels queued Tidy without invoking it and pause aborts active Tidy', async
   await active.done
   await s.queue.dispose()
 })
+
+it('keeps refreshes in review, prioritizes the oldest and preserves the first start', async () => {
+  const s = setup()
+  s.setReady(false)
+  const first = s.enqueue('rina')
+  const second = s.enqueue('tom')
+  s.store.updateJob(first.id, { state: 'review', startedAt: 12, finishedAt: 30, memories: 4 })
+  s.store.updateJob(second.id, { state: 'review', startedAt: 20, finishedAt: 40 })
+  s.queue.recompute(second.id)
+  s.queue.recompute(first.id)
+  const later = s.enqueue('mara')
+  expect(s.store.job(first.id)).toMatchObject({ state: 'refreshing', memories: 4, startedAt: 12 })
+  s.setReady(true)
+  s.queue.kick()
+  await flush()
+  expect(s.runs[0]!.id).toBe(first.id)
+  expect(s.store.job(first.id)).toMatchObject({
+    state: 'refreshing',
+    startedAt: 12,
+    runStartedAt: 123,
+  })
+  s.runs[0]!.finish()
+  await flush()
+  expect(s.runs[1]!.id).toBe(second.id)
+  expect(s.runs.map((r) => r.id)).not.toContain(later.id)
+  await s.queue.dispose()
+})
+it('preserves the original start across an interrupted read', async () => {
+  const s = setup()
+  const job = s.enqueue('rina')
+  s.store.updateJob(job.id, { startedAt: 12 })
+  s.queue.kick()
+  await flush()
+  expect(s.store.job(job.id)).toMatchObject({ startedAt: 12, runStartedAt: 123 })
+  await s.queue.dispose()
+})

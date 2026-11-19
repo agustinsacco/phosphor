@@ -170,10 +170,10 @@ it.each(['identity', 'reconcile'] as const)(
     await expect(retry(stage, 1, 'row 2', (a) => a)).resolves.toBe('second')
     expect(s.runner).toHaveBeenCalledTimes(2)
     expect(s.store.extraction(s.job.id).calls.map((c) => c.part)).toEqual([1, 2])
-    // A store that moved on makes the same prompt a new question.
+    // Unrelated knowledge changes never turn an identical prompt into a new question.
     s.store.rev++
-    await expect(retry(stage, 1, 'rows 1 and 2', (a) => a)).resolves.toBe('second')
-    expect(s.runner).toHaveBeenCalledTimes(3)
+    await expect(retry(stage, 1, 'rows 1 and 2', (a) => a)).resolves.toBe('first')
+    expect(s.runner).toHaveBeenCalledTimes(2)
   },
 )
 it('keeps the repaired answer for a repeated prompt, never the rejected one', async () => {
@@ -199,4 +199,28 @@ it('asks again when no answer to the prompt was ever accepted', async () => {
   await expect(s.ask('identity', 1, 'rows', invalid)).rejects.toThrow('after repair')
   await expect((await s.caller())('identity', 1, 'rows', (a) => a)).resolves.toBe('bad')
   expect(s.runner).toHaveBeenCalledTimes(3)
+})
+
+it('reuses old revision-prefixed decision parts by their prompt name', async () => {
+  const s = await setup()
+  const hash = inputHash('Harbor candidates')
+  s.store.savePart(s.job.id, {
+    part: `answer:identity:${hash}`,
+    inputHash: `12:${hash}`,
+    output: 'cached',
+  })
+  s.store.rev = 21
+  await expect(s.ask('identity', 1, 'Harbor candidates', (a) => a)).resolves.toBe('cached')
+  expect(s.runner).not.toHaveBeenCalled()
+})
+it('re-asks only the prompt whose candidate facts changed', async () => {
+  const s = await setup()
+  await s.ask('reconcile', 1, 'Harbor: candidate M1 summary monthly', (a) => a)
+  await s.ask('reconcile', 2, 'Ledger: candidate M2 summary daily', (a) => a)
+  s.runner.mockClear()
+  s.store.rev++
+  await s.ask('reconcile', 1, 'Harbor: candidate M1 summary weekly', (a) => a)
+  await s.ask('reconcile', 2, 'Ledger: candidate M2 summary daily', (a) => a)
+  expect(s.runner).toHaveBeenCalledOnce()
+  expect(s.runner.mock.calls[0]![0].prompt).toContain('weekly')
 })
