@@ -69,14 +69,16 @@ export function BrainLanes({
             busy={actions.busy}
             now={now}
             extra={
-              <NeverReadRow
-                never={never}
-                selected={current?.type === 'never'}
-                onSelect={() => onSelect({ type: 'never' })}
-              />
+              <>
+                <ReadsFooter history={history} empty={!groups.length && !operations.length} />
+                <NeverReadRow
+                  never={never}
+                  selected={current?.type === 'never'}
+                  onSelect={() => onSelect({ type: 'never' })}
+                />
+              </>
             }
           />
-          <ReadsFooter history={history} empty={!groups.length && !operations.length} />
         </div>
       </section>
       <section aria-label="Lane detail" className="brain-pane brain-scroll">
@@ -115,6 +117,7 @@ function selectedDetail(
   return { row, unlisted, change }
 }
 
+/** Under the reads, before Never read: what to do when nothing is read, or that more exist. */
 function ReadsFooter({
   history,
   empty,
