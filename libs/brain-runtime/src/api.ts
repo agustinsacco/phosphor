@@ -90,6 +90,22 @@ async function reread(id: string, context: ApiContext): Promise<void> {
     throw new Error('This lane is already queued.')
   await enqueue(previous, context, id)
 }
+async function currentReview(id: string, { store, queue }: ApiContext): Promise<void> {
+  const job = store.job(id)
+  const proposal = store.storedProposal(id)
+  if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
+    const refusal = await currentNeverReadReason(store, job)
+    const latest = store.storedProposal(id)
+    if (!latest || latest.computedRevision === store.knowledgeRevision()) return
+    if (refusal) throw new Error(NEVER_READ_REFRESH_REFUSAL)
+    if (store.job(id)?.state === 'refreshing')
+      throw new Error('Brain changed; refreshing this review')
+    queue.recompute(id)
+    throw new Error('Brain changed; refreshing this review')
+  }
+  if (store.job(id)?.state === 'refreshing')
+    throw new Error('Brain changed; refreshing this review')
+}
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
   const tidy = createTidyRunner({ ...context, runState: store })
@@ -101,22 +117,7 @@ export function createApi(context: ApiContext): BrainApi {
     queue.kick()
     return status()
   }
-  const current = async (id: string): Promise<void> => {
-    const job = store.job(id)
-    const proposal = store.storedProposal(id)
-    if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-      const refusal = await currentNeverReadReason(store, job)
-      const latest = store.storedProposal(id)
-      if (!latest || latest.computedRevision === store.knowledgeRevision()) return
-      if (refusal) throw new Error(NEVER_READ_REFRESH_REFUSAL)
-      if (store.job(id)?.state === 'refreshing')
-        throw new Error('Brain changed; refreshing this review')
-      queue.recompute(id)
-      throw new Error('Brain changed; refreshing this review')
-    }
-    if (store.job(id)?.state === 'refreshing')
-      throw new Error('Brain changed; refreshing this review')
-  }
+
   return {
     status: async () => status(),
     history: async (limit) => store.history(limit),
@@ -143,11 +144,11 @@ export function createApi(context: ApiContext): BrainApi {
     },
     extraction: async (id) => extractionView(store, id),
     proposal: async (id) => {
-      await current(id)
+      await currentReview(id, context)
       return store.proposal(id)
     },
     review: async (id, decision, revision) => {
-      if (decision !== null) await current(id)
+      if (decision !== null) await currentReview(id, context)
       else queue.abortRefresh(id)
       return mutate(() => store.review(id, decision, revision))
     },

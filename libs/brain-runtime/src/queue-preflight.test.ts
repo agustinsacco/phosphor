@@ -1,3 +1,4 @@
+import type { BrainJob } from '@phosphor/shared/brain'
 import { afterEach, expect, it, vi } from 'vitest'
 import { ExtractionQueue } from './queue'
 import { FakeBrainStore, HARBOR_JOB } from './__fixtures__/fake-store'
@@ -9,9 +10,7 @@ afterEach(async () => {
 const flush = async (): Promise<void> => {
   for (let i = 0; i < 10; i++) await Promise.resolve()
 }
-function setup(
-  refusal: (job: import('@phosphor/shared/brain').BrainJob) => Promise<string | null>,
-) {
+function setup(refusal: (job: BrainJob) => Promise<string | null>) {
   const store = new FakeBrainStore()
   const run = vi.fn(async () => {})
   const queue = new ExtractionQueue({
