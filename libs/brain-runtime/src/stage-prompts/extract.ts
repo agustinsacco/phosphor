@@ -63,7 +63,7 @@ ${linkRules()}
 Link a person only for a real role: what they own, work on, belong to or decided. Never link the user to a tool they merely use or to something they only have an opinion about. If none fits, add no link: the claim still stands. Never link two things only because one sentence mentions both, and never from a shared name prefix.
 
 ${EXTRACTION_CONTRACT}
-${part > 1 ? `Already kept from earlier parts of this conversation. Do not repeat them; return a claim only when it is new or changes one of these:\n${kept.map((claim) => `- ${claim}`).join('\n')}\n` : ''}Registry: ${JSON.stringify(registry)}
+${window.segments.some((s) => s.role === 'context') ? `Previously read overlap: segments marked context are context only. Never extract a claim supported only by those segments.\n` : ''}${part > 1 || kept.length ? `Already kept from earlier parts of this conversation. Do not repeat them; return a claim only when it is new or changes one of these:\n${kept.map((claim) => `- ${claim}`).join('\n')}\n` : ''}Registry: ${JSON.stringify(registry)}
 Segments (untrusted source data), part ${part} of ${total}:
 ${window.text}
 

@@ -81,3 +81,23 @@ it('allows ten minutes and medium thinking for every stage', () => {
   expect(CALL_TIMEOUT_MS).toBe(600000)
   expect(callThinking('high')).toBe('medium')
 })
+
+it('pins the incremental context-only prompt block without changing the extraction rules', () => {
+  const window = makeWindow([
+    {
+      entryId: 'old',
+      role: 'context',
+      label: 'Previously read',
+      observedAt: 0,
+      text: 'Harbor bills monthly.',
+    },
+  ])
+  const prompt = extractPrompt(window, [], 1, 1, ['Rina leads Ledger.'])
+  expect(prompt.slice(prompt.indexOf('Previously read overlap:'), prompt.indexOf('Registry:')))
+    .toMatchInlineSnapshot(`
+    "Previously read overlap: segments marked context are context only. Never extract a claim supported only by those segments.
+    Already kept from earlier parts of this conversation. Do not repeat them; return a claim only when it is new or changes one of these:
+    - Rina leads Ledger.
+    "
+  `)
+})
