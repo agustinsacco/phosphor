@@ -123,9 +123,10 @@ export async function reconcile(
   return confirmations
 }
 
-const promptRow = (r: Row) => ({
-  claim: { ...r.claim, memory: r.comparison },
-  candidates: r.candidates.map((c, j) => ({ ...c, handle: `M${j + 1}` })),
+/** The hold is left out: reconcile does not use it, and an unchanged prompt reuses its answer. */
+const promptRow = ({ claim, comparison: { hold: _hold, ...memory }, candidates }: Row) => ({
+  claim: { ...claim, memory },
+  candidates: candidates.map((c, j) => ({ ...c, handle: `M${j + 1}` })),
 })
 const NO_DECISION = 'No reconciliation decision returned'
 async function reconcileDecisions(batch: Row[], ask: StageAsk, part: number) {
