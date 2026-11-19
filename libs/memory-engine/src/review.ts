@@ -45,15 +45,17 @@ function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDe
     ticked.some((index) => !Number.isInteger(index) || !value.confirmations[index]?.claim.hold)
   )
     throw new Error('Brain confirmation choice is invalid.')
+  // Every ref this approval resolves: ticked memories, confirmed groups, and confirmations that
+  // become new memories because the owner changed one of their identities.
   const used = new Set([
-    ...decision.memories.flatMap((index) => {
-      const item = value.memories[index]!
-      return [...item.entities, ...item.links.flatMap((link) => [link.subject, link.object])]
-    }),
+    ...decision.memories.flatMap((index) => claimRefs(value.memories[index]!)),
     ...decision.groups.flatMap((index) => {
       const group = value.groups[index]!
       return [...group.members, ...(group.parent.entityId ? [group.parent.entityId] : [])]
     }),
+    ...appliedConfirmations(value, decision)
+      .filter((confirmation) => identityChanged(confirmation.claim, value, decision))
+      .flatMap((confirmation) => claimRefs(confirmation.claim)),
   ])
   const unanswered = value.entities.find(
     (item) => item.required && used.has(item.ref) && !(item.ref in decision.identities),
@@ -246,18 +248,18 @@ function touchedIds(
   }
 }
 
+/** Every entity ref a claim names, in its mentions and its links. */
+function claimRefs(item: ProposalMemory): string[] {
+  return [...item.entities, ...item.links.flatMap((link) => [link.subject, link.object])]
+}
 function identityChanged(
   item: ProposalMemory,
   value: Proposal,
   decision: BrainReviewDecision,
 ): boolean {
-  return [...item.entities, ...item.links.flatMap((link) => [link.subject, link.object])].some(
-    (ref) => {
-      const override = decision.identities[ref]
-      const old = value.entities.find((entity) => entity.ref === ref)
-      return (
-        override !== undefined && override !== (old?.decision === 'reuse' ? old.entityId : 'new')
-      )
-    },
-  )
+  return claimRefs(item).some((ref) => {
+    const override = decision.identities[ref]
+    const old = value.entities.find((entity) => entity.ref === ref)
+    return override !== undefined && override !== (old?.decision === 'reuse' ? old.entityId : 'new')
+  })
 }
