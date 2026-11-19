@@ -112,19 +112,12 @@ export class ExtractionQueue {
         if (!this.accepting) return
         if (!['waiting', 'queued', 'review', 'refreshing'].includes(store.job(job.id)?.state ?? ''))
           continue
-        if (reason && (job.state === 'review' || job.state === 'refreshing')) {
-          this.blocked.add(job.id)
-          if (store.job(job.id)?.state === 'refreshing') {
-            store.updateJob(job.id, { state: 'review', runStartedAt: null })
-            changed()
-          }
-        } else if (reason && ['waiting', 'queued'].includes(store.job(job.id)?.state ?? '')) {
-          store.removeJob(job.id)
-          this.options.cancelled?.(job, reason)
+        if (reason) {
+          this.exclude(job, reason)
           changed()
         }
       } catch (error) {
-        if (this.accepting && ['review', 'refreshing'].includes(store.job(job.id)?.state ?? '')) {
+        if (this.accepting && store.storedProposal(job.id)) {
           store.updateJob(job.id, {
             state: 'failed',
             finishedAt: this.options.now(),
@@ -209,8 +202,7 @@ export class ExtractionQueue {
           job,
         )
       ) {
-        store.removeJob(job.id)
-        this.options.cancelled?.(job)
+        this.exclude(job)
         changed()
         continue
       }
@@ -281,17 +273,25 @@ export class ExtractionQueue {
     await this.checking
   }
 
+  private exclude(job: BrainJob, reason?: string): void {
+    const { store } = this.options
+    // Retry and pre-upgrade recomputes can be queued/running while still owning a review.
+    if (store.storedProposal(job.id)) {
+      this.blocked.add(job.id)
+      if (store.job(job.id)?.state !== 'review')
+        store.updateJob(job.id, { state: 'review', runStartedAt: null })
+    } else {
+      store.removeJob(job.id)
+      this.options.cancelled?.(job, reason)
+    }
+  }
+
   private async execute(job: BrainJob, abort: AbortController): Promise<void> {
     try {
       const refusal = this.options.refusal ? await this.options.refusal(job) : null
       if (abort.signal.aborted || !this.options.store.job(job.id)) return
       if (refusal) {
-        if (job.state === 'refreshing')
-          this.options.store.updateJob(job.id, { state: 'review', runStartedAt: null })
-        else {
-          this.options.store.removeJob(job.id)
-          this.options.cancelled?.(job, refusal)
-        }
+        this.exclude(job, refusal)
         return
       }
       // The runner observes pre-start cancellation too, so it can record the failure phase.
