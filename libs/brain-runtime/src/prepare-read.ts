@@ -1,7 +1,7 @@
 import type { BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { readLane, type LaneMeta } from './lane'
-import { readEntries } from './transcript'
+import { readLaneEntries } from './transcript'
 import { readBoundary } from './incremental'
 
 export interface PreparedRead extends LaneMeta {
@@ -15,7 +15,7 @@ export async function prepareRead(job: BrainJob, store: BrainStore): Promise<Pre
   const saved = store.part(job.id, 'prepare', 'frozen-v4')
   if (saved) return JSON.parse(saved.output) as PreparedRead
   const meta = await readLane(job.sessionPath, store.snapshot().prefs.model)
-  const boundary = readBoundary(await readEntries(job.sessionPath), meta.leafId, job.fromLeafId)
+  const boundary = readBoundary(await readLaneEntries(job.sessionPath), meta.leafId, job.fromLeafId)
   const lane: PreparedRead = {
     ...meta,
     ...boundary,

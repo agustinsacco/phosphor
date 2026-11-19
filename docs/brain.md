@@ -205,6 +205,11 @@ in the bounded history.
 
 ## Reading a lane
 
+Brain reads archived lanes too: when the stored transcript path is missing, it reads only that
+path's `.archived` twin in the same folder. This applies to queued reads, review refreshes,
+current-title exclusions and the source shown in a read's record; it never searches for another
+transcript.
+
 A job freezes the lane's leaf, chosen reader model, thinking level and git branch when it first
 starts. A resume never moves them. It then reads the lane's path to that leaf, applies pi's
 `context_edit` entries, and keeps only user and assistant text. Tool calls, tool output,

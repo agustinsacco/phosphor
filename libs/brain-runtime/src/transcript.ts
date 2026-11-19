@@ -53,6 +53,16 @@ export async function readEntries(path: string): Promise<LaneEntry[]> {
   return entries
 }
 
+/** Archiving parks the same transcript beside its stored path; no other name is eligible. */
+export async function readLaneEntries(path: string): Promise<LaneEntry[]> {
+  try {
+    return await readEntries(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    return readEntries(`${path}.archived`)
+  }
+}
+
 export function transcriptSegments(entries: LaneEntry[]): TranscriptSegment[] {
   const segments: TranscriptSegment[] = []
   for (const entry of applyContextEdits(entries)) {

@@ -1,6 +1,6 @@
 import type { BrainExtractionView, BrainExtractionCall } from '@phosphor/shared/brain'
 import type { BrainStore, TranscriptSegment } from '@phosphor/memory-engine/types'
-import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
+import { readLaneEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { rebuildPrompt } from './stage-input'
 import { inputHash } from './windows'
@@ -23,7 +23,7 @@ export async function extractionView(
   let segments: TranscriptSegment[] = []
   try {
     segments = transcriptSegments(
-      transcriptAtLeaf(await readEntries(record.sessionPath), record.leafId),
+      transcriptAtLeaf(await readLaneEntries(record.sessionPath), record.leafId),
     )
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error

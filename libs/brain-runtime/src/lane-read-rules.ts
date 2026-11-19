@@ -1,7 +1,7 @@
 import { brainNeverReadReason, type BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { laneTitle } from './lane'
-import { readEntries } from './transcript'
+import { readLaneEntries } from './transcript'
 
 /** Exclusions follow the current lane, not the title captured by an earlier read. */
 export async function currentNeverReadReason(
@@ -11,7 +11,7 @@ export async function currentNeverReadReason(
   const prefs = () => store.snapshot().prefs.neverRead
   const byId = brainNeverReadReason({ ...prefs(), titles: [] }, job)
   if (byId) return byId
-  const entries = await readEntries(job.sessionPath).catch((error: unknown) => {
+  const entries = await readLaneEntries(job.sessionPath).catch((error: unknown) => {
     if (
       (error as NodeJS.ErrnoException).code === 'ENOENT' &&
       (job.state === 'review' || job.state === 'refreshing' || store.storedProposal(job.id))

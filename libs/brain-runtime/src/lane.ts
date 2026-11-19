@@ -2,7 +2,7 @@ import { dirname, resolve } from 'node:path'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import { extractText } from '@phosphor/session-runtime/pi/session-content'
 import { sessionTitle } from '@phosphor/shared/session-title'
-import { readEntries, type LaneEntry } from './transcript'
+import { readLaneEntries, type LaneEntry } from './transcript'
 
 export interface LaneMeta {
   sessionId: string
@@ -76,7 +76,7 @@ export function laneMetadata(
 }
 
 export async function readLane(path: string, readerModel: string | null = null): Promise<LaneMeta> {
-  const entries = await readEntries(path)
+  const entries = await readLaneEntries(path)
   const meta = laneMetadata(entries, readerModel)
   return { ...meta, title: laneTitle(entries), ...(await projectContext(meta.cwd)) }
 }
