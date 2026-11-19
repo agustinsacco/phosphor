@@ -124,3 +124,40 @@ it('keeps a saved reread finished when the search refresh fails afterwards', asy
   expect(s.recall()).toHaveLength(1)
   expect(s.recall()).not.toEqual(oldIds)
 })
+
+it('queues only new messages with two context-only segments and the lane memories already kept', async () => {
+  const s = await setup()
+  const { appendFile } = await import('node:fs/promises')
+  await appendFile(
+    s.file,
+    '\n' +
+      JSON.stringify({
+        type: 'message',
+        id: 'new-leaf',
+        timestamp: '2026-11-08T12:00:00Z',
+        message: { role: 'user', content: 'Harbor retains invoices for seven years.' },
+      }),
+  )
+  s.runner.mockClear()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await vi.waitFor(() =>
+    expect(['review', 'empty']).toContain(s.store.snapshot().jobs.at(-1)?.state),
+  )
+  const job = s.store.snapshot().jobs.at(-1)!
+  expect(job.fromLeafId).toBe(s.first.leafId)
+  const read = s.runner.mock.calls.find(([call]) => call.stage === 'extract')![0]
+  expect(read.prompt).toContain('[s1] context')
+  expect(read.prompt).toContain('[s2] context')
+  expect(read.prompt).toContain('[s3] user')
+  expect(read.prompt).toContain('Already kept from earlier parts')
+  expect(read.prompt).toContain('- Rina Okafor owns Harbor billing.')
+  // The fixture reader repeats only the old claim; overlap may inform, never extract it anew.
+  const record = await s.service.api.extraction(job.id)
+  expect(record.outcomes).toContainEqual(
+    expect.objectContaining({
+      status: 'dropped',
+      reason: 'Claim supported only by previously read context',
+    }),
+  )
+  expect(record.prompts).toEqual(s.runner.mock.calls.map(([call]) => call.prompt))
+})
