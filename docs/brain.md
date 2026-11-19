@@ -218,21 +218,22 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    agents or bots. Pull requests, tickets, commits, branches and files are not entities, nor are
    database tables, feature flags, service accounts, scheduled jobs or contract clauses unless
    people discuss one as a thing someone owns. The model is asked for every lasting relationship
-   the conversation shows between a kept claim's entities, and for member_of whenever a claim
-   names a person and their team. A link sits on a claim that mentions both ends, and its quote
-   may come from any segment. A person is linked only for a real role, never to a tool they
-   merely use. Claims call the user by name when the conversation gives it: the model then adds
-   the user as a person entity marked as the user. A part that marks more than one person marks
-   none, and later parts learn the mark from the entities they are offered. Parsing turns a
-   leading "The user" or "The user's" into that name and adds the mention once; with no marked
-   person the sentence stays as written. The mark never reaches identity or review. A claim the
-   model kept although unsure comes back held, temporary or personal, and parsing adds holds by
-   fixed rules that only mark, never drop: personal for a claim naming a person that speaks of
-   promotion, calibration, leveling or L1–L9, being upset, absence, leave or vacation, or
-   performance reviews; temporary for "as of", "currently", "still", "this week" or "this
-   sprint", a ticket or pull request as its subject, or a date (in the sentence or its validity)
-   within 60 days after it was said. The answer rules are repeated after the conversation,
-   because a long one buries them.
+   the conversation shows between a kept claim's entities, for member_of whenever a claim names
+   a person and their team, and for leads when a person leads a team or project (leading is not
+   owning). A link sits on a claim that mentions both ends, and its quote may come from any
+   segment. A person is linked only for a real role, never to a tool they merely use. Claims
+   call the user by name when the conversation gives it: the model then adds the user as a
+   person entity marked as the user. A part that marks more than one person marks none, and
+   later parts learn the mark from the entities they are offered. Parsing turns a leading "The
+   user" or "The user's" into that name and adds the mention once; with no marked person the
+   sentence stays as written. The mark never reaches identity or review. A claim the model kept
+   although unsure comes back held, temporary or personal, and parsing adds holds by fixed rules
+   that only mark, never drop: personal for a claim naming a person that speaks of promotion,
+   calibration, leveling or L1–L9, being upset, absence, leave or vacation, or performance
+   reviews; temporary for "as of", "currently", "still", "this week" or "this sprint", a ticket
+   or pull request as its subject, or a date (in the sentence or its validity) within 60 days
+   after it was said. The answer rules are repeated after the conversation, because a long one
+   buries them.
 2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
    more entities, those entities, existing links and short excerpts around each claim's quotes.
    Each excerpt stays in its segment, stops at an elision marker and adds at most 600 characters
@@ -640,8 +641,9 @@ the original statement until those records are removed under the retention rules
 - Entities (`BRAIN_ENTITY_KINDS`): person, team, organization, project, component, document,
   concept, event. Shared across projects.
 - Links (`BRAIN_PREDICATES`): owns, works_on, member_of, part_of, for_customer, documents,
-  depends_on, uses, decided, prefers. A memory states any number of
-  links and names any number of entities.
+  depends_on, uses, decided, prefers, leads (a person leads a team or project; read “leads” from
+  the person and “led by” from the team or project). A memory states any number of links and
+  names any number of entities.
 - Types (`BRAIN_MEMORY_TYPES`): decision, open, risk, procedure, preference, fact, each recording
   how it is known (observed, reported, inferred), its project, its branch when it only holds
   there, its lane, and its state (active, superseded, disputed).
@@ -661,6 +663,7 @@ across kinds, so the engine does not enforce these rules.
 | uses         | component, project, team, person, organization | component, project, organization, concept, document    |
 | decided      | person, team, organization                     | project, component, document, concept, event           |
 | prefers      | person, team, organization                     | component, project, concept, document, organization    |
+| leads        | person                                         | team, project                                          |
 
 A link needs its own supporting quote. Co-mention and shared name prefixes do not justify links.
 

@@ -140,3 +140,15 @@ it('asks for a hold instead of a guess when a claim might be personal or tempora
     'When unsure whether a status, near-term plan or one-off instruction lasts, keep the claim with "hold":"temporary".',
   )
 })
+
+it('asks both calls for who leads a team or project, apart from who owns it', () => {
+  const extract = extractPrompt(makeWindow([]), [])
+  const links = linksPrompt([], [])
+  for (const prompt of [extract, links]) {
+    expect(prompt).toContain('who leads, owns, works on or belongs to what')
+    expect(prompt).toContain(
+      'A person who leads a team or project leads it; leading is not owning.',
+    )
+    expect(prompt).toContain('leads: person → team, project')
+  }
+})
