@@ -51,3 +51,15 @@ it('a failed eligibility read cannot overwrite a review rejected while the file 
   expect(s.store.job(job.id)?.state).toBe('rejected')
   expect(s.run).not.toHaveBeenCalled()
 })
+
+it('does not treat a review without a stored proposal as an eligible stale read', async () => {
+  const refusal = vi.fn(async () => 'Brain is set not to read this lane.')
+  const s = setup(refusal)
+  const job = s.store.enqueue(HARBOR_JOB, 'queued')
+  s.store.updateJob(job.id, { state: 'review' })
+  s.queue.kick()
+  await flush()
+  expect(s.store.job(job.id)?.state).toBe('review')
+  expect(refusal).not.toHaveBeenCalled()
+  expect(s.run).not.toHaveBeenCalled()
+})
