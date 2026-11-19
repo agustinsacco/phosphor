@@ -51,7 +51,8 @@ class MockBrain {
     this.demo = !!options.demoReviews
     this.state.jobs = [...mockStartingJobs(), ...(this.demo ? mockDemoJobs() : [])]
     // The demo review adds two held claims to the usual two memories.
-    if (this.demo) this.state.jobs[0]!.memories = 4
+    const review = this.state.jobs.find((job) => job.id === 'harbor-demo-review')!
+    if (this.demo) review.memories = 4
     for (const job of this.state.jobs) {
       this.records.set(job.id, this.extractionRecord(job.id))
       this.computedRevisions.set(job.id, this.state.revision)
