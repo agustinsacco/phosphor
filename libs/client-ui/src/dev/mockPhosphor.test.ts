@@ -92,7 +92,7 @@ it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
   await window.phosphor.invoke(
     'brain:review',
     id,
-    { descriptions: [], memories: [0], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     proposal.revision,
   )
   const knowledge = await window.phosphor.invoke('brain:entityMemories', 'ledger', {}, null)

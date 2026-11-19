@@ -21,7 +21,11 @@ it('links approved outcomes to memories and retains records while the finished j
   }
   store.saveExtraction(record)
   store.propose(extraction(job.id))
-  store.review(job.id, { descriptions: [], memories: [0, 1], identities: {}, groups: [] }, 0)
+  store.review(
+    job.id,
+    { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
+    0,
+  )
   const saved = store.extraction(job.id)
   expect(saved.outcomes[0]?.memoryId).toBe(
     saved.memories.find((item) => item.summary.includes('owns'))?.id,
@@ -39,7 +43,11 @@ it('applies explicit confirmations without duplicate quotes and moves observedAt
   const { store } = fixture()
   const first = store.enqueue(lane(), 'queued')
   store.propose(extraction(first.id))
-  store.review(first.id, { descriptions: [], memories: [0], identities: {}, groups: [] }, 0)
+  store.review(
+    first.id,
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+    0,
+  )
   const id = store.entityMemories(store.overview(300).nodes[0]!.id, {}, null).memories[0]!.id
   const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
   const data = extraction(job.id, {
@@ -52,7 +60,7 @@ it('applies explicit confirmations without duplicate quotes and moves observedAt
   store.propose(data)
   store.review(
     job.id,
-    { descriptions: [], memories: [], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
     store.revision(),
   )
   expect(store.memory(id).quotes).toHaveLength(1)
@@ -90,7 +98,11 @@ it('expires only orphaned referenced records at 30 days, and prunes unreferenced
     finishedAt: 2,
   })
   store.propose(extraction(first.id))
-  store.review(first.id, { descriptions: [], memories: [0], identities: {}, groups: [] }, 0)
+  store.review(
+    first.id,
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+    0,
+  )
   expect(() => store.extraction(first.id)).not.toThrow()
   // Orphan a referenced record without invoking prune until the next write.
   db.prepare('DELETE FROM jobs WHERE id=?').run(first.id)
@@ -114,7 +126,11 @@ it('prunes a displaced twenty-first read record even when its memories remain', 
   const { store } = fixture()
   const job = store.enqueue(lane(), 'queued')
   store.propose(extraction(job.id))
-  store.review(job.id, { memories: [0], identities: {}, groups: [], descriptions: [] }, 0)
+  store.review(
+    job.id,
+    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
+    0,
+  )
   store.saveExtraction({
     ...job,
     jobId: job.id,

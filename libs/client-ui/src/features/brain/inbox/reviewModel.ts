@@ -148,6 +148,7 @@ export function reviewDecision(
     memories: choices.keep.toSorted((a, b) => a - b),
     identities: { ...choices.identities },
     groups: choices.groups.toSorted((a, b) => a - b),
+    confirmations: [],
   }
 }
 

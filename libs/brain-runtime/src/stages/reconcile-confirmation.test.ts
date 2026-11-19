@@ -67,7 +67,7 @@ it('identity override converts confirmation to an added claim without changing o
   const { store, db, target, before, job, p } = await confirmationFixture()
   store.review(
     job.id,
-    { descriptions: [], memories: [], identities: { rina: 'new' }, groups: [] },
+    { descriptions: [], confirmations: [], memories: [], identities: { rina: 'new' }, groups: [] },
     p.computedRevision,
   )
   expect(store.memory(target).quotes).toEqual(before.quotes)

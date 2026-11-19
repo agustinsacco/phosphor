@@ -40,7 +40,7 @@ it.each([{ selected: [0] }, { selected: [] }])(
     expect(ids.map((id) => store.memory(id).memory.id)).toEqual(ids)
     store.review(
       job.id,
-      { descriptions: [], memories: selected, identities: {}, groups: [] },
+      { descriptions: [], confirmations: [], memories: selected, identities: {}, groups: [] },
       store.revision(),
     )
     expect(db.prepare('SELECT id FROM memories WHERE job_id=?').all(old)).toEqual([])
@@ -94,7 +94,7 @@ it.each(['citation', 'relation'] as const)(
     expect(store.proposal(job.id).replacingMemories).toBe(1)
     store.review(
       job.id,
-      { descriptions: [], memories: [], identities: {}, groups: [] },
+      { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
       store.revision(),
     )
     expect(store.memory(ids[0]!).memory).toEqual(before.memory)
@@ -123,7 +123,7 @@ it('rolls back new saves, old removal, counters and job finalization together on
   expect(() =>
     store.review(
       job.id,
-      { descriptions: [], memories: [0], identities: {}, groups: [] },
+      { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
       store.revision(),
     ),
   ).toThrow('simulated crash')
@@ -145,7 +145,7 @@ it('replaces all lane provenance, including memories whose old job is gone, but 
   store.propose(extraction(job.id, { computedRevision: store.revision() }))
   store.review(
     job.id,
-    { descriptions: [], memories: [], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
     store.revision(),
   )
   expect(db.prepare('SELECT id FROM memories').all()).toEqual([{ id: ids[1] }])
@@ -201,7 +201,7 @@ it('replaces a lane with one revision bump and no extra pruning per removed memo
       const before = { prunes, revision: store.revision() }
       store.review(
         job.id,
-        { descriptions: [], memories: [0, 1], identities: {}, groups: [] },
+        { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
         store.revision(),
       )
       expect(store.revision()).toBe(before.revision + 1)

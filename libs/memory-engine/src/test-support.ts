@@ -141,6 +141,7 @@ export function approve(store: BrainStore, input: Partial<Proposal> = {}): strin
       identities: {},
       groups: [],
       descriptions: [],
+      confirmations: [],
     },
     proposal.revision,
   )

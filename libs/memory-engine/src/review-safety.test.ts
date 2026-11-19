@@ -8,6 +8,7 @@ const decide = (patch: Partial<BrainReviewDecision> = {}): BrainReviewDecision =
   identities: {},
   groups: [],
   descriptions: [],
+  confirmations: [],
   ...patch,
 })
 /** Rina Okafor stored once, with her own description. */

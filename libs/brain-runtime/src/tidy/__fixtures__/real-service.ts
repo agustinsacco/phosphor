@@ -179,7 +179,13 @@ export async function approveRead(
   })
   return service.api.review(
     job.id,
-    { memories: summaries.map((_, i) => i), identities: {}, groups: [], descriptions: [] },
+    {
+      memories: summaries.map((_, i) => i),
+      identities: {},
+      groups: [],
+      descriptions: [],
+      confirmations: [],
+    },
     store.knowledgeRevision(),
   )
 }

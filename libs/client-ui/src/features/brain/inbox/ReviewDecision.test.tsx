@@ -99,6 +99,7 @@ it('sends explicit identity overrides, confirmed groups and the exact memory ind
       memories: [1],
       identities: { harbor: 'new', ledger: 'ledger-other', rina: 'rina', tom: 'new' },
       groups: [0],
+      confirmations: [],
     },
     0,
   )
@@ -113,7 +114,7 @@ it('sends only what the owner answered, and answers no group for him', async () 
   await click('Approve 2')
   expect(review).toHaveBeenCalledWith(
     'harbor-job',
-    { descriptions: [], memories: [0, 1], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
     0,
   )
 })
@@ -137,7 +138,7 @@ it('approves confirmations alone, and a read again with nothing new', async () =
   await click('Approve confirmations')
   expect(review).toHaveBeenLastCalledWith(
     'harbor-job',
-    { descriptions: [], memories: [], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
     0,
   )
 })
@@ -257,7 +258,13 @@ it('asks a required question with no default and blocks Approve until it is answ
   await click('Approve 2')
   expect(review).toHaveBeenCalledWith(
     'harbor-job',
-    { descriptions: [], memories: [0, 1], identities: { rina: 'rina' }, groups: [] },
+    {
+      descriptions: [],
+      confirmations: [],
+      memories: [0, 1],
+      identities: { rina: 'rina' },
+      groups: [],
+    },
     0,
   )
 })
@@ -275,7 +282,13 @@ it('replaces a stored description only when ticked for a record the owner kept',
   await click('Approve 2')
   expect(review).toHaveBeenLastCalledWith(
     'harbor-job',
-    { descriptions: ['rina'], memories: [0, 1], identities: { rina: 'rina' }, groups: [] },
+    {
+      descriptions: ['rina'],
+      confirmations: [],
+      memories: [0, 1],
+      identities: { rina: 'rina' },
+      groups: [],
+    },
     0,
   )
   await choose('Rina Okafor', 'Someone new')
@@ -283,7 +296,13 @@ it('replaces a stored description only when ticked for a record the owner kept',
   await click('Approve 2')
   expect(review).toHaveBeenLastCalledWith(
     'harbor-job',
-    { descriptions: [], memories: [0, 1], identities: { rina: 'new' }, groups: [] },
+    {
+      descriptions: [],
+      confirmations: [],
+      memories: [0, 1],
+      identities: { rina: 'new' },
+      groups: [],
+    },
     0,
   )
 })

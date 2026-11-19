@@ -60,7 +60,7 @@ it('queues a lane, completes review, refreshes search and exposes bounded explor
   expect(p.memories).toHaveLength(1)
   await s.service.api.review(
     job.id,
-    { descriptions: [], memories: [0], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     p.revision,
   )
   expect(s.search.refreshes).toBe(1)
@@ -98,7 +98,7 @@ it.each(['proposal', 'review'] as const)(
         ? s.service.api.proposal(job.id)
         : s.service.api.review(
             job.id,
-            { descriptions: [], memories: [0], identities: {}, groups: [] },
+            { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
             0,
           ),
     ).rejects.toThrow('Brain changed; refreshing this review')
@@ -215,7 +215,7 @@ it('rereads a finished lane through busy waiting, rejects missing files and unfi
   const old = s.store.snapshot().jobs[0]!
   await s.service.api.review(
     old.id,
-    { descriptions: [], memories: [0], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     s.store.rev,
   )
   expect(s.service.api.reread).toBeTypeOf('function')
@@ -274,7 +274,7 @@ it('approving one of three reviews refreshes the other two without paying twice'
   const proposal = await s.service.api.proposal(ids[0]!)
   await s.service.api.review(
     ids[0]!,
-    { memories: [0], identities: {}, groups: [], descriptions: [] },
+    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
     proposal.revision,
   )
   await vi.waitFor(() => {

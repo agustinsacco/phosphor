@@ -146,7 +146,7 @@ class MockBrain {
     if (!this.state.prefs.review)
       this.review(
         job.id,
-        { descriptions: [], memories: [0, 1], identities: {}, groups: [] },
+        { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
         this.state.revision,
       )
   }

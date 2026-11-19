@@ -230,7 +230,7 @@ it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
     store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
     store.review(
       next.id,
-      { descriptions: [], memories: [], identities: {}, groups: [] },
+      { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
       store.knowledgeRevision(),
     )
     expect(() => store.memory(target)).toThrow('not found')

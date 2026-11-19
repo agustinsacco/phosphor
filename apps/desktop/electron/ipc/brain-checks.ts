@@ -47,18 +47,23 @@ export function checkLane(value: unknown): BrainLaneRef {
   return { sessionPath: text(lane?.sessionPath), title: text(lane?.title, 500) }
 }
 
-const indexes = (value: unknown, max: number): number[] =>
+const indexes = (value: unknown, max: number, message = 'Invalid review selection.'): number[] =>
   Array.isArray(value) &&
   value.length <= max &&
   new Set(value).size === value.length &&
   value.every((index) => Number.isInteger(index) && index >= 0 && index < max)
     ? (value as number[])
-    : fail('Invalid review selection.')
+    : fail(message)
+/** A proposal holds at most 300 memories and confirmations together. */
+const CONFIRMATIONS = 300
 
 /** What to save from a proposal. Null rejects it whole. */
 export function checkDecision(value: unknown): BrainReviewDecision | null {
   if (value === null) return null
-  if (!record(value) || !exactKeys(value, ['memories', 'identities', 'groups', 'descriptions']))
+  if (
+    !record(value) ||
+    !exactKeys(value, ['memories', 'identities', 'groups', 'descriptions', 'confirmations'])
+  )
     return fail('Invalid review selection.')
   const identities = value.identities
   if (
@@ -81,6 +86,11 @@ export function checkDecision(value: unknown): BrainReviewDecision | null {
     memories: indexes(value.memories, 400),
     identities: identities as Record<string, string>,
     groups: indexes(value.groups, 100),
+    confirmations: indexes(
+      value.confirmations,
+      CONFIRMATIONS,
+      'Brain confirmation choice is invalid.',
+    ),
   }
 }
 

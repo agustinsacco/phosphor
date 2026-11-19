@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { extraction, fixture, lane } from './test-support'
 import { seed } from './tidy/test-support'
 
-const keep = { memories: [], identities: {}, groups: [], descriptions: [] }
+const keep = { memories: [], identities: {}, groups: [], descriptions: [], confirmations: [] }
 function pending() {
   const s = fixture()
   seed(s.db, 3)

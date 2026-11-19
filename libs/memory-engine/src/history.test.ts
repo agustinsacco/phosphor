@@ -87,7 +87,7 @@ it('counts current memories by read while every row keeps the lane-wide replacem
   store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
   store.review(
     next.id,
-    { memories: [0], identities: {}, groups: [], descriptions: [] },
+    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
     store.proposal(next.id).revision,
   )
   expect(

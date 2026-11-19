@@ -2,7 +2,7 @@ import type { BrainMemoryDetail, BrainProposalView, BrainReviewDecision } from '
 import { mockBrainData } from './mockBrainData'
 import type { MockExplorer } from './mockExplorer'
 
-const DECISION_KEYS = ['memories', 'identities', 'groups', 'descriptions']
+const DECISION_KEYS = ['memories', 'identities', 'groups', 'descriptions', 'confirmations']
 
 /** The shape Desktop's checkDecision accepts; descriptions must name this proposal's refs. */
 export function checkMockDecision(
@@ -20,6 +20,8 @@ export function checkMockDecision(
     Array.isArray(decision.descriptions) &&
     decision.descriptions.every((ref) => typeof ref === 'string' && refs.has(ref))
   if (!valid) throw new Error('Invalid review selection.')
+  if (!Array.isArray(decision.confirmations))
+    throw new Error('Brain confirmation choice is invalid.')
 }
 
 /**

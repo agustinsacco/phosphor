@@ -74,7 +74,8 @@ export interface BrainProposalView {
   identities: BrainIdentity[]
   groups: BrainGroupQuestion[]
   memories: BrainProposedMemory[]
-  /** Saved with any approval; identity overrides turn dependent claims into new memories. */
+  /** Saved with any approval, except held ones, which wait for a tick (`decision.confirmations`).
+   * Identity overrides turn dependent claims into new memories. */
   confirmations: { id: string; summary: string; claim: Omit<BrainProposedMemory, 'index'> }[]
   /** Claims over the per-job budget, held back and listed in the extraction record. */
   held: number
@@ -90,4 +91,7 @@ export interface BrainReviewDecision {
   groups: number[]
   /** Identity refs whose read description replaces the stored description. */
   descriptions: string[]
+  /** Indexes into the proposal's `confirmations` the owner ticked. Only held ones may be listed:
+   * a held confirmation changes nothing unless it is here; the others apply with any approval. */
+  confirmations: number[]
 }

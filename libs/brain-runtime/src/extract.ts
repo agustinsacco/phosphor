@@ -159,6 +159,8 @@ async function approveWithoutReview(context: ExtractionContext, proposal: Propos
       identities: {},
       groups: [],
       descriptions: [],
+      // Held confirmations wait for a tick, and nobody ticks with review off.
+      confirmations: [],
     },
     proposal.computedRevision,
   )

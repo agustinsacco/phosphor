@@ -33,7 +33,7 @@ it.each(['supersede', 'resolve_open', 'enrich', 'conflict'] as const)(
     store.propose(p)
     store.review(
       job.id,
-      { descriptions: [], memories: [0, 1], identities: {}, groups: [] },
+      { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
       p.computedRevision,
     )
     expect(store.snapshot().counts.memories).toBe(3)
@@ -71,7 +71,7 @@ it('skips a confirmation whose target was retired earlier in the approval', () =
   store.propose(p)
   store.review(
     job.id,
-    { descriptions: [], memories: [0], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     p.computedRevision,
   )
   expect(store.memory(target!).quotes).toEqual(before.quotes)

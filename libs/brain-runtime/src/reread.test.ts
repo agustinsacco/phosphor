@@ -42,7 +42,7 @@ async function setup() {
   const first = store.snapshot().jobs[0]!
   await service.api.review(
     first.id,
-    { descriptions: [], memories: [0], identities: {}, groups: [] },
+    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     store.revision(),
   )
   return { ...s, store, service, first, recall, path }
@@ -84,7 +84,7 @@ it.each([true, false])(
       expect((await s.service.api.proposal(next.id)).replacingMemories).toBe(1)
       await s.service.api.review(
         next.id,
-        { descriptions: [], memories: [0], identities: {}, groups: [] },
+        { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
         s.store.revision(),
       )
     }

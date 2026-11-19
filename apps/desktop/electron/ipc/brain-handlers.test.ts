@@ -72,12 +72,13 @@ it('passes a lane reference and refuses empty or oversized fields', async () => 
 })
 
 it('checks review decisions and revisions before the service sees them', async () => {
-  const decision = {
+  const before = {
     memories: [0, 2],
     identities: { n1: 'new', n2: 'harbor' },
     groups: [0],
     descriptions: [],
   }
+  const decision = { ...before, confirmations: [1] }
   expect(checkDecision(null)).toBeNull()
   expect(checkDecision(decision)).toEqual(decision)
   for (const bad of [
@@ -91,6 +92,15 @@ it('checks review decisions and revisions before the service sees them', async (
     'all',
   ])
     expect(() => checkDecision(bad)).toThrow('Invalid review selection.')
+  for (const bad of [
+    before,
+    { ...decision, confirmations: [1, 1] },
+    { ...decision, confirmations: [-1] },
+    { ...decision, confirmations: [0.5] },
+    { ...decision, confirmations: [300] },
+    { ...decision, confirmations: 'all' },
+  ])
+    expect(() => checkDecision(bad)).toThrow('Brain confirmation choice is invalid.')
   await expect(call('brain:review', 'job-1', decision, 3)).resolves.toBe('reviewed')
   expect(api.review).toHaveBeenCalledWith('job-1', decision, 3)
   await expect(call('brain:review', 'job-1', null, -1)).rejects.toThrow('Invalid Brain revision.')

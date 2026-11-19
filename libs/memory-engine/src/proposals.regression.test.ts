@@ -23,7 +23,7 @@ describe('Brain graph regressions', () => {
     store.propose(next)
     store.review(
       job.id,
-      { descriptions: [], memories: [0, 1], identities: {}, groups: [] },
+      { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
       store.revision(),
     )
     for (const id of new Set(ids.map((memory) => memory.id))) {
@@ -54,7 +54,7 @@ describe('Brain graph regressions', () => {
     store.propose(next)
     store.review(
       job.id,
-      { descriptions: [], memories: [0], identities: {}, groups: [] },
+      { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
       store.revision(),
     )
     expect(store.memory(old.id).memory.state).toBe('superseded')
