@@ -11,6 +11,7 @@ import { durationWords } from './jobProgress'
 import { readTime } from './readTime'
 import { ExtractionCalls } from './ExtractionCalls'
 import { ExtractionSource } from './ExtractionSource'
+import { brainLaneTitle } from './laneTitle'
 
 const OUTCOME = {
   kept: 'kept',
@@ -66,7 +67,7 @@ function FinishedRead({
     <>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold">{data.title}</h2>
+          <h2 className="text-xl font-semibold">{brainLaneTitle(data.title)}</h2>
           <p className="text-text-tertiary text-sm">
             {[
               model,

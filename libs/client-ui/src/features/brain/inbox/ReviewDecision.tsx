@@ -8,6 +8,7 @@ import { BrainExtraction } from '../BrainExtraction'
 import { DecisionFrame, type DecisionKeys } from './DecisionFrame'
 import { ReviewForm } from './ReviewForm'
 import { reloadsReview } from './reviewModel'
+import { brainLaneTitle } from '../laneTitle'
 
 /** One lane read waiting for review: load its proposal and keep it honest while Brain changes. */
 export function ReviewDecision({
@@ -67,7 +68,7 @@ export function ReviewDecision({
       />
     )
   return (
-    <DecisionFrame label="Lane read" eyebrow="From lanes" title={job.title}>
+    <DecisionFrame label="Lane read" eyebrow="From lanes" title={brainLaneTitle(job.title)}>
       <div role="status" className="space-y-2">
         {stale || !ready ? (
           <p>Refreshing this review: Brain changed since it was read. Nothing to do.</p>

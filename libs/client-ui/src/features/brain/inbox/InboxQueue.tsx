@@ -7,6 +7,7 @@ import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { formatCount } from '@/lib/format'
 import { tidyLine, tidyTitle } from '../tidy/tidyWording'
 import type { InboxGroup, InboxItem } from './inboxItems'
+import { brainLaneTitle } from '../laneTitle'
 
 /** Up and Down move focus between rows; j and k move the selection (see BrainInbox). */
 function moveFocus(event: KeyboardEvent<HTMLDivElement>): void {
@@ -119,7 +120,7 @@ function QueueRow({
   selected: boolean
   onSelect: (key: string) => void
 }): React.JSX.Element {
-  const title = item.kind === 'review' ? item.job.title : tidyTitle(item.suggestion)
+  const title = item.kind === 'review' ? brainLaneTitle(item.job.title) : tidyTitle(item.suggestion)
   const line =
     item.kind === 'suggestion'
       ? tidyLine(item.suggestion)

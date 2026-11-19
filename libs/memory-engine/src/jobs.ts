@@ -12,10 +12,10 @@ type JobRow = Omit<BrainJob, 'usage' | 'progress'> & {
   usage: string | null
   progress: string | null
 }
+/** An untitled lane's title stays '': the app names it, and no title rule can match it. */
 function decode(row: JobRow): BrainJob {
   return {
     ...row,
-    title: row.title || 'Untitled lane',
     progress: row.progress ? (JSON.parse(row.progress) as BrainJob['progress']) : null,
     usage: row.usage ? (JSON.parse(row.usage) as BrainJob['usage']) : null,
   }
@@ -109,7 +109,7 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
       progress: null,
     }
     save(ctx, result)
-    return { ...result, title: result.title || 'Untitled lane' }
+    return result
   })
 }
 export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
@@ -136,7 +136,7 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
   run(
     ctx,
     `UPDATE jobs SET state=?, error=?, started_at=?, finished_at=?, usage=?, memories=?,
-      leaf_id=?, model=?, branch=?, progress=?, run_started_at=? WHERE id=?`,
+      leaf_id=?, model=?, branch=?, progress=?, run_started_at=?, title=? WHERE id=?`,
     updated.state,
     updated.error,
     updated.startedAt,
@@ -148,6 +148,7 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
     updated.branch,
     updated.progress ? JSON.stringify(updated.progress) : null,
     updated.runStartedAt,
+    updated.title,
     id,
   )
   if (['done', 'empty', 'rejected'].includes(updated.state)) {

@@ -14,6 +14,7 @@ import {
   type LaneRow,
   type LaneSelection,
 } from './laneGroups'
+import { brainLaneTitle } from '../laneTitle'
 
 /** Reads by state, then Recent changes; one selectable row each. */
 export function LaneList({
@@ -50,7 +51,7 @@ export function LaneList({
             {group.rows.map((row) => (
               <li key={row.job.id}>
                 <LaneRowButton
-                  title={row.job.title}
+                  title={brainLaneTitle(row.job.title)}
                   line={rowLine(row, jobs, now)}
                   danger={row.job.state === 'failed'}
                   selected={key === `job:${row.job.id}`}

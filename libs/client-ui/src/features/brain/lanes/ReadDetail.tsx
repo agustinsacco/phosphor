@@ -17,6 +17,7 @@ import { openBrainSource } from '../openBrainSource'
 import { durationWords } from '../jobProgress'
 import { readTime } from '../readTime'
 import { coverageLine, readCounts } from './laneGroups'
+import { brainLaneTitle } from '../laneTitle'
 
 /** A finished read: what it kept, what it covered, and the ways to read the lane again. */
 export function ReadDetail({
@@ -61,7 +62,7 @@ function FinishedRead({
   return (
     <article aria-label="Read detail" className="min-w-0 space-y-4 p-4">
       <header>
-        <h2 className="text-xl font-semibold">{data.title}</h2>
+        <h2 className="text-xl font-semibold">{brainLaneTitle(data.title)}</h2>
         <p className="text-text-tertiary text-sm">
           {[
             model,

@@ -8,6 +8,7 @@ import { formatCount } from '@/lib/format'
 import { mutateBrain, useBrain } from './useBrain'
 import { useBrainModelName } from './useBrainModelName'
 import { progressLine } from './jobProgress'
+import { brainLaneTitle } from './laneTitle'
 
 /**
  * One thin line under the tabs, only while Brain reads a lane, refreshes a review or checks
@@ -37,13 +38,14 @@ export function BrainStatusStrip({
           <span className="min-w-0 flex-1">
             {running ? (
               <>
-                Reading <b className="text-text font-medium">{running.title}</b>
+                Reading <b className="text-text font-medium">{brainLaneTitle(running.title)}</b>
                 {running.progress && ` · ${progressLine(running.progress)}`}
                 {queued > 0 && ` · ${queued} queued`}
               </>
             ) : refreshing ? (
               <>
-                Refreshing the review of <b className="text-text font-medium">{refreshing.title}</b>
+                Refreshing the review of{' '}
+                <b className="text-text font-medium">{brainLaneTitle(refreshing.title)}</b>
                 {queued > 0 && ` · ${queued} queued`}
               </>
             ) : (

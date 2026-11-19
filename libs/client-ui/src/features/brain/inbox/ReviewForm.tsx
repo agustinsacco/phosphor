@@ -18,6 +18,7 @@ import {
   tickCount,
   type ReviewChoices,
 } from './reviewModel'
+import { brainLaneTitle } from '../laneTitle'
 
 export function ReviewForm({
   proposal,
@@ -49,7 +50,7 @@ export function ReviewForm({
     <DecisionFrame
       label="Review memories"
       eyebrow="From lanes"
-      title={job.title}
+      title={brainLaneTitle(job.title)}
       subtitle={`${formatCount(checklistTotal(proposal), 'memory', 'memories')}${questions ? ` · ${formatCount(questions, 'question')}` : ''} · read by ${model}`}
       aside={
         <Button
@@ -109,8 +110,8 @@ function useReviewSubmit(
     if (await useBrain.getState().review(job.id, decision, proposal.revision))
       brainToast(
         approve
-          ? `Approved ${formatCount(decision!.memories.length, 'memory', 'memories')} from ${job.title}`
-          : `Rejected the read of ${job.title}`,
+          ? `Approved ${formatCount(decision!.memories.length, 'memory', 'memories')} from ${brainLaneTitle(job.title)}`
+          : `Rejected the read of ${brainLaneTitle(job.title)}`,
       )
     else {
       const message = useBrain.getState().error

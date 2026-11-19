@@ -4,6 +4,7 @@ import { ipcErrorText } from '@shared/errors'
 import { Button } from '@/components/form'
 import { formatCount } from '@/lib/format'
 import { openBrainLane } from '../openBrainSource'
+import { brainLaneTitle } from '../laneTitle'
 
 /** The lanes its memories came from, newest first, with how many each holds and a way back. */
 export function ProfileLanes({
@@ -35,7 +36,7 @@ export function ProfileLanes({
         {view.sources.map((source) => (
           <tr key={source.sessionId} className="border-border border-b align-top">
             <th scope="row" className="py-2 pr-3 text-left font-medium">
-              {source.title}
+              {brainLaneTitle(source.title)}
               <span className="text-text-tertiary block font-normal">
                 {formatCount(source.memories, 'memory', 'memories')}
               </span>

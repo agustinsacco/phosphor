@@ -14,6 +14,18 @@ import { useBrainResource } from '../useBrainResource'
 import { MEMORY_LABELS } from '../memoryLabels'
 import { REVIEW_TYPE_ORDER } from '../inbox/reviewModel'
 import { MemoryOpen, MemoryRow, type MemoryRowActions } from './MemoryRow'
+import { brainLaneTitle } from '../laneTitle'
+
+/** The Lane filter: every lane this entity's memories came from. */
+function laneOptions(view: BrainEntityView): { value: string; label: string }[] {
+  return [
+    { value: '', label: 'All lanes' },
+    ...view.sources.map((source) => ({
+      value: source.sessionId,
+      label: brainLaneTitle(source.title),
+    })),
+  ]
+}
 
 export interface MemoryFilters {
   type: BrainMemoryType | ''
@@ -72,10 +84,7 @@ export function ProfileMemories({
             value={filters.lane}
             onChange={(lane) => onFilters({ ...filters, lane })}
             className="px-1.5 py-0.5 text-sm"
-            options={[
-              { value: '', label: 'All lanes' },
-              ...view.sources.map((source) => ({ value: source.sessionId, label: source.title })),
-            ]}
+            options={laneOptions(view)}
           />
           <Select
             label="State"

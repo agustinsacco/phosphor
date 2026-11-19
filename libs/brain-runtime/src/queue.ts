@@ -127,14 +127,12 @@ export class ExtractionQueue {
     for (const job of store.snapshot().jobs) {
       if (!this.needsCheck(job, rules)) continue
       try {
-        const { refusal } = await check!(job)
+        const { refusal, retitled } = await check!(job)
         if (!this.accepting) return
         if (!['waiting', 'queued', 'review', 'refreshing'].includes(store.job(job.id)?.state ?? ''))
           continue
-        if (refusal) {
-          blocked.add(job.id)
-          if (this.exclude(job, refusal)) changed()
-        }
+        if (refusal) blocked.add(job.id)
+        if ((refusal && this.exclude(job, refusal)) || retitled) changed()
       } catch (error) {
         if (this.accepting && store.storedProposal(job.id)) {
           store.updateJob(job.id, {
@@ -312,13 +310,15 @@ export class ExtractionQueue {
   private async execute(job: BrainJob, abort: AbortController): Promise<void> {
     try {
       const check = this.options.check ? await this.options.check(job) : null
-      if (abort.signal.aborted || !this.options.store.job(job.id)) return
+      // The check may have stored the lane's current title; the read records that one.
+      const current = this.options.store.job(job.id)
+      if (abort.signal.aborted || !current) return
       if (check?.refusal) {
         this.exclude(job, check.refusal)
         return
       }
       // The runner observes pre-start cancellation too, so it can record the failure phase.
-      await this.options.run(job, abort.signal, check?.entries)
+      await this.options.run(current, abort.signal, check?.entries)
     } catch (error) {
       if (!abort.signal.aborted && this.options.store.job(job.id)) {
         // The lane can disappear after preflight, before the runner opens its archived twin.

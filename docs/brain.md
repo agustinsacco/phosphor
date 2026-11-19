@@ -158,7 +158,12 @@ where they stopped.
 
 Both Queue and Read again refuse an excluded lane. Title rules use the current name from the
 lane file, or the sidebar's first-prompt title when unnamed, never a title supplied by the UI.
-An empty lane displays “Untitled lane”; that placeholder never matches a title rule. Changing the rules cancels its queued and
+Brain stores an empty lane's title as empty, and the page shows it as “Untitled lane”
+(`brainLaneTitle` in `features/brain/laneTitle.ts`, used wherever a read's or a memory source's
+title appears), so no title rule ever matches that placeholder. A job's stored title follows the
+lane: Queue, the start of a read, the stale-review check and opening a review store the lane's
+current name when it changed. Storing a title never changes the knowledge revision, so it never
+stales or refreshes a review. Changing the rules cancels an excluded lane's queued and
 waiting jobs, not its pending review; the Inbox still offers that review, with Reject as its
 primary action. Those jobs are checked against the titles Brain remembers, reading only a lane
 file that changed since. A waiting lane renamed to a matching title, with no rules change, is
@@ -415,8 +420,8 @@ in one line.
   ordinary confirmations apply; `a`) and **Reject read** (`r`). Approve is off with “Answer 1 question” while a required question
   is open. A read again says “Replaces N memories from the last read”; a read of a lane Brain
   read before says “Reads new messages only”.
-- A review of a lane the never-read rule matches (its title or its own switch, checked by
-  `brainLaneNeverRead`) starts with “You set Brain to never read this lane. Reject to discard
+- A review of a lane the never-read rule matches (its current title, which opening the review
+  reads from the lane file, or its own switch, checked by `brainLaneNeverRead`) starts with “You set Brain to never read this lane. Reject to discard
   this read.” **Reject read** becomes the primary button and `a` rejects.
 - A refusal shows in the action bar beside **Reject read**, and the ticks and answers stay. The
   review reloads only on the two exact refusals that mean it is being recomputed

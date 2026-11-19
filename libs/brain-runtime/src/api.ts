@@ -20,6 +20,7 @@ import { laneInfo } from './lane'
 import type { LaneFiles } from './lane-files'
 import {
   currentReadCheck,
+  currentTitle,
   NEVER_READ_REFRESH_REFUSAL,
   DELETED_LANE_REFRESH_REFUSAL,
 } from './lane-read-rules'
@@ -100,13 +101,15 @@ async function reread(id: string, context: ApiContext): Promise<void> {
 }
 async function currentReview(
   id: string,
-  { store, queue, files }: ApiContext,
+  { store, queue, files, changed }: ApiContext,
   intent: 'view' | 'approve',
 ): Promise<void> {
   const job = store.job(id)
   const proposal = store.storedProposal(id)
   if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-    const reason = (await currentReadCheck(store, files, job)).refusal
+    const check = await currentReadCheck(store, files, job)
+    if (check.retitled) changed()
+    const reason = check.refusal
     const refusal =
       reason === DELETED_LANE_REFRESH_REFUSAL ? reason : reason ? NEVER_READ_REFRESH_REFUSAL : null
     const latest = store.storedProposal(id)
@@ -118,6 +121,11 @@ async function currentReview(
     if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
     queue.recompute(id)
     throw new Error(BRAIN_REVIEW_REFRESHING)
+  }
+  if (intent === 'view' && job && proposal) {
+    // The never-read note follows the lane's current name. An unreadable lane keeps its stored one.
+    const current = await currentTitle(store, files, job).catch(() => null)
+    if (current?.retitled) changed()
   }
   if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
 }

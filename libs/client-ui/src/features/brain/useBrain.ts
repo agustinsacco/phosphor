@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { BrainLaneRef, BrainPrefs, BrainStatus, BrainReviewDecision } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { brainLaneTitle } from './laneTitle'
 
 export const brainToast = (text: string, kind: 'success' | 'error' = 'success'): void => {
   useExtensionUiStore.getState().pushToast(text, kind)
@@ -87,7 +88,7 @@ export const useBrain = create<BrainState>(() => ({
   queue: (lane) =>
     update(
       () => window.phosphor.invoke('brain:queue', lane),
-      `Queued ${lane.title} for knowledge extraction`,
+      `Queued ${brainLaneTitle(lane.title)} for knowledge extraction`,
     ),
   cancel: (id) =>
     update(() => window.phosphor.invoke('brain:cancel', id), 'Cancelled knowledge extraction'),

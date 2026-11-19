@@ -12,6 +12,7 @@ import { ExtractionCalls } from '../ExtractionCalls'
 import { BRAIN_PROGRESS_STAGES, BRAIN_STAGE_LABELS, progressLine } from '../jobProgress'
 import { agoWords, durationWords } from '../jobProgress'
 import { attemptStartedAt, laneLine } from './laneGroups'
+import { brainLaneTitle } from '../laneTitle'
 
 /** "Claude Opus 5.5 · Reading for 3 min", "Queued 2 h ago · 1 ahead": honest, never negative. */
 export function jobHeadline(job: BrainJob, model: string, now: number, ahead: number): string {
@@ -45,7 +46,7 @@ export function JobDetail({
   return (
     <section aria-label={JOB_LABELS[job.state] ?? 'Reading lane'} className="space-y-4 p-4">
       <header>
-        <h2 className="text-xl font-semibold">{job.title}</h2>
+        <h2 className="text-xl font-semibold">{brainLaneTitle(job.title)}</h2>
         <p className="text-text-tertiary text-sm">{jobHeadline(job, model, now, ahead)}</p>
       </header>
       {job.state === 'failed' ? (

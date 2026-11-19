@@ -65,7 +65,7 @@ it('uses the sidebar first-line title from the scanner-bounded first prompt', ()
     laneTitle([{ type: 'message', message: { role: 'user', content: 'x'.repeat(250) } }]),
   ).toBe('x'.repeat(200))
 })
-it('displays Untitled lane for an empty file without matching that placeholder against a title rule', async () => {
+it('stores an empty file’s title empty, so a rule naming the placeholder never matches it', async () => {
   const s = await setup()
   s.store.prefs.neverRead = { titles: ['Untitled lane'], sessionIds: [] }
   await writeFile(
@@ -76,6 +76,6 @@ it('displays Untitled lane for an empty file without matching that placeholder a
       .join('\n'),
   )
   const status = await s.service.api.queue({ sessionPath: s.file, title: 'Tom 1:1' })
-  expect(status.jobs[0]?.title).toBe('Untitled lane')
+  expect(status.jobs[0]?.title).toBe('')
   expect(s.runner).not.toHaveBeenCalled()
 })

@@ -60,6 +60,7 @@ export type JobPatch = Partial<
     | 'model'
     | 'branch'
     | 'progress'
+    | 'title'
   >
 >
 /** A checkpointed step of a job, reused only for identical input. */

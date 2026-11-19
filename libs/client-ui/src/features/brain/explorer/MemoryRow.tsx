@@ -12,6 +12,7 @@ import { openBrainSource } from '../openBrainSource'
 import { MemoryQuotes } from '../MemoryQuotes'
 import { MEMORY_TYPE_WORDS } from '../memoryLabels'
 import { EntityChip } from './KnowledgePrimitives'
+import { brainLaneTitle } from '../laneTitle'
 
 /** "Nov 12", with the year only when it is not this year. */
 export function saidOn(ms: number): string {
@@ -80,7 +81,8 @@ export function MemoryRow({
         <span className="min-w-0">
           <span className={clsx('block', !open && 'brain-clamp')}>{memory.summary}</span>
           <span className="text-text-tertiary block text-sm">
-            {memory.origin?.title ?? 'Unknown lane'} · said {saidOn(memory.observedAt)}
+            {memory.origin ? brainLaneTitle(memory.origin.title) : 'Unknown lane'} · said{' '}
+            {saidOn(memory.observedAt)}
             {state && (
               <>
                 {' · '}

@@ -80,7 +80,6 @@ export class FakeBrainStore implements BrainStore {
       throw new Error('This lane is already queued.')
     const job: BrainJob = {
       ...input,
-      title: input.title || 'Untitled lane',
       replaces: input.replaces ?? null,
       id: `job-${++this.next}`,
       state,

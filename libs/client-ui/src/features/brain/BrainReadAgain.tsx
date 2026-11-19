@@ -3,6 +3,7 @@ import type { BrainJob } from '@shared/brain'
 import { Button } from '@/components/form'
 import { promptChoice } from '@/stores/prompt'
 import { useBrain } from './useBrain'
+import { brainLaneTitle } from './laneTitle'
 
 export function BrainReadAgain({
   job,
@@ -20,7 +21,7 @@ export function BrainReadAgain({
     try {
       const kept = memories - replaceable
       const choice = await promptChoice({
-        title: `Read “${job.title}” again?`,
+        title: `Read “${brainLaneTitle(job.title)}” again?`,
         message:
           `Brain reads the whole lane again. The ${replaceable} memories from the earlier read stay until you approve the new result. Then they are replaced.` +
           (kept > 0 ? ` ${kept} memories that another lane also supports are kept.` : ''),
