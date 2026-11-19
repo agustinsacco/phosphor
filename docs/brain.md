@@ -373,7 +373,9 @@ in one line.
   default.
 - When the chosen existing record is described differently by this read, both descriptions show
   with **Use this read’s description for <name>**, unticked. Ticked, approval replaces the stored
-  description (`decision.descriptions`); switching that identity to Someone new drops it.
+  description (`decision.descriptions`) and the record's vector with the one computed for the
+  read's description, so identity candidates and semantic search compare against the new
+  meaning; switching that identity to Someone new drops it.
 - One folded line counts the rest: “N people and things matched without doubt · M new people
   and things · K memories confirm what Brain knows”. Opening it lists each match, which can
   still be overruled, and each confirmation. Only confirmations that are not held count there:

@@ -9,6 +9,7 @@ import {
   entityNumber,
   recountEntities,
   refreshEntityWords,
+  replaceEntityVector,
 } from './entities'
 import { scrubExcerpt } from './secrets'
 import { applyMemory, activeMemoryNumber, insertCitations, type CommitContext } from './commit'
@@ -88,10 +89,13 @@ function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) 
     if (reuse) {
       const n = entityNumber(ctx, reuse)
       addNames(ctx, n, [item.label, ...item.aliases], item.keys)
-      // The read's description replaces the stored one only when the owner chose it.
+      // The read's description replaces the stored one only when the owner chose it, and its
+      // vector (label, kind and this description) replaces the stored vector with it.
       if (decision.descriptions.includes(ref)) {
         run(ctx, 'UPDATE entities SET description=? WHERE n=?', scrubExcerpt(item.description), n)
         refreshEntityWords(ctx, n)
+        const vector = value.entityVectors[index]
+        if (vector) replaceEntityVector(ctx, n, vector)
       }
     }
     resolved.set(ref, id)
