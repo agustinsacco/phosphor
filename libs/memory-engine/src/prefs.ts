@@ -40,7 +40,26 @@ export function setPrefs(ctx: Context, value: BrainPrefs): BrainPrefs {
 export function revision(ctx: Context): number {
   return Number(one<{ value: string }>(ctx, "SELECT value FROM meta WHERE key='revision'")!.value)
 }
+/** Only stored knowledge changes invalidate lane reviews; Tidy bookkeeping uses revision alone.
+ * Seed lazily from the old counter so proposals made before this upgrade retain their meaning. */
+export function knowledgeRevision(ctx: Context): number {
+  const stored = one<{ value: string }>(
+    ctx,
+    "SELECT value FROM meta WHERE key='knowledge_revision'",
+  )
+  return stored ? Number(stored.value) : revision(ctx)
+}
+export function bumpKnowledgeRevision(ctx: Context): void {
+  const next = knowledgeRevision(ctx) + 1
+  run(ctx, "INSERT OR REPLACE INTO meta VALUES ('knowledge_revision', ?)", String(next))
+  bumpRevision(ctx)
+}
 export function bumpRevision(ctx: Context): void {
+  run(
+    ctx,
+    "INSERT OR IGNORE INTO meta VALUES ('knowledge_revision', ?)",
+    String(knowledgeRevision(ctx)),
+  )
   run(ctx, "UPDATE meta SET value = CAST(value AS INTEGER) + 1 WHERE key='revision'")
 }
 

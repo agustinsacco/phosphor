@@ -12,7 +12,7 @@ import * as explorer from './explorer'
 import * as graph from './graph'
 import { memory } from './knowledge'
 import { forget } from './merge'
-import { prefs, revision, setPrefs } from './prefs'
+import { prefs, revision, knowledgeRevision, setPrefs } from './prefs'
 import { proposal, propose, storedProposal } from './proposals'
 import { review } from './review'
 import { initialize, reset } from './schema'
@@ -57,6 +57,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     snapshot: () => snapshot(ctx),
     setPrefs: (value) => setPrefs(ctx, value),
     revision: () => revision(ctx),
+    knowledgeRevision: () => knowledgeRevision(ctx),
     enqueue: (value, state) => jobs.enqueue(ctx, value, state),
     job: (id) => jobs.job(ctx, id),
     history: (limit) => history(ctx, limit),

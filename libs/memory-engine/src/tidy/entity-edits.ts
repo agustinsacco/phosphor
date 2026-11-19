@@ -1,7 +1,7 @@
 import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@phosphor/shared/brain'
 import { all, one, run, transaction, type Context } from '../database'
 import { createEntity, entityNumber, recountEntities, refreshEntityWords } from '../entities'
-import { bumpRevision } from '../prefs'
+import { bumpKnowledgeRevision } from '../prefs'
 import { scrubExcerpt } from '../secrets'
 import { fold } from '../text'
 import { fingerprintMemories } from './fingerprints'
@@ -47,7 +47,7 @@ export function describeEntity(ctx: Context, id: string, value: string, expected
         refreshEntityWords(ctx, entity.n)
       },
     )
-    bumpRevision(ctx)
+    bumpKnowledgeRevision(ctx)
     return operation
   })
 }
@@ -118,7 +118,7 @@ export function removeName(ctx: Context, id: string, name: string, expected: num
   return transaction(ctx, () => {
     checkRevision(ctx, expected)
     const operation = removeNameChange(ctx, id, name)
-    bumpRevision(ctx)
+    bumpKnowledgeRevision(ctx)
     return operation
   })
 }
@@ -196,7 +196,7 @@ export function splitEntity(
       ctx.now(),
       pairKey('entity', id, input.subjects.second),
     )
-    bumpRevision(ctx)
+    bumpKnowledgeRevision(ctx)
     return operation
   })
 }

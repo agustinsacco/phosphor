@@ -262,7 +262,7 @@ export interface BrainEmbeddingStatus {
 }
 export interface BrainSnapshot {
   prefs: BrainPrefs
-  /** Bumped by every approved change; review refuses a stale revision. */
+  /** General change counter for explorer and Tidy guards; reviews use a knowledge-only guard. */
   revision: number
   /** New after every reset, so views reload even when the revision repeats. */
   generation: string

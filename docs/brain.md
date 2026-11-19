@@ -289,9 +289,18 @@ in one line.
 transaction; **Reject** stores nothing. An uncertain entity without a choice becomes new, and only
 entities that a saved memory or group uses are created. A confirmed group creates or reuses the
 parent and one fact per member ("X is part of Harbor"), quoted as "Stated by you in review". If
-Brain changed since the proposal was computed, the review says “Refreshing this review: Brain
-changed since it was read.”, recomputes identity and reconcile from the saved extract steps, and
-returns to review. With review off, the defaults apply: uncertain becomes new, groups are skipped
+knowledge changed since the proposal was computed, the review says “Refreshing this review: Brain
+changed since it was read.” It stays a review (`refreshing`), retains its previous memory count,
+and recomputes identity and reconcile from saved extract steps. The queue refreshes stale reviews
+in the background, oldest first, before new reads. A finished refresh never changes knowledge.
+The internal `knowledge_revision` counter tracks memories, entities, names, aliases, descriptions,
+links, states and merges; Tidy suggestions, verdicts, dismissals, flags, coverage and run state
+change only the general revision used by the explorer and Tidy guards. Approval uses the knowledge
+guard too. Accepted identity and reconcile answers are keyed by their complete prompt, not either
+revision: unchanged questions, including answers saved by older apps, never call the model again.
+A changed candidate changes only the prompt that contains it. The job's `startedAt` is its first
+start, and `runStartedAt` is the current attempt (null while not running or refreshing). Read
+durations come from recorded model calls, not elapsed time across app quits. With review off, the defaults apply: uncertain becomes new, groups are skipped
 and conflicts are saved as disputed.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both

@@ -227,11 +227,11 @@ it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
       lane({ sessionId, replaces: old.id, leafId: 'replacement-leaf' }),
       'queued',
     )
-    store.propose(extraction(next.id, { computedRevision: store.revision() }))
+    store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
     store.review(
       next.id,
       { descriptions: [], memories: [], identities: {}, groups: [] },
-      store.revision(),
+      store.knowledgeRevision(),
     )
     expect(() => store.memory(target)).toThrow('not found')
     if (kind === 'merge') store.tidyUndo(operation, store.revision())

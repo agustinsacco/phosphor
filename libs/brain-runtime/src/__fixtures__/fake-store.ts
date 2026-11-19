@@ -34,6 +34,7 @@ import type { BrainSearchPort } from '../types'
 export class FakeBrainStore implements BrainStore {
   prefs: BrainPrefs = { ...DEFAULT_BRAIN_PREFS }
   rev = 0
+  knowledgeRev: number | null = null
   generation = 'generation-1'
   jobs: BrainJob[] = []
   records = new Map<string, BrainExtractionRecord>()
@@ -62,6 +63,9 @@ export class FakeBrainStore implements BrainStore {
   }
   revision(): number {
     return this.rev
+  }
+  knowledgeRevision(): number {
+    return this.knowledgeRev ?? this.rev
   }
   setPrefs(prefs: BrainPrefs): BrainPrefs {
     return (this.prefs = { ...prefs })
@@ -137,8 +141,10 @@ export class FakeBrainStore implements BrainStore {
   requeueInterrupted(): void {
     for (const job of this.jobs) if (job.state === 'running') job.state = 'queued'
   }
-  part(id: string, part: string, hash: string): JobPart | undefined {
-    return this.parts.get(`${id}:${part}:${hash}`)
+  part(id: string, part: string, hash?: string): JobPart | undefined {
+    return hash === undefined
+      ? [...this.parts.entries()].find(([key]) => key.startsWith(`${id}:${part}:`))?.[1]
+      : this.parts.get(`${id}:${part}:${hash}`)
   }
   savePart(id: string, part: JobPart): void {
     if (part.part === 'prepare') {
@@ -229,7 +235,7 @@ export class FakeBrainStore implements BrainStore {
     }
   }
   review(id: string, decision: BrainReviewDecision | null, revision: number): void {
-    if (revision !== this.rev)
+    if (revision !== this.knowledgeRevision())
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
     this.reviews.push({ id, decision })
     this.updateJob(id, { state: 'done', memories: decision?.memories.length ?? 0 })
@@ -282,6 +288,7 @@ export class FakeBrainStore implements BrainStore {
     return 'operation'
   }
   tidyDismiss(): void {
+    this.knowledgeRev = this.knowledgeRevision()
     this.rev++
   }
   tidyChanges = () => ({ items: [], revision: this.rev })

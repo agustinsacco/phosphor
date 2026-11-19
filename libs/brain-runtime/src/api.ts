@@ -95,8 +95,10 @@ export function createApi(context: ApiContext): BrainApi {
     return status()
   }
   const current = (id: string): void => {
+    if (store.job(id)?.state === 'refreshing')
+      throw new Error('Brain changed; refreshing this review')
     const proposal = store.storedProposal(id)
-    if (proposal && proposal.computedRevision !== store.revision()) {
+    if (proposal && proposal.computedRevision !== store.knowledgeRevision()) {
       queue.recompute(id)
       throw new Error('Brain changed; refreshing this review')
     }

@@ -58,3 +58,36 @@ it.each(['describe', 'removeName', 'split', 'merge', 'forget'] as const)(
     expect(() => store.review(job.id, keep, 0)).toThrow('Brain changed while you were reviewing')
   },
 )
+
+it.each(['fold', 'dispute', 'replace'] as const)(
+  'stales reviews for a Tidy %s and its undo',
+  (kind) => {
+    const { store, db, job } = pending()
+    db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
+    store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
+    const pair = store.tidy('same_memory', null, 20).items[0]!
+    const operation = store.tidyApply(
+      pair.id,
+      kind === 'fold'
+        ? { kind, survivorId: pair.subjects[0]!.id }
+        : kind === 'replace'
+          ? { kind, newerId: pair.subjects[0]!.id }
+          : { kind },
+      store.revision(),
+    )!
+    expect(() => store.review(job.id, keep, 0)).toThrow('Brain changed while you were reviewing')
+    const knowledge = store.knowledgeRevision()
+    store.tidyUndo(operation, store.revision())
+    expect(store.knowledgeRevision()).toBeGreaterThan(knowledge)
+  },
+)
+it('finds an old revision-prefixed answer by its prompt part name in SQLite', () => {
+  const { store, job } = pending()
+  store.savePart(job.id, {
+    part: 'answer:identity:harbor-hash',
+    inputHash: '12:harbor-hash',
+    output: 'cached',
+  })
+  expect(store.part(job.id, 'answer:identity:harbor-hash')?.output).toBe('cached')
+  expect(store.part(job.id, 'answer:identity:harbor-hash', 'wrong')).toBeUndefined()
+})

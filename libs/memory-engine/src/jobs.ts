@@ -155,7 +155,13 @@ export function removeJob(ctx: Context, id: string): void {
   pruneExtractions(ctx)
 }
 export function requeueInterrupted(ctx: Context): void {
-  run(ctx, "UPDATE jobs SET state='queued', finished_at=NULL, error=NULL WHERE state='running'")
+  transaction(ctx, () => {
+    run(
+      ctx,
+      "UPDATE jobs SET state='queued', run_started_at=NULL, finished_at=NULL, error=NULL WHERE state='running'",
+    )
+    run(ctx, "UPDATE jobs SET run_started_at=NULL, error=NULL WHERE state='refreshing'")
+  })
 }
 
 export function retry(ctx: Context, id: string): BrainJob {
@@ -166,14 +172,15 @@ export function part(
   ctx: Context,
   jobId: string,
   name: string,
-  inputHash: string,
+  inputHash?: string,
 ): JobPart | undefined {
   return one(
     ctx,
-    "SELECT part,input_hash AS inputHash,output FROM job_parts WHERE job_id=? AND part=? AND input_hash=? AND state='done'",
+    `SELECT part,input_hash AS inputHash,output FROM job_parts
+     WHERE job_id=? AND part=? AND state='done'${inputHash === undefined ? '' : ' AND input_hash=?'} LIMIT 1`,
     jobId,
     name,
-    inputHash,
+    ...(inputHash === undefined ? [] : [inputHash]),
   )
 }
 export function savePart(ctx: Context, jobId: string, value: JobPart): void {

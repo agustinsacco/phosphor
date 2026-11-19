@@ -154,7 +154,7 @@ export async function approveRead(
     origin: { sessionId: job.sessionId, title: job.title },
     scope: job.scope,
     branch: null,
-    computedRevision: store.revision(),
+    computedRevision: store.knowledgeRevision(),
     entities,
     memoryVectors,
     entityVectors,
@@ -180,7 +180,7 @@ export async function approveRead(
   return service.api.review(
     job.id,
     { memories: summaries.map((_, i) => i), identities: {}, groups: [], descriptions: [] },
-    store.revision(),
+    store.knowledgeRevision(),
   )
 }
 

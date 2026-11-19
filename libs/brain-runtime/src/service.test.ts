@@ -252,3 +252,64 @@ it('binds Tidy to the store: a run persists its progress and a lane flag reaches
     message: NO_MODEL,
   })
 })
+
+it('approving one of three reviews refreshes the other two without paying twice', async () => {
+  const s = await setup()
+  const ids: string[] = []
+  for (const name of ['harbor', 'ledger', 'kestrel']) {
+    const file = join(s.directory, `${name}.jsonl`)
+    await writeFile(
+      file,
+      s.entries
+        .map((e) => JSON.stringify(e.type === 'session' ? { ...e, id: name } : e))
+        .join('\n'),
+    )
+    const status = await s.service.api.queue({ sessionPath: file, title: name })
+    const id = status.jobs.at(-1)!.id
+    await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+    ids.push(id)
+  }
+  const starts = ids.map((id) => s.store.job(id)!.startedAt)
+  s.runner.mockClear()
+  const proposal = await s.service.api.proposal(ids[0]!)
+  await s.service.api.review(
+    ids[0]!,
+    { memories: [0], identities: {}, groups: [], descriptions: [] },
+    proposal.revision,
+  )
+  await vi.waitFor(() => {
+    for (const id of ids.slice(1)) {
+      expect(s.store.job(id)?.state).toBe('review')
+      expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
+    }
+  })
+  expect(s.runner).not.toHaveBeenCalled()
+  expect(ids.map((id) => s.store.job(id)!.startedAt)).toEqual(starts)
+})
+it('changed identity candidate descriptions reach a new prompt while extraction stays cached', async () => {
+  const s = await setup()
+  s.store.matches = [[{ entityId: 'rina', channel: 'name', score: 1 }]]
+  s.store.cards = [
+    {
+      id: 'rina',
+      label: 'Rina Okafor',
+      aliases: ['Rina'],
+      kind: 'person',
+      description: 'Harbor lead',
+      neighbours: [],
+      memories: 1,
+    },
+  ]
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await review(s.service)
+  const id = s.store.snapshot().jobs[0]!.id
+  s.runner.mockClear()
+  s.store.cards[0]!.description = 'Ledger lead'
+  s.store.rev++
+  await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
+  await review(s.service)
+  expect(s.runner).toHaveBeenCalledOnce()
+  expect(s.runner.mock.calls[0]![0].stage).toBe('identity')
+  expect(s.runner.mock.calls[0]![0].prompt).toContain('Ledger lead')
+  expect(s.runner.mock.calls[0]![0].prompt).not.toContain('Harbor lead')
+})

@@ -94,7 +94,7 @@ interface ExtractionContext {
 }
 async function finishExtraction(context: ExtractionContext, folded: FoldedJob): Promise<void> {
   const { store, options, signal, search, ask, progress } = context
-  const computedRevision = store.revision()
+  const computedRevision = store.knowledgeRevision()
   progress('identity', 0, 1)
   const entityVectors = await embedDocuments(
     options,

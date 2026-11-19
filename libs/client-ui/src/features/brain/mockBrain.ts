@@ -1,5 +1,6 @@
 import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
-import { DEFAULT_BRAIN_PREFS, setBrainLaneNeverRead, checkBrainNeverRead } from '@shared/brain'
+import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
+import { mockBrainPrefs } from './mockBrainPrefs'
 import type { BrainEntitySort } from '@shared/brain-explore'
 import type {
   BrainExtractionView,
@@ -325,16 +326,11 @@ class MockBrain {
       case 'brain:status':
         return this.status()
       case 'brain:neverRead':
-        this.state.prefs = setBrainLaneNeverRead(
-          this.state.prefs,
-          args[0] as string,
-          args[1] as boolean,
-        )
-        return this.status()
       case 'brain:setPrefs':
-        checkBrainNeverRead((args[0] as BrainPrefs).neverRead)
-        this.state.prefs = { ...DEFAULT_BRAIN_PREFS, ...(args[0] as BrainPrefs) }
-        return this.state.prefs.enabled && this.state.embedding.phase === 'missing'
+        this.state.prefs = mockBrainPrefs(channel, args, this.state.prefs)
+        return channel === 'brain:setPrefs' &&
+          this.state.prefs.enabled &&
+          this.state.embedding.phase === 'missing'
           ? this.download()
           : this.status()
       case 'brain:download':

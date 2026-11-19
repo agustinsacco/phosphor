@@ -40,7 +40,12 @@ export class ExtractionQueue {
   }
 
   recompute(id: string): void {
-    this.options.store.updateJob(id, { state: 'queued', error: null, progress: null })
+    this.options.store.updateJob(id, {
+      state: 'refreshing',
+      runStartedAt: null,
+      error: null,
+      progress: null,
+    })
     this.options.changed()
     this.kick()
   }
@@ -63,23 +68,18 @@ export class ExtractionQueue {
   kick(): void {
     if (!this.accepting) return
     clearTimeout(this.timer)
-    const { store, busy, changed } = this.options
-    let waiting = false
-    for (const job of store.snapshot().jobs) {
-      if (job.state !== 'waiting' && job.state !== 'queued') continue
-      const isBusy = busy(job.sessionPath)
-      waiting ||= isBusy
-      const state = isBusy ? 'waiting' : 'queued'
-      if (job.state !== state) {
-        store.updateJob(job.id, { state })
-        changed()
-      }
-    }
+    const { store, changed } = this.options
+    this.refreshStaleReviews()
+    const waiting = this.updateWaiting()
     if (waiting) this.timer = setTimeout(() => this.kick(), 2000)
     if (this.active || !this.options.ready()) return
-    const job = store.snapshot().jobs.find((j) => j.state === 'queued')
+    const jobs = store.snapshot().jobs
+    const refresh = jobs
+      .filter((j) => j.state === 'refreshing')
+      .sort((a, b) => (a.startedAt ?? a.queuedAt) - (b.startedAt ?? b.queuedAt))[0]
+    const job = refresh ?? jobs.find((j) => j.state === 'queued')
     const task = this.tasks[0]
-    if (task && (!job || !task.older.has(job.id))) {
+    if (!refresh && task && (!job || !task.older.has(job.id))) {
       this.tasks.shift()
       const done = Promise.resolve()
         .then(() => task.run(task.abort.signal))
@@ -94,11 +94,48 @@ export class ExtractionQueue {
     }
     if (!job) return
     const abort = new AbortController()
-    store.updateJob(job.id, { state: 'running', startedAt: this.options.now(), error: null })
+    const running = store.updateJob(job.id, {
+      state: refresh ? 'refreshing' : 'running',
+      startedAt: job.startedAt ?? this.options.now(),
+      runStartedAt: this.options.now(),
+      error: null,
+    })
     changed()
     // Start on a microtask so cancellation always sees the active run first.
-    const done = Promise.resolve().then(() => this.execute(job, abort))
+    const done = Promise.resolve().then(() => this.execute(running, abort))
     this.active = { id: job.id, abort, done }
+  }
+
+  private refreshStaleReviews(): void {
+    const { store, changed } = this.options
+    for (const job of store.snapshot().jobs) {
+      if (job.state !== 'review') continue
+      const proposal = store.storedProposal(job.id)
+      if (!proposal || proposal.computedRevision === store.knowledgeRevision()) continue
+      store.updateJob(job.id, {
+        state: 'refreshing',
+        runStartedAt: null,
+        error: null,
+        progress: null,
+      })
+      changed()
+    }
+  }
+
+  private updateWaiting(): boolean {
+    const { store, busy, changed } = this.options
+    let waiting = false
+    for (const job of store.snapshot().jobs) {
+      if (job.state !== 'waiting' && job.state !== 'queued') continue
+      const isBusy = busy(job.sessionPath)
+      waiting ||= isBusy
+      const state = isBusy ? 'waiting' : 'queued'
+      if (job.state !== state) {
+        store.updateJob(job.id, { state })
+        changed()
+      }
+    }
+    return waiting
   }
 
   /** A lane-less task shares the worker and waits behind already runnable lane reads. */
@@ -137,7 +174,7 @@ export class ExtractionQueue {
 
   cancel(id: string): void {
     const job = this.options.store.job(id)
-    if (job?.state === 'review' || job?.state === 'done')
+    if (job?.state === 'review' || job?.state === 'refreshing' || job?.state === 'done')
       throw new Error('Review this proposal to dismiss it.')
     if (this.active?.id === id) this.active.abort.abort()
     if (job?.state === 'empty' && !job.replaces) this.options.store.updateJob(id, { state: 'done' })

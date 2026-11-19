@@ -75,7 +75,9 @@ it.each([true, false])(
     if (review) {
       expect(s.recall()).toEqual(oldIds)
       const db = new DatabaseSync(s.path)
-      db.exec("UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='revision'")
+      db.exec(
+        "UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key IN ('revision','knowledge_revision')",
+      )
       db.close()
       await expect(s.service.api.proposal(next.id)).rejects.toThrow('refreshing this review')
       await vi.waitFor(() => expect(s.store.job(next.id)?.state).toBe('review'))
