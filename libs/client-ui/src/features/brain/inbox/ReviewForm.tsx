@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { brainLaneNeverRead, type BrainProposalView } from '@shared/brain'
+import { brainLaneNeverRead } from '@phosphor/shared/brain-never-read'
+import type { BrainProposalView } from '@shared/brain'
 import { Button } from '@/components/form'
 import { formatCount } from '@/lib/format'
 import { brainToast, useBrain } from '../useBrain'

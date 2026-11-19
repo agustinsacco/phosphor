@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
+import { brainLaneNeverRead } from '@phosphor/shared/brain-never-read'
 import {
   DEFAULT_BRAIN_PREFS,
-  brainLaneNeverRead,
   type BrainHistory,
   type BrainStatus,
   type BrainExtractionView,
