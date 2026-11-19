@@ -4,6 +4,7 @@ import type { ExtractedPart, StageEntity, StageParent } from '../stage-types'
 import { fold, tokens } from '@phosphor/memory-engine/text'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { withoutUser } from '../stage-owner'
+import { strongerHold } from '../stage-hold'
 
 export interface FoldedClaim {
   ref: string
@@ -128,6 +129,7 @@ export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob 
       ...claim.memory.citations,
     ])
     previous.memory.links.push(...claim.memory.links)
+    previous.memory.hold = strongerHold(previous.memory.hold ?? null, claim.memory.hold ?? null)
     job.outcomes.push({
       candidate: claim.ref,
       summary: claim.memory.summary,
@@ -179,6 +181,7 @@ function appendClaims(job: FoldedJob, part: ExtractedPart, sessionId: string): v
         action: 'add',
         target: null,
         reason: 'New supported claim',
+        hold: c.hold ?? null,
       },
     })
 }

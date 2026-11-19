@@ -187,11 +187,16 @@ async function embedAndPropose(
     finishedAt: (options.now ?? Date.now)(),
     progress: { stage: 'embed', done: 1, total: 1 },
   })
-  if (!store.snapshot().prefs.review && store.job(job.id)?.state === 'review') {
+  // With review off, held claims are never saved and a required question keeps the read in review.
+  if (
+    !store.snapshot().prefs.review &&
+    store.job(job.id)?.state === 'review' &&
+    !proposal.entities.some((entity) => entity.required)
+  ) {
     store.review(
       job.id,
       {
-        memories: proposal.memories.map((_m, i) => i),
+        memories: proposal.memories.flatMap((memory, i) => (memory.hold ? [] : [i])),
         identities: {},
         groups: [],
         descriptions: [],

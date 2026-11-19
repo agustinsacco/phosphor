@@ -95,11 +95,12 @@ it('keeps a read with a required identity in review even with review off', async
   const s = await run({ review: false, hold: null, identity: 'uncertain' })
   expect(s.store.reviews).toEqual([])
   expect(s.store.job(s.job.id)!.state).toBe('review')
-  expect(s.store.storedProposal(s.job.id)!.entities[0]).toMatchObject({
-    label: 'Rina Okafor',
+  const entities = s.store.storedProposal(s.job.id)!.entities
+  expect(entities.find((e) => e.label === 'Rina Okafor')).toMatchObject({
     decision: 'uncertain',
     required: true,
   })
+  expect(entities.find((e) => e.label === 'Tom Lee')).toMatchObject({ required: false })
 })
 
 it('marks a claim the backstop finds temporary or personal when the model did not', () => {

@@ -225,8 +225,14 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    the user as a person entity marked as the user. A part that marks more than one person marks
    none, and later parts learn the mark from the entities they are offered. Parsing turns a
    leading "The user" or "The user's" into that name and adds the mention once; with no marked
-   person the sentence stays as written. The mark never reaches identity or review. The answer
-   rules are repeated after the conversation, because a long one buries them.
+   person the sentence stays as written. The mark never reaches identity or review. A claim the
+   model kept although unsure comes back held, temporary or personal, and parsing adds holds by
+   fixed rules that only mark, never drop: personal for a claim naming a person that speaks of
+   promotion, calibration, leveling or L1–L9, being upset, absence, leave or vacation, or
+   performance reviews; temporary for "as of", "currently", "still", "this week" or "this
+   sprint", a ticket or pull request as its subject, or a date (in the sentence or its validity)
+   within 60 days after it was said. The answer rules are repeated after the conversation,
+   because a long one buries them.
 2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
    more entities, those entities, existing links and short excerpts around each claim's quotes.
    Each excerpt stays in its segment, stops at an elision marker and adds at most 600 characters
@@ -294,24 +300,31 @@ A read waiting for review opens in the Inbox under **From lanes**. Its header sh
 in the same pane with **Back to review**. Claims held back over the read's limit are counted
 in one line.
 
-- **Questions** come first. An identity Brain is unsure of reads “Is “Harbor” in this lane
-  Harbor?” with the candidate's kind, description, memory and link counts, and buttons:
-  **Yes, Harbor**, **Someone new** or **Something new**, and the other candidates. A possible
-  group asks “Are these part of one Harbor?” with **Yes, one Harbor** and **No**, which is the
-  default.
+- **Questions** come first, required ones first. An identity Brain is unsure of reads “Is
+  “Harbor” in this lane Harbor?” with the candidate's kind, description, memory and link counts,
+  and buttons: **Yes, Harbor**, **Someone new** or **Something new**, and the other candidates.
+  It is required when exactly one stored person or thing of its kind goes by one of its names
+  (label or other name, in any case). A possible group asks “Are these part of one Harbor?” with
+  **Yes, one Harbor** and **No**, which is the default.
 - One folded line counts the rest: “N people and things matched without doubt · M new people
   and things · K memories confirm what Brain knows”. Opening it lists each match, which can
   still be overruled, and each confirmation.
 - **Memories · k of n ticked** groups the proposed memories by type, each group with a checkbox
   for the whole group (including its other pages). A row shows the type, the sentence, the
   names it uses, what it changes, its links (“Rina Okafor → owns → Harbor ledger”) and its
-  quotes. Groups page at twenty.
+  quotes. Groups page at twenty. Held claims sit in their own groups and start unticked:
+  temporary (status, a near-term plan or a one-off instruction) and personal (a remark about a
+  named person beyond their role).
 - The fixed bar has **Approve N** (or **Approve k of n**, or **Approve confirmations**; `a`)
   and **Reject read** (`r`). A read again says “Replaces N memories from the last read”.
 
 **Approve** stores the ticked memories, the identity choices and confirmed groups in one
-transaction; **Reject** stores nothing. An uncertain entity without a choice becomes new, and only
-entities that a saved memory or group uses are created. A confirmed group creates or reuses the
+transaction; **Reject** stores nothing. A held claim is saved only when ticked. Approval that
+saves anything naming a required identity waits for its answer: “Say whether “Rina Okafor” is
+someone Brain already knows or someone new before approving.” Any other uncertain entity without
+a choice becomes new, and only entities that a saved memory or group uses are created. A reused
+record keeps its stored description unless the owner chooses the read's description for it.
+A confirmed group creates or reuses the
 parent and one fact per member ("X is part of Harbor"), quoted as "Stated by you in review". If
 knowledge changed since the proposal was computed, the review says “Refreshing this review: Brain
 changed since it was read.” It stays a review (`refreshing`), retains its previous memory count,
@@ -324,8 +337,9 @@ guard too. Accepted identity and reconcile answers are keyed by their complete p
 revision: unchanged questions, including answers saved by older apps, never call the model again.
 A changed candidate changes only the prompt that contains it. The job's `startedAt` is its first
 start, and `runStartedAt` is the current attempt (null while not running or refreshing). Read
-durations come from recorded model calls, not elapsed time across app quits. With review off, the defaults apply: uncertain becomes new, groups are skipped
-and conflicts are saved as disputed.
+durations come from recorded model calls, not elapsed time across app quits. With review off, the defaults apply: held claims are not saved, uncertain becomes new, groups are skipped
+and conflicts are saved as disputed; a read with a required question stays in the Inbox. A
+confirmation whose identity the owner changed is saved as a new memory, unless it is held.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both
 sides until one is superseded or forgotten. **Forget** deletes one memory, then any evidence and

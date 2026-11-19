@@ -8,7 +8,9 @@ import {
   entity,
   entityNumber,
   recountEntities,
+  refreshEntityWords,
 } from './entities'
+import { scrubExcerpt } from './secrets'
 import { applyMemory, activeMemoryNumber, insertCitations, type CommitContext } from './commit'
 import { linkOutcome, pruneExtractions } from './extractions'
 import { job, removeJob, updateJob } from './jobs'
@@ -34,6 +36,26 @@ function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDe
     )
       throw new Error('Brain identity override is invalid.')
   }
+  for (const ref of decision.descriptions)
+    if (!value.entities.find((item) => item.ref === ref)?.description.trim())
+      throw new Error('Brain description choice is invalid.')
+  const used = new Set([
+    ...decision.memories.flatMap((index) => {
+      const item = value.memories[index]!
+      return [...item.entities, ...item.links.flatMap((link) => [link.subject, link.object])]
+    }),
+    ...decision.groups.flatMap((index) => {
+      const group = value.groups[index]!
+      return [...group.members, ...(group.parent.entityId ? [group.parent.entityId] : [])]
+    }),
+  ])
+  const unanswered = value.entities.find(
+    (item) => item.required && used.has(item.ref) && !(item.ref in decision.identities),
+  )
+  if (unanswered)
+    throw new Error(
+      `Say whether “${unanswered.label}” is someone Brain already knows or someone new before approving.`,
+    )
 }
 function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) {
   const resolved = new Map<string, string>()
@@ -55,7 +77,15 @@ function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) 
         ? item.entityId
         : null
     const id = reuse ?? createEntity(ctx, item, value.entityVectors[index])
-    if (reuse) addNames(ctx, entityNumber(ctx, reuse), [item.label, ...item.aliases], item.keys)
+    if (reuse) {
+      const n = entityNumber(ctx, reuse)
+      addNames(ctx, n, [item.label, ...item.aliases], item.keys)
+      // The read's description replaces the stored one only when the owner chose it.
+      if (decision.descriptions.includes(ref)) {
+        run(ctx, 'UPDATE entities SET description=? WHERE n=?', scrubExcerpt(item.description), n)
+        refreshEntityWords(ctx, n)
+      }
+    }
     resolved.set(ref, id)
     return id
   }
@@ -146,6 +176,8 @@ export function review(
       applyGroups(commit, decision.groups)
       for (const confirmation of value.confirmations) {
         if (identityChanged(confirmation.claim, value, decision)) {
+          // Turned into a new memory nobody ticked: a held claim is never saved that way.
+          if (confirmation.claim.hold) continue
           applyMemory(
             commit,
             { ...confirmation.claim, action: 'add', target: null },

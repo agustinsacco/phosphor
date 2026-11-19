@@ -1,3 +1,7 @@
+import type { BrainEntityKind } from '@phosphor/shared/brain'
+import type { StageClaim } from './stage-types'
+import type { TranscriptWindow } from './windows'
+
 /**
  * Deterministic backstops for review holds. They only ever mark a claim (unticked in review,
  * never saved with review off); they never drop one.
@@ -48,6 +52,9 @@ const PERSONAL = new RegExp(
     String.raw`absen(?:ce|ces|t)`,
     String.raw`(?:on|parental|sick|annual|medical|maternity|paternity|personal) leave`,
     String.raw`leave of absence`,
+    String.raw`(?:is|was|be|are|were) away (?:from|until|on|for|in|over)`,
+    String.raw`vacation`,
+    String.raw`out of office`,
     String.raw`underperform\w*`,
     String.raw`performance (?:review|reviews|rating|ratings|plan|issues?|concerns?|feedback)`,
   ]
@@ -109,4 +116,23 @@ export function backstopHold(claim: {
 /** The stronger of two holds: personal over temporary over none. */
 export function strongerHold(a: ClaimHold | null, b: ClaimHold | null): ClaimHold | null {
   return a === 'personal' || b === 'personal' ? 'personal' : (a ?? b)
+}
+/** The model's hold for a claim, raised by the backstop: when it was said is its newest quote. */
+export function holdClaim(
+  claim: StageClaim,
+  kinds: ReadonlyMap<string, BrainEntityKind>,
+  window: TranscriptWindow,
+): StageClaim {
+  const saidAt = Math.max(
+    0,
+    ...claim.quotes.map((q) => window.segments[Number(q.segment.slice(1)) - 1]?.observedAt ?? 0),
+  )
+  const backstop = backstopHold({
+    text: claim.text,
+    namesPerson: claim.mentions.some((ref) => kinds.get(ref) === 'person'),
+    saidAt,
+    validFrom: claim.validFrom,
+    validTo: claim.validTo,
+  })
+  return { ...claim, hold: strongerHold(claim.hold ?? null, backstop) }
 }

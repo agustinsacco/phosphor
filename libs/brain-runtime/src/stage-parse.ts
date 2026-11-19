@@ -19,6 +19,7 @@ import type { TranscriptWindow } from './windows'
 import { MAX_PART_CLAIMS } from './constants'
 import { verifiedQuote } from './stage-quote'
 import { nameUser, trustedUserFlags, userEntity } from './stage-owner'
+import { holdClaim } from './stage-hold'
 export { verifiedQuote } from './stage-quote'
 import { fold } from '@phosphor/memory-engine/text'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
@@ -156,6 +157,8 @@ function claim(
     validFrom: date(c.validFrom),
     validTo: date(c.validTo),
     branch: c.branch,
+    // An unknown hold is no hold: the parse backstop may still mark the claim.
+    hold: c.hold === 'temporary' || c.hold === 'personal' ? c.hold : null,
   }
 }
 function parent(
@@ -207,7 +210,7 @@ export function parseStageExtraction(
     rawClaims,
     (v, index) => {
       if (index >= MAX_PART_CLAIMS) throw new Error('Over the 25-claim limit for one part')
-      const c = nameUser(claim(v, kinds, window, outcomes), user)
+      const c = holdClaim(nameUser(claim(v, kinds, window, outcomes), user), kinds, window)
       uniqueRef(c.ref, claimRefs)
       return c
     },

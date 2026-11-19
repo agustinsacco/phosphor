@@ -48,6 +48,8 @@ it.each([
   'Tom Lee is calibrated at L5.',
   'Mara Voss has a performance review with Rina Okafor.',
   "Rina Okafor's absence moves the Harbor demo.",
+  'Rina Okafor will be away from Dec 1 to Dec 12.',
+  'Tom Lee is on vacation until the Ledger launch.',
 ])('marks remarks about a named person personal: %s', (text) => {
   expect(hold(text)).toBe('personal')
 })
@@ -57,6 +59,7 @@ it('never marks personal without a named person, and ignores ordinary uses of th
   expect(hold('Rina Okafor sets the Harbor log level to debug.')).toBeNull()
   expect(hold('Tom Lee wants reviewers to leave comments in the doc.')).toBeNull()
   expect(hold('Rina Okafor owns Harbor query performance tuning.')).toBeNull()
+  expect(hold('Tom Lee wants Harbor to move away from Ledger exports.')).toBeNull()
 })
 
 it('reads month-first, day-first and ISO dates, choosing the nearest year when none is given', () => {

@@ -10,6 +10,7 @@ import type { BrainSearchPort } from '../types'
 import { validDecisions, object, text } from '../stage-parse'
 import { reconcilePrompt, SUPERSEDE_CORRECTION } from '../stage-prompts/reconcile'
 import type { FoldedJob } from './fold'
+import { strongerHold } from '../stage-hold'
 import { type Card, type Row, candidateRows, same } from './reconcile-candidates'
 
 const uniqueCitations = (items: Citation[]): Citation[] => [
@@ -237,6 +238,7 @@ function applyDecision(
     if (!previous || removed.has(previous.ref)) return
     if (action === 'confirm' || action === 'enrich') {
       previous.memory.citations = uniqueCitations([...previous.memory.citations, ...m.citations])
+      previous.memory.hold = strongerHold(previous.memory.hold ?? null, m.hold ?? null)
       if (action === 'enrich') {
         previous.memory.links.push(...m.links)
         previous.memory.entities = [...new Set([...previous.memory.entities, ...m.entities])]
