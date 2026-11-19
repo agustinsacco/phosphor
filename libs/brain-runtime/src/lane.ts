@@ -1,10 +1,13 @@
 import { dirname, resolve } from 'node:path'
 import { git } from '@phosphor/session-runtime/git/git-exec'
+import { extractText } from '@phosphor/session-runtime/pi/session-content'
+import { sessionTitle } from '@phosphor/shared/session-title'
 import { readEntries, type LaneEntry } from './transcript'
 
 export interface LaneMeta {
   sessionId: string
   cwd: string
+  title?: string | null
   scope: string
   branch: string | null
   model: string
@@ -73,6 +76,21 @@ export function laneMetadata(
 }
 
 export async function readLane(path: string, readerModel: string | null = null): Promise<LaneMeta> {
-  const meta = laneMetadata(await readEntries(path), readerModel)
-  return { ...meta, ...(await projectContext(meta.cwd)) }
+  const entries = await readEntries(path)
+  const meta = laneMetadata(entries, readerModel)
+  return { ...meta, title: laneTitle(entries), ...(await projectContext(meta.cwd)) }
+}
+
+/** Match the sidebar: latest name, else the first prompt's first line (scanner bounds apply). */
+export function laneTitle(entries: LaneEntry[]): string | null {
+  const explicitName = entries.findLast((entry) => entry.type === 'session_info')?.name
+  let firstUserText: string | undefined
+  for (const entry of entries) {
+    if (entry.type === 'message' && entry.message?.role === 'user' && !firstUserText)
+      firstUserText = extractText(entry.message.content)
+  }
+  return sessionTitle(
+    { explicitName, firstUserText: firstUserText?.slice(0, 200) },
+    { elide: false },
+  )
 }

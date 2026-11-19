@@ -149,13 +149,22 @@ lane with nothing new since its newest finished read (`done`, `empty` or `reject
 refused with “Nothing new in this lane since its last read.” Queue reads only entries after
 that read's leaf, regardless of extractor version. Use **Read again** to apply a newer
 extractor from the beginning. A failed job shows **Retry**, which requeues the same job and
-resumes from its saved steps. Jobs left running when the app quit resume where they stopped.
+resumes from its saved steps. If a later read of that lane exists, Retry refuses; Dismiss
+remains available. The incremental cursor follows queue order, not completion order, so an
+older read finishing late never moves it backwards. Jobs left running when the app quit resume
+where they stopped.
 
 ### Lanes Brain never reads
 
-Both Queue and Read again refuse an excluded lane. Changing the rules cancels its queued and
+Both Queue and Read again refuse an excluded lane. Title rules use the current name from the
+lane file, or the sidebar's first-prompt title when unnamed, never a title supplied by the UI.
+An empty lane displays “Untitled lane”; that placeholder never matches a title rule. Changing the rules cancels its queued and
 waiting jobs, not its pending review; the Inbox still offers that review, with Reject as its
-primary action. Recall is unaffected. A title-rule match takes precedence in the lane menu:
+primary action. Refresh also skips excluded lanes using their current names. A stale review
+can always be rejected, because rejection saves nothing; approving one that cannot be refreshed
+asks you to reject it instead. A deleted lane's refresh fails once with that remedy and is not
+retried automatically. These stored proposals still open so the owner can inspect them and
+Reject; approval shows the refusal in place. Recall is unaffected. A title-rule match takes precedence in the lane menu:
 **Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
 per-lane switch that could falsely promise to override the title rule. A lane excluded only by
 its id offers **Let Brain read this lane**, with no Queue. Other lanes offer their ordinary
@@ -377,37 +386,36 @@ in one line.
   this read.” **Reject read** becomes the primary button and `a` rejects.
 
 **Approve** stores the ticked memories, the identity choices and confirmed groups in one
-transaction; **Reject** stores nothing. A held claim is saved only when ticked. Approval that
-saves anything naming a required identity waits for its answer: “Say whether “Rina Okafor” is
-someone Brain already knows or someone new before approving.” Any other uncertain entity without
-a choice becomes new, and only entities that a saved memory or group uses are created. A reused
-record keeps its stored description unless the owner chooses the read's description for it. A
-confirmed group creates or reuses the parent and one fact per member ("X is part of Harbor"),
-quoted as "Stated by you in review". If knowledge changed since the proposal was computed, the
-review says “Refreshing this review: Brain changed since it was read.” It stays a review
-(`refreshing`), retains its previous memory count, and recomputes identity and reconcile from
-saved extract and links steps. A refresh never re-reads the conversation; it asks again only the
-questions whose inputs changed. Even after an extractor prompt upgrade it reuses validated
-source windows by part name, only while refreshing; missing windows are read normally. New
-reads, failed-read retries and Read again still require an exact input hash. An upgrade may
-change a decision's candidate format, so its first refresh can ask that changed identity or
-reconcile question again, but never re-extracts saved windows. The queue refreshes stale reviews
-in the background, oldest first, before new reads. A finished refresh never changes knowledge.
-The internal `knowledge_revision` counter tracks memories, entities, names, aliases,
-descriptions, links, states and merges; Tidy suggestions, verdicts, dismissals, flags, coverage
-and run state change only the general revision used by the explorer and Tidy guards. Approval
-uses the knowledge guard too. Accepted identity and reconcile answers are keyed by their
-complete prompt, not either revision: unchanged questions, including answers saved by older
-apps, never call the model again. A changed candidate changes only the prompt that contains it.
-The job's `startedAt` is its first start, and `runStartedAt` is the current attempt (null while
+transaction; **Reject** stores nothing. A held claim is saved only when ticked. Approval that saves
+anything naming a required identity waits for its answer: “Say whether “Rina Okafor” is someone
+Brain already knows or someone new before approving.” Any other uncertain entity without a choice
+becomes new, and only entities that a saved memory or group uses are created. A reused record keeps
+its stored description unless the owner chooses the read's description for it. A confirmed group
+creates or reuses the parent and one fact per member ("X is part of Harbor"), quoted as "Stated by
+you in review". If knowledge changed since the proposal was computed, the review says “Refreshing
+this review: Brain changed since it was read.” It stays a review (`refreshing`), retains its
+previous memory count, and recomputes identity and reconcile from saved extract and links steps. A
+refresh never sends the conversation to the model again; it asks again only the questions whose
+inputs changed. Even after an extractor prompt upgrade it reuses validated source windows by part
+name whenever the read has a stored proposal or prepare checkpoint, including Retry and interrupted
+pre-upgrade recomputes; missing windows are read normally. New reads and Read again create new jobs
+without saved source windows. An upgrade may change a decision's candidate format, so its first
+refresh can ask that changed identity or reconcile question again, but never re-extracts saved
+windows. The queue refreshes stale reviews in the background, oldest first, before new reads. A
+finished refresh never changes knowledge. The internal `knowledge_revision` counter tracks memories,
+entities, names, aliases, descriptions, links, states and merges; Tidy suggestions, verdicts,
+dismissals, flags, coverage and run state change only the general revision used by the explorer and
+Tidy guards. Approval uses the knowledge guard too. Accepted identity and reconcile answers are
+keyed by their complete prompt, not either revision: unchanged questions, including answers saved by
+older apps, never call the model again. A changed candidate changes only the prompt that contains
+it. The job's `startedAt` is its first start, and `runStartedAt` is the current attempt (null while
 not running or refreshing). A read's duration is the time the model spent on this read's calls:
-their traced times added up, the questions a refresh asked again included. Stages run one call
-at a time, so nothing is counted twice. It is never the gap between the first start and the last
-save, which counts waits, refreshes and app quits. With no calls, or a call without a trace, no
-duration is shown. With review off, the defaults apply: held claims are not saved, uncertain
-becomes new, groups are skipped and conflicts are saved as disputed; a read with a required
-question stays in the Inbox. A confirmation whose identity the owner changed is saved as a new
-memory, unless it is held.
+their traced times added up, the questions a refresh asked again included. Stages run one call at a
+time, so nothing is counted twice. It is never the gap between the first start and the last save,
+which counts waits, refreshes and app quits. With no calls, or a call without a trace, no duration
+is shown. With review off, the defaults apply: held claims are not saved, uncertain becomes new,
+groups are skipped and conflicts are saved as disputed; a read with a required question stays in the
+Inbox. A confirmation whose identity the owner changed is saved as a new memory, unless it is held.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both
 sides until one is superseded or forgotten. **Forget** deletes one memory, then any evidence and

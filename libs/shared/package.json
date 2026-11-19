@@ -411,6 +411,10 @@
     "./ipc-web-archive": {
       "types": "./src/ipc-web-archive.ts",
       "default": "./src/ipc-web-archive.ts"
+    },
+    "./session-title": {
+      "types": "./src/session-title.ts",
+      "default": "./src/session-title.ts"
     }
   },
   "dependencies": {
