@@ -15,17 +15,24 @@ import { type Card, type Row, candidateRows, same } from './reconcile-candidates
 const uniqueCitations = (items: Citation[]): Citation[] => [
   ...new Map(items.map((c) => [`${c.evidence}:${c.quote}`, c])).values(),
 ]
+/** `repeats_replaced`: the claim says again what a replaced memory said, so it is dropped. */
+type Action = ProposalMemory['action'] | 'confirm' | 'repeats_replaced'
+const ACTIONS: readonly Action[] = [
+  'add',
+  'confirm',
+  'enrich',
+  'supersede',
+  'conflict',
+  'resolve_open',
+  'repeats_replaced',
+]
+const REPEATS_REPLACED = 'Repeats a memory that was replaced earlier'
 function decisions(answer: string, rows: Row[]) {
   return validDecisions(answer, (v) => {
     const d = object(v),
       ref = text(d.ref),
       row = rows.find((r) => r.claim.ref === ref)
-    if (
-      !row ||
-      !['add', 'confirm', 'enrich', 'supersede', 'conflict', 'resolve_open'].includes(
-        String(d.action),
-      )
-    )
+    if (!row || !ACTIONS.includes(d.action as Action))
       throw new Error('Invalid reconciliation action')
     const target =
       d.action === 'add' ? undefined : row.candidates.find((_c, i) => `M${i + 1}` === d.target)
@@ -33,13 +40,32 @@ function decisions(answer: string, rows: Row[]) {
       throw new Error(`Unoffered reconciliation target for ${ref}`)
     if (d.action === 'resolve_open' && target?.type !== 'open')
       throw new Error('resolve_open requires an open target')
-    return {
-      ref,
-      action: d.action as ProposalMemory['action'] | 'confirm',
-      target,
-      reason: text(d.reason),
-    }
+    if (Boolean(target?.replaced) !== (d.action === 'repeats_replaced'))
+      throw new Error('Only repeats_replaced targets a replaced memory')
+    return { ref, action: d.action as Action, target, reason: text(d.reason) }
   })
+}
+/** Same text and links as a current memory confirms it; as only a replaced one, repeats it. */
+function deterministic(row: Row): ReturnType<typeof decisions>[number] | undefined {
+  const equal = (replaced: boolean) =>
+    row.candidates.find((c) => Boolean(c.replaced) === replaced && same(row.comparison, c))
+  const current = equal(false),
+    replaced = equal(true)
+  if (current)
+    return {
+      ref: row.claim.ref,
+      action: 'confirm',
+      target: current,
+      reason: 'Equal folded text and links',
+    }
+  if (replaced)
+    return {
+      ref: row.claim.ref,
+      action: 'repeats_replaced',
+      target: replaced,
+      reason: 'Equal folded text and links',
+    }
+  return undefined
 }
 export async function reconcile(
   job: FoldedJob,
@@ -56,16 +82,9 @@ export async function reconcile(
     pending: Row[] = []
   const state = { job, confirmations, removed }
   const selected = new Map<string, ReturnType<typeof decisions>[number]>()
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]!,
-      equal = row.candidates.find((c) => same(row.comparison, c))
-    if (equal)
-      selected.set(row.claim.ref, {
-        ref: row.claim.ref,
-        action: 'confirm',
-        target: equal,
-        reason: 'Equal folded text and links',
-      })
+  for (const row of rows) {
+    const equal = deterministic(row)
+    if (equal) selected.set(row.claim.ref, equal)
     else if (row.candidates.length) pending.push(row)
   }
   for (let i = 0; i < pending.length; i += 20) {
@@ -77,7 +96,7 @@ export async function reconcile(
   const winners = new Map<string, ReturnType<typeof decisions>[number]>()
   for (const row of rows) {
     const d = selected.get(row.claim.ref)
-    if (!d?.target || d.target.local || d.action === 'confirm') continue
+    if (!d?.target || d.target.local || d.target.replaced || d.action === 'confirm') continue
     const previous = winners.get(d.target.id)
     if (!previous || priority(d.action) > priority(previous.action)) winners.set(d.target.id, d)
   }
@@ -128,8 +147,16 @@ async function reconcileDecisions(batch: Row[], ask: StageAsk, part: number) {
   return result
 }
 
-function priority(action: ProposalMemory['action'] | 'confirm'): number {
-  return { add: 0, confirm: 1, enrich: 2, conflict: 3, supersede: 4, resolve_open: 4 }[action]
+function priority(action: Action): number {
+  return {
+    add: 0,
+    repeats_replaced: 0,
+    confirm: 1,
+    enrich: 2,
+    conflict: 3,
+    supersede: 4,
+    resolve_open: 4,
+  }[action]
 }
 
 function applyDecision(
@@ -143,12 +170,20 @@ function applyDecision(
     removed: Set<string>
   },
   row: Row,
-  action: ProposalMemory['action'] | 'confirm',
+  action: Action,
   target: Card | undefined,
   reason: string,
 ): void {
   const m = row.claim.memory
-  if (target?.local) {
+  if (action === 'repeats_replaced') {
+    removed.add(row.claim.ref)
+    job.outcomes.push({
+      candidate: row.claim.ref,
+      summary: m.summary,
+      status: 'dropped',
+      reason: REPEATS_REPLACED,
+    })
+  } else if (target?.local) {
     const previous = job.claims.find((c) => c.ref === target.id)
     if (!previous || removed.has(previous.ref)) return
     if (action === 'confirm' || action === 'enrich') {

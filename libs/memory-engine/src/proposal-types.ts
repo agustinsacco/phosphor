@@ -133,8 +133,9 @@ export interface ClaimProbe {
 export interface MemoryMatch {
   id: string
   /** `link`: it states the claim's link, or owns the claim's owned thing. `entity`: it names
-   * one of the claim's entities. */
-  channel: 'link' | 'entity'
+   * one of the claim's entities. `replaced`: a superseded memory naming one of them, at cosine
+   * 0.85 or more, so a claim that only repeats it can be dropped. */
+  channel: 'link' | 'entity' | 'replaced'
   /** Cosine similarity to the probe's vector; 0 without one. */
   similarity: number
 }

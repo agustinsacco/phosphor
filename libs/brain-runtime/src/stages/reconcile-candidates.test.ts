@@ -222,3 +222,37 @@ it('does not offer a replaced memory below cosine 0.85', async () => {
   expect(offered.flat().map((c) => c.id)).not.toContain(weekly)
   expect(job.claims).toHaveLength(1)
 })
+
+it('refuses any other action on a replaced memory, and repeats_replaced on a current one', async () => {
+  const { store } = fixture()
+  const { rina, weekly } = replacedPreference(store)
+  const daily = store
+    .entityMemories(rina, {}, null)
+    .memories.find((m) => m.summary.includes('daily'))!.id
+  const answers: string[][] = []
+  const ask: StageAsk = async (_s, _p, prompt, validate) => {
+    const rows = JSON.parse(prompt.slice(prompt.indexOf('\n') + 1)) as {
+      claim: { ref: string }
+      candidates: OfferedCandidate[]
+    }[]
+    const handle = (id: string) => rows[0]!.candidates.find((c) => c.id === id)!.handle
+    answers.push(rows[0]!.candidates.map((c) => c.id))
+    return validate(
+      JSON.stringify({
+        decisions: [
+          { ref: 'c1', action: 'supersede', target: handle(weekly), reason: 'Wrong' },
+          { ref: 'c1', action: 'repeats_replaced', target: handle(daily), reason: 'Wrong' },
+        ],
+      }),
+    )
+  }
+  const search = new FakeBrainSearch()
+  search.memoryNeighbours = [[{ id: daily, score: 0.9 }]]
+  const job = claim('Rina Okafor asks for weekly status updates.', [rina])
+  await reconcile(job, [], store, search, [vector(1, 0.25)], ask)
+  expect(answers).toHaveLength(2)
+  expect(job.claims[0]!.memory).toMatchObject({
+    action: 'add',
+    reason: 'No reconciliation decision returned',
+  })
+})

@@ -239,11 +239,15 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    evidence strength: same text and links, same text, a shared link between the same two
    entities, cosine at least 0.7 (highest first), and then a shared entity alone, ranked by
    similarity to the claim rather than recency, so a busy person's newer memories cannot hide a
-   close one. Paraphrases can match without shared entities.
+   close one. Paraphrases can match without shared entities. A superseded memory among those
+   entities' newest memories at cosine 0.85 or more is offered too, marked replaced earlier, so
+   a read cannot bring back a memory the owner or a later read replaced.
    Same text and links confirm deterministically; otherwise the model picks add, confirm (same
    assertion, nothing new), enrich (same assertion, new supported links), supersede, conflict,
-   or resolve an open question. Within one lane, a later claim replaces an earlier one.
-   Cosine offers candidates but never decides.
+   or resolve an open question. A claim that repeats a replaced memory (the model says so, or
+   its text and links equal it and no current memory's do) is dropped, and the outcome says
+   "Repeats a memory that was replaced earlier". Within one lane, a later claim replaces an
+   earlier one. Cosine offers candidates but never decides.
 6. **Propose.** At most 300 claims per job: structural links first, then decisions, risks and
    open questions, then the rest; anything held back is recorded. New memories and entity cards
    are embedded and the proposal is stored with the store revision it was computed against.

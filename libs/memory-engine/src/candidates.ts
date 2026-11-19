@@ -193,6 +193,8 @@ function knownNumber(ctx: Context, id: string): number | undefined {
 }
 /** How many of an entity's newest memories a claim about it is compared with. */
 const ENTITY_WINDOW = 128
+/** A superseded memory this close to a claim is offered as replaced earlier. */
+const REPLACED_SIMILARITY = 0.85
 interface StoredMemory {
   id: string
   state: string
@@ -203,7 +205,8 @@ const VECTOR = 'LEFT JOIN memory_vectors v ON v.memory=m.n'
 /**
  * Memories that may say the same thing as each claim: those stating one of its links, and the
  * entity matches most similar to it among each named entity's newest memories, so a busy
- * person's recent unrelated memories cannot hide a close one. At most `limit` per channel.
+ * person's recent unrelated memories cannot hide a close one. Superseded memories in those
+ * windows come back only when very close. At most `limit` per channel.
  */
 export function memoryMatches(ctx: Context, probes: ClaimProbe[], limit: number): MemoryMatch[][] {
   const windows = new Map<number, StoredMemory[]>()
@@ -231,13 +234,21 @@ export function memoryMatches(ctx: Context, probes: ClaimProbe[], limit: number)
     for (const id of probe.entityIds) {
       const n = knownNumber(ctx, id)
       if (n === undefined) continue
-      for (const row of window(n))
-        if (CURRENT.has(row.state) && !linked.has(row.id) && !named.has(row.id))
-          named.set(row.id, { id: row.id, channel: 'entity', similarity: score(row) })
+      for (const row of window(n)) {
+        if (linked.has(row.id) || named.has(row.id)) continue
+        const similarity = score(row)
+        if (CURRENT.has(row.state)) named.set(row.id, { id: row.id, channel: 'entity', similarity })
+        else if (similarity >= REPLACED_SIMILARITY)
+          named.set(row.id, { id: row.id, channel: 'replaced', similarity })
+      }
     }
     // A stable sort keeps the newest first among equally similar memories.
-    const entity = [...named.values()].sort((a, b) => b.similarity - a.similarity)
-    return [...[...linked.values()].slice(0, limit), ...entity.slice(0, limit)]
+    const ranked = [...named.values()].sort((a, b) => b.similarity - a.similarity)
+    return [
+      ...[...linked.values()].slice(0, limit),
+      ...ranked.filter((m) => m.channel === 'entity').slice(0, limit),
+      ...ranked.filter((m) => m.channel === 'replaced').slice(0, limit),
+    ]
   })
 }
 const CURRENT = new Set(['active', 'disputed'])

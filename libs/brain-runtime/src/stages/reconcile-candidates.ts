@@ -20,6 +20,8 @@ export interface Card {
   type: string
   links: { subject: string; predicate: string; object: string }[]
   local: boolean
+  /** Superseded: offered only so a claim that repeats it can be dropped. */
+  replaced?: true
 }
 export interface Row {
   claim: FoldedClaim
@@ -54,6 +56,7 @@ function card(memory: MemoryCard): Card {
       predicate: l.predicate,
       object: l.objectId,
     })),
+    ...(memory.state === 'superseded' ? { replaced: true as const } : {}),
   }
 }
 /** A link between the same two entities, or two owners of one thing. */
@@ -113,7 +116,8 @@ function earlierClaims(
 }
 /**
  * Each claim's candidates: stored memories found by link, entity or meaning (cosine 0.7 or more),
- * and earlier claims of this job, ranked together by evidence strength.
+ * replaced ones that are very close, and earlier claims of this job, ranked together by evidence
+ * strength.
  */
 export async function candidateRows(
   job: FoldedJob,

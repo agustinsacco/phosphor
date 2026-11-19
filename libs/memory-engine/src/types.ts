@@ -99,9 +99,10 @@ export interface BrainStore extends BrainTidyStore {
   ): EntityMatch[][]
   entityCards(ids: string[]): EntityCard[]
   /**
-   * Active or disputed memories that share a link or entities with each probe, at most `limit`
-   * per channel. Entity matches come from each entity's newest memories, most similar first. Ids
-   * that are not stored entities (a job's new refs) match nothing.
+   * Active or disputed memories that share a link or entities with each probe, and superseded
+   * ones very close to it, at most `limit` per channel. Entity matches come from each entity's
+   * newest memories, most similar first. Ids that are not stored entities (a job's new refs)
+   * match nothing.
    */
   memoryMatches(probes: ClaimProbe[], limit: number): MemoryMatch[][]
   memoryCards(ids: string[]): MemoryCard[]
