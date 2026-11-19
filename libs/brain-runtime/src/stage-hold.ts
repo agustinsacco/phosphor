@@ -32,14 +32,41 @@ const MONTH_DAY = new RegExp(String.raw`\b${MONTH}\s+${ORDINAL}\b(?:,?\s+(\d{4})
 const DAY_MONTH = new RegExp(String.raw`\b${ORDINAL}\s+${MONTH}(?![a-z])(?:,?\s+(\d{4})\b)?`, 'g')
 const ISO_DATE = /\b(\d{4})-(\d{2})-(\d{2})\b/g
 /** Status words. Whole words only: "still" never matches "distillation". */
-const STATUS = /\b(?:as of|currently|still|this week|this sprint)\b/i
+const STATUS =
+  /\b(?:as of|currently|still|this week|this sprint|this quarter|for now|for the time being|temporarily)\b/i
+const WEEKDAY = String.raw`(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?`
+/** "until Friday", "until next tue", "until further notice": a state with its end in sight. */
+const UNTIL_DAY = new RegExp(
+  String.raw`\buntil\s+(?:(?:next|this)\s+)?(?:${WEEKDAY}|further notice)\b`,
+  'i',
+)
+/** "until March", "until the end of June", "until 3 August", "until 2027-06-01", at any distance.
+ * Month names are capitalised, as in dates, and must end there: "until marketing" is no month. */
+const UNTIL_DATE = new RegExp(
+  String.raw`\buntil\s+(?:the\s+(?:end|start|middle)\s+of\s+)?(?:${ORDINAL}\s+)?(?:${MONTH}(?![a-z])|\d{4}-\d{2}-\d{2}\b)`,
+)
 /** A ticket or pull request as the sentence's subject: "PR 412 …", "HBR-27 …", "#88 …". */
 const TICKET_SUBJECT = [
   /^(?:the\s+)?(?:pull request|PR|ticket|issue)\s*#?\d+\b/i,
   // Keys are upper case, so a product name such as "Kestrel-2" is not a ticket.
   /^(?:#\d+|[A-Z][A-Z0-9]+-\d+)\b/,
 ]
-/** Remarks about a person beyond their role: leveling, feelings, absence, performance. */
+/** Words before "performance" that make it a system's, not a person's: "query performance". */
+const TECHNICAL = String.raw`query|queries|database|db|api|app|page|site|system|service|server|network|build|runtime|render(?:ing)?|load|cpu|gpu|memory|disk|search|index|pipeline|code|model`
+/**
+ * A person's performance: next to a review word, or followed within a few words by
+ * expectations, a review, an improvement plan or a PIP. Never after a technical word.
+ */
+const PERFORMANCE = new RegExp(
+  [
+    String.raw`performance (?:review|reviews|rating|ratings|plan|issues?|concerns?|feedback)\b`,
+    String.raw`performance\b(?:\W+\w+){0,6}?\W+(?:expectations?|reviews?|improvement plan|PIP)\b`,
+  ]
+    .map((rule) => String.raw`(?<!\b(?:${TECHNICAL})\s+)\b${rule}`)
+    .join('|'),
+  'i',
+)
+/** Remarks about a person beyond their role: leveling, feelings, absence. */
 const PERSONAL = new RegExp(
   [
     String.raw`promot(?:ion|ions|ed|e|es|ing)`,
@@ -51,12 +78,12 @@ const PERSONAL = new RegExp(
     String.raw`upset`,
     String.raw`absen(?:ce|ces|t)`,
     String.raw`(?:on|parental|sick|annual|medical|maternity|paternity|personal) leave`,
+    String.raw`(?:taking|takes|took) leave`,
     String.raw`leave of absence`,
     String.raw`(?:is|was|be|are|were) away (?:from|until|on|for|in|over)`,
     String.raw`vacation`,
     String.raw`out of office`,
     String.raw`underperform\w*`,
-    String.raw`performance (?:review|reviews|rating|ratings|plan|issues?|concerns?|feedback)`,
   ]
     .map((word) => String.raw`\b${word}\b`)
     .join('|'),
@@ -100,13 +127,16 @@ export function backstopHold(claim: {
   validFrom: number | null
   validTo: number | null
 }): ClaimHold | null {
-  if (claim.namesPerson && PERSONAL.test(claim.text)) return 'personal'
+  if (claim.namesPerson && (PERSONAL.test(claim.text) || PERFORMANCE.test(claim.text)))
+    return 'personal'
   const dates = [
     ...datesIn(claim.text, claim.saidAt),
     ...[claim.validFrom, claim.validTo].filter((d): d is number => d !== null),
   ]
   if (
     STATUS.test(claim.text) ||
+    UNTIL_DAY.test(claim.text) ||
+    UNTIL_DATE.test(claim.text) ||
     TICKET_SUBJECT.some((subject) => subject.test(claim.text)) ||
     dates.some((date) => nearTerm(date, claim.saidAt))
   )

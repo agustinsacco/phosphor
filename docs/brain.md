@@ -287,9 +287,13 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    mark, never drop, both when a part is parsed and when the proposal is assembled (so a refresh
    that reuses parts read before holds existed marks them too): personal for a claim naming a
    person that speaks of promotion, calibration, leveling or L1–L9, being upset, absence, leave
-   or vacation, or performance reviews; temporary for "as of", "currently", "still", "this week"
-   or "this sprint", a ticket or pull request as its subject, or a date (in the sentence or its
-   validity) within 60 days after it was said. The answer rules are repeated after the
+   (on, taking, parental or sick leave) or vacation, or their performance next to a review or
+   within a few words of expectations, a review, an improvement plan or a PIP (never after a
+   technical word, as in "query performance"); temporary for "as of", "currently", "still",
+   "for now", "for the time being", "temporarily", "this week", "this sprint" or "this
+   quarter", "until" a weekday, a month, a date or "further notice", a ticket or pull request as
+   its subject, or a date (in the sentence or its validity) within 60 days after it was said.
+   Whole words only: "distillation", "until marketing" and "until Kestrel 2.1" mark nothing. The answer rules are repeated after the
    conversation, because a long one buries them.
 2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
    more entities, those entities, existing links and short excerpts around each claim's quotes.
