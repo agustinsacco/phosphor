@@ -2,9 +2,9 @@ import type { BrainHistory, BrainJob } from '@shared/brain'
 import type { MockExplorer } from './mockExplorer'
 
 /**
- * Finished reads are separate from the pushed inbox, as on Desktop. A lane keeps every read;
- * each row counts what that read kept, and replaceable stays lane-wide (Read again replaces
- * the whole lane).
+ * Finished reads, approved or rejected, are separate from the pushed inbox, as on Desktop. A
+ * lane keeps every read; each row counts what that read kept, and replaceable stays lane-wide
+ * (Read again replaces the whole lane).
  */
 export class MockReadHistory {
   jobs: BrainJob[] = []
@@ -12,8 +12,8 @@ export class MockReadHistory {
   memories(sessionId: string) {
     return this.explorer.details.filter((d) => d.memory.origin?.sessionId === sessionId)
   }
-  finish(job: BrainJob, now: number): void {
-    this.jobs.unshift({ ...job, state: 'done', finishedAt: now })
+  finish(job: BrainJob, state: 'done' | 'rejected', now: number): void {
+    this.jobs.unshift({ ...job, state, finishedAt: now, runStartedAt: null, progress: null })
   }
   history(limit: number): BrainHistory {
     if (!Number.isInteger(limit) || limit < 1 || limit > 200)

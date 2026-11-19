@@ -1,6 +1,7 @@
 import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
 import { mockBrainPrefs } from './mockBrainPrefs'
 import type { BrainEntitySort } from '@shared/brain-explore'
+import { brainLaneNeverRead, brainNeverReadReason } from '@shared/brain'
 import type {
   BrainExtractionView,
   BrainEntityKind,
@@ -88,12 +89,10 @@ class MockBrain {
             (d) => d.memory.jobId === id && d.memory.summary === outcome.summary,
           )?.memory.id
     }
-    const job = this.state.jobs.find((item) => item.id === id)!
-    if (decision) this.history.finish(proposal.job, this.now())
-    // Rejecting Read again keeps the earlier read; rejecting a read keeps it as rejected.
-    if (decision || proposal.job.replaces)
-      this.state.jobs = this.state.jobs.filter((item) => item.id !== id)
-    else Object.assign(job, { state: 'rejected', finishedAt: this.now(), progress: null })
+    // Either way the read joins history; a rejected Read again leaves the earlier read in place.
+    const memories = decision?.memories.length ?? 0
+    this.history.finish({ ...proposal.job, memories }, decision ? 'done' : 'rejected', this.now())
+    this.state.jobs = this.state.jobs.filter((item) => item.id !== id)
     this.state.revision++
     return this.status()
   }
@@ -175,13 +174,19 @@ class MockBrain {
   /** Read again (`previous`) reads from the start; a lane read before continues after it. */
   private queue(lane: BrainLaneRef, previous?: BrainJob): BrainStatus {
     if (!this.state.prefs.enabled) throw new Error('Turn Brain on first.')
+    const earlier = this.history.jobs.find((job) => job.sessionPath === lane.sessionPath)
+    const sessionId = previous?.sessionId ?? earlier?.sessionId ?? lane.sessionPath
+    const refusal = brainNeverReadReason(this.state.prefs.neverRead, {
+      sessionId,
+      title: lane.title,
+    })
+    if (refusal) throw new Error(refusal)
     if (
       this.state.jobs.some(
         (job) => job.sessionPath === lane.sessionPath && UNFINISHED.includes(job.state),
       )
     )
       throw new Error('This lane is already queued.')
-    const earlier = this.history.jobs.find((job) => job.sessionPath === lane.sessionPath)
     const id = crypto.randomUUID()
     this.state.jobs.push(
       mockBrainJob({
@@ -189,7 +194,7 @@ class MockBrain {
         sessionPath: lane.sessionPath,
         title: lane.title,
         replaces: previous?.id ?? null,
-        sessionId: previous?.sessionId ?? earlier?.sessionId ?? lane.sessionPath,
+        sessionId,
         state: 'queued',
         memories: 0,
         leafId: `leaf-${id}`,
@@ -200,6 +205,20 @@ class MockBrain {
       }),
     )
     return this.status()
+  }
+  private setPrefs(channel: 'brain:neverRead' | 'brain:setPrefs', args: unknown[]): BrainStatus {
+    this.state.prefs = mockBrainPrefs(channel, args, this.state.prefs)
+    // As on Desktop, a rule change drops reads not yet started; a review stays in the Inbox.
+    this.state.jobs = this.state.jobs.filter(
+      (job) =>
+        !['queued', 'waiting'].includes(job.state) ||
+        !brainLaneNeverRead(this.state.prefs.neverRead, job),
+    )
+    return channel === 'brain:setPrefs' &&
+      this.state.prefs.enabled &&
+      this.state.embedding.phase === 'missing'
+      ? this.download()
+      : this.status()
   }
   private extractionRecord(id: string): BrainExtractionView {
     const job = this.state.jobs.find((j) => j.id === id)!
@@ -285,19 +304,15 @@ class MockBrain {
         return this.history.history(args[0] as number)
       case 'brain:reread': {
         const previous = this.history.jobs.find((j) => j.id === args[0])
-        if (!previous) throw new Error('Only finished Brain reads can be read again.')
+        if (previous?.state !== 'done')
+          throw new Error('Only finished Brain reads can be read again.')
         return this.queue(previous, previous)
       }
       case 'brain:status':
         return this.status()
       case 'brain:neverRead':
       case 'brain:setPrefs':
-        this.state.prefs = mockBrainPrefs(channel, args, this.state.prefs)
-        return channel === 'brain:setPrefs' &&
-          this.state.prefs.enabled &&
-          this.state.embedding.phase === 'missing'
-          ? this.download()
-          : this.status()
+        return this.setPrefs(channel, args)
       case 'brain:download':
         return this.download()
       case 'brain:removeModel':
