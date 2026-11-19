@@ -39,14 +39,16 @@ shows in the sidebar's top navigation only while Brain is on.
 The header shows **Brain**, “N memories · M people and things”, **Go to anyone or anything**
 (`/`) and Settings. Three underlined tabs split the jobs: **Inbox** holds every decision,
 **Knowledge** is what Brain knows, and **Lanes** is where it came from. The Inbox tab and the
-sidebar's Brain item show how many decisions wait (“N to decide”: reviews plus open Tidy
-suggestions), hidden at zero. The Inbox opens first when something waits; otherwise Lanes
+sidebar's Brain item show how many decisions wait (“N to decide”: reviews, including those
+Brain is refreshing, plus open Tidy suggestions), hidden at zero. The Inbox opens first when something waits; otherwise Lanes
 opens when there are jobs but no memories, and Knowledge in every other case. Switching tabs
 keeps each tab's selection, the Knowledge trail and the selected read.
 
 One thin status strip under the tabs says what runs now: “Reading <lane> · <step> · N queued”
-with a link to Lanes, and while Tidy checks, “Checking N of M pairs with <model>” with Cancel.
-It is empty when nothing runs.
+or, while a review's refresh runs, “Refreshing the review of <lane>”, with a link to Lanes; and
+while Tidy checks, “Checking N of M pairs with <model>” with Cancel. It is empty when nothing
+runs; a refresh waiting its turn, or one whose answers are all cached and ends at once, may
+never show.
 
 The frame stays put and only the panes scroll. Each tab is a list on the left and one thing
 in the middle; Inbox and Knowledge add a third column. When the page is about 1060 px wide or
@@ -60,7 +62,8 @@ Knowledge search; ⌘K stays the global command palette.
 
 The left column is the queue, grouped by kind with counts: **From lanes** (reads to review),
 **Same person or thing?**, **Said twice**, **These disagree** and **Flagged by a lane**. Empty
-groups disappear. Each row is a title and one line: “2 memories to review · read again”, or a
+groups disappear. Each row is a title and one line: “2 memories to review · read again”,
+“Refreshing · Brain changed since it was read” for a review Brain is recomputing, or a
 suggestion's reason. The queue loads the newest twenty suggestions; a kind shows its header and
 count even before any of its rows has loaded, and **Show N more** under it loads up to twenty
 more of that kind (`brain:tidy` with the kind), which later reloads keep. With nothing waiting
@@ -105,21 +108,33 @@ or every two seconds during work; these reads never start a sweep or a model cal
 
 ### Lanes
 
-The left column lists reads by state, each group with its count: **Reading**, **Queued**,
-**Failed** and **Read** (the newest 200 finished reads; it says when there are more). Rows are
-the lane's title and one line: the reported step and how long it has run, the queue position,
-the error, or “2 memories · 5 min ago” (“Nothing worth keeping” for an empty read). Times are
-words (“3 min”, “1 h 20 min”), never a clock. **Recent changes** follows: the newest fifty
-Tidy journal operations with who made them (Automatic or By you), when, and **Undo**. With
-nothing read it says “Right-click a lane and choose Queue for knowledge extraction.” Reviews
-are not here; they belong to the Inbox.
+The left column lists reads by state, each group with its count: **Reading**, **Refreshing**,
+**Queued**, **Failed** and **Read** (the newest 200 finished reads, newest first, a row per
+read, so a lane read twice has two; rejected and empty reads join them; it says when there are
+more). Rows are the lane's title and one line: the reported step and how long it has run,
+“Refreshing for 2 min” (or “Waits to refresh” before its attempt starts), the queue position
+(“Queued 2 h ago · 1 ahead”, where a waiting refresh counts as ahead), the error, or
+“2 memories from this read · 5 min ago”: what that read kept that is still in Brain, so an older
+read that Read again replaced says 0. An empty read says “Nothing worth keeping” and a rejected
+one “Rejected”. Times are words (“3 min”, “1 h 20 min”), never a clock, and come from the
+current attempt (`runStartedAt`): a resumed, retried or refreshed read never counts from its
+first start, and no time is negative. **Recent changes** follows: the newest fifty Tidy journal
+operations with who made them (Automatic or By you), when, and **Undo**. **Never read** ends the
+list with one row, “2 title patterns · 1 lane switched off”. With nothing read it says
+“Right-click a lane and choose Queue for knowledge extraction.” A review waiting for the owner
+is not here; it belongs to the Inbox. While Brain refreshes one, it is listed under Refreshing
+as well.
 
 The middle column shows the selection. A reading job shows its model and step list (Prepare,
 Read the conversation (part x of y), Match people and things, Compare with what Brain knows,
 Index) and Cancel; a failed one shows the whole error with **Retry** and **Dismiss**. Both
 show the calls made so far, the claim outcomes and **Source lane at extraction** once a record
-exists, and “No calls yet.” before. A finished read is described under Inspecting a finished
-read. A change shows what it did, who, when, and Undo or when it was undone. A read asked for
+exists, and “No calls yet.” before. A refreshing review says Brain changed since the lane was
+read, that there is nothing to do, and that the review opens in the Inbox once it is ready; it
+has no Cancel. **Never read** shows the title patterns in words (“A lane whose title contains
+“1:1”, “1-1”, “one on one” or “1on1”, in any case and not inside a longer word or number”), how
+many lanes are switched off one by one, and **Change in Settings**, which opens Settings ›
+Brain. A finished read is described under Inspecting a finished read. A change shows what it did, who, when, and Undo or when it was undone. A read asked for
 by id that the list does not show stays open; a listed read that disappears moves the
 selection on.
 
@@ -334,23 +349,32 @@ A read waiting for review opens in the Inbox under **From lanes**. Its header sh
 in the same pane with **Back to review**. Claims held back over the read's limit are counted
 in one line.
 
-- **Questions** come first, required ones first. An identity Brain is unsure of reads “Is
-  “Harbor” in this lane Harbor?” with the candidate's kind, description, memory and link counts,
-  and buttons: **Yes, Harbor**, **Someone new** or **Something new**, and the other candidates.
-  It is required when exactly one stored person or thing of its kind goes by one of its names
-  (label or other name, in any case). A possible group asks “Are these part of one Harbor?” with
-  **Yes, one Harbor** and **No**, which is the default.
+- **Questions** come first. An identity Brain is unsure of reads “Is “Harbor” in this lane
+  Harbor?” with the candidate's kind, description, memory and link counts, and buttons:
+  **Yes, Harbor**, **Someone new** or **Something new**, and the other candidates. A
+  **required** question (exactly one stored record of that kind goes by this name, as its
+  label or another name in any case, and Brain is not sure it is the same one) comes first, says **Needs an answer** and has no default. A possible
+  group asks “Are these part of one Harbor?” with **Yes, one Harbor** and **No**, which is the
+  default.
+- When the chosen existing record is described differently by this read, both descriptions show
+  with **Use this read’s description for <name>**, unticked. Ticked, approval replaces the stored
+  description (`decision.descriptions`); switching that identity to Someone new drops it.
 - One folded line counts the rest: “N people and things matched without doubt · M new people
   and things · K memories confirm what Brain knows”. Opening it lists each match, which can
   still be overruled, and each confirmation.
 - **Memories · k of n ticked** groups the proposed memories by type, each group with a checkbox
   for the whole group (including its other pages). A row shows the type, the sentence, the
   names it uses, what it changes, its links (“Rina Okafor → owns → Harbor ledger”) and its
-  quotes. Groups page at twenty. Held claims sit in their own groups and start unticked:
-  temporary (status, a near-term plan or a one-off instruction) and personal (a remark about a
-  named person beyond their role).
+  quotes. Groups page at twenty. **Probably temporary** (status, near-term plans and one-off
+  instructions) and **About a person** (remarks about a named person beyond their role) come
+  last, unticked, each saying “Not kept unless you tick it”.
 - The fixed bar has **Approve N** (or **Approve k of n**, or **Approve confirmations**; `a`)
-  and **Reject read** (`r`). A read again says “Replaces N memories from the last read”.
+  and **Reject read** (`r`). Approve is off with “Answer 1 question” while a required question
+  is open. A read again says “Replaces N memories from the last read”; a read of a lane Brain
+  read before says “Reads new messages only”.
+- A review of a lane the never-read rule matches (its title or its own switch, checked by
+  `brainLaneNeverRead`) starts with “You set Brain to never read this lane. Reject to discard
+  this read.” **Reject read** becomes the primary button and `a` rejects.
 
 **Approve** stores the ticked memories, the identity choices and confirmed groups in one
 transaction; **Reject** stores nothing. A held claim is saved only when ticked. Approval that
@@ -376,8 +400,11 @@ uses the knowledge guard too. Accepted identity and reconcile answers are keyed 
 complete prompt, not either revision: unchanged questions, including answers saved by older
 apps, never call the model again. A changed candidate changes only the prompt that contains it.
 The job's `startedAt` is its first start, and `runStartedAt` is the current attempt (null while
-not running or refreshing). Read durations come from recorded model calls, not elapsed time
-across app quits. With review off, the defaults apply: held claims are not saved, uncertain
+not running or refreshing). A read's duration is the time the model spent on this read's calls:
+their traced times added up, the questions a refresh asked again included. Stages run one call
+at a time, so nothing is counted twice. It is never the gap between the first start and the last
+save, which counts waits, refreshes and app quits. With no calls, or a call without a trace, no
+duration is shown. With review off, the defaults apply: held claims are not saved, uncertain
 becomes new, groups are skipped and conflicts are saved as disputed; a read with a required
 question stays in the Inbox. A confirmation whose identity the owner changed is saved as a new
 memory, unless it is held.
@@ -506,20 +533,24 @@ A Read row on Lanes, **See how it was read** in a review, or **See the read** on
 the read. Lanes selects its row when the list has one; an older read outside the newest 200
 stays open without a fabricated row. Missing records offer Retry.
 
-The header shows the lane, the model, how long the read took in words and when it finished.
-Three counts follow: **kept**, **confirmed what Brain knew** and **left out**. Then the actions:
-**Read new messages** reads only what came after this read and is off when nothing came;
-**Read again** (finished `done` reads only) reads the whole lane after a confirmation that says
-how many earlier memories will be replaced; **Dismiss** removes an empty read; **Open lane**.
-**See these memories · N memories**, closed at first, opens each memory on Knowledge (a review's
-**See how it was read** shows the same list open, as **Memories from this lane**). **What
-happened to each claim** lists each candidate with its outcome and reason, the first twenty with
-**Show more**; forgotten memories say “removed”, not a dead link. A remark about the read that
-keeps and drops nothing shows as “noted” and counts in none of the three. **How it was read · n calls**
-has one closed disclosure per call, named in plain words with part number and how long it took
-in words (“42 s”, “3 min”), never a clock. Opening one shows the scrubbed raw output with Copy,
-the rebuilt prompt and diagnostics, without cost or token counts. Raw output, prompts and source
-text each scroll inside a capped box.
+The header shows the lane, the model, how long the read took in words (the time the model spent
+on this read's calls; none without calls or when a call has no trace) and when it finished.
+Three counts follow: **kept**, **confirmed what Brain knew** and **left out**; a rejected read
+says “Rejected · nothing was saved” instead and has no memories to see. **Covered** says what
+the read took in: “Whole lane”, or “New messages after <date and time>” of the read it
+continues, or “New messages since the previous read” when that read is no longer listed. Then
+the actions: **Read new messages** reads only what came after this read and is off when nothing
+came; **Read again** (finished `done` reads only) reads the whole lane after a confirmation that
+says how many earlier memories will be replaced; **Dismiss** removes an empty read; **Open
+lane**. **See these memories · N memories**, closed at first, opens each memory on Knowledge (a
+review's **See how it was read** shows the same list open, as **Memories from this lane**).
+**What happened to each claim** lists each candidate with its outcome and reason, the first
+twenty with **Show more**; forgotten memories say “removed”, not a dead link. A remark about the read that keeps
+and drops nothing shows as “noted” and counts in none of the three. **How it was read
+· n calls** has one closed disclosure per call, named in plain words with part number and how
+long it took in words (“42 s”, “3 min”), never a clock. Opening one shows the scrubbed raw
+output with Copy, the rebuilt prompt and diagnostics, without cost or token counts. Raw output,
+prompts and source text each scroll inside a capped box.
 
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records
 store no prompt text; a prompt whose inputs are gone says so. Records are kept while their job

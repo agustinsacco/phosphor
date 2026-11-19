@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
-import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { BrainEntityView, BrainStatus } from '@shared/brain'
+import { DEFAULT_BRAIN_PREFS, type BrainEntityView, type BrainStatus } from '@shared/brain'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import {
   createFakePhosphor,
@@ -170,7 +169,7 @@ it('says why a split of every memory is refused, and stays open', async () => {
   for (const box of dialog().querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
     await act(async () => box.click())
   await type('New name', 'Rina from finance')
-  await click('Split off 1 memory')
+  await click('Split off 2 memories')
   expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
     'Splitting off every memory is a rename; keep at least one.',
   )

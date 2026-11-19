@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import type { BrainExtractionView } from '@shared/brain'
+import type { BrainExtractionView, BrainHistory } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { Button } from '@/components/form'
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
@@ -15,14 +15,18 @@ import { ExtractionCalls } from '../ExtractionCalls'
 import { ExtractionSource } from '../ExtractionSource'
 import { openBrainSource } from '../openBrainSource'
 import { durationWords } from '../jobProgress'
-import { readCounts } from './laneGroups'
+import { readTime } from '../readTime'
+import { coverageLine, readCounts } from './laneGroups'
 
 /** A finished read: what it kept, what it covered, and the ways to read the lane again. */
 export function ReadDetail({
   jobId,
+  history,
   onMemory,
 }: {
   jobId: string
+  /** Finished reads, to date the read this one continues. */
+  history: BrainHistory | null
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:extraction', jobId), [jobId])
@@ -38,18 +42,22 @@ export function ReadDetail({
         )}
       </p>
     )
-  return <FinishedRead data={data} onMemory={onMemory} />
+  return <FinishedRead data={data} history={history} onMemory={onMemory} />
 }
 
 function FinishedRead({
   data,
+  history,
   onMemory,
 }: {
   data: BrainExtractionView
+  history: BrainHistory | null
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
   const model = useBrainModelName(data.model)
   const counts = readCounts(data.outcomes)
+  const rejected = data.job?.state === 'rejected'
+  const took = readTime(data.calls)
   return (
     <article aria-label="Read detail" className="min-w-0 space-y-4 p-4">
       <header>
@@ -57,7 +65,7 @@ function FinishedRead({
         <p className="text-text-tertiary text-sm">
           {[
             model,
-            `took ${durationWords(data.finishedAt - data.startedAt)}`,
+            took === null ? '' : `took ${durationWords(took)}`,
             relativeTime(data.finishedAt),
           ]
             .filter(Boolean)
@@ -69,14 +77,20 @@ function FinishedRead({
           {data.error}
         </p>
       )}
-      <dl className="grid grid-cols-3 gap-2 text-center">
-        <Count label="kept" value={counts.kept} />
-        <Count label="confirmed what Brain knew" value={counts.confirmed} />
-        <Count label="left out" value={counts.left} />
-      </dl>
-      <p className="text-text-secondary text-sm">Covered the whole lane.</p>
+      {rejected ? (
+        <p className="font-medium">Rejected · nothing was saved</p>
+      ) : (
+        <dl className="grid grid-cols-3 gap-2 text-center">
+          <Count label="kept" value={counts.kept} />
+          <Count label="confirmed what Brain knew" value={counts.confirmed} />
+          <Count label="left out" value={counts.left} />
+        </dl>
+      )}
+      {data.job && (
+        <p className="text-text-secondary text-sm">Covered: {coverageLine(data.job, history)}</p>
+      )}
       <ReadActions data={data} />
-      <ReadMemories data={data} onMemory={onMemory} />
+      {!rejected && <ReadMemories data={data} onMemory={onMemory} />}
       <details>
         <TooltipSummary className="cursor-pointer">What happened to each claim</TooltipSummary>
         <ExtractionOutcomes data={data} onMemory={onMemory} />

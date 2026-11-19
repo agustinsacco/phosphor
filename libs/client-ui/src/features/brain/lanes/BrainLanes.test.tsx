@@ -11,8 +11,9 @@ import {
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { PromptHost } from '@/components/PromptHost'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { mockBrainJob, mockBrainStatus } from '../mockBrainData'
-import { mockExtractionView } from '../mockExtractionView'
+import { mockCallTrace, mockExtractionView } from '../mockExtractionView'
 import { useBrain } from '../useBrain'
 import { BrainLanes } from './BrainLanes'
 import type { LaneSelection } from './laneGroups'
@@ -131,10 +132,11 @@ it('lists reads by state and Recent changes, and opens the first read in progres
     'Queued',
     'Read',
     'Recent changes',
+    'Never read',
   ])
   expect(section('Reading').textContent).toContain('Reading · 3 min')
   expect(section('Queued').textContent).toContain('Queued 2 h ago · 1 ahead')
-  expect(section('Read').textContent).toContain('3 memories · 2 h ago')
+  expect(section('Read').textContent).toContain('3 memories from this read · 2 h ago')
   expect(list.textContent).not.toContain('review')
   expect(selection).toEqual({ type: 'job', id: 'running' })
 })
@@ -200,12 +202,15 @@ it('says what a finished read kept and offers each way to read the lane again', 
     laneMemories: 3,
     replaceable: 2,
     source: { ...view.source, exists: true },
+    // Its review refreshed two days later; the model spent 1 min on its three calls.
+    finishedAt: view.startedAt + 2 * 86_400_000,
+    calls: view.calls.map((call) => ({ ...call, trace: mockCallTrace(20_000) })),
   })
   await render([], { type: 'job', id: 'harbor-read' })
   const detail = section('Read detail')
-  expect(detail.textContent).toContain('took less than a minute')
+  expect(detail.textContent).toContain('took 1 min')
   expect([...detail.querySelectorAll('dd')].map((dd) => dd.textContent)).toHaveLength(3)
-  expect(detail.textContent).toContain('Covered the whole lane.')
+  expect(detail.textContent).toContain('Covered: Whole lane')
   await click('Read new messages', detail)
   expect(queue).toHaveBeenCalledWith({ sessionPath: finished.sessionPath, title: finished.title })
   await click('Read again', detail)
@@ -258,4 +263,115 @@ it('moves on when the open read is cancelled', async () => {
   await click('Cancel', section('Lane detail'))
   await act(async () => useBrain.setState({ status: { ...status, jobs: [] } }))
   expect(selection).toEqual({ type: 'job', id: 'harbor-read' })
+})
+
+it('says a rejected read saved nothing, and offers none of its memories', async () => {
+  const rejected = mockBrainJob({ id: 'rejected', state: 'rejected', finishedAt: NOW - 60_000 })
+  extraction.mockResolvedValue({ ...mockExtractionView(), job: rejected, jobId: 'rejected' })
+  await render([rejected], { type: 'job', id: 'rejected' })
+  expect(section('Read').textContent).toContain('Rejected')
+  const detail = section('Read detail')
+  expect(detail.textContent).toContain('Rejected · nothing was saved')
+  expect(detail.querySelectorAll('dd')).toHaveLength(0)
+  expect(detail.textContent).not.toContain('See these memories')
+  expect(button('Read again', detail)).toBeUndefined()
+})
+
+it('times a resumed read from its current attempt', async () => {
+  await render([
+    mockBrainJob({
+      state: 'running',
+      startedAt: NOW - 5 * 3_600_000,
+      runStartedAt: NOW - 3 * 60_000,
+      progress: null,
+    }),
+  ])
+  expect(section('Reading').textContent).toContain('Reading · 3 min')
+  expect(section('Lane detail').textContent).toContain('Reading for 3 min')
+  expect(section('Lane detail').textContent).not.toContain('5 h')
+})
+
+it('shows a refreshing review apart, with honest time and no Cancel', async () => {
+  await render([
+    mockBrainJob({
+      id: 'refreshing',
+      state: 'refreshing',
+      startedAt: NOW - 5 * 3_600_000,
+      runStartedAt: NOW - 2 * 60_000,
+    }),
+  ])
+  expect(section('Refreshing')).not.toBeNull()
+  expect(section('Refreshing').textContent).toContain('Refreshing for 2 min')
+  const detail = section('Lane detail')
+  expect(detail.textContent).toContain('Refreshing for 2 min')
+  expect(detail.textContent).toContain('Brain changed since this lane was read')
+  expect(button('Cancel', detail)).toBeUndefined()
+})
+
+const when = (ms: number): string =>
+  new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+
+it('says a read covered the new messages after the read it continues', async () => {
+  const previous = mockBrainJob({
+    id: 'previous',
+    state: 'done',
+    leafId: 'leaf-7',
+    finishedAt: NOW - 86_400_000,
+  })
+  const latest = mockBrainJob({
+    id: 'latest',
+    state: 'done',
+    fromLeafId: 'leaf-7',
+    finishedAt: NOW,
+  })
+  // Two reads of one lane: each row counts what that read kept; replaceable is lane-wide.
+  history.mockResolvedValue({
+    items: [
+      { job: latest, memories: 2, replaceable: 3 },
+      { job: previous, memories: 1, replaceable: 3 },
+    ],
+    more: false,
+  })
+  extraction.mockImplementation(async (id) => ({
+    ...mockExtractionView(),
+    jobId: id,
+    job: id === 'latest' ? latest : previous,
+  }))
+  await render([], { type: 'job', id: 'latest' })
+  expect([...section('Read').querySelectorAll('li')].map((row) => row.textContent)).toEqual([
+    'Harbor planning2 memories from this read · just now',
+    'Harbor planning1 memory from this read · 1 day ago',
+  ])
+  expect(section('Read detail').textContent).toContain(
+    `Covered: New messages after ${when(previous.finishedAt!)}`,
+  )
+})
+
+it('falls back to the previous read when the one a read continues is gone', async () => {
+  const latest = mockBrainJob({ id: 'latest', state: 'done', fromLeafId: 'leaf-gone' })
+  extraction.mockResolvedValue({ ...mockExtractionView(), jobId: 'latest', job: latest })
+  await render([], { type: 'job', id: 'latest' })
+  expect(section('Read detail').textContent).toContain(
+    'Covered: New messages since the previous read',
+  )
+})
+
+it('lists the lanes Brain never reads, and sends the owner to Settings to change them', async () => {
+  useSettingsUiStore.setState({ open: false, tab: 'appearance' })
+  status = {
+    ...status,
+    prefs: { ...status.prefs, neverRead: { titles: ['1:1', 'standup'], sessionIds: ['a', 'b'] } },
+  }
+  await render([])
+  const never = section('Never read')
+  expect(never).not.toBeNull()
+  expect(never.textContent).toContain('2 title patterns · 2 lanes switched off')
+  await act(async () => never.querySelector('button')!.click())
+  expect(selection).toEqual({ type: 'never' })
+  const detail = section('Never read detail')
+  expect(detail.textContent).toContain('“1:1”')
+  expect(detail.textContent).toContain('“standup”')
+  expect(detail.textContent).toContain('2 lanes switched off one by one')
+  await click('Change in Settings', detail)
+  expect(useSettingsUiStore.getState()).toMatchObject({ open: true, tab: 'brain' })
 })

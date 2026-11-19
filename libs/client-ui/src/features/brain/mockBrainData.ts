@@ -9,7 +9,10 @@ import {
   type BrainProposalView,
 } from '@shared/brain'
 
-/** Invented Harbor notes: enough neighbours and memories to exercise bounded paging. */
+/**
+ * Invented Harbor notes: enough neighbours and memories to exercise bounded paging. New facts
+ * go at the end, so the indexes tests and the mock review rely on never move.
+ */
 export function mockBrainData(): { entities: BrainEntity[]; details: BrainMemoryDetail[] } {
   const entities = mockEntities()
   const specs = [
@@ -31,12 +34,20 @@ export function mockBrainData(): { entities: BrainEntity[]; details: BrainMemory
       predicate: 'works_on' as const,
       summary: 'Tom Lee supports Harbor Ledger.',
     },
-    ...entities.slice(4).map((entity) => ({
-      subject: entity.id,
-      object: 'harbor',
-      predicate: 'part_of' as const,
-      summary: `${entity.label} is part of Harbor.`,
-    })),
+    ...entities
+      .filter((entity) => entity.kind === 'component')
+      .map((entity) => ({
+        subject: entity.id,
+        object: 'harbor',
+        predicate: 'part_of' as const,
+        summary: `${entity.label} is part of Harbor.`,
+      })),
+    {
+      subject: 'rina',
+      object: 'ledger-team',
+      predicate: 'leads' as const,
+      summary: 'Rina Okafor leads the Ledger team.',
+    },
   ]
   const details = specs.map((spec, index): BrainMemoryDetail => {
     const id = `memory-${index}`
@@ -117,7 +128,11 @@ export function mockBrainJob(patch: Partial<BrainJob> = {}): BrainJob {
     error: null,
     queuedAt: 1793966400000,
     startedAt: 1793966400000,
-    runStartedAt: patch.state === 'running' ? (patch.startedAt ?? 1793966400000) : null,
+    // Only a running or refreshing job has a current attempt.
+    runStartedAt:
+      patch.state === 'running' || patch.state === 'refreshing'
+        ? (patch.startedAt ?? 1793966400000)
+        : null,
     fromLeafId: null,
     finishedAt: 1793966448000,
     usage: null,
@@ -243,5 +258,12 @@ function mockEntities(): BrainEntity[] {
       aliases: [],
       description: 'Ledger billing component',
     })),
+    {
+      id: 'ledger-team',
+      label: 'Ledger team',
+      kind: 'team',
+      aliases: [],
+      description: 'Builds and runs Harbor Ledger',
+    },
   ]
 }

@@ -8,6 +8,7 @@ import { useBrainResource } from './useBrainResource'
 import { useBrainModelName } from './useBrainModelName'
 import { BrainReadAgain } from './BrainReadAgain'
 import { durationWords } from './jobProgress'
+import { readTime } from './readTime'
 import { ExtractionCalls } from './ExtractionCalls'
 import { ExtractionSource } from './ExtractionSource'
 
@@ -60,14 +61,21 @@ function FinishedRead({
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
   const model = useBrainModelName(data.model)
+  const took = readTime(data.calls)
   return (
     <>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-xl font-semibold">{data.title}</h2>
           <p className="text-text-tertiary text-sm">
-            {model} · {data.thinking} thinking · took{' '}
-            {durationWords(data.finishedAt - data.startedAt)} · {relativeTime(data.finishedAt)}
+            {[
+              model,
+              `${data.thinking} thinking`,
+              took === null ? '' : `took ${durationWords(took)}`,
+              relativeTime(data.finishedAt),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
         {data.job?.state === 'done' && (

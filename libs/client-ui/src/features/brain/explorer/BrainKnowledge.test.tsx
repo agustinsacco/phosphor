@@ -113,7 +113,7 @@ const tab = (name: string) =>
 
 it('lists the index thirty at a time with only present kinds, and opens a profile', async () => {
   await render()
-  expect(rows()).toHaveLength(29)
+  expect(rows()).toHaveLength(30)
   expect(browse).toHaveBeenLastCalledWith(null, 0, 30, 'connected')
   // Each kind chip carries its count from the index page.
   expect(button('People2', section('Kinds'))).toBeDefined()
@@ -121,7 +121,7 @@ it('lists the index thirty at a time with only present kinds, and opens a profil
   expect(chips.some((chip) => chip.startsWith('Events'))).toBe(false)
   await click('People2', section('Kinds'))
   expect(browse).toHaveBeenLastCalledWith('person', 0, 30, 'connected')
-  expect(rows().map((row) => row.textContent)).toEqual(['Rina Okafor1', 'Tom Lee1'])
+  expect(rows().map((row) => row.textContent)).toEqual(['Rina Okafor2', 'Tom Lee1'])
   await act(async () => (rows()[0] as HTMLButtonElement).click())
   expect(state.visit).toMatchObject({ kind: 'entity', id: 'rina' })
   expect(section('Rina Okafor').querySelector('h2')?.textContent).toBe('Rina Okafor')
@@ -177,7 +177,7 @@ it('pages the index by reloading every shown row in one bounded pass', async () 
   expect(rows()).toHaveLength(30)
   await click('Show more')
   expect(browse).toHaveBeenLastCalledWith(null, 0, 60, 'connected')
-  expect(rows()).toHaveLength(49)
+  expect(rows()).toHaveLength(50)
   expect(button('Show more')).toBeUndefined()
 })
 
@@ -445,7 +445,18 @@ it('starts with what Brain learned last, and says what to do when Brain is empty
 
 it('uses singular counts', async () => {
   await render()
+  await visit('entity', 'tom', 'Tom Lee')
+  expect(section('Tom Lee').textContent).toContain('1 memory ·')
+  expect(section('Tom Lee').textContent).not.toContain('1 memories')
+})
+
+it('shows who leads a team as Leads, and the team as Led by', async () => {
+  await render()
   await visit('entity', 'rina', 'Rina Okafor')
-  expect(section('Rina Okafor').textContent).toContain('1 memory ·')
-  expect(section('Rina Okafor').textContent).not.toContain('1 memories')
+  await act(async () => tab('Connections').click())
+  const heads = () => [...section('Connections').querySelectorAll('th')].map((th) => th.textContent)
+  expect(heads().some((head) => head?.startsWith('Leads'))).toBe(true)
+  await click('Ledger team1 memory', section('Connections'))
+  await act(async () => tab('Connections').click())
+  expect(heads().some((head) => head?.startsWith('Led by'))).toBe(true)
 })

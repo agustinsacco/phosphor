@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
-import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { BrainStatus } from '@shared/brain'
+import { DEFAULT_BRAIN_PREFS, type BrainStatus } from '@shared/brain'
 import type { IpcInvokeChannel } from '@shared/ipc'
 import {
   createFakePhosphor,
@@ -196,6 +195,18 @@ it('shows a thin status line only while Brain reads or checks, with a way to Lan
   )
   await click('Lanes', strip)
   expect(selectedTab()).toBe('brain-tab-lanes')
+})
+
+it('names the review Brain refreshes in the status line, only while the refresh runs', async () => {
+  const refreshing = mockBrainJob({ title: 'Kestrel rollout', state: 'refreshing' })
+  patchStatus = (status) => ({ ...status, jobs: [{ ...refreshing, runStartedAt: null }] })
+  await render()
+  expect(container.textContent).not.toContain('Refreshing the review of')
+  patchStatus = (status) => ({ ...status, jobs: [{ ...refreshing, runStartedAt: 10000 }] })
+  await act(async () => useBrain.getState().refresh())
+  expect(container.querySelector('[role="status"]')?.textContent).toContain(
+    'Refreshing the review of Kestrel rollout',
+  )
 })
 
 it('routes a notice to the Inbox, and an automatic change to Lanes › Recent changes', async () => {

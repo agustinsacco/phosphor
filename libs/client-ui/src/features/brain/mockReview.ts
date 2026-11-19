@@ -2,7 +2,30 @@ import type { BrainMemoryDetail, BrainProposalView, BrainReviewDecision } from '
 import { mockBrainData } from './mockBrainData'
 import type { MockExplorer } from './mockExplorer'
 
-/** The browser's invented review applies the same explicit choices as the Desktop form. */
+const DECISION_KEYS = ['memories', 'identities', 'groups', 'descriptions']
+
+/** The shape Desktop's checkDecision accepts; descriptions must name this proposal's refs. */
+export function checkMockDecision(
+  proposal: BrainProposalView,
+  decision: BrainReviewDecision | null,
+): void {
+  if (decision === null) return
+  const refs = new Set(proposal.identities.map((identity) => identity.ref))
+  const valid =
+    Object.keys(decision).every((key) => DECISION_KEYS.includes(key)) &&
+    Array.isArray(decision.memories) &&
+    Array.isArray(decision.groups) &&
+    !!decision.identities &&
+    typeof decision.identities === 'object' &&
+    Array.isArray(decision.descriptions) &&
+    decision.descriptions.every((ref) => typeof ref === 'string' && refs.has(ref))
+  if (!valid) throw new Error('Invalid review selection.')
+}
+
+/**
+ * The browser's invented review applies the same explicit choices as the Desktop form. The
+ * caller checks the decision first (checkMockDecision), before anything changes.
+ */
 export function applyMockReview(
   explorer: MockExplorer,
   proposal: BrainProposalView,
@@ -28,18 +51,27 @@ export function applyMockReview(
   for (const index of decision.memories) {
     const proposed = proposal.memories.find((m) => m.index === index)
     if (!proposed) throw new Error('Invalid memory selection')
-    const detail = structuredClone(sample.details[index]!)
-    detail.memory.id = `${proposal.job.id}-${index}`
-    detail.memory.jobId = proposal.job.id
-    detail.memory.origin = { sessionId: proposal.job.sessionId, title: proposal.job.title }
-    detail.memory.entityIds = detail.memory.entityIds.map(resolve)
-    detail.memory.links = detail.memory.links.map((link) => ({
-      ...link,
-      id: `${proposal.job.id}-${link.id}`,
-      memoryId: detail.memory.id,
-      subjectId: resolve(link.subjectId),
-      objectId: resolve(link.objectId),
-    }))
+    // Saved in the proposal's own words, on an invented sample's dates and scope.
+    const detail = structuredClone(sample.details[index] ?? sample.details[0]!)
+    const id = `${proposal.job.id}-${index}`
+    detail.memory = {
+      ...detail.memory,
+      id,
+      jobId: proposal.job.id,
+      origin: { sessionId: proposal.job.sessionId, title: proposal.job.title },
+      summary: proposed.summary,
+      type: proposed.type,
+      kind: proposed.kind,
+      entityIds: proposed.entities.map(resolve),
+      links: proposed.links.map((link, at) => ({
+        id: `${id}-link-${at}`,
+        memoryId: id,
+        subjectId: resolve(link.subject),
+        objectId: resolve(link.object),
+        predicate: link.predicate,
+      })),
+    }
+    detail.quotes = proposed.quotes
     detail.linkQuotes = Object.fromEntries(
       detail.memory.links.map((link) => [link.id, detail.quotes]),
     )
@@ -54,6 +86,11 @@ export function applyMockReview(
     else explorer.details.push(detail)
   }
   applyGroups(explorer, proposal, decision.groups, resolve)
+  for (const ref of decision.descriptions) {
+    const identity = proposal.identities.find((item) => item.ref === ref)!
+    const entity = explorer.entities.find((item) => item.id === resolve(ref))
+    if (entity) entity.description = identity.description
+  }
 }
 
 function applyGroups(

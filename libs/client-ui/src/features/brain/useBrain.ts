@@ -104,6 +104,6 @@ export function brainInFlight(status: BrainStatus | null): boolean {
     !!status &&
     (status.tidy.running ||
       ['downloading', 'verifying', 'testing'].includes(status.embedding.phase) ||
-      status.jobs.some((job) => ['waiting', 'queued', 'running'].includes(job.state)))
+      status.jobs.some((job) => ['waiting', 'queued', 'running', 'refreshing'].includes(job.state)))
   )
 }

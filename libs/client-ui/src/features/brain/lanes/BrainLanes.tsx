@@ -5,13 +5,15 @@ import { useBrainResource } from '../useBrainResource'
 import { useBrainHistory } from '../BrainHistory'
 import type { useTidyPage } from '../tidy/useTidyPage'
 import { useTidyActions } from '../tidy/useTidyActions'
-import type { BrainJob } from '@shared/brain'
+import type { BrainHistory, BrainJob, BrainPrefs } from '@shared/brain'
 import type { BrainTidyOperation } from '@shared/brain-tidy'
 import { LaneList } from './LaneList'
 import { JobDetail } from './JobDetail'
 import { ReadDetail } from './ReadDetail'
 import { ChangeDetail } from './ChangeDetail'
+import { NeverReadDetail, NeverReadRow } from './NeverRead'
 import {
+  finishedRead,
   jobsAhead,
   keepLaneSelection,
   laneGroups,
@@ -33,9 +35,10 @@ export function BrainLanes({
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
   const jobs = useBrain((s) => s.status!.jobs)
+  const never = useBrain((s) => s.status!.prefs.neverRead)
   const { history, data, error, retry } = useBrainHistory()
   const changes = useTidyChanges()
-  const now = useLaneClock(jobs.some((job) => job.state !== 'review'))
+  const now = useLaneClock(jobs.some((job) => TIMED.includes(job.state)))
   const groups = laneGroups(jobs, history)
   const operations = changes.data?.items ?? []
   const current = useLaneSelection(selected, onSelect, groups, operations, !!data && !!changes.data)
@@ -46,12 +49,7 @@ export function BrainLanes({
     onChanged: changes.retry,
   })
   const undo = (id: string): void => actions.undo(id, changes.data?.revision ?? 0)
-  const row = groups
-    .flatMap((group) => group.rows)
-    .find((entry) => current?.type === 'job' && entry.job.id === current.id)
-  // A finished read asked for by id that the newest 200 do not include.
-  const unlisted = current?.type === 'job' && !row && data ? current.id : null
-  const change = operations.find((op) => current?.type === 'change' && op.id === current.id)
+  const { row, unlisted, change } = selectedDetail(current, groups, operations, !!data)
   return (
     <div className="brain-panes brain-lanes">
       <section aria-label="Brain lanes" className="brain-pane brain-pane--side brain-pane--start">
@@ -70,19 +68,23 @@ export function BrainLanes({
             onUndo={undo}
             busy={actions.busy}
             now={now}
+            extra={
+              <>
+                <ReadsFooter history={history} empty={!groups.length && !operations.length} />
+                <NeverReadRow
+                  never={never}
+                  selected={current?.type === 'never'}
+                  onSelect={() => onSelect({ type: 'never' })}
+                />
+              </>
+            }
           />
-          {history && !groups.length && !operations.length && (
-            <p className="text-text-tertiary p-3 text-sm">
-              Nothing read yet. Right-click a lane and choose Queue for knowledge extraction.
-            </p>
-          )}
-          {history?.more && (
-            <p className="text-text-tertiary p-3 text-sm">Showing the newest 200 reads.</p>
-          )}
         </div>
       </section>
       <section aria-label="Lane detail" className="brain-pane brain-scroll">
         <LaneDetail
+          history={history}
+          never={current?.type === 'never' ? never : null}
           row={row}
           unlisted={unlisted}
           change={change}
@@ -96,6 +98,44 @@ export function BrainLanes({
         />
       </section>
     </div>
+  )
+}
+
+/** What the selection opens: a listed row, a read asked for by id, or a change. */
+function selectedDetail(
+  current: LaneSelection | null,
+  groups: ReturnType<typeof laneGroups>,
+  operations: BrainTidyOperation[],
+  loaded: boolean,
+): { row?: LaneRow; unlisted: string | null; change?: BrainTidyOperation } {
+  const row = groups
+    .flatMap((group) => group.rows)
+    .find((entry) => current?.type === 'job' && entry.job.id === current.id)
+  // A finished read asked for by id that the newest 200 do not include.
+  const unlisted = current?.type === 'job' && !row && loaded ? current.id : null
+  const change = operations.find((op) => current?.type === 'change' && op.id === current.id)
+  return { row, unlisted, change }
+}
+
+/** Under the reads, before Never read: what to do when nothing is read, or that more exist. */
+function ReadsFooter({
+  history,
+  empty,
+}: {
+  history: BrainHistory | null
+  empty: boolean
+}): React.JSX.Element {
+  return (
+    <>
+      {history && empty && (
+        <p className="text-text-tertiary p-3 text-sm">
+          Nothing read yet. Right-click a lane and choose Queue for knowledge extraction.
+        </p>
+      )}
+      {history?.more && (
+        <p className="text-text-tertiary p-3 text-sm">Showing the newest 200 reads.</p>
+      )}
+    </>
   )
 }
 
@@ -124,8 +164,10 @@ function ReadsState({
   ) : null
 }
 
-/** A read in progress, a finished read, or a Tidy change. */
+/** A read in progress, a finished read, a Tidy change, or the lanes Brain never reads. */
 function LaneDetail({
+  history,
+  never,
   row,
   unlisted,
   change,
@@ -137,6 +179,8 @@ function LaneDetail({
   onUndo,
   onMemory,
 }: {
+  history: BrainHistory | null
+  never: BrainPrefs['neverRead'] | null
   row: LaneRow | undefined
   unlisted: string | null
   change: BrainTidyOperation | undefined
@@ -148,7 +192,8 @@ function LaneDetail({
   onUndo: (operationId: string) => void
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
-  if (row && row.job.state !== 'done' && row.job.state !== 'empty')
+  if (never) return <NeverReadDetail never={never} />
+  if (row && !finishedRead(row.job))
     return (
       <JobDetail
         key={row.job.id}
@@ -159,7 +204,7 @@ function LaneDetail({
       />
     )
   const read = row?.job.id ?? unlisted
-  if (read) return <ReadDetail key={read} jobId={read} onMemory={onMemory} />
+  if (read) return <ReadDetail key={read} jobId={read} history={history} onMemory={onMemory} />
   if (change) return <ChangeDetail change={change} busy={busy} message={message} onUndo={onUndo} />
   return (
     <p className="text-text-tertiary p-6">{loaded ? 'Choose a read or a change.' : 'Loading…'}</p>
@@ -210,6 +255,9 @@ function useTidyChanges() {
   }, [resource.data])
   return { ...resource, data: resource.data ?? previous }
 }
+
+/** States whose row shows a time that moves: how long it has read, or how long it waited. */
+const TIMED: readonly BrainJob['state'][] = ['running', 'refreshing', 'queued', 'waiting']
 
 /** Times are in minutes, so a coarse tick is enough while anything is reading or queued. */
 function useLaneClock(active: boolean): number {

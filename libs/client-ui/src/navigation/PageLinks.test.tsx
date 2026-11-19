@@ -150,10 +150,15 @@ it('counts the whole Brain Inbox: reviews and open Tidy suggestions', async () =
         review: true,
         model: null,
       },
-      jobs: [mockBrainJob(), mockBrainJob({ id: 'queued', state: 'queued' })],
+      jobs: [
+        mockBrainJob(),
+        mockBrainJob({ id: 'refreshing', state: 'refreshing' }),
+        mockBrainJob({ id: 'queued', state: 'queued' }),
+      ],
       tidy: { ...base.tidy, open: 3 },
     },
   })
   await act(async () => root.render(<PageLinks onPage={onPage} />))
-  expect(container.querySelector('[aria-label="4 to decide"]')?.textContent).toBe('4')
+  // A review Brain is refreshing still waits for the owner.
+  expect(container.querySelector('[aria-label="5 to decide"]')?.textContent).toBe('5')
 })

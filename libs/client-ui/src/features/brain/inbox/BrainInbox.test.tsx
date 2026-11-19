@@ -265,13 +265,33 @@ it('starts a model check from under the queue and says nothing is left when empt
   await render()
   await act(async () => button('Check for repeats')!.click())
   expect(calls.some((c) => c.channel === 'brain:tidyRun')).toBe(true)
-  useBrain.setState({ status: { ...useBrain.getState().status!, jobs: [] } })
+  // The review first, while its proposal is current; then every suggestion.
   for (let left = 30; left && section('Decisions').querySelector('[data-inbox-row]'); left--)
     await act(async () => {
       const first = section('Decisions').querySelector<HTMLButtonElement>('[data-inbox-row]')!
       first.click()
-      const dismiss = button('Not the same') ?? button('Keep')
+      const dismiss = button('Reject read') ?? button('Not the same') ?? button('Keep')
       dismiss?.click()
     })
   expect(section('Decisions').textContent).toContain('Nothing to decide.')
+})
+
+it('says a review is refreshing in its queue row', async () => {
+  // After the first render: loading the Tidy page stores the mock's own status.
+  await render()
+  const status = useBrain.getState().status!
+  await act(async () =>
+    useBrain.setState({
+      status: {
+        ...status,
+        jobs: status.jobs.map((job) =>
+          job.id === 'harbor-demo-review' ? { ...job, state: 'refreshing' as const } : job,
+        ),
+      },
+    }),
+  )
+  expect(section('From lanes').textContent).toContain(
+    'Refreshing · Brain changed since it was read',
+  )
+  expect(section('Lane read').textContent).toContain('Refreshing this review')
 })

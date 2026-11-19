@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { brainLaneNeverRead } from '@phosphor/shared/brain-never-read'
 import type { BrainProposalView } from '@shared/brain'
 import { Button } from '@/components/form'
 import { formatCount } from '@/lib/format'
@@ -31,7 +32,7 @@ export function ReviewForm({
   const saving = useBrain((s) => s.saving)
   const model = useBrainModelName(job.model)
   const block = approveBlock(proposal, choices)
-  const neverRead = false
+  const neverRead = useBrain((s) => !!s.status && brainLaneNeverRead(s.status.prefs.neverRead, job))
   const { error, approve, reject } = useReviewSubmit(proposal, choices, block, onStale)
   useEffect(() => {
     // Like the bar's buttons: nothing while a save runs.
@@ -69,6 +70,11 @@ export function ReviewForm({
         />
       }
     >
+      {neverRead && (
+        <p role="note" className="bg-bg-secondary/60 rounded-md px-3 py-2">
+          You set Brain to never read this lane. Reject to discard this read.
+        </p>
+      )}
       {proposal.held > 0 && (
         <p className="text-text-tertiary text-sm">
           {formatCount(proposal.held, 'more claim was', 'more claims were')} over this read’s limit
@@ -148,7 +154,12 @@ function ReviewBar({
       <Button
         variant={neverRead ? 'secondary' : 'primary'}
         disabled={saving || !!block}
-        tooltip={block ?? { label: 'Save the ticked memories', shortcut: ['A'] }}
+        tooltip={
+          block ??
+          (neverRead
+            ? 'Save the ticked memories'
+            : { label: 'Save the ticked memories', shortcut: ['A'] })
+        }
         onClick={onApprove}
       >
         {approveLabel(proposal, keep)}
@@ -166,8 +177,10 @@ function ReviewBar({
   )
 }
 
+/** What this read covers: the whole lane again, or only what came after the previous read. */
 function replacementNote(proposal: BrainProposalView): string | undefined {
   if (proposal.job.replaces)
     return `Replaces ${formatCount(proposal.replacingMemories, 'memory', 'memories')} from the last read`
+  if (proposal.job.fromLeafId) return 'Reads new messages only'
   return undefined
 }

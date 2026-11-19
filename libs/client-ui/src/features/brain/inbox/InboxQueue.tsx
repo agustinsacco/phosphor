@@ -121,9 +121,11 @@ function QueueRow({
 }): React.JSX.Element {
   const title = item.kind === 'review' ? item.job.title : tidyTitle(item.suggestion)
   const line =
-    item.kind === 'review'
-      ? `${formatCount(item.job.memories, 'memory', 'memories')} to review${item.job.replaces ? ' · read again' : ''}`
-      : tidyLine(item.suggestion)
+    item.kind === 'suggestion'
+      ? tidyLine(item.suggestion)
+      : item.job.state === 'refreshing'
+        ? 'Refreshing · Brain changed since it was read'
+        : `${formatCount(item.job.memories, 'memory', 'memories')} to review${item.job.replaces ? ' · read again' : ''}`
   return (
     <TooltipButton
       data-inbox-row

@@ -137,3 +137,16 @@ it('shows a kind with open suggestions before any of them is loaded', () => {
     ['same_memory', 2, 45],
   ])
 })
+
+it('counts and lists a review Brain is refreshing, in queue order', () => {
+  const jobs = [
+    mockBrainJob({ id: 'kestrel', state: 'refreshing', queuedAt: 1 }),
+    mockBrainJob({ id: 'harbor', queuedAt: 2 }),
+    mockBrainJob({ id: 'ledger', state: 'rejected', queuedAt: 3 }),
+  ]
+  expect(inboxCount({ ...mockBrainStatus(), jobs })).toBe(2)
+  expect(inboxOrder(inboxGroups(jobs, null)).map((item) => item.key)).toEqual([
+    'review:kestrel',
+    'review:harbor',
+  ])
+})
