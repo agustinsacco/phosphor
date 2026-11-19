@@ -12,6 +12,7 @@ import { JobDetail } from './JobDetail'
 import { ReadDetail } from './ReadDetail'
 import { ChangeDetail } from './ChangeDetail'
 import {
+  finishedRead,
   jobsAhead,
   keepLaneSelection,
   laneGroups,
@@ -35,7 +36,7 @@ export function BrainLanes({
   const jobs = useBrain((s) => s.status!.jobs)
   const { history, data, error, retry } = useBrainHistory()
   const changes = useTidyChanges()
-  const now = useLaneClock(jobs.some((job) => job.state !== 'review'))
+  const now = useLaneClock(jobs.some((job) => TIMED.includes(job.state)))
   const groups = laneGroups(jobs, history)
   const operations = changes.data?.items ?? []
   const current = useLaneSelection(selected, onSelect, groups, operations, !!data && !!changes.data)
@@ -148,7 +149,7 @@ function LaneDetail({
   onUndo: (operationId: string) => void
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
-  if (row && row.job.state !== 'done' && row.job.state !== 'empty')
+  if (row && !finishedRead(row.job))
     return (
       <JobDetail
         key={row.job.id}
@@ -210,6 +211,9 @@ function useTidyChanges() {
   }, [resource.data])
   return { ...resource, data: resource.data ?? previous }
 }
+
+/** States whose row shows a time that moves: how long it has read, or how long it waited. */
+const TIMED: readonly BrainJob['state'][] = ['running', 'refreshing', 'queued', 'waiting']
 
 /** Times are in minutes, so a coarse tick is enough while anything is reading or queued. */
 function useLaneClock(active: boolean): number {

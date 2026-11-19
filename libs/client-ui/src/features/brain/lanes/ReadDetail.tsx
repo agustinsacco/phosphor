@@ -50,6 +50,7 @@ function FinishedRead({
 }): React.JSX.Element {
   const model = useBrainModelName(data.model)
   const counts = readCounts(data.outcomes)
+  const rejected = data.job?.state === 'rejected'
   return (
     <article aria-label="Read detail" className="min-w-0 space-y-4 p-4">
       <header>
@@ -69,14 +70,18 @@ function FinishedRead({
           {data.error}
         </p>
       )}
-      <dl className="grid grid-cols-3 gap-2 text-center">
-        <Count label="kept" value={counts.kept} />
-        <Count label="confirmed what Brain knew" value={counts.confirmed} />
-        <Count label="left out" value={counts.left} />
-      </dl>
+      {rejected ? (
+        <p className="font-medium">Rejected · nothing was saved</p>
+      ) : (
+        <dl className="grid grid-cols-3 gap-2 text-center">
+          <Count label="kept" value={counts.kept} />
+          <Count label="confirmed what Brain knew" value={counts.confirmed} />
+          <Count label="left out" value={counts.left} />
+        </dl>
+      )}
       <p className="text-text-secondary text-sm">Covered the whole lane.</p>
       <ReadActions data={data} />
-      <ReadMemories data={data} onMemory={onMemory} />
+      {!rejected && <ReadMemories data={data} onMemory={onMemory} />}
       <details>
         <TooltipSummary className="cursor-pointer">What happened to each claim</TooltipSummary>
         <ExtractionOutcomes data={data} onMemory={onMemory} />

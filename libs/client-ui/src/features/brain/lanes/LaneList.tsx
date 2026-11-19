@@ -5,6 +5,7 @@ import { TooltipButton } from '@/components/Tooltip'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { relativeTime } from '@/lib/time'
 import {
+  finishedRead,
   jobsAhead,
   laneKey,
   laneLine,
@@ -94,7 +95,7 @@ export function LaneList({
 }
 
 function rowLine(row: LaneRow, jobs: BrainJob[], now: number): string {
-  return row.job.state === 'done' || row.job.state === 'empty'
+  return finishedRead(row.job)
     ? readLine(row, now)
     : laneLine(row.job, now, jobsAhead(jobs, row.job.id))
 }

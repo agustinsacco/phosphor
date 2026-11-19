@@ -30,21 +30,51 @@ export interface LaneGroup {
   rows: LaneRow[]
 }
 
-const FINISHED: readonly BrainJob['state'][] = ['done', 'empty']
+/** The Lanes group of a job; null for a review, which belongs to the Inbox. */
+function laneGroupOf(job: BrainJob): LaneGroupId | null {
+  // Exhaustive: a new job state must choose its group here.
+  switch (job.state) {
+    case 'running':
+      return 'reading'
+    case 'refreshing':
+      return 'refreshing'
+    case 'queued':
+    case 'waiting':
+      return 'queued'
+    case 'failed':
+      return 'failed'
+    case 'done':
+    case 'empty':
+    case 'rejected':
+      return 'read'
+    case 'review':
+      return null
+  }
+}
+
+/** A read that ended: kept, empty or rejected. Its detail is the finished read. */
+export function finishedRead(job: BrainJob): boolean {
+  return laneGroupOf(job) === 'read'
+}
 
 export function laneGroups(jobs: BrainJob[], history: BrainHistory | null): LaneGroup[] {
-  const row = (job: BrainJob): LaneRow => ({ job, memories: job.memories, replaceable: 0 })
   const read = new Map((history?.items ?? []).map((item) => [item.job.id, item]))
-  for (const job of jobs)
-    if (FINISHED.includes(job.state) && !read.has(job.id))
-      read.set(job.id, { job, memories: 0, replaceable: 0 })
   const groups: Record<LaneGroupId, LaneRow[]> = {
-    reading: jobs.filter((job) => job.state === 'running').map(row),
+    reading: [],
     refreshing: [],
-    queued: jobs.filter((job) => job.state === 'queued' || job.state === 'waiting').map(row),
-    failed: jobs.filter((job) => job.state === 'failed').map(row),
-    read: [...read.values()].toSorted((a, b) => (b.job.finishedAt ?? 0) - (a.job.finishedAt ?? 0)),
+    queued: [],
+    failed: [],
+    read: [],
   }
+  for (const job of jobs) {
+    const group = laneGroupOf(job)
+    if (group === 'read') {
+      if (!read.has(job.id)) read.set(job.id, { job, memories: 0, replaceable: 0 })
+    } else if (group) groups[group].push({ job, memories: job.memories, replaceable: 0 })
+  }
+  groups.read = [...read.values()].toSorted(
+    (a, b) => (b.job.finishedAt ?? 0) - (a.job.finishedAt ?? 0),
+  )
   return (Object.keys(LANE_GROUP_LABELS) as LaneGroupId[])
     .map((id) => ({ id, label: LANE_GROUP_LABELS[id], rows: groups[id] }))
     .filter((group) => group.rows.length > 0)
@@ -81,19 +111,27 @@ export function keepLaneSelection(
   return first ? { type: 'job', id: first } : null
 }
 
-/** When this attempt started: a resume, retry or refresh restarts the clock. */
+/**
+ * When the current attempt started: a resume, retry or refresh restarts the clock. Only a
+ * running or refreshing job has one; `startedAt` is the first start and would overstate it.
+ */
 export function attemptStartedAt(job: BrainJob): number | null {
-  return job.startedAt
+  return job.state === 'running' || job.state === 'refreshing' ? job.runStartedAt : null
 }
 
 /** A row's second line: what the job is doing now, in honest time. */
 export function laneLine(job: BrainJob, now: number, ahead: number): string {
+  const started = attemptStartedAt(job)
   switch (job.state) {
     case 'running': {
-      const started = attemptStartedAt(job)
       const elapsed = started === null ? '' : ` · ${durationWords(now - started)}`
       return `${job.progress ? progressLine(job.progress) : 'Reading'}${elapsed}`
     }
+    case 'refreshing':
+      // A refresh waits its turn behind a running read before its attempt starts.
+      return started === null
+        ? 'Waits to refresh'
+        : `Refreshing for ${durationWords(now - started)}`
     case 'waiting':
       return 'Waits until the lane is idle'
     case 'queued':
@@ -102,17 +140,23 @@ export function laneLine(job: BrainJob, now: number, ahead: number): string {
       return job.error ?? 'The read failed'
     case 'empty':
       return 'Nothing worth keeping'
-    default:
+    case 'rejected':
+      return 'Rejected'
+    case 'review':
+    case 'done':
       return ''
   }
 }
 
-/** Jobs ahead of this one in the reader's queue. */
+/** Jobs the reader takes before this one: a read before it, and every review it refreshes. */
 export function jobsAhead(jobs: BrainJob[], id: string): number {
   const at = jobs.findIndex((job) => job.id === id)
-  return jobs
-    .slice(0, Math.max(0, at))
-    .filter((job) => job.state === 'queued' || job.state === 'running').length
+  return jobs.filter(
+    (job, index) =>
+      job.id !== id &&
+      (job.state === 'refreshing' ||
+        (index < at && (job.state === 'queued' || job.state === 'running'))),
+  ).length
 }
 
 /** What one finished read did: kept, confirmed what Brain knew, or left out. */
@@ -133,6 +177,7 @@ export function readCounts(outcomes: BrainExtractionOutcome[]): {
 /** A finished read's second line: what is left of it, and when. */
 export function readLine(row: LaneRow, now: number): string {
   if (row.job.state === 'empty') return 'Nothing worth keeping'
+  if (row.job.state === 'rejected') return 'Rejected'
   const when = row.job.finishedAt === null ? '' : ` · ${agoWords(now - row.job.finishedAt)}`
   return `${formatCount(row.memories, 'memory', 'memories')}${when}`
 }

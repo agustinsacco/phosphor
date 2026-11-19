@@ -30,7 +30,20 @@ export interface InboxGroup {
 
 /** A review waits for the owner whether or not Brain is recomputing it. */
 export function inboxReview(job: BrainJob): boolean {
-  return job.state === 'review'
+  // Exhaustive: a new job state must decide here whether it waits for the owner.
+  switch (job.state) {
+    case 'review':
+    case 'refreshing':
+      return true
+    case 'waiting':
+    case 'queued':
+    case 'running':
+    case 'empty':
+    case 'failed':
+    case 'done':
+    case 'rejected':
+      return false
+  }
 }
 
 /** The Brain nav item and the Inbox tab count the same things. */

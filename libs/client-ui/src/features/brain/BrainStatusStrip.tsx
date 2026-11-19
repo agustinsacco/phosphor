@@ -9,7 +9,10 @@ import { mutateBrain, useBrain } from './useBrain'
 import { useBrainModelName } from './useBrainModelName'
 import { progressLine } from './jobProgress'
 
-/** One thin line under the tabs, only while Brain is reading a lane or checking pairs. */
+/**
+ * One thin line under the tabs, only while Brain reads a lane, refreshes a review or checks
+ * pairs. A refresh waiting its turn is not running yet, so it says nothing.
+ */
 export function BrainStatusStrip({
   page,
   onLanes,
@@ -20,21 +23,27 @@ export function BrainStatusStrip({
   const jobs = useBrain((s) => s.status?.jobs ?? [])
   const checking = useBrain((s) => s.status?.tidy.running ?? false)
   const running = jobs.find((job) => job.state === 'running')
+  const refreshing = jobs.find((job) => job.state === 'refreshing' && job.runStartedAt !== null)
   const queued = jobs.filter((job) => job.state === 'queued' || job.state === 'waiting').length
-  if (!running && !queued && !checking) return null
+  if (!running && !refreshing && !queued && !checking) return null
   return (
     <div
       role="status"
       className="border-border bg-bg-secondary/60 text-text-secondary flex shrink-0 flex-col gap-1 border-b px-4 py-1.5 text-sm"
     >
-      {(running || queued > 0) && (
+      {(running || refreshing || queued > 0) && (
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {running && <PhosphorLoader size={14} decorative />}
+          {(running || refreshing) && <PhosphorLoader size={14} decorative />}
           <span className="min-w-0 flex-1">
             {running ? (
               <>
                 Reading <b className="text-text font-medium">{running.title}</b>
                 {running.progress && ` · ${progressLine(running.progress)}`}
+                {queued > 0 && ` · ${queued} queued`}
+              </>
+            ) : refreshing ? (
+              <>
+                Refreshing the review of <b className="text-text font-medium">{refreshing.title}</b>
                 {queued > 0 && ` · ${queued} queued`}
               </>
             ) : (

@@ -11,9 +11,9 @@ import { ExtractionSource } from '../ExtractionSource'
 import { ExtractionCalls } from '../ExtractionCalls'
 import { BRAIN_PROGRESS_STAGES, BRAIN_STAGE_LABELS, progressLine } from '../jobProgress'
 import { agoWords, durationWords } from '../jobProgress'
-import { attemptStartedAt } from './laneGroups'
+import { attemptStartedAt, laneLine } from './laneGroups'
 
-/** "Claude Opus 5.5 · reading for 3 min", "Queued 2 h ago · 1 ahead": honest, never negative. */
+/** "Claude Opus 5.5 · Reading for 3 min", "Queued 2 h ago · 1 ahead": honest, never negative. */
 export function jobHeadline(job: BrainJob, model: string, now: number, ahead: number): string {
   const started = attemptStartedAt(job)
   const state =
@@ -21,13 +21,11 @@ export function jobHeadline(job: BrainJob, model: string, now: number, ahead: nu
       ? started === null
         ? 'Reading'
         : `Reading for ${durationWords(now - started)}`
-      : job.state === 'waiting'
-        ? 'Waits until the lane is idle'
-        : job.state === 'queued'
-          ? `Queued ${agoWords(now - job.queuedAt)}${ahead ? ` · ${ahead} ahead` : ''}`
-          : job.state === 'failed'
-            ? `Failed${job.finishedAt === null ? '' : ` ${agoWords(now - job.finishedAt)}`}`
-            : ''
+      : job.state === 'refreshing' || job.state === 'waiting' || job.state === 'queued'
+        ? laneLine(job, now, ahead)
+        : job.state === 'failed'
+          ? `Failed${job.finishedAt === null ? '' : ` ${agoWords(now - job.finishedAt)}`}`
+          : ''
   return [model, state].filter(Boolean).join(' · ')
 }
 
@@ -45,10 +43,7 @@ export function JobDetail({
 }): React.JSX.Element {
   const model = useBrainModelName(job.model)
   return (
-    <section
-      aria-label={job.state === 'failed' ? 'Failed read' : 'Reading lane'}
-      className="space-y-4 p-4"
-    >
+    <section aria-label={JOB_LABELS[job.state] ?? 'Reading lane'} className="space-y-4 p-4">
       <header>
         <h2 className="text-xl font-semibold">{job.title}</h2>
         <p className="text-text-tertiary text-sm">{jobHeadline(job, model, now, ahead)}</p>
@@ -59,14 +54,26 @@ export function JobDetail({
         </p>
       ) : job.state === 'running' ? (
         <ReadingSteps job={job} />
+      ) : job.state === 'refreshing' ? (
+        <p className="text-text-secondary">
+          Brain changed since this lane was read, so it is checking the review again. Nothing to do:
+          the review stays in the Inbox and opens there once it is ready.
+        </p>
       ) : null}
       <JobActions job={job} />
       <LiveExtraction job={job} onMemory={onMemory} />
     </section>
   )
 }
-export function JobActions({ job }: { job: BrainJob }): React.JSX.Element {
+const JOB_LABELS: Partial<Record<BrainJob['state'], string>> = {
+  failed: 'Failed read',
+  refreshing: 'Refreshing review',
+}
+
+/** Retry a failed read; cancel one in progress. A refreshing review is decided in the Inbox. */
+export function JobActions({ job }: { job: BrainJob }): React.JSX.Element | null {
   const saving = useBrain((s) => s.saving)
+  if (job.state === 'refreshing') return null
   return (
     <div className="flex flex-wrap gap-2">
       {job.state === 'failed' && (
