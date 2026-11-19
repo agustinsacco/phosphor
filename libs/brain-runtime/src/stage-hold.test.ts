@@ -76,3 +76,56 @@ it('lets personal outrank temporary', () => {
   expect(strongerHold(null, 'temporary')).toBe('temporary')
   expect(strongerHold(null, null)).toBeNull()
 })
+
+it.each([
+  'Harbor uses Ledger for now.',
+  'Harbor keeps the endpoint until Friday.',
+  'Kestrel keeps the old queue until next tue.',
+  'Harbor pauses exports until March.',
+  'Ledger keeps the old bucket until the end of June.',
+  'Kestrel keeps the old queue until 2027-06-01.',
+  'Harbor holds refunds until 3 August.',
+  'Ledger stays read-only until further notice.',
+  'Kestrel moves to the new queue this quarter.',
+  'Harbor temporarily routes invoices through Ledger.',
+  'Ledger keeps the old schema for the time being.',
+])('regression: marks wording that puts an end in sight temporary: %s', (text) => {
+  expect(hold(text, false)).toBe('temporary')
+})
+
+it.each([
+  'Tom Lee is taking leave.',
+  'Rina Okafor took leave after the Harbor launch.',
+  'Mara Voss starts parental leave in the spring.',
+  'Rina Okafor is on sick leave.',
+  "Tom Lee's performance is below expectations.",
+  "Tom Lee's performance has not met the team's expectations.",
+  'Mara Voss is on a performance improvement plan.',
+  'Mara Voss has a performance PIP with Rina Okafor.',
+  "Tom Lee's performance came up in his review.",
+])('regression: marks leave and performance remarks about a named person personal: %s', (text) => {
+  expect(hold(text)).toBe('personal')
+})
+
+it.each([
+  'Harbor waits until Kestrel 2.1 to drop the webhook.',
+  'Harbor runs distillation before every export.',
+  'Harbor retries until the Ledger queue drains.',
+  'Ledger waits until marketing approves the copy.',
+  'Kestrel runs until saturation, then sheds load.',
+])(
+  'leaves version numbers, words that contain a trigger and open-ended waits unmarked: %s',
+  (text) => {
+    expect(hold(text, false)).toBeNull()
+  },
+)
+
+it.each([
+  "Tom Lee says Harbor's query performance is below expectations.",
+  'Rina Okafor set a performance budget for Harbor.',
+  "Tom Lee reviews Harbor's query performance.",
+  "Rina Okafor tracks Harbor's query performance issues.",
+  'Mara Voss runs the database performance review for Ledger.',
+])('never marks technical performance personal, even in a claim naming a person: %s', (text) => {
+  expect(hold(text)).toBeNull()
+})
