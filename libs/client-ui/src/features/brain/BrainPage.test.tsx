@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { BrainStatus } from '@shared/brain'
+import { DEFAULT_BRAIN_PREFS, type BrainStatus } from '@shared/brain'
 import type { IpcInvokeChannel } from '@shared/ipc'
 import {
   createFakePhosphor,
@@ -52,7 +52,7 @@ beforeEach(async () => {
   mock = createMockBrain(() => 10000)
   patchStatus = null
   detailed.length = 0
-  await mock('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
+  await mock('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   const handlers = Object.fromEntries(
     CHANNELS.map((channel) => [
       channel,

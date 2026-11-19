@@ -37,12 +37,16 @@ it('models enable → download → queue → review decision → memory → forg
   const proposal = (await call('brain:proposal', [id])) as BrainProposalView
   expect(proposal.identities.some((i) => i.decision === 'uncertain')).toBe(true)
   await expect(
-    call('brain:review', [id, { memories: [0], identities: {}, groups: [] }, 999]),
+    call('brain:review', [
+      id,
+      { descriptions: [], memories: [0], identities: {}, groups: [] },
+      999,
+    ]),
   ).rejects.toThrow('Brain changed')
   expect(
     await call('brain:review', [
       id,
-      { memories: [0], identities: {}, groups: [] },
+      { descriptions: [], memories: [0], identities: {}, groups: [] },
       proposal.revision,
     ]),
   ).toMatchObject({ counts: { memories: before.counts.memories + 1 } })
@@ -119,7 +123,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
   expect(rina.entity.aliases).toContain('Tom Lee')
   await expect(call('brain:entity', ['tom'])).rejects.toThrow('Entity not found')
   const before = (await call('brain:status', [])) as BrainStatus
-  await call('brain:setPrefs', [{ enabled: true, recall: true, review: false, model: null }])
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true, review: false }])
   now = 6000
   await call('brain:queue', [{ sessionPath: '/demo/Harbor/auto.jsonl', title: 'Harbor auto' }])
   await call('brain:status', [])
@@ -132,7 +136,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
 it('can extract and approve again after resetting every entity and memory', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ enabled: true, recall: true, review: true, model: null }])
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   now = 6000
   await call('brain:status', [])
   await call('brain:reset', [])
@@ -144,14 +148,18 @@ it('can extract and approve again after resetting every entity and memory', asyn
   now += 4000
   const proposal = (await call('brain:proposal', [id])) as BrainProposalView
   await expect(
-    call('brain:review', [id, { memories: [0], identities: {}, groups: [] }, proposal.revision]),
+    call('brain:review', [
+      id,
+      { descriptions: [], memories: [0], identities: {}, groups: [] },
+      proposal.revision,
+    ]),
   ).resolves.toMatchObject({ counts: { memories: 1, entities: 2 } })
 })
 
 it('requeues a stale proposal and returns it to review after recomputing', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   now = 6000
   await call('brain:status', [])
   const id = 'harbor-demo-review'
@@ -213,7 +221,7 @@ it('keeps finished reads in history and replaces the mocked lane only on approva
   now = 6000
   await call('brain:review', [
     'harbor-demo-review',
-    { memories: [0], identities: {}, groups: [] },
+    { descriptions: [], memories: [0], identities: {}, groups: [] },
     0,
   ])
   const history = await call('brain:history', [20]).catch(String)
@@ -228,7 +236,7 @@ it('keeps finished reads in history and replaces the mocked lane only on approva
   expect(proposal.replacingMemories).toBe(count)
   const saved = (await call('brain:review', [
     id,
-    { memories: [0], identities: {}, groups: [] },
+    { descriptions: [], memories: [0], identities: {}, groups: [] },
     proposal.revision,
   ])) as BrainStatus
   expect(saved.counts.memories).toBe(1)
@@ -239,7 +247,7 @@ it('marks forgotten links removed in a finished mocked extraction', async () => 
   const call = createMockBrain()
   await call('brain:review', [
     'harbor-demo-review',
-    { memories: [0], identities: {}, groups: [] },
+    { descriptions: [], memories: [0], identities: {}, groups: [] },
     0,
   ])
   const view = (await call('brain:extraction', ['harbor-demo-review'])) as BrainExtractionView
@@ -270,7 +278,7 @@ it('serves both browse reads with paging, kinds and memories learned from an app
   })
   await call('brain:review', [
     'harbor-demo-review',
-    { memories: [0], identities: {}, groups: [] },
+    { descriptions: [], memories: [0], identities: {}, groups: [] },
     0,
   ])
   const read = (await call('brain:extraction', ['harbor-demo-review'])) as BrainExtractionView
@@ -301,7 +309,7 @@ it('orders recent memories by finished job and caps eligibility at the newest tw
     const proposal = (await call('brain:proposal', [id])) as BrainProposalView
     await call('brain:review', [
       id,
-      { memories: [0, 1], identities: {}, groups: [] },
+      { descriptions: [], memories: [0, 1], identities: {}, groups: [] },
       proposal.revision,
     ])
     expected.push(`${id}-1`, `${id}-0`)

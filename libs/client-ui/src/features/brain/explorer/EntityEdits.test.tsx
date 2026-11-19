@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { BrainEntityView, BrainStatus } from '@shared/brain'
+import { DEFAULT_BRAIN_PREFS, type BrainEntityView, type BrainStatus } from '@shared/brain'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import {
   createFakePhosphor,
@@ -32,7 +32,7 @@ let refusal = ''
 beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mock = createMockBrain(() => 10_000)
-  await mock('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
+  await mock('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   refusal = ''
   sent.mockReset()
   onClose.mockReset()
