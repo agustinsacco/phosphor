@@ -1,5 +1,4 @@
 import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
-import { DEFAULT_BRAIN_PREFS } from '@shared/brain'
 import { mockBrainPrefs } from './mockBrainPrefs'
 import type { BrainEntitySort } from '@shared/brain-explore'
 import type {
@@ -8,7 +7,6 @@ import type {
   BrainJob,
   BrainLaneRef,
   BrainMemoryFilter,
-  BrainPrefs,
   BrainProposalView,
   BrainPredicate,
   BrainReviewDecision,
