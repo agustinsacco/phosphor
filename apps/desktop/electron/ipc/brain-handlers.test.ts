@@ -71,6 +71,14 @@ it('passes a lane reference and refuses empty or oversized fields', async () => 
   expect(() => checkLane({ sessionPath: '/s', title: 'x'.repeat(501) })).toThrow()
 })
 
+it('queues a lane with no title, as Read new messages sends for an untitled read', async () => {
+  // An untitled read stores '' as its title, and the engine derives the title from the file.
+  const lane = { sessionPath: '/s/harbor.jsonl', title: '' }
+  await expect(call('brain:queue', lane)).resolves.toBe('queued')
+  expect(api.queue).toHaveBeenCalledWith(lane)
+  expect(() => checkLane({ sessionPath: '/s', title: 3 })).toThrow('Invalid Brain request.')
+})
+
 it('checks review decisions and revisions before the service sees them', async () => {
   const before = {
     memories: [0, 2],
