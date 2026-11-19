@@ -233,3 +233,15 @@ it.each(['queued', 'waiting', 'failed', 'done', 'empty', 'rejected'] as const)(
     expect(store.job(second.id)?.state).toBe(state)
   },
 )
+
+it('displays an empty lane title as a placeholder without treating the placeholder as a title rule', () => {
+  const { store } = fixture()
+  store.setPrefs({
+    ...store.snapshot().prefs,
+    neverRead: { titles: ['Untitled lane'], sessionIds: [] },
+  })
+  const job = store.enqueue(lane({ title: '' }), 'queued')
+  expect(job.title).toBe('Untitled lane')
+  expect(store.job(job.id)?.title).toBe('Untitled lane')
+  expect(store.snapshot().jobs[0]?.title).toBe('Untitled lane')
+})
