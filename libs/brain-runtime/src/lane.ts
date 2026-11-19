@@ -5,7 +5,7 @@ import { readEntries, type LaneEntry } from './transcript'
 export interface LaneMeta {
   sessionId: string
   cwd: string
-  title: string | null
+  title?: string | null
   scope: string
   branch: string | null
   model: string
