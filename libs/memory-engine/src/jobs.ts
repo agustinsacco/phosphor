@@ -1,6 +1,7 @@
-import type { BrainJob } from '@phosphor/shared/brain'
+import { brainNeverReadReason, type BrainJob } from '@phosphor/shared/brain'
 import { all, one, run, transaction, type Context } from './database'
 import { pruneExtractions } from './extractions'
+import { prefs } from './prefs'
 import type { JobPart, JobPatch, NewJob } from './types'
 
 const columns = `id, session_id AS sessionId, session_path AS sessionPath, title, scope, branch,
@@ -25,13 +26,13 @@ export function job(ctx: Context, id: string): BrainJob | undefined {
 export function jobs(ctx: Context): BrainJob[] {
   return all<JobRow>(
     ctx,
-    `SELECT ${columns} FROM jobs WHERE state!='done' ORDER BY queued_at, rowid`,
+    `SELECT ${columns} FROM jobs WHERE state NOT IN ('done','rejected') ORDER BY queued_at, rowid`,
   ).map(decode)
 }
 export function finishedJobs(ctx: Context, limit: number): BrainJob[] {
   return all<JobRow>(
     ctx,
-    `SELECT ${columns} FROM jobs WHERE state='done'
+    `SELECT ${columns} FROM jobs WHERE state IN ('done','empty','rejected')
     ORDER BY finished_at DESC, queued_at DESC, rowid DESC LIMIT ?`,
     limit,
   ).map(decode)
@@ -63,10 +64,12 @@ function save(ctx: Context, value: BrainJob): void {
     value.runStartedAt,
   )
 }
-export const BRAIN_EXTRACTOR_VERSION = 5
+export const BRAIN_EXTRACTOR_VERSION = 6
 
 export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'): BrainJob {
   return transaction(ctx, () => {
+    const refusal = brainNeverReadReason(prefs(ctx).neverRead, value)
+    if (refusal) throw new Error(refusal)
     if (value.replaces) {
       const previous = job(ctx, value.replaces)
       if (previous?.state !== 'done')
@@ -77,18 +80,17 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
     const unfinished = one(
       ctx,
       `SELECT id FROM jobs WHERE session_id=? AND state IN
-      ('waiting','queued','running','review')`,
+      ('waiting','queued','running','refreshing','review')`,
       value.sessionId,
     )
     if (unfinished) throw new Error('This lane is already queued.')
     const last = one<{ leaf_id: string | null }>(
       ctx,
-      "SELECT leaf_id FROM jobs WHERE session_id=? AND state IN ('done','empty') AND extractor=? ORDER BY queued_at DESC LIMIT 1",
+      "SELECT leaf_id FROM jobs WHERE session_id=? AND state IN ('done','empty','rejected') ORDER BY finished_at DESC, queued_at DESC, rowid DESC LIMIT 1",
       value.sessionId,
-      BRAIN_EXTRACTOR_VERSION,
     )
     if (!value.replaces && last && last.leaf_id === value.leafId) {
-      throw new Error('Nothing new in this lane since its last extraction.')
+      throw new Error('Nothing new in this lane since its last read.')
     }
     const result: BrainJob = {
       ...value,
@@ -100,7 +102,7 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
       queuedAt: ctx.now(),
       startedAt: null,
       runStartedAt: null,
-      fromLeafId: null,
+      fromLeafId: value.replaces ? null : (last?.leaf_id ?? null),
       finishedAt: null,
       usage: null,
       progress: null,
@@ -119,7 +121,15 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
     })
   )
     throw new Error('Brain job metadata is frozen outside its first prepare checkpoint.')
+  if (
+    existing.startedAt !== null &&
+    patch.startedAt !== undefined &&
+    patch.startedAt !== existing.startedAt
+  )
+    throw new Error('The first read start cannot change.')
   const updated = { ...existing, ...patch }
+  if (['done', 'empty', 'rejected'].includes(updated.state) && updated.finishedAt === null)
+    updated.finishedAt = ctx.now()
   if (updated.state !== 'running' && updated.state !== 'refreshing') updated.runStartedAt = null
   // Updating columns rather than REPLACE preserves proposal foreign keys.
   run(
@@ -139,17 +149,20 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
     updated.runStartedAt,
     id,
   )
-  if (updated.state === 'done') {
-    run(
-      ctx,
-      "DELETE FROM jobs WHERE session_id=? AND state='done' AND id!=?",
-      updated.sessionId,
-      id,
-    )
+  if (['done', 'empty', 'rejected'].includes(updated.state)) {
+    pruneFinishedReads(ctx, updated.sessionId)
     pruneExtractions(ctx)
   }
   return updated
 }
+/** Finished jobs and their source records share the same per-lane cap, even with live memories. */
+function pruneFinishedReads(ctx: Context, sessionId: string): void {
+  const displaced = `SELECT id FROM jobs WHERE session_id=? AND state IN ('done','empty','rejected')
+    ORDER BY finished_at DESC, queued_at DESC, rowid DESC LIMIT -1 OFFSET 20`
+  run(ctx, `DELETE FROM extractions WHERE job_id IN (${displaced})`, sessionId)
+  run(ctx, `DELETE FROM jobs WHERE id IN (${displaced})`, sessionId)
+}
+
 export function removeJob(ctx: Context, id: string): void {
   run(ctx, 'DELETE FROM jobs WHERE id=?', id)
   pruneExtractions(ctx)
@@ -202,10 +215,13 @@ export function savePart(ctx: Context, jobId: string, value: JobPart): void {
       if (!job(ctx, jobId)) throw new Error('Brain job not found.')
       run(
         ctx,
-        'UPDATE jobs SET leaf_id=?,model=?,branch=? WHERE id=?',
+        'UPDATE jobs SET leaf_id=?,model=?,branch=?,from_leaf=? WHERE id=?',
         value.prepare.leafId,
         value.prepare.model,
         value.prepare.branch,
+        value.prepare.fromLeafId === undefined
+          ? job(ctx, jobId)!.fromLeafId
+          : value.prepare.fromLeafId,
         jobId,
       )
     } else if (value.prepare) throw new Error('Only prepare can freeze Brain job metadata.')

@@ -68,6 +68,10 @@
       "types": "./src/extraction-view.ts",
       "default": "./src/extraction-view.ts"
     },
+    "./incremental": {
+      "types": "./src/incremental.ts",
+      "default": "./src/incremental.ts"
+    },
     "./lane": {
       "types": "./src/lane.ts",
       "default": "./src/lane.ts"
@@ -75,6 +79,10 @@
     "./model-call": {
       "types": "./src/model-call.ts",
       "default": "./src/model-call.ts"
+    },
+    "./prepare-read": {
+      "types": "./src/prepare-read.ts",
+      "default": "./src/prepare-read.ts"
     },
     "./queue": {
       "types": "./src/queue.ts",

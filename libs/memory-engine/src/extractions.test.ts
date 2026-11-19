@@ -109,3 +109,27 @@ it('expires only orphaned referenced records at 30 days, and prunes unreferenced
   store.removeJob(next.id)
   expect(() => store.extraction(next.id)).toThrow('Brain extraction not found')
 })
+
+it('prunes a displaced twenty-first read record even when its memories remain', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  store.propose(extraction(job.id))
+  store.review(job.id, { memories: [0], identities: {}, groups: [], descriptions: [] }, 0)
+  store.saveExtraction({
+    ...job,
+    jobId: job.id,
+    thinking: 'low',
+    calls: [],
+    outcomes: [],
+    startedAt: 1,
+    finishedAt: 2,
+  })
+  const memory = store.extraction(job.id).memories[0]!.id
+  for (let i = 0; i < 20; i++) {
+    const next = store.enqueue(lane({ leafId: `later-${i}` }), 'queued')
+    store.updateJob(next.id, { state: 'done' })
+  }
+  expect(store.job(job.id)).toBeUndefined()
+  expect(store.memory(memory).memory.jobId).toBe(job.id)
+  expect(() => store.extraction(job.id)).toThrow('Brain extraction not found')
+})

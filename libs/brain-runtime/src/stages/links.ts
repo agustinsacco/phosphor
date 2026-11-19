@@ -23,7 +23,10 @@ export async function addLinks(
   const prompt = rebuildPrompt('links', { links: input }, source)
   const hash = inputHash(prompt),
     part = `links:${key}`
-  const saved = store.part(jobId, part, hash)
+  // A refresh reconsiders knowledge, never the already-validated source extraction.
+  const saved =
+    store.part(jobId, part, hash) ??
+    (store.job(jobId)?.state === 'refreshing' ? store.part(jobId, part) : undefined)
   const result = saved
     ? (JSON.parse(saved.output) as StageLinks)
     : await ask(

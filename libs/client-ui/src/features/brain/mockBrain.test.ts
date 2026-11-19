@@ -119,7 +119,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
   expect(rina.entity.aliases).toContain('Tom Lee')
   await expect(call('brain:entity', ['tom'])).rejects.toThrow('Entity not found')
   const before = (await call('brain:status', [])) as BrainStatus
-  await call('brain:setPrefs', [{ enabled: true, recall: true, review: false, model: null }])
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true, review: false }])
   now = 6000
   await call('brain:queue', [{ sessionPath: '/demo/Harbor/auto.jsonl', title: 'Harbor auto' }])
   await call('brain:status', [])
@@ -132,7 +132,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
 it('can extract and approve again after resetting every entity and memory', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ enabled: true, recall: true, review: true, model: null }])
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   now = 6000
   await call('brain:status', [])
   await call('brain:reset', [])
@@ -151,7 +151,7 @@ it('can extract and approve again after resetting every entity and memory', asyn
 it('requeues a stale proposal and returns it to review after recomputing', async () => {
   let now = 0
   const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ enabled: true, review: true, recall: true, model: null }])
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   now = 6000
   await call('brain:status', [])
   const id = 'harbor-demo-review'
@@ -313,4 +313,25 @@ it('orders recent memories by finished job and caps eligibility at the newest tw
 it('returns null for an absent mock Tidy suggestion', async () => {
   const call = createMockBrain()
   await expect(call('brain:tidySuggestion', ['missing'])).resolves.toBeNull()
+})
+
+it('enforces never-read argument bounds in the browser mock, too', async () => {
+  const call = createMockBrain()
+  expect(await call('brain:neverRead', ['harbor-lane', true])).toMatchObject({
+    prefs: { neverRead: { sessionIds: ['harbor-lane'] } },
+  })
+  expect(await call('brain:neverRead', ['harbor-lane', false])).toMatchObject({
+    prefs: { neverRead: { sessionIds: [] } },
+  })
+  for (const args of [
+    ['', true],
+    ['x'.repeat(201), true],
+    ['harbor', 1],
+  ])
+    await expect(call('brain:neverRead', args)).rejects.toThrow('Invalid Brain never-read lane.')
+  await expect(
+    call('brain:setPrefs', [
+      { ...DEFAULT_BRAIN_PREFS, neverRead: { titles: Array(51).fill('Harbor'), sessionIds: [] } },
+    ]),
+  ).rejects.toThrow('Invalid Brain never-read settings.')
 })

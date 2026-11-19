@@ -33,23 +33,36 @@ export function history(ctx: Context, limit: number): BrainHistory {
     throw new Error('Invalid Brain history limit.')
   const rows = finishedJobs(ctx, limit + 1)
   const page = rows.slice(0, limit)
-  const counts = new Map(
-    page.length
-      ? all<{ sessionId: string; memories: number; replaceable: number }>(
-          ctx,
-          `SELECT m.origin_session AS sessionId, COUNT(*) AS memories,
-      SUM(NOT ${independentlySupported}) AS replaceable FROM memories m
-      WHERE m.origin_session IN (${page.map(() => '?').join(',')}) GROUP BY m.origin_session`,
-          ...page.map((j) => j.sessionId),
-        ).map((row) => [row.sessionId, row])
-      : [],
-  )
+  const counts = page.length
+    ? all<{ sessionId: string; jobId: string | null; memories: number; replaceable: number }>(
+        ctx,
+        `SELECT m.origin_session AS sessionId, m.job_id AS jobId,
+        SUM(m.state IN ('active','disputed')) AS memories,
+        SUM(NOT ${independentlySupported}) AS replaceable FROM memories m
+        WHERE m.origin_session IN (${page.map(() => '?').join(',')}) GROUP BY m.origin_session, m.job_id`,
+        ...page.map((j) => j.sessionId),
+      )
+    : []
+  const byRead = new Map(counts.map((row) => [row.jobId, row.memories]))
+  const replaceable = new Map<string, number>()
+  for (const row of counts)
+    replaceable.set(row.sessionId, (replaceable.get(row.sessionId) ?? 0) + row.replaceable)
   return {
     items: page.map((job) => ({
       job,
-      memories: counts.get(job.sessionId)?.memories ?? 0,
-      replaceable: counts.get(job.sessionId)?.replaceable ?? 0,
+      memories: byRead.get(job.id) ?? 0,
+      replaceable: replaceable.get(job.sessionId) ?? 0,
     })),
     more: rows.length > limit,
   }
+}
+
+/** Bounded context for incremental extraction; reconciliation still searches all of Brain. */
+export function laneContext(ctx: Context, sessionId: string): string[] {
+  return all<{ summary: string }>(
+    ctx,
+    `SELECT summary FROM memories WHERE origin_session=? AND state IN ('active','disputed')
+     ORDER BY recorded_at DESC, n DESC LIMIT 60`,
+    sessionId,
+  ).map((row) => row.summary)
 }

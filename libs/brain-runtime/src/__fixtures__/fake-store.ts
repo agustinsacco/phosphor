@@ -11,7 +11,6 @@ import {
   type BrainMemoryDetail,
   type BrainPrefs,
   type BrainProposalView,
-  type BrainRecall,
   type BrainSnapshot,
   type BrainReviewDecision,
   type BrainEntityView,
@@ -28,9 +27,7 @@ import type {
   MemoryCard,
   MemoryMatch,
   ClaimProbe,
-  SearchInput,
 } from '@phosphor/memory-engine/types'
-import type { BrainSearchPort } from '../types'
 
 export class FakeBrainStore implements BrainStore {
   prefs: BrainPrefs = { ...DEFAULT_BRAIN_PREFS }
@@ -59,7 +56,7 @@ export class FakeBrainStore implements BrainStore {
         .filter((j) => ['done', 'empty', 'rejected'].includes(j.state))
         .map((j) => j.sessionId)
         .slice(-5000),
-      jobs: this.jobs.filter((j) => j.state !== 'done').map((j) => ({ ...j })),
+      jobs: this.jobs.filter((j) => !['done', 'rejected'].includes(j.state)).map((j) => ({ ...j })),
     }
   }
   revision(): number {
@@ -76,7 +73,7 @@ export class FakeBrainStore implements BrainStore {
       this.jobs.some(
         (j) =>
           j.sessionId === input.sessionId &&
-          ['waiting', 'queued', 'running', 'review'].includes(j.state),
+          ['waiting', 'queued', 'running', 'refreshing', 'review'].includes(j.state),
       )
     )
       throw new Error('This lane is already queued.')
@@ -90,7 +87,14 @@ export class FakeBrainStore implements BrainStore {
       queuedAt: this.next,
       startedAt: null,
       runStartedAt: null,
-      fromLeafId: null,
+      fromLeafId: input.replaces
+        ? null
+        : (this.jobs
+            .filter(
+              (j) =>
+                j.sessionId === input.sessionId && ['done', 'empty', 'rejected'].includes(j.state),
+            )
+            .at(-1)?.leafId ?? null),
       finishedAt: null,
       usage: null,
       progress: null,
@@ -100,7 +104,7 @@ export class FakeBrainStore implements BrainStore {
   }
   history(limit: number) {
     const rows = this.jobs
-      .filter((j) => j.state === 'done')
+      .filter((j) => ['done', 'empty', 'rejected'].includes(j.state))
       .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))
     return {
       items: rows.slice(0, limit).map((job) => ({
@@ -110,6 +114,12 @@ export class FakeBrainStore implements BrainStore {
       })),
       more: rows.length > limit,
     }
+  }
+  laneContext(sessionId: string): string[] {
+    return this.oldMemories
+      .filter((m) => m.origin?.sessionId === sessionId && m.state !== 'superseded')
+      .slice(-60)
+      .map((m) => m.summary)
   }
   laneMemories(sessionId: string, exceptJobId?: string) {
     const ids = this.oldMemories
@@ -241,7 +251,10 @@ export class FakeBrainStore implements BrainStore {
     if (revision !== this.knowledgeRevision())
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
     this.reviews.push({ id, decision })
-    this.updateJob(id, { state: 'done', memories: decision?.memories.length ?? 0 })
+    this.updateJob(id, {
+      state: decision ? 'done' : 'rejected',
+      memories: decision?.memories.length ?? 0,
+    })
     this.proposals.delete(id)
     this.rev++
   }
@@ -344,51 +357,7 @@ export class FakeBrainStore implements BrainStore {
     this.closed = true
   }
 }
-export class FakeBrainSearch implements BrainSearchPort {
-  searches: SearchInput[] = []
-  entityNeighbours: { id: string; score: number }[][] = []
-  memoryNeighbours: { id: string; score: number }[][] = []
-  refreshes = 0
-  closed = false
-  result: BrainRecall = {
-    status: 'no_match',
-    hits: [],
-    entities: [],
-    focus: [],
-    paths: [],
-    branch: null,
-    more: 0,
-    degradation: [],
-  }
-  async refresh() {
-    this.refreshes++
-  }
-  async ready() {
-    return true
-  }
-  async recall(input: SearchInput) {
-    this.searches.push(input)
-    return this.result
-  }
-  async entities() {
-    return { items: [], more: false, kinds: [], counts: {}, total: 0 }
-  }
-  async recent() {
-    return { items: [] }
-  }
-  async find() {
-    return { entities: [], memories: [], referenced: [], degradation: [] }
-  }
-  async nearestEntities(vectors: Float32Array[]) {
-    return vectors.map((_v, i) => this.entityNeighbours[i] ?? [])
-  }
-  async nearestMemories(vectors: Float32Array[]) {
-    return vectors.map((_v, i) => this.memoryNeighbours[i] ?? [])
-  }
-  async close() {
-    this.closed = true
-  }
-}
+export { FakeBrainSearch } from './fake-search'
 export const HARBOR_JOB: NewJob = {
   sessionId: 'harbor-lane',
   sessionPath: '/made-up/harbor.jsonl',

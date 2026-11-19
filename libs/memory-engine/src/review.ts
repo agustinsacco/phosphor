@@ -13,7 +13,7 @@ import {
 import { scrubExcerpt } from './secrets'
 import { applyMemory, activeMemoryNumber, insertCitations, type CommitContext } from './commit'
 import { linkOutcome, pruneExtractions } from './extractions'
-import { job, removeJob, updateJob } from './jobs'
+import { job, updateJob } from './jobs'
 import { laneMemories } from './history'
 import { removeMemory } from './merge'
 import { bumpKnowledgeRevision, knowledgeRevision } from './prefs'
@@ -150,10 +150,6 @@ export function review(
     )
       throw new Error('Brain changed while you were reviewing. Reopen the review.')
     const current = job(ctx, jobId)!
-    if (!decision && current.replaces) {
-      removeJob(ctx, jobId)
-      return
-    }
     if (decision) validateDecision(ctx, value, decision)
     if (decision) {
       const commit: CommitContext = {
@@ -203,7 +199,7 @@ export function review(
         bumpKnowledgeRevision(ctx)
     }
     updateJob(ctx, jobId, {
-      state: 'done',
+      state: decision ? 'done' : 'rejected',
       memories: decision?.memories.length ?? 0,
       finishedAt: ctx.now(),
     })

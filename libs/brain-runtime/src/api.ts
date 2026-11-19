@@ -4,6 +4,7 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   checkBrainReaderModel,
+  brainNeverReadReason,
   checkBrainNeverRead,
   setBrainLaneNeverRead,
   type BrainLaneRef,
@@ -53,6 +54,11 @@ async function enqueue(
     },
   )
   check()
+  const refusal = brainNeverReadReason(store.snapshot().prefs.neverRead, {
+    sessionId: lane.sessionId,
+    title: ref.title,
+  })
+  if (refusal) throw new Error(refusal)
   store.enqueue(
     {
       replaces,

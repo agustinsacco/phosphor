@@ -77,6 +77,7 @@ export interface IdentityResult {
 }
 
 export interface SegmentInput {
+  context?: boolean
   entryId: string
   index: number
   start: number
