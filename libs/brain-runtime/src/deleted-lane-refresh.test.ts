@@ -88,3 +88,26 @@ it('keeps the review if the transcript disappears after the queue checks it', as
   expect(s.store.storedProposal(s.job.id)).toBe(proposal)
   expect(s.runner).not.toHaveBeenCalled()
 })
+
+it('still reports an unrelated missing file as a failed refresh', async () => {
+  const s = await pipelineSetup()
+  cleanups.push(s.cleanup)
+  await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
+  s.store.rev++
+  s.runner.mockClear()
+  vi.spyOn(s.options.embeddings, 'embed').mockRejectedValue(
+    Object.assign(new Error('Missing embedding model file'), {
+      code: 'ENOENT',
+      path: '/made-up/model/config.json',
+    }),
+  )
+  const service = await createBrainService(s.options)
+  cleanups.push(() => service.dispose())
+  await vi.waitFor(() =>
+    expect(s.store.job(s.job.id)).toMatchObject({
+      state: 'failed',
+      error: 'Missing embedding model file',
+    }),
+  )
+  expect(s.runner).not.toHaveBeenCalled()
+})
