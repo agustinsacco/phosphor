@@ -59,6 +59,13 @@ it('adds no evidence for a held confirmation the owner did not tick', () => {
   expect(store.job(job.id)!.state).toBe('done')
 })
 
+it('leaves the knowledge revision alone when an approval applies nothing', () => {
+  const { store, job, revision } = heldConfirmation()
+  const knowledge = store.knowledgeRevision()
+  store.review(job.id, decide(), revision)
+  expect(store.knowledgeRevision()).toBe(knowledge)
+})
+
 it('adds the evidence of a held confirmation the owner ticked', () => {
   const { store, job, target, before, revision } = heldConfirmation()
   store.review(job.id, decide({ confirmations: [0] }), revision)
