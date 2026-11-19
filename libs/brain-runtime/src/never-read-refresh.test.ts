@@ -78,3 +78,23 @@ it('does not resurrect a review rejected while opening waits on the current lane
   expect(update.mock.calls.some(([, patch]) => patch.state === 'refreshing')).toBe(false)
   expect(s.runner).not.toHaveBeenCalled()
 })
+
+it.each(['retry', 'queued upgrade'] as const)(
+  'preserves a never-read proposal when its refresh is requeued through %s',
+  async (mode) => {
+    const s = await setup()
+    if (mode === 'retry') s.store.updateJob(s.id, { state: 'failed' })
+    await s.service.api.neverRead('harbor-lane', true)
+    s.store.rev++
+    if (mode === 'retry') await s.service.api.retry(s.id)
+    else {
+      s.store.updateJob(s.id, { state: 'queued' })
+      await s.service.api.setPrefs(s.store.prefs)
+    }
+    await vi.waitFor(() => expect(s.store.job(s.id)?.state).toBe('review'))
+    expect(s.store.storedProposal(s.id)).toBeDefined()
+    expect(s.runner).not.toHaveBeenCalled()
+    await expect(s.service.api.review(s.id, null, 0)).resolves.toMatchObject({ jobs: [] })
+    expect(s.store.job(s.id)?.state).toBe('rejected')
+  },
+)
