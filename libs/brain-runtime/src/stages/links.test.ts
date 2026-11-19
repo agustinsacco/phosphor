@@ -230,3 +230,26 @@ it('builds the excerpt around the quoted words, never around the same words insi
   expect(prompt).toContain(`[s1]  Kestrel said 9000 chars omitted. ${quote}`)
   expect(prompt).not.toContain('Old notes.')
 })
+
+it('reuses an old-hash parsed links part during refresh without re-reading its source excerpts', async () => {
+  const s = await extract()
+  for (const [key, part] of [...s.store.parts]) {
+    if (part.part !== 'links:w1') continue
+    s.store.parts.delete(key)
+    s.store.savePart(s.job.id, { ...part, inputHash: 'old-link-rules' })
+  }
+  s.store.updateJob(s.job.id, { state: 'refreshing' })
+  const ask = trackAsk(async (_stage, _part, _prompt, validate) =>
+    validate(JSON.stringify({ links: [] })),
+  )
+  const parts = await extractWindows(
+    s.job.id,
+    [makeWindow(s.source)],
+    s.store,
+    ask.ask,
+    () => {},
+    s.source,
+  )
+  expect(ask.spy).not.toHaveBeenCalled()
+  expect(parts[0]!.extraction.claims[0]!.links).toMatchObject([{ predicate: 'owns' }])
+})

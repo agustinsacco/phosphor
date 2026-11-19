@@ -1,4 +1,4 @@
-import type { BrainJob } from '@phosphor/shared/brain'
+import { brainLaneNeverRead, type BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 
 export interface QueueOptions {
@@ -125,8 +125,15 @@ export class ExtractionQueue {
   private updateWaiting(): boolean {
     const { store, busy, changed } = this.options
     let waiting = false
-    for (const job of store.snapshot().jobs) {
+    const { prefs, jobs } = store.snapshot()
+    for (const job of jobs) {
       if (job.state !== 'waiting' && job.state !== 'queued') continue
+      if (brainLaneNeverRead(prefs.neverRead, job)) {
+        store.removeJob(job.id)
+        this.options.cancelled?.(job)
+        changed()
+        continue
+      }
       const isBusy = busy(job.sessionPath)
       waiting ||= isBusy
       const state = isBusy ? 'waiting' : 'queued'

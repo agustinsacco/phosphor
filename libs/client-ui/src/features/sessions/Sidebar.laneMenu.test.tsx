@@ -298,3 +298,43 @@ it('Rename… on a This Mac lane opens the inline rename, as a double-click does
   const input = container.querySelector<HTMLInputElement>('input[aria-label="Session name"]')
   expect(input?.value).toBe('Lane 2')
 })
+
+it.each([
+  { rule: true, id: false },
+  { rule: false, id: true },
+  { rule: false, id: false },
+  { rule: true, id: true },
+])('never promises to override a title rule: %j', async ({ rule, id }) => {
+  const status = mockBrainStatus()
+  status.prefs.enabled = true
+  status.prefs.neverRead = { titles: rule ? ['Lane 2'] : [], sessionIds: id ? ['s2'] : [] }
+  status.readSessionIds = ['s2']
+  useBrain.setState({ status })
+  const rows = await menuFor('Lane 2')
+  if (rule) {
+    const label = 'Brain never reads this lane (title rule in Settings › Brain)'
+    expect(rows).toContain(label)
+    const button = [
+      ...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button'),
+    ].find((b) => b.textContent === label)!
+    expect(button.disabled).toBe(true)
+    expect(rows).not.toContain('Let Brain read this lane')
+    expect(rows).not.toContain('Never let Brain read this lane')
+    expect(rows).not.toContain('Read new messages for Brain')
+  } else {
+    const label = id ? 'Let Brain read this lane' : 'Never let Brain read this lane'
+    expect(rows).toContain(label)
+    expect(rows.includes('Read new messages for Brain')).toBe(!id)
+    const normal = invoke.getMockImplementation()!
+    invoke.mockImplementation((channel: string, ...args: unknown[]) =>
+      channel.startsWith('brain:') ? Promise.resolve(status) : normal(channel, ...args),
+    )
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button')]
+        .find((b) => b.textContent === label)!
+        .click(),
+    )
+    expect(invoke).toHaveBeenCalledWith('brain:neverRead', 's2', !id)
+  }
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:history')).toEqual([])
+})

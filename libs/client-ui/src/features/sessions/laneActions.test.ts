@@ -174,3 +174,16 @@ describe('the Pull requests submenu', () => {
     expect(laneActions(ctx(), handlers()).some((i) => i.label === 'Pull requests')).toBe(false)
   })
 })
+
+it('names the bounded read-before action without changing the first-read or cancel text', () => {
+  const knowledge = vi.fn()
+  expect(rows(laneActions(ctx({ knowledge: 'new' }), { knowledge }))).toEqual([
+    'Read new messages for Brain',
+  ])
+  expect(rows(laneActions(ctx({ knowledge: 'queue' }), { knowledge }))).toEqual([
+    'Queue for knowledge extraction',
+  ])
+  expect(rows(laneActions(ctx({ knowledge: 'cancel' }), { knowledge }))).toEqual([
+    'Cancel knowledge extraction',
+  ])
+})

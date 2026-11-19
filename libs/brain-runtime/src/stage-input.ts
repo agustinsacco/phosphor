@@ -14,13 +14,19 @@ export function segmentInputs(
     const index = source.findIndex(
       (v) =>
         v.entryId === s.entryId &&
-        v.role === s.role &&
+        (v.role === s.role || s.role === 'context') &&
         v.label === s.label &&
         v.text.includes(s.text),
     )
     if (index < 0) throw new Error('Source segment missing')
     const start = source[index]!.text.indexOf(s.text)
-    return { entryId: s.entryId, index, start, end: start + s.text.length }
+    return {
+      entryId: s.entryId,
+      index,
+      start,
+      end: start + s.text.length,
+      ...(s.role === 'context' ? { context: true } : {}),
+    }
   })
 }
 export function rebuildPrompt(
@@ -63,5 +69,9 @@ function sourceSegment(s: SegmentInput, source: TranscriptSegment[]): Transcript
     s.end > segment.text.length
   )
     throw new Error('Source segment unavailable')
-  return { ...segment, text: segment.text.slice(s.start, s.end) }
+  return {
+    ...segment,
+    role: s.context ? 'context' : segment.role,
+    text: segment.text.slice(s.start, s.end),
+  }
 }

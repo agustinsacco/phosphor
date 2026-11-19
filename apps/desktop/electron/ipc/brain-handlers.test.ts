@@ -281,3 +281,17 @@ it('forwards an individual lane exclusion and bounds the title settings', async 
     )
   }
 })
+
+it('refuses invalid individual lane switches before resolving the service', async () => {
+  api.neverRead.mockClear()
+  for (const [sessionId, never] of [
+    ['', true],
+    [' ', true],
+    ['x'.repeat(201), true],
+    ['harbor', 1],
+  ])
+    await expect(call('brain:neverRead', sessionId, never)).rejects.toThrow(
+      'Invalid Brain never-read lane.',
+    )
+  expect(api.neverRead).not.toHaveBeenCalled()
+})

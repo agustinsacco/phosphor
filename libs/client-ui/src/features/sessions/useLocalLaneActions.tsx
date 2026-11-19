@@ -1,6 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
-import { useBrain } from '@/features/brain/useBrain'
-import { usePlatform } from '@/platform/Platform'
+import { useLaneBrainActions } from './useLaneBrainActions'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
@@ -81,13 +80,8 @@ export function useLocalLaneActions(lane: LocalLane): LaneActions {
   const markers = useLanePrefsStore((s) => s.lanes.markers)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   const [pickingMarker, setPickingMarker] = useState(false)
-  const brain = useBrain((s) => s.status)
-  const localBrain = usePlatform().localBrain
-  const job = brain?.jobs.find(
-    (j) => j.sessionPath === meta.path && ['waiting', 'queued', 'running'].includes(j.state),
-  )
-  const context = localContext(lane, markers, bulkDeleteRunning)
-  if (localBrain && brain?.prefs.enabled && meta.path) context.knowledge = job ? 'cancel' : 'queue'
+  const brain = useLaneBrainActions(meta, title)
+  const context = { ...localContext(lane, markers, bulkDeleteRunning), ...brain.context }
   const store = () => useSessionsStore.getState()
   const items = (): ContextMenuItem[] =>
     laneActions(
@@ -96,10 +90,7 @@ export function useLocalLaneActions(lane: LocalLane): LaneActions {
         open: () => openSidebarConversation(workspacePath, meta),
         rename: onRename,
         tree: onOpenTree,
-        knowledge: () => {
-          if (job) void useBrain.getState().cancel(job.id)
-          else void useBrain.getState().queue({ sessionPath: meta.path, title })
-        },
+        ...brain.handlers,
         completion: () => void changeCompletion(workspacePath, meta),
         restoreWorktree: () => openRestoreWorktree(workspacePath, meta),
         makeRoutine: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),

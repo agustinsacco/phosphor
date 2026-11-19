@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, fixture, lane } from './test-support'
+import { approve, extraction, fixture, lane, vector } from './test-support'
 
 it('returns newest finished reads, bounded with more, and counts surviving lane memories', () => {
   const { store } = fixture()
@@ -43,11 +43,12 @@ it('uses indexed reads and one grouped count for the history page', () => {
   store.history(20)
   store.laneMemories('harbor-lane')
   const historySql = statements.find(
-    (sql) => sql.includes("WHERE state='done'") && sql.includes('finished_at'),
+    (sql) =>
+      sql.includes("WHERE state IN ('done','empty','rejected')") && sql.includes('finished_at'),
   )!
   const countSql = statements.find((sql) => sql.includes('GROUP BY m.origin_session'))!
   const laneSql = statements.find((sql) => sql.includes('WHERE m.origin_session=?'))!
-  expect(statements.filter((sql) => sql.includes('COUNT(*)'))).toHaveLength(1)
+  expect(statements.filter((sql) => sql.includes('GROUP BY m.origin_session'))).toHaveLength(1)
   const plan = (sql: string, args: (string | number | null)[]) =>
     JSON.stringify(prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...args))
   expect(plan(historySql, [21])).toContain('jobs_finished')
@@ -55,4 +56,50 @@ it('uses indexed reads and one grouped count for the history page', () => {
   expect(plan(laneSql, ['harbor-lane', null, null])).toContain('memories_origin')
   expect(plan(historySql, [21])).not.toMatch(/SCAN jobs/)
   expect(plan(countSql, ['harbor-lane'])).not.toMatch(/SCAN m\b/)
+})
+
+it('counts current memories by read while every row keeps the lane-wide replacement count', () => {
+  const { store, db } = fixture()
+  approve(store)
+  const first = store.history(1).items[0]!.job.id
+  const data = extraction('')
+  approve(store, {
+    jobId: 'second-leaf',
+    memories: data.memories.slice(0, 1),
+    memoryVectors: [vector()],
+  })
+  const second = store.history(1).items[0]!.job.id
+  expect(
+    store.history(20).items.map(({ memories, replaceable }) => [memories, replaceable]),
+  ).toEqual([
+    [1, 3],
+    [2, 3],
+  ])
+  const rejected = store.enqueue(lane({ leafId: 'rejected-leaf' }), 'queued')
+  store.propose(extraction(rejected.id, { computedRevision: store.knowledgeRevision() }))
+  store.review(rejected.id, null, store.proposal(rejected.id).revision)
+  expect(store.history(1).items[0]).toMatchObject({
+    job: { state: 'rejected' },
+    memories: 0,
+    replaceable: 3,
+  })
+  const next = store.enqueue(lane({ replaces: second }), 'queued')
+  store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
+  store.review(
+    next.id,
+    { memories: [0], identities: {}, groups: [], descriptions: [] },
+    store.proposal(next.id).revision,
+  )
+  expect(
+    store
+      .history(20)
+      .items.map(({ job, memories, replaceable }) => [job.id, memories, replaceable]),
+  ).toEqual([
+    [next.id, 1, 1],
+    [rejected.id, 0, 1],
+    [second, 0, 1],
+    [first, 0, 1],
+  ])
+  db.prepare("UPDATE memories SET state='superseded' WHERE job_id=?").run(next.id)
+  expect(store.history(1).items[0]?.memories).toBe(0)
 })

@@ -1,8 +1,10 @@
 import type { BrainJob, BrainJobStage } from '@phosphor/shared/brain'
 import type { BrainStore, Proposal, ProposalEntity } from '@phosphor/memory-engine/types'
 import type { BrainServiceOptions, BrainSearchPort } from './types'
-import { readLane, type LaneMeta } from './lane'
-import { readEntries, transcriptSegments, transcriptAtLeaf } from './transcript'
+import type { LaneMeta } from './lane'
+import { prepareRead } from './prepare-read'
+import { incrementalSegments, withoutOverlapClaims } from './incremental'
+import { readEntries } from './transcript'
 import { transcriptWindows } from './windows'
 import { callThinking } from './call-trace'
 import { ExtractionRecord } from './extraction-record'
@@ -16,18 +18,6 @@ import { applyClaimBudget } from './stages/budget'
 import type { StageAsk } from './stage-types'
 import { EMBEDDING_MAX_TEXTS } from './embedding/model-manifest'
 
-async function frozenLane(job: BrainJob, store: BrainStore): Promise<LaneMeta> {
-  const saved = store.part(job.id, 'prepare', 'frozen-v4')
-  if (saved) return JSON.parse(saved.output) as LaneMeta
-  const lane = await readLane(job.sessionPath, store.snapshot().prefs.model)
-  store.savePart(job.id, {
-    part: 'prepare',
-    inputHash: 'frozen-v4',
-    output: JSON.stringify(lane),
-    prepare: { leafId: lane.leafId, model: lane.model, branch: lane.branch },
-  })
-  return lane
-}
 export async function extractJob(
   job: BrainJob,
   signal: AbortSignal,
@@ -43,19 +33,21 @@ export async function extractJob(
   }
   try {
     progress('prepare', 0, 1)
-    const lane = await frozenLane(job, store)
+    const lane = await prepareRead(job, store)
     record = new ExtractionRecord(
       { ...job, leafId: lane.leafId, model: lane.model, branch: lane.branch },
       store,
       options.now ?? Date.now,
       callThinking(lane.thinking),
     )
-    const segments = transcriptSegments(
-      transcriptAtLeaf(await readEntries(job.sessionPath), lane.leafId),
+    const { source, selected } = incrementalSegments(
+      await readEntries(job.sessionPath),
+      lane.leafId,
+      lane.fromLeafId ?? null,
     )
     progress('prepare', 1, 1)
     const ask = await stageCaller({ job, lane, store, options, signal, record })
-    const windows = transcriptWindows(segments)
+    const windows = selected.some((s) => s.role !== 'context') ? transcriptWindows(selected) : []
     progress('extract', 0, windows.length)
     const parts = await extractWindows(
       job.id,
@@ -63,9 +55,23 @@ export async function extractJob(
       store,
       ask,
       (done, total) => progress('extract', done, total),
-      segments,
+      source,
+      lane.alreadyKept ?? [],
     )
-    const folded = foldParts(parts, lane.sessionId)
+    const folded = foldParts(parts.map(withoutOverlapClaims), lane.sessionId)
+    if (lane.branched)
+      folded.outcomes.unshift({
+        candidate: 'read:branch',
+        summary: 'Lane branched since its previous read',
+        status: 'dropped',
+        reason: lane.fromLeafId
+          ? `Reading new messages after common ancestor ${lane.fromLeafId}`
+          : 'No shared ancestor remains; reading from the beginning',
+      })
+    if (job.fromLeafId !== null) {
+      const mentioned = new Set(folded.claims.flatMap((c) => c.memory.entities))
+      folded.entities = folded.entities.filter((e) => mentioned.has(e.ref))
+    }
     recordClaims(record, folded)
     await finishExtraction(
       { job, lane, store, options, signal, search, record, progress, ask },
