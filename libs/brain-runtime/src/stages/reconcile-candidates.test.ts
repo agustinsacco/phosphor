@@ -319,3 +319,84 @@ it('regression: a shared link counts only with the same predicate, so uses links
   expect(offered[0]).toContain(ids.get(paraphrase))
   expect(offered[0]![0]).toBe(ids.get(paraphrase))
 })
+
+it('regression: five earlier uses claims of the same read cannot push out a close depends_on paraphrase', async () => {
+  const { store } = fixture()
+  const base = extraction('')
+  const harbor = base.entities[0]!
+  const ledger = { ...harbor, ref: 'ledger', label: 'Ledger', aliases: [] }
+  const paraphrase = 'Harbor cannot start without Ledger.'
+  approve(store, {
+    entities: [harbor, ledger],
+    entityVectors: [vector(0, 0, 1), vector(0, 0, 1)],
+    memories: [
+      { ...base.memories[0]!, summary: paraphrase, entities: ['harbor', 'ledger'], links: [] },
+    ],
+    memoryVectors: [vector(1, 0.1)],
+  })
+  const nodes = store.overview(300).nodes
+  const id = (label: string) => nodes.find((n) => n.label === label)!.id
+  const stored = store.entityMemories(id('Harbor'), {}, null).memories[0]!.id
+  const link = (predicate: 'uses' | 'depends_on', quote: string) => ({
+    subject: id('Harbor'),
+    predicate,
+    object: id('Ledger'),
+    citation: { evidence: 0, quote },
+  })
+  const summaries = [
+    ...['exports', 'refunds', 'invoices', 'audits', 'retries'].map(
+      (topic) => `Harbor uses Ledger for ${topic}.`,
+    ),
+    'Harbor needs Ledger running before it starts.',
+  ]
+  const job: FoldedJob = {
+    entities: [],
+    claims: summaries.map((summary, i) => ({
+      ref: `c${i + 1}`,
+      memory: {
+        ...base.memories[0]!,
+        summary,
+        entities: [id('Harbor'), id('Ledger')],
+        links: [link(i < 5 ? 'uses' : 'depends_on', summary)],
+      },
+    })),
+    parents: [],
+    evidence: [],
+    outcomes: [],
+  }
+  const search = new FakeBrainSearch()
+  search.memoryNeighbours = summaries.map((_, i) => (i < 5 ? [] : [{ id: stored, score: 0.95 }]))
+  const offered = new Map<string, string[]>()
+  const ask: StageAsk = async (_s, _p, prompt, validate) => {
+    const rows = JSON.parse(prompt.slice(prompt.indexOf('\n') + 1)) as {
+      claim: { ref: string }
+      candidates: { id: string }[]
+    }[]
+    for (const row of rows)
+      offered.set(
+        row.claim.ref,
+        row.candidates.map((c) => c.id),
+      )
+    return validate(
+      JSON.stringify({
+        decisions: rows.map((r) => ({
+          ref: r.claim.ref,
+          action: 'add',
+          target: null,
+          reason: 'New',
+        })),
+      }),
+    )
+  }
+  await reconcile(
+    job,
+    [],
+    store,
+    search,
+    summaries.map((_, i) => (i < 5 ? vector(0, 1, i + 1) : vector(1))),
+    ask,
+  )
+  expect(offered.get('c6')).toHaveLength(5)
+  expect(offered.get('c6')).toContain(stored)
+  expect(offered.get('c6')![0]).toBe(stored)
+})
