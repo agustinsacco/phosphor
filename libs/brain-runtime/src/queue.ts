@@ -297,12 +297,21 @@ export class ExtractionQueue {
       await this.options.run(job, abort.signal)
     } catch (error) {
       if (!abort.signal.aborted && this.options.store.job(job.id)) {
-        this.options.store.updateJob(job.id, {
-          state: 'failed',
-          finishedAt: this.options.now(),
-          error:
-            error instanceof Error ? error.message.slice(0, 300) : 'Knowledge extraction failed.',
-        })
+        const missing = error as NodeJS.ErrnoException | null
+        // The lane can disappear after preflight, before the runner opens its archived twin.
+        if (
+          missing?.code === 'ENOENT' &&
+          missing.path === `${job.sessionPath}.archived` &&
+          this.options.store.storedProposal(job.id)
+        )
+          this.exclude(job)
+        else
+          this.options.store.updateJob(job.id, {
+            state: 'failed',
+            finishedAt: this.options.now(),
+            error:
+              error instanceof Error ? error.message.slice(0, 300) : 'Knowledge extraction failed.',
+          })
       }
     } finally {
       this.active = undefined

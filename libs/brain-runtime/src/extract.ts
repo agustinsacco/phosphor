@@ -4,7 +4,7 @@ import type { BrainServiceOptions, BrainSearchPort } from './types'
 import type { LaneMeta } from './lane'
 import { prepareRead } from './prepare-read'
 import { incrementalSegments, withoutOverlapClaims } from './incremental'
-import { readEntries } from './transcript'
+import { readLaneEntries } from './transcript'
 import { transcriptWindows } from './windows'
 import { callThinking } from './call-trace'
 import { ExtractionRecord } from './extraction-record'
@@ -41,7 +41,7 @@ export async function extractJob(
       callThinking(lane.thinking),
     )
     const { source, selected } = incrementalSegments(
-      await readEntries(job.sessionPath),
+      await readLaneEntries(job.sessionPath),
       lane.leafId,
       lane.fromLeafId ?? null,
     )
