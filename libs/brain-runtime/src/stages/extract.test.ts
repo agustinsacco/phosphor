@@ -206,3 +206,46 @@ it("supplies a prior read's already-kept summaries to the first part", async () 
   ])
   expect(ask.spy).toHaveBeenCalledOnce()
 })
+
+it.each(['refreshing', 'running'] as const)(
+  'uses an old-hash parsed window only during %s, never a new read',
+  async (state) => {
+    const store = new FakeBrainStore(),
+      job = store.enqueue(HARBOR_JOB, 'queued')
+    store.updateJob(job.id, { state })
+    const source = [
+      {
+        entryId: 'new',
+        role: 'user' as const,
+        label: 'You',
+        observedAt: 0,
+        text: 'Harbor bills monthly.',
+      },
+    ]
+    store.savePart(job.id, {
+      part: 'w1',
+      inputHash: 'old-extractor-prompt',
+      output: JSON.stringify(empty),
+    })
+    const ask = trackAsk(async (_s, _p, _prompt, validate) => validate(JSON.stringify(empty)))
+    await extractWindows(job.id, [makeWindow(source)], store, ask.ask, () => {}, source)
+    expect(ask.spy).toHaveBeenCalledTimes(state === 'refreshing' ? 0 : 1)
+  },
+)
+it('extracts a missing saved window normally during refresh', async () => {
+  const store = new FakeBrainStore(),
+    job = store.enqueue(HARBOR_JOB, 'queued')
+  store.updateJob(job.id, { state: 'refreshing' })
+  const source = [
+    {
+      entryId: 'new',
+      role: 'user' as const,
+      label: 'You',
+      observedAt: 0,
+      text: 'Harbor bills monthly.',
+    },
+  ]
+  const ask = trackAsk(async (_s, _p, _prompt, validate) => validate(JSON.stringify(empty)))
+  await extractWindows(job.id, [makeWindow(source)], store, ask.ask, () => {}, source)
+  expect(ask.spy).toHaveBeenCalledOnce()
+})
