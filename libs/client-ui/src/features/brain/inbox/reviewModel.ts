@@ -6,6 +6,7 @@ import type {
   BrainProposedMemory,
   BrainReviewDecision,
 } from '@shared/brain'
+import { BRAIN_REVIEW_CHANGED, BRAIN_REVIEW_REFRESHING } from '@shared/brain-review'
 import { formatCount } from '@/lib/format'
 import { MEMORY_LABELS } from '../memoryLabels'
 
@@ -34,6 +35,14 @@ export interface ReviewChoices {
   descriptions: string[]
   /** Held confirmation indexes the owner ticked; the others apply without a tick. */
   confirmations: number[]
+}
+
+/**
+ * Only these two exact refusals mean the review is being recomputed and must be loaded again.
+ * Every other one (a never-read lane, a deleted lane) stays in the action bar, form intact.
+ */
+export function reloadsReview(message: string): boolean {
+  return message === BRAIN_REVIEW_REFRESHING || message === BRAIN_REVIEW_CHANGED
 }
 
 /** Claims Brain holds back until the owner ticks them. */

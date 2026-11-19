@@ -396,6 +396,10 @@ in one line.
 - A review of a lane the never-read rule matches (its title or its own switch, checked by
   `brainLaneNeverRead`) starts with “You set Brain to never read this lane. Reject to discard
   this read.” **Reject read** becomes the primary button and `a` rejects.
+- A refusal shows in the action bar beside **Reject read**, and the ticks and answers stay. The
+  review reloads only on the two exact refusals that mean it is being recomputed
+  (`BRAIN_REVIEW_REFRESHING`, `BRAIN_REVIEW_CHANGED` in `@phosphor/shared/brain-review`); a
+  stale review that cannot refresh (a never-read or deleted lane) keeps its refusal in place.
 
 **Approve** stores the ticked memories, the identity choices and confirmed groups in one
 transaction; **Reject** stores nothing. A held claim is saved only when ticked, and a held

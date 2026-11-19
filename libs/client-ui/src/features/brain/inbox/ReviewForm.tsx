@@ -13,6 +13,7 @@ import {
   approveLabel,
   checklistTotal,
   initialChoices,
+  reloadsReview,
   reviewDecision,
   tickCount,
   type ReviewChoices,
@@ -114,7 +115,7 @@ function useReviewSubmit(
     else {
       const message = useBrain.getState().error
       setError(message)
-      if (message.startsWith('Brain changed')) await onStale()
+      if (reloadsReview(message)) await onStale()
     }
   }
   return {

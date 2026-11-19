@@ -7,6 +7,7 @@ import { useBrainResource } from '../useBrainResource'
 import { BrainExtraction } from '../BrainExtraction'
 import { DecisionFrame, type DecisionKeys } from './DecisionFrame'
 import { ReviewForm } from './ReviewForm'
+import { reloadsReview } from './reviewModel'
 
 /** One lane read waiting for review: load its proposal and keep it honest while Brain changes. */
 export function ReviewDecision({
@@ -27,7 +28,7 @@ export function ReviewDecision({
     try {
       return await window.phosphor.invoke('brain:proposal', job.id)
     } catch (cause) {
-      if (ipcErrorText(cause).startsWith('Brain changed')) {
+      if (reloadsReview(ipcErrorText(cause))) {
         setStale(true)
         await useBrain.getState().refresh()
       }
