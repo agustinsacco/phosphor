@@ -203,6 +203,7 @@ it('asks again when no answer to the prompt was ever accepted', async () => {
 
 it('reuses old revision-prefixed decision parts by their prompt name', async () => {
   const s = await setup()
+  s.runner.mockResolvedValue({ text: 'new answer', usage: { tokens: 0, cost: 0 } })
   const hash = inputHash('Harbor candidates')
   s.store.savePart(s.job.id, {
     part: `answer:identity:${hash}`,
@@ -215,6 +216,7 @@ it('reuses old revision-prefixed decision parts by their prompt name', async () 
 })
 it('re-asks only the prompt whose candidate facts changed', async () => {
   const s = await setup()
+  s.runner.mockResolvedValue({ text: 'answer', usage: { tokens: 0, cost: 0 } })
   await s.ask('reconcile', 1, 'Harbor: candidate M1 summary monthly', (a) => a)
   await s.ask('reconcile', 2, 'Ledger: candidate M2 summary daily', (a) => a)
   s.runner.mockClear()
