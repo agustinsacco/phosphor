@@ -205,7 +205,7 @@ it('says what a finished read kept and offers each way to read the lane again', 
   const detail = section('Read detail')
   expect(detail.textContent).toContain('took less than a minute')
   expect([...detail.querySelectorAll('dd')].map((dd) => dd.textContent)).toHaveLength(3)
-  expect(detail.textContent).toContain('Covered the whole lane.')
+  expect(detail.textContent).toContain('Covered: Whole lane')
   await click('Read new messages', detail)
   expect(queue).toHaveBeenCalledWith({ sessionPath: finished.sessionPath, title: finished.title })
   await click('Read again', detail)
@@ -258,4 +258,47 @@ it('moves on when the open read is cancelled', async () => {
   await click('Cancel', section('Lane detail'))
   await act(async () => useBrain.setState({ status: { ...status, jobs: [] } }))
   expect(selection).toEqual({ type: 'job', id: 'harbor-read' })
+})
+
+it('says a rejected read saved nothing, and offers none of its memories', async () => {
+  const rejected = mockBrainJob({ id: 'rejected', state: 'rejected', finishedAt: NOW - 60_000 })
+  extraction.mockResolvedValue({ ...mockExtractionView(), job: rejected, jobId: 'rejected' })
+  await render([rejected], { type: 'job', id: 'rejected' })
+  expect(section('Read').textContent).toContain('Rejected')
+  const detail = section('Read detail')
+  expect(detail.textContent).toContain('Rejected · nothing was saved')
+  expect(detail.querySelectorAll('dd')).toHaveLength(0)
+  expect(detail.textContent).not.toContain('See these memories')
+  expect(button('Read again', detail)).toBeUndefined()
+})
+
+it('times a resumed read from its current attempt', async () => {
+  await render([
+    mockBrainJob({
+      state: 'running',
+      startedAt: NOW - 5 * 3_600_000,
+      runStartedAt: NOW - 3 * 60_000,
+      progress: null,
+    }),
+  ])
+  expect(section('Reading').textContent).toContain('Reading · 3 min')
+  expect(section('Lane detail').textContent).toContain('Reading for 3 min')
+  expect(section('Lane detail').textContent).not.toContain('5 h')
+})
+
+it('shows a refreshing review apart, with honest time and no Cancel', async () => {
+  await render([
+    mockBrainJob({
+      id: 'refreshing',
+      state: 'refreshing',
+      startedAt: NOW - 5 * 3_600_000,
+      runStartedAt: NOW - 2 * 60_000,
+    }),
+  ])
+  expect(section('Refreshing')).not.toBeNull()
+  expect(section('Refreshing').textContent).toContain('Refreshing for 2 min')
+  const detail = section('Lane detail')
+  expect(detail.textContent).toContain('Refreshing for 2 min')
+  expect(detail.textContent).toContain('Brain changed since this lane was read')
+  expect(button('Cancel', detail)).toBeUndefined()
 })

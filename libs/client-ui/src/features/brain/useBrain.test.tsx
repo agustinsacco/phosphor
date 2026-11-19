@@ -74,9 +74,9 @@ it('classifies download, verification, testing and all queued job states as in f
   expect(brainInFlight(null)).toBe(false)
   for (const phase of ['downloading', 'verifying', 'testing'] as const)
     expect(brainInFlight({ ...status, embedding: { ...status.embedding, phase } })).toBe(true)
-  for (const state of ['waiting', 'queued', 'running'] as const)
+  for (const state of ['waiting', 'queued', 'running', 'refreshing'] as const)
     expect(brainInFlight({ ...status, jobs: [mockBrainJob({ state })] })).toBe(true)
-  for (const state of ['review', 'empty', 'failed', 'done'] as const)
+  for (const state of ['review', 'empty', 'failed', 'done', 'rejected'] as const)
     expect(brainInFlight({ ...status, jobs: [mockBrainJob({ state })] })).toBe(false)
 })
 

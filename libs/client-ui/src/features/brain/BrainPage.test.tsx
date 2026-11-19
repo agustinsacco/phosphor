@@ -197,6 +197,18 @@ it('shows a thin status line only while Brain reads or checks, with a way to Lan
   expect(selectedTab()).toBe('brain-tab-lanes')
 })
 
+it('names the review Brain refreshes in the status line, only while the refresh runs', async () => {
+  const refreshing = mockBrainJob({ title: 'Kestrel rollout', state: 'refreshing' })
+  patchStatus = (status) => ({ ...status, jobs: [{ ...refreshing, runStartedAt: null }] })
+  await render()
+  expect(container.textContent).not.toContain('Refreshing the review of')
+  patchStatus = (status) => ({ ...status, jobs: [{ ...refreshing, runStartedAt: 10000 }] })
+  await act(async () => useBrain.getState().refresh())
+  expect(container.querySelector('[role="status"]')?.textContent).toContain(
+    'Refreshing the review of Kestrel rollout',
+  )
+})
+
 it('routes a notice to the Inbox, and an automatic change to Lanes › Recent changes', async () => {
   await mock('brain:tidy', [null, null, 20])
   await mock('brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0])

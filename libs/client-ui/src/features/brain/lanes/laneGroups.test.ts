@@ -121,3 +121,54 @@ it('keeps a selection that exists or was asked for by id, else the first read', 
   ).toEqual({ type: 'job', id: 'running' })
   expect(keepLaneSelection(null, [], [])).toBeNull()
 })
+
+it('groups a refreshing review apart and a rejected read with the finished ones', () => {
+  const jobs = [
+    mockBrainJob({ id: 'review', state: 'review' }),
+    mockBrainJob({ id: 'refreshing', state: 'refreshing' }),
+    mockBrainJob({ id: 'running', state: 'running' }),
+    mockBrainJob({ id: 'rejected', state: 'rejected', finishedAt: 9 }),
+  ]
+  const done = mockBrainJob({ id: 'done', state: 'done', finishedAt: 5 })
+  const groups = laneGroups(jobs, {
+    items: [{ job: done, memories: 4, replaceable: 4 }],
+    more: false,
+  })
+  expect(groups.map((group) => [group.label, group.rows.map((row) => row.job.id)])).toEqual([
+    ['Reading', ['running']],
+    ['Refreshing', ['refreshing']],
+    ['Read', ['rejected', 'done']],
+  ])
+  const rejected = groups.at(-1)!.rows[0]!
+  expect(readLine(rejected, 10)).toBe('Rejected')
+  expect(laneLine(rejected.job, 10, 0)).toBe('Rejected')
+})
+
+it('times the current attempt, never the first start of a resumed or refreshed read', () => {
+  const now = 10 * 60 * MIN
+  const resumed = mockBrainJob({
+    state: 'running',
+    startedAt: now - 5 * 60 * MIN,
+    runStartedAt: now - 3 * MIN,
+    progress: null,
+  })
+  expect(laneLine(resumed, now, 0)).toBe('Reading · 3 min')
+  const refreshing = mockBrainJob({
+    state: 'refreshing',
+    startedAt: now - 5 * 60 * MIN,
+    runStartedAt: now - 2 * MIN,
+  })
+  expect(laneLine(refreshing, now, 0)).toBe('Refreshing for 2 min')
+  expect(laneLine({ ...refreshing, runStartedAt: null }, now, 0)).toBe('Waits to refresh')
+  expect(laneLine({ ...resumed, runStartedAt: now + MIN }, now, 0)).toBe(
+    'Reading · less than a minute',
+  )
+})
+
+it('counts a review waiting to refresh as ahead of every queued read', () => {
+  const jobs = [
+    mockBrainJob({ id: 'a', state: 'queued' }),
+    mockBrainJob({ id: 'b', state: 'refreshing', runStartedAt: null }),
+  ]
+  expect(jobsAhead(jobs, 'a')).toBe(1)
+})

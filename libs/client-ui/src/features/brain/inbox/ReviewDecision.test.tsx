@@ -166,12 +166,12 @@ it('recovers a failed first proposal load with Retry, then rejects with null', a
 
 it('refreshes a stale review, says so, and approves the new proposal', async () => {
   review.mockImplementationOnce(async () => {
-    status = { ...status, jobs: [mockBrainJob({ state: 'running' })] }
+    status = { ...status, jobs: [mockBrainJob({ state: 'refreshing' })] }
     throw new Error('Brain changed; refreshing this review')
   })
   await render()
   await click('Approve 2')
-  await render(mockBrainJob({ state: 'running' }))
+  await render(mockBrainJob({ state: 'refreshing' }))
   expect(container.textContent).toContain('Brain changed since it was read')
   expect(container.querySelector('[aria-label="Review memories"]')).toBeNull()
   proposal = mockBrainProposal(mockBrainJob(), 1)
@@ -185,7 +185,7 @@ it('refreshes a stale review, says so, and approves the new proposal', async () 
 it('waits while Brain recomputes a review and reloads it once it is back', async () => {
   await render()
   expect(proposalRead).toHaveBeenCalledOnce()
-  await render(mockBrainJob({ state: 'running' }))
+  await render(mockBrainJob({ state: 'refreshing' }))
   expect(container.textContent).toContain('Refreshing this review')
   await render(mockBrainJob())
   expect(proposalRead).toHaveBeenCalledTimes(2)
