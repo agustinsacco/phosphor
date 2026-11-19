@@ -80,15 +80,7 @@ export class ExtractionQueue {
     if (this.checking || this.active) return
     if (
       !this.options.refusal ||
-      !this.options.store
-        .snapshot()
-        .jobs.some(
-          (job) =>
-            ['waiting', 'queued', 'refreshing'].includes(job.state) ||
-            (job.state === 'review' &&
-              this.options.store.storedProposal(job.id)?.computedRevision !==
-                this.options.store.knowledgeRevision()),
-        )
+      !this.options.store.snapshot().jobs.some((job) => this.needsCheck(job))
     ) {
       this.start()
       return
@@ -99,14 +91,21 @@ export class ExtractionQueue {
     })
   }
 
+  private needsCheck(job: BrainJob): boolean {
+    if (['waiting', 'queued', 'refreshing'].includes(job.state)) return true
+    const proposal = this.options.store.storedProposal(job.id)
+    return (
+      job.state === 'review' &&
+      proposal !== undefined &&
+      proposal.computedRevision !== this.options.store.knowledgeRevision()
+    )
+  }
+
   private async checkPending(): Promise<void> {
     const { store, refusal, changed } = this.options
     this.blocked.clear()
     for (const job of store.snapshot().jobs) {
-      const stale =
-        job.state === 'review' &&
-        store.storedProposal(job.id)?.computedRevision !== store.knowledgeRevision()
-      if (!stale && !['waiting', 'queued', 'refreshing'].includes(job.state)) continue
+      if (!this.needsCheck(job)) continue
       try {
         const reason = await refusal!(job)
         if (!this.accepting) return
