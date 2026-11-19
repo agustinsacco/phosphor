@@ -29,7 +29,7 @@ it('keeps a missing lane review in the Inbox, refuses Approve with a remedy, and
   await expect(
     service.api.review(
       id,
-      { memories: [0], identities: {}, groups: [], descriptions: [] },
+      { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
       proposal.revision,
     ),
   ).rejects.toThrow("This lane was deleted, so this review can't be refreshed. Reject it.")

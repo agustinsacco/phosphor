@@ -53,7 +53,11 @@ it('checks the current never-read title in an archived transcript, not the old j
   await s.service.api.setPrefs(s.store.prefs)
   await expect(s.service.api.proposal(s.id)).resolves.toMatchObject({ revision: 0 })
   await expect(
-    s.service.api.review(s.id, { memories: [0], identities: {}, groups: [], descriptions: [] }, 0),
+    s.service.api.review(
+      s.id,
+      { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
+      0,
+    ),
   ).rejects.toThrow('this lane is set to never be read')
   expect(s.store.job(s.id)?.state).toBe('review')
   expect(s.runner).not.toHaveBeenCalled()
