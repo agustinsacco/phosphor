@@ -217,3 +217,94 @@ it('regression: counts a plainly new person apart from the ones matched without 
     ),
   ).toBeDefined()
 })
+
+it('holds temporary and personal claims last and unticked, and sends one once ticked', async () => {
+  const base = proposal.memories[0]!
+  proposal.memories.push(
+    { ...base, index: 2, hold: 'temporary', type: 'open', summary: 'Tom Lee is out until Friday.' },
+    { ...base, index: 3, hold: 'personal', type: 'fact', summary: 'Rina Okafor seemed tired.' },
+  )
+  await render()
+  const groups = container.querySelectorAll('[aria-label="Proposed memories"] > section')
+  expect([...groups].map((group) => group.getAttribute('aria-label')).slice(-2)).toEqual([
+    'Probably temporary',
+    'About a person',
+  ])
+  for (const group of [...groups].slice(-2)) {
+    expect(group.textContent).toContain('Not kept unless you tick it')
+    expect([...group.querySelectorAll('input')].some((box) => box.checked)).toBe(false)
+  }
+  const temporary = '[aria-label="Keep: Tom Lee is out until Friday."]'
+  await act(async () => container.querySelector<HTMLInputElement>(temporary)!.click())
+  await click('Approve 3 of 4')
+  expect(review.mock.calls[0]![1]!.memories).toEqual([0, 1, 2])
+})
+
+it('asks a required question with no default and blocks Approve until it is answered', async () => {
+  proposal.identities.find((identity) => identity.ref === 'rina')!.required = true
+  await render()
+  const card = container.querySelector('[aria-label="Who is Rina Okafor?"]')!
+  expect(card.textContent).toContain('Needs an answer')
+  expect(card.querySelector('[aria-pressed="true"]')).toBeNull()
+  expect(button('Approve 2')!.disabled).toBe(true)
+  expect(container.querySelector('[aria-label="Decision actions"]')!.textContent).toContain(
+    'Answer 1 question',
+  )
+  await act(async () => keys.current.primary?.())
+  expect(review).not.toHaveBeenCalled()
+  await choose('Rina Okafor', 'Yes, Rina Okafor')
+  expect(container.textContent).not.toContain('Answer 1 question')
+  await click('Approve 2')
+  expect(review).toHaveBeenCalledWith(
+    'harbor-job',
+    { descriptions: [], memories: [0, 1], identities: { rina: 'rina' }, groups: [] },
+    0,
+  )
+})
+
+it('replaces a stored description only when ticked for a record the owner kept', async () => {
+  proposal.identities.find((identity) => identity.ref === 'rina')!.description =
+    'Leads the Ledger team'
+  await render()
+  await choose('Rina Okafor', 'Yes, Rina Okafor')
+  expect(container.textContent).toContain('Brain has: Ledger migration owner')
+  const use = [...container.querySelectorAll('label')].find(
+    (label) => label.textContent === 'Use this read’s description for Rina Okafor',
+  )!
+  await act(async () => use.querySelector('input')!.click())
+  await click('Approve 2')
+  expect(review).toHaveBeenLastCalledWith(
+    'harbor-job',
+    { descriptions: ['rina'], memories: [0, 1], identities: { rina: 'rina' }, groups: [] },
+    0,
+  )
+  await choose('Rina Okafor', 'Someone new')
+  expect(container.textContent).not.toContain('Use this read’s description')
+  await click('Approve 2')
+  expect(review).toHaveBeenLastCalledWith(
+    'harbor-job',
+    { descriptions: [], memories: [0, 1], identities: { rina: 'new' }, groups: [] },
+    0,
+  )
+})
+
+it('makes Reject the primary action for a lane Brain is set never to read', async () => {
+  proposal = { ...proposal, job: mockBrainJob({ title: 'Rina Okafor 1:1' }) }
+  await render()
+  expect(container.textContent).toContain(
+    'You set Brain to never read this lane. Reject to discard this read.',
+  )
+  expect(button('Reject read')!.classList.contains('bg-accent')).toBe(true)
+  expect(button('Approve 2')!.classList.contains('bg-accent')).toBe(false)
+  await act(async () => keys.current.primary?.())
+  expect(review).toHaveBeenLastCalledWith('harbor-job', null, 0)
+})
+
+it('says a read of new messages reads only those', async () => {
+  proposal = { ...proposal, job: mockBrainJob({ fromLeafId: 'leaf-0' }) }
+  await render()
+  expect(container.querySelector('[aria-label="Decision actions"]')!.textContent).toContain(
+    'Reads new messages only',
+  )
+  expect(container.textContent).not.toContain('never read this lane')
+})
