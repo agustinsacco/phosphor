@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import type { BrainProposalView, BrainProposedMemory } from '@shared/brain'
+import type { BrainProposalView } from '@shared/brain'
 import { Button } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
 import { formatCount } from '@/lib/format'
@@ -8,36 +8,47 @@ import { MEMORY_TYPE_WORDS } from '../memoryLabels'
 import { MemoryQuotes } from '../MemoryQuotes'
 import {
   checklistGroups,
-  memoryChange,
+  checklistTotal,
+  isTicked,
   memoryNames,
   refLabel,
+  setTicked,
+  tickCount,
   type ChecklistGroup,
+  type ChecklistItem,
+  type ReviewChoices,
 } from './reviewModel'
 
 const PAGE = 20
 
-/** Memories as a checklist by type; held claims come last and start unticked. */
+type ChoicesUpdate = (update: (old: ReviewChoices) => ReviewChoices) => void
+
+/**
+ * Memories as a checklist by type; held claims, and held confirmations of what Brain knows,
+ * come last and start unticked.
+ */
 export function ReviewChecklist({
   proposal,
-  keep,
+  choices,
   onChange,
 }: {
   proposal: BrainProposalView
-  keep: number[]
-  onChange: (keep: number[]) => void
+  choices: ReviewChoices
+  onChange: ChoicesUpdate
 }): React.JSX.Element | null {
-  if (!proposal.memories.length) return null
+  const total = checklistTotal(proposal)
+  if (!total) return null
   return (
     <section aria-label="Proposed memories" className="space-y-1">
       <SectionLabel>
-        Memories · {keep.length} of {proposal.memories.length} ticked
+        Memories · {tickCount(choices)} of {total} ticked
       </SectionLabel>
       {checklistGroups(proposal).map((group) => (
         <ChecklistSection
           key={group.id}
           group={group}
           proposal={proposal}
-          keep={keep}
+          choices={choices}
           onChange={onChange}
         />
       ))}
@@ -48,66 +59,61 @@ export function ReviewChecklist({
 function ChecklistSection({
   group,
   proposal,
-  keep,
+  choices,
   onChange,
 }: {
   group: ChecklistGroup
   proposal: BrainProposalView
-  keep: number[]
-  onChange: (keep: number[]) => void
+  choices: ReviewChoices
+  onChange: ChoicesUpdate
 }): React.JSX.Element {
   const [page, setPage] = useState(0)
-  const indexes = group.memories.map((memory) => memory.index)
-  const ticked = indexes.filter((index) => keep.includes(index)).length
-  const shown = group.memories.slice(page * PAGE, (page + 1) * PAGE)
+  const { items } = group
+  const ticked = items.filter((item) => isTicked(choices, item)).length
+  const shown = items.slice(page * PAGE, (page + 1) * PAGE)
   return (
     <section aria-label={group.label} className="pt-2">
       <label className="flex items-center gap-2">
         <input
           type="checkbox"
           aria-label={`Keep all: ${group.label}`}
-          checked={ticked === indexes.length}
+          checked={ticked === items.length}
           ref={(node) => {
-            if (node) node.indeterminate = ticked > 0 && ticked < indexes.length
+            if (node) node.indeterminate = ticked > 0 && ticked < items.length
           }}
-          onChange={(event) =>
-            onChange(
-              event.target.checked
-                ? [...new Set([...keep, ...indexes])]
-                : keep.filter((index) => !indexes.includes(index)),
-            )
-          }
+          onChange={(event) => {
+            const value = event.target.checked
+            onChange((old) => setTicked(old, items, value))
+          }}
         />
         <span className="text-text-tertiary font-mono text-xs font-semibold tracking-wider uppercase">
-          {group.label} · {group.memories.length}
+          {group.label} · {items.length}
         </span>
       </label>
       {group.held && <p className="text-text-tertiary pl-6 text-sm">Not kept unless you tick it</p>}
       <ul className="divide-border divide-y">
-        {shown.map((memory) => (
-          <li key={memory.index}>
+        {shown.map((item) => (
+          <li key={item.key}>
             <ChecklistRow
-              memory={memory}
+              item={item}
               proposal={proposal}
-              checked={keep.includes(memory.index)}
-              onChange={(checked) =>
-                onChange(checked ? [...keep, memory.index] : keep.filter((i) => i !== memory.index))
-              }
+              checked={isTicked(choices, item)}
+              onChange={(checked) => onChange((old) => setTicked(old, [item], checked))}
             />
           </li>
         ))}
       </ul>
-      {group.memories.length > PAGE && (
+      {items.length > PAGE && (
         <div className="flex items-center gap-2 pl-6 text-sm">
           <Button size="xs" disabled={!page} onClick={() => setPage(page - 1)}>
             Previous
           </Button>
           <span>
-            {page + 1} / {Math.ceil(group.memories.length / PAGE)}
+            {page + 1} / {Math.ceil(items.length / PAGE)}
           </span>
           <Button
             size="xs"
-            disabled={(page + 1) * PAGE >= group.memories.length}
+            disabled={(page + 1) * PAGE >= items.length}
             onClick={() => setPage(page + 1)}
           >
             Next
@@ -119,18 +125,18 @@ function ChecklistSection({
 }
 
 function ChecklistRow({
-  memory,
+  item,
   proposal,
   checked,
   onChange,
 }: {
-  memory: BrainProposedMemory
+  item: ChecklistItem
   proposal: BrainProposalView
   checked: boolean
   onChange: (checked: boolean) => void
 }): React.JSX.Element {
+  const { claim: memory, change } = item
   const names = memoryNames(proposal, memory)
-  const change = memoryChange(memory)
   const id = useId()
   const label = (ref: string): string => refLabel(proposal, ref) ?? 'someone Brain knows'
   return (

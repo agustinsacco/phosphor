@@ -32,11 +32,80 @@ export interface ReviewChoices {
   groups: number[]
   /** Identity refs whose description from this read replaces the stored one. */
   descriptions: string[]
+  /** Held confirmation indexes the owner ticked; the others apply without a tick. */
+  confirmations: number[]
 }
 
 /** Claims Brain holds back until the owner ticks them. */
-export function holdOf(memory: BrainProposedMemory): ReviewHold | null {
+export function holdOf(memory: Pick<BrainProposedMemory, 'hold'>): ReviewHold | null {
   return memory.hold
+}
+
+/** Confirmations that apply with any approval, so they fold into one line. */
+export function plainConfirmations(
+  proposal: BrainProposalView,
+): BrainProposalView['confirmations'] {
+  return proposal.confirmations.filter((item) => !holdOf(item.claim))
+}
+
+/**
+ * One checklist row: a proposed memory (ticked by its memory index) or a held confirmation
+ * (ticked by its confirmation index), which says the same as a stored memory.
+ */
+export interface ChecklistItem {
+  key: string
+  claim: Omit<BrainProposedMemory, 'index'>
+  kind: 'memory' | 'confirmation'
+  index: number
+  /** What saving it does to an existing memory, in a few words. */
+  change: string | null
+}
+function memoryItem(memory: BrainProposedMemory): ChecklistItem {
+  const { index, ...claim } = memory
+  return { key: `memory-${index}`, claim, kind: 'memory', index, change: memoryChange(memory) }
+}
+function heldConfirmationItems(proposal: BrainProposalView): ChecklistItem[] {
+  return proposal.confirmations.flatMap((item, index) =>
+    holdOf(item.claim)
+      ? [
+          {
+            key: `confirmation-${index}`,
+            claim: item.claim,
+            kind: 'confirmation' as const,
+            index,
+            change: `Confirms “${item.summary}”`,
+          },
+        ]
+      : [],
+  )
+}
+/** Rows the owner ticks: every proposed memory and every held confirmation. */
+export function checklistTotal(proposal: BrainProposalView): number {
+  return proposal.memories.length + heldConfirmationItems(proposal).length
+}
+export function tickCount(choices: ReviewChoices): number {
+  return choices.keep.length + choices.confirmations.length
+}
+export function isTicked(choices: ReviewChoices, item: ChecklistItem): boolean {
+  return (item.kind === 'memory' ? choices.keep : choices.confirmations).includes(item.index)
+}
+/** Ticks or unticks every given row, memories and held confirmations alike. */
+export function setTicked(
+  choices: ReviewChoices,
+  items: ChecklistItem[],
+  ticked: boolean,
+): ReviewChoices {
+  const apply = (kind: ChecklistItem['kind'], old: number[]): number[] => {
+    const indexes = items.filter((item) => item.kind === kind).map((item) => item.index)
+    return ticked
+      ? [...new Set([...old, ...indexes])]
+      : old.filter((index) => !indexes.includes(index))
+  }
+  return {
+    ...choices,
+    keep: apply('memory', choices.keep),
+    confirmations: apply('confirmation', choices.confirmations),
+  }
 }
 
 /** An unsure identity whose exact name Brain already knows: approval waits for an answer. */
@@ -50,6 +119,7 @@ export function initialChoices(proposal: BrainProposalView): ReviewChoices {
     identities: {},
     groups: [],
     descriptions: [],
+    confirmations: [],
   }
 }
 
@@ -113,22 +183,24 @@ export interface ChecklistGroup {
   id: BrainMemoryType | ReviewHold
   label: string
   held: boolean
-  memories: BrainProposedMemory[]
+  items: ChecklistItem[]
 }
+/** Plain memories by type, then the held groups, which also hold held confirmations. */
 export function checklistGroups(proposal: BrainProposalView): ChecklistGroup[] {
+  const items = [...proposal.memories.map(memoryItem), ...heldConfirmationItems(proposal)]
   const plain = REVIEW_TYPE_ORDER.map((type): ChecklistGroup => ({
     id: type,
     label: MEMORY_LABELS[type],
     held: false,
-    memories: proposal.memories.filter((m) => !holdOf(m) && m.type === type),
+    items: items.filter((item) => !holdOf(item.claim) && item.claim.type === type),
   }))
   const held = (['temporary', 'personal'] as const).map((hold): ChecklistGroup => ({
     id: hold,
     label: HOLD_LABELS[hold],
     held: true,
-    memories: proposal.memories.filter((m) => holdOf(m) === hold),
+    items: items.filter((item) => holdOf(item.claim) === hold),
   }))
-  return [...plain, ...held].filter((group) => group.memories.length > 0)
+  return [...plain, ...held].filter((group) => group.items.length > 0)
 }
 
 /**
@@ -148,33 +220,32 @@ export function reviewDecision(
     memories: choices.keep.toSorted((a, b) => a - b),
     identities: { ...choices.identities },
     groups: choices.groups.toSorted((a, b) => a - b),
-    confirmations: [],
+    confirmations: choices.confirmations.toSorted((a, b) => a - b),
   }
 }
 
-export function approveLabel(proposal: BrainProposalView, keep: number): string {
-  if (!proposal.memories.length && proposal.confirmations.length) return 'Approve confirmations'
-  const total = proposal.memories.length
-  return keep < total ? `Approve ${keep} of ${total}` : `Approve ${keep}`
+/** Counts ticked rows, held confirmations included. */
+export function approveLabel(proposal: BrainProposalView, ticked: number): string {
+  const total = checklistTotal(proposal)
+  if (!total && proposal.confirmations.length) return 'Approve confirmations'
+  return ticked < total ? `Approve ${ticked} of ${total}` : `Approve ${ticked}`
 }
 
 /** Why Approve is off, or null when it can be pressed. */
 export function approveBlock(proposal: BrainProposalView, choices: ReviewChoices): string | null {
   const open = openQuestions(proposal, choices.identities).length
   if (open) return `Answer ${formatCount(open, 'question')}`
-  const confirmationsOnly = !proposal.memories.length && proposal.confirmations.length > 0
-  if (
-    !proposal.job.replaces &&
-    !choices.keep.length &&
-    !confirmationsOnly &&
-    !choices.groups.length
-  )
+  // Confirmations that are not held apply without a tick; held ones are checklist rows.
+  const confirmationsOnly = !checklistTotal(proposal) && plainConfirmations(proposal).length > 0
+  if (!proposal.job.replaces && !tickCount(choices) && !confirmationsOnly && !choices.groups.length)
     return 'Tick a memory to approve'
   return null
 }
 
 /** What a proposed memory does to an existing one, in a few words. */
-export function memoryChange(memory: BrainProposedMemory): string | null {
+export function memoryChange(
+  memory: Pick<BrainProposedMemory, 'action' | 'target'>,
+): string | null {
   if (!memory.target) return null
   switch (memory.action) {
     case 'enrich':
@@ -199,6 +270,9 @@ export function refLabel(proposal: BrainProposalView, ref: string): string | nul
   return null
 }
 
-export function memoryNames(proposal: BrainProposalView, memory: BrainProposedMemory): string[] {
+export function memoryNames(
+  proposal: BrainProposalView,
+  memory: Pick<BrainProposedMemory, 'entities'>,
+): string[] {
   return memory.entities.flatMap((ref) => refLabel(proposal, ref) ?? [])
 }

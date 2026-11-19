@@ -361,14 +361,18 @@ in one line.
   description (`decision.descriptions`); switching that identity to Someone new drops it.
 - One folded line counts the rest: “N people and things matched without doubt · M new people
   and things · K memories confirm what Brain knows”. Opening it lists each match, which can
-  still be overruled, and each confirmation.
+  still be overruled, and each confirmation. Only confirmations that are not held count there:
+  they add their quotes with any approval.
 - **Memories · k of n ticked** groups the proposed memories by type, each group with a checkbox
   for the whole group (including its other pages). A row shows the type, the sentence, the
   names it uses, what it changes, its links (“Rina Okafor → owns → Harbor ledger”) and its
   quotes. Groups page at twenty. **Probably temporary** (status, near-term plans and one-off
   instructions) and **About a person** (remarks about a named person beyond their role) come
-  last, unticked, each saying “Not kept unless you tick it”.
-- The fixed bar has **Approve N** (or **Approve k of n**, or **Approve confirmations**; `a`)
+  last, unticked, each saying “Not kept unless you tick it”. A held confirmation (this lane
+  says again what a stored memory says) sits in its held group as “Confirms “<memory>””;
+  ticked, it is sent in `decision.confirmations` and its quote is added to that memory.
+- The fixed bar has **Approve N** (or **Approve k of n**, counting held confirmations, or
+  **Approve confirmations** when only confirmations that are not held remain; `a`)
   and **Reject read** (`r`). Approve is off with “Answer 1 question” while a required question
   is open. A read again says “Replaces N memories from the last read”; a read of a lane Brain
   read before says “Reads new messages only”.
@@ -377,7 +381,9 @@ in one line.
   this read.” **Reject read** becomes the primary button and `a` rejects.
 
 **Approve** stores the ticked memories, the identity choices and confirmed groups in one
-transaction; **Reject** stores nothing. A held claim is saved only when ticked. Approval that
+transaction; **Reject** stores nothing. A held claim is saved only when ticked, and a held
+confirmation adds its quote, or becomes a new memory, only when ticked; ticking a confirmation
+that is not held is refused (“Brain confirmation choice is invalid.”). Approval that
 saves anything naming a required identity waits for its answer: “Say whether “Rina Okafor” is
 someone Brain already knows or someone new before approving.” Any other uncertain entity without
 a choice becomes new, and only entities that a saved memory or group uses are created. A reused
@@ -404,10 +410,11 @@ not running or refreshing). A read's duration is the time the model spent on thi
 their traced times added up, the questions a refresh asked again included. Stages run one call
 at a time, so nothing is counted twice. It is never the gap between the first start and the last
 save, which counts waits, refreshes and app quits. With no calls, or a call without a trace, no
-duration is shown. With review off, the defaults apply: held claims are not saved, uncertain
+duration is shown. With review off, the defaults apply: held claims and held confirmations are
+not saved, uncertain
 becomes new, groups are skipped and conflicts are saved as disputed; a read with a required
 question stays in the Inbox. A confirmation whose identity the owner changed is saved as a new
-memory, unless it is held.
+memory, unless it is held and unticked.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both
 sides until one is superseded or forgotten. **Forget** deletes one memory, then any evidence and

@@ -11,8 +11,10 @@ import { ReviewChecklist } from './ReviewChecklist'
 import {
   approveBlock,
   approveLabel,
+  checklistTotal,
   initialChoices,
   reviewDecision,
+  tickCount,
   type ReviewChoices,
 } from './reviewModel'
 
@@ -47,7 +49,7 @@ export function ReviewForm({
       label="Review memories"
       eyebrow="From lanes"
       title={job.title}
-      subtitle={`${formatCount(proposal.memories.length, 'memory', 'memories')}${questions ? ` · ${formatCount(questions, 'question')}` : ''} · read by ${model}`}
+      subtitle={`${formatCount(checklistTotal(proposal), 'memory', 'memories')}${questions ? ` · ${formatCount(questions, 'question')}` : ''} · read by ${model}`}
       aside={
         <Button
           size="xs"
@@ -60,7 +62,7 @@ export function ReviewForm({
       bar={
         <ReviewBar
           proposal={proposal}
-          keep={choices.keep.length}
+          ticked={tickCount(choices)}
           block={block}
           neverRead={neverRead}
           saving={saving}
@@ -83,11 +85,7 @@ export function ReviewForm({
       )}
       <fieldset disabled={saving} className="min-w-0 space-y-4">
         <ReviewQuestions proposal={proposal} choices={choices} onChange={setChoices} />
-        <ReviewChecklist
-          proposal={proposal}
-          keep={choices.keep}
-          onChange={(keep) => setChoices((old) => ({ ...old, keep }))}
-        />
+        <ReviewChecklist proposal={proposal} choices={choices} onChange={setChoices} />
       </fieldset>
     </DecisionFrame>
   )
@@ -132,7 +130,7 @@ function useReviewSubmit(
 
 function ReviewBar({
   proposal,
-  keep,
+  ticked,
   block,
   neverRead,
   saving,
@@ -141,7 +139,7 @@ function ReviewBar({
   onReject,
 }: {
   proposal: BrainProposalView
-  keep: number
+  ticked: number
   block: string | null
   neverRead: boolean
   saving: boolean
@@ -162,7 +160,7 @@ function ReviewBar({
         }
         onClick={onApprove}
       >
-        {approveLabel(proposal, keep)}
+        {approveLabel(proposal, ticked)}
       </Button>
       <Button
         variant={neverRead ? 'primary' : 'secondary'}

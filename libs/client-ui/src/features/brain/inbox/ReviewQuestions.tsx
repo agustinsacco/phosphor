@@ -10,6 +10,7 @@ import {
   foldedIdentities,
   identityChoice,
   isRequired,
+  plainConfirmations,
   questionIdentities,
   type ReviewChoices,
 } from './reviewModel'
@@ -251,7 +252,9 @@ function FoldedIdentities({
 }): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
   const folded = foldedIdentities(proposal)
-  const confirmations = proposal.confirmations.length
+  // Held confirmations wait for a tick in the checklist; only these apply without one.
+  const plain = plainConfirmations(proposal)
+  const confirmations = plain.length
   const differing = folded.flatMap((identity) => {
     const existing = differingDescription(identity, choices.identities)
     return existing ? [{ identity, existing }] : []
@@ -298,7 +301,7 @@ function FoldedIdentities({
               onChoose={(value) => onChoose(identity.ref, value)}
             />
           ))}
-          {proposal.confirmations.map((item) => (
+          {plain.map((item) => (
             <li key={item.id}>Confirms: {item.summary}</li>
           ))}
         </ul>

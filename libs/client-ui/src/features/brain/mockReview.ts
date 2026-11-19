@@ -20,7 +20,15 @@ export function checkMockDecision(
     Array.isArray(decision.descriptions) &&
     decision.descriptions.every((ref) => typeof ref === 'string' && refs.has(ref))
   if (!valid) throw new Error('Invalid review selection.')
-  if (!Array.isArray(decision.confirmations))
+  // As the engine: unique ticks on held confirmations only.
+  const ticked: unknown = decision.confirmations
+  if (
+    !Array.isArray(ticked) ||
+    new Set(ticked).size !== ticked.length ||
+    ticked.some(
+      (index) => !Number.isInteger(index) || !proposal.confirmations[index as number]?.claim.hold,
+    )
+  )
     throw new Error('Brain confirmation choice is invalid.')
 }
 
