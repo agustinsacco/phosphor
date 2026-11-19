@@ -1,6 +1,7 @@
 import { trackAsk } from '../__fixtures__/stage-ask'
 import { expect, it } from 'vitest'
 import { extractWindows } from './extract'
+import { foldParts } from './fold'
 import { FakeBrainStore, HARBOR_JOB } from '../__fixtures__/fake-store'
 import { makeWindow, transcriptWindows } from '../windows'
 import type { StageAsk } from '../stage-types'
@@ -248,4 +249,30 @@ it('extracts a missing saved window normally during refresh', async () => {
   const ask = trackAsk(async (_s, _p, _prompt, validate) => validate(JSON.stringify(empty)))
   await extractWindows(job.id, [makeWindow(source)], store, ask.ask, () => {}, source)
   expect(ask.spy).toHaveBeenCalledOnce()
+})
+
+it('marks holds on claims a refresh reuses from a window saved before holds existed', async () => {
+  const store = new FakeBrainStore(),
+    job = store.enqueue(HARBOR_JOB, 'queued')
+  store.updateJob(job.id, { state: 'refreshing' })
+  const text = 'Harbor currently bills weekly.'
+  const source = [{ entryId: 'new', role: 'user' as const, label: 'You', observedAt: 0, text }]
+  const harbor = { ref: 'n1', label: 'Harbor', kind: 'project', aliases: [], description: '' }
+  const saved = {
+    entities: [{ ...harbor, keys: [] }],
+    claims: [
+      {
+        ...{ ref: 'c1', text, type: 'fact', epistemic: 'reported', mentions: ['n1'], links: [] },
+        ...{ quotes: [{ segment: 's1', quote: text }], validFrom: null, validTo: null },
+        branch: false,
+      },
+    ],
+    parents: [],
+  }
+  store.savePart(job.id, { part: 'w1', inputHash: 'old-extractor', output: JSON.stringify(saved) })
+  const ask = trackAsk()
+  const parts = await extractWindows(job.id, [makeWindow(source)], store, ask.ask, () => {}, source)
+  expect(ask.spy).not.toHaveBeenCalled()
+  expect(parts[0]!.extraction.claims[0]).not.toHaveProperty('hold')
+  expect(foldParts(parts, 'lane').claims[0]!.memory.hold).toBe('temporary')
 })

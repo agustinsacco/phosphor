@@ -5,7 +5,7 @@ import { RAW_EXTRACTION } from '../__fixtures__/lane'
 import { trackAsk } from '../__fixtures__/stage-ask'
 import { inputHash, makeWindow } from '../windows'
 import { rebuildPrompt } from '../stage-input'
-import type { StageExtraction, StageInput } from '../stage-types'
+import type { StageExtraction, StageInput, StageLinks } from '../stage-types'
 import { BRAIN_LINK_RULES } from '@phosphor/shared/brain'
 
 const quote = 'Rina Okafor owns Harbor billing.'
@@ -252,4 +252,42 @@ it('reuses an old-hash parsed links part during refresh without re-reading its s
   )
   expect(ask.spy).not.toHaveBeenCalled()
   expect(parts[0]!.extraction.claims[0]!.links).toMatchObject([{ predicate: 'owns' }])
+})
+
+it('filters the links a refresh reuses from a part saved before the link rules', async () => {
+  const value = fixture()
+  value.entities[0] = { ...value.entities[0]!, user: true }
+  const s = await extract(value)
+  for (const [key, part] of [...s.store.parts]) {
+    if (part.part !== 'links:w1') continue
+    const saved = JSON.parse(part.output) as StageLinks
+    saved.links.push({ ...link, predicate: 'works_on' }, { ...link, predicate: 'prefers' })
+    s.store.parts.delete(key)
+    s.store.savePart(s.job.id, { ...part, inputHash: 'old', output: JSON.stringify(saved) })
+  }
+  s.store.updateJob(s.job.id, { state: 'refreshing' })
+  const ask = trackAsk()
+  const parts = await extractWindows(
+    s.job.id,
+    [makeWindow(s.source)],
+    s.store,
+    ask.ask,
+    () => {},
+    s.source,
+  )
+  expect(ask.spy).not.toHaveBeenCalled()
+  const reused = parts[0]!.extraction
+  expect(reused.claims[0]!.links.map((l) => l.predicate)).toEqual(['owns'])
+  expect(reused.outcomes).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        candidate: 'w1:c1:link-filter:2',
+        reason: 'Owns already says this: works_on for the same pair is dropped',
+      }),
+      expect.objectContaining({
+        candidate: 'w1:c1:link-filter:3',
+        reason: 'The user is never linked to something they only use or prefer',
+      }),
+    ]),
+  )
 })
