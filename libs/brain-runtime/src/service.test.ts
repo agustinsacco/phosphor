@@ -35,8 +35,15 @@ it('starts the injected reader/writer, saves prefs immediately, and awaits setup
       }),
   )
   expect(
-    (await s.service.api.setPrefs({ enabled: true, recall: false, review: true, model: null }))
-      .prefs.enabled,
+    (
+      await s.service.api.setPrefs({
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: false,
+        review: true,
+        model: null,
+      })
+    ).prefs.enabled,
   ).toBe(true)
   expect(set).toHaveBeenCalledWith(true)
   finish()
@@ -51,7 +58,11 @@ it('queues a lane, completes review, refreshes search and exposes bounded explor
   const job = (await s.service.api.status()).jobs[0]!,
     p = await s.service.api.proposal(job.id)
   expect(p.memories).toHaveLength(1)
-  await s.service.api.review(job.id, { memories: [0], identities: {}, groups: [] }, p.revision)
+  await s.service.api.review(
+    job.id,
+    { descriptions: [], memories: [0], identities: {}, groups: [] },
+    p.revision,
+  )
   expect(s.search.refreshes).toBe(1)
   expect(await s.service.api.overview()).toMatchObject({ nodes: [], truncated: false })
   expect(await s.service.api.neighbourhood('harbor', 2)).toMatchObject({ centerId: 'harbor' })
@@ -85,7 +96,11 @@ it.each(['proposal', 'review'] as const)(
     await expect(
       method === 'proposal'
         ? s.service.api.proposal(job.id)
-        : s.service.api.review(job.id, { memories: [0], identities: {}, groups: [] }, 0),
+        : s.service.api.review(
+            job.id,
+            { descriptions: [], memories: [0], identities: {}, groups: [] },
+            0,
+          ),
     ).rejects.toThrow('Brain changed; refreshing this review')
     expect(s.store.reviews).toEqual([])
     await review(s.service)
@@ -128,7 +143,13 @@ it('supports download retry and removal only while off; disabled startup leaves 
   expect(download).toHaveBeenCalledOnce()
   await s.service.api.removeModel()
   expect(remove).toHaveBeenCalledOnce()
-  await s.service.api.setPrefs({ enabled: true, recall: true, review: true, model: null })
+  await s.service.api.setPrefs({
+    neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    enabled: true,
+    recall: true,
+    review: true,
+    model: null,
+  })
   await expect(s.service.api.removeModel()).rejects.toThrow('Turn off Brain')
 })
 it('deletes only the obsolete prototype artifacts on startup', async () => {
@@ -192,7 +213,11 @@ it('rereads a finished lane through busy waiting, rejects missing files and unfi
   await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
   await review(s.service)
   const old = s.store.snapshot().jobs[0]!
-  await s.service.api.review(old.id, { memories: [0], identities: {}, groups: [] }, s.store.rev)
+  await s.service.api.review(
+    old.id,
+    { descriptions: [], memories: [0], identities: {}, groups: [] },
+    s.store.rev,
+  )
   expect(s.service.api.reread).toBeTypeOf('function')
   vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
   const result = await s.service.api.reread(old.id)

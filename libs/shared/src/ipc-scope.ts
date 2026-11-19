@@ -13,6 +13,7 @@ export const IPC_SCOPE = {
   'brain:status': 'app',
   'brain:history': 'app',
   'brain:reread': 'app',
+  'brain:neverRead': 'app',
   'brain:setPrefs': 'app',
   'brain:download': 'app',
   'brain:removeModel': 'app',

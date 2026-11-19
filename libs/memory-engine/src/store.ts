@@ -32,6 +32,10 @@ function snapshot(ctx: Context): BrainSnapshot {
     revision: Number(meta.revision),
     generation: meta.generation!,
     jobs: jobs.jobs(ctx),
+    readSessionIds: all<{ sessionId: string }>(
+      ctx,
+      "SELECT session_id AS sessionId FROM jobs WHERE state IN ('done','empty','rejected') GROUP BY session_id ORDER BY MAX(queued_at) DESC LIMIT 5000",
+    ).map((row) => row.sessionId),
     counts: { memories: Number(meta.memories), entities: Number(meta.entities) },
   }
 }

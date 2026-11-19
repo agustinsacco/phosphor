@@ -228,7 +228,11 @@ it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
       'queued',
     )
     store.propose(extraction(next.id, { computedRevision: store.revision() }))
-    store.review(next.id, { memories: [], identities: {}, groups: [] }, store.revision())
+    store.review(
+      next.id,
+      { descriptions: [], memories: [], identities: {}, groups: [] },
+      store.revision(),
+    )
     expect(() => store.memory(target)).toThrow('not found')
     if (kind === 'merge') store.tidyUndo(operation, store.revision())
     else

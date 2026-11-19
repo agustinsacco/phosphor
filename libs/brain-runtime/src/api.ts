@@ -4,6 +4,8 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   checkBrainReaderModel,
+  checkBrainNeverRead,
+  setBrainLaneNeverRead,
   type BrainLaneRef,
   type BrainPrefs,
   type BrainStatus,
@@ -31,6 +33,7 @@ function checkPrefs(prefs: BrainPrefs): void {
   )
     throw new Error('Invalid Brain preferences.')
   checkBrainReaderModel(prefs.model)
+  checkBrainNeverRead(prefs.neverRead)
 }
 async function enqueue(
   ref: BrainLaneRef,
@@ -157,9 +160,15 @@ export function createApi(context: ApiContext): BrainApi {
 function modelApi(
   context: ApiContext,
   status: () => BrainStatus,
-): Pick<BrainApi, 'setPrefs' | 'download' | 'removeModel'> {
+): Pick<BrainApi, 'setPrefs' | 'neverRead' | 'download' | 'removeModel'> {
   const { store, options, changed, queue, startModel } = context
   return {
+    neverRead: async (sessionId, never) => {
+      store.setPrefs(setBrainLaneNeverRead(store.snapshot().prefs, sessionId, never))
+      changed()
+      queue.kick()
+      return status()
+    },
     setPrefs: async (prefs) => {
       checkPrefs(prefs)
       const previous = store.snapshot().prefs

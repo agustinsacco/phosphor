@@ -51,6 +51,7 @@ export type JobPatch = Partial<
     | 'state'
     | 'error'
     | 'startedAt'
+    | 'runStartedAt'
     | 'finishedAt'
     | 'usage'
     | 'memories'

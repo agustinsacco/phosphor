@@ -31,7 +31,11 @@ it.each(['supersede', 'resolve_open', 'enrich', 'conflict'] as const)(
     ]
     p.memoryVectors = [vector(), vector()]
     store.propose(p)
-    store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, p.computedRevision)
+    store.review(
+      job.id,
+      { descriptions: [], memories: [0, 1], identities: {}, groups: [] },
+      p.computedRevision,
+    )
     expect(store.snapshot().counts.memories).toBe(3)
     expect(store.memory(target!).memory.state).toBe('superseded')
     expect(store.memory(target!).memory.links).toEqual(old.links)
@@ -65,7 +69,11 @@ it('skips a confirmation whose target was retired earlier in the approval', () =
     },
   ]
   store.propose(p)
-  store.review(job.id, { memories: [0], identities: {}, groups: [] }, p.computedRevision)
+  store.review(
+    job.id,
+    { descriptions: [], memories: [0], identities: {}, groups: [] },
+    p.computedRevision,
+  )
   expect(store.memory(target!).quotes).toEqual(before.quotes)
   expect(store.memory(target!).memory.observedAt).toBe(before.memory.observedAt)
 })

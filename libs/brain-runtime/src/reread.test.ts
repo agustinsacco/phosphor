@@ -15,7 +15,13 @@ async function setup() {
   cleanup.push(s.cleanup)
   const path = join(s.directory, 'brain.sqlite')
   const store = openBrainStore({ path, Database: DatabaseSync })
-  store.setPrefs({ enabled: true, recall: true, review: true, model: null })
+  store.setPrefs({
+    neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    enabled: true,
+    recall: true,
+    review: true,
+    model: null,
+  })
   const service = await createBrainService({ ...s.options, openStore: () => store })
   cleanup.push(() => service.dispose())
   const search = openBrainSearch({ path, Database: DatabaseSync })
@@ -36,7 +42,7 @@ async function setup() {
   const first = store.snapshot().jobs[0]!
   await service.api.review(
     first.id,
-    { memories: [0], identities: {}, groups: [] },
+    { descriptions: [], memories: [0], identities: {}, groups: [] },
     store.revision(),
   )
   return { ...s, store, service, first, recall, path }
@@ -50,7 +56,13 @@ it.each([true, false])(
     expect(before.job?.state).toBe('done')
     const oldIds = s.recall()
     expect(oldIds).toHaveLength(1)
-    s.store.setPrefs({ enabled: true, recall: true, review, model: null })
+    s.store.setPrefs({
+      neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+      enabled: true,
+      recall: true,
+      review,
+      model: null,
+    })
     vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
     const queued = await s.service.api.reread(s.first.id)
     const next = queued.jobs[0]!
@@ -70,7 +82,7 @@ it.each([true, false])(
       expect((await s.service.api.proposal(next.id)).replacingMemories).toBe(1)
       await s.service.api.review(
         next.id,
-        { memories: [0], identities: {}, groups: [] },
+        { descriptions: [], memories: [0], identities: {}, groups: [] },
         s.store.revision(),
       )
     }
@@ -92,7 +104,13 @@ it.each([true, false])(
 )
 it('keeps a saved reread finished when the search refresh fails afterwards', async () => {
   const s = await setup()
-  s.store.setPrefs({ enabled: true, recall: true, review: false, model: null })
+  s.store.setPrefs({
+    neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    enabled: true,
+    recall: true,
+    review: false,
+    model: null,
+  })
   const oldIds = s.recall()
   vi.spyOn(s.search, 'refresh').mockRejectedValue(new Error('search worker exited'))
   const queued = await s.service.api.reread(s.first.id)

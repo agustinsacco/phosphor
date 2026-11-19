@@ -13,6 +13,7 @@ it('defaults the reader model to null, including older stored preferences', () =
     recall: false,
     review: true,
     model: null,
+    neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
 })
 
@@ -55,13 +56,20 @@ it.each([{ id: 'harbor/reader' }, '-harbor/reader', 'harbor reader', 42, ['harbo
   (model) => {
     const { store, db } = fixture()
     db.prepare("INSERT OR REPLACE INTO meta VALUES ('prefs', ?)").run(
-      JSON.stringify({ enabled: true, recall: true, review: false, model }),
+      JSON.stringify({
+        enabled: true,
+        recall: true,
+        review: false,
+        model,
+        neverRead: DEFAULT_BRAIN_PREFS.neverRead,
+      }),
     )
     expect(store.snapshot().prefs).toEqual({
       enabled: true,
       recall: true,
       review: false,
       model: null,
+      neverRead: DEFAULT_BRAIN_PREFS.neverRead,
     })
   },
 )

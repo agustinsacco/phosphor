@@ -56,6 +56,7 @@ export interface BrainInvokeMap {
   'brain:recent': { args: [limit: number]; result: BrainRecentMemories }
   'brain:history': { args: [limit: number]; result: BrainHistory }
   'brain:reread': { args: [jobId: string]; result: BrainStatus }
+  'brain:neverRead': { args: [sessionId: string, never: boolean]; result: BrainStatus }
   'brain:status': { args: []; result: BrainStatus }
   /** Saves at once. Enabling downloads the model if it is missing; disabling keeps it. */
   'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }

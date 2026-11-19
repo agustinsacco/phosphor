@@ -97,7 +97,7 @@ it.skipIf(process.env.BRAIN_BENCH !== '1')(
       const at = performance.now()
       store.review(
         job.id,
-        { memories: data.memories.map((_, i) => i), identities: {}, groups: [] },
+        { descriptions: [], memories: data.memories.map((_, i) => i), identities: {}, groups: [] },
         store.revision(),
       )
       const reviewMs = performance.now() - at

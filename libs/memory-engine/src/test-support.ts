@@ -136,7 +136,12 @@ export function approve(store: BrainStore, input: Partial<Proposal> = {}): strin
   const proposal = store.proposal(job.id)
   store.review(
     job.id,
-    { memories: data.memories.map((_, index) => index), identities: {}, groups: [] },
+    {
+      memories: data.memories.map((_, index) => index),
+      identities: {},
+      groups: [],
+      descriptions: [],
+    },
     proposal.revision,
   )
   return store

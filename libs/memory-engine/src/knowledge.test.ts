@@ -20,7 +20,7 @@ describe('Brain memory details, dates and deletion', () => {
     data.memories[1]!.citations = [{ evidence: 0, quote: 'Rina owns Harbor.' }]
     data.memories[1]!.links = []
     store.propose(data)
-    store.review(job.id, { memories: [0, 1], identities: {}, groups: [] }, 0)
+    store.review(job.id, { descriptions: [], memories: [0, 1], identities: {}, groups: [] }, 0)
     const tom = store.overview(300).nodes.find((item) => item.label === 'Tom Lee')!
     const id = store.entityMemories(tom.id, {}, null).memories[0]!.id
     store.forget(id)

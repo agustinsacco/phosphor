@@ -13,6 +13,8 @@ type JobRow = Omit<BrainJob, 'usage' | 'progress'> & {
 function decode(row: JobRow): BrainJob {
   return {
     ...row,
+    fromLeafId: null,
+    runStartedAt: row.state === 'running' ? row.startedAt : null,
     progress: row.progress ? (JSON.parse(row.progress) as BrainJob['progress']) : null,
     usage: row.usage ? (JSON.parse(row.usage) as BrainJob['usage']) : null,
   }
@@ -96,6 +98,8 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
       error: null,
       queuedAt: ctx.now(),
       startedAt: null,
+      runStartedAt: null,
+      fromLeafId: null,
       finishedAt: null,
       usage: null,
       progress: null,

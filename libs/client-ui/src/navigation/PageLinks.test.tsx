@@ -28,7 +28,13 @@ it('puts Archive below Machines and enabled Brain after Archive', async () => {
   useBrain.setState({
     status: {
       ...mockBrainStatus(),
-      prefs: { enabled: true, recall: true, review: true, model: null },
+      prefs: {
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: true,
+        review: true,
+        model: null,
+      },
     },
   })
   await act(async () => root.render(<PageLinks activePage="brain" onPage={onPage} />))
@@ -49,7 +55,13 @@ it('hides Brain while off and reacts to enabling without hiding other pages', as
     useBrain.setState({
       status: {
         ...mockBrainStatus(),
-        prefs: { enabled: true, recall: true, review: true, model: null },
+        prefs: {
+          neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+          enabled: true,
+          recall: true,
+          review: true,
+          model: null,
+        },
       },
     }),
   )
@@ -60,7 +72,13 @@ it('does not load or offer local Brain on a browser platform', async () => {
   useBrain.setState({
     status: {
       ...mockBrainStatus(),
-      prefs: { enabled: true, recall: true, review: true, model: null },
+      prefs: {
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: true,
+        review: true,
+        model: null,
+      },
     },
   })
   await act(async () =>
@@ -78,7 +96,13 @@ it('counts review jobs at the right edge and removes the count live at zero', as
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   const status = {
     ...mockBrainStatus(),
-    prefs: { enabled: true, recall: true, review: true, model: null },
+    prefs: {
+      enabled: true,
+      recall: true,
+      review: true,
+      model: null,
+      neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+    },
     jobs: [
       mockBrainJob(),
       mockBrainJob({ id: 'ledger' }),
@@ -99,7 +123,13 @@ it('counts one review', async () => {
   useBrain.setState({
     status: {
       ...mockBrainStatus(),
-      prefs: { enabled: true, recall: true, review: true, model: null },
+      prefs: {
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: true,
+        review: true,
+        model: null,
+      },
       jobs: [mockBrainJob()],
     },
   })
@@ -113,7 +143,13 @@ it('counts the whole Brain Inbox: reviews and open Tidy suggestions', async () =
   useBrain.setState({
     status: {
       ...base,
-      prefs: { enabled: true, recall: true, review: true, model: null },
+      prefs: {
+        neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+        enabled: true,
+        recall: true,
+        review: true,
+        model: null,
+      },
       jobs: [mockBrainJob(), mockBrainJob({ id: 'queued', state: 'queued' })],
       tidy: { ...base.tidy, open: 3 },
     },

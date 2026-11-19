@@ -10,7 +10,13 @@ import {
 } from './brain'
 
 it('starts off, with recall and review on for when it is enabled', () => {
-  expect(DEFAULT_BRAIN_PREFS).toEqual({ enabled: false, recall: true, review: true, model: null })
+  expect(DEFAULT_BRAIN_PREFS).toEqual({
+    enabled: false,
+    recall: true,
+    review: true,
+    model: null,
+    neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
+  })
 })
 
 it('gives lane agents search and flags, never approval, queueing or forgetting', () => {
@@ -40,6 +46,7 @@ it('pins the graph schema the extractor, engine and UI share', () => {
     'uses',
     'decided',
     'prefers',
+    'leads',
   ])
   expect(BRAIN_MEMORY_TYPES).toEqual([
     'decision',

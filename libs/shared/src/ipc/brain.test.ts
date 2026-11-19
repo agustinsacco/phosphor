@@ -50,6 +50,7 @@ export interface BaselineBrainInvokeMap {
 
   'brain:history': { args: [limit: number]; result: BrainHistory }
   'brain:reread': { args: [jobId: string]; result: BrainStatus }
+  'brain:neverRead': { args: [sessionId: string, never: boolean]; result: BrainStatus }
   'brain:status': { args: []; result: BrainStatus }
   /** Saves at once. Enabling downloads the model if it is missing; disabling keeps it. */
   'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }
@@ -139,6 +140,7 @@ it('pins the reader preference on both sides of the IPC contract', () => {
     recall: boolean
     review: boolean
     model: string | null
+    neverRead: { titles: string[]; sessionIds: string[] }
   }>()
   expectTypeOf<BrainInvokeMap['brain:status']['result']['prefs']>().toEqualTypeOf<BrainPrefs>()
 })
