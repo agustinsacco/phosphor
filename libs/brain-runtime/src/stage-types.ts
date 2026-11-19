@@ -15,6 +15,9 @@ export interface StageEntity {
   aliases: string[]
   description: string
   keys: EntityKey[]
+  /** The person who is the user, as the conversation names them. At most one per part; it never
+   * reaches identity or a proposal. */
+  user?: true
 }
 export interface StageQuote {
   segment: string

@@ -3,6 +3,7 @@ import type { EvidenceExcerpt, ProposalMemory } from '@phosphor/memory-engine/ty
 import type { ExtractedPart, StageEntity, StageParent } from '../stage-types'
 import { fold, tokens } from '@phosphor/memory-engine/text'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
+import { withoutUser } from '../stage-owner'
 
 export interface FoldedClaim {
   ref: string
@@ -108,7 +109,7 @@ export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob 
           status: 'folded',
           reason: `Same full name/alias as ${target.ref}, without contradictory keys`,
         })
-      } else job.entities.push(structuredClone(entity))
+      } else job.entities.push(withoutUser(structuredClone(entity)))
     }
     appendClaims(job, part, sessionId)
     job.parents.push(...part.extraction.parents)

@@ -214,15 +214,22 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    Pull requests, tickets, commits, branches and files are not entities. The model is asked for
    every lasting relationship the conversation shows between a kept claim's entities. A link
    sits on a claim that mentions both ends, and its quote may come from any segment. A person is
-   linked only for a real role, never to a tool they merely use. The answer rules are repeated
-   after the conversation, because a long one buries them.
+   linked only for a real role, never to a tool they merely use. Claims call the user by name
+   when the conversation gives it: the model then adds the user as a person entity marked as
+   the user. A part that marks more than one person marks none, and later parts learn the mark
+   from the entities they are offered. Parsing turns a leading "The user" or "The user's" into
+   that name and adds the mention once; with no marked person the sentence stays as written.
+   The mark never reaches identity or review. The answer rules are repeated after the
+   conversation, because a long one buries them.
 2. **Links**, after each part's extraction. The model sees only kept claims that mention two or
    more entities, those entities, existing links and short excerpts around each claim's quotes.
    Each excerpt stays in its segment, stops at an elision marker and adds at most 600 characters
    on each side. Overlapping excerpts merge. Links join two entities the claim already mentions,
    obey the same endpoint-kind rules and need their own verified quote from a claim excerpt's
    segment. Duplicate links are dropped. A new structural link can supply a previously unstated
-   parent. When no claim mentions two entities, this call is skipped. Its validated result has a
+   parent. A fixed filter then runs over both calls' links: it drops a uses or prefers link from
+   the user, and a works_on link beside owns for the same pair in one claim, each with a
+   recorded outcome. When no claim mentions two entities, this call is skipped. Its validated result has a
    separate per-part checkpoint; the extraction checkpoint stays unchanged.
 3. **Fold** (code). Claims with the same text and links merge their quotes; entities with the
    same name merge within the lane. A person merges this way only on a full name.

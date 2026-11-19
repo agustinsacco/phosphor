@@ -120,6 +120,10 @@
       "types": "./src/stage-links-parse.ts",
       "default": "./src/stage-links-parse.ts"
     },
+    "./stage-owner": {
+      "types": "./src/stage-owner.ts",
+      "default": "./src/stage-owner.ts"
+    },
     "./stage-parse": {
       "types": "./src/stage-parse.ts",
       "default": "./src/stage-parse.ts"
@@ -175,6 +179,10 @@
     "./stages/identity": {
       "types": "./src/stages/identity.ts",
       "default": "./src/stages/identity.ts"
+    },
+    "./stages/link-filter": {
+      "types": "./src/stages/link-filter.ts",
+      "default": "./src/stages/link-filter.ts"
     },
     "./stages/links": {
       "types": "./src/stages/links.ts",

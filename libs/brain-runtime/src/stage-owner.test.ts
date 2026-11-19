@@ -1,7 +1,16 @@
-import { expect, it } from 'vitest'
+import { afterEach, expect, it } from 'vitest'
 import { parseStageExtraction } from './stage-parse'
 import { makeWindow } from './windows'
 import type { Registry } from './stage-types'
+import { extractJob } from './extract'
+import { answerFor, pipelineSetup } from './__fixtures__/pipeline'
+import { RAW_EXTRACTION } from './__fixtures__/lane'
+import type { ModelCallInput } from './model-call'
+
+const cleanups: (() => Promise<void>)[] = []
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0)) await cleanup()
+})
 
 const source =
   'I want short bullet updates. My team reviews Harbor on Fridays. Rina Okafor here, by the way.'
@@ -88,4 +97,22 @@ it("rewrites only a leading, capitalised 'The user'", () => {
     ['Harbor updates go to the user in bullets.', []],
     ['The users of Harbor want bullets.', []],
   ])
+})
+
+it('never lets the user flag reach identity or a proposal', async () => {
+  const s = await pipelineSetup()
+  cleanups.push(s.cleanup)
+  const marked = structuredClone(RAW_EXTRACTION)
+  Object.assign(marked.entities[0]!, { user: true })
+  s.runner.mockImplementation(async (input: ModelCallInput) => ({
+    text: input.stage === 'extract' ? JSON.stringify(marked) : answerFor(input),
+    usage: { tokens: 10, cost: 0 },
+  }))
+  await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
+  const identityPrompt = s.runner.mock.calls.find(([input]) => input.stage === 'identity')
+  expect(identityPrompt?.[0].prompt).not.toContain('"user"')
+  const stored = s.store.storedProposal(s.job.id)!
+  expect(stored.entities.map((e) => e.label)).toContain('Rina Okafor')
+  expect(stored.entities.some((e) => 'user' in e)).toBe(false)
+  expect(s.store.proposal(s.job.id).identities.some((e) => 'user' in e)).toBe(false)
 })

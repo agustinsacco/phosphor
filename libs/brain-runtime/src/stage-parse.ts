@@ -18,6 +18,7 @@ import type {
 import type { TranscriptWindow } from './windows'
 import { MAX_PART_CLAIMS } from './constants'
 import { verifiedQuote } from './stage-quote'
+import { nameUser, trustedUserFlags, userEntity } from './stage-owner'
 export { verifiedQuote } from './stage-quote'
 import { fold } from '@phosphor/memory-engine/text'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
@@ -69,10 +70,13 @@ function entity(value: unknown): StageEntity {
   if (scrubExcerpt(label) !== label) throw new Error('Sensitive entity label')
   const description = typeof e.description === 'string' ? e.description : ''
   if (description.length > 160) throw new Error('Entity description exceeds 160 characters')
+  const kind = vocabulary(e.kind, BRAIN_ENTITY_KINDS)
   return {
     ref: ref(e.ref, 'n'),
     label,
-    kind: vocabulary(e.kind, BRAIN_ENTITY_KINDS),
+    kind,
+    // Only a person can be the user; a flag on anything else is ignored.
+    ...(e.user === true && kind === 'person' ? { user: true as const } : {}),
     aliases: array(e.aliases)
       .map(text)
       .filter((alias) => scrubExcerpt(alias) === alias),
@@ -185,22 +189,25 @@ export function parseStageExtraction(
   const outcomes: BrainExtractionOutcome[] = []
   const entityRefs = new Set<string>(),
     claimRefs = new Set<string>()
-  const entities = tolerant(
-    rawEntities,
-    (v) => {
-      const e = entity(v)
-      uniqueRef(e.ref, entityRefs)
-      return e
-    },
-    candidate('entity', 'n'),
-    outcomes,
+  const entities = trustedUserFlags(
+    tolerant(
+      rawEntities,
+      (v) => {
+        const e = entity(v)
+        uniqueRef(e.ref, entityRefs)
+        return e
+      },
+      candidate('entity', 'n'),
+      outcomes,
+    ),
   )
   const kinds = new Map([...registry, ...entities].map((e) => [e.ref, e.kind]))
+  const user = userEntity(entities, registry)
   const claims = tolerant(
     rawClaims,
     (v, index) => {
       if (index >= MAX_PART_CLAIMS) throw new Error('Over the 25-claim limit for one part')
-      const c = claim(v, kinds, window, outcomes)
+      const c = nameUser(claim(v, kinds, window, outcomes), user)
       uniqueRef(c.ref, claimRefs)
       return c
     },

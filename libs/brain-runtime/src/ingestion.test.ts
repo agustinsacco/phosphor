@@ -81,3 +81,9 @@ it('allows ten minutes and medium thinking for every stage', () => {
   expect(CALL_TIMEOUT_MS).toBe(600000)
   expect(callThinking('high')).toBe('medium')
 })
+it('asks for the user by name, marked once as the user, and never "the user"', () => {
+  const prompt = extractPrompt(makeWindow([]), [])
+  expect(prompt).toContain('call the user by name when the conversation gives it, never "the user"')
+  expect(prompt).toContain('add the user as a person entity with "user":true')
+  expect(prompt).toContain('leave the field out when the name is not given')
+})
