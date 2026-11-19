@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { BrainReviewDecision } from '@phosphor/shared/brain'
-import { approve, extraction, fixture, lane } from './test-support'
+import { approve, extraction, fixture, lane, vector } from './test-support'
 import type { BrainStore, Proposal } from './types'
 
 const decide = (patch: Partial<BrainReviewDecision> = {}): BrainReviewDecision => ({
@@ -109,4 +109,36 @@ it('shows each proposed memory with the hold it was stored with', () => {
   data.memories[0]!.hold = 'personal'
   store.propose(data)
   expect(store.proposal(job.id).memories.map((m) => m.hold)).toEqual(['personal', null])
+})
+
+it('refuses a confirmation turned into a new memory while it names an unanswered required identity', () => {
+  const { store } = fixture()
+  approve(store)
+  const nodes = store.overview(300).nodes
+  const id = (label: string) => nodes.find((node) => node.label === label)!.id
+  const rina = id('Rina Okafor')
+  const target = store
+    .entityMemories(rina, {}, null)
+    .memories.find((memory) => memory.summary.startsWith('Rina Okafor owns'))!.id
+  const job = store.enqueue(lane({ sessionId: 'kestrel-lane' }), 'queued')
+  const base = extraction(job.id, { computedRevision: store.knowledgeRevision() })
+  const [harbor, unsure] = base.entities
+  const entities: Proposal['entities'] = [
+    { ...harbor!, decision: 'reuse', entityId: id('Harbor') },
+    { ...unsure!, decision: 'uncertain', entityId: null, candidates: [rina], required: true },
+  ]
+  store.propose({
+    ...base,
+    entities,
+    entityVectors: entities.map(() => vector()),
+    memories: [],
+    memoryVectors: [],
+    confirmations: [{ memoryId: target, claim: base.memories[0]!, vector: vector() }],
+  })
+  const revision = store.proposal(job.id).revision
+  expect(() => store.review(job.id, decide({ identities: { harbor: 'new' } }), revision)).toThrow(
+    'Say whether “Rina Okafor” is someone Brain already knows or someone new before approving.',
+  )
+  expect(store.overview(300).nodes.filter((node) => node.label === 'Rina Okafor')).toHaveLength(1)
+  expect(store.job(job.id)!.state).toBe('review')
 })
