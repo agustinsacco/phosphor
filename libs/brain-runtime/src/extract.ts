@@ -4,7 +4,7 @@ import type { BrainServiceOptions, BrainSearchPort } from './types'
 import type { LaneMeta } from './lane'
 import { prepareRead } from './prepare-read'
 import { incrementalSegments, withoutOverlapClaims } from './incremental'
-import { readLaneEntries } from './transcript'
+import type { LaneEntry } from './transcript'
 import { transcriptWindows } from './windows'
 import { callThinking } from './call-trace'
 import { ExtractionRecord } from './extraction-record'
@@ -24,6 +24,8 @@ export async function extractJob(
   store: BrainStore,
   options: BrainServiceOptions,
   search: BrainSearchPort,
+  /** The transcript the queue's start check read, if it had to. */
+  checked?: LaneEntry[],
 ): Promise<void> {
   let record: ExtractionRecord | undefined
   const progress = (stage: BrainJobStage, done: number, total: number): void => {
@@ -33,18 +35,14 @@ export async function extractJob(
   }
   try {
     progress('prepare', 0, 1)
-    const lane = await prepareRead(job, store)
+    const { lane, entries } = await prepareRead(job, store, checked)
     record = new ExtractionRecord(
       { ...job, leafId: lane.leafId, model: lane.model, branch: lane.branch },
       store,
       options.now ?? Date.now,
       callThinking(lane.thinking),
     )
-    const { source, selected } = incrementalSegments(
-      await readLaneEntries(job.sessionPath),
-      lane.leafId,
-      lane.fromLeafId ?? null,
-    )
+    const { source, selected } = incrementalSegments(entries, lane.leafId, lane.fromLeafId ?? null)
     progress('prepare', 1, 1)
     const ask = await stageCaller({ job, lane, store, options, signal, record })
     const windows = selected.some((s) => s.role !== 'context') ? transcriptWindows(selected) : []

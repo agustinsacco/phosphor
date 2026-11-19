@@ -76,7 +76,14 @@ export function laneMetadata(
 }
 
 export async function readLane(path: string, readerModel: string | null = null): Promise<LaneMeta> {
-  const entries = await readLaneEntries(path)
+  return laneInfo(await readLaneEntries(path), readerModel)
+}
+
+/** readLane for a transcript already in hand. */
+export async function laneInfo(
+  entries: LaneEntry[],
+  readerModel: string | null = null,
+): Promise<LaneMeta> {
   const meta = laneMetadata(entries, readerModel)
   return { ...meta, title: laneTitle(entries), ...(await projectContext(meta.cwd)) }
 }

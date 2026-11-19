@@ -16,9 +16,10 @@ import { BRAIN_REVIEW_REFRESHING } from '@phosphor/shared/brain-review'
 import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
-import { readLane } from './lane'
+import { laneInfo } from './lane'
+import type { LaneFiles } from './lane-files'
 import {
-  currentReadRefusal,
+  currentReadCheck,
   NEVER_READ_REFRESH_REFUSAL,
   DELETED_LANE_REFRESH_REFUSAL,
 } from './lane-read-rules'
@@ -29,6 +30,7 @@ interface ApiContext {
   options: BrainServiceOptions
   search: BrainSearchPort
   queue: ExtractionQueue
+  files: LaneFiles
   changed(): void
   startModel(run: () => Promise<void>): void
   maintenance: Pick<TidyMaintenance, 'reset'>
@@ -44,7 +46,7 @@ function checkPrefs(prefs: BrainPrefs): void {
 }
 async function enqueue(
   ref: BrainLaneRef,
-  { store, options, queue }: ApiContext,
+  { store, options, queue, files }: ApiContext,
   replaces?: string,
 ): Promise<void> {
   const check = () => {
@@ -52,13 +54,14 @@ async function enqueue(
     if (!store.snapshot().prefs.enabled) throw new Error('Turn on Brain before queueing a lane.')
   }
   check()
-  const lane = await readLane(ref.sessionPath, store.snapshot().prefs.model).catch(
-    (error: unknown) => {
+  const lane = await files
+    .read(ref.sessionPath)
+    .then((entries) => laneInfo(entries, store.snapshot().prefs.model))
+    .catch((error: unknown) => {
       if (replaces && (error as NodeJS.ErrnoException).code === 'ENOENT')
         throw new Error("This lane's file is gone, so Brain cannot read it again.")
       throw error
-    },
-  )
+    })
   check()
   const refusal = brainNeverReadReason(store.snapshot().prefs.neverRead, {
     sessionId: lane.sessionId,
@@ -97,13 +100,13 @@ async function reread(id: string, context: ApiContext): Promise<void> {
 }
 async function currentReview(
   id: string,
-  { store, queue }: ApiContext,
+  { store, queue, files }: ApiContext,
   intent: 'view' | 'approve',
 ): Promise<void> {
   const job = store.job(id)
   const proposal = store.storedProposal(id)
   if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-    const reason = await currentReadRefusal(store, job)
+    const reason = (await currentReadCheck(store, files, job)).refusal
     const refusal =
       reason === DELETED_LANE_REFRESH_REFUSAL ? reason : reason ? NEVER_READ_REFRESH_REFUSAL : null
     const latest = store.storedProposal(id)

@@ -160,7 +160,9 @@ Both Queue and Read again refuse an excluded lane. Title rules use the current n
 lane file, or the sidebar's first-prompt title when unnamed, never a title supplied by the UI.
 An empty lane displays “Untitled lane”; that placeholder never matches a title rule. Changing the rules cancels its queued and
 waiting jobs, not its pending review; the Inbox still offers that review, with Reject as its
-primary action. Refresh also skips excluded lanes using their current names. A stale review
+primary action. Those jobs are checked against the titles Brain remembers, reading only a lane
+file that changed since. A waiting lane renamed to a matching title, with no rules change, is
+dropped when its read starts, before any model call. Refresh also skips excluded lanes using their current names. A stale review
 can always be rejected, because rejection saves nothing; approving one that cannot be refreshed
 asks you to reject it instead. If neither the stored transcript nor its `.archived` twin
 exists, the pending review stays in the Inbox and any waiting refresh returns to review; Brain
@@ -213,6 +215,17 @@ current-title exclusions and the source shown in a read's record; it never searc
 transcript. When neither file exists, a read with no review yet fails with “This lane was
 deleted, so Brain can't read it.”, and a pending review stays in the Inbox as described under
 Lanes Brain never reads.
+
+Brain parses a lane file only when it needs the transcript or the file changed
+(`libs/brain-runtime/src/lane-files.ts`). It remembers each lane's current title, in memory,
+with the size and modification time of the file it read (the stored path or its `.archived`
+twin). Queue reads the lane once to check it. A read reads it once more when it starts: the
+start check reads only a file that changed since, and hands that transcript to the read
+instead of reading it again. A waiting read is not checked while its lane is busy, so the
+queue's two-second wait for a busy lane reads nothing. A stale review is checked on every queue
+pass, but an unchanged file is not read again, and a pass that changes nothing notifies
+nobody. Opening a stale review reads its lane at most twice: once to check its current title
+when the file changed, and once to refresh it.
 
 A job freezes the lane's leaf, chosen reader model, thinking level and git branch when it first
 starts. A resume never moves them. It then reads the lane's path to that leaf, applies pi's

@@ -15,7 +15,7 @@ function setup(refusal: (job: BrainJob) => Promise<string | null>) {
   const run = vi.fn(async () => {})
   const queue = new ExtractionQueue({
     store,
-    refusal,
+    check: async (job) => ({ refusal: await refusal(job) }),
     run,
     busy: () => false,
     ready: () => true,

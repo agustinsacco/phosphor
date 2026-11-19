@@ -188,3 +188,13 @@ it('re-checks unchanged waiting lanes from their remembered titles when the rule
   expect([readsOf(s.file), readsOf(ledger)]).toEqual([1, 1])
   expect(s.runner).not.toHaveBeenCalled()
 })
+
+it('hands the start check’s read to the run when the lane changed while it waited', async () => {
+  const s = await setup({ busy: true })
+  const id = (await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })).jobs[0]!.id
+  await appendFile(s.file, '\n' + JSON.stringify({ type: 'session_info', name: 'Harbor sync' }))
+  vi.mocked(s.options.lanes.busy).mockReturnValue(false)
+  await s.service.api.setPrefs(s.store.prefs)
+  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+  expect(readsOf(s.file)).toBe(2)
+})
