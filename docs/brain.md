@@ -365,9 +365,12 @@ uses the knowledge guard too. Accepted identity and reconcile answers are keyed 
 complete prompt, not either revision: unchanged questions, including answers saved by older
 apps, never call the model again. A changed candidate changes only the prompt that contains it.
 The job's `startedAt` is its first start, and `runStartedAt` is the current attempt (null while
-not running or refreshing). Read durations come from recorded model calls, not elapsed time
-across app quits. With review off, the defaults apply: uncertain becomes new, groups are skipped
-and conflicts are saved as disputed.
+not running or refreshing). A read's duration is the time the model spent on this read's calls:
+their traced times added up, the questions a refresh asked again included. Stages run one call
+at a time, so nothing is counted twice. It is never the gap between the first start and the last
+save, which counts waits, refreshes and app quits. With no calls, or a call without a trace, no
+duration is shown. With review off, the defaults apply: uncertain becomes new, groups are
+skipped and conflicts are saved as disputed.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both
 sides until one is superseded or forgotten. **Forget** deletes one memory, then any evidence and
@@ -493,23 +496,23 @@ A Read row on Lanes, **See how it was read** in a review, or **See the read** on
 the read. Lanes selects its row when the list has one; an older read outside the newest 200
 stays open without a fabricated row. Missing records offer Retry.
 
-The header shows the lane, the model, how long the read took in words and when it finished.
+The header shows the lane, the model, how long the read took in words (the time the model spent
+on this read's calls; none without calls or when a call has no trace) and when it finished.
 Three counts follow: **kept**, **confirmed what Brain knew** and **left out**; a rejected read
 says “Rejected · nothing was saved” instead and has no memories to see. **Covered** says what
 the read took in: “Whole lane”, or “New messages after <date and time>” of the read it
 continues, or “New messages since the previous read” when that read is no longer listed. Then
-the actions:
-**Read new messages** reads only what came after this read and is off when nothing came;
-**Read again** (finished `done` reads only) reads the whole lane after a confirmation that says
-how many earlier memories will be replaced; **Dismiss** removes an empty read; **Open lane**.
-**See these memories · N memories**, closed at first, opens each memory on Knowledge (a review's
-**See how it was read** shows the same list open, as **Memories from this lane**). **What
-happened to each claim** lists each candidate with its outcome and reason, the first twenty with
-**Show more**; forgotten memories say “removed”, not a dead link. **How it was read · n calls**
-has one closed disclosure per call, named in plain words with part number and how long it took
-in words (“42 s”, “3 min”), never a clock. Opening one shows the scrubbed raw output with Copy,
-the rebuilt prompt and diagnostics, without cost or token counts. Raw output, prompts and source
-text each scroll inside a capped box.
+the actions: **Read new messages** reads only what came after this read and is off when nothing
+came; **Read again** (finished `done` reads only) reads the whole lane after a confirmation that
+says how many earlier memories will be replaced; **Dismiss** removes an empty read; **Open
+lane**. **See these memories · N memories**, closed at first, opens each memory on Knowledge (a
+review's **See how it was read** shows the same list open, as **Memories from this lane**).
+**What happened to each claim** lists each candidate with its outcome and reason, the first
+twenty with **Show more**; forgotten memories say “removed”, not a dead link. **How it was read
+· n calls** has one closed disclosure per call, named in plain words with part number and how
+long it took in words (“42 s”, “3 min”), never a clock. Opening one shows the scrubbed raw
+output with Copy, the rebuilt prompt and diagnostics, without cost or token counts. Raw output,
+prompts and source text each scroll inside a capped box.
 
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records
 store no prompt text; a prompt whose inputs are gone says so. Records are kept while their job

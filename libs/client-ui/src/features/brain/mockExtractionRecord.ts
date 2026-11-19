@@ -1,4 +1,5 @@
 import type { BrainExtractionView, BrainJob } from '@shared/brain'
+import { mockCallTrace } from './mockExtractionView'
 
 /** The invented record of one mock read: two calls, their prompts and two claim outcomes. */
 export function mockExtractionRecord(
@@ -24,7 +25,7 @@ export function mockExtractionRecord(
         entryIds: ['s1'],
         inputHash: 'demo-hash',
         answer: JSON.stringify({ claims: ['Harbor Ledger is built for Harbor.'] }),
-        trace: null,
+        trace: mockCallTrace(38_000),
         error: null,
       },
       {
@@ -44,7 +45,7 @@ export function mockExtractionRecord(
             },
           ],
         }),
-        trace: null,
+        trace: mockCallTrace(12_000),
         error: null,
       },
     ],

@@ -15,6 +15,7 @@ import { ExtractionCalls } from '../ExtractionCalls'
 import { ExtractionSource } from '../ExtractionSource'
 import { openBrainSource } from '../openBrainSource'
 import { durationWords } from '../jobProgress'
+import { readTime } from '../readTime'
 import { coverageLine, readCounts } from './laneGroups'
 
 /** A finished read: what it kept, what it covered, and the ways to read the lane again. */
@@ -56,6 +57,7 @@ function FinishedRead({
   const model = useBrainModelName(data.model)
   const counts = readCounts(data.outcomes)
   const rejected = data.job?.state === 'rejected'
+  const took = readTime(data.calls)
   return (
     <article aria-label="Read detail" className="min-w-0 space-y-4 p-4">
       <header>
@@ -63,7 +65,7 @@ function FinishedRead({
         <p className="text-text-tertiary text-sm">
           {[
             model,
-            `took ${durationWords(data.finishedAt - data.startedAt)}`,
+            took === null ? '' : `took ${durationWords(took)}`,
             relativeTime(data.finishedAt),
           ]
             .filter(Boolean)
