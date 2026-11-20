@@ -43,6 +43,19 @@ describe('swapGlobalContext', () => {
     expect(swapGlobalContext(undefined, NEW, DIR)).toBe(render([NEW]))
   })
 
+  it('keeps a lane folder’s own file last, where pi puts the cwd’s file', () => {
+    const rules = { path: '/brain/Brain/AGENTS.md', content: 'Old rules' }
+    const edited = { ...rules, content: 'New rules' }
+    expect(swapGlobalContext(render([OLD, rules]), edited, '/brain/Brain', 'last')).toBe(
+      render([OLD, edited]),
+    )
+    expect(swapGlobalContext(render([OLD]), edited, '/brain/Brain', 'last')).toBe(
+      render([OLD, edited]),
+    )
+    const section = render([OLD, rules])
+    expect(swapGlobalContext(section, rules, '/brain/Brain', 'last')).toBe(section)
+  })
+
   it('removes a deleted file, and the section when nothing is left', () => {
     expect(swapGlobalContext(render([OLD, REPO]), null, DIR)).toBe(render([REPO]))
     expect(swapGlobalContext(render([OLD]), null, DIR)).toBeNull()
