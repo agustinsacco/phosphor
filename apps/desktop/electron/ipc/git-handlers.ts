@@ -14,6 +14,7 @@ import {
   renameBranch,
   startPoint,
 } from '../fs/git-worktrees'
+import { createLaneWorktree } from '../fs/lane-worktree'
 import { checkoutBranch, fetchRepo, pullFastForward, updateFromMain } from '../fs/git-sync'
 
 /** Git status and per-file baseline/restore for the Changes pane. */
@@ -56,6 +57,9 @@ export function registerGitHandlers(): void {
   handle('git:startPoint', (_event, repoPath) => startPoint(repoPath))
 
   handle('git:addWorktree', (_event, repoPath, name, branch) => addWorktree(repoPath, name, branch))
+  handle('git:createLaneWorktree', (_event, workspacePath, request) =>
+    createLaneWorktree(workspacePath, request),
+  )
 
   handle('git:removeWorktree', (_event, repoPath, worktreePath, options) =>
     removeReviewedWorktree(repoPath, worktreePath, options),

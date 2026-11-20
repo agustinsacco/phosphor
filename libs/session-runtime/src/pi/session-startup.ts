@@ -109,6 +109,7 @@ async function spawnSession(
   execution: SessionExecution = {},
 ): Promise<LiveSessionInfo> {
   execution.signal?.throwIfAborted()
+  const started = performance.now()
   const options = {
     ...rawOptions,
     workspacePath: runtime.resolveWorkspace(rawOptions.workspacePath) ?? rawOptions.workspacePath,
@@ -134,6 +135,7 @@ async function spawnSession(
       ? await runtime.laneReload.capture(options.workspacePath)
       : null
   const session = runtime.registry.create(options.workspacePath, spawnOptions)
+  const spawned = performance.now()
   const stopOnAbort = (): void => {
     void runtime.registry.dispose(session.sessionId).catch((error: unknown) => {
       runtime.log('pi', 'startup cancellation failed', {
@@ -150,6 +152,12 @@ async function spawnSession(
       await verifyStartupAccount(session.client, runtime.policy.strictAccountSelection, accountId)
       await syncContextBudget(session.client, runtime.budget.read())
     }
+    // Where a slow start went: Phosphor's own preparation, or pi's boot.
+    runtime.log('pi', 'ready', {
+      sessionId: session.sessionId,
+      prepareMs: Math.round(spawned - started),
+      bootMs: Math.round(performance.now() - spawned),
+    })
     return completeStartup(runtime, session, options, execution, accountId, laneConfig)
   } catch (error) {
     await runtime.registry.dispose(session.sessionId)

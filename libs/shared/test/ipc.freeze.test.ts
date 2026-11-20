@@ -140,6 +140,7 @@ const expectedEntries = [
   ['git:addWorktree', 'machine'],
   ['git:checkoutBranch', 'machine'],
   ['git:commitAll', 'machine'],
+  ['git:createLaneWorktree', 'machine'],
   ['git:fetch', 'machine'],
   ['git:info', 'machine'],
   ['git:infoBatch', 'machine'],

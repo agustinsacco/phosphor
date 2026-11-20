@@ -291,7 +291,7 @@ async function enrichWithSync(
 }
 
 /** Append `/.phosphor/` to .git/info/exclude once (never touches .gitignore). */
-async function ensureExcluded(repoPath: string): Promise<void> {
+export async function ensureExcluded(repoPath: string): Promise<void> {
   const commonDir = (
     await git(repoPath, ['rev-parse', '--path-format=absolute', '--git-common-dir'])
   ).trim()
@@ -312,6 +312,19 @@ export async function addWorktree(
   name: string,
   branch: AddWorktreeBranch,
 ): Promise<WorktreeInfo> {
+  const path = await createWorktree(repoPath, name, branch)
+  const worktrees = await listWorktreeMetadata(repoPath)
+  const created = worktrees.find((w) => w.path === path || w.realPath === normalizeRealPath(path))
+  if (!created) throw new Error('Worktree was created but not found in `git worktree list`.')
+  return { ...created, dirtyCount: await dirtyCount(created.path).catch(() => -1) }
+}
+
+/** Validate and `git worktree add`, returning the new folder; nothing is listed after. */
+export async function createWorktree(
+  repoPath: string,
+  name: string,
+  branch: AddWorktreeBranch,
+): Promise<string> {
   if (!NAME_PATTERN.test(name) || name.includes('..')) {
     throw new Error(`Invalid worktree name "${name}" — letters, digits, ./_- only.`)
   }
@@ -365,11 +378,7 @@ export async function addWorktree(
   } else {
     await git(repoPath, ['worktree', 'add', path, branch.branch])
   }
-
-  const worktrees = await listWorktreeMetadata(repoPath)
-  const created = worktrees.find((w) => w.path === path || w.realPath === normalizeRealPath(path))
-  if (!created) throw new Error('Worktree was created but not found in `git worktree list`.')
-  return { ...created, dirtyCount: await dirtyCount(created.path).catch(() => -1) }
+  return path
 }
 
 /**

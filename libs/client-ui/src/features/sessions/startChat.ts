@@ -1,4 +1,4 @@
-import type { WorktreeInfo } from '@shared/models'
+import type { LaneWorktreeResult } from '@shared/models'
 import type { ImageContent } from '@shared/rpc'
 import { useSessionsStore } from '@/stores/sessions'
 import { useNamingStore } from '@/stores/naming'
@@ -11,7 +11,6 @@ import { lanePrefs } from '@/stores/lanePrefs'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { workspaceName } from '@/lib/path'
 import { piCallOk } from '@/lib/rpc'
-import { errorText } from '@shared/errors'
 
 /**
  * Starting a chat from the home composer: branch it, run it, name it.
@@ -97,34 +96,26 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
   const initial = { firstPrompt: prompt, firstImages: images, nav, swarm }
   /** Is the user still waiting on this send, or have they moved on? */
   const claimed = (): boolean => nav === undefined || useSessionsStore.getState().navSeq === nav
-  const isolate = await shouldIsolate(workspacePath)
-
-  if (!isolate) {
+  const startInPlace = async (): Promise<StartChatResult> => {
     options.onPhase?.('starting')
     const sessionId = await useSessionsStore.getState().createSession(workspacePath, initial)
     return { sessionId, workspacePath }
   }
+  if (!useWorktreesStore.getState().preferWorktree) return startInPlace()
 
-  const { repoPath } = isolate
   options.onPhase?.('branching')
-
-  // Concurrent: the start point and the taken-name lists are independent
-  // reads of the same repo, and running them back to back doubled the git
-  // latency in front of every send for no reason. `createBranchWorktree`
-  // consumes the refresh, so it is awaited there rather than dropped here.
-  const refreshed = useWorktreesStore.getState().refresh(repoPath)
-  const base = await resolveBase(repoPath)
-  const created = await createBranchWorktree(repoPath, prompt, base, refreshed)
-
-  if (!created.worktree) {
+  const created = await createLaneWorktree(workspacePath, prompt)
+  if (created.kind === 'unisolated') return startInPlace()
+  if (created.kind === 'failed') {
     // Git refused (a locked index, a name race, a repo in an odd state). The
     // message is worth more than the branch: start where we are and say why.
-    options.onWarning?.(created.error)
-    options.onPhase?.('starting')
-    const sessionId = await useSessionsStore.getState().createSession(workspacePath, initial)
-    return { sessionId, workspacePath }
+    options.onWarning?.(
+      `Couldn't create the branch ${created.branch} — this session is running in ${workspaceName(created.repoPath)} instead. ${created.error}`,
+    )
+    return startInPlace()
   }
 
+  const { repoPath } = created
   const cwd = created.worktree.realPath
   options.onPhase?.('starting')
   // Point the window at the new worktree before the session starts, so the top
@@ -156,6 +147,10 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
       if (claimed()) useWorkspacesStore.getState().openWorkspace(workspacePath)
       throw error
     })
+  // The branch picker and sidebar learn of the new worktree here, after pi is
+  // up: the full listing reads every checkout's dirty state, which is seconds
+  // of git in a repository with many lanes, and nothing above needed it.
+  void useWorktreesStore.getState().refresh(repoPath)
 
   const branch = created.worktree.branch ?? undefined
   // Deliberately not awaited: this is the ~13s call that used to be in front
@@ -170,23 +165,26 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
 }
 
 /**
- * Whether this chat should get its own branch, and which repo owns it.
+ * Cut this chat's branch and worktree, named from its first message.
  *
- * A chat started from inside a worktree still branches off trunk rather than
- * joining the branch it was started from: "new chat" means new work, and the
- * repo of record for a worktree is its main tree (`mainRepoPath`), which is
- * where every other worktree lives too. Continuing on the current branch is
- * still reachable — the sidebar's "New session here" does exactly that.
+ * Main does it in one call (`git:createLaneWorktree`): it finds the repo of
+ * record, reads the taken names and runs `git worktree add`. A chat started
+ * inside a worktree still branches off trunk in its main tree, because "new
+ * chat" means new work; the sidebar's "New session here" continues a branch.
  */
-async function shouldIsolate(workspacePath: string): Promise<{ repoPath: string } | null> {
-  if (!useWorktreesStore.getState().preferWorktree) return null
+async function createLaneWorktree(
+  workspacePath: string,
+  title: string,
+): Promise<LaneWorktreeResult> {
   try {
-    const info = await window.phosphor.invoke('git:info', workspacePath)
-    if (!info.isRepo) return null
-    return { repoPath: info.isWorktree && info.mainRepoPath ? info.mainRepoPath : workspacePath }
+    return await window.phosphor.invoke('git:createLaneWorktree', workspacePath, {
+      title,
+      prefix: useWorktreesStore.getState().branchPrefix,
+      maxSlug: lanePrefs().branchSlugMaxLength,
+    })
   } catch {
-    // Not a repo, or git is unavailable — a plain session is the right answer.
-    return null
+    // Main itself failed: a plain session is the right answer, as for no repo.
+    return { kind: 'unisolated' }
   }
 }
 
@@ -326,36 +324,12 @@ function existingTitlesForRepo(repoPath: string, workspacePath: string): string[
 }
 
 /**
- * Freshest trunk to branch from, using the refs already on disk.
- *
- * **No fetch happens here, on purpose.** "Branch off the *latest* main" is
- * real intent, but paying for it at send time is what made a new chat feel
- * slow: the fetch is throttled to once per 3 minutes per repo, so the first
- * send after any pause paid the whole network round trip (~0.8s on a warm
- * link, and a bounded 3s wait when the link was cold) while the user watched
- * an unchanged screen.
- *
- * `prefetchTrunk` moves that round trip to when the home screen mounts
- * instead — i.e. while the user is still typing — so the refs are already
- * fresh by the time this reads them, and a send never waits on the network at
- * all. A repo that is offline, has no remote, or has no credentials simply
- * resolves to local trunk, exactly as before.
- */
-async function resolveBase(repoPath: string): Promise<{ base: string; noTrack: boolean }> {
-  try {
-    const point = await window.phosphor.invoke('git:startPoint', repoPath)
-    return { base: point.base, noTrack: point.fromRemote }
-  } catch {
-    // `HEAD` is the last resort: whatever trunk is, the main tree is on it.
-    return { base: 'HEAD', noTrack: false }
-  }
-}
-
-/**
  * Warm the refs a new chat will branch from, ahead of the send.
  *
- * Call from a screen where a chat is about to be composed. It is the same
- * throttled fetch `resolveBase` used to await, moved off the critical path —
+ * Call from a screen where a chat is about to be composed. A send never
+ * fetches: `git:createLaneWorktree` branches from the refs already on disk,
+ * because the round trip (~0.8s warm, up to 3s cold) made a new chat feel
+ * slow. This moves that fetch to while the user is typing instead, and is
  * cheap to call repeatedly (main throttles to once per 3 minutes per repo) and
  * safe to ignore: nothing waits on it and a failure only means the next branch
  * starts from the trunk we already had.
@@ -371,41 +345,6 @@ export function prefetchTrunk(workspacePath: string): void {
       // Offline, no remote, not a repo: the send falls back to local trunk.
     }
   })()
-}
-
-/** Create the worktree, or explain in one sentence why there isn't one. */
-async function createBranchWorktree(
-  repoPath: string,
-  title: string,
-  base: { base: string; noTrack: boolean },
-  /** The in-flight `refresh` started by the caller, so the two git reads overlap. */
-  refreshed: Promise<unknown>,
-): Promise<{ worktree: WorktreeInfo; error?: undefined } | { worktree: null; error: string }> {
-  const store = useWorktreesStore.getState()
-  // Awaited before reading the lists: the taken-name lists have to reflect the
-  // repo as it is now, not as it was when the branch popup was last opened.
-  await refreshed
-  const repo = repoWorktrees(useWorktreesStore.getState(), repoPath)
-
-  const { folder, branch } = newChatBranchName(title, {
-    takenBranches: repo.branches.map((b) => b.name),
-    takenFolders: repo.worktrees.filter((w) => !w.isMain).map((w) => workspaceName(w.path)),
-  })
-
-  try {
-    const worktree = await store.addWorktree(repoPath, folder, {
-      kind: 'new',
-      base: base.base,
-      branch,
-      noTrack: base.noTrack,
-    })
-    return { worktree }
-  } catch (error) {
-    return {
-      worktree: null,
-      error: `Couldn't create the branch ${branch} — this session is running in ${workspaceName(repoPath)} instead. ${errorText(error)}`,
-    }
-  }
 }
 
 /** The same prompt slug and preferences for This Mac and Host worktrees. */
