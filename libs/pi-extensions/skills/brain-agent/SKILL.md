@@ -9,12 +9,12 @@ does with each decision.
 
 ## What waits for you
 
-`brain_waiting` lists everything, in the order to decide it, with the ids the other tools take.
-Call it first, and again whenever you want to know what is left.
+`brain_waiting { limit: 60 }` lists everything, in the order to decide it, with the ids the
+other tools take. Call it first, and again whenever you want to know what is left.
 
 - **Reads.** After a lane finishes, Brain reads it and proposes memories. A read waiting for you
-  is in `review`, or `refreshing` while Brain re-reads it. A read marked **never read** belongs
-  to a lane the owner told Brain never to read: reject it.
+  is in `review`, or `refreshing` while Brain brings it up to date. A read marked **never read**
+  belongs to a lane the owner told Brain never to read: reject it.
 - **People and things** (`same_entity`): two records that may be one person, team, system or
   customer.
 - **Repeats** (`same_memory`): two memories that may say the same thing.
@@ -26,7 +26,9 @@ Call it first, and again whenever you want to know what is left.
 
 ## Reads
 
-`brain_read_review { jobId }` opens one. It shows:
+`brain_read_review { jobId }` opens one. A long read comes in pages: a page that ends with
+"Call again with offset N" has more, so call `brain_read_review { jobId, offset: N }` until the
+page that says "That is the end of this read." It shows:
 
 - **Identities**: each person or thing the read names, with a ref such as `e1`, Brain's
   decision (`new`, `reuse` as an existing entity, or `uncertain`) and the candidates it might
@@ -44,11 +46,14 @@ Call it first, and again whenever you want to know what is left.
 - The **revision**. Decide on the revision you read.
 
 `brain_decide_read { jobId, revision, approve, reason }` approves or rejects. Approving without
-`memories` saves every memory that is not held. If a required question is unanswered, the tool
-lists it instead of approving. If Brain refreshed the read since you opened it, the answer is
-"not saved": open it again and decide on the new revision. Approving changes Brain, so other
-waiting reads may refresh before you open them; `brain_read_review` refreshes a stale read
-itself, which can take a few minutes.
+`memories` saves every memory that is not held, on every page, so read every page before you
+approve. If a required question is unanswered, the tool lists it instead of approving. If Brain
+refreshed the read since you opened it, the answer is "not saved": open it again and decide on
+the new revision. Approving changes Brain, so the other waiting reads go stale. They wait as
+they are: `brain_read_review` brings a stale read up to date when you open it, which can take a
+few minutes, and `brain_decide_read` does the same before it approves. A read is checked against
+its lane as it is now each time: if the lane was renamed to a never-read title or deleted, it is
+marked never read and can only be rejected.
 
 ## Suggestions
 

@@ -222,12 +222,14 @@ function registerDecide(pi: CuratorPiApi, client: BrainCuratorClient): void {
     pi,
     'brain_decide_read',
     'Brain: decide a read',
-    'Approve or reject a read from brain_read_review, at the revision you read. Reject (approve: false) a read of a lane Brain never reads, or one with nothing worth keeping. Approving saves every memory that is not held unless you list memories; answer required identity questions first. Brain changes when you approve, so other reads may refresh before you open them.',
+    'Approve or reject a read from brain_read_review, at the revision you read. Reject (approve: false) a read of a lane Brain never reads, or one with nothing worth keeping. Approving saves every memory that is not held, on every page of a long read, unless you list memories; read every page first, and answer required identity questions. Brain changes when you approve, so other reads may refresh before you open them.',
     object({
       jobId: curatorId('The read id.'),
       revision: Type.Integer({ minimum: 0, description: 'The revision brain_read_review showed.' }),
       approve: Type.Boolean({ description: 'true saves the read; false rejects all of it.' }),
-      memories: indexes('Memory indexes to save. Default: every memory that is not held.'),
+      memories: indexes(
+        'Memory indexes to save, from any page. Default: every memory that is not held, on every page.',
+      ),
       identities: Type.Optional(
         Type.Array(
           object({

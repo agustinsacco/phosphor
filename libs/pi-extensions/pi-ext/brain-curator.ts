@@ -83,13 +83,23 @@ export function registerCuratorReads(pi: CuratorPiApi, client: BrainCuratorClien
     }),
     async (params, signal) => formatWaiting(await client.call('waiting', params, signal)),
   )
-  registerRead<{ jobId: string }>(
+  registerRead<{ jobId: string; offset?: number }>(
     pi,
     'brain_read_review',
     'Brain: open a read',
-    'Open one waiting read (a lane Brain read): its identity questions, group questions and proposed memories with their indexes, and the revision to decide on. If Brain changed since the read, this refreshes it first, which can take a few minutes.',
-    object({ jobId: curatorId('The read id from brain_waiting, such as job-…') }),
-    async (params, signal) => formatReview(await client.call('readReview', params, signal)),
+    'Open one waiting read (a lane Brain read): its identity questions, group questions and proposed memories with their indexes, and the revision to decide on. A long read comes in pages: each page ends with "Call again with offset N" until the last. If Brain changed since the read, this refreshes it first, which can take a few minutes.',
+    object({
+      jobId: curatorId('The read id from brain_waiting, such as job-…'),
+      offset: Type.Optional(
+        Type.Integer({
+          minimum: 0,
+          description:
+            'Where to go on, from the last page’s "Call again with offset N". Leave out at first.',
+        }),
+      ),
+    }),
+    async ({ jobId, offset }, signal) =>
+      formatReview(await client.call('readReview', { jobId }, signal), offset),
   )
   registerRead<{ suggestionId: string }>(
     pi,
