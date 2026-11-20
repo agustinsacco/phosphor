@@ -233,6 +233,34 @@ describe('opening a lane mid-turn', () => {
   )
 })
 
+it('keeps the activity guard when the lane main runs was idle as it opened', async () => {
+  createSession.mockResolvedValue({
+    sessionId: 'audit',
+    workspacePath: '/repo',
+    diskPath: '/repo/clone.jsonl',
+    pid: 1,
+  })
+  const normal = command.getMockImplementation()!
+  let release!: () => void
+  command.mockImplementation(async (id, cmd) => {
+    if (cmd.type !== 'get_messages') return normal(id, cmd)
+    return await new Promise((resolve) => {
+      release = () => resolve({ success: true, data: { messages: [] } })
+    })
+  })
+  const opening = useSessionsStore
+    .getState()
+    .createSession('/repo', { sessionPath: '/repo/clone.jsonl' })
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+  fake.events.onSessionPush.emit('audit', { kind: 'event', event: { type: 'agent_start' } })
+  release()
+  await opening
+  expect(useChatStore.getState().sessions.audit?.error).toBe(
+    'Session activity changed while loading. Retry when the turn finishes.',
+  )
+  expect(useSessionTransition.getState().bySession.audit?.retry).toBeTypeOf('function')
+})
+
 it('rewind removes artifacts that only existed after its new branch point', async () => {
   live()
   useArtifactsStore.getState().ingest('audit', 'artifact_create', {
