@@ -41,6 +41,8 @@ async function setup(lanes = ['harbor']) {
   let peak = 0
   const gates: (() => void)[] = []
   let hold = false
+  /** A held run that ignores abort until released, as a model call can while it cleans up. */
+  let stubborn = false
   const states: string[] = []
   const run = vi.fn(async (job: BrainJob, signal: AbortSignal) => {
     states.push(job.state)
@@ -49,7 +51,7 @@ async function setup(lanes = ['harbor']) {
       if (hold)
         await new Promise<void>((resolve, reject) => {
           gates.push(resolve)
-          signal.addEventListener('abort', () => reject(new Error('aborted')))
+          if (!stubborn) signal.addEventListener('abort', () => reject(new Error('aborted')))
         })
       signal.throwIfAborted()
       store.proposals.set(job.id, {
@@ -73,6 +75,11 @@ async function setup(lanes = ['harbor']) {
     now: () => 123,
   })
   cleanups.push(() => queue.dispose())
+  // Runs first: a held run never keeps the queue from closing.
+  cleanups.push(async () => {
+    hold = false
+    gates.splice(0).forEach((open) => open())
+  })
   let task: AbortSignal | null = null
   const context: ReviewRefreshContext = {
     store,
@@ -93,7 +100,10 @@ async function setup(lanes = ['harbor']) {
       store.rev++
     },
     peak: () => peak,
-    holdRuns: () => (hold = true),
+    holdRuns: (ignoreAbort = false) => {
+      hold = true
+      stubborn = ignoreAbort
+    },
     release: () => gates.splice(0).forEach((open) => open()),
     setReady: (value: boolean) => (ready = value),
     /** Runs `inside` as the active Defrag task. */
@@ -217,4 +227,50 @@ it('returns the refusal for a lane Brain may not read again, without refreshing'
     DELETED_LANE_REFRESH_REFUSAL,
   )
   expect(s.run).not.toHaveBeenCalled()
+})
+
+/** A Defrag task whose turn ends when Stop aborts it, while an inline refresh it started runs. */
+function stoppableRefresh(s: Awaited<ReturnType<typeof setup>>, id: string) {
+  let refreshed: Promise<string | null> | undefined
+  const task = s.defrag(async (signal) => {
+    s.stale()
+    refreshed = freshReview(s.context, id, call())
+    refreshed.catch(() => undefined)
+    await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve()))
+  })
+  return { task, refreshed: () => refreshed! }
+}
+
+it('Stop keeps the worker until the inline refresh settles: never two runs on one job', async () => {
+  const s = await setup()
+  const id = s.jobs[0]!.id
+  s.holdRuns(true)
+  const { task, refreshed } = stoppableRefresh(s, id)
+  await vi.waitFor(() => expect(s.run).toHaveBeenCalledOnce())
+  task.cancel()
+  await task.done
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(s.run).toHaveBeenCalledOnce()
+  expect(s.queue.defragActive).toBe(true)
+  s.release()
+  await expect(refreshed()).rejects.toThrow()
+  await vi.waitFor(() => expect(s.queue.defragActive).toBe(false))
+  expect(s.peak()).toBe(1)
+})
+
+it('pause and dispose wait for an inline refresh to settle', async () => {
+  for (const end of ['pause', 'dispose'] as const) {
+    const s = await setup()
+    s.holdRuns(true)
+    const { refreshed } = stoppableRefresh(s, s.jobs[0]!.id)
+    await vi.waitFor(() => expect(s.run).toHaveBeenCalledOnce())
+    let ended = false
+    const ending = s.queue[end]().then(() => (ended = true))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(ended).toBe(false)
+    s.release()
+    await ending
+    await expect(refreshed()).rejects.toThrow()
+    expect(s.peak()).toBe(1)
+  }
 })
