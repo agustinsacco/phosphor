@@ -81,6 +81,23 @@ export interface StartPoint {
   fromRemote: boolean
 }
 
+/** A new lane's worktree, named from its first message by main in one call. */
+export interface LaneWorktreeRequest {
+  /** The text the branch and folder are slugged from. */
+  title: string
+  /** Configured branch prefix, e.g. `phosphor/`. Empty means none. */
+  prefix: string
+  /** Slug cap from `LanePrefs.branchSlugMaxLength`. */
+  maxSlug?: number
+}
+
+export type LaneWorktreeResult =
+  /** Not a git repository (or its HEAD is unborn): the lane runs in the folder. */
+  | { kind: 'unisolated' }
+  | { kind: 'created'; repoPath: string; worktree: WorktreeInfo }
+  /** Git refused; `branch` is the name it tried and `error` says why. */
+  | { kind: 'failed'; repoPath: string; branch: string; error: string }
+
 /** `git fetch --prune`, which is allowed to be a no-op or to fail quietly. */
 export type FetchResult =
   | { fetched: true; at: number }

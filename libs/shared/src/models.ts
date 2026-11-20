@@ -29,6 +29,8 @@ export type {
   BranchInfo,
   AddWorktreeBranch,
   StartPoint,
+  LaneWorktreeRequest,
+  LaneWorktreeResult,
   FetchResult,
   PullResult,
   UpdateFromMainResult,

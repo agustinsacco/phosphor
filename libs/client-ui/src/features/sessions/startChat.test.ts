@@ -20,11 +20,14 @@ beforeEach(() => {
   useWorkspacesStore.setState({ homePath: '/repo', recents: [] })
   useLanePrefsStore.getState().applyLanePrefs({ autoName: false })
   invoke.mockReset().mockImplementation(async (channel: string) => {
-    if (channel === 'git:info') return { isRepo: true }
-    if (channel === 'git:startPoint') return { base: 'main', fromRemote: false }
     if (channel === 'git:listWorktrees') return []
     if (channel === 'git:listBranches') return { branches: [], defaultBranch: 'main' }
-    if (channel === 'git:addWorktree') return { path: tree, realPath: tree, branch: 'task' }
+    if (channel === 'git:createLaneWorktree')
+      return {
+        kind: 'created',
+        repoPath: '/repo',
+        worktree: { path: tree, realPath: tree, branch: 'task' },
+      }
     return undefined
   })
   vi.stubGlobal('window', { phosphor: { invoke } })
@@ -39,8 +42,10 @@ it.each(['plain', 'worktree', 'fallback'])(
   async (mode) => {
     if (mode === 'plain') useWorktreesStore.setState({ preferWorktree: false })
     if (mode === 'fallback') {
-      vi.spyOn(useWorktreesStore.getState(), 'addWorktree').mockRejectedValue(
-        new Error('git refused'),
+      invoke.mockImplementation(async (channel: string) =>
+        channel === 'git:createLaneWorktree'
+          ? { kind: 'failed', repoPath: '/repo', branch: 'task', error: 'git refused' }
+          : undefined,
       )
     }
     await startChat({ workspacePath: '/repo', prompt: 'task', swarm: true, nav: 1 })
@@ -68,26 +73,37 @@ it.each([false, true])(
   },
 )
 
+it('starts a lane without waiting on a dirty scan of every worktree', async () => {
+  // `git:listWorktrees` runs `git status` in every checkout: seconds in a repo
+  // with a hundred archived lanes. Creating a lane needs none of it.
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation((channel: string, ...args: unknown[]) => {
+    if (channel === 'git:listWorktrees') return new Promise(() => {})
+    if (channel === 'git:createLaneWorktree')
+      return Promise.resolve({
+        kind: 'created',
+        repoPath: '/repo',
+        worktree: { path: tree, realPath: tree, branch: 'task' },
+      })
+    return base(channel, ...args)
+  })
+  void startChat({ workspacePath: '/repo', prompt: 'task', nav: 1 })
+  await vi.waitFor(() => expect(createSession).toHaveBeenCalledWith(tree, expect.anything()), {
+    timeout: 500,
+  })
+})
+
 it('shares prompt slug, branch prefix and collision rules with Host creation', async () => {
   useWorktreesStore.setState({ branchPrefix: 'custom/' })
   const name = newChatBranchName('Fix the café composer', { takenBranches: [], takenFolders: [] })
   expect(name.branch).toBe('custom/fix-the-cafe-composer')
-  const add = vi.spyOn(useWorktreesStore.getState(), 'addWorktree').mockResolvedValue({
-    path: tree,
-    realPath: tree,
-    branch: name.branch,
-    isMain: false,
-    head: 'head',
-    locked: false,
-    prunable: false,
-    dirtyCount: 0,
-  })
   await startChat({ workspacePath: '/repo', prompt: 'Fix the café composer' })
-  expect(add).toHaveBeenCalledWith(
-    '/repo',
-    name.folder,
-    expect.objectContaining({ branch: name.branch }),
-  )
+  // Main derives the name with the same `branchNameFor`, from these inputs.
+  expect(invoke).toHaveBeenCalledWith('git:createLaneWorktree', '/repo', {
+    title: 'Fix the café composer',
+    prefix: 'custom/',
+    maxSlug: expect.any(Number),
+  })
   expect(
     newChatBranchName('Fix the café composer', { takenBranches: [name.branch], takenFolders: [] })
       .branch,

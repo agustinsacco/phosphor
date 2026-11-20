@@ -77,6 +77,8 @@ const publicExports = [
   'LanePrSignals',
   'LanePrefs',
   'LaneSavings',
+  'LaneWorktreeRequest',
+  'LaneWorktreeResult',
   'LiveSessionInfo',
   'LoginFlowState',
   'LoginProviderId',

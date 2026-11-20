@@ -27,6 +27,16 @@ your main checkout.
   to local trunk, a git refusal to a plain session with the reason shown, a
   failed naming leaves the slug standing.
 
+- **Cutting a lane's worktree is one main-process call that reads no checkout.**
+  `git:createLaneWorktree` (`apps/desktop/electron/fs/lane-worktree.ts`) finds
+  the repository of record, reads branch names and the folders under
+  `.phosphor/worktrees`, derives the name with `branchNameFor` and runs
+  `git worktree add`. It never lists worktrees or runs `git status`: archived
+  lanes keep their checkouts, so a full listing grows with every lane and cost
+  4 to 12 seconds in a repository with a hundred of them. The worktree store
+  refreshes in the background once pi is up. Refusals return as results with
+  git's own reason. The `[lanes] worktree created` and `[pi] ready` log lines
+  time the two halves of a new lane.
 - **Auto-created branches start from `origin/<trunk>`, not local trunk.**
   "Branch off the latest main" is the intent, and a local `main` in a repo
   someone has been working in is routinely stale. Pulling first would fail on
@@ -139,9 +149,12 @@ are not queued behind the display-query concurrency limit.
 ## Code map
 
 - `libs/client-ui/src/features/sessions/startChat.ts` — the home composer's send path:
-  bounded fetch, branch/folder derivation, worktree creation, workspace
-  switch, session spawn; then, off the critical path, naming and the rename.
-- `libs/client-ui/src/lib/branchName.ts` — pure title → `{folder, branch}` derivation. Its
+  `git:createLaneWorktree`, workspace switch, session spawn; then, off the
+  critical path, the worktree listing, naming and the rename. The trunk fetch
+  runs while the user types (`prefetchTrunk`), never at send.
+- `apps/desktop/electron/fs/lane-worktree.ts` — a new lane's branch and worktree in
+  one call, without reading any checkout's status.
+- `libs/shared/src/branchName.ts` — pure title → `{folder, branch}` derivation. Its
   charset is narrower than git's ref rules on purpose, so no result needs
   re-validating.
 - `apps/desktop/electron/fs/git-worktrees.ts` — worktree lifecycle (execFile, no shell).
@@ -149,7 +162,7 @@ are not queued behind the display-query concurrency limit.
   git 2.41+ and an unknown atom fails the whole command.
 - `apps/desktop/electron/fs/git-sync.ts` — fetch, fast-forward pull, update-from-trunk,
   main-tree checkout. Result unions, not throws, for expected refusals.
-- IPC: `git:listWorktrees / listBranches / addWorktree / removeWorktree /
+- IPC: `git:listWorktrees / listBranches / addWorktree / createLaneWorktree / removeWorktree /
 pruneWorktrees / commitAll / mergeBranch / fetch / pull / updateFromMain /
 checkoutBranch` (`libs/shared/src/ipc/workspace.ts`, `apps/desktop/electron/ipc/git-handlers.ts`).
 - `libs/client-ui/src/stores/worktrees.ts` — per-repo cache of worktrees and branches, plus

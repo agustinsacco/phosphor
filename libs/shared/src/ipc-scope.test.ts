@@ -21,7 +21,7 @@ it('lists the reviewed machine surface; everything else is app-local', () => {
     sessions:
       'list stats watch unwatch delete readTree readTranscript appendLabel jump forkAt claudeSessionId forkClaudeLedger setCompleted retainedWorkspaces restoreWorktree worktreeRecovery recreateWorktree archive',
     gh: 'prForBranch prsForRepo prSummaries prDetail available',
-    git: 'info infoBatch statusMap sessionBaseline showFileAt restoreFileTo listWorktrees listBranches startPoint addWorktree removeWorktree renameBranch pruneWorktrees commitAll mergeBranch fetch pull updateFromMain checkoutBranch',
+    git: 'info infoBatch statusMap sessionBaseline showFileAt restoreFileTo listWorktrees listBranches startPoint addWorktree createLaneWorktree removeWorktree renameBranch pruneWorktrees commitAll mergeBranch fetch pull updateFromMain checkoutBranch',
     maintenance: 'scan run',
     headroom: 'status setEnabled start stop install',
     optimization: 'stats',

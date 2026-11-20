@@ -22,6 +22,8 @@ import type {
   PullResult,
   SessionMeta,
   StartPoint,
+  LaneWorktreeRequest,
+  LaneWorktreeResult,
   UpdateFromMainResult,
   WorkspaceSessionStats,
   WorktreeInfo,
@@ -126,6 +128,12 @@ export interface BaselineGitInvokeMap {
   'git:addWorktree': {
     args: [repoPath: string, name: string, branch: AddWorktreeBranch]
     result: WorktreeInfo
+  }
+
+  /** A new lane's branch and worktree, named and cut in one call; refusals are results. */
+  'git:createLaneWorktree': {
+    args: [workspacePath: string, request: LaneWorktreeRequest]
+    result: LaneWorktreeResult
   }
 
   /** Dirty worktrees are refused unless forced; branch delete is `-d` only. */
