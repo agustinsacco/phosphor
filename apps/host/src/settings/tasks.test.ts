@@ -74,6 +74,20 @@ describe('fixed-purpose private machine programs', () => {
     ).rejects.toThrow('busy')
     f.finish()
   })
+  it('signs a pi provider out with pi auth logout, from home', async () => {
+    const f = fixture()
+    await f.tasks.execute(
+      { type: 'machine.task', task: 'provider.logout', name: 'openai-codex' },
+      'client',
+      () => true,
+    )
+    expect(f.runner).toHaveBeenCalledWith(
+      '/trusted/node',
+      ['/trusted/pi.js', 'auth', 'logout', 'openai-codex'],
+      expect.objectContaining({ cwd: '/host/home' }),
+    )
+    f.finish()
+  })
   it('opens folder trust for review without automatically approving it', async () => {
     const f = fixture()
     await f.tasks.execute(

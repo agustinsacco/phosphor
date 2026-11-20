@@ -82,7 +82,10 @@ export async function runHostTask(
   input: Omit<MachineTaskOp, 'type'>,
 ) {
   if (input.task === 'host.update') return runHostUpdate(machine, alive, openProgram)
-  const destructive = input.task === 'package.remove' || input.task === 'mcp.logout'
+  const destructive =
+    input.task === 'package.remove' ||
+    input.task === 'mcp.logout' ||
+    input.task === 'provider.logout'
   const description =
     input.task === 'claude.installCli'
       ? 'Download Anthropic’s official https://claude.ai/install.sh over HTTPS and run it as the Host user. No sudo is requested by Phosphor.'
@@ -94,7 +97,9 @@ export async function runHostTask(
             ? 'Open pi in the selected Host folder to review its trust prompt. Project configuration may contain executable MCP commands. Phosphor does not approve it automatically.'
             : input.task === 'mcp.logout'
               ? `Sign ${input.name} out on this Host only. Existing sessions may lose connector access.`
-              : `Run pi mcp login ${input.name} in a private terminal on the Host. Open the link here and follow pi’s supported remote callback/paste instructions.`
+              : input.task === 'provider.logout'
+                ? `Run pi auth logout ${input.name} on the Host. Lanes there on its models stop working until you sign in again; a key in the Host’s environment or models.json stays.`
+                : `Run pi mcp login ${input.name} in a private terminal on the Host. Open the link here and follow pi’s supported remote callback/paste instructions.`
   if (
     (await promptChoice({
       title: `${input.task === 'folder.trust' ? 'Review project trust' : destructive ? 'Confirm change' : 'Run setup'} on ${machine.label}?`,
@@ -113,7 +118,11 @@ export async function runHostTask(
   await openProgram(
     () =>
       window.phosphor.invoke('hosts:machineTask', machine.id, { type: 'machine.task', ...input }),
-    input.task === 'mcp.login' ? 'Connector sign-in' : 'Host setup',
+    input.task === 'mcp.login'
+      ? 'Connector sign-in'
+      : input.task === 'provider.logout'
+        ? 'Provider sign-out'
+        : 'Host setup',
     description + (input.task === 'folder.trust' ? ' Quit pi with /quit when finished.' : ''),
   )
 }

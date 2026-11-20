@@ -543,6 +543,12 @@ balance, not an included allowance.
 - **Sign in again** (switching accounts) finishes when the credential
   _changes_, not when `pi auth check` first reports ready: the old credential
   already answers ready a second after pi prints the URL.
+- **Sign out** sits beside it on a signed-in row and asks first. It runs
+  `pi auth logout <id>`, which removes only what `/login` stored: on This Mac
+  through `pi:logout`, on a Host as the reviewed `provider.logout` task in a
+  private terminal there. This Mac checks again afterwards; a provider that still
+  answers ready has a key in the environment or `models.json`, and the row says
+  so instead of pretending it signed out. The model picker re-reads.
 
 This section is pi's own `auth`. The **Claude Code** provider keeps its own set
 of logins under Extensions → Claude Code, and Accounts ends with one link row to
@@ -701,9 +707,11 @@ fails**. See
   way an account can change. Move targets follow one rule everywhere (`moveTargets`
   in `lib/claudeGateway.ts`, also used by the composer's account switcher): every
   other account not reported signed out, held ones last.
-- **Remove** asks first ("Sign out and remove"), and is disabled while lanes on
-  the account are running. Removing signs the account out, so the machine
-  refuses it while live sessions use it ("Stop or move this account’s live
+- **Sign out** asks first ("Sign out and remove"), and is disabled while lanes on
+  the account are running. It runs `claude auth logout` under the account's own
+  credential and forgets the row; for the first account, which is the CLI's own
+  login, `claude` in a terminal signs out too. The machine
+  refuses it while live sessions use the account ("Stop or move this account’s live
   sessions before removing it."); the refusal shows under the list.
 - On a Host, adding or re-authenticating an account opens a private terminal
   there; a Host holds at most 16 accounts.

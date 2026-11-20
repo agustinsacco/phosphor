@@ -104,7 +104,7 @@ test('private Claude accounts route new Host lanes and an explicit account move 
     await addPrivateAccount(h, settings, 'backup@host.example')
     // Removing the CLI default proves doctor and startup really honor private accounts.
     const first = accountRow(settings, 'first@host.example')
-    await first.getByRole('button', { name: 'Remove', exact: true }).click()
+    await first.getByRole('button', { name: 'Sign out', exact: true }).click()
     await h.page.getByRole('button', { name: 'Sign out and remove', exact: true }).click()
     await expect(first).toHaveCount(0)
     await settings.getByRole('radio', { name: 'One account' }).check()

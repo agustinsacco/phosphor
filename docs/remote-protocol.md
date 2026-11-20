@@ -410,7 +410,9 @@ under `skills.read` ([host.md](host.md#machine-features)).
 `machine.task` selects a reviewed fixed-purpose program, not arbitrary argv,
 executable paths or environment. `host.update` runs the Host's own installed
 release updater and takes no other field ([host.md](host.md#updating)); an
-older Host rejects it as `bad-request`. It and settings-originated `provider.login`
+older Host rejects it as `bad-request`. `provider.logout {name}` runs
+`pi auth logout <name>` for one provider id (lowercase letters, digits, `.`,
+`_` and `-`, never an option); an older Host rejects it as `bad-request` too. It and settings-originated `provider.login`
 require configuration, terminal and session-control capabilities. The latter
 carries `configure: true`; legacy provider sign-in retains its existing grants.
 Claude account selection uses a known account id or `addAccount: true`.

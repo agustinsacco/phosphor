@@ -45,6 +45,28 @@ export async function checkProviderAuth(providerId: string): Promise<AuthCheck> 
 }
 
 /**
+ * Sign pi out of one provider. `pi auth logout` removes only what `/login`
+ * stored and exits 0 when nothing was stored, so the re-check is the fact: a
+ * provider that still answers ready has a key in the environment or
+ * models.json, which sign-out cannot remove.
+ */
+export async function logoutProvider(providerId: string): Promise<void> {
+  const provider = SUBSCRIPTION_PROVIDERS.find((entry) => entry.id === providerId)
+  if (!provider) throw new Error('Unknown provider.')
+  const health = await checkPiHealth()
+  if (!health.ok || !health.binaryPath) throw new Error(health.message ?? 'pi is not available')
+  await execFileAsync(health.binaryPath, piArgs(health, ['auth', 'logout', provider.id]), {
+    env: await piProcessEnv(),
+    timeout: 15_000,
+    encoding: 'utf8',
+  })
+  if ((await checkProviderAuth(provider.id)).status === 'ready')
+    throw new Error(
+      `pi still finds a key for ${provider.name} in an environment variable or models.json. Remove it there to sign out.`,
+    )
+}
+
+/**
  * What the renderer is allowed to see of an `auth check`.
  *
  * The fingerprint is a main-process comparison value with no meaning in the

@@ -257,6 +257,7 @@ const expectedEntries = [
   ['pi:listLiveSessions', 'machine'],
   ['pi:listResources', 'machine'],
   ['pi:loginTerminal', 'machine'],
+  ['pi:logout', 'machine'],
   ['pi:patchAgentSettings', 'machine'],
   ['pi:patchWebSearchConfig', 'machine'],
   ['pi:readConfigFile', 'machine'],

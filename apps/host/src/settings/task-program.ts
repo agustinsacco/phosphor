@@ -103,7 +103,8 @@ export async function runMachineTask(
       if (!configs.servers.some((server) => server.name === op.name)) throw new Error('bad-request')
       args.push('mcp', op.task === 'mcp.login' ? 'login' : 'logout', op.name!)
       if (op.task === 'mcp.login') args.push('--timeout', '300')
-    } else args.push('--no-session', '--no-extensions')
+    } else if (op.task === 'provider.logout') args.push('auth', 'logout', op.name!)
+    else args.push('--no-session', '--no-extensions')
     if (!authorized()) throw new TerminalForbidden('forbidden')
     await run(file, args, { cwd, env: { ...env, TERM: 'xterm-256color' } })
   } finally {

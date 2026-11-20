@@ -180,6 +180,9 @@ export interface BaselinePiInvokeMap {
 
   /** Abort a `pi:startLogin` in progress. No-op if nothing is running. */
   'pi:cancelLogin': { args: [providerId: LoginProviderId]; result: void }
+
+  /** `pi auth logout <id>`; rejects when pi still answers ready. */
+  'pi:logout': { args: [providerId: LoginProviderId]; result: void }
 }
 it('freezes pi channel tuples and results through ipc.ts', () => {
   expectTypeOf<Pick<IpcInvokeMap, keyof BaselinePiInvokeMap>>().toEqualTypeOf<BaselinePiInvokeMap>()

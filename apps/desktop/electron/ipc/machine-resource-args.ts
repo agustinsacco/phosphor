@@ -123,6 +123,7 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   'pi:loginTerminal': 'none',
   'pi:startLogin': 'none',
   'pi:cancelLogin': 'none',
+  'pi:logout': 'none',
   'app:selectFolder': 'none',
   'app:createSandbox': 'none',
   'app:listSandboxes': 'none',

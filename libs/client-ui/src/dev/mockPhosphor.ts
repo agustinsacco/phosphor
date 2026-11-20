@@ -2343,6 +2343,9 @@ export function installMockPhosphor(): void {
           emitLoginState({ providerId: args[0], phase: 'cancelled' } as never)
           return Promise.resolve(undefined as never)
         }
+        case 'pi:logout':
+          mockAuthState[args[0] as string] = { status: 'not_ready' }
+          return Promise.resolve(undefined as never)
         // Without this the Agent tab threw on `result.global` before any of
         // it rendered — the channel had no case and the default returns
         // undefined.

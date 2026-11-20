@@ -189,6 +189,8 @@ export const MACHINE_TASKS = [
   'package.remove',
   'mcp.login',
   'mcp.logout',
+  /** `pi auth logout <provider>`: removes the sign-in `/login` stored on the Host. */
+  'provider.logout',
   'folder.trust',
   /** The Host's own signed `phosphor update`: no version, folder or argument from the caller. */
   'host.update',
@@ -223,10 +225,18 @@ export function parseMachineTask(v: unknown): MachineTaskOp | null {
     (!text(v.name, 64) || !MCP_SERVER_NAME.test(v.name) || v.name.startsWith('-'))
   )
     return null
+  if (task === 'provider.logout' && !(text(v.name, 64) && /^[a-z0-9][a-z0-9._-]*$/.test(v.name)))
+    return null
   if (task === 'folder.trust' && !v.repositoryId) return null
   if (v.repositoryId !== undefined && !task.startsWith('mcp.') && task !== 'folder.trust')
     return null
-  if (v.name !== undefined && !task.startsWith('mcp.') && !task.startsWith('package.')) return null
+  if (
+    v.name !== undefined &&
+    !task.startsWith('mcp.') &&
+    !task.startsWith('package.') &&
+    task !== 'provider.logout'
+  )
+    return null
   return {
     type: 'machine.task',
     task,

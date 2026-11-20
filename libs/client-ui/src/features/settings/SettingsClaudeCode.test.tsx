@@ -126,13 +126,13 @@ it('lists Claude Code on a Host and installs through a reviewed Host task', asyn
 it('asks before removing an account and shows the refusal for live sessions (C4)', async () => {
   await showHostSettings(root, 'local', 'claude-provider')
   await vi.waitFor(() => expect(document.body.textContent).toContain('alpha@example.com'))
-  await act(async () => button('Remove').click())
+  await act(async () => button('Sign out').click())
   expect(promptChoice).toHaveBeenCalledWith(
-    expect.objectContaining({ title: 'Remove alpha@example.com?' }),
+    expect.objectContaining({ title: 'Sign out of alpha@example.com?' }),
   )
   expect(invoke).not.toHaveBeenCalledWith('claude:removeAccount', 'a')
   vi.mocked(promptChoice).mockResolvedValue('remove')
-  await act(async () => button('Remove').click())
+  await act(async () => button('Sign out').click())
   expect(invoke).toHaveBeenCalledWith('claude:removeAccount', 'a')
   await vi.waitFor(() => expect(document.body.textContent).toContain(REFUSAL))
 })

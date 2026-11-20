@@ -18,6 +18,22 @@ describe('machine settings boundaries', () => {
       patch({ type: 'mcp.upsert', name: '--all', config: { url: 'https://example.test' } }),
     ).toBeNull()
   })
+  it('signs a pi provider out by its id, never an option, a path or a folder', () => {
+    expect(
+      parseMachineTask({ type: 'machine.task', task: 'provider.logout', name: 'openai-codex' }),
+    ).toEqual({ type: 'machine.task', task: 'provider.logout', name: 'openai-codex' })
+    for (const value of [
+      {},
+      { name: '--all' },
+      { name: '../auth.json' },
+      { name: 'OpenAI Codex' },
+      { name: 'x'.repeat(65) },
+      { name: 'xai', repositoryId },
+    ])
+      expect(
+        parseMachineTask({ type: 'machine.task', task: 'provider.logout', ...value }),
+      ).toBeNull()
+  })
   it('accepts registered folder ids, never caller paths or UUID repository ids', () => {
     expect(parseSettingsRead({ section: 'connectors', repositoryId })).toBeTruthy()
     for (const id of ['/home/me', '../private', 'd8736746-ea12-452b-a492-411a74fba4f8'])

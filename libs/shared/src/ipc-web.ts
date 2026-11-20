@@ -229,6 +229,7 @@ export const IPC_WEB = {
   'pi:loginTerminal': localPi,
   'pi:startLogin': localPi,
   'pi:cancelLogin': localPi,
+  'pi:logout': localPi,
   'skills:list': remote,
   'skills:restoreBundled': unsupported('This native service requires Desktop.'),
   'skills:readFile': remote,

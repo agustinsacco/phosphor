@@ -41,10 +41,12 @@ export interface ProviderAccountsSource {
   /** The in-app sign-in under way. */
   flow: LoginFlowState | null
   error: string | null
-  /** A sign-in is starting or running: one at a time. */
+  /** A sign-in or sign-out is starting or running: one at a time. */
   busy: boolean
   signIn?: (id: string) => void
   cancel?: (id: string) => void
+  /** Remove the sign-in pi stored; asks first. */
+  signOut?: (id: string) => void
   /** pi's own login terminal, for a provider the in-app flow cannot drive. */
   terminal?: { ptyId: string | null; open: () => void; close: () => void }
 }

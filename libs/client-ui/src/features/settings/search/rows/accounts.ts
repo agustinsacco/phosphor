@@ -6,9 +6,9 @@ import { section, type SettingEntry } from '../settingEntry'
  */
 export const ACCOUNTS_ROWS: SettingEntry[] = [
   ...section('accounts', null, [
-    ['Use a plan you already pay for', 'subscription sign in login oauth'],
+    ['Use a plan you already pay for', 'subscription sign in login oauth sign out logout'],
     ['Billed per token', 'api key credit balance'],
   ]),
   ...section('accounts', null, [['Other providers', 'api key default provider']], { host: true }),
-  ...section('accounts', null, [['Claude Code', 'claude accounts routing']]),
+  ...section('accounts', null, [['Claude Code', 'claude accounts routing sign out logout']]),
 ]
