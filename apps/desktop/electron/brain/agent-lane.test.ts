@@ -67,7 +67,15 @@ function host() {
 }
 const commands = (deps: ReturnType<typeof host>['deps']) =>
   deps.command.mock.calls.map(([, command]) => command.type)
-const ended = () => lane.send({ type: 'agent_end', messages: [] } as unknown as PiEvent)
+/** The run ends with Brain Agent's summary, as pi reports a turn that ended normally. */
+const SUMMARY = {
+  role: 'assistant',
+  content: [{ type: 'text', text: 'Decided 2 things.' }],
+  stopReason: 'stop',
+}
+const endWith = (...messages: object[]) =>
+  lane.send({ type: 'agent_end', messages } as unknown as PiEvent)
+const ended = () => endWith({ role: 'user', content: MESSAGE }, SUMMARY)
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'brain-lane-'))
@@ -189,5 +197,26 @@ describe('a Defrag turn in the Brain lane', () => {
       outcome: 'failed',
       error: 'No model.',
     })
+  })
+
+  it('fails on a provider error, stops on an abort, and fails when no answer came', async () => {
+    const turnEndingWith = async (...messages: object[]) => {
+      lane = new FakeLane()
+      onPrompt = () => endWith({ role: 'user', content: MESSAGE }, ...messages)
+      return host().agent.turn(MESSAGE, new AbortController().signal, vi.fn())
+    }
+    const failure = 'Provider overloaded (529).\nRetry later.'
+    expect(
+      await turnEndingWith(SUMMARY, {
+        role: 'assistant',
+        content: [],
+        stopReason: 'error',
+        errorMessage: failure,
+      }),
+    ).toMatchObject({ outcome: 'failed', error: failure })
+    expect(
+      await turnEndingWith({ role: 'assistant', content: [], stopReason: 'aborted' }),
+    ).toMatchObject({ outcome: 'stopped', error: null })
+    expect(await turnEndingWith()).toMatchObject({ outcome: 'failed', error: null })
   })
 })
