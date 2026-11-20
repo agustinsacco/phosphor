@@ -5,8 +5,10 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
+    "./curator-client": "./src/curator-client.ts",
     "./node-transport": "./src/node-transport.ts",
-    "./validate": "./src/validate.ts"
+    "./validate": "./src/validate.ts",
+    "./validate-curator": "./src/validate-curator.ts"
   },
   "nx": {
     "includedScripts": []
