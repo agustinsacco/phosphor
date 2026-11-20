@@ -192,7 +192,8 @@ An emoji pinned left of the title. Two rules, both about the **column**:
    has to re-find it on each row.
 2. **The fallback is derived, not stored.** Explicit choices live in
    `AppPrefs.laneMarkers` keyed by session path; every other lane hashes its
-   **branch**. Phosphor does not add fields to pi's session format.
+   **branch**, except the Brain lane, whose derived marker is 🧠
+   ([Brain](brain.md#brain-agent)). Phosphor does not add fields to pi's session format.
 
 Keying on the branch, not the title, matters: a session is named only after
 its first turn **ends**, so a title-derived marker would change under you the
@@ -214,7 +215,7 @@ not be supported by older systems. Skin-tone variations are consolidated into
 base emoji. No image CDN or network access is needed.
 
 **None** explicitly clears a lane. **Auto** removes its override and returns to
-the branch-derived marker; in Manual mode this action is labelled **Default**
+the derived marker; in Manual mode this action is labelled **Default**
 and leaves the lane unmarked. Escape or Cancel leaves the choice unchanged.
 Explicit choices persist across reloads and mode changes. The picker dims
 markers other lanes on the same machine chose explicitly, in any workspace:
