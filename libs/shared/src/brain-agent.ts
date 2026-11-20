@@ -22,6 +22,11 @@ import type {
 export const BRAIN_AGENT_NAME = 'Brain Agent'
 /** Brain Agent erasures are final, so at most this many land in any rolling hour. */
 export const BRAIN_ERASE_LIMIT = 25
+/**
+ * The engine's refusal past the erase cap. Errors cross the memory worker as messages, so the
+ * runtime recognises this exact text and answers `limit`.
+ */
+export const BRAIN_ERASE_LIMIT_REFUSAL = `Brain Agent can erase at most ${BRAIN_ERASE_LIMIT} memories an hour. Try again later; nothing changed.`
 /** Every Brain Agent change carries a one-sentence reason of 1 to this many characters. */
 export const BRAIN_REASON_MAX = 300
 /** Defrag hands Brain Agent at most this many unchecked pairs per run, oldest first. */
