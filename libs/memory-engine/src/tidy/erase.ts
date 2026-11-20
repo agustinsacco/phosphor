@@ -131,8 +131,10 @@ function retainedText(
     !['entities', 'entity_names', 'merges', 'proposals', 'extractions'].includes(value.table_name)
   )
     return false
+  // Proposal payloads and extraction calls/outcomes hold their text inside a JSON string.
+  const phrases = forgotten.flatMap((phrase) => [phrase, JSON.stringify(phrase).slice(1, -1)])
   return Object.values(image.row ?? {}).some(
-    (text) => typeof text === 'string' && forgotten.some((phrase) => text.includes(phrase)),
+    (text) => typeof text === 'string' && phrases.some((phrase) => text.includes(phrase)),
   )
 }
 
