@@ -47,8 +47,9 @@ export class ExtractionQueue {
   private checkedRules: string
   private disposed = false
   private paused = false
-  /** Inline refreshes, one at a time. */
+  /** Inline refreshes, one at a time, and how many are queued or running. */
   private inline: Promise<void> = Promise.resolve()
+  private inlineBusy = 0
 
   get accepting(): boolean {
     return !this.disposed && !this.paused
@@ -180,11 +181,7 @@ export class ExtractionQueue {
       const done = Promise.resolve()
         .then(() => task.run(task.abort.signal))
         .then(task.resolve, task.reject)
-        .finally(() => {
-          this.active = undefined
-          this.options.changed()
-          this.kick()
-        })
+        .then(() => this.releaseTask())
       this.active = { id: DEFRAG_TASK, abort: task.abort, done }
       return
     }
@@ -353,9 +350,23 @@ export class ExtractionQueue {
    * path and under the task's signal. Calls wait for each other, so two model runs never overlap.
    */
   refreshInline(id: string, signal: AbortSignal): Promise<void> {
+    this.inlineBusy++
     const next = this.inline.then(() => this.refreshNow(id, signal))
-    this.inline = next.catch(() => undefined)
+    this.inline = next
+      .catch(() => undefined)
+      .then(() => {
+        this.inlineBusy--
+      })
     return next
+  }
+
+  /** Inline refreshes the task started keep the worker until they settle, even after Stop. */
+  private releaseTask(): Promise<void> | undefined {
+    if (this.inlineBusy) return this.inline.then(() => this.releaseTask())
+    this.active = undefined
+    this.options.changed()
+    this.kick()
+    return undefined
   }
 
   private async refreshNow(id: string, signal: AbortSignal): Promise<void> {

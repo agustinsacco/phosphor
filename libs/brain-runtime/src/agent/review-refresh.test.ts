@@ -35,23 +35,23 @@ async function seedReviews(lanes: string[]) {
   return { store, jobs }
 }
 
-async function setup(lanes = ['harbor']) {
-  const { store, jobs } = await seedReviews(lanes)
+/** The reader: refreshes a review at the current revision, or holds until released. */
+function reader(store: FakeAgentStore) {
   let running = 0
   let peak = 0
   const gates: (() => void)[] = []
-  let hold = false
-  /** A held run that ignores abort until released, as a model call can while it cleans up. */
-  let stubborn = false
+  const held = { on: false, ignoringAbort: false }
   const states: string[] = []
   const run = vi.fn(async (job: BrainJob, signal: AbortSignal) => {
     states.push(job.state)
     peak = Math.max(peak, ++running)
     try {
-      if (hold)
+      if (held.on)
         await new Promise<void>((resolve, reject) => {
           gates.push(resolve)
-          if (!stubborn) signal.addEventListener('abort', () => reject(new Error('aborted')))
+          // A model call can ignore abort while it cleans up.
+          if (!held.ignoringAbort)
+            signal.addEventListener('abort', () => reject(new Error('aborted')))
         })
       signal.throwIfAborted()
       store.proposals.set(job.id, {
@@ -63,6 +63,13 @@ async function setup(lanes = ['harbor']) {
       running--
     }
   })
+  const release = () => gates.splice(0).forEach((open) => open())
+  return { run, states, held, release, peak: () => peak }
+}
+
+async function setup(lanes = ['harbor']) {
+  const { store, jobs } = await seedReviews(lanes)
+  const { run, states, held, release, peak } = reader(store)
   const files = new LaneFiles()
   let ready = true
   const queue = new ExtractionQueue({
@@ -77,8 +84,8 @@ async function setup(lanes = ['harbor']) {
   cleanups.push(() => queue.dispose())
   // Runs first: a held run never keeps the queue from closing.
   cleanups.push(async () => {
-    hold = false
-    gates.splice(0).forEach((open) => open())
+    held.on = false
+    release()
   })
   let task: AbortSignal | null = null
   const context: ReviewRefreshContext = {
@@ -99,12 +106,10 @@ async function setup(lanes = ['harbor']) {
     stale: () => {
       store.rev++
     },
-    peak: () => peak,
-    holdRuns: (ignoreAbort = false) => {
-      hold = true
-      stubborn = ignoreAbort
-    },
-    release: () => gates.splice(0).forEach((open) => open()),
+    peak,
+    holdRuns: (ignoreAbort = false) =>
+      Object.assign(held, { on: true, ignoringAbort: ignoreAbort }),
+    release,
     setReady: (value: boolean) => (ready = value),
     /** Runs `inside` as the active Defrag task. */
     defrag: (inside: (signal: AbortSignal) => Promise<void>) =>
