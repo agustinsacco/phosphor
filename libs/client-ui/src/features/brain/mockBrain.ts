@@ -279,7 +279,7 @@ class MockBrain {
     }
   }
   call(channel: string, args: unknown[]): unknown {
-    this.tick()
+    if (channel !== 'brain:proposal') this.tick()
     if (['brain:defrag', 'brain:defragStop', 'brain:undoRun'].includes(channel)) {
       const result = this.agent.call(channel, args)
       return Object.assign(this.status(), result)

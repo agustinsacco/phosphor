@@ -36,6 +36,7 @@ it('models enable → download → queue → review decision → memory → forg
     ]),
   })
   now += 4000
+  await call('brain:status', [])
   const proposal = (await call('brain:proposal', [id])) as BrainProposalView
   expect(proposal.identities.some((i) => i.decision === 'uncertain')).toBe(true)
   await expect(
@@ -148,6 +149,7 @@ it('can extract and approve again after resetting every entity and memory', asyn
   const id = queued.jobs.at(-1)!.id
   await call('brain:status', [])
   now += 4000
+  await call('brain:status', [])
   const proposal = (await call('brain:proposal', [id])) as BrainProposalView
   await expect(
     call('brain:review', [
@@ -218,6 +220,7 @@ it('keeps finished reads in history and replaces the mocked lane only on approva
   const count = queued.counts.memories
   await call('brain:status', [])
   now += 4000
+  await call('brain:status', [])
   const id = queued.jobs.at(-1)!.id
   const proposal = (await call('brain:proposal', [id])) as BrainProposalView
   expect(proposal.replacingMemories).toBe(count)
@@ -299,6 +302,7 @@ it('orders recent memories by finished job and caps eligibility at the newest tw
     const id = status.jobs.at(-1)!.id
     await call('brain:status', [])
     now += 5000
+    await call('brain:status', [])
     const proposal = (await call('brain:proposal', [id])) as BrainProposalView
     await call('brain:review', [
       id,
