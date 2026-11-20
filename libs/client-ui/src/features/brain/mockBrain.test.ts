@@ -158,37 +158,14 @@ it('can extract and approve again after resetting every entity and memory', asyn
   ).resolves.toMatchObject({ counts: { memories: 1, entities: 2 } })
 })
 
-it('refreshes a stale proposal as a review and returns it after recomputing', async () => {
-  let now = 0
-  const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
-  now = 6000
-  await call('brain:status', [])
+it('returns the stored stale proposal without changing the waiting job after a Knowledge edit', async () => {
+  const call = createMockBrain(() => 6000)
   const id = 'harbor-demo-review'
-  await call('brain:merge', [
-    'tom',
-    'rina',
-    ((await call('brain:status', [])) as BrainStatus).revision,
-  ])
-  await expect(call('brain:proposal', [id])).rejects.toThrow(
-    'Brain changed; refreshing this review',
-  )
-  // A refresh stays a review: it keeps its first start and times only this attempt.
-  expect(await call('brain:status', [])).toMatchObject({
-    jobs: expect.arrayContaining([
-      expect.objectContaining({
-        id,
-        state: 'refreshing',
-        startedAt: 1793966400000,
-        runStartedAt: 6000,
-      }),
-    ]),
-  })
-  now += 4000
-  expect(await call('brain:proposal', [id])).toMatchObject({
-    revision: 1,
-    job: { state: 'review' },
-  })
+  const before = (await call('brain:proposal', [id])) as BrainProposalView
+  await call('brain:describe', ['ledger', 'Harbor ledger.', before.revision])
+  await expect(call('brain:proposal', [id])).resolves.toEqual(before)
+  const status = (await call('brain:status', [])) as BrainStatus
+  expect(status.jobs.find((job) => job.id === id)).toEqual(before.job)
 })
 
 it('exposes the links call beside extraction in the invented extraction view', async () => {

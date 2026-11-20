@@ -15,16 +15,18 @@ import { PromptHost } from '@/components/PromptHost'
 import { BrainPage } from './BrainPage'
 import { openBrain, openTidy, useBrainNavigation } from './brainNavigation'
 import { createMockBrain } from './mockBrain'
-import { mockBrainJob } from './mockBrainData'
+import { mockBrainJob, mockBrainProposal } from './mockBrainData'
 import { useBrain } from './useBrain'
 
 let root: Root, container: HTMLDivElement
 let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 let mock: ReturnType<typeof createMockBrain>
 let defragError = ''
+let defragPending: Promise<BrainStatus> | null
 let patchStatus: ((status: BrainStatus) => BrainStatus) | null
 const CHANNELS: IpcInvokeChannel[] = [
   'brain:status',
+  'brain:describe',
   'brain:setPrefs',
   'brain:history',
   'brain:entities',
@@ -54,12 +56,14 @@ beforeEach(async () => {
   mock = createMockBrain(() => 10000)
   patchStatus = null
   defragError = ''
+  defragPending = null
   await mock('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   const handlers = Object.fromEntries(
     CHANNELS.map((channel) => [
       channel,
       async (...args: unknown[]) => {
         if (channel === 'brain:defrag' && defragError) throw new Error(defragError)
+        if (channel === 'brain:defrag' && defragPending) return defragPending
         const result = await mock(channel, args)
         return channel === 'brain:status' && patchStatus
           ? patchStatus(result as BrainStatus)
@@ -300,4 +304,35 @@ it('never replays a consumed request on a page mounted later', async () => {
   await render()
   expect(selectedTab()).toBe('brain-tab-knowledge')
   expect(useBrainNavigation.getState().request).toBe(1)
+})
+
+it('keeps stale waiting memories visible after a Knowledge edit without starting a refresh', async () => {
+  await render()
+  const before = useBrain.getState().status!
+  const job = before.jobs.find((read) => read.state === 'review')!
+  await mock('brain:describe', ['ledger', 'The Harbor ledger.', before.revision])
+  await act(async () => useBrain.getState().refresh())
+  await act(async () => tab('lanes').click())
+  expect(section('Waiting read').textContent).toContain(mockBrainProposal(job).memories[0]!.summary)
+  expect(section('Waiting read').textContent).toContain('Waits for Defrag')
+  expect(section('Waiting read').textContent).not.toContain('refreshing this review')
+  const after = (await mock('brain:status', [])) as BrainStatus
+  expect(after.jobs.find((read) => read.id === job.id)).toEqual(job)
+})
+
+it('disables Defrag during its request and enables retry after a refusal', async () => {
+  await render()
+  let refuse!: (reason: Error) => void
+  defragPending = new Promise<BrainStatus>((_resolve, reject) => {
+    refuse = reject
+  })
+  await click('Defrag')
+  expect(button('Defrag')?.disabled).toBe(true)
+  await click('Defrag')
+  await act(async () => refuse(new Error('Defrag unavailable')))
+  expect(useBrain.getState().error).toBe('Defrag unavailable')
+  expect(button('Defrag')?.disabled).toBe(false)
+  defragPending = null
+  await click('Defrag')
+  expect(container.textContent).toContain('Defrag starts after the reads already queued')
 })

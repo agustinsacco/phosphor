@@ -8,6 +8,7 @@ import type {
   BrainStatus,
   BrainProposalView,
 } from '@shared/brain'
+import { BRAIN_REVIEW_REFRESHING } from '@shared/brain-review'
 import type { BrainTidyChanges } from '@shared/brain-tidy'
 import {
   createFakePhosphor,
@@ -477,5 +478,39 @@ it('never uses an erased memory’s old summary in a row or its detail', async (
   expect(container.textContent).not.toContain('OUTDATED MEMORY TEXT')
   expect(section('Recent changes').textContent).toContain(
     'Erased a memory: The owner corrected this.',
+  )
+})
+
+it('loads stored memories even while the waiting read is refreshing', async () => {
+  const job = mockBrainJob({ state: 'refreshing', runStartedAt: NOW - 60_000 })
+  const stored = mockBrainProposal(job)
+  proposal.mockResolvedValue(stored)
+  await render([job])
+  expect(section('Waiting read').textContent).toContain('Refreshing: Brain changed')
+  expect(section('Waiting read').textContent).toContain(stored.memories[0]!.summary)
+  expect(proposal).toHaveBeenCalledWith(job.id)
+  expect(button('Retry', section('Waiting read'))).toBeUndefined()
+})
+
+it('treats a legacy refreshing proposal refusal as progress, never a failure or toast', async () => {
+  const toast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast')
+  proposal.mockRejectedValueOnce(new Error(BRAIN_REVIEW_REFRESHING))
+  await render([mockBrainJob()])
+  expect(section('Waiting read').textContent).toContain('Refreshing: Brain changed')
+  expect(button('Retry', section('Waiting read'))).toBeUndefined()
+  expect(toast).not.toHaveBeenCalled()
+  toast.mockRestore()
+})
+
+it('uses the waiting row’s relative read time in its detail, including old reads', async () => {
+  await render([mockBrainJob({ finishedAt: NOW - 14 * 86_400_000 })])
+  expect(section('Waiting for Defrag').textContent).toContain('read 14 days ago')
+  expect(section('Waiting read').textContent).toContain('read 14 days ago')
+})
+
+it('uses singular memory wording for a never-read waiting row', async () => {
+  await render([mockBrainJob({ title: 'Harbor 1:1', memories: 1 })])
+  expect(section('Waiting for Defrag').textContent).toContain(
+    '1 memory · Brain never reads this lane',
   )
 })
