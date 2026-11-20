@@ -163,11 +163,11 @@ lane file, or the sidebar's first-prompt title when unnamed, never a title suppl
 Brain stores an empty lane's title as empty, and the page shows it as “Untitled lane”
 (`brainLaneTitle` in `features/brain/laneTitle.ts`, used wherever a read's or a memory source's
 title appears), so no title rule ever matches that placeholder. A job's stored title follows the
-lane: Queue, the start of a read, the stale-read check and opening a waiting read store the lane's
-current name when it changed. Storing a title never changes the knowledge revision, so it never
-stales or refreshes a read. Changing the rules cancels an excluded lane's queued and
-waiting jobs, not a read already waiting for Defrag; Brain Agent rejects that read. Those jobs are checked against the titles Brain remembers, reading only a lane
-file that changed since. A waiting lane renamed to a matching title, with no rules change, is
+lane: Queue, the start of a read, the stale-read check and opening a waiting read store the
+lane's current name when it changed. Storing a title never changes the knowledge revision, so it
+never stales or refreshes a read. Changing the rules cancels an excluded lane's queued and
+waiting jobs, not a read already waiting for Defrag; Brain Agent rejects that read. Those jobs
+are checked against the titles Brain remembers, reading only a lane file that changed since. A waiting lane renamed to a matching title, with no rules change, is
 dropped when its read starts, before any model call. Refresh also skips excluded lanes using
 their current names. A stale waiting read can always be rejected, because rejection saves
 nothing; approving one that cannot be refreshed is refused with “Brain changed since this was
@@ -175,7 +175,8 @@ read, and this lane is set to never be read, so it can't be refreshed. Reject it
 neither the stored transcript nor its `.archived` twin exists, the read keeps waiting and any
 waiting refresh returns to review; Brain makes no model call and does not offer a failing Retry.
 Its stored proposal still opens for inspection and rejecting works. Approval is refused with
-“This lane was deleted, so this review can't be refreshed. Reject it.” Recall is unaffected. A title-rule match takes precedence in the lane menu:
+“This lane was deleted, so this review can't be refreshed. Reject it.” Recall is unaffected.
+A title-rule match takes precedence in the lane menu:
 **Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
 per-lane switch that could falsely promise to override the title rule. A lane excluded only by
 its id offers **Let Brain read this lane**, with no Queue. Other lanes offer their ordinary
@@ -187,10 +188,10 @@ a title rule.
 The **Read** section of Lanes shows the newest 200 finished reads and says when more exist.
 A lane keeps at most twenty finished reads, with each read's leaf, cursor, saved steps and
 extraction record, plus the newest read Brain Agent decided, so undoing that decision stays
-exact; queueing the lane's next read prunes it back to twenty. Each row counts only the current (active or disputed) memories produced
-by that read. Its Read again count remains lane-wide: every unshared memory from the lane,
+exact; queueing the lane's next read prunes it back to twenty. Each row counts only the current
+(active or disputed) memories produced by that read. Its Read again count remains lane-wide: every unshared memory from the lane,
 including older reads. After replacement, older rows can show zero; they stay in history.
-Rejected reviews remain as `rejected` (nothing saved); a read with nothing worth keeping
+Rejected reads remain as `rejected` (nothing saved); a read with nothing worth keeping
 remains `empty`. The next queue continues after either, as after approval. The list reloads
 when jobs or knowledge change; a failed load has Retry. Model names match the picker;
 unavailable names fall back to the id without its provider prefix. A row opens the finished
@@ -229,7 +230,7 @@ Brain parses a lane file only when it needs the transcript or the file changed
 with the size and modification time of the file it read (the stored path or its `.archived`
 twin). Queue reads the lane once to check it. A read reads it once more when it starts: the
 start check reads only a file that changed since, and hands that transcript to the read
-instead of reading it again. A waiting read is not checked while its lane is busy, so the
+instead of reading it again. A queued read is not checked while its lane is busy, so the
 queue's two-second wait for a busy lane reads nothing. A stale waiting read is checked on every
 queue pass, but an unchanged file is not read again, and a pass that changes nothing notifies
 nobody. Refreshing a stale read reads its lane at most twice: once to check its current title
@@ -312,7 +313,7 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    person entity marked as the user. A part that marks more than one person marks none, and
    later parts learn the mark from the entities they are offered. Parsing turns a leading "The
    user" or "The user's" into that name and adds the mention once; with no marked person the
-   sentence stays as written. The mark never reaches identity or review. A claim the model kept
+   sentence stays as written. The mark never reaches identity or the proposal. A claim the model kept
    although unsure comes back held, temporary or personal, and fixed rules add holds that only
    mark, never drop, both when a part is parsed and when the proposal is assembled (so a refresh
    that reuses parts read before holds existed marks them too): personal for a claim naming a
@@ -343,7 +344,7 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    unique key match, or an exact name plus a shared neighbour, reuses the existing entity; a
    person is never reused on name alone. Anything else goes to the model in batches of eight:
    reuse a named candidate, new, or uncertain. Three or more entities sharing a leading name
-   with no parent become a review question ("Are these part of one Harbor?"). No separate model
+   with no parent become a group question ("Are these part of one Harbor?"). No separate model
    call looks for parents.
 5. **Reconcile.** Each claim is compared with up to five candidates: existing memories that
    state the same link or own the same thing, near vectors (cosine 0.7 or more), the newest 128
@@ -355,7 +356,7 @@ step, keyed by a hash of its input, so a retry or restart reuses it:
    similarity to the claim rather than recency, so a busy person's newer memories cannot hide a
    close one. Paraphrases can match without shared entities. A superseded memory among those
    entities' newest memories at cosine 0.85 or more is offered too, marked replaced earlier, so
-   a read cannot bring back a memory the owner or a later read replaced. Same text and links
+   a read cannot bring back a memory that you, Brain Agent or a later read replaced. Same text and links
    confirm deterministically; otherwise the model picks add, confirm (same assertion, nothing
    new), enrich (same assertion, new supported links), supersede, conflict, or resolve an open
    question. A claim that repeats a replaced memory (the model says so, or its text and links
@@ -954,8 +955,8 @@ preference or mere irrelevance.
 When Brain and recall are on, lane startup (`SessionStartupRuntime.recall`) adds
 `PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN`, `-e brain-ext/brain.mjs` and
 `--skill skills/brain`. The endpoint is a local socket; the token is random per app run. The
-Brain lane gets the same variables with Brain Agent's own token, `brain-curator.mjs` and the
-`brain-agent` skill instead. Recall never blocks a lane: any failure starts it without Brain.
+Brain lane gets the same variables with Brain Agent's own token, `-e brain-ext/brain-curator.mjs`
+and `--skill skills/brain-agent` instead. Recall never blocks a lane: any failure starts it without Brain.
 Search stays read-only; flags only ask Brain Agent to check. Every tool uses the version 6 local
 bridge.
 
