@@ -68,6 +68,26 @@ it.each([false, true])(
   },
 )
 
+it('starts a lane without waiting on a dirty scan of every worktree', async () => {
+  // `git:listWorktrees` runs `git status` in every checkout: seconds in a repo
+  // with a hundred archived lanes. Creating a lane needs none of it.
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation((channel: string, ...args: unknown[]) => {
+    if (channel === 'git:listWorktrees') return new Promise(() => {})
+    if (channel === 'git:createLaneWorktree')
+      return Promise.resolve({
+        kind: 'created',
+        repoPath: '/repo',
+        worktree: { path: tree, realPath: tree, branch: 'task' },
+      })
+    return base(channel, ...args)
+  })
+  void startChat({ workspacePath: '/repo', prompt: 'task', nav: 1 })
+  await vi.waitFor(() => expect(createSession).toHaveBeenCalledWith(tree, expect.anything()), {
+    timeout: 500,
+  })
+})
+
 it('shares prompt slug, branch prefix and collision rules with Host creation', async () => {
   useWorktreesStore.setState({ branchPrefix: 'custom/' })
   const name = newChatBranchName('Fix the café composer', { takenBranches: [], takenFolders: [] })
