@@ -50,6 +50,12 @@ test('Brain Agent decides a waiting read, records its reason and undoes the run'
     expect((await status(page)).counts.memories).toBe(0)
     await expect(page.locator('.page-shell-header')).toContainText('1 waiting')
     await expect(recent).toContainText('Undone')
+  } catch (error) {
+    const state = await status(page)
+    console.log(JSON.stringify({ state, journal: await page.evaluate(() => window.phosphor.invoke('brain:tidyChanges', 50)) }))
+    await runStrip(page).getByRole('button', { name: 'Brain lane' }).click()
+    console.log(await page.locator('body').innerText())
+    throw error
   } finally {
     await shutdown(h)
   }
@@ -74,7 +80,7 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
     await expect(runStrip(page).getByRole('button', { name: 'Brain lane' })).toBeEnabled()
     await runStrip(page).getByRole('button', { name: 'Brain lane' }).click()
     const group = page.getByRole('region', { name: 'Brain', exact: true })
-    await expect(group.getByTestId('workspace-group')).toContainText('🧠')
+    await expect(group.getByTestId('session-row')).toContainText('🧠')
     await expect(group.getByTestId('session-row')).toContainText('Brain Agent')
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
     await expect
