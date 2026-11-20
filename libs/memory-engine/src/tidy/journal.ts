@@ -17,7 +17,7 @@ import { scrubExcerpt } from '../secrets'
 import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
-import { bumpKnowledgeRevision, revision } from '../prefs'
+import { bumpKnowledgeRevision, bumpRevision, revision } from '../prefs'
 import { suppressPair } from './suggestions'
 import { affected, rebuild } from './projections'
 import {
@@ -296,7 +296,8 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     run(ctx, 'UPDATE tidy_operations SET undone_at=? WHERE id=?', ctx.now(), id)
     run(ctx, 'DELETE FROM tidy_operation_rows WHERE operation_id=?', id)
     run(ctx, 'DELETE FROM tidy_operation_memories WHERE operation_id=?', id)
-    bumpKnowledgeRevision(ctx)
+    if (op.kind === 'reject' || op.kind === 'keep') bumpRevision(ctx)
+    else bumpKnowledgeRevision(ctx)
     return selection
   })
 }
