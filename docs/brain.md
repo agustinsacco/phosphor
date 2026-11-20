@@ -35,8 +35,8 @@ appear:
   turns back on.
 
 Turning Brain off keeps the model and all knowledge, stops the queue, removes recall from new
-lanes and leaves the Brain lane without Brain Agent's tools. **Remove model** appears only while Brain is off and the model is on disk. The Brain item
-shows in the sidebar's top navigation only while Brain is on.
+lanes and makes Brain Agent's tools refuse. **Remove model** appears only while Brain is off and
+the model is on disk. The Brain item shows in the sidebar's top navigation only while Brain is on.
 
 ## The Brain page
 
@@ -52,8 +52,7 @@ Brain item shows K, hidden at zero.
 Two underlined tabs split the jobs: **Knowledge** is what Brain knows, and **Lanes** is where it
 came from. Lanes opens first when there are reads but no memories, and Knowledge in every other
 case. Switching tabs keeps each tab's selection, the Knowledge trail and the selected read.
-Nothing on the page approves, rejects, merges or answers a question for a read: Brain Agent
-decides, and you inspect, undo and edit knowledge by hand under Exploring.
+Nothing on the page decides a read or a suggestion: Brain Agent does, and you inspect and undo.
 
 One thin status strip under the tabs says what runs now. Its first line is the reader:
 “Reading <lane> · <step> · N queued”, or, while a read refreshes, “Refreshing the review of
@@ -405,9 +404,8 @@ whole read with `brain_decide_read` (Brain Agent and Defrag). The proposal holds
   compare against the new meaning. Answering new for that identity drops the choice.
 - **Memories**, each to add, enrich (same assertion, new supported links), supersede, conflict
   with or resolve an open question, with its links (“Rina Okafor → owns → Harbor ledger”) and
-  quotes. A memory the reader marked probably temporary (status, near-term plans and one-off
-  instructions) or about a person (remarks about a named person beyond their role) is
-  **held**.
+  quotes. A memory marked probably temporary (status, near-term plans and one-off instructions)
+  or about a person (remarks about a named person beyond their role) is **held**.
 - **Confirmations**: this lane says again what a stored memory says. A held claim's
   confirmation is held too.
 
@@ -454,8 +452,8 @@ With no calls, or a call without a trace, no duration is shown.
 
 With review off, the defaults apply as soon as a read finishes: held claims and held
 confirmations are not saved, uncertain becomes new, groups are skipped and conflicts are saved
-as disputed; a read with a required question waits for Defrag. A confirmation whose identity
-the decision changed is saved as a new memory, unless it is held and not listed.
+as disputed; a read with a required question waits for Defrag. In any approval, a confirmation
+whose identity the decision changed is saved as a new memory, unless it is held and not listed.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both
 sides until one is superseded or forgotten. **Forget** deletes one memory, then any evidence and
@@ -805,17 +803,16 @@ EmbeddingGemma vectors of 60,000 made-up sentences it returns 99.9% of the exact
 
 ## Brain Agent and Defrag
 
-### The Brain lane
+### Brain Agent
 
-**Brain Agent** is the agent of the Brain lane, an ordinary lane in `<userData>/brain/Brain`,
-compared by real path. The sidebar shows it in a group named Brain, after its folder, with the
+**Brain Agent** is the agent of the Brain lane, an ordinary lane in `<userData>/brain/Brain`
+(compared by real path). The sidebar shows it in a group named Brain, after its folder, with the
 🧠 marker when no marker was chosen (Auto mode only; an explicit choice wins). It has every
 normal lane capability: the model picker, connectors through MCP (such as Linear, Notion, Slack
 and GitHub), `gh` and sub-agents. Every surface calls it Brain Agent, never its model, and no
 Brain surface shows its cost or tokens. A new Brain lane is named “Brain Agent” and starts with
 pi's default model; afterwards it keeps the model chosen in its composer. Each Defrag resumes
-the folder's newest transcript. Delete the lane and the next Defrag starts a new one. Brain
-never reads it, and its lane menu has no Brain items.
+the folder's newest transcript; delete the lane and the next Defrag starts a new one.
 
 Its rules are `AGENTS.md` in that folder, which pi loads like any project's. Phosphor writes the
 default when the file is missing, when a lane starts there and before each Defrag turn, and
@@ -823,10 +820,9 @@ never overwrites it, so deleting the file restores the default. Before every req
 `brain-curator` extension swaps in the file as saved now, so an edit applies to the next message
 ([extensions](extensions.md)). Brain Agent edits it with its ordinary edit tool when you ask in
 that lane, and the edit shows in the chat. The default (`BRAIN_AGENT_RULES` in
-`apps/desktop/electron/brain/lane-folder.ts`) has six short sections: **Defrag** (the order, then
-a short summary), **Reads**, **People and things** (merge only on real evidence, never a name
-alone), **Memories** (fold, replace, keep both as disputed, correct from a source, erase),
-**Flags** and **Changing these rules**.
+`apps/desktop/electron/brain/lane-folder.ts`) has six short sections: **Defrag**, **Reads**,
+**People and things** (merge only on real evidence, never a name alone), **Memories**, **Flags**
+and **Changing these rules**.
 
 A fixed block sits in the Brain lane's system prompt where a worktree lane's charter goes, even
 when the charter switch is off (`brainLaneBlock()` in `libs/shared/src/agent-directives.ts`). No
@@ -846,26 +842,23 @@ Always, whatever AGENTS.md says:
 </phosphor_brain_lane>
 ```
 
-### Brain Agent's tools
-
-Tools reach only lanes in that folder. Whenever Brain is on (recall need not be), lane startup
-gives the Brain lane the local bridge's second token, the `brain-curator` extension and the
-`brain-agent` skill, in place of recall's, so it has no `brain_flag`. Every other lane keeps
-exactly `brain_search` and `brain_flag`. The bridge checks every request's token against both
-in constant time; a lane token can call only search and flag.
+Whenever Brain is on (recall need not be), lane startup gives lanes in that folder, and only
+them, the local bridge's second token, the `brain-curator` extension and the `brain-agent` skill
+in place of recall's, so the Brain lane has no `brain_flag`. Every other lane keeps exactly
+`brain_search` and `brain_flag`. Brain Agent's tools:
 
 - **Read:** `brain_waiting` (everything waiting, in the order to decide it, with the ids the
   other tools take), `brain_read_review`, `brain_suggestion`, `brain_search` (every project
-  alike: no lane's project ranks first), `brain_entity` and `brain_memory`.
+  alike), `brain_entity` and `brain_memory`.
 - **Write:** `brain_decide_read`, `brain_resolve` (merge, fold, both disputed, replace, keep, or
   remove a shared name), `brain_edit` (merge, describe, split, remove a name), `brain_correct`,
   `brain_erase` and `brain_undo`.
 
 Every write takes a one-line reason of 1–300 characters, scrubbed of secrets. Results are short
-text with the ids the next call needs; memory text, names, quotes and reasons arrive wrapped as
-data, and lane file paths never reach it. A refusal changes nothing and says why in one plain
-line, never a path, stack or token. While Brain is off every tool answers “Brain is off. The
-owner can turn it on in Settings › Brain.”
+text with the ids the next call needs; stored text arrives wrapped as data, and lane file paths
+never reach it. A refusal changes nothing and says why in one plain line, never a path, stack or
+token. While Brain is off every tool answers “Brain is off. The owner can turn it on in Settings
+› Brain.”
 
 ### Defrag
 
@@ -885,10 +878,9 @@ Defrag. 31 waiting: 6 reads, 10 people and things, 13 repeats, 1 disagreement, 1
 ```
 
 When the local pass left unchecked pairs, it adds “, and up to 40 possible repeats” before the
-final period; those are not counted in the header. The turn opens the lane as you would: it
-resumes the newest transcript or starts the lane, so its events reach every window and its
-dialogs reach you. If you have a turn running in that lane, the run waits for it to settle and
-never interrupts it.
+final period; those are not counted in the header. The turn opens the lane as you would, so its
+events reach every window and its dialogs reach you. If you have a turn running in that lane,
+the run waits for it to settle and never interrupts it.
 
 Brain Agent decides in order: reads, people and things, repeats and disagreements, flags, then
 possible repeats, and ends with a short summary. Approving a read changes Brain, so the next
@@ -896,9 +888,9 @@ read goes stale. During a run, `brain_read_review` and `brain_decide_read` refre
 inline, under the run's signal: they ask again only questions whose inputs changed and never
 re-read the lane. Outside a run, they ask the queue to refresh it and wait up to ten minutes,
 then refuse with “This read is still refreshing because Brain changed since it was read. Try it
-again in a few minutes.” A reject never needs a refresh. If the read was refreshed between
-Brain Agent reading it and deciding it, nothing is saved and the tool asks it to read the read
-again and decide on the new revision.
+again in a few minutes.” A reject never needs a refresh. A read refreshed between Brain Agent
+reading and deciding it saves nothing; Brain Agent reads it again and decides on the new
+revision.
 
 **Stop** (`brain:defragStop`): a queued run never starts and ends stopped; a running one aborts
 Brain Agent's turn; a run still waiting for your own turn in that lane ends stopped without
@@ -961,9 +953,11 @@ preference or mere irrelevance.
 
 When Brain and recall are on, lane startup (`SessionStartupRuntime.recall`) adds
 `PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN`, `-e brain-ext/brain.mjs` and
-`--skill skills/brain`. The endpoint is a local socket; the token is random per app run. Recall
-never blocks a lane: any failure starts it without Brain. Search stays read-only; flags only
-ask the owner to review. Both tools use the version 5 local bridge.
+`--skill skills/brain`. The endpoint is a local socket; the token is random per app run. The
+Brain lane gets the same variables with Brain Agent's own token, `brain-curator.mjs` and the
+`brain-agent` skill instead. Recall never blocks a lane: any failure starts it without Brain.
+Search stays read-only; flags only ask Brain Agent to check. Every tool uses the version 6 local
+bridge.
 
 `brain_search(query, limit?)` returns 8 memories by default, up to 20:
 
@@ -1012,8 +1006,9 @@ project's memories as context, and to report a dispute rather than pick a side.
 
 ## Limits
 
-- Extraction quality is the reader model's. Review catches a wrong link or identity; afterwards,
-  Forget and Merge into… fix it.
-- A merge, fold, dispute, replacement, split, removed name or description can be undone while its
-  journal is retained and later changes permit a clean restoration. Forget is never undone.
+- Extraction quality is the reader model's. Brain Agent catches a wrong link or identity when it
+  decides a read; afterwards, its tools, Forget and Merge into… fix it.
+- A merge, fold, dispute, replacement, split, removed name, description, approval, rejection,
+  keep or correction can be undone while its journal is retained and later changes permit a
+  clean restoration. Forget and erasures are never undone.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.
