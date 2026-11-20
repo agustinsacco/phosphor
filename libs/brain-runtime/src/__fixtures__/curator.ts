@@ -9,6 +9,19 @@ import { recallOptions } from './options'
 import { FakeAgentStore } from './fake-agent-store'
 import { FakeBrainSearch, HARBOR_JOB } from './fake-store'
 
+/** Gives the lane file a name now, as renaming a lane in Phosphor does. */
+export async function nameLane(path: string, name: string, cwd = '/projects/ledger') {
+  await writeFile(
+    path,
+    [
+      { type: 'session', id: 'ledger', cwd },
+      { type: 'session_info', name },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n'),
+  )
+}
+
 /** A read waiting in review, with one memory and one uncertain identity. */
 export function seedReview(store: FakeAgentStore, sessionId: string, sessionPath: string, at = 1) {
   const job = store.enqueue({ ...HARBOR_JOB, sessionId, sessionPath, title: sessionId }, 'queued')

@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises'
+import { unlink } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   OWNERSHIP_DETAIL,
@@ -6,7 +6,7 @@ import {
   RINA_VIEW,
 } from '../../../brain-client/src/__fixtures__/curator'
 import { HARBOR_RECALL } from '../../../brain-client/src/__fixtures__/recall'
-import { curatorFixture, seedReview } from '../__fixtures__/curator'
+import { curatorFixture, nameLane, seedReview } from '../__fixtures__/curator'
 import { BRAIN_OFF } from './curator-context'
 import { READ_NOT_WAITING } from './review-refresh'
 
@@ -71,6 +71,21 @@ describe('curator reads', () => {
     await expect(s.curator.readReview({ jobId: 'nope' }, signal)).rejects.toThrow(READ_NOT_WAITING)
   })
 
+  it('marks a fresh read never read when its lane is renamed to a never-read title or deleted', async () => {
+    const s = await curatorSetup()
+    const job = seedReview(s.store, 'ledger', s.lane)
+    await nameLane(s.lane, 'Harbor 1:1')
+    expect(await s.curator.readReview({ jobId: job.id }, signal)).toMatchObject({
+      neverRead: true,
+      proposal: { revision: 0, job: { title: 'Harbor 1:1' } },
+    })
+    await nameLane(s.lane, 'Harbor billing')
+    expect((await s.curator.readReview({ jobId: job.id }, signal)).neverRead).toBe(false)
+    await unlink(s.lane)
+    expect((await s.curator.readReview({ jobId: job.id }, signal)).neverRead).toBe(true)
+    expect(s.queue.refreshInline).not.toHaveBeenCalled()
+  })
+
   it('a stale review of a never-read lane comes back stale, marked never read, unrefreshed', async () => {
     const s = await curatorSetup()
     const job = seedReview(s.store, 'ledger', s.lane)
@@ -104,15 +119,7 @@ describe('curator reads', () => {
     const title = 'Harbor token=harbor-secret-123'
     const lane = (sessionId: string) => ({ sessionId, title })
     // The lane is named that now, and the read stored the same name.
-    await writeFile(
-      s.lane,
-      [
-        { type: 'session', id: 'ledger', cwd: '/projects/ledger' },
-        { type: 'session_info', name: title },
-      ]
-        .map((entry) => JSON.stringify(entry))
-        .join('\n'),
-    )
+    await nameLane(s.lane, title)
     const job = seedReview(s.store, 'ledger', s.lane)
     s.store.updateJob(job.id, { title })
     const memory = { ...OWNERSHIP_DETAIL.memory, origin: lane('harbor-lane') }

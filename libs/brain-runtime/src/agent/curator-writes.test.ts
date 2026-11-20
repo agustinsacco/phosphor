@@ -1,7 +1,9 @@
+import { unlink } from 'node:fs/promises'
 import { afterEach, describe, expect, it } from 'vitest'
 import { BRAIN_ERASE_LIMIT_REFUSAL } from '@phosphor/shared/brain-agent'
 import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
-import { curatorFixture, seedReview } from '../__fixtures__/curator'
+import { curatorFixture, nameLane, seedReview } from '../__fixtures__/curator'
+import { DELETED_LANE_REFRESH_REFUSAL } from '../lane-read-rules'
 import { BRAIN_OFF } from './curator-context'
 import { READ_CHANGED } from './curator-writes'
 
@@ -99,6 +101,28 @@ describe('decideRead', () => {
       (await s.curator.decideRead({ jobId: job.id, revision: 0, decision: null, reason }, signal))
         .status,
     ).toBe('done')
+  })
+
+  it('checks the lane as it is now before approving a fresh read: renamed, then deleted', async () => {
+    const s = await setup()
+    const job = seedReview(s.store, 'ledger', s.lane)
+    const decide = () =>
+      s.curator.decideRead({ jobId: job.id, revision: 0, decision: approve, reason }, signal)
+    // Renaming a lane changes no knowledge, so the read stays fresh.
+    await nameLane(s.lane, 'Harbor 1:1')
+    expect(await decide()).toEqual({
+      status: 'refused',
+      message: 'Brain never reads this lane because its title matches a rule in Settings › Brain.',
+      operationId: null,
+    })
+    await unlink(s.lane)
+    expect(await decide()).toEqual({
+      status: 'refused',
+      message: DELETED_LANE_REFRESH_REFUSAL,
+      operationId: null,
+    })
+    expect(s.store.calls).toEqual([])
+    expect(s.queue.refreshInline).not.toHaveBeenCalled()
   })
 
   it('refuses a read that is not waiting', async () => {
