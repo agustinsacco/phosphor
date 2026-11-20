@@ -268,7 +268,7 @@ describe('write tools', () => {
       kind: 'split',
       entityId: 'rina',
       memoryIds: ['m1'],
-      label: 'Rina Ito',
+      label: 'Mara Voss',
       entityKind: 'person',
       reason,
     })
@@ -280,7 +280,7 @@ describe('write tools', () => {
         kind: 'split',
         entityId: 'rina',
         memoryIds: ['m1'],
-        label: 'Rina Ito',
+        label: 'Mara Voss',
         entityKind: 'person',
       },
       { kind: 'removeName', entityId: 'rina', name: 'Rina' },
