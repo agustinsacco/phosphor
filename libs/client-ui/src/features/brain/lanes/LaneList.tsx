@@ -6,6 +6,7 @@ import type { BrainTidyOperation } from '@shared/brain-tidy'
 import { Button } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
+import { formatCount } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import {
   finishedRead,
@@ -60,7 +61,7 @@ export function LaneList({
                   title={brainLaneTitle(row.job.title)}
                   line={
                     group.id === 'waiting' && brainLaneNeverRead(status.prefs.neverRead, row.job)
-                      ? `${row.memories} memories · Brain never reads this lane`
+                      ? `${formatCount(row.memories, 'memory', 'memories')} · Brain never reads this lane`
                       : rowLine(row, jobs, now)
                   }
                   danger={row.job.state === 'failed'}

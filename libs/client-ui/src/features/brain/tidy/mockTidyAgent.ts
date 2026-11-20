@@ -60,7 +60,7 @@ export class MockTidyAgent {
         ? `Erased a memory: ${reason}`
         : kind === 'merge'
           ? `Merged ${item.subjects[1]!.label} into ${first.label}`
-          : `Not the same: ${item.subjects.map((s) => s.label).join(' and ')}`
+          : 'Kept both as they are'
     this.change(
       runId,
       kind,

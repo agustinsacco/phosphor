@@ -16,7 +16,7 @@ import { ExtractionOutcomes } from '../BrainExtraction'
 import { ExtractionCalls } from '../ExtractionCalls'
 import { ExtractionSource } from '../ExtractionSource'
 import { openBrainSource } from '../openBrainSource'
-import { durationWords } from '../jobProgress'
+import { agoWords, durationWords } from '../jobProgress'
 import { readTime } from '../readTime'
 import { coverageLine, readCounts } from './laneGroups'
 import { brainLaneTitle } from '../laneTitle'
@@ -270,7 +270,7 @@ function WaitingRead({
         <p className="text-text-tertiary text-sm">
           Waits for Defrag · {formatCount(job.memories, 'memory', 'memories')}
           {questions !== null && ` · ${formatCount(questions, 'question')}`}
-          {job.finishedAt !== null && ` · read ${relativeTime(job.finishedAt)}`}
+          {job.finishedAt !== null && ` · read ${agoWords(Date.now() - job.finishedAt)}`}
         </p>
       </header>
       <p>
