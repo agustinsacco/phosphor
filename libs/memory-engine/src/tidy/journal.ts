@@ -1,3 +1,5 @@
+import { cleanNote, saveNote, pruneOperations, type JournalNote } from '../agent/notes'
+import { checkCreatedDependents } from '../agent/undo-reads'
 import {
   captureMemoryGuards,
   checkDependents,
@@ -10,6 +12,7 @@ import {
   type Guards,
 } from './undo-guards'
 import { inheritFoldReferences, movedFlagTable, returnMovedFlags } from './fold-ancestry'
+import { scrubExcerpt } from '../secrets'
 import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
@@ -47,6 +50,8 @@ export interface JournalInput {
   summary?: string
   automatic?: boolean
   suggestionId?: string
+  note?: JournalNote
+  id?: string
 }
 const SUMMARIES: Record<BrainTidyOperation['kind'], string> = {
   merge: 'Merged two people or things',
@@ -64,9 +69,11 @@ const SUMMARIES: Record<BrainTidyOperation['kind'], string> = {
 }
 /** Operations that settle a pair; undoing one keeps the pair apart. */
 const PAIR_KINDS = new Set(['merge', 'fold', 'dispute', 'replace'])
-/** Caller owns the transaction. Only changed source rows are retained, at most 200 operations. */
+/** Caller owns the transaction. The latest run and recent erasures outlive the 200-row cap. */
 export function journal(ctx: Context, input: JournalInput, action: () => void): string {
-  const before = capture(ctx, input.selection, input.only)
+  if (input.note) input.note = cleanNote(input.note)
+  const read = input.kind === 'approve' || input.kind === 'reject'
+  const before = capture(ctx, input.selection, input.only, read)
   const references = affected(before, new Map(), input.selection)
   const memories = all<{ id: string; n: number }>(
     ctx,
@@ -78,8 +85,14 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
   action()
   const after = capture(
     ctx,
-    guards ? { ...input.selection, memories: guards.memories } : input.selection,
+    guards
+      ? {
+          ...input.selection,
+          memories: [...new Set([...input.selection.memories, ...guards.memories])],
+        }
+      : input.selection,
     input.only,
+    read,
   )
   // A row can leave the selected neighbourhood without being deleted (shared evidence).
   for (const [table, rows] of before)
@@ -88,7 +101,7 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
       const current = currentRow(ctx, table, row)
       if (current) after.get(table)!.set(key, current)
     }
-  const id = ctx.id(),
+  const id = input.id ?? ctx.id(),
     now = ctx.now()
   run(
     ctx,
@@ -96,7 +109,9 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     id,
     input.kind,
     input.automatic ? 1 : 0,
-    (input.summary ?? SUMMARIES[input.kind]).slice(0, 300),
+    scrubExcerpt(input.summary ?? SUMMARIES[input.kind])
+      .replace(/\s+/gu, ' ')
+      .slice(0, 300),
     now,
     null,
     input.suggestionId ?? null,
@@ -104,14 +119,15 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     input.subjects.first,
     input.subjects.second,
   )
+  if (input.note) saveNote(ctx, id, 'made', input.note)
   saveDelta(ctx, id, before, after, guards)
-  for (const m of memories)
+  const recorded = new Map(memories.map((m) => [m.id, m]))
+  for (const row of after.get('memories')!.values())
+    recorded.set(String(row.id), { id: String(row.id), n: Number(row.n) })
+  for (const m of recorded.values())
     run(ctx, 'INSERT INTO tidy_operation_memories VALUES (?,?,?)', id, m.id, m.n)
   if (input.kind === 'fold') inheritFoldReferences(ctx, input.subjects.first, input.subjects.second)
-  run(
-    ctx,
-    'DELETE FROM tidy_operations WHERE id IN (SELECT id FROM tidy_operations ORDER BY created_at DESC,id DESC LIMIT -1 OFFSET 200)',
-  )
+  pruneOperations(ctx)
   if (input.automatic)
     run(
       ctx,
@@ -125,6 +141,11 @@ function journalGuards(
   before: Rows,
   memories: number[],
 ): Guards | null {
+  if (input.kind === 'approve' || input.kind === 'reject')
+    return {
+      memories,
+      covers: (table) => table === 'jobs',
+    }
   if (input.kind === 'fold') return foldGuards(memories)
   if (input.kind !== 'merge') return null
   const [source, survivor] = [input.subjects.first, input.subjects.second].map(
@@ -216,9 +237,10 @@ function restore(ctx: Context, deltas: Delta[]): void {
   }
   remove('entities')
 }
-export function undo(ctx: Context, id: string, expected: number): Selection {
+export function undo(ctx: Context, id: string, expected: number, note?: JournalNote): Selection {
   return transaction(ctx, () => {
     checkRevision(ctx, expected)
+    if (note) note = cleanNote(note)
     const op = one<{
       kind: string
       undone_at: number | null
@@ -229,12 +251,28 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
     }>(ctx, 'SELECT * FROM tidy_operations WHERE id=?', id)
     if (!op) throw new Error('This Brain change is no longer available to undo.')
     if (op.undone_at !== null) throw new Error('This Brain change was already undone.')
+    if (op.kind === 'erase') throw new Error("Erasing can't be undone.")
     const deltas = undoRows(ctx, id)
-    if (!deltas.length)
+    if (!deltas.length && op.kind !== 'keep')
       throw new Error(
         'This Brain change is no longer available to undo because a memory was forgotten.',
       )
     const selection = selectionOf(deltas)
+    if (op.kind === 'approve' || op.kind === 'correct') checkCreatedDependents(ctx, deltas)
+    if (op.kind === 'keep') {
+      const suggestion = one<{ state: string }>(
+        ctx,
+        'SELECT state FROM tidy_suggestions WHERE id=?',
+        op.suggestion_id,
+      )
+      if (suggestion?.state !== 'dismissed') throw new Error(LATER_CHANGES)
+      run(
+        ctx,
+        "UPDATE tidy_suggestions SET state='open',updated_at=? WHERE id=?",
+        ctx.now(),
+        op.suggestion_id,
+      )
+    }
     if (op.kind === 'merge' || op.kind === 'fold')
       checkDependents(ctx, deltas, undoGuards(ctx, op.kind, op.second_id, deltas))
     if (op.kind === 'split') checkSplitDependents(ctx, deltas, op.first_id, op.second_id)
@@ -251,6 +289,7 @@ export function undo(ctx: Context, id: string, expected: number): Selection {
     fingerprintMemories(ctx, selection.memories)
     if (PAIR_KINDS.has(op.kind))
       suppressPair(ctx, op.subject_type, op.first_id, op.second_id, op.suggestion_id)
+    if (note) saveNote(ctx, id, 'undid', note)
     run(ctx, 'UPDATE tidy_operations SET undone_at=? WHERE id=?', ctx.now(), id)
     run(ctx, 'DELETE FROM tidy_operation_rows WHERE operation_id=?', id)
     run(ctx, 'DELETE FROM tidy_operation_memories WHERE operation_id=?', id)

@@ -108,11 +108,13 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
       usage: null,
       progress: null,
     }
+    // Agent decisions defer retention so undo stays exact; the next enqueue pays that debt.
+    pruneFinishedReads(ctx, value.sessionId)
     save(ctx, result)
     return result
   })
 }
-export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
+export function updateJob(ctx: Context, id: string, patch: JobPatch, prune = true): BrainJob {
   const existing = job(ctx, id)
   if (!existing) throw new Error('Brain job not found.')
   if (
@@ -151,7 +153,7 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
     updated.title,
     id,
   )
-  if (['done', 'empty', 'rejected'].includes(updated.state)) {
+  if (prune && ['done', 'empty', 'rejected'].includes(updated.state)) {
     pruneFinishedReads(ctx, updated.sessionId)
     pruneExtractions(ctx)
   }

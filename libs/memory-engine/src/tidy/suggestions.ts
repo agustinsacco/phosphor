@@ -1,3 +1,4 @@
+import { scrubExcerpt } from '../secrets'
 import {
   BRAIN_TIDY_KINDS,
   type BrainTidyKind,
@@ -121,7 +122,20 @@ export function closeMissing(ctx: Context, rows: SuggestionRow[]): void {
       row.state = 'cleared'
     }
 }
-export function suggestion(ctx: Context, row: SuggestionRow): BrainTidySuggestion | null {
+export function suggestion(
+  ctx: Context,
+  row: SuggestionRow,
+  curator = false,
+): BrainTidySuggestion | null {
+  const clean = (text: string) => (curator ? scrubExcerpt(text) : text)
+  if (curator)
+    row = {
+      ...row,
+      kind: row.kind === UNCHECKED ? 'same_memory' : row.kind,
+      reason: clean(row.reason),
+      verdict_reason: row.verdict_reason && clean(row.verdict_reason),
+      title: row.title && clean(row.title),
+    }
   if (
     row.kind === UNCHECKED ||
     !BRAIN_TIDY_KINDS.includes(row.kind) ||
@@ -141,9 +155,10 @@ export function suggestion(ctx: Context, row: SuggestionRow): BrainTidySuggestio
       .map((id) => ({
         type: row.subject_type,
         id,
-        label:
+        label: clean(
           one<{ label: string }>(ctx, `SELECT ${column} AS label FROM ${table} WHERE id=?`, id)
             ?.label ?? 'Removed',
+        ),
       })),
     reason: row.reason,
     verdict: row.verdict
@@ -186,13 +201,14 @@ export function dismiss(ctx: Context, id: string, expected: number): void {
     bumpRevision(ctx)
   })
 }
-export function openSuggestion(ctx: Context, id: string): SuggestionRow {
+export function openSuggestion(ctx: Context, id: string, curator = false): SuggestionRow {
   const row = one<SuggestionRow>(
     ctx,
     "SELECT * FROM tidy_suggestions WHERE id=? AND state='open'",
     id,
   )
-  if (!row || !suggestion(ctx, row)) throw new Error('This Tidy suggestion is no longer available.')
+  if (!row || !suggestion(ctx, row, curator))
+    throw new Error('This Tidy suggestion is no longer available.')
   return row
 }
 export function flag(ctx: Context, input: BrainTidyFlag): BrainTidyFlagResult {

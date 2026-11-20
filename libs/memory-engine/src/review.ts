@@ -154,55 +154,66 @@ export function review(
   decision: BrainReviewDecision | null,
   expectedRevision: number,
 ): BrainTidyTouched {
+  return transaction(ctx, () => reviewChange(ctx, jobId, decision, expectedRevision))
+}
+/** Caller owns the transaction; agent decisions defer incidental finished-read pruning. */
+export function reviewChange(
+  ctx: Context,
+  jobId: string,
+  decision: BrainReviewDecision | null,
+  expectedRevision: number,
+  retainForUndo = false,
+): BrainTidyTouched {
   const touched = new Set<number>(),
     touchedMemories = new Set<number>()
-  transaction(ctx, () => {
-    const value = readProposal(ctx, jobId)
-    if (
-      decision !== null &&
-      (expectedRevision !== knowledgeRevision(ctx) ||
-        value.computedRevision !== knowledgeRevision(ctx))
-    )
-      throw new Error(BRAIN_REVIEW_CHANGED)
-    const current = job(ctx, jobId)!
-    if (decision) validateDecision(ctx, value, decision)
-    if (decision) {
-      const commit: CommitContext = {
-        ctx,
-        proposal: value,
-        resolve: resolver(ctx, value, decision),
-        evidence: new Map(),
-        touched,
-        touchedMemories,
-      }
-      for (const index of new Set(decision.memories)) {
-        const item = value.memories[index]!
-        const id = applyMemory(
-          commit,
-          identityChanged(item, value, decision) ? { ...item, action: 'add', target: null } : item,
-          value.memoryVectors[index],
-        )
-        linkOutcome(ctx, jobId, index, id)
-      }
-      applyGroups(commit, decision.groups)
-      const confirmed = applyConfirmations(commit, decision)
-      const replaced = current.replaces
-        ? laneMemories(ctx, current.sessionId, jobId).replaceable
-        : []
-      for (const id of replaced) removeMemory(ctx, id)
-      cleanOrphans(ctx, touched)
-      recountEntities(ctx, touched)
-      if (decision.memories.length || decision.groups.length || confirmed || replaced.length)
-        bumpKnowledgeRevision(ctx)
+  const value = readProposal(ctx, jobId)
+  if (
+    decision !== null &&
+    (expectedRevision !== knowledgeRevision(ctx) ||
+      value.computedRevision !== knowledgeRevision(ctx))
+  )
+    throw new Error(BRAIN_REVIEW_CHANGED)
+  const current = job(ctx, jobId)!
+  if (decision) validateDecision(ctx, value, decision)
+  if (decision) {
+    const commit: CommitContext = {
+      ctx,
+      proposal: value,
+      resolve: resolver(ctx, value, decision),
+      evidence: new Map(),
+      touched,
+      touchedMemories,
     }
-    updateJob(ctx, jobId, {
+    for (const index of new Set(decision.memories)) {
+      const item = value.memories[index]!
+      const id = applyMemory(
+        commit,
+        identityChanged(item, value, decision) ? { ...item, action: 'add', target: null } : item,
+        value.memoryVectors[index],
+      )
+      linkOutcome(ctx, jobId, index, id)
+    }
+    applyGroups(commit, decision.groups)
+    const confirmed = applyConfirmations(commit, decision)
+    const replaced = current.replaces ? laneMemories(ctx, current.sessionId, jobId).replaceable : []
+    for (const id of replaced) removeMemory(ctx, id)
+    cleanOrphans(ctx, touched)
+    recountEntities(ctx, touched)
+    if (decision.memories.length || decision.groups.length || confirmed || replaced.length)
+      bumpKnowledgeRevision(ctx)
+  }
+  updateJob(
+    ctx,
+    jobId,
+    {
       state: decision ? 'done' : 'rejected',
       memories: decision?.memories.length ?? 0,
       finishedAt: ctx.now(),
-    })
-    run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
-    pruneExtractions(ctx)
-  })
+    },
+    !retainForUndo,
+  )
+  run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
+  if (!retainForUndo) pruneExtractions(ctx)
   return touchedIds(ctx, touched, touchedMemories)
 }
 /** Every confirmation that is not held, and the held ones the owner ticked. */
