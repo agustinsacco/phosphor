@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { emptyBrainTidyCoverage } from '@phosphor/shared/brain-tidy'
+import type { Proposal } from '@phosphor/memory-engine/types'
 import type { BrainAgentHost, BrainAgentTurn } from '../types'
 import { ExtractionQueue } from '../queue'
 import { FakeAgentStore } from '../__fixtures__/fake-agent-store'
@@ -212,6 +213,27 @@ describe('createDefrag', () => {
     order.push(s.runs[1]!.id)
     expect(order).toEqual([first.id, 'defrag', later.id])
     s.runs[1]!.finish()
+    await s.queue.dispose()
+  })
+
+  it('starts without refreshing stale reviews first: they wait in review for Brain Agent', async () => {
+    const s = setup()
+    const reviews = ['rina', 'tom'].map((sessionId) => {
+      const job = s.store.enqueue({ ...HARBOR_JOB, sessionId }, 'queued')
+      s.store.updateJob(job.id, { state: 'review' })
+      s.store.proposals.set(job.id, { jobId: job.id, computedRevision: 0 } as Proposal)
+      return job.id
+    })
+    // Brain changed since both were read.
+    s.store.rev++
+    s.defrag.start()
+    await vi.waitFor(() => expect(s.store.latestRun()?.state).toBe('done'))
+    expect(s.host.turn).toHaveBeenCalledOnce()
+    expect(s.runs).toEqual([])
+    for (const id of reviews) expect(s.store.job(id)?.state).toBe('review')
+    s.queue.kick()
+    await flush()
+    expect(s.runs).toEqual([])
     await s.queue.dispose()
   })
 
