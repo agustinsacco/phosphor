@@ -6,7 +6,7 @@ import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { TooltipButton } from '@/components/Tooltip'
 import { formatCount } from '@/lib/format'
 import { brainToast, mutateBrain, useBrain } from './useBrain'
-import { progressLine, agoWords } from './jobProgress'
+import { progressLine, agoWords, durationWords } from './jobProgress'
 import { brainLaneTitle } from './laneTitle'
 import { agentResult } from './agentStatus'
 import { openBrainSource } from './openBrainSource'
@@ -79,7 +79,7 @@ function AgentRunLine({
       if (action === 'undo') {
         const result = await mutateBrain(() => window.phosphor.invoke('brain:undoRun', run.id))
         brainToast(
-          `Undid ${result.undone} changes.${result.kept ? ` ${result.kept} stay: erasures, and changes later edits use.` : ''}`,
+          `Undid ${formatCount(result.undone, 'change')}.${result.kept ? ` ${formatCount(result.kept, 'stays', 'stay')}: erasures, and changes later edits use.` : ''}`,
         )
       }
     } catch (cause) {
@@ -141,8 +141,10 @@ function runLine(run: BrainAgentRun, reading: string | null, now: number): strin
     return reading
       ? `Defrag starts after Brain finishes reading ${brainLaneTitle(reading)}`
       : 'Defrag starts after the reads already queued'
-  if (run.state === 'running')
-    return `Brain Agent is defragging · ${run.decided} of ${run.total} · ${Math.max(0, Math.floor((now - (run.startedAt ?? now)) / 60000))} min`
+  if (run.state === 'running') {
+    const elapsed = now - (run.startedAt ?? now)
+    return `Brain Agent is defragging · ${run.decided} of ${run.total}${elapsed >= 60_000 ? ` · ${durationWords(elapsed)}` : ''}`
+  }
   return [
     agentResult(run),
     run.finishedAt === null ? '' : agoWords(now - run.finishedAt),

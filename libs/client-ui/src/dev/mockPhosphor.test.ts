@@ -87,6 +87,7 @@ it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
   const id = queued.jobs.at(-1)!.id
   expect((await window.phosphor.invoke('brain:status')).jobs.at(-1)?.state).toBe('running')
   await vi.advanceTimersByTimeAsync(5000)
+  await window.phosphor.invoke('brain:status')
   const proposal = await window.phosphor.invoke('brain:proposal', id)
   expect(proposal.memories.length).toBeGreaterThan(0)
   await window.phosphor.invoke(

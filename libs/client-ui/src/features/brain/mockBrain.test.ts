@@ -36,6 +36,7 @@ it('models enable → download → queue → review decision → memory → forg
     ]),
   })
   now += 4000
+  await call('brain:status', [])
   const proposal = (await call('brain:proposal', [id])) as BrainProposalView
   expect(proposal.identities.some((i) => i.decision === 'uncertain')).toBe(true)
   await expect(
@@ -148,6 +149,7 @@ it('can extract and approve again after resetting every entity and memory', asyn
   const id = queued.jobs.at(-1)!.id
   await call('brain:status', [])
   now += 4000
+  await call('brain:status', [])
   const proposal = (await call('brain:proposal', [id])) as BrainProposalView
   await expect(
     call('brain:review', [
@@ -158,37 +160,14 @@ it('can extract and approve again after resetting every entity and memory', asyn
   ).resolves.toMatchObject({ counts: { memories: 1, entities: 2 } })
 })
 
-it('refreshes a stale proposal as a review and returns it after recomputing', async () => {
-  let now = 0
-  const call = createMockBrain(() => now)
-  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
-  now = 6000
-  await call('brain:status', [])
+it('returns the stored stale proposal without changing the waiting job after a Knowledge edit', async () => {
+  const call = createMockBrain(() => 6000)
   const id = 'harbor-demo-review'
-  await call('brain:merge', [
-    'tom',
-    'rina',
-    ((await call('brain:status', [])) as BrainStatus).revision,
-  ])
-  await expect(call('brain:proposal', [id])).rejects.toThrow(
-    'Brain changed; refreshing this review',
-  )
-  // A refresh stays a review: it keeps its first start and times only this attempt.
-  expect(await call('brain:status', [])).toMatchObject({
-    jobs: expect.arrayContaining([
-      expect.objectContaining({
-        id,
-        state: 'refreshing',
-        startedAt: 1793966400000,
-        runStartedAt: 6000,
-      }),
-    ]),
-  })
-  now += 4000
-  expect(await call('brain:proposal', [id])).toMatchObject({
-    revision: 1,
-    job: { state: 'review' },
-  })
+  const before = (await call('brain:proposal', [id])) as BrainProposalView
+  await call('brain:describe', ['ledger', 'Harbor ledger.', before.revision])
+  await expect(call('brain:proposal', [id])).resolves.toEqual(before)
+  const status = (await call('brain:status', [])) as BrainStatus
+  expect(status.jobs.find((job) => job.id === id)).toEqual(before.job)
 })
 
 it('exposes the links call beside extraction in the invented extraction view', async () => {
@@ -241,6 +220,7 @@ it('keeps finished reads in history and replaces the mocked lane only on approva
   const count = queued.counts.memories
   await call('brain:status', [])
   now += 4000
+  await call('brain:status', [])
   const id = queued.jobs.at(-1)!.id
   const proposal = (await call('brain:proposal', [id])) as BrainProposalView
   expect(proposal.replacingMemories).toBe(count)
@@ -322,6 +302,7 @@ it('orders recent memories by finished job and caps eligibility at the newest tw
     const id = status.jobs.at(-1)!.id
     await call('brain:status', [])
     now += 5000
+    await call('brain:status', [])
     const proposal = (await call('brain:proposal', [id])) as BrainProposalView
     await call('brain:review', [
       id,
@@ -530,4 +511,20 @@ it('enforces never-read argument bounds in the browser mock, too', async () => {
       { ...DEFAULT_BRAIN_PREFS, neverRead: { titles: Array(51).fill('Harbor'), sessionIds: [] } },
     ]),
   ).rejects.toThrow('Invalid Brain never-read settings.')
+})
+
+it('does not advance a reader job when a proposal is viewed; status polling advances the mock queue', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  now = 6000
+  const queued = (await call('brain:queue', [
+    { sessionPath: '/demo/Harbor/passive.jsonl', title: 'Harbor passive read' },
+  ])) as BrainStatus
+  const id = queued.jobs.at(-1)!.id
+  await call('brain:status', [])
+  now += 4000
+  await expect(call('brain:proposal', [id])).rejects.toThrow('Review not found')
+  await call('brain:status', [])
+  await expect(call('brain:proposal', [id])).resolves.toMatchObject({ job: { state: 'review' } })
 })

@@ -81,3 +81,26 @@ it('keeps automatic folds outside Defrag in the same notice, and suppresses thos
   expect(notices()).toHaveLength(1)
   expect(notices()[0]!.message).toBe('Brain Agent decided 31 things and erased 2')
 })
+
+it('marks a stopped Defrag notice as stopped while keeping its changes', () => {
+  const observe = createTidyNotices(),
+    status = enabled()
+  observe({ ...status, agent: { ...status.agent, run } })
+  observe({ ...status, agent: { ...status.agent, run: { ...run, state: 'stopped' } } })
+  expect(notices()[0]).toMatchObject({
+    kind: 'info',
+    message: 'Brain Agent decided 31 things and erased 2 · stopped',
+  })
+})
+
+it.each(['Ledger unavailable', null])('announces a failed Defrag as an error (%s)', (error) => {
+  const observe = createTidyNotices(),
+    status = enabled()
+  observe({ ...status, agent: { ...status.agent, run } })
+  observe({
+    ...status,
+    agent: { ...status.agent, run: { ...run, state: 'failed', decided: 0, erased: 0, error } },
+  })
+  expect(notices()[0]).toMatchObject({ kind: 'error', message: error ?? 'Defrag failed.' })
+  expect(useExtensionUiStore.getState().toasts.at(-1)?.kind).toBe('error')
+})

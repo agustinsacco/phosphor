@@ -117,14 +117,8 @@ class MockBrain {
   }
   private proposal(id: string): BrainProposalView {
     const job = this.state.jobs.find((item) => item.id === id)
-    if (job?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
-    if (job?.state !== 'review') throw new Error('Review not found')
-    if (this.computedRevisions.get(id) !== this.state.revision) {
-      // Recomputed as the same review: its first start stays, the attempt starts on a tick.
-      Object.assign(job, { state: 'refreshing', runStartedAt: null, progress: null })
-      throw new Error(BRAIN_REVIEW_REFRESHING)
-    }
-    const plain = mockBrainProposal(job, this.state.revision)
+    if (!job || !['review', 'refreshing'].includes(job.state)) throw new Error('Review not found')
+    const plain = mockBrainProposal(job, this.computedRevisions.get(id) ?? this.state.revision)
     const proposal = this.demo && job.id === 'harbor-demo-review' ? withDemoQuestions(plain) : plain
     if (job.replaces) {
       proposal.replacingMemories = this.history.memories(job.sessionId).length
@@ -285,7 +279,7 @@ class MockBrain {
     }
   }
   call(channel: string, args: unknown[]): unknown {
-    this.tick()
+    if (channel !== 'brain:proposal') this.tick()
     if (['brain:defrag', 'brain:defragStop', 'brain:undoRun'].includes(channel)) {
       const result = this.agent.call(channel, args)
       return Object.assign(this.status(), result)

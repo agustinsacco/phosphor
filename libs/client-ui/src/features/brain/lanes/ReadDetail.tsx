@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { brainLaneNeverRead } from '@shared/brain'
-import type { BrainExtractionView, BrainHistory, BrainJob } from '@shared/brain'
+import { BRAIN_REVIEW_REFRESHING } from '@shared/brain-review'
+import type { BrainExtractionView, BrainHistory, BrainJob, BrainProposalView } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { Button } from '@/components/form'
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
@@ -15,7 +16,7 @@ import { ExtractionOutcomes } from '../BrainExtraction'
 import { ExtractionCalls } from '../ExtractionCalls'
 import { ExtractionSource } from '../ExtractionSource'
 import { openBrainSource } from '../openBrainSource'
-import { durationWords } from '../jobProgress'
+import { agoWords, durationWords } from '../jobProgress'
 import { readTime } from '../readTime'
 import { coverageLine, readCounts } from './laneGroups'
 import { brainLaneTitle } from '../laneTitle'
@@ -255,8 +256,10 @@ function WaitingRead({
   onInspect: () => void
 }): React.JSX.Element {
   const never = useBrain((s) => brainLaneNeverRead(s.status!.prefs.neverRead, job))
-  const load = useCallback(() => window.phosphor.invoke('brain:proposal', job.id), [job.id])
-  const { data, error, retry } = useBrainResource(load, job.state === 'review')
+  const load = useCallback(() => waitingProposal(job.id), [job.id])
+  const { data: view, error, retry } = useBrainResource(load, true, job.state)
+  const data = view?.proposal
+  const refreshing = job.state === 'refreshing' || (view && !data)
   const questions = data
     ? data.identities.filter((identity) => !identity.auto).length + data.groups.length
     : null
@@ -267,7 +270,7 @@ function WaitingRead({
         <p className="text-text-tertiary text-sm">
           Waits for Defrag · {formatCount(job.memories, 'memory', 'memories')}
           {questions !== null && ` · ${formatCount(questions, 'question')}`}
-          {job.finishedAt !== null && ` · read ${relativeTime(job.finishedAt)}`}
+          {job.finishedAt !== null && ` · read ${agoWords(Date.now() - job.finishedAt)}`}
         </p>
       </header>
       <p>
@@ -275,17 +278,20 @@ function WaitingRead({
           ? 'Brain Agent will reject this read: Brain never reads this lane.'
           : 'Brain Agent reviews this read in the next Defrag.'}
       </p>
-      {job.state === 'refreshing' ? (
+      {refreshing && (
         <p className="text-text-secondary">Refreshing: Brain changed since this lane was read.</p>
-      ) : !data ? (
-        <p role="status">
-          {error || 'Loading the read…'}{' '}
-          {error && (
-            <Button size="xs" onClick={retry}>
-              Retry
-            </Button>
-          )}
-        </p>
+      )}
+      {!data ? (
+        refreshing ? null : (
+          <p role="status">
+            {error || 'Loading the read…'}{' '}
+            {error && (
+              <Button size="xs" onClick={retry}>
+                Retry
+              </Button>
+            )}
+          </p>
+        )
       ) : (
         <ul className="space-y-4">
           {data.memories.map((memory) => (
@@ -301,4 +307,14 @@ function WaitingRead({
       </Button>
     </article>
   )
+}
+
+/** Older runtimes report refresh progress as a refusal; it is not a failed load. */
+async function waitingProposal(jobId: string): Promise<{ proposal: BrainProposalView | null }> {
+  try {
+    return { proposal: await window.phosphor.invoke('brain:proposal', jobId) }
+  } catch (cause) {
+    if (ipcErrorText(cause) === BRAIN_REVIEW_REFRESHING) return { proposal: null }
+    throw cause
+  }
 }

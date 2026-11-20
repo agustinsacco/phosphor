@@ -5,11 +5,11 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { brainIsVisible, openBrain } from '../brainNavigation'
 import { agentResult } from '../agentStatus'
 
-function notify(message: string, recent = false): void {
+function notify(message: string, recent = false, kind: 'info' | 'error' = 'info'): void {
   useExtensionUiStore.getState().notify({
     message,
     key: 'brain',
-    kind: 'info',
+    kind,
     openLabel: 'Open Brain',
     onOpen: () => openBrain({ tab: 'lanes', recent }),
   })
@@ -43,7 +43,8 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
       !['queued', 'running'].includes(run.state) &&
       (old?.id !== run.id || old.state === 'queued' || old.state === 'running')
     ) {
-      notify(agentResult(run))
+      if (run.state === 'failed') notify(run.error ?? 'Defrag failed.', false, 'error')
+      else notify(`${agentResult(run)}${run.state === 'stopped' ? ' · stopped' : ''}`)
       return
     }
     if (run && ['queued', 'running'].includes(run.state)) return

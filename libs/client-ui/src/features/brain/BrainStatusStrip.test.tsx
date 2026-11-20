@@ -135,3 +135,29 @@ it('keeps Stop retryable after a refusal', async () => {
   await click('Stop')
   expect(stop).toHaveBeenCalledTimes(2)
 })
+
+it.each([
+  [null, 'Brain Agent is defragging · 12 of 31'],
+  [NOW + 60_000, 'Brain Agent is defragging · 12 of 31'],
+  [NOW - 59_999, 'Brain Agent is defragging · 12 of 31'],
+  [NOW - 60_000, 'Brain Agent is defragging · 12 of 31 · 1 min'],
+  [NOW - 3_660_000, 'Brain Agent is defragging · 12 of 31 · 1 h 1 min'],
+])('shows elapsed words only after a full minute (start %s)', async (startedAt, expected) => {
+  await render(run({ startedAt }))
+  expect(container.querySelector('span.flex-1')?.textContent).toBe(expected)
+})
+
+it('updates duration words when the first minute elapses', async () => {
+  await render(run({ startedAt: NOW }))
+  await act(async () => vi.advanceTimersByTime(60_000))
+  expect(container.textContent).toContain('Brain Agent is defragging · 12 of 31 · 1 min')
+})
+
+it('uses singular changes and the singular verb in the Undo run toast', async () => {
+  undo.mockResolvedValueOnce({ ...mockBrainStatus(), undone: 1, kept: 1 })
+  await render(run({ state: 'done' }))
+  await click('Undo run')
+  expect(useExtensionUiStore.getState().toasts.at(-1)?.message).toBe(
+    'Undid 1 change. 1 stays: erasures, and changes later edits use.',
+  )
+})

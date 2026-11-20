@@ -92,3 +92,19 @@ it('waits for earlier reads but keeps later reads behind Defrag', async () => {
   const stopped = (await call('brain:status', [])) as BrainStatus
   expect(stopped.jobs.find((job) => job.title === 'Harbor after')?.state).toBe('running')
 })
+
+it('keeps mock journal summaries engine-shaped without quoting memory text', async () => {
+  let now = 1793966400000
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  now += 6000
+  await call('brain:defrag', [])
+  now += 2000
+  await call('brain:status', [])
+  now += 20000
+  await call('brain:status', [])
+  const changes = (await call('brain:tidyChanges', [50])) as BrainTidyChanges
+  const kept = changes.items.filter((op) => op.kind === 'keep')
+  expect(kept.length).toBeGreaterThan(0)
+  expect(kept.map((op) => op.summary)).toEqual(kept.map(() => 'Kept both as they are'))
+})

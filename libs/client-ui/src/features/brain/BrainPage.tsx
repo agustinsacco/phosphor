@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { BrainStatus } from '@shared/brain'
 import { PageShell } from '@/components/PageShell'
 import { UnderlinedTabs } from '@/components/UnderlinedTabs'
 import { Button } from '@/components/form'
@@ -24,21 +25,11 @@ export function BrainPage(): React.JSX.Element {
   const status = useBrain((s) => s.status)
   const error = useBrain((s) => s.error)
   const openSettings = useOpenSettings()
+  const [startingDefrag, setStartingDefrag] = useState(false)
   return (
     <PageShell
       wide
-      title={
-        <span>
-          Brain{' '}
-          {status && (
-            <span className="text-text-tertiary ml-3 text-sm font-normal">
-              {formatCount(status.counts.memories, 'memory', 'memories')} ·{' '}
-              {formatCount(status.counts.entities, 'person or thing', 'people and things')} ·{' '}
-              {waitingCount(status)} waiting
-            </span>
-          )}
-        </span>
-      }
+      title={brainTitle(status)}
       actions={
         supported && (
           <>
@@ -61,10 +52,18 @@ export function BrainPage(): React.JSX.Element {
               <Button
                 size="sm"
                 variant="primary"
-                disabled={!!defragRefusal(status)}
-                tooltip={defragRefusal(status) ?? waitingBreakdown(status.agent.waiting)}
+                disabled={startingDefrag || !!defragRefusal(status)}
+                tooltip={
+                  startingDefrag
+                    ? 'Defrag is starting.'
+                    : (defragRefusal(status) ?? waitingBreakdown(status.agent.waiting))
+                }
                 onClick={() => {
-                  void useBrain.getState().defrag()
+                  setStartingDefrag(true)
+                  void useBrain
+                    .getState()
+                    .defrag()
+                    .then(() => setStartingDefrag(false))
                 }}
               >
                 Defrag
@@ -181,5 +180,20 @@ function BrainTabs({
         { value: 'lanes', label: 'Lanes' },
       ]}
     />
+  )
+}
+
+function brainTitle(status: BrainStatus | null): React.JSX.Element {
+  return (
+    <span>
+      Brain{' '}
+      {status && (
+        <span className="text-text-tertiary ml-3 text-sm font-normal">
+          {formatCount(status.counts.memories, 'memory', 'memories')} ·{' '}
+          {formatCount(status.counts.entities, 'person or thing', 'people and things')} ·{' '}
+          {waitingCount(status)} waiting
+        </span>
+      )}
+    </span>
   )
 }
