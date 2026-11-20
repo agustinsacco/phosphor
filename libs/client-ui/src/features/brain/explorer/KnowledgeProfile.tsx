@@ -32,12 +32,12 @@ export interface ProfileProps {
 
 /** The middle pane of Knowledge: a profile that reads like a page, with its own tabs. */
 export function KnowledgeProfile(props: ProfileProps): React.JSX.Element {
-  const { visit } = props
+  const { visit, onReplace } = props
   const { data, error, retry } = useEntityView(visit.id)
   useEffect(() => {
     if (data && data.entity.id !== visit.id)
-      props.onReplace({ ...visit, id: data.entity.id, label: data.entity.label })
-  }, [data, visit, props.onReplace])
+      onReplace({ ...visit, id: data.entity.id, label: data.entity.label })
+  }, [data, visit, onReplace])
   if (!data)
     return (
       <div className="space-y-2 px-4 pt-2">

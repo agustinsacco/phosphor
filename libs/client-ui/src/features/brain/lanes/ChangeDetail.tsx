@@ -24,6 +24,12 @@ export const CHANGE_WHO: Record<BrainTidyOperation['who'], string> = {
 }
 
 /** One Tidy change: what it did, who did it, and Undo while it still applies. */
+export function changeTitle(change: BrainTidyOperation): string {
+  return change.kind === 'erase'
+    ? `Erased a memory${change.reason ? `: ${change.reason}` : ''}`
+    : change.summary
+}
+
 export function ChangeDetail({
   change,
   busy,
@@ -41,7 +47,7 @@ export function ChangeDetail({
   return (
     <article aria-label="Change detail" className="space-y-3 p-4">
       <header>
-        <h2 className="text-xl font-semibold">{change.summary}</h2>
+        <h2 className="text-xl font-semibold">{changeTitle(change)}</h2>
         <p className="text-text-tertiary text-sm">
           {CHANGE_WHO[change.who]} · {relativeTime(change.createdAt)}
         </p>

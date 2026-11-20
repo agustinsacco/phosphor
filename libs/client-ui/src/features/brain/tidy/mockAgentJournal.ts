@@ -1,7 +1,7 @@
 import type { BrainTidyOperation } from '@shared/brain-tidy'
 import type { MockExplorer } from '../mockExplorer'
 
-/** Agent-only mock journal. Erasures redact snapshots rather than reviving text on undo. */
+/** Agent-only mock journal. Undo never revives erased memories or loses later edits. */
 export class MockAgentJournal {
   operations: BrainTidyOperation[] = []
   private restore = new Map<string, () => void>()
@@ -22,6 +22,8 @@ export class MockAgentJournal {
     const entities = structuredClone(this.explorer.entities)
     const details = structuredClone(this.explorer.details)
     apply()
+    const afterEntities = structuredClone(this.explorer.entities)
+    const afterDetails = structuredClone(this.explorer.details)
     const id = crypto.randomUUID()
     const operation: BrainTidyOperation = {
       id,
@@ -39,6 +41,14 @@ export class MockAgentJournal {
     this.operations.unshift(operation)
     if (operation.undoable)
       this.restore.set(id, () => {
+        const surviving = (rows: MockExplorer['details']) =>
+          rows.filter((d) => !this.erased.has(d.memory.id))
+        if (
+          JSON.stringify(this.explorer.entities) !== JSON.stringify(afterEntities) ||
+          JSON.stringify(surviving(this.explorer.details)) !==
+            JSON.stringify(surviving(afterDetails))
+        )
+          throw new Error('Later changes prevent a clean undo.')
         this.explorer.entities = entities
         this.explorer.details = details.filter((d) => !this.erased.has(d.memory.id))
         undo?.()

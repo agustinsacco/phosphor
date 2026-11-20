@@ -258,7 +258,7 @@ function useTidyChanges() {
 }
 
 /** States whose row shows a time that moves: how long it has read, or how long it waited. */
-const TIMED: readonly BrainJob['state'][] = ['running', 'refreshing', 'queued', 'waiting']
+const TIMED: readonly BrainJob['state'][] = ['running', 'refreshing', 'queued', 'waiting', 'review']
 
 /** Times are in minutes, so a coarse tick is enough while anything is reading or queued. */
 function useLaneClock(active: boolean): number {

@@ -541,7 +541,7 @@ const MOCK_DISK_SESSIONS: SessionMeta[] = [
     headroomSavedTokens: 0,
     entryCount: 2,
     branchCount: 0,
-    mtimeMs: 0,
+    mtimeMs: Date.now(),
   },
   {
     path: '/mock/sessions/a.jsonl',

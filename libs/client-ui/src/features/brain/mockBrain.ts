@@ -15,7 +15,7 @@ import type {
   BrainPredicate,
   BrainStatus,
 } from '@shared/brain'
-import { mockBrainJob, mockBrainProposal, mockBrainStatus } from './mockBrainData'
+import { mockBrainProposal, mockBrainStatus } from './mockBrainData'
 import { mockDemoJobs, mockStartingJobs, withDemoQuestions } from './mockBrainDemo'
 import { applyMockReview, checkMockDecision } from './mockReview'
 import { mockExtractionRecord } from './mockExtractionRecord'
@@ -61,6 +61,9 @@ class MockBrain {
             },
         this.state.revision,
       )
+      return () => {
+        this.history.jobs = this.history.jobs.filter((read) => read.id !== job.id)
+      }
     })
     this.demo = !!options.demoReviews
     this.state.jobs = [...mockStartingJobs(), ...(this.demo ? mockDemoJobs() : [])]
@@ -195,6 +198,7 @@ class MockBrain {
   }
   private setPrefs(channel: 'brain:neverRead' | 'brain:setPrefs', args: unknown[]): BrainStatus {
     this.state.prefs = mockBrainPrefs(channel, args, this.state.prefs)
+    if (!this.state.prefs.enabled) this.agent.call('brain:defragStop', [])
     // As on Desktop, a rule change drops reads not yet started; a review stays in the Inbox.
     this.state.jobs = this.state.jobs.filter(
       (job) =>

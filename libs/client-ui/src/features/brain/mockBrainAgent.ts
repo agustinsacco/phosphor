@@ -15,7 +15,7 @@ export class MockBrainAgent {
     private state: BrainStatus,
     private tidy: MockTidy,
     private now: () => number,
-    private decide: (job: BrainJob) => void,
+    private decide: (job: BrainJob) => () => void,
   ) {
     state.agent.folder = MOCK_BRAIN_FOLDER
   }
@@ -48,7 +48,8 @@ export class MockBrainAgent {
       const suggestions = this.tidy.agent.waitingIds()
       this.steps = [
         ...jobs.map((job) => () => {
-          const before = structuredClone(this.state.jobs)
+          const before = structuredClone(job)
+          let undoRead: (() => void) | undefined
           const never = brainLaneNeverRead(this.state.prefs.neverRead, job)
           this.tidy.agent.change(
             run.id,
@@ -57,10 +58,14 @@ export class MockBrainAgent {
             never
               ? 'Brain never reads this lane.'
               : 'The lasting memories have evidence in this read.',
-            () => this.decide(job),
+            () => {
+              undoRead = this.decide(job)
+            },
             job.id,
             () => {
-              this.state.jobs = before
+              undoRead?.()
+              if (!this.state.jobs.some((read) => read.id === before.id))
+                this.state.jobs.push(before)
             },
           )
         }),
