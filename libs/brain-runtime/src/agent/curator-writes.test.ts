@@ -1,5 +1,5 @@
 import { unlink } from 'node:fs/promises'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BRAIN_ERASE_LIMIT_REFUSAL } from '@phosphor/shared/brain-agent'
 import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
 import { curatorFixture, nameLane, seedReview } from '../__fixtures__/curator'
@@ -191,6 +191,36 @@ describe('other writes', () => {
       signal,
     )
     expect(s.store.calls[1]!.args[1]).toBeNull()
+  })
+
+  it('correct passes its call’s signal to the model, and writes nothing once cancelled', async () => {
+    const s = await setup()
+    const request = {
+      memoryId: 'ownership',
+      summary: 'Tom Lee owns it.',
+      source: 'Slack #ledger',
+      quote: 'Tom owns it.',
+      reason,
+    }
+    // The model finishes after the call hung up.
+    const hangUp = new AbortController()
+    const late = vi.fn(async () => {
+      hangUp.abort()
+      return [[0.1, 0.2]]
+    })
+    s.options.embeddings.embed = late
+    await expect(s.curator.correct(request, hangUp.signal)).rejects.toThrow()
+    expect(late).toHaveBeenCalledWith(['Tom Lee owns it.'], 'document', hangUp.signal)
+    // The model stops because the call hung up: that is not the no-vector fallback.
+    const again = new AbortController()
+    s.options.embeddings.embed = async (_texts, _kind, embedding) => {
+      again.abort()
+      embedding?.throwIfAborted()
+      return []
+    }
+    await expect(s.curator.correct(request, again.signal)).rejects.toThrow()
+    expect(s.store.calls).toEqual([])
+    expect(s.search.refreshes).toBe(0)
   })
 
   it('erasure is final: it never returns an operation, and the hourly cap reads as limit', async () => {
