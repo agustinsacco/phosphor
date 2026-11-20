@@ -457,3 +457,25 @@ it('shows agent reasons, erasure finality, and the read behind an approval', asy
   await click('See the read', section('Change detail'))
   expect(selection).toEqual({ type: 'job', id: 'harbor-read' })
 })
+
+it('never uses an erased memory’s old summary in a row or its detail', async () => {
+  const base = (await changes(50)).items[0]!
+  changes.mockResolvedValue({
+    revision: 1,
+    items: [
+      {
+        ...base,
+        id: 'erase-redacted',
+        kind: 'erase',
+        undoable: false,
+        summary: 'OUTDATED MEMORY TEXT',
+        reason: 'The owner corrected this.',
+      },
+    ],
+  })
+  await render([], { type: 'change', id: 'erase-redacted' })
+  expect(container.textContent).not.toContain('OUTDATED MEMORY TEXT')
+  expect(section('Recent changes').textContent).toContain(
+    'Erased a memory: The owner corrected this.',
+  )
+})
