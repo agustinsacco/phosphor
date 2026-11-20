@@ -3,6 +3,7 @@ import { createServer, type Server, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { BRAIN_PROTOCOL } from '@phosphor/shared/brain'
 import { BrainClientError } from './client'
 import {
   BRAIN_MAX_FRAME_BYTES,
@@ -71,7 +72,7 @@ describe('createNodeBrainTransport', () => {
     expect(brain.requests[0]!.endsWith('\n')).toBe(true)
     expect(brain.requests[0]!.indexOf('\n')).toBe(brain.requests[0]!.length - 1)
     expect(JSON.parse(brain.requests[0]!)).toEqual({
-      version: 5,
+      version: BRAIN_PROTOCOL,
       token: TOKEN,
       method: 'search',
       params: { query: 'Harbor' },
@@ -220,13 +221,13 @@ describe('brainConnectionFromEnv', () => {
   })
 })
 
-it('protocol 5 against a protocol 4 server fails with the existing unavailable message', async () => {
+it('the current protocol against an older server fails with the existing unavailable message', async () => {
   const brain = await fakeBrain((socket, line) => {
     const input = JSON.parse(line) as { version: number }
-    expect(input.version).toBe(5)
+    expect(input.version).toBe(BRAIN_PROTOCOL)
     socket.end(
       JSON.stringify(
-        input.version === 4
+        input.version === BRAIN_PROTOCOL - 1
           ? { ok: true, data: {} }
           : { ok: false, error: 'Brain request unavailable' },
       ) + '\n',

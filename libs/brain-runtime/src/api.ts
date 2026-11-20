@@ -1,4 +1,3 @@
-import { createTidyRunner, type TidyRunner } from './tidy/run'
 import { tidyApi } from './tidy/api'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -25,6 +24,9 @@ import {
   DELETED_LANE_REFRESH_REFUSAL,
 } from './lane-read-rules'
 import type { TidyMaintenance } from './tidy/maintenance'
+import { BRAIN_OWN_LANE_REFUSAL, isBrainOwnLane } from './agent/own-lane'
+import type { Defrag } from './agent/defrag'
+import { defragApi } from './agent/defrag-api'
 
 interface ApiContext {
   store: BrainStore
@@ -35,6 +37,7 @@ interface ApiContext {
   changed(): void
   startModel(run: () => Promise<void>): void
   maintenance: Pick<TidyMaintenance, 'reset'>
+  defrag: Defrag
 }
 function checkPrefs(prefs: BrainPrefs): void {
   if (
@@ -64,6 +67,7 @@ async function enqueue(
       throw error
     })
   check()
+  if (isBrainOwnLane(lane.cwd, options.agent?.folder)) throw new Error(BRAIN_OWN_LANE_REFUSAL)
   const refusal = brainNeverReadReason(store.snapshot().prefs.neverRead, {
     sessionId: lane.sessionId,
     title: lane.title ?? '',
@@ -101,13 +105,13 @@ async function reread(id: string, context: ApiContext): Promise<void> {
 }
 async function currentReview(
   id: string,
-  { store, queue, files, changed }: ApiContext,
+  { store, queue, files, changed, options }: ApiContext,
   intent: 'view' | 'approve',
 ): Promise<void> {
   const job = store.job(id)
   const proposal = store.storedProposal(id)
   if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-    const check = await currentReadCheck(store, files, job)
+    const check = await currentReadCheck(store, files, job, options.agent?.folder)
     if (check.retitled) changed()
     const reason = check.refusal
     const refusal =
@@ -131,8 +135,7 @@ async function currentReview(
 }
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
-  const tidy = createTidyRunner({ ...context, runState: store })
-  const status = (): BrainStatus => apiStatus(context, tidy)
+  const status = (): BrainStatus => apiStatus(context)
   const mutate = async (run: () => void): Promise<BrainStatus> => {
     run()
     await search.refresh()
@@ -192,14 +195,8 @@ export function createApi(context: ApiContext): BrainApi {
         queue.resume()
       }
     },
-    ...tidyApi(context, tidy, status, mutate),
-    defrag: async () => {
-      throw new Error('Defrag is not available in this build.')
-    },
-    defragStop: async () => status(),
-    undoRun: async () => {
-      throw new Error('Defrag is not available in this build.')
-    },
+    ...tidyApi(store, status, mutate),
+    ...defragApi(store, context.defrag, status, mutate),
     ...readApi(context),
     forget: async (id) => mutate(() => store.forget(id)),
   }
@@ -280,14 +277,12 @@ function readApi({
   }
 }
 
-function apiStatus({ store, options }: ApiContext, tidy: TidyRunner): BrainStatus {
+function apiStatus({ store, options }: ApiContext): BrainStatus {
   const embedding = options.embeddings.status()
   return {
     ...store.snapshot(),
-    tidy: {
-      ...store.tidySummary(),
-      running: ['queued', 'sweeping', 'checking'].includes(tidy.current()?.state ?? ''),
-    },
+    // Defrag replaced the Tidy run; its progress is `agent.run`.
+    tidy: { ...store.tidySummary(), running: false },
     agent: {
       waiting: store.waitingCounts(),
       run: store.latestRun(),

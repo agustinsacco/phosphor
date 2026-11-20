@@ -10,7 +10,12 @@ import {
   type BrainPredicate,
 } from '@phosphor/shared/brain'
 import { all, one, type Bind, type Context } from './database'
-import { entity as entitySummary, entityNumber, referencedEntities } from './entities'
+import {
+  entity as entitySummary,
+  entityNumber,
+  survivingEntityId,
+  referencedEntities,
+} from './entities'
 import { memoryCards } from './knowledge'
 import { newerLink, pairProbe, sideIndex } from './relation-pairs'
 
@@ -48,6 +53,7 @@ function connectionPage(
   after: string | null,
   limit: number,
 ): BrainConnectionPage {
+  id = survivingEntityId(ctx, id)
   const own = direction === 'out' ? 'subject' : 'object'
   const other = direction === 'out' ? 'object' : 'subject'
   const self = one<{ n: number; connections: number }>(
@@ -165,6 +171,7 @@ function currentMemories(
   }
 }
 export function entity(ctx: Context, id: string): BrainEntityView {
+  id = survivingEntityId(ctx, id)
   const n = entityNumber(ctx, id)
   const groups = BRAIN_PREDICATES.flatMap((predicate) =>
     (['out', 'in'] as const).flatMap((direction) => {
@@ -211,6 +218,7 @@ export function entityMemories(
   filter: BrainMemoryFilter,
   after: string | null,
 ): BrainMemoryPage {
+  id = survivingEntityId(ctx, id)
   const n = entityNumber(ctx, id)
   const key = decode(after)
   const states = filter.states ?? ['active', 'disputed']

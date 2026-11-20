@@ -8,6 +8,8 @@ import { createApi } from './api'
 import { createTidyMaintenance } from './tidy/maintenance'
 import { currentReadCheck } from './lane-read-rules'
 import { LaneFiles } from './lane-files'
+import { createDefrag, DEFRAG_INTERRUPTED } from './agent/defrag'
+import { createCurator } from './agent/curator'
 
 /** Setup runs in the background: saving a preference must not wait for a model download. */
 function modelSetup(options: BrainServiceOptions, changed: () => void, kick: () => void) {
@@ -45,13 +47,15 @@ const PROTOTYPE_FILES = [
   'sessions',
 ]
 
+async function removePrototypeFiles(directory: string): Promise<void> {
+  await Promise.all(
+    PROTOTYPE_FILES.map((name) => rm(join(directory, name), { recursive: true, force: true })),
+  )
+}
+
 export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
   await mkdir(options.directory, { recursive: true })
-  await Promise.all(
-    PROTOTYPE_FILES.map((name) =>
-      rm(join(options.directory, name), { recursive: true, force: true }),
-    ),
-  )
+  await removePrototypeFiles(options.directory)
   const store = options.openStore(join(options.directory, 'brain.sqlite'))
   const search = options.openSearch(join(options.directory, 'brain.sqlite'))
   let disposed = false
@@ -70,7 +74,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
     run: (job, signal, entries) => extractJob(job, signal, store, options, search, entries),
     changed,
-    check: (job) => currentReadCheck(store, files, job),
+    check: (job) => currentReadCheck(store, files, job, options.agent?.folder),
     cancelled: (job, reason) =>
       options.log?.('Brain job cancelled', {
         jobId: job.id,
@@ -80,9 +84,21 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       }),
     now: options.now ?? Date.now,
   })
-  const recall = createRecall(store, options, search, () => queue.accepting, store)
   const setup = modelSetup(options, changed, () => queue.kick())
+  const defrag = createDefrag({ store, search, options, queue, changed })
+  const curator = createCurator({
+    store,
+    search,
+    options,
+    queue,
+    files,
+    defrag,
+    changed,
+    enabled: () => !disposed && queue.accepting && store.snapshot().prefs.enabled,
+  })
+  const recall = createRecall(store, options, search, () => queue.accepting, store, curator)
   store.requeueInterrupted()
+  store.interruptRuns(DEFRAG_INTERRUPTED)
   if (store.snapshot().prefs.enabled) setup.start(() => options.embeddings.setEnabled(true))
   else await options.embeddings.setEnabled(false)
   changed()
@@ -97,12 +113,15 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       changed,
       startModel: setup.start,
       maintenance,
+      defrag,
     }),
-    agent: recall.agent,
+    agent: (method, request, signal) => recall.agent(method, request, signal),
     recallLaunch: recall.recallLaunch,
+    curatorLaunch: recall.curatorLaunch,
     async dispose() {
       if (disposed) return
       disposed = true
+      defrag.dispose()
       options.embeddings.dispose()
       await queue.dispose()
       await maintenance.stop()

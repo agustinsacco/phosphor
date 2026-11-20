@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import type { SessionPolicyRuntime } from '@phosphor/session-runtime/pi/session-policy'
 import { accountSnapshot } from '../account'
 import { getPrefs } from '../store'
@@ -7,6 +8,7 @@ import { headroomSupervisor } from '../headroom/proxy'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { ensureCompactionReset } from './compaction-reset'
+import { brainLaneFolder, isBrainLaneFolder } from '../brain/lane-folder'
 
 export const desktopSessionPolicy: SessionPolicyRuntime = {
   git: async (cwd) => (await gitInfoBatch([cwd]))[cwd] ?? { isRepo: false },
@@ -23,4 +25,5 @@ export const desktopSessionPolicy: SessionPolicyRuntime = {
   },
   compressionEnvironment: () => headroomSupervisor().sessionEnv(),
   resetCompaction: ensureCompactionReset,
+  brainLane: (cwd) => isBrainLaneFolder(cwd, brainLaneFolder(app.getPath('userData'))),
 }

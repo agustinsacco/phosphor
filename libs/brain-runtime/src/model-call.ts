@@ -33,11 +33,7 @@ interface ModelCallBase {
   /** Raw final text, including on transport or assistant failure; never diagnostics. */
   onAnswer?: (answer: string) => void
 }
-export type ModelCallInput = ModelCallBase &
-  (
-    | { stage: BrainExtractionCall['stage']; job: BrainJob }
-    | { stage: 'tidy'; job: Pick<BrainJob, 'id'> }
-  )
+export type ModelCallInput = ModelCallBase & { stage: BrainExtractionCall['stage']; job: BrainJob }
 export interface ModelCallResult {
   text: string
   usage: { tokens: number; cost: number }

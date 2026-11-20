@@ -1,5 +1,6 @@
 import { createConnection } from 'node:net'
 import { expect, it, vi } from 'vitest'
+import { BRAIN_PROTOCOL } from '@phosphor/shared/brain'
 import { createBrainBridge } from './bridge'
 
 function request(endpoint: string, input: unknown): Promise<unknown> {
@@ -26,10 +27,20 @@ it('accepts only versioned, authenticated requests with validated fields', async
     degradation: [],
   }))
   const bridge = await createBrainBridge(invoke)
-  const input = { version: 5, token: bridge.token, method: 'search', params: { query: 'Harbor' } }
+  const input = {
+    version: BRAIN_PROTOCOL,
+    token: bridge.token,
+    method: 'search',
+    params: { query: 'Harbor' },
+  }
   try {
     expect(await request(bridge.endpoint, input)).toMatchObject({ ok: true })
-    expect(invoke).toHaveBeenCalledWith('search', { query: 'Harbor' })
+    expect(invoke).toHaveBeenCalledWith(
+      'search',
+      { query: 'Harbor' },
+      expect.any(AbortSignal),
+      'lane',
+    )
     invoke.mockClear()
     for (const patch of [
       { token: 'x'.repeat(64) },
@@ -49,7 +60,7 @@ it('accepts only versioned, authenticated requests with validated fields', async
   }
 })
 
-it('protocol 4 clients fail cleanly and flags reject unknown keys and oversize fields', async () => {
+it('older protocol clients fail cleanly and flags reject unknown keys and oversize fields', async () => {
   const invoke = vi.fn(async () => ({
     status: 'filed',
     message: 'Flag filed for review; Brain knowledge has not changed.',
@@ -62,16 +73,16 @@ it('protocol 4 clients fail cleanly and flags reject unknown keys and oversize f
     sessionId: 'harbor-lane',
     title: 'Harbor billing',
   }
-  const input = { version: 5, token: bridge.token, method: 'flag', params }
+  const input = { version: BRAIN_PROTOCOL, token: bridge.token, method: 'flag', params }
   try {
     expect(await request(bridge.endpoint, input)).toMatchObject({
       ok: true,
       data: { status: 'filed' },
     })
-    expect(invoke).toHaveBeenCalledWith('flag', params)
+    expect(invoke).toHaveBeenCalledWith('flag', params, expect.any(AbortSignal), 'lane')
     invoke.mockClear()
     for (const patch of [
-      { version: 4 },
+      { version: BRAIN_PROTOCOL - 1 },
       { unknown: true },
       { params: { ...params, unknown: true } },
       { params: { ...params, reason: 'x'.repeat(301) } },
@@ -94,7 +105,7 @@ it('limits flags across twelve claimed sessions and sockets, while search and la
   const invoke = vi.fn(async () => ({ status: 'filed', message: 'Filed.' }))
   const bridge = await createBrainBridge(invoke)
   const input = (i: number) => ({
-    version: 5,
+    version: BRAIN_PROTOCOL,
     token: bridge.token,
     method: 'flag',
     params: {
@@ -122,7 +133,7 @@ it('limits flags across twelve claimed sessions and sockets, while search and la
     )
     expect(invoke).toHaveBeenCalledTimes(10)
     await request(bridge.endpoint, {
-      version: 5,
+      version: BRAIN_PROTOCOL,
       token: bridge.token,
       method: 'search',
       params: { query: 'Harbor' },
@@ -147,7 +158,7 @@ it('a wall-clock step back does not hold the flag window shut', async () => {
   const invoke = vi.fn(async () => ({ status: 'filed', message: 'Filed.' }))
   const bridge = await createBrainBridge(invoke)
   const input = (i: number) => ({
-    version: 5,
+    version: BRAIN_PROTOCOL,
     token: bridge.token,
     method: 'flag',
     params: {

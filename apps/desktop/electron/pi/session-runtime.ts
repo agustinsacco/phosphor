@@ -56,7 +56,7 @@ const spawn = createSessionStartup({
   accounts: { remember: rememberSpawnAccount, forget: forgetSpawnAccount, hold: holdAccount },
   recordWorkspace,
   laneReload,
-  recall: () => recall?.() ?? Promise.resolve(undefined),
+  recall: (workspacePath) => recall?.(workspacePath) ?? Promise.resolve(undefined),
 })
 
 const service = createSessionService<Electron.WebContents>({
