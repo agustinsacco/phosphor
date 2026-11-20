@@ -2,7 +2,7 @@ import type { BrainReviewDecision } from '@phosphor/shared/brain-review'
 import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
 import { all, one, transaction, type Context } from '../database'
 import { readProposal } from '../proposals'
-import { knowledgeRevision } from '../prefs'
+import { knowledgeRevision, revision, bumpRevision } from '../prefs'
 import { job } from '../jobs'
 import { laneMemories } from '../history'
 import { reviewChange } from '../review'
@@ -77,6 +77,7 @@ export function decideRead(
     const memoryMax = one<{ n: number }>(ctx, 'SELECT COALESCE(MAX(n),0) AS n FROM memories')!.n
     let touched: BrainTidyTouched = { entityIds: [], memoryIds: [] }
     const title = job(ctx, jobId)!.title || 'Untitled lane'
+    const beforeRevision = revision(ctx)
     const operationId = journal(
       ctx,
       {
@@ -98,6 +99,7 @@ export function decideRead(
         )
       },
     )
+    if (revision(ctx) === beforeRevision) bumpRevision(ctx)
     return { operationId, touched }
   })
 }

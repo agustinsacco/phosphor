@@ -9,7 +9,9 @@ import { rebuild } from '../tidy/projections'
 import type { BrainChangeNote, BrainCorrection } from './types'
 
 function text(value: string, max: number, label: string): string {
-  const clean = scrubExcerpt(value.trim())
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > max) throw new Error(`${label} needs 1 to ${max} characters.`)
+  const clean = scrubExcerpt(trimmed)
   if (!clean || clean.length > max) throw new Error(`${label} needs 1 to ${max} characters.`)
   return clean
 }

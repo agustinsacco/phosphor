@@ -1,3 +1,4 @@
+import { scrubExcerpt } from '../secrets'
 import {
   BRAIN_TIDY_KINDS,
   type BrainTidyKind,
@@ -126,7 +127,15 @@ export function suggestion(
   row: SuggestionRow,
   curator = false,
 ): BrainTidySuggestion | null {
-  if (curator && row.kind === UNCHECKED) row = { ...row, kind: 'same_memory' }
+  const clean = (text: string) => (curator ? scrubExcerpt(text) : text)
+  if (curator)
+    row = {
+      ...row,
+      kind: row.kind === UNCHECKED ? 'same_memory' : row.kind,
+      reason: clean(row.reason),
+      verdict_reason: row.verdict_reason && clean(row.verdict_reason),
+      title: row.title && clean(row.title),
+    }
   if (
     row.kind === UNCHECKED ||
     !BRAIN_TIDY_KINDS.includes(row.kind) ||
@@ -146,9 +155,10 @@ export function suggestion(
       .map((id) => ({
         type: row.subject_type,
         id,
-        label:
+        label: clean(
           one<{ label: string }>(ctx, `SELECT ${column} AS label FROM ${table} WHERE id=?`, id)
             ?.label ?? 'Removed',
+        ),
       })),
     reason: row.reason,
     verdict: row.verdict

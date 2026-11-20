@@ -21,6 +21,7 @@ function readRun(ctx: Context, id: string): BrainAgentRun {
   if (!row) throw new Error('Brain Agent run not found.')
   return { ...row, rulesChanged: !!row.rulesChanged }
 }
+/** Counters include made operations even after undo, never undid notes; undoable is current. */
 export function latestRun(ctx: Context): BrainAgentRun | null {
   const row = one<{ id: string }>(
     ctx,

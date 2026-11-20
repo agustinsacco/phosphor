@@ -1,5 +1,5 @@
 import { cleanNote, saveNote, pruneOperations, type JournalNote } from '../agent/notes'
-import { checkApprovalDependents } from '../agent/undo-reads'
+import { checkCreatedDependents } from '../agent/undo-reads'
 import {
   captureMemoryGuards,
   checkDependents,
@@ -12,6 +12,7 @@ import {
   type Guards,
 } from './undo-guards'
 import { inheritFoldReferences, movedFlagTable, returnMovedFlags } from './fold-ancestry'
+import { scrubExcerpt } from '../secrets'
 import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
@@ -68,7 +69,7 @@ const SUMMARIES: Record<BrainTidyOperation['kind'], string> = {
 }
 /** Operations that settle a pair; undoing one keeps the pair apart. */
 const PAIR_KINDS = new Set(['merge', 'fold', 'dispute', 'replace'])
-/** Caller owns the transaction. Only changed source rows are retained, at most 200 operations. */
+/** Caller owns the transaction. The latest run and recent erasures outlive the 200-row cap. */
 export function journal(ctx: Context, input: JournalInput, action: () => void): string {
   if (input.note) input.note = cleanNote(input.note)
   const before = capture(ctx, input.selection, input.only)
@@ -106,7 +107,9 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     id,
     input.kind,
     input.automatic ? 1 : 0,
-    (input.summary ?? SUMMARIES[input.kind]).slice(0, 300),
+    scrubExcerpt(input.summary ?? SUMMARIES[input.kind])
+      .replace(/\s+/gu, ' ')
+      .slice(0, 300),
     now,
     null,
     input.suggestionId ?? null,
@@ -253,7 +256,7 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
         'This Brain change is no longer available to undo because a memory was forgotten.',
       )
     const selection = selectionOf(deltas)
-    if (op.kind === 'approve') checkApprovalDependents(ctx, deltas)
+    if (op.kind === 'approve' || op.kind === 'correct') checkCreatedDependents(ctx, deltas)
     if (op.kind === 'keep') {
       const suggestion = one<{ state: string }>(
         ctx,

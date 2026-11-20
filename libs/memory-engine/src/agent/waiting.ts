@@ -45,14 +45,13 @@ export function waitingSuggestions(
   possibleRepeats: number,
 ): { items: BrainWaitingItem[]; more: number } {
   if (
-    !Number.isInteger(limit) ||
-    limit < 1 ||
-    limit > 200 ||
-    !Number.isInteger(possibleRepeats) ||
-    possibleRepeats < 0 ||
-    possibleRepeats > BRAIN_POSSIBLE_REPEATS_PER_RUN
+    !Number.isSafeInteger(limit) ||
+    limit < 0 ||
+    !Number.isSafeInteger(possibleRepeats) ||
+    possibleRepeats < 0
   )
     throw new Error('Invalid Brain Agent waiting limit.')
+  possibleRepeats = Math.min(possibleRepeats, BRAIN_POSSIBLE_REPEATS_PER_RUN)
   closeMissing(ctx)
   const visible = all<SuggestionRow>(
     ctx,
