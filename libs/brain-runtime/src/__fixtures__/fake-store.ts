@@ -326,21 +326,27 @@ export class FakeBrainStore implements BrainStore {
   pendingPairs = () => []
   recordVerdicts = () => ({ recorded: 0, settled: 0 })
   flag = () => ({ status: 'filed' as const, suggestionId: 'flag' })
-  // Brain Agent. Tests that exercise it replace these.
-  waitingCounts = () => ({ reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 })
-  waitingSuggestions = () => ({ items: [], more: 0 })
-  agentSuggestion = () => null
-  decideRead = unfaked
-  resolve = unfaked
-  agentEdit = unfaked
-  correct = unfaked
-  erase = unfaked
-  agentUndo = unfaked
-  createRun = unfaked
-  updateRun = unfaked
-  latestRun = () => null
-  interruptRuns = () => undefined
-  undoRun = unfaked
+  // Brain Agent. FakeAgentStore and tests that exercise it replace these.
+  waitingCounts: BrainStore['waitingCounts'] = () => ({
+    reads: 0,
+    entities: 0,
+    repeats: 0,
+    conflicts: 0,
+    flags: 0,
+  })
+  waitingSuggestions: BrainStore['waitingSuggestions'] = () => ({ items: [], more: 0 })
+  agentSuggestion: BrainStore['agentSuggestion'] = () => null
+  decideRead: BrainStore['decideRead'] = unfaked
+  resolve: BrainStore['resolve'] = unfaked
+  agentEdit: BrainStore['agentEdit'] = unfaked
+  correct: BrainStore['correct'] = unfaked
+  erase: BrainStore['erase'] = unfaked
+  agentUndo: BrainStore['agentUndo'] = unfaked
+  createRun: BrainStore['createRun'] = unfaked
+  updateRun: BrainStore['updateRun'] = unfaked
+  latestRun: BrainStore['latestRun'] = () => null
+  interruptRuns: BrainStore['interruptRuns'] = () => undefined
+  undoRun: BrainStore['undoRun'] = unfaked
   merge(): string {
     this.rev++
     return 'operation'

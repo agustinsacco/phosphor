@@ -2,7 +2,6 @@ import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
-import { NO_MODEL } from './tidy/check'
 import { pipelineSetup } from './__fixtures__/pipeline'
 import type { BrainMemoryDetail } from '@phosphor/shared/brain-explore'
 import type { BrainService } from './types'
@@ -229,7 +228,7 @@ it('rereads a finished lane through busy waiting, rejects missing files and unfi
     "This lane's file is gone, so Brain cannot read it again.",
   )
 })
-it('binds Tidy to the store: a run persists its progress and a lane flag reaches the engine', async () => {
+it('a lane flag reaches the engine through the agent entry', async () => {
   const s = await setup()
   s.store.prefs.recall = true
   s.store.details.push({ memory: { id: 'm1', state: 'active' } } as BrainMemoryDetail)
@@ -244,13 +243,6 @@ it('binds Tidy to the store: a run persists its progress and a lane flag reaches
     }),
   ).toMatchObject({ status: 'filed' })
   expect(flagged).toHaveBeenCalledOnce()
-  await s.service.api.tidyRun()
-  // No read has finished in this fake store, so the model check is skipped with its reason.
-  await vi.waitFor(() => expect(s.store.readRun()?.state).toBe('skipped'))
-  expect((await s.service.api.tidy(null, null, 20)).run).toMatchObject({
-    state: 'skipped',
-    message: NO_MODEL,
-  })
 })
 
 it('approving one of three reviews refreshes the other two without paying twice', async () => {

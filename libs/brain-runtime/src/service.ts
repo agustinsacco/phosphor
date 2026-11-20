@@ -8,6 +8,7 @@ import { createApi } from './api'
 import { createTidyMaintenance } from './tidy/maintenance'
 import { currentReadCheck } from './lane-read-rules'
 import { LaneFiles } from './lane-files'
+import { createDefrag, DEFRAG_INTERRUPTED } from './agent/defrag'
 
 /** Setup runs in the background: saving a preference must not wait for a model download. */
 function modelSetup(options: BrainServiceOptions, changed: () => void, kick: () => void) {
@@ -82,7 +83,9 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
   })
   const recall = createRecall(store, options, search, () => queue.accepting, store)
   const setup = modelSetup(options, changed, () => queue.kick())
+  const defrag = createDefrag({ store, search, options, queue, changed })
   store.requeueInterrupted()
+  store.interruptRuns(DEFRAG_INTERRUPTED)
   if (store.snapshot().prefs.enabled) setup.start(() => options.embeddings.setEnabled(true))
   else await options.embeddings.setEnabled(false)
   changed()
@@ -97,12 +100,14 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       changed,
       startModel: setup.start,
       maintenance,
+      defrag,
     }),
     agent: recall.agent,
     recallLaunch: recall.recallLaunch,
     async dispose() {
       if (disposed) return
       disposed = true
+      defrag.dispose()
       options.embeddings.dispose()
       await queue.dispose()
       await maintenance.stop()

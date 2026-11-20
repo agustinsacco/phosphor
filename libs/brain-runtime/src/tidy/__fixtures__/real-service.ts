@@ -8,7 +8,7 @@ import { openBrainStore } from '@phosphor/memory-engine/store'
 import { openBrainSearch } from '@phosphor/memory-engine/search'
 import type { BrainStore, Proposal } from '@phosphor/memory-engine/types'
 import type { BrainService, BrainServiceOptions, BrainSearchPort } from '../../types'
-import type { ModelCallInput } from '../../model-call'
+import type { ModelCallInput, ModelCallResult } from '../../model-call'
 import { createBrainService } from '../../service'
 
 const cleanups: (() => Promise<void>)[] = []
@@ -43,31 +43,9 @@ export async function realService() {
     model: 'example/reader',
     neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
-  const call = vi.fn(async (input: ModelCallInput) => {
-    if (input.stage !== 'tidy') throw new Error('Only fake Tidy calls are expected')
-    const pairs = JSON.parse(input.prompt.split('authority="none">\n')[1]!.split('\n</')[0]!) as {
-      ref: string
-      a: { type: string; sentence?: string }
-      b: { sentence?: string }
-    }[]
-    return {
-      text: JSON.stringify({
-        decisions: pairs.map(({ ref, a, b }) => ({
-          ref,
-          verdict:
-            a.type === 'entity'
-              ? 'same'
-              : [a.sentence, b.sentence].every((s) => s?.startsWith('Ledger bills'))
-                ? 'conflict'
-                : 'different',
-          reason:
-            a.type === 'entity'
-              ? 'Both describe the Ledger lead.'
-              : 'The supplied assertions differ.',
-        })),
-      }),
-      usage: { tokens: 0, cost: 0 },
-    }
+  // Nothing here reads a lane: a model call would be a bug.
+  const call = vi.fn(async (_input: ModelCallInput): Promise<ModelCallResult> => {
+    throw new Error('No model call is expected')
   })
   const options: BrainServiceOptions = {
     directory,
