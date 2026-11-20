@@ -71,7 +71,7 @@ it('holds two different tokens, and the lane token calls only search and flag', 
 })
 
 it('the curator token calls every curator method and never flag', async () => {
-  const invoke = vi.fn(async () => ({ ok: 'yes' }))
+  const invoke = vi.fn(async (_method: string) => ({ ok: 'yes' }))
   const bridge = await createBrainBridge(invoke)
   try {
     for (const method of BRAIN_CURATOR_METHODS)

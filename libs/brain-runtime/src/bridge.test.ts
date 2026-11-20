@@ -35,7 +35,7 @@ it('accepts only versioned, authenticated requests with validated fields', async
   }
   try {
     expect(await request(bridge.endpoint, input)).toMatchObject({ ok: true })
-    expect(invoke).toHaveBeenCalledWith('search', { query: 'Harbor' })
+    expect(invoke).toHaveBeenCalledWith('search', { query: 'Harbor' }, expect.any(AbortSignal))
     invoke.mockClear()
     for (const patch of [
       { token: 'x'.repeat(64) },
@@ -74,7 +74,7 @@ it('older protocol clients fail cleanly and flags reject unknown keys and oversi
       ok: true,
       data: { status: 'filed' },
     })
-    expect(invoke).toHaveBeenCalledWith('flag', params)
+    expect(invoke).toHaveBeenCalledWith('flag', params, expect.any(AbortSignal))
     invoke.mockClear()
     for (const patch of [
       { version: BRAIN_PROTOCOL - 1 },
