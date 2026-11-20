@@ -68,15 +68,18 @@ function registerRead<P>(
 export function registerCuratorReads(pi: CuratorPiApi, client: BrainCuratorClient): void {
   const object = (properties: Parameters<typeof Type.Object>[0]) =>
     Type.Object(properties, { additionalProperties: false })
-  registerRead<{ limit?: number }>(
+  // Every tool needs a required parameter: a call with no arguments fails validation.
+  registerRead<{ limit: number }>(
     pi,
     'brain_waiting',
     'Brain: what is waiting',
-    'List what waits for Brain Agent, in the order to decide it: reads, then people and things, repeats, disagreements and flags, then up to 40 unchecked possible repeats. Shows the ids the other brain_ tools take. Start every Defrag here, and call it again to see what is left.',
+    'List what waits for Brain Agent, in the order to decide it: reads, then people and things, repeats, disagreements and flags, then up to 40 unchecked possible repeats. Shows the ids the other brain_ tools take. Start every Defrag here with limit 60, and call it again to see what is left.',
     object({
-      limit: Type.Optional(
-        Type.Integer({ minimum: 1, maximum: 200, description: 'Items to list. Default 60.' }),
-      ),
+      limit: Type.Integer({
+        minimum: 1,
+        maximum: 200,
+        description: 'Items to list. Use 60; up to 200.',
+      }),
     }),
     async (params, signal) => formatWaiting(await client.call('waiting', params, signal)),
   )

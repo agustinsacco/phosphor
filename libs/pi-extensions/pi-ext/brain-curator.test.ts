@@ -119,7 +119,9 @@ describe('brain-curator tools', () => {
 
   it('formats each read result with the ids the next call needs', async () => {
     const { call, run } = setup()
-    expect((await run('brain_waiting', {})).text).toContain('- job-ledger · Ledger invoices')
+    expect((await run('brain_waiting', { limit: 60 })).text).toContain(
+      '- job-ledger · Ledger invoices',
+    )
     expect((await run('brain_read_review', { jobId: 'job-ledger' })).text).toContain('revision 41')
     expect((await run('brain_suggestion', { suggestionId: 'sugg-rina' })).text).toContain(
       'Allowed: merge, keep, unname.',
@@ -128,7 +130,7 @@ describe('brain-curator tools', () => {
     expect((await run('brain_entity', { entityId: 'rina' })).text).toContain('Entity rina.')
     expect((await run('brain_memory', { memoryId: 'ownership' })).text).toContain('Quotes:')
     expect(call.mock.calls.map(([method, params]) => [method, params])).toEqual([
-      ['waiting', {}],
+      ['waiting', { limit: 60 }],
       ['readReview', { jobId: 'job-ledger' }],
       ['suggestion', { suggestionId: 'sugg-rina' }],
       ['search', { query: 'Harbor' }],
