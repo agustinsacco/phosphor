@@ -66,3 +66,27 @@ it('forget also drops a read approval snapshot and erasure redacts prior agent r
   ])
   expect(scan(db).toLowerCase()).not.toContain('rina leads ledger area 1.')
 })
+it('Forget removes an approval snapshot, and erase removes another read snapshot quoting the memory', () => {
+  const { store, db } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  const data = extraction(job.id)
+  store.propose(data)
+  const approved = store.decideRead(
+    job.id,
+    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
+    0,
+    note,
+  )
+  const id = approved.touched.memoryIds[0]!
+  const next = store.enqueue(lane({ sessionId: 'ledger-lane' }), 'queued')
+  store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
+  const rejected = store.decideRead(next.id, null, store.knowledgeRevision(), note)
+  store.forget(id)
+  expect(scan(db)).not.toContain(data.memories[0]!.summary)
+  for (const operation of [approved.operationId, rejected.operationId])
+    expect(
+      db
+        .prepare('SELECT COUNT(*) AS n FROM tidy_operation_rows WHERE operation_id=?')
+        .get(operation),
+    ).toEqual({ n: 0 })
+})
