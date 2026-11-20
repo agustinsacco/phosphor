@@ -119,8 +119,13 @@ export function currentRow(ctx: Context, table: RowTable, key: Row): Row | null 
     ) ?? null
   )
 }
-/** `only` narrows the capture to the tables an edit can change; the rest read as empty. */
-export function capture(ctx: Context, selection: Selection, only?: ReadonlySet<RowTable>): Rows {
+/** Read approvals change entity metadata, but only the selected memories' neighbourhood. */
+export function capture(
+  ctx: Context,
+  selection: Selection,
+  only?: ReadonlySet<RowTable>,
+  memoryScoped = false,
+): Rows {
   const rows: Rows = new Map()
   const e = JSON.stringify(selection.entities),
     m = JSON.stringify(selection.memories)
@@ -154,14 +159,14 @@ export function capture(ctx: Context, selection: Selection, only?: ReadonlySet<R
   select(
     'mentions',
     'entity IN (SELECT value FROM json_each(?)) OR memory IN (SELECT value FROM json_each(?))',
-    e,
+    memoryScoped ? '[]' : e,
     m,
   )
   const relations = select(
     'relations',
     'subject IN (SELECT value FROM json_each(?)) OR object IN (SELECT value FROM json_each(?)) OR memory IN (SELECT value FROM json_each(?))',
-    e,
-    e,
+    memoryScoped ? '[]' : e,
+    memoryScoped ? '[]' : e,
     m,
   )
   const support = select(

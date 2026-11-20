@@ -72,7 +72,8 @@ const PAIR_KINDS = new Set(['merge', 'fold', 'dispute', 'replace'])
 /** Caller owns the transaction. The latest run and recent erasures outlive the 200-row cap. */
 export function journal(ctx: Context, input: JournalInput, action: () => void): string {
   if (input.note) input.note = cleanNote(input.note)
-  const before = capture(ctx, input.selection, input.only)
+  const read = input.kind === 'approve' || input.kind === 'reject'
+  const before = capture(ctx, input.selection, input.only, read)
   const references = affected(before, new Map(), input.selection)
   const memories = all<{ id: string; n: number }>(
     ctx,
@@ -91,6 +92,7 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
         }
       : input.selection,
     input.only,
+    read,
   )
   // A row can leave the selected neighbourhood without being deleted (shared evidence).
   for (const [table, rows] of before)
