@@ -96,6 +96,9 @@ it('drops other read undo snapshots even when JSON escapes the erased sentence',
   const first = store.enqueue(lane(), 'queued')
   const data = extraction(first.id)
   data.memories[0]!.summary = summary
+  data.evidence[0]!.text = summary
+  data.memories[0]!.citations[0]!.quote = summary
+  data.memories[0]!.links[0]!.citation.quote = summary
   store.propose(data)
   const approved = store.decideRead(
     first.id,
