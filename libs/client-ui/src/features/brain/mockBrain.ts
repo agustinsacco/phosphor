@@ -28,7 +28,7 @@ export interface MockBrainOptions extends MockTidyOptions {
 }
 const FINISHED: readonly BrainJob['state'][] = ['done', 'empty', 'rejected']
 
-class MockBrain {
+export class MockBrain {
   private state = mockBrainStatus()
   private explorer = new MockExplorer()
   private history = new MockReadHistory(this.explorer)
@@ -48,7 +48,7 @@ class MockBrain {
       this.computedRevisions.set(job.id, this.state.revision)
       job.state = 'review'
       const proposal = this.proposal(job.id)
-      this.review(
+      this.decideRead(
         job.id,
         brainLaneNeverRead(this.state.prefs.neverRead, job)
           ? null
@@ -89,7 +89,7 @@ class MockBrain {
     this.state.readSessionIds = [...new Set(read.map((job) => job.sessionId))].slice(0, 5000)
     return this.state
   }
-  private review(id: string, value: unknown, revision: number): BrainStatus {
+  decideRead(id: string, value: unknown, revision: number): BrainStatus {
     if (this.state.revision !== revision) throw new Error(BRAIN_REVIEW_REFRESHING)
     const proposal = this.proposal(id)
     const decision = checkMockDecision(proposal, value, (entityId) =>
@@ -159,7 +159,7 @@ class MockBrain {
     this.records.set(job.id, this.extractionRecord(job.id))
     job.memories = 2
     if (!this.state.prefs.review)
-      this.review(
+      this.decideRead(
         job.id,
         { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
         this.state.revision,
@@ -211,8 +211,6 @@ class MockBrain {
   }
   private mutation(channel: string, args: unknown[]): BrainStatus {
     switch (channel) {
-      case 'brain:review':
-        return this.review(args[0] as string, args[1], args[2] as number)
       case 'brain:reset':
         this.tidy.reset()
         this.explorer.entities = []
@@ -284,7 +282,8 @@ class MockBrain {
       const result = this.agent.call(channel, args)
       return Object.assign(this.status(), result)
     }
-    if (channel.startsWith('brain:tidy')) return this.tidy.call(channel, args)
+    if (['brain:tidyChanges', 'brain:tidyUndo'].includes(channel))
+      return this.tidy.call(channel, args)
     switch (channel) {
       case 'brain:history':
         return this.history.history(args[0] as number)

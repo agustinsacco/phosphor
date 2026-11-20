@@ -189,6 +189,8 @@ const SESSION_NAME =
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
+const brainStub = require('./pi-stub-brain.cjs')
+brainStub.recordAgentLaunch(process.argv.slice(2))
 // pi stores sessions under ~/.pi/agent/sessions/--<mangled cwd>--/, and
 // Phosphor's sidebar scans exactly that path. Writing here (not into the
 // workspace) is what makes the session discoverable, mirroring real pi. The
@@ -601,6 +603,7 @@ function handle(cmd) {
       require('./image-echo.cjs')(cmd, out, persist)
       // Scenario switches leave the default turn unchanged.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
+      if (brainStub.handleAgentPrompt(message, out, persist)) break
       if (message === 'LOCAL_ONLY fail-turn') {
         const failed = {
           role: 'assistant',
@@ -909,6 +912,7 @@ function handle(cmd) {
 
     case 'abort':
       out({ id: cmd.id, type: 'response', command: 'abort', success: true })
+      if (brainStub.abortAgent()) break
       if (queueHold) {
         queueHold = false
         out({ type: 'agent_end', messages: [] })

@@ -79,7 +79,7 @@ describe('Brain Agent against the real engine', { timeout: 60_000 }, () => {
       (_, i) => `Service number ${i} answers on port ${8000 + i}.`,
     )
     const job = await proposeRead(store, options, summaries)
-    await service.api.review(
+    store.review(
       job.id,
       { memories: summaries.map((_, i) => i), ...KEEP_ALL },
       store.knowledgeRevision(),

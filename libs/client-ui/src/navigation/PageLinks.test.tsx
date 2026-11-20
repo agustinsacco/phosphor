@@ -168,7 +168,6 @@ it('counts the whole Defrag queue, not just reads', async () => {
         mockBrainJob({ id: 'refreshing', state: 'refreshing' }),
         mockBrainJob({ id: 'queued', state: 'queued' }),
       ],
-      tidy: { ...base.tidy, open: 999 },
       agent: {
         ...base.agent,
         waiting: { reads: 2, entities: 1, repeats: 1, conflicts: 0, flags: 1 },

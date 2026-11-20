@@ -4,26 +4,19 @@ import type { BrainLane } from './brain-lanes'
 export const brainNav = (page: Page) =>
   page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: /^Brain(?: \d+ to decide)?$/ })
+    .getByRole('button', { name: /^Brain(?: \d+ waiting)?$/ })
 const laneRow = (page: Page, lane: BrainLane) =>
   page.getByTestId('session-row').filter({ hasText: lane.title }).first()
 /** A Brain list row names its lane or subject first, then one line about it. */
 const titled = (page: Page, scope: Locator, title: string) =>
   scope.getByRole('button').filter({ has: page.getByText(title, { exact: true }) })
-/** A read waiting for review, in the Inbox queue. */
-export const reviewRow = (page: Page, lane: BrainLane) =>
-  titled(
-    page,
-    page
-      .getByRole('region', { name: 'Decisions', exact: true })
-      .getByRole('region', { name: 'From lanes', exact: true }),
-    lane.title,
-  )
+/** A read waiting for Brain Agent, on Lanes. */
+export const waitingRow = (page: Page, lane: BrainLane) => readRow(page, lane, 'Waiting for Defrag')
 /** A lane's read on the Lanes tab, in one state group. */
 export const readRow = (
   page: Page,
   lane: BrainLane,
-  group: 'Reading' | 'Queued' | 'Failed' | 'Read',
+  group: 'Waiting for Defrag' | 'Reading' | 'Queued' | 'Failed' | 'Read',
 ) =>
   titled(
     page,
@@ -32,7 +25,7 @@ export const readRow = (
       .getByRole('region', { name: group, exact: true }),
     lane.title,
   )
-export const brainTab = (page: Page, name: 'Inbox' | 'Knowledge' | 'Lanes') =>
+export const brainTab = (page: Page, name: 'Knowledge' | 'Lanes') =>
   page
     .getByRole('tablist', { name: 'Brain views' })
     .getByRole('tab', { name: new RegExp(`^${name}`) })
@@ -68,7 +61,7 @@ export async function enableBrain(page: Page, lane: BrainLane): Promise<void> {
   await expect(page.getByText('Queue for knowledge extraction')).toHaveCount(0)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await page.getByRole('button', { name: /^Brain(?: \d+ to decide)?$/ }).click()
+  await page.getByRole('button', { name: /^Brain(?: \d+ waiting)?$/ }).click()
   await page.getByRole('switch', { name: 'Brain', exact: true }).click()
   await expect(page.getByRole('switch', { name: 'Brain', exact: true })).toBeChecked()
   await expect(page.getByRole('switch', { name: 'Review before saving' })).toBeChecked()
@@ -88,43 +81,31 @@ export async function readNewMessages(page: Page, lane: BrainLane): Promise<void
   await page.getByText('Read new messages for Brain', { exact: true }).click()
 }
 
-export async function approveLane(page: Page, lane: BrainLane): Promise<string> {
-  await brainTab(page, 'Inbox').click()
-  await awaitRead(page, lane)
-  await expect(reviewRow(page, lane)).toContainText('2 memories to review')
-  const before = await status(page)
-  const job = before.jobs.find((job) => job.sessionPath === lane.source)!
-  await reviewRow(page, lane).click()
-  const review = page.getByRole('article', { name: 'Review memories', exact: true })
-  await expect(review.getByRole('heading', { name: lane.title, exact: true })).toBeVisible()
-  await expect(review).not.toContainText('Imaginary')
-  for (const fact of lane.facts)
-    await expect(review.getByText(fact, { exact: true }).first()).toBeVisible()
-  // On an empty Brain nobody can be a match, and the review says so rather than "matched".
-  if (!before.counts.entities)
-    await expect(review.getByRole('button', { name: /^▸ 3 new people and things$/ })).toBeVisible()
-  const links = review.getByRole('region', { name: 'Proposed memories', exact: true })
-  if (lane.title === 'Harbor ledger') {
-    await expect(
-      links.getByText('Rina Okafor → owns → Harbor ledger', { exact: true }),
-    ).toBeVisible()
-    await expect(links.getByText('Harbor ledger → part of → Harbor', { exact: true })).toBeVisible()
-  } else {
-    await expect(links.getByText('Tom Lee → owns → Ledger bridge', { exact: true })).toBeVisible()
-    await expect(links.getByText('Ledger bridge → part of → Harbor', { exact: true })).toBeVisible()
-    await expectHarborReused(review)
-  }
-  await review.getByRole('button', { name: 'Approve 2', exact: true }).click()
-  await expect(review).toHaveCount(0)
-  return job.id
-}
+export const defragButton = (page: Page) =>
+  page.locator('.page-shell-header').getByRole('button', { name: 'Defrag', exact: true })
+export const runStrip = (page: Page) =>
+  page.getByRole('status').filter({ hasText: /Brain Agent|Defrag starts/ })
 
-/** Harbor is either asked about or folded as a sure match; either way Brain's answer is Harbor. */
-async function expectHarborReused(review: Locator): Promise<void> {
-  const harbor = review.getByRole('group', { name: 'Identity for Harbor', exact: true })
-  if (!(await harbor.isVisible()))
-    await review.getByRole('button', { name: /matched without doubt/ }).click()
-  await expect(harbor.getByRole('button', { pressed: true })).toHaveText(/^(?:Yes, )?Harbor$/)
+/** Inspect the stored read, then ask the ordinary Brain lane to decide it through the bridge. */
+export async function defragRead(page: Page, lane: BrainLane): Promise<string> {
+  await brainTab(page, 'Lanes').click()
+  await awaitRead(page, lane)
+  await expect(waitingRow(page, lane)).toContainText('2 memories')
+  const job = (await status(page)).jobs.find((job) => job.sessionPath === lane.source)!
+  await waitingRow(page, lane).click()
+  const waiting = page.getByRole('article', { name: 'Waiting read', exact: true })
+  await expect(waiting.getByRole('heading', { name: lane.title, exact: true })).toBeVisible()
+  await expect(waiting).not.toContainText('Imaginary')
+  for (const fact of lane.facts)
+    await expect(waiting.getByText(fact, { exact: true }).first()).toBeVisible()
+  await expect(waiting.getByRole('button', { name: /^Approve|^Reject/ })).toHaveCount(0)
+  await defragButton(page).click()
+  await expect(runStrip(page)).toContainText('Brain Agent is defragging')
+  await expect
+    .poll(async () => (await status(page)).agent.run?.state, { timeout: READ_TIMEOUT })
+    .toBe('done')
+  await expect(runStrip(page)).toContainText('Brain Agent decided 1 thing')
+  return job.id
 }
 
 export async function exploreBrain(page: Page): Promise<void> {

@@ -14,8 +14,7 @@ import { checkRevision } from './journal'
 import { flagKey } from './flag-keys'
 
 /**
- * A pair only the model check sees. Pages, counts and actions never show it; a `same` verdict
- * surfaces it as `same_memory`, `conflict` or `replaces` as `conflict`, `different` clears it.
+ * A possible repeat only Brain Agent sees. It stays out of the page and waiting count.
  */
 export const UNCHECKED = 'unchecked'
 export interface SuggestionRow {
@@ -175,14 +174,7 @@ export function suggestion(
   }
 }
 export function summary(ctx: Context): BrainTidySummary {
-  const row = one<{ count: number; newest: number | null }>(
-    ctx,
-    "SELECT COUNT(*) AS count,MAX(created_at) AS newest FROM tidy_suggestions WHERE state='open' AND kind IN ('same_entity','same_memory','conflict','flagged')",
-  )!
   return {
-    open: row.count,
-    newestSuggestionAt: row.newest,
-    running: false,
     automaticFolds: Number(
       one<{ value: string }>(ctx, "SELECT value FROM meta WHERE key='tidy_automatic_folds'")
         ?.value ?? 0,

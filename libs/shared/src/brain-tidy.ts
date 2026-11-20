@@ -1,4 +1,4 @@
-import type { BrainEntityKind, BrainMemoryType, BrainStatus } from './brain'
+import type { BrainStatus } from './brain'
 import type { BrainEntityView, BrainMemoryDetail } from './brain-explore'
 
 export const BRAIN_TIDY_KINDS = ['same_entity', 'same_memory', 'conflict', 'flagged'] as const
@@ -92,36 +92,9 @@ export interface BrainTidyCoverage {
   startedAt: number | null
   finishedAt: number | null
 }
-export interface BrainTidyRun {
-  state:
-    'queued' | 'sweeping' | 'checking' | 'done' | 'cancelled' | 'failed' | 'skipped' | 'interrupted'
-  checked: number
-  total: number
-  suggestions: number
-  folded: number
-  startedAt: number
-  finishedAt: number | null
-  message: string | null
-  error: string | null
-  /** "provider/id" of the model that checked the pairs; null when no model ran. */
-  model: string | null
-  /** Pairs the owner settled while the check ran. */
-  settled: number
-}
 export interface BrainTidySummary {
-  open: number
-  newestSuggestionAt: number | null
-  running: boolean
   automaticFolds: number
   newestAutomaticFoldAt: number | null
-}
-export interface BrainTidyPage {
-  items: BrainTidySuggestion[]
-  next: string | null
-  counts: Record<BrainTidyKind, number>
-  revision: number
-  coverage: BrainTidyCoverage
-  run: BrainTidyRun | null
 }
 export interface BrainTidyChanges {
   items: BrainTidyOperation[]
@@ -140,40 +113,6 @@ export interface BrainTidySweep {
   suggestions: number
   folded: number
   operationIds: string[]
-}
-/** Bounded model inputs. All strings are untrusted stored data, never instructions. */
-export type BrainTidyCard =
-  | {
-      type: 'memory'
-      id: string
-      sentence: string
-      memoryType: BrainMemoryType
-      scope: string
-      branch: string | null
-      validFrom: number | null
-      validTo: number | null
-      observedAt: number
-      entities: string[]
-      quotes: string[]
-    }
-  | {
-      type: 'entity'
-      id: string
-      name: string
-      aliases: string[]
-      kind: BrainEntityKind
-      description: string
-      memories: number
-      neighbours: { name: string; link: string }[]
-    }
-export interface BrainTidyPair {
-  suggestionId: string
-  subjects: [BrainTidyCard, BrainTidyCard]
-}
-export interface BrainTidyJudgement {
-  suggestionId: string
-  verdict: BrainTidyVerdict
-  model: string
 }
 export interface BrainTidyFlag {
   memoryId: string
@@ -205,9 +144,6 @@ export function checkBrainTidyAction(value: unknown): BrainTidyAction {
 
 export function emptyBrainTidySummary(): BrainTidySummary {
   return {
-    open: 0,
-    newestSuggestionAt: null,
-    running: false,
     automaticFolds: 0,
     newestAutomaticFoldAt: null,
   }
@@ -223,16 +159,6 @@ export function emptyBrainTidyCoverage(): BrainTidyCoverage {
     limitedChecks: 0,
     startedAt: null,
     finishedAt: null,
-  }
-}
-export function emptyBrainTidyPage(revision = 0): BrainTidyPage {
-  return {
-    items: [],
-    next: null,
-    counts: { same_entity: 0, same_memory: 0, conflict: 0, flagged: 0 },
-    revision,
-    coverage: emptyBrainTidyCoverage(),
-    run: null,
   }
 }
 

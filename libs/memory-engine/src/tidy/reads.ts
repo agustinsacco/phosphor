@@ -2,7 +2,6 @@ import { undoableSql } from '../agent/notes'
 import {
   BRAIN_TIDY_KINDS,
   type BrainTidyKind,
-  type BrainTidyPage,
   type BrainTidySuggestionDetail,
   type BrainTidyChanges,
   type BrainTidyOperation,
@@ -24,7 +23,7 @@ export function page(
   kind: BrainTidyKind | null,
   cursor: string | null,
   limit: number,
-): BrainTidyPage {
+) {
   limitOf(limit)
   if (kind !== null && !BRAIN_TIDY_KINDS.includes(kind)) throw new Error('Invalid Tidy kind.')
   let time = Number.MAX_SAFE_INTEGER,
@@ -68,7 +67,6 @@ export function page(
     counts,
     revision: revision(ctx),
     coverage: publicCoverage(ctx),
-    run: null,
   }
 }
 export function detail(
