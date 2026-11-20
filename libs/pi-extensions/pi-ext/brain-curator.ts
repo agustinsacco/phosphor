@@ -24,8 +24,8 @@ import {
 } from '@phosphor/brain-client/curator-format'
 import { formatReview } from '@phosphor/brain-client/curator-review-format'
 import {
-  brainConnectionFromEnv,
   createNodeBrainTransport,
+  takeBrainConnection,
 } from '@phosphor/brain-client/node-transport'
 import { applyGlobalContext, contextFilesDisabled, globalContextReader } from './global-context'
 import { curatorId, registerCuratorWrites, reply, type CuratorPiApi } from './brain-curator-writes'
@@ -129,7 +129,7 @@ export function registerCuratorReads(pi: CuratorPiApi, client: BrainCuratorClien
 
 export default function brainCuratorExtension(pi: CuratorPiApi): void {
   registerRulesReload(pi)
-  const connection = brainConnectionFromEnv(process.env)
+  const connection = takeBrainConnection()
   if (!connection) return
   const client = createBrainCuratorClient(
     createNodeBrainTransport(connection, { timeoutMs: BRAIN_CURATOR_REFRESH_TIMEOUT_MS }),

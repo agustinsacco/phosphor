@@ -8,6 +8,7 @@ import { BrainClientError } from './client'
 import {
   BRAIN_MAX_FRAME_BYTES,
   brainConnectionFromEnv,
+  takeBrainConnection,
   createNodeBrainTransport,
   isBrainEndpoint,
 } from './node-transport'
@@ -218,6 +219,30 @@ describe('brainConnectionFromEnv', () => {
     expect(
       brainConnectionFromEnv({ PHOSPHOR_BRAIN_ENDPOINT: '/s', PHOSPHOR_BRAIN_TOKEN: 't' }),
     ).toEqual({ endpoint: '/s', token: 't' })
+  })
+})
+
+describe('takeBrainConnection', () => {
+  it('empties the environment and keeps the connection for later reads in the process', () => {
+    const env: NodeJS.ProcessEnv = {
+      PHOSPHOR_BRAIN_ENDPOINT: '/s',
+      PHOSPHOR_BRAIN_TOKEN: 't',
+      HOME: '/h',
+    }
+    const slots = {}
+    expect(takeBrainConnection(env, slots)).toEqual({ endpoint: '/s', token: 't' })
+    expect(env).toEqual({ HOME: '/h' })
+    expect(takeBrainConnection(env, slots)).toEqual({ endpoint: '/s', token: 't' })
+    // A new connection in the environment replaces the kept one.
+    env.PHOSPHOR_BRAIN_ENDPOINT = '/n'
+    env.PHOSPHOR_BRAIN_TOKEN = 'u'
+    expect(takeBrainConnection(env, slots)).toEqual({ endpoint: '/n', token: 'u' })
+  })
+
+  it('removes half a connection too, and has none to give', () => {
+    const env: NodeJS.ProcessEnv = { PHOSPHOR_BRAIN_TOKEN: 't' }
+    expect(takeBrainConnection(env, {})).toBeNull()
+    expect(env).toEqual({})
   })
 })
 
