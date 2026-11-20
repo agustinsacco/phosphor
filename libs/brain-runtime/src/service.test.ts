@@ -245,7 +245,7 @@ it('a lane flag reaches the engine through the agent entry', async () => {
   expect(flagged).toHaveBeenCalledOnce()
 })
 
-it('approving one of three reviews refreshes the other two without paying twice', async () => {
+it('approving one of three reviews leaves the other two to refresh when opened, without paying twice', async () => {
   const s = await setup()
   const ids: string[] = []
   for (const name of ['harbor', 'ledger', 'kestrel']) {
@@ -269,12 +269,14 @@ it('approving one of three reviews refreshes the other two without paying twice'
     { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
     proposal.revision,
   )
-  await vi.waitFor(() => {
-    for (const id of ids.slice(1)) {
-      expect(s.store.job(id)?.state).toBe('review')
-      expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
-    }
-  })
+  // They wait, stale, until Brain Agent opens them.
+  for (const id of ids.slice(1)) {
+    expect(s.store.job(id)?.state).toBe('review')
+    expect(s.store.storedProposal(id)?.computedRevision).toBe(0)
+    await s.service.agent('readReview', { jobId: id })
+    expect(s.store.job(id)?.state).toBe('review')
+    expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
+  }
   expect(s.runner).not.toHaveBeenCalled()
   expect(ids.map((id) => s.store.job(id)!.startedAt)).toEqual(starts)
 })

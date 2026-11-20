@@ -172,7 +172,7 @@ it('inside a run, Defrag refreshes the review itself, one at a time, never two m
   for (const job of s.jobs) expect(s.store.storedProposal(job.id)?.computedRevision).toBe(1)
 })
 
-it('inside a run, the queue does not refresh reviews behind Defrag’s back', async () => {
+it('the queue never refreshes a stale review on its own, inside a run or after it', async () => {
   const s = await setup()
   const id = s.jobs[0]!.id
   let inside: (() => void) | undefined
@@ -182,15 +182,19 @@ it('inside a run, the queue does not refresh reviews behind Defrag’s back', as
   s.queue.kick()
   await new Promise((resolve) => setTimeout(resolve, 30))
   expect(s.run).not.toHaveBeenCalled()
-  expect(s.store.job(id)?.state).toMatch(/review|refreshing/)
+  expect(s.store.job(id)?.state).toBe('review')
   inside!()
   await task.done
-  // Once Defrag lets go, the queue refreshes it.
-  await vi.waitFor(() => expect(s.run).toHaveBeenCalledOnce())
-  await vi.waitFor(() => expect(s.store.storedProposal(id)?.computedRevision).toBe(1))
+  // After Defrag lets go it still waits, stale, until Brain Agent opens it.
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(s.run).not.toHaveBeenCalled()
+  expect(s.store.job(id)?.state).toBe('review')
+  await expect(freshReview(s.context, id, call())).resolves.toBeNull()
+  expect(s.run).toHaveBeenCalledOnce()
+  expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
 })
 
-it('Stop mid-refresh aborts the run, leaves the review to refresh later, and records no failure', async () => {
+it('Stop mid-refresh aborts the run, puts the read back in review, and records no failure', async () => {
   const s = await setup()
   const id = s.jobs[0]!.id
   s.holdRuns()
@@ -205,12 +209,10 @@ it('Stop mid-refresh aborts the run, leaves the review to refresh later, and rec
   task.cancel()
   await expect(refreshed).rejects.toThrow()
   await task.done.catch(() => undefined)
-  expect(s.store.job(id)).toMatchObject({ error: null })
-  expect(s.store.job(id)?.state).not.toBe('failed')
-  // The queue finishes the refresh after the run.
-  await vi.waitFor(() => expect(s.run).toHaveBeenCalledTimes(2))
-  s.release()
-  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+  // Stale, it waits for Brain Agent to open it again; nothing refreshes it meanwhile.
+  expect(s.store.job(id)).toMatchObject({ state: 'review', error: null, runStartedAt: null })
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(s.run).toHaveBeenCalledOnce()
   expect(s.peak()).toBe(1)
 })
 
