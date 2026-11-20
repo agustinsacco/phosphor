@@ -1,5 +1,6 @@
 import { cleanNote, saveNote, pruneOperations, type JournalNote } from '../agent/notes'
 import { checkCreatedDependents } from '../agent/undo-reads'
+import { hasLaterRead } from '../jobs'
 import {
   captureMemoryGuards,
   checkDependents,
@@ -252,6 +253,8 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     if (!op) throw new Error('This Brain change is no longer available to undo.')
     if (op.undone_at !== null) throw new Error('This Brain change was already undone.')
     if (op.kind === 'erase') throw new Error("Erasing can't be undone.")
+    if (['approve', 'reject'].includes(op.kind) && hasLaterRead(ctx, op.first_id))
+      throw new Error(LATER_CHANGES)
     const deltas = undoRows(ctx, id)
     if (!deltas.length && op.kind !== 'keep')
       throw new Error(
