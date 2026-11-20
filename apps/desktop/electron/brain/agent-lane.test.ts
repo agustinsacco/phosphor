@@ -154,6 +154,32 @@ describe('a Defrag turn in the Brain lane', () => {
     expect(await turn).toMatchObject({ outcome: 'finished', error: null })
   })
 
+  it('says it is sending once the owner’s turn settles, just before the prompt command', async () => {
+    lane.busy = true
+    const ownerSettled = vi.fn()
+    const answer = lane.request.getMockImplementation()!
+    lane.request.mockImplementation(async (command) => {
+      const response = await answer(command)
+      // The second get_state is the wait for the owner's turn, which ends a moment later.
+      if (lane.request.mock.calls.length === 2)
+        setTimeout(() => {
+          ownerSettled()
+          lane.send({ type: 'agent_settled', aborted: false } as PiEvent)
+        })
+      return response
+    })
+    const { deps, agent } = host()
+    const hooks = { opened: vi.fn(), sending: vi.fn() }
+    const turn = await agent.turn(MESSAGE, new AbortController().signal, hooks)
+    expect(turn.outcome).toBe('finished')
+    expect(hooks.sending).toHaveBeenCalledOnce()
+    const [settledAt] = ownerSettled.mock.invocationCallOrder
+    const [sendingAt] = hooks.sending.mock.invocationCallOrder
+    const [promptAt] = deps.command.mock.invocationCallOrder
+    expect(settledAt).toBeLessThan(sendingAt!)
+    expect(sendingAt).toBeLessThan(promptAt!)
+  })
+
   it('stops its own turn with abort, and leaves a busy owner’s turn alone', async () => {
     onPrompt = () => {}
     const own = host()
