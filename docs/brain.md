@@ -95,15 +95,15 @@ The left column lists reads by state, each group with its count: **Waiting for D
 **Reading**, **Queued**, **Failed** and **Read** (the newest 200 finished reads, newest first, a
 row per read, so a lane read twice has two; rejected and empty reads join them; it says when
 there are more). Waiting for Defrag holds reads in review or refreshing: three rows, then “N
-more”. Rows are the lane's title and one line: “9 memories · read 5 min ago”, “Refreshing for 2
-min” (or “Waits to refresh” before its attempt starts), “9 memories · Brain never reads this
-lane”, the reported step and how long it has run, the queue position (“Queued 2 h ago · 1
-ahead”, where a refresh counts as ahead), the error, or “2 memories from this read · 5 min
-ago”: what that read kept that is still in Brain, so an older read that Read again replaced
-says 0. An empty read says “Nothing worth keeping” and a rejected one “Rejected”. Times are
-words (“3 min”, “1 h 20 min”), never a clock, and come from the current attempt
-(`runStartedAt`): a resumed, retried or refreshed read never counts from its first start, and
-no time is negative.
+more”. Rows are the lane's title and one line: “9 memories · read 5 min ago”, “9 memories ·
+Brain never reads this lane”, the reported step and how long it has run, the queue position
+(“Queued 2 h ago · 1 ahead”, where a refresh counts as ahead), the error, or “2 memories from
+this read · 5 min ago”: what that read kept that is still in Brain. An older read that Read
+again replaced says 0. An empty read says “Nothing worth keeping” and a rejected one “Rejected”.
+“Waits to refresh” means Brain Agent requested a refresh and it has not started. “Refreshing
+for 2 min” times the refresh itself. A stale read alone shows neither. Times are words (“3 min”,
+“1 h 20 min”), never a clock, and come from the current attempt (`runStartedAt`), not the first
+start. No time is negative.
 
 **Recent changes** follows: the newest fifty journal operations, each with who made it (By you,
 Automatic or Brain Agent), when, and **Undo** only while it can still be undone. An undone
@@ -121,10 +121,10 @@ exists, and “No calls yet.” before.
 A waiting read shows its lane, “Waits for Defrag · 9 memories · 2 questions · read 5 minutes
 ago” and “Brain Agent reviews this read in the next Defrag.”, or, for a lane the never-read
 rules match, “Brain Agent will reject this read: Brain never reads this lane.” The memories it
-proposes follow with their quotes, as proposed when the lane was read: opening a waiting read
-never starts a refresh, even when Brain changed since. A read Brain is refreshing says
-“Refreshing: Brain changed since this lane was read.” instead. **See how it was read** opens its
-record (Inspecting a finished read) with **Back to waiting read**.
+proposes follow with their quotes, from the stored proposal. Opening this view never starts a
+refresh, even on a stale read. It shows the stored proposal even during a refresh and adds
+“Refreshing: Brain changed since this lane was read.” **See how it was read** opens its record
+(Inspecting a finished read) with **Back to waiting read**.
 
 **Never read** shows the title patterns in words (“A lane whose title contains “1:1”, “1-1”,
 “one on one” or “1on1”, in any case and not inside a longer word or number”), says that Brain
@@ -148,8 +148,9 @@ that read's leaf, regardless of extractor version. Use **Read again** to apply a
 extractor from the beginning. A failed job shows **Retry**, which requeues the same job and
 resumes from its saved steps. If a later read of that lane exists, Retry refuses; Dismiss
 remains available. The incremental cursor follows queue order, not completion order, so an
-older read finishing late never moves it backwards. Jobs left running when the app quit resume
-where they stopped.
+older read finishing late never moves it backwards. At startup, interrupted reads go back to
+the queue and resume from their saved steps. A read left refreshing with a stored proposal goes
+back to review with that proposal. The log counts the reviews that return to waiting.
 
 ### Lanes Brain never reads
 
@@ -166,16 +167,27 @@ title appears), so no title rule ever matches that placeholder. A job's stored t
 lane: Queue, the start of a read, the stale-read check and opening a waiting read store the
 lane's current name when it changed. Storing a title never changes the knowledge revision, so it
 never stales or refreshes a read. Changing the rules cancels an excluded lane's queued and
-waiting jobs, not a read already waiting for Defrag; Brain Agent rejects that read. Those jobs
-are checked against the titles Brain remembers, reading only a lane file that changed since. A waiting lane renamed to a matching title, with no rules change, is
-dropped when its read starts, before any model call. Refresh also skips excluded lanes using
-their current names. A stale waiting read can always be rejected, because rejection saves
-nothing; approving one that cannot be refreshed is refused with “Brain changed since this was
-read, and this lane is set to never be read, so it can't be refreshed. Reject it instead.” If
-neither the stored transcript nor its `.archived` twin exists, the read keeps waiting and any
-waiting refresh returns to review; Brain makes no model call and does not offer a failing Retry.
-Its stored proposal still opens for inspection and rejecting works. Approval is refused with
-“This lane was deleted, so this review can't be refreshed. Reject it.” Recall is unaffected.
+waiting jobs, not a read already waiting for Defrag. A queued lane renamed to a matching title
+is dropped when its read starts, before any model call.
+
+Before Brain Agent opens or approves a waiting read, Brain checks whether the lane still exists,
+whether its current title or id is excluded and whether it is in Brain's folder. The check runs
+whether the proposal is fresh or stale. An excluded or deleted lane keeps its stored proposal:
+opening it tells Brain Agent to reject it, without a refresh. Rejection does not need a refresh
+or a current revision. Recall is unaffected.
+
+The approval check on the bridge refuses with:
+
+- A fresh title match: “Brain never reads this lane because its title matches a rule in Settings › Brain.”
+- A fresh read of a lane switched off by id: “Brain is set not to read this lane.”
+- Either exclusion on a stale read: “Brain changed since this was read, and this lane is set to never be read, so it can't be refreshed. Reject it instead.”
+- Brain's own lane, fresh or stale: “Brain never reads its own lane.”
+- A deleted lane, fresh or stale: “This lane was deleted, so this review can't be refreshed. Reject it.”
+  The lane counts as deleted only when neither the stored transcript nor its `.archived` twin exists.
+
+Before sending an approval, `brain_decide_read` opens the review. If that check rules out
+the lane, the tool answers “Brain never reads this lane, so it cannot be approved. Reject it instead.”
+
 A title-rule match takes precedence in the lane menu:
 **Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
 per-lane switch that could falsely promise to override the title rule. A lane excluded only by
@@ -231,10 +243,8 @@ with the size and modification time of the file it read (the stored path or its 
 twin). Queue reads the lane once to check it. A read reads it once more when it starts: the
 start check reads only a file that changed since, and hands that transcript to the read
 instead of reading it again. A queued read is not checked while its lane is busy, so the
-queue's two-second wait for a busy lane reads nothing. A stale waiting read is checked on every
-queue pass, but an unchanged file is not read again, and a pass that changes nothing notifies
-nobody. Refreshing a stale read reads its lane at most twice: once to check its current title
-when the file changed, and once to refresh it.
+queue's two-second wait for a busy lane reads nothing. The queue can check a stale review's lane
+for changes, but that check does not refresh the proposal.
 
 A job freezes the lane's leaf, chosen reader model, thinking level and git branch when it first
 starts. A resume never moves them. It then reads the lane's path to that leaf, applies pi's
@@ -426,17 +436,18 @@ description choices change the records without adding evidence. Quotes on approv
 confirmations keep their lane's speaker.
 
 Approving a read changes Brain, so other waiting reads go stale: their proposal was computed
-against an older revision. A stale read keeps waiting with what it proposed when the lane was
-read. Only Brain Agent's tools refresh a read, when it opens or decides it (Defrag). A refresh
-(`refreshing`) retains the read's previous memory count and recomputes identity and reconcile
-from saved extract and links steps. It never sends the conversation to the model again; it asks
-again only the questions whose inputs changed. Even after an extractor prompt upgrade it reuses
+against an older revision. A stale read stays in review with its stored proposal. Brain does
+not refresh it in the background, and viewing it never starts a refresh. Brain Agent triggers
+one when it opens the read or tries to approve it (Defrag). A refresh (`refreshing`) retains the
+read's previous memory count and recomputes identity and reconcile from saved extract and links
+steps. It reuses the conversation already read and asks again only questions whose inputs changed. Even after an extractor prompt upgrade it reuses
 validated source windows by part name whenever the read has a stored proposal or prepare
 checkpoint, including Retry and interrupted pre-upgrade recomputes; missing windows are read
 normally. New reads and Read again create new jobs without saved source windows. An upgrade may
 change a decision's candidate format, so its first refresh can ask that changed identity or
-reconcile question again, but never re-extracts saved windows. A refresh runs before queued
-reads. A finished refresh never changes knowledge.
+reconcile question again, but never re-extracts saved windows. A refresh requested outside
+Defrag takes priority over queued reads, not work already running. A finished refresh never
+changes knowledge.
 
 The internal `knowledge_revision` counter tracks memories, entities, names, aliases,
 descriptions, links, states and merges; suggestions, dismissals, flags, coverage and run state
@@ -864,10 +875,10 @@ token. While Brain is off every tool answers “Brain is off. The owner can turn
 ### Defrag
 
 Clicking **Defrag** (`brain:defrag`) queues a run as a task in Brain's one-worker queue: it
-starts after the reads queued before it and any refresh, and no read starts until it ends. It is
-refused with “Turn on Brain before running Defrag.”, “Defrag runs on Desktop.”, “Defrag is
-already waiting to start.”, “Defrag is already running.”, “Nothing is waiting for Defrag.” or
-“Brain is resetting.”
+starts after earlier reads that are ready to run and any refresh already waiting or running.
+No other read starts while Defrag holds the worker. It is refused with “Turn on Brain before
+running Defrag.”, “Defrag runs on Desktop.”, “Defrag is already waiting to start.”, “Defrag is
+already running.”, “Nothing is waiting for Defrag.” or “Brain is resetting.”
 
 A run first does the local pass, with no model: bounded sweep chunks for about two seconds, or
 until the sweep finishes; the next Defrag continues it. Automatic exact-repeat folds land there.
@@ -886,19 +897,21 @@ the run waits for it to settle and never interrupts it.
 Brain Agent decides in order: reads, people and things, repeats and disagreements, flags, then
 possible repeats, and ends with a short summary. Approving a read changes Brain, so the next
 read goes stale. During a run, `brain_read_review` and `brain_decide_read` refresh a stale read
-inline, under the run's signal: they ask again only questions whose inputs changed and never
-re-read the lane. Outside a run, they ask the queue to refresh it and wait up to ten minutes,
-then refuse with “This read is still refreshing because Brain changed since it was read. Try it
-again in a few minutes.” A reject never needs a refresh. A read refreshed between Brain Agent
-reading and deciding it saves nothing; Brain Agent reads it again and decides on the new
-revision.
+inline. They reuse the saved extraction and ask again only questions whose inputs changed.
+Outside a run, they request a refresh through the queue and wait up to ten minutes, then refuse
+with “This read is still refreshing because Brain changed since it was read. Try it again in a
+few minutes.” The requested refresh can still finish after that wait ends. Rejection does not
+refresh the read. If a read refreshes between opening and deciding it, approval saves nothing.
+Brain Agent opens it again and decides on the new revision.
 
 **Stop** (`brain:defragStop`): a queued run never starts and ends stopped; a running one aborts
 Brain Agent's turn; a run still waiting for your own turn in that lane ends stopped without
-touching it. Changes made so far stay and can be undone. A run interrupted by quitting ends
-failed with “Phosphor closed during Defrag.” A lane that exits mid-turn fails with “Brain
-Agent’s lane closed before the turn ended.”; any other failure keeps the first line of its error
-(“Brain Agent stopped before it finished.” when there is none).
+touching it. Stop during an inline refresh puts the read back in review with its stored
+proposal and records no read failure. The worker waits for the inline refresh to settle on
+Stop, pause or quit, so two attempts cannot overlap. Changes made so far stay and can be undone.
+A run interrupted by quitting ends failed with “Phosphor closed during Defrag.” A lane that
+exits mid-turn fails with “Brain Agent’s lane closed before the turn ended.” Other failures
+keep the first line of their error (“Brain Agent stopped before it finished.” when there is none).
 
 ### Undo, runs and the journal
 
