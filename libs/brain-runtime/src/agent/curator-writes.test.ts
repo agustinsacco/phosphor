@@ -175,7 +175,7 @@ describe('other writes', () => {
     expect(result.status).toBe('done')
     const [input, vector] = s.store.calls[0]!.args as [{ summary: string }, Float32Array | null]
     expect(input.summary).toBe('Tom Lee owns Harbor billing; ask [redacted].')
-    expect(s.options.embeddings.embed).toHaveBeenCalledWith([input.summary], 'document')
+    expect(s.options.embeddings.embed).toHaveBeenCalledWith([input.summary], 'document', signal)
     expect(vector).toBeInstanceOf(Float32Array)
     s.options.embeddings.embed = async () => {
       throw new Error('Model not ready')

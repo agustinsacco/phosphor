@@ -148,12 +148,14 @@ export function curatorWrites(
       write(() => store.resolve(suggestionId, action, note(reason)), RESOLVED[action.kind]),
     edit: async ({ edit, reason }) =>
       write(() => store.agentEdit(edit, note(reason)), EDITED[edit.kind]),
-    correct: async ({ memoryId, summary, source, quote, reason }) => {
+    correct: async ({ memoryId, summary, source, quote, reason }, signal) => {
       const text = scrubExcerpt(summary)
+      // No local model saves it without a vector; a cancelled call saves nothing.
       const vector = await options.embeddings
-        .embed([text], 'document')
+        .embed([text], 'document', signal)
         .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
         .catch(() => null)
+      signal.throwIfAborted()
       return write(
         () =>
           store.correct(
