@@ -85,7 +85,7 @@ Knowledge search; ⌘K stays the global command palette.
 Brain has one notice. When a Defrag run ends while the page is not visible, it says “Brain
 Agent decided N things” (with “and erased M” when it erased any) and opens Lanes. Automatic
 exact-repeat folds outside a run reuse it: “Brain folded N exact repeats”, opening Lanes on
-Recent changes. Folds during a run belong to the run's result. Startup is silent, and turning
+Recent changes. Folds during a Defrag show no notice of their own. Startup is silent, and turning
 Brain off removes the notice. While a window is visible and Brain is on, it checks status every
 ten seconds, or every two seconds during work; these reads never start a sweep or a model call.
 
@@ -936,7 +936,8 @@ reject or a keep does not make waiting reads stale. A keep is journaled, and und
 the suggestion.
 
 **Undo run** (`brain:undoRun`) reverses a run's changes newest first, each on its own, skipping
-changes already undone. Erasures, and changes that later edits depend on or that refuse to undo,
+changes already undone. Automatic folds from its local pass are not the run's: Undo run leaves
+them, and each keeps its own Undo in Recent changes. Erasures, and changes that later edits depend on or that refuse to undo,
 stay and count as kept. It refuses while the run is queued or running: “Wait for Defrag to
 finish before undoing its run.” A run counts `decided` (changes made, including ones later
 undone), `erased` and `undoable`. Brain keeps the newest 20 runs and the newest 200 journal
