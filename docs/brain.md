@@ -807,10 +807,10 @@ EmbeddingGemma vectors of 60,000 made-up sentences it returns 99.9% of the exact
 ### Brain Agent
 
 **Brain Agent** is the agent of the Brain lane, an ordinary lane in `<userData>/brain/Brain`
-(compared by real path). The sidebar shows it in a group named Brain, after its folder, with the
-🧠 marker when no marker was chosen (Auto mode only; an explicit choice wins). It has every
-normal lane capability: the model picker, connectors through MCP (such as Linear, Notion, Slack
-and GitHub), `gh` and sub-agents. Every surface calls it Brain Agent, never its model, and no
+(compared by real path). The sidebar lists it like any workspace's lane, in a group named Brain
+after its folder, with the 🧠 marker when no marker was chosen (Auto mode only; an explicit
+choice wins). It has every normal lane capability: the model picker, connectors through MCP
+(such as Linear, Notion, Slack and GitHub), `gh` and sub-agents. Every surface calls it Brain Agent, never its model, and no
 Brain surface shows its cost or tokens. A new Brain lane is named “Brain Agent” and starts with
 pi's default model; afterwards it keeps the model chosen in its composer. Each Defrag resumes
 the folder's newest transcript; delete the lane and the next Defrag starts a new one.
@@ -933,7 +933,8 @@ journal keeps the reason, never the memory's text. Erasing or forgetting a memor
 earlier Brain Agent reason that repeats its text into “Reason removed with an erased memory.”
 Erasing, like Forget, leaves the read's own record, which keeps what the model saw and proposed
 until that record expires; other waiting reads go stale, and their refresh rebuilds them
-without the erased memory. Only `brain_erase` removes a memory; `brain_resolve` cannot forget.
+without the erased memory. Brain Agent erases only with `brain_erase`; `brain_resolve` cannot
+forget.
 
 ### Lane flags
 
