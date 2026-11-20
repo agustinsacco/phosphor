@@ -29,12 +29,14 @@ export function ChangeDetail({
   busy,
   message,
   onUndo,
+  onRead,
 }: {
   change: BrainTidyOperation
   busy: boolean
   /** Why the last Undo was refused, in the owner's words. */
   message: string
   onUndo: (operationId: string) => void
+  onRead: (jobId: string) => void
 }): React.JSX.Element {
   return (
     <article aria-label="Change detail" className="space-y-3 p-4">
@@ -44,14 +46,20 @@ export function ChangeDetail({
           {CHANGE_WHO[change.who]} · {relativeTime(change.createdAt)}
         </p>
       </header>
-      <p>{CHANGE_WORDS[change.kind]}</p>
+      <p>{change.kind === 'erase' ? 'Erasing can’t be undone.' : CHANGE_WORDS[change.kind]}</p>
+      {change.reason && <p className="text-text-secondary">{change.reason}</p>}
+      {change.jobId && (
+        <Button size="sm" onClick={() => onRead(change.jobId!)}>
+          See the read
+        </Button>
+      )}
       {change.undoneAt ? (
         <p className="text-text-secondary">Undone {relativeTime(change.undoneAt)}.</p>
-      ) : (
+      ) : change.undoable ? (
         <Button size="sm" disabled={busy} onClick={() => onUndo(change.id)}>
           Undo
         </Button>
-      )}
+      ) : null}
       {message && (
         <p role="alert" className="text-danger text-sm">
           {message}

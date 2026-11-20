@@ -22,6 +22,7 @@ export interface ProfileProps {
   /** A request from the map's "+N more": show Connections. */
   connectionsRequest: number
   onVisit: (visit: BrainVisit) => void
+  onReplace: (visit: BrainVisit) => void
   onPath: (path: BrainLink[] | null) => void
   onHover: (id: string | null) => void
   onLit: (ids: string[] | null) => void
@@ -33,6 +34,10 @@ export interface ProfileProps {
 export function KnowledgeProfile(props: ProfileProps): React.JSX.Element {
   const { visit } = props
   const { data, error, retry } = useEntityView(visit.id)
+  useEffect(() => {
+    if (data && data.entity.id !== visit.id)
+      props.onReplace({ ...visit, id: data.entity.id, label: data.entity.label })
+  }, [data, visit, props.onReplace])
   if (!data)
     return (
       <div className="space-y-2 px-4 pt-2">

@@ -24,9 +24,6 @@
   min-height: 0;
   min-width: 0;
 }
-.brain-inbox {
-  grid-template-columns: 19rem minmax(0, 1fr) 19rem;
-}
 .brain-knowledge {
   grid-template-columns: 17rem minmax(0, 1fr) 21rem;
 }
@@ -131,12 +128,6 @@
 }
 
 @container (max-width: 1060px) {
-  .brain-inbox {
-    grid-template-columns: 16rem minmax(0, 1fr);
-  }
-  .brain-inbox > .brain-pane--context {
-    display: none;
-  }
   .brain-knowledge--narrow,
   .brain-knowledge--full {
     grid-template-columns: 15rem minmax(0, 1fr);
@@ -147,16 +138,11 @@
 }
 
 @container (max-width: 700px) {
-  .brain-inbox,
   .brain-knowledge--narrow,
   .brain-knowledge--full,
   .brain-lanes {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 13rem minmax(0, 1fr);
-  }
-  /* The queue shares its pane with the Tidy check, so it gets a little more room. */
-  .brain-inbox {
-    grid-template-rows: 16rem minmax(0, 1fr);
   }
   .brain-pane--start {
     border-right: 0;

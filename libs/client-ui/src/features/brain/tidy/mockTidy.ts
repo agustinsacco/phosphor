@@ -1,3 +1,4 @@
+import { MockTidyAgent } from './mockTidyAgent'
 import { checkMockTidyArguments } from './mockTidyArguments'
 import {
   emptyBrainTidyPage,
@@ -25,6 +26,7 @@ export interface MockTidyOptions {
 }
 
 export class MockTidy {
+  readonly agent: MockTidyAgent
   private items: BrainTidySuggestion[] = []
   private operations: BrainTidyOperation[] = []
   private snapshots = new Map<
@@ -40,7 +42,12 @@ export class MockTidy {
     private state: BrainStatus,
     private now: () => number,
     private options: MockTidyOptions,
-  ) {}
+  ) {
+    this.agent = new MockTidyAgent(explorer, state, now, () => {
+      this.init()
+      return this.items
+    })
+  }
 
   summary(): BrainTidySummary {
     const automatic = this.operations.filter((op) => op.who === 'automatic' && !op.undoneAt)
@@ -59,6 +66,7 @@ export class MockTidy {
     this.initialized = true
     this.items = []
     this.operations = []
+    this.agent.reset()
     this.snapshots.clear()
     this.page = emptyBrainTidyPage()
   }
@@ -237,7 +245,10 @@ export class MockTidy {
       case 'brain:tidySuggestion':
         return this.detail(args[0] as string)
       case 'brain:tidyChanges':
-        return { items: this.operations.slice(0, args[0] as number), revision: this.state.revision }
+        return {
+          items: [...this.agent.operations, ...this.operations].slice(0, args[0] as number),
+          revision: this.state.revision,
+        }
       case 'brain:tidyRun':
         this.page.run = {
           state: 'sweeping',
@@ -301,6 +312,11 @@ export class MockTidy {
   }
   private undo(id: string, revision: number): void {
     this.check(revision)
+    if (this.agent.operations.some((op) => op.id === id)) {
+      this.agent.undo(id)
+      this.state.revision++
+      return
+    }
     const snapshot = this.snapshots.get(id)
     const op = this.operations.find((op) => op.id === id)
     if (!snapshot || !op || op.undoneAt) throw new Error('This change can no longer be undone.')
