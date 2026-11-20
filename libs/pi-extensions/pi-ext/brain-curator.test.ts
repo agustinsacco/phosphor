@@ -148,6 +148,56 @@ describe('brain-curator tools', () => {
   })
 })
 
+describe('brain_read_review paging', () => {
+  /** A read with `count` long memories and the fixture's two identity questions. */
+  function longReview(count: number) {
+    const memory = LEDGER_REVIEW.proposal.memories[0]!
+    const memories = Array.from({ length: count }, (_, index) => ({
+      ...memory,
+      index,
+      summary: `Harbor fact ${index}. ${'s'.repeat(400)}`,
+    }))
+    return { ...LEDGER_REVIEW, proposal: { ...LEDGER_REVIEW.proposal, memories } }
+  }
+  /** Every page in turn, following each page's "Call again with offset N". */
+  async function pages(run: ReturnType<typeof setup>['run']) {
+    const texts: string[] = []
+    let offset: number | undefined
+    for (let page = 0; page < 30; page++) {
+      const params = offset === undefined ? {} : { offset }
+      const { text } = await run('brain_read_review', { jobId: 'job-ledger', ...params })
+      texts.push(text)
+      const next = /Call again with offset (\d+)\./.exec(text)
+      if (!next) break
+      offset = Number(next[1])
+    }
+    return texts
+  }
+
+  it('shows every memory of a long read across pages, each within the cap', async () => {
+    const { run } = setup({ ...RESULTS, readReview: longReview(100) })
+    const texts = await pages(run)
+    const seen = texts.flatMap((text) =>
+      [...text.matchAll(/^- (\d+) · procedure/gm)].map((match) => Number(match[1])),
+    )
+    expect(seen).toEqual(Array.from({ length: 100 }, (_, index) => index))
+    expect(texts.length).toBeGreaterThan(1)
+    for (const text of texts) expect(text.length).toBeLessThanOrEqual(8000)
+    expect(texts[0]).toMatch(/Memories 1–(\d+) of 100\. Call again with offset \d+\./)
+    expect(texts[0]).toContain('- e1 · Rina (person)')
+    expect(texts.at(-1)).not.toContain('Call again with offset')
+  })
+
+  it('tells brain_decide_read the default approves every memory not held, on every page', () => {
+    const tools = setup().tools
+    expect(tools.get('brain_decide_read')!.description).toMatch(/not held, on every page/)
+    expect(tools.get('brain_read_review')!.parameters).toMatchObject({
+      properties: { offset: { type: 'integer', minimum: 0 } },
+      required: ['jobId'],
+    })
+  })
+})
+
 describe('brain_decide_read', () => {
   const answered = { ref: 'e1', answer: 'rina' }
 
