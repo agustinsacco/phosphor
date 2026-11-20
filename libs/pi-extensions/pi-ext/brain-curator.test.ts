@@ -101,6 +101,15 @@ describe('brain-curator tools', () => {
     expect(pi.on.mock.calls.map(([event]) => event)).toEqual(['context_with_system'])
   })
 
+  it('gives every tool a required parameter, so a call with no arguments still validates', () => {
+    const tools = [...setup().tools.values()]
+    const optionalOnly = tools.filter(
+      (tool) => !(tool.parameters as { required?: string[] }).required?.length,
+    )
+    expect(optionalOnly.map((tool) => tool.name)).toEqual([])
+    expect(tools.find((tool) => tool.name === 'brain_waiting')!.description).toContain('60')
+  })
+
   it('takes strict parameters a model can fill first time', () => {
     for (const tool of setup().tools.values()) {
       expect(tool.parameters).toMatchObject({ type: 'object', additionalProperties: false })
