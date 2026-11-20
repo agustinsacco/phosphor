@@ -56,7 +56,7 @@ describe('policy declaration', () => {
       .filter(([, scope]) => scope === 'machine')
       .map(([channel]) => channel)
     expect(Object.keys(MACHINE_RESOURCE_ARGS).sort()).toEqual(machine.sort())
-    expect(machine).toHaveLength(185)
+    expect(machine).toHaveLength(186)
     expect(
       Object.entries(MACHINE_RESOURCE_ARGS)
         .filter(([, policy]) => policy === 'routed-pi')
@@ -114,7 +114,8 @@ describe('refusesMachineResourceArgs', () => {
       }
     }
     // sessions:archive declares cwd, transcript path and session id.
-    expect(positions).toBe(140)
+    // git:createLaneWorktree declares its workspace.
+    expect(positions).toBe(141)
   })
 
   it('refuses the named option and array positions', () => {

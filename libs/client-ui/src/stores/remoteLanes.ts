@@ -157,7 +157,8 @@ export async function adoptRemoteLane(info: LiveSessionInfo, nav: number): Promi
     .adoptSession(info.sessionId, info.workspacePath, undefined, info)
   if (useSessionsStore.getState().navSeq === nav) {
     useSessionsStore.getState().activate(info.sessionId)
-    await refreshRemoteArtifacts(info.sessionId)
+    // Not awaited: a new lane has no artifacts, and its first prompt must not wait.
+    void refreshRemoteArtifacts(info.sessionId)
   }
 }
 

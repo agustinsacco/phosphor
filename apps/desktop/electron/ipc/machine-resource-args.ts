@@ -229,6 +229,7 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   'git:listBranches': [{ arg: 0 }],
   'git:startPoint': [{ arg: 0 }],
   'git:addWorktree': [{ arg: 0 }],
+  'git:createLaneWorktree': [{ arg: 0 }],
   'git:removeWorktree': [{ arg: 0 }, { arg: 1 }],
   'git:renameBranch': [{ arg: 0 }],
   'git:pruneWorktrees': [{ arg: 0 }],

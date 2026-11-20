@@ -339,6 +339,7 @@ const baselineScope = {
   'git:listBranches': 'machine',
   'git:startPoint': 'machine',
   'git:addWorktree': 'machine',
+  'git:createLaneWorktree': 'machine',
   'git:removeWorktree': 'machine',
   'git:renameBranch': 'machine',
   'git:pruneWorktrees': 'machine',

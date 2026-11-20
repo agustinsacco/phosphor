@@ -382,6 +382,9 @@ export const IPC_WEB = {
   'git:addWorktree': unsupported(
     'Only Host-scoped read-only status and file comparisons are available.',
   ),
+  'git:createLaneWorktree': unsupported(
+    'Only Host-scoped read-only status and file comparisons are available.',
+  ),
   'git:removeWorktree': unsupported(
     'Only Host-scoped read-only status and file comparisons are available.',
   ),

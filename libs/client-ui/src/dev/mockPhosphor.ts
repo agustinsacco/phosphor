@@ -41,6 +41,7 @@ import { mockMcpInspection, mockMcpList } from './mockMcpInspection'
 import type { ArtifactListing, ArtifactSnapshot } from '@shared/artifacts'
 import { normalizeContextFilePrefs, type ContextFilePrefs } from '@shared/context-files'
 import { CLAUDE_PROVIDER_PACKAGE, DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
+import { slugifyTitle } from '@shared/branchName'
 import {
   compileSearch,
   EMPTY_SEARCH_RESULT,
@@ -2131,6 +2132,24 @@ export function installMockPhosphor(): void {
             locked: false,
             prunable: false,
             dirtyCount: 0,
+          })
+        }
+        case 'git:createLaneWorktree': {
+          const slug = slugifyTitle((args[1] as { title: string }).title)
+          const path = `/Users/dev/projects/phosphor/.phosphor/worktrees/${slug}`
+          return Promise.resolve({
+            kind: 'created',
+            repoPath: '/Users/dev/projects/phosphor',
+            worktree: {
+              path,
+              realPath: path,
+              branch: `phosphor/${slug}`,
+              head: 'abcdef1234567890',
+              isMain: false,
+              locked: false,
+              prunable: false,
+              dirtyCount: 0,
+            },
           })
         }
         case 'git:removeWorktree':
