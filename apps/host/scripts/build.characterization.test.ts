@@ -61,6 +61,7 @@ console.log(
 `
 /** Every file a fixture root's build writes, in BUILD-INFO.json's order. */
 const FIXTURE_FILES = [
+  'brain-ext/brain-curator.mjs',
   'brain-ext/brain-fork-guard.mjs',
   'brain-ext/brain.mjs',
   'phosphor.mjs',
@@ -146,7 +147,7 @@ function fixtureRoot(main = STAMPS_MAIN): string {
   const ext = 'libs/pi-extensions/pi-ext'
   for (const file of BUNDLED_EXTENSION_FILES)
     write(root, `${ext}/${file}`, `export default '${file}'\n`)
-  for (const file of ['brain.ts', 'brain-fork-guard.ts'])
+  for (const file of ['brain.ts', 'brain-fork-guard.ts', 'brain-curator.ts'])
     write(root, `${ext}/${file}`, `export default '${file}'\n`)
   write(root, `${ext}/helper-store.ts`, 'export const store = 1\n')
   write(root, `${ext}/Upper.ts`, 'export const upper = 1\n')
@@ -313,7 +314,11 @@ describe('build.mjs from the repository', { timeout: 120_000 }, () => {
         (path.endsWith('.ts') && !path.endsWith('.test.ts') && !path.startsWith('brain')),
     )
     expect(tree(join(out, 'pi-ext'))).toEqual(kept)
-    expect(tree(join(out, 'brain-ext'))).toEqual(['brain-fork-guard.mjs', 'brain.mjs'])
+    expect(tree(join(out, 'brain-ext'))).toEqual([
+      'brain-curator.mjs',
+      'brain-fork-guard.mjs',
+      'brain.mjs',
+    ])
     for (const file of tree(join(out, 'brain-ext')))
       expect(readFileSync(join(out, 'brain-ext', file), 'utf8')).not.toContain('@phosphor/')
     for (const file of BUNDLED_EXTENSION_FILES) expect(kept).toContain(file)

@@ -27,7 +27,12 @@ describe('bundledExtensions', () => {
       'subagent-children.ts',
     ])
     // Opt-in Brain resources are bundled separately, never added to every session.
-    const optional = new Set(['brain.ts', 'brain-fork-guard.ts'])
+    const optional = new Set([
+      'brain.ts',
+      'brain-fork-guard.ts',
+      'brain-curator.ts',
+      'brain-curator-writes.ts',
+    ])
     const files = readdirSync(join(root, 'libs/pi-extensions/pi-ext')).filter(
       (name) =>
         name.endsWith('.ts') &&
