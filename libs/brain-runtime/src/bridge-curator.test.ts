@@ -80,6 +80,10 @@ it('the curator token calls every curator method and never flag', async () => {
         data: { ok: 'yes' },
       })
     expect(invoke.mock.calls.map(([method]) => method)).toEqual([...BRAIN_CURATOR_METHODS])
+    // The runtime learns which token asked: Brain Agent's search ignores any lane's project.
+    expect(new Set(invoke.mock.calls.map((args) => (args as unknown[])[3]))).toEqual(
+      new Set(['curator']),
+    )
     invoke.mockClear()
     expect(await call(bridge.endpoint, bridge.curatorToken, 'flag')).toEqual(DENIED)
     expect(await call(bridge.endpoint, bridge.curatorToken, 'propose', {})).toEqual(DENIED)

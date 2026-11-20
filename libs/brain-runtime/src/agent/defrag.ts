@@ -26,6 +26,8 @@ export interface Defrag {
   stop(): void
   /** App shutdown: a run left unfinished is reported as interrupted at the next start. */
   dispose(): void
+  /** The run holding Brain's worker, with the signal Stop aborts; null outside a run. */
+  current(): { runId: string; signal: AbortSignal } | null
 }
 
 /** What Defrag decides: the header count. Unchecked pairs alone never start a run. */
@@ -67,6 +69,7 @@ export function createDefrag(context: DefragContext): Defrag {
   const { store, queue, options } = context
   const now = options.now ?? Date.now
   let active: { runId: string; cancel(): void } | undefined
+  let running: { runId: string; signal: AbortSignal } | null = null
   let disposed = false
 
   const update = (id: string, patch: BrainRunPatch): void => {
@@ -83,6 +86,7 @@ export function createDefrag(context: DefragContext): Defrag {
 
   async function execute(runId: string, host: BrainAgentHost, signal: AbortSignal): Promise<void> {
     update(runId, { state: 'running', startedAt: now() })
+    running = { runId, signal }
     try {
       await localPass(store, context.search, signal, now)
       const counts = store.waitingCounts()
@@ -106,6 +110,8 @@ export function createDefrag(context: DefragContext): Defrag {
           ? { state: 'stopped' }
           : { state: 'failed', error: plainRefusal(error, 'Defrag failed.') },
       )
+    } finally {
+      running = null
     }
   }
 
@@ -146,5 +152,6 @@ export function createDefrag(context: DefragContext): Defrag {
     dispose() {
       disposed = true
     },
+    current: () => running,
   }
 }

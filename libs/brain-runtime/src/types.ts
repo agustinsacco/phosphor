@@ -46,6 +46,8 @@ export interface BrainServiceOptions {
   guardExtension: string
   /** Recall extension and skill handed to lane agents when recall is on. */
   recall: { extension: string; skill: string }
+  /** Brain Agent's extension and skill, handed to lanes in the Brain folder instead of recall. */
+  curator?: { extension: string; skill: string }
   /** Runs Brain Agent's turns in the Brain lane. Absent where no Brain lane can run. */
   agent?: BrainAgentHost
   /** Called whenever status changes (queue, download, review), so the UI can refresh. */
@@ -87,12 +89,21 @@ export interface BrainRecallLaunch {
 
 export interface BrainService {
   api: BrainApi
-  /** Socket requests from lane agents; recall or flag for owner review. */
+  /**
+   * What the local bridge serves: recall and flags for any lane; Brain Agent's curator methods
+   * for the Brain lane. `signal` aborts when the asker hangs up.
+   */
   agent<M extends BrainAgentMethod>(
     method: M,
     request: BrainAgentMap[M]['request'],
+    signal?: AbortSignal,
   ): Promise<BrainAgentMap[M]['result']>
   /** Undefined when Brain or recall is off. Never throws: recall must not block a lane. */
   recallLaunch(): Promise<BrainRecallLaunch | undefined>
+  /**
+   * The Brain lane's launch: the curator token, the brain-curator extension and the brain-agent
+   * skill. Undefined when Brain is off or no curator extension is configured. Never throws.
+   */
+  curatorLaunch(): Promise<BrainRecallLaunch | undefined>
   dispose(): Promise<void>
 }

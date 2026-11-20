@@ -1,0 +1,214 @@
+import { mkdtemp, rm, unlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, expect, it, vi } from 'vitest'
+import type { BrainJob } from '@phosphor/shared/brain'
+import type { Proposal } from '@phosphor/memory-engine/types'
+import { ExtractionQueue } from '../queue'
+import { LaneFiles } from '../lane-files'
+import { currentReadCheck, DELETED_LANE_REFRESH_REFUSAL } from '../lane-read-rules'
+import { FakeAgentStore } from '../__fixtures__/fake-agent-store'
+import { HARBOR_JOB } from '../__fixtures__/fake-store'
+import { freshReview, READ_STILL_REFRESHING, type ReviewRefreshContext } from './review-refresh'
+
+const cleanups: (() => Promise<void>)[] = []
+afterEach(async () => {
+  for (const close of cleanups.splice(0).reverse()) await close()
+})
+
+/** Reviews read at knowledge revision 0. `stale()` changes Brain, as an approval does. */
+async function setup(lanes = ['harbor']) {
+  const directory = await mkdtemp(join(tmpdir(), 'brain-refresh-'))
+  cleanups.push(() => rm(directory, { recursive: true, force: true }))
+  const store = new FakeAgentStore()
+  store.prefs.enabled = true
+  const jobs: BrainJob[] = []
+  for (const lane of lanes) {
+    const file = join(directory, `${lane}.jsonl`)
+    await writeFile(file, JSON.stringify({ type: 'session', id: lane, cwd: directory }))
+    const job = store.enqueue({ ...HARBOR_JOB, sessionId: lane, sessionPath: file }, 'queued')
+    store.updateJob(job.id, { state: 'review' })
+    store.proposals.set(job.id, { jobId: job.id, computedRevision: 0 } as Proposal)
+    jobs.push(store.job(job.id)!)
+  }
+  let running = 0
+  let peak = 0
+  const gates: (() => void)[] = []
+  let hold = false
+  const states: string[] = []
+  const run = vi.fn(async (job: BrainJob, signal: AbortSignal) => {
+    states.push(job.state)
+    peak = Math.max(peak, ++running)
+    try {
+      if (hold)
+        await new Promise<void>((resolve, reject) => {
+          gates.push(resolve)
+          signal.addEventListener('abort', () => reject(new Error('aborted')))
+        })
+      signal.throwIfAborted()
+      store.proposals.set(job.id, {
+        jobId: job.id,
+        computedRevision: store.knowledgeRevision(),
+      } as Proposal)
+      store.updateJob(job.id, { state: 'review', runStartedAt: null })
+    } finally {
+      running--
+    }
+  })
+  const files = new LaneFiles()
+  let ready = true
+  const queue = new ExtractionQueue({
+    store,
+    busy: () => false,
+    ready: () => ready,
+    run,
+    changed: () => {},
+    check: (job) => currentReadCheck(store, files, job),
+    now: () => 123,
+  })
+  cleanups.push(() => queue.dispose())
+  let task: AbortSignal | null = null
+  const context: ReviewRefreshContext = {
+    store,
+    files,
+    queue,
+    defragSignal: () => task,
+    waitMs: 2000,
+    pollMs: 5,
+  }
+  return {
+    store,
+    jobs,
+    queue,
+    run,
+    states,
+    context,
+    stale: () => {
+      store.rev++
+    },
+    peak: () => peak,
+    holdRuns: () => (hold = true),
+    release: () => gates.splice(0).forEach((open) => open()),
+    setReady: (value: boolean) => (ready = value),
+    /** Runs `inside` as the active Defrag task. */
+    defrag: (inside: (signal: AbortSignal) => Promise<void>) =>
+      queue.enqueueTask(async (signal) => {
+        task = signal
+        try {
+          await inside(signal)
+        } finally {
+          task = null
+        }
+      }),
+  }
+}
+const call = () => new AbortController().signal
+
+it('outside a run, waits for the queue to refresh a stale review, then returns it', async () => {
+  const s = await setup()
+  const id = s.jobs[0]!.id
+  s.stale()
+  await expect(freshReview(s.context, id, call())).resolves.toBeNull()
+  expect(s.run).toHaveBeenCalledOnce()
+  expect(s.states).toEqual(['refreshing'])
+  expect(s.store.job(id)?.state).toBe('review')
+  expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
+  // Fresh now: nothing runs again.
+  await expect(freshReview(s.context, id, call())).resolves.toBeNull()
+  expect(s.run).toHaveBeenCalledOnce()
+})
+
+it('outside a run, refuses with a sentence when the refresh does not finish in time', async () => {
+  const s = await setup()
+  s.setReady(false)
+  s.stale()
+  s.context.waitMs = 30
+  await expect(freshReview(s.context, s.jobs[0]!.id, call())).rejects.toThrow(READ_STILL_REFRESHING)
+  expect(s.store.job(s.jobs[0]!.id)?.state).toBe('refreshing')
+  expect(s.run).not.toHaveBeenCalled()
+})
+
+it('outside a run, the wait stops when the caller hangs up', async () => {
+  const s = await setup()
+  s.setReady(false)
+  s.stale()
+  const hangUp = new AbortController()
+  const waiting = freshReview(s.context, s.jobs[0]!.id, hangUp.signal)
+  hangUp.abort()
+  await expect(waiting).rejects.toThrow()
+})
+
+it('inside a run, Defrag refreshes the review itself, one at a time, never two model runs', async () => {
+  const s = await setup(['harbor', 'ledger', 'kestrel'])
+  const results: (string | null)[] = []
+  const task = s.defrag(async () => {
+    // Brain Agent approved something: every review went stale while Defrag holds the worker.
+    s.stale()
+    s.queue.kick()
+    results.push(
+      ...(await Promise.all(s.jobs.map((job) => freshReview(s.context, job.id, call())))),
+    )
+  })
+  await task.done
+  expect(results).toEqual([null, null, null])
+  expect(s.run).toHaveBeenCalledTimes(3)
+  expect(s.peak()).toBe(1)
+  for (const job of s.jobs) expect(s.store.storedProposal(job.id)?.computedRevision).toBe(1)
+})
+
+it('inside a run, the queue does not refresh reviews behind Defrag’s back', async () => {
+  const s = await setup()
+  const id = s.jobs[0]!.id
+  let inside: (() => void) | undefined
+  const task = s.defrag(() => new Promise<void>((resolve) => (inside = resolve)))
+  await vi.waitFor(() => expect(inside).toBeDefined())
+  s.stale()
+  s.queue.kick()
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(s.run).not.toHaveBeenCalled()
+  expect(s.store.job(id)?.state).toMatch(/review|refreshing/)
+  inside!()
+  await task.done
+  // Once Defrag lets go, the queue refreshes it.
+  await vi.waitFor(() => expect(s.run).toHaveBeenCalledOnce())
+  await vi.waitFor(() => expect(s.store.storedProposal(id)?.computedRevision).toBe(1))
+})
+
+it('Stop mid-refresh aborts the run, leaves the review to refresh later, and records no failure', async () => {
+  const s = await setup()
+  const id = s.jobs[0]!.id
+  s.holdRuns()
+  let refreshed: Promise<string | null> | undefined
+  const task = s.defrag(async () => {
+    s.stale()
+    refreshed = freshReview(s.context, id, call())
+    await refreshed
+  })
+  await vi.waitFor(() => expect(s.run).toHaveBeenCalledOnce())
+  expect(s.store.job(id)).toMatchObject({ state: 'refreshing', runStartedAt: 123 })
+  task.cancel()
+  await expect(refreshed).rejects.toThrow()
+  await task.done.catch(() => undefined)
+  expect(s.store.job(id)).toMatchObject({ error: null })
+  expect(s.store.job(id)?.state).not.toBe('failed')
+  // The queue finishes the refresh after the run.
+  await vi.waitFor(() => expect(s.run).toHaveBeenCalledTimes(2))
+  s.release()
+  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+  expect(s.peak()).toBe(1)
+})
+
+it('returns the refusal for a lane Brain may not read again, without refreshing', async () => {
+  const s = await setup(['harbor', 'ledger'])
+  await s.queue.pause()
+  s.stale()
+  s.store.prefs.neverRead = { ...s.store.prefs.neverRead, sessionIds: ['harbor'] }
+  await expect(freshReview(s.context, s.jobs[0]!.id, call())).resolves.toBe(
+    'Brain is set not to read this lane.',
+  )
+  await unlink(s.jobs[1]!.sessionPath)
+  await expect(freshReview(s.context, s.jobs[1]!.id, call())).resolves.toBe(
+    DELETED_LANE_REFRESH_REFUSAL,
+  )
+  expect(s.run).not.toHaveBeenCalled()
+})

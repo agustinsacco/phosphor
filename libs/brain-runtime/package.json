@@ -4,6 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent/curator": {
+      "types": "./src/agent/curator.ts",
+      "default": "./src/agent/curator.ts"
+    },
+    "./agent/curator-context": {
+      "types": "./src/agent/curator-context.ts",
+      "default": "./src/agent/curator-context.ts"
+    },
+    "./agent/curator-writes": {
+      "types": "./src/agent/curator-writes.ts",
+      "default": "./src/agent/curator-writes.ts"
+    },
     "./agent/defrag": {
       "types": "./src/agent/defrag.ts",
       "default": "./src/agent/defrag.ts"
@@ -23,6 +35,10 @@
     "./agent/refusal": {
       "types": "./src/agent/refusal.ts",
       "default": "./src/agent/refusal.ts"
+    },
+    "./agent/review-refresh": {
+      "types": "./src/agent/review-refresh.ts",
+      "default": "./src/agent/review-refresh.ts"
     },
     "./api": {
       "types": "./src/api.ts",

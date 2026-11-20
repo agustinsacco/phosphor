@@ -13,13 +13,16 @@ import { validateBrainRequest } from '@phosphor/brain-client/validate'
 import { plainRefusal } from './agent/refusal'
 
 const MAX_BYTES = 512 * 1024
+/** Which token asked: any lane's, or the Brain lane's curator token. */
+export type BridgeRole = 'lane' | 'curator'
+type Role = BridgeRole
 /** `signal` aborts when the asking socket closes. */
 export type BridgeInvoke = (
   method: BrainAgentMethod,
   params: unknown,
   signal: AbortSignal,
+  role: BridgeRole,
 ) => Promise<unknown>
-type Role = 'lane' | 'curator'
 interface Tokens {
   lane: string
   curator: string
@@ -53,7 +56,7 @@ export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBrid
       : join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
   const flagTimes: number[] = []
-  const limitedInvoke: BridgeInvoke = async (method, params, signal) => {
+  const limitedInvoke: BridgeInvoke = async (method, params, signal, role) => {
     if (method === 'flag') {
       // Monotonic, so a wall-clock step cannot hold the window shut.
       const now = performance.now()
@@ -66,7 +69,7 @@ export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBrid
         }
       flagTimes.push(now)
     }
-    return invoke(method, params, signal)
+    return invoke(method, params, signal, role)
   }
   const server = createServer((socket) => {
     if (sockets.size >= 32) {
@@ -200,7 +203,7 @@ async function respond(
   authenticated(request.role)
   try {
     const params = validateBrainRequest(request.method, request.params)
-    return { ok: true, data: await invoke(request.method, params, signal) }
+    return { ok: true, data: await invoke(request.method, params, signal, request.role) }
   } catch (error) {
     return request.role === 'lane'
       ? DENIED
