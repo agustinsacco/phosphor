@@ -3,13 +3,13 @@ import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { BrainApi } from '../types'
 import type { Defrag } from './defrag'
 
-/** Defrag's channels. The old Tidy run channels start and stop Defrag until they are removed. */
+/** Defrag's channels. */
 export function defragApi(
   store: Pick<BrainStore, 'latestRun' | 'undoRun'>,
   defrag: Defrag,
   status: () => BrainStatus,
   mutate: (run: () => void) => Promise<BrainStatus>,
-): Pick<BrainApi, 'defrag' | 'defragStop' | 'undoRun' | 'tidyRun' | 'tidyCancel'> {
+): Pick<BrainApi, 'defrag' | 'defragStop' | 'undoRun'> {
   const start = async (): Promise<BrainStatus> => {
     defrag.start()
     return status()
@@ -21,8 +21,6 @@ export function defragApi(
   return {
     defrag: start,
     defragStop: stop,
-    tidyRun: start,
-    tidyCancel: stop,
     undoRun: async (id) => {
       const latest = store.latestRun()
       if (latest?.id === id && (latest.state === 'queued' || latest.state === 'running'))

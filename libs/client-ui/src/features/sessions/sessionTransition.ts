@@ -85,11 +85,15 @@ function transition(id: string, mutate: () => Promise<Restore | undefined>): Pro
 }
 
 /** Used by resume, closed clones and live branch changes, including recovery. */
-export function restoreSession(id: string): Promise<void> {
-  return transition(id, async () => () => restoreBranch(id))
+export function restoreSession(id: string, alreadyLive = false): Promise<void> {
+  return transition(id, async () => () => restoreBranch(id, undefined, alreadyLive))
 }
 
-async function restoreBranch(id: string, afterIdentity?: Restore): Promise<void> {
+async function restoreBranch(
+  id: string,
+  afterIdentity?: Restore,
+  alreadyLive = false,
+): Promise<void> {
   if (!(await bootstrapSession(id)))
     throw new Error('Could not refresh session identity. Retry loading the session.')
   if (!useSessionsStore.getState().live[id] || !useSessionTransition.getState().bySession[id])
@@ -99,10 +103,8 @@ async function restoreBranch(id: string, afterIdentity?: Restore): Promise<void>
   if (!file) throw new Error('Session identity is unavailable. Retry loading the session.')
   const chat = useChatStore.getState().sessions[id]
   if (
-    chat?.isStreaming ||
-    chat?.isCompacting ||
-    chat?.meta?.isStreaming ||
-    chat?.meta?.isCompacting
+    !alreadyLive &&
+    (chat?.isStreaming || chat?.isCompacting || chat?.meta?.isStreaming || chat?.meta?.isCompacting)
   )
     throw new Error('Wait for this turn to finish, then retry loading the session.')
   const artifactsBefore = useArtifactsStore.getState().bySession[id]

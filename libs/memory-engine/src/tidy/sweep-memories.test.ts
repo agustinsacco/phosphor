@@ -18,7 +18,9 @@ it.each([0.86, 0.83, 0.8])(
   (similarity) => {
     const { store } = memoryPair(similarity)
     const result = store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
-    expect(store.tidy('same_memory', null, 20).items).toHaveLength(similarity >= 0.84 ? 1 : 0)
+    expect(store.suggestions('same_memory', null, 20).items).toHaveLength(
+      similarity >= 0.84 ? 1 : 0,
+    )
     expect(result.folded).toBe(0)
     expect(store.snapshot().counts.memories).toBe(2)
   },
@@ -28,14 +30,14 @@ it.each(['scope', 'branch'])('raises a cross-%s pair with review actions but no 
   const { store, db } = memoryPair(0.86)
   db.prepare(`UPDATE memories SET ${column}=? WHERE n=2`).run('Kestrel')
   expect(store.sweep({ entityIds: [], memoryIds: ['memory-1'] }).folded).toBe(0)
-  const items = store.tidy('same_memory', null, 20).items
+  const items = store.suggestions('same_memory', null, 20).items
   expect(items).toHaveLength(1)
   expect(items[0]!.reason).toBe(
     `These two sentences say nearly the same thing. They come from different ${column === 'scope' ? 'projects' : 'branches'}.`,
   )
-  expect(store.tidySuggestion(items[0]!.id)?.allowed).toEqual(['dispute', 'replace'])
+  expect(store.suggestion(items[0]!.id)?.allowed).toEqual(['dispute', 'replace'])
   expect(() =>
-    store.tidyApply(items[0]!.id, { kind: 'fold', survivorId: 'memory-1' }, store.revision()),
+    store.applySuggestion(items[0]!.id, { kind: 'fold', survivorId: 'memory-1' }, store.revision()),
   ).toThrow('cannot be folded')
 })
 
@@ -53,7 +55,7 @@ it.each(['name', 'alias', 'one-word'])(
       )
     }
     store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
-    const items = store.tidy('same_memory', null, 20).items
+    const items = store.suggestions('same_memory', null, 20).items
     expect(items).toHaveLength(1)
     expect(items[0]!.reason).toBe('These two sentences say nearly the same thing.')
     expect(store.snapshot().counts.memories).toBe(2)
@@ -82,7 +84,7 @@ it('finds a hub-only paraphrase whose partner is the 150th newest memory', () =>
   const { store } = hub(200, 51)
   store.sweep({ entityIds: [], memoryIds: ['memory-200'] })
   expect(
-    store.tidy('same_memory', null, 20).items.map((s) => s.subjects.map((v) => v.id).sort()),
+    store.suggestions('same_memory', null, 20).items.map((s) => s.subjects.map((v) => v.id).sort()),
   ).toContainEqual(['memory-200', 'memory-51'])
 })
 
@@ -92,7 +94,7 @@ it('caps a hub at its newest 256 memories, reporting the excluded 300th-newest p
     "UPDATE tidy_sweep SET phase='memories',cursor=399,entity_max=400,memory_max=400,started_at=1",
   )
   const result = store.sweep('all')
-  expect(store.tidy('same_memory', null, 20).items).toEqual([])
+  expect(store.suggestions('same_memory', null, 20).items).toEqual([])
   expect(result.coverage.limitedChecks).toBeGreaterThan(0)
 })
 
@@ -102,7 +104,7 @@ it('uses the four most specific entities rather than the first four ids', () => 
     "DELETE FROM entity_names; INSERT INTO entities(n,id,label,kind,created_at,memories) VALUES (3,'ledger-3','Ledger 3','project',1,100),(4,'ledger-4','Ledger 4','project',1,100),(5,'ledger-5','Ledger 5','project',1,2); UPDATE entities SET memories=100 WHERE n<3; DELETE FROM mentions; INSERT INTO mentions VALUES (1,1),(1,2),(1,3),(1,4),(1,5),(2,5)",
   )
   store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
-  expect(store.tidy('same_memory', null, 20).items).toHaveLength(1)
+  expect(store.suggestions('same_memory', null, 20).items).toHaveLength(1)
 })
 
 it('raises at most eight of the best 32 candidates per memory', () => {
@@ -111,7 +113,7 @@ it('raises at most eight of the best 32 candidates per memory', () => {
   db.exec('UPDATE mentions SET entity=1')
   db.prepare('UPDATE memory_vectors SET vector=?').run(encodeVector(vector()))
   store.sweep({ entityIds: [], memoryIds: ['memory-40'] })
-  expect(store.tidy('same_memory', null, 50).items).toHaveLength(8)
+  expect(store.suggestions('same_memory', null, 50).items).toHaveLength(8)
 })
 
 it('caches a 256-memory hub window once per 128-memory chunk, not across calls', () => {
@@ -157,10 +159,10 @@ it.each(['manual', 'suggested'])(
     if (mode === 'manual') store.merge('rina-2', 'rina-1', store.revision())
     else {
       store.sweep({ entityIds: ['rina-1'], memoryIds: [] })
-      const id = store.tidy('same_entity', null, 20).items[0]!.id
-      store.tidyApply(id, { kind: 'merge', survivorId: 'rina-1' }, store.revision())
+      const id = store.suggestions('same_entity', null, 20).items[0]!.id
+      store.applySuggestion(id, { kind: 'merge', survivorId: 'rina-1' }, store.revision())
     }
-    expect(store.tidy('same_memory', null, 20).items).toHaveLength(1)
+    expect(store.suggestions('same_memory', null, 20).items).toHaveLength(1)
     expect(store.snapshot().counts.memories).toBe(2)
   },
 )

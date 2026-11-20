@@ -11,7 +11,6 @@ import { MockExplorer } from '../mockExplorer'
 import { useBrain } from '../useBrain'
 import { usePromptStore } from '@/stores/prompt'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { emptyBrainTidyPage } from '@shared/brain-tidy'
 import { MergeEntity } from './MergeEntity'
 
 let root: Root,
@@ -19,7 +18,6 @@ let root: Root,
   fake: ReturnType<typeof createFakePhosphor>,
   restore: () => void
 let status = mockBrainStatus()
-const legacyTidy = vi.fn()
 const merge = vi.fn(),
   undo = vi.fn(),
   read = vi.fn(),
@@ -37,12 +35,10 @@ beforeEach(() => {
     operationId: 'merge-1',
   }))
   undo.mockReset().mockImplementation(async () => ({ ...status, revision: status.revision + 1 }))
-  legacyTidy.mockReset().mockImplementation(() => emptyBrainTidyPage(status.revision))
   fake = createFakePhosphor({
     'brain:entity': read,
     'brain:merge': merge,
     'brain:status': () => status,
-    'brain:tidy': legacyTidy,
     'brain:tidyUndo': undo,
   })
   restore = installFakePhosphor(fake)
@@ -164,5 +160,4 @@ it('reloads a refused Knowledge merge without using the removed Tidy surface', a
   await render()
   await answer()
   expect(container.textContent).toContain('These records cannot be combined.')
-  expect(legacyTidy).not.toHaveBeenCalled()
 })

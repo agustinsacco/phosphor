@@ -18,6 +18,7 @@ import { useChatUiStore } from './uiState'
 import { SWARM_COMMAND, SWARM_STATUS_KEY } from '@phosphor/pi-extensions/swarm'
 
 const command = vi.fn()
+const createSession = vi.fn()
 const artifactRead = vi.fn(async () => [])
 let restore: () => void
 let fake: ReturnType<typeof createFakePhosphor>
@@ -38,10 +39,13 @@ beforeEach(() => {
     return { success: false }
   })
   artifactRead.mockClear()
+  createSession
+    .mockReset()
+    .mockResolvedValue({ sessionId: 'audit', workspacePath: '/repo', pid: 1 })
   useSessionTransition.setState({ bySession: {} })
   fake = createFakePhosphor({
     'pi:command': command,
-    'pi:createSession': async () => ({ sessionId: 'audit', workspacePath: '/repo', pid: 1 }),
+    'pi:createSession': createSession,
     'git:sessionBaseline': async () => null,
     'sessions:list': async () => [],
     'artifacts:forSession': artifactRead,
@@ -83,6 +87,25 @@ it('loads the inherited history and artifacts for a closed-session fork/clone', 
   expect(command.mock.calls.some(([, c]) => c.type === 'get_messages')).toBe(true)
   expect(artifactRead).toHaveBeenCalledWith('/repo/clone.jsonl')
   expect(useChatStore.getState().sessions.audit).toMatchObject({ items: [], resuming: false })
+})
+
+it('attaches to a lane already running in main without waiting for its turn to finish', async () => {
+  createSession.mockResolvedValue({
+    sessionId: 'audit',
+    workspacePath: '/repo',
+    diskPath: '/repo/clone.jsonl',
+    pid: 1,
+  })
+  const normal = command.getMockImplementation()!
+  command.mockImplementation(async (id, cmd) => {
+    const result = await normal(id, cmd)
+    if (cmd.type === 'get_state') result.data.isStreaming = true
+    return result
+  })
+  await useSessionsStore.getState().createSession('/repo', { sessionPath: '/repo/clone.jsonl' })
+  expect(sessionTransitionPending('audit')).toBe(false)
+  expect(useChatStore.getState().sessions.audit?.meta?.isStreaming).toBe(true)
+  expect(command).toHaveBeenCalledWith('audit', { type: 'get_messages' })
 })
 
 it('rewind removes artifacts that only existed after its new branch point', async () => {

@@ -36,6 +36,8 @@ export interface SessionStartupRuntime {
    * tools for the Brain lane. Extra env, extensions and skills, or undefined when off.
    */
   recall?: (workspacePath: string) => Promise<SessionRecall | undefined>
+  /** The unpackaged Desktop Brain e2e drives the real bridge with its pi stub. */
+  stubRecall?: () => boolean
 }
 
 export interface SessionRecall {
@@ -137,7 +139,8 @@ async function spawnSession(
     launch,
     runtime.policy,
   )
-  if (!launch.stub) await withRecall(runtime, spawnOptions, options.workspacePath)
+  if (!launch.stub || runtime.stubRecall?.())
+    await withRecall(runtime, spawnOptions, options.workspacePath)
   execution.signal?.throwIfAborted()
   // Read before the spawn: a change landing while pi starts must still count as new.
   const laneConfig =

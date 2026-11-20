@@ -17,17 +17,21 @@ function change(store: BrainStore, kind: Kind, first = 'memory-1', second = 'mem
   if (kind === 'merge') return store.merge('rina-2', 'rina-1', store.revision())
   store.sweep({ entityIds: [], memoryIds: [first, second] })
   const pair = store
-    .tidy(null, null, 50)
-    .items.find((s) => [first, second].every((id) => s.subjects.some((v) => v.id === id)))!
-  return store.tidyApply(
-    pair.id,
+    .waitingSuggestions(50, 0)
+    .items.find(
+      (s) =>
+        s.kind !== 'read' && [first, second].every((id) => s.subjects.some((v) => v.id === id)),
+    )
+  if (!pair || pair.kind === 'read') throw new Error('Expected a waiting memory pair')
+  return store.resolve(
+    pair.suggestionId,
     kind === 'fold'
       ? { kind, survivorId: second }
       : kind === 'replace'
         ? { kind, newerId: second }
         : { kind },
-    store.revision(),
-  )!
+    { runId: null, reason: 'Compared the two Ledger records.' },
+  )
 }
 function enrich(
   store: BrainStore,

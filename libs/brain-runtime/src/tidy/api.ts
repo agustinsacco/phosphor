@@ -7,19 +7,7 @@ export function tidyApi(
   store: BrainStore,
   status: () => BrainStatus,
   mutate: (run: () => void) => Promise<BrainStatus>,
-): Pick<
-  BrainApi,
-  | 'tidy'
-  | 'tidySuggestion'
-  | 'tidyApply'
-  | 'tidyDismiss'
-  | 'tidyChanges'
-  | 'tidyUndo'
-  | 'merge'
-  | 'describe'
-  | 'removeName'
-  | 'split'
-> {
+): Pick<BrainApi, 'tidyChanges' | 'tidyUndo' | 'merge' | 'describe' | 'removeName' | 'split'> {
   /** A journaled change, with the operation its toast can undo. */
   const journaled = async (change: () => string | null): Promise<BrainTidyMutation> => {
     let operationId: string | null = null
@@ -29,12 +17,6 @@ export function tidyApi(
     return { ...result, operationId }
   }
   return {
-    // Defrag replaced the Tidy run; the page no longer shows one.
-    tidy: async (kind, cursor, limit) => ({ ...store.tidy(kind, cursor, limit), run: null }),
-    tidySuggestion: async (id) => store.tidySuggestion(id),
-    tidyApply: async (id, action, revision) =>
-      journaled(() => store.tidyApply(id, action, revision)),
-    tidyDismiss: async (id, revision) => mutate(() => store.tidyDismiss(id, revision)),
     tidyChanges: async (limit) => store.tidyChanges(limit),
     tidyUndo: async (id, revision) => mutate(() => store.tidyUndo(id, revision)),
     merge: async (source, target, revision) =>

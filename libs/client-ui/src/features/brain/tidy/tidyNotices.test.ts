@@ -38,7 +38,10 @@ it('keeps startup and suggestion increases silent', () => {
   const observe = createTidyNotices(),
     status = enabled()
   observe(status)
-  observe({ ...status, tidy: { ...status.tidy, open: 10, newestSuggestionAt: 20 } })
+  observe({
+    ...status,
+    agent: { ...status.agent, waiting: { ...status.agent.waiting, repeats: 10 } },
+  })
   expect(notices()).toEqual([])
 })
 it('announces the result in the single Brain notice, opening Lanes', async () => {

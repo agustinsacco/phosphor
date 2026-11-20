@@ -1,3 +1,4 @@
+import { decideRead } from './__fixtures__/decide-read'
 import { unlinkSync } from 'node:fs'
 import { unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -28,7 +29,8 @@ it('keeps a missing lane review in the Inbox, refuses Approve with a remedy, and
   expect(proposal.revision).toBe(0)
   expect(proposal.memories).toHaveLength(1)
   await expect(
-    service.api.review(
+    decideRead(
+      service,
       id,
       { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
       proposal.revision,
@@ -42,7 +44,7 @@ it('keeps a missing lane review in the Inbox, refuses Approve with a remedy, and
       ['refreshing', 'running', 'failed'].includes(patch.state ?? ''),
     ),
   ).toBe(false)
-  await expect(service.api.review(id, null, 0)).resolves.toMatchObject({ jobs: [] })
+  await expect(decideRead(service, id, null, 0)).resolves.toMatchObject({ jobs: [] })
   expect(s.store.job(id)?.state).toBe('rejected')
   expect(s.runner).not.toHaveBeenCalled()
 })

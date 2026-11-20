@@ -1,26 +1,18 @@
 import { MockTidyAgent } from './mockTidyAgent'
 import { checkMockTidyArguments } from './mockTidyArguments'
 import {
-  emptyBrainTidyPage,
   emptyBrainTidySummary,
-  type BrainTidyAction,
   type BrainTidyOperation,
-  type BrainTidyPage,
   type BrainTidySuggestion,
-  type BrainTidySuggestionDetail,
-  type BrainTidySubjectDetail,
   type BrainTidySummary,
 } from '@shared/brain-tidy'
 import type { BrainStatus } from '@shared/brain'
 import type { MockExplorer } from '../mockExplorer'
-import { seedMockTidy, mockTidyPermissions } from './mockTidyData'
+import { seedMockTidy } from './mockTidyData'
 import { mockEdit } from './mockEdits'
 
 export interface MockTidyOptions {
   count?: number
-  failFirstLoad?: boolean
-  /** Terminal checkpoint fixtures exercise the same state-driven header as Desktop. */
-  runOutcome?: 'done' | 'skipped' | 'interrupted'
   /** A lane flag arrives this many milliseconds after the first Tidy read. */
   flagAfterMs?: number
 }
@@ -33,9 +25,7 @@ export class MockTidy {
     string,
     { entities: MockExplorer['entities']; details: MockExplorer['details']; revision: number }
   >()
-  private page = emptyBrainTidyPage()
   private initialized = false
-  private failed = false
   private flagAt: number | null = null
   constructor(
     private explorer: MockExplorer,
@@ -53,11 +43,6 @@ export class MockTidy {
     const automatic = this.operations.filter((op) => op.who === 'automatic' && !op.undoneAt)
     return {
       ...emptyBrainTidySummary(),
-      open: this.initialized
-        ? this.items.filter((s) => s.state === 'open').length
-        : (this.options.count ?? 12),
-      newestSuggestionAt: this.items.at(-1)?.createdAt ?? null,
-      running: !!this.page.run && ['queued', 'sweeping', 'checking'].includes(this.page.run.state),
       automaticFolds: automatic.length,
       newestAutomaticFoldAt: automatic[0]?.createdAt ?? null,
     }
@@ -68,7 +53,6 @@ export class MockTidy {
     this.operations = []
     this.agent.reset()
     this.snapshots.clear()
-    this.page = emptyBrainTidyPage()
   }
   forget(id: string): void {
     this.items = this.items.filter((s) => !s.subjects.some((subject) => subject.id === id))
@@ -77,44 +61,6 @@ export class MockTidy {
     this.snapshots.clear()
   }
   tick(): void {
-    const run = this.page.run
-    if (run && this.summary().running) {
-      const elapsed = this.now() - run.startedAt
-      if (
-        elapsed >= 2000 &&
-        this.explorer.details.some((d) => d.memory.id === 'tidy-exact-repeat')
-      ) {
-        this.journal('fold', 'Folded an exact repeat of the Harbor Ledger decision', () => {
-          this.explorer.details = this.explorer.details.filter(
-            (d) => d.memory.id !== 'tidy-exact-repeat',
-          )
-        })
-        this.operations[0]!.who = 'automatic'
-        this.state.revision++
-        run.folded++
-      }
-      run.state = elapsed < 2000 ? 'sweeping' : elapsed < 6000 ? 'checking' : 'done'
-      run.checked = Math.min(run.total, Math.max(0, Math.floor((elapsed - 2000) / 500)))
-      if (run.state === 'done') {
-        run.state = this.options.runOutcome ?? 'done'
-        run.finishedAt = this.now()
-        run.checked = run.state === 'done' ? run.total : 0
-        if (run.state === 'skipped') run.message = 'No finished lane can supply a reader model.'
-        if (run.state === 'interrupted') run.error = 'Tidy was interrupted when Phosphor closed.'
-        run.suggestions = this.items.filter((s) => s.state === 'open').length
-        this.page.coverage = {
-          phase: 'done',
-          cursor: 0,
-          entities: this.explorer.entities.length,
-          totalEntities: this.explorer.entities.length,
-          memories: this.explorer.details.length,
-          totalMemories: this.explorer.details.length,
-          limitedChecks: 0,
-          startedAt: run.startedAt,
-          finishedAt: this.now(),
-        }
-      }
-    }
     if (this.flagAt !== null && this.now() >= this.flagAt) {
       const source = this.items.find((s) => s.kind === 'flagged')
       if (source) {
@@ -191,96 +137,16 @@ export class MockTidy {
       () => this.explorer.merge(source, target),
     )
   }
-  private apply(id: string, action: BrainTidyAction): string | null {
-    const suggestion = this.items.find((s) => s.id === id && s.state === 'open')
-    if (!suggestion) throw new Error('This suggestion was already settled.')
-    if (!this.detail(id)?.allowed.includes(action.kind))
-      throw new Error('This action is not available for these records.')
-    suggestion.state = 'applied'
-    const ids = suggestion.subjects.map((s) => s.id)
-    if (action.kind === 'keep') return null
-    if (action.kind === 'forget') {
-      this.explorer.details = this.explorer.details.filter((d) => !ids.includes(d.memory.id))
-      this.forget(ids[0]!)
-      return null
-    }
-    return this.journal(
-      action.kind,
-      suggestion.subjects.map((s) => s.label).join(' · '),
-      () => {
-        if (action.kind === 'merge')
-          this.explorer.merge(
-            ids.find((id) => id !== action.survivorId)!,
-            action.survivorId,
-          )
-        if (action.kind === 'fold') {
-          const survivor = this.explorer.memory(action.survivorId)
-          const other = this.explorer.memory(ids.find((id) => id !== action.survivorId)!)
-          this.explorer.details = this.explorer.details.filter(
-            (d) => d.memory.id !== other.memory.id,
-          )
-          this.explorer.details
-            .find((d) => d.memory.id === survivor.memory.id)!
-            .quotes.push(...other.quotes)
-        }
-        if (action.kind === 'dispute' || action.kind === 'replace')
-          for (const d of this.explorer.details.filter((d) => ids.includes(d.memory.id)))
-            d.memory.state =
-              action.kind === 'dispute'
-                ? 'disputed'
-                : d.memory.id === action.newerId
-                  ? 'active'
-                  : 'superseded'
-      },
-      id,
-    )
-  }
   call(channel: string, args: unknown[]): unknown {
     checkMockTidyArguments(channel, args)
     this.init()
     this.tick()
     switch (channel) {
-      case 'brain:tidy':
-        return this.list(args)
-      case 'brain:tidySuggestion':
-        return this.detail(args[0] as string)
       case 'brain:tidyChanges':
         return {
           items: [...this.agent.operations, ...this.operations].slice(0, args[0] as number),
           revision: this.state.revision,
         }
-      case 'brain:tidyRun':
-        this.page.run = {
-          state: 'sweeping',
-          startedAt: this.now(),
-          finishedAt: null,
-          checked: 0,
-          total: 8,
-          suggestions: 0,
-          folded: 0,
-          message: null,
-          error: null,
-          model: null,
-          settled: 0,
-        }
-        break
-      case 'brain:tidyCancel':
-        if (this.page.run)
-          this.page.run = { ...this.page.run, state: 'cancelled', finishedAt: this.now() }
-        break
-      case 'brain:tidyApply': {
-        this.check(args[2])
-        const operationId = this.apply(args[0] as string, args[1] as BrainTidyAction)
-        this.state.revision++
-        return { ...this.state, tidy: this.summary(), operationId }
-      }
-      case 'brain:tidyDismiss': {
-        this.check(args[1])
-        const suggestion = this.items.find((s) => s.id === args[0])
-        if (suggestion) suggestion.state = 'dismissed'
-        this.state.revision++
-        break
-      }
       case 'brain:tidyUndo':
         this.undo(args[0] as string, args[1] as number)
         break
@@ -288,27 +154,6 @@ export class MockTidy {
         throw new Error('Unknown Tidy channel')
     }
     return { ...this.state, tidy: this.summary() }
-  }
-  private detail(id: string): BrainTidySuggestionDetail | null {
-    const suggestion = this.items.find((s) => s.id === id)
-    if (!suggestion) return null
-    const subjects: BrainTidySubjectDetail[] = suggestion.subjects
-      .filter((s) =>
-        s.type === 'entity'
-          ? this.explorer.entities.some((e) => e.id === s.id)
-          : this.explorer.details.some((d) => d.memory.id === s.id),
-      )
-      .map((s) =>
-        s.type === 'entity'
-          ? { type: 'entity', value: this.explorer.entity(s.id) }
-          : { type: 'memory', value: this.explorer.memory(s.id) },
-      )
-    return {
-      suggestion,
-      subjects,
-      revision: this.state.revision,
-      ...mockTidyPermissions(suggestion, subjects),
-    }
   }
   private undo(id: string, revision: number): void {
     this.check(revision)
@@ -325,33 +170,5 @@ export class MockTidy {
     this.explorer.details = snapshot.details
     op.undoneAt = this.now()
     this.state.revision++
-  }
-  private list(args: unknown[]): BrainTidyPage {
-    if (this.options.failFirstLoad && !this.failed) {
-      this.failed = true
-      throw new Error('Tidy is temporarily unavailable.')
-    }
-    const items = this.items.filter((s) => s.state === 'open')
-    const matches = items.filter((s) => !args[0] || s.kind === args[0])
-    const offset = Number(args[1] ?? 0),
-      limit = args[2] as number
-    return {
-      ...this.page,
-      revision: this.state.revision,
-      items: matches.slice(offset, offset + limit),
-      next: offset + limit < matches.length ? String(offset + limit) : null,
-      counts: {
-        same_entity: 0,
-        same_memory: 0,
-        conflict: 0,
-        flagged: 0,
-        ...Object.fromEntries(
-          ['same_entity', 'same_memory', 'conflict', 'flagged'].map((kind) => [
-            kind,
-            items.filter((s) => s.kind === kind).length,
-          ]),
-        ),
-      },
-    }
   }
 }

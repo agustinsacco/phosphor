@@ -75,7 +75,7 @@ it('answers each delegated channel group from its owning mock module', async () 
   })
 })
 
-it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
+it('dispatches the Brain queue, Defrag and Explorer channels', async () => {
   vi.useFakeTimers()
   const { DEFAULT_BRAIN_PREFS } = await import('@shared/brain')
   await window.phosphor.invoke('brain:setPrefs', { ...DEFAULT_BRAIN_PREFS, enabled: true })
@@ -90,12 +90,11 @@ it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
   await window.phosphor.invoke('brain:status')
   const proposal = await window.phosphor.invoke('brain:proposal', id)
   expect(proposal.memories.length).toBeGreaterThan(0)
-  await window.phosphor.invoke(
-    'brain:review',
-    id,
-    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
-    proposal.revision,
-  )
+  await window.phosphor.invoke('brain:defrag')
+  await vi.advanceTimersByTimeAsync(60_000)
+  await window.phosphor.invoke('brain:status')
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect((await window.phosphor.invoke('brain:status')).agent.run?.state).toBe('done')
   const knowledge = await window.phosphor.invoke('brain:entityMemories', 'ledger', {}, null)
   expect(knowledge.memories.length).toBeGreaterThan(0)
   expect(

@@ -41,13 +41,8 @@ const CHANNELS: IpcInvokeChannel[] = [
   'brain:defrag',
   'brain:defragStop',
   'brain:undoRun',
-  'brain:tidy',
-  'brain:tidySuggestion',
   'brain:tidyChanges',
-  'brain:tidyApply',
-  'brain:tidyCancel',
   'brain:proposal',
-  'brain:review',
   'brain:extraction',
 ]
 beforeEach(async () => {
@@ -259,8 +254,7 @@ it('names the review Brain refreshes in the status line, only while the refresh 
 })
 
 it('routes notices to Lanes and automatic changes to Recent changes', async () => {
-  await mock('brain:tidy', [null, null, 20])
-  await mock('brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0])
+  await mock('brain:merge', ['tom', 'rina', 0])
   await render()
   await act(async () => openTidy(true))
   expect(selectedTab()).toBe('brain-tab-lanes')
@@ -271,8 +265,7 @@ it('routes notices to Lanes and automatic changes to Recent changes', async () =
 })
 
 it('selects Recent changes on a second Open recent changes', async () => {
-  await mock('brain:tidy', [null, null, 20])
-  await mock('brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0])
+  await mock('brain:merge', ['tom', 'rina', 0])
   await render()
   await act(async () => openTidy(true))
   const read = section('Brain lanes').querySelector<HTMLButtonElement>(

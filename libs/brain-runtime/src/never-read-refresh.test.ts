@@ -1,3 +1,4 @@
+import { decideRead } from './__fixtures__/decide-read'
 import { appendFile } from 'node:fs/promises'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
@@ -41,7 +42,7 @@ it.each(['id', 'title'] as const)(
 it('rejects a stale review without starting a refresh or saving anything', async () => {
   const s = await setup()
   s.store.rev++
-  await expect(s.service.api.review(s.id, null, 0)).resolves.toMatchObject({ jobs: [] })
+  await expect(decideRead(s.service, s.id, null, 0)).resolves.toMatchObject({ jobs: [] })
   expect(s.store.job(s.id)?.state).toBe('rejected')
   expect(s.store.reviews).toEqual([{ id: s.id, decision: null }])
   expect(s.runner).not.toHaveBeenCalled()
@@ -55,7 +56,8 @@ it.each(['id', 'title'] as const)(
     else await s.service.api.neverRead('harbor-lane', true)
     s.store.rev++
     await expect(
-      s.service.api.review(
+      decideRead(
+        s.service,
         s.id,
         { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
         0,
@@ -71,7 +73,7 @@ it('does not resurrect a review rejected while opening waits on the current lane
   s.store.rev++
   const update = vi.spyOn(s.store, 'updateJob')
   const opening = s.service.api.proposal(s.id).catch((error: unknown) => error)
-  await s.service.api.review(s.id, null, 0)
+  await decideRead(s.service, s.id, null, 0)
   await opening
   await new Promise((resolve) => setTimeout(resolve, 80))
   expect(s.store.job(s.id)?.state).toBe('rejected')
@@ -94,7 +96,7 @@ it.each(['retry', 'queued upgrade'] as const)(
     await vi.waitFor(() => expect(s.store.job(s.id)?.state).toBe('review'))
     expect(s.store.storedProposal(s.id)).toBeDefined()
     expect(s.runner).not.toHaveBeenCalled()
-    await expect(s.service.api.review(s.id, null, 0)).resolves.toMatchObject({ jobs: [] })
+    await expect(decideRead(s.service, s.id, null, 0)).resolves.toMatchObject({ jobs: [] })
     expect(s.store.job(s.id)?.state).toBe('rejected')
   },
 )

@@ -1,11 +1,4 @@
-import type {
-  BrainTidyAction,
-  BrainTidyChanges,
-  BrainTidyKind,
-  BrainTidyMutation,
-  BrainTidyPage,
-  BrainTidySuggestionDetail,
-} from '../brain-tidy'
+import type { BrainTidyChanges, BrainTidyMutation } from '../brain-tidy'
 import { expectTypeOf, it } from 'vitest'
 import type {
   BrainConnectionPage,
@@ -25,7 +18,6 @@ import type {
   BrainPredicate,
   BrainPrefs,
   BrainProposalView,
-  BrainReviewDecision,
   BrainStatus,
   BrainUndoRunResult,
 } from '../brain'
@@ -34,18 +26,6 @@ import type { BrainInvokeMap } from './brain'
 
 /** UI commands. Authority comes from the Desktop handler, never this DTO. */
 export interface BaselineBrainInvokeMap {
-  'brain:tidy': {
-    args: [kind: BrainTidyKind | null, cursor: string | null, limit: number]
-    result: BrainTidyPage
-  }
-  'brain:tidySuggestion': { args: [id: string]; result: BrainTidySuggestionDetail | null }
-  'brain:tidyRun': { args: []; result: BrainStatus }
-  'brain:tidyCancel': { args: []; result: BrainStatus }
-  'brain:tidyApply': {
-    args: [id: string, action: BrainTidyAction, revision: number]
-    result: BrainTidyMutation
-  }
-  'brain:tidyDismiss': { args: [id: string, revision: number]; result: BrainStatus }
   'brain:tidyChanges': { args: [limit: number]; result: BrainTidyChanges }
   'brain:tidyUndo': { args: [operationId: string, revision: number]; result: BrainStatus }
   'brain:defrag': { args: []; result: BrainStatus }
@@ -68,11 +48,6 @@ export interface BaselineBrainInvokeMap {
   'brain:retry': { args: [jobId: string]; result: BrainStatus }
   'brain:extraction': { args: [jobId: string]; result: BrainExtractionView }
   'brain:proposal': { args: [jobId: string]; result: BrainProposalView }
-  /** A null decision rejects the whole proposal. Refuses a stale revision. */
-  'brain:review': {
-    args: [jobId: string, decision: BrainReviewDecision | null, revision: number]
-    result: BrainStatus
-  }
   /** Deletes all knowledge, jobs and records. Keeps settings and the embedding model. */
   'brain:reset': { args: []; result: BrainStatus }
   /** Folds `sourceId` into `targetId`: names, links and memories move; the source is deleted. */

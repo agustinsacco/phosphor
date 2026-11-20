@@ -1,14 +1,7 @@
 import type {
-  BrainTidyAction,
   BrainTidyChanges,
   BrainTidyFlag,
   BrainTidyFlagResult,
-  BrainTidyJudgement,
-  BrainTidyKind,
-  BrainTidyPage,
-  BrainTidyRun,
-  BrainTidyPair,
-  BrainTidySuggestionDetail,
   BrainTidySummary,
   BrainTidySweep,
   BrainTidyTouched,
@@ -16,13 +9,7 @@ import type {
 import type { BrainEntityKind } from '@phosphor/shared/brain'
 
 export interface BrainTidyStore {
-  readRun(): BrainTidyRun | null
-  writeRun(value: BrainTidyRun): void
   tidySummary(): BrainTidySummary
-  tidy(kind: BrainTidyKind | null, cursor: string | null, limit: number): BrainTidyPage
-  tidySuggestion(id: string): BrainTidySuggestionDetail | null
-  tidyApply(id: string, action: BrainTidyAction, revision: number): string | null
-  tidyDismiss(id: string, revision: number): void
   tidyChanges(limit: number): BrainTidyChanges
   tidyUndo(operationId: string, revision: number): void
   /** Entity edits journal like merges: each returns its operation id and refuses a stale revision. */
@@ -43,10 +30,6 @@ export interface BrainTidyStore {
    * The caller sweeps them in bounded batches; they have no fingerprints until then.
    */
   takeTidyMaintenance(): string[]
-  /** At most 40 unjudged, open, two-subject pairs. */
-  pendingPairs(limit: number): BrainTidyPair[]
-  /** `settled`: verdicts for pairs the owner answered, merged or forgot while they were checked. */
-  recordVerdicts(judgements: BrainTidyJudgement[]): { recorded: number; settled: number }
   /** One open flag per memory; at most five open flags per lane. Returns the suggestion id. */
   flag(input: BrainTidyFlag): BrainTidyFlagResult
 }

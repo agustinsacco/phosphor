@@ -11,18 +11,12 @@ import {
   type BrainStatus,
 } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
-import { BRAIN_REVIEW_REFRESHING } from '@phosphor/shared/brain-review'
 import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
 import { laneInfo } from './lane'
 import type { LaneFiles } from './lane-files'
-import {
-  currentReadCheck,
-  currentTitle,
-  NEVER_READ_REFRESH_REFUSAL,
-  DELETED_LANE_REFRESH_REFUSAL,
-} from './lane-read-rules'
+import { currentTitle } from './lane-read-rules'
 import type { TidyMaintenance } from './tidy/maintenance'
 import { BRAIN_OWN_LANE_REFUSAL, isBrainOwnLane } from './agent/own-lane'
 import type { Defrag } from './agent/defrag'
@@ -103,28 +97,6 @@ async function reread(id: string, context: ApiContext): Promise<void> {
     throw new Error('This lane is already queued.')
   await enqueue(previous, context, id)
 }
-/** Approving needs the current review: a stale one is refreshed first, and refused meanwhile. */
-async function currentReview(
-  id: string,
-  { store, queue, files, changed, options }: ApiContext,
-): Promise<void> {
-  const job = store.job(id)
-  const proposal = store.storedProposal(id)
-  if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-    const check = await currentReadCheck(store, files, job, options.agent?.folder)
-    if (check.retitled) changed()
-    const reason = check.refusal
-    const refusal =
-      reason === DELETED_LANE_REFRESH_REFUSAL ? reason : reason ? NEVER_READ_REFRESH_REFUSAL : null
-    const latest = store.storedProposal(id)
-    if (!latest || latest.computedRevision === store.knowledgeRevision()) return
-    if (refusal) throw new Error(refusal)
-    if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
-    queue.recompute(id)
-    throw new Error(BRAIN_REVIEW_REFRESHING)
-  }
-  if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
-}
 /**
  * The review as stored, even when Brain changed since or while Brain Agent refreshes it: viewing
  * never starts a refresh. Only its never-read note follows the lane's current name.
@@ -175,11 +147,6 @@ export function createApi(context: ApiContext): BrainApi {
     },
     extraction: async (id) => extractionView(store, id),
     proposal: (id) => storedReview(id, context),
-    review: async (id, decision, revision) => {
-      if (decision !== null) await currentReview(id, context)
-      else queue.abortRefresh(id)
-      return mutate(() => store.review(id, decision, revision))
-    },
     reset: async () => {
       await queue.pause()
       try {
@@ -283,8 +250,7 @@ function apiStatus({ store, options }: ApiContext): BrainStatus {
   const embedding = options.embeddings.status()
   return {
     ...store.snapshot(),
-    // Defrag replaced the Tidy run; its progress is `agent.run`.
-    tidy: { ...store.tidySummary(), running: false },
+    tidy: store.tidySummary(),
     agent: {
       waiting: store.waitingCounts(),
       run: store.latestRun(),

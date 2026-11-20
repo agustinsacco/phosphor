@@ -1,3 +1,4 @@
+import { decideRead } from './__fixtures__/decide-read'
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -57,7 +58,8 @@ it('queues a lane, completes review, refreshes search and exposes bounded explor
   const job = (await s.service.api.status()).jobs[0]!,
     p = await s.service.api.proposal(job.id)
   expect(p.memories).toHaveLength(1)
-  await s.service.api.review(
+  await decideRead(
+    s.service,
     job.id,
     { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     p.revision,
@@ -91,12 +93,15 @@ it('stale review requeues identity/reconcile from extract checkpoints instead of
   const job = (await s.service.api.status()).jobs[0]!
   s.store.rev++
   await expect(
-    s.service.api.review(
+    decideRead(
+      s.service,
       job.id,
       { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
       0,
     ),
-  ).rejects.toThrow('Brain changed; refreshing this review')
+  ).rejects.toThrow(
+    'Brain refreshed this read since you read it. Read it again with brain_read_review, then decide.',
+  )
   expect(s.store.reviews).toEqual([])
   await review(s.service)
   expect(s.runner.mock.calls.filter(([c]) => c.stage === 'extract')).toHaveLength(1)
@@ -207,7 +212,8 @@ it('rereads a finished lane through busy waiting, rejects missing files and unfi
   await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
   await review(s.service)
   const old = s.store.snapshot().jobs[0]!
-  await s.service.api.review(
+  await decideRead(
+    s.service,
     old.id,
     { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     s.store.rev,
@@ -259,7 +265,8 @@ it('approving one of three reviews leaves the other two to refresh when opened, 
   const starts = ids.map((id) => s.store.job(id)!.startedAt)
   s.runner.mockClear()
   const proposal = await s.service.api.proposal(ids[0]!)
-  await s.service.api.review(
+  await decideRead(
+    s.service,
     ids[0]!,
     { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
     proposal.revision,

@@ -152,12 +152,16 @@ describe('portable startup', () => {
     await h.registry.disposeAll()
   })
 
-  it('gives the pi stub no recall', async () => {
+  it('gives the pi stub recall only when the Desktop test runtime opts in', async () => {
     const h = sessionFixture()
     vi.mocked(h.runtime.launch).mockResolvedValue({ stub: true, env: {}, extensions: [] } as never)
     h.runtime.recall = vi.fn(async () => ({ env: {}, extensions: ['/x'], skills: [] }))
-    await h.spawn({ workspacePath: '/repo' }, h.sink).catch(() => undefined)
+    await h.spawn({ workspacePath: '/repo' }, h.sink)
     expect(h.runtime.recall).not.toHaveBeenCalled()
+    h.runtime.stubRecall = () => true
+    await h.spawn({ workspacePath: '/brain/Brain' }, h.sink)
+    expect(h.runtime.recall).toHaveBeenCalledWith('/brain/Brain')
+    expect(h.clients[1]!.options.extensions).toContain('/x')
     await h.registry.disposeAll()
   })
 })
