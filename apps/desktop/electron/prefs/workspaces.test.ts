@@ -108,8 +108,7 @@ describe('workspace preferences', () => {
     const s = getStore()
     s.set('recentWorkspaces', [workspace('/harbor')])
     s.set('lastWorkspacePath', '/harbor')
-    const record = recordWorkspace as (...args: unknown[]) => void
-    record(getStore, '/brain/Brain', 'Brain', { last: false })
+    recordWorkspace(getStore, '/brain/Brain', 'Brain', { last: false })
     expect(s.get('recentWorkspaces').map(({ path }) => path)).toEqual(['/harbor', '/brain/Brain'])
     expect(s.get('lastWorkspacePath')).toBe('/harbor')
     recordWorkspace(getStore, '/brain/Brain', 'Brain')

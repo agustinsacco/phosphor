@@ -57,7 +57,7 @@ const agentLane = (folder: string) =>
   createBrainAgentLane({
     folder,
     transcripts: (cwd) => sessionDirForCwd(cwd),
-    create: (options) => spawnSession(options),
+    create: (options, execution) => spawnSession(options, undefined, execution),
     client: (sessionId) => registry.get(sessionId)?.client,
     command: (sessionId, command) => desktopSessions.command(sessionId, command),
     changed: (workspacePath) => broadcast('sessions:changed', { workspacePath }),

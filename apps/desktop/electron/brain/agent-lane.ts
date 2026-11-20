@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { BRAIN_AGENT_NAME } from '@phosphor/shared/brain-agent'
 import type { BrainAgentHost, BrainAgentTurn } from '@phosphor/brain-runtime/types'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
+import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
 import { ensureBrainLane, readBrainRules } from './lane-folder'
@@ -22,7 +23,7 @@ export interface BrainLaneDeps {
   /** pi's transcript folder for `folder` (`sessionDirForCwd`). */
   transcripts(folder: string): string
   /** `spawnSession` with no target, not unattended: the live lane when it is already open. */
-  create(options: CreateSessionOptions): Promise<LiveSessionInfo>
+  create(options: CreateSessionOptions, execution: SessionExecution): Promise<LiveSessionInfo>
   client(sessionId: string): BrainLaneClient | undefined
   /** `desktopSessions.command`, so a prompt gets the usual preflight. */
   command(sessionId: string, command: RpcCommand): Promise<RpcResponse>
@@ -130,10 +131,11 @@ async function open(
   started: (sessionPath: string | null) => void,
 ): Promise<OpenLane> {
   const sessionPath = await newestTranscript(deps.transcripts(deps.folder))
-  const live = await deps.create({
-    workspacePath: deps.folder,
-    ...(sessionPath ? { sessionPath } : { name: BRAIN_AGENT_NAME }),
-  })
+  // Defrag never moves the folder Phosphor reopens at launch; the owner opening the lane does.
+  const live = await deps.create(
+    { workspacePath: deps.folder, ...(sessionPath ? { sessionPath } : { name: BRAIN_AGENT_NAME }) },
+    { keepLastWorkspace: true },
+  )
   const client = deps.client(live.sessionId)
   if (!client) throw new Error(BRAIN_LANE_CLOSED)
   // The registry matches an opened path on the transcript pi reports. Asking now means the owner
