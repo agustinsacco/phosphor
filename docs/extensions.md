@@ -628,10 +628,11 @@ without them it registers nothing. `brain-fork-guard.mjs` loads only into
 Brain's private, session-less model calls and blocks every tool call.
 
 Both Brain bundles take the two variables out of pi's environment when they
-load (`takeBrainConnection` in brain-client's `node-transport.ts`), so no bash
-command, MCP server or sub-agent the lane starts can reach the bridge. The
-connection stays on `globalThis` for the extension's own reloads in that pi
-process.
+load (`takeBrainConnection` in brain-client's `node-transport.ts`). Bash
+commands, MCP servers and sub-agents started after that do not inherit them.
+An earlier extension can still pass them to a child it starts while loading.
+The connection stays on `globalThis` for the extension's own reloads in that
+pi process.
 
 `brain-curator.mjs` (sources `brain-curator.ts` and `brain-curator-writes.ts`)
 loads into the Brain lane, the lane in `<userData>/brain/Brain`, in place of
