@@ -32,7 +32,7 @@ function searchPort(path: string): BrainSearchPort {
   }
 }
 
-export async function realService() {
+export async function realService(overrides: Partial<BrainServiceOptions> = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'brain-tidy-integration-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const store = openBrainStore({ path: join(directory, 'brain.sqlite'), Database: DatabaseSync })
@@ -72,6 +72,7 @@ export async function realService() {
     },
     guardExtension: '/made-up/guard.mjs',
     recall: { extension: '/made-up/brain.mjs', skill: '/made-up/brain' },
+    ...overrides,
   }
   const service = await createBrainService(options)
   cleanups.push(() => service.dispose())
@@ -90,6 +91,26 @@ const SUMMARIES = [
 export async function approveRead(
   store: BrainStore,
   service: BrainService,
+  options: BrainServiceOptions,
+  summaries = SUMMARIES,
+) {
+  const job = await proposeRead(store, options, summaries)
+  return service.api.review(
+    job.id,
+    {
+      memories: summaries.map((_, i) => i),
+      identities: {},
+      groups: [],
+      descriptions: [],
+      confirmations: [],
+    },
+    store.knowledgeRevision(),
+  )
+}
+
+/** A read waiting in review with one proposed memory per summary. */
+export async function proposeRead(
+  store: BrainStore,
   options: BrainServiceOptions,
   summaries = SUMMARIES,
 ) {
@@ -155,17 +176,7 @@ export async function approveRead(
     })),
     evidence: evidence(summaries, job.sessionId),
   })
-  return service.api.review(
-    job.id,
-    {
-      memories: summaries.map((_, i) => i),
-      identities: {},
-      groups: [],
-      descriptions: [],
-      confirmations: [],
-    },
-    store.knowledgeRevision(),
-  )
+  return store.job(job.id)!
 }
 
 function evidence(summaries: string[], sessionId: string): Proposal['evidence'] {
