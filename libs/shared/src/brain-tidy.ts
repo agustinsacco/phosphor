@@ -45,10 +45,36 @@ export type BrainTidyAction =
   | { kind: 'keep' }
   /** "Not the same; remove this name from X": the shared name leaves one record. */
   | { kind: 'unname'; entityId: string; name: string }
+/** Who made a change: you on the Brain page, the local pass, or Brain Agent. */
+export type BrainChangeWho = 'you' | 'automatic' | 'agent'
 export interface BrainTidyOperation {
   id: string
-  kind: 'merge' | 'fold' | 'dispute' | 'replace' | 'split' | 'unname' | 'describe'
-  automatic: boolean
+  kind:
+    | 'merge'
+    | 'fold'
+    | 'dispute'
+    | 'replace'
+    | 'split'
+    | 'unname'
+    | 'describe'
+    /** Brain Agent approved or rejected a read; undo puts it back to waiting. */
+    | 'approve'
+    | 'reject'
+    /** Brain Agent kept both sides of a suggestion; undo reopens it. */
+    | 'keep'
+    /** Brain Agent replaced a memory with a corrected one citing a source. */
+    | 'correct'
+    /** Brain Agent erased a memory. Final: only its reason is kept, never its text. */
+    | 'erase'
+  who: BrainChangeWho
+  /** Brain Agent's one-sentence reason; null for your own and automatic changes. */
+  reason: string | null
+  /** The Defrag run that made it; null outside a run. */
+  runId: string | null
+  /** The read an approve or reject decided. */
+  jobId: string | null
+  /** False once undone, for erasures, and once an erasure or the journal limit took its record. */
+  undoable: boolean
   summary: string
   createdAt: number
   undoneAt: number | null

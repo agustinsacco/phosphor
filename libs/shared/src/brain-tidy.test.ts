@@ -44,7 +44,18 @@ it('freezes the engine-owned action availability fields on suggestion details', 
 
 it('freezes the reversible operation kinds and the run model and settled count', () => {
   expectTypeOf<BrainTidyOperation['kind']>().toEqualTypeOf<
-    'merge' | 'fold' | 'dispute' | 'replace' | 'split' | 'unname' | 'describe'
+    | 'merge'
+    | 'fold'
+    | 'dispute'
+    | 'replace'
+    | 'split'
+    | 'unname'
+    | 'describe'
+    | 'approve'
+    | 'reject'
+    | 'keep'
+    | 'correct'
+    | 'erase'
   >()
   expectTypeOf<BrainTidyRun['model']>().toEqualTypeOf<string | null>()
   expectTypeOf<BrainTidyRun['settled']>().toEqualTypeOf<number>()

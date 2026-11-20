@@ -122,4 +122,7 @@ function registerTidyHandlers(api: () => Promise<BrainApi>): void {
   handle('brain:tidyUndo', async (_event, value, revision) =>
     (await api()).tidyUndo(id(value), revisionOf(revision)),
   )
+  handle('brain:defrag', async () => (await api()).defrag())
+  handle('brain:defragStop', async () => (await api()).defragStop())
+  handle('brain:undoRun', async (_event, run) => (await api()).undoRun(id(run)))
 }

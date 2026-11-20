@@ -26,6 +26,7 @@ import type {
   BrainProposalView,
   BrainReviewDecision,
   BrainStatus,
+  BrainUndoRunResult,
 } from '../brain'
 
 /** UI commands. Authority comes from the Desktop handler, never this DTO. */
@@ -44,6 +45,12 @@ export interface BrainInvokeMap {
   'brain:tidyDismiss': { args: [id: string, revision: number]; result: BrainStatus }
   'brain:tidyChanges': { args: [limit: number]; result: BrainTidyChanges }
   'brain:tidyUndo': { args: [operationId: string, revision: number]; result: BrainStatus }
+  /** Starts Defrag, or queues it behind reads already queued. Refused while one is queued or running. */
+  'brain:defrag': { args: []; result: BrainStatus }
+  /** Stops the queued or running Defrag. Changes it already made stay and can be undone. */
+  'brain:defragStop': { args: []; result: BrainStatus }
+  /** Undoes every change of a Defrag run that can still be undone. Erasures stay. */
+  'brain:undoRun': { args: [runId: string]; result: BrainUndoRunResult }
   'brain:entities': {
     args: [
       kind: BrainEntityKind | null,

@@ -132,6 +132,9 @@ async function directBrainFailures(page: Page): Promise<string[]> {
         () => window.phosphor.invoke('brain:tidyDismiss', 'synthetic-suggestion', 0),
         () => window.phosphor.invoke('brain:tidyChanges', 20),
         () => window.phosphor.invoke('brain:tidyUndo', 'synthetic-operation', 0),
+        () => window.phosphor.invoke('brain:defrag'),
+        () => window.phosphor.invoke('brain:defragStop'),
+        () => window.phosphor.invoke('brain:undoRun', 'synthetic-run'),
       ].map(async (request) => {
         try {
           await request()
@@ -520,6 +523,6 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       .getByRole('button', { name: 'Brain' }),
   ).toHaveCount(0)
   const failures = await directBrainFailures(page)
-  expect(failures).toHaveLength(32)
+  expect(failures).toHaveLength(35)
   for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
 })

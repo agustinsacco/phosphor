@@ -68,7 +68,11 @@ beforeEach(() => {
       {
         id: 'op-1',
         kind: 'merge',
-        automatic: false,
+        who: 'you',
+        reason: null,
+        runId: null,
+        jobId: null,
+        undoable: true,
         summary: 'Merged Rina into Rina Okafor',
         createdAt: NOW - 60_000,
         undoneAt: null,

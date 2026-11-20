@@ -46,10 +46,36 @@ export interface BrainServiceOptions {
   guardExtension: string
   /** Recall extension and skill handed to lane agents when recall is on. */
   recall: { extension: string; skill: string }
+  /** Runs Brain Agent's turns in the Brain lane. Absent where no Brain lane can run. */
+  agent?: BrainAgentHost
   /** Called whenever status changes (queue, download, review), so the UI can refresh. */
   onChange?: () => void
   log?: (message: string, data?: Record<string, unknown>) => void
   now?: () => number
+}
+
+/** How one Defrag turn in the Brain lane ended. */
+export interface BrainAgentTurn {
+  outcome: 'finished' | 'stopped' | 'failed'
+  error: string | null
+  sessionPath: string | null
+  /** The Brain lane's AGENTS.md changed during the turn. */
+  rulesChanged: boolean
+}
+/** Desktop owns the Brain lane; the runtime only asks it for one turn at a time. */
+export interface BrainAgentHost {
+  /** Real path of the Brain lane's folder. Brain never reads lanes there. */
+  folder: string
+  /**
+   * Sends `message` as an ordinary prompt in the Brain lane, starting or resuming the lane, and
+   * resolves when that turn ends. Aborting `signal` stops the turn and resolves `stopped`.
+   * `started` reports the lane's transcript as soon as it is known.
+   */
+  turn(
+    message: string,
+    signal: AbortSignal,
+    started: (sessionPath: string | null) => void,
+  ): Promise<BrainAgentTurn>
 }
 
 /** What session startup adds to a lane when Brain and recall are on. */

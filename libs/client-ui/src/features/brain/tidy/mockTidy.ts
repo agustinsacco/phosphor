@@ -43,7 +43,7 @@ export class MockTidy {
   ) {}
 
   summary(): BrainTidySummary {
-    const automatic = this.operations.filter((op) => op.automatic && !op.undoneAt)
+    const automatic = this.operations.filter((op) => op.who === 'automatic' && !op.undoneAt)
     return {
       ...emptyBrainTidySummary(),
       open: this.initialized
@@ -81,7 +81,7 @@ export class MockTidy {
             (d) => d.memory.id !== 'tidy-exact-repeat',
           )
         })
-        this.operations[0]!.automatic = true
+        this.operations[0]!.who = 'automatic'
         this.state.revision++
         run.folded++
       }
@@ -158,7 +158,11 @@ export class MockTidy {
       kind,
       summary,
       suggestionId,
-      automatic: false,
+      who: 'you',
+      reason: null,
+      runId: null,
+      jobId: null,
+      undoable: true,
       createdAt: this.now(),
       undoneAt: null,
     })

@@ -1,4 +1,8 @@
 import type { BrainTidyRun } from '@phosphor/shared/brain-tidy'
+
+const unfaked = (): never => {
+  throw new Error('Not faked')
+}
 import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
 import {
   emptyBrainTidySummary,
@@ -322,6 +326,21 @@ export class FakeBrainStore implements BrainStore {
   pendingPairs = () => []
   recordVerdicts = () => ({ recorded: 0, settled: 0 })
   flag = () => ({ status: 'filed' as const, suggestionId: 'flag' })
+  // Brain Agent. Tests that exercise it replace these.
+  waitingCounts = () => ({ reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 })
+  waitingSuggestions = () => ({ items: [], more: 0 })
+  agentSuggestion = () => null
+  decideRead = unfaked
+  resolve = unfaked
+  agentEdit = unfaked
+  correct = unfaked
+  erase = unfaked
+  agentUndo = unfaked
+  createRun = unfaked
+  updateRun = unfaked
+  latestRun = () => null
+  interruptRuns = () => undefined
+  undoRun = unfaked
   merge(): string {
     this.rev++
     return 'operation'

@@ -27,6 +27,7 @@ import type {
   BrainProposalView,
   BrainReviewDecision,
   BrainStatus,
+  BrainUndoRunResult,
 } from '../brain'
 
 import type { BrainInvokeMap } from './brain'
@@ -47,6 +48,9 @@ export interface BaselineBrainInvokeMap {
   'brain:tidyDismiss': { args: [id: string, revision: number]; result: BrainStatus }
   'brain:tidyChanges': { args: [limit: number]; result: BrainTidyChanges }
   'brain:tidyUndo': { args: [operationId: string, revision: number]; result: BrainStatus }
+  'brain:defrag': { args: []; result: BrainStatus }
+  'brain:defragStop': { args: []; result: BrainStatus }
+  'brain:undoRun': { args: [runId: string]; result: BrainUndoRunResult }
 
   'brain:history': { args: [limit: number]; result: BrainHistory }
   'brain:reread': { args: [jobId: string]; result: BrainStatus }

@@ -15,6 +15,7 @@ import {
   type LaneSelection,
 } from './laneGroups'
 import { brainLaneTitle } from '../laneTitle'
+import { CHANGE_WHO } from './ChangeDetail'
 
 /** Reads by state, then Recent changes; one selectable row each. */
 export function LaneList({
@@ -70,7 +71,7 @@ export function LaneList({
               <li key={change.id} className="flex items-start gap-1">
                 <LaneRowButton
                   title={change.summary}
-                  line={`${change.automatic ? 'Automatic' : 'By you'} · ${relativeTime(change.createdAt)}${change.undoneAt ? ' · Undone' : ''}`}
+                  line={`${CHANGE_WHO[change.who]} · ${relativeTime(change.createdAt)}${change.undoneAt ? ' · Undone' : ''}`}
                   selected={key === `change:${change.id}`}
                   onClick={() => onSelect({ type: 'change', id: change.id })}
                 />

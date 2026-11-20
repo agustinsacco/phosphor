@@ -218,6 +218,18 @@ it('forwards the reviewed Tidy channels and revision-bearing entity edits unchan
   ])
 })
 
+it('forwards the Defrag channels unchanged', async () => {
+  electron.ipcRenderer.invoke.mockResolvedValue({})
+  await api.invoke('brain:defrag')
+  await api.invoke('brain:defragStop')
+  await api.invoke('brain:undoRun', 'run')
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
+    ['brain:defrag'],
+    ['brain:defragStop'],
+    ['brain:undoRun', 'run'],
+  ])
+})
+
 it('preserves a null Tidy detail when Forget or Reset removed its suggestion', async () => {
   const response = Promise.resolve(null)
   electron.ipcRenderer.invoke.mockReturnValue(response)

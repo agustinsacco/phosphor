@@ -8,6 +8,7 @@ import {
   DEFAULT_BRAIN_PREFS,
   type BrainAgentMethod,
 } from './brain'
+import { BRAIN_CURATOR_METHODS, BRAIN_LANE_METHODS } from './brain-agent'
 
 it('starts off, with recall and review on for when it is enabled', () => {
   expect(DEFAULT_BRAIN_PREFS).toEqual({
@@ -19,9 +20,41 @@ it('starts off, with recall and review on for when it is enabled', () => {
   })
 })
 
-it('gives lane agents search and flags, never approval, queueing or forgetting', () => {
-  expect(BRAIN_PROTOCOL).toBe(5)
-  expectTypeOf<BrainAgentMethod>().toEqualTypeOf<'search' | 'flag'>()
+it('gives lane agents search and flags; only the Brain lane decides, edits and erases', () => {
+  expect(BRAIN_PROTOCOL).toBe(6)
+  expect(BRAIN_LANE_METHODS).toEqual(['search', 'flag'])
+  expect([...BRAIN_CURATOR_METHODS].sort()).toEqual(
+    [
+      'correct',
+      'decideRead',
+      'edit',
+      'entity',
+      'erase',
+      'memory',
+      'readReview',
+      'resolve',
+      'search',
+      'suggestion',
+      'undo',
+      'waiting',
+    ].sort(),
+  )
+  expect(BRAIN_CURATOR_METHODS).not.toContain('flag')
+  expectTypeOf<BrainAgentMethod>().toEqualTypeOf<
+    | 'search'
+    | 'flag'
+    | 'waiting'
+    | 'readReview'
+    | 'suggestion'
+    | 'entity'
+    | 'memory'
+    | 'decideRead'
+    | 'resolve'
+    | 'edit'
+    | 'correct'
+    | 'erase'
+    | 'undo'
+  >()
 })
 
 it('pins the graph schema the extractor, engine and UI share', () => {

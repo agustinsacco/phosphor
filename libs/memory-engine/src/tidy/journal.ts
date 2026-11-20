@@ -56,6 +56,11 @@ const SUMMARIES: Record<BrainTidyOperation['kind'], string> = {
   split: 'Split one record into two',
   unname: 'Removed a name from a record',
   describe: 'Changed a description',
+  approve: 'Approved a read',
+  reject: 'Rejected a read',
+  keep: 'Kept both as they are',
+  correct: 'Corrected a memory',
+  erase: 'Erased a memory',
 }
 /** Operations that settle a pair; undoing one keeps the pair apart. */
 const PAIR_KINDS = new Set(['merge', 'fold', 'dispute', 'replace'])

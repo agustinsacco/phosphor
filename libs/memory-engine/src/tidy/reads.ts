@@ -91,10 +91,27 @@ export function detail(ctx: Context, id: string): BrainTidySuggestionDetail | nu
 }
 export function changes(ctx: Context, limit: number): BrainTidyChanges {
   limitOf(limit)
-  const rows = all<Omit<BrainTidyOperation, 'automatic'> & { automatic: number }>(
+  const rows = all<
+    Pick<
+      BrainTidyOperation,
+      'id' | 'kind' | 'summary' | 'createdAt' | 'undoneAt' | 'suggestionId'
+    > & { automatic: number; journaled: number }
+  >(
     ctx,
-    `SELECT id,kind,automatic,summary,created_at AS createdAt,undone_at AS undoneAt,suggestion_id AS suggestionId FROM tidy_operations WHERE kind IN ('merge','fold','dispute','replace','split','unname','describe') ORDER BY created_at DESC,id DESC LIMIT ?`,
+    `SELECT o.id,o.kind,o.automatic,o.summary,o.created_at AS createdAt,o.undone_at AS undoneAt,o.suggestion_id AS suggestionId,
+      EXISTS(SELECT 1 FROM tidy_operation_rows r WHERE r.operation_id=o.id) AS journaled
+      FROM tidy_operations o WHERE o.kind IN ('merge','fold','dispute','replace','split','unname','describe') ORDER BY o.created_at DESC,o.id DESC LIMIT ?`,
     limit,
   )
-  return { items: rows.map((r) => ({ ...r, automatic: !!r.automatic })), revision: revision(ctx) }
+  return {
+    items: rows.map(({ automatic, journaled, ...r }) => ({
+      ...r,
+      who: automatic ? 'automatic' : 'you',
+      reason: null,
+      runId: null,
+      jobId: null,
+      undoable: r.undoneAt === null && journaled === 1,
+    })),
+    revision: revision(ctx),
+  }
 }

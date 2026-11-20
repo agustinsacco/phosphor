@@ -29,6 +29,9 @@ const api = {
   entityMemories: vi.fn(async () => 'memories'),
   neighbourhood: vi.fn(async () => 'graph'),
   find: vi.fn(async () => 'found'),
+  defrag: vi.fn(async () => 'started'),
+  defragStop: vi.fn(async () => 'stopped'),
+  undoRun: vi.fn(async () => 'undone'),
 }
 const call = (channel: string, ...args: unknown[]) => handlers.get(channel)!({}, ...args)
 
@@ -42,6 +45,16 @@ it('registers every Brain channel in the shared contract', () => {
     .filter((channel) => channel.startsWith('brain:'))
     .sort()
   expect([...handlers.keys()].sort()).toEqual(brain)
+})
+
+it('starts and stops Defrag, and refuses an invalid run id before undoing a run', async () => {
+  await expect(call('brain:defrag')).resolves.toBe('started')
+  await expect(call('brain:defragStop')).resolves.toBe('stopped')
+  await expect(call('brain:undoRun', 'run-1')).resolves.toBe('undone')
+  expect(api.undoRun).toHaveBeenCalledWith('run-1')
+  for (const bad of ['', 7, null, 'x'.repeat(201)])
+    await expect(call('brain:undoRun', bad)).rejects.toThrow()
+  expect(api.undoRun).toHaveBeenCalledTimes(1)
 })
 
 it('accepts the Brain switches and reader model', async () => {

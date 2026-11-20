@@ -13,7 +13,7 @@ it('approves, sweeps, checks without applying, then merges and undoes with a rea
   expect(status.counts).toEqual({ memories: 4, entities: 2 })
   expect(status.tidy).toMatchObject({ open: 7, automaticFolds: 1, running: false })
   const changes = await s.service.api.tidyChanges(50)
-  expect(changes.items).toMatchObject([{ kind: 'fold', automatic: true }])
+  expect(changes.items).toMatchObject([{ kind: 'fold', who: 'automatic', undoable: true }])
   const before = await s.service.api.tidy(null, null, 50)
   expect(before.counts).toEqual({ same_entity: 1, same_memory: 6, conflict: 0, flagged: 0 })
 

@@ -193,6 +193,13 @@ export function createApi(context: ApiContext): BrainApi {
       }
     },
     ...tidyApi(context, tidy, status, mutate),
+    defrag: async () => {
+      throw new Error('Defrag is not available in this build.')
+    },
+    defragStop: async () => status(),
+    undoRun: async () => {
+      throw new Error('Defrag is not available in this build.')
+    },
     ...readApi(context),
     forget: async (id) => mutate(() => store.forget(id)),
   }
@@ -280,6 +287,11 @@ function apiStatus({ store, options }: ApiContext, tidy: TidyRunner): BrainStatu
     tidy: {
       ...store.tidySummary(),
       running: ['queued', 'sweeping', 'checking'].includes(tidy.current()?.state ?? ''),
+    },
+    agent: {
+      waiting: store.waitingCounts(),
+      run: store.latestRun(),
+      folder: options.agent?.folder ?? null,
     },
     supported: embedding.phase !== 'unsupported',
     embedding,

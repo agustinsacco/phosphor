@@ -33,7 +33,8 @@ it('describes a record, finds it by the new words, and undoes it exactly', () =>
     id: op,
     kind: 'describe',
     summary: 'Changed the description of Harbor',
-    automatic: false,
+    who: 'you',
+    undoable: true,
   })
   store.tidyUndo(op, store.revision())
   expect(dump(db)).toEqual(before)
