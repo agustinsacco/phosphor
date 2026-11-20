@@ -90,3 +90,26 @@ it('Forget removes an approval snapshot, and erase removes another read snapshot
         .get(operation),
     ).toEqual({ n: 0 })
 })
+it('drops other read undo snapshots even when JSON escapes the erased sentence', () => {
+  const { store, db } = fixture()
+  const summary = 'Rina said "Ledger uses Kestrel".'
+  const first = store.enqueue(lane(), 'queued')
+  const data = extraction(first.id)
+  data.memories[0]!.summary = summary
+  store.propose(data)
+  const approved = store.decideRead(
+    first.id,
+    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
+    0,
+    note,
+  )
+  const second = store.enqueue(lane({ sessionId: 'ledger-lane' }), 'queued')
+  store.propose({ ...data, jobId: second.id, computedRevision: store.knowledgeRevision() })
+  const rejected = store.decideRead(second.id, null, store.knowledgeRevision(), note)
+  store.erase(approved.touched.memoryIds[0]!, note)
+  expect(
+    db
+      .prepare('SELECT COUNT(*) AS n FROM tidy_operation_rows WHERE operation_id=?')
+      .get(rejected.operationId),
+  ).toEqual({ n: 0 })
+})
