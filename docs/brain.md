@@ -515,7 +515,8 @@ entities nothing else uses; entities named only by superseded memories stay.
   map with the route lit.
 - **Merge into…**: folds this record into another after a typed confirmation that shows both
   descriptions and memory counts. Names, keys, links and memories move; the source is deleted
-  and the merge is journaled.
+  and the merge is journaled. A profile whose record a merge removed, by hand or during Defrag,
+  follows its survivor: reads by a removed id return the survivor, and writes refuse it.
 - **Split…** moves the ticked memories (and the links they support) to a new record with its own
   name and kind; at least one memory stays. **Remove a name…** lists the other names; the label
   cannot be removed. **Edit description…** is one field of at most 160 characters. Each sends the
@@ -577,8 +578,8 @@ not an assertion that every browse query has constant work at a million memories
 
 ## Inspecting a finished read
 
-A Read row on Lanes, **See how it was read** in a review, or **See the read** on a memory opens
-the read. Lanes selects its row when the list has one; an older read outside the newest 200
+A Read row on Lanes, **See how it was read** in a waiting read, **See the read** on a change, or
+**See the read** on a memory opens the read. Lanes selects its row when the list has one; an older read outside the newest 200
 stays open without a fabricated row. Missing records offer Retry.
 
 The header shows the lane, the model, how long the read took in words (the time the model spent
@@ -590,9 +591,9 @@ continues, or “New messages since the previous read” when that read is no lo
 the actions: **Read new messages** reads only what came after this read and is off when nothing
 came; **Read again** (finished `done` reads only) reads the whole lane after a confirmation that
 says how many earlier memories will be replaced; **Dismiss** removes an empty read; **Open
-lane**. **See these memories · N memories**, closed at first, opens each memory on Knowledge (a
-review's **See how it was read** shows the same list open, as **Memories from this lane**).
-**What happened to each claim** lists each candidate with its outcome and reason, the first
+lane**. **See these memories · N memories**, closed at first, opens each memory on Knowledge; a
+read none of whose memories is in Brain now says so. **What happened to each claim**, closed at
+first, lists each candidate with its outcome and reason, the first
 twenty with **Show more**; forgotten memories say “removed”, not a dead link. A remark about the read that keeps
 and drops nothing shows as “noted” and counts in none of the three. **How it was read
 · n calls** has one closed disclosure per call, named in plain words with part number and how
@@ -602,7 +603,7 @@ prompts and source text each scroll inside a capped box.
 
 **Source lane at extraction** is the scrubbed transcript through the frozen leaf. Records
 store no prompt text; a prompt whose inputs are gone says so. Records are kept while their job
-is in the inbox or is one of its lane's twenty retained finished reads, without an age limit.
+waits for Defrag or is one of its lane's retained finished reads, without an age limit.
 These jobs also keep step inputs, so finished-read prompts can be rebuilt. Removing or
 replacing a job deletes its step inputs. Records displaced by the twenty-read cap are deleted
 with their jobs. Any other record without a job survives only while a memory references it,
@@ -613,9 +614,10 @@ memory, the record is pruned immediately.
 
 `<userData>/brain/brain.sqlite` (`libs/memory-engine`, schema version 7, WAL) holds settings,
 the queue and its saved steps, proposals, extraction records, entities (names, aliases, keys),
-memories, mentions, supported relations, citations, evidence, float/sign-bit vectors, Tidy
-suggestions, a bounded operation journal, and the saved sweep cursor and run checkpoint.
-Full text search covers memories, entity words and entity name trigrams.
+memories, mentions, supported relations, citations, evidence, float/sign-bit vectors,
+suggestions, a bounded operation journal with Brain Agent's notes, Defrag runs, and the saved
+sweep cursor and run checkpoint. Full text search covers memories, entity words and entity name
+trigrams.
 
 Versions 4 and 5 upgrade in place in one transaction. Version 4 first gains the jobs
 `replaces` column and lane-memory/finished-read indexes; both versions then gain the Tidy
@@ -627,12 +629,18 @@ app refuses a version 7 Brain; it never resets it. Opening versions 0 to 3 delet
 knowledge, keeps preferences with review on, and starts a new generation, as **Reset Brain
 knowledge** does. The model lives under `<userData>/brain/embeddings`.
 
-### Tidy storage and local sweep
+Brain Agent adds no schema version. Its two tables, `agent_notes` (each change's run, read and
+reason) and `agent_runs`, are created when a store opens and by reset, with `CREATE TABLE IF NOT
+EXISTS`, so v0.1.675 can still open the database: it hides the new kinds of change and refuses to
+undo them. After a rollback to it, its Forget does not scrub rejected reads' saved proposals, and
+its pruning can undercount the erase cap.
+
+### Suggestions and the local sweep
 
 Suggestions have indexed kind, source, state, subject ids, reasons, verdict, reader model and
 lane-flag fields. A canonical two-subject pair key does not depend on its suggestion kind;
 dismissed and cleared pairs stay suppressed. A flag key combines the memory and lane session;
-flag limits are under Tidy checks and lane flags. Missing or superseded memories refuse flags
+flag limits are under Lane flags. Missing or superseded memories refuse flags
 without changing the revision.
 Known states are validated on write; unfamiliar future kinds are omitted from reads.
 Suggestion details remain readable after they settle, with only surviving subjects; a removed
@@ -643,21 +651,21 @@ applicability from history, and an existing dispute cannot be added twice. Settl
 subjects offer no actions. A same person or thing pair whose records share a name also allows
 `unname` while one of them holds that name as an alias: it removes the name from that record
 (never its label), closes the pair as not the same, and is undoable like **Remove a name**.
-Every refusal is an error carrying one plain sentence the page shows; a stale revision is
-"Brain changed; refresh Tidy and try again." and writes nothing.
+Every refusal is an error carrying one plain sentence; a stale revision is "Brain changed;
+refresh Tidy and try again." and writes nothing.
 
 An approval commits before sweeping its touched records. Entity merges and undo also sweep
 changed mention sets. Inside the change, this maintenance sweeps at most 128 touched memories
 (lowest row numbers first). The rest lose their fingerprints and wait in memory; after the change
 returns, the runtime sweeps them 128 at a time, yielding between batches, refreshing search and
 notifying after each, and stopping on dispose or reset. If Phosphor closes first, the missing
-fingerprints bring those memories into the next Tidy check: when a whole-Brain pass reaches its last
+fingerprints bring those memories into the next Defrag's local pass: when a whole-Brain pass reaches its last
 memory, it reads the memory table in windows of 4,096 rows from a second cursor and sweeps the
 active memories that have no fingerprint, 128 per call. The pass is done only when that closing
 walk finds none left, so a memory deferred behind the cursor is covered in the same pass. Only a
 sweep writes a memory's fingerprint. A sweep failure emits a
-warning and does not roll back or report the saved approval/change as failed; running Tidy
-again retries local detection. Each whole-Brain
+warning and does not roll back or report the saved approval/change as failed; the next Defrag
+retries local detection. Each whole-Brain
 sweep call walks at most 128 entity or memory rows from a saved numeric cursor and fixed pass
 watermarks. Coverage reports records visited, totals, limited checks and pass completion, not an
 exhaustive comparison of every pair; the cursor's own fields never leave the engine. A pass in
@@ -684,20 +692,19 @@ Similarity only raises a question, never applies a change. Two memories supporti
 are not a defect.
 
 A near pair whose negation words differ in number (no, not, never, without, cannot, n't,
-instead of) is offered as **These disagree** with the reason "These may disagree.", and goes to
-the model check like any unjudged pair. Below 0.84 the sweep queues pairs **only for the model
-check**:
+instead of) is offered as a disagreement with the reason "These may disagree." Below 0.84 the
+sweep queues pairs **only as possible repeats** for Brain Agent:
 
 - a possible disagreement: two facts, two decisions or two preferences from different lanes or
   projects, at cosine 0.6 or above, sharing at least two people or things (disagreements across
   lanes usually score 0.55–0.75);
 - a looser paraphrase: any pair at 0.75 or above sharing at least two people or things.
 
-These are stored as kind `unchecked` and appear on no page, count, badge or action until the
-model answers: `same` shows the pair as **Said twice**, `conflict` or `replaces` as **These
-disagree**, and `different` clears it quietly. A surfaced pair counts as new from that moment. A
-memory queues at most two, one sweep call at most sixteen, and at most 400 wait unjudged; a
-fuller queue leaves the rest for the next pass and counts them as limited checks.
+These are stored as kind `unchecked` and appear on no page, count or badge. Defrag hands Brain
+Agent up to 40 of them per run, oldest first, and it decides each like a repeat: fold, both
+disputed, replace, or keep. A memory queues at most two, one sweep call at most sixteen, and at
+most 400 wait unchecked; a fuller queue leaves the rest for the next pass and counts them as
+limited checks.
 
 A sweep call caches up to 128 entity vector windows in least-recently-used order (about 96 MiB
 of vectors); eviction permits a re-read without changing candidates. Folds invalidate the
@@ -709,9 +716,8 @@ windows because mentions changed. Limited checks count:
 - more than 256 memories about one person or thing;
 - a name shared by more than 16 records.
 
-These are checks cut short, not distinct records or cache evictions. The page shows the count
-quietly under coverage and explains that a repeat could be missed there. An older partner beyond
-a memory window can be missed. A single memory scores at most 4 × 17 × 256 vectors before the
+These are checks cut short, not distinct records or cache evictions; a repeat could be missed
+there. An older partner beyond a memory window can be missed. A single memory scores at most 4 × 17 × 256 vectors before the
 shared best-32 cut.
 
 Only exact repeats fold automatically: the folded sentence, type, project scope, branch,
@@ -723,11 +729,13 @@ a copied quote with the same entry id is not independent support. Different scop
 or validity periods cannot be folded.
 
 Every merge, fold, dispute and replacement, and every entity edit (split, removed name,
-description), records a reversible operation. An entity edit captures only the tables it
-changes: a description only the record, a removed name only its names, a split its moved
-mentions and links and the record it created. The newest 200
-operations retain versioned, validated before-images of changed source rows, with an expected
-after-row digest. Unchanged rows an undo depends on are kept as guards: key and digest only,
+description), records a reversible operation, as do Brain Agent's approvals, rejections, keeps
+and corrections; its erasures record one that can't be undone (Brain Agent and Defrag). An
+entity edit captures only the tables it changes: a description only the record, a removed name
+only its names, a split its moved mentions and links and the record it created. Brain keeps the
+newest 200 operations, plus every change of the latest Defrag run and every erasure younger
+than an hour. A reversible one keeps versioned, validated before-images of changed source rows,
+with an expected after-row digest. Unchanged rows an undo depends on are kept as guards: key and digest only,
 never a before-image, and never a vector. A fold guards both memories' quotes, mentions, links
 and evidence. A merge guards only the memories whose mentions or relations it rewrote: their
 rows that name the survivor and their memory links. Float vectors use base64 blobs. Counts, FTS
@@ -753,9 +761,9 @@ safe operation ids/labels; an operation whose undo would restore forgotten text 
 That includes a description, name or merge label in any retained before-image that quotes the
 forgotten memory, whichever operation holds it.
 Folding scrubs removed subjects' suggestion text (even after undo), except on the suggestion the
-fold applies, which keeps its reason, so its settled detail still shows the model's sentence. An
+fold applies, which keeps its reason, so its settled detail still shows it. An
 open lane flag moves to the survivor if it has no open flag or prior flag from that lane; otherwise it closes. The fold's journal records the move, so undoing the fold puts the flag back on the memory the lane flagged, and Forget of that memory erases its flags wherever they sit. A merge can still be undone for its other memories. Reset erases
-all Tidy state as well as the knowledge. These guarantees do not change existing proposal and
+every suggestion, journal entry and Defrag run as well as the knowledge. These guarantees do not change existing proposal and
 extraction-record retention: source transcripts retained for finished reads can still contain
 the original statement until those records are removed under the retention rules above.
 
@@ -769,8 +777,8 @@ the original statement until those records are removed under the retention rules
   how it is known (observed, reported, inferred), its project, its branch when it only holds
   there, its lane, and its state (active, superseded, disputed).
 
-Extraction enforces these endpoint kinds (`BRAIN_LINK_RULES`). Review can re-point identities
-across kinds, so the engine does not enforce these rules.
+Extraction enforces these endpoint kinds (`BRAIN_LINK_RULES`). A decision can re-point
+identities across kinds, so the engine does not enforce these rules.
 
 | Link         | Subject kinds                                  | Object kinds                                           |
 | ------------ | ---------------------------------------------- | ------------------------------------------------------ |
