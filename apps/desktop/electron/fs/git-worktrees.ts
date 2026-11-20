@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { appendFile, mkdir, readFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AddWorktreeBranch, BranchInfo, StartPoint, WorktreeInfo } from '@shared/models'
@@ -20,6 +20,7 @@ import {
 } from '@phosphor/session-runtime/git/branch-landed'
 import { ghEvidence } from './gh-cli'
 import { mapLimit } from '@phosphor/session-runtime/map-limit'
+import { ensureExcluded } from './worktree-exclude'
 
 const execFileAsync = promisify(execFile)
 
@@ -288,23 +289,6 @@ async function enrichWithSync(
   } catch {
     // git < 2.41: no behind-trunk markers, everything else still works.
   }
-}
-
-/** Append `/.phosphor/` to .git/info/exclude once (never touches .gitignore). */
-export async function ensureExcluded(repoPath: string): Promise<void> {
-  const commonDir = (
-    await git(repoPath, ['rev-parse', '--path-format=absolute', '--git-common-dir'])
-  ).trim()
-  const excludePath = join(commonDir, 'info', 'exclude')
-  let existing = ''
-  try {
-    existing = await readFile(excludePath, 'utf8')
-  } catch {
-    // no exclude file yet
-  }
-  if (existing.split('\n').some((l) => l.trim() === '/.phosphor/')) return
-  await mkdir(join(commonDir, 'info'), { recursive: true })
-  await appendFile(excludePath, `${existing.endsWith('\n') || !existing ? '' : '\n'}/.phosphor/\n`)
 }
 
 export async function addWorktree(
