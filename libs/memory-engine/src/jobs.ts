@@ -184,17 +184,19 @@ export function requeueInterrupted(ctx: Context): void {
 export function retry(ctx: Context, id: string): BrainJob {
   const current = job(ctx, id)
   if (current?.state !== 'failed') throw new Error('Only failed Brain jobs can be retried.')
-  const later = one(
+  if (hasLaterRead(ctx, id))
+    throw new Error('A later read of this lane already covers these messages.')
+  return updateJob(ctx, id, { state: 'queued', error: null, finishedAt: null, progress: null })
+}
+/** Queue order, including tied timestamps, defines which read covers a lane's later messages. */
+export function hasLaterRead(ctx: Context, id: string): boolean {
+  return !!one(
     ctx,
-    `SELECT id FROM jobs WHERE session_id=? AND
-      (queued_at > ? OR (queued_at = ? AND rowid > (SELECT rowid FROM jobs WHERE id=?))) LIMIT 1`,
-    current.sessionId,
-    current.queuedAt,
-    current.queuedAt,
+    `SELECT 1 FROM jobs later JOIN jobs current ON later.session_id=current.session_id
+      WHERE current.id=? AND (later.queued_at > current.queued_at OR
+      (later.queued_at = current.queued_at AND later.rowid > current.rowid)) LIMIT 1`,
     id,
   )
-  if (later) throw new Error('A later read of this lane already covers these messages.')
-  return updateJob(ctx, id, { state: 'queued', error: null, finishedAt: null, progress: null })
 }
 export function part(
   ctx: Context,

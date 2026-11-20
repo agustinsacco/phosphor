@@ -1,5 +1,6 @@
 import { cleanNote, saveNote, pruneOperations, type JournalNote } from '../agent/notes'
 import { checkCreatedDependents } from '../agent/undo-reads'
+import { hasLaterRead } from '../jobs'
 import {
   captureMemoryGuards,
   checkDependents,
@@ -16,7 +17,7 @@ import { scrubExcerpt } from '../secrets'
 import { fingerprintMemories } from './fingerprints'
 import type { BrainTidyOperation } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
-import { bumpKnowledgeRevision, revision } from '../prefs'
+import { bumpKnowledgeRevision, bumpRevision, revision } from '../prefs'
 import { suppressPair } from './suggestions'
 import { affected, rebuild } from './projections'
 import {
@@ -252,6 +253,8 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     if (!op) throw new Error('This Brain change is no longer available to undo.')
     if (op.undone_at !== null) throw new Error('This Brain change was already undone.')
     if (op.kind === 'erase') throw new Error("Erasing can't be undone.")
+    if (['approve', 'reject'].includes(op.kind) && hasLaterRead(ctx, op.first_id))
+      throw new Error(LATER_CHANGES)
     const deltas = undoRows(ctx, id)
     if (!deltas.length && op.kind !== 'keep')
       throw new Error(
@@ -293,7 +296,8 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     run(ctx, 'UPDATE tidy_operations SET undone_at=? WHERE id=?', ctx.now(), id)
     run(ctx, 'DELETE FROM tidy_operation_rows WHERE operation_id=?', id)
     run(ctx, 'DELETE FROM tidy_operation_memories WHERE operation_id=?', id)
-    bumpKnowledgeRevision(ctx)
+    if (op.kind === 'reject' || op.kind === 'keep') bumpRevision(ctx)
+    else bumpKnowledgeRevision(ctx)
     return selection
   })
 }

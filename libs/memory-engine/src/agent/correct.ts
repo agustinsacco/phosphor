@@ -1,4 +1,4 @@
-import { all, one, run, transaction, type Context } from '../database'
+import { one, run, transaction, type Context } from '../database'
 import { reactivatePartners } from '../commit'
 import { nextNumber, bumpKnowledgeRevision } from '../prefs'
 import { scrubExcerpt } from '../secrets'
@@ -33,11 +33,6 @@ export function correct(
     )
     if (!old) throw new Error('This memory is no longer current.')
     const selection = memorySelection(ctx, old.n, old.n)
-    selection.entities = all<{ entity: number }>(
-      ctx,
-      'SELECT entity FROM mentions WHERE memory=?',
-      old.n,
-    ).map((r) => r.entity)
     const label = one<{ label: string }>(
       ctx,
       'SELECT e.label FROM mentions a JOIN entities e ON e.n=a.entity WHERE a.memory=? ORDER BY e.n LIMIT 1',

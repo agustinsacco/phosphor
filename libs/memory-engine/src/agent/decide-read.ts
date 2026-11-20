@@ -90,7 +90,7 @@ export function decideRead(
           : `Rejected ${title}`,
       },
       () => {
-        touched = reviewChange(ctx, jobId, decision, expected, true)
+        touched = reviewChange(ctx, jobId, decision, expected, true, 'agent')
         selection.entities.push(
           ...all<{ n: number }>(ctx, 'SELECT n FROM entities WHERE n>?', entityMax).map((r) => r.n),
         )
