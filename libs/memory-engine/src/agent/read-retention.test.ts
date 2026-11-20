@@ -110,12 +110,26 @@ it('bounds repeated agent approvals at 20 plus the newest decision by pruning on
       (db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE state='done'").get() as { n: number }).n,
     ).toBeLessThanOrEqual(21)
   }
-  store.enqueue(lane({ leafId: 'next-after-agent' }), 'queued')
-  expect(db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE state='done'").get()).toEqual({ n: 20 })
   const latest = operations.at(-1)!
   store.agentUndo(latest.operationId, note)
   expect(store.job(latest.jobId)?.state).toBe('review')
+  store.propose({
+    ...store.storedProposal(latest.jobId)!,
+    computedRevision: store.knowledgeRevision(),
+  })
+  const reapplied = store.decideRead(
+    latest.jobId,
+    { ...decision, memories: [0] },
+    store.proposal(latest.jobId).revision,
+    note,
+  )
+  store.enqueue(lane({ leafId: 'next-after-agent' }), 'queued')
+  expect(db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE state='done'").get()).toEqual({ n: 20 })
   const before = dump(db)
+  expect(() => store.agentUndo(reapplied.operationId, note)).toThrow(
+    'Later changes touch this Brain change',
+  )
+  expect(dump(db)).toEqual(before)
   expect(() => store.agentUndo(operations[0]!.operationId, note)).toThrow(
     'Later changes touch this Brain change',
   )
