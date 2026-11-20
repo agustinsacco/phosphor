@@ -2,9 +2,11 @@
 
 Brain is Desktop's machine-local knowledge graph. It learns only from lanes you queue: the
 reader model reads the lane in a few private, tool-less calls and proposes memories, the
-people, projects and systems they name, and how those connect. You approve them, and agents in
-every lane can recall them. It is off by default and Desktop-only; the browser client and Hosts
-refuse every `brain:*` channel (`libs/shared/src/ipc-web-exclusions.ts`).
+people, projects and systems they name, and how those connect. When you click **Defrag**,
+**Brain Agent**, the agent of an ordinary lane in Brain's own folder, decides what to save and
+cleans up what Brain holds. Agents in every lane can recall it. It is off by default and
+Desktop-only; the browser client and Hosts refuse every `brain:*` channel
+(`libs/shared/src/ipc-web-exclusions.ts`).
 
 ## Turning it on
 
@@ -13,130 +15,126 @@ the pinned local embedding model, EmbeddingGemma 300M Q4 (`BRAIN_EMBEDDING_MODEL
 with a progress bar; the switch's description links the Gemma Terms of Use. Once on, these rows
 appear:
 
-- **Recall in lanes** (default on): new lanes get the `brain_search` tool and the bundled `brain`
-  skill. Lanes already running pick it up when restarted.
-- **Review before saving** (default on): proposals wait for approval. Off approves them as soon
-  as a job finishes, with the defaults described under Review.
+- **Recall in lanes** (default on): new lanes get the `brain_search` and `brain_flag` tools and
+  the bundled `brain` skill. Lanes already running pick it up when restarted.
+- **Review before saving** (default on): finished reads wait for Defrag, where Brain Agent
+  decides them. Off saves each read as soon as it finishes, with the defaults described under
+  Waiting reads.
 - **Model that reads lanes** (default **Each lane's own model**): choose one provider/model for
   every queued lane, including lanes without a model. A job keeps the model it first starts with,
   even after this setting changes or you Retry it. Use **Use each lane's own model** to clear it.
   A stored setting is checked when read as well as when written: a malformed value reads as its
-  default.
+  default. This is the reader's model only: Brain Agent uses its own lane's model.
 - **Never read matching lane titles**: title patterns, seeded with `1:1`, `1-1`, `one on one`
   and `1on1`. They match case-insensitively, never inside a longer word or number (`Rina 1-1 prep`
   matches; `2021-11-12` does not). Add or remove up to fifty patterns of eighty characters each.
   The lane menu switches individual lanes (at most 5,000). A failed save retains the draft for retry.
 - **Knowledge**: counts and an Open Brain button.
-- **Reset Brain knowledge**: after a confirmation, deletes every memory, entity, job, proposal
-  and extraction record. Settings and the embedding model stay; review turns back on.
+- **Reset Brain knowledge**: after a confirmation, deletes every memory, entity, job, proposal,
+  extraction record, journal entry and Defrag run. Settings and the embedding model stay; review
+  turns back on.
 
-Turning Brain off keeps the model and all knowledge, stops the queue and removes recall from new
-lanes. **Remove model** appears only while Brain is off and the model is on disk. The Brain item
+Turning Brain off keeps the model and all knowledge, stops the queue, removes recall from new
+lanes and leaves the Brain lane without Brain Agent's tools. **Remove model** appears only while Brain is off and the model is on disk. The Brain item
 shows in the sidebar's top navigation only while Brain is on.
 
 ## The Brain page
 
-The header shows **Brain**, “N memories · M people and things”, **Go to anyone or anything**
-(`/`) and Settings. Three underlined tabs split the jobs: **Inbox** holds every decision,
-**Knowledge** is what Brain knows, and **Lanes** is where it came from. The Inbox tab and the
-sidebar's Brain item show how many decisions wait (“N to decide”: reviews, including those
-Brain is refreshing, plus open Tidy suggestions), hidden at zero. The Inbox opens first when something waits; otherwise Lanes
-opens when there are jobs but no memories, and Knowledge in every other case. Switching tabs
-keeps each tab's selection, the Knowledge trail and the selected read.
+The header shows **Brain**, “N memories · M people and things · K waiting”, **Go to anyone or
+anything** (`/`), Settings and **Defrag**. K counts what Defrag decides: reads waiting for it,
+people and things that may be one, repeats, disagreements and lane flags. Defrag's tooltip
+breaks K down (“31 waiting: 6 reads, 10 people and things, 13 repeats, 1 disagreement, 1
+flag”), leaving out kinds at zero. Defrag is off, with a tooltip saying why, while Brain is off
+(“Turn Brain on in Settings first.”), while a run is queued or running (“Defrag is already
+queued or running.”) and when nothing waits (“Nothing is waiting for Defrag.”). The sidebar's
+Brain item shows K, hidden at zero.
 
-One thin status strip under the tabs says what runs now: “Reading <lane> · <step> · N queued”
-or, while a review's refresh runs, “Refreshing the review of <lane>”, with a link to Lanes; and
-while Tidy checks, “Checking N of M pairs with <model>” with Cancel. It is empty when nothing
-runs; a refresh waiting its turn, or one whose answers are all cached and ends at once, may
-never show.
+Two underlined tabs split the jobs: **Knowledge** is what Brain knows, and **Lanes** is where it
+came from. Lanes opens first when there are reads but no memories, and Knowledge in every other
+case. Switching tabs keeps each tab's selection, the Knowledge trail and the selected read.
+Nothing on the page approves, rejects, merges or answers a question for a read: Brain Agent
+decides, and you inspect, undo and edit knowledge by hand under Exploring.
+
+One thin status strip under the tabs says what runs now. Its first line is the reader:
+“Reading <lane> · <step> · N queued”, or, while a read refreshes, “Refreshing the review of
+<lane>”, or “N lanes queued”, with a link to Lanes. A refresh waiting its turn, or one whose
+answers are all cached and ends at once, may never show. Its second line is the latest Defrag
+run, which stays until the next one starts:
+
+- queued: “Defrag starts after Brain finishes reading <lane>”, or “Defrag starts after the reads
+  already queued”;
+- running: “Brain Agent is defragging · 12 of 31 · 4 min”, with **Stop**: changes so far, what
+  waited when the run started, and whole minutes since;
+- finished: “Brain Agent decided 31 things and erased 2 · 9 min ago”, with **Undo run** while
+  any of its changes can still be undone;
+- stopped or failed: the same line, then “stopped” or the error;
+- then “Its rules changed during the run.” when Brain Agent's `AGENTS.md` changed.
+
+**Brain lane** opens Brain Agent's lane once the run has reached it; before that its tooltip
+says “The Brain lane is not available yet.” Undo run toasts “Undid N changes.”, adding “M stay:
+erasures, and changes later edits use.” when some stay. A refusal shows beside the buttons.
+Before the first Defrag the strip is empty while nothing reads.
 
 The frame stays put and only the panes scroll. Each tab is a list on the left and one thing
-in the middle; Inbox and Knowledge add a third column. When the page is about 1060 px wide or
-less, the third column goes (Knowledge's map becomes a **Map** tab in the profile), and at
-about 700 px or less the panes stack. The sizes are the page's own width, not the window's.
+in the middle; Knowledge adds a third column. When the page is about 1060 px wide or less, the
+third column goes (Knowledge's map becomes a **Map** tab in the profile), and at about 700 px
+or less the panes stack. The sizes are the page's own width, not the window's.
 
 Keys are scoped to the page and ignored in fields, dialogs and menus. `/` focuses the
 Knowledge search; ⌘K stays the global command palette.
 
-### Inbox
-
-The left column is the queue, grouped by kind with counts: **From lanes** (reads to review),
-**Same person or thing?**, **Said twice**, **These disagree** and **Flagged by a lane**. Empty
-groups disappear. Each row is a title and one line: “2 memories to review · read again”,
-“Refreshing · Brain changed since it was read” for a review Brain is recomputing, or a
-suggestion's reason. The queue loads the newest twenty suggestions; a kind shows its header and
-count even before any of its rows has loaded, and **Show N more** under it loads up to twenty
-more of that kind (`brain:tidy` with the kind), which later reloads keep. With nothing waiting
-it says “Nothing to decide.” and how decisions arrive. `j` and `k` move the selection, `a`
-takes the decision's primary action and `r` rejects a review; ↑ and ↓ move focus between rows.
-After a decision the next item opens: the one after it, else the one before. A reload never
-swaps the open suggestion for another: when newer suggestions push it beyond the loaded rows it
-stays open, last in its group, until it is applied, dismissed or cleared.
-
-Under the queue, **Tidy check** starts a check: **Check with <model>** (the pinned reader, or
-the newest read's model) or **Check for repeats** when no model is known. Its tooltip says
-Tidy looks for repeats on this computer and sends at most forty pairs to the model. Below it,
-one status line: the run's progress, or what the last run found, which model checked how many
-pairs, and how many the owner settled while it ran; then the coverage of the local pass and
-any checks cut short. No cost or token counts appear.
-
-The middle column shows one decision: a small group label, a title, the body, and a fixed
-action bar at the bottom whose refusals appear as a sentence beside the buttons, never as
-silence. The right column, **What Brain knows**, has a card for each person or thing involved
-(up to six): name, kind, description, memory and link counts and **Open profile**.
-
-**A Tidy suggestion** starts with its reason and one opinion line: “Found on this computer.”,
-“Flagged by a lane.”, or “Checked by <model>, which thinks …”, never a decision. The two sides
-sit side by side with their names, descriptions, memory counts, dates, scope and quotes; each
-opens on Knowledge. A pair of people or things offers **Merge into A** (the one with more
-memories; `a`), **Keep B instead** and **Not the same**, plus **Not the same; remove “X” from
-B** when Brain allows taking off a name one record holds as another name (never a label).
-Memory pairs offer what the engine allows: either side can survive a fold (**Keep this one**),
-both can stay disputed, or either can replace the other. When folding is refused, a quiet line
-gives the engine's reason. A lane flag offers **Keep**, or **Forget** after a confirmation, and
-says in one sentence who flagged what (“Harbor planning says this is outdated.”); a lane
-missing from the lane list shows as “A lane calling itself …”. Open the lane resolves only a
-lane the sidebar knows. Every change toasts with Undo. A suggestion settled elsewhere says so
-and the queue reloads; a changed revision says “Brain changed. Check this again.”
-
-Automatic folds produce one “Brain folded N exact repeats” toast and notice, which opens Lanes
-on Recent changes. New suggestions replace the single `brain:tidy` notice, “Brain has N things
-to tidy”, which opens the Inbox. A finished check announces its result only while the Inbox is
-not visible. Startup suggestions and falling counts are silent; turning Brain off removes its
-Tidy notices. While the page is visible and Brain is on, it checks status every ten seconds,
-or every two seconds during work; these reads never start a sweep or a model call.
+Brain has one notice. When a Defrag run ends while the page is not visible, it says “Brain
+Agent decided N things” (with “and erased M” when it erased any) and opens Lanes. Automatic
+exact-repeat folds outside a run reuse it: “Brain folded N exact repeats”, opening Lanes on
+Recent changes. Folds during a run belong to the run's result. Startup is silent, and turning
+Brain off removes the notice. While a window is visible and Brain is on, it checks status every
+ten seconds, or every two seconds during work; these reads never start a sweep or a model call.
 
 ### Lanes
 
-The left column lists reads by state, each group with its count: **Reading**, **Refreshing**,
-**Queued**, **Failed** and **Read** (the newest 200 finished reads, newest first, a row per
-read, so a lane read twice has two; rejected and empty reads join them; it says when there are
-more). Rows are the lane's title and one line: the reported step and how long it has run,
-“Refreshing for 2 min” (or “Waits to refresh” before its attempt starts), the queue position
-(“Queued 2 h ago · 1 ahead”, where a waiting refresh counts as ahead), the error, or
-“2 memories from this read · 5 min ago”: what that read kept that is still in Brain, so an older
-read that Read again replaced says 0. An empty read says “Nothing worth keeping” and a rejected
-one “Rejected”. Times are words (“3 min”, “1 h 20 min”), never a clock, and come from the
-current attempt (`runStartedAt`): a resumed, retried or refreshed read never counts from its
-first start, and no time is negative. **Recent changes** follows: the newest fifty Tidy journal
-operations with who made them (Automatic or By you), when, and **Undo**. **Never read** ends the
-list with one row, “2 title patterns · 1 lane switched off”. With nothing read it says
-“Right-click a lane and choose Queue for knowledge extraction.” A review waiting for the owner
-is not here; it belongs to the Inbox. While Brain refreshes one, it is listed under Refreshing
-as well.
+The left column lists reads by state, each group with its count: **Waiting for Defrag**,
+**Reading**, **Queued**, **Failed** and **Read** (the newest 200 finished reads, newest first, a
+row per read, so a lane read twice has two; rejected and empty reads join them; it says when
+there are more). Waiting for Defrag holds reads in review or refreshing: three rows, then “N
+more”. Rows are the lane's title and one line: “9 memories · read 5 min ago”, “Refreshing for 2
+min” (or “Waits to refresh” before its attempt starts), “9 memories · Brain never reads this
+lane”, the reported step and how long it has run, the queue position (“Queued 2 h ago · 1
+ahead”, where a refresh counts as ahead), the error, or “2 memories from this read · 5 min
+ago”: what that read kept that is still in Brain, so an older read that Read again replaced
+says 0. An empty read says “Nothing worth keeping” and a rejected one “Rejected”. Times are
+words (“3 min”, “1 h 20 min”), never a clock, and come from the current attempt
+(`runStartedAt`): a resumed, retried or refreshed read never counts from its first start, and
+no time is negative.
+
+**Recent changes** follows: the newest fifty journal operations, each with who made it (By you,
+Automatic or Brain Agent), when, and **Undo** only while it can still be undone. An undone
+change says “Undone”. An erasure reads “Erased a memory: <reason>” and “can't be undone”, with
+no Undo. **Never read** ends the list: “🧠 Brain Agent · Brain never reads its own lane”, then
+one row, “2 title patterns · 1 lane switched off”. With nothing read it says “Nothing read yet.
+Right-click a lane and choose Queue for knowledge extraction.”
 
 The middle column shows the selection. A reading job shows its model and step list (Prepare,
 Read the conversation (part x of y), Match people and things, Compare with what Brain knows,
 Index) and Cancel; a failed one shows the whole error with **Retry** and **Dismiss**. Both
 show the calls made so far, the claim outcomes and **Source lane at extraction** once a record
-exists, and “No calls yet.” before. A refreshing review says Brain changed since the lane was
-read, that there is nothing to do, and that the review opens in the Inbox once it is ready; it
-has no Cancel. **Never read** shows the title patterns in words (“A lane whose title contains
-“1:1”, “1-1”, “one on one” or “1on1”, in any case and not inside a longer word or number”), how
-many lanes are switched off one by one, and **Change in Settings**, which opens Settings ›
-Brain. A finished read is described under Inspecting a finished read. A change shows what it did, who, when, and Undo or when it was undone. A read asked for
-by id that the list does not show stays open; a listed read that disappears moves the
-selection on.
+exists, and “No calls yet.” before.
+
+A waiting read shows its lane, “Waits for Defrag · 9 memories · 2 questions · read 5 minutes
+ago” and “Brain Agent reviews this read in the next Defrag.”, or, for a lane the never-read
+rules match, “Brain Agent will reject this read: Brain never reads this lane.” The memories it
+proposes follow with their quotes, as proposed when the lane was read: opening a waiting read
+never starts a refresh, even when Brain changed since. A read Brain is refreshing says
+“Refreshing: Brain changed since this lane was read.” instead. **See how it was read** opens its
+record (Inspecting a finished read) with **Back to waiting read**.
+
+**Never read** shows the title patterns in words (“A lane whose title contains “1:1”, “1-1”,
+“one on one” or “1on1”, in any case and not inside a longer word or number”), says that Brain
+never reads its own lane, how many lanes are switched off one by one, and **Change in
+Settings**, which opens Settings › Brain. A finished read is described under Inspecting a
+finished read. A change shows what it did, who, when, Brain Agent's reason, **See the read** for
+an approval or rejection, and Undo or when it was undone. An erasure's detail says “Erasing
+can't be undone.” and its reason, never the memory's text. A read asked for by id that the list
+does not show stays open; a listed read that disappears moves the selection on.
 
 ## Queueing a lane
 
