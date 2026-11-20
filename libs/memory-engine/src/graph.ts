@@ -5,7 +5,7 @@ import {
   type BrainPaths,
 } from '@phosphor/shared/brain'
 import { all, one, type Context } from './database'
-import { entity, entityNumber, referencedEntities } from './entities'
+import { entity, survivingEntityId, referencedEntities } from './entities'
 import { memoryCards } from './knowledge'
 import { newerLink, sideIndex } from './relation-pairs'
 
@@ -17,6 +17,7 @@ const ENDS =
  * newest first: one slot per neighbour, so a pair said many times never hides another.
  */
 export function edges(ctx: Context, id: string, perPredicate = 8): BrainLink[] {
+  id = survivingEntityId(ctx, id)
   const row = one<{ n: number; connections: number }>(
     ctx,
     'SELECT n,connections FROM entities WHERE id=?',
@@ -112,7 +113,7 @@ export function overview(ctx: Context, limit: number): BrainGraph {
   )
 }
 export function neighbourhood(ctx: Context, id: string, hops: 1 | 2, limit: number): BrainGraph {
-  entityNumber(ctx, id)
+  id = survivingEntityId(ctx, id)
   const cap = Math.max(1, Math.min(300, limit))
   const selected = new Set([id])
   let frontier = [id]
@@ -138,8 +139,8 @@ export function neighbourhood(ctx: Context, id: string, hops: 1 | 2, limit: numb
 }
 /** Layered bidirectional BFS, bounded before expansion; every route is backed by live evidence. */
 export function path(ctx: Context, from: string, to: string): BrainPaths {
-  entityNumber(ctx, from)
-  entityNumber(ctx, to)
+  from = survivingEntityId(ctx, from)
+  to = survivingEntityId(ctx, to)
   type Route = { node: string; links: BrainLink[]; visited: Set<string> }
   let left: Route[] = [{ node: from, links: [], visited: new Set([from]) }]
   let right: Route[] = [{ node: to, links: [], visited: new Set([to]) }]

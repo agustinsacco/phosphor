@@ -1,3 +1,4 @@
+import { agentSchema } from './agent/schema'
 import { tidySchema } from './tidy/schema'
 import { all, one, run, transaction, type Context } from './database'
 import { prefs, setPrefs } from './prefs'
@@ -19,6 +20,8 @@ export function initialize(ctx: Context): void {
   } else if (version === 6) {
     transaction(ctx, () => ctx.db.exec(readMetadataSchema))
   } else if (version !== 7) reset(ctx)
+  // No version bump: these side tables remain compatible with older v7 applications.
+  ctx.db.exec(agentSchema)
 }
 export function reset(ctx: Context): void {
   const hasMeta = one(ctx, "SELECT 1 FROM sqlite_master WHERE name='meta'")
@@ -39,6 +42,7 @@ export function reset(ctx: Context): void {
       ctx.db.exec(schema)
       ctx.db.exec(tidySchema)
       ctx.db.exec(readMetadataSchema)
+      ctx.db.exec(agentSchema)
       for (const [key, value] of Object.entries({
         revision: '0',
         generation: ctx.id(),
