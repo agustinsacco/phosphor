@@ -422,12 +422,12 @@ whole read with `brain_decide_read` (Brain Agent and Defrag). The proposal holds
 
 **Approve** stores the chosen memories, identity answers, confirmed groups and chosen
 descriptions in one transaction; **Reject** stores nothing. Unless Brain Agent lists the
-memories to save, `brain_decide_read` saves every memory that is not held. A held memory is
-saved only when listed, and a held confirmation adds its quote, or becomes a new memory, only
-when listed; listing a confirmation that is not held is refused (“Brain confirmation choice is
-invalid.”). Confirmations that are not held add their quotes with any approval. Approval that
-saves anything naming an unanswered required identity is refused: the tool lists the questions,
-and the engine says “Say whether “Rina Okafor” is someone Brain already knows or someone new
+memories to save, `brain_decide_read` saves every memory that is not held, on every page. A held
+memory is saved only when listed, and a held confirmation adds its quote, or becomes a new
+memory, only when listed. Listing a confirmation that is not held is refused (“Brain
+confirmation choice is invalid.”). Confirmations that are not held add their quotes with any
+approval. Approval that saves anything naming an unanswered required identity is refused: the
+tool lists the questions, and the engine says “Say whether “Rina Okafor” is someone Brain already knows or someone new
 before approving.” Any other uncertain entity without an answer becomes new, and only entities
 that a saved memory or group uses are created. A reused record keeps its stored description
 unless the decision chooses the read's. A confirmed group creates or reuses the parent and one
@@ -826,6 +826,10 @@ Brain surface shows its cost or tokens. A new Brain lane is named “Brain Agent
 pi's default model; afterwards it keeps the model chosen in its composer. Each Defrag resumes
 the folder's newest transcript; delete the lane and the next Defrag starts a new one.
 
+Defrag leaves your saved launch folder alone. The Brain folder joins the recent folders, so
+the Brain group stays in the sidebar after a restart. Opening the Brain lane yourself records
+the folder like any other lane.
+
 Its rules are `AGENTS.md` in that folder, which pi loads like any project's. Phosphor writes the
 default when the file is missing, when a lane starts there and before each Defrag turn, and
 never overwrites it, so deleting the file restores the default. Before every request the
@@ -859,18 +863,25 @@ them, the local bridge's second token, the `brain-curator` extension and the `br
 in place of recall's, so the Brain lane has no `brain_flag`. Every other lane keeps exactly
 `brain_search` and `brain_flag`. Brain Agent's tools:
 
-- **Read:** `brain_waiting` (everything waiting, in the order to decide it, with the ids the
-  other tools take), `brain_read_review`, `brain_suggestion`, `brain_search` (every project
-  alike), `brain_entity` and `brain_memory`.
+- **Read:** `brain_waiting` (what is waiting, in order, with the ids the other tools take;
+  `limit` is required, and the tool says to use 60), `brain_read_review`, `brain_suggestion`,
+  `brain_search` (every project alike), `brain_entity` and `brain_memory`.
 - **Write:** `brain_decide_read`, `brain_resolve` (merge, fold, both disputed, replace, keep, or
   remove a shared name), `brain_edit` (merge, describe, split, remove a name), `brain_correct`,
   `brain_erase` and `brain_undo`.
 
+`brain_read_review` pages a long proposal. Leave out `offset` on the first call. The offset
+counts entries across identities, groups, memories and confirmations, in that order. Each
+page says what it showed and where to continue, for example “Identities 1–2 of 2; Memories
+1–40 of 100. Call again with offset 42.” The last page says “That is the end of this read.” A
+proposal that fits in one reply has no page line.
+
 Every write takes a one-line reason of 1–300 characters, scrubbed of secrets. Results are short
-text with the ids the next call needs; stored text arrives wrapped as data, and lane file paths
-never reach it. A refusal changes nothing and says why in one plain line, never a path, stack or
-token. While Brain is off every tool answers “Brain is off. The owner can turn it on in Settings
-› Brain.”
+text with the ids the next call needs. Stored text arrives wrapped as data. Brain scrubs lane
+titles like excerpts in waiting items, reviews, flags, entity sources, memory origins and
+search hits. It does not send lane file paths. A refusal says why, never giving a path, stack
+or token. While Brain is off every tool answers “Brain is off. The owner can turn it on in
+Settings › Brain.”
 
 ### Defrag
 
@@ -935,8 +946,9 @@ operations, plus every change of the latest run and every erasure younger than a
 
 `brain_correct` adds a corrected memory that supersedes the old one and cites “Brain Agent, from
 <source>” (such as “Linear KES-12” or “Slack #ledger”) with the given quote. It keeps the old
-memory's type, how it is known, project, branch and people and things; undo restores the old
-one.
+memory's type, how it is known, project, branch and people and things. Undo restores the old
+one. If the call is cancelled before saving, it changes nothing. If the local embedding model
+is unavailable, the correction still saves, without a vector.
 
 Erasing is final: at most 25 Brain Agent erasures in any rolling hour (“Brain Agent can erase
 at most 25 memories an hour. Try again later; nothing changed.”), and a reason that repeats the
@@ -970,9 +982,11 @@ When Brain and recall are on, lane startup (`SessionStartupRuntime.recall`) adds
 `PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN`, `-e brain-ext/brain.mjs` and
 `--skill skills/brain`. The endpoint is a local socket; the token is random per app run. The
 Brain lane gets the same variables with Brain Agent's own token, `-e brain-ext/brain-curator.mjs`
-and `--skill skills/brain-agent` instead. Recall never blocks a lane: any failure starts it without Brain.
-Search stays read-only; flags only ask Brain Agent to check. Every tool uses the version 6 local
-bridge.
+and `--skill skills/brain-agent` instead. Recall never blocks a lane: any failure starts it
+without Brain. Both extensions remove the two variables from pi's environment on load and keep
+the connection for their own reloads. Bash commands, MCP servers and sub-agents started
+thereafter do not inherit the credentials. Search stays read-only; flags only ask Brain Agent
+to check. Every tool uses the version 6 local bridge.
 
 `brain_search(query, limit?)` returns 8 memories by default, up to 20:
 
@@ -1026,4 +1040,6 @@ project's memories as context, and to report a dispute rather than pick a side.
 - A merge, fold, dispute, replacement, split, removed name, description, approval, rejection,
   keep or correction can be undone while its journal is retained and later changes permit a
   clean restoration. Forget and erasures are never undone.
+- An extension that loads before the Brain extension and starts a child process while loading
+  can still pass the bridge credentials to that child.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.
