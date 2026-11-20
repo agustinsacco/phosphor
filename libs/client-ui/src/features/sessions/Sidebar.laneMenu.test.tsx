@@ -338,3 +338,12 @@ it.each([
   }
   expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:history')).toEqual([])
 })
+
+it('never offers Brain actions on a lane in the Brain folder', async () => {
+  const status = mockBrainStatus()
+  status.prefs.enabled = true
+  status.agent.folder = '/repo'
+  useBrain.setState({ status })
+  const rows = await menuFor('Lane 2')
+  expect(rows.join(' ')).not.toMatch(/knowledge extraction|for Brain|let Brain read/)
+})
