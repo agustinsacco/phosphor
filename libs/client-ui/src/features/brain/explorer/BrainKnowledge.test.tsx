@@ -469,3 +469,12 @@ it('regression: follows a merged-away linked entity to the survivor returned by 
   expect(memories.mock.lastCall?.[0]).toBe('rina')
   expect(container.textContent).not.toContain('Brain entity not found.')
 })
+
+it('follows the survivor when the selected entity merges during Defrag', async () => {
+  await render()
+  await visit('entity', 'tom', 'Tom Lee')
+  explorer.merge('tom', 'rina')
+  await act(async () => useBrain.setState({ status: { ...mockBrainStatus(), revision: 1 } }))
+  expect(state.visit).toMatchObject({ kind: 'entity', id: 'rina', label: 'Rina Okafor' })
+  expect(memories.mock.lastCall?.[0]).toBe('rina')
+})

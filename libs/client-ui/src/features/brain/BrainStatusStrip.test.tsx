@@ -9,6 +9,8 @@ import {
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { BrainStatusStrip } from './BrainStatusStrip'
+import { openBrainSource } from './openBrainSource'
+vi.mock('./openBrainSource', () => ({ openBrainSource: vi.fn(async () => undefined) }))
 import { useBrain } from './useBrain'
 import { mockBrainJob, mockBrainStatus } from './mockBrainData'
 
@@ -35,6 +37,7 @@ const undo = vi.fn(async () => ({ ...mockBrainStatus(), undone: 10, kept: 2 }))
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.mocked(openBrainSource).mockReset().mockResolvedValue(undefined)
   stop.mockClear()
   undo.mockClear()
   fake = createFakePhosphor({ 'brain:defragStop': stop, 'brain:undoRun': undo })
@@ -113,4 +116,22 @@ it.each(['done', 'stopped', 'failed'] as const)(
 it('hides Undo run once no changes can be undone', async () => {
   await render(run({ state: 'done', undoable: 0 }))
   expect(container.textContent).not.toContain('Undo run')
+})
+
+it('opens the ordinary Brain lane and recovers a failed open on another click', async () => {
+  await render(run({ sessionPath: '/demo/brain/Brain/lane.jsonl' }))
+  vi.mocked(openBrainSource).mockRejectedValueOnce(new Error('Lane unavailable'))
+  await click('Brain lane')
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe('Lane unavailable')
+  await click('Brain lane')
+  expect(openBrainSource).toHaveBeenLastCalledWith('/demo/brain/Brain/lane.jsonl')
+  expect(container.querySelector('[role="alert"]')).toBeNull()
+})
+it('keeps Stop retryable after a refusal', async () => {
+  await render(run())
+  stop.mockRejectedValueOnce(new Error('Stop unavailable'))
+  await click('Stop')
+  expect(container.textContent).toContain('Stop unavailable')
+  await click('Stop')
+  expect(stop).toHaveBeenCalledTimes(2)
 })

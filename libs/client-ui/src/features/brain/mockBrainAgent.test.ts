@@ -74,3 +74,21 @@ it('undoes approval back to waiting without duplicating its finished read', asyn
   )
   expect(history.items.some(({ job }) => job.id === 'harbor-demo-review')).toBe(false)
 })
+
+it('waits for earlier reads but keeps later reads behind Defrag', async () => {
+  let now = 1793966400000
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  now += 6000
+  await call('brain:queue', [{ sessionPath: '/demo/Harbor/before.jsonl', title: 'Harbor before' }])
+  await call('brain:defrag', [])
+  await call('brain:queue', [{ sessionPath: '/demo/Harbor/after.jsonl', title: 'Harbor after' }])
+  now += 4000
+  await call('brain:status', [])
+  const status = (await call('brain:status', [])) as BrainStatus
+  expect(status.agent.run?.state).toBe('running')
+  expect(status.jobs.find((job) => job.title === 'Harbor after')?.state).toBe('queued')
+  await call('brain:defragStop', [])
+  const stopped = (await call('brain:status', [])) as BrainStatus
+  expect(stopped.jobs.find((job) => job.title === 'Harbor after')?.state).toBe('running')
+})
