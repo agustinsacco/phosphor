@@ -8,20 +8,28 @@ it('approves and sweeps, then merges and undoes with a real store, never calling
   const status = await approveRead(s.store, s.service, s.options)
   expect(status.counts).toEqual({ memories: 4, entities: 2 })
   expect(status.tidy).toMatchObject({ automaticFolds: 1 })
-  expect(status.agent.waiting).toMatchObject({ entities: 1, repeats: 6 })
+  expect(status.agent.waiting).toEqual({
+    reads: 0,
+    entities: 1,
+    repeats: 6,
+    conflicts: 0,
+    flags: 0,
+  })
+  expect(status.agent.run).toBeNull()
   const changes = await s.service.api.tidyChanges(50)
   expect(changes.items).toMatchObject([{ kind: 'fold', who: 'automatic', undoable: true }])
-  const before = s.store.waitingSuggestions(50, 0)
-  const same = before.items.find((item) => item.kind === 'same_entity')!
+  const before = await s.service.agent('waiting', { limit: 50 })
+  const same = before.items.find((item) => item.kind === 'same_entity')
+  if (!same || same.kind === 'read') throw new Error('Expected a waiting identity pair')
   const survivor = same.subjects.find((subject) => subject.label === 'Rina')!
-  const merged = await s.service.api.merge(
-    same.subjects.find((subject) => subject.id !== survivor.id)!.id,
-    survivor.id,
-    status.revision,
-  )
-  expect(merged.counts.entities).toBe(1)
-  expect(merged.operationId).toBeTruthy()
-  const undone = await s.service.api.tidyUndo(merged.operationId!, merged.revision)
+  const merged = await s.service.agent('resolve', {
+    suggestionId: same.suggestionId,
+    action: { kind: 'merge', survivorId: survivor.id },
+    reason: 'The Ledger records describe the same person.',
+  })
+  expect((await s.service.api.status()).counts.entities).toBe(1)
+  expect(merged).toMatchObject({ status: 'done', operationId: expect.any(String) })
+  const undone = await s.service.api.tidyUndo(merged.operationId!, s.store.revision())
   expect(undone.counts.entities).toBe(2)
   expect(s.call).not.toHaveBeenCalled()
 })
@@ -49,10 +57,10 @@ it('files lane flags through the agent entry and refuses a second, a sixth and a
   expect((await flag(ids[0]!)).status).toBe('already_flagged')
   for (const id of ids.slice(1, 5)) expect((await flag(id)).status).toBe('filed')
   expect((await flag(ids[5]!)).status).toBe('limit')
-  const flags = s.store.waitingSuggestions(50, 0)
-  flags.items = flags.items.filter((item) => item.kind === 'flagged')
-  expect(flags.items).toHaveLength(5)
-  const flagged = flags.items[0]!
+  const waiting = await s.service.agent('waiting', { limit: 50 })
+  const flags = waiting.items.filter((item) => item.kind === 'flagged')
+  expect(flags).toHaveLength(5)
+  const flagged = flags[0]!
   if (flagged.kind === 'read') throw new Error('Expected a flag')
   expect(
     (await s.service.agent('suggestion', { suggestionId: flagged.suggestionId }))?.suggestion.flag,
@@ -96,12 +104,9 @@ it('Forget removes a suggested memory and its before-images from every Tidy tabl
   await s.service.api.forget(memory.id)
   expect(tidyText(path)).not.toContain(sentence)
   expect(
-    s.store
-      .waitingSuggestions(50, 0)
-      .items.every(
-        (item) =>
-          item.kind !== 'read' && item.subjects.every((subject) => subject.id !== memory.id),
-      ),
+    (await s.service.agent('waiting', { limit: 50 })).items.every(
+      (item) => item.kind === 'read' || item.subjects.every((subject) => subject.id !== memory.id),
+    ),
   ).toBe(true)
   await expect(
     s.service.api.tidyUndo((await s.service.api.tidyChanges(50)).items[0]!.id, s.store.revision()),
