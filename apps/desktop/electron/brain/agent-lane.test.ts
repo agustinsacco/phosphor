@@ -90,7 +90,11 @@ describe('a Defrag turn in the Brain lane', () => {
       sessionPath: '/sessions/brain/new.jsonl',
       rulesChanged: false,
     })
-    expect(deps.create).toHaveBeenCalledWith({ workspacePath: folder, name: 'Brain Agent' })
+    // Defrag never moves the folder Phosphor reopens at launch.
+    expect(deps.create).toHaveBeenCalledWith(
+      { workspacePath: folder, name: 'Brain Agent' },
+      { keepLastWorkspace: true },
+    )
     expect(await readFile(join(folder, 'AGENTS.md'), 'utf8')).toBe(BRAIN_AGENT_RULES)
     expect(started).toHaveBeenCalledWith('/sessions/brain/new.jsonl')
     // The transcript is known before the message goes, so opening the lane finds this process.
@@ -120,10 +124,10 @@ describe('a Defrag turn in the Brain lane', () => {
     }
     const { deps, agent } = host()
     const turn = await agent.turn(MESSAGE, new AbortController().signal, vi.fn())
-    expect(deps.create).toHaveBeenCalledWith({
-      workspacePath: folder,
-      sessionPath: join(transcripts, 'newest.jsonl'),
-    })
+    expect(deps.create).toHaveBeenCalledWith(
+      { workspacePath: folder, sessionPath: join(transcripts, 'newest.jsonl') },
+      { keepLastWorkspace: true },
+    )
     expect(turn).toMatchObject({ outcome: 'finished', rulesChanged: true })
     expect(await newestTranscript(join(root, 'missing'))).toBeNull()
   })
