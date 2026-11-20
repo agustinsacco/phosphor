@@ -1,6 +1,9 @@
 import { afterEach, expect, it } from 'vitest'
+import type { Proposal } from '@phosphor/memory-engine/types'
 import { createBrainService } from './service'
 import { extractJob } from './extract'
+import { returnRefreshesToReview } from './stale-review'
+import { FakeBrainStore, HARBOR_JOB } from './__fixtures__/fake-store'
 import { pipelineSetup } from './__fixtures__/pipeline'
 
 const cleanups: (() => Promise<void>)[] = []
@@ -37,4 +40,22 @@ it('a Brain opened with refreshes left from before runs none: they wait in revie
   expect(s.options.log).toHaveBeenCalledWith('Brain left stale reviews waiting for Brain Agent', {
     reviews: 1,
   })
+})
+
+it('leaves every other job as it is: no proposal to wait with, or not refreshing', () => {
+  const store = new FakeBrainStore()
+  const states = ['refreshing', 'queued', 'waiting', 'review', 'done', 'failed'] as const
+  const jobs = states.map((state, i) => {
+    const job = store.enqueue({ ...HARBOR_JOB, sessionId: `kestrel-${i}` }, 'queued')
+    return store.updateJob(job.id, { state, runStartedAt: 7, error: 'Kestrel stays' })
+  })
+  // Only the review has a stored proposal; the refreshing job has none.
+  store.proposals.set(jobs[3]!.id, { jobId: jobs[3]!.id, computedRevision: 0 } as Proposal)
+  const now = () => jobs.map((job) => store.job(job.id))
+  expect(returnRefreshesToReview(store)).toBe(0)
+  expect(now()).toEqual(jobs)
+  store.proposals.set(jobs[0]!.id, { jobId: jobs[0]!.id, computedRevision: 0 } as Proposal)
+  expect(returnRefreshesToReview(store)).toBe(1)
+  expect(store.job(jobs[0]!.id)).toMatchObject({ state: 'review', runStartedAt: null, error: null })
+  expect(now().slice(1)).toEqual(jobs.slice(1))
 })

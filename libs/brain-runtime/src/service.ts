@@ -1,7 +1,9 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { BrainService, BrainServiceOptions } from './types'
 import { ExtractionQueue } from './queue'
+import { returnRefreshesToReview } from './stale-review'
 import { extractJob } from './extract'
 import { createRecall } from './recall'
 import { createApi } from './api'
@@ -53,6 +55,17 @@ async function removePrototypeFiles(directory: string): Promise<void> {
   )
 }
 
+/**
+ * What the last session left: reads go back to the queue, refreshes nobody waits for any more go
+ * back to review (stale reviews wait for Brain Agent), and an unfinished Defrag run is reported.
+ */
+function recoverInterrupted(store: BrainStore, options: BrainServiceOptions): void {
+  store.requeueInterrupted()
+  const left = returnRefreshesToReview(store)
+  if (left) options.log?.('Brain left stale reviews waiting for Brain Agent', { reviews: left })
+  store.interruptRuns(DEFRAG_INTERRUPTED)
+}
+
 export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
   await mkdir(options.directory, { recursive: true })
   await removePrototypeFiles(options.directory)
@@ -97,8 +110,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     enabled: () => !disposed && queue.accepting && store.snapshot().prefs.enabled,
   })
   const recall = createRecall(store, options, search, () => queue.accepting, store, curator)
-  store.requeueInterrupted()
-  store.interruptRuns(DEFRAG_INTERRUPTED)
+  recoverInterrupted(store, options)
   if (store.snapshot().prefs.enabled) setup.start(() => options.embeddings.setEnabled(true))
   else await options.embeddings.setEnabled(false)
   changed()

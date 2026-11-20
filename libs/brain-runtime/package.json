@@ -164,6 +164,10 @@
       "types": "./src/source-checkpoint.ts",
       "default": "./src/source-checkpoint.ts"
     },
+    "./stale-review": {
+      "types": "./src/stale-review.ts",
+      "default": "./src/stale-review.ts"
+    },
     "./stage-call": {
       "types": "./src/stage-call.ts",
       "default": "./src/stage-call.ts"

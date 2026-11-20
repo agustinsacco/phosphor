@@ -1,6 +1,7 @@
 import { brainLaneNeverRead, type BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { LaneReadCheck } from './lane-read-rules'
+import { returnToReview } from './stale-review'
 import { DeletedLaneError, type LaneEntry } from './transcript'
 
 export interface QueueOptions {
@@ -388,8 +389,7 @@ export class ExtractionQueue {
       await this.runJob(running, signal)
     } finally {
       // Stopped mid-refresh: it waits, stale, for Brain Agent to open it again.
-      if (store.job(id)?.state === 'refreshing')
-        store.updateJob(id, { state: 'review', runStartedAt: null })
+      if (store.job(id)?.state === 'refreshing') returnToReview(store, id)
       changed()
     }
     signal.throwIfAborted()
