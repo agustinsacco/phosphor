@@ -108,6 +108,8 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
       usage: null,
       progress: null,
     }
+    // Agent decisions defer retention so undo stays exact; the next enqueue pays that debt.
+    pruneFinishedReads(ctx, value.sessionId)
     save(ctx, result)
     return result
   })
