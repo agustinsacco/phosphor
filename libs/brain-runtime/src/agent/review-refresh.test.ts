@@ -17,7 +17,8 @@ afterEach(async () => {
 })
 
 /** Reviews read at knowledge revision 0. `stale()` changes Brain, as an approval does. */
-async function setup(lanes = ['harbor']) {
+/** One read waiting in review per lane, each with a transcript on disk. */
+async function seedReviews(lanes: string[]) {
   const directory = await mkdtemp(join(tmpdir(), 'brain-refresh-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const store = new FakeAgentStore()
@@ -31,6 +32,11 @@ async function setup(lanes = ['harbor']) {
     store.proposals.set(job.id, { jobId: job.id, computedRevision: 0 } as Proposal)
     jobs.push(store.job(job.id)!)
   }
+  return { store, jobs }
+}
+
+async function setup(lanes = ['harbor']) {
+  const { store, jobs } = await seedReviews(lanes)
   let running = 0
   let peak = 0
   const gates: (() => void)[] = []

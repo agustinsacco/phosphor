@@ -47,13 +47,15 @@ const PROTOTYPE_FILES = [
   'sessions',
 ]
 
+async function removePrototypeFiles(directory: string): Promise<void> {
+  await Promise.all(
+    PROTOTYPE_FILES.map((name) => rm(join(directory, name), { recursive: true, force: true })),
+  )
+}
+
 export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
   await mkdir(options.directory, { recursive: true })
-  await Promise.all(
-    PROTOTYPE_FILES.map((name) =>
-      rm(join(options.directory, name), { recursive: true, force: true }),
-    ),
-  )
+  await removePrototypeFiles(options.directory)
   const store = options.openStore(join(options.directory, 'brain.sqlite'))
   const search = options.openSearch(join(options.directory, 'brain.sqlite'))
   let disposed = false

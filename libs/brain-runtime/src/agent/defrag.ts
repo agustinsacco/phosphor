@@ -4,7 +4,7 @@ import {
 } from '@phosphor/shared/brain-agent'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { ExtractionQueue } from '../queue'
-import type { BrainAgentHost, BrainSearchPort, BrainServiceOptions } from '../types'
+import type { BrainAgentHost, BrainAgentTurn, BrainSearchPort, BrainServiceOptions } from '../types'
 import { localPass } from './local-pass'
 import { plainRefusal } from './refusal'
 
@@ -65,6 +65,32 @@ function hasPossibleRepeats(store: BrainStore, counts: BrainWaitingCounts): bool
   )
 }
 
+/** The Brain lane's host when Defrag may start now; otherwise a plain sentence saying why not. */
+function defragHost({ store, options, queue }: DefragContext): BrainAgentHost {
+  if (!store.snapshot().prefs.enabled) throw new Error('Turn on Brain before running Defrag.')
+  const host = options.agent
+  if (!host) throw new Error('Defrag runs on Desktop.')
+  const latest = store.latestRun()
+  if (latest?.state === 'queued') throw new Error('Defrag is already waiting to start.')
+  if (latest?.state === 'running') throw new Error('Defrag is already running.')
+  if (!waitingTotal(store.waitingCounts())) throw new Error('Nothing is waiting for Defrag.')
+  if (!queue.accepting) throw new Error('Brain is resetting.')
+  return host
+}
+
+/** How a finished turn is recorded on its run. */
+function turnPatch(turn: BrainAgentTurn): BrainRunPatch {
+  return {
+    state: turn.outcome === 'finished' ? 'done' : turn.outcome,
+    error:
+      turn.outcome === 'failed'
+        ? plainRefusal(new Error(turn.error ?? ''), 'Brain Agent stopped before it finished.')
+        : null,
+    rulesChanged: turn.rulesChanged,
+    ...(turn.sessionPath ? { sessionPath: turn.sessionPath } : {}),
+  }
+}
+
 export function createDefrag(context: DefragContext): Defrag {
   const { store, queue, options } = context
   const now = options.now ?? Date.now
@@ -94,15 +120,7 @@ export function createDefrag(context: DefragContext): Defrag {
       if (!waitingTotal(counts)) return finish(runId, { state: 'done' })
       const message = defragMessage(counts, hasPossibleRepeats(store, counts))
       const turn = await host.turn(message, signal, (sessionPath) => update(runId, { sessionPath }))
-      finish(runId, {
-        state: turn.outcome === 'finished' ? 'done' : turn.outcome,
-        error:
-          turn.outcome === 'failed'
-            ? plainRefusal(new Error(turn.error ?? ''), 'Brain Agent stopped before it finished.')
-            : null,
-        rulesChanged: turn.rulesChanged,
-        ...(turn.sessionPath ? { sessionPath: turn.sessionPath } : {}),
-      })
+      finish(runId, turnPatch(turn))
     } catch (error) {
       finish(
         runId,
@@ -117,14 +135,7 @@ export function createDefrag(context: DefragContext): Defrag {
 
   return {
     start() {
-      if (!store.snapshot().prefs.enabled) throw new Error('Turn on Brain before running Defrag.')
-      const host = options.agent
-      if (!host) throw new Error('Defrag runs on Desktop.')
-      const latest = store.latestRun()
-      if (latest?.state === 'queued') throw new Error('Defrag is already waiting to start.')
-      if (latest?.state === 'running') throw new Error('Defrag is already running.')
-      if (!waitingTotal(store.waitingCounts())) throw new Error('Nothing is waiting for Defrag.')
-      if (!queue.accepting) throw new Error('Brain is resetting.')
+      const host = defragHost(context)
       const run = store.createRun()
       const task = queue.enqueueTask((signal) => execute(run.id, host, signal))
       const handle = { runId: run.id, cancel: task.cancel }

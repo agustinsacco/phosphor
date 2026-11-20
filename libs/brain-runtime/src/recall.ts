@@ -23,6 +23,46 @@ const unavailable = (): BrainRecall => ({
   degradation: [],
 })
 
+/** A lane's search: ranked for the lane's project and branch, while lane recall is on. */
+function laneSearch(
+  options: BrainServiceOptions,
+  search: BrainSearchPort,
+  enabled: () => boolean,
+): (input: BrainQuery) => Promise<BrainRecall> {
+  return async (input) => {
+    if (!enabled()) return unavailable()
+    const params = validateBrainRequest('search', input)
+    const project = params.cwd ? await projectContext(params.cwd) : { scope: null, branch: null }
+    const vector = await options.embeddings
+      .embed([params.query], 'query')
+      .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
+      .catch(() => null)
+    if (!enabled()) return unavailable()
+    return search.recall({
+      query: params.query,
+      vector,
+      scope: project.scope,
+      branch: project.branch,
+      now: (options.now ?? Date.now)(),
+      limit: params.limit ?? 8,
+    })
+  }
+}
+
+/** One of Brain Agent's methods, on already validated parameters. */
+async function callCurator(
+  curator: CuratorApi | undefined,
+  method: BrainAgentMethod,
+  params: unknown,
+  signal: AbortSignal,
+): Promise<unknown> {
+  if (!curator) throw new Error('Brain Agent is not available here.')
+  const call = curator[method as keyof CuratorApi] as
+    ((request: unknown, signal: AbortSignal) => Promise<unknown>) | undefined
+  if (!call) throw new Error('Brain request unavailable')
+  return call(params, signal)
+}
+
 /** The local bridge's two callers: any lane (recall and flags) and the Brain lane (curator). */
 export function createRecall(
   store: BrainStore,
@@ -36,25 +76,7 @@ export function createRecall(
   let disposed = false
   const brainOn = (): boolean => !disposed && accepting() && store.snapshot().prefs.enabled
   const enabled = (): boolean => brainOn() && store.snapshot().prefs.recall
-  async function recall(input: BrainQuery): Promise<BrainRecall> {
-    if (!enabled()) return unavailable()
-    const params = validateBrainRequest('search', input)
-    const project = params.cwd ? await projectContext(params.cwd) : { scope: null, branch: null }
-    const vector = await options.embeddings
-      .embed([params.query], 'query')
-      .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
-      .catch(() => null)
-    if (!enabled()) return unavailable()
-    const result = await search.recall({
-      query: params.query,
-      vector,
-      scope: project.scope,
-      branch: project.branch,
-      now: (options.now ?? Date.now)(),
-      limit: params.limit ?? 8,
-    })
-    return result
-  }
+  const recall = laneSearch(options, search, enabled)
   /** Search and flag as any lane asks them; the curator's methods for the Brain lane. */
   async function agent<M extends BrainAgentMethod>(
     method: M,
@@ -63,15 +85,8 @@ export function createRecall(
     role: BridgeRole = 'lane',
   ): Promise<BrainAgentMap[M]['result']> {
     const params = validateBrainRequest(method, input)
-    if (role === 'curator' || (method !== 'search' && method !== 'flag')) {
-      if (!curator) throw new Error('Brain Agent is not available here.')
-      const call = curator[method as keyof CuratorApi] as (
-        request: unknown,
-        signal: AbortSignal,
-      ) => Promise<unknown>
-      if (!call) throw new Error('Brain request unavailable')
-      return (await call(params, signal)) as BrainAgentMap[M]['result']
-    }
+    if (role === 'curator' || (method !== 'search' && method !== 'flag'))
+      return (await callCurator(curator, method, params, signal)) as BrainAgentMap[M]['result']
     const result =
       method === 'search'
         ? await recall(params as BrainQuery)
