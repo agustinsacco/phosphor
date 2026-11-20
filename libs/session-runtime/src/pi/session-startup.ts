@@ -30,8 +30,11 @@ export interface SessionStartupRuntime {
   }
   recordWorkspace: (path: string, name: string) => void
   laneReload?: Pick<LaneReload, 'capture' | 'track'>
-  /** Brain recall for lane agents: extra env, extension and skill, or undefined when off. */
-  recall?: () => Promise<SessionRecall | undefined>
+  /**
+   * Brain for a lane in `workspacePath` (resolved): recall for an ordinary lane, Brain Agent's
+   * tools for the Brain lane. Extra env, extensions and skills, or undefined when off.
+   */
+  recall?: (workspacePath: string) => Promise<SessionRecall | undefined>
 }
 
 export interface SessionRecall {
@@ -44,8 +47,9 @@ export interface SessionRecall {
 async function withRecall(
   runtime: SessionStartupRuntime,
   spawnOptions: Omit<PiSpawnOptions, 'cwd'>,
+  workspacePath: string,
 ): Promise<void> {
-  const recall = await runtime.recall?.().catch((error: unknown) => {
+  const recall = await runtime.recall?.(workspacePath).catch((error: unknown) => {
     runtime.log('brain', 'recall unavailable', { error: String(error) })
     return undefined
   })
@@ -126,7 +130,7 @@ async function spawnSession(
     launch,
     runtime.policy,
   )
-  if (!launch.stub) await withRecall(runtime, spawnOptions)
+  if (!launch.stub) await withRecall(runtime, spawnOptions, options.workspacePath)
   execution.signal?.throwIfAborted()
   // Read before the spawn: a change landing while pi starts must still count as new.
   const laneConfig =
