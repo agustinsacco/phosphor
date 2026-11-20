@@ -84,29 +84,24 @@ it('queues a lane, completes review, refreshes search and exposes bounded explor
   await s.service.api.forget('missing')
   expect(s.search.refreshes).toBe(3)
 })
-it.each(['proposal', 'review'] as const)(
-  'stale %s requeues identity/reconcile from extract checkpoints instead of applying',
-  async (method) => {
-    const s = await setup()
-    await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
-    await review(s.service)
-    const job = (await s.service.api.status()).jobs[0]!
-    s.store.rev++
-    await expect(
-      method === 'proposal'
-        ? s.service.api.proposal(job.id)
-        : s.service.api.review(
-            job.id,
-            { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
-            0,
-          ),
-    ).rejects.toThrow('Brain changed; refreshing this review')
-    expect(s.store.reviews).toEqual([])
-    await review(s.service)
-    expect(s.runner.mock.calls.filter(([c]) => c.stage === 'extract')).toHaveLength(1)
-    expect(s.store.storedProposal(job.id)!.computedRevision).toBe(1)
-  },
-)
+it('stale review requeues identity/reconcile from extract checkpoints instead of applying', async () => {
+  const s = await setup()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
+  await review(s.service)
+  const job = (await s.service.api.status()).jobs[0]!
+  s.store.rev++
+  await expect(
+    s.service.api.review(
+      job.id,
+      { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
+      0,
+    ),
+  ).rejects.toThrow('Brain changed; refreshing this review')
+  expect(s.store.reviews).toEqual([])
+  await review(s.service)
+  expect(s.runner.mock.calls.filter(([c]) => c.stage === 'extract')).toHaveLength(1)
+  expect(s.store.storedProposal(job.id)!.computedRevision).toBe(1)
+})
 it('failed jobs retry the same id and resume validated parts', async () => {
   const s = await setup()
   s.runner.mockRejectedValueOnce(new Error('Fake failure'))
@@ -201,8 +196,8 @@ it('an unrelated knowledge change reuses every unchanged decision prompt', async
   await review(s.service)
   const id = s.store.snapshot().jobs[0]!.id
   s.store.rev++
-  await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
-  await review(s.service)
+  // Brain Agent opens the stale review, which refreshes it.
+  await s.service.agent('readReview', { jobId: id })
   expect(s.runner.mock.calls.filter(([call]) => call.stage === 'extract')).toHaveLength(1)
   expect(s.runner.mock.calls.filter(([call]) => call.stage === 'identity')).toHaveLength(1)
 })
@@ -245,7 +240,7 @@ it('a lane flag reaches the engine through the agent entry', async () => {
   expect(flagged).toHaveBeenCalledOnce()
 })
 
-it('approving one of three reviews refreshes the other two without paying twice', async () => {
+it('approving one of three reviews leaves the other two to refresh when opened, without paying twice', async () => {
   const s = await setup()
   const ids: string[] = []
   for (const name of ['harbor', 'ledger', 'kestrel']) {
@@ -269,12 +264,14 @@ it('approving one of three reviews refreshes the other two without paying twice'
     { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
     proposal.revision,
   )
-  await vi.waitFor(() => {
-    for (const id of ids.slice(1)) {
-      expect(s.store.job(id)?.state).toBe('review')
-      expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
-    }
-  })
+  // They wait, stale, until Brain Agent opens them.
+  for (const id of ids.slice(1)) {
+    expect(s.store.job(id)?.state).toBe('review')
+    expect(s.store.storedProposal(id)?.computedRevision).toBe(0)
+    await s.service.agent('readReview', { jobId: id })
+    expect(s.store.job(id)?.state).toBe('review')
+    expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
+  }
   expect(s.runner).not.toHaveBeenCalled()
   expect(ids.map((id) => s.store.job(id)!.startedAt)).toEqual(starts)
 })
@@ -298,8 +295,7 @@ it('changed identity candidate descriptions reach a new prompt while extraction 
   s.runner.mockClear()
   s.store.cards[0]!.description = 'Ledger lead'
   s.store.rev++
-  await expect(s.service.api.proposal(id)).rejects.toThrow('refreshing this review')
-  await review(s.service)
+  await s.service.agent('readReview', { jobId: id })
   expect(s.runner).toHaveBeenCalledOnce()
   expect(s.runner.mock.calls[0]![0].stage).toBe('identity')
   expect(s.runner.mock.calls[0]![0].prompt).toContain('Ledger lead')

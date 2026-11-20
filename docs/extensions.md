@@ -627,6 +627,12 @@ when lane startup gave it `PHOSPHOR_BRAIN_ENDPOINT` and `PHOSPHOR_BRAIN_TOKEN`;
 without them it registers nothing. `brain-fork-guard.mjs` loads only into
 Brain's private, session-less model calls and blocks every tool call.
 
+Both Brain bundles take the two variables out of pi's environment when they
+load (`takeBrainConnection` in brain-client's `node-transport.ts`), so no bash
+command, MCP server or sub-agent the lane starts can reach the bridge. The
+connection stays on `globalThis` for the extension's own reloads in that pi
+process.
+
 `brain-curator.mjs` (sources `brain-curator.ts` and `brain-curator-writes.ts`)
 loads into the Brain lane, the lane in `<userData>/brain/Brain`, in place of
 `brain.mjs`, with the `brain-agent` skill. Its token is the bridge's curator
@@ -637,16 +643,23 @@ token, so the lane has no `brain_flag`. It registers twelve tools:
 - **Writes:** `brain_decide_read`, `brain_resolve`, `brain_edit`,
   `brain_correct`, `brain_erase` and `brain_undo`.
 
-Parameters are strict, flat TypeBox objects. brain-client validates each
-request before it leaves. A result is short text, about 8 KB at most, from
-brain-client's `curator-format.ts`. It shows the ids the next call needs, ends
-lists with how many it left out, and wraps memory text, names, quotes and
-reasons in the escaped `background-data` wrapper as data.
+Parameters are strict, flat TypeBox objects, each with at least one required
+parameter (`brain_waiting` takes `limit`, which its description says to set to
+60). brain-client validates each request before it leaves. A result is short
+text, about 8 KB at most, from brain-client's `curator-format.ts`. It shows the
+ids the next call needs, ends lists with how many it left out, and wraps memory
+text, names, quotes and reasons in the escaped `background-data` wrapper as
+data. `brain_read_review` pages a long read (`curator-review-format.ts`): its
+`offset` counts identities, groups, memories and "said again" in that order.
+Each page ends with what it showed and where to go on, such as "Identities 1–2
+of 2; Memories 1–40 of 100. Call again with offset 42.", and the last says "That
+is the end of this read." The bridge request has no offset; every page asks for
+the whole review.
 
 `brain_decide_read` builds the review decision itself; by default it saves
-every memory that is not held. It answers with a sentence and approves nothing
-when an approved memory names an unanswered required identity, or the revision
-is stale.
+every memory that is not held, on every page. It answers with a sentence and
+approves nothing when an approved memory names an unanswered required identity,
+or the revision is stale.
 
 The extension also keeps the lane's rules current, as `global-context.ts` does
 for the global file. Before every request it swaps the block pi rendered for

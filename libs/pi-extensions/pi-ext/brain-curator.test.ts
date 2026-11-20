@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -46,7 +47,32 @@ function setup(results: Record<string, unknown> = RESULTS) {
   return { tools, call, run }
 }
 
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+  vi.unstubAllEnvs()
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for('phosphor/brain-connection/v1')]
+})
+
+describe('the bridge connection', () => {
+  it('leaves no token or endpoint for a bash child of the lane, and survives a reload', async () => {
+    vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', '/tmp/kestrel-brain.sock')
+    vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', 'kestrel-curator-token')
+    const pi = { registerTool: vi.fn(), on: vi.fn() }
+    brainCuratorExtension(pi)
+    expect(pi.registerTool).toHaveBeenCalledTimes(12)
+    const child = spawnSync(
+      'sh',
+      ['-c', 'printf "%s|%s" "$PHOSPHOR_BRAIN_TOKEN" "$PHOSPHOR_BRAIN_ENDPOINT"'],
+      { encoding: 'utf8' },
+    )
+    expect(child.stdout).toBe('|')
+    // pi reloads an extension by evaluating its module again, in the same process.
+    vi.resetModules()
+    const { default: reloaded } = await import('./brain-curator')
+    const again = { registerTool: vi.fn(), on: vi.fn() }
+    reloaded(again)
+    expect(again.registerTool).toHaveBeenCalledTimes(12)
+  })
+})
 
 describe('brain-curator tools', () => {
   it('registers Brain Agent’s twelve tools and never brain_flag', () => {
@@ -75,6 +101,15 @@ describe('brain-curator tools', () => {
     expect(pi.on.mock.calls.map(([event]) => event)).toEqual(['context_with_system'])
   })
 
+  it('gives every tool a required parameter, so a call with no arguments still validates', () => {
+    const tools = [...setup().tools.values()]
+    const optionalOnly = tools.filter(
+      (tool) => !(tool.parameters as { required?: string[] }).required?.length,
+    )
+    expect(optionalOnly.map((tool) => tool.name)).toEqual([])
+    expect(tools.find((tool) => tool.name === 'brain_waiting')!.description).toContain('60')
+  })
+
   it('takes strict parameters a model can fill first time', () => {
     for (const tool of setup().tools.values()) {
       expect(tool.parameters).toMatchObject({ type: 'object', additionalProperties: false })
@@ -84,7 +119,9 @@ describe('brain-curator tools', () => {
 
   it('formats each read result with the ids the next call needs', async () => {
     const { call, run } = setup()
-    expect((await run('brain_waiting', {})).text).toContain('- job-ledger · Ledger invoices')
+    expect((await run('brain_waiting', { limit: 60 })).text).toContain(
+      '- job-ledger · Ledger invoices',
+    )
     expect((await run('brain_read_review', { jobId: 'job-ledger' })).text).toContain('revision 41')
     expect((await run('brain_suggestion', { suggestionId: 'sugg-rina' })).text).toContain(
       'Allowed: merge, keep, unname.',
@@ -93,7 +130,7 @@ describe('brain-curator tools', () => {
     expect((await run('brain_entity', { entityId: 'rina' })).text).toContain('Entity rina.')
     expect((await run('brain_memory', { memoryId: 'ownership' })).text).toContain('Quotes:')
     expect(call.mock.calls.map(([method, params]) => [method, params])).toEqual([
-      ['waiting', {}],
+      ['waiting', { limit: 60 }],
       ['readReview', { jobId: 'job-ledger' }],
       ['suggestion', { suggestionId: 'sugg-rina' }],
       ['search', { query: 'Harbor' }],
@@ -108,6 +145,56 @@ describe('brain-curator tools', () => {
     await expect(run('brain_read_review', { jobId: '' })).rejects.toThrow(
       'Brain jobId needs 1 to 200 characters.',
     )
+  })
+})
+
+describe('brain_read_review paging', () => {
+  /** A read with `count` long memories and the fixture's two identity questions. */
+  function longReview(count: number) {
+    const memory = LEDGER_REVIEW.proposal.memories[0]!
+    const memories = Array.from({ length: count }, (_, index) => ({
+      ...memory,
+      index,
+      summary: `Harbor fact ${index}. ${'s'.repeat(400)}`,
+    }))
+    return { ...LEDGER_REVIEW, proposal: { ...LEDGER_REVIEW.proposal, memories } }
+  }
+  /** Every page in turn, following each page's "Call again with offset N". */
+  async function pages(run: ReturnType<typeof setup>['run']) {
+    const texts: string[] = []
+    let offset: number | undefined
+    for (let page = 0; page < 30; page++) {
+      const params = offset === undefined ? {} : { offset }
+      const { text } = await run('brain_read_review', { jobId: 'job-ledger', ...params })
+      texts.push(text)
+      const next = /Call again with offset (\d+)\./.exec(text)
+      if (!next) break
+      offset = Number(next[1])
+    }
+    return texts
+  }
+
+  it('shows every memory of a long read across pages, each within the cap', async () => {
+    const { run } = setup({ ...RESULTS, readReview: longReview(100) })
+    const texts = await pages(run)
+    const seen = texts.flatMap((text) =>
+      [...text.matchAll(/^- (\d+) · procedure/gm)].map((match) => Number(match[1])),
+    )
+    expect(seen).toEqual(Array.from({ length: 100 }, (_, index) => index))
+    expect(texts.length).toBeGreaterThan(1)
+    for (const text of texts) expect(text.length).toBeLessThanOrEqual(8000)
+    expect(texts[0]).toMatch(/Memories 1–(\d+) of 100\. Call again with offset \d+\./)
+    expect(texts[0]).toContain('- e1 · Rina (person)')
+    expect(texts.at(-1)).not.toContain('Call again with offset')
+  })
+
+  it('tells brain_decide_read the default approves every memory not held, on every page', () => {
+    const tools = setup().tools
+    expect(tools.get('brain_decide_read')!.description).toMatch(/not held, on every page/)
+    expect(tools.get('brain_read_review')!.parameters).toMatchObject({
+      properties: { offset: { type: 'integer', minimum: 0 } },
+      required: ['jobId'],
+    })
   })
 })
 

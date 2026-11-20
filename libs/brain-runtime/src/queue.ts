@@ -1,6 +1,7 @@
 import { brainLaneNeverRead, type BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { LaneReadCheck } from './lane-read-rules'
+import { returnToReview } from './stale-review'
 import { DeletedLaneError, type LaneEntry } from './transcript'
 
 export interface QueueOptions {
@@ -32,7 +33,11 @@ const CANCELLED = 'Brain task cancelled.'
 const titleRules = (store: BrainStore): string =>
   JSON.stringify(store.snapshot().prefs.neverRead.titles)
 
-/** A single fork at a time. Waiting lanes never block an older runnable job. */
+/**
+ * A single fork at a time. Waiting lanes never block an older runnable job. A stale review waits
+ * in review: only `recompute` (Brain Agent opening it outside a run) and `refreshInline` (inside
+ * Defrag) refresh it, never a pass of the queue.
+ */
 export class ExtractionQueue {
   private active: { id: string; abort: AbortController; done: Promise<void> } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -43,8 +48,9 @@ export class ExtractionQueue {
   private checkedRules: string
   private disposed = false
   private paused = false
-  /** Inline refreshes, one at a time. */
+  /** Inline refreshes, one at a time, and how many are queued or running. */
   private inline: Promise<void> = Promise.resolve()
+  private inlineBusy = 0
 
   get accepting(): boolean {
     return !this.disposed && !this.paused
@@ -162,7 +168,6 @@ export class ExtractionQueue {
     if (!this.accepting) return
     clearTimeout(this.timer)
     const { store, changed } = this.options
-    this.refreshStaleReviews()
     const waiting = this.updateWaiting()
     if (waiting) this.timer = setTimeout(() => this.kick(), 2000)
     if (this.active || !this.options.ready()) return
@@ -177,11 +182,7 @@ export class ExtractionQueue {
       const done = Promise.resolve()
         .then(() => task.run(task.abort.signal))
         .then(task.resolve, task.reject)
-        .finally(() => {
-          this.active = undefined
-          this.options.changed()
-          this.kick()
-        })
+        .then(() => this.releaseTask())
       this.active = { id: DEFRAG_TASK, abort: task.abort, done }
       return
     }
@@ -197,22 +198,6 @@ export class ExtractionQueue {
     // Start on a microtask so cancellation always sees the active run first.
     const done = Promise.resolve().then(() => this.execute(running, abort))
     this.active = { id: job.id, abort, done }
-  }
-
-  private refreshStaleReviews(): void {
-    const { store, changed } = this.options
-    for (const job of store.snapshot().jobs) {
-      if (job.state !== 'review' || this.blocked.has(job.id)) continue
-      const proposal = store.storedProposal(job.id)
-      if (!proposal || proposal.computedRevision === store.knowledgeRevision()) continue
-      store.updateJob(job.id, {
-        state: 'refreshing',
-        runStartedAt: null,
-        error: null,
-        progress: null,
-      })
-      changed()
-    }
   }
 
   private updateWaiting(): boolean {
@@ -366,9 +351,23 @@ export class ExtractionQueue {
    * path and under the task's signal. Calls wait for each other, so two model runs never overlap.
    */
   refreshInline(id: string, signal: AbortSignal): Promise<void> {
+    this.inlineBusy++
     const next = this.inline.then(() => this.refreshNow(id, signal))
-    this.inline = next.catch(() => undefined)
+    this.inline = next
+      .catch(() => undefined)
+      .then(() => {
+        this.inlineBusy--
+      })
     return next
+  }
+
+  /** Inline refreshes the task started keep the worker until they settle, even after Stop. */
+  private releaseTask(): Promise<void> | undefined {
+    if (this.inlineBusy) return this.inline.then(() => this.releaseTask())
+    this.active = undefined
+    this.options.changed()
+    this.kick()
+    return undefined
   }
 
   private async refreshNow(id: string, signal: AbortSignal): Promise<void> {
@@ -389,7 +388,8 @@ export class ExtractionQueue {
     try {
       await this.runJob(running, signal)
     } finally {
-      if (store.job(id)?.state === 'refreshing') store.updateJob(id, { runStartedAt: null })
+      // Stopped mid-refresh: it waits, stale, for Brain Agent to open it again.
+      if (store.job(id)?.state === 'refreshing') returnToReview(store, id)
       changed()
     }
     signal.throwIfAborted()

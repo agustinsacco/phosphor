@@ -122,9 +122,9 @@ describe('formatReview', () => {
     )
   })
 
-  it('says unseen indexes still count when the proposal is over the cap', () => {
+  it('pages a proposal over the cap, counting identities, groups, memories and said again', () => {
     const memory = LEDGER_REVIEW.proposal.memories[0]!
-    const text = formatReview({
+    const review = {
       ...LEDGER_REVIEW,
       proposal: {
         ...LEDGER_REVIEW.proposal,
@@ -134,11 +134,39 @@ describe('formatReview', () => {
           summary: 's'.repeat(500),
         })),
       },
-    })
-    expect(text.length).toBeLessThanOrEqual(CURATOR_TEXT_MAX)
-    expect(text.split('\n').at(-1)).toMatch(
-      /^\d+ more lines not shown; indexes you cannot see still count\. Decide on what you can see, or reject\.$/,
+    }
+    const first = formatReview(review)
+    expect(first.length).toBeLessThanOrEqual(CURATOR_TEXT_MAX)
+    const [, shown, next] =
+      /Identities 1–2 of 2; Memories 1–(\d+) of 300\. Call again with offset (\d+)\.$/.exec(first)!
+    expect(Number(next)).toBe(Number(shown) + 2)
+    const second = formatReview(review, Number(next))
+    expect(second).not.toContain('Identities (')
+    expect(second).toContain(`Memories (indexes for memories):\n- ${shown} · procedure`)
+    expect(second.split('\n').at(-1)).toMatch(
+      new RegExp(`^Memories ${Number(shown) + 1}–\\d+ of 300\\.`),
     )
+    const last = formatReview(review, 301)
+    expect(last).toContain('- 299 · procedure')
+    expect(last.split('\n').at(-1)).toBe('Memories 300–300 of 300. That is the end of this read.')
+    expect(formatReview(LEDGER_REVIEW)).not.toContain('offset')
+  })
+
+  it('clips one line longer than a page, so paging always moves on', () => {
+    const [identity] = LEDGER_REVIEW.proposal.identities
+    const candidates = Array.from({ length: 60 }, (_, i) => ({
+      ...identity!.candidates[0]!,
+      id: `rina-${i}`,
+      description: 'd'.repeat(160),
+    }))
+    const review = {
+      ...LEDGER_REVIEW,
+      proposal: { ...LEDGER_REVIEW.proposal, identities: [{ ...identity!, candidates }] },
+    }
+    const text = formatReview(review)
+    expect(text.length).toBeLessThanOrEqual(CURATOR_TEXT_MAX)
+    expect(text).toMatch(/Identities 1–1 of 1\. Call again with offset 1\.$/)
+    expect(formatReview(review, 1)).toContain('- 0 · procedure')
   })
 })
 

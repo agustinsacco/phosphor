@@ -16,6 +16,8 @@ export interface ReviewRefreshContext {
   queue: Pick<ExtractionQueue, 'recompute' | 'refreshInline'>
   /** Brain Agent's folder, whose lanes Brain never reads. */
   folder?: string
+  /** The lane check stored a changed title on the job. */
+  changed?(): void
   /** The running Defrag task's signal, or null outside a run. */
   defragSignal(): AbortSignal | null
   /** Outside a run, how long to wait for the queue's own refresh. */
@@ -26,7 +28,8 @@ export interface ReviewRefreshContext {
 const WAIT_MS = 10 * 60_000
 const POLL_MS = 500
 
-function stale(store: BrainStore, id: string): boolean {
+/** Brain changed since the read, or the queue is refreshing it. */
+export function reviewStale(store: BrainStore, id: string): boolean {
   const job = store.job(id)
   const proposal = store.storedProposal(id)
   return (
@@ -40,7 +43,8 @@ function stale(store: BrainStore, id: string): boolean {
  * Brings a waiting read up to date before Brain Agent reads or decides it. Inside a Defrag run
  * the run refreshes it itself (the run holds the worker); outside one the queue refreshes it and
  * this waits, at most ten minutes. Never a second model run. Returns the refusal when the lane
- * cannot be read again (never read, Brain's own lane, deleted): its stale review stays, to reject.
+ * may not be read as it is now (never read, Brain's own lane, deleted), fresh or stale: renaming
+ * a lane changes no knowledge. Its review stays as it is, to reject.
  */
 export async function freshReview(
   context: ReviewRefreshContext,
@@ -50,11 +54,13 @@ export async function freshReview(
   const { store, files, queue } = context
   const check = async (): Promise<string | null> => {
     const job = store.job(id)
-    return job ? (await currentReadCheck(store, files, job, context.folder)).refusal : null
+    if (!job) return null
+    const { refusal, retitled } = await currentReadCheck(store, files, job, context.folder)
+    if (retitled) context.changed?.()
+    return refusal
   }
-  if (!stale(store, id)) return null
   const refusal = await check()
-  if (refusal) return refusal
+  if (refusal || !reviewStale(store, id)) return refusal
   const task = context.defragSignal()
   if (task) await queue.refreshInline(id, AbortSignal.any([task, signal]))
   else {
@@ -70,7 +76,7 @@ export async function freshReview(
     throw new Error(`Brain could not refresh this read: ${job.error ?? 'unknown error'}`)
   if (job.state === 'empty') throw new Error(READ_NOW_EMPTY)
   if (job.state !== 'review' && job.state !== 'refreshing') throw new Error(READ_NOT_WAITING)
-  if (job.state === 'review' && !stale(store, id)) return null
+  if (job.state === 'review' && !reviewStale(store, id)) return null
   // The lane may have become unreadable while it refreshed.
   if (job.state === 'review') {
     const late = await check()

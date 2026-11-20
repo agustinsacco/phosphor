@@ -112,7 +112,13 @@ export function repointStoredPaths(getStore: PrefsGetter, moves: readonly PathMo
   )
 }
 
-export function recordWorkspace(getStore: PrefsGetter, path: string, name: string): void {
+/** `last: false` (Phosphor's own lanes) adds the recent but keeps the launch-resume folder. */
+export function recordWorkspace(
+  getStore: PrefsGetter,
+  path: string,
+  name: string,
+  { last }: { last: boolean } = { last: true },
+): void {
   const s = getStore()
   const now = Date.now()
   const workspaces = s.get('recentWorkspaces')
@@ -152,7 +158,7 @@ export function recordWorkspace(getStore: PrefsGetter, path: string, name: strin
     // Carry it across rather than stranding it under the old spelling.
     if (previous && previous !== real) repointStoredPaths(getStore, [{ from: previous, to: real }])
   }
-  s.set('lastWorkspacePath', real)
+  if (last) s.set('lastWorkspacePath', real)
 }
 
 /**

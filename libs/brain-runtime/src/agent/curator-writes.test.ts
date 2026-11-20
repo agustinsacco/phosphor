@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { unlink } from 'node:fs/promises'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BRAIN_ERASE_LIMIT_REFUSAL } from '@phosphor/shared/brain-agent'
 import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
-import { curatorFixture, seedReview } from '../__fixtures__/curator'
+import { curatorFixture, nameLane, seedReview } from '../__fixtures__/curator'
+import { DELETED_LANE_REFRESH_REFUSAL } from '../lane-read-rules'
 import { BRAIN_OFF } from './curator-context'
 import { READ_CHANGED } from './curator-writes'
 
@@ -101,6 +103,28 @@ describe('decideRead', () => {
     ).toBe('done')
   })
 
+  it('checks the lane as it is now before approving a fresh read: renamed, then deleted', async () => {
+    const s = await setup()
+    const job = seedReview(s.store, 'ledger', s.lane)
+    const decide = () =>
+      s.curator.decideRead({ jobId: job.id, revision: 0, decision: approve, reason }, signal)
+    // Renaming a lane changes no knowledge, so the read stays fresh.
+    await nameLane(s.lane, 'Harbor 1:1')
+    expect(await decide()).toEqual({
+      status: 'refused',
+      message: 'Brain never reads this lane because its title matches a rule in Settings › Brain.',
+      operationId: null,
+    })
+    await unlink(s.lane)
+    expect(await decide()).toEqual({
+      status: 'refused',
+      message: DELETED_LANE_REFRESH_REFUSAL,
+      operationId: null,
+    })
+    expect(s.store.calls).toEqual([])
+    expect(s.queue.refreshInline).not.toHaveBeenCalled()
+  })
+
   it('refuses a read that is not waiting', async () => {
     const s = await setup()
     for (const decision of [null, approve])
@@ -151,7 +175,7 @@ describe('other writes', () => {
     expect(result.status).toBe('done')
     const [input, vector] = s.store.calls[0]!.args as [{ summary: string }, Float32Array | null]
     expect(input.summary).toBe('Tom Lee owns Harbor billing; ask [redacted].')
-    expect(s.options.embeddings.embed).toHaveBeenCalledWith([input.summary], 'document')
+    expect(s.options.embeddings.embed).toHaveBeenCalledWith([input.summary], 'document', signal)
     expect(vector).toBeInstanceOf(Float32Array)
     s.options.embeddings.embed = async () => {
       throw new Error('Model not ready')
@@ -167,6 +191,36 @@ describe('other writes', () => {
       signal,
     )
     expect(s.store.calls[1]!.args[1]).toBeNull()
+  })
+
+  it('correct passes its call’s signal to the model, and writes nothing once cancelled', async () => {
+    const s = await setup()
+    const request = {
+      memoryId: 'ownership',
+      summary: 'Tom Lee owns it.',
+      source: 'Slack #ledger',
+      quote: 'Tom owns it.',
+      reason,
+    }
+    // The model finishes after the call hung up.
+    const hangUp = new AbortController()
+    const late = vi.fn(async () => {
+      hangUp.abort()
+      return [[0.1, 0.2]]
+    })
+    s.options.embeddings.embed = late
+    await expect(s.curator.correct(request, hangUp.signal)).rejects.toThrow()
+    expect(late).toHaveBeenCalledWith(['Tom Lee owns it.'], 'document', hangUp.signal)
+    // The model stops because the call hung up: that is not the no-vector fallback.
+    const again = new AbortController()
+    s.options.embeddings.embed = async (_texts, _kind, embedding) => {
+      again.abort()
+      embedding?.throwIfAborted()
+      return []
+    }
+    await expect(s.curator.correct(request, again.signal)).rejects.toThrow()
+    expect(s.store.calls).toEqual([])
+    expect(s.search.refreshes).toBe(0)
   })
 
   it('erasure is final: it never returns an operation, and the hourly cap reads as limit', async () => {

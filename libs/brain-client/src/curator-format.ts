@@ -17,6 +17,10 @@ export const data = (text: string, max = 600): string =>
 const plural = (count: number, one: string, many = `${one}s`): string =>
   `${count} ${count === 1 ? one : many}`
 
+/** Characters left for stored-data lines under `head`, with 200 kept for the "more" line. */
+export const dataRoom = (head: string[], max = CURATOR_TEXT_MAX): number =>
+  max - head.join('\n').length - DATA_OPEN.length - DATA_CLOSE.length - 200
+
 /**
  * Tool-authored header lines, then as many stored-data lines as fit inside the data wrapper,
  * then the "more" line, which hears how many lines did not fit.
@@ -29,7 +33,7 @@ export function compose(
   max = CURATOR_TEXT_MAX,
 ): string {
   const top = head.join('\n')
-  let room = max - top.length - DATA_OPEN.length - DATA_CLOSE.length - 200
+  let room = dataRoom(head, max)
   const kept: string[] = []
   let omitted = 0
   for (const line of lines) {

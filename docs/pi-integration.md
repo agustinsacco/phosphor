@@ -67,7 +67,11 @@ without them. Desktop's session policy also marks that folder
 (`SessionPolicyRuntime.brainLane`), so its fixed block replaces the lane
 charter. Brain Agent's Defrag turns open the lane with `spawnSession`, as the
 owner would, and send the message through the service's `command`
-(`apps/desktop/electron/brain/agent-lane.ts`). Brain's model calls are not sessions: they are
+(`apps/desktop/electron/brain/agent-lane.ts`). They pass `keepLastWorkspace`
+(`SessionExecution`): the Brain folder joins the recents, so its sidebar group
+lasts across restarts, but `lastWorkspacePath`, the folder Phosphor reopens at
+launch, stays the owner's. The owner opening the lane from the sidebar records
+it like any lane. Brain's model calls are not sessions: they are
 session-less, tool-less `pi -p` runs through `print-mode.ts`, with the prompt on
 stdin, and Brain reads the lane's file itself.
 

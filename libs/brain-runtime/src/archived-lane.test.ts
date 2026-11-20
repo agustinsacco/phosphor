@@ -34,11 +34,10 @@ it('refreshes an archived lane review from saved steps without extract or links 
   const s = await setup()
   await s.archive()
   s.store.rev++
-  await s.service.api.setPrefs(s.store.prefs)
-  await vi.waitFor(() => {
-    expect(s.store.job(s.id)?.state).toBe('review')
-    expect(s.store.storedProposal(s.id)?.computedRevision).toBe(1)
-  })
+  // Brain Agent opens the stale review, which refreshes it.
+  await s.service.agent('readReview', { jobId: s.id })
+  expect(s.store.job(s.id)?.state).toBe('review')
+  expect(s.store.storedProposal(s.id)?.computedRevision).toBe(1)
   expect(s.runner.mock.calls.filter(([call]) => ['extract', 'links'].includes(call.stage))).toEqual(
     [],
   )

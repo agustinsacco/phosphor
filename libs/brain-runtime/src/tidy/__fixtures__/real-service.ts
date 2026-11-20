@@ -1,5 +1,5 @@
 import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -114,11 +114,21 @@ export async function proposeRead(
   options: BrainServiceOptions,
   summaries = SUMMARIES,
 ) {
+  const lane = { sessionPath: join(options.directory, 'harbor.jsonl'), title: 'Harbor planning' }
+  // A waiting read's lane exists: Brain checks it, as it is now, before every decision.
+  await writeFile(
+    lane.sessionPath,
+    [
+      { type: 'session', id: 'harbor-read', cwd: '/Harbor' },
+      { type: 'session_info', name: lane.title },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n'),
+  )
   const job = store.enqueue(
     {
       sessionId: 'harbor-read',
-      sessionPath: join(options.directory, 'harbor.jsonl'),
-      title: 'Harbor planning',
+      ...lane,
       scope: '/Harbor',
       branch: null,
       model: 'example/reader',

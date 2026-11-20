@@ -84,8 +84,11 @@ it('keeps the review if the transcript disappears after the queue checks it', as
   })
   const service = await createBrainService(s.options)
   cleanups.push(() => service.dispose())
-  await vi.waitFor(() => expect(preparing).toHaveBeenCalled())
-  await vi.waitFor(() => expect(s.store.job(s.job.id)?.state).toBe('review'))
+  // Brain Agent opens the stale review, which refreshes it.
+  const opened = await service.agent('readReview', { jobId: s.job.id })
+  expect(preparing).toHaveBeenCalled()
+  expect(opened.neverRead).toBe(true)
+  expect(s.store.job(s.job.id)?.state).toBe('review')
   expect(s.store.storedProposal(s.job.id)).toBe(proposal)
   expect(s.runner).not.toHaveBeenCalled()
 })
@@ -104,12 +107,13 @@ it('still reports an unrelated missing file as a failed refresh', async () => {
   )
   const service = await createBrainService(s.options)
   cleanups.push(() => service.dispose())
-  await vi.waitFor(() =>
-    expect(s.store.job(s.job.id)).toMatchObject({
-      state: 'failed',
-      error: 'Missing embedding model file',
-    }),
+  await expect(service.agent('readReview', { jobId: s.job.id })).rejects.toThrow(
+    'Missing embedding model file',
   )
+  expect(s.store.job(s.job.id)).toMatchObject({
+    state: 'failed',
+    error: 'Missing embedding model file',
+  })
   expect(s.runner).not.toHaveBeenCalled()
 })
 

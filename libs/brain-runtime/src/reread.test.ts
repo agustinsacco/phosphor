@@ -79,8 +79,9 @@ it.each([true, false])(
         "UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key IN ('revision','knowledge_revision')",
       )
       db.close()
-      await expect(s.service.api.proposal(next.id)).rejects.toThrow('refreshing this review')
-      await vi.waitFor(() => expect(s.store.job(next.id)?.state).toBe('review'))
+      // Brain Agent opens the stale review, which refreshes it.
+      await s.service.agent('readReview', { jobId: next.id })
+      expect(s.store.job(next.id)?.state).toBe('review')
       expect((await s.service.api.proposal(next.id)).replacingMemories).toBe(1)
       await s.service.api.review(
         next.id,

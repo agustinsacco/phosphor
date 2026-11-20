@@ -10,7 +10,7 @@ import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { DELETED_LANE_REFRESH_REFUSAL, NEVER_READ_REFRESH_REFUSAL } from '../lane-read-rules'
 import { BRAIN_OWN_LANE_REFUSAL } from './own-lane'
 import { plainRefusal } from './refusal'
-import { freshReview } from './review-refresh'
+import { freshReview, reviewStale } from './review-refresh'
 import {
   BRAIN_OFF,
   refreshContext,
@@ -93,9 +93,12 @@ async function approvalRefusal(
     signal.throwIfAborted()
     return refused(plainRefusal(error))
   }
+  // A fresh read is refused with the rule itself; a stale one also says it cannot refresh.
   if (refusal)
     return refused(
-      refusal === DELETED_LANE_REFRESH_REFUSAL || refusal === BRAIN_OWN_LANE_REFUSAL
+      refusal === DELETED_LANE_REFRESH_REFUSAL ||
+        refusal === BRAIN_OWN_LANE_REFUSAL ||
+        !reviewStale(store, jobId)
         ? refusal
         : NEVER_READ_REFRESH_REFUSAL,
     )
@@ -145,12 +148,14 @@ export function curatorWrites(
       write(() => store.resolve(suggestionId, action, note(reason)), RESOLVED[action.kind]),
     edit: async ({ edit, reason }) =>
       write(() => store.agentEdit(edit, note(reason)), EDITED[edit.kind]),
-    correct: async ({ memoryId, summary, source, quote, reason }) => {
+    correct: async ({ memoryId, summary, source, quote, reason }, signal) => {
       const text = scrubExcerpt(summary)
+      // No local model saves it without a vector; a cancelled call saves nothing.
       const vector = await options.embeddings
-        .embed([text], 'document')
+        .embed([text], 'document', signal)
         .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
         .catch(() => null)
+      signal.throwIfAborted()
       return write(
         () =>
           store.correct(

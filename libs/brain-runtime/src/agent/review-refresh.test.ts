@@ -35,21 +35,23 @@ async function seedReviews(lanes: string[]) {
   return { store, jobs }
 }
 
-async function setup(lanes = ['harbor']) {
-  const { store, jobs } = await seedReviews(lanes)
+/** The reader: refreshes a review at the current revision, or holds until released. */
+function reader(store: FakeAgentStore) {
   let running = 0
   let peak = 0
   const gates: (() => void)[] = []
-  let hold = false
+  const held = { on: false, ignoringAbort: false }
   const states: string[] = []
   const run = vi.fn(async (job: BrainJob, signal: AbortSignal) => {
     states.push(job.state)
     peak = Math.max(peak, ++running)
     try {
-      if (hold)
+      if (held.on)
         await new Promise<void>((resolve, reject) => {
           gates.push(resolve)
-          signal.addEventListener('abort', () => reject(new Error('aborted')))
+          // A model call can ignore abort while it cleans up.
+          if (!held.ignoringAbort)
+            signal.addEventListener('abort', () => reject(new Error('aborted')))
         })
       signal.throwIfAborted()
       store.proposals.set(job.id, {
@@ -61,6 +63,13 @@ async function setup(lanes = ['harbor']) {
       running--
     }
   })
+  const release = () => gates.splice(0).forEach((open) => open())
+  return { run, states, held, release, peak: () => peak }
+}
+
+async function setup(lanes = ['harbor']) {
+  const { store, jobs } = await seedReviews(lanes)
+  const { run, states, held, release, peak } = reader(store)
   const files = new LaneFiles()
   let ready = true
   const queue = new ExtractionQueue({
@@ -73,6 +82,11 @@ async function setup(lanes = ['harbor']) {
     now: () => 123,
   })
   cleanups.push(() => queue.dispose())
+  // Runs first: a held run never keeps the queue from closing.
+  cleanups.push(async () => {
+    held.on = false
+    release()
+  })
   let task: AbortSignal | null = null
   const context: ReviewRefreshContext = {
     store,
@@ -92,9 +106,10 @@ async function setup(lanes = ['harbor']) {
     stale: () => {
       store.rev++
     },
-    peak: () => peak,
-    holdRuns: () => (hold = true),
-    release: () => gates.splice(0).forEach((open) => open()),
+    peak,
+    holdRuns: (ignoreAbort = false) =>
+      Object.assign(held, { on: true, ignoringAbort: ignoreAbort }),
+    release,
     setReady: (value: boolean) => (ready = value),
     /** Runs `inside` as the active Defrag task. */
     defrag: (inside: (signal: AbortSignal) => Promise<void>) =>
@@ -162,7 +177,7 @@ it('inside a run, Defrag refreshes the review itself, one at a time, never two m
   for (const job of s.jobs) expect(s.store.storedProposal(job.id)?.computedRevision).toBe(1)
 })
 
-it('inside a run, the queue does not refresh reviews behind Defrag’s back', async () => {
+it('the queue never refreshes a stale review on its own, inside a run or after it', async () => {
   const s = await setup()
   const id = s.jobs[0]!.id
   let inside: (() => void) | undefined
@@ -172,15 +187,19 @@ it('inside a run, the queue does not refresh reviews behind Defrag’s back', as
   s.queue.kick()
   await new Promise((resolve) => setTimeout(resolve, 30))
   expect(s.run).not.toHaveBeenCalled()
-  expect(s.store.job(id)?.state).toMatch(/review|refreshing/)
+  expect(s.store.job(id)?.state).toBe('review')
   inside!()
   await task.done
-  // Once Defrag lets go, the queue refreshes it.
-  await vi.waitFor(() => expect(s.run).toHaveBeenCalledOnce())
-  await vi.waitFor(() => expect(s.store.storedProposal(id)?.computedRevision).toBe(1))
+  // After Defrag lets go it still waits, stale, until Brain Agent opens it.
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(s.run).not.toHaveBeenCalled()
+  expect(s.store.job(id)?.state).toBe('review')
+  await expect(freshReview(s.context, id, call())).resolves.toBeNull()
+  expect(s.run).toHaveBeenCalledOnce()
+  expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
 })
 
-it('Stop mid-refresh aborts the run, leaves the review to refresh later, and records no failure', async () => {
+it('Stop mid-refresh aborts the run, puts the read back in review, and records no failure', async () => {
   const s = await setup()
   const id = s.jobs[0]!.id
   s.holdRuns()
@@ -195,12 +214,10 @@ it('Stop mid-refresh aborts the run, leaves the review to refresh later, and rec
   task.cancel()
   await expect(refreshed).rejects.toThrow()
   await task.done.catch(() => undefined)
-  expect(s.store.job(id)).toMatchObject({ error: null })
-  expect(s.store.job(id)?.state).not.toBe('failed')
-  // The queue finishes the refresh after the run.
-  await vi.waitFor(() => expect(s.run).toHaveBeenCalledTimes(2))
-  s.release()
-  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+  // Stale, it waits for Brain Agent to open it again; nothing refreshes it meanwhile.
+  expect(s.store.job(id)).toMatchObject({ state: 'review', error: null, runStartedAt: null })
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(s.run).toHaveBeenCalledOnce()
   expect(s.peak()).toBe(1)
 })
 
@@ -217,4 +234,50 @@ it('returns the refusal for a lane Brain may not read again, without refreshing'
     DELETED_LANE_REFRESH_REFUSAL,
   )
   expect(s.run).not.toHaveBeenCalled()
+})
+
+/** A Defrag task whose turn ends when Stop aborts it, while an inline refresh it started runs. */
+function stoppableRefresh(s: Awaited<ReturnType<typeof setup>>, id: string) {
+  let refreshed: Promise<string | null> | undefined
+  const task = s.defrag(async (signal) => {
+    s.stale()
+    refreshed = freshReview(s.context, id, call())
+    refreshed.catch(() => undefined)
+    await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve()))
+  })
+  return { task, refreshed: () => refreshed! }
+}
+
+it('Stop keeps the worker until the inline refresh settles: never two runs on one job', async () => {
+  const s = await setup()
+  const id = s.jobs[0]!.id
+  s.holdRuns(true)
+  const { task, refreshed } = stoppableRefresh(s, id)
+  await vi.waitFor(() => expect(s.run).toHaveBeenCalledOnce())
+  task.cancel()
+  await task.done
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(s.run).toHaveBeenCalledOnce()
+  expect(s.queue.defragActive).toBe(true)
+  s.release()
+  await expect(refreshed()).rejects.toThrow()
+  await vi.waitFor(() => expect(s.queue.defragActive).toBe(false))
+  expect(s.peak()).toBe(1)
+})
+
+it('pause and dispose wait for an inline refresh to settle', async () => {
+  for (const end of ['pause', 'dispose'] as const) {
+    const s = await setup()
+    s.holdRuns(true)
+    const { refreshed } = stoppableRefresh(s, s.jobs[0]!.id)
+    await vi.waitFor(() => expect(s.run).toHaveBeenCalledOnce())
+    let ended = false
+    const ending = s.queue[end]().then(() => (ended = true))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(ended).toBe(false)
+    s.release()
+    await ending
+    await expect(refreshed()).rejects.toThrow()
+    expect(s.peak()).toBe(1)
+  }
 })

@@ -103,10 +103,10 @@ async function reread(id: string, context: ApiContext): Promise<void> {
     throw new Error('This lane is already queued.')
   await enqueue(previous, context, id)
 }
+/** Approving needs the current review: a stale one is refreshed first, and refused meanwhile. */
 async function currentReview(
   id: string,
   { store, queue, files, changed, options }: ApiContext,
-  intent: 'view' | 'approve',
 ): Promise<void> {
   const job = store.job(id)
   const proposal = store.storedProposal(id)
@@ -118,20 +118,25 @@ async function currentReview(
       reason === DELETED_LANE_REFRESH_REFUSAL ? reason : reason ? NEVER_READ_REFRESH_REFUSAL : null
     const latest = store.storedProposal(id)
     if (!latest || latest.computedRevision === store.knowledgeRevision()) return
-    if (refusal) {
-      if (intent === 'view') return
-      throw new Error(refusal)
-    }
+    if (refusal) throw new Error(refusal)
     if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
     queue.recompute(id)
     throw new Error(BRAIN_REVIEW_REFRESHING)
   }
-  if (intent === 'view' && job && proposal) {
-    // The never-read note follows the lane's current name. An unreadable lane keeps its stored one.
+  if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
+}
+/**
+ * The review as stored, even when Brain changed since or while Brain Agent refreshes it: viewing
+ * never starts a refresh. Only its never-read note follows the lane's current name.
+ */
+async function storedReview(id: string, { store, files, changed }: ApiContext) {
+  const job = store.job(id)
+  if (job && store.storedProposal(id)) {
+    // An unreadable lane keeps its stored name.
     const current = await currentTitle(store, files, job).catch(() => null)
     if (current?.retitled) changed()
   }
-  if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
+  return store.proposal(id)
 }
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
@@ -169,12 +174,9 @@ export function createApi(context: ApiContext): BrainApi {
       return status()
     },
     extraction: async (id) => extractionView(store, id),
-    proposal: async (id) => {
-      await currentReview(id, context, 'view')
-      return store.proposal(id)
-    },
+    proposal: (id) => storedReview(id, context),
     review: async (id, decision, revision) => {
-      if (decision !== null) await currentReview(id, context, 'approve')
+      if (decision !== null) await currentReview(id, context)
       else queue.abortRefresh(id)
       return mutate(() => store.review(id, decision, revision))
     },

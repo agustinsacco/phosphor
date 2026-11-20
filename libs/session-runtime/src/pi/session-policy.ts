@@ -8,6 +8,11 @@ import type { prepareSessionLaunch } from './session-launch'
 
 export interface SessionExecution {
   unattended?: boolean
+  /**
+   * Phosphor opened this attended lane for its own work (Brain Agent's Defrag turn): its folder
+   * joins the recents, but the folder Phosphor reopens at launch stays the owner's.
+   */
+  keepLastWorkspace?: boolean
   intent?: 'report' | 'code'
   signal?: AbortSignal
 }

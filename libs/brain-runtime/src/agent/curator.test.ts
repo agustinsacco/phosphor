@@ -1,7 +1,12 @@
+import { unlink } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { BrainMemoryDetail } from '@phosphor/shared/brain'
-import type { BrainTidySuggestionDetail } from '@phosphor/shared/brain-tidy'
-import { curatorFixture, seedReview } from '../__fixtures__/curator'
+import {
+  OWNERSHIP_DETAIL,
+  RINA_SUGGESTION,
+  RINA_VIEW,
+} from '../../../brain-client/src/__fixtures__/curator'
+import { HARBOR_RECALL } from '../../../brain-client/src/__fixtures__/recall'
+import { curatorFixture, nameLane, seedReview } from '../__fixtures__/curator'
 import { BRAIN_OFF } from './curator-context'
 import { READ_NOT_WAITING } from './review-refresh'
 
@@ -66,6 +71,21 @@ describe('curator reads', () => {
     await expect(s.curator.readReview({ jobId: 'nope' }, signal)).rejects.toThrow(READ_NOT_WAITING)
   })
 
+  it('marks a fresh read never read when its lane is renamed to a never-read title or deleted', async () => {
+    const s = await curatorSetup()
+    const job = seedReview(s.store, 'ledger', s.lane)
+    await nameLane(s.lane, 'Harbor 1:1')
+    expect(await s.curator.readReview({ jobId: job.id }, signal)).toMatchObject({
+      neverRead: true,
+      proposal: { revision: 0, job: { title: 'Harbor 1:1' } },
+    })
+    await nameLane(s.lane, 'Harbor billing')
+    expect((await s.curator.readReview({ jobId: job.id }, signal)).neverRead).toBe(false)
+    await unlink(s.lane)
+    expect((await s.curator.readReview({ jobId: job.id }, signal)).neverRead).toBe(true)
+    expect(s.queue.refreshInline).not.toHaveBeenCalled()
+  })
+
   it('a stale review of a never-read lane comes back stale, marked never read, unrefreshed', async () => {
     const s = await curatorSetup()
     const job = seedReview(s.store, 'ledger', s.lane)
@@ -79,21 +99,60 @@ describe('curator reads', () => {
 
   it('suggestion, entity and memory pass through without lane paths', async () => {
     const s = await curatorSetup()
-    const detail = { memory: { id: 'ownership' }, sourcePath: '/lanes/harbor.jsonl' }
-    s.store.details.push(detail as unknown as BrainMemoryDetail)
+    const detail = { ...OWNERSHIP_DETAIL, sourcePath: '/lanes/harbor.jsonl' }
+    s.store.details.push(detail)
     expect((await s.curator.memory({ memoryId: 'ownership' }, signal)).sourcePath).toBeNull()
-    s.store.agentSuggestion = () =>
-      ({
-        suggestion: { id: 'sugg' },
-        subjects: [{ type: 'memory', value: detail }],
-        allowed: ['keep'],
-      }) as unknown as BrainTidySuggestionDetail
+    s.store.agentSuggestion = () => ({
+      ...RINA_SUGGESTION,
+      subjects: [{ type: 'memory', value: detail }],
+    })
     const suggestion = await s.curator.suggestion({ suggestionId: 'sugg' }, signal)
     expect(suggestion?.subjects[0]?.value).toMatchObject({ sourcePath: null })
     expect(detail.sourcePath).toBe('/lanes/harbor.jsonl')
     s.store.agentSuggestion = () => null
     expect(await s.curator.suggestion({ suggestionId: 'gone' }, signal)).toBeNull()
     await expect(s.curator.entity({ entityId: 'rina' }, signal)).rejects.toThrow('No entity')
+  })
+
+  it('scrubs every lane title it returns, as stored text is scrubbed', async () => {
+    const s = await curatorSetup()
+    const title = 'Harbor token=harbor-secret-123'
+    const lane = (sessionId: string) => ({ sessionId, title })
+    // The lane is named that now, and the read stored the same name.
+    await nameLane(s.lane, title)
+    const job = seedReview(s.store, 'ledger', s.lane)
+    s.store.updateJob(job.id, { title })
+    const memory = { ...OWNERSHIP_DETAIL.memory, origin: lane('harbor-lane') }
+    const detail = {
+      ...OWNERSHIP_DETAIL,
+      memory,
+      history: [memory],
+      related: [{ kind: 'conflicts' as const, memory }],
+    }
+    s.store.details.push(detail)
+    s.store.entity = () => ({ ...RINA_VIEW, sources: [{ ...lane('harbor-lane'), memories: 3 }] })
+    s.store.agentSuggestion = () => ({
+      ...RINA_SUGGESTION,
+      suggestion: {
+        ...RINA_SUGGESTION.suggestion,
+        flag: { problem: 'outdated', ...lane('harbor-lane') },
+      },
+      subjects: [
+        { type: 'entity', value: s.store.entity() },
+        { type: 'memory', value: detail },
+      ],
+    })
+    s.search.result = { ...HARBOR_RECALL, hits: [{ ...HARBOR_RECALL.hits[0]!, memory }] }
+    const returned = JSON.stringify([
+      await s.curator.waiting({}, signal),
+      await s.curator.readReview({ jobId: job.id }, signal),
+      await s.curator.suggestion({ suggestionId: 'sugg-rina' }, signal),
+      await s.curator.entity({ entityId: 'rina' }, signal),
+      await s.curator.memory({ memoryId: memory.id }, signal),
+      await s.curator.search({ query: 'Harbor' }, signal),
+    ])
+    expect(returned).not.toContain('harbor-secret-123')
+    expect(returned.split('Harbor [redacted]').length - 1).toBe(12)
   })
 
   it('search ranks no lane project first', async () => {
