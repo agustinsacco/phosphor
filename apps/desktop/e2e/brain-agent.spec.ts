@@ -95,6 +95,7 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
     await expect(runStrip(page)).toContainText('stopped')
     await brainTab(page, 'Lanes').click()
     await expect(waitingRow(page, seed.harbor)).toBeVisible()
+    await page.getByRole('button', { name: 'Close page', exact: true }).click()
     await page.getByTestId('session-row').filter({ hasText: seed.ledger.title }).first().click()
     await send(page, 'BRAIN_STUB_CURATOR_PROBE')
     await expect(page.getByText('Curator methods refused.', { exact: true })).toBeVisible()
