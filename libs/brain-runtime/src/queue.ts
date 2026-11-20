@@ -32,7 +32,11 @@ const CANCELLED = 'Brain task cancelled.'
 const titleRules = (store: BrainStore): string =>
   JSON.stringify(store.snapshot().prefs.neverRead.titles)
 
-/** A single fork at a time. Waiting lanes never block an older runnable job. */
+/**
+ * A single fork at a time. Waiting lanes never block an older runnable job. A stale review waits
+ * in review: only `recompute` (Brain Agent opening it outside a run) and `refreshInline` (inside
+ * Defrag) refresh it, never a pass of the queue.
+ */
 export class ExtractionQueue {
   private active: { id: string; abort: AbortController; done: Promise<void> } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -162,7 +166,6 @@ export class ExtractionQueue {
     if (!this.accepting) return
     clearTimeout(this.timer)
     const { store, changed } = this.options
-    this.refreshStaleReviews()
     const waiting = this.updateWaiting()
     if (waiting) this.timer = setTimeout(() => this.kick(), 2000)
     if (this.active || !this.options.ready()) return
@@ -197,22 +200,6 @@ export class ExtractionQueue {
     // Start on a microtask so cancellation always sees the active run first.
     const done = Promise.resolve().then(() => this.execute(running, abort))
     this.active = { id: job.id, abort, done }
-  }
-
-  private refreshStaleReviews(): void {
-    const { store, changed } = this.options
-    for (const job of store.snapshot().jobs) {
-      if (job.state !== 'review' || this.blocked.has(job.id)) continue
-      const proposal = store.storedProposal(job.id)
-      if (!proposal || proposal.computedRevision === store.knowledgeRevision()) continue
-      store.updateJob(job.id, {
-        state: 'refreshing',
-        runStartedAt: null,
-        error: null,
-        progress: null,
-      })
-      changed()
-    }
   }
 
   private updateWaiting(): boolean {
@@ -389,7 +376,9 @@ export class ExtractionQueue {
     try {
       await this.runJob(running, signal)
     } finally {
-      if (store.job(id)?.state === 'refreshing') store.updateJob(id, { runStartedAt: null })
+      // Stopped mid-refresh: it waits, stale, for Brain Agent to open it again.
+      if (store.job(id)?.state === 'refreshing')
+        store.updateJob(id, { state: 'review', runStartedAt: null })
       changed()
     }
     signal.throwIfAborted()
