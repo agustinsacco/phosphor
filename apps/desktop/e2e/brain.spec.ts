@@ -276,8 +276,8 @@ test('Brain saves with review off and journals a Knowledge edit that can be undo
     await page.keyboard.press('Escape')
     await queueLane(page, seed.harbor)
     await expect
-      .poll(async () => (await status(page)).jobs[0]?.state, { timeout: READ_TIMEOUT })
-      .toBe('done')
+      .poll(async () => (await status(page)).counts, { timeout: READ_TIMEOUT })
+      .toEqual({ memories: 2, entities: 3 })
     expect((await status(page)).agent.waiting.reads).toBe(0)
     await expect(defragButton(page)).toBeDisabled()
     await exploreBrain(page)
