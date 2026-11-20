@@ -8,7 +8,10 @@ export async function decideRead(
   revision: number,
 ) {
   const result = await service.agent('decideRead', {
-    jobId, decision, revision, reason: 'The lasting memories have evidence in this read.',
+    jobId,
+    decision,
+    revision,
+    reason: 'The lasting memories have evidence in this read.',
   })
   if (result.status !== 'done') throw new Error(result.message)
   return service.api.status()

@@ -18,7 +18,9 @@ it.each([0.86, 0.83, 0.8])(
   (similarity) => {
     const { store } = memoryPair(similarity)
     const result = store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
-    expect(store.suggestions('same_memory', null, 20).items).toHaveLength(similarity >= 0.84 ? 1 : 0)
+    expect(store.suggestions('same_memory', null, 20).items).toHaveLength(
+      similarity >= 0.84 ? 1 : 0,
+    )
     expect(result.folded).toBe(0)
     expect(store.snapshot().counts.memories).toBe(2)
   },

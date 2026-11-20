@@ -52,7 +52,7 @@ it.each([
   ['Harbor ships with the archive.', 'Harbor ships without the archive.'],
   ['Use Kestrel for invoices.', 'Use Ledger instead of Kestrel for invoices.'],
 ])('raises a near pair that differs by a negation as a possible disagreement', (a, b) => {
-  const { store, db } = memoryPair(a, b)
+  const { store } = memoryPair(a, b)
   store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
   expect(store.suggestions('same_memory', null, 20).items).toEqual([])
   expect(store.suggestions('conflict', null, 20).items.map((item) => item.reason)).toEqual([
@@ -60,7 +60,7 @@ it.each([
   ])
 })
 it('keeps a near pair with the same polarity as a repeat', () => {
-  const { store, db } = memoryPair(
+  const { store } = memoryPair(
     'Ledger never deploys on Fridays.',
     'Ledger does not deploy on Fridays.',
   )

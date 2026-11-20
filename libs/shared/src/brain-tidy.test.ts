@@ -3,6 +3,7 @@ import {
   checkBrainTidyAction,
   type BrainTidyAction,
   type BrainTidyOperation,
+  type BrainTidySummary,
   type BrainTidySuggestionDetail,
 } from './brain-tidy'
 
@@ -59,7 +60,7 @@ it('freezes the reversible operation kinds', () => {
 })
 
 it('keeps only automatic fold notice fields in the local sweep status', () => {
-  expectTypeOf<import('./brain-tidy').BrainTidySummary>().toEqualTypeOf<{
+  expectTypeOf<BrainTidySummary>().toEqualTypeOf<{
     automaticFolds: number
     newestAutomaticFoldAt: number | null
   }>()
