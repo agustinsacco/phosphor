@@ -18,7 +18,7 @@ export async function watchBrainErrors(page: Page): Promise<() => Promise<void>>
 }
 
 export async function expectBoundedReadText(page: Page): Promise<void> {
-  const detail = page.getByRole('region', { name: 'Extraction detail', exact: true })
+  const detail = page.getByRole('article', { name: 'Read detail', exact: true })
   await detail.getByText('Read the conversation · part 1', { exact: false }).click()
   await detail.getByText('Source lane at extraction', { exact: true }).click()
   await expect(detail.locator('pre')).toHaveCount(3)

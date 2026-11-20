@@ -38,6 +38,11 @@ test('Brain Agent decides a waiting read, records its reason and undoes the run'
     await defragButton(page).hover()
     await expect(page.getByRole('tooltip')).toContainText('1 waiting: 1 read')
     const id = await defragRead(page, seed.harbor)
+    expect(
+      await page.evaluate(
+        async () => (await window.phosphor.invoke('app:getPrefs')).lastWorkspacePath,
+      ),
+    ).toBe(seed.workspace)
     const recent = page.getByRole('region', { name: 'Recent changes', exact: true })
     await expect(recent).toContainText('Brain Agent')
     await recent.getByRole('button', { name: /^Approved / }).click()
@@ -50,12 +55,6 @@ test('Brain Agent decides a waiting read, records its reason and undoes the run'
     expect((await status(page)).counts.memories).toBe(0)
     await expect(page.locator('.page-shell-header')).toContainText('1 waiting')
     await expect(recent).toContainText('Undone')
-  } catch (error) {
-    const state = await status(page)
-    console.log(JSON.stringify({ state, journal: await page.evaluate(() => window.phosphor.invoke('brain:tidyChanges', 50)) }))
-    await runStrip(page).getByRole('button', { name: 'Brain lane' }).click()
-    console.log(await page.locator('body').innerText())
-    throw error
   } finally {
     await shutdown(h)
   }
@@ -82,18 +81,26 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
     const group = page.getByRole('region', { name: 'Brain', exact: true })
     await expect(group.getByTestId('session-row')).toContainText('🧠')
     await expect(group.getByTestId('session-row')).toContainText('Brain Agent')
-    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+    await expect(page.getByRole('main').getByText(/^Defrag\. 1 waiting:/)).toBeVisible()
+    expect((await status(page)).agent.run?.state).toBe('running')
+    await group.getByTestId('session-row').click({ button: 'right' })
+    await expect(page.getByText('Queue for knowledge extraction', { exact: true })).toHaveCount(0)
+    await page.keyboard.press('Escape')
     await expect
-      .poll(() => launches(seed.audit, (awaitable) => awaitable.endsWith('/brain/Brain')))
+      .poll(() => launches(seed.audit, (cwd) => cwd.endsWith('/brain/Brain')))
       .toHaveLength(1)
     await brainNav(page).click()
     await runStrip(page).getByRole('button', { name: 'Stop', exact: true }).click()
     await expect.poll(async () => (await status(page)).agent.run?.state).toBe('stopped')
     await expect(runStrip(page)).toContainText('stopped')
+    await brainTab(page, 'Lanes').click()
     await expect(waitingRow(page, seed.harbor)).toBeVisible()
     await page.getByTestId('session-row').filter({ hasText: seed.ledger.title }).first().click()
     await send(page, 'BRAIN_STUB_CURATOR_PROBE')
     await expect(page.getByText('Curator methods refused.', { exact: true })).toBeVisible()
+    await expect
+      .poll(() => launches(seed.audit, (cwd) => cwd.endsWith('/brain/Brain')))
+      .toHaveLength(1)
     const ordinary = await launches(seed.audit, (cwd) => cwd === seed.workspace)
     expect(ordinary).toHaveLength(1)
     expect(ordinary[0]).toMatchObject({ hasToken: true, curator: false })

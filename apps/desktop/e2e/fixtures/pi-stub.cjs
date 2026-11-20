@@ -533,14 +533,19 @@ function handle(cmd) {
         command: 'get_messages',
         success: true,
         data: {
-          messages: sessionEntries()
-            .filter(
-              (e) =>
-                !sessionEntries().some(
-                  (entry) => entry.type === 'compaction' && entry.id === 'stub-workflow-compact',
-                ) && e.id.startsWith('workflow-evidence-'),
-            )
-            .map((e) => ({ ...e, role: 'custom' })),
+          messages: brainStub.isBrainLane()
+            ? sessionEntries()
+                .filter((entry) => entry.type === 'message')
+                .map((entry) => entry.message)
+            : sessionEntries()
+                .filter(
+                  (e) =>
+                    !sessionEntries().some(
+                      (entry) =>
+                        entry.type === 'compaction' && entry.id === 'stub-workflow-compact',
+                    ) && e.id.startsWith('workflow-evidence-'),
+                )
+                .map((e) => ({ ...e, role: 'custom' })),
         },
       })
       break

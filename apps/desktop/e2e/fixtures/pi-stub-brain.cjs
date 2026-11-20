@@ -213,17 +213,18 @@ const net = require('node:net')
 const connected = () => !!process.env.PHOSPHOR_BRAIN_ENDPOINT && !!process.env.PHOSPHOR_BRAIN_TOKEN
 const brainFolder = () =>
   path.basename(process.cwd()) === 'Brain' && path.basename(path.dirname(process.cwd())) === 'brain'
+const isBrainLane = () => brainFolder() && connected()
 let agentTurn = null
 
 function recordAgentLaunch(argv) {
   const audit = process.env.PHOSPHOR_STUB_BRAIN_AUDIT
-  if (audit && connected())
+  if (audit)
     fs.appendFileSync(
       audit,
       JSON.stringify({
         cwd: process.cwd(),
         pid: process.pid,
-        hasToken: true,
+        hasToken: connected(),
         curator: argv.some((arg) => arg.endsWith('brain-curator.mjs')),
       }) + '\n',
     )
@@ -263,7 +264,7 @@ function bridge(method, params) {
   })
 }
 async function approveFirstRead() {
-  const waiting = await bridge('waiting', {})
+  const waiting = await bridge('waiting', { limit: 60 })
   if (!waiting.ok) throw new Error(waiting.error)
   const read = waiting.data.items.find((item) => item.kind === 'read')
   if (!read) return
@@ -275,10 +276,12 @@ async function approveFirstRead() {
     : {
         memories: proposal.memories.filter((memory) => !memory.hold).map((memory) => memory.index),
         identities: Object.fromEntries(
-          proposal.identities.map((entity) => [
-            entity.ref,
-            entity.candidates.find((candidate) => candidate.label === entity.label)?.id ?? 'new',
-          ]),
+          proposal.identities
+            .filter((entity) => entity.decision === 'uncertain')
+            .map((entity) => [
+              entity.ref,
+              entity.candidates.find((candidate) => candidate.label === entity.label)?.id ?? 'new',
+            ]),
         ),
         groups: [],
         descriptions: [],
@@ -315,7 +318,7 @@ function handleAgentPrompt(message, out, persist) {
   if (
     !connected() ||
     (!probe &&
-      !(brainFolder() && (message.startsWith('Defrag.') || message.includes('BRAIN_STUB_HOLD'))))
+      !(isBrainLane() && (message.startsWith('Defrag.') || message.includes('BRAIN_STUB_HOLD'))))
   )
     return false
   const turn = { out, persist, timer: null }
@@ -328,7 +331,7 @@ function handleAgentPrompt(message, out, persist) {
   turn.timer = setTimeout(
     () => {
       const work = probe
-        ? bridge('waiting', {}).then((result) => {
+        ? bridge('waiting', { limit: 60 }).then((result) => {
             if (result.ok || result.error !== 'Brain request unavailable')
               throw new Error('Curator isolation failed')
           })
@@ -352,4 +355,11 @@ function abortAgent() {
   turn.out({ type: 'agent_settled', aborted: true })
   return true
 }
-module.exports = { isBrainCall, runBrain, recordAgentLaunch, handleAgentPrompt, abortAgent }
+module.exports = {
+  isBrainCall,
+  runBrain,
+  isBrainLane,
+  recordAgentLaunch,
+  handleAgentPrompt,
+  abortAgent,
+}

@@ -13,7 +13,6 @@ import {
 import {
   defragRead,
   defragButton,
-  runStrip,
   READ_TIMEOUT,
   awaitRead,
   brainNav,
@@ -240,9 +239,7 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
     await waitingRow(page, seed.harbor).click()
     const review = page.getByRole('article', { name: 'Waiting read', exact: true })
     await review.getByRole('button', { name: 'See how it was read', exact: true }).click()
-    await expect(page.getByRole('region', { name: 'Extraction detail' })).toContainText(
-      'Claude Opus 5 · medium thinking',
-    )
+    await expect(page.getByRole('article', { name: 'Read detail' })).toContainText('Claude Opus 5')
     const launches = (await readFile(argvLog, 'utf8'))
       .trim()
       .split('\n')
@@ -257,6 +254,47 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
       expect(args[args.indexOf('--thinking') + 1]).toBe('medium')
     }
     expect(await readFile(seed.harbor.source, 'utf8')).toBe(seed.harbor.original)
+  } finally {
+    await shutdown(h)
+  }
+})
+
+test('Brain saves with review off and journals a Knowledge edit that can be undone', async () => {
+  const seed = await seedBrainLanes()
+  const h = await launch({
+    workspace: seed.workspace,
+    agentDir: seed.agent,
+    userDataDir: seed.profile,
+    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
+  })
+  const { page } = h
+  try {
+    await enableBrain(page, seed.harbor)
+    await page.locator('.page-shell-header').getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('switch', { name: 'Review before saving' }).click()
+    await expect.poll(async () => (await status(page)).prefs.review).toBe(false)
+    await page.keyboard.press('Escape')
+    await queueLane(page, seed.harbor)
+    await expect
+      .poll(async () => (await status(page)).jobs[0]?.state, { timeout: READ_TIMEOUT })
+      .toBe('done')
+    expect((await status(page)).agent.waiting.reads).toBe(0)
+    await expect(defragButton(page)).toBeDisabled()
+    await exploreBrain(page)
+    const profile = page.getByRole('region', { name: 'Profile', exact: true })
+    await profile.getByRole('button', { name: 'More actions' }).click()
+    await page.getByText('Edit description…', { exact: true }).click()
+    const description = page.getByRole('dialog', { name: 'Describe Rina Okafor' })
+    await description.getByRole('textbox', { name: 'Description' }).fill('Harbor ledger owner')
+    await description.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(profile).toContainText('Harbor ledger owner')
+    await brainTab(page, 'Lanes').click()
+    const recent = page.getByRole('region', { name: 'Recent changes', exact: true })
+    await expect(recent).toContainText('By you')
+    await recent.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect(recent).toContainText('Undone')
+    await brainTab(page, 'Knowledge').click()
+    await expect(profile).not.toContainText('Harbor ledger owner')
   } finally {
     await shutdown(h)
   }
