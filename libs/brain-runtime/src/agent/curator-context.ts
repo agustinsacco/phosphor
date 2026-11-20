@@ -37,6 +37,7 @@ export function refreshContext(context: CuratorContext): ReviewRefreshContext {
     files: context.files,
     queue: context.queue,
     folder: context.options.agent?.folder,
+    changed: context.changed,
     defragSignal: () => context.defrag.current()?.signal ?? null,
     ...context.refreshWait,
   }

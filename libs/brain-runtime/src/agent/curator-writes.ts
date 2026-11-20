@@ -10,7 +10,7 @@ import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { DELETED_LANE_REFRESH_REFUSAL, NEVER_READ_REFRESH_REFUSAL } from '../lane-read-rules'
 import { BRAIN_OWN_LANE_REFUSAL } from './own-lane'
 import { plainRefusal } from './refusal'
-import { freshReview } from './review-refresh'
+import { freshReview, reviewStale } from './review-refresh'
 import {
   BRAIN_OFF,
   refreshContext,
@@ -93,9 +93,12 @@ async function approvalRefusal(
     signal.throwIfAborted()
     return refused(plainRefusal(error))
   }
+  // A fresh read is refused with the rule itself; a stale one also says it cannot refresh.
   if (refusal)
     return refused(
-      refusal === DELETED_LANE_REFRESH_REFUSAL || refusal === BRAIN_OWN_LANE_REFUSAL
+      refusal === DELETED_LANE_REFRESH_REFUSAL ||
+        refusal === BRAIN_OWN_LANE_REFUSAL ||
+        !reviewStale(store, jobId)
         ? refusal
         : NEVER_READ_REFRESH_REFUSAL,
     )
