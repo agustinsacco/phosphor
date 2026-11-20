@@ -70,7 +70,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
     run: (job, signal, entries) => extractJob(job, signal, store, options, search, entries),
     changed,
-    check: (job) => currentReadCheck(store, files, job),
+    check: (job) => currentReadCheck(store, files, job, options.agent?.folder),
     cancelled: (job, reason) =>
       options.log?.('Brain job cancelled', {
         jobId: job.id,
