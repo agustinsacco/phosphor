@@ -118,3 +118,23 @@ describe('Brain Agent writes and journal', () => {
     ])
   })
 })
+
+it('refuses erasure reasons quoting the summary, case-insensitively with collapsed whitespace', () => {
+  const { store, db } = fixture()
+  seed(db, 1)
+  const before = dump(db)
+  expect(() =>
+    store.erase('memory-1', { ...note, reason: 'Remove: RINA  LEADS Ledger area 1.' }),
+  ).toThrow('Give a reason without quoting the memory; nothing changed.')
+  expect(dump(db)).toEqual(before)
+  db.prepare('UPDATE memories SET summary=? WHERE id=?').run(
+    'Rina leads the Ledger API team and maintains the release archive every month.',
+    'memory-1',
+  )
+  expect(() =>
+    store.erase('memory-1', {
+      ...note,
+      reason: 'Because: RINA LEADS THE LEDGER API TEAM AND MAINTAINS the release archive.',
+    }),
+  ).toThrow('Give a reason without quoting the memory; nothing changed.')
+})

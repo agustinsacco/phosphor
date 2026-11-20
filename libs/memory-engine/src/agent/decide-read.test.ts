@@ -14,7 +14,7 @@ const decision = {
 function waiting(store: BrainStore, patch: Partial<Proposal> = {}) {
   const job = store.enqueue(
     lane({
-      leafId: `leaf-${store.revision()}`,
+      leafId: `leaf-next-${store.revision()}`,
       sessionId: patch.origin?.sessionId ?? 'harbor-lane',
     }),
     'queued',
