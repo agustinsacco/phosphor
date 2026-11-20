@@ -1,7 +1,5 @@
 import { writeFile } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { BrainMemoryDetail } from '@phosphor/shared/brain'
-import type { BrainTidySuggestionDetail } from '@phosphor/shared/brain-tidy'
 import {
   OWNERSHIP_DETAIL,
   RINA_SUGGESTION,
@@ -86,15 +84,13 @@ describe('curator reads', () => {
 
   it('suggestion, entity and memory pass through without lane paths', async () => {
     const s = await curatorSetup()
-    const detail = { memory: { id: 'ownership' }, sourcePath: '/lanes/harbor.jsonl' }
-    s.store.details.push(detail as unknown as BrainMemoryDetail)
+    const detail = { ...OWNERSHIP_DETAIL, sourcePath: '/lanes/harbor.jsonl' }
+    s.store.details.push(detail)
     expect((await s.curator.memory({ memoryId: 'ownership' }, signal)).sourcePath).toBeNull()
-    s.store.agentSuggestion = () =>
-      ({
-        suggestion: { id: 'sugg' },
-        subjects: [{ type: 'memory', value: detail }],
-        allowed: ['keep'],
-      }) as unknown as BrainTidySuggestionDetail
+    s.store.agentSuggestion = () => ({
+      ...RINA_SUGGESTION,
+      subjects: [{ type: 'memory', value: detail }],
+    })
     const suggestion = await s.curator.suggestion({ suggestionId: 'sugg' }, signal)
     expect(suggestion?.subjects[0]?.value).toMatchObject({ sourcePath: null })
     expect(detail.sourcePath).toBe('/lanes/harbor.jsonl')

@@ -4,11 +4,17 @@ import {
   type BrainAgentMap,
   type BrainWaitingItem,
 } from '@phosphor/shared/brain-agent'
-import type { BrainTidySuggestionDetail } from '@phosphor/shared/brain-tidy'
-import type { BrainMemoryDetail } from '@phosphor/shared/brain-explore'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { freshReview } from './review-refresh'
 import { curatorWrites } from './curator-writes'
+import {
+  curatorEntity,
+  curatorJob,
+  curatorMemory,
+  curatorRecall,
+  curatorSuggestion,
+  curatorTitle,
+} from './curator-view'
 import {
   BRAIN_OFF,
   refreshContext,
@@ -21,30 +27,13 @@ const WAITING_LIMIT = 60
 const byAge = (a: BrainJob, b: BrainJob): number =>
   (a.finishedAt ?? a.queuedAt) - (b.finishedAt ?? b.queuedAt) || a.queuedAt - b.queuedAt
 
-/** Lane files never reach Brain Agent: it needs ids, not paths. */
-const withoutPath = (detail: BrainMemoryDetail): BrainMemoryDetail => ({
-  ...detail,
-  sourcePath: null,
-})
-function suggestionWithoutPaths(
-  detail: BrainTidySuggestionDetail | null,
-): BrainTidySuggestionDetail | null {
-  if (!detail) return null
-  return {
-    ...detail,
-    subjects: detail.subjects.map((subject) =>
-      subject.type === 'memory' ? { ...subject, value: withoutPath(subject.value) } : subject,
-    ),
-  }
-}
-
 function readItem(store: BrainStore, job: BrainJob): BrainWaitingItem {
   const proposal = store.storedProposal(job.id)
   const prefs = store.snapshot().prefs.neverRead
   return {
     kind: 'read',
     jobId: job.id,
-    title: job.title,
+    title: curatorTitle(job.title),
     state: job.state === 'refreshing' ? 'refreshing' : 'review',
     memories: proposal?.memories.length ?? job.memories,
     questions:
@@ -85,7 +74,7 @@ export function createCurator(context: CuratorContext): CuratorApi {
       const current = store.job(jobId) ?? job
       const proposal = store.proposal(jobId)
       return {
-        proposal: { ...proposal, job: { ...proposal.job, sessionPath: '' } },
+        proposal: { ...proposal, job: curatorJob(proposal.job) },
         neverRead:
           refusal !== null ||
           brainNeverReadReason(store.snapshot().prefs.neverRead, current) !== null,
@@ -93,15 +82,15 @@ export function createCurator(context: CuratorContext): CuratorApi {
     },
     suggestion: async ({ suggestionId }) => {
       on()
-      return suggestionWithoutPaths(store.agentSuggestion(suggestionId))
+      return curatorSuggestion(store.agentSuggestion(suggestionId))
     },
     entity: async ({ entityId }) => {
       on()
-      return store.entity(entityId)
+      return curatorEntity(store.entity(entityId))
     },
     memory: async ({ memoryId }) => {
       on()
-      return withoutPath(store.memory(memoryId))
+      return curatorMemory(store.memory(memoryId))
     },
     search: async (request) => {
       on()
@@ -110,7 +99,7 @@ export function createCurator(context: CuratorContext): CuratorApi {
         .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
         .catch(() => null)
       // Brain Agent looks after every project alike: no lane cwd ranks one first.
-      return search.recall({
+      const recall = await search.recall({
         query: request.query,
         vector,
         scope: null,
@@ -118,6 +107,7 @@ export function createCurator(context: CuratorContext): CuratorApi {
         now: (options.now ?? Date.now)(),
         limit: request.limit ?? 8,
       })
+      return curatorRecall(recall)
     },
     ...curatorWrites(context),
   }
