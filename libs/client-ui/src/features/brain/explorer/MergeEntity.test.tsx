@@ -19,6 +19,7 @@ let root: Root,
   fake: ReturnType<typeof createFakePhosphor>,
   restore: () => void
 let status = mockBrainStatus()
+const legacyTidy = vi.fn()
 const merge = vi.fn(),
   undo = vi.fn(),
   read = vi.fn(),
@@ -36,11 +37,12 @@ beforeEach(() => {
     operationId: 'merge-1',
   }))
   undo.mockReset().mockImplementation(async () => ({ ...status, revision: status.revision + 1 }))
+  legacyTidy.mockReset().mockImplementation(() => emptyBrainTidyPage(status.revision))
   fake = createFakePhosphor({
     'brain:entity': read,
     'brain:merge': merge,
     'brain:status': () => status,
-    'brain:tidy': () => emptyBrainTidyPage(status.revision),
+    'brain:tidy': legacyTidy,
     'brain:tidyUndo': undo,
   })
   restore = installFakePhosphor(fake)
@@ -155,4 +157,12 @@ it('reloads Recent changes and distinguishes a raced Undo from an engine refusal
   expect(useExtensionUiStore.getState().toasts[0]!.message).toBe(
     'Later facts prevent a clean undo.',
   )
+})
+
+it('reloads a refused Knowledge merge without using the removed Tidy surface', async () => {
+  merge.mockRejectedValueOnce(new Error('These records cannot be combined.'))
+  await render()
+  await answer()
+  expect(container.textContent).toContain('These records cannot be combined.')
+  expect(legacyTidy).not.toHaveBeenCalled()
 })

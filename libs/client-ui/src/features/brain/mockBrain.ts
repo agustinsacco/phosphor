@@ -1,7 +1,9 @@
+import { queueMockBrain } from './mockBrainQueue'
+import { MockBrainAgent } from './mockBrainAgent'
 import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
 import { mockBrainPrefs } from './mockBrainPrefs'
 import type { BrainEntitySort } from '@shared/brain-explore'
-import { brainLaneNeverRead, brainNeverReadReason } from '@shared/brain'
+import { brainLaneNeverRead } from '@shared/brain'
 import { BRAIN_REVIEW_REFRESHING } from '@shared/brain-review'
 import type {
   BrainExtractionView,
@@ -13,7 +15,7 @@ import type {
   BrainPredicate,
   BrainStatus,
 } from '@shared/brain'
-import { mockBrainJob, mockBrainProposal, mockBrainStatus } from './mockBrainData'
+import { mockBrainProposal, mockBrainStatus } from './mockBrainData'
 import { mockDemoJobs, mockStartingJobs, withDemoQuestions } from './mockBrainDemo'
 import { applyMockReview, checkMockDecision } from './mockReview'
 import { mockExtractionRecord } from './mockExtractionRecord'
@@ -24,14 +26,6 @@ export interface MockBrainOptions extends MockTidyOptions {
   /** The browser harness: a required question, held claims and a never-read review. */
   demoReviews?: boolean
 }
-/** A lane with one of these is already queued or waiting for the owner. */
-const UNFINISHED: readonly BrainJob['state'][] = [
-  'waiting',
-  'queued',
-  'running',
-  'refreshing',
-  'review',
-]
 const FINISHED: readonly BrainJob['state'][] = ['done', 'empty', 'rejected']
 
 class MockBrain {
@@ -43,12 +37,34 @@ class MockBrain {
   private resets = 0
   private computedRevisions = new Map<string, number>()
   private tidy: MockTidy
+  private agent: MockBrainAgent
   private demo: boolean
   constructor(
     private now: () => number,
     options: MockBrainOptions,
   ) {
     this.tidy = new MockTidy(this.explorer, this.state, now, options)
+    this.agent = new MockBrainAgent(this.state, this.tidy, now, (job) => {
+      this.computedRevisions.set(job.id, this.state.revision)
+      job.state = 'review'
+      const proposal = this.proposal(job.id)
+      this.review(
+        job.id,
+        brainLaneNeverRead(this.state.prefs.neverRead, job)
+          ? null
+          : {
+              memories: proposal.memories.filter((m) => !m.hold).map((m) => m.index),
+              identities: { rina: 'rina' },
+              groups: [],
+              descriptions: [],
+              confirmations: [],
+            },
+        this.state.revision,
+      )
+      return () => {
+        this.history.jobs = this.history.jobs.filter((read) => read.id !== job.id)
+      }
+    })
     this.demo = !!options.demoReviews
     this.state.jobs = [...mockStartingJobs(), ...(this.demo ? mockDemoJobs() : [])]
     // The demo review adds two held claims to the usual two memories.
@@ -62,6 +78,7 @@ class MockBrain {
   private status(): BrainStatus {
     this.tidy.tick()
     this.state.tidy = this.tidy.summary()
+    this.state.agent.waiting = this.agent.waiting()
     this.state.counts = {
       memories: this.explorer.details.length,
       entities: this.explorer.entities.length,
@@ -128,12 +145,14 @@ class MockBrain {
       if (this.state.embedding.phase === 'ready') this.downloading = null
     }
     if (!this.state.prefs.enabled || this.state.embedding.phase !== 'ready') return
+    this.agent.tick()
+    if (this.agent.active()) return
     // One attempt at a time; a waiting refresh goes before any queued read, as on Desktop.
     const jobs = this.state.jobs
     const job =
       jobs.find((j) => j.runStartedAt !== null && ['running', 'refreshing'].includes(j.state)) ??
       jobs.find((j) => j.state === 'refreshing') ??
-      jobs.find((j) => j.state === 'queued')
+      jobs.find((j) => j.state === 'queued' && this.agent.canRead(j.id))
     if (!job) return
     if (job.state === 'queued' || job.runStartedAt === null) return this.start(job)
     if (this.now() - job.runStartedAt < 4000) return
@@ -173,43 +192,13 @@ class MockBrain {
     this.state.embedding.phase = 'downloading'
     return this.status()
   }
-  /** Read again (`previous`) reads from the start; a lane read before continues after it. */
   private queue(lane: BrainLaneRef, previous?: BrainJob): BrainStatus {
-    if (!this.state.prefs.enabled) throw new Error('Turn Brain on first.')
-    const earlier = this.history.jobs.find((job) => job.sessionPath === lane.sessionPath)
-    const sessionId = previous?.sessionId ?? earlier?.sessionId ?? lane.sessionPath
-    const refusal = brainNeverReadReason(this.state.prefs.neverRead, {
-      sessionId,
-      title: lane.title,
-    })
-    if (refusal) throw new Error(refusal)
-    if (
-      this.state.jobs.some(
-        (job) => job.sessionPath === lane.sessionPath && UNFINISHED.includes(job.state),
-      )
-    )
-      throw new Error('This lane is already queued.')
-    const id = crypto.randomUUID()
-    this.state.jobs.push(
-      mockBrainJob({
-        id,
-        sessionPath: lane.sessionPath,
-        title: lane.title,
-        replaces: previous?.id ?? null,
-        sessionId,
-        state: 'queued',
-        memories: 0,
-        leafId: `leaf-${id}`,
-        fromLeafId: previous ? null : (earlier?.leafId ?? null),
-        queuedAt: this.now(),
-        startedAt: null,
-        finishedAt: null,
-      }),
-    )
+    queueMockBrain(lane, previous, this.state, this.history, this.now)
     return this.status()
   }
   private setPrefs(channel: 'brain:neverRead' | 'brain:setPrefs', args: unknown[]): BrainStatus {
     this.state.prefs = mockBrainPrefs(channel, args, this.state.prefs)
+    if (!this.state.prefs.enabled) this.agent.call('brain:defragStop', [])
     // As on Desktop, a rule change drops reads not yet started; a review stays in the Inbox.
     this.state.jobs = this.state.jobs.filter(
       (job) =>
@@ -238,6 +227,7 @@ class MockBrain {
         this.history.jobs = []
         this.computedRevisions.clear()
         this.state.jobs = []
+        this.state.agent.run = null
         this.state.revision = 0
         this.state.generation = `mock-generation-${++this.resets}`
         this.state.prefs.review = true
@@ -296,6 +286,10 @@ class MockBrain {
   }
   call(channel: string, args: unknown[]): unknown {
     this.tick()
+    if (['brain:defrag', 'brain:defragStop', 'brain:undoRun'].includes(channel)) {
+      const result = this.agent.call(channel, args)
+      return Object.assign(this.status(), result)
+    }
     if (channel.startsWith('brain:tidy')) return this.tidy.call(channel, args)
     switch (channel) {
       case 'brain:history':

@@ -123,7 +123,7 @@ it('merges mentions and links, and auto-approves when review is off', async () =
   ])
   const rina = (await call('brain:entity', ['rina'])) as BrainEntityView
   expect(rina.entity.aliases).toContain('Tom Lee')
-  await expect(call('brain:entity', ['tom'])).rejects.toThrow('Entity not found')
+  expect(await call('brain:entity', ['tom'])).toMatchObject({ entity: { id: 'rina' } })
   const before = (await call('brain:status', [])) as BrainStatus
   await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true, review: false }])
   now = 6000

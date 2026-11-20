@@ -37,6 +37,7 @@ it('groups reads by state, with every finished read once and newest first', () =
     more: false,
   })
   expect(groups.map((group) => [group.label, group.rows.map((row) => row.job.id)])).toEqual([
+    ['Waiting for Defrag', ['review']],
     ['Reading', ['running']],
     ['Queued', ['queued', 'waiting']],
     ['Failed', ['failed']],
@@ -148,8 +149,8 @@ it('groups a refreshing review apart and a rejected read with the finished ones'
     more: false,
   })
   expect(groups.map((group) => [group.label, group.rows.map((row) => row.job.id)])).toEqual([
+    ['Waiting for Defrag', ['review', 'refreshing']],
     ['Reading', ['running']],
-    ['Refreshing', ['refreshing']],
     ['Read', ['rejected', 'done']],
   ])
   const rejected = groups.at(-1)!.rows[0]!

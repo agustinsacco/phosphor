@@ -24,34 +24,48 @@ export const CHANGE_WHO: Record<BrainTidyOperation['who'], string> = {
 }
 
 /** One Tidy change: what it did, who did it, and Undo while it still applies. */
+export function changeTitle(change: BrainTidyOperation): string {
+  return change.kind === 'erase'
+    ? `Erased a memory${change.reason ? `: ${change.reason}` : ''}`
+    : change.summary
+}
+
 export function ChangeDetail({
   change,
   busy,
   message,
   onUndo,
+  onRead,
 }: {
   change: BrainTidyOperation
   busy: boolean
   /** Why the last Undo was refused, in the owner's words. */
   message: string
   onUndo: (operationId: string) => void
+  onRead: (jobId: string) => void
 }): React.JSX.Element {
   return (
     <article aria-label="Change detail" className="space-y-3 p-4">
       <header>
-        <h2 className="text-xl font-semibold">{change.summary}</h2>
+        <h2 className="text-xl font-semibold">{changeTitle(change)}</h2>
         <p className="text-text-tertiary text-sm">
           {CHANGE_WHO[change.who]} · {relativeTime(change.createdAt)}
         </p>
       </header>
-      <p>{CHANGE_WORDS[change.kind]}</p>
+      <p>{change.kind === 'erase' ? 'Erasing can’t be undone.' : CHANGE_WORDS[change.kind]}</p>
+      {change.reason && <p className="text-text-secondary">{change.reason}</p>}
+      {change.jobId && (
+        <Button size="sm" onClick={() => onRead(change.jobId!)}>
+          See the read
+        </Button>
+      )}
       {change.undoneAt ? (
         <p className="text-text-secondary">Undone {relativeTime(change.undoneAt)}.</p>
-      ) : (
+      ) : change.undoable ? (
         <Button size="sm" disabled={busy} onClick={() => onUndo(change.id)}>
           Undo
         </Button>
-      )}
+      ) : null}
       {message && (
         <p role="alert" className="text-danger text-sm">
           {message}

@@ -48,3 +48,13 @@ export const ENTITY_SORT_LABELS: Record<BrainEntitySort, string> = {
   recent: 'Recently learned',
   name: 'A to Z',
 }
+
+/** Decisions and risks first, then standing facts and procedures. */
+export const MEMORY_TYPE_ORDER = [
+  'decision',
+  'risk',
+  'fact',
+  'open',
+  'procedure',
+  'preference',
+] as const

@@ -1,3 +1,4 @@
+import { useBrain } from '@/features/brain/useBrain'
 import type { LaneMoveMarks } from '@shared/host-protocol-lane-transfer'
 import type { LaneMoveSource } from '@shared/lane-move'
 import type { SessionMeta } from '@shared/models'
@@ -79,6 +80,7 @@ export async function moveSidebarSession(
       branch,
       meta.cwd,
       useLanePrefsStore.getState().lanes.markers,
+      useBrain.getState().status?.agent.folder,
     ),
   })
 }

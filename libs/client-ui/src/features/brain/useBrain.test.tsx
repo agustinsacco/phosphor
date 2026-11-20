@@ -121,11 +121,7 @@ it('stores each mutation’s returned status and confirms queue, cancel and forg
   await store.removeModel()
   await store.queue(lane)
   await store.cancel('job')
-  await store.review(
-    'job',
-    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
-    3,
-  )
+  await store.defrag()
   await store.forget('memory')
   expect(invoke.mock.calls).toEqual([
     ['brain:setPrefs', status.prefs],
@@ -133,12 +129,7 @@ it('stores each mutation’s returned status and confirms queue, cancel and forg
     ['brain:removeModel'],
     ['brain:queue', lane],
     ['brain:cancel', 'job'],
-    [
-      'brain:review',
-      'job',
-      { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
-      3,
-    ],
+    ['brain:defrag'],
     ['brain:forget', 'memory'],
   ])
   expect(useBrain.getState().status).toEqual(status)

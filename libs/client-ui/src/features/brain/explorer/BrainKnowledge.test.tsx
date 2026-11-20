@@ -460,3 +460,21 @@ it('shows who leads a team as Leads, and the team as Led by', async () => {
   await act(async () => tab('Connections').click())
   expect(heads().some((head) => head?.startsWith('Led by'))).toBe(true)
 })
+
+it('regression: follows a merged-away linked entity to the survivor returned by Brain', async () => {
+  await render()
+  entity.mockImplementation((id) => explorer.entity(id === 'rina-old' ? 'rina' : id))
+  await visit('entity', 'rina-old', 'Rina')
+  expect(state.visit).toMatchObject({ kind: 'entity', id: 'rina', label: 'Rina Okafor' })
+  expect(memories.mock.lastCall?.[0]).toBe('rina')
+  expect(container.textContent).not.toContain('Brain entity not found.')
+})
+
+it('follows the survivor when the selected entity merges during Defrag', async () => {
+  await render()
+  await visit('entity', 'tom', 'Tom Lee')
+  explorer.merge('tom', 'rina')
+  await act(async () => useBrain.setState({ status: { ...mockBrainStatus(), revision: 1 } }))
+  expect(state.visit).toMatchObject({ kind: 'entity', id: 'rina', label: 'Rina Okafor' })
+  expect(memories.mock.lastCall?.[0]).toBe('rina')
+})

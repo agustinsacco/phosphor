@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { BrainLaneRef, BrainPrefs, BrainStatus, BrainReviewDecision } from '@shared/brain'
+import type { BrainLaneRef, BrainPrefs, BrainStatus } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { brainLaneTitle } from './laneTitle'
@@ -19,7 +19,7 @@ interface BrainState {
   neverRead: (sessionId: string, never: boolean) => Promise<boolean>
   queue: (lane: BrainLaneRef) => Promise<boolean>
   cancel: (id: string) => Promise<boolean>
-  review: (id: string, keep: BrainReviewDecision | null, revision: number) => Promise<boolean>
+  defrag: () => Promise<boolean>
   reread: (id: string) => Promise<boolean>
   retry: (id: string) => Promise<boolean>
   reset: () => Promise<boolean>
@@ -92,8 +92,7 @@ export const useBrain = create<BrainState>(() => ({
     ),
   cancel: (id) =>
     update(() => window.phosphor.invoke('brain:cancel', id), 'Cancelled knowledge extraction'),
-  review: (id, keep, revision) =>
-    update(() => window.phosphor.invoke('brain:review', id, keep, revision)),
+  defrag: () => update(() => window.phosphor.invoke('brain:defrag')),
   reread: (id) => update(() => window.phosphor.invoke('brain:reread', id)),
   retry: (id) => update(() => window.phosphor.invoke('brain:retry', id)),
   reset: () => update(() => window.phosphor.invoke('brain:reset'), 'Brain knowledge reset'),
@@ -103,7 +102,7 @@ export const useBrain = create<BrainState>(() => ({
 export function brainInFlight(status: BrainStatus | null): boolean {
   return (
     !!status &&
-    (status.tidy.running ||
+    ((status.agent.run && ['queued', 'running'].includes(status.agent.run.state)) ||
       ['downloading', 'verifying', 'testing'].includes(status.embedding.phase) ||
       status.jobs.some((job) => ['waiting', 'queued', 'running', 'refreshing'].includes(job.state)))
   )
