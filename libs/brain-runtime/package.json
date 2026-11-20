@@ -12,6 +12,10 @@
       "types": "./src/agent/curator-context.ts",
       "default": "./src/agent/curator-context.ts"
     },
+    "./agent/curator-view": {
+      "types": "./src/agent/curator-view.ts",
+      "default": "./src/agent/curator-view.ts"
+    },
     "./agent/curator-writes": {
       "types": "./src/agent/curator-writes.ts",
       "default": "./src/agent/curator-writes.ts"
