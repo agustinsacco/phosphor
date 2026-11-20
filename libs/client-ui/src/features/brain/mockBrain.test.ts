@@ -508,3 +508,19 @@ it('enforces never-read argument bounds in the browser mock, too', async () => {
     ]),
   ).rejects.toThrow('Invalid Brain never-read settings.')
 })
+
+it('does not advance a reader job when a proposal is viewed; status polling advances the mock queue', async () => {
+  let now = 0
+  const call = createMockBrain(() => now)
+  await call('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
+  now = 6000
+  const queued = (await call('brain:queue', [
+    { sessionPath: '/demo/Harbor/passive.jsonl', title: 'Harbor passive read' },
+  ])) as BrainStatus
+  const id = queued.jobs.at(-1)!.id
+  await call('brain:status', [])
+  now += 4000
+  await expect(call('brain:proposal', [id])).rejects.toThrow('Review not found')
+  await call('brain:status', [])
+  await expect(call('brain:proposal', [id])).resolves.toMatchObject({ job: { state: 'review' } })
+})
