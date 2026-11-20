@@ -80,7 +80,7 @@ export function undoRun(ctx: Context, runId: string): { undone: number; kept: nu
   const operations = all<{ id: string; undoable: number }>(
     ctx,
     `SELECT o.id,${undoableSql} AS undoable FROM tidy_operations o JOIN agent_notes a ON a.operation_id=o.id AND a.role='made'
-    WHERE a.run_id=? AND o.undone_at IS NULL ORDER BY o.created_at DESC,o.id DESC`,
+    WHERE a.run_id=? AND o.undone_at IS NULL ORDER BY o.created_at DESC,o.rowid DESC`,
     runId,
   )
   let undone = 0,
