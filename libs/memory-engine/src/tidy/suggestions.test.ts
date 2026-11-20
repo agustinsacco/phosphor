@@ -33,39 +33,7 @@ it('returns typed flag statuses without revisions for refusals, remembering each
   expect(flag('memory-7')).toEqual({ status: 'limit', suggestionId: null })
   expect(store.revision()).toBe(cappedRevision)
 })
-it('bounds model cards, remembers different, transforms conflicts, and pages suggestions', () => {
-  const { store, db } = fixture()
-  seed(db, 4)
-  db.exec("UPDATE entities SET description='Ledger ' || printf('%1000s','x');")
-  store.sweep('all')
-  const page = store.suggestions('same_entity', null, 1)
-  expect(page.items).toHaveLength(1)
-  expect(page.next).not.toBeNull()
-  expect(store.suggestions('same_entity', page.next, 1).items[0]?.id).not.toBe(page.items[0]?.id)
-  const pairs = store.pendingPairs(40)
-  expect(pairs.length).toBeGreaterThan(0)
-  for (const pair of pairs)
-    for (const card of pair.subjects)
-      if (card.type === 'entity') {
-        expect(card.description.length).toBeLessThanOrEqual(160)
-        expect(card.neighbours.length).toBeLessThanOrEqual(5)
-      }
-  const pair = pairs[0]!
-  expect(store.suggestion(pair.suggestionId)?.subjects).toHaveLength(2)
-  store.recordVerdicts([
-    {
-      suggestionId: pair.suggestionId,
-      model: 'harbor/reader',
-      verdict: { kind: 'different', reason: 'They refer to different people.' },
-    },
-  ])
-  expect(store.pendingPairs(40).some((p) => p.suggestionId === pair.suggestionId)).toBe(false)
-  store.sweep({ entityIds: pair.subjects.map((s) => s.id), memoryIds: [] })
-  // The model never removes a pair of people or things from the owner's list.
-  expect(store.suggestions(null, null, 50).items.some((s) => s.id === pair.suggestionId)).toBe(
-    pair.subjects[0]!.type === 'entity',
-  )
-})
+
 it('accepted merges dismiss their pair on undo; missing subjects close and unknown kinds are skipped', () => {
   const { store, db } = fixture()
   seed(db, 2)
@@ -198,46 +166,13 @@ it('caps open flags at fifty even when every caller claims a different lane', ()
   store.dismissSuggestion(store.suggestions('flagged', null, 50).items[0]!.id, revision)
   expect(flag(51).status).toBe('filed')
 })
-it('a model "different" leaves an entity pair open for the owner and never asks again', () => {
+
+it('pages suggestions without repeats', () => {
   const { store, db } = fixture()
-  seed(db, 2)
+  seed(db, 4)
   store.sweep('all')
-  const pair = store.suggestions('same_entity', null, 20).items[0]!
-  store.recordVerdicts([
-    {
-      suggestionId: pair.id,
-      model: 'harbor/reader',
-      verdict: { kind: 'different', reason: 'Only the name matches.' },
-    },
-  ])
-  const open = store.suggestions('same_entity', null, 20).items.find((s) => s.id === pair.id)
-  expect(open).toMatchObject({
-    state: 'open',
-    source: 'check',
-    model: 'harbor/reader',
-    verdict: { kind: 'different', reason: 'Only the name matches.' },
-  })
-  expect(store.pendingPairs(40).some((p) => p.suggestionId === pair.id)).toBe(false)
-  store.sweep({ entityIds: ['rina-1', 'rina-2'], memoryIds: [] })
-  expect(store.suggestions('same_entity', null, 20).items.map((s) => s.id)).toEqual([pair.id])
-  store.dismissSuggestion(pair.id, store.revision())
-  expect(store.suggestions('same_entity', null, 20).items).toEqual([])
-})
-it('a model "different" still clears a memory pair quietly', () => {
-  const { store, db } = fixture()
-  seed(db, 2)
-  db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
-  store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
-  const pair = store.suggestions('same_memory', null, 20).items[0]!
-  store.recordVerdicts([
-    {
-      suggestionId: pair.id,
-      model: 'harbor/reader',
-      verdict: { kind: 'different', reason: 'Different Ledger areas.' },
-    },
-  ])
-  expect(store.suggestions('same_memory', null, 20).items).toEqual([])
-  expect(db.prepare('SELECT state FROM tidy_suggestions WHERE id=?').get(pair.id)).toEqual({
-    state: 'cleared',
-  })
+  const page = store.suggestions('same_entity', null, 1)
+  expect(page.items).toHaveLength(1)
+  expect(page.next).not.toBeNull()
+  expect(store.suggestions('same_entity', page.next, 1).items[0]?.id).not.toBe(page.items[0]?.id)
 })

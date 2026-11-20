@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { fixture } from '../test-support'
-import { seed, dump } from './test-support'
+import { seed, dump, seedHistoricalVerdict } from './test-support'
 
 function shared(count = 2) {
   const result = fixture()
@@ -65,13 +65,10 @@ it.each(['dispute', 'replace'] as const)('journals and undoes the %s action', (k
   // "no longer" makes the near pair a possible disagreement, not a repeat.
   const suggestion = store.suggestions('conflict', null, 20).items[0]!
   expect(suggestion.reason).toBe('These may disagree.')
-  store.recordVerdicts([
-    {
-      suggestionId: suggestion.id,
-      model: 'harbor/reader',
-      verdict: { kind: 'conflict', reason: 'These statements disagree.' },
-    },
-  ])
+  seedHistoricalVerdict(db, suggestion.id, {
+    kind: 'conflict',
+    reason: 'These statements disagree.',
+  })
   const before = dump(db)
   const op = store.applySuggestion(
     suggestion.id,
@@ -89,11 +86,15 @@ it('rejects folding different validity periods and a stale apply without modifyi
   store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
   const suggestion = store.suggestions('same_memory', null, 20).items[0]!
   const before = dump(db)
-  expect(() => store.applySuggestion(suggestion.id, { kind: 'fold', survivorId: 'memory-1' }, 0)).toThrow(
-    'Brain changed',
-  )
   expect(() =>
-    store.applySuggestion(suggestion.id, { kind: 'fold', survivorId: 'memory-1' }, store.revision()),
+    store.applySuggestion(suggestion.id, { kind: 'fold', survivorId: 'memory-1' }, 0),
+  ).toThrow('Brain changed')
+  expect(() =>
+    store.applySuggestion(
+      suggestion.id,
+      { kind: 'fold', survivorId: 'memory-1' },
+      store.revision(),
+    ),
   ).toThrow('validity dates')
   expect(dump(db)).toEqual(before)
 })

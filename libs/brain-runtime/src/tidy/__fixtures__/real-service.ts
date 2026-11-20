@@ -95,7 +95,7 @@ export async function approveRead(
   summaries = SUMMARIES,
 ) {
   const job = await proposeRead(store, options, summaries)
-  return service.api.review(
+  store.review(
     job.id,
     {
       memories: summaries.map((_, i) => i),
@@ -106,6 +106,9 @@ export async function approveRead(
     },
     store.knowledgeRevision(),
   )
+  // Wake the service after seeding through the real store; no manual-review API remains.
+  await service.api.setPrefs(store.snapshot().prefs)
+  return service.api.status()
 }
 
 /** A read waiting in review with one proposed memory per summary. */

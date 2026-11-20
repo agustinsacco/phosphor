@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { fixture } from '../test-support'
-import { seed } from './test-support'
+import { seed, seedHistoricalVerdict } from './test-support'
 
 function pair(kind: 'same_entity' | 'same_memory' | 'conflict' = 'same_memory') {
   const result = fixture()
@@ -12,13 +12,7 @@ function pair(kind: 'same_entity' | 'same_memory' | 'conflict' = 'same_memory') 
   })
   const id = result.store.suggestions(null, null, 20).items[0]!.id
   if (kind === 'conflict')
-    result.store.recordVerdicts([
-      {
-        suggestionId: id,
-        model: 'harbor/reader',
-        verdict: { kind: 'conflict', reason: 'They disagree.' },
-      },
-    ])
+    seedHistoricalVerdict(result.db, id, { kind: 'conflict', reason: 'They disagree.' })
   return { ...result, id }
 }
 

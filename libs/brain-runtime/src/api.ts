@@ -106,7 +106,6 @@ async function reread(id: string, context: ApiContext): Promise<void> {
 async function currentReview(
   id: string,
   { store, queue, files, changed, options }: ApiContext,
-  intent: 'view' | 'approve',
 ): Promise<void> {
   const job = store.job(id)
   const proposal = store.storedProposal(id)
@@ -118,15 +117,12 @@ async function currentReview(
       reason === DELETED_LANE_REFRESH_REFUSAL ? reason : reason ? NEVER_READ_REFRESH_REFUSAL : null
     const latest = store.storedProposal(id)
     if (!latest || latest.computedRevision === store.knowledgeRevision()) return
-    if (refusal) {
-      if (intent === 'view') return
-      throw new Error(refusal)
-    }
+    if (refusal) return
     if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
     queue.recompute(id)
     throw new Error(BRAIN_REVIEW_REFRESHING)
   }
-  if (intent === 'view' && job && proposal) {
+  if (job && proposal) {
     // The never-read note follows the lane's current name. An unreadable lane keeps its stored one.
     const current = await currentTitle(store, files, job).catch(() => null)
     if (current?.retitled) changed()
@@ -170,13 +166,8 @@ export function createApi(context: ApiContext): BrainApi {
     },
     extraction: async (id) => extractionView(store, id),
     proposal: async (id) => {
-      await currentReview(id, context, 'view')
+      await currentReview(id, context)
       return store.proposal(id)
-    },
-    review: async (id, decision, revision) => {
-      if (decision !== null) await currentReview(id, context, 'approve')
-      else queue.abortRefresh(id)
-      return mutate(() => store.review(id, decision, revision))
     },
     reset: async () => {
       await queue.pause()
@@ -281,8 +272,7 @@ function apiStatus({ store, options }: ApiContext): BrainStatus {
   const embedding = options.embeddings.status()
   return {
     ...store.snapshot(),
-    // Defrag replaced the Tidy run; its progress is `agent.run`.
-    tidy: { ...store.tidySummary(), running: false },
+    tidy: store.tidySummary(),
     agent: {
       waiting: store.waitingCounts(),
       run: store.latestRun(),

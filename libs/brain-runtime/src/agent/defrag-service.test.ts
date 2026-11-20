@@ -66,13 +66,13 @@ it('status carries the waiting counts, the latest run and the Brain folder', asy
     run: null,
     folder: '/made-up/brain/Brain',
   })
-  expect(status.tidy.running).toBe(false)
+  expect(status.agent.run).toBeNull()
   const desktopless = await setup(false)
   expect((await desktopless.service.api.status()).agent.folder).toBeNull()
   await expect(desktopless.service.api.defrag()).rejects.toThrow('Defrag runs on Desktop.')
 })
 
-it('Defrag runs through the service, and the old Tidy channels start and stop it', async () => {
+it('Defrag runs through the service and its channels start and stop it', async () => {
   const s = await setup()
   const queued = await s.service.api.defrag()
   expect(queued.agent.run?.state).toMatch(/queued|running/)
@@ -88,7 +88,7 @@ it('Defrag runs through the service, and the old Tidy channels start and stop it
     expect.any(AbortSignal),
     expect.any(Function),
   )
-  expect((await s.service.api.tidy(null, null, 20)).run).toBeNull()
+  expect((await s.service.api.status()).agent.run?.state).toBe('done')
 
   s.turn.mockImplementationOnce(
     (_message: string, signal: AbortSignal) =>
@@ -96,9 +96,9 @@ it('Defrag runs through the service, and the old Tidy channels start and stop it
         signal.addEventListener('abort', () => resolve({ ...finished, outcome: 'stopped' })),
       ),
   )
-  await s.service.api.tidyRun()
+  await s.service.api.defrag()
   await vi.waitFor(() => expect(s.turn).toHaveBeenCalledTimes(2))
-  await s.service.api.tidyCancel()
+  await s.service.api.defragStop()
   await vi.waitFor(async () =>
     expect((await s.service.api.status()).agent.run?.state).toBe('stopped'),
   )

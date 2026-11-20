@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import type { DatabaseSync } from 'node:sqlite'
 import type { SuggestionTestStore as BrainStore } from './test-store'
 import { fixture } from '../test-support'
-import { seed } from './test-support'
+import { seed, seedHistoricalVerdict } from './test-support'
 
 function chain() {
   const result = fixture()
@@ -18,7 +18,11 @@ function fold(store: BrainStore, source: string, survivor: string): string {
   const suggestion = store
     .suggestions('same_memory', null, 50)
     .items.find((s) => [source, survivor].every((id) => s.subjects.some((v) => v.id === id)))!
-  return store.applySuggestion(suggestion.id, { kind: 'fold', survivorId: survivor }, store.revision())!
+  return store.applySuggestion(
+    suggestion.id,
+    { kind: 'fold', survivorId: survivor },
+    store.revision(),
+  )!
 }
 function tidyText(db: DatabaseSync): string {
   const tables = db
@@ -81,13 +85,10 @@ it('scrubs settled suggestions and moves an open flag along folds until Forget e
   const pair = store
     .suggestions('same_memory', null, 50)
     .items.find((s) => s.subjects.some((v) => v.id === 'memory-1'))!
-  store.recordVerdicts([
-    {
-      suggestionId: pair.id,
-      model: 'made-up/model',
-      verdict: { kind: 'same', reason: 'Ledger verdict evidence that must be forgotten' },
-    },
-  ])
+  seedHistoricalVerdict(db, pair.id, {
+    kind: 'same',
+    reason: 'Ledger verdict evidence that must be forgotten',
+  })
   fold(store, 'memory-1', 'memory-2')
   expect(store.suggestions('flagged', null, 50).items[0]).toMatchObject({
     reason,
@@ -128,7 +129,9 @@ it('an undone fold puts the lane flag back on the memory the lane objected to', 
   expect(flagRows(db)).toEqual([{ first_id: 'memory-2', state: 'open' }])
   store.tidyUndo(operation, store.revision())
   expect(flagRows(db)).toEqual([{ first_id: 'memory-1', state: 'open' }])
-  expect(store.suggestions('flagged', null, 50).items[0]!.subjects.map((s) => s.id)).toEqual(['memory-1'])
+  expect(store.suggestions('flagged', null, 50).items[0]!.subjects.map((s) => s.id)).toEqual([
+    'memory-1',
+  ])
   store.forget('memory-1')
   expect(flagRows(db)).toEqual([])
   expect(tidyText(db)).not.toContain('Tom Lee leads it')

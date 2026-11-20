@@ -1,3 +1,4 @@
+import { decideRead } from './__fixtures__/decide-read'
 import { appendFile, rename } from 'node:fs/promises'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
@@ -53,7 +54,8 @@ it('checks the current never-read title in an archived transcript, not the old j
   await s.service.api.setPrefs(s.store.prefs)
   await expect(s.service.api.proposal(s.id)).resolves.toMatchObject({ revision: 0 })
   await expect(
-    s.service.api.review(
+    decideRead(
+      s.service,
       s.id,
       { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
       0,

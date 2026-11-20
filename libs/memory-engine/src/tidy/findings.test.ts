@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { emptyBrainTidyCoverage } from '@phosphor/shared/brain-tidy'
 import { approve, extraction, fixture, vector } from '../test-support'
 import { encodeVector } from '../vectors'
-import { seed } from './test-support'
+import { seed, seedHistoricalVerdict } from './test-support'
 
 function namesake(kinds: [string, string]) {
   const result = fixture()
@@ -52,7 +52,7 @@ it.each([
   ['Harbor ships with the archive.', 'Harbor ships without the archive.'],
   ['Use Kestrel for invoices.', 'Use Ledger instead of Kestrel for invoices.'],
 ])('raises a near pair that differs by a negation as a possible disagreement', (a, b) => {
-  const { store } = memoryPair(a, b)
+  const { store, db } = memoryPair(a, b)
   store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
   expect(store.suggestions('same_memory', null, 20).items).toEqual([])
   expect(store.suggestions('conflict', null, 20).items.map((item) => item.reason)).toEqual([
@@ -60,7 +60,7 @@ it.each([
   ])
 })
 it('keeps a near pair with the same polarity as a repeat', () => {
-  const { store } = memoryPair(
+  const { store, db } = memoryPair(
     'Ledger never deploys on Fridays.',
     'Ledger does not deploy on Fridays.',
   )
@@ -69,36 +69,16 @@ it('keeps a near pair with the same polarity as a repeat', () => {
 })
 
 it('keeps the model reason on the suggestion a fold applies', () => {
-  const { store } = memoryPair('Rina leads Ledger.', 'Rina is the Ledger lead.')
+  const { store, db } = memoryPair('Rina leads Ledger.', 'Rina is the Ledger lead.')
   store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
   const [item] = store.suggestions('same_memory', null, 20).items
-  store.recordVerdicts([
-    {
-      suggestionId: item!.id,
-      model: 'example/reader',
-      verdict: { kind: 'same', reason: 'Both say Rina leads Ledger.' },
-    },
-  ])
+  seedHistoricalVerdict(db, item!.id, { kind: 'same', reason: 'Both say Rina leads Ledger.' })
   store.applySuggestion(item!.id, { kind: 'fold', survivorId: 'memory-1' }, store.revision())
   expect(store.suggestion(item!.id)!.suggestion).toMatchObject({
     state: 'applied',
     reason: 'Both say Rina leads Ledger.',
     verdict: { kind: 'same', reason: 'Both say Rina leads Ledger.' },
   })
-})
-
-it('reports which verdicts it recorded and which pairs the owner settled meanwhile', () => {
-  const { store } = memoryPair('Rina leads Ledger.', 'Rina is the Ledger lead.')
-  store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
-  const [item] = store.suggestions('same_memory', null, 20).items
-  store.dismissSuggestion(item!.id, store.revision())
-  const verdict = { kind: 'same' as const, reason: 'Same assertion.' }
-  expect(
-    store.recordVerdicts([
-      { suggestionId: item!.id, model: 'example/reader', verdict },
-      { suggestionId: 'forgotten', model: 'example/reader', verdict },
-    ]),
-  ).toEqual({ recorded: 0, settled: 2 })
 })
 
 it('shows only public coverage fields, with current totals once a pass is done', () => {
@@ -123,17 +103,11 @@ it('shows only public coverage fields, with current totals once a pass is done',
 })
 
 it('refuses a stale dispute with a plain sentence and writes nothing', () => {
-  const { store } = memoryPair('Rina leads Ledger.', 'Mara Voss leads Ledger.')
+  const { store, db } = memoryPair('Rina leads Ledger.', 'Mara Voss leads Ledger.')
   store.sweep({ entityIds: [], memoryIds: ['memory-1'] })
   const [item] = store.suggestions('same_memory', null, 20).items
   const revision = store.revision()
-  store.recordVerdicts([
-    {
-      suggestionId: item!.id,
-      model: 'example/reader',
-      verdict: { kind: 'conflict', reason: 'Two different leads.' },
-    },
-  ])
+  seedHistoricalVerdict(db, item!.id, { kind: 'conflict', reason: 'Two different leads.' })
   expect(() => store.applySuggestion(item!.id, { kind: 'dispute' }, revision)).toThrow(
     'Brain changed; refresh Tidy and try again.',
   )
