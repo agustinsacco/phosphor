@@ -79,3 +79,45 @@ it('defers incidental retention pruning and refuses undo if a later finished rea
   )
   expect(dump(db)).toEqual(before)
 })
+it('bounds repeated agent approvals at 20 plus the newest decision by pruning on the next enqueue', () => {
+  const { store, db } = fixture()
+  const operations: { jobId: string; operationId: string }[] = []
+  for (let i = 0; i < 25; i++) {
+    const job = store.enqueue(lane({ leafId: `agent-leaf-${i}` }), 'queued')
+    const data = extraction(job.id, {
+      computedRevision: store.knowledgeRevision(),
+      entities: [],
+      entityVectors: [],
+      memoryVectors: [vector()],
+    })
+    data.memories = [
+      {
+        ...data.memories[0]!,
+        entities: [],
+        links: [],
+        summary: `Ledger records responsibility ${i}.`,
+      },
+    ]
+    store.propose(data)
+    const result = store.decideRead(
+      job.id,
+      { ...decision, memories: [0] },
+      store.proposal(job.id).revision,
+      note,
+    )
+    operations.push({ jobId: job.id, operationId: result.operationId })
+    expect(
+      (db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE state='done'").get() as { n: number }).n,
+    ).toBeLessThanOrEqual(21)
+  }
+  store.enqueue(lane({ leafId: 'next-after-agent' }), 'queued')
+  expect(db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE state='done'").get()).toEqual({ n: 20 })
+  const latest = operations.at(-1)!
+  store.agentUndo(latest.operationId, note)
+  expect(store.job(latest.jobId)?.state).toBe('review')
+  const before = dump(db)
+  expect(() => store.agentUndo(operations[0]!.operationId, note)).toThrow(
+    'Later changes touch this Brain change',
+  )
+  expect(dump(db)).toEqual(before)
+})
