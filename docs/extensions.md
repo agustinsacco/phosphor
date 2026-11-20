@@ -285,7 +285,7 @@ patchWebSearchConfig` (`pi-config-handlers.ts`).
 Separate from packages the user installs, Phosphor ships **six** TypeScript
 extensions in `libs/pi-extensions/pi-ext/`, loaded into **ordinary** sessions via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
-`libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). The opt-in [Brain](brain.md) adds its recall bundle to lanes while recall is on.
+`libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). The opt-in [Brain](brain.md) adds its recall bundle to lanes while recall is on, and Brain Agent's bundle to the Brain lane while Brain is on.
 
 The private `@phosphor/pi-extensions` source package keeps these standalone
 files and adjacent tests together. Development resolves the resource root at
@@ -625,9 +625,38 @@ See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 `brain.mjs` registers read-only `brain_search` and review-only `brain_flag` only
 when lane startup gave it `PHOSPHOR_BRAIN_ENDPOINT` and `PHOSPHOR_BRAIN_TOKEN`;
 without them it registers nothing. `brain-fork-guard.mjs` loads only into
-Brain's private, session-less model calls and blocks every tool call. No raw Brain TypeScript ships in
-`pi-ext`; both are bundled into `brain-ext`. Hosts stage them but never activate
-Brain. See [Brain](brain.md#recall).
+Brain's private, session-less model calls and blocks every tool call.
+
+`brain-curator.mjs` (sources `brain-curator.ts` and `brain-curator-writes.ts`)
+loads into the Brain lane, the lane in `<userData>/brain/Brain`, in place of
+`brain.mjs`, with the `brain-agent` skill. Its token is the bridge's curator
+token, so the lane has no `brain_flag`. It registers twelve tools:
+
+- **Reads:** `brain_waiting`, `brain_read_review`, `brain_suggestion`,
+  `brain_search`, `brain_entity` and `brain_memory`.
+- **Writes:** `brain_decide_read`, `brain_resolve`, `brain_edit`,
+  `brain_correct`, `brain_erase` and `brain_undo`.
+
+Parameters are strict, flat TypeBox objects. brain-client validates each
+request before it leaves. A result is short text, about 8 KB at most, from
+brain-client's `curator-format.ts`. It shows the ids the next call needs, ends
+lists with how many it left out, and wraps memory text, names, quotes and
+reasons in the escaped `background-data` wrapper as data.
+
+`brain_decide_read` builds the review decision itself; by default it saves
+every memory that is not held. It answers with a sentence and approves nothing
+when an approved memory names an unanswered required identity, or the revision
+is stale.
+
+The extension also keeps the lane's rules current, as `global-context.ts` does
+for the global file. Before every request it swaps the block pi rendered for
+`<cwd>/AGENTS.md` for the file as saved now, kept last. While the file is gone
+it drops the block, and it adds nothing under `--no-context-files`.
+
+No raw Brain TypeScript ships in `pi-ext` (`BRAIN_EXTENSION_SOURCES` in
+`tools/scripts/build-brain-extensions.mjs`); all three are bundled into
+`brain-ext`. Hosts stage them but never activate Brain. See
+[Brain](brain.md#recall).
 
 ### The status channel is a wire contract
 
