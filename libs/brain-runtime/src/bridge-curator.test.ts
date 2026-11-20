@@ -20,7 +20,7 @@ const PARAMS: Record<string, unknown> = {
   suggestion: { suggestionId: 'sugg-rina' },
   entity: { entityId: 'rina' },
   memory: { memoryId: 'ownership' },
-  decideRead: { jobId: 'job-ledger', revision: 41, decision: null, reason },
+  decideRead: { jobId: 'job-ledger', revision: 41, approve: false, reason },
   resolve: { suggestionId: 'sugg-rina', action: { kind: 'keep' }, reason },
   edit: { edit: { kind: 'merge', sourceId: 'rina-2', targetId: 'rina' }, reason },
   correct: {

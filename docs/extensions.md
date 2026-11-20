@@ -650,17 +650,22 @@ parameter (`brain_waiting` takes `limit`, which its description says to set to
 text, about 8 KB at most, from brain-client's `curator-format.ts`. It shows the
 ids the next call needs, ends lists with how many it left out, and wraps memory
 text, names, quotes and reasons in the escaped `background-data` wrapper as
-data. `brain_read_review` pages a long read (`curator-review-format.ts`): its
-`offset` counts identities, groups, memories and "said again" in that order.
-Each page ends with what it showed and where to go on, such as "Identities 1–2
-of 2; Memories 1–40 of 100. Call again with offset 42.", and the last says "That
-is the end of this read." The bridge request has no offset; every page asks for
-the whole review.
+data. `brain_read_review` pages a long read: its `offset` counts identities,
+groups, memories and "said again" in that order. Each page ends with what it
+showed and where to go on, such as "Identities 1–2 of 2; Memories 1–40 of 100.
+Call again with offset 42.", and the last says "That is the end of this read."
+The bridge request carries the offset, and the runtime answers with that one
+page, formatted in the main process by brain-client's `curator-review-format.ts`:
+a long read is larger than a bridge frame, so no answer carries the whole
+proposal.
 
-`brain_decide_read` builds the review decision itself; by default it saves
-every memory that is not held, on every page. It answers with a sentence and
-approves nothing when an approved memory names an unanswered required identity,
-or the revision is stale.
+`brain_decide_read` sends its parameters as they are. The runtime builds the
+review decision against the stored read (`agent/read-decision.ts`); by default
+it saves every memory that is not held, on every page. It answers with a
+sentence and approves nothing when an approved memory names an unanswered
+required identity (the sentence names up to ten refs, then how many more, and
+says to open `brain_read_review` for their candidates), or the revision is
+stale.
 
 The extension also keeps the lane's rules current, as `global-context.ts` does
 for the global file. Before every request it swaps the block pi rendered for

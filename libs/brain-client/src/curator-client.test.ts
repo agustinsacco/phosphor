@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BrainTransport } from './port'
 import { BRAIN_CURATOR_TIMEOUTS, createBrainCuratorClient } from './curator-client'
-import {
-  LEDGER_REVIEW,
-  OWNERSHIP_DETAIL,
-  RINA_SUGGESTION,
-  RINA_VIEW,
-  WAITING,
-} from './__fixtures__/curator'
+import { OWNERSHIP_DETAIL, RINA_SUGGESTION, RINA_VIEW, WAITING } from './__fixtures__/curator'
 import { HARBOR_RECALL } from './__fixtures__/recall'
 
 function setup(result: unknown) {
@@ -15,18 +9,25 @@ function setup(result: unknown) {
   return { request, client: createBrainCuratorClient({ request }) }
 }
 const done = { status: 'done', message: 'Merged Rina into Rina Okafor.', operationId: 'op-1' }
+const page = { text: 'Read job-ledger · "Ledger billing" · revision 41.' }
 
 describe('createBrainCuratorClient', () => {
   it('sends validated requests and returns well-formed results', async () => {
     const cases = [
       ['waiting', {}, WAITING],
-      ['readReview', { jobId: 'job-ledger' }, LEDGER_REVIEW],
+      ['readReview', { jobId: 'job-ledger' }, page],
+      ['readReview', { jobId: 'job-ledger', offset: 40 }, page],
       ['suggestion', { suggestionId: 'sugg-rina' }, RINA_SUGGESTION],
       ['suggestion', { suggestionId: 'gone' }, null],
       ['entity', { entityId: 'rina' }, RINA_VIEW],
       ['memory', { memoryId: 'ownership' }, OWNERSHIP_DETAIL],
       ['search', { query: 'Harbor' }, HARBOR_RECALL],
       ['erase', { memoryId: 'ownership', reason: 'Superseded by KES-12.' }, done],
+      [
+        'decideRead',
+        { jobId: 'job-ledger', revision: 41, approve: true, memories: [0], reason: 'Kept.' },
+        done,
+      ],
     ] as const
     for (const [method, request, result] of cases) {
       const { client, request: send } = setup(result)
@@ -53,8 +54,8 @@ describe('createBrainCuratorClient', () => {
   it.each([
     ['waiting', { ...WAITING, more: -1 }],
     ['waiting', { ...WAITING, items: [{ kind: 'read' }] }],
-    ['readReview', { ...LEDGER_REVIEW, neverRead: 'no' }],
-    ['readReview', { proposal: {}, neverRead: false }],
+    ['readReview', { text: 7 }],
+    ['readReview', { ...page, neverRead: false }],
     ['suggestion', { ...RINA_SUGGESTION, allowed: 'merge' }],
     ['entity', { ...RINA_VIEW, entity: { id: 'rina' } }],
     ['memory', { ...OWNERSHIP_DETAIL, memory: { id: 'x' } }],

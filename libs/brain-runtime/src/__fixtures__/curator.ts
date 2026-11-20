@@ -30,10 +30,25 @@ export function seedReview(store: FakeAgentStore, sessionId: string, sessionPath
     jobId: job.id,
     computedRevision: store.knowledgeRevision(),
     entities: [
-      { ref: 'e1', label: 'Rina', decision: 'uncertain', candidates: [] },
-      { ref: 'e2', label: 'Ledger', decision: 'new', candidates: [] },
+      {
+        ref: 'e1',
+        label: 'Rina',
+        kind: 'person',
+        decision: 'uncertain',
+        candidates: [],
+        reason: '',
+      },
+      { ref: 'e2', label: 'Ledger', kind: 'project', decision: 'new', candidates: [], reason: '' },
     ],
-    memories: [{ summary: 'Rina approves Ledger invoices.', target: null }],
+    memories: [
+      {
+        summary: 'Rina approves Ledger invoices.',
+        type: 'procedure',
+        action: 'add',
+        entities: ['e1', 'e2'],
+        target: null,
+      },
+    ],
     groups: [],
     confirmations: [],
     evidence: [],

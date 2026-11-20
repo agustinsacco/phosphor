@@ -9,6 +9,7 @@ import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { DELETED_LANE_REFRESH_REFUSAL, NEVER_READ_REFRESH_REFUSAL } from '../lane-read-rules'
 import { BRAIN_OWN_LANE_REFUSAL } from './own-lane'
+import { readDecision } from './read-decision'
 import { plainRefusal } from './refusal'
 import { freshReview, reviewStale } from './review-refresh'
 import {
@@ -111,9 +112,9 @@ async function approvalRefusal(
 
 function decideRead(context: CuratorContext, { note, write }: Writer): CuratorApi['decideRead'] {
   const { store, queue } = context
-  return async ({ jobId, revision, decision, reason }, signal) => {
+  return async ({ jobId, revision, approve, reason, ...choices }, signal) => {
     if (!context.enabled()) return refused(BRAIN_OFF)
-    if (decision === null) {
+    if (!approve) {
       // A rejection needs no refresh and holds whatever the revision.
       try {
         waitingRead(store, jobId)
@@ -128,8 +129,10 @@ function decideRead(context: CuratorContext, { note, write }: Writer): CuratorAp
     }
     const refusal = await approvalRefusal(context, jobId, revision, signal)
     if (refusal) return refusal
+    const built = readDecision(store.proposal(jobId), choices)
+    if ('problem' in built) return refused(built.problem)
     return write(
-      () => store.decideRead(jobId, decision, revision, note(reason)).operationId,
+      () => store.decideRead(jobId, built.decision, revision, note(reason)).operationId,
       'Approved. Brain changed, so other reads may refresh when you open them.',
     )
   }

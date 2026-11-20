@@ -14,7 +14,7 @@ const valid = {
   suggestion: { suggestionId: 'sugg-rina' },
   entity: { entityId: 'rina' },
   memory: { memoryId: 'ownership' },
-  decideRead: { jobId: 'job-ledger', revision: 41, decision: null, reason },
+  decideRead: { jobId: 'job-ledger', revision: 41, approve: false, reason },
   resolve: { suggestionId: 'sugg-rina', action: { kind: 'merge', survivorId: 'rina' }, reason },
   edit: {
     edit: { kind: 'describe', entityId: 'rina', description: 'Harbor billing lead' },
@@ -68,6 +68,8 @@ describe('validateCuratorRequest', () => {
       ['decideRead', { ...valid.decideRead, revision: -1 }],
       ['decideRead', { ...valid.decideRead, revision: '41' }],
       ['decideRead', { jobId: 'job-ledger', revision: 41, reason }],
+      ['decideRead', { ...valid.decideRead, approve: 'yes' }],
+      ['decideRead', { ...valid.decideRead, decision: null }],
     ]
     for (const [method, input] of cases) {
       let thrown: unknown
@@ -82,23 +84,53 @@ describe('validateCuratorRequest', () => {
     expect(validateCuratorRequest('readReview', { jobId: 'j'.repeat(200) }).jobId).toHaveLength(200)
   })
 
-  it('checks review decisions with the shared rules', () => {
-    const decision = {
-      memories: [0],
-      identities: { e1: 'rina' },
-      groups: [],
-      descriptions: [],
-      confirmations: [],
+  it('takes a review offset that is a whole number, 0 or more', () => {
+    for (const offset of [0, 3, 10_000])
+      expect(validateCuratorRequest('readReview', { jobId: 'job', offset })).toEqual({
+        jobId: 'job',
+        offset,
+      })
+    for (const offset of [-1, 1.5, '3', null, Number.MAX_SAFE_INTEGER + 1])
+      expect(() => validateCuratorRequest('readReview', { jobId: 'job', offset })).toThrow(
+        'Brain review offset must be a whole number, 0 or more.',
+      )
+  })
+
+  it("takes brain_decide_read's own choices within its limits", () => {
+    const choices = {
+      memories: [0, 2],
+      identities: [{ ref: 'e1', answer: 'rina' }],
+      groups: [1],
+      descriptions: ['e1'],
+      confirmations: [0],
     }
     expect(
-      validateCuratorRequest('decideRead', { ...valid.decideRead, decision }).decision,
-    ).toEqual(decision)
-    expect(() =>
-      validateCuratorRequest('decideRead', {
-        ...valid.decideRead,
-        decision: { ...decision, memories: [0, 0] },
-      }),
-    ).toThrow('Invalid review selection.')
+      validateCuratorRequest('decideRead', { ...valid.decideRead, approve: true, ...choices }),
+    ).toEqual({ ...valid.decideRead, approve: true, ...choices })
+    const bad: [string, unknown, RegExp][] = [
+      ['memories', [-1], /memories must be indexes/],
+      ['memories', [0.5], /memories must be indexes/],
+      [
+        'memories',
+        Array.from({ length: 401 }, (_, i) => i),
+        /memories must be a list of at most 400/,
+      ],
+      ['groups', 'all', /groups must be a list/],
+      ['identities', [{ ref: 'e1' }], /needs answer/],
+      ['identities', [{ ref: 'e1', answer: 'new', extra: 1 }], /unknown field: extra/],
+      ['identities', [{ ref: 'e'.repeat(65), answer: 'new' }], /identity ref needs 1 to 64/],
+      ['identities', [{ ref: 'e1', answer: 'r'.repeat(201) }], /identity answer needs 1 to 200/],
+      ['descriptions', [''], /description ref needs 1 to 64/],
+      ['confirmations', ['0'], /confirmations must be indexes/],
+    ]
+    for (const [field, value, message] of bad)
+      expect(() =>
+        validateCuratorRequest('decideRead', {
+          ...valid.decideRead,
+          approve: true,
+          [field]: value,
+        }),
+      ).toThrow(message)
   })
 
   it('keeps erasing out of resolve and checks every action shape', () => {

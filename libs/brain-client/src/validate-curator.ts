@@ -5,7 +5,6 @@ import {
   type BrainAgentMap,
   type BrainResolve,
 } from '@phosphor/shared/brain-agent'
-import { checkBrainReviewDecision } from '@phosphor/shared/brain-review'
 import { checkBrainTidyAction } from '@phosphor/shared/brain-tidy'
 
 /** Brain Agent's methods besides search, which every lane shares. */
@@ -23,6 +22,10 @@ export const BRAIN_CURATOR_LIMITS = {
   summary: 1200,
   source: 120,
   quote: 600,
+  /** Indexes, identity answers or description refs in one decision, as brain_decide_read takes. */
+  choices: 400,
+  /** An identity ref, such as e1. */
+  ref: 64,
 } as const
 
 class CuratorRequestError extends Error {}
@@ -120,11 +123,45 @@ function action(value: unknown): BrainResolve['action'] {
   }
 }
 
-function decision(value: unknown): Request<'decideRead'>['decision'] {
-  try {
-    return checkBrainReviewDecision(value)
-  } catch (error) {
-    return refuse(error instanceof Error ? error.message : 'Invalid review selection.')
+const offset = (value: unknown): { offset?: number } => {
+  if (value === undefined) return {}
+  if (!Number.isSafeInteger(value) || (value as number) < 0)
+    refuse('Brain review offset must be a whole number, 0 or more.')
+  return { offset: value as number }
+}
+
+/** Brain Agent's optional choices on an approval, each within brain_decide_read's own limits. */
+function choices(
+  v: Record<string, unknown>,
+): Omit<Request<'decideRead'>, 'jobId' | 'revision' | 'approve' | 'reason'> {
+  const { choices: most, ref, id: answer } = BRAIN_CURATOR_LIMITS
+  const list = <T>(field: string, item: (value: unknown) => T): { [field: string]: T[] } => {
+    const value = v[field]
+    if (value === undefined) return {}
+    if (!Array.isArray(value) || value.length > most)
+      refuse(`Brain ${field} must be a list of at most ${most}.`)
+    return { [field]: (value as unknown[]).map(item) }
+  }
+  const index = (field: string) => (value: unknown) =>
+    Number.isSafeInteger(value) && (value as number) >= 0
+      ? (value as number)
+      : refuse(`Brain ${field} must be indexes of 0 or more.`)
+  const name = (value: unknown, max: number, field: string): string =>
+    typeof value === 'string' && value && value.length <= max && !value.includes('\0')
+      ? value
+      : refuse(`Brain ${field} needs 1 to ${max} characters.`)
+  return {
+    ...list('memories', index('memories')),
+    ...list('identities', (value) => {
+      const i = keys(value, ['ref', 'answer'])
+      return {
+        ref: name(i.ref, ref, 'identity ref'),
+        answer: name(i.answer, answer, 'identity answer'),
+      }
+    }),
+    ...list('groups', index('groups')),
+    ...list('descriptions', (value) => name(value, ref, 'description ref')),
+    ...list('confirmations', index('confirmations')),
   }
 }
 
@@ -140,20 +177,29 @@ const VALIDATORS: { [M in BrainCuratorMethod]: (input: unknown) => Request<M> } 
       refuse(`Brain waiting limit must be 1 to ${BRAIN_CURATOR_LIMITS.waiting}.`)
     return v.limit === undefined ? {} : { limit: v.limit as number }
   },
-  readReview: (input) => ({ jobId: id(keys(input, ['jobId']).jobId, 'jobId') }),
+  readReview: (input) => {
+    const v = keys(input, ['jobId'], ['offset'])
+    return { jobId: id(v.jobId, 'jobId'), ...offset(v.offset) }
+  },
   suggestion: (input) => ({
     suggestionId: id(keys(input, ['suggestionId']).suggestionId, 'suggestionId'),
   }),
   entity: (input) => ({ entityId: id(keys(input, ['entityId']).entityId, 'entityId') }),
   memory: (input) => ({ memoryId: id(keys(input, ['memoryId']).memoryId, 'memoryId') }),
   decideRead: (input) => {
-    const v = keys(input, ['jobId', 'revision', 'decision', 'reason'])
+    const v = keys(
+      input,
+      ['jobId', 'revision', 'approve', 'reason'],
+      ['memories', 'identities', 'groups', 'descriptions', 'confirmations'],
+    )
     if (!Number.isSafeInteger(v.revision) || (v.revision as number) < 0)
       refuse('Brain revision must be the review’s revision number.')
+    if (typeof v.approve !== 'boolean') refuse('Brain approve must be true or false.')
     return {
       jobId: id(v.jobId, 'jobId'),
       revision: v.revision as number,
-      decision: decision(v.decision),
+      approve: v.approve as boolean,
+      ...choices(v),
       reason: reason(v),
     }
   },

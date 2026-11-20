@@ -5,6 +5,7 @@ import {
   type BrainWaitingItem,
 } from '@phosphor/shared/brain-agent'
 import type { BrainStore } from '@phosphor/memory-engine/types'
+import { formatReview } from '@phosphor/brain-client/curator-review-format'
 import { freshReview } from './review-refresh'
 import { curatorWrites } from './curator-writes'
 import {
@@ -67,18 +68,20 @@ export function createCurator(context: CuratorContext): CuratorApi {
       on()
       return waiting(store, request.limit)
     },
-    readReview: async ({ jobId }, signal) => {
+    // One page, formatted here: a long read is larger than a bridge frame.
+    readReview: async ({ jobId, offset }, signal) => {
       on()
       const job = waitingRead(store, jobId)
       const refusal = await freshReview(refreshContext(context), jobId, signal)
       const current = store.job(jobId) ?? job
       const proposal = store.proposal(jobId)
-      return {
+      const review = {
         proposal: { ...proposal, job: curatorJob(proposal.job) },
         neverRead:
           refusal !== null ||
           brainNeverReadReason(store.snapshot().prefs.neverRead, current) !== null,
       }
+      return { text: formatReview(review, offset) }
     },
     suggestion: async ({ suggestionId }) => {
       on()

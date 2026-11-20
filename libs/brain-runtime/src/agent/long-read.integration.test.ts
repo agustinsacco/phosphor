@@ -21,12 +21,8 @@ const answer = <T>(call: Promise<T>) =>
 const sentence = (seed: string, length: number) =>
   `${seed} `.padEnd(length, 'Kestrel settles Harbor invoices weekly with Ledger. ')
 
-/**
- * A read as long as the extractor makes them: 300 memories (CLAIM_BUDGET), each quoted twice,
- * each quote's excerpt 400 characters either side of it. `required` adds an identity question
- * Brain cannot answer alone, named by the last `required` memories.
- */
-async function proposeLongRead(store: BrainStore, options: BrainServiceOptions, required = 0) {
+/** The Harbor planning lane, queued to be read. */
+async function queueLongRead(store: BrainStore, options: BrainServiceOptions) {
   const sessionPath = join(options.directory, 'harbor-long.jsonl')
   await writeFile(
     sessionPath,
@@ -37,7 +33,7 @@ async function proposeLongRead(store: BrainStore, options: BrainServiceOptions, 
       .map((entry) => JSON.stringify(entry))
       .join('\n'),
   )
-  const job = store.enqueue(
+  return store.enqueue(
     {
       sessionId: 'harbor-long',
       sessionPath,
@@ -49,6 +45,15 @@ async function proposeLongRead(store: BrainStore, options: BrainServiceOptions, 
     },
     'queued',
   )
+}
+
+/**
+ * A read as long as the extractor makes them: 300 memories (CLAIM_BUDGET), each quoted twice,
+ * each quote's excerpt 400 characters either side of it. `required` adds an identity question
+ * Brain cannot answer alone, named by the last `required` memories.
+ */
+async function proposeLongRead(store: BrainStore, options: BrainServiceOptions, required = 0) {
+  const job = await queueLongRead(store, options)
   const labels = Array.from({ length: Math.max(1, required) }, (_, i) =>
     i === 0 ? 'Rina Okafor' : `Tom Lee ${i}`,
   )

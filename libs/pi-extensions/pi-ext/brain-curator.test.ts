@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrainCuratorClient } from '@phosphor/brain-client/curator-client'
 import type { BrainAgentWrite } from '@phosphor/shared/brain-agent'
 import {
-  LEDGER_REVIEW,
   OWNERSHIP_DETAIL,
   RINA_SUGGESTION,
   RINA_VIEW,
@@ -19,9 +18,11 @@ import type { ToolDefinition } from './pi-api'
 
 type Tool = ToolDefinition<Record<string, unknown>, unknown, { status: string }>
 const DONE: BrainAgentWrite = { status: 'done', message: 'Saved.', operationId: 'op-7' }
+/** Brain formats a read's page itself; the tool shows it as it comes. */
+const PAGE = { text: 'Read job-ledger · "Ledger invoices" · revision 41.' }
 const RESULTS: Record<string, unknown> = {
   waiting: WAITING,
-  readReview: LEDGER_REVIEW,
+  readReview: PAGE,
   suggestion: RINA_SUGGESTION,
   search: HARBOR_RECALL,
   entity: RINA_VIEW,
@@ -148,44 +149,16 @@ describe('brain-curator tools', () => {
   })
 })
 
-describe('brain_read_review paging', () => {
-  /** A read with `count` long memories and the fixture's two identity questions. */
-  function longReview(count: number) {
-    const memory = LEDGER_REVIEW.proposal.memories[0]!
-    const memories = Array.from({ length: count }, (_, index) => ({
-      ...memory,
-      index,
-      summary: `Harbor fact ${index}. ${'s'.repeat(400)}`,
-    }))
-    return { ...LEDGER_REVIEW, proposal: { ...LEDGER_REVIEW.proposal, memories } }
-  }
-  /** Every page in turn, following each page's "Call again with offset N". */
-  async function pages(run: ReturnType<typeof setup>['run']) {
-    const texts: string[] = []
-    let offset: number | undefined
-    for (let page = 0; page < 30; page++) {
-      const params = offset === undefined ? {} : { offset }
-      const { text } = await run('brain_read_review', { jobId: 'job-ledger', ...params })
-      texts.push(text)
-      const next = /Call again with offset (\d+)\./.exec(text)
-      if (!next) break
-      offset = Number(next[1])
-    }
-    return texts
-  }
-
-  it('shows every memory of a long read across pages, each within the cap', async () => {
-    const { run } = setup({ ...RESULTS, readReview: longReview(100) })
-    const texts = await pages(run)
-    const seen = texts.flatMap((text) =>
-      [...text.matchAll(/^- (\d+) · procedure/gm)].map((match) => Number(match[1])),
-    )
-    expect(seen).toEqual(Array.from({ length: 100 }, (_, index) => index))
-    expect(texts.length).toBeGreaterThan(1)
-    for (const text of texts) expect(text.length).toBeLessThanOrEqual(8000)
-    expect(texts[0]).toMatch(/Memories 1–(\d+) of 100\. Call again with offset \d+\./)
-    expect(texts[0]).toContain('- e1 · Rina (person)')
-    expect(texts.at(-1)).not.toContain('Call again with offset')
+describe('brain_read_review', () => {
+  it('asks Brain for the page at the offset and shows it as it comes', async () => {
+    const { call, run } = setup()
+    expect(await run('brain_read_review', { jobId: 'job-ledger', offset: 40 })).toEqual({
+      text: PAGE.text,
+      status: 'ok',
+    })
+    expect(call.mock.calls).toEqual([
+      ['readReview', { jobId: 'job-ledger', offset: 40 }, undefined],
+    ])
   })
 
   it('tells brain_decide_read the default approves every memory not held, on every page', () => {
@@ -199,9 +172,7 @@ describe('brain_read_review paging', () => {
 })
 
 describe('brain_decide_read', () => {
-  const answered = { ref: 'e1', answer: 'rina' }
-
-  it('rejects without reading the review again', async () => {
+  it('rejects without reading the review', async () => {
     const { call, run } = setup()
     const result = await run('brain_decide_read', {
       jobId: 'job-ledger',
@@ -212,7 +183,7 @@ describe('brain_decide_read', () => {
     expect(call.mock.calls).toEqual([
       [
         'decideRead',
-        { jobId: 'job-ledger', revision: 40, decision: null, reason: 'Only status updates.' },
+        { jobId: 'job-ledger', revision: 40, approve: false, reason: 'Only status updates.' },
         undefined,
       ],
     ])
@@ -222,92 +193,29 @@ describe('brain_decide_read', () => {
     })
   })
 
-  it('lists unanswered required questions instead of approving', async () => {
-    const { call, run } = setup()
-    const result = await run('brain_decide_read', {
-      jobId: 'job-ledger',
-      revision: 41,
-      approve: true,
-      reason: 'Durable procedure.',
-    })
-    expect(result.status).toBe('refused')
-    expect(result.text).toBe(
-      'Not approved. Answer these first in identities ({ ref, answer: an entity id or "new" }):\n- e1 · Rina (person) · candidates: rina = Rina Okafor',
-    )
-    expect(call.mock.calls.map(([method]) => method)).toEqual(['readReview'])
-  })
-
-  it('saves every memory that is not held by default', async () => {
-    const { call, run } = setup()
-    await run('brain_decide_read', {
-      jobId: 'job-ledger',
-      revision: 41,
-      approve: true,
-      identities: [answered],
-      reason: 'Durable procedure.',
-    })
-    expect(call.mock.calls[1]).toEqual([
-      'decideRead',
-      {
-        jobId: 'job-ledger',
-        revision: 41,
-        decision: {
-          memories: [0],
-          identities: { e1: 'rina' },
-          groups: [],
-          descriptions: [],
-          confirmations: [],
-        },
-        reason: 'Durable procedure.',
-      },
-      undefined,
-    ])
-  })
-
-  it('needs no answer when no chosen memory names the required identity', async () => {
-    const review = {
-      ...LEDGER_REVIEW,
-      proposal: {
-        ...LEDGER_REVIEW.proposal,
-        memories: LEDGER_REVIEW.proposal.memories.map((m) => ({ ...m, entities: ['e2'] })),
-      },
-    }
-    const { call, run } = setup({ ...RESULTS, readReview: review })
-    await run('brain_decide_read', {
+  it('sends an approval as Brain Agent gave it, and Brain decides it against the stored read', async () => {
+    const approval = {
       jobId: 'job-ledger',
       revision: 41,
       approve: true,
       memories: [0, 1],
-      reason: 'Both matter.',
-    })
-    expect(call.mock.calls[1]![1]).toMatchObject({ decision: { memories: [0, 1], identities: {} } })
-  })
-
-  it('sends Brain Agent back to the review when its revision is stale or the lane is never read', async () => {
-    const { call, run } = setup()
-    const stale = await run('brain_decide_read', {
-      jobId: 'job-ledger',
-      revision: 40,
-      approve: true,
-      identities: [answered],
-      reason: 'Durable.',
-    })
-    expect(stale).toEqual({
-      text: 'Brain refreshed this read since you opened it (now revision 41). Read it again with brain_read_review, then decide.',
+      identities: [{ ref: 'e1', answer: 'rina' }],
+      groups: [0],
+      descriptions: ['e1'],
+      confirmations: [2],
+      reason: 'Durable procedure.',
+    }
+    const refusal: BrainAgentWrite = {
+      status: 'refused',
+      message: 'Not approved: answer e3 first.',
+      operationId: null,
+    }
+    const { call, run } = setup({ ...RESULTS, decideRead: refusal })
+    expect(await run('brain_decide_read', approval)).toEqual({
+      text: 'Refused, nothing changed: Not approved: answer e3 first.',
       status: 'refused',
     })
-    const never = setup({ ...RESULTS, readReview: { ...LEDGER_REVIEW, neverRead: true } })
-    expect(
-      (
-        await never.run('brain_decide_read', {
-          jobId: 'job-ledger',
-          revision: 41,
-          approve: true,
-          reason: 'Durable.',
-        })
-      ).text,
-    ).toBe('Brain never reads this lane, so it cannot be approved. Reject it instead.')
-    expect(call.mock.calls.map(([method]) => method)).toEqual(['readReview'])
+    expect(call.mock.calls).toEqual([['decideRead', approval, undefined]])
   })
 })
 
