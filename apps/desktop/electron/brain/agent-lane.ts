@@ -11,8 +11,9 @@ import { BRAIN_AGENT_NAME } from '@phosphor/shared/brain-agent'
 import type { BrainAgentHost, BrainAgentTurn } from '@phosphor/brain-runtime/types'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
+import { lastAssistantEnd } from '@phosphor/session-runtime/routines/outcome'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
-import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
+import type { AgentMessage, PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
 import { ensureBrainLane, readBrainRules } from './lane-folder'
 
 export type BrainLaneClient = Pick<PiRpcClient, 'alive' | 'sessionFile' | 'request' | 'on' | 'off'>
@@ -85,6 +86,20 @@ async function settled({ client }: OpenLane, signal: AbortSignal): Promise<void>
   })
 }
 
+/**
+ * How a run that will not retry ended, from its last assistant message: a provider error fails
+ * with pi's message, an abort (the owner's Stop in the lane) stops, and no answer at all fails.
+ */
+function runEnd(messages: AgentMessage[]): TurnEnd {
+  const end = lastAssistantEnd(messages)
+  if (end.kind === 'ended') return { outcome: 'finished', error: null }
+  if (end.kind === 'aborted') return { outcome: 'stopped', error: null }
+  return {
+    outcome: 'failed',
+    error: end.kind === 'error' ? (end.message.errorMessage ?? null) : null,
+  }
+}
+
 /** Sends the message and resolves when its turn ends, stops or fails. */
 function prompt(
   deps: BrainLaneDeps,
@@ -103,7 +118,10 @@ function prompt(
       resolve({ outcome, error })
     }
     const onEvent = (event: PiEvent) => {
-      if (event.type === 'agent_end' && !event.willRetry) finish('finished')
+      if (event.type === 'agent_end' && !event.willRetry) {
+        const end = runEnd(event.messages)
+        finish(end.outcome, end.error)
+      }
       if (event.type === 'extension_error') finish('failed', `Extension error: ${event.error}`)
     }
     const onExit = () => finish('failed', BRAIN_LANE_CLOSED)
