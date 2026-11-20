@@ -154,24 +154,29 @@ where they stopped.
 
 ### Lanes Brain never reads
 
+Brain never reads its own lane: a lane whose folder is Brain Agent's (`<userData>/brain/Brain`)
+or inside it, compared by real path. Its memories would cite Brain's own decisions. Queue, Read
+again and the start of a read refuse it with “Brain never reads its own lane.”, and its lane
+menu has no Brain items.
+
 Both Queue and Read again refuse an excluded lane. Title rules use the current name from the
 lane file, or the sidebar's first-prompt title when unnamed, never a title supplied by the UI.
 Brain stores an empty lane's title as empty, and the page shows it as “Untitled lane”
 (`brainLaneTitle` in `features/brain/laneTitle.ts`, used wherever a read's or a memory source's
 title appears), so no title rule ever matches that placeholder. A job's stored title follows the
-lane: Queue, the start of a read, the stale-review check and opening a review store the lane's
+lane: Queue, the start of a read, the stale-read check and opening a waiting read store the lane's
 current name when it changed. Storing a title never changes the knowledge revision, so it never
-stales or refreshes a review. Changing the rules cancels an excluded lane's queued and
-waiting jobs, not its pending review; the Inbox still offers that review, with Reject as its
-primary action. Those jobs are checked against the titles Brain remembers, reading only a lane
+stales or refreshes a read. Changing the rules cancels an excluded lane's queued and
+waiting jobs, not a read already waiting for Defrag; Brain Agent rejects that read. Those jobs are checked against the titles Brain remembers, reading only a lane
 file that changed since. A waiting lane renamed to a matching title, with no rules change, is
-dropped when its read starts, before any model call. Refresh also skips excluded lanes using their current names. A stale review
-can always be rejected, because rejection saves nothing; approving one that cannot be refreshed
-asks you to reject it instead. If neither the stored transcript nor its `.archived` twin
-exists, the pending review stays in the Inbox and any waiting refresh returns to review; Brain
-makes no model call and does not offer a failing Retry. Its stored proposal still opens for
-inspection and Reject works. Approve is refused with “This lane was deleted, so this review
-can't be refreshed. Reject it.” Recall is unaffected. A title-rule match takes precedence in the lane menu:
+dropped when its read starts, before any model call. Refresh also skips excluded lanes using
+their current names. A stale waiting read can always be rejected, because rejection saves
+nothing; approving one that cannot be refreshed is refused with “Brain changed since this was
+read, and this lane is set to never be read, so it can't be refreshed. Reject it instead.” If
+neither the stored transcript nor its `.archived` twin exists, the read keeps waiting and any
+waiting refresh returns to review; Brain makes no model call and does not offer a failing Retry.
+Its stored proposal still opens for inspection and rejecting works. Approval is refused with
+“This lane was deleted, so this review can't be refreshed. Reject it.” Recall is unaffected. A title-rule match takes precedence in the lane menu:
 **Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
 per-lane switch that could falsely promise to override the title rule. A lane excluded only by
 its id offers **Let Brain read this lane**, with no Queue. Other lanes offer their ordinary
@@ -181,8 +186,9 @@ a title rule.
 ## Read lanes and Read again
 
 The **Read** section of Lanes shows the newest 200 finished reads and says when more exist.
-Brain retains up to twenty finished reads per lane, with each read's leaf, cursor, saved steps
-and extraction record. Each row counts only the current (active or disputed) memories produced
+A lane keeps at most twenty finished reads, with each read's leaf, cursor, saved steps and
+extraction record, plus the newest read Brain Agent decided, so undoing that decision stays
+exact; queueing the lane's next read prunes it back to twenty. Each row counts only the current (active or disputed) memories produced
 by that read. Its Read again count remains lane-wide: every unshared memory from the lane,
 including older reads. After replacement, older rows can show zero; they stay in history.
 Rejected reviews remain as `rejected` (nothing saved); a read with nothing worth keeping
@@ -196,11 +202,11 @@ It confirms how many earlier memories will be replaced. Memories another lane al
 are kept. The lane must still be readable and have no queued, running or review job. Busy lanes
 wait as usual; leaf and model freeze at first start. Retry keeps the replacement intent.
 
-Earlier memories remain searchable while the new read runs and waits for review. Reconcile
+Earlier memories remain searchable while the new read runs and waits for Defrag. Reconcile
 excludes the memories this read will replace; entity identity still reuses shared entities.
-Approval saves the checked candidates and removes the earlier, unshared memories from that
+Approval saves the chosen memories and removes the earlier, unshared memories from that
 lane in one transaction, including memories from older reads whose job rows are gone. Partial
-approval, or approval with no candidates checked, still replaces them. With review off, saving
+approval, or approval with no memory chosen, still replaces them. With review off, saving
 happens immediately. A citation or relationship supported by a different lane protects its
 memory unchanged. Entries a fork copied from its source lane are the same evidence, not
 another lane's support; a message written in the fork is. Replacing bumps the revision once.
@@ -216,8 +222,8 @@ Brain reads archived lanes too: when the stored transcript path is missing, it r
 path's `.archived` twin in the same folder. This applies to queued reads, review refreshes,
 current-title exclusions and the source shown in a read's record; it never searches for another
 transcript. When neither file exists, a read with no review yet fails with “This lane was
-deleted, so Brain can't read it.”, and a pending review stays in the Inbox as described under
-Lanes Brain never reads.
+deleted, so Brain can't read it.”, and a read waiting for Defrag keeps waiting, as described
+under Lanes Brain never reads.
 
 Brain parses a lane file only when it needs the transcript or the file changed
 (`libs/brain-runtime/src/lane-files.ts`). It remembers each lane's current title, in memory,
@@ -225,9 +231,9 @@ with the size and modification time of the file it read (the stored path or its 
 twin). Queue reads the lane once to check it. A read reads it once more when it starts: the
 start check reads only a file that changed since, and hands that transcript to the read
 instead of reading it again. A waiting read is not checked while its lane is busy, so the
-queue's two-second wait for a busy lane reads nothing. A stale review is checked on every queue
-pass, but an unchanged file is not read again, and a pass that changes nothing notifies
-nobody. Opening a stale review reads its lane at most twice: once to check its current title
+queue's two-second wait for a busy lane reads nothing. A stale waiting read is checked on every
+queue pass, but an unchanged file is not read again, and a pass that changes nothing notifies
+nobody. Refreshing a stale read reads its lane at most twice: once to check its current title
 when the file changed, and once to refresh it.
 
 A job freezes the lane's leaf, chosen reader model, thinking level and git branch when it first
@@ -382,84 +388,74 @@ failed retries once after two seconds (`error`, `no-text`, `exit` or `spawn`). A
 output overflow do not retry. The trace keeps the actual failure reason. Each attempt has its own recorded call and input
 checkpoint, and both attempts count toward usage.
 
-## Review
+## Waiting reads
 
-A read waiting for review opens in the Inbox under **From lanes**. Its header shows the lane,
-“N memories · Q questions · read by <model>” and **See how it was read**, which shows the read
-in the same pane with **Back to review**. Claims held back over the read's limit are counted
-in one line.
+A finished read waits for Defrag (`review`) with its proposal and the knowledge revision it was
+computed against. Brain Agent opens it with `brain_read_review` and approves or rejects the
+whole read with `brain_decide_read` (Brain Agent and Defrag). The proposal holds:
 
-- **Questions** come first. An identity Brain is unsure of reads “Is “Harbor” in this lane
-  Harbor?” with the candidate's kind, description, memory and link counts, and buttons:
-  **Yes, Harbor**, **Someone new** or **Something new**, and the other candidates. A
-  **required** question (exactly one stored record of that kind goes by this name, as its
-  label or another name in any case, and Brain is not sure it is the same one) comes first, says **Needs an answer** and has no default. A possible
-  group asks “Are these part of one Harbor?” with **Yes, one Harbor** and **No**, which is the
-  default.
-- When the chosen existing record is described differently by this read, both descriptions show
-  with **Use this read’s description for <name>**, unticked. Ticked, approval replaces the stored
-  description (`decision.descriptions`) and the record's vector with the one computed for the
-  read's description, so identity candidates and semantic search compare against the new
-  meaning; switching that identity to Someone new drops it.
-- One folded line counts the rest: “N people and things matched without doubt · M new people
-  and things · K memories confirm what Brain knows”. Opening it lists each match, which can
-  still be overruled, and each confirmation. Only confirmations that are not held count there:
-  they add their quotes with any approval.
-- **Memories · k of n ticked** groups the proposed memories by type, each group with a checkbox
-  for the whole group (including its other pages). A row shows the type, the sentence, the
-  names it uses, what it changes, its links (“Rina Okafor → owns → Harbor ledger”) and its
-  quotes. Groups page at twenty. **Probably temporary** (status, near-term plans and one-off
-  instructions) and **About a person** (remarks about a named person beyond their role) come
-  last, unticked, each saying “Not kept unless you tick it”. A held confirmation (this lane
-  says again what a stored memory says) sits in its held group as “Confirms “<memory>””;
-  ticked, it is sent in `decision.confirmations` and its quote is added to that memory.
-- The fixed bar has **Approve N** (or **Approve k of n**, counting held confirmations, or
-  **Approve confirmations** when the read has no new memories and nothing is ticked, so only its
-  ordinary confirmations apply; `a`) and **Reject read** (`r`). Approve is off with “Answer 1 question” while a required question
-  is open. A read again says “Replaces N memories from the last read”; a read of a lane Brain
-  read before says “Reads new messages only”.
-- A review of a lane the never-read rule matches (its current title, which opening the review
-  reads from the lane file, or its own switch, checked by `brainLaneNeverRead`) starts with “You set Brain to never read this lane. Reject to discard
-  this read.” **Reject read** becomes the primary button and `a` rejects.
-- A refusal shows in the action bar beside **Reject read**, and the ticks and answers stay. The
-  review reloads only on the two exact refusals that mean it is being recomputed
-  (`BRAIN_REVIEW_REFRESHING`, `BRAIN_REVIEW_CHANGED` in `@phosphor/shared/brain-review`); a
-  stale review that cannot refresh (a never-read or deleted lane) keeps its refusal in place.
+- **Identities.** Each person or thing the read names is reused, new or uncertain; an uncertain
+  one comes with its candidates. A **required** question (exactly one stored record of that
+  kind goes by this name, as its label or another name in any case, and Brain is not sure it is
+  the same one) has no default. A possible group asks whether records sharing a leading name
+  are part of one parent (“Are these part of one Harbor?”); its default is no.
+- **Descriptions.** When a chosen existing record is described differently by this read,
+  approval can replace the stored description (`decision.descriptions`) and the record's vector
+  with the one computed for the read's description, so identity candidates and semantic search
+  compare against the new meaning. Answering new for that identity drops the choice.
+- **Memories**, each to add, enrich (same assertion, new supported links), supersede, conflict
+  with or resolve an open question, with its links (“Rina Okafor → owns → Harbor ledger”) and
+  quotes. A memory the reader marked probably temporary (status, near-term plans and one-off
+  instructions) or about a person (remarks about a named person beyond their role) is
+  **held**.
+- **Confirmations**: this lane says again what a stored memory says. A held claim's
+  confirmation is held too.
 
-**Approve** stores the ticked memories, the identity choices and confirmed groups in one
-transaction; **Reject** stores nothing. A held claim is saved only when ticked, and a held
-confirmation adds its quote, or becomes a new memory, only when ticked; ticking a confirmation
-that is not held is refused (“Brain confirmation choice is invalid.”). Approval that saves
-anything naming a required identity waits for its answer: “Say whether “Rina Okafor” is someone
-Brain already knows or someone new before approving.” Any other uncertain entity without a choice
-becomes new, and only entities that a saved memory or group uses are created. A reused record keeps
-its stored description unless the owner chooses the read's description for it. A confirmed group
-creates or reuses the parent and one fact per member ("X is part of Harbor"), quoted as "Stated by
-you in review". If knowledge changed since the proposal was computed, the review says “Refreshing
-this review: Brain changed since it was read.” It stays a review (`refreshing`), retains its
-previous memory count, and recomputes identity and reconcile from saved extract and links steps. A
-refresh never sends the conversation to the model again; it asks again only the questions whose
-inputs changed. Even after an extractor prompt upgrade it reuses validated source windows by part
-name whenever the read has a stored proposal or prepare checkpoint, including Retry and interrupted
-pre-upgrade recomputes; missing windows are read normally. New reads and Read again create new jobs
-without saved source windows. An upgrade may change a decision's candidate format, so its first
-refresh can ask that changed identity or reconcile question again, but never re-extracts saved
-windows. The queue refreshes stale reviews in the background, oldest first, before new reads. A
-finished refresh never changes knowledge. The internal `knowledge_revision` counter tracks memories,
-entities, names, aliases, descriptions, links, states and merges; Tidy suggestions, verdicts,
-dismissals, flags, coverage and run state change only the general revision used by the explorer and
-Tidy guards. Approval uses the knowledge guard too. Accepted identity and reconcile answers are
-keyed by their complete prompt, not either revision: unchanged questions, including answers saved by
-older apps, never call the model again. A changed candidate changes only the prompt that contains
-it. The job's `startedAt` is its first start, and `runStartedAt` is the current attempt (null while
-not running or refreshing). A read's duration is the time the model spent on this read's calls:
-their traced times added up, the questions a refresh asked again included. Stages run one call at a
-time, so nothing is counted twice. It is never the gap between the first start and the last save,
-which counts waits, refreshes and app quits. With no calls, or a call without a trace, no duration
-is shown. With review off, the defaults apply: held claims and held confirmations are not saved,
-uncertain becomes new, groups are skipped and conflicts are saved as disputed; a read with a
-required question stays in the Inbox. A confirmation whose identity the owner changed is saved as a
-new memory, unless it is held and unticked.
+**Approve** stores the chosen memories, identity answers, confirmed groups and chosen
+descriptions in one transaction; **Reject** stores nothing. Unless Brain Agent lists the
+memories to save, `brain_decide_read` saves every memory that is not held. A held memory is
+saved only when listed, and a held confirmation adds its quote, or becomes a new memory, only
+when listed; listing a confirmation that is not held is refused (“Brain confirmation choice is
+invalid.”). Confirmations that are not held add their quotes with any approval. Approval that
+saves anything naming an unanswered required identity is refused: the tool lists the questions,
+and the engine says “Say whether “Rina Okafor” is someone Brain already knows or someone new
+before approving.” Any other uncertain entity without an answer becomes new, and only entities
+that a saved memory or group uses are created. A reused record keeps its stored description
+unless the decision chooses the read's. A confirmed group creates or reuses the parent and one
+fact per member (“X is part of Harbor”), quoted as “Brain Agent, in review”. Identity and
+description choices change the records without adding evidence. Quotes on approved memories and
+confirmations keep their lane's speaker.
+
+Approving a read changes Brain, so other waiting reads go stale: their proposal was computed
+against an older revision. A stale read keeps waiting with what it proposed when the lane was
+read. Only Brain Agent's tools refresh a read, when it opens or decides it (Defrag). A refresh
+(`refreshing`) retains the read's previous memory count and recomputes identity and reconcile
+from saved extract and links steps. It never sends the conversation to the model again; it asks
+again only the questions whose inputs changed. Even after an extractor prompt upgrade it reuses
+validated source windows by part name whenever the read has a stored proposal or prepare
+checkpoint, including Retry and interrupted pre-upgrade recomputes; missing windows are read
+normally. New reads and Read again create new jobs without saved source windows. An upgrade may
+change a decision's candidate format, so its first refresh can ask that changed identity or
+reconcile question again, but never re-extracts saved windows. A refresh runs before queued
+reads. A finished refresh never changes knowledge.
+
+The internal `knowledge_revision` counter tracks memories, entities, names, aliases,
+descriptions, links, states and merges; suggestions, dismissals, flags, coverage and run state
+change only the general revision used by the explorer and journal guards. Approval is refused
+when the knowledge revision moved since the proposal was computed. Accepted identity and
+reconcile answers are keyed by their complete prompt, not either revision: unchanged questions,
+including answers saved by older apps, never call the model again. A changed candidate changes
+only the prompt that contains it. The job's `startedAt` is its first start, and `runStartedAt`
+is the current attempt (null while not running or refreshing). A read's duration is the time
+the model spent on this read's calls: their traced times added up, the questions a refresh
+asked again included. Stages run one call at a time, so nothing is counted twice. It is never
+the gap between the first start and the last save, which counts waits, refreshes and app quits.
+With no calls, or a call without a trace, no duration is shown.
+
+With review off, the defaults apply as soon as a read finishes: held claims and held
+confirmations are not saved, uncertain becomes new, groups are skipped and conflicts are saved
+as disputed; a read with a required question waits for Defrag. A confirmation whose identity
+the decision changed is saved as a new memory, unless it is held and not listed.
 
 A superseded memory leaves recall but keeps its history. A disputed pair stays visible on both
 sides until one is superseded or forgotten. **Forget** deletes one memory, then any evidence and
