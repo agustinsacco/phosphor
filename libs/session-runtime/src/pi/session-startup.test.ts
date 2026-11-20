@@ -133,6 +133,15 @@ describe('portable startup', () => {
     await h.registry.disposeAll()
   })
 
+  it('asks recall for the resolved workspace, so the Brain lane can get its own tools', async () => {
+    const h = sessionFixture()
+    vi.mocked(h.runtime.resolveWorkspace).mockReturnValue('/real/brain/Brain')
+    h.runtime.recall = vi.fn(async () => undefined)
+    await h.spawn({ workspacePath: '/alias/Brain' }, h.sink)
+    expect(h.runtime.recall).toHaveBeenCalledWith('/real/brain/Brain')
+    await h.registry.disposeAll()
+  })
+
   it('gives the pi stub no recall', async () => {
     const h = sessionFixture()
     vi.mocked(h.runtime.launch).mockResolvedValue({ stub: true, env: {}, extensions: [] } as never)
