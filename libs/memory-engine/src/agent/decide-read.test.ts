@@ -19,7 +19,9 @@ function waiting(store: BrainStore, patch: Partial<Proposal> = {}) {
     }),
     'queued',
   )
-  store.propose(extraction(job.id, { computedRevision: store.knowledgeRevision(), ...patch }))
+  store.propose(
+    extraction(job.id, { computedRevision: store.knowledgeRevision(), ...patch, jobId: job.id }),
+  )
   return job.id
 }
 function readRows(db: ReturnType<typeof fixture>['db']) {
@@ -78,6 +80,10 @@ describe('Brain Agent read decisions', () => {
     const result = store.decideRead(id, decision, store.proposal(id).revision, note)
     const entities = store.overview(50).nodes
     const later = extraction('unused')
+    later.memories = later.memories.map((m) => ({
+      ...m,
+      summary: `${m.summary} The responsibility covers Ledger.`,
+    }))
     later.entities = later.entities.map((e) => ({
       ...e,
       decision: 'reuse',
@@ -85,6 +91,7 @@ describe('Brain Agent read decisions', () => {
     }))
     const next = waiting(store, {
       ...later,
+      computedRevision: store.knowledgeRevision(),
       origin: { sessionId: 'ledger-lane', title: 'Ledger planning' },
     })
     store.decideRead(next, decision, store.proposal(next).revision, note)

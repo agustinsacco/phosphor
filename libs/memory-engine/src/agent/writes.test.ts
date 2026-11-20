@@ -92,7 +92,7 @@ describe('Brain Agent writes and journal', () => {
       expect(JSON.stringify(db.prepare(`SELECT * FROM "${name}"`).all())).not.toContain(
         'Rina leads Ledger area 1.',
       )
-    db.prepare("UPDATE tidy_operations SET created_at=0 WHERE kind='erase'").run()
+    db.prepare("UPDATE tidy_operations SET created_at=-4000000 WHERE kind='erase'").run()
     expect(() => store.erase(`memory-${BRAIN_ERASE_LIMIT + 1}`, note)).not.toThrow()
   })
   it.each(['', 'a\nb', 'x'.repeat(301)])('rejects invalid reason %j atomically', (reason) => {

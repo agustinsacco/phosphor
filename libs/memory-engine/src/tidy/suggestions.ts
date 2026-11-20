@@ -121,7 +121,12 @@ export function closeMissing(ctx: Context, rows: SuggestionRow[]): void {
       row.state = 'cleared'
     }
 }
-export function suggestion(ctx: Context, row: SuggestionRow): BrainTidySuggestion | null {
+export function suggestion(
+  ctx: Context,
+  row: SuggestionRow,
+  curator = false,
+): BrainTidySuggestion | null {
+  if (curator && row.kind === UNCHECKED) row = { ...row, kind: 'same_memory' }
   if (
     row.kind === UNCHECKED ||
     !BRAIN_TIDY_KINDS.includes(row.kind) ||
@@ -186,13 +191,14 @@ export function dismiss(ctx: Context, id: string, expected: number): void {
     bumpRevision(ctx)
   })
 }
-export function openSuggestion(ctx: Context, id: string): SuggestionRow {
+export function openSuggestion(ctx: Context, id: string, curator = false): SuggestionRow {
   const row = one<SuggestionRow>(
     ctx,
     "SELECT * FROM tidy_suggestions WHERE id=? AND state='open'",
     id,
   )
-  if (!row || !suggestion(ctx, row)) throw new Error('This Tidy suggestion is no longer available.')
+  if (!row || !suggestion(ctx, row, curator))
+    throw new Error('This Tidy suggestion is no longer available.')
   return row
 }
 export function flag(ctx: Context, input: BrainTidyFlag): BrainTidyFlagResult {
