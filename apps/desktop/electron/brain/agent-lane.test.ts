@@ -65,6 +65,7 @@ function host() {
   }
   return { deps, agent: createBrainAgentLane(deps) }
 }
+const turnHooks = () => ({ opened: vi.fn(), sending: vi.fn() })
 const commands = (deps: ReturnType<typeof host>['deps']) =>
   deps.command.mock.calls.map(([, command]) => command.type)
 /** The run ends with Brain Agent's summary, as pi reports a turn that ended normally. */
@@ -90,8 +91,8 @@ afterEach(() => rm(root, { recursive: true, force: true }))
 describe('a Defrag turn in the Brain lane', () => {
   it('starts the lane as Brain Agent with the default rules, then sends the message', async () => {
     const { deps, agent } = host()
-    const started = vi.fn()
-    const turn = await agent.turn(MESSAGE, new AbortController().signal, started)
+    const hooks = turnHooks()
+    const turn = await agent.turn(MESSAGE, new AbortController().signal, hooks)
     expect(turn).toEqual({
       outcome: 'finished',
       error: null,
@@ -104,7 +105,7 @@ describe('a Defrag turn in the Brain lane', () => {
       { keepLastWorkspace: true },
     )
     expect(await readFile(join(folder, 'AGENTS.md'), 'utf8')).toBe(BRAIN_AGENT_RULES)
-    expect(started).toHaveBeenCalledWith('/sessions/brain/new.jsonl')
+    expect(hooks.opened).toHaveBeenCalledWith('/sessions/brain/new.jsonl')
     // The transcript is known before the message goes, so opening the lane finds this process.
     expect(lane.request.mock.invocationCallOrder[0]).toBeLessThan(
       deps.command.mock.invocationCallOrder[0]!,
@@ -131,7 +132,7 @@ describe('a Defrag turn in the Brain lane', () => {
       ended()
     }
     const { deps, agent } = host()
-    const turn = await agent.turn(MESSAGE, new AbortController().signal, vi.fn())
+    const turn = await agent.turn(MESSAGE, new AbortController().signal, turnHooks())
     expect(deps.create).toHaveBeenCalledWith(
       { workspacePath: folder, sessionPath: join(transcripts, 'newest.jsonl') },
       { keepLastWorkspace: true },
@@ -147,7 +148,7 @@ describe('a Defrag turn in the Brain lane', () => {
       queueMicrotask(ended)
     }
     const { deps, agent } = host()
-    const turn = agent.turn(MESSAGE, new AbortController().signal, vi.fn())
+    const turn = agent.turn(MESSAGE, new AbortController().signal, turnHooks())
     await vi.waitFor(() => expect(lane.listenerCount('event')).toBe(1))
     expect(commands(deps)).toEqual([])
     lane.send({ type: 'agent_settled', aborted: false } as PiEvent)
@@ -169,7 +170,7 @@ describe('a Defrag turn in the Brain lane', () => {
       return response
     })
     const { deps, agent } = host()
-    const hooks = { opened: vi.fn(), sending: vi.fn() }
+    const hooks = turnHooks()
     const turn = await agent.turn(MESSAGE, new AbortController().signal, hooks)
     expect(turn.outcome).toBe('finished')
     expect(hooks.sending).toHaveBeenCalledOnce()
@@ -184,7 +185,7 @@ describe('a Defrag turn in the Brain lane', () => {
     onPrompt = () => {}
     const own = host()
     const controller = new AbortController()
-    const turn = own.agent.turn(MESSAGE, controller.signal, vi.fn())
+    const turn = own.agent.turn(MESSAGE, controller.signal, turnHooks())
     await vi.waitFor(() => expect(commands(own.deps)).toEqual(['prompt']))
     controller.abort()
     expect(await turn).toMatchObject({ outcome: 'stopped', error: null })
@@ -194,7 +195,7 @@ describe('a Defrag turn in the Brain lane', () => {
     lane.busy = true
     const waiting = host()
     const stop = new AbortController()
-    const queued = waiting.agent.turn(MESSAGE, stop.signal, vi.fn())
+    const queued = waiting.agent.turn(MESSAGE, stop.signal, turnHooks())
     await vi.waitFor(() => expect(lane.listenerCount('event')).toBe(1))
     stop.abort()
     expect(await queued).toMatchObject({ outcome: 'stopped', error: null })
@@ -206,20 +207,26 @@ describe('a Defrag turn in the Brain lane', () => {
       lane.alive = false
       lane.emit('exit', { code: 1, signal: null, expected: false })
     }
-    expect(await host().agent.turn(MESSAGE, new AbortController().signal, vi.fn())).toMatchObject({
+    expect(
+      await host().agent.turn(MESSAGE, new AbortController().signal, turnHooks()),
+    ).toMatchObject({
       outcome: 'failed',
       error: BRAIN_LANE_CLOSED,
     })
     lane = new FakeLane()
     onPrompt = () => lane.send({ type: 'extension_error', error: 'boom' } as unknown as PiEvent)
-    expect(await host().agent.turn(MESSAGE, new AbortController().signal, vi.fn())).toMatchObject({
+    expect(
+      await host().agent.turn(MESSAGE, new AbortController().signal, turnHooks()),
+    ).toMatchObject({
       outcome: 'failed',
       error: 'Extension error: boom',
     })
     lane = new FakeLane()
     onPrompt = () => {}
     promptResponse = { type: 'response', command: 'prompt', success: false, error: 'No model.' }
-    expect(await host().agent.turn(MESSAGE, new AbortController().signal, vi.fn())).toMatchObject({
+    expect(
+      await host().agent.turn(MESSAGE, new AbortController().signal, turnHooks()),
+    ).toMatchObject({
       outcome: 'failed',
       error: 'No model.',
     })
@@ -229,7 +236,7 @@ describe('a Defrag turn in the Brain lane', () => {
     const turnEndingWith = async (...messages: object[]) => {
       lane = new FakeLane()
       onPrompt = () => endWith({ role: 'user', content: MESSAGE }, ...messages)
-      return host().agent.turn(MESSAGE, new AbortController().signal, vi.fn())
+      return host().agent.turn(MESSAGE, new AbortController().signal, turnHooks())
     }
     const failure = 'Provider overloaded (529).\nRetry later.'
     expect(

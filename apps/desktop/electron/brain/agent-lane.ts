@@ -8,7 +8,11 @@
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BRAIN_AGENT_NAME } from '@phosphor/shared/brain-agent'
-import type { BrainAgentHost, BrainAgentTurn } from '@phosphor/brain-runtime/types'
+import type {
+  BrainAgentHost,
+  BrainAgentTurn,
+  BrainAgentTurnHooks,
+} from '@phosphor/brain-runtime/types'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { lastAssistantEnd } from '@phosphor/session-runtime/routines/outcome'
@@ -144,10 +148,7 @@ function prompt(
 }
 
 /** Resumes the newest transcript or starts the lane, and learns its transcript at once. */
-async function open(
-  deps: BrainLaneDeps,
-  started: (sessionPath: string | null) => void,
-): Promise<OpenLane> {
+async function open(deps: BrainLaneDeps, opened: BrainAgentTurnHooks['opened']): Promise<OpenLane> {
   const sessionPath = await newestTranscript(deps.transcripts(deps.folder))
   // Defrag never moves the folder Phosphor reopens at launch; the owner opening the lane does.
   const live = await deps.create(
@@ -159,7 +160,7 @@ async function open(
   // The registry matches an opened path on the transcript pi reports. Asking now means the owner
   // opening the Brain lane finds this process rather than starting a second one on the file.
   await client.request({ type: 'get_state' })
-  started(client.sessionFile ?? sessionPath)
+  opened(client.sessionFile ?? sessionPath)
   deps.changed(deps.folder)
   return { sessionId: live.sessionId, client }
 }
@@ -167,7 +168,7 @@ async function open(
 export function createBrainAgentLane(deps: BrainLaneDeps): BrainAgentHost {
   return {
     folder: deps.folder,
-    async turn(message, signal, started) {
+    async turn(message, signal, hooks) {
       let before: string | null = null
       let lane: OpenLane | undefined
       let end: TurnEnd
@@ -175,8 +176,10 @@ export function createBrainAgentLane(deps: BrainLaneDeps): BrainAgentHost {
         // Written only while missing, so the rules the owner keeps stay as they are.
         await ensureBrainLane(deps.folder)
         before = await readBrainRules(deps.folder)
-        lane = await open(deps, started)
+        lane = await open(deps, hooks.opened)
         await settled(lane, signal)
+        // From here Brain Agent answers Defrag, not the owner.
+        hooks.sending()
         end = await prompt(deps, lane, message, signal)
       } catch (error) {
         end = signal.aborted

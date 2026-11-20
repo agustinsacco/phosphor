@@ -86,7 +86,7 @@ it('Defrag runs through the service and its channels start and stop it', async (
   expect(s.turn).toHaveBeenCalledWith(
     'Defrag. 2 waiting: 1 person or thing, 1 flag. Start with brain_waiting.',
     expect.any(AbortSignal),
-    expect.any(Function),
+    { opened: expect.any(Function), sending: expect.any(Function) },
   )
   expect((await s.service.api.status()).agent.run?.state).toBe('done')
 

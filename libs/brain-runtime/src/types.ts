@@ -64,20 +64,26 @@ export interface BrainAgentTurn {
   /** The Brain lane's AGENTS.md changed during the turn. */
   rulesChanged: boolean
 }
+/** What the Brain lane tells Defrag while its turn gets going. */
+export interface BrainAgentTurnHooks {
+  /** The lane's transcript, as soon as it is known. */
+  opened(sessionPath: string | null): void
+  /**
+   * Any turn the owner had running in the lane has settled, and Defrag's message goes next:
+   * Brain Agent's changes belong to the run from now until the turn ends.
+   */
+  sending(): void
+}
 /** Desktop owns the Brain lane; the runtime only asks it for one turn at a time. */
 export interface BrainAgentHost {
   /** Real path of the Brain lane's folder. Brain never reads lanes there. */
   folder: string
   /**
    * Sends `message` as an ordinary prompt in the Brain lane, starting or resuming the lane, and
-   * resolves when that turn ends. Aborting `signal` stops the turn and resolves `stopped`.
-   * `started` reports the lane's transcript as soon as it is known.
+   * resolves when that turn ends. It first waits for a turn the owner has running there, never
+   * interrupting it. Aborting `signal` stops the turn (or the wait) and resolves `stopped`.
    */
-  turn(
-    message: string,
-    signal: AbortSignal,
-    started: (sessionPath: string | null) => void,
-  ): Promise<BrainAgentTurn>
+  turn(message: string, signal: AbortSignal, hooks: BrainAgentTurnHooks): Promise<BrainAgentTurn>
 }
 
 /** What session startup adds to a lane when Brain and recall are on. */

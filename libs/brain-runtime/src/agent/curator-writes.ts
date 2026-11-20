@@ -43,7 +43,7 @@ const refused = (message: string): BrainAgentWrite => ({
 })
 
 interface Writer {
-  /** The journal note: the running Defrag run, if any, and the scrubbed reason. */
+  /** The journal note: the Defrag run Brain Agent is answering, if any, and the scrubbed reason. */
   note(reason: string): { runId: string | null; reason: string }
   /** Applies one change, maps engine refusals to statuses, then refreshes search and shows it. */
   write(change: () => string | null, message: string): Promise<BrainAgentWrite>
@@ -53,7 +53,7 @@ function writer(context: CuratorContext): Writer {
   const { search, queue } = context
   return {
     note: (reason) => ({
-      runId: context.defrag.current()?.runId ?? null,
+      runId: context.defrag.turnRun()?.runId ?? null,
       reason: scrubExcerpt(reason),
     }),
     async write(change, message) {

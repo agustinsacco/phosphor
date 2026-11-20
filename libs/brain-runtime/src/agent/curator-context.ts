@@ -14,9 +14,12 @@ export interface CuratorContext {
   store: BrainStore
   search: BrainSearchPort
   options: BrainServiceOptions
-  queue: Pick<ExtractionQueue, 'recompute' | 'refreshInline' | 'abortRefresh' | 'kick'>
+  queue: Pick<
+    ExtractionQueue,
+    'recompute' | 'refreshInline' | 'abortRefresh' | 'kick' | 'defragActive'
+  >
   files: LaneFiles
-  defrag: Pick<Defrag, 'current'>
+  defrag: Pick<Defrag, 'turnRun'>
   changed(): void
   /** Brain is on, and neither resetting nor shutting down. Lane recall need not be on. */
   enabled(): boolean
@@ -38,7 +41,7 @@ export function refreshContext(context: CuratorContext): ReviewRefreshContext {
     queue: context.queue,
     folder: context.options.agent?.folder,
     changed: context.changed,
-    defragSignal: () => context.defrag.current()?.signal ?? null,
+    defragTurnSignal: () => context.defrag.turnRun()?.signal ?? null,
     ...context.refreshWait,
   }
 }

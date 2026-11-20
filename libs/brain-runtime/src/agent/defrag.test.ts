@@ -42,8 +42,9 @@ function setup(turn?: BrainAgentHost['turn']) {
     folder: '/brain/Brain',
     turn: vi.fn(
       turn ??
-        (async (_message, _signal, started) => {
-          started('/brain/Brain/lane.jsonl')
+        (async (_message, _signal, hooks) => {
+          hooks.opened('/brain/Brain/lane.jsonl')
+          hooks.sending()
           return finished
         }),
     ),
