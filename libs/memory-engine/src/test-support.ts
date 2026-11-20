@@ -5,13 +5,14 @@ import { openBrainSearch } from './search'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach } from 'vitest'
 import { openBrainStore } from './store'
+import { suggestionTestStore, type SuggestionTestStore } from './tidy/test-store'
 import type { BrainStore, NewJob, Proposal } from './types'
 
 const stores: BrainStore[] = []
 afterEach(() => {
   for (const store of stores.splice(0)) store.close()
 })
-export function fixture(start = 1000): { store: BrainStore; db: DatabaseSync } {
+export function fixture(start = 1000): { store: SuggestionTestStore; db: DatabaseSync } {
   const databases: DatabaseSync[] = []
   let counter = 0
   let time = start
@@ -21,14 +22,16 @@ export function fixture(start = 1000): { store: BrainStore; db: DatabaseSync } {
       databases.push(this)
     }
   }
+  const now = () => time++
+  const id = () => `id-${++counter}`
   const store = openBrainStore({
     path: ':memory:',
     Database,
-    now: () => time++,
-    id: () => `id-${++counter}`,
+    now,
+    id,
   })
   stores.push(store)
-  return { store, db: databases[0]! }
+  return { store: suggestionTestStore(store, { db: databases[0]!, now, id }), db: databases[0]! }
 }
 export function vector(x = 1, y = 0, z = 0): Float32Array {
   const result = new Float32Array(768)

@@ -27,7 +27,7 @@ function judge(store: ReturnType<typeof fixture>['store'], verdict: BrainTidyVer
 
 it('queues a cross-lane disagreement only for the model check, never on the page', () => {
   const { store } = pair(0.65)
-  const page = store.tidy(null, null, 20)
+  const page = store.suggestions(null, null, 20)
   expect(page.items).toEqual([])
   expect(page.counts).toEqual({ same_entity: 0, same_memory: 0, conflict: 0, flagged: 0 })
   expect(store.tidySummary().open).toBe(0)
@@ -41,15 +41,15 @@ it.each([
 ] as const)('a %s verdict surfaces the hidden pair as %s', (_, verdict, kind) => {
   const { store } = pair(0.65)
   expect(judge(store, verdict)).toEqual({ recorded: 1, settled: 0 })
-  const [item] = store.tidy(kind, null, 20).items
+  const [item] = store.suggestions(kind, null, 20).items
   expect(item).toMatchObject({ kind, reason: verdict.reason, verdict: { kind: verdict.kind } })
-  expect(store.tidySuggestion(item!.id)!.allowed.length).toBeGreaterThan(0)
+  expect(store.suggestion(item!.id)!.allowed.length).toBeGreaterThan(0)
 })
 
 it('a different verdict clears the hidden pair quietly', () => {
   const { store } = pair(0.65)
   judge(store, { kind: 'different', reason: 'Different topics.' })
-  expect(store.tidy(null, null, 20).items).toEqual([])
+  expect(store.suggestions(null, null, 20).items).toEqual([])
   expect(pending(store)).toEqual([])
 })
 
@@ -66,9 +66,9 @@ it.each([
 
 it('queues a looser paraphrase in the same lane, shown only after a same verdict', () => {
   const { store } = pair(0.8, 2, "UPDATE memories SET origin_session='lane-1',type='open'")
-  expect(store.tidy(null, null, 20).items).toEqual([])
+  expect(store.suggestions(null, null, 20).items).toEqual([])
   judge(store, { kind: 'same', reason: 'Both say Rina leads Ledger.' })
-  expect(store.tidy('same_memory', null, 20).items.map((i) => i.reason)).toEqual([
+  expect(store.suggestions('same_memory', null, 20).items.map((i) => i.reason)).toEqual([
     'Both say Rina leads Ledger.',
   ])
 })

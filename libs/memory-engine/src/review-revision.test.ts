@@ -22,11 +22,11 @@ it.each(['suggestions', 'dismissal', 'verdict', 'flag', 'keep'] as const)(
         problem: 'wrong',
         reason: 'Rina corrected this.',
       })
-      if (kind === 'keep') store.tidyApply(flag.suggestionId!, { kind: 'keep' }, store.revision())
+      if (kind === 'keep') store.applySuggestion(flag.suggestionId!, { kind: 'keep' }, store.revision())
     } else {
       store.sweep('all')
       const pair = store.pendingPairs(1)[0]!
-      if (kind === 'dismissal') store.tidyDismiss(pair.suggestionId, store.revision())
+      if (kind === 'dismissal') store.dismissSuggestion(pair.suggestionId, store.revision())
       if (kind === 'verdict')
         store.recordVerdicts([
           {
@@ -65,8 +65,8 @@ it.each(['fold', 'dispute', 'replace'] as const)(
     const { store, db, job } = pending()
     db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
     store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
-    const pair = store.tidy('same_memory', null, 20).items[0]!
-    const operation = store.tidyApply(
+    const pair = store.suggestions('same_memory', null, 20).items[0]!
+    const operation = store.applySuggestion(
       pair.id,
       kind === 'fold'
         ? { kind, survivorId: pair.subjects[0]!.id }
