@@ -863,7 +863,10 @@ timestamp from the current time.
 
 Concurrent opens of the same transcript share one process. Opening a lane whose turn is
 running, such as the Brain lane during Defrag, loads its history and then follows the turn:
-events that arrived during the load apply once, and artifacts made meanwhile stay. Main serializes
+the lane shows it running, with Stop, from the moment it opens; events that arrived during the
+load apply once; an answer pi began before the lane opened gets its own message, never the last
+finished one; and artifacts made meanwhile stay. If the load fails, Retry loads it again the
+same way, and nothing is kept from the failed attempt. Main serializes
 resume and deletion by transcript path, cancels queued or hung startup opens,
 and stops every matching writer (including
 handles not yet adopted by the renderer), then trashes the file. Deleting a

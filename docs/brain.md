@@ -907,8 +907,10 @@ When the local pass left unchecked pairs, it adds “, and up to 40 possible rep
 final period; those are not counted in the header. The turn opens the lane as you would, so its
 events reach every window and its dialogs reach you. If you have a turn running in that lane,
 the run waits for it to settle and never interrupts it. The run owns Brain Agent's changes only
-from when its own message is sent until that turn ends, so what you ask for while it waits
-belongs to no run.
+from when pi accepts its own message until that turn ends, so what you ask for while it waits
+belongs to no run. If your message reaches pi first, pi refuses Defrag's, and the run waits
+for your turn and sends again. Stopping a run whose message pi has not accepted aborts nothing;
+if pi accepts it afterwards, Defrag ends that turn at once.
 
 Brain Agent decides in order: reads, people and things, repeats and disagreements, flags, then
 possible repeats, and ends with a short summary. Approving a read changes Brain, so the next
