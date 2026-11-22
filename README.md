@@ -10,7 +10,7 @@
 agents, built on the [pi coding agent](https://pi.dev). Run independent lanes,
 inspect changes and delegated work, keep reviewed knowledge with Brain, and
 reach your own machines from Desktop or the Host-backed PWA. Desktop releases
-currently target macOS and Linux; Windows builds are paused.
+target macOS and Linux.
 
 [![Website](https://img.shields.io/badge/phosphor.saccolabs.com-eca03d?label=web&labelColor=1e1c18)](https://phosphor.saccolabs.com)
 [![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
@@ -338,9 +338,8 @@ verifies the download against the release's `checksums.txt`. Binaries are also
 on the [Releases page](https://github.com/agustinsacco/Phosphor/releases): DMG
 and ZIP for macOS, AppImage and `.deb` for Linux.
 
-Windows builds are paused to keep CI fast and will return in a later release.
-Existing Windows installs keep running the last Windows release; they find no
-newer Windows update until builds resume.
+There is no Windows build. An existing Windows install keeps running its last
+release and finds no newer one.
 
 Phosphor needs `pi` on your PATH:
 
@@ -364,7 +363,7 @@ release, including skipped ones, since they ship in that build. An
 installed app checks at launch and every 30 minutes, and shows an update button
 in the sidebar footer above Settings when there's something new.
 
-Linux AppImage, Windows and signed macOS installs download in the background
+Linux AppImage and signed macOS installs download in the background
 and offer "Restart to update". An unsigned macOS app swaps its own bundle and
 relaunches. A `.deb` install, or a macOS bundle it can't write to, links to the
 release page instead. Update checks only run in a packaged app. Details:
