@@ -1,14 +1,18 @@
 import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import {
   chmodSync,
+  copyFileSync,
   cpSync,
+  existsSync,
+  renameSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 const dir = mkdtempSync(join(tmpdir(), 'host-native-test-'))
@@ -21,13 +25,45 @@ const run = (script: string) =>
     encoding: 'utf8',
     env: { ...process.env, HOST_RELEASE_VERSION: '1.2.3' },
   })
+const pin = JSON.parse(readFileSync(join(root, 'tools/host-release/node.json'), 'utf8')) as {
+  version: string
+  archives: Record<string, string>
+}
+const archive = `node-v${pin.version}-${target}.tar.gz`
+/**
+ * The pinned archive kept between runs, so a slow nodejs.org cannot time the
+ * hook out. Runners share it, so it is used only when its hash matches the pin
+ * and written only by rename.
+ */
+const kept = join(
+  process.env.PHOSPHOR_NODE_ARCHIVE_CACHE || join(homedir(), '.cache', 'phosphor', 'node-archives'),
+  archive,
+)
+const matchesPin = (path: string) =>
+  existsSync(path) &&
+  createHash('sha256').update(readFileSync(path)).digest('hex') === pin.archives[target]
+function keep(): void {
+  if (matchesPin(kept) || !matchesPin(join(dir, archive))) return
+  const partial = `${kept}.${process.pid}.tmp`
+  try {
+    mkdirSync(join(kept, '..'), { recursive: true })
+    copyFileSync(join(dir, archive), partial)
+    renameSync(partial, kept)
+  } catch {
+    // Only the next run's speed depends on this.
+    rmSync(partial, { force: true })
+  }
+}
 beforeAll(() => {
+  if (matchesPin(kept)) copyFileSync(kept, join(dir, archive))
   // Fetch the pinned, hash-verified Node, not Electron's ABI or the test runner's Node.
   const result = run(
     `import {nodeArchive} from './tools/host-release/build-bundle.mjs'; import {buildNative} from './tools/host-release/build-native.mjs'; import {execFileSync} from 'node:child_process'; const cache=${JSON.stringify(dir)}; await nodeArchive(${JSON.stringify(target)},cache); execFileSync('tar',['-xzf',cache+'/node-v24.14.1-${target}.tar.gz','-C',cache]); buildNative(${JSON.stringify(native)},cache+'/node-v24.14.1-${target}/bin/node')`,
   )
+  keep()
   expect(result.status, result.stderr).toBe(0)
-}, 60000)
+  // A cold download is 56 MB, which nodejs.org has served in over 90 seconds.
+}, 240_000)
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
 it('loads and spawns with pinned Node and records the actual runner target', () => {
   expect(JSON.parse(readFileSync(join(native, 'TARGET.json'), 'utf8'))).toEqual({
