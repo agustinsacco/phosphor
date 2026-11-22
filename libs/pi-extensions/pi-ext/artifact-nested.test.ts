@@ -14,7 +14,7 @@ function load() {
     on: (event, handler) => handlers.set(event, [...(handlers.get(event) ?? []), handler]),
     appendEntry: (type, data) => appended.push({ type, data }),
   })
-  const emit = (event: string, payload: unknown = {}): void => {
+  const emit = (event: string, payload: object = {}): void => {
     for (const handler of handlers.get(event) ?? []) handler({ type: event, ...payload }, {})
   }
   return { emit, appended }

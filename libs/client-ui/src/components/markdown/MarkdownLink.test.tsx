@@ -141,18 +141,15 @@ describe('MarkdownLink', () => {
       activeSessionId: id,
       live: { [id]: { ...mockRemoteInfo, phosphorId: id } },
     })
-    invoke.mockImplementation(async (channel: string) =>
-      channel === 'artifacts:forSession'
-        ? [
-            {
-              id: 'nvda-position-month',
-              title: 'NVDA',
-              type: 'html',
-              versions: [{ version: 1, title: 'NVDA', content: '<p/>', createdAt: 1 }],
-            },
-          ]
-        : undefined,
-    )
+    // The click's only call: the Host lane's artifacts, read once more.
+    invoke.mockResolvedValue([
+      {
+        id: 'nvda-position-month',
+        title: 'NVDA',
+        type: 'html',
+        versions: [{ version: 1, title: 'NVDA', content: '<p/>', createdAt: 1 }],
+      },
+    ])
     render(<MarkdownLink href="artifact://nvda-position-month">NVDA</MarkdownLink>)
     await click(link())
     await vi.waitFor(() =>
@@ -160,6 +157,7 @@ describe('MarkdownLink', () => {
     )
     expect(useArtifactsStore.getState().selected[id]).toBe('nvda-position-month')
     expect(useExtensionUiStore.getState().toasts).toEqual([])
+    expect(invoke).toHaveBeenCalledWith('artifacts:forSession', id)
   })
 
   it('does nothing for a scheme it refuses to act on', async () => {
