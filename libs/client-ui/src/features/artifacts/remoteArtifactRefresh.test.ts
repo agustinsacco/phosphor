@@ -87,3 +87,21 @@ it('keeps a reply for the still-active lane when another navigation starts and f
   expect(await request).toBe(true)
   expect(Object.keys(useArtifactsStore.getState().bySession[id] ?? {})).toEqual(['card'])
 })
+
+it('starts a read of its own for a refresh asked for as the last read finishes', async () => {
+  invoke.mockResolvedValueOnce([]).mockResolvedValue([snapshot])
+  let again: Promise<boolean> | undefined
+  // Queued by the first reply's hydrate, so it runs after that read's final
+  // dirty check and before anything chained on the read's promise.
+  const stop = useArtifactsStore.subscribe(() => {
+    stop()
+    queueMicrotask(() => {
+      again = refreshRemoteArtifacts(id)
+    })
+  })
+  await refreshRemoteArtifacts(id)
+  await vi.waitFor(() => expect(again).toBeDefined())
+  expect(await again).toBe(true)
+  expect(invoke).toHaveBeenCalledTimes(2)
+  expect(Object.keys(useArtifactsStore.getState().bySession[id] ?? {})).toEqual(['card'])
+})

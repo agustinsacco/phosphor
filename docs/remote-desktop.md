@@ -335,11 +335,17 @@ connection and capability after each reply. Errors expose only fixed text.
 The lane's Artifacts pane requires `artifacts.read` in the Host's ready frame.
 Main uses the lane handle, never a session file path, to fetch metadata and each
 current-branch version. A call caps total content at 8 MiB and each version at
-2 MiB, with at most 1,000 version reads per call. Invalid replies, changed
-connections, revoked capability or a changed
+2 MiB, with at most 1,000 version reads per call. Past either budget it still
+loads: each artifact's latest version first, then older versions newest first,
+until the budget is spent, chosen from declared sizes before any content call.
+Invalid replies, changed connections, revoked capability or a changed
 focused lane fail closed. The renderer serializes and coalesces metadata reads per lane, discarding replies
 after navigation, detach or connection changes. It refreshes on open, reconnect,
-new stream epochs and artifact-tool completion; empty replies replace cached
+new stream epochs and artifact-tool completion, nested calls included. pi appends
+a tool's result after `tool_execution_end`, and only after every sibling in a
+parallel batch or script, so a turn that wrote an artifact reads once more at
+`turn_end` (or `agent_end`). A chat link to an artifact the copy lacks reads once
+more before it says the artifact is missing. Empty replies replace cached
 artifacts. The top-bar entry remains visible for a ready Host with
 `artifacts.read` even when the lane has no artifacts yet.
 
