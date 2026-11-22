@@ -26,8 +26,9 @@ const TONES: Record<NoticeTone, { box: string; title: string }> = {
 }
 
 /**
- * The one status box in Settings: a gate, an untrusted folder, a malformed
- * file, a failed read. A danger notice is announced (`role=alert`).
+ * The one status box in the app: a gate, an untrusted folder, a malformed file,
+ * a failed read, a machine that cannot show its archives. A danger notice is
+ * announced (`role=alert`).
  */
 export function SettingsNotice({
   tone,

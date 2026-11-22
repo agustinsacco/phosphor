@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
+import { CheckRow } from '@/components/form'
 import { ChevronIcon, Spinner } from '@/components/icons'
 import { summaryTitle } from '@/stores/laneRemovalState'
 import { useSessionsStore } from '@/stores/sessions'
@@ -91,12 +92,12 @@ export function BulkDeleteModal({
         </div>
 
         <div className="space-y-1 px-5 pb-2">
-          <Option checked disabled label="Move the session to Trash">
+          <CheckRow checked disabled label="Move the session to Trash">
             {remote
               ? 'The Host keeps the transcript in its trash for 30 days.'
               : 'The pi transcript and its paired Claude Code transcript. Recoverable from the OS Trash.'}
-          </Option>
-          <Option
+          </CheckRow>
+          <CheckRow
             checked={removeWorktree}
             onChange={setRemoveWorktree}
             label={`Remove the git worktree${
@@ -107,8 +108,8 @@ export function BulkDeleteModal({
             {summary.worktreeCount === 0
               ? 'No worktree here is used only by the selected lanes.'
               : `Deletes the working directory ${remote ? 'on the Host, which keeps one with uncommitted changes' : 'on disk'}. Not undoable.`}
-          </Option>
-          <Option
+          </CheckRow>
+          <CheckRow
             checked={deleteBranch && removeWorktree && summary.worktreeCount > 0}
             onChange={setDeleteBranch}
             label="Also delete the branch"
@@ -116,7 +117,7 @@ export function BulkDeleteModal({
           >
             Deleted when its work is already on the trunk, squash-merged PRs included. An unmerged
             branch is kept and reported, never forced.
-          </Option>
+          </CheckRow>
         </div>
 
         {summary.needsAcknowledgement && (
@@ -194,41 +195,6 @@ function Badge({
     <span className={clsx('shrink-0 rounded-full px-2 text-2xs font-semibold', TONES[tone])}>
       {children}
     </span>
-  )
-}
-
-function Option({
-  checked,
-  onChange,
-  disabled,
-  label,
-  children,
-}: {
-  checked: boolean
-  onChange?: (next: boolean) => void
-  disabled?: boolean
-  label: string
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <TooltipLabel
-      className={clsx(
-        'flex items-start gap-2 py-1.5 text-sm',
-        disabled ? 'cursor-default opacity-55' : 'cursor-pointer',
-      )}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange?.(e.target.checked)}
-        className="accent-accent mt-0.5"
-      />
-      <span>
-        {label}
-        <span className="text-text-tertiary mt-0.5 block text-xs">{children}</span>
-      </span>
-    </TooltipLabel>
   )
 }
 

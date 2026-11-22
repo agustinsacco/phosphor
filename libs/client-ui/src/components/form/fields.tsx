@@ -1,4 +1,4 @@
-import { TooltipButton } from '@/components/Tooltip'
+import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 
@@ -90,6 +90,46 @@ export function TextInput({
         className,
       )}
     />
+  )
+}
+
+/**
+ * A checkbox with a name and a line of consequence under it: the option row
+ * every destructive confirm needs. `children` is the detail that tells the
+ * reader what turning it on costs.
+ */
+export function CheckRow({
+  checked,
+  onChange,
+  disabled = false,
+  label,
+  children,
+}: {
+  checked: boolean
+  onChange?: (next: boolean) => void
+  disabled?: boolean
+  label: string
+  children?: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <TooltipLabel
+      className={clsx(
+        'flex items-start gap-2 py-1.5 text-sm',
+        disabled ? 'cursor-default opacity-55' : 'cursor-pointer',
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange?.(e.target.checked)}
+        className="accent-accent mt-0.5"
+      />
+      <span>
+        {label}
+        {children && <span className="text-text-tertiary mt-0.5 block text-xs">{children}</span>}
+      </span>
+    </TooltipLabel>
   )
 }
 

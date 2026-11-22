@@ -6,6 +6,7 @@ import { ARCHIVE_WARNING_BYTES, type LaneArchiveList } from '@phosphor/shared/la
 import { machineReadGeneration } from './machineReadGeneration'
 import { machinesAccountGeneration } from './machines'
 import { machineLabel, useRemoteLanesStore } from './remoteLanes'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useExtensionUiStore } from './extensionUi'
 
 interface View {
@@ -57,7 +58,7 @@ export function loadArchives(
         useExtensionUiStore
           .getState()
           .pushToast(
-            `${machine === 'local' ? 'This computer' : machineLabel(machine)}: archived lanes use ${(data.bytes / 1e9).toFixed(1)} GB. Open Archive to restore or clean up. Nothing is removed automatically.`,
+            `${machine === 'local' ? localMachineLabel() : machineLabel(machine)}: archived lanes use ${(data.bytes / 1e9).toFixed(1)} GB. Open Archive to restore or clean up. Nothing is removed automatically.`,
             'info',
           )
       } else if (data.bytes !== null && data.bytes <= ARCHIVE_WARNING_BYTES)

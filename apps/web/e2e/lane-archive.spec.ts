@@ -59,7 +59,7 @@ test('a controlling browser archives a lane, and the Archive page restores it', 
   expect(await archives(page, stack.hostId)).toMatchObject([{ title: TITLE, state: 'archived' }])
 
   await page.goto(`${stack.origin}/pages/archive`)
-  const row = page.getByRole('heading', { name: TITLE, exact: true }).locator('..').locator('..')
+  const row = page.getByTestId('archive-row').filter({ hasText: TITLE })
   await row.getByRole('button', { name: 'Restore', exact: true }).click()
   await expect.poll(() => laneIds(page, stack.hostId)).toContain(stack.laneId)
   await expect(page.getByText('No archived lanes.')).toBeVisible()
@@ -81,6 +81,38 @@ test('cleaning up an archive keeps the project and cannot be restored', async ({
   expect((await call(page, 'hosts:restoreArchive', stack.hostId, entry!.id)).error).toBeTruthy()
   expect(await laneIds(page, stack.hostId)).not.toContain(stack.laneId)
   expect(await laneIds(page, stack.hostId)).toContain(stack.secondLaneId)
+})
+
+test('the Archive page cleans up a whole selection in one confirmation', async ({
+  page,
+  stack,
+}) => {
+  await openLane(page, stack.origin)
+  await takeControl(page)
+  // Archiving is a controlling action per lane, so hold both before either goes.
+  expect(await call(page, 'hosts:takeControl', stack.hostId, stack.secondLaneId)).toEqual({
+    value: null,
+  })
+  for (const laneId of [stack.laneId, stack.secondLaneId]) {
+    expect(await call(page, 'hosts:archiveLane', stack.hostId, laneId)).toEqual({ value: null })
+  }
+  const archivedCount = () => archives(page, stack.hostId).then((list) => list.length)
+  await expect.poll(archivedCount).toBe(2)
+
+  await page.goto(`${stack.origin}/pages/archive`)
+  await page.getByRole('button', { name: 'Select all', exact: true }).click()
+  const bar = page.getByTestId('bulk-bar')
+  await expect(bar).toContainText('2 selected')
+  await bar.getByRole('button', { name: 'Clean up…', exact: true }).click()
+
+  const confirm = page.getByRole('button', { name: 'Clean up 2 archived lanes', exact: true })
+  await expect(confirm).toBeDisabled()
+  await page.getByText('I understand this is permanent.').click()
+  await expect(confirm).toBeEnabled()
+  await confirm.click()
+
+  await expect.poll(archivedCount).toBe(0)
+  expect(await laneIds(page, stack.hostId)).toEqual([])
 })
 
 test('a browser reader is refused lane archiving by the Host', async ({ page, stack }) => {

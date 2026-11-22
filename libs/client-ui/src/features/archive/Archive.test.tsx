@@ -46,7 +46,7 @@ it('recovers an archive page whose first read failed without treating unknown st
       truncated: false,
     })
   Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
-  await act(async () => root.render(<ArchiveMachine machine="local" />))
+  await act(async () => root.render(<ArchiveMachine machine="local" query="" />))
   expect(document.body.textContent).toContain('Temporarily unavailable')
   expect(document.body.textContent).toContain('Storage unknown')
   await act(async () => button('Refresh').click())
@@ -86,4 +86,49 @@ it('keeps the checkout by default and requires renewed acknowledgement after cho
   act(() => inputs[1]!.click())
   act(() => button('Permanently clean up').click())
   expect(confirm).toHaveBeenLastCalledWith(true)
+})
+
+const archived = (n: number, worktree = false) => ({
+  id: String(n).repeat(64),
+  cwd: `/repo/lane-${n}`,
+  title: `Lane ${n}`,
+  archivedAt: 1_700_000_000_000 - n * 1000,
+  state: 'archived' as const,
+  ...(worktree ? { worktree: true } : {}),
+})
+
+it('cleans up the whole selection in one confirm, and keeps the checkout unless asked', async () => {
+  const list = {
+    entries: [archived(1), archived(2), archived(3, true)],
+    bytes: 500_000_000,
+    measuredAt: Date.now(),
+    measuring: false,
+    truncated: false,
+  }
+  const invoke = vi.fn(async (channel: string) =>
+    channel === 'sessions:archives' ? list : undefined,
+  )
+  Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
+  await act(async () => root.render(<ArchiveMachine machine="local" query="" />))
+  expect(document.body.textContent).toContain('Lane 3')
+
+  act(() => button('Select all').click())
+  const bar = document.querySelector('[data-testid="bulk-bar"]')!
+  expect(bar.textContent).toContain('3 selected')
+  const cleanUp = [...bar.querySelectorAll('button')].find((b) => b.textContent === 'Clean up…')!
+  act(() => cleanUp.click())
+
+  const confirm = [...document.querySelectorAll('button')].find((b) =>
+    b.textContent?.startsWith('Clean up 3 archived lanes'),
+  )!
+  expect(confirm.disabled).toBe(true)
+  const inputs = [...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
+  expect(inputs).toHaveLength(2)
+  act(() => inputs[1]!.click())
+  expect(confirm.disabled).toBe(false)
+  await act(async () => confirm.click())
+
+  for (const n of [1, 2, 3])
+    expect(invoke).toHaveBeenCalledWith('sessions:purgeArchive', String(n).repeat(64), false)
+  expect(document.querySelector('[data-testid="bulk-bar"]')).toBeNull()
 })
