@@ -22,7 +22,6 @@ import {
   formatSuggestion,
   formatWaiting,
 } from '@phosphor/brain-client/curator-format'
-import { formatReview } from '@phosphor/brain-client/curator-review-format'
 import {
   createNodeBrainTransport,
   takeBrainConnection,
@@ -98,8 +97,7 @@ export function registerCuratorReads(pi: CuratorPiApi, client: BrainCuratorClien
         }),
       ),
     }),
-    async ({ jobId, offset }, signal) =>
-      formatReview(await client.call('readReview', { jobId }, signal), offset),
+    async (params, signal) => (await client.call('readReview', params, signal)).text,
   )
   registerRead<{ suggestionId: string }>(
     pi,

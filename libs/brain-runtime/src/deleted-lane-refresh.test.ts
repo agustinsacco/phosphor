@@ -89,7 +89,7 @@ it('keeps the review if the transcript disappears after the queue checks it', as
   // Brain Agent opens the stale review, which refreshes it.
   const opened = await service.agent('readReview', { jobId: s.job.id })
   expect(preparing).toHaveBeenCalled()
-  expect(opened.neverRead).toBe(true)
+  expect(opened.text).toContain('Brain never reads this lane: reject it')
   expect(s.store.job(s.job.id)?.state).toBe('review')
   expect(s.store.storedProposal(s.job.id)).toBe(proposal)
   expect(s.runner).not.toHaveBeenCalled()

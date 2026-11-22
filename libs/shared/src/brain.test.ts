@@ -8,7 +8,12 @@ import {
   DEFAULT_BRAIN_PREFS,
   type BrainAgentMethod,
 } from './brain'
-import { BRAIN_CURATOR_METHODS, BRAIN_LANE_METHODS } from './brain-agent'
+import {
+  BRAIN_CURATOR_METHODS,
+  BRAIN_LANE_METHODS,
+  type BrainAgentMap,
+  type BrainAgentWrite,
+} from './brain-agent'
 
 it('starts off, with recall and review on for when it is enabled', () => {
   expect(DEFAULT_BRAIN_PREFS).toEqual({
@@ -55,6 +60,27 @@ it('gives lane agents search and flags; only the Brain lane decides, edits and e
     | 'erase'
     | 'undo'
   >()
+})
+
+it('pages a read and takes Brain Agent’s own decision, so no answer carries a whole read', () => {
+  expectTypeOf<BrainAgentMap['readReview']>().toEqualTypeOf<{
+    request: { jobId: string; offset?: number }
+    result: { text: string }
+  }>()
+  expectTypeOf<BrainAgentMap['decideRead']>().toEqualTypeOf<{
+    request: {
+      jobId: string
+      revision: number
+      approve: boolean
+      memories?: number[]
+      identities?: { ref: string; answer: string }[]
+      groups?: number[]
+      descriptions?: string[]
+      confirmations?: number[]
+      reason: string
+    }
+    result: BrainAgentWrite
+  }>()
 })
 
 it('pins the graph schema the extractor, engine and UI share', () => {

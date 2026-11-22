@@ -60,26 +60,9 @@ export function isBrainWaiting(v: unknown): v is BrainAgentMap['waiting']['resul
   )
 }
 
-export function isBrainReadReview(v: unknown): v is BrainAgentMap['readReview']['result'] {
-  const p = record(v) ? v.proposal : undefined
-  return (
-    record(v) &&
-    typeof v.neverRead === 'boolean' &&
-    record(p) &&
-    record(p.job) &&
-    typeof p.job.id === 'string' &&
-    typeof p.job.title === 'string' &&
-    count(p.revision) &&
-    count(p.replacingMemories) &&
-    count(p.held) &&
-    list(
-      p.identities,
-      (i) => record(i) && typeof i.ref === 'string' && list(i.candidates, entity),
-    ) &&
-    list(p.groups, (g) => record(g) && count(g.index) && record(g.parent) && strings(g.labels)) &&
-    list(p.memories, (m) => record(m) && count(m.index) && typeof m.summary === 'string') &&
-    list(p.confirmations, (c) => record(c) && typeof c.summary === 'string' && record(c.claim))
-  )
+/** One page of a read, formatted by the runtime. */
+export function isBrainReadReviewPage(v: unknown): v is BrainAgentMap['readReview']['result'] {
+  return record(v) && Object.keys(v).length === 1 && typeof v.text === 'string'
 }
 
 export function isBrainSuggestionDetail(v: unknown): v is BrainAgentMap['suggestion']['result'] {
@@ -134,7 +117,7 @@ export function isBrainAgentWrite(v: unknown): v is BrainAgentMap['decideRead'][
 
 export const CURATOR_RESULT_GUARDS: { [M in BrainCuratorMethod]: (v: unknown) => boolean } = {
   waiting: isBrainWaiting,
-  readReview: isBrainReadReview,
+  readReview: isBrainReadReviewPage,
   suggestion: isBrainSuggestionDetail,
   entity: isBrainEntityView,
   memory: isBrainMemoryDetail,

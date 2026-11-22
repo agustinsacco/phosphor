@@ -15,6 +15,8 @@ afterEach(async () => {
   for (const close of cleanups.splice(0).reverse()) await close()
 })
 const signal = new AbortController().signal
+/** What a page of a read says when Brain never reads its lane. */
+const NEVER_READ = 'Brain never reads this lane: reject it'
 async function curatorSetup() {
   const s = await curatorFixture()
   cleanups.push(s.cleanup)
@@ -56,16 +58,17 @@ describe('curator reads', () => {
     expect((await s.curator.waiting({ limit: 1 }, signal)).more).toBe(5)
   })
 
-  it('readReview returns the current proposal without the lane file, and refuses other reads', async () => {
+  it('readReview returns the current read as a page without the lane file, and refuses other reads', async () => {
     const s = await curatorSetup()
     const job = seedReview(s.store, 'ledger', s.lane)
-    const review = await s.curator.readReview({ jobId: job.id }, signal)
-    expect(review.neverRead).toBe(false)
-    expect(review.proposal.job).toMatchObject({ id: job.id, sessionPath: '' })
-    expect(review.proposal.memories).toHaveLength(1)
+    const { text } = await s.curator.readReview({ jobId: job.id }, signal)
+    expect(text).toMatch(new RegExp(`^Read ${job.id} · ".+" · revision 0\\.`))
+    expect(text).toContain('Decide with brain_decide_read')
+    expect(text).toContain('- 0 · procedure · add · Rina approves Ledger invoices.')
+    expect(text).not.toContain(s.lane)
     expect(s.queue.refreshInline).not.toHaveBeenCalled()
     s.store.prefs.neverRead = { ...s.store.prefs.neverRead, sessionIds: ['ledger'] }
-    expect((await s.curator.readReview({ jobId: job.id }, signal)).neverRead).toBe(true)
+    expect((await s.curator.readReview({ jobId: job.id }, signal)).text).toContain(NEVER_READ)
     s.store.updateJob(job.id, { state: 'done' })
     await expect(s.curator.readReview({ jobId: job.id }, signal)).rejects.toThrow(READ_NOT_WAITING)
     await expect(s.curator.readReview({ jobId: 'nope' }, signal)).rejects.toThrow(READ_NOT_WAITING)
@@ -74,15 +77,15 @@ describe('curator reads', () => {
   it('marks a fresh read never read when its lane is renamed to a never-read title or deleted', async () => {
     const s = await curatorSetup()
     const job = seedReview(s.store, 'ledger', s.lane)
+    const page = async () => (await s.curator.readReview({ jobId: job.id }, signal)).text
     await nameLane(s.lane, 'Harbor 1:1')
-    expect(await s.curator.readReview({ jobId: job.id }, signal)).toMatchObject({
-      neverRead: true,
-      proposal: { revision: 0, job: { title: 'Harbor 1:1' } },
-    })
+    const renamed = await page()
+    expect(renamed).toContain(`Read ${job.id} · "Harbor 1:1" · revision 0.`)
+    expect(renamed).toContain(NEVER_READ)
     await nameLane(s.lane, 'Harbor billing')
-    expect((await s.curator.readReview({ jobId: job.id }, signal)).neverRead).toBe(false)
+    expect(await page()).not.toContain(NEVER_READ)
     await unlink(s.lane)
-    expect((await s.curator.readReview({ jobId: job.id }, signal)).neverRead).toBe(true)
+    expect(await page()).toContain(NEVER_READ)
     expect(s.queue.refreshInline).not.toHaveBeenCalled()
   })
 
@@ -92,8 +95,9 @@ describe('curator reads', () => {
     s.store.prefs.neverRead = { ...s.store.prefs.neverRead, sessionIds: ['ledger'] }
     s.store.rev++
     s.inRun('run-1')
-    const review = await s.curator.readReview({ jobId: job.id }, signal)
-    expect(review).toMatchObject({ neverRead: true, proposal: { revision: 0 } })
+    const { text } = await s.curator.readReview({ jobId: job.id }, signal)
+    expect(text).toContain(' · revision 0.')
+    expect(text).toContain(NEVER_READ)
     expect(s.queue.refreshInline).not.toHaveBeenCalled()
   })
 

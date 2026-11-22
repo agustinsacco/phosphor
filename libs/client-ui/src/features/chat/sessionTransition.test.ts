@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AgentMessage, PiEvent } from '@shared/rpc'
 import {
   createFakePhosphor,
   installFakePhosphor,
@@ -106,6 +107,158 @@ it('attaches to a lane already running in main without waiting for its turn to f
   expect(sessionTransitionPending('audit')).toBe(false)
   expect(useChatStore.getState().sessions.audit?.meta?.isStreaming).toBe(true)
   expect(command).toHaveBeenCalledWith('audit', { type: 'get_messages' })
+})
+
+describe('opening a lane mid-turn', () => {
+  const prompt = {
+    role: 'user',
+    content: 'Defrag. 1 waiting: 1 read. Start with brain_waiting.',
+    timestamp: 1,
+  } as const
+  const plan = {
+    id: 'harbor-plan',
+    title: 'Harbor plan',
+    type: 'markdown',
+    content: '# Harbor',
+    version: 1,
+  }
+  const answer: AgentMessage = {
+    role: 'assistant',
+    content: [
+      { type: 'text', text: 'Writing the Harbor plan.' },
+      { type: 'toolCall', id: 'call-1', name: 'artifact_create', arguments: plan },
+    ],
+    stopReason: 'toolUse',
+    timestamp: 2,
+  }
+  const result: AgentMessage = {
+    role: 'toolResult',
+    toolCallId: 'call-1',
+    toolName: 'artifact_create',
+    content: [{ type: 'text', text: 'Created Harbor plan.' }],
+    details: plan,
+    isError: false,
+    timestamp: 3,
+  }
+  /** What the lane sends while its history loads: the answer it was streaming, then its tool. */
+  const during: PiEvent[] = [
+    {
+      type: 'message_update',
+      assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Writing the Harbor' },
+    },
+    { type: 'message_end', message: answer },
+    { type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'artifact_create', args: plan },
+    {
+      type: 'tool_execution_end',
+      toolCallId: 'call-1',
+      toolName: 'artifact_create',
+      result: { content: result.content, details: plan },
+      isError: false,
+    },
+    { type: 'message_start', message: result },
+    { type: 'message_end', message: result },
+  ]
+  const push = (event: PiEvent) => fake.events.onSessionPush.emit('audit', { kind: 'event', event })
+
+  // Main forwards events as pi prints them but answers get_messages later, so pi may have read
+  // its messages before the answer ended, before its result, or after both.
+  it.each([
+    ['before the answer ended', [prompt]],
+    ['before the tool result', [prompt, answer]],
+    ['after the tool result', [prompt, answer, result]],
+  ] as const)(
+    'loads its history read %s, then the events that arrived meanwhile, once each',
+    async (_when, history) => {
+      createSession.mockResolvedValue({
+        sessionId: 'audit',
+        workspacePath: '/repo',
+        diskPath: '/repo/clone.jsonl',
+        pid: 1,
+      })
+      let release!: () => void
+      command.mockImplementation(async (_id, cmd) => {
+        if (cmd.type === 'get_messages')
+          return await new Promise((resolve) => {
+            release = () => resolve({ success: true, data: { messages: history } })
+          })
+        if (cmd.type === 'get_state')
+          return {
+            success: true,
+            data: { sessionFile: '/repo/clone.jsonl', sessionId: 'clone', isStreaming: true },
+          }
+        return { success: false }
+      })
+      const opening = useSessionsStore
+        .getState()
+        .createSession('/repo', { sessionPath: '/repo/clone.jsonl' })
+      await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+      for (const event of during) push(event)
+      await vi.waitFor(() =>
+        expect(useArtifactsStore.getState().bySession.audit?.['harbor-plan']).toBeDefined(),
+      )
+      release()
+      await opening
+
+      const chat = () => useChatStore.getState().sessions.audit!
+      expect(chat().error).toBeNull()
+      expect(sessionTransitionPending('audit')).toBe(false)
+      expect(chat().items).toMatchObject([
+        { kind: 'user', text: prompt.content },
+        {
+          kind: 'assistant',
+          streaming: false,
+          blocks: [
+            { type: 'text', text: 'Writing the Harbor plan.' },
+            { type: 'tool', toolCallId: 'call-1' },
+          ],
+        },
+      ])
+      expect(chat().tools['call-1']).toMatchObject({ status: 'done', toolName: 'artifact_create' })
+      expect(useArtifactsStore.getState().bySession.audit?.['harbor-plan']?.versions).toHaveLength(
+        1,
+      )
+      // Then it follows the live turn.
+      push({ type: 'message_start', message: { role: 'assistant', content: [] } })
+      push({
+        type: 'message_update',
+        assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Approved.' },
+      })
+      expect(chat().items).toHaveLength(3)
+      expect(chat().items[2]).toMatchObject({
+        kind: 'assistant',
+        streaming: true,
+        blocks: [{ type: 'text', text: 'Approved.' }],
+      })
+    },
+  )
+})
+
+it('keeps the activity guard when the lane main runs was idle as it opened', async () => {
+  createSession.mockResolvedValue({
+    sessionId: 'audit',
+    workspacePath: '/repo',
+    diskPath: '/repo/clone.jsonl',
+    pid: 1,
+  })
+  const normal = command.getMockImplementation()!
+  let release!: () => void
+  command.mockImplementation(async (id, cmd) => {
+    if (cmd.type !== 'get_messages') return normal(id, cmd)
+    return await new Promise((resolve) => {
+      release = () => resolve({ success: true, data: { messages: [] } })
+    })
+  })
+  const opening = useSessionsStore
+    .getState()
+    .createSession('/repo', { sessionPath: '/repo/clone.jsonl' })
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+  fake.events.onSessionPush.emit('audit', { kind: 'event', event: { type: 'agent_start' } })
+  release()
+  await opening
+  expect(useChatStore.getState().sessions.audit?.error).toBe(
+    'Session activity changed while loading. Retry when the turn finishes.',
+  )
+  expect(useSessionTransition.getState().bySession.audit?.retry).toBeTypeOf('function')
 })
 
 it('rewind removes artifacts that only existed after its new branch point', async () => {

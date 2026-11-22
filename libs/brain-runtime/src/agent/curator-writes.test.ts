@@ -13,7 +13,10 @@ afterEach(async () => {
 })
 const signal = new AbortController().signal
 const reason = 'Both records name the same Slack user.'
-const approve = {
+/** Brain Agent's approval: the read's one memory by default, its identity answered. */
+const approval = { approve: true, identities: [{ ref: 'e1', answer: 'rina' }] }
+/** The decision Brain builds from it against the stored read. */
+const approved = {
   memories: [0],
   identities: { e1: 'rina' },
   groups: [],
@@ -33,7 +36,7 @@ describe('decideRead', () => {
     s.store.rev += 3
     s.inRun('run-4')
     const result = await s.curator.decideRead(
-      { jobId: job.id, revision: 0, decision: null, reason },
+      { jobId: job.id, revision: 0, approve: false, reason },
       signal,
     )
     expect(result).toEqual({
@@ -55,12 +58,12 @@ describe('decideRead', () => {
     const s = await setup()
     const job = seedReview(s.store, 'ledger', s.lane)
     const result = await s.curator.decideRead(
-      { jobId: job.id, revision: s.store.knowledgeRevision(), decision: approve, reason },
+      { jobId: job.id, revision: s.store.knowledgeRevision(), ...approval, reason },
       signal,
     )
     expect(result).toMatchObject({ status: 'done', operationId: 'op-1' })
     expect(s.store.calls[0]).toMatchObject({
-      args: [job.id, approve, 0],
+      args: [job.id, approved, 0],
       note: { runId: null, reason },
     })
   })
@@ -69,11 +72,11 @@ describe('decideRead', () => {
     const s = await setup()
     const job = seedReview(s.store, 'ledger', s.lane)
     expect(
-      await s.curator.decideRead({ jobId: job.id, revision: 7, decision: approve, reason }, signal),
+      await s.curator.decideRead({ jobId: job.id, revision: 7, ...approval, reason }, signal),
     ).toEqual({ status: 'changed', message: READ_CHANGED, operationId: null })
     s.store.refusal = new Error(BRAIN_REVIEW_CHANGED)
     expect(
-      await s.curator.decideRead({ jobId: job.id, revision: 0, decision: approve, reason }, signal),
+      await s.curator.decideRead({ jobId: job.id, revision: 0, ...approval, reason }, signal),
     ).toMatchObject({ status: 'changed' })
     expect(s.store.calls).toEqual([])
   })
@@ -83,7 +86,7 @@ describe('decideRead', () => {
     const job = seedReview(s.store, 'ledger', s.lane)
     s.store.prefs.neverRead = { ...s.store.prefs.neverRead, sessionIds: ['ledger'] }
     expect(
-      await s.curator.decideRead({ jobId: job.id, revision: 0, decision: approve, reason }, signal),
+      await s.curator.decideRead({ jobId: job.id, revision: 0, ...approval, reason }, signal),
     ).toEqual({
       status: 'refused',
       message: 'Brain is set not to read this lane.',
@@ -91,14 +94,14 @@ describe('decideRead', () => {
     })
     s.store.rev++
     expect(
-      await s.curator.decideRead({ jobId: job.id, revision: 0, decision: approve, reason }, signal),
+      await s.curator.decideRead({ jobId: job.id, revision: 0, ...approval, reason }, signal),
     ).toMatchObject({
       status: 'refused',
       message: expect.stringContaining('set to never be read'),
     })
     // Rejecting it is how it leaves.
     expect(
-      (await s.curator.decideRead({ jobId: job.id, revision: 0, decision: null, reason }, signal))
+      (await s.curator.decideRead({ jobId: job.id, revision: 0, approve: false, reason }, signal))
         .status,
     ).toBe('done')
   })
@@ -107,7 +110,7 @@ describe('decideRead', () => {
     const s = await setup()
     const job = seedReview(s.store, 'ledger', s.lane)
     const decide = () =>
-      s.curator.decideRead({ jobId: job.id, revision: 0, decision: approve, reason }, signal)
+      s.curator.decideRead({ jobId: job.id, revision: 0, ...approval, reason }, signal)
     // Renaming a lane changes no knowledge, so the read stays fresh.
     await nameLane(s.lane, 'Harbor 1:1')
     expect(await decide()).toEqual({
@@ -127,9 +130,9 @@ describe('decideRead', () => {
 
   it('refuses a read that is not waiting', async () => {
     const s = await setup()
-    for (const decision of [null, approve])
+    for (const choice of [{ approve: false }, approval])
       expect(
-        await s.curator.decideRead({ jobId: 'gone', revision: 0, decision, reason }, signal),
+        await s.curator.decideRead({ jobId: 'gone', revision: 0, ...choice, reason }, signal),
       ).toEqual({
         status: 'refused',
         message: 'This read is not waiting for a decision.',
@@ -268,7 +271,7 @@ describe('other writes', () => {
     const off = { status: 'refused', message: BRAIN_OFF, operationId: null }
     expect(await s.curator.erase({ memoryId: 'm', reason }, signal)).toEqual(off)
     expect(
-      await s.curator.decideRead({ jobId: 'j', revision: 0, decision: null, reason }, signal),
+      await s.curator.decideRead({ jobId: 'j', revision: 0, approve: false, reason }, signal),
     ).toEqual(off)
     expect(await s.curator.undo({ operationId: 'op', reason }, signal)).toEqual(off)
     expect(s.store.calls).toHaveLength(1)

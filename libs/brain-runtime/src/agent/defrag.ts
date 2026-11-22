@@ -26,8 +26,13 @@ export interface Defrag {
   stop(): void
   /** App shutdown: a run left unfinished is reported as interrupted at the next start. */
   dispose(): void
-  /** The run holding Brain's worker, with the signal Stop aborts; null outside a run. */
-  current(): { runId: string; signal: AbortSignal } | null
+  /**
+   * The run whose message Brain Agent is answering, with the signal Stop aborts: its changes
+   * belong to it. Null outside a run, and while the run waits for the owner's own turn in the
+   * lane, so what the owner asks for then is theirs. (The run holds Brain's worker the whole
+   * time; that is `ExtractionQueue.defragActive`.)
+   */
+  turnRun(): { runId: string; signal: AbortSignal } | null
 }
 
 /** What Defrag decides: the header count. Unchecked pairs alone never start a run. */
@@ -95,7 +100,7 @@ export function createDefrag(context: DefragContext): Defrag {
   const { store, queue, options } = context
   const now = options.now ?? Date.now
   let active: { runId: string; cancel(): void } | undefined
-  let running: { runId: string; signal: AbortSignal } | null = null
+  let turnRun: { runId: string; signal: AbortSignal } | null = null
   let disposed = false
 
   const update = (id: string, patch: BrainRunPatch): void => {
@@ -112,14 +117,18 @@ export function createDefrag(context: DefragContext): Defrag {
 
   async function execute(runId: string, host: BrainAgentHost, signal: AbortSignal): Promise<void> {
     update(runId, { state: 'running', startedAt: now() })
-    running = { runId, signal }
     try {
       await localPass(store, context.search, signal, now)
       const counts = store.waitingCounts()
       update(runId, { total: waitingTotal(counts) })
       if (!waitingTotal(counts)) return finish(runId, { state: 'done' })
       const message = defragMessage(counts, hasPossibleRepeats(store, counts))
-      const turn = await host.turn(message, signal, (sessionPath) => update(runId, { sessionPath }))
+      const turn = await host.turn(message, signal, {
+        opened: (sessionPath) => update(runId, { sessionPath }),
+        sending: () => {
+          turnRun = { runId, signal }
+        },
+      })
       finish(runId, turnPatch(turn))
     } catch (error) {
       finish(
@@ -129,7 +138,7 @@ export function createDefrag(context: DefragContext): Defrag {
           : { state: 'failed', error: plainRefusal(error, 'Defrag failed.') },
       )
     } finally {
-      running = null
+      turnRun = null
     }
   }
 
@@ -163,6 +172,6 @@ export function createDefrag(context: DefragContext): Defrag {
     dispose() {
       disposed = true
     },
-    current: () => running,
+    turnRun: () => turnRun,
   }
 }

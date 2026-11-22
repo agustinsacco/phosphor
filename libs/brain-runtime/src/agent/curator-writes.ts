@@ -9,6 +9,7 @@ import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { DELETED_LANE_REFRESH_REFUSAL, NEVER_READ_REFRESH_REFUSAL } from '../lane-read-rules'
 import { BRAIN_OWN_LANE_REFUSAL } from './own-lane'
+import { readDecision } from './read-decision'
 import { plainRefusal } from './refusal'
 import { freshReview, reviewStale } from './review-refresh'
 import {
@@ -43,7 +44,7 @@ const refused = (message: string): BrainAgentWrite => ({
 })
 
 interface Writer {
-  /** The journal note: the running Defrag run, if any, and the scrubbed reason. */
+  /** The journal note: the Defrag run Brain Agent is answering, if any, and the scrubbed reason. */
   note(reason: string): { runId: string | null; reason: string }
   /** Applies one change, maps engine refusals to statuses, then refreshes search and shows it. */
   write(change: () => string | null, message: string): Promise<BrainAgentWrite>
@@ -53,7 +54,7 @@ function writer(context: CuratorContext): Writer {
   const { search, queue } = context
   return {
     note: (reason) => ({
-      runId: context.defrag.current()?.runId ?? null,
+      runId: context.defrag.turnRun()?.runId ?? null,
       reason: scrubExcerpt(reason),
     }),
     async write(change, message) {
@@ -111,9 +112,9 @@ async function approvalRefusal(
 
 function decideRead(context: CuratorContext, { note, write }: Writer): CuratorApi['decideRead'] {
   const { store, queue } = context
-  return async ({ jobId, revision, decision, reason }, signal) => {
+  return async ({ jobId, revision, approve, reason, ...choices }, signal) => {
     if (!context.enabled()) return refused(BRAIN_OFF)
-    if (decision === null) {
+    if (!approve) {
       // A rejection needs no refresh and holds whatever the revision.
       try {
         waitingRead(store, jobId)
@@ -128,8 +129,10 @@ function decideRead(context: CuratorContext, { note, write }: Writer): CuratorAp
     }
     const refusal = await approvalRefusal(context, jobId, revision, signal)
     if (refusal) return refusal
+    const built = readDecision(store.proposal(jobId), choices)
+    if ('problem' in built) return refused(built.problem)
     return write(
-      () => store.decideRead(jobId, decision, revision, note(reason)).operationId,
+      () => store.decideRead(jobId, built.decision, revision, note(reason)).operationId,
       'Approved. Brain changed, so other reads may refresh when you open them.',
     )
   }

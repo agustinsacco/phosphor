@@ -92,7 +92,7 @@ async function setup(lanes = ['harbor']) {
     store,
     files,
     queue,
-    defragSignal: () => task,
+    defragTurnSignal: () => task,
     waitMs: 2000,
     pollMs: 5,
   }

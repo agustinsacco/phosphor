@@ -36,7 +36,7 @@ export function pruneOperations(ctx: Context): void {
   run(
     ctx,
     `DELETE FROM tidy_operations WHERE id NOT IN
-    (SELECT id FROM tidy_operations ORDER BY created_at DESC,id DESC LIMIT 200)
+    (SELECT id FROM tidy_operations ORDER BY created_at DESC,rowid DESC LIMIT 200)
     AND id NOT IN (SELECT operation_id FROM agent_notes WHERE role='made' AND run_id=
       (SELECT id FROM agent_runs ORDER BY queued_at DESC,rowid DESC LIMIT 1))
     AND NOT (kind='erase' AND created_at>=?)`,

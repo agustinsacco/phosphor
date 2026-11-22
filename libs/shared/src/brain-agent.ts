@@ -11,7 +11,7 @@ import type {
   BrainStatus,
 } from './brain'
 import type { BrainEntityView, BrainMemoryDetail } from './brain-explore'
-import type { BrainProposalView, BrainReviewDecision } from './brain-review'
+import type { BrainProposalView } from './brain-review'
 import type {
   BrainTidyAction,
   BrainTidyFlag,
@@ -120,21 +120,49 @@ export interface BrainWaiting {
   /** Items the limit left out. */
   more: number
 }
+/** A waiting read as the runtime formats it for Brain Agent, one page at a time. */
 export interface BrainReadReview {
   proposal: BrainProposalView
   neverRead: boolean
+}
+export interface BrainReadReviewRequest {
+  jobId: string
+  /** Where the previous page said to go on, counted across the read's entries; 0 when left out. */
+  offset?: number
+}
+/**
+ * One page of a waiting read, formatted in the main process: a long read is larger than a bridge
+ * frame, so no answer carries the whole proposal.
+ */
+export interface BrainReadReviewPage {
+  text: string
 }
 
 /** Every write names why, in one sentence. */
 export interface BrainAgentReason {
   reason: string
 }
+/**
+ * Approve or reject a whole read with Brain Agent's own brain_decide_read parameters. The runtime
+ * builds the decision against the stored proposal: unless `memories` lists them, every memory that
+ * is not held.
+ */
 export interface BrainDecideRead extends BrainAgentReason {
   jobId: string
   /** The `revision` of the review Brain Agent decided on; a refreshed review is refused. */
   revision: number
-  /** Null rejects the whole read. */
-  decision: BrainReviewDecision | null
+  /** False rejects the whole read and ignores the choices below. */
+  approve: boolean
+  /** Memory indexes to save, from any page. */
+  memories?: number[]
+  /** Identity answers: an existing entity id, or "new". */
+  identities?: { ref: string; answer: string }[]
+  /** Group question indexes confirmed. */
+  groups?: number[]
+  /** Identity refs whose description from this read replaces the stored one. */
+  descriptions?: string[]
+  /** Held "said again" indexes to save. */
+  confirmations?: number[]
 }
 export interface BrainResolve extends BrainAgentReason {
   suggestionId: string
@@ -185,7 +213,7 @@ export interface BrainAgentMap {
   search: { request: BrainQuery; result: BrainRecall }
   flag: { request: BrainTidyFlag; result: BrainFlagResponse }
   waiting: { request: { limit?: number }; result: BrainWaiting }
-  readReview: { request: { jobId: string }; result: BrainReadReview }
+  readReview: { request: BrainReadReviewRequest; result: BrainReadReviewPage }
   suggestion: { request: { suggestionId: string }; result: BrainTidySuggestionDetail | null }
   entity: { request: { entityId: string }; result: BrainEntityView }
   memory: { request: { memoryId: string }; result: BrainMemoryDetail }

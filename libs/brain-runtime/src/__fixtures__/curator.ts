@@ -30,10 +30,25 @@ export function seedReview(store: FakeAgentStore, sessionId: string, sessionPath
     jobId: job.id,
     computedRevision: store.knowledgeRevision(),
     entities: [
-      { ref: 'e1', label: 'Rina', decision: 'uncertain', candidates: [] },
-      { ref: 'e2', label: 'Ledger', decision: 'new', candidates: [] },
+      {
+        ref: 'e1',
+        label: 'Rina',
+        kind: 'person',
+        decision: 'uncertain',
+        candidates: [],
+        reason: '',
+      },
+      { ref: 'e2', label: 'Ledger', kind: 'project', decision: 'new', candidates: [], reason: '' },
     ],
-    memories: [{ summary: 'Rina approves Ledger invoices.', target: null }],
+    memories: [
+      {
+        summary: 'Rina approves Ledger invoices.',
+        type: 'procedure',
+        action: 'add',
+        entities: ['e1', 'e2'],
+        target: null,
+      },
+    ],
     groups: [],
     confirmations: [],
     evidence: [],
@@ -49,8 +64,17 @@ export async function curatorFixture() {
   const store = new FakeAgentStore()
   store.prefs.enabled = true
   const search = new FakeBrainSearch()
-  const queue = { recompute: vi.fn(), refreshInline: vi.fn(), abortRefresh: vi.fn(), kick: vi.fn() }
   let running: { runId: string; signal: AbortSignal } | null = null
+  const queue = {
+    recompute: vi.fn(),
+    refreshInline: vi.fn(),
+    abortRefresh: vi.fn(),
+    kick: vi.fn(),
+    /** A run's turn only runs while Defrag holds the worker. */
+    get defragActive() {
+      return running !== null
+    },
+  }
   const changed = vi.fn()
   const options = { ...recallOptions(store), directory }
   const curator = createCurator({
@@ -59,7 +83,7 @@ export async function curatorFixture() {
     options,
     queue,
     files: new LaneFiles(),
-    defrag: { current: () => running },
+    defrag: { turnRun: () => running },
     changed,
     enabled: () => store.prefs.enabled,
   })

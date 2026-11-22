@@ -13,13 +13,16 @@ export const READ_NOW_EMPTY =
 export interface ReviewRefreshContext {
   store: BrainStore
   files: LaneFiles
-  queue: Pick<ExtractionQueue, 'recompute' | 'refreshInline'>
+  queue: Pick<ExtractionQueue, 'recompute' | 'refreshInline' | 'defragActive'>
   /** Brain Agent's folder, whose lanes Brain never reads. */
   folder?: string
   /** The lane check stored a changed title on the job. */
   changed?(): void
-  /** The running Defrag task's signal, or null outside a run. */
-  defragSignal(): AbortSignal | null
+  /**
+   * Defrag's Stop signal while Brain Agent answers its message, or null: outside a run, and while
+   * the run waits for the owner's own turn, whose refresh Stop leaves alone.
+   */
+  defragTurnSignal(): AbortSignal | null
   /** Outside a run, how long to wait for the queue's own refresh. */
   waitMs?: number
   pollMs?: number
@@ -40,9 +43,9 @@ export function reviewStale(store: BrainStore, id: string): boolean {
 }
 
 /**
- * Brings a waiting read up to date before Brain Agent reads or decides it. Inside a Defrag run
- * the run refreshes it itself (the run holds the worker); outside one the queue refreshes it and
- * this waits, at most ten minutes. Never a second model run. Returns the refusal when the lane
+ * Brings a waiting read up to date before Brain Agent reads or decides it. While Defrag holds the
+ * worker it refreshes inline, so a queued refresh never waits behind the run; otherwise the queue
+ * refreshes it and this waits, at most ten minutes. Never a second model run. Returns the refusal when the lane
  * may not be read as it is now (never read, Brain's own lane, deleted), fresh or stale: renaming
  * a lane changes no knowledge. Its review stays as it is, to reject.
  */
@@ -61,9 +64,10 @@ export async function freshReview(
   }
   const refusal = await check()
   if (refusal || !reviewStale(store, id)) return refusal
-  const task = context.defragSignal()
-  if (task) await queue.refreshInline(id, AbortSignal.any([task, signal]))
-  else {
+  if (queue.defragActive) {
+    const stop = context.defragTurnSignal()
+    await queue.refreshInline(id, stop ? AbortSignal.any([stop, signal]) : signal)
+  } else {
     if (store.job(id)?.state === 'review') queue.recompute(id)
     const until = Date.now() + (context.waitMs ?? WAIT_MS)
     while (store.job(id)?.state === 'refreshing' && Date.now() < until)

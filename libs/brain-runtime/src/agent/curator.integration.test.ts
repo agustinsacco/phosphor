@@ -24,6 +24,12 @@ async function curatorClient(service: BrainService) {
   )
 }
 
+/** The first page of a read, and the revision it tells Brain Agent to decide on. */
+async function openRead(client: Awaited<ReturnType<typeof curatorClient>>, jobId: string) {
+  const { text } = await client.call('readReview', { jobId })
+  return { text, revision: Number(/ · revision (\d+)\./.exec(text)![1]) }
+}
+
 describe('Brain Agent against the real engine', { timeout: 60_000 }, () => {
   it('decides a read strictly on its revision, and rejects whatever the revision', async () => {
     const { store, service, options } = await realService({ curator: CURATOR })
@@ -31,20 +37,22 @@ describe('Brain Agent against the real engine', { timeout: 60_000 }, () => {
     const client = await curatorClient(service)
     const waiting = await client.call('waiting', {})
     expect(waiting.items).toContainEqual(expect.objectContaining({ kind: 'read', jobId: job.id }))
-    const { proposal } = await client.call('readReview', { jobId: job.id })
-    expect(proposal.job.sessionPath).toBe('')
+    const { text, revision } = await openRead(client, job.id)
+    expect(text).toContain('- 0 · fact · add · Ledger bills monthly.')
+    expect(text).not.toContain(job.sessionPath)
     const stale = await client.call('decideRead', {
       jobId: job.id,
-      revision: proposal.revision + 1,
-      decision: { memories: [0], ...KEEP_ALL },
+      revision: revision + 1,
+      approve: true,
+      memories: [0],
       reason: 'Durable billing fact.',
     })
     expect(stale.status).toBe('changed')
     expect(store.job(job.id)!.state).toBe('review')
     const rejected = await client.call('decideRead', {
       jobId: job.id,
-      revision: proposal.revision + 7,
-      decision: null,
+      revision: revision + 7,
+      approve: false,
       reason: 'Nothing a future lane would act on.',
     })
     expect(rejected.status).toBe('done')
@@ -55,11 +63,11 @@ describe('Brain Agent against the real engine', { timeout: 60_000 }, () => {
     const { store, service, options } = await realService({ curator: CURATOR })
     const job = await proposeRead(store, options, ['Ledger bills monthly.'])
     const client = await curatorClient(service)
-    const { proposal } = await client.call('readReview', { jobId: job.id })
+    const { revision } = await openRead(client, job.id)
     const approved = await client.call('decideRead', {
       jobId: job.id,
-      revision: proposal.revision,
-      decision: { memories: [0], ...KEEP_ALL },
+      revision,
+      approve: true,
       reason: 'Durable billing fact.',
     })
     expect(approved).toMatchObject({ status: 'done', operationId: expect.any(String) })

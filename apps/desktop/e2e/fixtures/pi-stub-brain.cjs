@@ -263,34 +263,47 @@ function bridge(method, params) {
     })
   })
 }
+/** Every page of a read, as Brain Agent opens it: each page says where to go on. */
+async function readPages(jobId) {
+  const pages = []
+  let offset
+  for (let page = 0; page < 100; page++) {
+    const review = await bridge('readReview', offset === undefined ? { jobId } : { jobId, offset })
+    if (!review.ok) throw new Error(review.error)
+    pages.push(review.data.text)
+    const next = /Call again with offset (\d+)\./.exec(review.data.text)
+    if (!next) return pages
+    offset = Number(next[1])
+  }
+  throw new Error('Brain stub read has too many pages')
+}
+/** Each uncertain identity a page asks about: the same-label candidate, or new. */
+function identityAnswers(text) {
+  return [
+    ...text.matchAll(/^- (\S+) · (.+?) \(\w+\) · uncertain\b.*? · candidates: (.*?) · /gm),
+  ].map(([, ref, label, candidates]) => ({
+    ref,
+    answer:
+      candidates
+        .split('; ')
+        .map((candidate) => /^(\S+) = (.+?) \(/.exec(candidate))
+        .find((match) => match?.[2] === label)?.[1] ?? 'new',
+  }))
+}
 async function approveFirstRead() {
   const waiting = await bridge('waiting', { limit: 60 })
   if (!waiting.ok) throw new Error(waiting.error)
   const read = waiting.data.items.find((item) => item.kind === 'read')
   if (!read) return
-  const review = await bridge('readReview', { jobId: read.jobId })
-  if (!review.ok) throw new Error(review.error)
-  const { proposal, neverRead } = review.data
-  const decision = neverRead
-    ? null
-    : {
-        memories: proposal.memories.filter((memory) => !memory.hold).map((memory) => memory.index),
-        identities: Object.fromEntries(
-          proposal.identities
-            .filter((entity) => entity.decision === 'uncertain')
-            .map((entity) => [
-              entity.ref,
-              entity.candidates.find((candidate) => candidate.label === entity.label)?.id ?? 'new',
-            ]),
-        ),
-        groups: [],
-        descriptions: [],
-        confirmations: [],
-      }
+  const pages = await readPages(read.jobId)
+  const revision = Number(/ · revision (\d+)\./.exec(pages[0])[1])
+  const choices = pages[0].includes('Brain never reads this lane')
+    ? { approve: false }
+    : { approve: true, identities: pages.flatMap(identityAnswers) }
   const result = await bridge('decideRead', {
     jobId: read.jobId,
-    revision: proposal.revision,
-    decision,
+    revision,
+    ...choices,
     reason: 'The lasting memories have evidence in this read.',
   })
   if (!result.ok || result.data.status !== 'done')

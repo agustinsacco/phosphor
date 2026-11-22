@@ -7,12 +7,11 @@ import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@phosphor/shared/brain
 import type {
   BrainAgentEdit,
   BrainAgentWrite,
-  BrainReadReview,
+  BrainDecideRead,
   BrainResolve,
 } from '@phosphor/shared/brain-agent'
-import type { BrainReviewDecision } from '@phosphor/shared/brain-review'
 import type { BrainCuratorClient } from '@phosphor/brain-client/curator-client'
-import { data, formatWrite } from '@phosphor/brain-client/curator-format'
+import { formatWrite } from '@phosphor/brain-client/curator-format'
 import type { EventApi, ToolDefinition } from './pi-api'
 
 export interface CuratorPiApi extends EventApi {
@@ -59,66 +58,6 @@ function registerWrite<P>(
         : reply(formatWrite(result), result.status)
     },
   })
-}
-
-interface DecideParams {
-  jobId: string
-  revision: number
-  approve: boolean
-  memories?: number[]
-  identities?: { ref: string; answer: string }[]
-  groups?: number[]
-  descriptions?: string[]
-  confirmations?: number[]
-  reason: string
-}
-
-/**
- * The decision Brain Agent means: by default every memory not held. Null with a sentence when a
- * memory it would save names a required identity it has not answered.
- */
-export function readDecision(
-  review: BrainReadReview,
-  params: DecideParams,
-): { decision: BrainReviewDecision } | { problem: string } {
-  const p = review.proposal
-  if (review.neverRead)
-    return { problem: 'Brain never reads this lane, so it cannot be approved. Reject it instead.' }
-  if (p.revision !== params.revision)
-    return {
-      problem: `Brain refreshed this read since you opened it (now revision ${p.revision}). Read it again with brain_read_review, then decide.`,
-    }
-  const identities = Object.fromEntries((params.identities ?? []).map((i) => [i.ref, i.answer]))
-  const memories = params.memories ?? p.memories.filter((m) => !m.hold).map((m) => m.index)
-  const confirmations = params.confirmations ?? []
-  const named = new Set([
-    ...p.memories.filter((m) => memories.includes(m.index)).flatMap((m) => m.entities),
-    ...p.confirmations
-      .filter((c, index) => !c.claim.hold || confirmations.includes(index))
-      .flatMap((c) => c.claim.entities),
-  ])
-  const unanswered = p.identities.filter(
-    (i) => i.required && named.has(i.ref) && !Object.hasOwn(identities, i.ref),
-  )
-  if (unanswered.length)
-    return {
-      problem: [
-        'Not approved. Answer these first in identities ({ ref, answer: an entity id or "new" }):',
-        ...unanswered.map(
-          (i) =>
-            `- ${i.ref} · ${data(i.label, 120)} (${i.kind}) · candidates: ${i.candidates.map((c) => `${c.id} = ${data(c.label, 120)}`).join('; ') || 'none'}`,
-        ),
-      ].join('\n'),
-    }
-  return {
-    decision: {
-      memories,
-      identities,
-      groups: params.groups ?? [],
-      descriptions: params.descriptions ?? [],
-      confirmations,
-    },
-  }
 }
 
 type ResolveParams = {
@@ -218,7 +157,7 @@ export function registerCuratorWrites(pi: CuratorPiApi, client: BrainCuratorClie
 }
 
 function registerDecide(pi: CuratorPiApi, client: BrainCuratorClient): void {
-  registerWrite<DecideParams>(
+  registerWrite<BrainDecideRead>(
     pi,
     'brain_decide_read',
     'Brain: decide a read',
@@ -263,21 +202,8 @@ function registerDecide(pi: CuratorPiApi, client: BrainCuratorClient): void {
       ),
       reason,
     }),
-    async (p, signal) => {
-      if (!p.approve)
-        return client.call(
-          'decideRead',
-          { jobId: p.jobId, revision: p.revision, decision: null, reason: p.reason },
-          signal,
-        )
-      const built = readDecision(await client.call('readReview', { jobId: p.jobId }, signal), p)
-      if ('problem' in built) return built.problem
-      return client.call(
-        'decideRead',
-        { jobId: p.jobId, revision: p.revision, decision: built.decision, reason: p.reason },
-        signal,
-      )
-    },
+    // Brain builds the decision from the stored read, which can be larger than a bridge frame.
+    async (params, signal) => client.call('decideRead', params, signal),
   )
 }
 
