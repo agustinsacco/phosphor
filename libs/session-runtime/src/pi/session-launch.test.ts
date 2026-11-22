@@ -18,7 +18,7 @@ function ports() {
   }
 }
 
-it('preserves executable, Windows prefix arguments, environment and extension paths', async () => {
+it('preserves executable, prefix arguments, environment and extension paths', async () => {
   const runtime = ports()
   const executable = { binaryPath: '/tools/node', prefixArgs: ['/tools/pi.js'], stub: false }
   const launch = await prepareSessionLaunch(runtime)

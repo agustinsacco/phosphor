@@ -24,7 +24,7 @@ export interface PiSpawnOptions {
   binaryPath?: string
   /**
    * Args inserted before `--mode rpc`. Lets callers run pi through an
-   * interpreter (tests use `node fake-pi.cjs`; Windows npm shims may need it).
+   * interpreter (tests and the Host run `node <pi script>`).
    */
   prefixArgs?: string[]
   /** Resume an existing session file or id (`--session`). */

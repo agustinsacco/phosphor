@@ -67,7 +67,7 @@ beforeEach(async () => {
   vi.resetAllMocks()
   state.handlers.clear()
   state.open.mockResolvedValue(undefined)
-  state.health.mockResolvedValue({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
+  state.health.mockResolvedValue({ ok: true, binaryPath: '/opt/pi' })
   state.cwd.mockReturnValue('/user-data/pi-sign-in')
   state.env.mockResolvedValue({ PATH: '/shell/bin', CUSTOM: 'kept' })
   state.create.mockReturnValue({ ptyId: 'login-pty' })
@@ -169,7 +169,7 @@ describe('pi auth handler characterization', () => {
     expect(state.cancel).toHaveBeenCalledExactlyOnceWith('xai')
   })
 
-  it('launches the interactive terminal with prefixes, isolated cwd and exact environment', async () => {
+  it('launches the interactive terminal with an isolated cwd and exact environment', async () => {
     expect(await invoke('pi:loginTerminal', 120, 42)).toEqual({ ptyId: 'login-pty' })
     expect(state.create).toHaveBeenCalledExactlyOnceWith(
       '/user-data/pi-sign-in',
@@ -177,8 +177,8 @@ describe('pi auth handler characterization', () => {
       42,
       undefined,
       {
-        file: '/node',
-        args: ['/pi.js', '--no-session', '--no-approve'],
+        file: '/opt/pi',
+        args: ['--no-session', '--no-approve'],
         env: { PATH: '/shell/bin', CUSTOM: 'kept' },
       },
     )

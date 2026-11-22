@@ -1,7 +1,7 @@
 import { TooltipSummary } from '@/components/Tooltip'
 import { Row, SectionTitle } from '@/components/form'
 import { PhosphorLockup } from '@/components/PhosphorMark'
-import { piInstallLocation, type PiHealth } from '@shared/models'
+import type { PiHealth } from '@shared/models'
 import { useEffect, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
@@ -64,7 +64,7 @@ function AppInfoRows(): React.JSX.Element {
         <span className="font-mono text-base">{about?.appVersion ?? pending}</span>
       </Row>
       <MachineUpdateRow title="Updates" update={update} />
-      <Row title="pi version" description={health ? piInstallLocation(health) : undefined}>
+      <Row title="pi version" description={health?.binaryPath}>
         <span className="font-mono text-base">
           {health ? (health.version ?? 'not found') : piPending}
         </span>

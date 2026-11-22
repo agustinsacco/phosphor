@@ -309,38 +309,35 @@ describe('package job ownership', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it.skipIf(process.platform === 'win32')(
-    'disposal stops a running install and everything it started, reporting once',
-    async () => {
-      const { packages } = await freshModules()
-      const job = recordJob()
-      const onExit = vi.fn()
-      const { jobId } = await packages.runPackageAction(
-        job.sender,
-        'install',
-        'npm:example',
-        'global',
-        undefined,
-        hangingStub,
-        onExit,
-      )
-      expect(await waitFor(() => existsSync(pidFile))).toBe(true)
-      const pids = readPids()
+  it('disposal stops a running install and everything it started, reporting once', async () => {
+    const { packages } = await freshModules()
+    const job = recordJob()
+    const onExit = vi.fn()
+    const { jobId } = await packages.runPackageAction(
+      job.sender,
+      'install',
+      'npm:example',
+      'global',
+      undefined,
+      hangingStub,
+      onExit,
+    )
+    expect(await waitFor(() => existsSync(pidFile))).toBe(true)
+    const pids = readPids()
 
-      await packages.disposePackageJobs()
+    await packages.disposePackageJobs()
 
-      expect(await waitFor(() => !isAlive(pids.self) && !isAlive(pids.child))).toBe(true)
-      expect(job.exits()).toEqual([1])
-      expect(onExit.mock.calls).toEqual([[1]])
-      expect(job.output()).toContain('installing\n')
-      expect(job.output()).toContain('Phosphor is quitting')
-      expect(job.sent.every(({ channel }) => channel.endsWith(`:${jobId}`))).toBe(true)
-      // The close that follows the kill reports nothing more.
-      await delay(200)
-      expect(job.exits()).toEqual([1])
-      expect(onExit).toHaveBeenCalledTimes(1)
-    },
-  )
+    expect(await waitFor(() => !isAlive(pids.self) && !isAlive(pids.child))).toBe(true)
+    expect(job.exits()).toEqual([1])
+    expect(onExit.mock.calls).toEqual([[1]])
+    expect(job.output()).toContain('installing\n')
+    expect(job.output()).toContain('Phosphor is quitting')
+    expect(job.sent.every(({ channel }) => channel.endsWith(`:${jobId}`))).toBe(true)
+    // The close that follows the kill reports nothing more.
+    await delay(200)
+    expect(job.exits()).toEqual([1])
+    expect(onExit).toHaveBeenCalledTimes(1)
+  })
 
   it('runs the provider proof as bounded print mode with the provider env', async () => {
     const { packages, runPrintMode } = await freshModules()
@@ -525,38 +522,33 @@ describe('package job ownership', () => {
     expect(settled).toBe('settled')
   })
 
-  it.skipIf(process.platform === 'win32')(
-    'a job that outlives its 15-minute deadline is stopped with its tree',
-    async () => {
-      const { packages } = await freshModules()
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      const job = recordJob()
-      const onExit = vi.fn()
+  it('a job that outlives its 15-minute deadline is stopped with its tree', async () => {
+    const { packages } = await freshModules()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const job = recordJob()
+    const onExit = vi.fn()
 
-      packages.startJob(job.sender, process.execPath, [hangingStub], { env: env(), onExit })
-      expect(await waitFor(() => existsSync(pidFile))).toBe(true)
-      const pids = readPids()
+    packages.startJob(job.sender, process.execPath, [hangingStub], { env: env(), onExit })
+    expect(await waitFor(() => existsSync(pidFile))).toBe(true)
+    const pids = readPids()
 
-      await vi.advanceTimersByTimeAsync(15 * 60_000 - 1)
-      expect(job.exits()).toEqual([])
-      await vi.advanceTimersByTimeAsync(1)
+    await vi.advanceTimersByTimeAsync(15 * 60_000 - 1)
+    expect(job.exits()).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
 
-      expect(job.exits()).toEqual([1])
-      expect(onExit.mock.calls).toEqual([[1]])
-      expect(job.output()).toContain('15 minutes')
-      expect(await waitFor(() => !isAlive(pids.self) && !isAlive(pids.child))).toBe(true)
-    },
-  )
+    expect(job.exits()).toEqual([1])
+    expect(onExit.mock.calls).toEqual([[1]])
+    expect(job.output()).toContain('15 minutes')
+    expect(await waitFor(() => !isAlive(pids.self) && !isAlive(pids.child))).toBe(true)
+  })
 })
 
 /**
  * `resolveBinary` against a real `/bin/sh`: a fake login shell that reports
  * `loginDir` as its PATH, and a process PATH of `processDir` alone, so
- * nothing installed on the host can answer. Windows has no `where` here, so
- * a fake one on the process PATH answers from `<root>/where/<name>`.
+ * nothing installed on the host can answer.
  */
 const lookupMachine = { root: '', loginDir: '', processDir: '', loginShell: '' }
-const ORIGINAL_PLATFORM = process.platform
 const ORIGINAL_LOOKUP_ENV = { PATH: process.env.PATH, SHELL: process.env.SHELL }
 
 function writeExecutable(path: string, text: string): string {
@@ -582,18 +574,12 @@ function setUpLookupMachine(): void {
   })
   mkdirSync(lookupMachine.loginDir)
   mkdirSync(lookupMachine.processDir)
-  mkdirSync(join(root, 'where'))
-  writeExecutable(
-    join(lookupMachine.processDir, 'where'),
-    `#!/bin/sh\nanswer='${root}/where/'"$1"\n[ -f "$answer" ] && exec /bin/cat "$answer"\nexit 1\n`,
-  )
   process.env.PATH = lookupMachine.processDir
   process.env.SHELL = lookupMachine.loginShell
   reportLoginPath(lookupMachine.loginDir)
 }
 
 function tearDownLookupMachine(): void {
-  Object.defineProperty(process, 'platform', { value: ORIGINAL_PLATFORM, configurable: true })
   for (const [name, value] of Object.entries(ORIGINAL_LOOKUP_ENV)) {
     if (value === undefined) delete process.env[name]
     else process.env[name] = value
@@ -607,8 +593,7 @@ function installBinary(dir: string, name: string): string {
   return writeExecutable(join(dir, name), '#!/bin/sh\n')
 }
 
-// Real `/bin/sh`, and a `where` that is an sh script: POSIX hosts only.
-describe.skipIf(process.platform === 'win32')('resolveBinary', () => {
+describe('resolveBinary', () => {
   beforeEach(setUpLookupMachine)
   afterEach(tearDownLookupMachine)
 
@@ -646,24 +631,6 @@ describe.skipIf(process.platform === 'win32')('resolveBinary', () => {
     rmSync(join(lookupMachine.loginDir, 'claude'))
     expect(await detectBinaries()).toEqual({ claude: false })
   })
-
-  it('on Windows, takes the `where` match a spawn can use, not a node launch', async () => {
-    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
-    const npmDir = 'C:\\Users\\dev\\AppData\\Roaming\\npm'
-    const where = (name: string, lines: string[]): void =>
-      writeFileSync(join(lookupMachine.root, 'where', name), `${lines.join('\r\n')}\r\n`)
-    rmSync(join(lookupMachine.root, 'login-shell-ran'), { force: true })
-
-    // npm's three shims, sh script first: the .cmd itself, not node.exe + entry.
-    where('claude', [`${npmDir}\\claude`, `${npmDir}\\claude.cmd`, `${npmDir}\\claude.ps1`])
-    expect(await resolveBinary('claude')).toBe(`${npmDir}\\claude.cmd`)
-    where('uv', [`${npmDir}\\uv.cmd`, 'C:\\Tools\\uv.exe'])
-    expect(await resolveBinary('uv')).toBe('C:\\Tools\\uv.exe')
-    // `where` exits 1 for a name it cannot find.
-    expect(await resolveBinary('pipx')).toBeNull()
-    // No login shell on Windows.
-    expect(existsSync(join(lookupMachine.root, 'login-shell-ran'))).toBe(false)
-  })
 })
 
 /**
@@ -671,7 +638,7 @@ describe.skipIf(process.platform === 'win32')('resolveBinary', () => {
  * constant today, so this is hardening, but `resolveBinary` is exported and
  * a name with shell syntax in it must not run, expand or split.
  */
-describe.skipIf(process.platform === 'win32')('resolveBinary keeps the name as data', () => {
+describe('resolveBinary keeps the name as data', () => {
   beforeEach(setUpLookupMachine)
   afterEach(tearDownLookupMachine)
 
