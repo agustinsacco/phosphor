@@ -63,7 +63,7 @@ export async function newestTranscript(directory: string): Promise<string | null
 const text = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 /**
- * Resolves once the lane has no turn, compaction or queued message; rejects when it closes or
+ * Resolves once the lane has no turn or compaction; rejects when it closes or
  * `signal` aborts. A turn the owner started is theirs to finish: waiting never aborts it. It
  * listens before it asks, and asks again when a turn settles or a compaction ends, so an end
  * pi prints with the busy state it answered is never missed.
@@ -103,8 +103,9 @@ function settled({ client }: OpenLane, signal: AbortSignal): Promise<void> {
 async function idle(client: BrainLaneClient): Promise<boolean> {
   const state = await client.request({ type: 'get_state' })
   if (!state.success || !state.data) throw new Error('Brain Agent’s lane did not answer.')
-  const { isStreaming, isCompacting, pendingMessageCount } = state.data
-  return !isStreaming && !isCompacting && pendingMessageCount === 0
+  // pi's own idle. Messages a stopped turn left queued wait for the next prompt, as they would
+  // for one of the owner's: no turn will deliver them before it.
+  return !state.data.isStreaming && !state.data.isCompacting
 }
 
 /**
@@ -152,7 +153,6 @@ function send(
   return new Promise((resolve) => {
     let accepted = false
     let started = false
-    let early: TurnEnd | undefined
     let done = false
     const finish = (end: TurnEnd | null) => {
       if (done) return
@@ -163,11 +163,16 @@ function send(
       signal.removeEventListener('abort', onAbort)
       resolve(end)
     }
-    // An end can arrive before the prompt's waiter resumes. pi prints a prompt's response before
-    // its turn's events, so only an end after the last prompt response is this turn's.
-    const ending = (end: TurnEnd) => (accepted ? finish(end) : (early ??= end))
+    // An end can arrive before the message's waiter resumes. pi prints a prompt's response
+    // before its turn's events, so only an end after this message's own response is its turn's.
+    const responses: string[] = []
+    const ends: { after: number; end: TurnEnd }[] = []
+    const ending = (end: TurnEnd) => {
+      if (accepted) finish(end)
+      else ends.push({ after: responses.length, end })
+    }
     const onResponse = (response: RpcResponse) => {
-      if (response.command === 'prompt') early = undefined
+      if (response.id) responses.push(response.id)
     }
     const onEvent = (event: PiEvent) => {
       if (event.type === 'agent_start') started = true
@@ -191,7 +196,9 @@ function send(
         }
         accepted = true
         sending()
-        if (early) finish(early)
+        const own = response.id ? responses.indexOf(response.id) : -1
+        const end = ends.find(({ after }) => after > own)
+        if (end) finish(end.end)
         return
       }
       if (done) return
