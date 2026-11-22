@@ -168,38 +168,35 @@ describe('PiRpcClient', () => {
     expect(client.alive).toBe(false)
   })
 
-  it.skipIf(process.platform === 'win32')(
-    'disposes an owned process group including a stubborn nested provider',
-    async () => {
-      const client = track(
-        new PiRpcClient({
-          cwd: here,
-          binaryPath: process.execPath,
-          prefixArgs: [join(here, '__fixtures__', 'group-pi.cjs')],
-          ownProcessGroup: true,
-        }),
-      )
-      client.spawn()
-      const response = await client.request({ type: 'get_state' })
-      if (!response.success) throw new Error(response.error)
-      const childPid = Number(response.data?.sessionId)
-      expect(childPid).toBeGreaterThan(1)
-      await client.dispose()
-      await vi.waitFor(() => {
-        let state = ''
-        try {
-          state = execFileSync('ps', ['-o', 'stat=', '-p', String(childPid)], {
-            encoding: 'utf8',
-          }).trim()
-        } catch {
-          /* process absent */
-        }
-        // Linux containers can retain a zombie until PID 1 reaps it; it is no
-        // longer executing and is not a surviving provider.
-        expect(state === '' || state.startsWith('Z')).toBe(true)
-      })
-    },
-  )
+  it('disposes an owned process group including a stubborn nested provider', async () => {
+    const client = track(
+      new PiRpcClient({
+        cwd: here,
+        binaryPath: process.execPath,
+        prefixArgs: [join(here, '__fixtures__', 'group-pi.cjs')],
+        ownProcessGroup: true,
+      }),
+    )
+    client.spawn()
+    const response = await client.request({ type: 'get_state' })
+    if (!response.success) throw new Error(response.error)
+    const childPid = Number(response.data?.sessionId)
+    expect(childPid).toBeGreaterThan(1)
+    await client.dispose()
+    await vi.waitFor(() => {
+      let state = ''
+      try {
+        state = execFileSync('ps', ['-o', 'stat=', '-p', String(childPid)], {
+          encoding: 'utf8',
+        }).trim()
+      } catch {
+        /* process absent */
+      }
+      // Linux containers can retain a zombie until PID 1 reaps it; it is no
+      // longer executing and is not a surviving provider.
+      expect(state === '' || state.startsWith('Z')).toBe(true)
+    })
+  })
 
   it('can dispose a failed spawn without waiting for an exit event that never comes', async () => {
     const client = track(new PiRpcClient({ cwd: here, binaryPath: '/missing-phosphor-pi' }))

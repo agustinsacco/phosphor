@@ -1,4 +1,4 @@
-import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { JsonlDecoder } from './jsonl'
 import { SessionActivity } from './session-activity'
@@ -148,7 +148,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       cwd: o.cwd,
       env: o.inheritEnv === false ? { ...o.env } : { ...process.env, ...o.env },
       stdio: ['pipe', 'pipe', 'pipe'],
-      detached: o.ownProcessGroup && process.platform !== 'win32',
+      detached: o.ownProcessGroup,
     })
     this.child = child
 
@@ -183,7 +183,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
     child.on('exit', (code, signal) => {
       // The group can outlive pi (notably a parked Claude CLI).
-      if (o.ownProcessGroup && process.platform !== 'win32') this.signalChild(child, 'SIGKILL')
+      if (o.ownProcessGroup) this.signalChild(child, 'SIGKILL')
       if (this.killTimer) {
         clearTimeout(this.killTimer)
         this.killTimer = null
@@ -302,17 +302,10 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       child.kill(signal)
       return
     }
-    if (process.platform === 'win32') {
-      // Windows has no POSIX groups. taskkill traverses the owned process tree.
-      execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], () => {
-        if (child.exitCode === null) child.kill(signal)
-      })
-    } else {
-      try {
-        process.kill(-child.pid, signal)
-      } catch {
-        /* already gone */
-      }
+    try {
+      process.kill(-child.pid, signal)
+    } catch {
+      /* already gone */
     }
   }
 

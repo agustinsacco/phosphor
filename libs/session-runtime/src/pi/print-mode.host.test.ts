@@ -49,7 +49,7 @@ it('accepts exactly 4096 bytes with stderr ignored and an explicit caller enviro
     expect.objectContaining({
       env: { ONE_SHOT: 'caller-owned' },
       stdio: ['ignore', 'pipe', 'ignore'],
-      detached: process.platform !== 'win32',
+      detached: true,
     }),
   )
 })
@@ -65,8 +65,7 @@ it('hard-fails a multibyte overflow before close and ignores later completion', 
   })
   child.emit('close', 0)
   child.emit('error', new Error('late'))
-  if (process.platform !== 'win32')
-    expect(process.kill).toHaveBeenCalledExactlyOnceWith(-7654321, 'SIGKILL')
+  expect(process.kill).toHaveBeenCalledExactlyOnceWith(-7654321, 'SIGKILL')
 })
 
 it('exposes a timeout reason so the Host can reject partial output', async () => {
@@ -127,7 +126,7 @@ it('waits for close and drops output from a nonzero exit without stderr', async 
   expect(await pending).toEqual({ stdout: '', error: 'exited 1', reason: 'exit' })
 })
 
-it.skipIf(process.platform === 'win32').each(['close', 'timeout', 'abort', 'overflow'])(
+it.each(['close', 'timeout', 'abort', 'overflow'])(
   'leaves no real provider process group alive after %s',
   async (completion) => {
     vi.mocked(process.kill).mockRestore()

@@ -77,17 +77,14 @@ describe('original print transport contracts', () => {
     expect(await pending).toEqual({ stdout: 'Final title\n' })
   })
 
-  it.skipIf(process.platform === 'win32')(
-    'Desktop cancellation kills its process group',
-    async () => {
-      const controller = new AbortController()
-      const pending = desktop(5_000, controller.signal)
-      child.stdout.write('partial')
-      controller.abort()
-      expect(await pending).toEqual({ stdout: 'partial', error: 'aborted' })
-      expect(process.kill).toHaveBeenCalledWith(-7654321, 'SIGKILL')
-    },
-  )
+  it('Desktop cancellation kills its process group', async () => {
+    const controller = new AbortController()
+    const pending = desktop(5_000, controller.signal)
+    child.stdout.write('partial')
+    controller.abort()
+    expect(await pending).toEqual({ stdout: 'partial', error: 'aborted' })
+    expect(process.kill).toHaveBeenCalledWith(-7654321, 'SIGKILL')
+  })
 })
 
 import { createLaneNamer, type LaneNamingJob } from '../../../../apps/host/src/lanes/naming'
@@ -155,7 +152,7 @@ describe('Host print transport contracts through the lane namer', () => {
     await vi.waitFor(() => expect(job.apply).toHaveBeenCalledExactlyOnceWith('Final title'))
   })
 
-  it.skipIf(process.platform === 'win32')('Host cancellation kills its process group', async () => {
+  it('Host cancellation kills its process group', async () => {
     const job = hostJob()
     const name = createLaneNamer(hostMachine)
     name(job)
