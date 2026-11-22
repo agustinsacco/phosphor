@@ -131,7 +131,7 @@ Swarm authorizes delegation, not a fixed team, automatic model roles or merge.
 Provider terms/quotas apply. Package tools run with system access. Worktrees are
 not sandboxes. Context component sizes are estimates. Host execution needs your
 own machine awake and runtime running, not a cloud subscription. Current Desktop
-releases are macOS/Linux; Windows builds are paused.
+releases are macOS/Linux; there is no Windows build.
 
 ## Deployment and identity
 

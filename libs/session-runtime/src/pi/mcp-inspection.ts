@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { MCP_SERVER_NAME } from '@phosphor/shared/mcp'
 import { parseMcpInspection, type McpInspection } from '@phosphor/shared/mcp-inspection'
-import { killProcessTree, OWN_GROUP, runPrintMode, type PrintModeResult } from './print-mode'
+import { killProcessTree, runPrintMode, type PrintModeResult } from './print-mode'
 
 export interface McpInspectorCli {
   binaryPath: string
@@ -104,7 +104,7 @@ export class McpInspector {
           cwd: job.cli.cwd,
           env: job.cli.env,
           stdio: ['ignore', 'pipe', 'pipe'],
-          detached: OWN_GROUP,
+          detached: true,
         },
       )
     } catch {

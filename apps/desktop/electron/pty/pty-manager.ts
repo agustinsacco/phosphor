@@ -186,9 +186,7 @@ class PtyManager {
 
   /**
    * Poll foreground-process titles once a second (only while PTYs exist) and
-   * broadcast the busy map when anything changes. Windows' title reporting is
-   * unreliable, so it degrades to "never busy" there — the badge just stays
-   * a plain count.
+   * broadcast the busy map when anything changes.
    */
   private syncPolling(): void {
     if (this.sessions.size === 0) {
@@ -202,7 +200,7 @@ class PtyManager {
       for (const session of this.sessions.values()) {
         let busy = false
         try {
-          busy = process.platform !== 'win32' && isBusy(session.pty.process, session.shellName)
+          busy = isBusy(session.pty.process, session.shellName)
         } catch {
           // pty is winding down
         }
@@ -271,9 +269,6 @@ function describeSpawnFailure(error: unknown, shell: string, cwd: string): strin
 }
 
 function defaultShell(): { command: string; args: string[] } {
-  if (process.platform === 'win32') {
-    return { command: 'powershell.exe', args: [] }
-  }
   const shell = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash')
   // Login shell so the user's PATH/rc files load (pi lives there).
   return { command: shell, args: ['-l'] }

@@ -32,12 +32,11 @@ export async function resolveTailscaleExecutable(
   loginPath: () => Promise<string | null> = getLoginShellPath,
 ): Promise<string | null> {
   const shellPath = await loginPath()
-  const name = platform === 'win32' ? 'tailscale.exe' : 'tailscale'
   const candidates = [
     ...[inheritedPath, shellPath ?? '']
-      .flatMap((value) => value.split(platform === 'win32' ? ';' : ':'))
+      .flatMap((value) => value.split(':'))
       .filter((dir) => isAbsolute(dir))
-      .map((dir) => join(dir, name)),
+      .map((dir) => join(dir, 'tailscale')),
     ...tailscaleExecutableCandidates(platform),
   ]
   for (const candidate of new Set(candidates)) {

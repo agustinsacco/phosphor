@@ -1,31 +1,20 @@
-import { execFile, spawn, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { StringDecoder } from 'node:string_decoder'
 
-/** POSIX children lead a group so providers and extensions are cleaned up too. */
-export const OWN_GROUP = process.platform !== 'win32'
 const DEFAULT_TIMEOUT_MS = 30_000
 const MAX_OUTPUT_BYTES = 1024 * 1024
 
-/** Windows must not walk a stale pid after exit; taskkill itself is bounded. */
+/**
+ * Children lead a process group (`detached: true`) so providers and extensions
+ * are cleaned up too: the kill goes to the group, not the one pid.
+ */
 export function killProcessTree(child: ChildProcess): void {
   if (!child.pid) return
-  if (OWN_GROUP) {
-    try {
-      process.kill(-child.pid, 'SIGKILL')
-    } catch {
-      // Already gone.
-    }
-    return
+  try {
+    process.kill(-child.pid, 'SIGKILL')
+  } catch {
+    // Already gone.
   }
-  if (child.exitCode !== null || child.signalCode !== null) return
-  execFile(
-    'taskkill',
-    ['/pid', String(child.pid), '/T', '/F'],
-    { timeout: 5_000, windowsHide: true },
-    (error) => {
-      if (error && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
-    },
-  )
 }
 
 export type PrintModeFailure = 'spawn' | 'exit' | 'timeout' | 'aborted' | 'overflow'
@@ -167,7 +156,7 @@ export async function runPrintMode(
           'pipe',
           options.stderr === 'ignore' ? 'ignore' : 'pipe',
         ],
-        detached: OWN_GROUP,
+        detached: true,
       })
     } catch (error) {
       resolve({ stdout: '', error: `spawn failed: ${String(error)}`, reason: 'spawn' })

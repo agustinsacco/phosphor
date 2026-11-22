@@ -76,13 +76,11 @@ export class LaneArchiveStorage {
     try {
       await writeFile(temp, JSON.stringify(record), { mode: 0o600, flag: 'wx', flush: true })
       await rename(temp, this.file(record.id))
-      if (process.platform !== 'win32') {
-        const directory = await open(this.root, 'r')
-        try {
-          await directory.sync()
-        } finally {
-          await directory.close()
-        }
+      const directory = await open(this.root, 'r')
+      try {
+        await directory.sync()
+      } finally {
+        await directory.close()
       }
     } finally {
       await rm(temp, { force: true })

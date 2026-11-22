@@ -97,7 +97,7 @@ WebAssembly build: plain JavaScript and a `.wasm` file that load from inside the
 asar, with nothing to rebuild per architecture. The macOS `Info.plist` carries
 `NSMicrophoneUsageDescription` and the entitlements include audio input
 ([voice.md](voice.md#privacy-and-permissions)).
-App ID, updater metadata, installer names, retained Windows app data and macOS
+App ID, updater metadata, installer names and macOS
 signing policy are unchanged. Both macOS architectures remain in one builder
 invocation so `latest-mac.yml` cannot be overwritten by separate jobs.
 Release versions still use the validated history's commit count, injected into

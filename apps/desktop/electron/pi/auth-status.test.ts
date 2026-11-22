@@ -18,13 +18,7 @@ vi.mock('node:child_process', () => ({
     }
   },
 }))
-vi.mock('./health', () => ({
-  checkPiHealth: state.health,
-  piArgs: (health: { prefixArgs?: string[] }, args: string[]) => [
-    ...(health.prefixArgs ?? []),
-    ...args,
-  ],
-}))
+vi.mock('./health', () => ({ checkPiHealth: state.health }))
 vi.mock('./shell-env', () => ({ piProcessEnv: async () => ({ PATH: '/shell/bin' }) }))
 
 const { logoutProvider } = await import('./auth-status')
@@ -33,7 +27,7 @@ const check = (status: string) => ({ stdout: `{"status":"${status}"}\n` })
 
 beforeEach(() => {
   state.exec.mockReset()
-  state.health.mockResolvedValue({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
+  state.health.mockResolvedValue({ ok: true, binaryPath: '/opt/pi' })
 })
 
 describe('logoutProvider', () => {
@@ -42,9 +36,9 @@ describe('logoutProvider', () => {
       args.includes('logout') ? { stdout: 'Removed.' } : check('not_ready'),
     )
     await expect(logoutProvider('openai-codex')).resolves.toBeUndefined()
-    expect(state.exec.mock.calls.map(([file, args]) => [file, args.slice(0, 4)])).toEqual([
-      ['/node', ['/pi.js', 'auth', 'logout', 'openai-codex']],
-      ['/node', ['/pi.js', 'auth', 'check', '--provider']],
+    expect(state.exec.mock.calls.map(([file, args]) => [file, args.slice(0, 3)])).toEqual([
+      ['/opt/pi', ['auth', 'logout', 'openai-codex']],
+      ['/opt/pi', ['auth', 'check', '--provider']],
     ])
   })
 

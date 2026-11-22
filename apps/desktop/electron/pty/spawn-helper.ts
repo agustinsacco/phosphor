@@ -26,7 +26,6 @@ import { createRequire } from 'node:module'
  * a failure here must surface as the spawn error, not as a boot crash.
  */
 export function ensureSpawnHelperExecutable(): void {
-  if (process.platform === 'win32') return
   for (const helper of spawnHelperCandidates()) {
     try {
       if (!existsSync(helper)) continue

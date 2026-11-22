@@ -103,10 +103,10 @@ describe('prompt corpus characterization', () => {
   it('creates owner-only files both on append and on replacement', async () => {
     const corpus = createPromptCorpus(() => file, 1)
     await corpus.record('one')
-    if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600)
+    expect(statSync(file).mode & 0o777).toBe(0o600)
     await corpus.record('two')
     await corpus.record('three')
-    if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600)
+    expect(statSync(file).mode & 0o777).toBe(0o600)
     expect(savedPrompts()).toEqual(['three'])
   })
 

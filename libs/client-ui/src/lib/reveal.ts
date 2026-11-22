@@ -8,6 +8,5 @@ import { hostPlatform } from './shortcuts'
 export function revealLabel(): string {
   const platform = hostPlatform()
   if (platform === 'darwin') return 'Reveal in Finder'
-  if (platform === 'win32') return 'Show in Explorer'
   return 'Reveal in file manager'
 }

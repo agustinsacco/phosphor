@@ -18,10 +18,7 @@ export async function createBrainBridge(invoke: BridgeInvoke) {
   const directory = await mkdtemp(join(tmpdir(), 'ph-brain-'))
   await chmod(directory, 0o700)
   const token = randomBytes(32).toString('hex')
-  const endpoint =
-    process.platform === 'win32'
-      ? `\\\\.\\pipe\\phosphor-brain-${randomBytes(12).toString('hex')}`
-      : join(directory, 'rpc.sock')
+  const endpoint = join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
   const flagTimes: number[] = []
   const limitedInvoke: BridgeInvoke = async (method, params) => {
@@ -56,7 +53,7 @@ export async function createBrainBridge(invoke: BridgeInvoke) {
         resolve()
       })
     })
-    if (process.platform !== 'win32') await chmod(endpoint, 0o600)
+    await chmod(endpoint, 0o600)
   } catch (error) {
     server.close()
     await rm(directory, { recursive: true, force: true })

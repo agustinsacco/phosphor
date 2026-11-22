@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { piInstallLocation } from '@shared/models'
 import { usePlatform } from '@/platform/Platform'
 import { ConfigFileEditor, piConfigFile } from '../../ConfigFileEditor'
 import { useSectionLoad } from '../sectionStatus'
@@ -40,7 +39,7 @@ export function useLocalAdvanced(): AdvancedSource {
     pi: health && {
       ok: health.ok,
       version: health.version,
-      location: piInstallLocation(health) ?? 'not found',
+      location: health.binaryPath ?? 'not found',
       minVersion: health.minVersion,
       problem: health.reason ?? 'error',
     },

@@ -100,7 +100,7 @@ export function createAvatarCache(dir: string): {
         if (
           !stat.isFile() ||
           (uid !== undefined && stat.uid !== uid) ||
-          (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) ||
+          (stat.mode & 0o077) !== 0 ||
           stat.size > CACHE_BYTES
         )
           return null

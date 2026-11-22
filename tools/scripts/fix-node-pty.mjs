@@ -19,8 +19,6 @@ import { chmodSync, existsSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
-if (process.platform === 'win32') process.exit(0)
-
 let packageDir
 try {
   packageDir = dirname(

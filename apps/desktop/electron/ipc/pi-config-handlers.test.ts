@@ -123,10 +123,10 @@ describe('pi config handler characterization', () => {
     expect(state.models).not.toHaveBeenCalled()
   })
 
-  it('forwards catalogue launch prefixes and the shell environment', async () => {
-    state.health.mockResolvedValue({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
+  it('forwards the real pi executable and the shell environment to the catalogue', async () => {
+    state.health.mockResolvedValue({ ok: true, binaryPath: '/opt/pi' })
     await invoke('pi:catalogueModels')
-    expect(state.models).toHaveBeenCalledExactlyOnceWith('/node', ['/pi.js'], {
+    expect(state.models).toHaveBeenCalledExactlyOnceWith('/opt/pi', [], {
       PATH: '/shell/bin',
     })
   })
@@ -140,14 +140,13 @@ describe('pi config handler characterization', () => {
   })
 
   it('forwards workspace and launch options to the command cache', async () => {
-    state.health.mockResolvedValue({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
+    state.health.mockResolvedValue({ ok: true, binaryPath: '/opt/pi' })
     expect(await invoke('pi:commands', '/repo')).toEqual({
       commands: [{ name: 'plan', description: 'Plan' }],
     })
     expect(state.commands).toHaveBeenCalledExactlyOnceWith({
       workspacePath: '/repo',
-      binaryPath: '/node',
-      prefixArgs: ['/pi.js'],
+      binaryPath: '/opt/pi',
       env: { PATH: '/shell/bin' },
     })
   })

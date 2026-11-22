@@ -69,7 +69,7 @@ job whose reply arrives later is ignored.
 
 A job reports its exit once, whichever comes first: the process closing, a
 spawn error (127), its 15-minute deadline, or quit. Each job leads its own
-process tree (a POSIX process group; on Windows a bounded `taskkill /T /F`), so
+process tree (a POSIX process group), so
 stopping one stops what it started too: npm, git, the Claude CLI. A stopped
 job prints why and exits 1. An approved quit, and a signal shutdown, call
 `disposePackageJobs()`: every job is stopped, new ones are refused with

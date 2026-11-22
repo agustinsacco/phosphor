@@ -202,14 +202,13 @@ describe('command result service', () => {
     expect(state.dispose).toHaveBeenCalledTimes(2)
   })
 
-  it('passes real launch prefixes and the current shell environment', async () => {
+  it('passes the real pi executable and the current shell environment', async () => {
     const { piCommands } = await import('./catalogue')
-    state.health.mockResolvedValue({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
+    state.health.mockResolvedValue({ ok: true, binaryPath: '/opt/pi' })
     await piCommands('/repo')
     expect(state.clients).toHaveBeenCalledExactlyOnceWith({
       cwd: '/repo',
-      binaryPath: '/node',
-      prefixArgs: ['/pi.js'],
+      binaryPath: '/opt/pi',
       noSession: true,
       env: { PATH: '/shell/bin' },
     })

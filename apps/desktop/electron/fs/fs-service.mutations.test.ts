@@ -72,9 +72,7 @@ it('creates entries and refuses duplicate files, directories and rename collisio
   expect(await readFile(a, 'utf8')).toBe('keep')
   await renamePath(b, join(dir, 'b'))
   expect(await readFile(join(dir, 'b'), 'utf8')).toBe('')
-  if (process.platform !== 'win32') {
-    const link = join(root, 'link')
-    await symlink(join(root, 'missing'), link)
-    await expect(renamePath(a, link)).rejects.toThrow('Already exists')
-  }
+  const link = join(root, 'link')
+  await symlink(join(root, 'missing'), link)
+  await expect(renamePath(a, link)).rejects.toThrow('Already exists')
 })

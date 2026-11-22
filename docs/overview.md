@@ -85,7 +85,7 @@ accent rules and the mark all live there. What survives here is intent:
 - Performance: virtualized chat list, debounced markdown re-parse, streaming
   without full-list re-render, 60fps pane dragging.
 - CI: typecheck, lint, tests and e2e on every PR; a release workflow producing
-  macOS and Linux builds plus the install script (Windows paused)
+  macOS and Linux builds plus the install script
   (`tools/scripts/install.sh`).
 
 ## Reference material

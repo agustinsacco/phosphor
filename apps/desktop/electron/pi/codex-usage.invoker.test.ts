@@ -11,7 +11,7 @@ vi.mock('./stub', () => ({ piStubPath: h.stub }))
 beforeEach(() => {
   vi.clearAllMocks()
   h.stub.mockReturnValue(undefined)
-  h.health.mockResolvedValue({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
+  h.health.mockResolvedValue({ ok: true, binaryPath: '/opt/pi' })
   h.env.mockImplementation(async (extra) => ({ PATH: '/shell', ...extra }))
   h.exec.mockResolvedValue({ stdout: '{"status":"not_ready"}' })
 })
@@ -20,17 +20,8 @@ afterEach(() => vi.restoreAllMocks())
 it('reads credentials with fixed argv, a 64KiB bound and 15-second timeout', async () => {
   expect(await fetchCodexUsage()).toEqual({ ok: false, error: 'auth-unavailable' })
   expect(h.exec).toHaveBeenCalledWith(
-    '/node',
-    [
-      '/pi.js',
-      'auth',
-      'check',
-      '--provider',
-      'openai-codex',
-      '--json',
-      '--credentials',
-      '--no-refresh',
-    ],
+    '/opt/pi',
+    ['auth', 'check', '--provider', 'openai-codex', '--json', '--credentials', '--no-refresh'],
     { env: { PATH: '/shell' }, timeout: 15_000, maxBuffer: 64 * 1024, encoding: 'utf8' },
   )
 })
