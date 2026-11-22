@@ -4,7 +4,7 @@
  * event that arrived while the history loaded may be in those messages or not yet. The
  * transcript is the messages, then every event since the renderer attached to the lane, minus
  * what the messages already hold: a message whose end they include, and the progress of a tool
- * call whose result they include.
+ * call whose result they include. It starts from pi's activity as the lane opened.
  */
 import type { AgentMessage, PiEvent } from '@shared/rpc'
 import type { ChatSessionState } from './chatItems'
@@ -23,9 +23,15 @@ const isToolEvent = (event: PiEvent): event is ToolEvent =>
 
 /** One message's events: from its start (or the first event seen, for one already under way). */
 interface MessageEvents {
-  started: boolean
   end?: AgentMessage
 }
+
+/** pi's activity as the lane opened. */
+export interface OpenedActivity {
+  isStreaming: boolean
+  isCompacting: boolean
+}
+const IDLE: OpenedActivity = { isStreaming: false, isCompacting: false }
 
 /** Groups each message event with the message it belongs to; -1 for other events. */
 function messageGroups(events: readonly PiEvent[]): { groups: MessageEvents[]; of: number[] } {
@@ -34,7 +40,7 @@ function messageGroups(events: readonly PiEvent[]): { groups: MessageEvents[]; o
   const of = events.map((event) => {
     if (!isMessageEvent(event)) return -1
     if (event.type === 'message_start' || !open) {
-      groups.push({ started: event.type === 'message_start' })
+      groups.push({})
       open = true
     }
     if (event.type === 'message_end') {
@@ -54,6 +60,7 @@ function heldMessages(messages: readonly AgentMessage[], count: number): Set<str
 export function hydrateRunning(
   messages: AgentMessage[],
   events: readonly PiEvent[],
+  activity: OpenedActivity = IDLE,
 ): ChatSessionState {
   const { groups, of } = messageGroups(events)
   const held = heldMessages(messages, groups.filter((group) => group.end).length)
@@ -65,21 +72,16 @@ export function hydrateRunning(
   const summaries = new Set(
     messages.flatMap((message) => (message.role === 'compactionSummary' ? [message.summary] : [])),
   )
+  // A turn already running starts as if this window saw it begin, so the composer offers Stop.
+  // Before the events, so a turn that ended while the history loaded comes up idle. An answer
+  // already streaming gets its own item from the reducer.
   let state = hydrateFromMessages(messages)
-  const begun = new Set<number>()
+  if (activity.isStreaming) state = reduceChatEvent(state, { type: 'agent_start' })
+  if (activity.isCompacting) state = { ...state, isCompacting: true }
   events.forEach((event, index) => {
-    const at = of[index]!
-    const group = groups[at]
+    const group = groups[of[index]!]
     if (group) {
       if (isHeld(group)) return
-      // An answer already streaming when the lane opened gets its own item, so its deltas never
-      // land on the last finished answer.
-      if (!group.started && !begun.has(at) && (group.end?.role ?? 'assistant') === 'assistant')
-        state = reduceChatEvent(state, {
-          type: 'message_start',
-          message: { role: 'assistant', content: [] },
-        })
-      begun.add(at)
     } else if (isToolEvent(event) && results.has(event.toolCallId)) {
       return
     } else if (
