@@ -177,7 +177,8 @@ function send(
     const onEvent = (event: PiEvent) => {
       if (event.type === 'agent_start') started = true
       if (event.type === 'agent_end' && !event.willRetry) ending(runEnd(event.messages))
-      if (event.type === 'extension_error')
+      // A slash command's error is another command's: Defrag's message is plain text.
+      if (event.type === 'extension_error' && event.event !== 'command')
         ending({ outcome: 'failed', error: `Extension error: ${event.error}` })
     }
     const onExit = () => finish({ outcome: 'failed', error: BRAIN_LANE_CLOSED })
