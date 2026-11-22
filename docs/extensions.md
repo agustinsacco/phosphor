@@ -69,7 +69,7 @@ job whose reply arrives later is ignored.
 
 A job reports its exit once, whichever comes first: the process closing, a
 spawn error (127), its 15-minute deadline, or quit. Each job leads its own
-process tree (a POSIX process group; on Windows a bounded `taskkill /T /F`), so
+process tree (a POSIX process group), so
 stopping one stops what it started too: npm, git, the Claude CLI. A stopped
 job prints why and exits 1. An approved quit, and a signal shutdown, call
 `disposePackageJobs()`: every job is stopped, new ones are refused with
@@ -293,7 +293,7 @@ files and adjacent tests together. Development resolves the resource root at
 asar. The builder copies the same non-test TypeScript inventory, including
 `context-budget.ts`, `context-files.ts`, `global-context.ts`, `message-ledger.ts`, `swarm.ts`, `lane-prs.ts` (the `/phosphor-prs` command Track and Hide send, [lanes.md](lanes.md#which-prs-belong-to-a-lane)) and `subagent-children.ts` imported by `context-breakdown.ts`
 (the last is also what pi-subagents children load, [chat.md](chat.md#sub-agents)),
-`artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
+`artifact-nested.ts`, `artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 
 | File                   | Why it must run inside pi                                                                    |
@@ -376,7 +376,9 @@ It never uses `String.replace`, whose `$&` / `$1` expansion would corrupt any
 is handed to `ReactMarkdown` as `urlTransform` (its default filter would blank
 the href), then `classifyLink` resolves the id against the active session's
 artifacts and `MarkdownLink` opens the pane on it. `#v2` / `@v2` opens one
-version; an unknown id toasts. `remarkArtifactLinks` also promotes the
+version; an unknown id toasts. On a Host lane the pane's copy can trail the chat,
+so a miss there reads the lane's artifacts once more (`openArtifactLink`) before
+it toasts. `remarkArtifactLinks` also promotes the
 inline-code and bare forms models actually write (`` `artifact://x` ``) into
 links, keeping the `<code>` look.
 
@@ -386,6 +388,16 @@ panel's Copy reference button writes it ([ui-shell.md](ui-shell.md)), and
 answering about it. `resolve` treats a ref to its own session as local and any
 other as a read-only read from the store. In chat, both link helpers accept the
 form and open its slug in the current session's pane.
+
+**A write made inside a script is saved too.** A `codemode` script calls the
+artifact tools through `ctx.executeTool()`, and pi keeps those nested calls only
+as bounded metadata on the script's result, never their results. So
+`artifact-nested.ts` saves each successful nested `artifact_create`, `_edit` or
+`_update` as the `phosphor-saved-artifact` entry described below. It saves at
+`turn_end` (or `agent_end`), after pi has appended the script's result, so the
+entry never sits between a tool call and its result. Artifacts a script made
+before this existed have no content in their session file and cannot be
+recovered after the live pane is gone.
 
 `session_start` rebuilds the full artifact record, content included, because
 an edit has to apply to the live text in a resumed session. `session_tree`

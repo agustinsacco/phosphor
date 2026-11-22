@@ -50,10 +50,7 @@ export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBrid
   const token = randomBytes(32).toString('hex')
   const curatorToken = randomBytes(32).toString('hex')
   const idle = { lane: options.idleMs ?? 15_000, curator: options.curatorIdleMs ?? 15 * 60_000 }
-  const endpoint =
-    process.platform === 'win32'
-      ? `\\\\.\\pipe\\phosphor-brain-${randomBytes(12).toString('hex')}`
-      : join(directory, 'rpc.sock')
+  const endpoint = join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
   const flagTimes: number[] = []
   const limitedInvoke: BridgeInvoke = async (method, params, signal, role) => {
@@ -88,7 +85,7 @@ export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBrid
         resolve()
       })
     })
-    if (process.platform !== 'win32') await chmod(endpoint, 0o600)
+    await chmod(endpoint, 0o600)
   } catch (error) {
     server.close()
     await rm(directory, { recursive: true, force: true })

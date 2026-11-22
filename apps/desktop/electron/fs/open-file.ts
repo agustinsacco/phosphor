@@ -76,13 +76,12 @@ const LAUNCHABLE = new Set([
 export function launchRefusal(
   path: string,
   info: { isFile: boolean; mode: number },
-  platform: NodeJS.Platform = process.platform,
 ): OpenInDefaultAppResult | null {
   if (!info.isFile) return { ok: false, reason: 'not-a-file' }
   if (LAUNCHABLE.has(extensionOf(path))) return { ok: false, reason: 'launchable' }
   // An executable bit means `open` runs it (a Mach-O or script with no
-  // extension goes straight to Terminal). Windows has no such bit.
-  if (platform !== 'win32' && (info.mode & 0o111) !== 0) return { ok: false, reason: 'launchable' }
+  // extension goes straight to Terminal).
+  if ((info.mode & 0o111) !== 0) return { ok: false, reason: 'launchable' }
   return null
 }
 

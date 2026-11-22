@@ -27,8 +27,6 @@ import { parseSessionFile } from '../pi/session-scanner'
  * was lost" is a real assertion.
  */
 
-const isWindows = process.platform === 'win32'
-
 /** 120 records shaped like a connector export: the payload Headroom is for. */
 function issueExport(count: number): string {
   return JSON.stringify(
@@ -64,7 +62,7 @@ async function freePort(): Promise<number> {
   })
 }
 
-describe.skipIf(isWindows)('the compression chain, end to end', () => {
+describe('the compression chain, end to end', () => {
   let dir: string
   let supervisor: HeadroomSupervisor
   let port: number

@@ -109,7 +109,7 @@ describe('savedTokenMode', () => {
 })
 
 // uid and mode bits are POSIX.
-describe.skipIf(process.platform === 'win32')('readVaultToken', () => {
+describe('readVaultToken', () => {
   it('binds an encrypted token to its user, and a plain one to the saved profile', async () => {
     const secret = token()
     seed({ 'session.bin': sealed(USER.id, secret) })
@@ -179,7 +179,7 @@ describe.skipIf(process.platform === 'win32')('readVaultToken', () => {
 
   it('off Linux reads only the encrypted token, removing a plain copy first', async () => {
     seed({ 'profile.json': PROFILE, 'session.txt': token() })
-    const { context, log } = vault({ ok: true, kind: 'file' }, 'win32')
+    const { context, log } = vault({ ok: true, kind: 'file' }, 'darwin')
     await expect(readVaultToken(context, USER.id)).rejects.toThrow(
       new VaultUnreadable('the saved sign-in is missing'),
     )
@@ -217,7 +217,7 @@ describe.skipIf(process.platform === 'win32')('readVaultToken', () => {
   })
 })
 
-describe.skipIf(process.platform === 'win32')('saveVaultToken', () => {
+describe('saveVaultToken', () => {
   it('refuses to downgrade a readable encrypted token to a plain file', async () => {
     const before = sealed(USER.id, token())
     seed({ 'profile.json': PROFILE, 'session.bin': before })

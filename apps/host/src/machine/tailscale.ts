@@ -128,10 +128,7 @@ export async function inspectTailscale(
   ports = tailscalePorts,
 ): Promise<TailscaleInspection> {
   const port = config.api?.port ?? HOST_API_PORT
-  let executable = await ports.which(
-    platform === 'win32' ? 'tailscale.exe' : 'tailscale',
-    env.PATH ?? '',
-  )
+  let executable = await ports.which('tailscale', env.PATH ?? '')
   if (!executable) {
     for (const candidate of tailscaleExecutableCandidates(platform)) {
       executable = await ports.which(basename(candidate), dirname(candidate))

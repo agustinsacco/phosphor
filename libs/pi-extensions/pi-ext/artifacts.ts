@@ -5,7 +5,7 @@
  * Registers the artifact tool family. Tool results keep chat output short
  * (confirmation text) while the full payload rides in `details`, which Phosphor
  * consumes from tool_execution_end events and from session history on resume
- * (toolResult messages persist in the JSONL).
+ * (toolResult messages persist in the JSONL; nested writes, `artifact-nested.ts`).
  *
  * `details` is NEVER sent to the model — pi-ai's `convertToolResult` reads
  * only `content`, `toolCallId` and `isError`. So the token cost of an
@@ -49,6 +49,7 @@ import {
   readBlob,
   type ArtifactRef,
 } from './artifact-store'
+import { saveNestedArtifactWrites } from './artifact-nested'
 
 interface ArtifactDetails {
   id: string
@@ -467,9 +468,9 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
   }
 
   /**
-   * Rebuild state from the branch so resumed sessions keep counting AND can
-   * still be edited. Reading only the version number here was survivable while
-   * `artifact_update` resent everything; `artifact_edit` needs the content.
+   * Rebuild state from the branch (on start, tree navigation, compaction) so
+   * resumed sessions keep counting AND can still be edited. A version number was
+   * enough while `artifact_update` resent everything; `artifact_edit` needs content.
    */
   const rebuild = (ctx: unknown): void => {
     artifacts.clear()
@@ -881,10 +882,9 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
     },
   })
 
-  pi.on('session_start', (_event, ctx) => rebuild(ctx))
-  // Navigating the tree inside a running pi changes the branch without a restart.
-  pi.on('session_tree', (_event, ctx) => rebuild(ctx))
-  pi.on('session_compact', (_event, ctx) => rebuild(ctx))
+  for (const event of ['session_start', 'session_tree', 'session_compact'])
+    pi.on(event, (_event, ctx) => rebuild(ctx))
+  saveNestedArtifactWrites(pi)
 
   pi.on('context', (event) => {
     if (!compactionNote) return undefined

@@ -14,7 +14,9 @@ env:
   ELECTRON_BUILDER_SKIP_REBUILD: '1'
 
 # Every job runs on the project's own runners: two Linux (x64) and one macOS
-# (ARM64), each taking one job at a time. Jobs on the same OS queue, so a job is
+# (ARM64), each taking one job at a time. The one exception: the macOS e2e leg
+# runs on a GitHub-hosted Mac while the project Mac is offline
+# (tools/scripts/mac-runner.mjs). Jobs on the same OS queue, so a job is
 # split only where the split pays for its extra checkout and `npm ci`; adding
 # runner instances is what buys back parallelism. The Linux runners share one
 # 32-core machine, so no job may assume it has all the cores.
@@ -34,6 +36,7 @@ jobs:
       web: ${{ steps.scope.outputs.web }}
       control: ${{ steps.scope.outputs.control }}
       site: ${{ steps.scope.outputs.site }}
+      mac: ${{ steps.mac.outputs.mac }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +45,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pick the macOS e2e runner
+        id: mac
+        env:
+          # Administration (read) on this repository; absent on forks.
+          RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+        run: node tools/scripts/mac-runner.mjs >> "$GITHUB_OUTPUT" || echo 'mac="macos-15"' >> "$GITHUB_OUTPUT"
       - name: Decide which jobs run
         id: scope
         run: |
@@ -62,7 +71,7 @@ jobs:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shard }})
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
-    runs-on: ${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}
+    runs-on: ${{ matrix.os == 'macos' && fromJSON(needs.changes.outputs.mac || '"macos-15"') || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -100,6 +109,10 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Node sizes its default heap from the runner's memory. GitHub's
+          # macos-15 has 7 GB, which leaves about 2 GB: too little for the build.
+          NODE_OPTIONS: --max-old-space-size=4096
 
       # `apps/desktop/scripts/__tests__/adhoc-sign-mac.test.ts` is `skipIf(platform !==
       # 'darwin')` — codesign exists nowhere else — so the ubuntu unit-test job
@@ -327,11 +340,6 @@ jobs:
           name: site-browser-evidence
           path: apps/site/test-results/
           retention-days: 3
-
-  # Windows packaging and the packaged-app smoke are paused to save CI time; the
-  # Windows release build is paused with them (release-continuous.yml). They come
-  # back in a later release: restore this job from git history (it built the NSIS
-  # installer, checked latest.yml and booted the packaged app with an npm pi).
 
   # The one required status check. Branch rules name this job instead of every
   # matrix leg, so shard counts and platforms can change without editing them.

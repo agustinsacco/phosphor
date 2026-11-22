@@ -191,17 +191,15 @@ describe('createNodeBrainTransport', () => {
 
 describe('isBrainEndpoint', () => {
   it.each([
-    ['/tmp/phosphor/brain.sock', 'darwin', true],
-    ['relative/brain.sock', 'linux', false],
-    ['http://127.0.0.1:8080', 'darwin', false],
-    ['127.0.0.1:8080', 'linux', false],
-    ['tcp://localhost:9', 'linux', false],
-    ['\\\\.\\pipe\\phosphor-brain-1', 'win32', true],
-    ['\\\\server\\pipe\\phosphor-brain', 'win32', false],
-    ['C:\\brain.sock', 'win32', false],
-    ['/tmp/brain.sock', 'win32', false],
-  ] as const)('%s on %s is %s', (endpoint, platform, expected) => {
-    expect(isBrainEndpoint(endpoint, platform)).toBe(expected)
+    ['/tmp/phosphor/brain.sock', true],
+    ['relative/brain.sock', false],
+    ['http://127.0.0.1:8080', false],
+    ['127.0.0.1:8080', false],
+    ['tcp://localhost:9', false],
+    ['\\\\.\\pipe\\phosphor-brain-1', false],
+    ['C:\\brain.sock', false],
+  ] as const)('%s is %s', (endpoint, expected) => {
+    expect(isBrainEndpoint(endpoint)).toBe(expected)
   })
 
   it('makes the transport refuse a TCP-shaped endpoint', () => {

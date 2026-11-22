@@ -5,13 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { auditCoverage, localTool, typecheckProjects } from './typecheck-coverage.mjs'
 
 function runCommand(command, args, cwd) {
-  const result = spawnSync(command, args, {
-    cwd,
-    stdio: 'inherit',
-    // Only a .cmd shim needs cmd.exe (Node 22 refuses it otherwise). A shell
-    // would join node's own path and arguments unquoted, which breaks on spaces.
-    shell: process.platform === 'win32' && command.endsWith('.cmd'),
-  })
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit' })
   if (result.error) throw result.error
   return result.status ?? 1
 }
@@ -33,7 +27,7 @@ export function runTypecheck(root, run = runCommand) {
     const status = run(process.execPath, [compiler, '--noEmit', '-p', project], root)
     if (status !== 0) return status
   }
-  return run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'check'], site)
+  return run('npm', ['run', 'check'], site)
 }
 
 if (

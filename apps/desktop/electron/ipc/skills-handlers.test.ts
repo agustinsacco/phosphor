@@ -80,11 +80,10 @@ describe('skills IPC characterization', () => {
     ])
   })
 
-  it('lists with the healthy pi executable, prefix and shell environment', async () => {
+  it('lists with the healthy pi executable and shell environment', async () => {
     h.health.mockResolvedValue({
       ok: true,
-      binaryPath: '/node',
-      prefixArgs: ['/pi.js'],
+      binaryPath: '/opt/pi',
       minVersion: MIN_PI_VERSION,
     })
     const result = { skills: [], probe: 'rpc' }
@@ -92,8 +91,7 @@ describe('skills IPC characterization', () => {
     expect(await invoke('skills:list', '/workspace')).toBe(result)
     expect(h.skills.resolveSkills).toHaveBeenCalledWith({
       workspacePath: '/workspace',
-      binaryPath: '/node',
-      prefixArgs: ['/pi.js'],
+      binaryPath: '/opt/pi',
       env: { PATH: '/shell/bin' },
     })
   })

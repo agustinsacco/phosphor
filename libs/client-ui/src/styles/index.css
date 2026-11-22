@@ -366,7 +366,7 @@ html {
   background: var(--px-accent);
 }
 
-/* Window drag region: macOS traffic lights, Windows/Linux controls overlay */
+/* Window drag region: macOS traffic lights, Linux controls overlay */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
@@ -377,7 +377,7 @@ html {
 }
 
 /*
- * On Windows/Linux the Window Controls Overlay paints close/minimize over the
+ * On Linux the Window Controls Overlay paints close/minimize over the
  * top-right of the page, so anything in that strip must inset past them.
  * `titlebar-area-width` is the width NOT covered by the controls; the fallback
  * of 100vw collapses this to the plain 0.75rem gutter on macOS, where the env
@@ -396,7 +396,7 @@ html {
 
 /*
  * The mirror image, for the top-LEFT corner: only macOS parks window controls
- * there (the traffic lights, ~70px under `hiddenInset`). On Windows/Linux the
+ * there (the traffic lights, ~70px under `hiddenInset`). On Linux the
  * controls are top-right — .titlebar-inset-end's job — so this collapses to a
  * plain gutter. Previously a 44px-tall vertical spacer above the sidebar's
  * workspace switcher; with a single top bar the corner has exactly one

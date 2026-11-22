@@ -57,13 +57,11 @@ export const SANDBOX_NAME_MAX_LENGTH = 64
  * `/` and `\` would escape the base, and `:` is here for a subtler reason:
  * pi mangles a cwd into a session-directory name by turning `/`, `\` and `:`
  * all into `-` (pi-paths.ts), so `my:box` and `my-box` would share one
- * transcript directory and read as each other's history. The rest are the
- * characters Windows refuses in a filename.
+ * transcript directory and read as each other's history. The rest are
+ * shell wildcards, quotes and redirections, which make a folder awkward to
+ * name in a terminal.
  */
 const ILLEGAL_NAME_CHARS = /[\\/:*?"<>|]/
-
-/** Windows refuses these as filenames, extension or not. */
-const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
 
 /**
  * A code-point test rather than a regex range, so that this file holds no raw
@@ -92,17 +90,13 @@ export function validateSandboxName(raw: string): string | null {
   if (ILLEGAL_NAME_CHARS.test(name) || hasControlCharacter(name)) return null
   // `.`, `..` and anything hidden: `listSandboxFolders` would not list it back.
   if (name.startsWith('.')) return null
-  // Windows silently strips a trailing dot, so the folder would not be the
-  // name the user typed. (A trailing space is already gone with the trim.)
-  if (name.endsWith('.')) return null
-  if (WINDOWS_RESERVED.test(name)) return null
   return name
 }
 
 /**
  * A fresh `adjective-noun` not among `existing`.
  *
- * Compared case-insensitively because macOS and Windows are: `Quiet-Otter`
+ * Compared case-insensitively because macOS is: `Quiet-Otter`
  * already occupies `quiet-otter`. `random` is injected so tests can pin it.
  */
 export function randomSandboxName(

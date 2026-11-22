@@ -1,5 +1,5 @@
 import type * as ChildProcessModule from 'node:child_process'
-import { execFile, spawn, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -7,7 +7,7 @@ import { killProcessTree, runPrintMode } from './print-mode'
 
 vi.mock('node:child_process', async (original) => {
   const actual = await original<typeof ChildProcessModule>()
-  return { ...actual, spawn: vi.fn(actual.spawn), execFile: vi.fn(actual.execFile) }
+  return { ...actual, spawn: vi.fn(actual.spawn) }
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -144,43 +144,7 @@ it('uses the 30-second default and removes the abort listener on timeout', async
   child.emit('close', 0)
 })
 
-async function windowsCleanup() {
-  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
-  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
-  try {
-    vi.resetModules()
-    const module = await import('./print-mode')
-    vi.mocked(execFile).mockImplementationOnce(() => new EventEmitter() as ChildProcess)
-    return module.killProcessTree
-  } finally {
-    Object.defineProperty(process, 'platform', platform)
-  }
-}
-
-it('bounds Windows taskkill and falls back only while the child is still live', async () => {
-  const cleanup = await windowsCleanup()
-  const child = mockChild()
-  cleanup(child)
-  const [command, args, options, callback] = vi.mocked(execFile).mock.lastCall!
-  expect([command, args, options]).toEqual([
-    'taskkill',
-    ['/pid', '7654321', '/T', '/F'],
-    { timeout: 5_000, windowsHide: true },
-  ])
-  ;(callback as (error: Error) => void)(new Error('timeout'))
-  expect(child.kill).toHaveBeenCalledWith('SIGKILL')
-})
-
-it('does not run Windows taskkill for a stale or missing pid', async () => {
-  const cleanup = await windowsCleanup()
-  const child = mockChild()
-  Object.assign(child, { exitCode: 0 })
-  const calls = vi.mocked(execFile).mock.calls.length
-  cleanup(child)
-  Object.assign(child, { exitCode: null, signalCode: 'SIGKILL' })
-  cleanup(child)
-  expect(vi.mocked(execFile).mock.calls).toHaveLength(calls)
-  expect(child.kill).not.toHaveBeenCalled()
+it('ignores a child that never got a pid', () => {
   expect(() => killProcessTree({ pid: undefined } as ChildProcess)).not.toThrow()
 })
 
