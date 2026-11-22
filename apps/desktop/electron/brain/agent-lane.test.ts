@@ -155,7 +155,7 @@ describe('a Defrag turn in the Brain lane', () => {
     expect(await turn).toMatchObject({ outcome: 'finished', error: null })
   })
 
-  it('says it is sending once the owner’s turn settles, just before the prompt command', async () => {
+  it('says it is sending once the owner’s turn settles and pi accepts the message', async () => {
     lane.busy = true
     const ownerSettled = vi.fn()
     const answer = lane.request.getMockImplementation()!
@@ -177,8 +177,56 @@ describe('a Defrag turn in the Brain lane', () => {
     const [settledAt] = ownerSettled.mock.invocationCallOrder
     const [sendingAt] = hooks.sending.mock.invocationCallOrder
     const [promptAt] = deps.command.mock.invocationCallOrder
-    expect(settledAt).toBeLessThan(sendingAt!)
-    expect(sendingAt).toBeLessThan(promptAt!)
+    expect(settledAt).toBeLessThan(promptAt!)
+    expect(promptAt).toBeLessThan(sendingAt!)
+  })
+
+  it('leaves the turn to an owner’s message that reaches pi first, then sends again', async () => {
+    const { deps, agent } = host()
+    const hooks = turnHooks()
+    // The owner's message passed its preflight as Defrag found the lane idle: pi starts their
+    // turn and refuses Defrag's message, as it refuses any plain prompt while a turn runs.
+    deps.command.mockImplementationOnce(async () => {
+      lane.busy = true
+      lane.send({ type: 'agent_start' } as PiEvent)
+      setTimeout(() => {
+        lane.busy = false
+        endWith({ role: 'user', content: 'Is the Harbor read approved?' }, SUMMARY)
+        lane.send({ type: 'agent_settled', aborted: false } as PiEvent)
+      }, 20)
+      return { type: 'response', command: 'prompt', success: false, error: 'Agent is busy.' }
+    })
+    const turn = await agent.turn(MESSAGE, new AbortController().signal, hooks)
+    expect(turn).toMatchObject({ outcome: 'finished', error: null })
+    expect(commands(deps)).toEqual(['prompt', 'prompt'])
+    // Brain Agent answers Defrag only in the turn pi started for its message.
+    expect(hooks.sending).toHaveBeenCalledOnce()
+    expect(deps.command.mock.invocationCallOrder[1]).toBeLessThan(
+      hooks.sending.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('never aborts a turn pi has not started for it, and withdraws one pi starts after Stop', async () => {
+    for (const accepted of [false, true]) {
+      lane = new FakeLane()
+      const { deps, agent } = host()
+      let answer!: (response: RpcResponse) => void
+      // The message waits behind the owner's, which pi may be about to start.
+      deps.command.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+      const stop = new AbortController()
+      const turn = agent.turn(MESSAGE, stop.signal, turnHooks())
+      await vi.waitFor(() => expect(commands(deps)).toEqual(['prompt']))
+      stop.abort()
+      expect(await turn).toMatchObject({ outcome: 'stopped', error: null })
+      expect(commands(deps)).toEqual(['prompt'])
+      answer(
+        accepted
+          ? ({ type: 'response', command: 'prompt', success: true } as RpcResponse)
+          : { type: 'response', command: 'prompt', success: false, error: 'Agent is busy.' },
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(commands(deps)).toEqual(accepted ? ['prompt', 'abort'] : ['prompt'])
+    }
   })
 
   it('stops its own turn with abort, and leaves a busy owner’s turn alone', async () => {
