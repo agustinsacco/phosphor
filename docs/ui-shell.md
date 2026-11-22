@@ -107,7 +107,7 @@ divider, a “Lanes on” caption and a bordered field with the selected machine
 status dot, name and state in words (“Idle”, “2 running”, reachability). It is
 a picker, not a nav row, so it never uses the Machines page icon. The local
 machine is named in its platform's word everywhere in the UI: **This Mac** on
-macOS, **This PC** on Windows and **This computer** on Linux (`localMachineLabel`,
+macOS and **This computer** on Linux (`localMachineLabel`,
 `lib/localMachine.ts`); these docs call it This Mac. Each window
 starts on **This Mac**, and selection stays in memory only, including while the
 sidebar is hidden. Signing out or removing the selected machine resets the

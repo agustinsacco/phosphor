@@ -219,8 +219,8 @@ load errors, footer or background controls. **Activity** lists the recent runs o
 selected machine, rendered as This Mac's are; All machines lists every machine's runs
 in one feed. A Host that predates `routines.activity` shows its routines with no
 Activity, and each routine still opens its own history. All machines labels local
-load errors with the local machine's label (**This Mac** on macOS, **This PC** or
-**This computer** elsewhere). An unavailable Host shows its refusal, never local data
+load errors with the local machine's label (**This Mac** on macOS, **This computer**
+elsewhere). An unavailable Host shows its refusal, never local data
 under a remote label. Changing the selection clears an action error shown for the
 previous machine.
 Remote editors and detail labels use the Host model catalogue. Changing the
