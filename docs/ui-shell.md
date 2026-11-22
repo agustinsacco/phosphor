@@ -690,8 +690,7 @@ zero, until Check again reads it again. Offline and account errors are explicit 
 A Host's detail has one **Back to machines** breadcrumb, then a compact identity
 header (an h2 label with Rename, the status pill and a **Machine actions** menu containing
 Reconnect, Check again and Update Host…, which opens Settings → Advanced; Reconnect and
-Update Host… need a published address), followed by **Overview / Settings / Machine files** navigation (Machine files opens
-the Host's registered repositories read-only in a dialog). Add a
+Update Host… need a published address), followed by **Overview / Settings** navigation. Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
 This Mac's settings by getting wider. Long machine names occupy at most two visual
@@ -765,9 +764,8 @@ platform label as the heading (no Rename), the pill its checks add up to, and a
 Machine actions menu with Check again, which re-reads pi, Claude Code, Tailscale
 and its providers, and **Update Phosphor…**, which opens Settings → Advanced, as a
 Host's **Update Host…** does, where the app can check for updates. The same
-Overview / Settings / Machine files navigation follows: Settings opens Settings →
-Accounts for this computer, and Machine files browses its recent folders
-read-only in the same dialog and tree. Readiness lists pi, Claude Code and
+Overview / Settings navigation follows: Settings opens Settings →
+Accounts for this computer. Readiness lists pi, Claude Code and
 Tailscale; Providers lists its subscriptions with Settings → Accounts' rows and
 **Provider settings**, opening on the last read by Accounts, the health check or
 the model catalogue, or one still in flight (each read runs one `pi auth check`
