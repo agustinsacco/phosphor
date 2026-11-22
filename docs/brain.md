@@ -910,7 +910,8 @@ running in that lane, the run waits for it to end and never interrupts it. The r
 Agent's changes only from when pi accepts its own message until that turn ends, so what you ask
 for while it waits belongs to no run, and a turn of yours that ends meanwhile is never taken as
 the run's. If your message reaches pi first, pi refuses Defrag's, and the run waits for your
-turn and sends again. Stopping a run whose message pi has not accepted aborts nothing;
+turn and sends again. Messages still queued behind a turn you stopped reach pi with Defrag's
+message, as they would with your next one. Stopping a run whose message pi has not accepted aborts nothing;
 if pi accepts it afterwards, Defrag ends that turn at once.
 
 Brain Agent decides in order: reads, people and things, repeats and disagreements, flags, then
