@@ -11,7 +11,7 @@
   flex: 1;
   flex-direction: column;
   overflow: auto;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--compact-safe-bottom, env(safe-area-inset-bottom));
 }
 .remote-workspace-intro {
   flex: 1;
