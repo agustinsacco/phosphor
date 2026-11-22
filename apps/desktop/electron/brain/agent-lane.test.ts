@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
 import {
   BRAIN_LANE_CLOSED,
@@ -14,11 +14,15 @@ import { BRAIN_AGENT_RULES } from './lane-folder'
 
 const MESSAGE = 'Defrag. 2 waiting: 1 read, 1 flag. Start with brain_waiting.'
 
-/** A pi process as the Brain lane sees it: get_state answers, prompts start a turn. */
+/**
+ * A pi process as the Brain lane sees it: get_state answers, prompts start a turn, a turn's
+ * settlement and a compaction's end leave it idle, and each response is reported as pi prints it.
+ */
 class FakeLane extends EventEmitter {
   alive = true
   file: string | undefined
   busy = false
+  compacting = false
   get sessionFile() {
     return this.file
   }
@@ -31,13 +35,15 @@ class FakeLane extends EventEmitter {
       success: true,
       data: {
         isStreaming: this.busy,
-        isCompacting: false,
+        isCompacting: this.compacting,
         pendingMessageCount: 0,
         sessionFile: this.file,
       },
     } as unknown as RpcResponse
   })
   send(event: PiEvent) {
+    if (event.type === 'agent_settled') this.busy = false
+    if (event.type === 'compaction_end') this.compacting = false
     this.emit('event', event)
   }
 }
@@ -56,7 +62,10 @@ function host() {
     create: vi.fn(async () => ({ sessionId: 'brain-1', workspacePath: folder })),
     client: vi.fn(() => lane as unknown as BrainLaneClient),
     command: vi.fn(async (_id: string, command: RpcCommand): Promise<RpcResponse> => {
-      if (command.type === 'prompt') queueMicrotask(() => void onPrompt())
+      if (command.type === 'prompt') {
+        lane.emit('response', promptResponse)
+        queueMicrotask(() => void onPrompt())
+      }
       return command.type === 'prompt'
         ? promptResponse
         : ({ type: 'response', command: command.type, success: true } as RpcResponse)
@@ -204,6 +213,56 @@ describe('a Defrag turn in the Brain lane', () => {
     expect(deps.command.mock.invocationCallOrder[1]).toBeLessThan(
       hooks.sending.mock.invocationCallOrder[0]!,
     )
+  })
+
+  it('sends once the lane is idle, however your turn or a compaction ended', async () => {
+    // pi prints the busy state and your turn's settlement in one read: the client emits the
+    // settlement before the state's waiter runs.
+    lane.busy = true
+    const answer = lane.request.getMockImplementation()!
+    lane.request.mockImplementation(async (command) => {
+      const response = await answer(command)
+      if (lane.busy && lane.request.mock.calls.length === 2)
+        lane.send({ type: 'agent_settled', aborted: false } as PiEvent)
+      return response
+    })
+    const first = host()
+    const stop = new AbortController()
+    onTestFinished(() => stop.abort())
+    const turn = first.agent.turn(MESSAGE, stop.signal, turnHooks())
+    await vi.waitFor(() => expect(commands(first.deps)).toEqual(['prompt']))
+    expect(await turn).toMatchObject({ outcome: 'finished' })
+
+    // A compaction you started ends without a turn to settle.
+    lane = new FakeLane()
+    lane.compacting = true
+    const second = host()
+    const compacted = second.agent.turn(MESSAGE, stop.signal, turnHooks())
+    await vi.waitFor(() => expect(lane.request).toHaveBeenCalledTimes(2))
+    expect(commands(second.deps)).toEqual([])
+    lane.send({ type: 'compaction_end', reason: 'manual', result: null, aborted: false })
+    await vi.waitFor(() => expect(commands(second.deps)).toEqual(['prompt']))
+    expect(await compacted).toMatchObject({ outcome: 'finished' })
+  })
+
+  it('never takes the end of a turn that finished before pi accepted its message', async () => {
+    const { deps, agent } = host()
+    const hooks = turnHooks()
+    // Your turn fails while Defrag's message is in its preflight; pi prints that end, then
+    // accepts Defrag's message and starts its turn.
+    deps.command.mockImplementationOnce(async () => {
+      endWith(
+        { role: 'user', content: 'Is the Harbor read approved?' },
+        { role: 'assistant', content: [], stopReason: 'error', errorMessage: 'Overloaded.' },
+      )
+      lane.send({ type: 'agent_settled', aborted: false } as PiEvent)
+      lane.emit('response', promptResponse)
+      queueMicrotask(() => void onPrompt())
+      return promptResponse
+    })
+    const turn = await agent.turn(MESSAGE, new AbortController().signal, hooks)
+    expect(turn).toMatchObject({ outcome: 'finished', error: null })
+    expect(hooks.sending).toHaveBeenCalledOnce()
   })
 
   it('never aborts a turn pi has not started for it, and withdraws one pi starts after Stop', async () => {
