@@ -71,6 +71,31 @@ describe('chat reducer — streaming text', () => {
     expect(state.isStreaming).toBe(false)
   })
 
+  it('keeps one item for an answer whose stream errored before its message_end', () => {
+    const failed: AssistantMessage = {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Partial' }],
+      stopReason: 'error',
+      errorMessage: 'Provider overloaded (529).',
+    }
+    const state = run([
+      assistantStart,
+      textDelta('Partial'),
+      {
+        type: 'message_update',
+        assistantMessageEvent: { type: 'error', reason: 'error', message: failed },
+      },
+      { type: 'message_end', message: failed },
+    ])
+    expect(state.items).toHaveLength(1)
+    expect(state.items[0]).toMatchObject({
+      kind: 'assistant',
+      streaming: false,
+      stopReason: 'error',
+      errorMessage: 'Provider overloaded (529).',
+    })
+  })
+
   it('keeps interleaved thinking and text blocks ordered by contentIndex', () => {
     const state = run([
       assistantStart,

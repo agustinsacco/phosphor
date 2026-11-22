@@ -46,6 +46,26 @@ describe('hydrateRunning', () => {
     ])
   })
 
+  it('gives an answer pi began before the lane opened its own item when none of it came during the load', () => {
+    // pi sends message_start as the provider's stream opens; the first delta can come much later.
+    const loaded = hydrateRunning([prompt, earlier], [])
+    const expected = [
+      'Check the Ledger read.',
+      'Opened the Ledger read.',
+      'Approved the Ledger read.',
+    ]
+    let state = reduceChatEvent(loaded, delta('Approved '))
+    state = reduceChatEvent(state, delta('the Ledger read.'))
+    expect(texts(state)).toEqual(expected)
+    expect(texts(reduceChatEvent(state, { type: 'message_end', message: answer }))).toEqual(
+      expected,
+    )
+    // One whose first event after the load is its end gets its own item too.
+    expect(texts(reduceChatEvent(loaded, { type: 'message_end', message: answer }))).toEqual(
+      expected,
+    )
+  })
+
   it('keeps a prompt and its answer once, whether or not the history already holds them', () => {
     const events: PiEvent[] = [
       { type: 'message_start', message: prompt },

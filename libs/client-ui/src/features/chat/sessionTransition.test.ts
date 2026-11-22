@@ -7,6 +7,9 @@ import {
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useArtifactsStore } from '@/stores/artifacts'
+// Loaded up front: a lane's tool_execution_end imports it to refresh files, and a first load
+// racing the next test can resolve before the store exists.
+import '@/stores/files'
 import { canControlSession } from '@/stores/remoteLanes'
 import { currentBranchUserMessages, rewindToEntry } from './rewind'
 import {
@@ -231,6 +234,88 @@ describe('opening a lane mid-turn', () => {
       })
     },
   )
+
+  /** Opens the lane while pi reports its turn running; `history` answers get_messages. */
+  function openRunning(history: () => Promise<unknown>) {
+    createSession.mockResolvedValue({
+      sessionId: 'audit',
+      workspacePath: '/repo',
+      diskPath: '/repo/clone.jsonl',
+      pid: 1,
+    })
+    command.mockImplementation(async (_id, cmd) => {
+      if (cmd.type === 'get_messages') return history()
+      if (cmd.type === 'get_state')
+        return {
+          success: true,
+          data: { sessionFile: '/repo/clone.jsonl', sessionId: 'clone', isStreaming: true },
+        }
+      return { success: false }
+    })
+    return useSessionsStore.getState().createSession('/repo', { sessionPath: '/repo/clone.jsonl' })
+  }
+  const chat = () => useChatStore.getState().sessions.audit!
+  const loaded = { success: true, data: { messages: [prompt] } }
+
+  it('shows its turn running, so the lane offers Stop until the turn ends', async () => {
+    await openRunning(async () => loaded)
+    expect(chat()).toMatchObject({ error: null, isStreaming: true })
+    expect(chat().agentStartedAt).toBeTypeOf('number')
+    push({ type: 'agent_end', messages: [] })
+    expect(chat().isStreaming).toBe(false)
+  })
+
+  it('comes up idle when its turn ended while the history loaded', async () => {
+    let release!: () => void
+    const opening = openRunning(() => new Promise((resolve) => (release = () => resolve(loaded))))
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    push({ type: 'agent_end', messages: [] })
+    release()
+    await opening
+    expect(chat()).toMatchObject({ error: null, isStreaming: false })
+  })
+
+  it('stops recording when its history fails to load, and records again on Retry', async () => {
+    const subscribe = fake.api.onSessionPush
+    const listening = new Set<object>()
+    vi.spyOn(fake.api, 'onSessionPush').mockImplementation((id, listener) => {
+      const token = {}
+      listening.add(token)
+      const stop = subscribe(id, listener)
+      return () => {
+        listening.delete(token)
+        stop()
+      }
+    })
+    let answers = 0
+    let release!: () => void
+    await openRunning(() =>
+      ++answers === 1
+        ? Promise.resolve({ success: false, error: 'pi did not answer.' })
+        : new Promise((resolve) => (release = () => resolve(loaded))),
+    )
+    const retry = useSessionTransition.getState().bySession.audit?.retry
+    expect(retry).toBeTypeOf('function')
+    // Only the lane's own push handler is left: nothing keeps piling up its events.
+    const handlers = listening.size
+    const retrying = retry!()
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    expect(listening.size).toBe(handlers + 1)
+    push({ type: 'message_start', message: { role: 'assistant', content: [] } })
+    push({
+      type: 'message_update',
+      assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Approved.' },
+    })
+    release()
+    await retrying
+    expect(chat().error).toBeNull()
+    expect(listening.size).toBe(handlers)
+    expect(chat().items.at(-1)).toMatchObject({
+      kind: 'assistant',
+      streaming: true,
+      blocks: [{ type: 'text', text: 'Approved.' }],
+    })
+  })
 })
 
 it('keeps the activity guard when the lane main runs was idle as it opened', async () => {
