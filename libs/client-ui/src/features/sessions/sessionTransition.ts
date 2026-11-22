@@ -111,7 +111,17 @@ function transition(id: string, mutate: () => Promise<Restore | undefined>): Pro
  */
 export function restoreSession(id: string, alreadyLive = false): Promise<void> {
   if (alreadyLive) recordSinceAttach(id)
-  return transition(id, async () => () => restoreBranch(id, undefined, alreadyLive))
+  const restore = async () => {
+    // A retry records again from here: a load that failed keeps nothing it recorded.
+    if (alreadyLive) recordSinceAttach(id)
+    try {
+      await restoreBranch(id, undefined, alreadyLive)
+    } finally {
+      stopRecording(id)
+    }
+  }
+  // Nor does an open that never loads: the lane closed, or it already waits on Retry.
+  return transition(id, async () => restore).finally(() => stopRecording(id))
 }
 
 async function restoreBranch(
@@ -152,7 +162,6 @@ async function restoreBranch(
   if (!messages) throw new Error(current.error ?? 'Could not load session history.')
   if (running) mergeArtifacts(id, messages, snapshots ?? [])
   else replaceArtifacts(id, messages, snapshots ?? [])
-  stopRecording(id)
 }
 
 /** A running lane's artifacts: the stored ones join those it made while its history loaded. */
