@@ -6,7 +6,7 @@
  * what the messages already hold: a message whose end they include, and the progress of a tool
  * call whose result they include. It starts from pi's activity as the lane opened.
  */
-import type { AgentMessage, PiEvent } from '@shared/rpc'
+import type { AgentMessage, PiEvent, RpcSessionState } from '@shared/rpc'
 import type { ChatSessionState } from './chatItems'
 import { hydrateFromMessages, reduceChatEvent } from './reducer'
 
@@ -26,10 +26,11 @@ interface MessageEvents {
   end?: AgentMessage
 }
 
-/** pi's activity as the lane opened. */
+/** pi's activity as the lane opened: the chat's own, and pi's last reported state. */
 export interface OpenedActivity {
   isStreaming: boolean
   isCompacting: boolean
+  meta?: Pick<RpcSessionState, 'isStreaming' | 'isCompacting'> | null
 }
 const IDLE: OpenedActivity = { isStreaming: false, isCompacting: false }
 
@@ -76,8 +77,9 @@ export function hydrateRunning(
   // Before the events, so a turn that ended while the history loaded comes up idle. An answer
   // already streaming gets its own item from the reducer.
   let state = hydrateFromMessages(messages)
-  if (activity.isStreaming) state = reduceChatEvent(state, { type: 'agent_start' })
-  if (activity.isCompacting) state = { ...state, isCompacting: true }
+  if (activity.isStreaming || activity.meta?.isStreaming)
+    state = reduceChatEvent(state, { type: 'agent_start' })
+  if (activity.isCompacting || activity.meta?.isCompacting) state = { ...state, isCompacting: true }
   events.forEach((event, index) => {
     const group = groups[of[index]!]
     if (group) {

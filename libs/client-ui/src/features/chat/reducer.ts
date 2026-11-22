@@ -327,8 +327,6 @@ function applyAssistantDelta(
   state: ChatSessionState,
   event: Extract<PiEvent, { type: 'message_update' }>,
 ): ChatSessionState {
-  // An answer pi began before this window attached (a lane opened mid-turn) has no item of its
-  // own yet: give it one, so its deltas never land on the last finished answer.
   const index = openAssistantIndex(state.items)
   if (index === -1) return applyAssistantDelta(startAssistant(state), event)
   const delta = event.assistantMessageEvent
@@ -465,7 +463,6 @@ function applyAssistantDelta(
     }
 
     case 'error': {
-      // The item stays this message's own until its message_end ends it.
       const message = delta.message
       const updated: AssistantItem = {
         ...item,
@@ -529,8 +526,7 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
       const assistant = message as AssistantMessage
       const index = openAssistantIndex(state.items)
       if (index === -1) {
-        // No item of its own (pi began it before a lane opened mid-turn, or a hydration edge):
-        // append final, leaving the last finished answer as it was.
+        // No item of its own (pi began it before a lane opened mid-turn): append final.
         const item: AssistantItem = {
           id: newItemId(),
           kind: 'assistant',

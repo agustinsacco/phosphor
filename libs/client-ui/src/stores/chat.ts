@@ -207,12 +207,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((state) => ({
       sessions: chats.patch(state.sessions, sessionId, (session) => ({
         ...session,
-        ...(events
-          ? hydrateRunning(messages, events, {
-              isStreaming: session.isStreaming || !!session.meta?.isStreaming,
-              isCompacting: session.isCompacting || !!session.meta?.isCompacting,
-            })
-          : hydrateFromMessages(messages)),
+        ...(events ? hydrateRunning(messages, events, session) : hydrateFromMessages(messages)),
         resuming: false,
       })),
     })),
