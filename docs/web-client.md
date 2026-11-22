@@ -137,7 +137,7 @@ Desktop/browser difference is a capability listed in `platform/Platform.test.ts`
 its Session options and Settings match on Desktop, in a wide browser and on a
 phone. A shell passes layout down instead: the phone's lane header carries the
 lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
-as Machine files, is the `ListDetail` primitive, one at a time on a phone.
+as a Host home's Files pane, is the `ListDetail` primitive, one at a time on a phone.
 `localLanes`, `nativeFiles`, `nativeImageClipboard`, `fileEditing`, `splitPanes`, `localBrain`
 and `hostTrafficLog` remain false in the browser at every width. Modal/menu placement adapts without
 enabling pane controls. A Host lane's Files edits at both widths, in Monaco when wide and in a
@@ -185,7 +185,7 @@ it downloads files up to 100 MB and previews images, video and audio up to 50 MB
 from their bytes ([files](files.md#remote-lanes)). On a phone the tree and the
 file are separate screens, and a file reads coloured by its language, scrolled to
 the line a chat link names, until Edit. Changes' HEAD/working-copy comparisons
-and Machine files are read only. Like This Mac's viewer, a file offers Copy but
+and a Host home's Files pane are read only. Like This Mac's viewer, a file offers Copy but
 no chat code-block actions (Open as artifact, Run in terminal). New lanes and existing
 lane composers accept any file, as Desktop's Host lanes do: images go inline and
 other files upload to the Host before the prompt, which names their Host path. A
@@ -214,7 +214,8 @@ machine settings, including provider installation and Claude accounts, work afte
 [configuration access](#configuration-access-and-lane-deletion). Editing skills,
 artifacts and attachments in place, and This Mac's settings, are unavailable. Attention reaches the shared notification drawer
 and, with permission, native notifications while the app runs ([below](#notifications)). A Host's
-registered repositories open read-only from **Machines → a Host → Machine files**.
+registered repositories open read-only from the top bar's Files pane on that Host's
+home (no lane open).
 
 `PageShell` owns each page's single heading, actions and close behavior;
 `PageBody` supplies the shared width, gutters and scrolling for Machines,
