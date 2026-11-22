@@ -23,6 +23,8 @@ class FakeLane extends EventEmitter {
   file: string | undefined
   busy = false
   compacting = false
+  /** Messages queued behind a turn; pi's abort leaves them queued. */
+  pending = 0
   get sessionFile() {
     return this.file
   }
@@ -36,7 +38,7 @@ class FakeLane extends EventEmitter {
       data: {
         isStreaming: this.busy,
         isCompacting: this.compacting,
-        pendingMessageCount: 0,
+        pendingMessageCount: this.pending,
         sessionFile: this.file,
       },
     } as unknown as RpcResponse
@@ -93,7 +95,7 @@ beforeEach(async () => {
   transcripts = join(root, 'sessions')
   lane = new FakeLane()
   onPrompt = ended
-  promptResponse = { type: 'response', command: 'prompt', success: true } as RpcResponse
+  promptResponse = { id: 'px-1', type: 'response', command: 'prompt', success: true } as RpcResponse
 })
 afterEach(() => rm(root, { recursive: true, force: true }))
 
@@ -263,6 +265,42 @@ describe('a Defrag turn in the Brain lane', () => {
     const turn = await agent.turn(MESSAGE, new AbortController().signal, hooks)
     expect(turn).toMatchObject({ outcome: 'finished', error: null })
     expect(hooks.sending).toHaveBeenCalledOnce()
+  })
+
+  it('sends once you stop your turn, even with messages left queued behind it', async () => {
+    lane.busy = true
+    lane.pending = 1
+    const { deps, agent } = host()
+    const stop = new AbortController()
+    onTestFinished(() => stop.abort())
+    const turn = agent.turn(MESSAGE, stop.signal, turnHooks())
+    await vi.waitFor(() => expect(lane.request).toHaveBeenCalledTimes(2))
+    // pi's abort settles the lane and keeps the queue; no turn will deliver it.
+    lane.send({ type: 'agent_settled', aborted: true } as PiEvent)
+    await vi.waitFor(() => expect(commands(deps)).toEqual(['prompt']))
+    expect(await turn).toMatchObject({ outcome: 'finished' })
+  })
+
+  it('keeps its own end when another prompt is answered right after it', async () => {
+    const { deps, agent } = host()
+    const stop = new AbortController()
+    onTestFinished(() => stop.abort())
+    // One read holds Defrag's response, its turn's end, then a context-file toggle's response.
+    deps.command.mockImplementationOnce(async () => {
+      lane.emit('response', promptResponse)
+      ended()
+      lane.emit('response', {
+        id: 'px-2',
+        type: 'response',
+        command: 'prompt',
+        success: true,
+        data: { disposition: 'handled' },
+      })
+      return promptResponse
+    })
+    const turn = agent.turn(MESSAGE, stop.signal, turnHooks())
+    const waited = new Promise((resolve) => setTimeout(() => resolve('still waiting'), 300))
+    expect(await Promise.race([turn, waited])).toMatchObject({ outcome: 'finished' })
   })
 
   it('never aborts a turn pi has not started for it, and withdraws one pi starts after Stop', async () => {
