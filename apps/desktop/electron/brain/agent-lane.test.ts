@@ -303,6 +303,30 @@ describe('a Defrag turn in the Brain lane', () => {
     expect(await Promise.race([turn, waited])).toMatchObject({ outcome: 'finished' })
   })
 
+  it('never fails on another command’s error, before or during its turn', async () => {
+    const commandError = {
+      type: 'extension_error',
+      extensionPath: 'command:phosphor-context-files',
+      event: 'command',
+      error: 'Could not save the context-file choice.',
+    } as PiEvent
+    const { deps, agent } = host()
+    // One read holds Defrag's response, a context-file toggle's error, then the toggle's response.
+    deps.command.mockImplementationOnce(async () => {
+      lane.emit('response', promptResponse)
+      lane.send(commandError)
+      lane.emit('response', { id: 'px-2', type: 'response', command: 'prompt', success: true })
+      // The toggle fails again while Defrag's turn runs, before that turn ends.
+      setTimeout(() => {
+        lane.send(commandError)
+        ended()
+      })
+      return promptResponse
+    })
+    const turn = await agent.turn(MESSAGE, new AbortController().signal, turnHooks())
+    expect(turn).toMatchObject({ outcome: 'finished', error: null })
+  })
+
   it('never aborts a turn pi has not started for it, and withdraws one pi starts after Stop', async () => {
     for (const accepted of [false, true]) {
       lane = new FakeLane()
