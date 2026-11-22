@@ -67,10 +67,7 @@ const text = (error: unknown): string => (error instanceof Error ? error.message
  * `signal` aborts. A turn the owner started is theirs to finish: waiting never aborts it.
  */
 async function settled({ client }: OpenLane, signal: AbortSignal): Promise<void> {
-  const state = await client.request({ type: 'get_state' })
-  if (!state.success || !state.data) throw new Error('Brain Agent’s lane did not answer.')
-  const { isStreaming, isCompacting, pendingMessageCount } = state.data
-  if (!isStreaming && !isCompacting && pendingMessageCount === 0) return
+  if (await idle(client)) return
   await new Promise<void>((resolve, reject) => {
     const done = (end: () => void) => {
       client.off('event', onEvent)
@@ -90,6 +87,13 @@ async function settled({ client }: OpenLane, signal: AbortSignal): Promise<void>
   })
 }
 
+async function idle(client: BrainLaneClient): Promise<boolean> {
+  const state = await client.request({ type: 'get_state' })
+  if (!state.success || !state.data) throw new Error('Brain Agent’s lane did not answer.')
+  const { isStreaming, isCompacting, pendingMessageCount } = state.data
+  return !isStreaming && !isCompacting && pendingMessageCount === 0
+}
+
 /**
  * How a run that will not retry ended, from its last assistant message: a provider error fails
  * with pi's message, an abort (the owner's Stop in the lane) stops, and no answer at all fails.
@@ -104,46 +108,89 @@ function runEnd(messages: AgentMessage[]): TurnEnd {
   }
 }
 
-/** Sends the message and resolves when its turn ends, stops or fails. */
-function prompt(
+/**
+ * Sends the message once the lane settles and resolves when its turn ends, stops or fails.
+ * Brain Agent answers Defrag only from when pi accepts the message: an owner's message that
+ * passed its preflight as the lane settled reaches pi first, pi refuses Defrag's as it refuses
+ * any plain prompt mid-turn, and Defrag waits for the owner's turn and sends again.
+ */
+async function prompt(
+  deps: BrainLaneDeps,
+  lane: OpenLane,
+  message: string,
+  signal: AbortSignal,
+  sending: () => void,
+): Promise<TurnEnd> {
+  for (;;) {
+    await settled(lane, signal)
+    const end = await send(deps, lane, message, signal, sending)
+    if (end) return end
+  }
+}
+
+/** One try at the message: null when pi refused it because a turn started first. */
+function send(
   deps: BrainLaneDeps,
   { sessionId, client }: OpenLane,
   message: string,
   signal: AbortSignal,
-): Promise<TurnEnd> {
+  sending: () => void,
+): Promise<TurnEnd | null> {
   return new Promise((resolve) => {
-    let ended = false
-    const finish = (outcome: TurnEnd['outcome'], error: string | null = null) => {
-      if (ended) return
-      ended = true
+    let accepted = false
+    let started = false
+    let early: TurnEnd | undefined
+    let done = false
+    const finish = (end: TurnEnd | null) => {
+      if (done) return
+      done = true
       client.off('event', onEvent)
       client.off('exit', onExit)
       signal.removeEventListener('abort', onAbort)
-      resolve({ outcome, error })
+      resolve(end)
     }
+    // pi may end a turn before it answers the prompt; that end is ours only once it accepts.
+    const ending = (end: TurnEnd) => (accepted ? finish(end) : (early ??= end))
     const onEvent = (event: PiEvent) => {
-      if (event.type === 'agent_end' && !event.willRetry) {
-        const end = runEnd(event.messages)
-        finish(end.outcome, end.error)
-      }
-      if (event.type === 'extension_error') finish('failed', `Extension error: ${event.error}`)
+      if (event.type === 'agent_start') started = true
+      if (event.type === 'agent_end' && !event.willRetry) ending(runEnd(event.messages))
+      if (event.type === 'extension_error')
+        ending({ outcome: 'failed', error: `Extension error: ${event.error}` })
     }
-    const onExit = () => finish('failed', BRAIN_LANE_CLOSED)
+    const onExit = () => finish({ outcome: 'failed', error: BRAIN_LANE_CLOSED })
+    const abort = () => void deps.command(sessionId, { type: 'abort' }).catch(() => undefined)
+    // A message pi has not accepted may wait behind the owner's: only Defrag's own turn stops.
     const onAbort = () => {
-      void deps.command(sessionId, { type: 'abort' }).catch(() => undefined)
-      finish('stopped')
+      if (accepted) abort()
+      finish({ outcome: 'stopped', error: null })
+    }
+    const answered = async (response: RpcResponse) => {
+      if (response.success) {
+        // Stopped while the message waited: end the turn pi has just started for it.
+        if (done) {
+          if (signal.aborted) abort()
+          return
+        }
+        accepted = true
+        sending()
+        if (early) finish(early)
+        return
+      }
+      if (done) return
+      const owner = started || !(await idle(client).catch(() => true))
+      finish(
+        owner ? null : { outcome: 'failed', error: response.error ?? 'pi refused the message.' },
+      )
     }
     client.on('event', onEvent)
     client.on('exit', onExit)
     signal.addEventListener('abort', onAbort, { once: true })
     if (signal.aborted) return onAbort()
     if (!client.alive) return onExit()
-    deps.command(sessionId, { type: 'prompt', message }).then(
-      (response) => {
-        if (!response.success) finish('failed', response.error ?? 'pi refused the message.')
-      },
-      (error: unknown) => finish('failed', text(error)),
-    )
+    deps
+      .command(sessionId, { type: 'prompt', message })
+      .then(answered)
+      .catch((error: unknown) => finish({ outcome: 'failed', error: text(error) }))
   })
 }
 
@@ -177,10 +224,7 @@ export function createBrainAgentLane(deps: BrainLaneDeps): BrainAgentHost {
         await ensureBrainLane(deps.folder)
         before = await readBrainRules(deps.folder)
         lane = await open(deps, hooks.opened)
-        await settled(lane, signal)
-        // From here Brain Agent answers Defrag, not the owner.
-        hooks.sending()
-        end = await prompt(deps, lane, message, signal)
+        end = await prompt(deps, lane, message, signal, hooks.sending)
       } catch (error) {
         end = signal.aborted
           ? { outcome: 'stopped', error: null }
