@@ -243,7 +243,9 @@ describe('foundation CI wiring', () => {
     expect(job('changes')).toContain('mac: ${{ steps.mac.outputs.mac }}')
     // A bare `self-hosted` would hand Linux work to the Mac; no other job leaves the project.
     expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-/m)
-    expect(workflow.match(/macos-15/g)).toHaveLength(2)
+    // The two fallbacks (the picker's and runs-on's own) are the only GitHub Mac.
+    const config = workflow.replace(/^\s*#.*$/gm, '')
+    expect(config.match(/macos-15/g)).toHaveLength(2)
   })
 
   it('narrows only the app jobs, by the changes job, and always runs the checks', () => {
