@@ -861,7 +861,9 @@ A missing transcript is not an error; other failures stay visible in the
 confirmation so archiving can be retried. Pending rows do not invent a
 timestamp from the current time.
 
-Concurrent opens of the same transcript share one process. Main serializes
+Concurrent opens of the same transcript share one process. Opening a lane whose turn is
+running, such as the Brain lane during Defrag, loads its history and then follows the turn:
+events that arrived during the load apply once, and artifacts made meanwhile stay. Main serializes
 resume and deletion by transcript path, cancels queued or hung startup opens,
 and stops every matching writer (including
 handles not yet adopted by the renderer), then trashes the file. Deleting a

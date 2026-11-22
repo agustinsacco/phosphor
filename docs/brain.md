@@ -185,9 +185,6 @@ The approval check on the bridge refuses with:
 - A deleted lane, fresh or stale: “This lane was deleted, so this review can't be refreshed. Reject it.”
   The lane counts as deleted only when neither the stored transcript nor its `.archived` twin exists.
 
-Before sending an approval, `brain_decide_read` opens the review. If that check rules out
-the lane, the tool answers “Brain never reads this lane, so it cannot be approved. Reject it instead.”
-
 A title-rule match takes precedence in the lane menu:
 **Brain never reads this lane (title rule in Settings › Brain)** is disabled, with no Queue or
 per-lane switch that could falsely promise to override the title rule. A lane excluded only by
@@ -421,14 +418,17 @@ whole read with `brain_decide_read` (Brain Agent and Defrag). The proposal holds
   confirmation is held too.
 
 **Approve** stores the chosen memories, identity answers, confirmed groups and chosen
-descriptions in one transaction; **Reject** stores nothing. Unless Brain Agent lists the
-memories to save, `brain_decide_read` saves every memory that is not held, on every page. A held
+descriptions in one transaction; **Reject** stores nothing. `brain_decide_read` sends Brain
+Agent's choices as they are, and Brain builds the decision in the main process against the
+stored read: it checks the lane, then the revision, then the choices. Unless Brain Agent lists
+the memories to save, approval saves every memory that is not held, on every page. A held
 memory is saved only when listed, and a held confirmation adds its quote, or becomes a new
 memory, only when listed. Listing a confirmation that is not held is refused (“Brain
 confirmation choice is invalid.”). Confirmations that are not held add their quotes with any
-approval. Approval that saves anything naming an unanswered required identity is refused: the
-tool lists the questions, and the engine says “Say whether “Rina Okafor” is someone Brain already knows or someone new
-before approving.” Any other uncertain entity without an answer becomes new, and only entities
+approval. Approval that saves anything naming an unanswered required identity is refused and
+saves nothing: “Not approved: answer e2, e5 first, in identities ({ ref, answer: an entity id
+or "new" }). Open brain_read_review for their candidates.” It names up to ten refs, then “and
+N more”. Any other uncertain entity without an answer becomes new, and only entities
 that a saved memory or group uses are created. A reused record keeps its stored description
 unless the decision chooses the read's. A confirmed group creates or reuses the parent and one
 fact per member (“X is part of Harbor”), quoted as “Brain Agent, in review”. Identity and
@@ -874,7 +874,10 @@ in place of recall's, so the Brain lane has no `brain_flag`. Every other lane ke
 counts entries across identities, groups, memories and confirmations, in that order. Each
 page says what it showed and where to continue, for example “Identities 1–2 of 2; Memories
 1–40 of 100. Call again with offset 42.” The last page says “That is the end of this read.” A
-proposal that fits in one reply has no page line.
+proposal that fits in one reply has no page line. Brain builds each page in the main process,
+so the bridge carries one page of at most 8,000 characters, never the whole read: every page of
+any read the extractor can produce opens, up to 300 memories each quoted twice. An offset must
+be a whole number, 0 or more (“Brain review offset must be a whole number, 0 or more.”).
 
 Every write takes a one-line reason of 1–300 characters, scrubbed of secrets. Results are short
 text with the ids the next call needs. Stored text arrives wrapped as data. Brain scrubs lane
@@ -903,13 +906,16 @@ Defrag. 31 waiting: 6 reads, 10 people and things, 13 repeats, 1 disagreement, 1
 When the local pass left unchecked pairs, it adds “, and up to 40 possible repeats” before the
 final period; those are not counted in the header. The turn opens the lane as you would, so its
 events reach every window and its dialogs reach you. If you have a turn running in that lane,
-the run waits for it to settle and never interrupts it.
+the run waits for it to settle and never interrupts it. The run owns Brain Agent's changes only
+from when its own message is sent until that turn ends, so what you ask for while it waits
+belongs to no run.
 
 Brain Agent decides in order: reads, people and things, repeats and disagreements, flags, then
 possible repeats, and ends with a short summary. Approving a read changes Brain, so the next
-read goes stale. During a run, `brain_read_review` and `brain_decide_read` refresh a stale read
-inline. They reuse the saved extraction and ask again only questions whose inputs changed.
-Outside a run, they request a refresh through the queue and wait up to ten minutes, then refuse
+read goes stale. While Defrag holds the worker, including while the run waits for your turn,
+`brain_read_review` and `brain_decide_read` refresh a stale read inline. They reuse the saved
+extraction and ask again only questions whose inputs changed. Otherwise they request a refresh
+through the queue and wait up to ten minutes, then refuse
 with “This read is still refreshing because Brain changed since it was read. Try it again in a
 few minutes.” The requested refresh can still finish after that wait ends. Rejection does not
 refresh the read. If a read refreshes between opening and deciding it, approval saves nothing.
@@ -917,17 +923,20 @@ Brain Agent opens it again and decides on the new revision.
 
 **Stop** (`brain:defragStop`): a queued run never starts and ends stopped; a running one aborts
 Brain Agent's turn; a run still waiting for your own turn in that lane ends stopped without
-touching it. Stop during an inline refresh puts the read back in review with its stored
-proposal and records no read failure. The worker waits for the inline refresh to settle on
-Stop, pause or quit, so two attempts cannot overlap. Changes made so far stay and can be undone.
-A run interrupted by quitting ends failed with “Phosphor closed during Defrag.” A lane that
-exits mid-turn fails with “Brain Agent’s lane closed before the turn ended.” Other failures
-keep the first line of their error (“Brain Agent stopped before it finished.” when there is none).
+touching it. Stop during an inline refresh in Brain Agent's turn puts the read back in review
+with its stored proposal and records no read failure; one your own turn started while the run
+waited keeps going. The worker waits for an inline refresh to settle on Stop, pause or quit, so
+two attempts cannot overlap. Changes made so far stay and can be undone. A run interrupted by
+quitting ends failed with “Phosphor closed during Defrag.” A lane that exits mid-turn fails with
+“Brain Agent’s lane closed before the turn ended.” A turn whose last answer ended in a provider
+or pi error fails with that error's first line, and one stopped in the lane ends stopped. Other
+failures keep the first line of their error (“Brain Agent stopped before it finished.” when
+there is none, or when the turn ended without an answer).
 
 ### Undo, runs and the journal
 
 Every Brain Agent change is journaled as Brain Agent's, with its run (none when you asked in its
-lane outside a Defrag), its read and its reason. Approve and reject can be undone: the read
+lane outside a Defrag's own turn), its read and its reason. Approve and reject can be undone: the read
 returns to waiting with the same proposal, and refreshes if stale when Brain Agent opens it.
 Undo refuses, changing nothing, with “Later changes touch this Brain change; it cannot be cleanly
 undone.” when later changes depend on the change, when the read was retitled or pruned since, or
@@ -936,12 +945,17 @@ reject or a keep does not make waiting reads stale. A keep is journaled, and und
 the suggestion.
 
 **Undo run** (`brain:undoRun`) reverses a run's changes newest first, each on its own, skipping
-changes already undone. Automatic folds from its local pass are not the run's: Undo run leaves
-them, and each keeps its own Undo in Recent changes. Erasures, and changes that later edits depend on or that refuse to undo,
-stay and count as kept. It refuses while the run is queued or running: “Wait for Defrag to
-finish before undoing its run.” A run counts `decided` (changes made, including ones later
-undone), `erased` and `undoable`. Brain keeps the newest 20 runs and the newest 200 journal
-operations, plus every change of the latest run and every erasure younger than an hour.
+changes already undone. Changes made in the same millisecond go in the reverse of the order they
+were made. Each undo works as it does alone: an undone merge, fold, dispute or replacement is
+remembered as dismissed, so it doesn't wait for the next Defrag; an undone keep reopens its
+suggestion; an undone approval or rejection puts the read back to waiting. Automatic folds from
+the run's local pass are not the run's: Undo run leaves them, and each keeps its own Undo in
+Recent changes. Erasures, and changes that later edits depend on or that refuse to undo, stay
+and count as kept. It refuses while the run is queued or running: “Wait for Defrag to finish
+before undoing its run.” A run counts `decided` (changes made, including ones later undone),
+`erased` and `undoable`. Brain keeps the newest 20 runs and the newest 200 journal operations
+(in the order they were made), plus every change of the latest run and every erasure younger
+than an hour.
 
 ### Corrections and erasures
 
@@ -1043,4 +1057,7 @@ project's memories as context, and to report a dispute rather than pick a side.
   clean restoration. Forget and erasures are never undone.
 - An extension that loads before the Brain extension and starts a child process while loading
   can still pass the bridge credentials to that child.
+- Brain Agent's calls cross the local bridge in frames of at most 512 KiB. A read page is at
+  most 8,000 characters, and in `brain_decide_read` each list of choices holds at most 400
+  entries, an identity ref at most 64 characters and an answer at most 200.
 - Desktop only, one machine. Nothing syncs between machines or to Hosts.
