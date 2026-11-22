@@ -263,7 +263,12 @@ the code imports now, or delete the mock.
 
 CI runs on the project's own runners, three Linux (x64) and one macOS (ARM64),
 selected by their `[self-hosted, Linux, X64]` and `[self-hosted, macOS, ARM64]`
-labels. Each runner takes one job
+labels. The one exception is the macOS e2e leg: `changes` asks the runners API
+whether the project Mac is online (`tools/scripts/mac-runner.mjs`), and while it
+is offline the leg runs on GitHub's `macos-15` instead of queueing until it
+returns. A busy Mac still takes it. The check needs the `RUNNER_STATUS_TOKEN`
+secret, a token with Administration (read) on this repository; without it (forks
+included) and on any doubt, the leg goes to GitHub's Mac. Each runner takes one job
 at a time, so jobs on the same OS queue and a split pays only when there is a
 runner instance to take it. Each job installs what it needs and runs each
 mandatory command exactly once:
