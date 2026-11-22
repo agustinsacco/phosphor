@@ -64,26 +64,39 @@ const text = (error: unknown): string => (error instanceof Error ? error.message
 
 /**
  * Resolves once the lane has no turn, compaction or queued message; rejects when it closes or
- * `signal` aborts. A turn the owner started is theirs to finish: waiting never aborts it.
+ * `signal` aborts. A turn the owner started is theirs to finish: waiting never aborts it. It
+ * listens before it asks, and asks again when a turn settles or a compaction ends, so an end
+ * pi prints with the busy state it answered is never missed.
  */
-async function settled({ client }: OpenLane, signal: AbortSignal): Promise<void> {
-  if (await idle(client)) return
-  await new Promise<void>((resolve, reject) => {
-    const done = (end: () => void) => {
+function settled({ client }: OpenLane, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    let waiting = true
+    const done = (error?: Error) => {
+      if (!waiting) return
+      waiting = false
       client.off('event', onEvent)
       client.off('exit', onExit)
       signal.removeEventListener('abort', onAbort)
-      end()
+      if (error) reject(error)
+      else resolve()
     }
+    const check = () =>
+      idle(client).then(
+        (yes) => {
+          if (yes) done()
+        },
+        (error: unknown) => done(error instanceof Error ? error : new Error(text(error))),
+      )
     const onEvent = (event: PiEvent) => {
-      if (event.type === 'agent_settled') done(resolve)
+      if (event.type === 'agent_settled' || event.type === 'compaction_end') void check()
     }
-    const onExit = () => done(() => reject(new Error(BRAIN_LANE_CLOSED)))
-    const onAbort = () => done(() => reject(new Error('stopped')))
+    const onExit = () => done(new Error(BRAIN_LANE_CLOSED))
+    const onAbort = () => done(new Error('stopped'))
     client.on('event', onEvent)
     client.on('exit', onExit)
     signal.addEventListener('abort', onAbort, { once: true })
-    if (signal.aborted) onAbort()
+    if (signal.aborted) return onAbort()
+    void check()
   })
 }
 
@@ -145,12 +158,17 @@ function send(
       if (done) return
       done = true
       client.off('event', onEvent)
+      client.off('response', onResponse)
       client.off('exit', onExit)
       signal.removeEventListener('abort', onAbort)
       resolve(end)
     }
-    // pi may end a turn before it answers the prompt; that end is ours only once it accepts.
+    // An end can arrive before the prompt's waiter resumes. pi prints a prompt's response before
+    // its turn's events, so only an end after the last prompt response is this turn's.
     const ending = (end: TurnEnd) => (accepted ? finish(end) : (early ??= end))
+    const onResponse = (response: RpcResponse) => {
+      if (response.command === 'prompt') early = undefined
+    }
     const onEvent = (event: PiEvent) => {
       if (event.type === 'agent_start') started = true
       if (event.type === 'agent_end' && !event.willRetry) ending(runEnd(event.messages))
@@ -183,6 +201,7 @@ function send(
       )
     }
     client.on('event', onEvent)
+    client.on('response', onResponse)
     client.on('exit', onExit)
     signal.addEventListener('abort', onAbort, { once: true })
     if (signal.aborted) return onAbort()
