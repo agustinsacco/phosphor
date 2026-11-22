@@ -3,7 +3,7 @@
 ## Window & chrome
 
 - Frameless everywhere: `hiddenInset` traffic lights on macOS, a theme-matched
-  `titleBarOverlay` for the Windows/Linux window buttons. **There is no
+  `titleBarOverlay` for the Linux window buttons. **There is no
   application menu**, so every command reaches you through the top bar, the
   command palette or a key binding. Chromium's zoom accelerators are
   re-implemented by hand in `useGlobalShortcuts.ts`.

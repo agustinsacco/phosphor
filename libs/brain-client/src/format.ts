@@ -41,11 +41,7 @@ function day(ms: number): string {
 function inProject(scope: string, cwd: string | undefined): boolean {
   if (!cwd) return false
   const rel = relative(scope, cwd)
-  return (
-    !isAbsolute(rel) &&
-    rel !== '..' &&
-    !rel.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
-  )
+  return !isAbsolute(rel) && rel !== '..' && !rel.startsWith('../')
 }
 function section(memory: BrainMemory, branch: string | null, now: number): Section {
   if (memory.state === 'disputed') return 'disputed'

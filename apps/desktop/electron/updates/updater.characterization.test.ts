@@ -201,25 +201,19 @@ it('polls the manifest by hand for a deb install or an unsigned AppImage', async
   expect(f.updaterLoads).toBe(0)
 })
 
-it('names the arm64 Linux and the Windows manifests per platform and arch', async () => {
+it('names the arm64 Linux manifest per arch', async () => {
   f.body = 'version: 1.0.0\n'
   setHost('linux', 'arm64')
-  await (await import('./updater')).checkForUpdates()
-  vi.resetModules()
-  setHost('win32', 'x64')
-  const windows = await import('./updater')
-  await windows.checkForUpdates()
-  expect(fetchedUrls()).toEqual([`${DOWNLOAD}/latest-linux-arm64.yml`, `${DOWNLOAD}/latest.yml`])
-  expect(windows.currentUpdateState()).toEqual({ phase: 'idle' })
+  const updater = await import('./updater')
+  await updater.checkForUpdates()
+  expect(fetchedUrls()).toEqual([`${DOWNLOAD}/latest-linux-arm64.yml`])
+  expect(updater.currentUpdateState()).toEqual({ phase: 'idle' })
 })
 
-it('uses electron-updater for signed macOS and Windows builds without probing the bundle', async () => {
+it('uses electron-updater for a signed macOS build without probing the bundle', async () => {
   writeSignedFlag(true)
   await (await import('./updater')).checkForUpdates()
-  vi.resetModules()
-  setHost('win32', 'x64')
-  await (await import('./updater')).checkForUpdates()
-  expect(f.updaterCheck).toHaveBeenCalledTimes(2)
+  expect(f.updaterCheck).toHaveBeenCalledTimes(1)
   expect(f.canSwap).not.toHaveBeenCalled()
   expect(f.fetch).not.toHaveBeenCalled()
 })

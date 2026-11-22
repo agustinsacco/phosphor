@@ -41,8 +41,7 @@ function spawnWorker(): VoiceWorker {
 
 /**
  * macOS asks once and remembers per app; the answer lives in System Settings
- * → Privacy & Security → Microphone. Windows has a global switch that
- * `getMediaAccessStatus` reports. Linux has no OS gate to ask.
+ * → Privacy & Security → Microphone. Linux has no OS gate to ask.
  */
 async function allowMicrophone(): Promise<boolean> {
   if (process.platform === 'linux') return true

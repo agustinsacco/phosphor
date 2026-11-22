@@ -1070,6 +1070,6 @@ sizes for at most four worktrees at a time, rather than spawning subprocesses
 for every registered checkout together. These bounds do not queue interactive
 Git operations behind background scans.
 
-Sizes come from `du`, which Windows lacks; an unmeasured size reports "unknown"
+Sizes come from `du`; an unmeasured size reports "unknown"
 and the policy never depends on the number. The scheduler is a plain interval
 in main with a 5-minute warmup and a 15-minute floor, one sweep at a time.

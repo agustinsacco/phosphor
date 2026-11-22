@@ -20,14 +20,6 @@ export function uriPaths(text: string): string[] {
   })
 }
 
-/** Windows DROPFILES: byte offset, POINT, fNC, fWide, then a double-NUL list. */
-export function dropPaths(buffer: Buffer): string[] {
-  if (buffer.length < 20) return []
-  const offset = buffer.readUInt32LE(0)
-  if (offset < 20 || offset >= buffer.length || !buffer.readUInt32LE(16)) return []
-  return buffer.subarray(offset).toString('utf16le').split('\0').filter(Boolean)
-}
-
 export async function readFileClipboard(): Promise<{ paths: string[]; cut: boolean }> {
   // macOS omits custom/native file formats from availableFormats(), even
   // when readBuffer can read them. Probe the bytes, not the enumeration.
@@ -59,10 +51,6 @@ async function nativeFilePaths(): Promise<string[]> {
     })
     const paths: unknown = JSON.parse(json)
     return Array.isArray(paths) ? paths.filter((p): p is string => typeof p === 'string') : []
-  }
-  if (process.platform === 'win32') {
-    const paths = dropPaths(clipboard.readBuffer('CF_HDROP'))
-    if (paths.length) return paths
   }
   for (const format of ['text/uri-list', 'public.file-url', 'x-special/gnome-copied-files']) {
     const paths = uriPaths(clipboard.readBuffer(format).toString())

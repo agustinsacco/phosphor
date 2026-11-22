@@ -150,7 +150,7 @@ describe('comprehensive typecheck runner', () => {
         ]),
     )
     expect(calls.at(-1)).toEqual({
-      command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+      command: 'npm',
       args: ['run', 'check'],
       cwd: join(root, 'apps/site'),
     })
@@ -235,37 +235,6 @@ describe('typecheck review regressions', () => {
       })
     },
   )
-
-  it('spawns Windows npm.cmd through a shell', () => {
-    const root = runnerFixture()
-    const output = execFileSync(
-      process.execPath,
-      [
-        '--input-type=module',
-        '-e',
-        `
-        import cp from 'node:child_process'
-        import { syncBuiltinESMExports } from 'node:module'
-        const calls = []
-        cp.spawnSync = (command, args, options) => {
-          calls.push({ command, args, options })
-          return { status: 0 }
-        }
-        syncBuiltinESMExports()
-        Object.defineProperty(process, 'platform', { value: 'win32' })
-        const { runTypecheck } = await import(${JSON.stringify(new URL('../typecheck.mjs', import.meta.url).href)})
-        runTypecheck(${JSON.stringify(root)})
-        console.log(JSON.stringify(calls.at(-1)))
-      `,
-      ],
-      { encoding: 'utf8' },
-    )
-    expect(JSON.parse(output)).toMatchObject({
-      command: 'npm.cmd',
-      args: ['run', 'check'],
-      options: { cwd: join(root, 'apps/site'), shell: true },
-    })
-  })
 
   it('keeps the desktop-only node-pty module out of the tools-wide types list', () => {
     const config = JSON.parse(readFileSync(join(repo, 'tsconfig.tools.json'), 'utf8'))
