@@ -38,6 +38,7 @@ export interface HostMachine {
   /** In Desktop's grammar; '' is the 200k default. */
   contextBudget: string
   machineContext?: Extract<MachineContext, { kind: 'host' }>
+  headroom?: import('./headroom').DaemonHeadroom
   shellEnvironment?: HostShellEnvironment
   log: HostLog
 }

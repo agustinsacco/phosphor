@@ -196,6 +196,7 @@ describe('runCli report commands', () => {
       protocolVersion: 1,
       sourceSha: null,
       node: '22.22.3',
+      features: ['headroom'],
     })
     expect(names()).toEqual([])
   })

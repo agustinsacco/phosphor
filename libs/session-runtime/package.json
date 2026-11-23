@@ -468,6 +468,10 @@
       "types": "./src/headroom/proxy-detection.ts",
       "default": "./src/headroom/proxy-detection.ts"
     },
+    "./headroom/relay": {
+      "types": "./src/headroom/relay.ts",
+      "default": "./src/headroom/relay.ts"
+    },
     "./headroom/supervisor": {
       "types": "./src/headroom/supervisor.ts",
       "default": "./src/headroom/supervisor.ts"

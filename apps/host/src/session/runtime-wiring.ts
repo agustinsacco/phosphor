@@ -80,6 +80,7 @@ export function wireRuntimeStartup(
       machine.appServices
         ? { appServices: machine.appServices, resourceRoot: machine.resourceRoot }
         : undefined,
+      machine.headroom,
     ),
   })
 }

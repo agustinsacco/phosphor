@@ -63,6 +63,7 @@ export interface LocalSocketLanes {
 /** The owner socket as run drives it. */
 export interface LocalSocket {
   readonly appServices?: AppServices
+  headroom?: import('../session/headroom').DaemonHeadroom
   stop(): Promise<void>
   /**
    * Starts serving lanes, ops and the machine guard beside the owner calls.

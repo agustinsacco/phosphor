@@ -131,6 +131,7 @@ async function startRun(
     sink,
     webPush,
     appServices: socket?.appServices,
+    headroom: socket?.headroom,
     local: !!local,
   }
   const machine = await startRunMachine(context, parts, ports, signal)

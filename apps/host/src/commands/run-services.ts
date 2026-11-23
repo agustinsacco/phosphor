@@ -4,7 +4,7 @@ import { type HostShellEnvironment, FEATURE as SHELL_FEATURE } from '../machine/
 import { createOpsService, FEATURE as OPS_FEATURE } from '../ops/service'
 import { createReach, FEATURE as REACH_FEATURE } from '../reach'
 import { type AppServices, FEATURE as APP_SERVICES_FEATURE } from '../session/app-services'
-import { createHeadroomService, FEATURE as HEADROOM_FEATURE } from '../session/headroom'
+import { type DaemonHeadroom, FEATURE as HEADROOM_FEATURE } from '../session/headroom'
 
 /** What `phosphor version --json` reports this build can do: every built service's feature. */
 export function runServiceFeatures(): readonly HostReleaseFeature[] {
@@ -22,11 +22,12 @@ export function runServiceFeatures(): readonly HostReleaseFeature[] {
 export function createRunServices(
   shellEnvironment?: HostShellEnvironment,
   appServices?: AppServices,
+  headroom?: DaemonHeadroom,
 ) {
   return {
     ops: createOpsService(),
     reach: createReach(),
-    headroom: createHeadroomService(),
+    headroom: headroom ?? null,
     appServices: appServices ?? null,
     pauses: createLanePauses(),
     shellEnvironment: shellEnvironment ?? null,

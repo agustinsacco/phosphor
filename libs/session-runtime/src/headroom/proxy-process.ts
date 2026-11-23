@@ -116,7 +116,7 @@ export class HeadroomProxyProcess {
     this.state.running = false
   }
 
-  async startOwned(): Promise<void> {
+  async startOwned(signal?: AbortSignal): Promise<void> {
     const found = await this.detect()
     if (!found.binaryPath) {
       this.state.lastError = 'headroom is not installed'
@@ -133,8 +133,10 @@ export class HeadroomProxyProcess {
 
     const started = Date.now()
     this.state.childStartedAt = started
+    const env = proxyEnv(await this.deps.envImpl())
+    signal?.throwIfAborted()
     const spawned = this.deps.spawnImpl(found.binaryPath, proxyArgs(this.port), {
-      env: proxyEnv(await this.deps.envImpl()) as Record<string, string>,
+      env: env as Record<string, string>,
       stdio: ['ignore', 'ignore', 'pipe'],
       // Deliberately NOT detached: if Phosphor dies without will-quit firing,
       // the OS still tears the proxy down with the process group.

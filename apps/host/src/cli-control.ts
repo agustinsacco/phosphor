@@ -1,7 +1,7 @@
 import type { CliOptions } from './cli-args'
 import { configPathOf, type CliContext, type CliIo, type CommandOf } from './cli-handlers'
 import { runHost } from './commands/run'
-import { createLocalSocketStarter } from './owner/socket'
+import { headroomSocketStarter } from './session/headroom-run'
 import { runService } from './commands/service'
 import { runLogin } from './commands/login'
 import { runLogout } from './commands/logout'
@@ -96,7 +96,7 @@ export async function handleRun(
   try {
     const context = { ...run, supervisor: command.supervisor }
     // Only a Host with the local-mode marker starts the socket; a headless Host never calls it.
-    return await runHost({ ...context, startLocalSocket: createLocalSocketStarter(context) })
+    return await runHost({ ...context, startLocalSocket: headroomSocketStarter(context) })
   } finally {
     lifetime.end()
   }

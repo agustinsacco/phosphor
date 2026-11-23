@@ -1,9 +1,14 @@
 import type { SpawnContribution } from '@phosphor/session-runtime/pi/spawn-contributions'
+import type { DaemonHeadroom } from '../headroom'
 
-/**
- * The Headroom relay socket for the Host's lanes. Null until that
- * feature lands, so spawns stay unchanged.
- */
-export function createHeadroomContribution(): SpawnContribution | null {
-  return null
+export function createHeadroomContribution(headroom?: DaemonHeadroom): SpawnContribution | null {
+  return headroom
+    ? {
+        name: 'headroom',
+        spawn() {
+          const path = headroom.socket()
+          return path ? { env: { PHOSPHOR_HEADROOM_SOCKET: path } } : undefined
+        },
+      }
+    : null
 }

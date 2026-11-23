@@ -1112,7 +1112,7 @@ An invalid existing config does not get that next step.
 | `providers`                    | Once pi itself passes: a provider is signed in, and pi's default provider is, when it has one ([providers](#providers)). With no pi provider signed in but a ready claude lane, this is information, not a warning.                                                                                                 | warning       |
 | `Tailscale`, `Tailscale serve` | Checks local Tailscale readiness and the configured Serve route. Missing transport warns; Funnel or a conflicting route fails.                                                                                                                                                                                      | warning or 78 |
 | `context-budget`               | The effective session context budget.                                                                                                                                                                                                                                                                               | never         |
-| `accounts`, `compression`      | Unavailable on a Host: pi uses the logins of the user running it, and there is no Headroom proxy.                                                                                                                                                                                                                   | never         |
+| `accounts`, `compression`      | Informational: pi uses the logins of the user running it. Headroom is optional in local mode (see below).                                                                                                                                                                                                           | never         |
 
 Two lanes come out of the checks:
 
@@ -1331,7 +1331,7 @@ a lane service. It logs only `lanes.unavailable` with a fixed reason token.
   start, with no per-project overrides; pi's own settings for the default provider, and pi's packages for
   the Claude gate; the config's context budget, re-read at each lane start, prompt
   and settled turn; and every CLAUDE.md / AGENTS.md pi
-  finds. There are no Desktop account overlays, Headroom or recents. `run` supplies
+  finds. There are no Desktop account overlays or recents. `run` supplies
   routine ownership guards for manual commands, resume, stop and deletion. Only
   the idle context-budget fallback pauses for routine-owned sessions; native
   in-loop compaction remains enabled.
@@ -2234,3 +2234,7 @@ of label, kind, percent used and reset time) or
 Failures are not cached. An unknown or removed lane is `unknown-lane`. Unlike the
 other machine reads it does not wait in the pi probe queue, since it runs the
 Claude CLI and concurrent callers share one run per account.
+
+### Headroom in local mode
+
+`headroom.set {enabled}` on the owner socket saves the switch in `<state>/headroom.json` (off by default). `headroom.status` reports `off`, `starting`, `ready` or `failed`. After the daemon owns the lanes it starts its own `headroom proxy` on a free loopback port. It checks the listening socket belongs to that child before giving new lanes `PHOSPHOR_HEADROOM_SOCKET`. The relay in the private run folder accepts only `GET /health` and `POST /v1/compress` (8 MiB limit); it returns 503 if the child exits. No daemon lane gets the TCP URL. If startup or ownership verification fails, lanes continue without compression; setting the switch on again retries.

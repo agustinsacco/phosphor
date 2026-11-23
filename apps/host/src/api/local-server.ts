@@ -89,7 +89,7 @@ function answering(path: string): Promise<boolean> {
 }
 
 /** Removes a stale socket file. Run holds its run lock; a live listener or any other file is refused. */
-async function clearStaleSocket(path: string): Promise<void> {
+export async function clearStaleSocket(path: string): Promise<void> {
   let info
   try {
     info = lstatSync(path)

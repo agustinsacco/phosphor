@@ -12,13 +12,14 @@ export function hostSpawnContributions(
   shell: HostShellEnvironment | undefined,
   log: HostLog,
   brain?: Parameters<typeof createBrainContribution>[0],
+  headroom?: import('../headroom').DaemonHeadroom,
 ): readonly SpawnContribution[] {
   shell?.bindLog(log)
   return [
     shell ? shellEnvironmentContribution(shell) : null,
     createOpsContribution(),
     createDirectivesContribution(),
-    createHeadroomContribution(),
+    createHeadroomContribution(headroom),
     brain ? createBrainContribution(brain) : null,
   ].filter((contribution) => contribution !== null)
 }

@@ -42,6 +42,7 @@ export interface RunMachinePorts {
   stateDirectory: string
   store: HostStore
   sink: ReceiptSink
+  headroom?: import('../session/headroom').DaemonHeadroom
   webPush: StartWebPush
 }
 
@@ -70,7 +71,7 @@ async function startRuntime(
       )
     : undefined
   const runtime = createHostRuntime(
-    { ...machine, log, appServices: ports.appServices },
+    { ...machine, log, appServices: ports.appServices, headroom: ports.headroom },
     {
       leases,
       claudeAccounts: accounts,
@@ -210,8 +211,9 @@ export async function startRunMachine(
   const machine = inspection.machine
   const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
   parts.log = log
+  ports.headroom?.activate(machine.env)
   const started = await startRuntime(context, parts, ports, machine, log)
-  parts.services = createRunServices(machine.shellEnvironment, ports.appServices)
+  parts.services = createRunServices(machine.shellEnvironment, ports.appServices, ports.headroom)
   const { live, runtime, routines } = started
   const {
     features: administrationFeatures,

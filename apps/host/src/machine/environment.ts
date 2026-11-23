@@ -29,6 +29,8 @@ const BASE_NAMES = new Set([
 /** Loader and shell hooks. Never passed, even when the config names them. */
 const DENIED_PREFIXES = ['LD_', 'DYLD_']
 const DENIED_NAMES = new Set([
+  'PHOSPHOR_HEADROOM_URL',
+  'PHOSPHOR_HEADROOM_SOCKET',
   'NODE_OPTIONS',
   'BASH_ENV',
   'ENV',

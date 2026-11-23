@@ -84,7 +84,9 @@ export async function inspectProbes(
   }
   checks.push(budgetCheck(config.contextBudget ?? ''))
   checks.push(info('accounts', 'unavailable on a Host: pi uses the logins of the user running it'))
-  checks.push(info('compression', 'unavailable on a Host: there is no Headroom proxy'))
+  checks.push(
+    info('compression', 'optional in local mode: see headroom.status on the owner socket'),
+  )
   const tailscale = await inspectTailscale(config, context.env, context.platform, context.tailscale)
   checks.push(...tailscaleChecks(tailscale))
 
