@@ -270,6 +270,8 @@ export const HOST_SIDECARS = {
   updateResult: 'update-result.json',
   headroom: 'headroom.json',
   appServices: 'app-services.json',
+  /** In the state folder: where Claude account metadata lives when it is not `<state>/claude-accounts`. */
+  claudeAccounts: 'claude-accounts.json',
 } as const
 
 /**
