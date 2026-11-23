@@ -2,7 +2,10 @@ import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { afterEach, expect, it } from 'vitest'
-import { decompressRelease, extractRelease as extractTar } from './archive'
+import {
+  decompressRelease,
+  extractRelease as extractTar,
+} from '@phosphor/session-runtime/host-install/archive'
 const extractRelease = (bytes: Buffer, folder: string, maxBytes?: number) =>
   extractTar(decompressRelease(bytes, maxBytes), folder, maxBytes)
 import { fixture, tar } from './__fixtures__/release'

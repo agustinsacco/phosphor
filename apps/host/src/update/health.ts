@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { atomicRecord, readBounded } from './files'
+import { atomicRecord, readBounded } from '@phosphor/session-runtime/host-install/files'
 import { prepareStateDirectory } from '../lanes/state-dir'
 
 export interface RunHealth {

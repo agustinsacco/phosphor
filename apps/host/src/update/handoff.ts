@@ -3,8 +3,8 @@ import { join } from 'node:path'
 import { HOST_RELEASE_VERSION_PATTERN } from '@phosphor/shared/host-release'
 import { HOST_UNIT, serviceRunner, type ServiceRunner } from '../machine/systemd'
 import type { UpdateContext, UpdateOptions } from '../commands/update'
-import { fetchSignedRelease, UpdateFailure } from './fetch'
-import { commandLayout } from './layout'
+import { fetchSignedRelease, UpdateFailure } from '@phosphor/session-runtime/host-install/fetch'
+import { commandLayout } from '@phosphor/session-runtime/host-install/layout'
 
 /** The transient unit an update moves into when the shell that started it is inside the Host. */
 export const UPDATE_UNIT = 'phosphor-host-update'

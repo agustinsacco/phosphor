@@ -2,7 +2,7 @@ import { realpath, stat } from 'node:fs/promises'
 import { sep } from 'node:path'
 import { parseFileParams, type FileParams } from '@phosphor/shared/host-protocol-files'
 import { FILE_BYTES_METHOD, parseFileBytesParams } from '@phosphor/shared/host-protocol-file-bytes'
-import { errnoIs } from '../../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import type { FeatureContext, FeatureOutcome } from '../feature'
 import { guardedBytes, guardedRead, type ReadPorts } from './read'
 

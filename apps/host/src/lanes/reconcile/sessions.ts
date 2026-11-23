@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { isUuid } from '@phosphor/shared/control-api'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
-import { errnoIs } from '../../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import type { ScanState } from '../reconcile'
 import { LaneCapacityReached, type HostStore } from '../store'
 

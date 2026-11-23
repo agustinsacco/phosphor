@@ -3,7 +3,7 @@ import type { PiEvent } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import type { SessionRegistry } from '@phosphor/session-runtime/pi/session-registry'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 
 export type HostState = 'booting' | 'validating' | 'ready' | 'draining' | 'stopped' | 'failed'
 

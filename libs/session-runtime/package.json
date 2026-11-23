@@ -447,6 +447,42 @@
     "./headroom/supervisor": {
       "types": "./src/headroom/supervisor.ts",
       "default": "./src/headroom/supervisor.ts"
+    },
+    "./fs-safety": {
+      "types": "./src/fs-safety.ts",
+      "default": "./src/fs-safety.ts"
+    },
+    "./host-install/verify": {
+      "types": "./src/host-install/verify.ts",
+      "default": "./src/host-install/verify.ts"
+    },
+    "./host-install/archive": {
+      "types": "./src/host-install/archive.ts",
+      "default": "./src/host-install/archive.ts"
+    },
+    "./host-install/download": {
+      "types": "./src/host-install/download.ts",
+      "default": "./src/host-install/download.ts"
+    },
+    "./host-install/fetch": {
+      "types": "./src/host-install/fetch.ts",
+      "default": "./src/host-install/fetch.ts"
+    },
+    "./host-install/files": {
+      "types": "./src/host-install/files.ts",
+      "default": "./src/host-install/files.ts"
+    },
+    "./host-install/layout": {
+      "types": "./src/host-install/layout.ts",
+      "default": "./src/host-install/layout.ts"
+    },
+    "./host-install/lock": {
+      "types": "./src/host-install/lock.ts",
+      "default": "./src/host-install/lock.ts"
+    },
+    "./host-install/lock-retirement": {
+      "types": "./src/host-install/lock-retirement.ts",
+      "default": "./src/host-install/lock-retirement.ts"
     }
   },
   "nx": {

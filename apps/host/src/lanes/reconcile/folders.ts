@@ -1,7 +1,7 @@
 import { lstat, opendir, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RepositorySummary } from '@phosphor/shared/host-protocol'
-import { errnoIs, isInside } from '../../fs-safety'
+import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
 import type { ScanState } from '../reconcile'
 
 export const RECONCILE_LIMITS = {

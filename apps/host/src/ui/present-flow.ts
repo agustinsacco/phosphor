@@ -1,5 +1,5 @@
 import type { SetupView, StepMark } from '../commands/guided-setup'
-import type { UpdateStep } from '../update/fetch'
+import type { UpdateStep } from '@phosphor/session-runtime/host-install/fetch'
 import type { EnrollmentCode } from '../control/command'
 import { showEnrollment } from './present-control'
 import { commands, nextStep } from './present-reports'

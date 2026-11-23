@@ -1,7 +1,11 @@
 import { rmSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { commandLayout, installedLayout, serviceProgram } from './layout'
+import {
+  commandLayout,
+  installedLayout,
+  serviceProgram,
+} from '@phosphor/session-runtime/host-install/layout'
 import { fixture } from './__fixtures__/release'
 const fixtures: ReturnType<typeof fixture>[] = []
 function setup() {

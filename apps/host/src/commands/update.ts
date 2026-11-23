@@ -16,16 +16,20 @@ import {
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { HOST_RELEASE_VERSION_PATTERN, type HostReleaseKey } from '@phosphor/shared/host-release'
-import { commandLayout, INSTALL_COMMAND, type InstalledLayout } from '../update/layout'
+import {
+  commandLayout,
+  INSTALL_COMMAND,
+  type InstalledLayout,
+} from '@phosphor/session-runtime/host-install/layout'
 import {
   compareVersions,
   fetchSignedRelease,
   stageRelease,
   UpdateFailure,
   type UpdateStep,
-} from '../update/fetch'
-import { acquireInstallLock, hasCode } from '../update/lock'
-import { atomicRecord, readBounded } from '../update/files'
+} from '@phosphor/session-runtime/host-install/fetch'
+import { acquireInstallLock, hasCode } from '@phosphor/session-runtime/host-install/lock'
+import { atomicRecord, readBounded } from '@phosphor/session-runtime/host-install/files'
 import { readRunHealth } from '../update/health'
 import { installLifetime, signalTurn } from '../update/lifetime'
 import { HOST_AGENT } from '../machine/launchd'
@@ -33,7 +37,11 @@ import { HOST_UNIT, serviceRunner } from '../machine/systemd'
 import { hostStateDirectory } from '../lanes/state-dir'
 import { runService, type ServiceContext } from './service'
 
-export { compareVersions, UpdateFailure, type UpdateStep } from '../update/fetch'
+export {
+  compareVersions,
+  UpdateFailure,
+  type UpdateStep,
+} from '@phosphor/session-runtime/host-install/fetch'
 
 export interface UpdateContext extends ServiceContext {
   json?: boolean

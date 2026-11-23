@@ -1,6 +1,6 @@
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: async () => [] }))
 import type * as Fs from 'node:fs'
-import type * as Archive from '../update/archive'
+import type * as Archive from '@phosphor/session-runtime/host-install/archive'
 import type * as RemoteHost from '@phosphor/shared/remote-host'
 import {
   mkdirSync,
@@ -17,8 +17,8 @@ import { gzipSync } from 'node:zlib'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fixture, tar, bundle } from '../update/__fixtures__/release'
 import { runUpdate, compareVersions, serviceState } from './update'
-import { atomicRecord } from '../update/files'
-import { acquireInstallLock } from '../update/lock'
+import { atomicRecord } from '@phosphor/session-runtime/host-install/files'
+import { acquireInstallLock } from '@phosphor/session-runtime/host-install/lock'
 import type { Drainable } from '../shutdown'
 
 const hooks = vi.hoisted(() => ({
@@ -52,7 +52,7 @@ vi.mock('@phosphor/shared/remote-host', async (original) => ({
     return hooks.protocol
   },
 }))
-vi.mock('../update/archive', async (original) => {
+vi.mock('@phosphor/session-runtime/host-install/archive', async (original) => {
   const archive = await original<typeof Archive>()
   return {
     ...archive,

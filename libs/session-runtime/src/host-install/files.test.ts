@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { atomicRecord } from './files'
-import { fixture } from './__fixtures__/release'
+import { scratch } from './__fixtures__/scratch'
 const hooks = vi.hoisted(() => ({ writeFailure: false, syncFailure: false, syncs: 0 }))
 vi.mock('node:fs', async (original) => {
   const fs = await original<typeof Fs>()
@@ -20,7 +20,7 @@ vi.mock('node:fs', async (original) => {
     },
   }
 })
-const fixtures: ReturnType<typeof fixture>[] = []
+const fixtures: ReturnType<typeof scratch>[] = []
 afterEach(() => {
   hooks.writeFailure = false
   hooks.syncFailure = false
@@ -28,7 +28,7 @@ afterEach(() => {
   for (const f of fixtures.splice(0)) f.cleanup()
 })
 it('syncs an atomic record at its required mode before replacing the old file', () => {
-  const f = fixture()
+  const f = scratch()
   fixtures.push(f)
   const path = join(f.home, 'record')
   writeFileSync(path, 'old')
@@ -45,7 +45,7 @@ it('syncs an atomic record at its required mode before replacing the old file', 
 it.each(['write', 'sync'])(
   'a failed %s keeps the old record and removes the temporary file',
   (failure) => {
-    const f = fixture()
+    const f = scratch()
     fixtures.push(f)
     const path = join(f.home, 'record')
     writeFileSync(path, 'old')

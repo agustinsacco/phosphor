@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { join } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { verifyReleaseManifest } from '../../apps/host/src/update/verify'
+import { verifyReleaseManifest } from '@phosphor/session-runtime/host-install/verify'
 import { HOST_PROTOCOL_VERSION } from '../../libs/shared/src/remote-host'
 import {
   type BundleFixture,

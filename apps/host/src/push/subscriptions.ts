@@ -4,7 +4,7 @@ import {
   WEB_PUSH_LIMITS,
   type WebPushSubscription,
 } from '@phosphor/shared/host-protocol-web-push'
-import { atomicRecord, readBounded } from '../update/files'
+import { atomicRecord, readBounded } from '@phosphor/session-runtime/host-install/files'
 
 /**
  * One device's registration, bound to the client, owner and enrollment epoch that made it.

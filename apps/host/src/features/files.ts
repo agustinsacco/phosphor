@@ -6,7 +6,7 @@ import { FILE_LIMITS, isFilePath, type FileRead } from '@phosphor/shared/host-pr
 import { FILE_BYTES_METHOD } from '@phosphor/shared/host-protocol-file-bytes'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import type { FeatureContext, FeatureOutcome, HostFeature } from './feature'
-import { errnoIs, isInside } from '../fs-safety'
+import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
 import { queryFiles } from './files/query'
 import { validateList } from './files/validate-list'
 

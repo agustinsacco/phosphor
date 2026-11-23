@@ -10,7 +10,7 @@ import {
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fixture } from '../update/__fixtures__/release'
-import { acquireInstallLock } from '../update/lock'
+import { acquireInstallLock } from '@phosphor/session-runtime/host-install/lock'
 import { HOST_PATH_BLOCK } from '../machine/shell-path'
 import { runUninstall } from './uninstall'
 const logout = vi.hoisted(() => ({ run: vi.fn(async () => ({ exitCode: 0, message: 'ok' })) }))

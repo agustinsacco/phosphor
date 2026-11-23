@@ -10,7 +10,7 @@ import {
 } from '@phosphor/shared/host-protocol'
 import type { LaneMarksChange } from '@phosphor/shared/host-protocol-lane-marks'
 import { SCHEMA } from './schema'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { openStoreDatabase } from './store/open'
 import { validateRepositoryIdentity } from './store/identity'
 import { LANE_SELECT, writeLaneMarks } from './store/marks'

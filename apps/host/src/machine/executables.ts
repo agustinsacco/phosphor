@@ -6,7 +6,7 @@ import { isPiTooOld, MIN_PI_VERSION } from '@phosphor/shared/models'
 import { extractVersion } from '@phosphor/session-runtime/pi/versions'
 import { EXIT, fail, pass, type Check } from '../checks'
 import type { HostConfigV1 } from '../config/schema'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { probe, probeFailure, type ProbeEnvironment } from './probe'
 
 /** The Host's own floor, and pi.node's when pi's package declares none. */

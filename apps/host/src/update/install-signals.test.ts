@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readlinkSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { fixture } from './__fixtures__/release'
-import { atomicRecord } from './files'
+import { atomicRecord } from '@phosphor/session-runtime/host-install/files'
 
 const fixtures: ReturnType<typeof fixture>[] = []
 afterEach(() => {

@@ -9,7 +9,7 @@ import {
   openSync,
 } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
-import { errnoIs, isOwnerPrivate } from '../fs-safety'
+import { errnoIs, isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
 
 export class StateFailure extends Error {
   constructor(

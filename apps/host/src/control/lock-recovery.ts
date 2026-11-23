@@ -2,7 +2,7 @@ import { mkdir, lstat, rmdir, unlink, type link } from 'node:fs/promises'
 import type { Stats } from 'node:fs'
 import { setTimeout } from 'node:timers/promises'
 import { isIsoTime } from '@phosphor/shared/control-api'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { readIdentityFileSnapshot } from './identity'
 
 export interface LockPorts {

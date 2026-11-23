@@ -5,7 +5,10 @@ import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { gunzipSync } from 'node:zlib'
 import { afterEach, describe, expect, it } from 'vitest'
-import { verifyReleaseArtifact, verifyReleaseManifest } from '../verify'
+import {
+  verifyReleaseArtifact,
+  verifyReleaseManifest,
+} from '@phosphor/session-runtime/host-install/verify'
 import { bundle, fixture, tar } from './release'
 
 const fixtures: ReturnType<typeof fixture>[] = []

@@ -23,7 +23,7 @@ import {
 import { hostLogDirectory } from '../machine/log'
 import { renderStatus, runStatus, type StatusReport } from './status'
 import type { RunContext } from './run'
-import { serviceProgram } from '../update/layout'
+import { serviceProgram } from '@phosphor/session-runtime/host-install/layout'
 
 export type ServiceAction = 'install' | 'status' | 'restart' | 'logs' | 'uninstall'
 export function isServiceAction(value: unknown): value is ServiceAction {

@@ -1,7 +1,7 @@
 import { mkdir, open, link, unlink } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { checkIdentityDirectory, IdentityFailure } from './identity'
 import {
   lockBusy,

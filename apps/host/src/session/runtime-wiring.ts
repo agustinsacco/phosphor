@@ -11,7 +11,7 @@ import { createSessionDeletion } from '@phosphor/session-runtime/pi/session-dele
 import { prepareSessionLaunch } from '@phosphor/session-runtime/pi/session-launch'
 import { createSessionService } from '@phosphor/session-runtime/pi/session-service'
 import { createSessionStartup } from '@phosphor/session-runtime/pi/session-startup'
-import { isInside } from '../fs-safety'
+import { isInside } from '@phosphor/session-runtime/fs-safety'
 import { unlinkTranscript } from './transcript-removal'
 import type { Delivery, RuntimeState } from './runtime-state'
 

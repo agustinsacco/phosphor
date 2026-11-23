@@ -13,7 +13,7 @@ import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
-import { errnoCode, errnoIs } from '../fs-safety'
+import { errnoCode, errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { hostLogDirectory } from './log'
 
 export const HOST_AGENT = 'com.saccolabs.phosphor-host'

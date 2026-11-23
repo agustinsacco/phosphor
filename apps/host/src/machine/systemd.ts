@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { probe } from './probe'
 
 export const HOST_UNIT = 'phosphor-host.service'

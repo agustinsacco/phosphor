@@ -11,7 +11,7 @@ import {
 import { join, resolve } from 'node:path'
 import type * as Fs from 'node:fs'
 import { afterEach, expect, it, vi } from 'vitest'
-import { acquireInstallLock, deadPid } from './lock'
+import { acquireInstallLock, deadPid } from '@phosphor/session-runtime/host-install/lock'
 import { fixture, bundle } from './__fixtures__/release'
 
 const calls = vi.hoisted(() => ({ removed: [] as string[] }))

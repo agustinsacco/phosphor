@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
 import { writeFileSync } from 'node:fs'
 import { afterEach, expect, it, vi } from 'vitest'
-import { fixture } from './__fixtures__/release'
+import { scratch } from './__fixtures__/scratch'
 import { downloadRelease, releaseUrl } from './download'
 const fileHooks = vi.hoisted(() => ({ stalled: false }))
 vi.mock('node:fs', async (original) => {
@@ -18,7 +18,7 @@ vi.mock('node:fs', async (original) => {
 })
 const https = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('node:https', () => ({ request: https.request }))
-const fixtures: ReturnType<typeof fixture>[] = []
+const fixtures: ReturnType<typeof scratch>[] = []
 afterEach(() => {
   vi.useRealTimers()
   fileHooks.stalled = false
@@ -56,7 +56,7 @@ it('uses flat override assets and correct per-release paths, and refuses unsafe 
     )
 })
 it('bounds file downloads exactly and aborts before reading', async () => {
-  const f = fixture()
+  const f = scratch()
   fixtures.push(f)
   const file = join(f.home, 'download')
   writeFileSync(file, '1234')
