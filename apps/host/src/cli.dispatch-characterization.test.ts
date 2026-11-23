@@ -488,6 +488,8 @@ describe('runCli control commands', () => {
         signal: expect.any(AbortSignal),
         print: expect.any(Function),
         supervisor: 'launchd',
+        // The owner socket's starter; only a Host with the local-mode marker calls it.
+        startLocalSocket: expect.any(Function),
       },
     ])
     expect(targets).toEqual([])
