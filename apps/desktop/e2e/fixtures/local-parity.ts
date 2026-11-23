@@ -4,11 +4,16 @@ import { join } from 'node:path'
 import { localDaemonFixture, type LocalDaemon } from './local-daemon'
 import { launch, shutdown, type Harness } from './local-app'
 import { seedWorld, folderName } from './local-parity-world'
+import { remoteLaneKey } from '../../../../libs/shared/src/remote-host'
 import { LOCAL_MACHINE_LABEL } from './local-machine'
 
 export { savedTitle, folderName } from './local-parity-world'
 export const sidebar = (page: Page) =>
   page.getByRole('region', { name: LOCAL_MACHINE_LABEL, exact: true })
+export const laneRow = (page: Page, daemon: LocalDaemon, id: string) =>
+  sidebar(page)
+    .locator(`[data-session-path="${remoteLaneKey(daemon.machineId, id)}"]`)
+    .getByTestId('remote-session-row')
 export const serviceView = (page: Page, daemon: LocalDaemon) =>
   page.evaluate(
     async (id) => (await window.phosphor.invoke('hosts:snapshot'))[id],
@@ -61,7 +66,12 @@ export const test = base.extend<{ parity: { page: Page; daemon: LocalDaemon } }>
       page.setDefaultTimeout(15_000)
       await expect
         .poll(() => serviceView(page, daemon))
-        .toMatchObject({ local: true, ownerLocal: true, state: 'ready' })
+        .toMatchObject({
+          local: true,
+          ownerLocal: true,
+          state: 'ready',
+          lanes: [expect.objectContaining({ activity: 'stopped' })],
+        })
       await use({ page, daemon })
     } finally {
       try {
