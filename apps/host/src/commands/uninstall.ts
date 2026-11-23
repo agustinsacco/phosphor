@@ -35,6 +35,12 @@ const stateEntries = new Set([
   'update-result.json',
   'headroom.json',
   'app-services.json',
+  'agent-policy.json',
+  'claude-accounts.json',
+  'claude-accounts',
+  'owner-migration',
+  'sandboxes',
+  'web-push.json',
 ])
 function requirePrivateFolder(path: string, uid: number | undefined) {
   const info = lstatSync(path)
