@@ -81,6 +81,16 @@ it('prefers a live view over the cache and applies the same controller projectio
   expect(snapshot.host?.state).toBe('ready')
   expect(snapshot.host?.lanes[0]?.control.controller?.self).toBe(false)
   expect(JSON.stringify(snapshot)).not.toMatch(/user-secret|self-secret|other-secret/)
+  state.local = {
+    hostId: 'local',
+    label: 'This Mac',
+    create: () => connection,
+    connection,
+    clientId: () => 'self-secret',
+  }
+  const local = hostManagerSnapshot(state, { clientId: () => 'other-secret' }).local!
+  expect(local.lanes.map((lane) => lane.control.controller?.self)).toEqual([true, false, undefined])
+  expect(JSON.stringify(local)).not.toMatch(/self-secret|other-secret/)
   connection.close()
 })
 it('creates independent connection, cache, list and lifecycle state for each manager', () => {

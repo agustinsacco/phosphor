@@ -243,13 +243,14 @@ it('shows the service lanes without remote access and resolves the legacy local 
 })
 
 it.each([false, true])(
-  'does not offer control transfers on the local service (self=%s)',
+  'offers Take only when another client controls the local service lane (self=%s)',
   (self) => {
     const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
     host.local = true
     host.lanes[0]!.control.controller!.self = self
     useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
     act(() => root.render(<RemoteLaneControls sessionId={mockRemoteInfo.sessionId} />))
-    expect(container.textContent).not.toMatch(/Take control|Release control/)
+    expect(container.textContent?.includes('Take control')).toBe(!self)
+    expect(container.textContent).not.toContain('Release control')
   },
 )
