@@ -236,9 +236,12 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
   hydrate: async () => {
     try {
+      // Preferences must load. The sandbox list is This Mac's in-app list: in
+      // daemon mode main refuses it (the service owns sandboxes), so it
+      // stays empty rather than failing startup.
       const [prefs, sandboxes] = await Promise.all([
         window.phosphor.invoke('app:getPrefs'),
-        window.phosphor.invoke('app:listSandboxes'),
+        window.phosphor.invoke('app:listSandboxes').catch((): SandboxInfo[] => []),
       ])
       set({ recents: prefs.recentWorkspaces, sandboxes })
     } finally {
