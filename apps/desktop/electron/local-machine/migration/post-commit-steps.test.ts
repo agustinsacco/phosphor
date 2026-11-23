@@ -86,6 +86,8 @@ it.each([true, false])(
 )
 
 it('does not capture a later generation of SQLite sidecars on quarantine replay', async () => {
+  // A read-only WAL connection used by backup can leave empty sidecars. Model a clean close.
+  rmSync(join(w.userData, 'routines.sqlite-wal'), { force: true })
   const run = createPostCommitSteps(ports).quarantine!
   await run({ ...w, log })
   const wal = join(w.userData, 'routines.sqlite-wal')

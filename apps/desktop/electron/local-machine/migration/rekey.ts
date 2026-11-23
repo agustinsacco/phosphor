@@ -29,22 +29,27 @@ function lookup(table: Readonly<Record<string, string>>, key: unknown): string |
 function draftsFor(
   saved: ConfigRecord,
   plan: MigrationPlan,
+  folders: Readonly<Record<string, string>>,
   host: string,
   orphan: () => void,
 ): ConfigRecord {
   const mapped: [string, unknown][] = []
   const records = asRecord(saved.drafts ?? {})
   const home = `home:host:${host}/machine`
+  const lastRepo = lookup(folders, saved.lastWorkspacePath)
+  const exact = `home:${String(saved.lastWorkspacePath)}`
+  const homeSource = Object.hasOwn(records, exact)
+    ? exact
+    : Object.keys(records).find(
+        (key) => key.startsWith('home:') && lastRepo && lookup(folders, key.slice(5)) === lastRepo,
+      )
   for (const [key, value] of Object.entries(records)) {
     if (isHostSessionKey(key) || key.startsWith('home:host:')) {
       mapped.push([key, value])
       continue
     }
     const lane = key.startsWith('session:') && lookup(plan.laneIds, key.slice(8))
-    const repo =
-      key.startsWith('home:') &&
-      key.slice(5) === saved.lastWorkspacePath &&
-      lookup(plan.repositoryIds, key.slice(5))
+    const repo = key === homeSource ? lastRepo : undefined
     const target = lane ? remoteLaneResourceKey(host, lane) : repo ? home : undefined
     if (!target || Object.hasOwn(records, target)) {
       orphan()
@@ -66,7 +71,12 @@ function draftsFor(
 }
 
 /** Device state comes exclusively from the backup. Do not turn a retry into a second translation. */
-export function rekeyDevice(saved: ConfigRecord, plan: MigrationPlan, host: string) {
+export function rekeyDevice(
+  saved: ConfigRecord,
+  plan: MigrationPlan & { readonly folderAliases?: Readonly<Record<string, string>> },
+  host: string,
+) {
+  const folders = { ...plan.folderAliases, ...plan.repositoryIds }
   let orphans = 0
   const orphan = () => {
     orphans++
@@ -88,13 +98,13 @@ export function rekeyDevice(saved: ConfigRecord, plan: MigrationPlan, host: stri
   ]
   const laneId = lookup(plan.laneIds, saved.lastSessionPath)
   if (saved.lastSessionPath && !laneId) orphan()
-  const repositoryId = lookup(plan.repositoryIds, saved.lastWorkspacePath)
+  const repositoryId = lookup(folders, saved.lastWorkspacePath)
   if (saved.lastWorkspacePath && !repositoryId) orphan()
   const fields = {
     lastLocal: { ...(laneId ? { laneId } : {}), ...(repositoryId ? { repositoryId } : {}) },
     sessionOrder: mapList(saved.sessionOrder, plan.laneIds, remoteLaneKey),
-    collapsedWorkspaces: mapList(saved.collapsedWorkspaces, plan.repositoryIds, remotePrKey),
-    drafts: draftsFor(saved, plan, host, orphan),
+    collapsedWorkspaces: mapList(saved.collapsedWorkspaces, folders, remotePrKey),
+    drafts: draftsFor(saved, plan, folders, host, orphan),
   }
   return { fields, orphans }
 }

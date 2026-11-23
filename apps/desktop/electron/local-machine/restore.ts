@@ -1,4 +1,4 @@
-import { readdirSync, renameSync } from 'node:fs'
+import { readFileSync, readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { atomicRecord } from '@phosphor/session-runtime/host-install/files'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
@@ -20,7 +20,6 @@ import {
   type MigrationPermit,
 } from './migration/journal'
 import { migratedFile, restoreKeys, routineFiles, type RoutinesFile } from './migration/quarantine'
-import { readFileSync } from 'node:fs'
 
 export const RESTORE_IN_APP_FLAG = '--restore-in-app-runtime'
 export interface RestorePorts {

@@ -50,7 +50,11 @@ export const migratedFile = (file: string, id: string) => `${file}.migrated-${id
 
 /** At the single-instance launch gate, before any Desktop routines connection opens. */
 export function parkRoutines(userData: string, file: RoutinesFile, id: string): void {
-  for (const path of routineFiles(userData, file)) {
+  const [database, ...sidecars] = routineFiles(userData, file)
+  // The main file moves last, so its parked name is the completion marker. A later
+  // empty old opener may create its own WAL/SHM: never move those on replay.
+  if (hasFile(migratedFile(database!, id))) return
+  for (const path of [...sidecars, database!]) {
     const parked = migratedFile(path, id)
     if (!hasFile(parked) && hasFile(path)) renameSync(path, parked)
   }
