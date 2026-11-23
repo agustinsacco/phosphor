@@ -50,14 +50,10 @@ import { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals
 import { createRemoteRoutines } from '@phosphor/host-client/routines'
 import { readHostReceipt } from '@phosphor/host-client/attention'
 import { createHostAttention } from '../hosts/attention'
+import { admitLocalMachine } from '../local-machine/admit'
 import { trafficLog } from '../hosts/traffic-log'
 import { tappedLog } from '../hosts/traffic-tap'
-import { startLocalMachine } from '../local-machine/connection'
-import { onDaemonMode } from '../local-machine/mode'
-import { desktopBrainApp } from '../brain/app-service'
 import { desktopDirectory } from '../hosts/dedupe'
-import { bindLocalEnrollment } from '../control/local-enroll-binding'
-import { bindSameMachine, sameMachine } from '../local-machine/same-machine'
 
 let routines: ReturnType<typeof createRemoteRoutines> | undefined
 export const remoteRoutineMachines = () => routines?.machines() ?? []
@@ -145,46 +141,6 @@ function registerLaneActionHandlers(): void {
   handle('hosts:markRead', (_event, hostId, laneId) =>
     remoteLanes().action(hostId, laneId, 'lane.markRead'),
   )
-}
-
-/** Inert until the launch gate decides daemon mode (M3): then This Mac's service joins the manager. */
-function admitLocalMachine(
-  manager: ReturnType<typeof createHostManager>,
-  attention: ReturnType<typeof createHostAttention>,
-): void {
-  onDaemonMode((access) => {
-    let id: string | undefined
-    const enroll = bindLocalEnrollment(manager, controlClient(), () => id)
-    const local = startLocalMachine({
-      ...access,
-      uid: process.getuid?.(),
-      attach: (slot) => {
-        manager.setLocal(slot)
-        const hostId = slot?.hostId
-        id = hostId
-        enroll.changed()
-        bindSameMachine(hostId ? { hostId, connection: () => manager.connection(hostId) } : null)
-        desktopBrainApp.ownerChanged(sameMachine()?.connection)
-      },
-      changed: () => {
-        desktopBrainApp.ownerChanged(sameMachine()?.connection)
-        manager.changed()
-        enroll.changed()
-      },
-      log: tappedLog,
-      traffic: (hostId, direction, frame, bytes) => {
-        if (direction === 'in' && frame.type === 'lanes' && frame.id === 'lanes')
-          desktopBrainApp.lanesSnapshot()
-        trafficLog.frame(hostId, direction, frame, bytes)
-      },
-      onAttention: (hostId, event) => attention.receive(hostId, event),
-      onRoutinesChanged: (hostId) => broadcast('routines:changed', { machine: `host:${hostId}` }),
-    })
-    app.once('will-quit', () => {
-      enroll.stop()
-      local.stop()
-    })
-  })
 }
 
 export function registerHostsHandlers(): void {
@@ -366,7 +322,7 @@ export function registerHostsHandlers(): void {
       destroyed: () => sender.isDestroyed(),
     }
   }
-  admitLocalMachine(manager, attention)
+  admitLocalMachine(manager, attention, controlClient)
   app.once('will-quit', () => {
     off()
     terminals?.clear()
