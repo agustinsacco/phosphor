@@ -35,16 +35,19 @@ export function writeConfig(userData: string, config: ConfigRecord): void {
 }
 
 /** A missing config is valid only when the verified backup recorded no config. */
-export function backupConfig(backupDir: string, migrationId: string): ConfigRecord {
+export function readMigrationBackup(backupDir: string, migrationId: string, routinesFile: string) {
   const manifest = readBackupManifest(backupDir)
   if (!manifest || manifest.migrationId !== migrationId)
     throw new Error('The migration backup is missing or invalid.')
+  const hasRoutines = manifest.entries.some((e) => e.name === routinesFile)
+  if (Boolean(manifest.routines) !== hasRoutines)
+    throw new Error('The selected routines database does not match the migration backup.')
   const entry = manifest.entries.find((e) => e.name === 'config.json')
   const path = join(backupDir, 'config.json')
-  if (!entry && !hasFile(path)) return {}
+  if (!entry && !hasFile(path)) return { config: {}, hasRoutines }
   if (!entry || !hasFile(path)) throw new Error('The saved preferences are missing or invalid.')
   const bytes = readFileSync(path)
   if (createHash('sha256').update(bytes).digest('hex') !== entry.sha256)
     throw new Error('The saved preferences failed verification.')
-  return asRecord(JSON.parse(bytes.toString('utf8')))
+  return { config: asRecord(JSON.parse(bytes.toString('utf8'))), hasRoutines }
 }

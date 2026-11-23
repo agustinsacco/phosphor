@@ -1,9 +1,9 @@
-import { backupConfig, liveConfig, writeConfig } from '../../prefs/migration-config'
+import { readMigrationBackup, liveConfig, writeConfig } from '../../prefs/migration-config'
 import type { PostCommitInput, PostCommitSteps } from './post-commit'
 import { parkRoutines, quarantineConfig, type RoutinesFile } from './quarantine'
 import { rekeyDevice } from './rekey'
 
-function saved(input: PostCommitInput) {
+function saved(input: PostCommitInput, routinesFile: RoutinesFile) {
   const { plan, journal } = input
   if (
     journal.state !== 'committed' ||
@@ -12,18 +12,21 @@ function saved(input: PostCommitInput) {
     plan.migrationId !== journal.migrationId
   )
     throw new Error('The plan does not identify this committed migration.')
-  return { config: backupConfig(input.backupDir, journal.migrationId), host: journal.machineId }
+  return {
+    ...readMigrationBackup(input.backupDir, journal.migrationId, routinesFile),
+    host: journal.machineId,
+  }
 }
 export function createPostCommitSteps(ports: { routinesFile: RoutinesFile }): PostCommitSteps {
   return {
     device: async (input) => {
-      const { config, host } = saved(input)
+      const { config, host } = saved(input, ports.routinesFile)
       const { fields, orphans } = rekeyDevice(config, input.plan, host)
       writeConfig(input.userData, { ...liveConfig(input.userData), ...fields })
       input.log('device-rekey', { orphans })
     },
     quarantine: async (input) => {
-      saved(input)
+      saved(input, ports.routinesFile)
       const next = quarantineConfig(liveConfig(input.userData))
       parkRoutines(input.userData, ports.routinesFile, input.journal.migrationId)
       writeConfig(input.userData, next)

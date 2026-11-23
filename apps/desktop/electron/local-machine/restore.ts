@@ -4,13 +4,13 @@ import { atomicRecord } from '@phosphor/session-runtime/host-install/files'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import {
   asRecord,
-  backupConfig,
+  readMigrationBackup,
   hasFile,
   liveConfig,
   writeConfig,
   type ConfigRecord,
 } from '../prefs/migration-config'
-import { backupDirFor, readBackupManifest } from './migration/backup'
+import { backupDirFor } from './migration/backup'
 import {
   MIGRATION_DIR,
   journalWriter,
@@ -136,14 +136,14 @@ export async function restoreInAppRuntime(ports: RestorePorts): Promise<void> {
     throw new Error('Only a committed migration can be restored.')
   const id = journal.migrationId
   const backupDir = backupDirFor(dir, id)
-  const config = restoredConfig(userData, backupConfig(backupDir, id))
-  const manifest = readBackupManifest(backupDir)!
+  const backup = readMigrationBackup(backupDir, id, routinesFile)
+  const config = restoredConfig(userData, backup.config)
   const paths = routineFiles(userData, routinesFile)
   const moves = routineRestorePlan(
     paths,
     backupDir,
     id,
-    manifest.entries.some((e) => e.name === routinesFile),
+    backup.hasRoutines,
     stepDone(journal, 'quarantine'),
   )
   if (!(await ports.stopLanes(journal.machineId)))
