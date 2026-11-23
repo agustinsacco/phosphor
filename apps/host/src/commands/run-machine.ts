@@ -63,6 +63,18 @@ export interface RunMachinePorts {
 
 type HostLog = ReturnType<typeof createHostLog>
 
+/** P5: local mode leases a workspace to Desktop only while no live lane or routine holds it. */
+function runLeases(context: RunContext, parts: RunParts) {
+  return createWorkspaceLeases(
+    () =>
+      (parts.runtime?.list() ?? []).map(({ workspacePath, sessionId }) => ({
+        workspacePath,
+        reason: isRoutineSession(sessionId) ? 'routine' : 'live-lane',
+      })),
+    context.now,
+  )
+}
+
 /** The runtime and what owns its lanes: live lanes, routines and the lane namer. */
 async function startRuntime(
   context: RunContext,
@@ -75,16 +87,7 @@ async function startRuntime(
   const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
   await trash.sweep().catch(() => {})
   const accounts = createRunAccounts(context, ports.stateDirectory, machine.env)
-  const leases = ports.local
-    ? createWorkspaceLeases(
-        () =>
-          (parts.runtime?.list() ?? []).map(({ workspacePath, sessionId }) => ({
-            workspacePath,
-            reason: isRoutineSession(sessionId) ? 'routine' : 'live-lane',
-          })),
-        context.now,
-      )
-    : undefined
+  const leases = ports.local ? runLeases(context, parts) : undefined
   const opsLanes: HostOpsLanePorts = {
     service: () => parts.ops ?? null,
     resourceRoot: () => machine.resourceRoot,
@@ -226,6 +229,25 @@ function createMachineCommands(
   return { features, commands, terminals }
 }
 
+/** The machine services beside the lane service, with the pause over the started lanes. */
+function startServices(
+  context: RunContext,
+  ports: RunMachinePorts,
+  machine: Omit<HostMachine, 'log'>,
+  log: HostLog,
+  { live, routines, runtime }: StartedRuntime,
+) {
+  const pausePorts = hostLanePausePorts({
+    store: ports.store,
+    live,
+    routines,
+    runtime,
+    now: context.now ?? Date.now,
+    log: log.write,
+  })
+  return createRunServices(machine.shellEnvironment, ports.appServices, ports.headroom, pausePorts)
+}
+
 /**
  * Starts the machine: its runtime, live lanes, routines, terminals,
  * administration, commands and calls, wired into one `LaneService`.
@@ -255,22 +277,8 @@ export async function startRunMachine(
       (event, fields) => log.write('host', event, fields),
     )
   const started = await startRuntime(context, parts, ports, machine, log)
-  const { live, runtime, routines } = started
-  const now = context.now ?? Date.now
-  const pausePorts = hostLanePausePorts({
-    store: ports.store,
-    live,
-    routines,
-    runtime,
-    now,
-    log: log.write,
-  })
-  parts.services = createRunServices(
-    machine.shellEnvironment,
-    ports.appServices,
-    ports.headroom,
-    pausePorts,
-  )
+  const { live, runtime } = started
+  parts.services = startServices(context, ports, machine, log, started)
   const {
     features: administrationFeatures,
     commands,
@@ -311,7 +319,7 @@ export async function startRunMachine(
     controllerPresence: createRunControllerPresence(ports.store, live),
   }
   await bindRunOps(context, parts, ports, { ...started, machine, log, lanes })
-  routines.start()
+  started.routines.start()
   return { lanes, accounts: started.accounts }
 }
 
