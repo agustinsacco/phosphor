@@ -27,7 +27,7 @@ function fixture() {
   const ctx = {
     isIdle: vi.fn(() => true),
     sessionManager: { getSessionId: () => 'one', getBranch: () => branch },
-    ui: { setStatus: vi.fn() },
+    ui: { setStatus: vi.fn(), notify: vi.fn() },
   }
   const state = swarm(pi)
   const emit = (name: string, event: unknown = {}) => handlers.get(name)?.(event, ctx)
@@ -254,4 +254,88 @@ describe('lane Swarm authorization', () => {
 it('accepts additive status fields at version 1', () => {
   const status = { version: 1, available: true, enabled: false, requested: true, by: 'user' }
   expect(parseSwarmStatus(JSON.stringify(status))).toEqual(status)
+})
+
+it('applies an agent decision on the very next request and restores its attribution without re-notifying', async () => {
+  const f = fixture()
+  const control = f.state.control
+  expect(control).toBeDefined()
+  f.ctx.isIdle.mockReturnValue(false)
+  f.emit('agent_start')
+  expect(f.send()).not.toContain(SWARM_PROMPT)
+  expect(control.facts().userOff).toBe(false)
+  const reason = 'Review independent changes'
+  await control.agentSet(true, reason, f.ctx)
+  expect(f.send()).toContain(SWARM_PROMPT)
+  expect(f.ctx.ui.notify.mock.calls).toEqual([[`Agent turned on Swarm: ${reason}.`]])
+  expect(f.pi.appendEntry).toHaveBeenLastCalledWith(SWARM_COMMAND, {
+    sessionId: 'one',
+    enabled: true,
+    by: 'agent',
+    reason,
+  })
+  f.emit('session_start')
+  expect(f.status()).toMatchObject({
+    version: 1,
+    enabled: true,
+    requested: true,
+    source: 'agent',
+    reason,
+  })
+  f.ctx.sessionManager.getSessionId = () => 'fork'
+  Object.assign(f.ctx.sessionManager, { getHeader: () => ({ parentSession: 'parent.jsonl' }) })
+  f.emit('session_start')
+  expect(f.pi.appendEntry).toHaveBeenLastCalledWith(SWARM_COMMAND, {
+    sessionId: 'fork',
+    enabled: true,
+    by: 'agent',
+    reason,
+  })
+  expect(f.ctx.ui.notify).toHaveBeenCalledTimes(1)
+  await f.command('off')
+  expect(control.facts()).toEqual({
+    available: true,
+    enabled: true,
+    requested: false,
+    lastBy: 'user',
+    userOff: true,
+  })
+  await expect(async () => control.agentSet(true, reason, f.ctx)).rejects.toThrow(
+    'The user turned Swarm off',
+  )
+  expect(f.status()).not.toHaveProperty('source')
+  f.emit('agent_end')
+  expect(f.send()).not.toContain(SWARM_PROMPT)
+})
+
+it('treats a legacy off as the user’s on its branch and does not let an agent off erase it', async () => {
+  const f = fixture()
+  const control = f.state.control
+  expect(control).toBeDefined()
+  f.pi.appendEntry(SWARM_COMMAND, { sessionId: 'one', enabled: false })
+  f.emit('session_start')
+  expect(control.facts().userOff).toBe(true)
+  await control.agentSet(false, 'No delegation needed', f.ctx)
+  await expect(async () => control.agentSet(true, 'Parallel review', f.ctx)).rejects.toThrow(
+    'The user turned Swarm off',
+  )
+  expect(f.pi.appendEntry).toHaveBeenCalledTimes(1)
+  f.branch.length = 0
+  f.emit('session_tree')
+  expect(control.facts().userOff).toBe(false)
+  await expect(async () => control.agentSet(true, '  ', f.ctx)).rejects.toThrow(/reason/i)
+  f.pi.getActiveTools.mockReturnValue([])
+  await expect(async () => control.agentSet(true, 'Parallel review', f.ctx)).rejects.toThrow(
+    'requires pi-subagents',
+  )
+  expect(f.pi.appendEntry).toHaveBeenCalledTimes(1)
+  expect(f.ctx.ui.notify).not.toHaveBeenCalled()
+})
+
+it('normalizes only the version-one attribution fields', () => {
+  const old = { version: 1, available: true, requested: true, enabled: true }
+  expect(parseSwarmStatus(JSON.stringify({ ...old, source: 'user', reason: 42 }))).toEqual(old)
+  expect(
+    parseSwarmStatus(JSON.stringify({ ...old, source: 'agent', reason: 'a'.repeat(201) })),
+  ).toEqual({ ...old, source: 'agent', reason: 'a'.repeat(200) })
 })
