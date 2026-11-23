@@ -1,3 +1,5 @@
+import { dirname } from 'node:path'
+import { activeFolderPaths, readOwnerFolders } from '../config/folders-file'
 import { realpathSync } from 'node:fs'
 import { reconcileRunFolders } from '../lanes/reconcile/run'
 import { loadHostConfig } from '../config/load'
@@ -20,9 +22,10 @@ export async function loadRunConfig(context: RunContext, signal?: AbortSignal): 
   return config
 }
 
-/** Makes the store's folders the config's repositories. */
+/** Refresh the local daemon's effective folders after migration restores its files. */
 export function syncRunRepositories(context: RunContext, store: HostStore, config: RunConfig) {
-  store.syncRepositories(config.config.repositories, (count) =>
+  const file = readOwnerFolders(dirname(config.path), context.uid)
+  store.syncRepositories(activeFolderPaths(file, config.config.repositories, true), (count) =>
     context.log?.('host', 'lanes.repositories_unavailable', { count }),
   )
 }
