@@ -1,4 +1,5 @@
 import { HostTreeDialog, useEditingMenu } from '@/features/chat/HostTreeDialog'
+import { useHostTraits } from '@/platform/machineTraits'
 import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
@@ -145,6 +146,7 @@ function useLaneActionState(
   sessionId: string | undefined,
   running: boolean,
 ) {
+  const { sameMachine } = useHostTraits(hostId)
   const caps = useMachineCaps(hostId)
   const key = remoteLaneResourceKey(hostId, lane.laneId)
   const deletingInBulk = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, key))
@@ -157,6 +159,7 @@ function useLaneActionState(
   const state: RemoteLaneActionState = {
     lane,
     caps,
+    sameMachine,
     ready,
     busy: running || deletingInBulk,
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,

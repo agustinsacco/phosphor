@@ -4,7 +4,7 @@ import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { Button } from '@/components/form'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { useMachineCaps } from '@/stores/machineCaps'
-import { machineLabel } from '@/stores/remoteLanes'
+import { machineLabel, useRemoteLanesStore, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { compareLanesByCreation, groupRemoteLanes } from './groupRemoteLanes'
 import { RemoteLaneList } from './RemoteLaneList'
 import { RemoteRepositoryGroup, useRemoteLaneOrder } from './RemoteRepositoryGroup'
@@ -32,6 +32,8 @@ export function RemoteHostLanes({
     hostId,
     lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation),
   )
+  const local = useRemoteLanesStore((s) => s.hosts[hostId]?.local)
+  if (local && !ready) return <p role="status">{REMOTE_NOT_READY}</p>
   if (ready && !repositories.length && !lanes.length) return <NoFolders hostId={hostId} />
   return (
     <>

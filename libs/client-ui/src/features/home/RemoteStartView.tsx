@@ -1,3 +1,4 @@
+import { remotePrKey } from '@phosphor/shared/host-protocol-github'
 import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { FileMentionSource } from '@/features/chat/composer/useFileMentions'
 import { RemoteModelPicker } from '@/features/machines/RemoteModelPicker'
@@ -9,7 +10,7 @@ import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { hostCommandSource } from '@/stores/piCommands'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { NoGitNote } from './IsolateToggle'
+import { IsolateToggle, NoGitNote } from './IsolateToggle'
 import { StartComposer, type StartTarget } from './StartComposer'
 import { useRemoteStart } from './useRemoteStart'
 import { useStartCommands } from './useStartCommands'
@@ -153,6 +154,13 @@ function HostStartTargets({
             'Choose repository'}
         </span>
       </ChoiceMenu>
+      {c.isolate !== undefined && (
+        <IsolateToggle
+          checked={c.isolate}
+          disabled={c.busy || !c.ready}
+          workspacePath={remotePrKey(hostId, c.repositoryId)}
+        />
+      )}
       {!c.canBranch && <NoGitNote />}
       {addingFolder && (
         <HostFolderBrowser

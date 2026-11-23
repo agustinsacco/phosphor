@@ -1,3 +1,4 @@
+import { localServiceId } from '@/stores/localServiceScope'
 import { useMemo } from 'react'
 import { localMachineLabel } from '@/lib/localMachine'
 import { projectName } from '@/lib/path'
@@ -37,10 +38,18 @@ export function useBoardLanes(): BoardLane[] {
         urgency: state === 'needs-input' ? 'needs-you' : state === 'working' ? 'working' : 'idle',
       }
     })
-    const hostLanes = machines.flatMap((machine): BoardLane[] => {
+    const serviceId = localServiceId(hosts)
+    const listed = machines.filter((m) => m.id !== serviceId)
+    const sources = serviceId ? [{ id: serviceId, label: localName }, ...listed] : listed
+    const hostLanes = sources.flatMap((machine): BoardLane[] => {
       const host = hosts[machine.id]
       const caps = machineCaps(host)
-      if (!host || !caps.granted('sessions.read') || !(caps.ready || hostReconnecting(host.state)))
+      if (
+        !host ||
+        (host.local && !caps.ready) ||
+        !caps.granted('sessions.read') ||
+        !(caps.ready || hostReconnecting(host.state))
+      )
         return []
       const folders = new Map(host.repositories.map((repo) => [repo.id, repo.name]))
       return host.lanes.map((lane) => ({
@@ -54,6 +63,6 @@ export function useBoardLanes(): BoardLane[] {
         urgency: hostLaneUrgency(lane, caps.ready),
       }))
     })
-    return [...localLanes, ...hostLanes]
+    return serviceId ? hostLanes : [...localLanes, ...hostLanes]
   }, [machines, hosts, local, tasks, gitByCwd])
 }

@@ -1,3 +1,4 @@
+import { serviceScope } from '@/stores/localServiceScope'
 import { useCallback, useState } from 'react'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 
@@ -12,5 +13,6 @@ export function useComposerMachine(): [string, (machine: string) => void] {
     setSelection({ filter, machine: filter === 'all' ? 'local' : filter })
   }
   const setMachine = useCallback((machine: string) => setSelection({ filter, machine }), [filter])
-  return [selection.machine, setMachine]
+  const machine = useRemoteLanesStore((s) => serviceScope(selection.machine, s.hosts))
+  return [machine, setMachine]
 }

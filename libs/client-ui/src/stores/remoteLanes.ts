@@ -1,3 +1,5 @@
+export { hostReconnecting, hostPending } from './hostConnectionState'
+import { serviceScope } from './localServiceScope'
 import {
   bindRemoteHostView,
   refreshRemoteArtifacts,
@@ -59,23 +61,13 @@ export function useNavigationHostId(): string | undefined {
 
 /** A machine's name: `'local'`, the sentinel the switcher, skill share and sign-in use, is This Mac. */
 export function machineLabel(machine: string): string {
-  if (machine === 'local') return localMachineLabel()
+  if (machine === 'local' || useRemoteLanesStore.getState().hosts[machine]?.local)
+    return localMachineLabel()
   return useMachinesStore.getState().machines.find((m) => m.id === machine)?.label ?? machine
 }
 
 export function canReadHost(host: HostConnectionView): boolean {
   return machineCaps(host).granted('sessions.read')
-}
-
-/** These retry on their own; every other state that is not ready needs the user. */
-export function hostReconnecting(state: HostConnectionView['state'] | undefined): boolean {
-  return state === 'connecting' || state === 'reconnecting'
-}
-
-/** Still reaching this Host: retrying, or the first snapshot has not listed it yet. */
-export function hostPending(s: { hosts: HostsSnapshot; snapshotStatus: string }, hostId: string) {
-  const host = s.hosts[hostId]
-  return host ? hostReconnecting(host.state) : s.snapshotStatus === 'loading'
 }
 
 /** What a screen says while a Host retries: a first attempt connects, a later one reconnects. */
@@ -133,7 +125,7 @@ export const useRemoteLanesStore = create<{
   snapshotStatus: 'idle',
   filter: 'local',
   error: null,
-  setFilter: (filter) => set({ filter }),
+  setFilter: (filter) => set((s) => ({ filter: serviceScope(filter, s.hosts) })),
 }))
 
 bindRemoteHostView((hostId) => useRemoteLanesStore.getState().hosts[hostId])
@@ -298,7 +290,11 @@ export function attachRemoteLanesListener(): () => void {
         const hosts = await window.phosphor.invoke('hosts:snapshot')
         if (active) {
           const previousHosts = useRemoteLanesStore.getState().hosts
-          useRemoteLanesStore.setState({ hosts, snapshotStatus: 'ready' })
+          useRemoteLanesStore.setState((s) => ({
+            hosts,
+            filter: serviceScope(s.filter, hosts),
+            snapshotStatus: 'ready',
+          }))
           const currentId = useSessionsStore.getState().activeSessionId
           const current = currentId ? useSessionsStore.getState().live[currentId] : undefined
           if (currentId && current?.target?.kind === 'remote') {

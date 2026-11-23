@@ -1,3 +1,4 @@
+import { useHostTraits } from '@/platform/machineTraits'
 import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
 import { localMachineLabel } from '@/lib/localMachine'
@@ -22,6 +23,7 @@ export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Ele
 
 export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const control = useLaneControl(sessionId)
+  const { sameMachine } = useHostTraits(control?.hostId)
   if (!control) return null
   // Control cannot change hands until the Host is back; the composer says what it waits for.
   if (control.hostState !== 'ready')
@@ -35,7 +37,7 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
     <div className="text-text-secondary flex flex-wrap items-center gap-2 px-6 py-2 text-sm">
       <MachineChip sessionId={sessionId} />
       <span>{control.status}</span>
-      {!control.controlling && (
+      {!sameMachine && !control.controlling && (
         <Button
           size="xs"
           disabled={!control.enabled || busy}
@@ -44,7 +46,7 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
           Take control
         </Button>
       )}
-      {control.controlling && (
+      {!sameMachine && control.controlling && (
         <Button size="xs" disabled={busy} onClick={() => void act('hosts:releaseControl')}>
           Release control
         </Button>
@@ -72,10 +74,13 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
  */
 export function ReadOnlyLaneBar({ sessionId }: { sessionId: string }): React.JSX.Element {
   const control = useLaneControl(sessionId)
+  const { sameMachine } = useHostTraits(control?.hostId)
   return (
     <div className="compact-observer">
-      <p role="status">Read-only. Take control to send messages.</p>
-      {control && (
+      <p role="status">
+        {sameMachine ? 'Read-only.' : 'Read-only. Take control to send messages.'}
+      </p>
+      {!sameMachine && control && (
         <Button
           variant="primary"
           disabled={!control.enabled || control.busy}

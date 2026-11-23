@@ -1,3 +1,4 @@
+import { orderedHostIds, serviceScope, localServiceId } from '@/stores/localServiceScope'
 import { PageShell } from '@/components/PageShell'
 import { usePlatform } from '@/platform/Platform'
 import { MachinePicker } from '@/features/machines/MachinePicker'
@@ -11,9 +12,11 @@ export function ArchivePage(): React.JSX.Element {
   const filter = useRemoteLanesStore((state) => state.filter)
   const hosts = useRemoteLanesStore((state) => state.hosts)
   const choice = useMachinePagesStore((state) => state.archiveMachine)
-  const machine = pageMachine(filter, choice, true)
+  const machine = serviceScope(pageMachine(filter, choice, true), hosts)
   const machines =
-    machine === 'all' ? [...(localLanes ? ['local'] : []), ...Object.keys(hosts)] : [machine]
+    machine === 'all'
+      ? [...(localLanes && !localServiceId(hosts) ? ['local'] : []), ...orderedHostIds([], hosts)]
+      : [machine]
   return (
     <PageShell
       title="Archive"

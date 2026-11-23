@@ -32,6 +32,7 @@ export function remoteControlHint(
 
 export interface RemoteLaneActionState {
   lane: HostLaneView
+  sameMachine?: boolean
   caps: MachineCaps
   /** The Host is connected and ready for actions. */
   ready: boolean
@@ -86,7 +87,7 @@ export function hostLaneContext(state: RemoteLaneActionState): LaneActionContext
     unseen: lane.attention > lane.read,
     running,
     spend: {},
-    control: { self },
+    control: state.sameMachine ? undefined : { self },
     busy: state.busy,
     refusals: {
       open: notReady,
