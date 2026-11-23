@@ -12,6 +12,9 @@ afterEach(() => {
 })
 
 const context = { nodeVersion: '22.22.3' } as CliContext
+/** The daemon-first machine: always built, whichever services are. */
+const MACHINE = ['local-mode', 'owner-socket', 'owner-lock', 'migrate-v1']
+const ALL = ['ops', 'machine-grants', 'headroom', 'app-services', 'service-pause', ...MACHINE]
 function capture() {
   let stdout = ''
   return {
@@ -22,7 +25,7 @@ function capture() {
 
 describe('run services', () => {
   it('reports the built features, and builds the pause only with the lanes it pauses', () => {
-    expect(runServiceFeatures()).toEqual(['headroom', 'service-pause'])
+    expect(runServiceFeatures()).toEqual(ALL)
     expect(Object.values(createRunServices())).toEqual([null, null, null, null, null])
   })
 
@@ -30,16 +33,16 @@ describe('run services', () => {
     const { handleVersion } = await import('../cli-handlers')
     const plain = capture()
     await handleVersion({ name: 'version', options: { json: true } }, plain.io, context)
-    expect(plain.json()).toMatchObject({ features: ['headroom', 'service-pause'] })
+    expect(plain.json()).toMatchObject({ features: ALL })
     vi.resetModules()
-    vi.doMock('../ops/service', () => ({ createOpsService: () => null, FEATURE: 'ops' }))
+    vi.doMock('../ops/service', () => ({ createOpsService: () => null, FEATURE: null }))
     const fresh = await import('../cli-handlers')
     const built = capture()
     await fresh.handleVersion({ name: 'version', options: { json: true } }, built.io, context)
-    expect(built.json()).toMatchObject({ features: ['ops', 'headroom', 'service-pause'] })
+    expect(built.json()).toMatchObject({ features: ALL.filter((f) => f !== 'ops') })
   })
 
-  it('omits the list while no service is built', async () => {
+  it('reports only the machine features while no service is built', async () => {
     vi.doMock('../lanes/pause', async (original) => ({
       ...(await original<typeof Pause>()),
       FEATURE: null,
@@ -51,6 +54,8 @@ describe('run services', () => {
     const { handleVersion } = await import('../cli-handlers')
     const plain = capture()
     await handleVersion({ name: 'version', options: { json: true } }, plain.io, context)
-    expect(plain.json()).not.toHaveProperty('features')
+    expect(plain.json()).toMatchObject({
+      features: ['ops', 'machine-grants', 'app-services', ...MACHINE],
+    })
   })
 })

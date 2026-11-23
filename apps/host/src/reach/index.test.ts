@@ -48,9 +48,9 @@ function setup(
 }
 
 describe('machine reach', () => {
-  it('stays unbuilt for the run services until B1 binds it', () => {
+  it('is announced as machine-grants; run builds it through createMachineReach, not the services slot', () => {
     expect(createReach()).toBeNull()
-    expect(FEATURE).toBeNull()
+    expect(FEATURE).toBe('machine-grants')
   })
 
   it('runs one op on a ready sibling through control directory and grant', async () => {
