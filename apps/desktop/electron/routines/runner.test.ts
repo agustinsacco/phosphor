@@ -151,20 +151,37 @@ describe('window-independent routine execution', () => {
     expect((await result).status).toBe('cancelled')
     expect(h.dispose).toHaveBeenCalledWith('session')
   })
-  it('blocks unexpected dialogs without answering them', async () => {
-    request.mockImplementation(async (command: { type: string }) => {
-      if (command.type === 'get_state') {
-        queueMicrotask(() =>
-          events.emit('extension-ui', { method: 'input', title: 'Authenticate' }),
-        )
-        return new Promise(() => {})
+  it.each(['input', 'select', 'confirm', 'editor'])(
+    'blocks %s dialogs without answering them',
+    async (method) => {
+      request.mockImplementation(async (command: { type: string }) => {
+        if (command.type === 'get_state') {
+          queueMicrotask(() => events.emit('extension-ui', { method, title: 'Authenticate' }))
+          return new Promise(() => {})
+        }
+        return { success: true }
+      })
+      const result = await executeRoutine(run, new AbortController().signal, () => {})
+      expect(result.status).toBe('blocked')
+      expect(result.reason).toContain('No prompt was auto-answered')
+      expect(h.dispose).toHaveBeenCalledWith('session')
+    },
+  )
+  it('continues the run through notify and setStatus', async () => {
+    const original = request.getMockImplementation()!
+    request.mockImplementation(async (command) => {
+      if (command.type === 'prompt') {
+        events.emit('extension-ui', { method: 'notify', message: 'Starting' })
+        events.emit('extension-ui', {
+          method: 'setStatus',
+          statusKey: 'progress',
+          statusText: 'Working',
+        })
       }
-      return { success: true }
+      return original(command)
     })
     const result = await executeRoutine(run, new AbortController().signal, () => {})
-    expect(result.status).toBe('blocked')
-    expect(result.reason).toContain('No prompt was auto-answered')
-    expect(h.dispose).toHaveBeenCalledWith('session')
+    expect(result.status).toBe('finished')
   })
   it('preserves an explicitly opened successful lane for interactive follow-up', async () => {
     const original = request.getMockImplementation()!

@@ -250,3 +250,8 @@ describe('lane Swarm authorization', () => {
     }
   })
 })
+
+it('accepts additive status fields at version 1', () => {
+  const status = { version: 1, available: true, enabled: false, requested: true, by: 'user' }
+  expect(parseSwarmStatus(JSON.stringify(status))).toEqual(status)
+})

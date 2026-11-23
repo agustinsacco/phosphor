@@ -83,7 +83,10 @@ describe('portable session policy', () => {
   it.each(['pi-claude-cli', 'openai-codex'])(
     'preserves spawn inputs and project rules for %s',
     async (provider) => {
-      const runtime = ports()
+      const runtime = {
+        ...ports(),
+        machineContext: () => ({ kind: 'desktop', signedIn: true }) as const,
+      }
       const options = {
         workspacePath: '/repo/lane',
         sessionPath: '/session',
@@ -108,7 +111,12 @@ describe('portable session policy', () => {
       expect(spawnOptions.appendSystemPrompt).toContain('Working directory: /repo/lane')
       expect(spawnOptions.appendSystemPrompt).toContain('Branch: lane')
       expect(spawnOptions.appendSystemPrompt).toContain('pi subagent: follow its advertised schema')
-      expect(spawnOptions.appendSystemPrompt).toContain('<phosphor_lane>')
+      expect(spawnOptions.appendSystemPrompt?.match(/<phosphor_\w+>/g)).toEqual([
+        '<phosphor_workspace>',
+        '<phosphor_machine>',
+        '<phosphor_lane>',
+        '<phosphor_subagents>',
+      ])
       expect(spawnOptions.env).toMatchObject({ PI_CLAUDE_CLI_CONTEXT: 'pi', ORDER: 'proxy' })
       expect(runtime.resetCompaction).toHaveBeenCalledOnce()
       if (provider === 'pi-claude-cli') {

@@ -15,6 +15,8 @@ import {
   type GrantExpectations,
 } from './host-grant'
 
+import { HOST_CAPABILITIES } from './remote-host'
+
 const payload: GrantPayload = {
   v: 1,
   iss: 'https://control.example',
@@ -105,6 +107,7 @@ describe('host-grant', () => {
     { client: { ...payload.client, label: 'a\nb' } },
     { client: { ...payload.client, label: 'a\u202eb' } },
     { caps: null },
+    { caps: [...HOST_CAPABILITIES, 'sessions.read'] },
     { caps: ['unknown'] },
     { caps: ['sessions.read', 'sessions.read'] },
     { iat: -1 },

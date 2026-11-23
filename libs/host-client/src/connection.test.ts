@@ -74,6 +74,7 @@ async function setup(sendReady = true) {
     ready,
     grant,
     clearGrant,
+    socket,
     closeTransport: () => socket.close(4400, 'Bad frame'),
     closeEvent: (code: number) => {
       open = false
@@ -162,4 +163,18 @@ it('failed asynchronous proof closes the connection without subscriptions', asyn
   await Promise.resolve()
   expect(t.connection.snapshot().state).toBe('wrong-machine')
   expect(t.sent.map((f) => f.type)).toEqual(['auth'])
+})
+
+it('closes an established connection on an unknown Host frame type', async () => {
+  const t = await setup()
+  try {
+    t.resolve(true)
+    await Promise.resolve()
+    expect(t.connection.snapshot().state).toBe('ready')
+    const close = vi.spyOn(t.socket, 'close')
+    t.message(JSON.stringify({ type: 'future-frame' }))
+    expect(close).toHaveBeenCalledWith(4400, 'Bad frame')
+  } finally {
+    t.connection.close()
+  }
 })
