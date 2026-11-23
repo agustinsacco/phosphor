@@ -29,7 +29,7 @@ it('declares every owner-goal operation without a service gap', () => {
 })
 it('offers only the pre-migration subset and explains every other op', () => {
   const available =
-    `help whoami policy.show audit.list confirm.info confirm.list confirm.status confirm.approve confirm.deny swarm.on swarm.off model.set thinking.set lane.rename lane.pin lane.marker pr.track pr.hide pr.clear contextFiles.set lane.compact lane.autoCompaction lane.autoRetry lane.queueMode notify lane.list lane.read archive.list artifact.list artifact.read routine.list skill.list skill.read settings.read mcp.list package.list machine.status machine.doctor machine.models machine.providers machine.commands machine.usage brain.search brain.flag brain.status brain.find brain.queue`.split(
+    `help whoami policy.show policy.set audit.list audit.undo confirm.info confirm.list confirm.status confirm.approve confirm.deny swarm.on swarm.off model.set thinking.set lane.rename lane.pin lane.marker pr.track pr.hide pr.clear contextFiles.set lane.compact lane.autoCompaction lane.autoRetry lane.queueMode notify lane.list lane.read archive.list artifact.list artifact.read routine.list skill.list skill.read settings.read mcp.list package.list machine.status machine.doctor machine.models machine.providers machine.commands machine.usage brain.search brain.flag brain.status brain.find brain.queue`.split(
       ' ',
     )
   expect(

@@ -146,7 +146,10 @@ function execute(
   signal: AbortSignal,
   extras: Omit<OpRunExtras, 'signal'> = {},
 ): Promise<OpOutcome | null> {
-  const key = `${principalKey(principal)}|${core.pipeline.spec(request.op)?.class ?? 'control'}`
+  // Undo awaits its inverse, which runs on this same principal’s ordinary control queue.
+  const group =
+    request.op === 'audit.undo' ? request.op : (core.pipeline.spec(request.op)?.class ?? 'control')
+  const key = `${principalKey(principal)}|${group}`
   return core.queues.run(key, async () => {
     if (signal.aborted) return null
     try {

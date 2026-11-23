@@ -11,7 +11,7 @@ import { parseOpArgv } from '@phosphor/shared/ops-cli'
 import { broadcast } from '../broadcast'
 import { log } from '../debug-log'
 import { policyStore } from '../prefs/agent-policy'
-import { metaHandlers } from './meta'
+import { metaHandlers, settingsHandlers } from './meta'
 import { brainHandlers } from './brain'
 import { conversationHandlers } from './conversation'
 import { inventoryHandlers } from './inventory'
@@ -44,6 +44,7 @@ export function openDesktopOps(userData: string) {
     const changed = () => notify({ kind: 'confirm' })
     const handlers = {
       ...metaHandlers(audit, confirms, changed),
+      ...settingsHandlers(policyStore, notify, (p, id) => dispatcher.undo(p, id)),
       ...controlHandlers,
       ...markHandlers,
       ...inventoryHandlers,
