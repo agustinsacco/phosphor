@@ -40,3 +40,48 @@ test('sidebar lists only the service lane under This Mac, without a control hand
   await daemon.restart()
   await expect(row).toBeVisible()
 })
+
+test('boot completes without the workspace preferences error', async ({ parity: { page } }) => {
+  await expect(page.getByTestId('app-shell')).toBeVisible()
+  await expect(page.getByText('Couldn’t load your workspace preferences.')).toHaveCount(0)
+})
+
+test('start in a service folder, pin, mark, stop and archive the daemon lane', async ({
+  parity: { page, daemon },
+}) => {
+  const group = sidebar(page)
+  await group.getByRole('button', { name: `New lane in ${folderName}` }).click()
+  const prompt = 'PHX-parity'
+  await page.getByPlaceholder('Describe a task or ask a question').fill(prompt)
+  await page.getByRole('button', { name: 'Start lane', exact: true }).click()
+  // Host fake-pi echoes PHX tokens; the in-app stub never gives this reply.
+  await expect(page.locator('main').getByText(prompt, { exact: true })).toHaveCount(2)
+  const created = (await serviceView(page, daemon))?.lanes.find((l) => l.title !== savedTitle)
+  expect(created?.cwd).toBe(`${daemon.roots.home}/${folderName}`)
+  const state = async () =>
+    (await serviceView(page, daemon))?.lanes.find((l) => l.laneId === created!.laneId)
+  const row = group.getByTestId('remote-session-row').filter({ hasNotText: savedTitle })
+  const menuClick = async (name: string) => {
+    await row.click({ button: 'right' })
+    await page.getByTestId('context-menu').getByRole('button', { name, exact: true }).click()
+  }
+  await menuClick('Pin')
+  await expect.poll(async () => (await state())?.pinned).toBe(true)
+  await menuClick('Lane marker…')
+  await page.getByRole('dialog', { name: 'Lane marker' }).getByLabel('Search icons').fill('🚀')
+  await page
+    .getByRole('dialog', { name: 'Lane marker' })
+    .getByRole('button', { name: 'rocket', exact: true })
+    .click()
+  await expect.poll(async () => (await state())?.marker).toBe('🚀')
+  await menuClick('Stop')
+  await expect.poll(async () => (await state())?.activity).toBe('stopped')
+  await menuClick('Archive')
+  await page.getByRole('button', { name: 'Archive lane', exact: true }).click()
+  await expect.poll(state).toBeUndefined()
+  const archives = await page.evaluate(() =>
+    window.phosphor.invoke('ops:run', { kind: 'local' }, { op: 'archive.list', args: {} }),
+  )
+  expect(archives.status).toBe('ok')
+  expect(JSON.stringify(archives)).toContain(folderName)
+})

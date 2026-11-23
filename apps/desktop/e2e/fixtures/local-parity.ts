@@ -1,14 +1,12 @@
 import { expect, test as base, type Page } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
 import { localDaemonFixture, type LocalDaemon } from './local-daemon'
 import { launch, shutdown, type Harness } from './local-app'
-import { writeFixtureLane } from './migration-fixture'
+import { seedWorld, folderName } from './local-parity-world'
 import { LOCAL_MACHINE_LABEL } from './local-machine'
 
-export const savedTitle = 'Saved by the service'
-export const folderName = 'service-folder'
+export { savedTitle, folderName } from './local-parity-world'
 export const sidebar = (page: Page) =>
   page.getByRole('region', { name: LOCAL_MACHINE_LABEL, exact: true })
 export const serviceView = (page: Page, daemon: LocalDaemon) =>
@@ -20,10 +18,10 @@ export const serviceView = (page: Page, daemon: LocalDaemon) =>
 export const test = base.extend<{ parity: { page: Page; daemon: LocalDaemon } }>({
   parity: async ({}, use) => {
     const daemon = await localDaemonFixture({
-      repositories: async ({ home, agentDir }) => {
+      repositories: async ({ home, agentDir, stateDir }) => {
         const repo = join(home, folderName)
         await mkdir(repo)
-        await writeFixtureLane(agentDir, randomUUID(), repo, savedTitle)
+        await seedWorld(agentDir, repo, stateDir, true)
         return [repo]
       },
     })
@@ -35,7 +33,7 @@ export const test = base.extend<{ parity: { page: Page; daemon: LocalDaemon } }>
       await mkdir(agent, { recursive: true, mode: 0o700 })
       const workspace = join(home, 'frozen-workspace')
       await mkdir(workspace)
-      await writeFixtureLane(agent, randomUUID(), workspace, 'Frozen Desktop lane')
+      await seedWorld(agent, workspace, daemon.desktopEnv.PHOSPHOR_TEST_USER_DATA, false)
       await writeFile(
         join(daemon.desktopEnv.PHOSPHOR_TEST_USER_DATA, 'config.json'),
         JSON.stringify({
