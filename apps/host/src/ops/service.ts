@@ -39,7 +39,7 @@ import { undoCurrent } from './undo-current'
 import { domainHandlers, type DaemonHandlerDeps } from './handlers'
 import { folderUndoCurrent } from './handlers/folders'
 import { routineUndoCurrent } from './handlers/routines'
-import { RESOURCE_JOBS } from './handlers/resources-call'
+import { resourceJobSpec } from './handlers/resources-call'
 import { daemonMetaHandlers } from './handlers/meta'
 import { createPolicyFile } from './policy-file'
 import { createHostResolver } from './remote'
@@ -232,7 +232,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   const dispatcher = createOpsDispatcher(binding, {
     // Daemon-only jobs: the catalog stays frozen; these may run past 20 s here.
     catalog: OP_CATALOG.map((s) =>
-      RESOURCE_JOBS.has(s.name) || s.name === 'package.checkUpdates' ? { ...s, job: true } : s,
+      s.name === 'package.checkUpdates' ? { ...s, job: true } : resourceJobSpec(s),
     ),
     parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
     agentFor: daemonAgentFor(ports, laneBinding.lanes.createdBy),

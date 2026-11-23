@@ -1,3 +1,4 @@
+import type { CatalogSpec } from '@phosphor/shared/ops-catalog'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { DaemonHandlerDeps } from './index'
 
@@ -24,4 +25,12 @@ export async function resourceCall(
 export const NO_CONTENT_UNDO = "No Undo: Phosphor doesn't keep the previous content."
 
 /** Daemon implementations which may outlast one answer deadline; none has a safe inverse. */
-export const RESOURCE_JOBS = new Set(['skill.install', 'routine.cancel', 'routine.delete'])
+const RESOURCE_JOBS: ReadonlyMap<string, CatalogSpec['applies']> = new Map([
+  ['skill.install', 'new-lanes'],
+  ['routine.cancel', 'now'],
+  ['routine.delete', 'now'],
+])
+export function resourceJobSpec(spec: CatalogSpec): CatalogSpec {
+  const applies = RESOURCE_JOBS.get(spec.name)
+  return applies ? { ...spec, applies, job: true } : spec
+}

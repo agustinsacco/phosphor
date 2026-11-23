@@ -93,6 +93,7 @@ function editSkill(deps: DaemonHandlerDeps) {
 }
 function installSkill(deps: DaemonHandlerDeps) {
   return op<Target & { libraryId: string; overwrite?: boolean }>(async (a, ctx) => {
+    const text = `Installed ${a.name}. New lanes get it; run phosphor lane reload to use it in this lane.`
     const selected = await resolveCatalogBundle({ libraryId: a.libraryId, skillName: a.name })
     const bundle = parseSkillBundle({
       name: a.name,
@@ -110,7 +111,7 @@ function installSkill(deps: DaemonHandlerDeps) {
       )
       if ((result as { status?: string }).status !== 'installed')
         throw invalid('A skill with that name already exists.')
-      return dataResult(result)
+      return { text, data: result }
     }
     const entry = (await ports(deps).resolveProject(cwd)).find(
       (s) => s.skill.name === a.name && s.skill.scope === 'project',
@@ -125,7 +126,7 @@ function installSkill(deps: DaemonHandlerDeps) {
       overwrite: a.overwrite ?? false,
     })
     if (result.status === 'conflict') throw invalid('A skill with that name already exists.')
-    return dataResult(result)
+    return { text, data: result }
   })
 }
 function askingLane(ctx: OpHandlerContext) {
