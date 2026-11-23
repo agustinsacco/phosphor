@@ -4,6 +4,7 @@ import type { FileWriteOp } from '@phosphor/shared/host-protocol-writes'
 import type {
   ClientFrame,
   LaneEvent,
+  LaneOp,
   LaneSummary,
   Receipt,
   RejectCode,
@@ -84,6 +85,12 @@ export interface LaneCommandPorts {
     execute(op: RoutineOp, requestId: string, caps: readonly HostCapability[]): Promise<unknown>
   }
   refusal?: (command: RpcCommand) => string | null
+  /** A surface's dialog answer: relay it to pi, or refuse a forged answer to an op confirm. */
+  dialogGuard?: (
+    laneId: string,
+    response: Extract<LaneOp, { type: 'extension_ui_response' }>['response'],
+    client: LaneCommandClient,
+  ) => 'relay' | 'forbidden'
 }
 
 export type Terminal = Exclude<Receipt, { status: 'pending' }>

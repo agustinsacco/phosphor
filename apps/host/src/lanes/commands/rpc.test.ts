@@ -177,6 +177,25 @@ describe('executeRpc', () => {
     expect(f.last(stopped.frame.requestId)).toMatchObject({ code: 'lane-stopped' })
   })
 
+  it('relays a dialog answer the guard allows and refuses one it forbids', async () => {
+    const { state, queue } = setup()
+    const dialogGuard = vi.fn(() => 'forbidden' as const)
+    const forged = job(dialog)
+    expect(executeRpc(state, { ...f.ports, dialogGuard }, forged, queue, admitted(forged))).toEqual(
+      handled(),
+    )
+    expect(dialogGuard).toHaveBeenCalledWith(f.lane.laneId, response, f.one)
+    expect(f.respond).not.toHaveBeenCalled()
+    expect(f.last(forged.frame.requestId)).toMatchObject({ status: 'rejected', code: 'forbidden' })
+    const allowed = job(dialog)
+    const relay = vi.fn(() => 'relay' as const)
+    await detached(
+      executeRpc(state, { ...f.ports, dialogGuard: relay }, allowed, queue, admitted(allowed)),
+    )
+    expect(f.respond).toHaveBeenCalledWith('pi-live', response)
+    expect(f.last(allowed.frame.requestId)).toMatchObject({ status: 'done' })
+  })
+
   it('leaves ops that are neither pi commands nor dialog answers unmatched', () => {
     const { state, queue } = setup()
     for (const op of [{ type: 'control.take' }, { type: 'lane.stop' }] satisfies LaneOp[]) {
