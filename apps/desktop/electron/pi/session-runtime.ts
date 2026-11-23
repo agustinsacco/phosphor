@@ -24,11 +24,12 @@ import { getPrefs, recordWorkspace, realPathOrNull } from '../store'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import { log } from '../debug-log'
 import { createLaneReload } from '@phosphor/session-runtime/pi/lane-reload'
-import { createLaneConfigFingerprint } from './lane-config'
+import { createLaneConfigFingerprint } from '@phosphor/session-runtime/pi/lane-config'
+import { mcpConfigPaths, mcpDirs } from '@phosphor/session-runtime/pi/mcp-config'
 
 /** MCP and package config changes reach running lanes before their next turn. */
 const laneReload = createLaneReload({
-  fingerprint: createLaneConfigFingerprint(),
+  fingerprint: createLaneConfigFingerprint(mcpDirs, mcpConfigPaths),
   log,
   // A reload can change the lane's commands (MCP prompts are commands).
   onApplied: () => {

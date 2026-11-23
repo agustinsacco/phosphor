@@ -358,7 +358,7 @@ newly enabled one is back, with its exposure, on the next request.
   parent) wait for your next message.
 - **What counts as a change.** A fingerprint of the lane's two `mcp.json`
   files, global and `<lane>/.pi/mcp.json`, plus `packages` and `extensions` in
-  both `settings.json` files (`apps/desktop/electron/pi/lane-config.ts`). The
+  both `settings.json` files (`libs/session-runtime/src/pi/lane-config.ts`). The
   settings are what the migration changes, so an open lane drops the adapter
   and turns pi's MCP on in the same reload; other settings pi rewrites itself,
   such as the last model, do not count. Files are re-read only when their stat

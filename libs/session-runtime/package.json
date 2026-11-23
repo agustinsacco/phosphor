@@ -415,6 +415,10 @@
     "./claude/session-map": {
       "types": "./src/claude/session-map.ts",
       "default": "./src/claude/session-map.ts"
+    },
+    "./pi/lane-config": {
+      "types": "./src/pi/lane-config.ts",
+      "default": "./src/pi/lane-config.ts"
     }
   },
   "nx": {

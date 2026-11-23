@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createLaneConfigFingerprint, laneConfigFiles } from './lane-config'
-import type { McpDirs } from './mcp-config'
+import { mcpConfigPaths, type McpDirs } from './mcp-config'
 
 const cleanups: string[] = []
 afterEach(async () => {
@@ -21,7 +21,7 @@ async function setup() {
   const lane = join(root, 'lane')
   const other = join(root, 'other')
   for (const dir of [dirs.piAgent, lane, other]) await mkdir(dir, { recursive: true })
-  return { dirs, lane, other, fingerprint: createLaneConfigFingerprint(() => dirs) }
+  return { dirs, lane, other, fingerprint: createLaneConfigFingerprint(() => dirs, mcpConfigPaths) }
 }
 
 const write = (path: string, value: unknown) =>
@@ -30,7 +30,7 @@ const write = (path: string, value: unknown) =>
 describe('laneConfigFiles', () => {
   it('is the two mcp.json files and the two settings.json files pi reads', async () => {
     const { dirs, lane } = await setup()
-    expect(laneConfigFiles(lane, dirs).map((file) => file.path)).toEqual([
+    expect(laneConfigFiles(lane, dirs, mcpConfigPaths).map((file) => file.path)).toEqual([
       join(dirs.piAgent, 'mcp.json'),
       join(lane, '.pi', 'mcp.json'),
       join(dirs.piAgent, 'settings.json'),

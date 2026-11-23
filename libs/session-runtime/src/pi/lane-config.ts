@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { mcpConfigPaths, mcpDirs, type McpDirs } from './mcp-config'
+import type { McpDirs } from './mcp-config'
+
+type McpPathResolver = (cwd: string, dirs: McpDirs) => { path: string }[]
 
 /** A file a lane's extensions read at startup, and the part of it that matters. */
 export interface LaneConfigFile {
@@ -25,7 +27,11 @@ function extensionSettings(value: unknown): unknown {
  * there. Servers an extension registers itself are not config, and a trust
  * decision made later reaches new lanes only.
  */
-export function laneConfigFiles(cwd: string, dirs: McpDirs = mcpDirs()): LaneConfigFile[] {
+export function laneConfigFiles(
+  cwd: string,
+  dirs: McpDirs,
+  mcpConfigPaths: McpPathResolver,
+): LaneConfigFile[] {
   return [
     ...mcpConfigPaths(cwd, dirs).map(({ path }) => ({ path })),
     { path: join(dirs.piAgent, 'settings.json'), pick: extensionSettings },
@@ -54,7 +60,7 @@ function digest(text: string): string {
  * prompt, so a file is only read again when its stat changed; an unchanged
  * set of files costs a handful of `stat` calls.
  */
-export function createLaneConfigFingerprint(dirs?: () => McpDirs) {
+export function createLaneConfigFingerprint(dirs: () => McpDirs, mcpConfigPaths: McpPathResolver) {
   const cache = new Map<string, { signature: string; digest: string }>()
 
   async function fileDigest({ path, pick }: LaneConfigFile): Promise<string> {
@@ -88,7 +94,7 @@ export function createLaneConfigFingerprint(dirs?: () => McpDirs) {
   }
 
   return async function fingerprint(cwd: string): Promise<string> {
-    const files = laneConfigFiles(cwd, dirs?.())
+    const files = laneConfigFiles(cwd, dirs(), mcpConfigPaths)
     const parts = await Promise.all(
       files.map(async (file) => `${file.path}=${await fileDigest(file)}`),
     )
