@@ -350,7 +350,10 @@ it('discovers retained owner worktrees once, including a sandbox reached through
   session(join(root, 'other', '.phosphor', 'worktrees', 'unlisted'))
   const owner = { roots: [alias], routinePaths: new Set<string>() }
   expect(await reconcile(store, join(root, 'sessions'), undefined, undefined, owner)).toEqual({
-    repositories: 1, lanes: 2, added: 2, removed: 0,
+    repositories: 1,
+    lanes: 2,
+    added: 2,
+    removed: 0,
   })
   expect(store.sessionLane(file)).toMatchObject({ repositoryId: repo!.id, cwd: gone })
   expect(store.sessionLane(scratch)).toMatchObject({ repositoryId: repo!.id, cwd: repository })

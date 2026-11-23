@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { HOST_SIDECARS } from '@phosphor/shared/host-local'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import { parseMigrationFolders } from '@phosphor/shared/host-protocol-owner/migration'
@@ -58,4 +58,36 @@ export function activeFolderPaths(
 ) {
   if (!file) return [...configured]
   return [...new Set([...(local ? [] : configured), ...ownerFolderPaths(file)])]
+}
+
+/** Apply only the legacy list's change. Owner-only slots keep their relative order and metadata. */
+export function mergeLegacyFolderChange(
+  file: OwnerFolders | null,
+  previous: readonly string[],
+  next: readonly string[],
+  local: boolean,
+) {
+  let snapshot: OwnerFolders | null = null
+  if (file && local) {
+    const byPath = new Map(file.items.map((i) => [i.path, i]))
+    const kept = ownerFolderPaths(file).filter((p) => !previous.includes(p) || next.includes(p))
+    const ordered = next.filter((p) => kept.includes(p) || !previous.includes(p))
+    let slot = 0
+    const paths = [
+      ...kept.map((p) => (next.includes(p) ? ordered[slot++]! : p)),
+      ...ordered.slice(slot),
+    ]
+    snapshot = {
+      ...file,
+      items: paths.map((path, order) => ({
+        name: basename(path),
+        ...byPath.get(path),
+        path,
+        order,
+      })),
+    }
+  }
+  const paths = activeFolderPaths(snapshot ?? file, next, local)
+  if (paths.length > HOST_LIMITS.repositoriesPerHost) throw new Error('Folder limit reached.')
+  return { paths, snapshot }
 }

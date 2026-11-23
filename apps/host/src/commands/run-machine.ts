@@ -178,6 +178,7 @@ function createMachineCommands(
   })
   parts.terminals = terminals
   const repositories = createRepositories({
+    local: ports.local,
     home: context.home,
     configPath: config.path,
     uid: context.uid,
