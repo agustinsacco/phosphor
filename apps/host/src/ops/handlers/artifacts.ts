@@ -12,11 +12,12 @@ import {
   isSessionId,
   readAllIndexes,
   readIndex,
+  type SessionArtifactIndex,
 } from '@phosphor/session-runtime/artifacts/artifact-indexer'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { op, pageOffset, pageRows } from '@phosphor/session-runtime/ops/results'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
-import { artifactMeta, artifactSessionId } from '../../features/artifacts/query'
+import { artifactMeta, artifactSessionId, indexForList } from '../../features/artifacts/query'
 import { readArtifactVersion } from '../../features/artifacts/read'
 import { FeatureFailure } from '../../features/machine'
 import { laneCall, laneId, requireCall } from './lane-ports'
@@ -96,72 +97,80 @@ interface Dropped {
   overCaps: number
 }
 
-/** What M5c's `ownerLibrary` counts for one row: its parsed metadata, `sessionDeleted` too. */
-const rowBytes = (row: ArtifactMeta & { sessionDeleted?: true }) => utf8Length(JSON.stringify(row))
-
-/**
- * Rows for every conversation in the store that no live lane holds, newest
- * first, as `<session id>/<slug>`. A row the client's parser would refuse is
- * dropped, never sent: one bad index must not fail the whole library.
- */
-function unownedRows(deps: DaemonHandlerDeps, root: string, dropped: Dropped): LibraryRow[] {
-  const held = new Set(
-    deps.store
-      .listLanes()
-      .flatMap((l) => (l.sessionFile ? [artifactSessionId(l.sessionFile)] : [])),
-  )
-  const rows: (LibraryRow & { at: number })[] = []
-  for (const index of readAllIndexes(root)) {
-    if (held.has(index.sessionId)) continue
-    for (const stored of Object.values(index.artifacts)) {
-      const meta = artifactMeta(index.sessionId, stored)
-      const parsed = meta && parseArtifactList([meta])?.[0]
-      const row = parsed && {
-        ...parsed,
-        key: `${parsed.laneId}/${parsed.slug}`,
-        sessionDeleted: true as const,
-      }
-      // A row past one page's data would fail every page from its own on.
-      if (!row || utf8Length(JSON.stringify([row])) > OPS_LIMITS.callDataBytes) {
-        if (meta) dropped.invalid++
-        continue
-      }
-      rows.push({ ...row, at: row.versions.at(-1)?.createdAt ?? 0 })
+/** Classify and validate before paging: neither a bad slug nor a single
+ * oversized row should invalidate every page of an otherwise usable store. */
+function appendIndex(
+  rows: LibraryRow[],
+  index: SessionArtifactIndex,
+  owner: { laneId: string } | null,
+  dropped: Dropped,
+) {
+  for (const stored of Object.values(index.artifacts)) {
+    const meta = artifactMeta(owner?.laneId ?? index.sessionId, stored)
+    if (!meta) continue
+    const parsed = parseArtifactList([meta])?.[0]
+    const row = parsed && {
+      ...parsed,
+      key: `${parsed.laneId}/${parsed.slug}`,
+      ...(!owner && { sessionDeleted: true as const }),
     }
+    if (!row || utf8Length(JSON.stringify([row])) > OPS_LIMITS.callDataBytes) dropped.invalid++
+    else rows.push(row)
   }
-  return rows
-    .sort((a, b) => b.at - a.at || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
-    .map(({ at: _, ...row }) => row)
 }
 
-/**
- * The library: live lanes' rows first, then conversations no lane holds,
- * newest first. Past the client's row and metadata caps the oldest of those
- * are dropped, so `ownerLibrary` never refuses a valid library.
- */
-async function libraryRows(deps: DaemonHandlerDeps, c: OpHandlerContext, dropped: Dropped) {
-  const live = parseArtifactList(await laneCall(deps, 'artifacts.list', {}, c))
-  if (!live) throw new OpRefusal('unavailable', 'Invalid artifact list.')
-  const rows: LibraryRow[] = live.map((a) => ({ ...a, key: `${a.laneId}/${a.slug}` }))
-  const root = storeRoot(deps)
-  if (!root) return rows
-  const keys = new Set(rows.map((r) => r.key))
-  let bytes = live.reduce((sum, a) => sum + rowBytes(a), 0)
-  for (const row of unownedRows(deps, root, dropped)) {
-    const { key: _, ...counted } = row
-    if (keys.has(row.key)) continue
-    if (
-      rows.length >= ARTIFACT_LIMITS.count ||
-      bytes + rowBytes(counted) > ARTIFACT_LIMITS.metadataBytes
-    ) {
+/** Live lanes have priority. Within each group keep the newest rows that fit
+ * the client's count and metadata caps, with a stable order for equal times. */
+function boundedRows(candidates: LibraryRow[], dropped: Dropped) {
+  candidates.sort(
+    (a, b) =>
+      Number(!!a.sessionDeleted) - Number(!!b.sessionDeleted) ||
+      b.versions.at(-1)!.createdAt - a.versions.at(-1)!.createdAt ||
+      (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+  )
+  const rows: LibraryRow[] = []
+  const keys = new Set<string>()
+  let bytes = 0
+  for (const row of candidates) {
+    const { key, ...counted } = row
+    if (keys.has(key)) continue
+    // ownerLibrary counts parsed metadata, including sessionDeleted but not key.
+    const size = utf8Length(JSON.stringify(counted))
+    if (rows.length >= ARTIFACT_LIMITS.count || bytes + size > ARTIFACT_LIMITS.metadataBytes) {
       dropped.overCaps++
       continue
     }
-    bytes += rowBytes(counted)
-    keys.add(row.key)
+    keys.add(key)
+    bytes += size
     rows.push(row)
   }
   return rows
+}
+
+async function libraryRows(deps: DaemonHandlerDeps, c: OpHandlerContext, dropped: Dropped) {
+  requireCall(deps, 'artifacts.list', c)
+  const root = storeRoot(deps)
+  if (!root) throw new OpRefusal('unavailable', 'Artifacts are unavailable on this machine.')
+  const rows: LibraryRow[] = []
+  const skipped = (laneId: string, reason: string) =>
+    deps.log('artifacts', 'artifact-lane-skipped', { laneId, reason })
+  for (const lane of deps.store.listLanes()) {
+    if (!lane.sessionFile || lane.removedAt !== null) continue
+    c.signal.throwIfAborted()
+    const index = await indexForList(root, { store: deps.store, skipped }, lane.laneId)
+    if (index) appendIndex(rows, index, lane, dropped)
+  }
+  c.signal.throwIfAborted()
+  // Recheck membership after the async scans; deletion while indexing must not
+  // surface a dead lane link. Its saved index gets a session key instead.
+  const lanes = deps.store.listLanes().filter((l) => l.removedAt === null)
+  const held = new Set(lanes.map((l) => l.sessionFile && artifactSessionId(l.sessionFile)))
+  const live = new Set(lanes.map((l) => l.laneId))
+  const candidates = rows.filter((row) => live.has(row.laneId))
+  for (const index of readAllIndexes(root)) {
+    if (!held.has(index.sessionId)) appendIndex(candidates, index, null, dropped)
+  }
+  return boundedRows(candidates, dropped)
 }
 
 /** A conversation no lane holds: its artifact read from the daemon's store. */

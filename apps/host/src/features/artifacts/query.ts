@@ -1,3 +1,4 @@
+import { createSessionPathRuntime } from '@phosphor/session-runtime/pi/session-path-lock'
 import {
   indexSessionFile,
   readIndex,
@@ -38,6 +39,10 @@ function savedIndex(root: string, sessionFile: string): SessionArtifactIndex | n
   return id ? readIndex(root, id) : null
 }
 
+// Wire calls and the owner library share the same index writer. A slower scan
+// must not overwrite a newer projection of the same growing transcript.
+const scans = createSessionPathRuntime()
+
 export async function indexArtifacts(
   root: string,
   store: Pick<HostStore, 'getLane'>,
@@ -46,15 +51,13 @@ export async function indexArtifacts(
   const lane = store.getLane(laneId)
   if (!lane || lane.removedAt !== null) throw new FeatureFailure('unknown-lane')
   if (!lane.sessionFile) return null
-  const previous = savedIndex(root, lane.sessionFile)
-  const saved = await indexSessionFile(
-    root,
-    lane.sessionFile,
-    previous,
-    ARTIFACT_LIMITS.sessionBytes,
-  )
-  if (saved && saved !== previous) await writeIndex(root, saved)
-  return saved
+  const file = lane.sessionFile
+  return scans.withSessionPath(file, async () => {
+    const previous = savedIndex(root, file)
+    const saved = await indexSessionFile(root, file, previous, ARTIFACT_LIMITS.sessionBytes)
+    if (saved && saved !== previous) await writeIndex(root, saved)
+    return saved
+  })
 }
 
 /**
@@ -62,9 +65,9 @@ export async function indexArtifacts(
  * first scan is past the cap, its file unreadable) is left out and logged, so
  * it never blanks every other lane on this Host.
  */
-async function indexForList(
+export async function indexForList(
   root: string,
-  ports: ArtifactLanePorts,
+  ports: Pick<ArtifactLanePorts, 'store' | 'skipped'>,
   laneId: string,
 ): Promise<SessionArtifactIndex | null> {
   try {
