@@ -6,8 +6,7 @@
  */
 import { join } from 'node:path'
 import { isUuid } from '@phosphor/shared/control-api'
-import { isSessionId } from '@phosphor/pi-extensions/artifact-store'
-import { readIndex } from '@phosphor/session-runtime/artifacts/artifact-indexer'
+import { isSessionId, readIndex } from '@phosphor/session-runtime/artifacts/artifact-indexer'
 import { ArtifactLibrary } from '@phosphor/session-runtime/artifacts/artifact-library'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { op } from '@phosphor/session-runtime/ops/results'
