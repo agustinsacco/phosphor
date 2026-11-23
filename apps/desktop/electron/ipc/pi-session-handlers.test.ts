@@ -16,10 +16,12 @@ const state = vi.hoisted(() => {
       pid: 123,
       alive: true,
       on: vi.fn(),
+      respondToExtensionUI: vi.fn(),
       request: vi.fn().mockResolvedValue({ success: true }),
     },
   }
   return {
+    guard: vi.fn().mockReturnValue('relay'),
     signedIn: false,
     remote: {
       command: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock('./hosts-handlers', () => ({ remoteLanes: () => state.remote }))
 vi.mock('./handle', () => ({
   handle: (name: string, cb: (...args: unknown[]) => unknown) => state.handlers.set(name, cb),
 }))
+vi.mock('../ops/lifecycle', () => ({activeDesktopOps: () => ({surfaceAnswered:state.guard})}))
 vi.mock('../registry', () => ({
   registry: {
     create: state.create,
@@ -408,4 +411,11 @@ it('routes all remote handles away from the local pi registry, including expired
   expect(state.session.client.request).not.toHaveBeenCalled()
   expect(state.dispose).not.toHaveBeenCalled()
   expect(state.create).not.toHaveBeenCalled()
+})
+
+it('guards the local confirmation before pi receives the surface answer', async () => {
+  const answer = {type:'extension_ui_response', id:'dialog', confirmed:true}
+  await state.handlers.get('pi:extensionUiResponse')!(event,'live-1',answer)
+  expect(state.guard).toHaveBeenCalledWith('live-1',answer,'surface')
+  expect(state.guard.mock.invocationCallOrder[0]).toBeLessThan(state.session.client.respondToExtensionUI.mock.invocationCallOrder[0]!)
 })
