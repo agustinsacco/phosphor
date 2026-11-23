@@ -353,5 +353,5 @@ export async function startRunOps(ports: RunOpsPorts): Promise<OpsService> {
   return service
 }
 
-/** What this service adds to `phosphor version --json`. Announced by the lead with local mode, not here. */
-export const FEATURE: HostReleaseFeature | null = null
+/** What this service adds to `phosphor version --json`. */
+export const FEATURE: HostReleaseFeature | null = 'ops'

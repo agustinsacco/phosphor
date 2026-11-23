@@ -125,5 +125,5 @@ export function createAppServices(directory: string, uid: number | undefined) {
   }
 }
 export type AppServices = ReturnType<typeof createAppServices>
-/** Migration features are announced only once both ends are available. */
-export const FEATURE: HostReleaseFeature | null = null
+/** What this service adds to `phosphor version --json`. */
+export const FEATURE: HostReleaseFeature | null = 'app-services'

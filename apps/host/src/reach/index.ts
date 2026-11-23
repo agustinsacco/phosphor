@@ -24,8 +24,8 @@ export function createReach(): null {
   return null
 }
 
-/** What this service adds to `phosphor version --json` once it exists. */
-export const FEATURE: HostReleaseFeature | null = null
+/** What this service adds to `phosphor version --json`: machine reach through control's grants. */
+export const FEATURE: HostReleaseFeature | null = 'machine-grants'
 
 export interface MachineReachPorts extends ReachControlPorts {
   /** Opens a sibling's `/v1/stream`; the tailnet WebSocket unless a test injects one. */
