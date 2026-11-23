@@ -25,6 +25,7 @@ import { exportKeyPem } from '../control/identity-records'
 import { LockBusy } from '../control/lock'
 import { freshKey, publicIdentity } from '../control/signer'
 import { hostStateDirectory, prepareStateDirectory } from '../lanes/state-dir'
+import { SERVICE_LOG_NAMES } from './setup-local-service'
 import { runService, type ServiceContext } from './service'
 import { runSetup, type SetupContext, type SetupReport } from './setup'
 
@@ -134,7 +135,7 @@ async function checkLogs(state: string, uid: number | undefined) {
   prepareStateDirectory(logs, uid)
   if (((await lstat(logs)).mode & 0o7777) !== 0o700)
     throw new Error('The existing logs directory must be 0700. No permissions were changed.')
-  for (const name of ['phosphor.log', 'phosphor.log.1', 'launchd.err.log']) {
+  for (const name of SERVICE_LOG_NAMES) {
     const path = join(logs, name)
     if (!(await identityEntryExists(path))) continue
     const info = await lstat(path)

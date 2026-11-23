@@ -2,6 +2,8 @@ import { lstatSync, readlinkSync, readdirSync, rmSync, rmdirSync, unlinkSync } f
 import { dirname, join } from 'node:path'
 import { defaultConfigPath } from '../config/load'
 import { hostStateDirectory } from '../lanes/state-dir'
+import { isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
+import { SERVICE_LOG_NAMES } from './setup-local-service'
 import { checkedFolder } from '@phosphor/session-runtime/host-install/files'
 import { acquireInstallLock, hasCode } from '@phosphor/session-runtime/host-install/lock'
 import { commandLayout } from '@phosphor/session-runtime/host-install/layout'
@@ -21,6 +23,7 @@ const stateEntries = new Set([
   'service-exit.json',
   'attachments',
   'lane-transfer',
+  'lane-archive',
   'routines',
   'trash',
   'artifacts',
@@ -33,14 +36,32 @@ const stateEntries = new Set([
   'headroom.json',
   'app-services.json',
 ])
-function checkedEntries(state: string) {
+function requirePrivateFolder(path: string, uid: number | undefined) {
+  const info = lstatSync(path)
+  if (!info.isDirectory() || !isOwnerPrivate(info, uid))
+    throw new Error('State is not a private folder; nothing in this folder will be purged.')
+}
+function checkedEntries(state: string, uid: number | undefined) {
+  requirePrivateFolder(state, uid)
   const entries = readdirSync(state)
   if (entries.some((name) => !stateEntries.has(name)))
     throw new Error('State contains unknown entries; nothing in this folder will be purged.')
+  if (entries.includes('logs')) {
+    const logs = join(state, 'logs')
+    requirePrivateFolder(logs, uid)
+    if (readdirSync(logs).some((name) => !SERVICE_LOG_NAMES.includes(name)))
+      throw new Error('State contains unknown entries; nothing in this folder will be purged.')
+  }
   return entries
 }
-function purgeState(state: string) {
-  for (const name of checkedEntries(state)) rmSync(join(state, name), { recursive: true })
+function purgeState(state: string, uid: number | undefined) {
+  for (const name of checkedEntries(state, uid)) {
+    const path = join(state, name)
+    if (name === 'logs') {
+      for (const file of SERVICE_LOG_NAMES) rmSync(join(path, file), { force: true })
+      rmdirSync(path)
+    } else rmSync(path, { recursive: true })
+  }
   // Never recursively remove the root: a foreign entry may have appeared since the check.
   rmdirSync(state)
 }
@@ -72,7 +93,7 @@ export async function runUninstall(
           context.print('Purge requires the default config path.')
           return 64
         }
-        if (hasState) checkedEntries(state)
+        if (hasState) checkedEntries(state, context.uid)
         const result = await runLogout({ ...context, signal })
         if (result.exitCode !== 0) {
           context.print('Logout failed; nothing was uninstalled.')
@@ -122,7 +143,7 @@ export async function runUninstall(
         )
       removeHostPathBlocks(context.home, context.uid)
       if (purge) {
-        if (safe(state)) purgeState(state)
+        if (safe(state)) purgeState(state, context.uid)
         if (safe(config)) rmSync(config, { recursive: true })
       } else context.print(`Kept config and identity: ${config}; state: ${state}`)
       reportBackup(context)
@@ -134,7 +155,9 @@ export async function runUninstall(
       if (signal.aborted) return typeof signal.reason === 'number' ? signal.reason : 70
       context.print(
         error instanceof Error &&
-          /^(Install lock:|State contains unknown entries;)/.test(error.message)
+          /^(Install lock:|State contains unknown entries;|State is not a private folder;)/.test(
+            error.message,
+          )
           ? error.message
           : 'Host uninstall could not finish safely.',
       )

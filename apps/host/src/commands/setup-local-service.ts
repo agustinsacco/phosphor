@@ -13,6 +13,12 @@ import { HOST_VERSION } from '../version'
 import { readRunHealth } from '../update/health'
 import type { ServiceContext } from './service'
 
+export const SERVICE_LOG_NAMES: readonly string[] = [
+  'phosphor.log',
+  'phosphor.log.1',
+  'launchd.err.log',
+]
+
 function alreadyRunning(context: ServiceContext, state: string, pid: number): number {
   const local = readSidecar(state, HOST_SIDECARS.localRun, parseLocalRunFile, context)
   const run = readRunHealth(state)

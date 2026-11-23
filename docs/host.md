@@ -487,7 +487,7 @@ place, and the command prints the config and state directories. Add `--json`
 for a machine-readable result. On a screen, `phosphor uninstall` without `--yes`
 first asks; No exits 0 and Escape exits 130, both leaving everything in place.
 
-`phosphor uninstall --purge --yes` refuses if the state folder contains unknown top-level entries. Otherwise it first logs out remotely and only on success
+`phosphor uninstall --purge --yes` refuses a non-private state folder, unknown top-level entries, or foreign files in its logs folder. Otherwise it first logs out remotely and only on success
 removes the default config and state directories too. Both flags are required.
 A failed logout keeps the program, service and data and exits 75. Every directory
 removed is checked for ownership, its expected location and symlinked ancestors.
