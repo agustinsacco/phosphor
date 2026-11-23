@@ -39,6 +39,13 @@ export const OP_CHANNEL_LIMITS = {
   argvItems: 64,
   argvItemChars: 4096,
   deadlineMs: 600_000,
+  /**
+   * UTF-8 bytes of an editor prefill. Twice `argsBytes`, because content is
+   * JSON-escaped inside it; the lane refuses above it as `too-large`, the
+   * owner as `bad-request` before parsing. The args budget itself is checked
+   * by `parseOpChannelRequest`.
+   */
+  prefillBytes: 2 * OPS_LIMITS.argsBytes,
 } as const
 
 export interface SwarmFacts {
