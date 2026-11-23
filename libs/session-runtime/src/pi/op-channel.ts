@@ -68,12 +68,25 @@ export function opMarkerSet(env: Readonly<Record<string, string>> | undefined): 
  * The child's environment: the spawn's own `env` over the inherited one unless
  * `inheritEnv` is false. An inherited marker never reaches an unmarked spawn.
  */
+/**
+ * Brain is reached over the op channel, never with a credential in a lane's env
+ * (`@phosphor/brain-client`'s node transport names the first two). A parent
+ * process launched with any of these must not pass them on.
+ */
+const LANE_WITHHELD_ENV = [
+  'PHOSPHOR_BRAIN_ENDPOINT',
+  'PHOSPHOR_BRAIN_TOKEN',
+  'PHOSPHOR_BRAIN_EMBEDDING_MODEL_DIR',
+  'PHOSPHOR_BRAIN_TEST_EMBEDDINGS',
+] as const
+
 export function opChildEnv(
   own: Readonly<Record<string, string>> | undefined,
   inheritEnv: boolean,
 ): Record<string, string | undefined> {
   const env = inheritEnv ? { ...process.env, ...own } : { ...own }
   if (!opMarkerSet(own)) delete env[OP_MARKER_ENV]
+  for (const key of LANE_WITHHELD_ENV) delete env[key]
   return env
 }
 
