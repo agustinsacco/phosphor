@@ -38,7 +38,7 @@ it.each(['filed', 'already_flagged', 'limit'] as const)(
     expect(await s.flag()).toEqual({ content: [{ type: 'text', text }], details: { status } })
     expect(s.send).toHaveBeenCalledWith(
       s.ctx,
-      { op: 'brain.flag', args: input },
+      { op: 'brain.flag', args: input, reason: input.reason },
       { signal: undefined, deadlineMs: 10_000 },
     )
   },

@@ -14,8 +14,10 @@ async function invoke(
   op: string,
   args: Record<string, unknown>,
   signal?: AbortSignal,
+  reason?: string,
 ) {
-  const response = await send(ctx, { op, args }, { signal, deadlineMs: 10_000 }).catch(() => null)
+  const request = reason === undefined ? { op, args } : { op, args, reason }
+  const response = await send(ctx, request, { signal, deadlineMs: 10_000 }).catch(() => null)
   if (
     response?.status !== 'ok' ||
     !response.data ||
@@ -115,7 +117,7 @@ function registerFlag(pi: BrainPiApi, send: OpSender): void {
           'Use a problem (wrong, outdated or duplicate) and a reason of 1 to 300 characters.',
         )
       const { ref, problem, reason } = params
-      const result = await invoke(send, ctx, 'brain.flag', { ref, problem, reason }, signal)
+      const result = await invoke(send, ctx, 'brain.flag', { ref, problem, reason }, signal, reason)
       return reply(result.text, result.status)
     },
   })
