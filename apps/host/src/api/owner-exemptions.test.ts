@@ -102,14 +102,13 @@ function fakeSocket() {
 async function host(kind: Kind) {
   const f: CommandsFixture = await createCommandsFixture()
   // Receipts reach the connection through the adapter, as in production, which frees its slots.
-  let adapter: ReturnType<typeof createLaneAdapter> | undefined
   const service = hostServices(f, (clientId, receipt, connectionId) => {
     f.ports.deliver(clientId, receipt, connectionId)
-    adapter?.deliver(clientId, receipt, connectionId)
+    adapter.deliver(clientId, receipt, connectionId)
   })
   const { socket, frames, drop } = fakeSocket()
   const client = { id: f.one.id, label: f.one.label }
-  adapter = createLaneAdapter(service)
+  const adapter = createLaneAdapter(service)
   const handler = adapter.handler({
     connectionId: randomUUID(),
     client,
