@@ -3,6 +3,7 @@ import { BRAIN_NEVER_READ_REFRESH_REFUSAL } from '@phosphor/shared/brain-review'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { CurrentLane, LaneFiles } from './lane-files'
 import type { LaneEntry } from './transcript'
+import { BRAIN_OWN_LANE_REFUSAL, isBrainOwnLane } from './agent/own-lane'
 
 export interface LaneReadCheck {
   refusal: string | null
@@ -28,11 +29,15 @@ export async function currentTitle(
   return { ...current, retitled }
 }
 
-/** Eligibility follows the current transcript; an unreadable review stays available to reject. */
+/**
+ * Eligibility follows the current transcript; an unreadable review stays available to reject.
+ * `brainFolder`: Brain Agent's folder, whose lanes Brain never reads.
+ */
 export async function currentReadCheck(
   store: BrainStore,
   files: LaneFiles,
   job: BrainJob,
+  brainFolder?: string,
 ): Promise<LaneReadCheck> {
   const prefs = () => store.snapshot().prefs.neverRead
   const byId = brainNeverReadReason({ ...prefs(), titles: [] }, job)
@@ -47,7 +52,9 @@ export async function currentReadCheck(
   })
   if (current === null) return { refusal: DELETED_LANE_REFRESH_REFUSAL }
   return {
-    refusal: brainNeverReadReason(prefs(), { ...job, title: current.title }),
+    refusal: isBrainOwnLane(current.cwd, brainFolder)
+      ? BRAIN_OWN_LANE_REFUSAL
+      : brainNeverReadReason(prefs(), { ...job, title: current.title }),
     entries: current.entries,
     retitled: current.retitled,
   }

@@ -3,7 +3,6 @@ import { Button } from '@/components/form'
 import { useBrain } from '../useBrain'
 import { useBrainResource } from '../useBrainResource'
 import { useBrainHistory } from '../BrainHistory'
-import type { useTidyPage } from '../tidy/useTidyPage'
 import { useTidyActions } from '../tidy/useTidyActions'
 import type { BrainHistory, BrainJob, BrainPrefs } from '@shared/brain'
 import type { BrainTidyOperation } from '@shared/brain-tidy'
@@ -24,12 +23,10 @@ import {
 
 /** Where knowledge came from: reads by state, then the Tidy changes that can be undone. */
 export function BrainLanes({
-  tidy,
   selected,
   onSelect,
   onMemory,
 }: {
-  tidy: ReturnType<typeof useTidyPage>
   selected: LaneSelection | null
   onSelect: (selection: LaneSelection | null) => void
   onMemory: (id: string, label: string) => void
@@ -42,12 +39,7 @@ export function BrainLanes({
   const groups = laneGroups(jobs, history)
   const operations = changes.data?.items ?? []
   const current = useLaneSelection(selected, onSelect, groups, operations, !!data && !!changes.data)
-  const actions = useTidyActions({
-    detail: null,
-    page: tidy.page,
-    reload: tidy.reload,
-    onChanged: changes.retry,
-  })
+  const actions = useTidyActions(changes.retry)
   const undo = (id: string): void => actions.undo(id, changes.data?.revision ?? 0)
   const { row, unlisted, change } = selectedDetail(current, groups, operations, !!data)
   return (
@@ -95,6 +87,7 @@ export function BrainLanes({
           message={actions.message}
           onUndo={undo}
           onMemory={onMemory}
+          onRead={(id) => onSelect({ type: 'job', id })}
         />
       </section>
     </div>
@@ -178,6 +171,7 @@ function LaneDetail({
   message,
   onUndo,
   onMemory,
+  onRead,
 }: {
   history: BrainHistory | null
   never: BrainPrefs['neverRead'] | null
@@ -191,9 +185,10 @@ function LaneDetail({
   message: string
   onUndo: (operationId: string) => void
   onMemory: (id: string, label: string) => void
+  onRead: (id: string) => void
 }): React.JSX.Element {
   if (never) return <NeverReadDetail never={never} />
-  if (row && !finishedRead(row.job))
+  if (row && !finishedRead(row.job) && !['review', 'refreshing'].includes(row.job.state))
     return (
       <JobDetail
         key={row.job.id}
@@ -204,8 +199,14 @@ function LaneDetail({
       />
     )
   const read = row?.job.id ?? unlisted
-  if (read) return <ReadDetail key={read} jobId={read} history={history} onMemory={onMemory} />
-  if (change) return <ChangeDetail change={change} busy={busy} message={message} onUndo={onUndo} />
+  if (read)
+    return (
+      <ReadDetail key={read} jobId={read} history={history} job={row?.job} onMemory={onMemory} />
+    )
+  if (change)
+    return (
+      <ChangeDetail change={change} onRead={onRead} busy={busy} message={message} onUndo={onUndo} />
+    )
   return (
     <p className="text-text-tertiary p-6">{loaded ? 'Choose a read or a change.' : 'Loading…'}</p>
   )
@@ -213,7 +214,7 @@ function LaneDetail({
 
 /**
  * The selection in force, once fresh reads and changes have loaded: a finished job must not
- * look gone just because the list is reloading. A review belongs to the Inbox.
+ * look gone just because the list is reloading. Waiting reads stay in Lanes until Defrag decides them.
  */
 function useLaneSelection(
   selected: LaneSelection | null,
@@ -243,7 +244,7 @@ function useListedJobs(groups: ReturnType<typeof laneGroups>): ReadonlySet<strin
 
 /** Recent Tidy changes, reloaded when Tidy or Brain changes; rows stay while reloading. */
 function useTidyChanges() {
-  const summary = useBrain((s) => JSON.stringify(s.status?.tidy))
+  const summary = useBrain((s) => JSON.stringify([s.status?.agent, s.status?.tidy]))
   const resource = useBrainResource(
     useCallback(() => window.phosphor.invoke('brain:tidyChanges', 50), []),
     true,
@@ -257,7 +258,7 @@ function useTidyChanges() {
 }
 
 /** States whose row shows a time that moves: how long it has read, or how long it waited. */
-const TIMED: readonly BrainJob['state'][] = ['running', 'refreshing', 'queued', 'waiting']
+const TIMED: readonly BrainJob['state'][] = ['running', 'refreshing', 'queued', 'waiting', 'review']
 
 /** Times are in minutes, so a coarse tick is enough while anything is reading or queued. */
 function useLaneClock(active: boolean): number {

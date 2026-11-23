@@ -53,7 +53,12 @@ const shippedFiles = [
 ]
 // Exported for source, build and test consumers; packaged resources carry only
 // their standalone bundles (brain-ext/), never these TypeScript sources.
-const bundleOnlySources = ['brain.ts', 'brain-fork-guard.ts']
+const bundleOnlySources = [
+  'brain.ts',
+  'brain-fork-guard.ts',
+  'brain-curator.ts',
+  'brain-curator-writes.ts',
+]
 
 describe('standalone pi extension resources', () => {
   it('exports production source files without exposing tests', () => {

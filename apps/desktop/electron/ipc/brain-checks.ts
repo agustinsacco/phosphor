@@ -11,7 +11,6 @@ import {
   type BrainPredicate,
   type BrainPrefs,
 } from '@phosphor/shared/brain'
-import { checkBrainReviewDecision } from '@phosphor/shared/brain-review'
 
 /** Renderer input is untrusted: every Brain argument is checked here before it reaches the API. */
 export const fail = (message: string): never => {
@@ -49,9 +48,6 @@ export function checkLane(value: unknown): BrainLaneRef {
   if (typeof title !== 'string' || title.length > 500) fail('Invalid Brain request.')
   return { sessionPath: text(lane?.sessionPath), title: title as string }
 }
-
-/** What to save from a proposal, shape and sizes only. Null rejects it whole. */
-export const checkDecision = checkBrainReviewDecision
 
 export const revisionOf = (value: unknown): number =>
   Number.isSafeInteger(value) && (value as number) >= 0

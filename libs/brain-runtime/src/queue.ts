@@ -1,6 +1,7 @@
 import { brainLaneNeverRead, type BrainJob } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { LaneReadCheck } from './lane-read-rules'
+import { returnToReview } from './stale-review'
 import { DeletedLaneError, type LaneEntry } from './transcript'
 
 export interface QueueOptions {
@@ -25,10 +26,18 @@ interface QueueTask {
   reject(error: unknown): void
 }
 
+/** The worker's id while a lane-less task (Defrag) holds it. */
+const DEFRAG_TASK = 'defrag'
+const CANCELLED = 'Brain task cancelled.'
+
 const titleRules = (store: BrainStore): string =>
   JSON.stringify(store.snapshot().prefs.neverRead.titles)
 
-/** A single fork at a time. Waiting lanes never block an older runnable job. */
+/**
+ * A single fork at a time. Waiting lanes never block an older runnable job. A stale review waits
+ * in review: only `recompute` (Brain Agent opening it outside a run) and `refreshInline` (inside
+ * Defrag) refresh it, never a pass of the queue.
+ */
 export class ExtractionQueue {
   private active: { id: string; abort: AbortController; done: Promise<void> } | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -39,6 +48,9 @@ export class ExtractionQueue {
   private checkedRules: string
   private disposed = false
   private paused = false
+  /** Inline refreshes, one at a time, and how many are queued or running. */
+  private inline: Promise<void> = Promise.resolve()
+  private inlineBusy = 0
 
   get accepting(): boolean {
     return !this.disposed && !this.paused
@@ -156,7 +168,6 @@ export class ExtractionQueue {
     if (!this.accepting) return
     clearTimeout(this.timer)
     const { store, changed } = this.options
-    this.refreshStaleReviews()
     const waiting = this.updateWaiting()
     if (waiting) this.timer = setTimeout(() => this.kick(), 2000)
     if (this.active || !this.options.ready()) return
@@ -171,12 +182,8 @@ export class ExtractionQueue {
       const done = Promise.resolve()
         .then(() => task.run(task.abort.signal))
         .then(task.resolve, task.reject)
-        .finally(() => {
-          this.active = undefined
-          this.options.changed()
-          this.kick()
-        })
-      this.active = { id: 'tidy', abort: task.abort, done }
+        .then(() => this.releaseTask())
+      this.active = { id: DEFRAG_TASK, abort: task.abort, done }
       return
     }
     if (!job) return
@@ -191,22 +198,6 @@ export class ExtractionQueue {
     // Start on a microtask so cancellation always sees the active run first.
     const done = Promise.resolve().then(() => this.execute(running, abort))
     this.active = { id: job.id, abort, done }
-  }
-
-  private refreshStaleReviews(): void {
-    const { store, changed } = this.options
-    for (const job of store.snapshot().jobs) {
-      if (job.state !== 'review' || this.blocked.has(job.id)) continue
-      const proposal = store.storedProposal(job.id)
-      if (!proposal || proposal.computedRevision === store.knowledgeRevision()) continue
-      store.updateJob(job.id, {
-        state: 'refreshing',
-        runStartedAt: null,
-        error: null,
-        progress: null,
-      })
-      changed()
-    }
   }
 
   private updateWaiting(): boolean {
@@ -256,7 +247,7 @@ export class ExtractionQueue {
       const index = this.tasks.indexOf(task)
       if (index >= 0) {
         this.tasks.splice(index, 1)
-        task.reject(new Error('Brain Tidy cancelled.'))
+        task.reject(new Error(CANCELLED))
       }
     }
     this.kick()
@@ -266,7 +257,7 @@ export class ExtractionQueue {
   private cancelTasks(): void {
     for (const task of this.tasks.splice(0)) {
       task.abort.abort()
-      task.reject(new Error('Brain Tidy cancelled.'))
+      task.reject(new Error(CANCELLED))
     }
   }
 
@@ -309,18 +300,29 @@ export class ExtractionQueue {
 
   private async execute(job: BrainJob, abort: AbortController): Promise<void> {
     try {
+      await this.runJob(job, abort.signal)
+    } finally {
+      this.active = undefined
+      this.options.changed()
+      this.kick()
+    }
+  }
+
+  /** The start check, then the read; a failure is recorded on the job unless it was aborted. */
+  private async runJob(job: BrainJob, signal: AbortSignal): Promise<void> {
+    try {
       const check = this.options.check ? await this.options.check(job) : null
       // The check may have stored the lane's current title; the read records that one.
       const current = this.options.store.job(job.id)
-      if (abort.signal.aborted || !current) return
+      if (signal.aborted || !current) return
       if (check?.refusal) {
         this.exclude(job, check.refusal)
         return
       }
       // The runner observes pre-start cancellation too, so it can record the failure phase.
-      await this.options.run(current, abort.signal, check?.entries)
+      await this.options.run(current, signal, check?.entries)
     } catch (error) {
-      if (!abort.signal.aborted && this.options.store.job(job.id)) {
+      if (!signal.aborted && this.options.store.job(job.id)) {
         // The lane can disappear after preflight, before the runner opens its archived twin.
         if (
           error instanceof DeletedLaneError &&
@@ -336,10 +338,60 @@ export class ExtractionQueue {
               error instanceof Error ? error.message.slice(0, 300) : 'Knowledge extraction failed.',
           })
       }
-    } finally {
-      this.active = undefined
-      this.options.changed()
-      this.kick()
     }
+  }
+
+  /** Defrag holds the worker: reviews it makes stale wait for it, unless it refreshes them inline. */
+  get defragActive(): boolean {
+    return this.active?.id === DEFRAG_TASK
+  }
+
+  /**
+   * Inside the active Defrag task only: refresh one stale review now, through the queue's own run
+   * path and under the task's signal. Calls wait for each other, so two model runs never overlap.
+   */
+  refreshInline(id: string, signal: AbortSignal): Promise<void> {
+    this.inlineBusy++
+    const next = this.inline.then(() => this.refreshNow(id, signal))
+    this.inline = next
+      .catch(() => undefined)
+      .then(() => {
+        this.inlineBusy--
+      })
+    return next
+  }
+
+  /** Inline refreshes the task started keep the worker until they settle, even after Stop. */
+  private releaseTask(): Promise<void> | undefined {
+    if (this.inlineBusy) return this.inline.then(() => this.releaseTask())
+    this.active = undefined
+    this.options.changed()
+    this.kick()
+    return undefined
+  }
+
+  private async refreshNow(id: string, signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted()
+    if (!this.defragActive) throw new Error('Only Defrag refreshes a review inline.')
+    const { store, changed, now } = this.options
+    const job = store.job(id)
+    const proposal = store.storedProposal(id)
+    if (!job || !proposal || (job.state !== 'review' && job.state !== 'refreshing')) return
+    if (job.state === 'review' && proposal.computedRevision === store.knowledgeRevision()) return
+    const running = store.updateJob(id, {
+      state: 'refreshing',
+      runStartedAt: now(),
+      error: null,
+      progress: null,
+    })
+    changed()
+    try {
+      await this.runJob(running, signal)
+    } finally {
+      // Stopped mid-refresh: it waits, stale, for Brain Agent to open it again.
+      if (store.job(id)?.state === 'refreshing') returnToReview(store, id)
+      changed()
+    }
+    signal.throwIfAborted()
   }
 }

@@ -17,6 +17,7 @@ import {
   type BashItem,
   type ChatSessionState,
 } from '@/features/chat/reducer'
+import { hydrateRunning } from '@/features/chat/runningHydration'
 import { drop, keyedSliceFrom } from './keyedSlice'
 
 export interface ChatSession extends ChatSessionState {
@@ -83,7 +84,11 @@ interface ChatStore {
   promptHandled: (sessionId: string, text: string) => void
   addBashItem: (sessionId: string, item: Omit<BashItem, 'id' | 'kind'>) => string
   updateBashItem: (sessionId: string, id: string, patch: Partial<BashItem>) => void
-  hydrate: (sessionId: string, messages: AgentMessage[]) => void
+  /**
+   * Replaces the transcript with pi's `messages`. For a lane whose turn is running, `events` are
+   * every event since the renderer attached, and the transcript keeps those `messages` lack.
+   */
+  hydrate: (sessionId: string, messages: AgentMessage[], events?: readonly PiEvent[]) => void
   /** Clear the resuming flag; safe to call when it is already clear. */
   doneResuming: (sessionId: string) => void
   setError: (sessionId: string, error: string | null) => void
@@ -198,11 +203,11 @@ export const useChatStore = create<ChatStore>((set) => ({
       }
     }),
 
-  hydrate: (sessionId, messages) =>
+  hydrate: (sessionId, messages, events) =>
     set((state) => ({
       sessions: chats.patch(state.sessions, sessionId, (session) => ({
         ...session,
-        ...hydrateFromMessages(messages),
+        ...(events ? hydrateRunning(messages, events, session) : hydrateFromMessages(messages)),
         resuming: false,
       })),
     })),

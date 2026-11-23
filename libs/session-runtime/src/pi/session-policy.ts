@@ -8,6 +8,11 @@ import type { prepareSessionLaunch } from './session-launch'
 
 export interface SessionExecution {
   unattended?: boolean
+  /**
+   * Phosphor opened this attended lane for its own work (Brain Agent's Defrag turn): its folder
+   * joins the recents, but the folder Phosphor reopens at launch stays the owner's.
+   */
+  keepLastWorkspace?: boolean
   intent?: 'report' | 'code'
   signal?: AbortSignal
 }
@@ -28,6 +33,8 @@ export interface SessionPolicyRuntime {
   strictAccountSelection?: boolean
   compressionEnvironment: () => Record<string, string>
   resetCompaction: () => Promise<void>
+  /** Whether `cwd` is the Brain lane's folder (Desktop only): it gets the Brain lane's fixed block. */
+  brainLane?: (cwd: string) => boolean
 }
 
 /** Resolve the policy once for a spawn; budget and ownership remain live elsewhere. */
@@ -51,6 +58,7 @@ export async function prepareSessionPolicy(
     ...(git.isWorktree && git.branch && execution.intent !== 'report'
       ? { charter: { branch: git.branch } }
       : {}),
+    brainLane: runtime.brainLane?.(options.workspacePath) ?? false,
   })
   const account = await prepareProviderAccount(options, stub, runtime)
   if (account) Object.assign(env, account.env)

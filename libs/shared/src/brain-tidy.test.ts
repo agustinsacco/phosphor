@@ -3,7 +3,7 @@ import {
   checkBrainTidyAction,
   type BrainTidyAction,
   type BrainTidyOperation,
-  type BrainTidyRun,
+  type BrainTidySummary,
   type BrainTidySuggestionDetail,
 } from './brain-tidy'
 
@@ -42,16 +42,26 @@ it('freezes the engine-owned action availability fields on suggestion details', 
   >()
 })
 
-it('freezes the reversible operation kinds and the run model and settled count', () => {
+it('freezes the reversible operation kinds', () => {
   expectTypeOf<BrainTidyOperation['kind']>().toEqualTypeOf<
-    'merge' | 'fold' | 'dispute' | 'replace' | 'split' | 'unname' | 'describe'
+    | 'merge'
+    | 'fold'
+    | 'dispute'
+    | 'replace'
+    | 'split'
+    | 'unname'
+    | 'describe'
+    | 'approve'
+    | 'reject'
+    | 'keep'
+    | 'correct'
+    | 'erase'
   >()
-  expectTypeOf<BrainTidyRun['model']>().toEqualTypeOf<string | null>()
-  expectTypeOf<BrainTidyRun['settled']>().toEqualTypeOf<number>()
 })
 
-it('freezes explicit Tidy run states, including skipped and interrupted', () => {
-  expectTypeOf<BrainTidyRun['state']>().toEqualTypeOf<
-    'queued' | 'sweeping' | 'checking' | 'done' | 'cancelled' | 'failed' | 'skipped' | 'interrupted'
-  >()
+it('keeps only automatic fold notice fields in the local sweep status', () => {
+  expectTypeOf<BrainTidySummary>().toEqualTypeOf<{
+    automaticFolds: number
+    newestAutomaticFoldAt: number | null
+  }>()
 })

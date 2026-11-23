@@ -7,20 +7,16 @@ vi.mock('./handle', () => ({
   handle: (channel: string, fn: (...args: unknown[]) => unknown) => handlers.set(channel, fn),
 }))
 
-const { checkDecision, checkLane, checkPrefs, registerBrainHandlers } =
-  await import('./brain-handlers')
+const { checkLane, checkPrefs, registerBrainHandlers } = await import('./brain-handlers')
 const { IPC_WEB } = await import('@phosphor/shared/ipc-web')
 
 const api = {
-  tidySuggestion: vi.fn(async () => null),
-  tidyApply: vi.fn(async (): Promise<unknown> => 'applied'),
   entities: vi.fn(async () => 'entities'),
   recent: vi.fn(async () => 'recent'),
   status: vi.fn(async () => 'status'),
   setPrefs: vi.fn(async () => 'saved'),
   neverRead: vi.fn(async () => 'saved'),
   queue: vi.fn(async () => 'queued'),
-  review: vi.fn(async () => 'reviewed'),
   merge: vi.fn(async () => 'merged'),
   describe: vi.fn(async () => 'described'),
   removeName: vi.fn(async () => 'unnamed'),
@@ -29,6 +25,9 @@ const api = {
   entityMemories: vi.fn(async () => 'memories'),
   neighbourhood: vi.fn(async () => 'graph'),
   find: vi.fn(async () => 'found'),
+  defrag: vi.fn(async () => 'started'),
+  defragStop: vi.fn(async () => 'stopped'),
+  undoRun: vi.fn(async () => 'undone'),
 }
 const call = (channel: string, ...args: unknown[]) => handlers.get(channel)!({}, ...args)
 
@@ -42,6 +41,16 @@ it('registers every Brain channel in the shared contract', () => {
     .filter((channel) => channel.startsWith('brain:'))
     .sort()
   expect([...handlers.keys()].sort()).toEqual(brain)
+})
+
+it('starts and stops Defrag, and refuses an invalid run id before undoing a run', async () => {
+  await expect(call('brain:defrag')).resolves.toBe('started')
+  await expect(call('brain:defragStop')).resolves.toBe('stopped')
+  await expect(call('brain:undoRun', 'run-1')).resolves.toBe('undone')
+  expect(api.undoRun).toHaveBeenCalledWith('run-1')
+  for (const bad of ['', 7, null, 'x'.repeat(201)])
+    await expect(call('brain:undoRun', bad)).rejects.toThrow()
+  expect(api.undoRun).toHaveBeenCalledTimes(1)
 })
 
 it('accepts the Brain switches and reader model', async () => {
@@ -77,41 +86,6 @@ it('queues a lane with no title, as Read new messages sends for an untitled read
   await expect(call('brain:queue', lane)).resolves.toBe('queued')
   expect(api.queue).toHaveBeenCalledWith(lane)
   expect(() => checkLane({ sessionPath: '/s', title: 3 })).toThrow('Invalid Brain request.')
-})
-
-it('checks review decisions and revisions before the service sees them', async () => {
-  const before = {
-    memories: [0, 2],
-    identities: { n1: 'new', n2: 'harbor' },
-    groups: [0],
-    descriptions: [],
-  }
-  const decision = { ...before, confirmations: [1] }
-  expect(checkDecision(null)).toBeNull()
-  expect(checkDecision(decision)).toEqual(decision)
-  for (const bad of [
-    { ...decision, memories: [1, 1] },
-    { ...decision, memories: [-1] },
-    { ...decision, groups: [1.5] },
-    { ...decision, identities: { n1: 3 } },
-    { ...decision, identities: { n1: '' } },
-    { ...decision, extra: true },
-    { memories: [0], groups: [] },
-    'all',
-  ])
-    expect(() => checkDecision(bad)).toThrow('Invalid review selection.')
-  for (const bad of [
-    before,
-    { ...decision, confirmations: [1, 1] },
-    { ...decision, confirmations: [-1] },
-    { ...decision, confirmations: [0.5] },
-    { ...decision, confirmations: [300] },
-    { ...decision, confirmations: 'all' },
-  ])
-    expect(() => checkDecision(bad)).toThrow('Brain confirmation choice is invalid.')
-  await expect(call('brain:review', 'job-1', decision, 3)).resolves.toBe('reviewed')
-  expect(api.review).toHaveBeenCalledWith('job-1', decision, 3)
-  await expect(call('brain:review', 'job-1', null, -1)).rejects.toThrow('Invalid Brain revision.')
 })
 
 it('checks explorer arguments: predicates, directions, hops, filters and cursors', async () => {
@@ -211,35 +185,6 @@ it('checks browse kind, offset, limit and sort and recent limit before reading',
   await expect(call('brain:entities', null, 0, 1, 'connected')).resolves.toBe('entities')
   await expect(call('brain:recent', 50)).resolves.toBe('recent')
   expect(api.recent).toHaveBeenCalledWith(50)
-})
-
-it('checks Tidy arguments before invoking its API', async () => {
-  for (const args of [
-    ['unknown', null, 20],
-    [null, 1, 20],
-    [null, null, 51],
-  ])
-    await expect(call('brain:tidy', ...args)).rejects.toThrow('Invalid Brain')
-  await expect(call('brain:tidyApply', 's', { kind: 'merge' }, 0)).rejects.toThrow(
-    'Invalid Brain Tidy action',
-  )
-  await expect(call('brain:tidyDismiss', 's', -1)).rejects.toThrow('revision')
-  await expect(call('brain:tidyUndo', 'op', -1)).rejects.toThrow('revision')
-  await expect(call('brain:merge', 'a', 'b')).rejects.toThrow('revision')
-})
-
-it('passes a dispute through and returns its refusal sentence unchanged', async () => {
-  await expect(call('brain:tidyApply', 's', { kind: 'dispute' }, 4)).resolves.toBe('applied')
-  expect(api.tidyApply).toHaveBeenLastCalledWith('s', { kind: 'dispute' }, 4)
-  api.tidyApply.mockRejectedValueOnce(new Error('Brain changed; refresh Tidy and try again.'))
-  await expect(call('brain:tidyApply', 's', { kind: 'dispute' }, 3)).rejects.toThrow(
-    'Brain changed; refresh Tidy and try again.',
-  )
-})
-
-it('forwards an absent Tidy suggestion as null, not an error', async () => {
-  await expect(call('brain:tidySuggestion', 'settled-or-forgotten')).resolves.toBeNull()
-  expect(api.tidySuggestion).toHaveBeenCalledWith('settled-or-forgotten')
 })
 
 it('checks entity edits before invoking the API', async () => {

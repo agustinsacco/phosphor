@@ -1,3 +1,4 @@
+import { decideRead } from './__fixtures__/decide-read'
 import { unlinkSync } from 'node:fs'
 import { unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -28,7 +29,8 @@ it('keeps a missing lane review in the Inbox, refuses Approve with a remedy, and
   expect(proposal.revision).toBe(0)
   expect(proposal.memories).toHaveLength(1)
   await expect(
-    service.api.review(
+    decideRead(
+      service,
       id,
       { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
       proposal.revision,
@@ -42,7 +44,7 @@ it('keeps a missing lane review in the Inbox, refuses Approve with a remedy, and
       ['refreshing', 'running', 'failed'].includes(patch.state ?? ''),
     ),
   ).toBe(false)
-  await expect(service.api.review(id, null, 0)).resolves.toMatchObject({ jobs: [] })
+  await expect(decideRead(service, id, null, 0)).resolves.toMatchObject({ jobs: [] })
   expect(s.store.job(id)?.state).toBe('rejected')
   expect(s.runner).not.toHaveBeenCalled()
 })
@@ -84,8 +86,11 @@ it('keeps the review if the transcript disappears after the queue checks it', as
   })
   const service = await createBrainService(s.options)
   cleanups.push(() => service.dispose())
-  await vi.waitFor(() => expect(preparing).toHaveBeenCalled())
-  await vi.waitFor(() => expect(s.store.job(s.job.id)?.state).toBe('review'))
+  // Brain Agent opens the stale review, which refreshes it.
+  const opened = await service.agent('readReview', { jobId: s.job.id })
+  expect(preparing).toHaveBeenCalled()
+  expect(opened.text).toContain('Brain never reads this lane: reject it')
+  expect(s.store.job(s.job.id)?.state).toBe('review')
   expect(s.store.storedProposal(s.job.id)).toBe(proposal)
   expect(s.runner).not.toHaveBeenCalled()
 })
@@ -104,12 +109,13 @@ it('still reports an unrelated missing file as a failed refresh', async () => {
   )
   const service = await createBrainService(s.options)
   cleanups.push(() => service.dispose())
-  await vi.waitFor(() =>
-    expect(s.store.job(s.job.id)).toMatchObject({
-      state: 'failed',
-      error: 'Missing embedding model file',
-    }),
+  await expect(service.agent('readReview', { jobId: s.job.id })).rejects.toThrow(
+    'Missing embedding model file',
   )
+  expect(s.store.job(s.job.id)).toMatchObject({
+    state: 'failed',
+    error: 'Missing embedding model file',
+  })
   expect(s.runner).not.toHaveBeenCalled()
 })
 

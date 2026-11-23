@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react'
-import type { BrainExtractionView, BrainHistory } from '@shared/brain'
+import { brainLaneNeverRead } from '@shared/brain'
+import { BRAIN_REVIEW_REFRESHING } from '@shared/brain-review'
+import type { BrainExtractionView, BrainHistory, BrainJob, BrainProposalView } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { Button } from '@/components/form'
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
@@ -14,24 +16,30 @@ import { ExtractionOutcomes } from '../BrainExtraction'
 import { ExtractionCalls } from '../ExtractionCalls'
 import { ExtractionSource } from '../ExtractionSource'
 import { openBrainSource } from '../openBrainSource'
-import { durationWords } from '../jobProgress'
+import { agoWords, durationWords } from '../jobProgress'
 import { readTime } from '../readTime'
 import { coverageLine, readCounts } from './laneGroups'
 import { brainLaneTitle } from '../laneTitle'
+import { MemoryQuotes } from '../MemoryQuotes'
 
 /** A finished read: what it kept, what it covered, and the ways to read the lane again. */
 export function ReadDetail({
   jobId,
   history,
+  job,
   onMemory,
 }: {
   jobId: string
+  job?: BrainJob
   /** Finished reads, to date the read this one continues. */
   history: BrainHistory | null
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
+  const [inspect, setInspect] = useState(false)
+  const waiting = !!job && ['review', 'refreshing'].includes(job.state)
   const load = useCallback(() => window.phosphor.invoke('brain:extraction', jobId), [jobId])
-  const { data, error, retry } = useBrainResource(load)
+  const { data, error, retry } = useBrainResource(load, !waiting || inspect)
+  if (waiting && !inspect) return <WaitingRead job={job} onInspect={() => setInspect(true)} />
   if (!data)
     return (
       <p role="status" className="p-4">
@@ -43,7 +51,16 @@ export function ReadDetail({
         )}
       </p>
     )
-  return <FinishedRead data={data} history={history} onMemory={onMemory} />
+  return (
+    <>
+      <FinishedRead data={data} history={history} onMemory={onMemory} />
+      {waiting && (
+        <Button size="xs" onClick={() => setInspect(false)}>
+          Back to waiting read
+        </Button>
+      )}
+    </>
+  )
 }
 
 function FinishedRead({
@@ -116,10 +133,16 @@ function ReadActions({ data }: { data: BrainExtractionView }): React.JSX.Element
   const saving = useBrain((s) => s.saving)
   const [error, setError] = useState('')
   const grown = useLaneGrew(data.source.sessionPath, data.finishedAt)
+  const folder = useBrain((s) => s.status?.agent.folder)
+  const ownLane = useSessionsStore((s) =>
+    Object.values(s.disk)
+      .flat()
+      .some((lane) => lane.path === data.source.sessionPath && lane.cwd === folder),
+  )
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap gap-2">
-        {data.job?.state === 'done' && data.source.exists && (
+        {!ownLane && data.job?.state === 'done' && data.source.exists && (
           <Button
             size="xs"
             variant="primary"
@@ -138,7 +161,7 @@ function ReadActions({ data }: { data: BrainExtractionView }): React.JSX.Element
             Read new messages
           </Button>
         )}
-        {data.job?.state === 'done' && (
+        {!ownLane && data.job?.state === 'done' && (
           <BrainReadAgain
             job={data.job}
             memories={data.laneMemories}
@@ -222,4 +245,76 @@ function ReadMemories({
       </ul>
     </details>
   )
+}
+
+/** Waiting reads are inspectable evidence, never a second manual decision surface. */
+function WaitingRead({
+  job,
+  onInspect,
+}: {
+  job: BrainJob
+  onInspect: () => void
+}): React.JSX.Element {
+  const never = useBrain((s) => brainLaneNeverRead(s.status!.prefs.neverRead, job))
+  const load = useCallback(() => waitingProposal(job.id), [job.id])
+  const { data: view, error, retry } = useBrainResource(load, true, job.state)
+  const data = view?.proposal
+  const refreshing = job.state === 'refreshing' || (view && !data)
+  const questions = data
+    ? data.identities.filter((identity) => !identity.auto).length + data.groups.length
+    : null
+  return (
+    <article aria-label="Waiting read" className="min-w-0 space-y-4 p-4">
+      <header>
+        <h2 className="text-xl font-semibold">{brainLaneTitle(job.title)}</h2>
+        <p className="text-text-tertiary text-sm">
+          Waits for Defrag · {formatCount(job.memories, 'memory', 'memories')}
+          {questions !== null && ` · ${formatCount(questions, 'question')}`}
+          {job.finishedAt !== null && ` · read ${agoWords(Date.now() - job.finishedAt)}`}
+        </p>
+      </header>
+      <p>
+        {never
+          ? 'Brain Agent will reject this read: Brain never reads this lane.'
+          : 'Brain Agent reviews this read in the next Defrag.'}
+      </p>
+      {refreshing && (
+        <p className="text-text-secondary">Refreshing: Brain changed since this lane was read.</p>
+      )}
+      {!data ? (
+        refreshing ? null : (
+          <p role="status">
+            {error || 'Loading the read…'}{' '}
+            {error && (
+              <Button size="xs" onClick={retry}>
+                Retry
+              </Button>
+            )}
+          </p>
+        )
+      ) : (
+        <ul className="space-y-4">
+          {data.memories.map((memory) => (
+            <li key={memory.index} className="space-y-2">
+              <p>{memory.summary}</p>
+              <MemoryQuotes quotes={memory.quotes} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button size="xs" onClick={onInspect}>
+        See how it was read
+      </Button>
+    </article>
+  )
+}
+
+/** Older runtimes report refresh progress as a refusal; it is not a failed load. */
+async function waitingProposal(jobId: string): Promise<{ proposal: BrainProposalView | null }> {
+  try {
+    return { proposal: await window.phosphor.invoke('brain:proposal', jobId) }
+  } catch (cause) {
+    if (ipcErrorText(cause) === BRAIN_REVIEW_REFRESHING) return { proposal: null }
+    throw cause
+  }
 }

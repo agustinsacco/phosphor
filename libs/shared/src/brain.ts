@@ -1,11 +1,12 @@
-import type { BrainTidySummary, BrainTidyFlag } from './brain-tidy'
+import type { BrainTidySummary } from './brain-tidy'
+import type { BrainAgentMethod, BrainAgentStatus } from './brain-agent'
 
 /**
  * Brain: machine-local knowledge learned only from lanes the user queues. Private model calls
  * read the conversation in parts, the user approves what they propose, and every lane can recall it.
  * No credentials or database paths cross this contract.
  */
-export const BRAIN_PROTOCOL = 5
+export const BRAIN_PROTOCOL = 6
 /** Pinned local embedding model. No hosted embedding or silent model fallback. */
 export const BRAIN_EMBEDDING_MODEL = {
   id: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
@@ -280,6 +281,7 @@ export interface BrainSnapshot {
 }
 export interface BrainStatus extends BrainSnapshot {
   tidy: BrainTidySummary
+  agent: BrainAgentStatus
   supported: boolean
   embedding: BrainEmbeddingStatus
 }
@@ -322,12 +324,15 @@ export interface BrainFlagResponse {
   status: 'filed' | 'already_flagged' | 'limit' | 'unavailable'
   message: string
 }
-/** Agents recall and flag for review. Approval, queueing and forgetting stay with the user. */
-export interface BrainAgentMap {
-  search: { request: BrainQuery; result: BrainRecall }
-  flag: { request: BrainTidyFlag; result: BrainFlagResponse }
-}
-export type BrainAgentMethod = keyof BrainAgentMap
+export type {
+  BrainAgentMap,
+  BrainAgentMethod,
+  BrainAgentRun,
+  BrainAgentRunState,
+  BrainAgentStatus,
+  BrainUndoRunResult,
+  BrainWaitingCounts,
+} from './brain-agent'
 export interface BrainAgentRequest {
   version: typeof BRAIN_PROTOCOL
   token: string

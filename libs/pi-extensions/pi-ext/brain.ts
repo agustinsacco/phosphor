@@ -1,8 +1,8 @@
 import { Type } from 'typebox'
 import { createBrainClient, brainBriefing, type BrainClient } from '@phosphor/brain-client/client'
 import {
-  brainConnectionFromEnv,
   createNodeBrainTransport,
+  takeBrainConnection,
 } from '@phosphor/brain-client/node-transport'
 import type { BrainTidyProblem } from '@phosphor/shared/brain-tidy'
 import type { ToolDefinition } from './pi-api'
@@ -55,7 +55,7 @@ export function registerBrain(pi: BrainPiApi, client: BrainClient): void {
 }
 
 export default function brainExtension(pi: BrainPiApi): void {
-  const connection = brainConnectionFromEnv(process.env)
+  const connection = takeBrainConnection()
   if (connection) registerBrain(pi, createBrainClient(createNodeBrainTransport(connection)))
 }
 

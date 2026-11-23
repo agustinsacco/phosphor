@@ -46,10 +46,44 @@ export interface BrainServiceOptions {
   guardExtension: string
   /** Recall extension and skill handed to lane agents when recall is on. */
   recall: { extension: string; skill: string }
+  /** Brain Agent's extension and skill, handed to lanes in the Brain folder instead of recall. */
+  curator?: { extension: string; skill: string }
+  /** Runs Brain Agent's turns in the Brain lane. Absent where no Brain lane can run. */
+  agent?: BrainAgentHost
   /** Called whenever status changes (queue, download, review), so the UI can refresh. */
   onChange?: () => void
   log?: (message: string, data?: Record<string, unknown>) => void
   now?: () => number
+}
+
+/** How one Defrag turn in the Brain lane ended. */
+export interface BrainAgentTurn {
+  outcome: 'finished' | 'stopped' | 'failed'
+  error: string | null
+  sessionPath: string | null
+  /** The Brain lane's AGENTS.md changed during the turn. */
+  rulesChanged: boolean
+}
+/** What the Brain lane tells Defrag while its turn gets going. */
+export interface BrainAgentTurnHooks {
+  /** The lane's transcript, as soon as it is known. */
+  opened(sessionPath: string | null): void
+  /**
+   * Any turn the owner had running in the lane has settled, and Defrag's message goes next:
+   * Brain Agent's changes belong to the run from now until the turn ends.
+   */
+  sending(): void
+}
+/** Desktop owns the Brain lane; the runtime only asks it for one turn at a time. */
+export interface BrainAgentHost {
+  /** Real path of the Brain lane's folder. Brain never reads lanes there. */
+  folder: string
+  /**
+   * Sends `message` as an ordinary prompt in the Brain lane, starting or resuming the lane, and
+   * resolves when that turn ends. It first waits for a turn the owner has running there, never
+   * interrupting it. Aborting `signal` stops the turn (or the wait) and resolves `stopped`.
+   */
+  turn(message: string, signal: AbortSignal, hooks: BrainAgentTurnHooks): Promise<BrainAgentTurn>
 }
 
 /** What session startup adds to a lane when Brain and recall are on. */
@@ -61,12 +95,21 @@ export interface BrainRecallLaunch {
 
 export interface BrainService {
   api: BrainApi
-  /** Socket requests from lane agents; recall or flag for owner review. */
+  /**
+   * What the local bridge serves: recall and flags for any lane; Brain Agent's curator methods
+   * for the Brain lane. `signal` aborts when the asker hangs up.
+   */
   agent<M extends BrainAgentMethod>(
     method: M,
     request: BrainAgentMap[M]['request'],
+    signal?: AbortSignal,
   ): Promise<BrainAgentMap[M]['result']>
   /** Undefined when Brain or recall is off. Never throws: recall must not block a lane. */
   recallLaunch(): Promise<BrainRecallLaunch | undefined>
+  /**
+   * The Brain lane's launch: the curator token, the brain-curator extension and the brain-agent
+   * skill. Undefined when Brain is off or no curator extension is configured. Never throws.
+   */
+  curatorLaunch(): Promise<BrainRecallLaunch | undefined>
   dispose(): Promise<void>
 }

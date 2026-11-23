@@ -1,21 +1,19 @@
 import { useState } from 'react'
+import type { BrainStatus } from '@shared/brain'
 import { PageShell } from '@/components/PageShell'
 import { UnderlinedTabs } from '@/components/UnderlinedTabs'
-import { Tag, Button } from '@/components/form'
+import { Button } from '@/components/form'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { usePlatform } from '@/platform/Platform'
 import { formatCount } from '@/lib/format'
-import type { BrainStatus } from '@shared/brain'
 import { useBrain } from './useBrain'
 import { useBrainSync } from './useBrainSync'
 import { openBrain, useBrainTab, type BrainTab } from './brainNavigation'
-import { inboxCount } from './inbox/inboxItems'
-import { BrainInbox } from './inbox/BrainInbox'
+import { waitingCount, waitingBreakdown, defragRefusal } from './agentStatus'
 import { BrainKnowledge } from './explorer/BrainKnowledge'
 import { useExplorer } from './explorer/useExplorer'
 import { BrainLanes } from './lanes/BrainLanes'
 import type { LaneSelection } from './lanes/laneGroups'
-import { useTidyPage } from './tidy/useTidyPage'
 import { BrainStatusStrip } from './BrainStatusStrip'
 import { useBrainTargets } from './useBrainTargets'
 import { pageKeyTarget } from './pageKeys'
@@ -27,20 +25,11 @@ export function BrainPage(): React.JSX.Element {
   const status = useBrain((s) => s.status)
   const error = useBrain((s) => s.error)
   const openSettings = useOpenSettings()
+  const [startingDefrag, setStartingDefrag] = useState(false)
   return (
     <PageShell
       wide
-      title={
-        <span>
-          Brain{' '}
-          {status && (
-            <span className="text-text-tertiary ml-3 text-sm font-normal">
-              {formatCount(status.counts.memories, 'memory', 'memories')} ·{' '}
-              {formatCount(status.counts.entities, 'person or thing', 'people and things')}
-            </span>
-          )}
-        </span>
-      }
+      title={brainTitle(status)}
       actions={
         supported && (
           <>
@@ -59,6 +48,27 @@ export function BrainPage(): React.JSX.Element {
             <Button size="sm" onClick={() => openSettings('local', 'brain')}>
               Settings
             </Button>
+            {status && (
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={startingDefrag || !!defragRefusal(status)}
+                tooltip={
+                  startingDefrag
+                    ? 'Defrag is starting.'
+                    : (defragRefusal(status) ?? waitingBreakdown(status.agent.waiting))
+                }
+                onClick={() => {
+                  setStartingDefrag(true)
+                  void useBrain
+                    .getState()
+                    .defrag()
+                    .then(() => setStartingDefrag(false))
+                }}
+              >
+                Defrag
+              </Button>
+            )}
           </>
         )
       }
@@ -89,19 +99,12 @@ function BrainContent(): React.JSX.Element {
   const status = useBrain((s) => s.status)!
   const { tab, setTab, target } = useBrainTab(status)
   const explorer = useExplorer()
-  const tidy = useTidyPage(status.prefs.enabled)
-  const [inboxItem, setInboxItem] = useState<string | null>(null)
   const [lane, setLane] = useState<LaneSelection | null>(null)
   const [searchRequest, setSearchRequest] = useState(0)
   useBrainTargets(target, {
-    setInboxItem,
     setLane,
     focusSearch: () => setSearchRequest((n) => n + 1),
   })
-  const openEntity = (id: string, label: string, memoryId?: string): void => {
-    explorer.onVisit({ kind: 'entity', id, label, memoryId })
-    setTab('knowledge')
-  }
   return (
     <div
       className="brain-page"
@@ -112,20 +115,8 @@ function BrainContent(): React.JSX.Element {
         setSearchRequest((n) => n + 1)
       }}
     >
-      <BrainTabs tab={tab} setTab={setTab} status={status} />
-      <BrainStatusStrip page={tidy.page} onLanes={() => setTab('lanes')} />
-      <Panel id="inbox" tab={tab}>
-        <BrainInbox
-          tidy={tidy}
-          selected={inboxItem}
-          onSelect={setInboxItem}
-          onEntity={openEntity}
-          onVisit={(visit) => {
-            explorer.onVisit(visit)
-            setTab('knowledge')
-          }}
-        />
-      </Panel>
+      <BrainTabs tab={tab} setTab={setTab} />
+      <BrainStatusStrip onLanes={() => setTab('lanes')} />
       <Panel id="knowledge" tab={tab}>
         <BrainKnowledge
           state={explorer}
@@ -138,7 +129,6 @@ function BrainContent(): React.JSX.Element {
       </Panel>
       <Panel id="lanes" tab={tab}>
         <BrainLanes
-          tidy={tidy}
           selected={lane}
           onSelect={setLane}
           onMemory={(id, label) => {
@@ -175,13 +165,10 @@ function Panel({
 function BrainTabs({
   tab,
   setTab,
-  status,
 }: {
   tab: BrainTab
   setTab: (tab: BrainTab) => void
-  status: BrainStatus
 }): React.JSX.Element {
-  const count = inboxCount(status)
   return (
     <UnderlinedTabs
       id="brain"
@@ -189,15 +176,24 @@ function BrainTabs({
       value={tab}
       onChange={setTab}
       tabs={[
-        {
-          value: 'inbox',
-          label: (
-            <>Inbox {count > 0 && <Tag className="bg-accent-soft text-accent">{count}</Tag>}</>
-          ),
-        },
         { value: 'knowledge', label: 'Knowledge' },
         { value: 'lanes', label: 'Lanes' },
       ]}
     />
+  )
+}
+
+function brainTitle(status: BrainStatus | null): React.JSX.Element {
+  return (
+    <span>
+      Brain{' '}
+      {status && (
+        <span className="text-text-tertiary ml-3 text-sm font-normal">
+          {formatCount(status.counts.memories, 'memory', 'memories')} ·{' '}
+          {formatCount(status.counts.entities, 'person or thing', 'people and things')} ·{' '}
+          {waitingCount(status)} waiting
+        </span>
+      )}
+    </span>
   )
 }

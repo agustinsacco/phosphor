@@ -1,4 +1,3 @@
-import { BRAIN_TIDY_KINDS, checkBrainTidyAction } from '@shared/brain-tidy'
 import { BRAIN_ENTITY_KINDS } from '@shared/brain'
 
 const invalid = (): never => {
@@ -17,23 +16,9 @@ const revision = (value: unknown): void => {
 /** Mirror Desktop's Brain argument bounds so browser fixtures cannot conceal refused calls. */
 export function checkMockTidyArguments(channel: string, args: unknown[]): void {
   switch (channel) {
-    case 'brain:tidy':
-      if (args[0] !== null && !(BRAIN_TIDY_KINDS as readonly unknown[]).includes(args[0])) invalid()
-      if (args[1] !== null) text(args[1], 512)
-      limit(args[2])
-      break
     case 'brain:tidyChanges':
       limit(args[0])
       break
-    case 'brain:tidySuggestion':
-      text(args[0], 200)
-      break
-    case 'brain:tidyApply':
-      text(args[0], 200)
-      checkBrainTidyAction(args[1])
-      revision(args[2])
-      break
-    case 'brain:tidyDismiss':
     case 'brain:tidyUndo':
       text(args[0], 200)
       revision(args[1])

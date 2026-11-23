@@ -7,7 +7,7 @@ import {
   createFakePhosphor,
   installFakePhosphor,
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
-import { BrainExtraction } from './BrainExtraction'
+import { ReadDetail } from './lanes/ReadDetail'
 import { mockBrainJob } from './mockBrainData'
 import { callDuration, progressLine } from './jobProgress'
 import { mockCallTrace, mockExtractionView } from './mockExtractionView'
@@ -26,11 +26,10 @@ it('shows per-call answers, rebuilt prompts, trace fallback and rejected-link re
   const restore = installFakePhosphor(fake)
   const container = document.createElement('div')
   const root = createRoot(container)
-  const onMemory = vi.fn(),
-    onBack = vi.fn()
+  const onMemory = vi.fn()
   try {
     await act(async () =>
-      root.render(<BrainExtraction jobId={job.id} onMemory={onMemory} onBack={onBack} />),
+      root.render(<ReadDetail jobId={job.id} onMemory={onMemory} history={null} />),
     )
     expect(container.textContent).toContain('Harbor record unavailable')
     const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')!
@@ -92,9 +91,7 @@ it('says how long each call took in words, never as a clock', async () => {
   const root = createRoot(container)
   try {
     await act(async () =>
-      root.render(
-        <BrainExtraction jobId="harbor-demo-review" onMemory={vi.fn()} onBack={vi.fn()} />,
-      ),
+      root.render(<ReadDetail jobId="harbor-demo-review" onMemory={vi.fn()} history={null} />),
     )
     const calls = container.querySelector('[aria-label="How it was read"]')!.textContent
     expect(calls).toContain('Read the conversation · part 1 · 4 h 1 min')
@@ -122,7 +119,7 @@ it('renders forgotten outcomes as removed, and offers Read again in a finished r
   const root = createRoot(container)
   try {
     await act(async () =>
-      root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} onBack={() => {}} />),
+      root.render(<ReadDetail jobId={data.jobId} onMemory={() => {}} history={null} />),
     )
     expect(container.textContent).toContain('removed')
     expect(
@@ -151,7 +148,9 @@ it('puts only nonzero outcomes first, pages at twenty, and leaves model calls cl
   const container = document.createElement('div')
   const root = createRoot(container)
   try {
-    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    await act(async () =>
+      root.render(<ReadDetail jobId={data.jobId} onMemory={() => {}} history={null} />),
+    )
     const result = container.querySelector('[aria-label="Read result"]')!
     expect(result.textContent).toContain('Result · 24 kept')
     expect(result.textContent).not.toContain('0 dropped')
@@ -190,7 +189,9 @@ it('caps raw output, prompts and source text with their own scroll containers', 
   const container = document.createElement('div')
   const root = createRoot(container)
   try {
-    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    await act(async () =>
+      root.render(<ReadDetail jobId={data.jobId} onMemory={() => {}} history={null} />),
+    )
     for (const detail of container.querySelectorAll('details'))
       await act(async () => {
         detail.open = true
@@ -219,7 +220,9 @@ it('says how long the model spent on a read, in words, even when its review refr
   const container = document.createElement('div')
   const root = createRoot(container)
   try {
-    await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+    await act(async () =>
+      root.render(<ReadDetail jobId={data.jobId} onMemory={() => {}} history={null} />),
+    )
     expect(container.textContent).toContain('took 4 h 1 min')
     expect(container.textContent).not.toContain('241:11')
     expect(container.textContent).not.toContain('2 days')
@@ -241,7 +244,9 @@ it('shows no duration when a call has no trace or the read made no calls', async
     const container = document.createElement('div')
     const root = createRoot(container)
     try {
-      await act(async () => root.render(<BrainExtraction jobId={data.jobId} onMemory={() => {}} />))
+      await act(async () =>
+        root.render(<ReadDetail jobId={data.jobId} onMemory={() => {}} history={null} />),
+      )
       expect(container.querySelector('header')!.textContent).not.toContain('took')
     } finally {
       act(() => root.unmount())

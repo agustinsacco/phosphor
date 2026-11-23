@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { BrainClient } from '@phosphor/brain-client/client'
 import { HARBOR_RECALL } from '../../brain-client/src/__fixtures__/recall'
@@ -12,7 +13,30 @@ interface Params {
   query: string
   limit?: number
 }
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+  vi.unstubAllEnvs()
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for('phosphor/brain-connection/v1')]
+})
+
+it('leaves no token or endpoint for a bash child of the lane, and survives a reload', async () => {
+  vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', '/tmp/harbor-brain.sock')
+  vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', 'harbor-lane-token')
+  const pi = { registerTool: vi.fn(), on: vi.fn() }
+  brainExtension(pi)
+  expect(pi.registerTool).toHaveBeenCalledTimes(2)
+  const child = spawnSync(
+    'sh',
+    ['-c', 'printf "%s|%s" "$PHOSPHOR_BRAIN_TOKEN" "$PHOSPHOR_BRAIN_ENDPOINT"'],
+    { encoding: 'utf8' },
+  )
+  expect(child.stdout).toBe('|')
+  // pi reloads an extension by evaluating its module again, in the same process.
+  vi.resetModules()
+  const { default: reloaded } = await import('./brain')
+  const again = { registerTool: vi.fn(), on: vi.fn() }
+  reloaded(again)
+  expect(again.registerTool).toHaveBeenCalledTimes(2)
+})
 
 it('is inert without connection env and installs two explicit tools with no turn hooks', () => {
   vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', '')

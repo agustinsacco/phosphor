@@ -192,7 +192,8 @@ An emoji pinned left of the title. Two rules, both about the **column**:
    has to re-find it on each row.
 2. **The fallback is derived, not stored.** Explicit choices live in
    `AppPrefs.laneMarkers` keyed by session path; every other lane hashes its
-   **branch**. Phosphor does not add fields to pi's session format.
+   **branch**, except the Brain lane, whose derived marker is 🧠
+   ([Brain](brain.md#brain-agent)). Phosphor does not add fields to pi's session format.
 
 Keying on the branch, not the title, matters: a session is named only after
 its first turn **ends**, so a title-derived marker would change under you the
@@ -214,7 +215,7 @@ not be supported by older systems. Skin-tone variations are consolidated into
 base emoji. No image CDN or network access is needed.
 
 **None** explicitly clears a lane. **Auto** removes its override and returns to
-the branch-derived marker; in Manual mode this action is labelled **Default**
+the derived marker; in Manual mode this action is labelled **Default**
 and leaves the lane unmarked. Escape or Cancel leaves the choice unchanged.
 Explicit choices persist across reloads and mode changes. The picker dims
 markers other lanes on the same machine chose explicitly, in any workspace:
@@ -860,7 +861,12 @@ A missing transcript is not an error; other failures stay visible in the
 confirmation so archiving can be retried. Pending rows do not invent a
 timestamp from the current time.
 
-Concurrent opens of the same transcript share one process. Main serializes
+Concurrent opens of the same transcript share one process. Opening a lane whose turn is
+running, such as the Brain lane during Defrag, loads its history and then follows the turn:
+the lane shows it running, with Stop, from the moment it opens; events that arrived during the
+load apply once; an answer pi began before the lane opened gets its own message, never the last
+finished one; and artifacts made meanwhile stay. If the load fails, Retry loads it again the
+same way, and nothing is kept from the failed attempt. Main serializes
 resume and deletion by transcript path, cancels queued or hung startup opens,
 and stops every matching writer (including
 handles not yet adopted by the renderer), then trashes the file. Deleting a

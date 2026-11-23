@@ -338,3 +338,29 @@ it.each([
   }
   expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:history')).toEqual([])
 })
+
+it('never offers Brain actions on a lane in the Brain folder', async () => {
+  const status = mockBrainStatus()
+  status.prefs.enabled = true
+  status.agent.folder = '/repo'
+  useBrain.setState({ status })
+  const rows = await menuFor('Lane 2')
+  expect(rows.join(' ')).not.toMatch(/knowledge extraction|for Brain|let Brain read/)
+})
+
+it('previews the Brain lane’s derived marker in the existing marker picker', async () => {
+  const status = mockBrainStatus()
+  status.agent.folder = '/repo'
+  useBrain.setState({ status })
+  await menuFor('Lane 2')
+  await act(async () =>
+    [...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button')]
+      .find((b) => b.textContent === 'Lane marker…')!
+      .click(),
+  )
+  const picker = document.querySelector('[aria-label="Lane marker"]')!
+  expect(
+    [...picker.querySelectorAll('button')].find((b) => b.textContent?.includes('Auto'))
+      ?.textContent,
+  ).toContain('🧠')
+})

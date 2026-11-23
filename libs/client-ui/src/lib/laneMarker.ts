@@ -215,10 +215,12 @@ export function laneMarker(
   branch: string | null | undefined,
   cwd: string | null | undefined,
   mode: 'auto' | 'manual' | 'off' = 'auto',
+  brainFolder?: string | null,
 ): string {
   if (mode === 'off') return ''
   if (explicit !== undefined) return explicit
-  return mode === 'manual' ? '' : autoMarker(branch || cwd)
+  if (mode === 'manual') return ''
+  return brainFolder && cwd === brainFolder ? '🧠' : autoMarker(branch || cwd)
 }
 
 /** Every glyph the picker offers, flattened. */

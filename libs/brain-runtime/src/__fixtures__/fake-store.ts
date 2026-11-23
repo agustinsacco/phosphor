@@ -1,10 +1,8 @@
-import type { BrainTidyRun } from '@phosphor/shared/brain-tidy'
+const unfaked = (): never => {
+  throw new Error('Not faked')
+}
 import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
-import {
-  emptyBrainTidySummary,
-  emptyBrainTidyPage,
-  emptyBrainTidyCoverage,
-} from '@phosphor/shared/brain-tidy'
+import { emptyBrainTidySummary, emptyBrainTidyCoverage } from '@phosphor/shared/brain-tidy'
 import {
   DEFAULT_BRAIN_PREFS,
   type BrainExtractionRecord,
@@ -290,24 +288,7 @@ export class FakeBrainStore implements BrainStore {
   path(): BrainPaths {
     return { paths: [], entities: [], memories: [] }
   }
-  private tidyRun: BrainTidyRun | null = null
-  readRun = () => this.tidyRun
-  writeRun(value: BrainTidyRun): void {
-    this.tidyRun = structuredClone(value)
-  }
   tidySummary = emptyBrainTidySummary
-  tidy = () => emptyBrainTidyPage(this.rev)
-  tidySuggestion(): null {
-    return null
-  }
-  tidyApply(): string | null {
-    this.rev++
-    return 'operation'
-  }
-  tidyDismiss(): void {
-    this.knowledgeRev = this.knowledgeRevision()
-    this.rev++
-  }
   tidyChanges = () => ({ items: [], revision: this.rev })
   tidyUndo(): void {
     this.rev++
@@ -319,9 +300,31 @@ export class FakeBrainStore implements BrainStore {
     operationIds: [],
   })
   takeTidyMaintenance = (): string[] => []
-  pendingPairs = () => []
-  recordVerdicts = () => ({ recorded: 0, settled: 0 })
   flag = () => ({ status: 'filed' as const, suggestionId: 'flag' })
+  // Brain Agent. FakeAgentStore and tests that exercise it replace these.
+  waitingCounts: BrainStore['waitingCounts'] = () => ({
+    reads: 0,
+    entities: 0,
+    repeats: 0,
+    conflicts: 0,
+    flags: 0,
+  })
+  waitingSuggestions: BrainStore['waitingSuggestions'] = () => ({ items: [], more: 0 })
+  agentSuggestion: BrainStore['agentSuggestion'] = () => null
+  decideRead: BrainStore['decideRead'] = (id, decision, revision) => {
+    this.review(id, decision, revision)
+    return { operationId: 'read-decision', touched: { entityIds: [], memoryIds: [] } }
+  }
+  resolve: BrainStore['resolve'] = unfaked
+  agentEdit: BrainStore['agentEdit'] = unfaked
+  correct: BrainStore['correct'] = unfaked
+  erase: BrainStore['erase'] = unfaked
+  agentUndo: BrainStore['agentUndo'] = unfaked
+  createRun: BrainStore['createRun'] = unfaked
+  updateRun: BrainStore['updateRun'] = unfaked
+  latestRun: BrainStore['latestRun'] = () => null
+  interruptRuns: BrainStore['interruptRuns'] = () => undefined
+  undoRun: BrainStore['undoRun'] = unfaked
   merge(): string {
     this.rev++
     return 'operation'
@@ -343,7 +346,6 @@ export class FakeBrainStore implements BrainStore {
     this.rev++
   }
   reset(): void {
-    this.tidyRun = null
     this.jobs = []
     this.parts.clear()
     this.proposals.clear()

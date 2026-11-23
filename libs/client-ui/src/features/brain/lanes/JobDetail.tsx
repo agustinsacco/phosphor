@@ -58,7 +58,7 @@ export function JobDetail({
       ) : job.state === 'refreshing' ? (
         <p className="text-text-secondary">
           Brain changed since this lane was read, so it is checking the review again. Nothing to do:
-          the review stays in the Inbox and opens there once it is ready.
+          Brain Agent reviews this read in the next Defrag.
         </p>
       ) : null}
       <JobActions job={job} />
@@ -71,7 +71,7 @@ const JOB_LABELS: Partial<Record<BrainJob['state'], string>> = {
   refreshing: 'Refreshing review',
 }
 
-/** Retry a failed read; cancel one in progress. A refreshing review is decided in the Inbox. */
+/** Retry a failed read; cancel one in progress. A refreshing review waits for Defrag. */
 export function JobActions({ job }: { job: BrainJob }): React.JSX.Element | null {
   const saving = useBrain((s) => s.saving)
   if (job.state === 'refreshing') return null

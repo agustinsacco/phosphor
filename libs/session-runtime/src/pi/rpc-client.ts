@@ -72,6 +72,11 @@ interface PiRpcClientEvents {
   'session-file': [string]
   /** Any protocol event from pi stdout (not responses, not extension UI). */
   event: [PiEvent]
+  /**
+   * Every command response, as pi prints it, before its waiter resumes: a listener can tell the
+   * events before a prompt's response (another turn's) from those after it (the prompt's own).
+   */
+  response: [RpcResponse]
   /** Extension UI request needing user interaction or display. */
   'extension-ui': [ExtensionUIRequest]
   /** Raw stderr text (diagnostics). */
@@ -327,6 +332,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     if (record.type === 'response') {
       const response = record as unknown as RpcResponse
       this.activity.responded(response)
+      this.emit('response', response)
       if (response.command === 'get_state' && response.success) {
         const state = response.data as RpcResponseDataMap['get_state'] | undefined
         if (state?.sessionFile && state.sessionFile !== this.learnedSessionFile) {

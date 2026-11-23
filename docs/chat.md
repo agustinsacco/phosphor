@@ -790,7 +790,9 @@ also offers Retry for failed message-list requests, including transport errors.
 ## Agent directives
 
 Phosphor appends its directive blocks in this order: worktree guard, machine
-awareness, lane charter, sub-agent policy. Each is a switch with no free text;
+awareness, lane charter, sub-agent policy. In the Brain lane, Brain Agent's
+fixed `<phosphor_brain_lane>` block takes the charter's place whatever its
+switch says ([Brain](brain.md)). Each switch has no free text;
 what the user writes for every lane is the machine's
 [global instructions](#global-instructions). pi's own system prompt and project
 rules remain separate inputs. The blocks are composed once

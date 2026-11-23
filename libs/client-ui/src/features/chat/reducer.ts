@@ -42,7 +42,7 @@ import {
 import {
   blocksFromContent,
   isAssistant,
-  lastAssistantIndex,
+  openAssistantIndex,
   replaceItem,
   toolsFromContent,
   userMessageImages,
@@ -131,15 +131,7 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
 
     case 'message_start': {
       const message = event.message
-      if (isAssistant(message)) {
-        const item: AssistantItem = {
-          id: newItemId(),
-          kind: 'assistant',
-          blocks: [],
-          streaming: true,
-        }
-        return { ...state, items: [...state.items, item] }
-      }
+      if (isAssistant(message)) return startAssistant(state)
       if ('role' in message && message.role === 'user') {
         // pi emits queue_update before this, but reconcile from the delivered
         // user message too. It makes the chip robust to a missed/coalesced
@@ -325,13 +317,19 @@ function keepThoughtTiming(streamed: AssistantBlock[], final: AssistantBlock[]):
   })
 }
 
+/** A new item for the answer pi is sending. */
+function startAssistant(state: ChatSessionState): ChatSessionState {
+  const item: AssistantItem = { id: newItemId(), kind: 'assistant', blocks: [], streaming: true }
+  return { ...state, items: [...state.items, item] }
+}
+
 function applyAssistantDelta(
   state: ChatSessionState,
   event: Extract<PiEvent, { type: 'message_update' }>,
 ): ChatSessionState {
+  const index = openAssistantIndex(state.items)
+  if (index === -1) return applyAssistantDelta(startAssistant(state), event)
   const delta = event.assistantMessageEvent
-  const index = lastAssistantIndex(state.items)
-  if (index === -1) return state
   const item = state.items[index] as AssistantItem
 
   const ensureBlock = (
@@ -468,7 +466,6 @@ function applyAssistantDelta(
       const message = delta.message
       const updated: AssistantItem = {
         ...item,
-        streaming: false,
         stopReason: delta.reason,
         errorMessage:
           message?.errorMessage ?? (typeof delta.error === 'string' ? delta.error : undefined),
@@ -527,9 +524,9 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
   switch (message.role) {
     case 'assistant': {
       const assistant = message as AssistantMessage
-      const index = lastAssistantIndex(state.items)
+      const index = openAssistantIndex(state.items)
       if (index === -1) {
-        // No streamed counterpart (e.g. hydration edge): append final.
+        // No item of its own (pi began it before a lane opened mid-turn): append final.
         const item: AssistantItem = {
           id: newItemId(),
           kind: 'assistant',

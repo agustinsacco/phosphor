@@ -1013,9 +1013,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         void window.phosphor.invoke('app:setLastSession', options.sessionPath)
       }
 
-      // History-bearing starts share the same required identity + reconciliation
-      // path as a live branch change. Failed loads keep a retry, not an empty chat.
-      if (options.sessionPath || options.forkFrom) await restoreSession(phosphorId)
+      // A returned diskPath means main found an existing lane, which may be running.
+      // Failed history loads keep a retry, not an empty chat.
+      if (options.sessionPath || options.forkFrom) await restoreSession(phosphorId, !!info.diskPath)
       if (!sessionIsOpen(phosphorId)) return phosphorId
       const bootstrapped =
         options.sessionPath || options.forkFrom ? Promise.resolve() : bootstrapSession(phosphorId)

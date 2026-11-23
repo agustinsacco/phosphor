@@ -139,3 +139,16 @@ export function hub(db: DatabaseSync, size: number): void {
   db.exec('COMMIT')
   db.prepare("UPDATE meta SET value=? WHERE key='memories'").run(String(size + 2))
 }
+
+/** Historical verdict metadata remains readable after the model-check writer was removed. */
+export function seedHistoricalVerdict(
+  db: DatabaseSync,
+  id: string,
+  verdict: { kind: 'same' | 'different' | 'conflict'; reason: string },
+): void {
+  db.prepare(
+    `UPDATE tidy_suggestions SET source='check',kind=CASE WHEN ?='conflict' THEN 'conflict' ELSE kind END,
+    verdict=?,verdict_reason=?,reason=?,model='example/reader' WHERE id=?`,
+  ).run(verdict.kind, verdict.kind, verdict.reason, verdict.reason, id)
+  db.exec("UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='revision'")
+}

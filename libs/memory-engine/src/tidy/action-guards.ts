@@ -68,10 +68,13 @@ export function actionRefusal(
   ctx: Context,
   row: SuggestionRow,
   kind: BrainTidyAction['kind'],
+  curator = false,
 ): string | null {
   if (row.state !== 'open') return 'This Tidy suggestion is no longer available.'
   if (!subjectExists(ctx, row)) return 'A subject of this suggestion is no longer available.'
   const mismatch = 'This action does not apply to this Tidy suggestion.'
+  if (curator && kind === 'keep') return null
+  if (curator && kind === 'forget') return 'Use brain_erase to erase a memory.'
   if (kind === 'keep' || kind === 'forget') return row.kind === 'flagged' ? null : mismatch
   if (!row.second_id || row.first_id === row.second_id) return mismatch
   if (kind === 'merge') return row.subject_type === 'entity' ? null : mismatch
@@ -89,6 +92,7 @@ export function actionRefusal(
 export function allowedActions(
   ctx: Context,
   row: SuggestionRow,
+  curator = false,
 ): Pick<BrainTidySuggestionDetail, 'allowed' | 'foldRefusal'> {
   const kinds: BrainTidyAction['kind'][] = [
     'merge',
@@ -99,7 +103,7 @@ export function allowedActions(
     'forget',
     'keep',
   ]
-  const allowed = kinds.filter((kind) => actionRefusal(ctx, row, kind) === null)
+  const allowed = kinds.filter((kind) => actionRefusal(ctx, row, kind, curator) === null)
   let refusal: 'applicability' | 'history' | null = null
   if (
     row.state === 'open' &&

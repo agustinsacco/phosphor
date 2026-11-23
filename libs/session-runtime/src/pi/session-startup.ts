@@ -28,10 +28,16 @@ export interface SessionStartupRuntime {
     forget: (sessionId: string) => void
     hold: (accountId: string, until: number) => Promise<void>
   }
-  recordWorkspace: (path: string, name: string) => void
+  /** `last: false` adds the folder to the recents without making it the launch folder. */
+  recordWorkspace: (path: string, name: string, remember?: { last: boolean }) => void
   laneReload?: Pick<LaneReload, 'capture' | 'track'>
-  /** Brain recall for lane agents: extra env, extension and skill, or undefined when off. */
-  recall?: () => Promise<SessionRecall | undefined>
+  /**
+   * Brain for a lane in `workspacePath` (resolved): recall for an ordinary lane, Brain Agent's
+   * tools for the Brain lane. Extra env, extensions and skills, or undefined when off.
+   */
+  recall?: (workspacePath: string) => Promise<SessionRecall | undefined>
+  /** The unpackaged Desktop Brain e2e drives the real bridge with its pi stub. */
+  stubRecall?: () => boolean
 }
 
 export interface SessionRecall {
@@ -44,8 +50,9 @@ export interface SessionRecall {
 async function withRecall(
   runtime: SessionStartupRuntime,
   spawnOptions: Omit<PiSpawnOptions, 'cwd'>,
+  workspacePath: string,
 ): Promise<void> {
-  const recall = await runtime.recall?.().catch((error: unknown) => {
+  const recall = await runtime.recall?.(workspacePath).catch((error: unknown) => {
     runtime.log('brain', 'recall unavailable', { error: String(error) })
     return undefined
   })
@@ -92,9 +99,14 @@ function completeStartup(
   if (!session.client.alive) throw new Error('Session stopped during startup.')
   if (accountId) runtime.accounts.remember(session.sessionId, accountId)
   runtime.laneReload?.track(session.sessionId, laneConfig, session.client)
-  // Automation must not replace the user's launch-resume folder.
-  if (!execution.unattended)
-    runtime.recordWorkspace(options.workspacePath, basename(options.workspacePath))
+  // Automation must not replace the user's launch-resume folder; a lane Phosphor opens for its
+  // own work (the Brain lane) only joins the recents.
+  if (!execution.unattended) {
+    const name = basename(options.workspacePath)
+    if (execution.keepLastWorkspace)
+      runtime.recordWorkspace(options.workspacePath, name, { last: false })
+    else runtime.recordWorkspace(options.workspacePath, name)
+  }
   return {
     sessionId: session.sessionId,
     workspacePath: session.workspacePath,
@@ -127,7 +139,8 @@ async function spawnSession(
     launch,
     runtime.policy,
   )
-  if (!launch.stub) await withRecall(runtime, spawnOptions)
+  if (!launch.stub || runtime.stubRecall?.())
+    await withRecall(runtime, spawnOptions, options.workspacePath)
   execution.signal?.throwIfAborted()
   // Read before the spawn: a change landing while pi starts must still count as new.
   const laneConfig =

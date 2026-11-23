@@ -9,9 +9,15 @@ export function isAssistant(message: AgentMessage): message is AssistantMessage 
   return 'role' in message && message.role === 'assistant'
 }
 
-export function lastAssistantIndex(items: ChatItem[]): number {
+/**
+ * The assistant item pi is still sending: the newest one while it streams, else -1. A message
+ * whose events arrive with no item of its own (one pi began before a lane opened mid-turn) gets
+ * a new item, never a finished one.
+ */
+export function openAssistantIndex(items: ChatItem[]): number {
   for (let i = items.length - 1; i >= 0; i--) {
-    if (items[i]!.kind === 'assistant') return i
+    const item = items[i]!
+    if (item.kind === 'assistant') return item.streaming ? i : -1
   }
   return -1
 }

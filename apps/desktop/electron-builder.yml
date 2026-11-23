@@ -24,16 +24,17 @@ extraResources:
     to: host-install.sh
   - from: build/icons/32x32.png
     to: routine-tray.png
-  # brain.ts and brain-fork-guard.ts import workspace packages pi cannot
-  # resolve from an installed app; they ship only as brain-ext's bundles.
+  # The brain*.ts sources import workspace packages pi cannot resolve from an
+  # installed app; they ship only as brain-ext's bundles.
   - from: ../../libs/pi-extensions/pi-ext
     to: pi-ext
     filter: ['**/*.ts', '!**/*.test.ts', '!brain*.ts']
   # Staged by the main build (electron.vite.config.ts). Lanes load brain.mjs
-  # only while Brain recall is on; knowledge forks load the guard.
+  # only while Brain recall is on; knowledge forks load the guard; the Brain
+  # lane loads brain-curator.mjs instead of brain.mjs.
   - from: ../../libs/pi-extensions/brain-ext
     to: brain-ext
-    filter: ['brain.mjs', 'brain-fork-guard.mjs']
+    filter: ['brain.mjs', 'brain-fork-guard.mjs', 'brain-curator.mjs']
   - from: build/brain-third-party-notices.md
     to: brain-third-party-notices.md
   - from: ../../libs/pi-extensions/skills

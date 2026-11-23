@@ -41,6 +41,26 @@ export function brainConnectionFromEnv(env: NodeJS.ProcessEnv): BrainConnection 
   return { endpoint, token }
 }
 
+/** pi reloads an extension by evaluating it again in the same process; this slot outlives that. */
+const CONNECTION_SLOT = Symbol.for('phosphor/brain-connection/v1')
+
+/**
+ * The lane's Brain connection, taken out of the environment on first read. pi's bash tool, MCP
+ * servers and sub-agents copy the environment into their children, and a token left there lets
+ * any of them call the bridge. The extension keeps it for itself, across its own reloads.
+ */
+export function takeBrainConnection(
+  env: NodeJS.ProcessEnv = process.env,
+  slots: object = globalThis,
+): BrainConnection | null {
+  const kept = slots as { [CONNECTION_SLOT]?: BrainConnection }
+  const fresh = brainConnectionFromEnv(env)
+  delete env[BRAIN_ENDPOINT_ENV]
+  delete env[BRAIN_TOKEN_ENV]
+  if (fresh) kept[CONNECTION_SLOT] = fresh
+  return kept[CONNECTION_SLOT] ?? null
+}
+
 export function createNodeBrainTransport(
   connection: BrainConnection,
   options: NodeBrainTransportOptions = {},

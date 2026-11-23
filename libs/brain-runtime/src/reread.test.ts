@@ -1,3 +1,4 @@
+import { decideRead } from './__fixtures__/decide-read'
 import { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -40,7 +41,8 @@ async function setup() {
   await service.api.queue({ sessionPath: s.file, title: 'Harbor' })
   await vi.waitFor(() => expect(store.snapshot().jobs[0]?.state).toBe('review'))
   const first = store.snapshot().jobs[0]!
-  await service.api.review(
+  await decideRead(
+    service,
     first.id,
     { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
     store.revision(),
@@ -79,10 +81,12 @@ it.each([true, false])(
         "UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key IN ('revision','knowledge_revision')",
       )
       db.close()
-      await expect(s.service.api.proposal(next.id)).rejects.toThrow('refreshing this review')
-      await vi.waitFor(() => expect(s.store.job(next.id)?.state).toBe('review'))
+      // Brain Agent opens the stale review, which refreshes it.
+      await s.service.agent('readReview', { jobId: next.id })
+      expect(s.store.job(next.id)?.state).toBe('review')
       expect((await s.service.api.proposal(next.id)).replacingMemories).toBe(1)
-      await s.service.api.review(
+      await decideRead(
+        s.service,
         next.id,
         { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
         s.store.revision(),

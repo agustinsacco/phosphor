@@ -92,7 +92,7 @@ it('does not load or offer local Brain on a browser platform', async () => {
   expect(window.phosphor.invoke).not.toHaveBeenCalled()
 })
 
-it('counts review jobs at the right edge and removes the count live at zero', async () => {
+it('counts waiting reads at the right edge and removes the count live at zero', async () => {
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   const status = {
     ...mockBrainStatus(),
@@ -109,16 +109,25 @@ it('counts review jobs at the right edge and removes the count live at zero', as
       mockBrainJob({ id: 'running', state: 'running' }),
     ],
   }
+  status.agent.waiting.reads = 2
   useBrain.setState({ status })
   await act(async () => root.render(<PageLinks onPage={onPage} />))
-  const count = container.querySelector('[aria-label="2 to decide"]')!
+  const count = container.querySelector('[aria-label="2 waiting"]')!
   expect(count.textContent).toBe('2')
   expect(count.className).toContain('ml-auto')
-  await act(async () => useBrain.setState({ status: { ...status, jobs: [] } }))
-  expect(container.querySelector('[aria-label$="to decide"]')).toBeNull()
+  await act(async () =>
+    useBrain.setState({
+      status: {
+        ...status,
+        jobs: [],
+        agent: { ...status.agent, waiting: { ...status.agent.waiting, reads: 0 } },
+      },
+    }),
+  )
+  expect(container.querySelector('[aria-label$="waiting"]')).toBeNull()
 })
 
-it('counts one review', async () => {
+it('counts one waiting read', async () => {
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   useBrain.setState({
     status: {
@@ -131,13 +140,17 @@ it('counts one review', async () => {
         model: null,
       },
       jobs: [mockBrainJob()],
+      agent: {
+        ...mockBrainStatus().agent,
+        waiting: { reads: 1, entities: 0, repeats: 0, conflicts: 0, flags: 0 },
+      },
     },
   })
   await act(async () => root.render(<PageLinks onPage={onPage} />))
-  expect(container.querySelector('[aria-label="1 to decide"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="1 waiting"]')).not.toBeNull()
 })
 
-it('counts the whole Brain Inbox: reviews and open Tidy suggestions', async () => {
+it('counts the whole Defrag queue, not just reads', async () => {
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   const base = mockBrainStatus()
   useBrain.setState({
@@ -155,10 +168,13 @@ it('counts the whole Brain Inbox: reviews and open Tidy suggestions', async () =
         mockBrainJob({ id: 'refreshing', state: 'refreshing' }),
         mockBrainJob({ id: 'queued', state: 'queued' }),
       ],
-      tidy: { ...base.tidy, open: 3 },
+      agent: {
+        ...base.agent,
+        waiting: { reads: 2, entities: 1, repeats: 1, conflicts: 0, flags: 1 },
+      },
     },
   })
   await act(async () => root.render(<PageLinks onPage={onPage} />))
-  // A review Brain is refreshing still waits for the owner.
-  expect(container.querySelector('[aria-label="5 to decide"]')?.textContent).toBe('5')
+  // A review Brain is refreshing still waits for Defrag.
+  expect(container.querySelector('[aria-label="5 waiting"]')?.textContent).toBe('5')
 })

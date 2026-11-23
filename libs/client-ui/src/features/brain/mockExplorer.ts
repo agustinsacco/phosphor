@@ -24,6 +24,7 @@ export class MockExplorer {
   entities: BrainEntity[]
   details: BrainMemoryDetail[]
   private merged = new Map<string, string[]>()
+  private survivors = new Map<string, string>()
   constructor() {
     const sample = mockBrainData()
     this.entities = sample.entities
@@ -162,6 +163,11 @@ export class MockExplorer {
     }
   }
   entity(id: string): BrainEntityView {
+    const seen = new Set<string>()
+    while (!this.entities.some((e) => e.id === id) && this.survivors.has(id) && !seen.has(id)) {
+      seen.add(id)
+      id = this.survivors.get(id)!
+    }
     const entity = this.entities.find((e) => e.id === id)
     if (!entity) throw new Error('Entity not found')
     const groups = new Map<string, BrainConnectionGroup>()
@@ -282,6 +288,7 @@ export class MockExplorer {
       b = this.entities.find((e) => e.id === target)
     if (!a || !b || a === b) throw new Error('Choose two different entities')
     b.aliases.push(a.label, ...a.aliases)
+    this.survivors.set(source, target)
     this.merged.set(target, [
       ...(this.merged.get(target) ?? []),
       a.label,

@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import { registry } from '../registry'
 import { access } from 'node:fs/promises'
 import { decideSession, recordWorkspaceIntent, withWorkspace } from '../maintenance/history'
@@ -56,7 +57,8 @@ const spawn = createSessionStartup({
   accounts: { remember: rememberSpawnAccount, forget: forgetSpawnAccount, hold: holdAccount },
   recordWorkspace,
   laneReload,
-  recall: () => recall?.() ?? Promise.resolve(undefined),
+  recall: (workspacePath) => recall?.(workspacePath) ?? Promise.resolve(undefined),
+  stubRecall: () => !app.isPackaged && Boolean(process.env.PHOSPHOR_BRAIN_TEST_EMBEDDINGS),
 })
 
 const service = createSessionService<Electron.WebContents>({

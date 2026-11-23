@@ -34,7 +34,7 @@ it('reads an unchanged lane once and hands that read to its caller', async () =>
   const first = await files.current(file)
   expect(first.title).toBe('Harbor sync')
   expect(first.entries).toHaveLength(1)
-  await expect(files.current(file)).resolves.toEqual({ title: 'Harbor sync' })
+  await expect(files.current(file)).resolves.toEqual({ title: 'Harbor sync', cwd: null })
   expect(reads).toHaveBeenCalledTimes(1)
 })
 
@@ -42,7 +42,24 @@ it('remembers the title from an ordinary read', async () => {
   const file = await lane()
   const files = new LaneFiles()
   await files.read(file)
-  await expect(files.current(file)).resolves.toEqual({ title: 'Harbor sync' })
+  await expect(files.current(file)).resolves.toEqual({ title: 'Harbor sync', cwd: null })
+  expect(reads).toHaveBeenCalledTimes(1)
+})
+
+it('remembers the session header cwd with the title', async () => {
+  const file = await lane()
+  await writeFile(
+    file,
+    [
+      { type: 'session', id: 'kestrel-lane', cwd: '/projects/kestrel' },
+      { type: 'session_info', name: 'Kestrel' },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n'),
+  )
+  const files = new LaneFiles()
+  await files.read(file)
+  await expect(files.current(file)).resolves.toEqual({ title: 'Kestrel', cwd: '/projects/kestrel' })
   expect(reads).toHaveBeenCalledTimes(1)
 })
 
@@ -54,7 +71,7 @@ it('reads again after the file changes, and once more after it is archived', asy
   await expect(files.current(file)).resolves.toMatchObject({ title: 'Tom 1:1' })
   await rename(file, `${file}.archived`)
   await expect(files.current(file)).resolves.toMatchObject({ title: 'Tom 1:1' })
-  await expect(files.current(file)).resolves.toEqual({ title: 'Tom 1:1' })
+  await expect(files.current(file)).resolves.toEqual({ title: 'Tom 1:1', cwd: null })
   expect(reads).toHaveBeenCalledTimes(3)
 })
 

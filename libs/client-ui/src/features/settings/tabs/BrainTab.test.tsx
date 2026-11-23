@@ -92,7 +92,7 @@ it('sends lane flags to the Brain Inbox, not to a Tidy tab that no longer exists
   status.prefs.enabled = true
   await render()
   expect(container.textContent).toContain(
-    'brain_flag to suggest a correction for you to review in the Brain Inbox',
+    'brain_flag to suggest a correction for Brain Agent to review during Defrag',
   )
   expect(container.textContent).not.toContain('on Tidy')
 })

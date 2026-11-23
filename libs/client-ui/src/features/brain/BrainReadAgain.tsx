@@ -23,7 +23,7 @@ export function BrainReadAgain({
       const choice = await promptChoice({
         title: `Read “${brainLaneTitle(job.title)}” again?`,
         message:
-          `Brain reads the whole lane again. The ${replaceable} memories from the earlier read stay until you approve the new result. Then they are replaced.` +
+          `Brain reads the whole lane again. The ${replaceable} memories from the earlier read stay until the new result is saved. Then they are replaced.` +
           (kept > 0 ? ` ${kept} memories that another lane also supports are kept.` : ''),
         choices: [{ value: 'read', label: 'Read again', primary: true }],
       })
