@@ -47,6 +47,7 @@ export function setup() {
     control_account: { enabled: true, maxHosts: 20 },
     control_host_key: { outcome: 'active', publicKey: key.publicKey },
     control_host_revocations: { epoch: 1, ownerId: userId, revoked: { sessions: [], clients: [] } },
+    control_machine_beat: { outcome: 'ok', machineReach: true, revoked: [] },
   }
   vi.mocked(deps.supabase.rpc).mockImplementation(async (name) => results[name])
   const app = createApp(deps)
@@ -87,6 +88,8 @@ interface RouteCase {
   answer: object
   parser: ((value: unknown) => Parsed<unknown>) | null
   outcomes: Readonly<Record<string, number>>
+  /** The Allow header a wrong method gets, when it is not the route's own method. */
+  allow?: string
 }
 function input(route: RouteCase, s: ReturnType<typeof setup>) {
   return route.path === R.enrollments ? { ...route.value, publicKey: s.key.publicKey } : route.value
@@ -166,7 +169,7 @@ function failureCases(route: RouteCase) {
     })
     expect(wrong.status).toBe(405)
     expect(wrong.headers.get('allow')).toBe(
-      route.path.startsWith(R.machines + '/') ? 'PATCH, DELETE' : route.method,
+      route.allow ?? (route.path.startsWith(R.machines + '/') ? 'PATCH, DELETE' : route.method),
     )
     if (input(route, s) !== undefined) {
       expect((await s.app.request(route.path, { method: route.method, body: '{}' })).status).toBe(

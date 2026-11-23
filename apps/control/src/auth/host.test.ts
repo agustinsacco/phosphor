@@ -290,3 +290,14 @@ it('limits enrolled host lookups to 120 per minute per IP before any RPC', async
   })
   expect(lookup).toHaveBeenCalledTimes(122)
 })
+it('spends a machine-auth purpose on its own per-IP budget, leaving host-auth untouched', async () => {
+  const ports = deps()
+  const spend = vi.spyOn(ports.limits, 'consume')
+  const req = enrolledRequest()
+  expect(
+    await authenticateHost(req, bytes, ports, 'host', '192.0.2.1', undefined, 'machine-auth'),
+  ).toBe(userId)
+  expect(spend).toHaveBeenCalledWith('machine-auth:192.0.2.1', 120, 60_000)
+  expect(spend).not.toHaveBeenCalledWith('host-auth:192.0.2.1', 120, 60_000)
+  expect(ports.limits.available('host-auth:192.0.2.1', 120, 60_000)).toBe(true)
+})
