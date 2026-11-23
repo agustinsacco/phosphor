@@ -54,7 +54,8 @@ import { trafficLog } from '../hosts/traffic-log'
 import { tappedLog } from '../hosts/traffic-tap'
 import { startLocalMachine } from '../local-machine/connection'
 import { onDaemonMode } from '../local-machine/mode'
-import { bindSameMachine } from '../local-machine/same-machine'
+import { desktopBrainApp } from '../brain/app-service'
+import { bindSameMachine, sameMachine } from '../local-machine/same-machine'
 
 let routines: ReturnType<typeof createRemoteRoutines> | undefined
 export const remoteRoutineMachines = () => routines?.machines() ?? []
@@ -157,8 +158,12 @@ function admitLocalMachine(
         manager.setLocal(slot)
         const hostId = slot?.hostId
         bindSameMachine(hostId ? { hostId, connection: () => manager.connection(hostId) } : null)
+        desktopBrainApp.ownerChanged(sameMachine()?.connection)
       },
-      changed: () => manager.changed(),
+      changed: () => {
+        desktopBrainApp.ownerChanged(sameMachine()?.connection)
+        manager.changed()
+      },
       log: tappedLog,
       traffic: (hostId, ...frame) => trafficLog.frame(hostId, ...frame),
       onAttention: (hostId, event) => attention.receive(hostId, event),

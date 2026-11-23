@@ -1,3 +1,5 @@
+import type { AppServices } from '../../session/app-services'
+import { createBrainHandlers } from './brain'
 import type { SettingsOps } from './settings-access'
 import type { RepositorySummary } from '@phosphor/shared/host-protocol'
 import type { createRepositories } from '../../features/repositories'
@@ -37,6 +39,7 @@ import { skillHandlers } from './skills'
 
 /** What the daemon's domain handlers wrap: its existing services, never copies of them. */
 export interface DaemonHandlerDeps extends LaneHandlerPorts {
+  readonly appServices?: AppServices | null
   readonly settingsOps?: SettingsOps
   readonly ownerFolders?: () => readonly RepositorySummary[]
   readonly repositories?: Pick<ReturnType<typeof createRepositories>, 'execute'>
@@ -68,6 +71,7 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
 /** Every domain file's handlers. Meta ops come from `meta.ts`, bound over the dispatcher's stores. */
 export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
   return {
+    ...createBrainHandlers(deps.appServices),
     ...laneHandlers(deps),
     ...archiveHandlers(deps),
     ...artifactHandlers(deps),
@@ -118,11 +122,10 @@ export async function daemonUndoIsCurrent(
 /**
  * Catalog ops the daemon serves once their package lands, by package and
  * handler file. Until then the dispatcher answers them `unsupported`, and a
- * `ready` flag whose ops are pending is not announced. P4b and D9 add theirs.
+ * `ready` flag whose ops are pending is not announced.
  */
 const PENDING = {
   'P4b artifact-remove.ts': 'artifact.remove',
-  'D9 brain.ts': 'brain.search brain.flag',
 } as const
 
 export interface PendingHandler {

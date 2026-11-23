@@ -4,6 +4,8 @@ import { createBrainService } from '@phosphor/brain-runtime/service'
 import type { BrainLanes, BrainService } from '@phosphor/brain-runtime/types'
 import { openBrainStore } from '@phosphor/memory-engine/store'
 import { loadSqlite } from '@phosphor/session-runtime/sqlite'
+import { desktopBrainApp } from './app-service'
+import { localRuntimeMode } from '../local-machine/mode'
 import { registry } from '../registry'
 import { log } from '../debug-log'
 import { prepareDesktopSessionLaunch } from '../pi/session-launch'
@@ -22,10 +24,12 @@ const resources = (): string =>
 /** A live lane is busy while its agent works; its extraction waits until it settles. */
 const lanes: BrainLanes = {
   busy: (sessionPath) =>
-    registry.list().some((live) => {
-      const client = registry.get(live.sessionId)?.client
-      return client?.sessionFile === sessionPath && client.activity.busy
-    }),
+    localRuntimeMode() === 'daemon'
+      ? desktopBrainApp.busy(sessionPath)
+      : registry.list().some((live) => {
+          const client = registry.get(live.sessionId)?.client
+          return client?.sessionFile === sessionPath && client.activity.busy
+        }),
   async launch(sessionPath) {
     const launch = await prepareDesktopSessionLaunch()
     const account = await desktopSessionPolicy.account({ sessionPath })
@@ -65,6 +69,7 @@ async function construct(): Promise<BrainService> {
         createDesktopSearch(path, join(import.meta.dirname, 'brain-search-worker.js')),
       embeddings,
       lanes,
+      onChange: () => desktopBrainApp.brainChanged(),
       guardExtension: join(root, 'brain-ext/brain-fork-guard.mjs'),
       recall: { extension: join(root, 'brain-ext/brain.mjs'), skill: join(root, 'skills/brain') },
       log: (message, data) => log('brain', message, data),
@@ -77,6 +82,7 @@ async function construct(): Promise<BrainService> {
 
 /** Every new lane asks once; Brain off or broken means no recall, never a failed lane. */
 export function installBrainRecall(): void {
+  desktopBrainApp.install(brainService, () => log('brain', 'Brain app service unavailable'))
   setSessionRecall(async () => {
     try {
       return await (await brainService()).recallLaunch()
@@ -89,5 +95,6 @@ export function installBrainRecall(): void {
 
 export async function disposeBrain(): Promise<void> {
   closing = true
+  await desktopBrainApp.dispose()
   if (pending) await (await pending.catch(() => undefined))?.dispose()
 }

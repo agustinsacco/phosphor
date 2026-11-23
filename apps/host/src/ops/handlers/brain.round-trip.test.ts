@@ -12,7 +12,23 @@ import { parseOwnerParams } from '@phosphor/shared/host-protocol-owner'
 import { BrainAppService } from '../../../../desktop/electron/brain/app-service'
 import { createAppServices } from '../../session/app-services'
 import { openStore } from '../../lanes/store'
-import { createOpsService } from '../service'
+import { createOpsService, type OpsService } from '../service'
+
+function piSearch(ops: OpsService, session: string) {
+  const tools: ToolDefinition<{ query: string }, unknown, unknown>[] = []
+  registerBrain({ registerTool: (tool) => tools.push(tool as (typeof tools)[number]) }, sendOp)
+  const ctx = {
+    ui: {
+      editor: async (title: string, prefill: string) => {
+        expect(title).toBe(OP_TITLE)
+        const request = parseOpChannelRequest(prefill)
+        if (!request || request.op !== 'brain.search') throw new Error('invalid channel request')
+        return JSON.stringify(await ops.dispatcher.runFromTool(session, request))
+      },
+    },
+  }
+  return () => tools[0]!.execute('tool-id', { query: 'Harbor' }, undefined, undefined, ctx)
+}
 
 it('returns a Desktop briefing to the pi tool through the daemon dispatcher, then unavailable after disconnect', async ({
   onTestFinished,
@@ -77,19 +93,7 @@ it('returns a Desktop briefing to the pi tool through the daemon dispatcher, the
     },
   })
   await vi.waitFor(() => expect(appServices.status().brain).toBe('registered'))
-  const tools: ToolDefinition<{ query: string }, unknown, unknown>[] = []
-  registerBrain({ registerTool: (tool) => tools.push(tool as (typeof tools)[number]) }, sendOp)
-  const ctx = {
-    ui: {
-      editor: async (title: string, prefill: string) => {
-        expect(title).toBe(OP_TITLE)
-        const request = parseOpChannelRequest(prefill)
-        if (!request || request.op !== 'brain.search') throw new Error('invalid channel request')
-        return JSON.stringify(await ops.dispatcher.runFromTool(session, request))
-      },
-    },
-  }
-  const search = () => tools[0]!.execute('tool-id', { query: 'Harbor' }, undefined, undefined, ctx)
+  const search = piSearch(ops, session)
   expect((await search()).details).toEqual({ status: 'ok', memories: 1 })
   expect(agent).toHaveBeenCalledWith(
     'search',

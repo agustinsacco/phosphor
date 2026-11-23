@@ -82,6 +82,7 @@ export async function bindRunOps(
   const { runtime, live } = started
   parts.ops = await startRunOps({
     ...started.resources,
+    appServices: parts.services?.appServices,
     sandboxes: runSandboxes(context, ports, started),
     ...daemonLanePorts({
       runtime,

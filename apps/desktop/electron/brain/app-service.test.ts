@@ -86,9 +86,11 @@ it('joins working and needs-input lanes to exact session files, waiting when the
   expect(service.busy('/other')).toBe(true)
   await vi.waitFor(() => expect(service.busy('/other')).toBe(false))
   expect(service.busy('/a')).toBe(true)
+  view.cursor.seq++
   view.lanes[0]!.activity = 'needs-input'
   service.ownerChanged(connection)
   expect(service.busy('/a')).toBe(true)
+  view.cursor.seq++
   view.lanes[0]!.activity = 'idle'
   service.ownerChanged(connection)
   expect(service.busy('/a')).toBe(false)

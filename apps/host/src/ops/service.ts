@@ -292,6 +292,7 @@ export interface RunOpsPorts extends Pick<
   OpsServicePorts,
   | 'routines'
   | 'repositories'
+  | 'appServices'
   | 'skills'
   | 'ownerFolders'
   | 'sandboxes'
