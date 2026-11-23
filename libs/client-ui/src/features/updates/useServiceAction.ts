@@ -60,6 +60,6 @@ export function useServiceAction(
     ...action,
     invoke: (name: LocalMachineAction) => action.run(() => run(name)),
     failed,
-    message: action.error || message || updateText,
+    message: failed ? updateText : action.error || message || updateText,
   }
 }
