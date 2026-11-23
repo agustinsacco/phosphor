@@ -181,6 +181,16 @@ describe('the socket path', () => {
     expect(lstatSync(path).mode & 0o777).toBe(0o600)
     expect((await socketHello(server.path)).status).toBe(200)
   })
+
+  it('refuses, and keeps, a socket whose listener it cannot probe', async () => {
+    const path = join(await root(), 'run', 'phosphor.sock')
+    await mkdir(join(path, '..'), { mode: 0o700 })
+    await crashedListener(path)
+    // No write permission: connect fails with EACCES, which says nothing about a listener.
+    await chmod(path, 0o000)
+    await expect(start([path])).rejects.toMatchObject({ reason: 'occupied' })
+    expect(lstatSync(path).isSocket()).toBe(true)
+  })
 })
 
 describe('the socket hello and handshake', () => {
