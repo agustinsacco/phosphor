@@ -22,6 +22,7 @@ const fake = vi.hoisted(() => {
     loadURL = (): Promise<void> => Promise.resolve()
     loadFile = (): Promise<void> => Promise.resolve()
     on = (): void => {}
+    isMinimized = (): boolean => false
     show = record('window.show')
     focus = record('window.focus')
     webContents = { on: () => {}, setWindowOpenHandler: () => {}, getURL: () => '' }
@@ -43,6 +44,8 @@ const fake = vi.hoisted(() => {
     pauseAll: () => {},
     wakeRoutines: () => {},
     mode: 'in-app' as 'in-app' | 'daemon' | 'quit',
+    /** A launch gate still deciding: resolve it to finish startup. */
+    gate: undefined as Promise<'in-app' | 'daemon' | 'quit'> | undefined,
   }
 })
 
@@ -98,7 +101,7 @@ vi.mock('./ipc', () => ({ registerIpcHandlers: fake.record('registerIpcHandlers'
 vi.mock('./local-machine/launch', () => ({
   decideLocalRuntime: () => {
     fake.calls.push('decideLocalRuntime')
-    return Promise.resolve(fake.mode)
+    return fake.gate ?? Promise.resolve(fake.mode)
   },
 }))
 vi.mock('./local-machine/launch-gate', () => ({
@@ -265,6 +268,26 @@ describe('main.ts startup order', () => {
       'maintenanceScheduler.start',
       'app.on:activate',
     ])
+  })
+
+  it('a second launch while the runtime is undecided opens no window before it is decided', async () => {
+    try {
+      for (const outcome of ['daemon', 'quit'] as const) {
+        let decide!: (mode: typeof outcome) => void
+        fake.gate = new Promise((resolve) => (decide = resolve))
+        await launchMain()
+        fake.appHandlers.get('second-instance')!()
+        await flush()
+        expect(fake.calls).not.toContain('createWindow')
+        decide(outcome)
+        await flush()
+        // Decided: the second launch focuses Phosphor. Quitting: it opens nothing.
+        expect(fake.calls.includes('window.focus')).toBe(outcome === 'daemon')
+        if (outcome === 'quit') expect(fake.calls).not.toContain('createWindow')
+      }
+    } finally {
+      fake.gate = undefined
+    }
   })
 
   it('a refused break-glass restore starts neither runtime nor a window', async () => {
