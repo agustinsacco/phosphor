@@ -802,6 +802,17 @@ unless the archive changes. When a machine's archives pass 1 GB, Phosphor shows
 one toast per machine and account and a warning on the page. It never cleans up
 on its own.
 
+One search box filters every machine by title or path. **Select all** on a
+machine enters select mode with the same row boxes and bulk bar as the sidebar
+([Deleting lanes](#deleting-lanes)), and offers **Clean up…** for the whole
+selection: one confirm lists the entries, asks once, and defaults to keeping
+every checkout. Ticking worktree removal names how many dedicated worktrees go,
+and the acknowledgement has to be renewed whenever that choice changes. The
+cleanup runs one entry at a time and keeps going after a refusal, because the
+machine checks ownership per entry and one shared checkout must not hold up the
+rest; whatever survived stays listed. A cleanup in progress holds that machine's
+list, so no second operation can act on an entry the first already removed.
+
 A Host offers Archive when its `ready` frame carries `laneArchive: true`
 ([Host](host.md#lane-archives)). On an older Host, Archive is disabled; Phosphor
 never falls back to deleting.

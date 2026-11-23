@@ -100,8 +100,10 @@ test('archiving a lane keeps its whole checkout, and the Archive page restores i
   expect(git(lane, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('research')
 
   await page.getByRole('button', { name: 'Archive', exact: true }).first().click()
-  const entry = page.getByRole('heading', { name: TITLE, exact: true }).locator('..').locator('..')
-  await expect(entry).toContainText('archived')
+  const entry = page.getByTestId('archive-row').filter({ hasText: TITLE })
+  // The row names the checkout it left behind. A plain archive carries no state
+  // chip; only archiving/restoring/purging do, so the eye catches in-flight work.
+  await expect(entry).toContainText(lane)
   await entry.getByRole('button', { name: 'Restore', exact: true }).click()
   await expect(page.getByText('No archived lanes.')).toBeVisible()
   expect(existsSync(transcript)).toBe(true)

@@ -18,7 +18,9 @@ export interface LaneSelect {
  * place, so entering select mode shifts nothing. The box is revealed on hover,
  * or whenever the group already has a selection: a permanent column would
  * cost every row 20px forever for a rare action. Rows that cannot join a
- * selection (the Pinned list mixes folders) pass no `select`.
+ * selection (the Pinned list mixes folders) pass no `select`. The Archive page
+ * uses the same box for bulk cleanup, so one gesture means "join a bulk
+ * operation" everywhere in the app.
  */
 export function SelectableIndicator({
   state,
@@ -37,7 +39,7 @@ export function SelectableIndicator({
   )
 }
 
-function SelectBox({ select }: { select: LaneSelect }): React.JSX.Element {
+export function SelectBox({ select }: { select: LaneSelect }): React.JSX.Element {
   const { title, selected, selecting, blocked } = select
   return (
     <span
@@ -67,19 +69,23 @@ function SelectBox({ select }: { select: LaneSelect }): React.JSX.Element {
  * The bulk bar: only in select mode, so it costs no pixels the rest of the
  * time. It floats over the list rather than adding a permanent toolbar row;
  * `className` places it in the list that owns the selection. Select mode can
- * hold nothing yet ("Select merged lanes" with none merged), so Delete waits
- * for a lane.
+ * hold nothing yet ("Select merged lanes" with none merged), so the action
+ * waits for a row. `label` names the operation this list offers.
  */
 export function LaneBulkBar({
   count,
   running,
   className,
+  label = 'Archive…',
+  runningLabel = 'Archive in progress',
   onDelete,
   onCancel,
 }: {
   count: number
   running: boolean
   className: string
+  label?: string
+  runningLabel?: string
   onDelete: () => void
   onCancel: () => void
 }): React.JSX.Element {
@@ -98,7 +104,7 @@ export function LaneBulkBar({
         disabled={running || count === 0}
         className="bg-danger rounded-md px-2.5 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {running ? 'Archive in progress' : 'Archive…'}
+        {running ? runningLabel : label}
       </TooltipButton>
       <TooltipButton
         onClick={onCancel}

@@ -6,6 +6,7 @@ import { ARCHIVE_WARNING_BYTES, type LaneArchiveList } from '@phosphor/shared/la
 import { machineReadGeneration } from './machineReadGeneration'
 import { machinesAccountGeneration } from './machines'
 import { machineLabel, useRemoteLanesStore } from './remoteLanes'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useExtensionUiStore } from './extensionUi'
 
 interface View {
@@ -57,7 +58,7 @@ export function loadArchives(
         useExtensionUiStore
           .getState()
           .pushToast(
-            `${machine === 'local' ? 'This computer' : machineLabel(machine)}: archived lanes use ${(data.bytes / 1e9).toFixed(1)} GB. Open Archive to restore or clean up. Nothing is removed automatically.`,
+            `${machine === 'local' ? localMachineLabel() : machineLabel(machine)}: archived lanes use ${(data.bytes / 1e9).toFixed(1)} GB. Open Archive to restore or clean up. Nothing is removed automatically.`,
             'info',
           )
       } else if (data.bytes !== null && data.bytes <= ARCHIVE_WARNING_BYTES)
@@ -83,10 +84,16 @@ export function useArchiveInventory(machine: string, available: boolean): View {
   const view = useArchivesStore((state) => state.machines[machine] ?? EMPTY)
   const generation = useRemoteLanesStore(() => identity(machine))
   const revision = useArchiveChanges((state) => state[machine] ?? 0)
+  // Only a different machine or identity forgets the list. A refresh keeps what
+  // it already has: clearing it here blanked the page after every cleanup, which
+  // unmounted the confirmation still open in that list and dropped the selection
+  // that list owns. The stale rows are replaced a moment later by the refresh.
+  useEffect(() => {
+    patch(machine, { data: undefined, error: undefined })
+  }, [machine, available, generation])
   useEffect(() => {
     let stopped = false
     let timer: ReturnType<typeof setTimeout> | undefined
-    patch(machine, { data: undefined, error: undefined })
     const refresh = async (measure: boolean) => {
       const data = await loadArchives(machine, measure)
       if (!stopped)

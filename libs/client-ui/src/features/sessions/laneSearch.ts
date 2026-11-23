@@ -23,6 +23,11 @@ export interface LaneSearchFields {
   pr?: Pick<GhPullRequest, 'number' | 'title'>
   /** The lane's other pull requests, found by number or title too. */
   prs?: Pick<GhPullRequest, 'number' | 'title'>[]
+  /**
+   * The checkout path. An archived lane has no branch or pull request left to
+   * remember it by, so its path is the only identity beyond the title.
+   */
+  cwd?: string
 }
 
 /**
@@ -47,7 +52,7 @@ export function laneQueryTerms(raw: string): string[] {
 
 /** The searchable text for one lane, normalized once per render. */
 export function laneHaystack(fields: LaneSearchFields): string {
-  const parts = [fields.title, fields.branch ?? '']
+  const parts = [fields.title, fields.branch ?? '', fields.cwd ?? '']
   for (const pr of [...(fields.pr ? [fields.pr] : []), ...(fields.prs ?? [])])
     parts.push(String(pr.number), pr.title)
   return normalize(parts.join(' '))

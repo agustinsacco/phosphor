@@ -1,39 +1,59 @@
+import { ArchiveList } from './ArchiveList'
 import { useArchiveMutation } from './useArchiveMutation'
 import { TooltipButton } from '@/components/Tooltip'
+import { SettingsNotice, Tag } from '@/components/form'
+import { WaitingNote } from '@/components/Waiting'
+import { Spinner } from '@/components/icons'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useArchiveInventory, loadArchives } from '@/stores/archives'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
-import {
-  ARCHIVE_WARNING_BYTES,
-  type LaneArchiveEntry,
-  type LaneArchiveList,
-} from '@phosphor/shared/lane-archive'
-import { PurgeArchiveModal } from './PurgeArchiveModal'
+import { laneHaystack, laneMatches, laneQueryTerms } from '../sessions/laneSearch'
+import { ARCHIVE_WARNING_BYTES } from '@phosphor/shared/lane-archive'
+import type { LaneArchiveEntry, LaneArchiveList } from '@phosphor/shared/lane-archive'
 
-export function ArchiveMachine({ machine }: { machine: string }): React.JSX.Element {
+const NONE: readonly LaneArchiveEntry[] = Object.freeze([])
+
+/**
+ * One machine's archived lanes.
+ *
+ * The section decides only whether this machine can show its archives and what
+ * they cost; the list and its actions live in `ArchiveList`.
+ */
+export function ArchiveMachine({
+  machine,
+  query,
+}: {
+  machine: string
+  /** Case-insensitive match on title or path, from the page's search box. */
+  query: string
+}): React.JSX.Element {
   const host = useRemoteLanesStore((state) => state.hosts[machine])
-  const available =
-    machine === 'local' ||
-    (host?.state === 'ready' &&
-      host.laneArchive === true &&
-      host.capabilities.includes('sessions.read'))
+  const ready = host?.state === 'ready' && host.laneArchive === true
+  const available = machine === 'local' || (ready && !!host?.capabilities.includes('sessions.read'))
   const writable =
     available &&
     (machine === 'local' ||
-      (host?.capabilities.includes('sessions.control') &&
-        host.capabilities.includes('workspaces.write')))
+      (!!host?.capabilities.includes('sessions.control') &&
+        !!host?.capabilities.includes('workspaces.write')))
   const view = useArchiveInventory(machine, available)
-  const { busy, error, purging, setError, setPurging, mutate } = useArchiveMutation(
-    machine,
-    writable,
-  )
+  const actions = useArchiveMutation(machine, writable)
+  const entries = view.data?.entries ?? NONE
+  // The sidebar's matcher, so the same words find the same lane in both places.
+  const terms = laneQueryTerms(query)
+  const shown = terms.length
+    ? entries.filter((entry) =>
+        laneMatches(laneHaystack({ title: entry.title, cwd: entry.cwd }), terms),
+      )
+    : entries
   return (
     <section className="border-border space-y-3 rounded-lg border p-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold">
-          {machine === 'local' ? 'This computer' : machineLabel(machine)}
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="min-w-0 flex-1 truncate font-semibold">
+          {machine === 'local' ? localMachineLabel() : machineLabel(machine)}
         </h2>
+        {!!entries.length && <Tag>{entries.length} archived</Tag>}
         <TooltipButton
-          disabled={!available || view.loading || busy !== null}
+          disabled={!available || view.loading || actions.running}
           onClick={() => {
             void loadArchives(machine)
           }}
@@ -42,111 +62,128 @@ export function ArchiveMachine({ machine }: { machine: string }): React.JSX.Elem
         </TooltipButton>
       </div>
       {!available ? (
-        <p className="text-text-secondary text-sm">
-          {host?.state === 'ready' && !host.laneArchive
-            ? 'Update this Host to use recoverable archives.'
-            : 'Archive unavailable. Connect this machine with session read access. Storage is unknown, not zero.'}
-        </p>
+        <ArchiveUnavailable host={host} />
       ) : (
         <>
-          <ArchiveStorage data={view.data} />
-          {(error || view.error) && (
-            <p role="alert" className="text-danger text-sm">
-              {error || view.error}
+          <ArchiveStorage data={view.data} count={entries.length} />
+          <ArchiveErrors
+            machine={machine}
+            listError={view.error}
+            actionError={actions.purging ? null : actions.error}
+          />
+          {!view.data && view.loading && <WaitingNote>Loading archives…</WaitingNote>}
+          {!!view.data && !shown.length && (
+            <p className="text-text-secondary text-sm">
+              {entries.length ? `No archived lanes match “${query}”.` : 'No archived lanes.'}
             </p>
           )}
-          {!view.data && view.loading && <p role="status">Loading archives…</p>}
-          {view.data?.entries.length === 0 && (
-            <p className="text-text-secondary text-sm">No archived lanes.</p>
-          )}
-          {view.data?.entries.map((entry) => (
-            <ArchiveRow
-              key={entry.id}
-              entry={entry}
-              disabled={!writable || busy !== null}
-              restore={() => {
-                void mutate(entry, false)
-              }}
-              purge={() => {
-                setError(null)
-                setPurging(entry)
-              }}
+          {!!shown.length && (
+            <ArchiveList
+              machine={machine}
+              writable={writable}
+              entries={entries}
+              shown={shown}
+              actions={actions}
             />
-          ))}
+          )}
         </>
-      )}
-      {purging && (
-        <PurgeArchiveModal
-          entry={purging}
-          busy={busy !== null}
-          error={error}
-          onClose={() => setPurging(null)}
-          onConfirm={(remove) => {
-            void mutate(purging, true, remove)
-          }}
-        />
       )}
     </section>
   )
 }
-function ArchiveStorage({ data }: { data?: LaneArchiveList }): React.JSX.Element {
-  return (
-    <div className="text-text-secondary text-sm">
-      <p>
-        {data?.bytes === undefined || data.bytes === null
-          ? 'Storage unknown'
-          : `${(data.bytes / 1e9).toFixed(2)} GB retained`}{' '}
-        {data?.measuring && '· measuring in background'}
-      </p>
-      <p>
-        Shared folders count once. This includes retained project files, not just reclaimable
-        storage.
-      </p>
-      {data?.bytes !== null && data?.bytes !== undefined && data.bytes > ARCHIVE_WARNING_BYTES && (
-        <p role="status" className="text-warning">
-          Archived lanes exceed 1 GB on this machine. Review them below. Nothing is removed
-          automatically.
-        </p>
-      )}
-      {data?.truncated && (
-        <p role="alert">
-          Listing is incomplete. Cleanup of shared worktrees is blocked until all owners can be
-          checked.
-        </p>
-      )}
-    </div>
-  )
-}
-function ArchiveRow({
-  entry,
-  disabled,
-  restore,
-  purge,
+
+/**
+ * A list the machine refused and an operation it refused are different problems,
+ * so they say so differently: only the list offers a reload, and an operation
+ * still open in its own dialog reports the failure there instead.
+ */
+function ArchiveErrors({
+  machine,
+  listError,
+  actionError,
 }: {
-  entry: LaneArchiveEntry
-  disabled: boolean
-  restore: () => void
-  purge: () => void
+  machine: string
+  listError: string | null | undefined
+  actionError: string | null
 }): React.JSX.Element {
   return (
-    <div className="border-border flex flex-wrap items-center gap-3 border-t py-3">
-      <div className="min-w-0 flex-1">
-        <h3 className="truncate font-medium">{entry.title}</h3>
-        <p className="text-text-secondary break-all text-xs">{entry.cwd}</p>
-        <p className="text-text-secondary text-xs">
-          {new Date(entry.archivedAt).toLocaleString()} · {entry.state}
-        </p>
-      </div>
-      <TooltipButton disabled={disabled || entry.state === 'purging'} onClick={restore}>
-        Restore
-      </TooltipButton>
-      <TooltipButton
-        disabled={disabled || !['archived', 'purging', 'restoring'].includes(entry.state)}
-        onClick={purge}
-        className="text-danger"
-      >
-        {entry.state === 'purging' ? 'Retry cleanup…' : 'Clean up…'}
-      </TooltipButton>
-    </div>
+    <>
+      {listError && (
+        <SettingsNotice
+          tone="danger"
+          title="This machine refused the archive list."
+          body={listError}
+          action={{ label: 'Try again', onClick: () => void loadArchives(machine) }}
+        />
+      )}
+      {actionError && (
+        <SettingsNotice tone="danger" title="That archive operation failed." body={actionError} />
+      )}
+    </>
+  )
+}
+
+/** A Host that predates archives says so; a machine that is simply not connected says that. */
+function ArchiveUnavailable({
+  host,
+}: {
+  host: ReturnType<typeof useRemoteLanesStore.getState>['hosts'][string] | undefined
+}): React.JSX.Element {
+  const stale = host?.state === 'ready' && !host.laneArchive
+  return (
+    <SettingsNotice
+      tone="info"
+      title={stale ? 'Update this Host to use recoverable archives.' : 'Archive unavailable'}
+      body={
+        stale
+          ? undefined
+          : 'Connect this machine with session read access. Storage is unknown, not zero.'
+      }
+    />
+  )
+}
+
+/** One line: what is held, and how many. The caveats that do not fit sit on the size. */
+function ArchiveStorage({
+  data,
+  count,
+}: {
+  data?: LaneArchiveList
+  count: number
+}): React.JSX.Element {
+  const bytes = data?.bytes ?? null
+  return (
+    <>
+      <p className="text-text-secondary flex flex-wrap items-center gap-2 text-sm">
+        <span
+          data-tooltip="Shared folders count once. This includes retained project files, not just reclaimable storage."
+          data-testid="archive-retained"
+        >
+          {bytes === null ? 'Storage unknown' : `${(bytes / 1e9).toFixed(2)} GB retained`}
+        </span>
+        <span aria-hidden>·</span>
+        <span>{count} archived</span>
+        {data?.measuring && (
+          <span className="text-text-tertiary flex items-center gap-1.5">
+            <Spinner className="text-text-tertiary h-3 w-3" />
+            measuring
+          </span>
+        )}
+      </p>
+      {bytes !== null && bytes > ARCHIVE_WARNING_BYTES && (
+        <SettingsNotice
+          tone="warning"
+          title="Archived lanes exceed 1 GB on this machine."
+          body="Review them below. Nothing is removed automatically."
+        />
+      )}
+      {data?.truncated && (
+        <SettingsNotice
+          tone="danger"
+          title="Listing is incomplete."
+          body="Cleanup of shared worktrees is blocked until all owners can be checked."
+        />
+      )}
+    </>
   )
 }
