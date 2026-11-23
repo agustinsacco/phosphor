@@ -18,7 +18,7 @@ import type { AuditStore } from './types'
 
 export const AGENT_OPS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS agent_ops (
-  id TEXT PRIMARY KEY, at INTEGER NOT NULL, principal TEXT NOT NULL,
+  id TEXT PRIMARY KEY NOT NULL, at INTEGER NOT NULL, principal TEXT NOT NULL,
   lane_ref TEXT, lane_title TEXT, op TEXT NOT NULL, tier TEXT NOT NULL, scope TEXT NOT NULL,
   target TEXT, args_summary TEXT NOT NULL, reason TEXT, decision TEXT NOT NULL, result TEXT NOT NULL,
   applies TEXT, undo TEXT, undone_by TEXT, confirm_id TEXT, dialog_id TEXT, approved_by TEXT,

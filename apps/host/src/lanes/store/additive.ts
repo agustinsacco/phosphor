@@ -8,6 +8,8 @@
  * values the code may extend stay unconstrained here and are checked in code.
  */
 
+import { AGENT_OPS_SCHEMA } from '@phosphor/session-runtime/ops/audit'
+
 /** A lane the service paused for an update; Continue is `lane.resume`. */
 const LANE_PAUSES = `
 CREATE TABLE IF NOT EXISTS lane_pauses (
@@ -28,33 +30,8 @@ CREATE TABLE IF NOT EXISTS lane_prefs (
 ) STRICT;
 `
 
-/** The agent-control audit log; rows arrive redacted. */
-const AGENT_OPS = `
-CREATE TABLE IF NOT EXISTS agent_ops (
-  id TEXT PRIMARY KEY NOT NULL,
-  at INTEGER NOT NULL,
-  principal TEXT NOT NULL,
-  lane_ref TEXT,
-  lane_title TEXT,
-  op TEXT NOT NULL,
-  tier TEXT NOT NULL,
-  scope TEXT NOT NULL,
-  target TEXT,
-  args_summary TEXT NOT NULL,
-  reason TEXT,
-  decision TEXT NOT NULL,
-  result TEXT NOT NULL,
-  applies TEXT,
-  undo TEXT,
-  undone_by TEXT,
-  confirm_id TEXT,
-  dialog_id TEXT,
-  approved_by TEXT,
-  batch_id TEXT,
-  duration_ms INTEGER
-) STRICT;
-CREATE INDEX IF NOT EXISTS agent_ops_at ON agent_ops(at);
-`
+/** The agent-control audit log; rows arrive redacted. One home: session-runtime's audit store. */
+const AGENT_OPS = AGENT_OPS_SCHEMA
 
 /** The SHA-256 of the daemon's own last policy write and the snapshot it accepted. One row. */
 const AGENT_POLICY_META = `
