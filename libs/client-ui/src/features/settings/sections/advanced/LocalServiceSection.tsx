@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { LocalMachineAction, LocalMachineStatus } from '@phosphor/shared/ipc'
 import { Button, Row } from '@/components/form'
-import { useOpAction } from '@/features/agent-control/useOpRead'
+import { TooltipSummary } from '@/components/Tooltip'
+import { useServiceAction, laneCount } from '@/features/updates/useServiceAction'
 import { hostTasks } from '@/features/machines/runningTasks'
 import { useLocalServiceStatus } from '@/features/updates/useLocalServiceStatus'
 import { usePlatform } from '@/platform/Platform'
 import { localServiceId } from '@/stores/localServiceScope'
-import { promptChoice } from '@/stores/prompt'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 
 type Click = (action: LocalMachineAction, label: string) => ReactNode
@@ -31,9 +31,14 @@ function migrationRow(status: LocalMachineStatus, button: Click) {
       return (
         <Row
           title="Couldn’t finish setting up the Phosphor service"
-          description={[status.failure?.step ?? status.step, status.failure?.code]
-            .filter(Boolean)
-            .join(': ')}
+          description={
+            status.failure && (
+              <details>
+                <TooltipSummary>Setup details</TooltipSummary>
+                {status.failure.step}: {status.failure.code}
+              </details>
+            )
+          }
         >
           {button('retry-migration', 'Retry')}
           {button('export-diagnostics', 'Export diagnostics')}
@@ -49,7 +54,7 @@ function migrationRow(status: LocalMachineStatus, button: Click) {
       return <Row title="Service setup was reverted">{button('retry-migration', 'Retry')}</Row>
     case 'repairing':
     case 'running':
-      return <Row title="Setting up the Phosphor service" description={status.step} />
+      return <Row title="Setting up the Phosphor service">{status.step}</Row>
     default:
       return status.notice && <p>{notice[status.notice]}</p>
   }
@@ -94,10 +99,7 @@ function ServiceRows({
     )
   if (pause?.kind === 'paused')
     return (
-      <Row
-        title="Lanes paused for the service update"
-        description="The service is applying the update."
-      />
+      <Row title="Lanes paused for the service update">The service is applying the update.</Row>
     )
   return (
     <Row
@@ -109,47 +111,16 @@ function ServiceRows({
   )
 }
 
-function laneCount(count: number | undefined) {
-  return count === undefined
-    ? 'Working-lane count unavailable'
-    : `${count} working ${count === 1 ? 'lane' : 'lanes'}`
-}
-
 function ServiceCard({ machine, children }: { machine: string; children?: ReactNode }) {
   const { status, error, reload } = useLocalServiceStatus()
-  const [message, setMessage] = useState('')
-  const alive = useRef(false)
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
-    }
-  }, [])
-  const action = useOpAction()
   const working = useRemoteLanesStore((s) => {
     const id = localServiceId(s.hosts)
     return id && s.hosts[id]?.state === 'ready' ? hostTasks(id, s.hosts[id]).length : undefined
   })
-  const run = async (name: LocalMachineAction) => {
-    setMessage('')
-    if (
-      name === 'update-service' &&
-      (await promptChoice({
-        title: 'Update Phosphor service?',
-        message: `${laneCount(working)}. The update waits for turns, sub-agents and routines before restarting. Sub-agent work in older lanes may be interrupted.`,
-        choices: [{ label: 'Update service', value: 'update', primary: true }],
-      })) !== 'update'
-    )
-      return
-    if (!alive.current) return
-    const result = await window.phosphor.invoke('app:localMachineAction', name)
-    if (!alive.current) return
-    setMessage(result.message ?? (result.ok ? 'Done.' : 'The service refused the action.'))
-    reload()
-  }
+  const action = useServiceAction(status, working, reload)
   const button: Click = (name, label) => (
-    <Button disabled={action.busy} onClick={() => action.run(() => run(name))}>
-      {label}
+    <Button disabled={action.busy} onClick={() => action.invoke(name)}>
+      {action.failed && name === 'update-service' ? 'Update again' : label}
     </Button>
   )
   return (
@@ -161,7 +132,7 @@ function ServiceCard({ machine, children }: { machine: string; children?: ReactN
       )}
       {status && migrationRow(status, button)}
       {status && <ServiceRows status={status} working={working} reload={reload} button={button} />}
-      {(message || action.error) && <p role="status">{action.error || message}</p>}
+      {action.message && <p role="status">{action.message}</p>}
       {(machine !== 'local' || status?.mode === 'in-app') && children}
     </>
   )
