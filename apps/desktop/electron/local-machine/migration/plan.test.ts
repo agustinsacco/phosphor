@@ -77,6 +77,15 @@ describe('buildPlan', () => {
     expect(policy.directivesByFolder[REPO]?.laneCharter).toBe(false)
   })
 
+  it('maps every other spelling of a migrated folder to its repository id, apart from the canonical ids', () => {
+    const plan = buildPlan(planFacts())
+    expect(plan.folderAliases).toEqual({ '/fixture/link-to-app': repositoryIdForPath(REPO) })
+    expect(plan.repositoryIds).not.toHaveProperty('/fixture/link-to-app')
+    expect(planHash(buildPlan(planFacts({ folderRealpaths: { [REPO]: REPO } })))).not.toBe(
+      planHash(plan),
+    )
+  })
+
   it('rewrites an archive under a new lane id with the folder repository id and a re-keyed draft', () => {
     const plan = buildPlan(planFacts())
     const [manifest] = plan.sections.archives!.manifests
