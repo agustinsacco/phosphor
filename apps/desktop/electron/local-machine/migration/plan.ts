@@ -57,6 +57,12 @@ export interface MigrationPlan {
   readonly laneIds: Readonly<Record<string, string>>
   /** Folder realpath → repository id. */
   readonly repositoryIds: Readonly<Record<string, string>>
+  /**
+   * Every other spelling Desktop's prefs recorded for a migrated folder (a
+   * symlink, a trailing alias) → its repository id. Kept apart from
+   * `repositoryIds` so nothing that counts folders counts one twice.
+   */
+  readonly folderAliases: Readonly<Record<string, string>>
   /** G3's ten spot lanes, by session file. */
   readonly spots: readonly string[]
   /** The files the session witness covers (G8). */
@@ -119,6 +125,15 @@ function refusalsOf(facts: PlanFacts, lanes: number, sections: PlanSections): Pl
   return refusals
 }
 
+function folderAliases(facts: PlanFacts): Record<string, string> {
+  const migrated = new Set(facts.folders.map((f) => f.path))
+  return Object.fromEntries(
+    Object.entries(facts.folderRealpaths)
+      .filter(([spelling, real]) => spelling !== real && migrated.has(real))
+      .map(([spelling, real]) => [spelling, repositoryIdForPath(real)]),
+  )
+}
+
 export function buildPlan(facts: PlanFacts): MigrationPlan {
   const lanes = plannedLanes(facts)
   const lanesSection = {
@@ -149,6 +164,7 @@ export function buildPlan(facts: PlanFacts): MigrationPlan {
     repositoryIds: Object.fromEntries(
       facts.folders.map((f) => [f.path, repositoryIdForPath(f.path)]),
     ),
+    folderAliases: folderAliases(facts),
     spots: spotLanes(facts, lanes),
     witness: [...new Set([...lanes.map((l) => l.path), ...archived])].sort(),
     expected: {

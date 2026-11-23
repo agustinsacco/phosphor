@@ -71,11 +71,7 @@ function draftsFor(
 }
 
 /** Device state comes exclusively from the backup. Do not turn a retry into a second translation. */
-export function rekeyDevice(
-  saved: ConfigRecord,
-  plan: MigrationPlan & { readonly folderAliases?: Readonly<Record<string, string>> },
-  host: string,
-) {
+export function rekeyDevice(saved: ConfigRecord, plan: MigrationPlan, host: string) {
   const folders = { ...plan.folderAliases, ...plan.repositoryIds }
   let orphans = 0
   const orphan = () => {
