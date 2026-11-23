@@ -79,11 +79,14 @@ function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
   })
 }
 
-/** Owner methods, then `ops.run`, then the machine guard, then the lane adapter. */
+/** Owner methods, then `ops.run`, then the machine guard; the lane adapter comes last. */
+export function hostLinks(ops?: OpsAdapterPorts) {
+  return [createOwnerAdapter(), createOpsAdapter(ops), createMachineAdapter()]
+}
+
 function connectionAdapters(options: ApiOptions) {
   const adapter = options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined
-  const links = [createOwnerAdapter(), createOpsAdapter(options.ops), createMachineAdapter()]
-  return { adapter, handler: createAdapterChain(links, adapter?.handler) }
+  return { adapter, handler: createAdapterChain(hostLinks(options.ops), adapter?.handler) }
 }
 
 interface ApiOptions {

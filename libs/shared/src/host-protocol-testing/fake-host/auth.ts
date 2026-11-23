@@ -143,6 +143,7 @@ export function ready(state: FakeHostState, c: Connection, grant: GrantPayload, 
     grantExpiresAt: new Date(grant.exp * 1000).toISOString(),
     client: grant.client,
     capabilities: grant.caps.filter((cap) => caps.includes(cap)),
+    ...(state.ops ? { ops: true } : {}),
   })
 }
 

@@ -7,6 +7,7 @@ import { encodeGrant, type GrantPayload } from '@phosphor/shared/host-grant'
 import { helloProofMessage, HOST_LIMITS, type HostFrame } from '@phosphor/shared/host-protocol'
 import {
   createLoopbackPair,
+  defineAgentControlConformance,
   defineHostConformance,
   type HostConformanceFactory,
 } from '@phosphor/shared/host-protocol-testing'
@@ -27,6 +28,8 @@ import { createAuthority } from './authority'
 import { createConnection, hostProof } from './connection'
 import { fixtureGrantAuth } from './__fixtures__/grant-auth'
 import { createLaneAdapter } from './lanes'
+import { createAdapterChain } from './adapter'
+import { hostLinks } from './server'
 
 // The kit uses virtual time. Only git's read-only branch lookup is scripted;
 // lane creation, SQLite, transcript reads and all protocol services are real.
@@ -311,7 +314,7 @@ const factory: HostConformanceFactory = async (limits) => {
       const connection = createConnection({
         socket: pair.server,
         authenticate: fixtureGrantAuth(authority, claims, { control, host }, hello()),
-        handler: adapter.handler,
+        handler: (ready) => createAdapterChain(hostLinks(), adapter.handler)(ready),
         admit: (id) =>
           [...connections.values()].filter((c) => c.clientId() === id).length <
           (limits.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient),
@@ -394,3 +397,4 @@ const factory: HostConformanceFactory = async (limits) => {
 }
 
 defineHostConformance('real Host remote lanes', factory)
+defineAgentControlConformance('real Host agent control', factory)

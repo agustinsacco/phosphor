@@ -12,6 +12,7 @@ import {
 } from '../../host-protocol'
 import type { HostCapability } from '../../remote-host'
 import type { AgentMessage, ExtensionUIRequest, PiEvent, ThinkingLevel } from '../../rpc'
+import type { FakeOpsHandler } from './ops'
 
 export type Limits = { -readonly [K in keyof typeof HOST_LIMITS]: number }
 export type Command = Extract<ClientFrame, { type: 'command' }>
@@ -78,6 +79,8 @@ export interface FakeHostState {
   hostSeq: number
   stopped: boolean
   executions: number
+  /** Serves `ops.run` and announces `ready.ops`; null answers `unsupported`. */
+  ops: FakeOpsHandler | null
 }
 
 /** A fake may only lower the contract's limits, by positive safe integers. */
@@ -119,6 +122,7 @@ export function createFakeHostState(options: FakeHostOptions): FakeHostState {
     hostSeq: 0,
     stopped: false,
     executions: 0,
+    ops: null,
   }
 }
 
