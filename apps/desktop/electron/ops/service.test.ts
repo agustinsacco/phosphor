@@ -9,13 +9,27 @@ import { rememberOpLane } from './lanes'
 import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
 
 const h = vi.hoisted(() => ({
+  pins: [] as string[],
   command: vi.fn().mockResolvedValue({ success: true }),
   forLane: vi.fn(),
   broadcast: vi.fn(),
   policy: { version: 1, agentControl: 'all', machineOps: 'all', ops: {} as Record<string, 'ask'> },
 }))
 vi.mock('../broadcast', () => ({ broadcast: h.broadcast }))
-vi.mock('../prefs/backend', () => ({ prefs: () => ({ get: () => h.policy }) }))
+vi.mock('../prefs/backend', () => ({
+  prefs: () => ({
+    get: () => h.policy,
+    set: (_: string, policy: typeof h.policy) => {
+      h.policy = policy
+    },
+  }),
+}))
+vi.mock('../store', () => ({
+  getPrefs: () => ({ pinnedSessions: h.pins }),
+  setPinnedSessions: (pins: string[]) => {
+    h.pins = pins
+  },
+}))
 vi.mock('../pi/session-runtime', () => ({ desktopSessions: { command: h.command } }))
 vi.mock('../brain/runtime', () => ({ brainService: async () => ({ forLane: h.forLane }) }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
@@ -26,11 +40,16 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'desktop-ops-'))
   owner = openDesktopOps(dir)
   forget = rememberOpLane(
-    { sessionId: 'mine', workspacePath: dir, client: { activity: { busy: true } } } as LiveSession,
+    {
+      sessionId: 'mine',
+      workspacePath: dir,
+      client: { sessionFile: join(dir, 'mine.jsonl'), activity: { busy: true } },
+    } as LiveSession,
     'My lane',
     true,
   )
   h.policy.ops = {}
+  h.pins = []
 })
 afterEach(async () => {
   forget()
@@ -131,7 +150,11 @@ it('reads a departed lane’s redacted audit by its original ref, including equa
 it('binds an attended confirmation to one surface answer, and redeems it only once', async () => {
   forget()
   forget = rememberOpLane(
-    { sessionId: 'mine', workspacePath: dir, client: { activity: { busy: true } } } as LiveSession,
+    {
+      sessionId: 'mine',
+      workspacePath: dir,
+      client: { sessionFile: join(dir, 'mine.jsonl'), activity: { busy: true } },
+    } as LiveSession,
     'My lane',
     false,
   )
@@ -165,4 +188,41 @@ it('binds an attended confirmation to one surface answer, and redeems it only on
       args: { confirmId: '00000000-0000-4000-8000-000000000000' },
     }),
   ).toMatchObject({ code: 'confirm-expired' })
+})
+
+it('persists a surface policy edit and notifies the settings view', async () => {
+  const policy = { ...h.policy, ops: { 'lane.pin': 'ask' as const } }
+  expect(await owner.dispatcher.run(surface, { op: 'policy.set', args: { policy } })).toMatchObject(
+    { status: 'ok' },
+  )
+  expect(await owner.dispatcher.run(surface, { op: 'policy.show', args: {} })).toMatchObject({
+    data: { policy },
+  })
+  expect(h.broadcast).toHaveBeenCalledWith('ops:changed', { machine: 'local', kind: 'policy' })
+})
+it('undoes a real audited pin as the owner surface', async () => {
+  const pin = await tool(['lane.pin', 'on'])
+  if (pin.status !== 'ok' || !pin.auditId) throw new Error(JSON.stringify(pin))
+  expect(h.pins).toEqual([join(dir, 'mine.jsonl')])
+  expect(
+    await owner.dispatcher.run(surface, { op: 'audit.undo', args: { auditId: pin.auditId } }),
+  ).toMatchObject({ status: 'ok' })
+  expect(h.pins).toEqual([])
+})
+it('refuses both user-only operations before looking up even a supplied confirmation', async () => {
+  for (const [op, input] of [
+    ['policy.set', { policy: h.policy }],
+    ['audit.undo', { auditId: 'change' }],
+  ] as const) {
+    expect(
+      await owner.dispatcher.runFromTool('mine', {
+        v: 1,
+        id: 'try',
+        op,
+        input,
+        deadlineMs: 1000,
+        confirm: { confirmId: 'missing', digest: 'a'.repeat(64) },
+      }),
+    ).toMatchObject({ status: 'denied', code: 'never' })
+  }
 })
