@@ -46,10 +46,11 @@ appear on your screen.
 
 ## Architecture in six facts
 
-1. **Desktop's main process owns its side effects.** The renderer is sandboxed
-   (contextIsolation, no Node) and is pure UI over typed IPC. Reusable Node-side
-   disk, network and subprocess logic lives in `libs/*`; Electron-specific
-   bindings and ownership stay in `apps/desktop/electron/`, never the renderer.
+1. **One runtime owns This Mac’s lanes per launch.** Desktop main decides before
+   starting sessions: in-app, or the [local service](docs/local-service.md) over
+   its owner socket. In service mode do not fall back to in-app data or start a
+   second runtime on disconnect. The sandboxed renderer is UI over typed IPC;
+   Electron bindings stay in main, reusable Node logic in `libs/*`.
 2. **IPC is a typed contract.** A new channel is an entry in its prefix's map under
    `libs/shared/src/ipc/`, a handler in `apps/desktop/electron/ipc/<prefix>-handlers.ts`,
    and a case in `libs/client-ui/src/dev/mockPhosphor.ts` if the browser harness
@@ -61,19 +62,14 @@ appear on your screen.
 4. **`libs/shared/src/rpc.ts` mirrors pi's protocol** with compile-time drift
    guards (`_NoMissingResponseKeys` / `_NoExtraResponseKeys`): a new RPC command
    updates the command union and `RpcResponseDataMap`, or it won't compile.
-5. **Every session is independent.** No cross-session manager, no fleet hub, no
-   orchestrator, no reclamation of idle subprocesses. That layer was removed on
-   2026-09-03 for maintenance cost; do not grow it back (cost:
-   [known-issues.md](docs/known-issues.md) S11). Routines run their own sessions
-   through main's runtime ([routines.md](docs/routines.md)). The session service in
-   `libs/session-runtime/src/pi/` owns startup, admission, per-owner path locks
-   and deletion; Desktop (`apps/desktop/electron/pi/session-runtime.ts`) and the
-   Host (`apps/host/src/session/runtime.ts`) bind it. New callers use the service
-   and its lock domain, never low-level spawn. The locks are process-local. The
-   Host ([host.md](docs/host.md)) listens on 127.0.0.1 only, for grant-authenticated
-   clients, and builds pi's environment from its own config, never from a caller.
-   `apps/control` holds identity and machine metadata, never lane contents, paths
-   or private keys ([remote-access.md](docs/remote-access.md)).
+5. **Sessions have independent owners, not a fleet orchestrator.** An agent can
+   act on another lane or machine through the [governed catalog](docs/agent-control.md),
+   not a second spawn path. Desktop and Host bind `libs/session-runtime/src/pi/`;
+   all callers share the owner's admission and path locks. There is no idle
+   process reaper ([known-issues.md](docs/known-issues.md) S11). Routines run on
+   their execution machine. The [Host](docs/host.md) owns pi's environment, a
+   loopback grant API when enrolled, and a private Unix socket in local mode.
+   Control holds identity and machine metadata, not lane contents or private keys.
 6. **Stores (`libs/client-ui/src/stores/`, zustand) project main-process state.**
    `files.ts` and `terminal.ts` are keyed `byWorkspace[path]`; their selectors
    return a shared frozen empty value, so never mutate it or inline a fresh `{}`.
@@ -117,7 +113,7 @@ are on the author and the reviewer.
 
 Read the linked doc before touching any of these.
 
-- Pi session files are edited only through `apps/desktop/electron/pi/session-mutation.ts`,
+- In-app session files are edited only through `apps/desktop/electron/pi/session-mutation.ts`,
   inside the path lock resume and deletion share; never call `session-writer.ts`
   directly ([pi-integration.md](docs/pi-integration.md#sessions-on-disk-drives-the-sidebar-without-spawning-processes)).
 - JSONL framing is strict LF through `JsonlDecoder`, never `readline`, which splits
@@ -132,7 +128,8 @@ Read the linked doc before touching any of these.
 - `apps/desktop/electron/store.ts` builds its electron-store lazily, so E2E can
   redirect `userData` first.
 - E2E env hooks (`PHOSPHOR_PI_STUB`, `PHOSPHOR_E2E_WORKSPACE`,
-  `PHOSPHOR_TEST_USER_DATA`) stay gated on `!app.isPackaged`. Ungated, they are
+  `PHOSPHOR_TEST_USER_DATA`, local daemon socket/config and owner-key overrides,
+  `PHOSPHOR_MIGRATE`, `PHOSPHOR_E2E_SERVICE_FEATURES`, `PHOSPHOR_MIGRATION_CRASH_AT`) stay gated on `!app.isPackaged`. Ungated, they are
   env-triggered code execution in a shipped app.
 - `bootstrapSession` learns the session path asynchronously, so last-session
   persistence lives in two places in `stores/sessions.ts`. Read its comments
@@ -148,7 +145,7 @@ Read the linked doc before touching any of these.
 - Every interactive session shares one provider-blind context budget
   (`sessionContextBudget`, default 200k); in-run cap changes wait for `turn_end`
   ([cli-providers.md](docs/cli-providers.md#one-context-budget)).
-- Six bundled extensions run inside pi. `worktree-paths.ts` refuses tool calls that
+- Pi loads six bundled extensions plus the ops and Brain bundles when enabled. `worktree-paths.ts` refuses tool calls that
   escape a worktree; its four conditions are narrow on purpose. `tool-name-guard.ts`
   rewrites malformed tool names before pi persists them
   ([extensions.md](docs/extensions.md)).

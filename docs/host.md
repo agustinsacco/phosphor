@@ -290,13 +290,9 @@ agents and pipes read the same lines as before.
 `version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
 for dev builds (`0.0.0-dev.source` when no commit is stamped). `version --json`
 adds `features`, the machine services the build runs, only when there is one;
-no build has any yet.
+see [This Mac’s service](local-service.md) for the distinction between built and announced features.
 
-A first word that is not a command is meant for catalog ops (`cli-ops.ts`). This
-build serves none, so it answers exactly as before: the unknown-command usage
-error, or help. `setup --local` (with `--owner-id`, `--owner-key`,
-`--owner-label`, `--linger`) and `update --stage | --apply X.Y.Z` parse but are
-refused as not available in this build.
+Fixed commands win over catalog names. For tool syntax, routing, approvals and catalog-specific exit codes, see [From a terminal](agent-control.md#from-a-terminal). `setup --local` takes `--owner-id`, `--owner-key` and `--owner-label`; it pairs without enrollment and can install in standby. It does not replace a valid configuration.
 
 | Exit          | Meaning                                                                                                             |
 | ------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -394,6 +390,8 @@ replacement itself, with renames and deletions that fail.
 
 ## Updating
 
+`update --stage` verifies, downloads and probes a release without selecting it. `update --apply X.Y.Z` selects a staged release and health-checks the restart, rolling back if unhealthy; it does not update pi packages. For local mode health requires a fresh `local.json` from the selected version, plus a new heartbeat if the previous service had a recent one. The service reports `update-result.json` for 24 hours. Plain CLI update does not wait for a coordinated pause; use the [service card](local-service.md#using-the-service) to stage and pause first.
+
 Release installs support `phosphor update`, `phosphor update --check` and
 `phosphor update --version X.Y.Z`. Add `--json` for a machine-readable result.
 Source installs print the release installer command instead. One release key
@@ -430,7 +428,7 @@ installed version. Service installs on Linux and macOS point node and the bundle
 before this rule with `phosphor service install`.
 
 An active Linux service or loaded macOS LaunchAgent restarts after selection.
-The updater waits up to 90 seconds for a new run's accepted heartbeat. `run`
+For a headless service the updater waits up to 90 seconds for a new run's accepted heartbeat. `run`
 writes `{ version, pid, startedAt, acceptedAt }` to `<state>/run.json` atomically
 at 0600 after its first accepted running heartbeat and at most once a minute.
 If the new version is not healthy, update selects the old version and restarts
@@ -465,8 +463,7 @@ private configuration PTY, with pi's environment plus only
 it out of the unit. The restart's drain ([Lifecycle](#lifecycle)) is the
 pause: a turn in flight is aborted and saved, and each lane resumes on its next
 message. The confirmation counts the lanes that are working. The Host refuses
-the task (`unavailable`) on a source install and on macOS. macOS has no
-handoff, so the restart would end the updater before its health check. A Host
+the task (`unavailable`) on a source install. On macOS an update inside the service hands off to a one-shot launchd job outside the restarting service. A Host
 older than this task rejects it as `bad-request`, and the client says to run
 `phosphor update` there once.
 
@@ -648,7 +645,7 @@ unreachable server exits 75 and keeps the identity, with the `--local` hint.
 `--local` never contacts the server and works even if config is invalid. It
 forgets the files only; the machine stays listed until removed in Desktop.
 
-Login, status, logout, run and service status contact the configured control
+Login, status, logout, enrolled run and service status contact the configured control
 plane. Enrollment sends the public key, hostname, platform, architecture and
 Host version. Status, logout and run send the enrolled UUID. Heartbeats send
 readiness and the Host version, with zero lane counts and the verified Tailscale
@@ -660,6 +657,10 @@ the separate Host API. Redirects are refused. Requests time out after 10 seconds
 responses are capped at 64 KiB and validated with the shared wire contract.
 
 ## State
+
+With `local-mode.json` beside `config.json`, `phosphor run` can start unenrolled: lanes need neither a control heartbeat nor a TCP listener. A 410 from control closes remote access, not the lanes. With no heartbeat the service rechecks identity every minute; a new identity can start the remote API without restarting pi. Without the local-mode marker, an unenrolled run still exits 69.
+
+The local daemon serves its owner socket even in standby. Once out of standby it takes `.phosphor-owner.lock` in the pi agent folder; it retries while a live holder owns it. The record includes role, PID and process start time so a reused PID does not keep a stale lock alive. This is distinct from the run lock and from per-session path locks.
 
 `phosphor run` opens `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/state.sqlite`
 after taking the run lock. Relative `XDG_STATE_HOME` is ignored. The folder is
@@ -872,8 +873,7 @@ A machine-origin grant, another enrolled machine's agent, is admitted only while
 the Host opts in and control's reach switch is not off; it reaches `ops.run`,
 `receipt-status` and `ping` and nothing else, never a surface-only op, and holds
 one of at most 16 machine sockets
-([Machine-origin grants](remote-protocol.md#machine-origin-grants)). Nothing sets
-the opt-in yet.
+([Machine-origin grants](remote-protocol.md#machine-origin-grants)). The dispatcher enables admission while policy permits other machines.
 
 [Protocol bounds](remote-protocol.md#frames-and-streams) own frame, subscription,
 command, call and receipt-interest limits, deduplication and result sizing.
@@ -962,7 +962,7 @@ has not stepped back past the server's last sequence.
 
 Network failures back off from 5 seconds to 5 minutes. A success resets the
 backoff. Rate limits wait 10 seconds; a stale sequence retries with a fresh one.
-A removed machine exits 77 and keeps its identity. Run `phosphor setup` to add it again.
+In headless mode a removed machine exits 77 and keeps its identity. Run `phosphor setup` to add it again.
 Removal deletes nothing. The state database, lanes and their transcripts,
 worktrees and branches, routines and their history, repositories, attachments,
 artifacts and config all stay. Host data is stored per OS user, not per host id,

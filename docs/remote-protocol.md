@@ -379,8 +379,7 @@ A Host puts `machineOrigin: true` in its expectations while two things hold: it
 has opted in (it serves ops and its policy lets other machines in), and the last
 heartbeat that carried control's `machineReach` did not turn it off; a beat that
 leaves `machineReach` out is no news (`apps/host/src/api/authority.ts`). Its
-heartbeat reports its own side as `machineGrants`. Nothing sets the opt-in yet, so
-a Host refuses every machine grant `4403 machine-origin`. Dropping the opt-in, or a
+heartbeat reports its own side as `machineGrants`. A Host binds the opt-in to its ops dispatcher and `machineOps` policy. Dropping the opt-in, or a
 beat that turns reach off, closes every machine-origin socket and no other; a
 beat that revokes the grant's session or client closes it like any grant. At most
 16 machine-origin sockets are open at once (`AUTHORITY_LIMITS.machineConnections`);
@@ -521,14 +520,7 @@ any other value refuses the frame. A lane summary may carry `pause: {reason:
 
 Older readers stay safe. A previous-release client drops the flags and the pause.
 A previous-release Host answers an `ops.run` command `unsupported`, and the call
-too. No Host announces `ops` or serves `ops.run` yet: a Host from this release
-answers both forms `unsupported`, before any capability check, from the ops link
-of its adapter chain (owner methods, then the machine-principal guard, then
-`ops.run`, then the lane adapter; `apps/host/src/api/server.ts`). The guard
-answers machine principals only, so for every other connection the order is
-unchanged. Clients send
-neither without `ready.ops`. The contract kit's `defineAgentControlConformance`
-runs this on the fake and the real Host.
+too. With a dispatcher bound, a Host announces `ops` and serves both forms through the ops adapter. Clients gate catalog traffic on `ready.ops`, not the release version. A service flag is derived from its catalog handlers (`apps/host/src/ops/binding.ts`).
 `libs/shared/src/base-684cb3478.compatibility.test.ts` runs every new frame
 through frozen copies of the previous release's parsers.
 
@@ -544,13 +536,7 @@ user to update that machine, and throws on any other failure without resending.
 
 ## Paged lanes
 
-The `lanes` topic keeps its 64 folders and 1000 lanes for older clients. Past
-those, a Host that announces `ready.pagedLanes` serves the catalog ops
-`folder.list` and `lane.list` through `ops.run`, to owner and surface principals.
-The request's `page` carries the previous page's `next`; each result's `data` is a
-`FolderListPage` (at most 64 folders) or a `LaneListPage` (at most 200 lane
-summaries), with `next: null` on the last page
-(`libs/shared/src/host-protocol-paged-lanes.ts`).
+`folder.list` and `lane.list` can page catalog results. `libs/shared/src/host-protocol-paged-lanes.ts` defines page shapes and `ready.pagedLanes` is a catalog capability. It does **not** lift the `lanes` topic’s limit of 64 folders and 1,000 lanes or merge pages into that projection. See [future features](future-features.md#service-follow-ups).
 
 ## The local socket
 
@@ -574,7 +560,7 @@ machine id from `local-identity.json`, `host.endpoint` is
 then `<state>/run/phosphor.sock`, then `/tmp/phosphor-<uid>/<hash>.sock`.
 `chooseLocalSocket` takes the first within 103 UTF-8 bytes. The path is
 measured before binding: Node 22 silently truncates a longer path, and Node 24
-throws. `HOST_SIDECARS` names the daemon's files, and `OWNER_LOCK_FILE` is the
+throws. The listener requires an owner-private 0700 directory and a 0600 socket; it refuses an Origin header. A leftover socket is removed only after a refused connection, not on arbitrary probe errors. `local.json` in the state directory advertises the running listener. In standby the socket serves owner calls only; clients reconnect when lanes start. `HOST_SIDECARS` names the daemon's files, and `OWNER_LOCK_FILE` is the
 owner lock in pi's agent folder.
 
 ## Owner calls
@@ -589,7 +575,7 @@ may call. Mutations are idempotent by their key (`migrationId`, `leaseId`,
 
 - Machine: `machine.local` (`LocalStatus`; fields after `mode` are owner-only),
   `machine.identity.reload`, `machine.enroll` (refused in standby), `machine.owner`
-  (owner lock), `machine.pause` (service update), `app.service.register`,
+  (acquire leaves standby; release refuses while any lane has a live pi, otherwise durably writes standby, replies, then drains with exit 75 for a supervised restart; release in standby does nothing), `machine.pause` (service update), `app.service.register`,
   `headroom.status` and `headroom.set`.
 - Migration: `owner.index` (paged lane rows), `owner.migrate.begin|import|status|commit|abort`.
   Import sections are folders, policy, accounts, lanes, marks, archives, artifacts
@@ -600,19 +586,16 @@ may call. Mutations are idempotent by their key (`migrationId`, `leaseId`,
   live in the account root the section names. Bindings name known accounts.
   Unread marks import as `attention = read + 1`. Routine workspaces are realpaths.
 - Leases: `owner.lease.take|renew|release` over absolute folder paths.
-- `owner.transcript.page` reads complete JSONL lines of a lane's session file from an
-  offset (at most 4 MiB per page), so transcripts too large for `lane.messages` open.
+- `owner.transcript.page` is a reserved contract without a daemon handler.
 - `app.service.register {service: 'brain', endpoint, token, recall}` registers the Desktop
   bridge for this owner connection only. `endpoint` is an absolute Unix socket path (no
   `..` segments or NUL; at most 103 UTF-8 bytes), never a TCP address. This call returns
   `{registered: true}`; the token is neither logged nor written to a receipt.
-- `owner.account.prepare|register|discard`: the daemon issues an empty account
-  folder under its account root, registers the folder it issued (the call takes no
-  path), or removes it after a cancelled login.
+- `owner.account.prepare|register|discard` are reserved; an unbound owner method returns `unsupported`.
 
-`OWNER_LIMITS` is separate from `HOST_LIMITS`, which only ever goes down. Owner calls
-get a 120 s answer deadline. A daemon that predates these calls answers
-`unsupported`. A local-mode daemon serves `machine.local`, `machine.identity.reload`, `machine.enroll` and `app.service.register`. Clients send them with `ownerCall`
+Parity exemptions belong only to the attested owner: no per-lane terminal cap, terminal input throttle or hourly attachment quota, and no answer deadline for `bash` or `compact`. Their receipts settle when pi answers, the operation fails, or the owner connection closes. The 32-terminal machine limit remains. Neither a user grant nor a machine grant gets an exemption.
+
+`OWNER_LIMITS` defines a 120 s owner-call budget separately from `HOST_LIMITS`. Clients send them with `ownerCall`
 (`libs/host-client/src/owner.ts`), which checks params before sending and throws
 `OwnerCallError` with the daemon's code. It still rides the connection's 30 s call
 deadline, so a call that runs longer reads as `internal` until the local binding

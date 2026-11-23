@@ -8,6 +8,12 @@ one glance, not four tools.
 Related: [worktrees.md](worktrees.md) for the branch lifecycle,
 [extensions.md](extensions.md) for the artifact tools a lane can call.
 
+## Control and editing on the service
+
+Opening a lane on This Mac’s service does **not** take control. After creation or before a controller-only action, Desktop uses its owner-socket identity: if it already holds control it proceeds; if nobody holds it, it asks to claim the lane only while still unheld. If another client holds it or wins the race, Desktop offers **Take control** rather than displacing it. A refused action shows the service’s reason. Other Hosts keep explicit handoff.
+
+When the Host announces `ops` and `laneEditing`, Session tree and Clone run on the execution machine. Labels and jumps require a stopped lane. Fork, clone and rewind read the source under the runtime path lock and write a new stopped lane; the original stays intact. Rewind opens the replacement with the selected message’s text ready to edit. The tree connects children through hidden metadata to the nearest visible ancestor.
+
 ## Remote lanes
 
 The sidebar lists authenticated Host lanes alongside local groups, with a machine

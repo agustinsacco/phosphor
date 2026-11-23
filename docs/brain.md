@@ -862,7 +862,7 @@ Brain service answers, the tool reports “Brain is unavailable right now.” Th
 not a no-match result or a request for user input. Search stays read-only; flags
 only ask the owner to review.
 
-The local Phosphor service accepts a Brain registration on the attested owner connection.
+Desktop registers Brain with the local Phosphor service on its attested owner connection, updates registration when recall changes, and registers again on reconnect. Extraction waits for a fresh lane activity projection, not cached idle status.
 It keeps the private socket address and capability only until that connection closes or a
 new registration replaces it. The daemon checks the socket's owner and its private parent
 folder before each request. Only the recall preference survives in `app-services.json`, so
