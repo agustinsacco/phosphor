@@ -40,10 +40,24 @@ function sources(directory: string): string[] {
       : []
   })
 }
-function forbiddenImports(file: string, text: string, kitDirectory = kit): string[] {
-  // Any specifier that reaches the kit from outside it spells the kit's folder name,
-  // so a source without that name needs no syntax tree.
-  if (!text.includes('host-protocol-testing') && !text.includes(basename(kitDirectory))) return []
+type Reaches = (target: string) => boolean
+const reachesKit =
+  (kitDirectory: string): Reaches =>
+  (target) =>
+    target.includes('host-protocol-testing') ||
+    target === kitDirectory ||
+    target.startsWith(kitDirectory + '/')
+
+function forbiddenImports(
+  file: string,
+  text: string,
+  kitDirectory = kit,
+  reaches: Reaches = reachesKit(kitDirectory),
+  tokens: readonly string[] = ['host-protocol-testing', basename(kitDirectory)],
+): string[] {
+  // Any specifier that reaches the kit from outside it spells the kit's folder name
+  // (or a fixture folder's), so a source without one of `tokens` needs no syntax tree.
+  if (tokens.length > 0 && !tokens.some((token) => text.includes(token))) return []
   if (file.endsWith('.astro')) {
     const frontmatter = /^---[^\S\r\n]*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
     // A quoted attribute may hold `>`, so the opening tag is read quote by quote.
@@ -51,7 +65,7 @@ function forbiddenImports(file: string, text: string, kitDirectory = kit): strin
       ...text.matchAll(/<script\b(?:[^>"']|"[^"]*"|'[^']*')*>([\s\S]*?)<\/script\s*>/gi),
     ].flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
     return [...(frontmatter === undefined ? [] : [frontmatter]), ...scripts].flatMap((source) =>
-      forbiddenImports(file + '.ts', source, kitDirectory),
+      forbiddenImports(file + '.ts', source, kitDirectory, reaches, tokens),
     )
   }
   const imports: string[] = []
@@ -69,12 +83,7 @@ function forbiddenImports(file: string, text: string, kitDirectory = kit): strin
         ts.isExternalModuleReference(parent)
       ) {
         const target = node.text.startsWith('.') ? resolve(dirname(file), node.text) : node.text
-        if (
-          target.includes('host-protocol-testing') ||
-          target === kitDirectory ||
-          target.startsWith(kitDirectory + '/')
-        )
-          imports.push(node.text)
+        if (reaches(target)) imports.push(node.text)
       }
     }
     ts.forEachChild(node, visit)
@@ -83,12 +92,36 @@ function forbiddenImports(file: string, text: string, kitDirectory = kit): strin
   return imports
 }
 
+const isFixture = (file: string) => file.includes('/__fixtures__/')
+const stem = (path: string) => path.replace(/(\/index)?\.[cm]?[jt]sx?$/, '')
+
+/**
+ * Test support may use the kit: `*.test.ts` and `__fixtures__/` files (the repo's
+ * convention). A fixture that reaches the kit, directly or through other fixtures, is
+ * tainted, and a production source importing a tainted fixture is a violation.
+ */
 function productionViolations(repository: string, kitDirectory: string): string[] {
-  return ['apps', 'libs']
+  const files = ['apps', 'libs']
     .flatMap((directory) => sources(join(repository, directory)))
     .filter((file) => !file.startsWith(kitDirectory + '/'))
+  const text = new Map(files.map((file) => [file, readFileSync(file, 'utf8')]))
+  const fixtures = files.filter(isFixture)
+  const tainted = new Set<string>()
+  const reaches: Reaches = (target) => reachesKit(kitDirectory)(target) || tainted.has(stem(target))
+  for (let grew = true; grew;) {
+    grew = false
+    for (const file of fixtures) {
+      if (tainted.has(stem(file))) continue
+      if (forbiddenImports(file, text.get(file)!, kitDirectory, reaches, []).length === 0) continue
+      tainted.add(stem(file))
+      grew = true
+    }
+  }
+  const tokens = ['host-protocol-testing', basename(kitDirectory), '__fixtures__']
+  return files
+    .filter((file) => !isFixture(file))
     .flatMap((file) =>
-      forbiddenImports(file, readFileSync(file, 'utf8'), kitDirectory).map(
+      forbiddenImports(file, text.get(file)!, kitDirectory, reaches, tokens).map(
         (target) => `${relative(repository, file)}: ${target}`,
       ),
     )
