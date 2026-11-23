@@ -7,6 +7,8 @@ import { launch, openWorkspace, shutdown, type Harness } from './fixtures/local-
 import { scratchDir } from './fixtures/scratch'
 
 const test = base.extend<{ desktop: Harness }>({
+  // Playwright requires a destructured first argument even without fixture dependencies.
+  // eslint-disable-next-line no-empty-pattern
   desktop: async ({}, use, info) => {
     const root = await scratchDir('e4-')
     const at = (name: string) => join(root, name)

@@ -132,9 +132,12 @@ it('refreshes only the matching lane, recovers after failure and never overlaps 
   chat.ensure(sid)
   chat.setMeta(sid, { sessionId: 'pi-id', thinkingLevel: 'off' } as RpcSessionState)
   const command = vi.spyOn(fake.api, 'piCommand')
-  const waiting = Promise.withResolvers<void>()
+  let release!: () => void
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve
+  })
   command.mockRejectedValueOnce(new Error('not ready')).mockImplementation(async () => {
-    await waiting.promise
+    await waiting
     return {
       command: 'get_state',
       type: 'response',
@@ -164,6 +167,6 @@ it('refreshes only the matching lane, recovers after failure and never overlaps 
   await emit()
   await emit()
   expect(command).toHaveBeenCalledTimes(2)
-  await act(async () => waiting.resolve())
+  await act(async () => release())
   expect(useChatStore.getState().sessions[sid]?.meta?.thinkingLevel).toBe('high')
 })

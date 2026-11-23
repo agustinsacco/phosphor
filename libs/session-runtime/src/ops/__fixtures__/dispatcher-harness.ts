@@ -249,6 +249,7 @@ export function createHarness(options: HarnessOptions = {}) {
   const dispatcher = createOpsDispatcher(binding, deps)
   return {
     dispatcher,
+    deps,
     binding,
     calls,
     clock,
