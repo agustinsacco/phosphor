@@ -76,6 +76,14 @@ export function notifyHostManager(state: HostManagerState, ports: HostManagerPor
   }, 250)
 }
 
+export function managerClientId(
+  state: HostManagerState,
+  hostId: string,
+  directoryClientId: string | null,
+) {
+  return hostId === state.local?.hostId ? (state.local.clientId?.() ?? null) : directoryClientId
+}
+
 export function hostManagerSnapshot(
   state: HostManagerState,
   ports: Pick<HostManagerPorts, 'clientId'>,
@@ -104,9 +112,7 @@ export function hostManagerSnapshot(
               ? {
                   label: control.controller.label,
                   connected: control.controller.connected,
-                  self:
-                    control.controller.clientId ===
-                    (id === state.local?.hostId ? state.local.clientId?.() : clientId),
+                  self: control.controller.clientId === managerClientId(state, id, clientId),
                 }
               : null,
           },

@@ -224,7 +224,7 @@ export function registerHostsHandlers(): void {
     unrefTimer: (timer) => timer.unref(),
     lane: (windowId, sessionId, workspace) =>
       remoteLanes().terminalLane(windowId, sessionId, workspace),
-    clientId: clients.current,
+    clientId: manager.clientId,
     emit: (windowId, channel, value) => {
       const sender = BrowserWindow.getAllWindows().find(
         (w) => w.webContents.id === windowId,

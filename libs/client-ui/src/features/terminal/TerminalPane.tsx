@@ -166,7 +166,7 @@ export const TerminalPane = memo(function TerminalPane({
             />
           )),
         )}
-        {access !== 'control' && (
+        {access !== 'control' && access !== 'claimable' && (
           <div className="text-text-tertiary px-2 py-1 text-sm">
             {access === 'unavailable'
               ? terminalRefusal(sessionId)

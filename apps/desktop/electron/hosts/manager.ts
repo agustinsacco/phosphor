@@ -2,6 +2,7 @@ import type { DirectoryAlias } from './dedupe'
 import {
   createHostManagerState,
   hostManagerSnapshot,
+  managerClientId,
   notifyHostManager,
   type HostManagerPorts,
   type LocalHostSlot,
@@ -43,6 +44,7 @@ export function createHostManager(ports: HostManagerPorts) {
   }
   return {
     changed: notify,
+    clientId: (hostId: string) => managerClientId(state, hostId, ports.clientId()),
     connection: (hostId: string) =>
       local(hostId)?.connection ?? state.connections.get(hostId)?.connection,
     label: (hostId: string) =>

@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { drop, keyedSlice } from './keyedSlice'
 import { useLayoutStore } from './layout'
 import { useSessionsStore } from './sessions'
-import { useRemoteLanesStore, canControlSession } from './remoteLanes'
+import { ensureSessionControl, laneControlPolicy } from '@/platform/serviceLaneControl'
+import { useRemoteLanesStore, canControlSession, sessionHostLane } from './remoteLanes'
 import { hostFeatureRefusal } from './hostRefusals'
 import { ipcErrorText } from '@shared/errors'
 import type { HostsSnapshot } from '@shared/ipc'
@@ -88,7 +89,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     // tree (builds, tests, dev servers) to it in the resource monitor.
     let ptyId: string
     try {
-      ;({ ptyId } = await window.phosphor.invoke('pty:create', cwd, 80, 24, sessionId))
+      ptyId = await openShell(sessionId, cwd)
     } catch (error) {
       // Resolve with null rather than rejecting: every caller is a UI action
       // ("+", first open, run-in-terminal) whose only sane response is to show
@@ -257,7 +258,17 @@ export function useTerminalRefusal(sessionId: string): string | undefined {
 }
 
 /** Remote terminals use the same tabs, but never inherit local input authority. */
-export function terminalAccess(sessionId: string): 'control' | 'viewer' | 'unavailable' {
+export function terminalAccess(
+  sessionId: string,
+): 'control' | 'claimable' | 'viewer' | 'unavailable' {
   if (terminalRefusal(sessionId)) return 'unavailable'
-  return canControlSession(sessionId) ? 'control' : 'viewer'
+  if (!canControlSession(sessionId)) return 'viewer'
+  const remote = sessionHostLane(sessionId)
+  return laneControlPolicy(remote?.host?.local, remote?.lane).auto ? 'claimable' : 'control'
+}
+
+async function openShell(sessionId: string, cwd: string): Promise<string> {
+  // Viewers can attach read-only. Claim only on an explicit new shell, not the pane's mount.
+  if (terminalAccess(sessionId) === 'claimable') await ensureSessionControl(sessionId)
+  return (await window.phosphor.invoke('pty:create', cwd, 80, 24, sessionId)).ptyId
 }
