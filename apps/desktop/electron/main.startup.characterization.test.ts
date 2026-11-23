@@ -42,7 +42,7 @@ const fake = vi.hoisted(() => {
     background: [] as Array<() => void>,
     pauseAll: () => {},
     wakeRoutines: () => {},
-    mode: 'in-app' as 'in-app' | 'daemon',
+    mode: 'in-app' as 'in-app' | 'daemon' | 'quit',
   }
 })
 
@@ -95,13 +95,16 @@ vi.mock('./routines/background', () => ({
   routinesKeepRunning: () => false,
 }))
 vi.mock('./ipc', () => ({ registerIpcHandlers: fake.record('registerIpcHandlers') }))
-vi.mock('./local-machine/launch-gate', () => ({
-  runLaunchGate: () => {
-    fake.calls.push('runLaunchGate')
+vi.mock('./local-machine/launch', () => ({
+  decideLocalRuntime: () => {
+    fake.calls.push('decideLocalRuntime')
     return Promise.resolve(fake.mode)
   },
+}))
+vi.mock('./local-machine/launch-gate', () => ({
   quitLaunchGate: fake.record('quitLaunchGate', Promise.resolve()),
 }))
+vi.mock('./app/quit', () => ({ serviceLanesRunning: () => false, serviceQuitOptions: () => ({}) }))
 vi.mock('./brain/runtime', () => ({ disposeBrain: fake.record('disposeBrain', Promise.resolve()) }))
 vi.mock('./artifacts/artifact-sync', () => ({
   startArtifactSync: fake.record('startArtifactSync'),
@@ -225,7 +228,7 @@ describe('main.ts startup order', () => {
       'applySpellcheck',
       'registerIpcHandlers',
       // This Mac's runtime is decided before pi's config is prepared or anything starts.
-      'runLaunchGate',
+      'decideLocalRuntime',
       'preparePiConfig',
       'startArtifactSync',
       'recordAppLaunch',
@@ -255,12 +258,20 @@ describe('main.ts startup order', () => {
       'applyThemeSource',
       'applySpellcheck',
       'registerIpcHandlers',
-      'runLaunchGate',
+      'decideLocalRuntime',
       'recordAppLaunch',
       'createWindow',
       'startUpdateChecks',
       'maintenanceScheduler.start',
       'app.on:activate',
+    ])
+  })
+
+  it('a refused break-glass restore starts neither runtime nor a window', async () => {
+    fake.mode = 'quit'
+    await launchMain()
+    expect(fake.calls.slice(fake.calls.indexOf('decideLocalRuntime'))).toEqual([
+      'decideLocalRuntime',
     ])
   })
 

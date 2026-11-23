@@ -28,7 +28,9 @@ import { externalUrl, isAppNavigation } from './external-links'
 import { installPermissionPolicy } from './voice/permissions'
 import { devRendererUrl } from './dev-renderer-url'
 import { startServices, stopServices } from './startup'
-import { quitLaunchGate, runLaunchGate } from './local-machine/launch-gate'
+import { quitLaunchGate } from './local-machine/launch-gate'
+import { decideLocalRuntime } from './local-machine/launch'
+import { serviceLanesRunning, serviceQuitOptions } from './app/quit'
 
 const rendererUrl = devRendererUrl(process.env, app.isPackaged)
 const isDev = rendererUrl !== undefined
@@ -235,7 +237,8 @@ if (!singleInstance) {
     registerIpcHandlers()
     // Once per process, before pi's config, a window or any session: in-app,
     // or This Mac's Phosphor service (migrating to it first when it is time).
-    const mode = await runLaunchGate()
+    const mode = await decideLocalRuntime()
+    if (mode === 'quit') return
     if (mode === 'in-app') preparePiConfig()
     startServices({ createWindow, mode })
 
@@ -260,6 +263,7 @@ app.on('window-all-closed', () => {
 
 configureShutdownApproval({
   needsConfirmation: () =>
+    serviceLanesRunning() ||
     ptyManager.size > 0 ||
     hasPendingRoutineWork() ||
     registry.list().some(({ sessionId }) => {
@@ -273,6 +277,8 @@ configureShutdownApproval({
       detail:
         'There is active or unconfirmed work. Continuing stops all agents, routines, and terminals. Unfinished turns and terminal commands may be lost. Keep working to finish or save your work first.',
       buttons: ['Keep working', intent === 'quit' ? 'Stop work and quit' : 'Stop work and restart'],
+      // Daemon mode: service lanes keep running; only Desktop's own work stops.
+      ...serviceQuitOptions(intent),
       defaultId: 0,
       cancelId: 0,
       noLink: true,

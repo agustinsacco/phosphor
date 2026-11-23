@@ -56,6 +56,9 @@ vi.mock('./routines/background', () => ({
   routinesKeepRunning: () => false,
 }))
 vi.mock('./ipc', () => ({ registerIpcHandlers: vi.fn() }))
+vi.mock('./local-machine/launch', () => ({ decideLocalRuntime: async () => 'in-app' }))
+vi.mock('./local-machine/launch-gate', () => ({ quitLaunchGate: async () => {} }))
+vi.mock('./app/quit', () => ({ serviceLanesRunning: () => false, serviceQuitOptions: () => ({}) }))
 vi.mock('./brain/runtime', () => ({ disposeBrain: vi.fn() }))
 vi.mock('./artifacts/artifact-sync', () => ({ startArtifactSync: vi.fn() }))
 vi.mock('./feedback/feedback-service', () => ({ recordAppLaunch: vi.fn() }))

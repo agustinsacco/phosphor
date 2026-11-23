@@ -31,7 +31,7 @@ import { localDaemonLocation } from '../transport'
 import type { CrashSide } from './commit'
 import type { GatePorts } from './gate'
 import { MIGRATION_DIR, migrationPermit, type MigrationStep } from './journal'
-import { openOwnerChannel } from './owner-channel'
+import { openOwnerChannel, type OwnerChannel } from './owner-channel'
 import type { PostCommitSteps } from './post-commit'
 import { scanPlanFacts } from './scan'
 import { recordedFeatures } from './service-record'
@@ -111,6 +111,13 @@ function legacyKeys(): boolean {
 async function readLock(): Promise<'free' | 'daemon'> {
   const holder = await readOwnerLock(piAgentDir())
   return holder?.owner === 'daemon' && (await isOwnerLockHolderLive(holder)) ? 'daemon' : 'free'
+}
+
+/** The gate's owner channel to This Mac's service, for the break-glass restore. */
+export function openServiceChannel(): Promise<OwnerChannel | null> {
+  const hook = e2eDaemonHook()
+  const access = hook.on ? hook.access : serviceAccess(app.getPath('userData'))
+  return access ? openOwnerChannel({ ...access, uid: process.getuid?.() }) : Promise.resolve(null)
 }
 
 export function desktopGatePorts(postCommit: PostCommitSteps): GatePorts {

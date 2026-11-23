@@ -15,7 +15,7 @@ let error: string | null = null
 const changed = (): void => broadcast('routines:changed', {})
 
 /** The routines database in userData. A dev launch must never execute the installed app's saved automations. */
-export function routinesFileName(): string {
+export function routinesFileName(): 'routines.sqlite' | 'routines-dev.sqlite' {
   return !app.isPackaged && !piStubPath() ? 'routines-dev.sqlite' : 'routines.sqlite'
 }
 
