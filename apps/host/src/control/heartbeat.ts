@@ -91,6 +91,8 @@ export interface HeartbeatPorts {
   signal?: AbortSignal
   log(line: string): void
   endpoint?(): string | null
+  /** Whether this Host takes machine-origin grants; absent leaves the field out of the beat. */
+  machineGrants?(): boolean
   onAccepted?(reply: HeartbeatResponse): void
   onRemoved?(): void
 }

@@ -868,6 +868,13 @@ and terminal subscriptions and gate each call on its operation's capability.
 Command admission uses each operation's required capabilities, not a universal
 `sessions.control` check. Feature sections below specify the additional checks.
 
+A machine-origin grant, another enrolled machine's agent, is admitted only while
+the Host opts in and control's reach switch is not off; it reaches `ops.run`,
+`receipt-status` and `ping` and nothing else, never a surface-only op, and holds
+one of at most 16 machine sockets
+([Machine-origin grants](remote-protocol.md#machine-origin-grants)). Nothing sets
+the opt-in yet.
+
 [Protocol bounds](remote-protocol.md#frames-and-streams) own frame, subscription,
 command, call and receipt-interest limits, deduplication and result sizing.
 The API adapter publishes controller presence on a client's first ready socket

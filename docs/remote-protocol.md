@@ -373,7 +373,30 @@ together, `caps: []` and no `configure`; any other mix fails with `machine`.
 renewal that changes owner, client, origin or machine. A Host checks it only with
 `machineOrigin: true` in its expectations; otherwise `checkGrantClaims` answers
 `machine-origin`. An older Host drops both claims and reads a grant with no caps,
-which admits nothing. No Host opts in yet.
+which admits nothing.
+
+A Host puts `machineOrigin: true` in its expectations while two things hold: it
+has opted in (it serves ops and its policy lets other machines in), and the last
+heartbeat that carried control's `machineReach` did not turn it off; a beat that
+leaves `machineReach` out is no news (`apps/host/src/api/authority.ts`). Its
+heartbeat reports its own side as `machineGrants`. Nothing sets the opt-in yet, so
+a Host refuses every machine grant `4403 machine-origin`. Dropping the opt-in, or a
+beat that turns reach off, closes every machine-origin socket and no other; a
+beat that revokes the grant's session or client closes it like any grant. At most
+16 machine-origin sockets are open at once (`AUTHORITY_LIMITS.machineConnections`);
+the next first authentication gets `4429 machine-connections`.
+
+A machine connection's ready frame announces no capabilities. It may send only
+`ops.run`, as a call or a command, `receipt-status` for its own client, and
+`ping`. Every other frame is refused before the lane adapter: a subscription
+`subscribe-failed forbidden`, any other command a rejected `forbidden` receipt,
+any other call a `forbidden` error and terminal input a refused ack, so no
+controller or fence moves. An `ops.run` naming a catalog op marked `surfaceOnly`
+(confirm answers, policy, undo) is refused in band, before the dispatcher, as
+`{status: 'denied', code: 'forbidden'}`: the call's `result` and the command's
+`done` receipt carry it (`apps/host/src/api/machine-adapter.ts`). The
+dispatcher judges a `machine` principal as another machine's agent whatever the
+request's `actor` says (`libs/session-runtime/src/ops/principals.ts`).
 
 ### Machine configuration operations
 
@@ -500,8 +523,10 @@ Older readers stay safe. A previous-release client drops the flags and the pause
 A previous-release Host answers an `ops.run` command `unsupported`, and the call
 too. No Host announces `ops` or serves `ops.run` yet: a Host from this release
 answers both forms `unsupported`, before any capability check, from the ops link
-of its adapter chain (owner methods, then `ops.run`, then the machine-principal
-guard, then the lane adapter; `apps/host/src/api/adapter.ts`). Clients send
+of its adapter chain (owner methods, then the machine-principal guard, then
+`ops.run`, then the lane adapter; `apps/host/src/api/server.ts`). The guard
+answers machine principals only, so for every other connection the order is
+unchanged. Clients send
 neither without `ready.ops`. The contract kit's `defineAgentControlConformance`
 runs this on the fake and the real Host.
 `libs/shared/src/base-684cb3478.compatibility.test.ts` runs every new frame

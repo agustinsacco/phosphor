@@ -79,9 +79,13 @@ function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
   })
 }
 
-/** Owner methods, then `ops.run`, then the machine guard; the lane adapter comes last. */
+/**
+ * Owner methods, then the machine guard, then `ops.run`; the lane adapter comes
+ * last. The guard answers only machine grants, so it sits ahead of `ops.run`
+ * to refuse surface-only ops before the dispatcher sees them.
+ */
 export function hostLinks(ops?: OpsAdapterPorts) {
-  return [createOwnerAdapter(), createOpsAdapter(ops), createMachineAdapter()]
+  return [createOwnerAdapter(), createMachineAdapter(), createOpsAdapter(ops)]
 }
 
 function connectionAdapters(options: ApiOptions) {

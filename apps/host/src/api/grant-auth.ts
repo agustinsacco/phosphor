@@ -3,6 +3,7 @@ import { CONTROL_LIMITS } from '@phosphor/shared/control-api'
 import {
   checkGrantClaims,
   grantPrincipal,
+  sameGrantIdentity,
   splitGrant,
   type GrantClient,
   type GrantPayload,
@@ -56,18 +57,35 @@ export interface GrantAuthPorts {
   now?: () => number
 }
 
+type AuthoritySnapshot = NonNullable<ReturnType<Authority['snapshot']>>
+
+/** An accepted grant against a later authority: same owner and epoch, unrevoked, origin still open. */
+function stillAdmitted(grant: GrantPayload, authority: AuthoritySnapshot): boolean {
+  return (
+    grant.sub === authority.owner &&
+    grant.epoch === authority.epoch &&
+    !authority.revokedSessions.has(grant.sid) &&
+    !authority.revokedClients.has(grant.client.id) &&
+    (grant.origin !== 'machine' || authority.machineOrigin === true)
+  )
+}
+
 /**
  * One connection's control-signed grants. The first grant fixes the
- * connection's owner and client; a renewal must keep both and carry no
- * challenge. A changed owner or epoch, or a revoked session or client, ends it.
+ * connection's owner, client, origin and machine; a renewal must keep all four
+ * and carry no challenge. A changed owner or epoch, or a revoked session or
+ * client, ends it; so does the Host dropping its machine opt-in, for a machine
+ * grant. A machine grant also holds one of the authority's machine socket
+ * slots until the watch ends.
  */
 export function createGrantAuth(ports: GrantAuthPorts): ConnectionAuthenticator {
   const now = ports.now ?? Date.now
   let grant: GrantPayload | undefined
+  let releaseMachine: (() => void) | undefined
   return {
     watch(lost) {
       const admittedAuthority = ports.authority.snapshot()
-      return ports.authority.onChange(() => {
+      const unsubscribe = ports.authority.onChange(() => {
         const authority = ports.authority.snapshot()
         if (
           !authority ||
@@ -75,16 +93,12 @@ export function createGrantAuth(ports: GrantAuthPorts): ConnectionAuthenticator 
           authority.epoch !== admittedAuthority?.epoch
         )
           lost()
-        else if (
-          grant &&
-          (!authority ||
-            grant.sub !== authority.owner ||
-            grant.epoch !== authority.epoch ||
-            authority.revokedSessions.has(grant.sid) ||
-            authority.revokedClients.has(grant.client.id))
-        )
-          lost()
+        else if (grant && !stillAdmitted(grant, authority)) lost()
       })
+      return () => {
+        unsubscribe()
+        releaseMachine?.()
+      }
     },
     async verify(token, challenge, outcome) {
       const parsed = splitGrant(token)
@@ -107,14 +121,14 @@ export function createGrantAuth(ports: GrantAuthPorts): ConnectionAuthenticator 
           failure === 'expired' || failure === 'not-yet-valid' ? 4401 : 4403,
           failure,
         )
-      if (
-        grant &&
-        (grant.sub !== payload.sub ||
-          grant.client.id !== payload.client.id ||
-          challenge !== undefined)
-      )
+      if (grant && (!sameGrantIdentity(grant, payload) || challenge !== undefined))
         return outcome.refuse(4403, 'identity')
       if (!grant && !outcome.admit(payload.client.id)) return outcome.refuse(4429, 'connections')
+      if (!grant && payload.origin === 'machine') {
+        const release = ports.authority.admitMachine()
+        if (!release) return outcome.refuse(4429, 'machine-connections')
+        releaseMachine = release
+      }
       grant = payload
       const caps = grantedCapabilities(ports.hello, payload)
       const grantExpiresAt = new Date(payload.exp * 1000).toISOString()
