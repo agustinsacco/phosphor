@@ -12,6 +12,7 @@ import { piCli } from './mcp-actions'
 import { disposeMcpLogins, parseMcpList } from './mcp-cli'
 import { inspectionFromList, NativeMcpCheck } from './mcp-list-check'
 import { log } from '../debug-log'
+import { assertInAppRuntime } from '../local-machine/mode'
 
 /**
  * `pi mcp list` answers once every server has: the slowest sets the pace. pi bounds
@@ -87,6 +88,7 @@ async function runCheck(
   workspacePath: string | undefined,
   signal: AbortSignal,
 ): Promise<McpCheckResult> {
+  assertInAppRuntime('check a connector with pi')
   const configs = await readMcpConfigs(workspacePath)
   if (configs.legacy)
     return { ok: false, message: 'Migrate the MCP adapter before testing native connectors.' }
