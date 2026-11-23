@@ -10,6 +10,10 @@ export type OpSender = (
 ) => Promise<OpReplyEnvelope>
 type Payload = Omit<OpRequestEnvelope, 'v' | 'id' | 'deadlineMs'>
 export const OP_TITLE = 'phosphor-op/v1'
+// Runtime imports must resolve from pi's shipped siblings. Mirror OPS_LIMITS here.
+const ARGS_BYTES = 300 * 1024
+const CONTENT_BYTES = 256 * 1024
+const PREFILL_BYTES = 2 * ARGS_BYTES // OP_CHANNEL_LIMITS.prefillBytes on the owner.
 const MAX_DEADLINE = 600_000
 const error = (
   id: string,
@@ -91,10 +95,11 @@ export async function sendOpRequest(
   const aborted = () => error(id, 'aborted', 'Operation stopped.')
   if (signal?.aborted) return aborted()
   const prefill = JSON.stringify({ ...request, v: 1, id, deadlineMs } satisfies OpRequestEnvelope)
-  if (
-    Buffer.byteLength(request.content ?? '') > 256 * 1024 ||
-    Buffer.byteLength(prefill) > 300 * 1024
-  )
+  if (Buffer.byteLength(prefill) > PREFILL_BYTES)
+    return error(id, 'too-large', 'That request is too large to send; split the content.')
+  const contentBytes = Buffer.byteLength(request.content ?? '')
+  const argsBytes = Buffer.byteLength(JSON.stringify(request.argv ?? request.input) ?? '')
+  if (contentBytes > CONTENT_BYTES || argsBytes + contentBytes > ARGS_BYTES)
     return error(
       id,
       'too-large',
