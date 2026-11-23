@@ -1,3 +1,4 @@
+import { mockSandboxOp } from './sandboxOps'
 import type { HostsSnapshot, IpcInvokeMap, OpsChangedEvent } from '@phosphor/shared/ipc'
 import { parseOpsRunRequest, type OpsRunResult } from '@phosphor/shared/host-protocol-ops'
 import {
@@ -34,7 +35,10 @@ function changed(machine: string, kind: OpsChangedEvent['kind']) {
 /** Opt in to the new Host handshake. The default directory still exercises rolling release. */
 export function mockOpsSnapshot(snapshot: HostsSnapshot) {
   if (localStorage.getItem('mock:ops') === '1')
-    for (const host of Object.values(snapshot)) host.ops = true
+    for (const host of Object.values(snapshot)) {
+      host.ops = true
+      host.sandboxes = true
+    }
   return snapshot
 }
 function fixture(machine: string): Machine {
@@ -81,6 +85,8 @@ export async function mockOpsInvoke(args: unknown[]): Promise<OpsRunResult> {
   if (!req || !target) return { status: 'denied', code: 'bad-request', text: 'Invalid operation.' }
   if (target.kind === 'remote' && localStorage.getItem('mock:ops') !== '1') return unsupported
   const key = target.kind === 'local' ? 'local' : `host:${target.hostId}`
+  const sandbox = target.kind === 'remote' ? mockSandboxOp(key, req) : undefined
+  if (sandbox) return sandbox
   const m = fixture(key)
   switch (req.op) {
     case 'policy.show':
