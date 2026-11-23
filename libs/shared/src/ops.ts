@@ -17,6 +17,7 @@ export {
   OP_METHOD,
   OP_REPLY_CODES,
   OP_TITLE,
+  OP_TOOL_NAME,
   noOwnerReply,
   parseOpChannelRequest,
 } from './ops/channel'

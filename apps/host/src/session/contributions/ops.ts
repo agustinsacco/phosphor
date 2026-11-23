@@ -1,5 +1,6 @@
 import { createOpsSpawnContribution } from '@phosphor/session-runtime/pi/contributions/ops'
 import type { SpawnContribution } from '@phosphor/session-runtime/pi/spawn-contributions'
+import type { RunEndings } from '../../ops/lane-reload'
 import type { OpsService } from '../../ops/service'
 
 /** What the Host's lanes need from agent control: the bound service, read per use. */
@@ -10,6 +11,10 @@ export interface HostOpsLanePorts {
   resourceRoot(): string
   /** Live sessions spawned unattended (routine runs): their asked ops answer `unattended`. */
   readonly unattended: Set<string>
+  /** How each run ended, for reload-and-continue. */
+  readonly endings?: Pick<RunEndings, 'ended'>
+  /** Live sub-agent counts that marker lanes report, for the service pause. */
+  liveness?(sessionId: string, subagents: number): void
 }
 
 /**
@@ -25,6 +30,7 @@ export function createOpsContribution(ports?: HostOpsLanePorts): SpawnContributi
     resourceRoot: () => ports.resourceRoot(),
     agentControl: async () => (await ports.service()?.agentControl()) ?? false,
     dispatcher: () => ports.service()?.dispatcher ?? null,
+    liveness: (sessionId, subagents) => ports.liveness?.(sessionId, subagents),
   })
   return {
     ...contribution,
@@ -39,6 +45,7 @@ export function createOpsContribution(ports?: HostOpsLanePorts): SpawnContributi
         if (request.method === 'confirm') ports.service()?.dispatcher.confirmSeen(id, request)
       })
       session.client.on('event', (event) => {
+        if (event.type === 'agent_end') ports.endings?.ended(id, event.messages)
         if (event.type !== 'agent_settled') return
         ports
           .service()

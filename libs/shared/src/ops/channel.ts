@@ -31,6 +31,8 @@ export const DIRECTIVES_BASE_ENV = 'PHOSPHOR_DIRECTIVES_BASE'
 export const HEADROOM_SOCKET_ENV = 'PHOSPHOR_HEADROOM_SOCKET'
 export const CONFIRM_TITLE_PREFIX = 'Phosphor: '
 export const LANE_CONTROLS_SLOT = 'phosphor/lane-controls/v1'
+/** The lane's tool: a run that ends on its terminating result continues after a reload. */
+export const OP_TOOL_NAME = 'phosphor'
 /** Internal, never in the agent catalog: a lane reports its live sub-agent work. */
 export const LANE_LIVENESS_OP = 'lane.liveness'
 

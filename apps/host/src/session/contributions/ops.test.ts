@@ -54,3 +54,16 @@ it('binds op dialogs, applies deferred work when a run settles and tracks unatte
   client.emit('exit')
   expect(lanePorts.unattended.has('session-1')).toBe(false)
 })
+
+it('records how each run ended and relays sub-agent liveness to the pause', () => {
+  const ended = vi.fn()
+  const liveness = vi.fn()
+  const lanePorts = { ...ports({}), endings: { ended }, liveness }
+  const { client, session, ctx } = lane(false)
+  createOpsContribution(lanePorts)!.attach?.(session, ctx)
+  const messages = [{ role: 'toolResult', toolName: 'phosphor' }]
+  client.emit('event', { type: 'agent_end', messages })
+  expect(ended).toHaveBeenCalledExactlyOnceWith('session-1', messages)
+  client.emit('lane-liveness', 3)
+  expect(liveness).toHaveBeenCalledExactlyOnceWith('session-1', 3)
+})

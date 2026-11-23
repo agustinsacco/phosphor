@@ -5,7 +5,12 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
 import { parseOpChannelRequest, type OpRequestEnvelope } from '@phosphor/shared/ops'
-import { OP_MARKER_ENV, OP_MARKER_VALUE, LANE_CONTROLS_SLOT } from '@phosphor/shared/ops'
+import {
+  OP_MARKER_ENV,
+  OP_MARKER_VALUE,
+  OP_TOOL_NAME,
+  LANE_CONTROLS_SLOT,
+} from '@phosphor/shared/ops'
 import phosphor from './phosphor'
 import lanePrs from './lane-prs'
 import contextBreakdown from './context-breakdown'
@@ -51,6 +56,7 @@ afterEach(() => vi.unstubAllEnvs())
 it('publishes the always-rules even to a provider that never reads the skill', () => {
   const { tool } = fixture()
   expect(`mcp__custom-tools__${tool.name}`).toBe('mcp__custom-tools__phosphor')
+  expect(tool.name).toBe(OP_TOOL_NAME)
   expect(tool.executionMode).toBe('sequential')
   for (const text of [tool.description, tool.promptGuidelines!.join(' ')]) {
     for (const phrase of [
