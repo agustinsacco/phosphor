@@ -114,7 +114,12 @@ it.each([
 it('a Desktop launched from a daemon lane cannot borrow its parent relay socket', async () => {
   vi.stubEnv('PHOSPHOR_HEADROOM_SOCKET', 'parent')
   // Desktop's piProcessEnv also copies the parent environment into the launch inputs.
-  h.environment.mockResolvedValueOnce({ PATH: '/bin', PI_CLAUDE_CLI_CONTEXT: 'pi', ...process.env })
+  const inherited = {
+    PATH: '/bin',
+    PI_CLAUDE_CLI_CONTEXT: 'pi',
+    PHOSPHOR_HEADROOM_SOCKET: 'parent',
+  }
+  h.environment.mockResolvedValueOnce(inherited)
   const launch = await prepare()
   expect(launch.env).not.toHaveProperty('PHOSPHOR_HEADROOM_SOCKET')
 })

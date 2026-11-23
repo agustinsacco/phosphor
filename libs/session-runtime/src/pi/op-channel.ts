@@ -85,6 +85,7 @@ export function opChildEnv(
   inheritEnv: boolean,
 ): Record<string, string | undefined> {
   const env = inheritEnv ? { ...process.env, ...own } : { ...own }
+  if (!own?.PHOSPHOR_HEADROOM_SOCKET) delete env.PHOSPHOR_HEADROOM_SOCKET
   if (!opMarkerSet(own)) delete env[OP_MARKER_ENV]
   for (const key of LANE_WITHHELD_ENV) delete env[key]
   return env
