@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
@@ -74,6 +75,27 @@ async function connect(path: string, kind: 'owner' | 'local', client = ownerClie
   return stream
 }
 
+/** Leaves a socket file with no listener, as a SIGKILLed daemon does: no close, so no unlink. */
+async function crashedListener(path: string) {
+  const child = spawn(
+    process.execPath,
+    [
+      '-e',
+      `require('node:net').createServer().listen(process.argv[1], () => process.stdout.write('up'))`,
+      path,
+    ],
+    { stdio: ['ignore', 'pipe', 'inherit'] },
+  )
+  const exited = new Promise((resolve) => child.once('exit', resolve))
+  await new Promise<void>((resolve, reject) => {
+    child.stdout.once('data', () => resolve())
+    child.once('error', reject)
+    child.once('exit', () => reject(new Error('listener exited before binding')))
+  })
+  child.kill('SIGKILL')
+  await exited
+}
+
 const frameOf = <T extends HostFrame['type']>(
   frames: HostFrame[],
   type: T,
@@ -146,6 +168,18 @@ describe('the socket path', () => {
     } finally {
       await new Promise<void>((resolve) => other.close(() => resolve()))
     }
+  })
+
+  it('removes a socket a crashed listener left behind, rebinds it and serves hello', async () => {
+    const path = join(await root(), 'run', 'phosphor.sock')
+    await mkdir(join(path, '..'), { mode: 0o700 })
+    await crashedListener(path)
+    expect(lstatSync(path).isSocket()).toBe(true)
+    const stale = lstatSync(path).ino
+    const server = await start([path])
+    expect(lstatSync(path).ino).not.toBe(stale)
+    expect(lstatSync(path).mode & 0o777).toBe(0o600)
+    expect((await socketHello(server.path)).status).toBe(200)
   })
 })
 
