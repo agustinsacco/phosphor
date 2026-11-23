@@ -33,6 +33,7 @@ import {
   surfaceAdmits,
   type DaemonBindingPorts,
   type DaemonLanes,
+  type DeferredActions,
 } from './binding'
 import { SETTINGS_UNDO_OPS, settingsAreCurrent } from './handlers/settings'
 import { undoCurrent } from './undo-current'
@@ -58,6 +59,8 @@ export interface OpsServicePorts extends Omit<DaemonHandlerDeps, 'log' | 'record
   readonly enrolledId: () => string | null
   readonly daemonLanes: DaemonLanes
   readonly command: DaemonBindingPorts['command']
+  /** Deferred owner actions: reload, stop and archive. */
+  readonly deferredActions?: DeferredActions
   /** A routine run with no one watching: its asked ops answer `unattended`. */
   readonly unattended: (sessionId: string) => boolean
   readonly remote?: OpsBinding['remote']
@@ -219,6 +222,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     db,
     command: ports.command,
     account: settledAccountMove(ports),
+    ...(ports.deferredActions ? { actions: ports.deferredActions } : {}),
   })
   const binding: OpsBinding = {
     // Read per use: a local daemon may enroll while it runs.
@@ -304,6 +308,7 @@ export interface RunOpsPorts extends Pick<
   | 'enrolledId'
   | 'remote'
   | 'directory'
+  | 'deferredActions'
   | 'log'
   | 'now'
 > {

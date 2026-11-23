@@ -6,6 +6,7 @@ import type { RpcCommand } from '@phosphor/shared/rpc'
 import { deferredRpcCommand } from '@phosphor/session-runtime/ops/deferred-rpc'
 import type { SurfacePrincipal } from '@phosphor/session-runtime/ops/ports'
 import type {
+  DeferredOutcome,
   LaneDeferred,
   LaneFacts,
   OpHandler,
@@ -68,6 +69,26 @@ export interface DaemonLanes {
   sessionFor(laneId: string): string | null
 }
 
+/** Where a settled run's deferred work lands. */
+export interface DeferredTarget {
+  /** The lane, when the session is one of this machine's lanes. */
+  readonly laneId: string | null
+  /** The lane's live session now: an earlier model change may have replaced the process. */
+  readonly sessionId: string
+  /** The session whose run settled, which held the work. */
+  readonly settledSessionId: string
+}
+
+/** Deferred work that is an owner action rather than one pi command. */
+export type DeferredActionKind = Extract<LaneDeferred['kind'], 'reload' | 'stop' | 'archive'>
+
+export type DeferredActions = {
+  readonly [K in DeferredActionKind]?: (
+    item: Extract<LaneDeferred, { kind: K }>,
+    target: DeferredTarget,
+  ) => Promise<DeferredOutcome>
+}
+
 export interface DaemonBindingPorts {
   readonly account?: (sessionId: string, accountId: string) => Promise<void>
   /** Every id this machine answers to: the enrolled Host id and the local machine id. */
@@ -75,10 +96,69 @@ export interface DaemonBindingPorts {
   readonly lanes: DaemonLanes
   /** `state.sqlite`, for `lane_prefs`. */
   readonly db: DatabaseSync
+  /** A lane command through the lane runtime, so a model change may replace the process. */
   readonly command: (
     sessionId: string,
     rpc: RpcCommand,
   ) => Promise<{ success: boolean; error?: string }>
+  /** Reload, stop and archive; a kind without an action answers that it cannot apply yet. */
+  readonly actions?: DeferredActions
+}
+
+function runAction(
+  actions: DeferredActions | undefined,
+  item: LaneDeferred,
+  target: DeferredTarget,
+): Promise<DeferredOutcome> | null {
+  switch (item.kind) {
+    case 'reload':
+      return actions?.reload?.(item, target) ?? null
+    case 'stop':
+      return actions?.stop?.(item, target) ?? null
+    case 'archive':
+      return actions?.archive?.(item, target) ?? null
+    default:
+      return null
+  }
+}
+
+/**
+ * One settled run's work, in order, each item on the lane's session at that
+ * moment: a model change that replaces the process leaves the rest for the
+ * new one.
+ */
+async function applyDeferred(
+  ports: DaemonBindingPorts,
+  settledSessionId: string,
+  items: readonly LaneDeferred[],
+): Promise<DeferredOutcome> {
+  const lanes = ports.lanes
+  const laneId =
+    lanes.list().find((lane) => lanes.sessionFor(lane.laneId) === settledSessionId)?.laneId ?? null
+  for (const item of items) {
+    const sessionId = (laneId !== null ? lanes.sessionFor(laneId) : null) ?? settledSessionId
+    if (item.action) {
+      // H1's owner actions (stop, archive) carry their own work; the settle event
+      // reaches this contribution and the lane projection in the same tick.
+      await Promise.resolve().then(item.action)
+      continue
+    }
+    if (item.kind === 'account' && ports.account) {
+      await ports.account(sessionId, item.accountId)
+      continue
+    }
+    const rpc = deferredRpcCommand(item)
+    if (rpc) {
+      const result = await ports.command(sessionId, rpc)
+      if (!result.success) return { ok: false, message: result.error ?? 'pi refused this command.' }
+      continue
+    }
+    const action = runAction(ports.actions, item, { laneId, sessionId, settledSessionId })
+    if (!action) return { ok: false, message: `This machine cannot apply ${item.kind} yet.` }
+    const outcome = await action
+    if (!outcome.ok) return outcome
+  }
+  return { ok: true }
 }
 
 const LANE_REF = /^host:([^/]+)\/lane:([^/]+)$/
@@ -140,27 +220,7 @@ export function daemonLaneBinding(
         return Number.isSafeInteger(lineage) && lineage >= 0 ? { lineage } : null
       },
     },
-    deferred: {
-      async apply(sessionId, items: readonly LaneDeferred[]) {
-        for (const item of items) {
-          if (item.action) {
-            // The settle event reaches this contribution and the lane projection in the same tick.
-            await Promise.resolve().then(item.action)
-            continue
-          }
-          if (item.kind === 'account' && ports.account) {
-            await ports.account(sessionId, item.accountId)
-            continue
-          }
-          const rpc = deferredRpcCommand(item)
-          if (!rpc) return { ok: false, message: `This machine cannot apply ${item.kind} yet.` }
-          const result = await ports.command(sessionId, rpc)
-          if (!result.success)
-            return { ok: false, message: result.error ?? 'pi refused this command.' }
-        }
-        return { ok: true }
-      },
-    },
+    deferred: { apply: (sessionId, items) => applyDeferred(ports, sessionId, items) },
   }
 }
 
