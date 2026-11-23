@@ -5,6 +5,8 @@ export interface AttachmentOwner {
   laneId: string
   clientId: string
   fence: number
+  /** The attested owner's connection: its uploads are not charged to the hourly quota. */
+  ownerExempt?: true
 }
 export interface Upload extends AttachmentOwner {
   path: string

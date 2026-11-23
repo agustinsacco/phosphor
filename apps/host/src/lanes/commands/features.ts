@@ -34,7 +34,8 @@ export function executeLaneTerminal(
   }
   const completion = dispatch(state, ports, job, queue, async () => {
     try {
-      return { data: await terminals.execute(admitted.laneId, terminalOp, allowed) }
+      const ownerExempt = job.client.ownerExemption !== undefined
+      return { data: await terminals.execute(admitted.laneId, terminalOp, allowed, ownerExempt) }
     } catch (error) {
       if (error instanceof TerminalForbidden) return { forbidden: true }
       throw error
@@ -72,7 +73,12 @@ export function executeAttachment(
     rejected(state, ports, job, 'unsupported', true)
     return handled()
   }
-  const owner = { laneId: admitted.laneId, clientId: job.client.id, fence }
+  const owner = {
+    laneId: admitted.laneId,
+    clientId: job.client.id,
+    fence,
+    ...(job.client.ownerExemption ? { ownerExempt: true as const } : {}),
+  }
   const completion = dispatch(state, ports, job, queue, () =>
     attachments.execute(owner, attachment),
   ).then((result) => {

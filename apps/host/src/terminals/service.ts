@@ -25,10 +25,10 @@ export function createTerminals(options: TerminalOptions) {
   }, 1000)
   state.timer.unref()
   return {
-    execute: (laneId: string, op: TerminalOp, authorized?: () => boolean) =>
-      execute(state, laneId, op, authorized),
-    input: (clientId: string, raw: TerminalInput, configuration?: boolean) =>
-      input(state, clientId, raw, configuration),
+    execute: (laneId: string, op: TerminalOp, authorized?: () => boolean, ownerExempt?: boolean) =>
+      execute(state, laneId, op, authorized, ownerExempt),
+    input: (clientId: string, raw: TerminalInput, configuration?: boolean, ownerExempt?: boolean) =>
+      input(state, clientId, raw, configuration, ownerExempt),
     subscribe: (
       frame: TerminalSubscribe,
       send: (frame: TerminalFrame) => void,
@@ -47,8 +47,8 @@ export function createTerminals(options: TerminalOptions) {
     ) => loginRunner(state, owner, started, configuration, deferExit, authorized),
     completeLogin: (owner: string, id: string, exitCode: number) =>
       completeLogin(state, owner, id, exitCode),
-    machineOp: (owner: string, op: TerminalOp, configuration?: boolean) =>
-      machineOp(state, owner, op, configuration),
+    machineOp: (owner: string, op: TerminalOp, configuration?: boolean, ownerExempt?: boolean) =>
+      machineOp(state, owner, op, configuration, ownerExempt),
     authorizationChanged: () => authorizationChanged(state),
     presence: (owner: string, connected: boolean, revoked?: boolean) =>
       presence(state, owner, connected, revoked),

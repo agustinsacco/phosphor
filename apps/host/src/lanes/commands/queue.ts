@@ -1,4 +1,5 @@
 import { HOST_LIMITS, type LaneEvent } from '@phosphor/shared/host-protocol'
+import { answerWait } from '../../api/owner-exemptions'
 import { opHash, type HostStore } from '../store'
 import { deliver, log, rejected, terminal, type ReceiptPorts } from './receipts'
 import {
@@ -63,26 +64,36 @@ export function publish(
   }
 }
 
-/** After a deadline, only the operation identity and slot survive, not the job or payload. */
+/**
+ * After a deadline, only the operation identity and slot survive, not the job or payload.
+ * `wait` is the deadline in ms, or a signal that ends the wait when it aborts.
+ */
 export function answer<T>(
   state: CommandState,
   ports: Pick<LaneCommandPorts, 'log'>,
   identity: OperationIdentity,
   queue: LaneQueue,
   promise: Promise<T>,
+  wait: number | AbortSignal = HOST_LIMITS.commandAnswerMs,
 ): Promise<Answer<T>> {
   track(state, promise)
   queue.outstanding++
   return new Promise((resolve) => {
     let reply: ((answer: Answer<T>) => void) | undefined = resolve
-    const timer = setTimeout(() => {
+    const expire = () => {
       reply?.({ answered: false, reason: 'deadline' })
       reply = undefined
-    }, HOST_LIMITS.commandAnswerMs)
-    timer.unref()
+    }
+    const timer = typeof wait === 'number' ? setTimeout(expire, wait) : undefined
+    timer?.unref()
+    if (typeof wait !== 'number') {
+      if (wait.aborted) queueMicrotask(expire)
+      else wait.addEventListener('abort', expire, { once: true })
+    }
     const complete = (value: Answer<T>) => {
       queue.outstanding--
       clearTimeout(timer)
+      if (typeof wait !== 'number') wait.removeEventListener('abort', expire)
       if (reply) {
         reply(value)
         reply = undefined
@@ -124,6 +135,7 @@ export function dispatch<T>(
     { laneId: job.frame.laneId ?? '', requestId: job.frame.requestId, opType: job.frame.op.type },
     queue,
     promise,
+    answerWait(job.client.ownerExemption, job.frame.op.type),
   )
 }
 
