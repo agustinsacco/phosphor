@@ -14,24 +14,24 @@ export function useOpRead<T>(
 ) {
   const [data, setData] = useState<T | null>(null),
     [error, setError] = useState<unknown>(null)
-  const seq = useRef(0)
+  const seq = useRef({ id: 0 }).current
   const reload = useCallback(() => {
-    const id = ++seq.current
+    const id = ++seq.id
     void load().then(
       (value) => {
-        if (seq.current === id) {
+        if (seq.id === id) {
           setData(value)
           setError(null)
         }
       },
       (cause) => {
-        if (seq.current === id) {
+        if (seq.id === id) {
           setData(null)
           setError(cause)
         }
       },
     )
-  }, [load])
+  }, [load, seq])
   useEffect(() => {
     reload()
     const unsubscribe = window.phosphor?.onOpsChanged?.((e) => {
@@ -46,13 +46,13 @@ export function useOpRead<T>(
         : undefined
     const interval = poll ? window.setInterval(reload, 30_000) : undefined
     return () => {
-      seq.current++
+      seq.id++
       unsubscribe?.()
       reconnect?.()
       window.removeEventListener('focus', reload)
       window.clearInterval(interval)
     }
-  }, [reload, machine, kind, poll])
+  }, [reload, machine, kind, poll, seq])
   return { data, error, reload }
 }
 export function LoadError({ error, retry }: { error: unknown; retry: () => void }) {
