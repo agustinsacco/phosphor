@@ -58,6 +58,12 @@ test.describe('local daemon', () => {
     expect(await daemon.apiRefused()).toBe(true)
   })
 
+  test('in standby still serves its owner socket and no TCP listener', async () => {
+    daemon = await localDaemonFixture({ standby: true })
+    expect((await socketHello(daemon.socket)).status).toBe(200)
+    expect(await daemon.apiRefused()).toBe(true)
+  })
+
   test('Desktop reaches ready on This Mac over the owner socket', async () => {
     daemon = await localDaemonFixture()
     const { desktopEnv, machineId } = daemon

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
-import { generateKeyPairSync, randomUUID } from 'node:crypto'
+import { execFileSync, spawn } from 'node:child_process'
+import { createPublicKey, generateKeyPairSync, randomUUID, type KeyObject } from 'node:crypto'
 import { once } from 'node:events'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -101,178 +101,200 @@ export interface LocalDaemonOptions {
 
 export type LocalDaemon = Awaited<ReturnType<typeof localDaemonFixture>>
 
-/** Writes the world, starts the daemon and resolves once its owner socket answers. */
-export async function localDaemonFixture(options: LocalDaemonOptions = {}) {
-  await buildHost()
-  const root = realpathSync.native(mkdtempSync('/tmp/pd-'))
+/** Every folder and file the fixture hands the daemon or Desktop, all under `root`. */
+function daemonLayout(root: string) {
   const home = join(root, 'home')
   const configHome = join(root, 'config')
-  const configDir = join(configHome, 'phosphor-host')
   const stateHome = join(root, 'state')
-  const stateDir = join(stateHome, 'phosphor-host')
-  const runtimeDir = join(root, 'run')
-  const agentDir = join(root, 'agent')
-  const userData = join(root, 'user-data')
-  const ownerKeyPath = join(root, 'owner-key.pem')
-  const configPath = join(configDir, 'config.json')
-  const roots: Record<string, string> = {
+  const configDir = join(configHome, 'phosphor-host')
+  const folders = {
     home,
-    launchAgents: join(home, 'Library', 'LaunchAgents'),
-    systemdUnits: join(configHome, 'systemd', 'user'),
-    config: configDir,
-    state: stateDir,
-    runtime: runtimeDir,
-    agent: agentDir,
-    userData,
-    ownerKey: ownerKeyPath,
+    configHome,
+    configDir,
+    stateHome,
+    stateDir: join(stateHome, 'phosphor-host'),
+    runtimeDir: join(root, 'run'),
+    agentDir: join(root, 'agent'),
+    userData: join(root, 'user-data'),
   }
-  assertScratchRoots(roots, [root])
-  let child: ChildProcess | undefined
+  return {
+    root,
+    ...folders,
+    folders: Object.values(folders),
+    configPath: join(configDir, 'config.json'),
+    ownerKeyPath: join(root, 'owner-key.pem'),
+    /** What assert-scratch checks: the folders plus where a service install would write. */
+    roots: {
+      ...folders,
+      launchAgents: join(home, 'Library', 'LaunchAgents'),
+      systemdUnits: join(configHome, 'systemd', 'user'),
+      ownerKey: join(root, 'owner-key.pem'),
+    } as Record<string, string>,
+  }
+}
+
+type DaemonLayout = ReturnType<typeof daemonLayout>
+
+const pkcs8 = (key: KeyObject) => key.export({ type: 'pkcs8', format: 'pem' })
+const raw = (key: KeyObject) => createPublicKey(key).export({ format: 'jwk' }).x
+
+/** What `setup --local` would leave, written directly: config, identity, pairing, marker. */
+async function writeDaemonWorld(layout: DaemonLayout, options: LocalDaemonOptions) {
+  const { configDir, stateDir } = layout
+  for (const folder of layout.folders) await mkdir(folder, { recursive: true, mode: 0o700 })
+  const machine = generateKeyPairSync('ed25519').privateKey
+  const owner = generateKeyPairSync('ed25519').privateKey
+  const machineId = randomUUID()
+  const now = new Date().toISOString()
+  const apiPort = await closedPort()
+  await json(layout.configPath, {
+    version: 1,
+    pi: {
+      node: process.execPath,
+      executable: join(project, 'apps/host/src/__fixtures__/fake-pi.cjs'),
+    },
+    repositories: options.repositories ?? [],
+    // Nothing listens on either port: an unenrolled daemon reaches neither.
+    control: { url: `http://127.0.0.1:${await closedPort()}` },
+    api: { port: apiPort },
+  })
+  await writeFile(join(configDir, HOST_SIDECARS.localKey), pkcs8(machine), { mode: 0o600 })
+  await json(join(configDir, HOST_SIDECARS.localIdentity), {
+    version: 1,
+    machineId,
+    createdAt: now,
+    publicKey: raw(machine),
+  })
+  await json(join(configDir, HOST_SIDECARS.ownerClients), {
+    version: 1,
+    clients: [{ id: randomUUID(), label: OWNER_LABEL, publicKey: raw(owner), addedAt: now }],
+  })
+  // The marker last, as setup --local publishes it. No login-shell capture in a test.
+  await json(join(configDir, HOST_SIDECARS.localMode), {
+    version: 1,
+    enabledAt: now,
+    shellEnvironment: false,
+  })
+  await json(join(stateDir, HOST_SIDECARS.headroom), { version: 1, enabled: false })
+  if (options.standby) await json(join(stateDir, HOST_SIDECARS.standby), { version: 1 })
+  await writeFile(layout.ownerKeyPath, pkcs8(owner), { mode: 0o600 })
+  return { machineId, apiPort }
+}
+
+/** `phosphor run` in the foreground with every HOME-derived folder in scratch. */
+function spawnDaemon(layout: DaemonLayout) {
   let output = ''
+  const child = spawn(
+    process.execPath,
+    [join(hostDist, 'phosphor.mjs'), 'run', '--config', layout.configPath],
+    {
+      env: {
+        HOME: layout.home,
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
+        TMPDIR: layout.root,
+        XDG_CONFIG_HOME: layout.configHome,
+        XDG_STATE_HOME: layout.stateHome,
+        XDG_RUNTIME_DIR: layout.runtimeDir,
+        PI_CODING_AGENT_DIR: layout.agentDir,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  )
+  const collect = (chunk: Buffer) => {
+    output = (output + chunk.toString()).slice(-131072)
+  }
+  child.stdout?.on('data', collect)
+  child.stderr?.on('data', collect)
+  child.on('exit', (code, signal) => {
+    output += `\nDaemon exit code=${code} signal=${signal}\n`
+  })
   const stop = async () => {
-    if (!child || child.exitCode !== null || child.signalCode !== null) return
+    if (child.exitCode !== null || child.signalCode !== null) return
     const exited = once(child, 'exit')
     child.kill('SIGTERM')
-    const kill = setTimeout(() => child?.kill('SIGKILL'), 5000)
+    const kill = setTimeout(() => child.kill('SIGKILL'), 5000)
     try {
       await exited
     } finally {
       clearTimeout(kill)
     }
   }
+  return { child, output: () => output, stop }
+}
+
+/** The socket `local.json` names, once its hello answers; checked against scratch and the byte limit. */
+async function ownerSocket(
+  layout: DaemonLayout,
+  machineId: string,
+  daemon: ReturnType<typeof spawnDaemon>,
+) {
+  let socket = ''
+  await expect
+    .poll(
+      async () => {
+        if (daemon.child.exitCode !== null) throw new Error(`The daemon exited: ${daemon.output()}`)
+        const text = await readFile(join(layout.stateDir, HOST_SIDECARS.localRun), 'utf8').catch(
+          () => '',
+        )
+        const run = text ? parseLocalRunFile(JSON.parse(text)) : null
+        if (run?.machineId !== machineId) return false
+        socket = run.socket
+        return (await socketHello(socket).catch(() => ({ status: 0 }))).status === 200
+      },
+      { timeout: READY_TIMEOUT_MS },
+    )
+    .toBe(true)
+  assertScratchRoots({ socket }, [layout.root])
+  if (Buffer.byteLength(socket) > FIXTURE_SOCKET_MAX_BYTES)
+    throw new Error(`The owner socket path is ${Buffer.byteLength(socket)} bytes: ${socket}`)
+  return socket
+}
+
+/** Writes the world, starts the daemon and resolves once its owner socket answers. */
+export async function localDaemonFixture(options: LocalDaemonOptions = {}) {
+  await buildHost()
+  const layout = daemonLayout(realpathSync.native(mkdtempSync('/tmp/pd-')))
+  assertScratchRoots(layout.roots, [layout.root])
+  let daemon: ReturnType<typeof spawnDaemon> | undefined
   const close = async () => {
     const info = test.info()
-    await info.attach('local-daemon.log', { body: output, contentType: 'text/plain' })
-    const runtimeLog = await readFile(join(stateDir, 'logs/phosphor.log'), 'utf8').catch(() => '')
+    await info.attach('local-daemon.log', {
+      body: daemon?.output() ?? '',
+      contentType: 'text/plain',
+    })
+    const log = await readFile(join(layout.stateDir, 'logs/phosphor.log'), 'utf8').catch(() => '')
     await info.attach('local-daemon-runtime.log', {
-      body: runtimeLog.slice(-131072),
+      body: log.slice(-131072),
       contentType: 'text/plain',
     })
     try {
-      await stop()
+      await daemon?.stop()
     } finally {
-      await rm(root, { recursive: true, force: true })
+      await rm(layout.root, { recursive: true, force: true })
     }
   }
   try {
-    for (const folder of [
-      home,
-      configHome,
-      configDir,
-      stateHome,
-      stateDir,
-      runtimeDir,
-      agentDir,
-      userData,
-    ])
-      await mkdir(folder, { recursive: true, mode: 0o700 })
-    const machine = generateKeyPairSync('ed25519')
-    const owner = generateKeyPairSync('ed25519')
-    const machineId = randomUUID()
-    const ownerId = randomUUID()
-    const raw = (key: typeof owner.publicKey) => key.export({ format: 'jwk' }).x
-    const now = new Date().toISOString()
-    const apiPort = await closedPort()
-    await json(configPath, {
-      version: 1,
-      pi: {
-        node: process.execPath,
-        executable: join(project, 'apps/host/src/__fixtures__/fake-pi.cjs'),
-      },
-      repositories: options.repositories ?? [],
-      // Nothing listens on either port: an unenrolled daemon reaches neither.
-      control: { url: `http://127.0.0.1:${await closedPort()}` },
-      api: { port: apiPort },
-    })
-    await writeFile(
-      join(configDir, HOST_SIDECARS.localKey),
-      machine.privateKey.export({ type: 'pkcs8', format: 'pem' }),
-      { mode: 0o600 },
-    )
-    await json(join(configDir, HOST_SIDECARS.localIdentity), {
-      version: 1,
-      machineId,
-      createdAt: now,
-      publicKey: raw(machine.publicKey),
-    })
-    await json(join(configDir, HOST_SIDECARS.ownerClients), {
-      version: 1,
-      clients: [{ id: ownerId, label: OWNER_LABEL, publicKey: raw(owner.publicKey), addedAt: now }],
-    })
-    // The marker last, as setup --local publishes it. No login-shell capture in a test.
-    await json(join(configDir, HOST_SIDECARS.localMode), {
-      version: 1,
-      enabledAt: now,
-      shellEnvironment: false,
-    })
-    await json(join(stateDir, HOST_SIDECARS.headroom), { version: 1, enabled: false })
-    if (options.standby) await json(join(stateDir, HOST_SIDECARS.standby), { version: 1 })
-    await writeFile(ownerKeyPath, owner.privateKey.export({ type: 'pkcs8', format: 'pem' }), {
-      mode: 0o600,
-    })
-    child = spawn(
-      process.execPath,
-      [join(hostDist, 'phosphor.mjs'), 'run', '--config', configPath],
-      {
-        env: {
-          HOME: home,
-          PATH: process.env.PATH ?? '/usr/bin:/bin',
-          TMPDIR: root,
-          XDG_CONFIG_HOME: configHome,
-          XDG_STATE_HOME: stateHome,
-          XDG_RUNTIME_DIR: runtimeDir,
-          PI_CODING_AGENT_DIR: agentDir,
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
-    const daemon = child
-    const collect = (chunk: Buffer) => {
-      output = (output + chunk.toString()).slice(-131072)
-    }
-    daemon.stdout?.on('data', collect)
-    daemon.stderr?.on('data', collect)
-    daemon.on('exit', (code, signal) => {
-      output += `\nDaemon exit code=${code} signal=${signal}\n`
-    })
-    let socket = ''
-    await expect
-      .poll(
-        async () => {
-          if (daemon.exitCode !== null) throw new Error(`The daemon exited: ${output}`)
-          const text = await readFile(join(stateDir, HOST_SIDECARS.localRun), 'utf8').catch(
-            () => '',
-          )
-          const run = text ? parseLocalRunFile(JSON.parse(text)) : null
-          if (run?.machineId !== machineId) return false
-          socket = run.socket
-          return (await socketHello(socket).catch(() => ({ status: 0 }))).status === 200
-        },
-        { timeout: READY_TIMEOUT_MS },
-      )
-      .toBe(true)
-    assertScratchRoots({ socket }, [root])
-    if (Buffer.byteLength(socket) > FIXTURE_SOCKET_MAX_BYTES)
-      throw new Error(`The owner socket path is ${Buffer.byteLength(socket)} bytes: ${socket}`)
+    const { machineId, apiPort } = await writeDaemonWorld(layout, options)
+    daemon = spawnDaemon(layout)
+    const socket = await ownerSocket(layout, machineId, daemon)
     if (!(await refused(apiPort))) throw new Error('The daemon opened its TCP API.')
     return {
-      root,
-      roots: { ...roots, socket } as Readonly<Record<string, string>>,
+      root: layout.root,
+      roots: { ...layout.roots, socket } as Readonly<Record<string, string>>,
       machineId,
       socket,
       apiPort,
-      pid: daemon.pid,
       /** The env an unpackaged Desktop needs to run in daemon mode against this daemon. */
       desktopEnv: {
         PHOSPHOR_LOCAL_DAEMON_SOCKET: socket,
-        PHOSPHOR_LOCAL_DAEMON_CONFIG: configDir,
-        PHOSPHOR_E2E_OWNER_KEY: ownerKeyPath,
-        PHOSPHOR_TEST_USER_DATA: userData,
-        PI_CODING_AGENT_DIR: agentDir,
+        PHOSPHOR_LOCAL_DAEMON_CONFIG: layout.configDir,
+        PHOSPHOR_E2E_OWNER_KEY: layout.ownerKeyPath,
+        PHOSPHOR_TEST_USER_DATA: layout.userData,
+        PI_CODING_AGENT_DIR: layout.agentDir,
       },
       apiRefused: () => refused(apiPort),
-      output: () => output,
-      stop,
+      output: daemon.output,
+      stop: daemon.stop,
       close,
     }
   } catch (error) {
