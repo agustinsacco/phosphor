@@ -9,6 +9,15 @@ connection recovery. Control is never in the lane data path.
 identity and builds Host-qualified resource keys. Hello parsing alone is not
 authentication; trusting a connection also requires the enrolled key proof.
 
+## Wire compatibility
+
+Control, Hosts and clients update independently. In v1, old readers reject unknown
+capability names and frame types: keep grant `caps` on the eight legacy names, do
+not add names to hello or ready capabilities, and do not send new Host frame types.
+Advertise new features with additive ready booleans instead; an absent marker means
+unsupported. Keep the lanes topic within 64 repositories and 1000 lanes, including
+the 1000-entry bounds on delta upserts and removals.
+
 ## Frames and streams
 
 `libs/shared/src/host-protocol.ts` is the entry for protocol v1; its allowlist,

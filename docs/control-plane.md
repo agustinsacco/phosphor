@@ -174,8 +174,9 @@ protection.
 Grants use `phosphor-grant.v1.<base64url(payload JSON)>.<base64url(signature)>`.
 Ed25519 signs the exact payload bytes, without a header or algorithm choice.
 Claims are `v`, `iss`, `kid`, `sub`, `sid`, `hostId`, `epoch`, `client: {id, label}`,
-`caps`, `iat`, `exp` and `jti`. Issuance includes all `HOST_CAPABILITIES` and sets
-`exp = iat + 300` seconds. Hosts still gate features by what they implement.
+`caps`, `iat`, `exp` and `jti`. Issuance sets `caps` to `LEGACY_HOST_CAPABILITIES` and
+`exp = iat + 300` seconds. Machine configuration is an opt-in `configure: true`
+claim, not an additional entry in `caps`. Hosts still gate features by what they implement.
 The broker never receives lane ids, prompts or repository names. Issuance logs
 only `userId`, `hostId`, `clientId`, `jti` and `exp`. Client registration and
 revocation events carry only user and client ids. Session ids, grants, tokens,
