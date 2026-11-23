@@ -210,8 +210,12 @@ if (!singleInstance) {
   }
   app.quit()
 } else {
+  // A second launch focuses Phosphor only once This Mac's runtime is decided:
+  // a window opened while the gate migrates would resume an in-app session.
+  let runtimeDecided: () => void = () => {}
+  const decided = new Promise<void>((resolve) => (runtimeDecided = resolve))
   app.on('second-instance', () => {
-    void app.whenReady().then(() => {
+    void decided.then(() => {
       const existing = BrowserWindow.getAllWindows()[0] ?? createWindow()
       if (existing.isMinimized()) existing.restore()
       existing.show()
@@ -238,9 +242,11 @@ if (!singleInstance) {
     // Once per process, before pi's config, a window or any session: in-app,
     // or This Mac's Phosphor service (migrating to it first when it is time).
     const mode = await decideLocalRuntime()
+    // Quitting: a second launch never opens a window.
     if (mode === 'quit') return
     if (mode === 'in-app') preparePiConfig()
     startServices({ createWindow, mode })
+    runtimeDecided()
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
