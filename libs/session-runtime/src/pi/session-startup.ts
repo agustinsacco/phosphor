@@ -15,6 +15,11 @@ import {
 import type { LiveSession, SessionRegistry } from './session-registry'
 import type { LaneReload } from './lane-reload'
 import type { PiSpawnOptions } from './rpc-client'
+import {
+  applySpawnContributions,
+  attachSpawnContributions,
+  type SpawnContribution,
+} from './spawn-contributions'
 
 export interface SessionStartupRuntime {
   registry: Pick<SessionRegistry, 'create' | 'dispose'>
@@ -32,6 +37,8 @@ export interface SessionStartupRuntime {
   laneReload?: Pick<LaneReload, 'capture' | 'track'>
   /** Brain recall for lane agents: extra env, extension and skill, or undefined when off. */
   recall?: () => Promise<SessionRecall | undefined>
+  /** Spawn inputs later features add; absent or empty leaves argv and env as the policy built them. */
+  contributions?: readonly SpawnContribution[]
 }
 
 export interface SessionRecall {
@@ -128,6 +135,14 @@ async function spawnSession(
     runtime.policy,
   )
   if (!launch.stub) await withRecall(runtime, spawnOptions)
+  const contributions = launch.stub ? [] : (runtime.contributions ?? [])
+  await applySpawnContributions(
+    contributions,
+    spawnOptions,
+    execution,
+    { options, ...(accountId ? { accountId } : {}) },
+    runtime.log,
+  )
   execution.signal?.throwIfAborted()
   // Read before the spawn: a change landing while pi starts must still count as new.
   const laneConfig =
@@ -148,6 +163,7 @@ async function spawnSession(
   if (execution.signal?.aborted) stopOnAbort()
   try {
     bindStartupEvents(runtime, session, sink, accountId)
+    attachSpawnContributions(contributions, session, { execution, options, log: runtime.log })
     if (!launch.stub) {
       await verifyStartupAccount(session.client, runtime.policy.strictAccountSelection, accountId)
       await syncContextBudget(session.client, runtime.budget.read())

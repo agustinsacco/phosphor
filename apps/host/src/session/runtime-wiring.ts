@@ -11,9 +11,11 @@ import { createSessionDeletion } from '@phosphor/session-runtime/pi/session-dele
 import { prepareSessionLaunch } from '@phosphor/session-runtime/pi/session-launch'
 import { createSessionService } from '@phosphor/session-runtime/pi/session-service'
 import { createSessionStartup } from '@phosphor/session-runtime/pi/session-startup'
+import type { LaneReload } from '@phosphor/session-runtime/pi/lane-reload'
 import { isInside } from '@phosphor/session-runtime/fs-safety'
 import { unlinkTranscript } from './transcript-removal'
 import type { Delivery, RuntimeState } from './runtime-state'
+import { hostSpawnContributions } from './contributions'
 
 const ignore: Delivery = () => {}
 /** The extension UI requests that wait for an answer. */
@@ -25,7 +27,11 @@ const NO_ROUTINES = {
   cancel: async () => {},
 }
 
-export function wireRuntimeStartup(state: RuntimeState) {
+/** `laneReload` is for a caller that reloads lanes on config changes; the Host binds none yet. */
+export function wireRuntimeStartup(
+  state: RuntimeState,
+  laneReload?: Pick<LaneReload, 'capture' | 'track'>,
+) {
   const { machine, options, roots, machineContext, registry, budget, agentDir, accounts } = state
   return createSessionStartup({
     registry,
@@ -67,6 +73,8 @@ export function wireRuntimeStartup(state: RuntimeState) {
     },
     accounts,
     recordWorkspace: () => {},
+    ...(laneReload ? { laneReload } : {}),
+    contributions: hostSpawnContributions(),
   })
 }
 

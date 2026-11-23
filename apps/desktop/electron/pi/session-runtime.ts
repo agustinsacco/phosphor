@@ -26,6 +26,7 @@ import { log } from '../debug-log'
 import { createLaneReload } from '@phosphor/session-runtime/pi/lane-reload'
 import { createLaneConfigFingerprint } from '@phosphor/session-runtime/pi/lane-config'
 import { mcpConfigPaths, mcpDirs } from '@phosphor/session-runtime/pi/mcp-config'
+import { desktopSpawnContributions } from './contributions'
 
 /** MCP and package config changes reach running lanes before their next turn. */
 const laneReload = createLaneReload({
@@ -58,6 +59,7 @@ const spawn = createSessionStartup({
   recordWorkspace,
   laneReload,
   recall: () => recall?.() ?? Promise.resolve(undefined),
+  contributions: desktopSpawnContributions(),
 })
 
 const service = createSessionService<Electron.WebContents>({
