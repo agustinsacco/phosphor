@@ -1,3 +1,4 @@
+import { createWorkspaceLeases, leaseHandlers } from './lease'
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
@@ -97,4 +98,16 @@ describe('the owner adapter', () => {
       else expect(frame).toMatchObject({ ok: false, error: { code: 'forbidden' } })
     }
   })
+})
+
+it('the installed lease handlers read the active domain for each call on one link', async () => {
+  const {ready,sent} = connection({kind:'owner',clientId:client.id})
+  let active: ReturnType<typeof createWorkspaceLeases> | undefined
+  const link = createOwnerAdapter(leaseHandlers(() => active))(ready)!
+  const renew = call('owner.lease.renew',{leaseId:randomUUID()})
+  link.handle(renew,[])
+  await vi.waitFor(() => expect(sent[0]).toMatchObject({ok:false,error:{code:'forbidden',message:"Lanes on this Mac aren't running yet."}}))
+  active = createWorkspaceLeases(() => [])
+  link.handle(renew,[])
+  await vi.waitFor(() => expect(sent[1]).toMatchObject({ok:true,data:{ok:false}}))
 })
