@@ -35,6 +35,8 @@ async function socketPath() {
   return join(folder, 'run', 'phosphor.sock')
 }
 
+const pauseBegin = { action: 'begin', purpose: 'update' }
+
 async function expectLease(
   stream: Awaited<ReturnType<typeof ownerConnection>>,
   path: string,
@@ -54,6 +56,26 @@ async function expectLease(
           error: { code: 'forbidden', message: "Lanes on this Mac aren't running yet." },
         },
   )
+}
+
+/** D4: standby runs no lanes, so there is nothing to pause. */
+async function pauseRefusedInStandby(owner: Awaited<ReturnType<typeof ownerConnection>>) {
+  owner.send({ type: 'call', id: 'pause', method: 'machine.pause', params: pauseBegin })
+  expect(await result(owner, 'pause')).toMatchObject({ ok: false, error: { code: 'unsupported' } })
+}
+
+/** D4: no turn is in flight, so the pause takes hold at once; Cancel ends it. */
+async function pauseAndCancel(owner: Awaited<ReturnType<typeof ownerConnection>>) {
+  owner.send({ type: 'call', id: 'idle', method: 'machine.local' })
+  expect(await result(owner, 'idle')).toMatchObject({
+    data: { pause: { kind: 'none' }, lastUpdate: null },
+  })
+  owner.send({ type: 'call', id: 'pause', method: 'machine.pause', params: pauseBegin })
+  expect(await result(owner, 'pause')).toMatchObject({ ok: true, data: { kind: 'paused' } })
+  owner.send({ type: 'call', id: 'paused', method: 'machine.local' })
+  expect(await result(owner, 'paused')).toMatchObject({ data: { pause: { kind: 'paused' } } })
+  owner.send({ type: 'call', id: 'cancel', method: 'machine.pause', params: { action: 'cancel' } })
+  expect(await result(owner, 'cancel')).toMatchObject({ ok: true, data: { kind: 'none' } })
 }
 
 describe('run with the local-mode marker serves the owner socket', () => {
@@ -163,6 +185,7 @@ describe('run with the local-mode marker serves the owner socket', () => {
         error: { code: 'forbidden' },
       })
       await expectLease(desktop, host.state, false)
+      await pauseRefusedInStandby(desktop)
       desktop.send({ type: 'subscribe', id: 'lanes', topic: 'lanes' })
       await vi.waitFor(() =>
         expect(desktop.frames).toContainEqual({
@@ -184,6 +207,7 @@ describe('run with the local-mode marker serves the owner socket', () => {
         data: { ownerLock: { held: true, holder: 'daemon', pid: process.pid, standby: false } },
       })
       await expectLease(again, host.state, true)
+      await pauseAndCancel(again)
       again.close()
       await host.target()?.drain('SIGTERM')
       expect(await run).toBe(0)

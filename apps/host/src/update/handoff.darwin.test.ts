@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { runCli } from '../cli'
 import { fixture } from './__fixtures__/release'
-import { hostUpdateProgram } from './handoff'
+import { HANDOFF_FAILED, hostUpdateProgram } from './handoff'
 
 /** Tests only: the one-shot job's label, so nothing here can name the real updater job. */
 const LABEL = 'com.saccolabs.phosphor-spike.d4-update'
@@ -78,5 +78,48 @@ it('R5: hands an update from inside the service to a one-shot launchd job under 
   expect(text).toContain('<key>PATH</key><string>/usr/bin:/bin</string>')
   expect(text).not.toContain('SECRET_TOKEN')
   expect(text).not.toContain('PHOSPHOR_HOST_PID')
+  expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.0.0')
+})
+
+it.each([
+  ['another pid', { PHOSPHOR_HOST_PID: '999' }, 1],
+  ['no pid', {}, 0],
+])('updates in place on macOS when the shell names %s', async (_name, extra, prints) => {
+  const f = darwin()
+  f.context.env = { ...f.context.env, ...extra }
+  const calls: string[][] = []
+  f.context.service = {
+    runner: async (_program, args) => {
+      calls.push([...args])
+      return { code: 0, stdout: args[0] === 'print' ? 'state = running\npid = 4242\n' : '' }
+    },
+  }
+  const code = await runCli(
+    ['update', '--version', '1.2.3', '--json'],
+    { stdout: () => {}, stderr: () => {} },
+    { ...f.context, nodeVersion: process.versions.node, defaultResourceRoot: '/unused' },
+  )
+  expect(code).not.toBe(0)
+  expect(calls.filter((args) => args[0] === 'bootstrap')).toEqual([])
+  expect(calls.filter((args) => args[0] === 'print').length).toBeGreaterThanOrEqual(prints)
+})
+
+it('changes nothing and says where to run it when launchd refuses the job', async () => {
+  const f = darwin()
+  f.context.env = { ...f.context.env, PHOSPHOR_HOST_PID: '4242' }
+  f.context.service = {
+    runner: async (_program, args) => ({
+      code: args[0] === 'bootstrap' ? 5 : 0,
+      stdout: args[0] === 'print' ? 'state = running\npid = 4242\n' : '',
+    }),
+  }
+  const stdout: string[] = []
+  const code = await runCli(
+    ['update', '--apply', '1.2.3', '--json'],
+    { stdout: (text) => stdout.push(text), stderr: () => {} },
+    { ...f.context, nodeVersion: process.versions.node, defaultResourceRoot: '/unused' },
+  )
+  expect(code).toBe(75)
+  expect(JSON.parse(stdout.join(''))).toEqual({ exitCode: 75, messages: [HANDOFF_FAILED] })
   expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.0.0')
 })
