@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { atomicRecord } from '@phosphor/session-runtime/host-install/files'
 import { LOCAL_SERVICE_FEATURES } from '@phosphor/session-runtime/host-install/release-source'
 import { MIGRATION_DIR } from './journal'
@@ -39,7 +39,9 @@ export function writeServiceRecord(
     machineId: installed.machineId,
     at,
   }
-  atomicRecord(serviceRecordPath(userData), record, 0o600)
+  const path = serviceRecordPath(userData)
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
+  atomicRecord(path, record, 0o600)
 }
 
 export function readServiceRecord(userData: string): ServiceRecord | null {
