@@ -85,3 +85,7 @@ it('serves machine.doctor through the login-shell refresh', async () => {
     data: { shellEnvironment: 'not-used' },
   })
 })
+
+it('leaves cross-machine skill sharing to the app, not machine grants', () => {
+  expect(OP_GAPS.daemon['skill.share']).toContain('share skills from the Phosphor app')
+})
