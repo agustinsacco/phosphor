@@ -56,6 +56,7 @@ describe('the owner adapter', () => {
       principal: { kind: 'owner', clientId: client.id },
       client,
       connectionId: 'c',
+      signal: expect.any(AbortSignal),
     })
   })
 

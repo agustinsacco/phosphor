@@ -602,13 +602,17 @@ may call. Mutations are idempotent by their key (`migrationId`, `leaseId`,
 - Leases: `owner.lease.take|renew|release` over absolute folder paths.
 - `owner.transcript.page` reads complete JSONL lines of a lane's session file from an
   offset (at most 4 MiB per page), so transcripts too large for `lane.messages` open.
+- `app.service.register {service: 'brain', endpoint, token, recall}` registers the Desktop
+  bridge for this owner connection only. `endpoint` is an absolute Unix socket path (no
+  `..` segments or NUL; at most 103 UTF-8 bytes), never a TCP address. This call returns
+  `{registered: true}`; the token is neither logged nor written to a receipt.
 - `owner.account.prepare|register|discard`: the daemon issues an empty account
   folder under its account root, registers the folder it issued (the call takes no
   path), or removes it after a cancelled login.
 
 `OWNER_LIMITS` is separate from `HOST_LIMITS`, which only ever goes down. Owner calls
 get a 120 s answer deadline. A daemon that predates these calls answers
-`unsupported`. No daemon serves them yet. Clients send them with `ownerCall`
+`unsupported`. A local-mode daemon serves `machine.local`, `machine.identity.reload`, `machine.enroll` and `app.service.register`. Clients send them with `ownerCall`
 (`libs/host-client/src/owner.ts`), which checks params before sending and throws
 `OwnerCallError` with the daemon's code. It still rides the connection's 30 s call
 deadline, so a call that runs longer reads as `internal` until the local binding

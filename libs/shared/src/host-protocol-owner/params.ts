@@ -5,6 +5,7 @@
  */
 import { isUuid, isVersion, normalizeLabel } from '../control-api'
 import { integer, record, text } from '../host-protocol/primitives'
+import { chooseLocalSocket } from '../host-local'
 import { isOwnerPath } from './migration-items'
 import type { AppServiceRegistration } from './status'
 
@@ -61,15 +62,16 @@ export function pauseParams(
 
 export function appService(v: unknown): AppServiceRegistration | null {
   if (!record(v) || v.service !== 'brain' || typeof v.recall !== 'boolean') return null
-  const m =
-    typeof v.endpoint === 'string'
-      ? /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})$/.exec(v.endpoint)
-      : null
-  if (!m || Number(m[1]) > 65535) return null
+  if (
+    !isOwnerPath(v.endpoint) ||
+    v.endpoint.split('/').includes('..') ||
+    !chooseLocalSocket([v.endpoint])
+  )
+    return null
   if (!text(v.token, OWNER_LIMITS.appServiceTokenChars) || !/^[!-~]+$/.test(v.token)) return null
   return {
     service: 'brain',
-    endpoint: `http://127.0.0.1:${m[1]}`,
+    endpoint: v.endpoint,
     token: v.token,
     recall: v.recall,
   }

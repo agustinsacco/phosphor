@@ -10,6 +10,8 @@ import {
 } from '@phosphor/shared/brain'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
 
+import { chooseLocalSocket } from '@phosphor/shared/host-local'
+import type { AppServiceRegistration } from '@phosphor/shared/host-protocol-owner'
 import { brainFlagLimit } from './tidy/flag-limit'
 
 const MAX_BYTES = 512 * 1024
@@ -40,6 +42,8 @@ export async function createBrainBridge(invoke: BridgeInvoke, limit = brainFlagL
     accept(socket, token, limitedInvoke)
   })
   try {
+    if (process.platform !== 'win32' && !chooseLocalSocket([endpoint]))
+      throw new Error('Brain socket path is too long.')
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
       server.listen(endpoint, () => {
@@ -56,6 +60,12 @@ export async function createBrainBridge(invoke: BridgeInvoke, limit = brainFlagL
   return {
     endpoint,
     token,
+    registration: (recall: boolean): AppServiceRegistration => ({
+      service: 'brain',
+      endpoint,
+      token,
+      recall,
+    }),
     async close() {
       for (const socket of sockets) socket.destroy()
       await new Promise<void>((resolve) => server.close(() => resolve()))

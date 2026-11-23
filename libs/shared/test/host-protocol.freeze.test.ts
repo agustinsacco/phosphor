@@ -20,7 +20,11 @@ import {
 } from '@phosphor/shared/host-protocol'
 import { READY_OP_FLAGS } from '@phosphor/shared/host-protocol'
 import { OPS_LIMITS, OPS_RUN } from '@phosphor/shared/host-protocol-ops'
-import { OWNER_METHODS, OWNER_METHODS_ANY_LOCAL } from '@phosphor/shared/host-protocol-owner'
+import {
+  OWNER_METHODS,
+  OWNER_METHODS_ANY_LOCAL,
+  parseOwnerParams,
+} from '@phosphor/shared/host-protocol-owner'
 import { FILE_METHODS } from '@phosphor/shared/host-protocol-files'
 import { FILE_BYTES_LIMITS, FILE_BYTES_METHOD } from '@phosphor/shared/host-protocol-file-bytes'
 import { ROUTINE_OPS } from '@phosphor/shared/host-protocol-routines'
@@ -468,6 +472,19 @@ describe('Host API constants and op lists', () => {
     ])
     for (const method of [OPS_RUN, ...OWNER_METHODS])
       expect(HOST_CALL_METHODS, method).not.toContain(method)
+  })
+
+  it('registers a private Brain socket, never a loopback server', () => {
+    const reg = {
+      service: 'brain',
+      recall: true,
+      endpoint: '/private/brain/rpc.sock',
+      token: 'test',
+    }
+    expect(parseOwnerParams('app.service.register', reg)).toStrictEqual(reg)
+    expect(
+      parseOwnerParams('app.service.register', { ...reg, endpoint: 'http://127.0.0.1:1234' }),
+    ).toBeNull()
   })
 
   it('lists only op types the command union carries', () => {

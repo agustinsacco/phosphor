@@ -2,6 +2,7 @@ import { HARBOR_RECALL } from '../../brain-client/src/__fixtures__/recall'
 import { FakeBrainStore, FakeBrainSearch } from './__fixtures__/fake-store'
 import { recallOptions } from './__fixtures__/options'
 import { createRecall } from './recall'
+import { parseOwnerParams } from '@phosphor/shared/host-protocol-owner'
 import { createConnection } from 'node:net'
 import { expect, it, vi } from 'vitest'
 import { createBrainBridge as openBridge, type BridgeInvoke } from './bridge'
@@ -37,6 +38,13 @@ it('accepts only versioned, authenticated requests with validated fields', async
   const bridge = await createBrainBridge(invoke)
   const input = { version: 5, token: bridge.token, method: 'search', params: { query: 'Harbor' } }
   try {
+    const registration = bridge.registration(true)
+    expect(parseOwnerParams('app.service.register', registration)).toEqual({
+      service: 'brain',
+      endpoint: bridge.endpoint,
+      token: bridge.token,
+      recall: true,
+    })
     expect(await request(bridge.endpoint, input)).toMatchObject({ ok: true })
     expect(invoke).toHaveBeenCalledWith('search', { query: 'Harbor' })
     invoke.mockClear()

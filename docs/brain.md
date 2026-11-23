@@ -862,6 +862,13 @@ Brain service answers, the tool reports “Brain is unavailable right now.” Th
 not a no-match result or a request for user input. Search stays read-only; flags
 only ask the owner to review.
 
+The local Phosphor service accepts a Brain registration on the attested owner connection.
+It keeps the private socket address and capability only until that connection closes or a
+new registration replaces it. The daemon checks the socket's owner and its private parent
+folder before each request. Only the recall preference survives in `app-services.json`, so
+new lanes can still load the recall skill with Desktop closed and answer “unavailable”.
+The service never opens Brain's database or puts the capability in a lane environment.
+
 `brain_search(query, limit?)` returns 8 memories by default, up to 20:
 
 - **Seeds.** Entities named by the query (whole-word names, aliases and keys; "Harbor" never

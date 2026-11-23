@@ -30,7 +30,7 @@ const VALID: { readonly [M in OwnerMethod]: unknown } = {
   'machine.pause': { action: 'begin', purpose: 'update', deadlineMs: 60_000 },
   'app.service.register': {
     service: 'brain',
-    endpoint: 'http://127.0.0.1:41234',
+    endpoint: '/private/brain/rpc.sock',
     token: 't0k',
     recall: true,
   },
@@ -126,6 +126,20 @@ describe('parseOwnerParams', () => {
     expect(parseOwnerParams(method, valid)).toStrictEqual(valid)
     expect(parseOwnerParams(method, INVALID[method])).toBeNull()
   })
+
+  it.each(['http://127.0.0.1:41234', 'relative', '/a/../s', '/bad\0sock', '/' + 'é'.repeat(52)])(
+    'refuses unsafe Brain endpoint %s',
+    (endpoint) => {
+      expect(
+        parseOwnerParams('app.service.register', {
+          service: 'brain',
+          token: 't',
+          recall: true,
+          endpoint,
+        }),
+      ).toBeNull()
+    },
+  )
 
   it('takes `{}` for paramless methods and never a path on account registration', () => {
     expect(parseOwnerParams('machine.local', {})).toBeUndefined()

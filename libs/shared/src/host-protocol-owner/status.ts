@@ -111,7 +111,7 @@ export interface OwnerAccountFolder {
 
 export interface AppServiceRegistration {
   readonly service: 'brain'
-  /** Loopback HTTP only: `http://127.0.0.1:<port>`. */
+  /** Absolute Unix socket path in an owner-private folder; never a URL. */
   readonly endpoint: string
   readonly token: string
   readonly recall: boolean

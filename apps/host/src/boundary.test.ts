@@ -9,6 +9,8 @@ const exported = (library: string) =>
 const LIBRARIES: Record<string, string[]> = {
   '@phosphor/shared': exported('libs/shared'),
   '@phosphor/session-runtime': exported('libs/session-runtime'),
+  // Brain's lane-scoped briefing and private socket client, not its engine or store.
+  '@phosphor/brain-client': exported('libs/brain-client'),
   // Browser-safe: the reach pool speaks the Host protocol as a client.
   '@phosphor/host-client': exported('libs/host-client'),
   // This subpath is a pure wire-literal module.

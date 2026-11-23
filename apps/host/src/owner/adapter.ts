@@ -17,6 +17,8 @@ export type SocketPrincipal = Extract<ConnectionPrincipal, { kind: 'owner' | 'lo
 export interface OwnerCallContext {
   readonly principal: SocketPrincipal
   readonly client: GrantClient
+  /** Aborted when this authenticated connection closes. */
+  readonly signal: AbortSignal
   readonly connectionId: string
 }
 
@@ -63,7 +65,9 @@ export function createOwnerAdapter(handlers: OwnerHandlers = {}): FrameLinkFacto
   return (connection) => {
     const principal = connection.principal
     if (principal?.kind !== 'owner' && principal?.kind !== 'local') return null
+    const lifetime = new AbortController()
     const context: OwnerCallContext = {
+      signal: lifetime.signal,
       principal,
       client: connection.client,
       connectionId: connection.connectionId,
@@ -86,6 +90,7 @@ export function createOwnerAdapter(handlers: OwnerHandlers = {}): FrameLinkFacto
       }
     }
     return {
+      close: () => lifetime.abort(),
       handle(frame) {
         if (frame.type !== 'call' || !isOwnerMethod(frame.method)) return false
         const { id, method } = frame
