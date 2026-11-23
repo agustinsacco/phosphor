@@ -133,6 +133,17 @@ describe('launch gate', () => {
     expect(v.journal()!.state).toBe('committed')
   })
 
+  it('an unforeseen failure while deciding never starts in-app once a commit was asked for', async () => {
+    const failing = { readLock: () => Promise.reject(new Error('EIO')) }
+    const w = gateWorld(failing)
+    w.seed(journalIn('commit-requested'))
+    expect(await createLaunchGate(w.ports).run()).toBe('daemon')
+    expect(w.decide).not.toHaveBeenCalledWith('in-app', expect.anything())
+    const fresh = gateWorld({ ...failing, migrationDir: join(root, 'fresh', MIGRATION_DIR) })
+    expect(await createLaunchGate(fresh.ports).run()).toBe('in-app')
+    expect(fresh.decide).toHaveBeenCalledWith('in-app', expect.anything())
+  })
+
   it('commit-requested in a dev build without the flags shows the service’s data, writes nothing', async () => {
     const w = gateWorld()
     w.seed(journalIn('commit-requested'))
