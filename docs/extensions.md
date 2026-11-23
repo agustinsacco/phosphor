@@ -294,7 +294,17 @@ asar. The builder copies the same non-test TypeScript inventory, including
 `context-budget.ts`, `context-files.ts`, `global-context.ts`, `message-ledger.ts`, `swarm.ts`, `lane-prs.ts` (the `/phosphor-prs` command Track and Hide send, [lanes.md](lanes.md#which-prs-belong-to-a-lane)) and `subagent-children.ts` imported by `context-breakdown.ts`
 (the last is also what pi-subagents children load, [chat.md](chat.md#sub-agents)),
 `artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
+It also ships the agent-control stubs `phosphor.ts`, `op-channel.ts`,
+`lane-controls.ts`, `directives.ts` and `live-context.ts` (and `skills/phosphor/`):
+each registers nothing, and no spawn passes them with `-e` or `--skill` yet.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
+
+A feature that adds spawn-time inputs (env, `-e`, `--skill`) does it through
+`SessionStartupRuntime.contributions` (`libs/session-runtime/src/pi/spawn-contributions.ts`),
+one file per feature in each owner's `contributions/` folder
+(`apps/desktop/electron/pi/contributions/`, `apps/host/src/session/contributions/`).
+Every contribution is empty today, so argv and env are unchanged; characterization
+tests pin both owners' spawn options for one lane.
 
 | File                   | Why it must run inside pi                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------- |

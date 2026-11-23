@@ -33,6 +33,14 @@ exist; no lane, Host or Desktop serves an op yet.
   machines (`Reach`).
 - Clients: `opsRun` and `ownerCall` in `libs/host-client`
   ([Host protocol](remote-protocol.md#agent-ops)).
+- The Host's seams, all unbound until their packages land: a connection's
+  principal (`grant-user`, `grant-machine`, `owner`, `local`) and its capabilities
+  and op principal (`apps/host/src/api/principal.ts`); the adapter chain, where
+  `ops.run` needs no capability and runs on its own per-principal queue, never the
+  machine queue (`api/adapter.ts`, `ops/adapter.ts`); the lane command dialog
+  guard (`LaneCommandPorts.dialogGuard`, relay by default); ready op flags
+  (`api/ready-frame.ts`); the machine services `run` starts
+  (`commands/run-services.ts`); owner-only sidecar files (`config/sidecar.ts`).
 
 ## Catalog
 

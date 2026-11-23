@@ -288,7 +288,15 @@ is not a terminal, with `--json`, under CI (`CI` or `GITHUB_ACTIONS`), with
 `TERM=dumb`, or with `PHOSPHOR_PLAIN=1`. `service logs` is always plain, so
 agents and pipes read the same lines as before.
 `version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
-for dev builds (`0.0.0-dev.source` when no commit is stamped).
+for dev builds (`0.0.0-dev.source` when no commit is stamped). `version --json`
+adds `features`, the machine services the build runs, only when there is one;
+no build has any yet.
+
+A first word that is not a command is meant for catalog ops (`cli-ops.ts`). This
+build serves none, so it answers exactly as before: the unknown-command usage
+error, or help. `setup --local` (with `--owner-id`, `--owner-key`,
+`--owner-label`, `--linger`) and `update --stage | --apply X.Y.Z` parse but are
+refused as not available in this build.
 
 | Exit          | Meaning                                                                                                             |
 | ------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -654,7 +662,12 @@ per marked lane, whose `lane_id` references `lanes` with `ON DELETE CASCADE`:
 pruning a lane row removes its marks. Every open creates that table if it is
 missing, outside the versioned schema, so an existing state file gains it without
 a `user_version` change and `phosphor update --rollback` still opens the file:
-the older Host ignores the table. On start, run
+the older Host ignores the table. The same rule creates the agent-control and
+local-mode tables (`lanes/store/additive.ts`): `lane_pauses`, `lane_prefs`,
+`agent_ops`, `agent_policy_meta`, `agent_jobs`, `owner_migrations` and
+`owner_migration_staging`. Nothing writes them yet. A test opens such a file,
+beside every sidecar file, through a frozen copy of the 684cb3478 open path.
+On start, run
 reconciles pi's session files against the lane index and marks interrupted
 requests as unknown. Unavailable configured repositories become inactive, with
 one count-only log line; they do not stop heartbeats. Their ids stay stable when

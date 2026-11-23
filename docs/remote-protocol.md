@@ -499,8 +499,11 @@ any other value refuses the frame. A lane summary may carry `pause: {reason:
 Older readers stay safe. A previous-release client drops the flags and the pause.
 A previous-release Host answers an `ops.run` command `unsupported`, and the call
 too. No Host announces `ops` or serves `ops.run` yet: a Host from this release
-still has no handler, so it answers the call `unsupported` and the command
-`unknown-lane`. Clients send neither without `ready.ops`.
+answers both forms `unsupported`, before any capability check, from the ops link
+of its adapter chain (owner methods, then `ops.run`, then the machine-principal
+guard, then the lane adapter; `apps/host/src/api/adapter.ts`). Clients send
+neither without `ready.ops`. The contract kit's `defineAgentControlConformance`
+runs this on the fake and the real Host.
 `libs/shared/src/base-684cb3478.compatibility.test.ts` runs every new frame
 through frozen copies of the previous release's parsers.
 
