@@ -16,7 +16,7 @@ export const serviceView = (page: Page, daemon: LocalDaemon) =>
   )
 
 export const test = base.extend<{ parity: { page: Page; daemon: LocalDaemon } }>({
-  parity: async ({}, use) => {
+  parity: async ({ browserName: _browserName }, use) => {
     const daemon = await localDaemonFixture({
       repositories: async ({ home, agentDir, stateDir }) => {
         const repo = join(home, folderName)
@@ -58,6 +58,7 @@ export const test = base.extend<{ parity: { page: Page; daemon: LocalDaemon } }>
         },
       })
       const { page } = harness
+      page.setDefaultTimeout(15_000)
       await expect
         .poll(() => serviceView(page, daemon))
         .toMatchObject({ local: true, ownerLocal: true, state: 'ready' })

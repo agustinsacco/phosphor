@@ -38,11 +38,11 @@ export async function seedWorld(agent: string, cwd: string, data: string, servic
   const index = await indexSessionFile(artifacts, lane.transcript, null)
   if (!index?.artifacts.card) throw new Error('Missing fixture artifact')
   await writeIndex(artifacts, index)
-  const skills = join(agent, 'skills', service ? 'service-skill' : 'frozen-skill')
+  const skills = join(agent, 'skills', service ? 'host-only' : 'frozen-skill')
   await mkdir(skills, { recursive: true, mode: 0o700 })
   await writeFile(
     join(skills, 'SKILL.md'),
-    `---\nname: ${service ? 'service-skill' : 'frozen-skill'}\ndescription: ${prefix} skill\n---\n${prefix} instructions\n`,
+    `---\nname: ${service ? 'host-only' : 'frozen-skill'}\ndescription: ${prefix} skill\n---\n${prefix} instructions\n`,
   )
   const routines = service ? join(data, 'routines') : data
   await mkdir(routines, { recursive: true, mode: 0o700 })

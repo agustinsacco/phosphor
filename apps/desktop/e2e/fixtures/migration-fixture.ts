@@ -55,7 +55,11 @@ export async function writeFixtureLane(agentDir: string, id: string, cwd: string
       id: `${id.slice(0, 4)}0002`,
       parentId: `${id.slice(0, 4)}0001`,
       timestamp: '2026-09-01T00:00:02Z',
-      message: { role: 'user', content: `${name}: keep this conversation.` },
+      message: {
+        role: 'user',
+        timestamp: Date.parse('2026-09-01T00:00:02Z'),
+        content: `${name}: keep this conversation.`,
+      },
     },
   ]
   await writeFile(transcript, entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')

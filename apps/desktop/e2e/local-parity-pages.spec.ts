@@ -35,7 +35,7 @@ test('routine discovery and artifact library read only from This Mac’s service
 })
 
 for (const [tab, service, frozen] of [
-  ['Skills', 'Service skill', 'Frozen Desktop skill'],
+  ['Skills', 'host-only', 'frozen-skill'],
   ['Routines', 'Service routine', 'Frozen Desktop routine'],
   ['Artifacts', 'Service artifact', 'Frozen Desktop artifact'],
 ] as const) {
