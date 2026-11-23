@@ -71,6 +71,8 @@ export interface HarnessOptions {
   readonly remote?: OpsBinding['remote']
   readonly hosts?: OpsHostResolver
   readonly surfaceAdmits?: OpsDispatcherDeps['surfaceAdmits']
+  /** A real confirm store's port in place of the fake one. */
+  readonly confirms?: OpsConfirmPort
 }
 
 const lane = (ref: string, sessionId: string, title: string): LaneFacts => ({
@@ -245,7 +247,12 @@ export function createHarness(options: HarnessOptions = {}) {
   }
   const confirms = new Map<string, ConfirmEntry>()
   const binding = fakeBinding(calls, options, state)
-  const deps = fakeDeps(calls, options, clock, fakeConfirms(calls, clock, confirms))
+  const deps = fakeDeps(
+    calls,
+    options,
+    clock,
+    options.confirms ?? fakeConfirms(calls, clock, confirms),
+  )
   const dispatcher = createOpsDispatcher(binding, deps)
   return {
     dispatcher,
