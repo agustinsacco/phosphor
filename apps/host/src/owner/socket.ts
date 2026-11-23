@@ -24,6 +24,7 @@ import { runServiceFeatures } from '../commands/run-services'
 import type { RunContext } from '../commands/run'
 import type { LocalDaemon, LocalSocket, StartLocalSocket } from '../commands/run-local'
 import { hostStateDirectory } from '../lanes/state-dir'
+import type { HostStore } from '../lanes/store'
 import type { OpsAdapterPorts } from '../ops/adapter'
 import { createAppServices, type AppServices } from '../session/app-services'
 import { HOST_VERSION } from '../version'
@@ -145,8 +146,17 @@ export interface LocalSocketOptions {
   candidates?: readonly string[]
   /** More owner methods, served beside D3's (`machine.local`, `machine.identity.reload`, `machine.enroll`). */
   handlers?: OwnerHandlers
+  /** Owner methods that need the daemon and its store, built before the socket binds (P4a). */
+  owner?: (seam: OwnerSeam) => Promise<OwnerHandlers>
   /** `ops.run` on the socket, once the lanes start (B1 binds the dispatcher). */
   ops?: OpsAdapterPorts
+}
+
+/** What an owner method factory gets once the daemon's store is open. */
+export interface OwnerSeam {
+  daemon: LocalDaemon
+  store: HostStore
+  machineId: string
 }
 
 /**
@@ -171,12 +181,14 @@ function ownerSocket(
   options: LocalSocketOptions,
   appServices: AppServices,
 ): StartLocalSocket {
-  return async (daemon): Promise<LocalSocket> => {
+  return async (daemon, store): Promise<LocalSocket> => {
     const uid = context.uid
     const { identity, key } = await readLocalIdentity(dirname(resolve(context.configPath)), uid)
+    const owned = await options.owner?.({ daemon, store, machineId: identity.machineId })
     const handlers = {
       ...daemonHandlers(context, daemon, identity.machineId, appServices),
       ...options.handlers,
+      ...owned,
     }
     const configDirectory = dirname(resolve(context.configPath))
     const now = context.now ?? Date.now
