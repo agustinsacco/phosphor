@@ -1,4 +1,5 @@
-import { existsSync, renameSync, rmSync } from 'node:fs'
+import { backupUserData } from './backup'
+import { existsSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { remoteLaneResourceKey, remoteLaneKey } from '@shared/remote-host'
@@ -61,4 +62,35 @@ it('a base Desktop resumes nothing and opens zero routines, even across a partia
   expect(prefs.laneMarkers).toEqual({ [otherPin]: 'b' })
   expect(baseRoutines(w.userData)).toEqual([])
   expect(existsSync(`${file}.migrated-${MIGRATION_ID}`)).toBe(true)
+})
+
+it.each([true, false])(
+  'resolves folder aliases from the plan, preferring the exact home when present (%s)',
+  async (exact) => {
+    const alias = '/old/spelling'
+    const home = `home:host:${MACHINE_ID}/machine`
+    const plan = { ...w.plan, folderAliases: { [alias]: w.plan.repositoryIds[REPO]! } }
+    const drafts = {
+      ...w.config.drafts,
+      ...(exact ? { [`home:${alias}`]: { text: 'exact' } } : {}),
+    }
+    w.write({ ...w.config, lastWorkspacePath: alias, collapsedWorkspaces: [alias], drafts })
+    backupUserData({ ...w, ...ports, migrationId: MIGRATION_ID })
+    await createPostCommitSteps(ports).device!({ ...w, plan, log })
+    expect(w.read()).toMatchObject({
+      lastLocal: { repositoryId: w.plan.repositoryIds[REPO] },
+      collapsedWorkspaces: [remotePrKey(MACHINE_ID, w.plan.repositoryIds[REPO]!)],
+      drafts: { [home]: { text: exact ? 'exact' : 'hello' } },
+    })
+  },
+)
+
+it('does not capture a later generation of SQLite sidecars on quarantine replay', async () => {
+  const run = createPostCommitSteps(ports).quarantine!
+  await run({ ...w, log })
+  const wal = join(w.userData, 'routines.sqlite-wal')
+  writeFileSync(wal, 'later wal')
+  await run({ ...w, log })
+  expect(existsSync(wal)).toBe(true)
+  expect(existsSync(`${wal}.migrated-${MIGRATION_ID}`)).toBe(false)
 })

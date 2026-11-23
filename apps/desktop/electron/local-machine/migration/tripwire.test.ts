@@ -8,7 +8,7 @@ import { createPostCommitSteps } from './post-commit-steps'
 import { withStep } from './journal'
 import { checkMigrationTripwire } from './tripwire'
 
-it.each(['lastSessionPath', 'recentWorkspaces', 'routines'])(
+it.each(['lastSessionPath', 'recentWorkspaces', 'routines'] as const)(
   'warns once on reappearance of %s, not an empty old database',
   async (fact) => {
     const w = world()
