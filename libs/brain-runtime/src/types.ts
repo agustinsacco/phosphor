@@ -1,4 +1,5 @@
 import type { BrainAgentMap, BrainAgentMethod, BrainInvokeMap } from '@phosphor/shared/brain'
+import type { BrainOpsPort, LaneFacts } from '@phosphor/session-runtime/ops/types'
 import type { BrainSearch, BrainStore } from '@phosphor/memory-engine/types'
 import type { runModelCall } from './model-call'
 import type { BrainEmbeddings } from './embedding/embedding-port'
@@ -54,14 +55,15 @@ export interface BrainServiceOptions {
 
 /** What session startup adds to a lane when Brain and recall are on. */
 export interface BrainRecallLaunch {
-  env: Record<string, string>
   extensions: string[]
   skills: string[]
 }
 
 export interface BrainService {
   api: BrainApi
-  /** Socket requests from lane agents; recall or flag for owner review. */
+  /** Allocate once per live lane; discard the port (and its briefing refs) when that lane ends. */
+  forLane(lane: Pick<LaneFacts, 'cwd' | 'title'> & { readonly sessionId: string }): BrainOpsPort
+  /** Validated private bridge backend; lane ops enter through forLane instead. */
   agent<M extends BrainAgentMethod>(
     method: M,
     request: BrainAgentMap[M]['request'],

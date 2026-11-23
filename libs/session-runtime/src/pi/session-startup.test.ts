@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { brainContribution } from './contributions/brain'
 import { sessionFixture } from './__fixtures__/session-runtime'
 import { RATE_LIMIT_STATUS_KEY } from '@shared/claude-limits'
 
@@ -113,21 +114,28 @@ describe('portable startup', () => {
 
   it('adds Brain recall to a lane, and starts the lane without it when recall fails', async () => {
     const h = sessionFixture()
-    h.runtime.recall = vi.fn(async () => ({
-      env: { PHOSPHOR_BRAIN_TOKEN: 't' },
+    const legacyResources = {
+      env: { PHOSPHOR_BRAIN_ENDPOINT: 'ignored', PHOSPHOR_BRAIN_TOKEN: 'ignored' },
       extensions: ['/res/brain.mjs'],
       skills: ['/res/skills/brain'],
-    }))
+    }
+    h.runtime.contributions = [brainContribution(async () => legacyResources)]
     await h.spawn({ workspacePath: '/repo' }, h.sink)
+    expect(h.clients[0]!.options.env).not.toHaveProperty('PHOSPHOR_BRAIN_TOKEN')
+    expect(h.clients[0]!.options.env).not.toHaveProperty('PHOSPHOR_BRAIN_ENDPOINT')
     expect(h.clients[0]!.options).toMatchObject({
-      env: { PHOSPHOR_BRAIN_TOKEN: 't' },
       extensions: ['/res/brain.mjs'],
       skills: ['/res/skills/brain'],
     })
-    h.runtime.recall = vi.fn(async () => Promise.reject(new Error('worker down')))
+    h.runtime.contributions = [
+      brainContribution(async () => {
+        throw new Error('worker down')
+      }),
+    ]
     await h.spawn({ workspacePath: '/repo' }, h.sink)
     expect(h.clients[1]!.options.skills).toBeUndefined()
-    expect(h.runtime.log).toHaveBeenCalledWith('brain', 'recall unavailable', {
+    expect(h.runtime.log).toHaveBeenCalledWith('pi', 'spawn contribution unavailable', {
+      contribution: 'brain',
       error: 'Error: worker down',
     })
     await h.registry.disposeAll()
@@ -136,9 +144,10 @@ describe('portable startup', () => {
   it('gives the pi stub no recall', async () => {
     const h = sessionFixture()
     vi.mocked(h.runtime.launch).mockResolvedValue({ stub: true, env: {}, extensions: [] } as never)
-    h.runtime.recall = vi.fn(async () => ({ env: {}, extensions: ['/x'], skills: [] }))
+    const lookup = vi.fn(async () => ({ extensions: ['/x'], skills: [] }))
+    h.runtime.contributions = [brainContribution(lookup)]
     await h.spawn({ workspacePath: '/repo' }, h.sink).catch(() => undefined)
-    expect(h.runtime.recall).not.toHaveBeenCalled()
+    expect(lookup).not.toHaveBeenCalled()
     await h.registry.disposeAll()
   })
 })

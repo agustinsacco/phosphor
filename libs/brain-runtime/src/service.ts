@@ -99,6 +99,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       maintenance,
     }),
     agent: recall.agent,
+    forLane: recall.forLane,
     recallLaunch: recall.recallLaunch,
     async dispose() {
       if (disposed) return

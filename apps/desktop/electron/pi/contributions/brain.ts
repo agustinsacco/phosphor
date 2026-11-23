@@ -1,9 +1,14 @@
-import type { SpawnContribution } from '@phosphor/session-runtime/pi/spawn-contributions'
+import {
+  brainContribution,
+  type BrainResources,
+} from '@phosphor/session-runtime/pi/contributions/brain'
 
-/**
- * Brain recall for Desktop's lanes. Null until that
- * feature lands, so spawns stay unchanged.
- */
-export function createBrainContribution(): SpawnContribution | null {
-  return null
+let resources: BrainResources | undefined
+/** Installed after startup, so opening a lane needn't eagerly import Brain. */
+export function setSessionRecall(value: BrainResources): void {
+  resources = value
+}
+
+export function createBrainContribution() {
+  return brainContribution(() => resources?.() ?? Promise.resolve(undefined))
 }

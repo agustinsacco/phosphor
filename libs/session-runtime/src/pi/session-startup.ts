@@ -14,7 +14,6 @@ import {
 } from './session-policy'
 import type { LiveSession, SessionRegistry } from './session-registry'
 import type { LaneReload } from './lane-reload'
-import type { PiSpawnOptions } from './rpc-client'
 import {
   applySpawnContributions,
   attachSpawnContributions,
@@ -35,31 +34,8 @@ export interface SessionStartupRuntime {
   }
   recordWorkspace: (path: string, name: string) => void
   laneReload?: Pick<LaneReload, 'capture' | 'track'>
-  /** Brain recall for lane agents: extra env, extension and skill, or undefined when off. */
-  recall?: () => Promise<SessionRecall | undefined>
   /** Spawn inputs later features add; absent or empty leaves argv and env as the policy built them. */
   contributions?: readonly SpawnContribution[]
-}
-
-export interface SessionRecall {
-  env: Record<string, string>
-  extensions: string[]
-  skills: string[]
-}
-
-/** Optional recall must never prevent an ordinary lane from starting. */
-async function withRecall(
-  runtime: SessionStartupRuntime,
-  spawnOptions: Omit<PiSpawnOptions, 'cwd'>,
-): Promise<void> {
-  const recall = await runtime.recall?.().catch((error: unknown) => {
-    runtime.log('brain', 'recall unavailable', { error: String(error) })
-    return undefined
-  })
-  if (!recall) return
-  spawnOptions.env = { ...spawnOptions.env, ...recall.env }
-  spawnOptions.extensions = [...(spawnOptions.extensions ?? []), ...recall.extensions]
-  spawnOptions.skills = [...(spawnOptions.skills ?? []), ...recall.skills]
 }
 
 export type SessionSink = (sessionId: string) => (payload: SessionPush) => void
@@ -134,7 +110,6 @@ async function spawnSession(
     launch,
     runtime.policy,
   )
-  if (!launch.stub) await withRecall(runtime, spawnOptions)
   const contributions = launch.stub ? [] : (runtime.contributions ?? [])
   await applySpawnContributions(
     contributions,

@@ -1,6 +1,15 @@
+import { HARBOR_RECALL } from '../../brain-client/src/__fixtures__/recall'
+import { FakeBrainStore, FakeBrainSearch } from './__fixtures__/fake-store'
+import { recallOptions } from './__fixtures__/options'
+import { createRecall } from './recall'
 import { createConnection } from 'node:net'
 import { expect, it, vi } from 'vitest'
-import { createBrainBridge } from './bridge'
+import { createBrainBridge as openBridge, type BridgeInvoke } from './bridge'
+import { createBrainFlagLimit } from './tidy/flag-limit'
+
+vi.mock('./lane', () => ({ projectContext: async (cwd: string) => ({ scope: cwd, branch: null }) }))
+
+const createBrainBridge = (invoke: BridgeInvoke) => openBridge(invoke, createBrainFlagLimit())
 
 function request(endpoint: string, input: unknown): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -199,5 +208,37 @@ it('keeps the tenth flag but not an eleventh just inside the rolling minute', as
   } finally {
     clock.mockRestore()
     await bridge.close()
+  }
+})
+
+it('charges channel and private bridge flags to the same service-wide window', async () => {
+  const bridge = await openBridge(async () => ({ status: 'filed', message: 'Filed.' }))
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch()
+  store.prefs.enabled = true
+  search.result = HARBOR_RECALL
+  const recall = createRecall(store, recallOptions(store), search, undefined, store)
+  const lane = recall.forLane({ cwd: '/fixture/harbor', title: 'Harbor', sessionId: 'lane' })
+  const params = {
+    memoryId: 'ownership',
+    title: 'Harbor',
+    sessionId: 'lane',
+    problem: 'wrong',
+    reason: 'Verified.',
+  }
+  const flag = () =>
+    request(bridge.endpoint, { version: 5, token: bridge.token, method: 'flag', params })
+  try {
+    for (let n = 0; n < 9; n++) expect(await flag()).toMatchObject({ data: { status: 'filed' } })
+    await lane.search({ query: 'Harbor' })
+    // A valid flag reaching the engine costs a request even if the memory was just removed.
+    expect(await lane.flag({ ...params, ref: 1 })).toMatchObject({
+      data: { status: 'unavailable' },
+    })
+    expect(await flag()).toMatchObject({ data: { status: 'limit' } })
+    expect(await lane.flag({ ...params, ref: 1 })).toMatchObject({ data: { status: 'limit' } })
+  } finally {
+    await bridge.close()
+    await recall.dispose()
   }
 })

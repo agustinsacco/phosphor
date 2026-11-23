@@ -248,6 +248,10 @@
       "types": "./src/pi/contributions/directives.ts",
       "default": "./src/pi/contributions/directives.ts"
     },
+    "./pi/contributions/brain": {
+      "types": "./src/pi/contributions/brain.ts",
+      "default": "./src/pi/contributions/brain.ts"
+    },
     "./pi/spawn-contributions": {
       "types": "./src/pi/spawn-contributions.ts",
       "default": "./src/pi/spawn-contributions.ts"

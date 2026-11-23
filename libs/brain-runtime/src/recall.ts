@@ -6,9 +6,10 @@ import type {
 } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
-import type { BrainServiceOptions, BrainRecallLaunch, BrainSearchPort } from './types'
+import type { BrainService, BrainServiceOptions, BrainRecallLaunch, BrainSearchPort } from './types'
 import { projectContext } from './lane'
-import { createBrainBridge } from './bridge'
+import { brainBriefing } from '@phosphor/brain-client/client'
+import { brainFlagLimit } from './tidy/flag-limit'
 import { fileBrainFlag, flagResponse, type BrainFlagPort } from './tidy/flag'
 
 const unavailable = (): BrainRecall => ({
@@ -29,7 +30,6 @@ export function createRecall(
   accepting: () => boolean = () => true,
   flags?: BrainFlagPort,
 ) {
-  let bridge: ReturnType<typeof createBrainBridge> | undefined
   let disposed = false
   const enabled = (): boolean =>
     !disposed && accepting() && store.snapshot().prefs.enabled && store.snapshot().prefs.recall
@@ -68,21 +68,11 @@ export function createRecall(
   async function recallLaunch(): Promise<BrainRecallLaunch | undefined> {
     try {
       if (!enabled()) return undefined
-      bridge ??= createBrainBridge((method, params) =>
-        agent(method, validateBrainRequest(method, params)),
-      )
-      const connection = await bridge
-      if (!enabled()) return undefined
       return {
-        env: {
-          PHOSPHOR_BRAIN_ENDPOINT: connection.endpoint,
-          PHOSPHOR_BRAIN_TOKEN: connection.token,
-        },
         extensions: [options.recall.extension],
         skills: [options.recall.skill],
       }
     } catch (error) {
-      bridge = undefined
       options.log?.('Brain recall unavailable', {
         error: error instanceof Error ? error.message : 'Unknown error',
       })
@@ -91,10 +81,47 @@ export function createRecall(
   }
   return {
     agent,
+    forLane: (lane: Parameters<BrainService['forLane']>[0]) => lanePort(agent, lane),
     recallLaunch,
     async dispose() {
       disposed = true
-      await bridge?.then((b) => b.close()).catch(() => undefined)
+    },
+  }
+}
+
+/** Only the owner binds lane facts. No extension-supplied path, id, title or memory id is trusted. */
+function lanePort(agent: BrainService['agent'], lane: Parameters<BrainService['forLane']>[0]) {
+  let refs = new Map<number, string>()
+  return {
+    async search(input: Readonly<Record<string, unknown>>) {
+      refs.clear()
+      const query = validateBrainRequest('search', {
+        query: input.query,
+        limit: input.limit,
+        cwd: lane.cwd,
+        sessionId: lane.sessionId,
+      })
+      const result = await agent('search', query)
+      const briefing = brainBriefing(result, lane.cwd)
+      refs = briefing.refs
+      return { text: briefing.text, data: { status: result.status, memories: result.hits.length } }
+    },
+    async flag(input: Readonly<Record<string, unknown>>) {
+      const memoryId = typeof input.ref === 'number' && refs.get(input.ref)
+      if (!memoryId)
+        return {
+          text: 'That number is not in the latest Brain briefing for this lane; search again first.',
+          data: { status: 'unavailable' },
+        }
+      const params = validateBrainRequest('flag', {
+        memoryId,
+        problem: input.problem,
+        reason: input.reason,
+        sessionId: lane.sessionId,
+        title: (lane.title.trim() || 'Lane').slice(0, 120),
+      })
+      const result = brainFlagLimit() ?? (await agent('flag', params))
+      return { text: result.message, data: { status: result.status } }
     },
   }
 }

@@ -232,6 +232,10 @@
       "types": "./src/tidy/flag.ts",
       "default": "./src/tidy/flag.ts"
     },
+    "./tidy/flag-limit": {
+      "types": "./src/tidy/flag-limit.ts",
+      "default": "./src/tidy/flag-limit.ts"
+    },
     "./tidy/maintenance": {
       "types": "./src/tidy/maintenance.ts",
       "default": "./src/tidy/maintenance.ts"

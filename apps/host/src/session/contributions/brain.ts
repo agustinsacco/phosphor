@@ -1,9 +1,14 @@
-import type { SpawnContribution } from '@phosphor/session-runtime/pi/spawn-contributions'
+import {
+  brainContribution,
+  type BrainResources,
+} from '@phosphor/session-runtime/pi/contributions/brain'
 
-/**
- * Brain recall for the Host's lanes. Null until that
- * feature lands, so spawns stay unchanged.
- */
-export function createBrainContribution(): SpawnContribution | null {
-  return null
+/** D9 installs the lookup; each spawn checks the current registration and recall preference. */
+let resources: BrainResources | undefined
+export function setHostBrainRecall(value: BrainResources | undefined): void {
+  resources = value
+}
+
+export function createBrainContribution() {
+  return brainContribution(() => resources?.() ?? Promise.resolve(undefined))
 }

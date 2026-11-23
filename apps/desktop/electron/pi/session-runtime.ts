@@ -1,10 +1,7 @@
 import { registry } from '../registry'
 import { access } from 'node:fs/promises'
 import { decideSession, recordWorkspaceIntent, withWorkspace } from '../maintenance/history'
-import {
-  createSessionStartup,
-  type SessionStartupRuntime,
-} from '@phosphor/session-runtime/pi/session-startup'
+import { createSessionStartup } from '@phosphor/session-runtime/pi/session-startup'
 import { createSessionService } from '@phosphor/session-runtime/pi/session-service'
 import { sessionPaths } from './session-path-lock'
 import { piStubPath } from './stub'
@@ -38,12 +35,6 @@ const laneReload = createLaneReload({
   },
 })
 
-let recall: SessionStartupRuntime['recall']
-/** Brain installs this lazily, so lanes never load it unless it is asked for. */
-export function setSessionRecall(value: SessionStartupRuntime['recall']): void {
-  recall = value
-}
-
 const spawn = createSessionStartup({
   registry,
   resolveWorkspace: realPathOrNull,
@@ -58,7 +49,6 @@ const spawn = createSessionStartup({
   accounts: { remember: rememberSpawnAccount, forget: forgetSpawnAccount, hold: holdAccount },
   recordWorkspace,
   laneReload,
-  recall: () => recall?.() ?? Promise.resolve(undefined),
   contributions: desktopSpawnContributions(),
 })
 

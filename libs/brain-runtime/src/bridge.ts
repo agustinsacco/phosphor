@@ -10,11 +10,13 @@ import {
 } from '@phosphor/shared/brain'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
 
+import { brainFlagLimit } from './tidy/flag-limit'
+
 const MAX_BYTES = 512 * 1024
 export type BridgeInvoke = (method: BrainAgentMethod, params: unknown) => Promise<unknown>
 
 /** One random recall/flag token per service lifetime, carried only over a private local socket. */
-export async function createBrainBridge(invoke: BridgeInvoke) {
+export async function createBrainBridge(invoke: BridgeInvoke, limit = brainFlagLimit) {
   const directory = await mkdtemp(join(tmpdir(), 'ph-brain-'))
   await chmod(directory, 0o700)
   const token = randomBytes(32).toString('hex')
@@ -23,20 +25,9 @@ export async function createBrainBridge(invoke: BridgeInvoke) {
       ? `\\\\.\\pipe\\phosphor-brain-${randomBytes(12).toString('hex')}`
       : join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
-  const flagTimes: number[] = []
   const limitedInvoke: BridgeInvoke = async (method, params) => {
-    if (method === 'flag') {
-      // Monotonic, so a wall-clock step cannot hold the window shut.
-      const now = performance.now()
-      while (flagTimes.length && flagTimes[0]! <= now - 60_000) flagTimes.shift()
-      if (flagTimes.length >= 10)
-        return {
-          status: 'limit',
-          message:
-            'Brain accepts ten flag requests per minute. Try again shortly; Brain knowledge has not changed.',
-        }
-      flagTimes.push(now)
-    }
+    const refusal = method === 'flag' && limit()
+    if (refusal) return refusal
     return invoke(method, params)
   }
   const server = createServer((socket) => {

@@ -842,24 +842,25 @@ only pairs still without a verdict.
 
 With recall on, **brain_flag** takes `{ ref, problem, reason }`: a memory's bracket number from
 the latest search briefing in that lane, `wrong`, `outdated` or `duplicate`, and 1–300 characters
-of evidence. The extension retains only that briefing's displayed number-to-id map per session.
+of evidence. The owner retains only the displayed number-to-id map for that live lane.
 Unknown numbers require another search. The server accepts active or disputed memories, one
 open flag per memory, at most five open flags per lane session and at most fifty open flags in
-the whole Brain; the same lane cannot flag the same memory twice. The local bridge accepts ten
-flag requests a minute from all lanes together, so a lane cannot dodge the limits by claiming
-another lane's id. It records the claimed lane id and title; the page trusts only the id, to find
-the lane in Phosphor's own list. Reasons are
+the whole Brain; the same lane cannot flag the same memory twice. Brain accepts ten
+flag requests a minute from all lanes together. The owner supplies the session id and title,
+never the tool. The page uses the id to find the lane in Phosphor's own list. Reasons are
 untrusted, bounded data, never instructions. A flag adds a review suggestion, not a knowledge
 change. The skill asks agents to flag only user contradictions, verified wrong or outdated
 facts, or duplicate recalled memories—never a guess, an agent preference or mere irrelevance.
 
 ## Recall
 
-When Brain and recall are on, lane startup (`SessionStartupRuntime.recall`) adds
-`PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN`, `-e brain-ext/brain.mjs` and
-`--skill skills/brain`. The endpoint is a local socket; the token is random per app run. Recall
-never blocks a lane: any failure starts it without Brain. Search stays read-only; flags only
-ask the owner to review. Both tools use the version 5 local bridge.
+When Brain and recall are on, lane startup contributes `-e brain-ext/brain.mjs` and
+`--skill skills/brain`, not a Brain socket address or token. On an op-channel lane
+(`PHOSPHOR_OPS=v1`), `brain_search` and `brain_flag` use the `brain.search` and
+`brain.flag` service ops. The owner supplies the workspace and lane identity. If no
+Brain service answers, the tool reports “Brain is unavailable right now.” This is
+not a no-match result or a request for user input. Search stays read-only; flags
+only ask the owner to review.
 
 `brain_search(query, limit?)` returns 8 memories by default, up to 20:
 
