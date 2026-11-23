@@ -201,3 +201,11 @@ it('a stale forbidden registration cannot disable the next account', async () =>
   await expect(flight).rejects.toThrow('signed-out')
   expect(registerClient).toHaveBeenCalledTimes(1)
 })
+
+it('does not evict another host’s cached grant on a targeted clear', async () => {
+  const t = setup()
+  const first = await t.grants.grantFor(t.hostId)
+  t.grants.clear(randomUUID())
+  expect(await t.grants.grantFor(t.hostId)).toBe(first)
+  expect(t.grant).toHaveBeenCalledOnce()
+})

@@ -50,3 +50,11 @@ it('refuses source programs, different current, invalid versions and linked ance
     installedLayout(join(invalid, 'node/bin/node'), join(invalid, 'lib/phosphor.mjs'), f.home),
   ).toBeNull()
 })
+
+it('recognizes a process launched through current rather than the resolved version', () => {
+  const f = setup()
+  const current = join(f.lib, 'current')
+  expect(
+    commandLayout(f.home, join(current, 'node/bin/node'), join(current, 'lib/phosphor.mjs')),
+  ).toEqual({ lib: f.lib, version: '1.0.0', current })
+})

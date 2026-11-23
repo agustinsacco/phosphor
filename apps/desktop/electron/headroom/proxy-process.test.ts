@@ -205,3 +205,14 @@ describe('Headroom owned process', () => {
     expect(r.quitHandlers).toEqual([])
   })
 })
+
+it('uses the injected port for both the spawned listener and its readiness check', async () => {
+  const r = processRig()
+  await r.process.startOwned()
+  expect(r.spawnImpl).toHaveBeenCalledWith(
+    '/bin/headroom',
+    expect.arrayContaining(['9876']),
+    expect.anything(),
+  )
+  expect(r.fetchImpl).toHaveBeenCalledWith('http://127.0.0.1:9876/health', expect.anything())
+})

@@ -266,3 +266,10 @@ describe('piProcessEnv provider credentials', () => {
     expect((await piProcessEnv({ AWS_REGION: 'us-east-1' })).AWS_REGION).toBe('us-east-1')
   })
 })
+
+it('returns null to concurrent callers on a miss, then the cached empty PATH', async () => {
+  shellReturns('no-path')
+  expect(await Promise.all([getLoginShellPath(), getLoginShellPath()])).toEqual([null, null])
+  expect(await getLoginShellPath()).toBe('')
+  expect(execFileMock).toHaveBeenCalledTimes(2)
+})
