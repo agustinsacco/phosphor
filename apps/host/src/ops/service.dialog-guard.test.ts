@@ -123,3 +123,20 @@ it.each(['lane.stop', 'lane.archive', 'lane.delete'])(
     }
   },
 )
+
+it('starts a catalog download as a job without terminating the asking lane for an early reload', async () => {
+  const reply = await service.dispatcher.runFromTool('session-1', {
+    v: 1,
+    id: 'install',
+    op: 'skill.install',
+    input: { scope: 'user', name: 'demo', libraryId: 'not-a-reviewed-library' },
+    reason: 'Install a skill.',
+    deadlineMs: 5000,
+  })
+  expect(reply).toMatchObject({
+    status: 'ok',
+    applies: 'new-lanes',
+    text: expect.stringMatching(/^Started:/),
+  })
+  expect(reply).not.toHaveProperty('terminate', true)
+})
