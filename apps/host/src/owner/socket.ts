@@ -158,6 +158,13 @@ async function refusedAsConfig<T>(start: () => Promise<T>): Promise<T> {
   }
 }
 
+function readOwnerClients(configDirectory: string, uid: number | undefined) {
+  const read = readSidecar(configDirectory, HOST_SIDECARS.ownerClients, parseOwnerClientsFile, {
+    uid,
+  })
+  return read.state === 'ok' ? read.value : null
+}
+
 export interface LocalSocketOptions {
   /** Tests pass temporary paths; the service uses `localSocketPaths`. */
   candidates?: readonly string[]
@@ -200,7 +207,8 @@ function ownerSocket(
 ): StartLocalSocket {
   return async (daemon, store): Promise<LocalSocket> => {
     const uid = context.uid
-    const { identity, key } = await readLocalIdentity(dirname(resolve(context.configPath)), uid)
+    const configDirectory = dirname(resolve(context.configPath))
+    const { identity, key } = await readLocalIdentity(configDirectory, uid)
     const owned = await options.owner?.({ daemon, store, machineId: identity.machineId })
     const pausing: { current?: LanePauses } = {}
     const handlers = {
@@ -208,7 +216,6 @@ function ownerSocket(
       ...options.handlers,
       ...owned,
     }
-    const configDirectory = dirname(resolve(context.configPath))
     const now = context.now ?? Date.now
     const startedAt = now()
     const server = await refusedAsConfig(() =>
@@ -219,15 +226,7 @@ function ownerSocket(
         auth: {
           machineId: identity.machineId,
           key,
-          ownerClients: () => {
-            const read = readSidecar(
-              configDirectory,
-              HOST_SIDECARS.ownerClients,
-              parseOwnerClientsFile,
-              { uid },
-            )
-            return read.state === 'ok' ? read.value : null
-          },
+          ownerClients: () => readOwnerClients(configDirectory, uid),
           readyFlags: () => options.ops?.readyFlags ?? new Set(),
         },
         links: [createOwnerAdapter(handlers)],

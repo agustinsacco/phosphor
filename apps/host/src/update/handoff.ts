@@ -8,12 +8,10 @@ import { fetchSignedRelease, UpdateFailure } from '@phosphor/session-runtime/hos
 import { commandLayout } from '@phosphor/session-runtime/host-install/layout'
 import { hostStateDirectory } from '../lanes/state-dir'
 import { servicePid, startUpdateJob, updateJob } from './launchd-job'
+import { HOST_PID_ENV } from './host-pid'
 
 /** The transient unit an update moves into when the shell that started it is inside the Host. */
 export const UPDATE_UNIT = 'phosphor-host-update'
-
-/** Set in every terminal and lane the service spawns: the service's own pid. */
-export const HOST_PID_ENV = 'PHOSPHOR_HOST_PID'
 
 export const HANDOFF_FAILED =
   'Could not move the update out of the Host service. Run phosphor update from a shell outside Phosphor.'

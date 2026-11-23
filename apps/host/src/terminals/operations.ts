@@ -11,7 +11,7 @@ import {
 } from '@phosphor/shared/host-protocol-terminals'
 import type { HostFeature } from '../features/feature'
 import { laneRoot } from '../features/files'
-import { HOST_PID_ENV } from '../update/handoff'
+import { HOST_PID_ENV } from '../update/host-pid'
 import { createEntry, type Entry, type TerminalState } from './service-state'
 import { persist, alive, kill, reap, close } from './lifecycle'
 import { emit, output } from './output'

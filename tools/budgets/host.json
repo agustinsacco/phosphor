@@ -23,8 +23,6 @@
     "src/commands/setup.ts::runSetup[1]": 209,
     "src/commands/uninstall.ts::runUninstall[1]": 103,
     "src/commands/uninstall.ts::runUninstall[1]/installLifetime[1]": 93,
-    "src/commands/update.ts::runUpdate[1]": 121,
-    "src/commands/update.ts::runUpdate[1]/installLifetime[1]": 116,
     "src/config/schema.ts::validateHostConfig[1]": 127,
     "src/control/trace.test.ts::it[1]": 99,
     "src/features/attachments.test.ts::%3Canonymous%3E[2]": 120,

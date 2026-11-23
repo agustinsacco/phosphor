@@ -16,7 +16,7 @@ import { isInside } from '@phosphor/session-runtime/fs-safety'
 import { unlinkTranscript } from './transcript-removal'
 import type { Delivery, RuntimeState } from './runtime-state'
 import { hostSpawnContributions } from './contributions'
-import { HOST_PID_ENV } from '../update/handoff'
+import { HOST_PID_ENV } from '../update/host-pid'
 
 const ignore: Delivery = () => {}
 /** The extension UI requests that wait for an answer. */
