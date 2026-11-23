@@ -36,6 +36,8 @@ export interface RunParts {
   log?: ReturnType<typeof createHostLog>
   nameLane?: ReturnType<typeof createLaneNamer>
   api?: ReturnType<typeof startApi>
+  /** The owner socket's lane connections: closed beside the TCP API, before the store. */
+  socketLanes?: { stop(): Promise<void> }
   routines?: HostRoutines
   routinesStop?: Promise<void>
   runtime?: HostRuntime
@@ -74,6 +76,7 @@ async function closeAndRelease(parts: RunParts, state: TeardownState) {
     await firstFailure([
       attempt(() => parts.nameLane?.cancel()),
       attempt(() => parts.api?.stop()),
+      attempt(() => parts.socketLanes?.stop()),
       attempt(() => (parts.routinesStop ??= parts.routines?.stop())),
       attempt(() => (parts.runtimeDrain ??= parts.runtime?.drain('run finished'))),
     ]),
@@ -112,6 +115,7 @@ async function drain(
   const stopping = firstFailure([
     attempt(() => parts.nameLane?.cancel()),
     attempt(() => parts.api?.stop()),
+    attempt(() => parts.socketLanes?.stop()),
     attempt(() => (parts.routinesStop ??= parts.routines?.stop())),
     attempt(() => {
       if (!parts.runtime) return

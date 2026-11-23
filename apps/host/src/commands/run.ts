@@ -87,7 +87,7 @@ function shareLanes(
   })
   sink.deliver = adapter.deliver
   sink.isConnected = adapter.isConnected
-  socket?.serveLanes?.({
+  parts.socketLanes = socket?.serveLanes?.({
     service: lanes,
     adapter,
     peers: () => parts.api?.connections() ?? [],

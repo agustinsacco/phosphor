@@ -60,8 +60,11 @@ export interface LocalSocketLanes {
 /** The owner socket as run drives it. */
 export interface LocalSocket {
   stop(): Promise<void>
-  /** Starts serving lanes, ops and the machine guard beside the owner calls. */
-  serveLanes?(lanes: LocalSocketLanes): void
+  /**
+   * Starts serving lanes, ops and the machine guard beside the owner calls.
+   * Stopping it closes the lane connections and serves owner calls only again.
+   */
+  serveLanes?(lanes: LocalSocketLanes): { stop(): Promise<void> }
   /** The socket's connections, counted by the TCP listener's per-client admission. */
   connections?(): Iterable<{ clientId(): string | undefined }>
 }

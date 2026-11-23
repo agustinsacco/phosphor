@@ -229,6 +229,7 @@ export async function startLocalServer(options: LocalServerOptions) {
         socket,
         ping,
         limits,
+        now,
         log: options.log,
         // In standby only the links answer; the lane adapter joins with `serveLanes`.
         handler: (ready) =>
@@ -259,10 +260,20 @@ export async function startLocalServer(options: LocalServerOptions) {
   return {
     path,
     connections: () => upgrades.connections(),
-    /** The machine's lanes started: later connections get the shared lane adapter; earlier ones reconnect. */
+    /**
+     * The machine's lanes started: later connections get the shared lane
+     * adapter and earlier ones reconnect. Stopping closes every connection
+     * again, before the lanes' store closes, and serves the links only.
+     */
     serveLanes(next: LocalLanes) {
       lanes = next
       for (const connection of upgrades.connections()) connection.close(1001)
+      return {
+        stop: async () => {
+          if (lanes === next) lanes = undefined
+          for (const connection of upgrades.connections()) connection.close(1001)
+        },
+      }
     },
     async stop() {
       stopped = true
