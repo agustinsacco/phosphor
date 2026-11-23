@@ -3,7 +3,7 @@ import { isInside } from '@phosphor/session-runtime/fs-safety'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import type { LeaseRefusal, OwnerCalls } from '@phosphor/shared/host-protocol-owner'
 import { canonicalRemovedPath } from '../machine/repositories'
-import type { OwnerHandlers } from './adapter'
+import { OwnerCallRefused, type OwnerHandlers } from './adapter'
 
 type Use = Exclude<LeaseRefusal, 'busy'>
 interface Lease {
@@ -88,10 +88,16 @@ export function createWorkspaceLeases(live: () => readonly Occupant[], now = Dat
   return new WorkspaceLeases(live, now)
 }
 
-export function leaseHandlers(leases: WorkspaceLeases): OwnerHandlers {
+export function leaseHandlers(current: () => WorkspaceLeases | undefined): OwnerHandlers {
+  const active = () => {
+    const leases = current()
+    if (!leases) throw new OwnerCallRefused('forbidden', "Lanes on this Mac aren't running yet.")
+    return leases
+  }
   return {
-    'owner.lease.take': ({ paths, ttlMs }, { client }) => leases.take(client.id, paths, ttlMs),
-    'owner.lease.renew': async ({ leaseId }, { client }) => leases.renew(client.id, leaseId),
-    'owner.lease.release': async ({ leaseId }, { client }) => leases.release(client.id, leaseId),
+    'owner.lease.take': async ({ paths, ttlMs }, { client }) =>
+      active().take(client.id, paths, ttlMs),
+    'owner.lease.renew': async ({ leaseId }, { client }) => active().renew(client.id, leaseId),
+    'owner.lease.release': async ({ leaseId }, { client }) => active().release(client.id, leaseId),
   }
 }

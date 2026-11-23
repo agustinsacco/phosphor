@@ -1,3 +1,4 @@
+import type { WorkspaceLeases } from '../owner/lease'
 import { open, unlink } from 'node:fs/promises'
 import { setTimeout } from 'node:timers/promises'
 import { dirname, join, resolve } from 'node:path'
@@ -38,6 +39,7 @@ export function runLocalMode(context: RunContext): LocalModeFile | null {
 
 /** The local daemon as its owner calls see it. */
 export interface LocalDaemon {
+  leases?(): WorkspaceLeases | undefined
   readonly mode: LocalModeFile
   /** `owner-standby.json` holds the daemon back: no owner lock, lanes, routines, heartbeat or TCP API. */
   standby(): boolean
@@ -82,6 +84,7 @@ export type StartLocalSocket = (
 ) => LocalSocket | Promise<LocalSocket>
 
 export interface LocalDaemonPorts {
+  leases?: LocalDaemon['leases']
   ownerLock?: OwnerLockPorts
 }
 
@@ -200,6 +203,7 @@ export function createLocalDaemon(
     log: (event, fields = {}) => context.log?.('host', event, fields),
   }
   const daemon: LocalDaemon = {
+    leases: ports.leases,
     mode,
     standby: owning.standby,
     async leaveStandby() {

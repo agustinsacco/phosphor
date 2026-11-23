@@ -35,6 +35,7 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
   })
   return {
     ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
+    ...(options.leases ? { leases: options.leases } : {}),
     life: state.life,
     drain,
     async mutateStoppedSession<T>(path: string, change: () => Promise<T>): Promise<T> {

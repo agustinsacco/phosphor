@@ -1,4 +1,4 @@
-import { createWorkspaceLeases, leaseHandlers } from '../owner/lease'
+import { createWorkspaceLeases } from '../owner/lease'
 import { isRoutineSession } from '@phosphor/session-runtime/routines/ownership'
 import { join } from 'node:path'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
@@ -235,7 +235,6 @@ export async function startRunMachine(
     log: log.write,
   })
   const lanes: LaneService = {
-    ownerHandlers: started.leases && leaseHandlers(started.leases),
     terminals,
     epoch: ports.epoch,
     capabilities: [

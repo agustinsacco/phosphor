@@ -110,7 +110,12 @@ async function startRun(
 ): Promise<ControlLink> {
   const { config, stateDirectory, store } = await openRunState(context, parts, sink, signal)
   signal.throwIfAborted()
-  const local = start.mode ? createLocalDaemon(context, start.mode) : undefined
+  const local = start.mode
+    ? createLocalDaemon(context, start.mode, {
+        leases: () =>
+          parts.socketLanes && !parts.runtimeDrain ? parts.runtime?.leases : undefined,
+      })
+    : undefined
   const socket = await local?.own(parts, store, signal)
   signal.throwIfAborted()
   const epoch = randomBytes(8).toString('hex')

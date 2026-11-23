@@ -172,9 +172,17 @@ describe('run with the local-mode marker serves the owner socket', () => {
         ok: false,
         error: { code: 'forbidden' },
       })
-      const take = {type:'call', id:'lease', method:'owner.lease.take', params:{paths:[host.state],ttlMs:1000}}
+      const take = {
+        type: 'call',
+        id: 'lease',
+        method: 'owner.lease.take',
+        params: { paths: [host.state], ttlMs: 1000 },
+      }
       desktop.send(take)
-      expect(await result(desktop, 'lease')).toMatchObject({ok:false,error:{code:'forbidden',message:"Lanes on this Mac aren't running yet."}})
+      expect(await result(desktop, 'lease')).toMatchObject({
+        ok: false,
+        error: { code: 'forbidden', message: "Lanes on this Mac aren't running yet." },
+      })
       desktop.send({ type: 'subscribe', id: 'lanes', topic: 'lanes' })
       await vi.waitFor(() =>
         expect(desktop.frames).toContainEqual({
@@ -196,7 +204,10 @@ describe('run with the local-mode marker serves the owner socket', () => {
         data: { ownerLock: { held: true, holder: 'daemon', pid: process.pid, standby: false } },
       })
       again.send(take)
-      expect(await result(again, 'lease')).toMatchObject({ok:true,data:{leaseId:expect.any(String)}})
+      expect(await result(again, 'lease')).toMatchObject({
+        ok: true,
+        data: { leaseId: expect.any(String) },
+      })
       again.close()
       await host.target()?.drain('SIGTERM')
       expect(await run).toBe(0)

@@ -28,6 +28,7 @@ import type { OpsAdapterPorts } from '../ops/adapter'
 import { createAppServices, type AppServices } from '../session/app-services'
 import { HOST_VERSION } from '../version'
 import { createOwnerAdapter, OwnerCallRefused, type OwnerHandlers } from './adapter'
+import { leaseHandlers } from './lease'
 import { localStatus } from './status'
 
 /**
@@ -86,6 +87,7 @@ function daemonHandlers(
     ownerLock: () => readOwnerLock(agentDir, context.uid),
   }
   return {
+    ...leaseHandlers(() => daemon.leases?.()),
     'machine.local': (_params, call) => localStatus(statusPorts, call.principal),
     'machine.identity.reload': async () => {
       await daemon.link()?.reload()
@@ -225,7 +227,7 @@ function ownerSocket(
         server.serveLanes({
           epoch: lanes.service.epoch,
           capabilities: lanes.service.capabilities,
-          links: hostLinks(options.ops, { ...handlers, ...lanes.service.ownerHandlers }),
+          links: hostLinks(options.ops, handlers),
           handler: lanes.adapter.handler,
           peers: lanes.peers,
         }),
