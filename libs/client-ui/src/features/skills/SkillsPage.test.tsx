@@ -83,8 +83,7 @@ it('keeps every offering pinned and external plugins outside the installer allow
   }
 })
 
-it('keeps remote skills read-only, gates capability and never offers local installation', async () => {
-  const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+function hostSkillFixture() {
   const hostId = '00000000-0000-4000-8000-000000000001'
   const workspacePath = `host:${hostId}/machine`
   const invoke = vi
@@ -122,6 +121,11 @@ it('keeps remote skills read-only, gates capability and never offers local insta
       },
     },
   })
+  return { hostId, workspacePath, invoke }
+}
+it('keeps remote skills read-only, gates capability and never offers local installation', async () => {
+  const useRemoteLanesStore = remoteSelection
+  const { hostId, workspacePath, invoke } = hostSkillFixture()
   useRemoteLanesStore.setState({ hosts: {}, filter: hostId })
   await act(async () => root.render(<SkillsPage workspacePath={workspacePath} />))
   expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
@@ -151,12 +155,30 @@ it('keeps remote skills read-only, gates capability and never offers local insta
   )
   for (const label of ['Delete', 'Edit', 'Publish', 'Update'])
     expect(container.textContent).not.toContain(label)
-  await act(async () => useRemoteLanesStore.setState({hosts: { [hostId]: {...host, ops:true, configFiles:true, capabilities:['skills.read','sessions.control','machine.configure']} }}))
+  await act(async () =>
+    useRemoteLanesStore.setState({
+      hosts: {
+        [hostId]: {
+          ...host,
+          ops: true,
+          configFiles: true,
+          capabilities: ['skills.read', 'sessions.control', 'machine.configure'],
+        },
+      },
+    }),
+  )
   await act(async () => button('source').click())
   await act(async () => button('Edit source').click())
-  invoke.mockResolvedValueOnce({status:'ok', text:'Edited.', applies:'reload'})
+  invoke.mockResolvedValueOnce({ status: 'ok', text: 'Edited.', applies: 'reload' })
   await act(async () => button('Save source').click())
-  expect(invoke).toHaveBeenCalledWith('ops:run', {kind:'remote',hostId}, {op:'skill.edit', args:{scope:'user',name:'remote-skill',file:'SKILL.md',content:'skill text'}})
+  expect(invoke).toHaveBeenCalledWith(
+    'ops:run',
+    { kind: 'remote', hostId },
+    {
+      op: 'skill.edit',
+      args: { scope: 'user', name: 'remote-skill', file: 'SKILL.md', content: 'skill text' },
+    },
+  )
   expect(container.textContent).not.toContain('Undo')
   // Export keeps a copy on this device, so a read-only Host skill offers it too.
   expect(container.textContent).toContain('Export')

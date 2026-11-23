@@ -28,6 +28,7 @@ import { Markdown } from '@/components/markdown/Markdown'
 import { NewSkillModal } from './NewSkillModal'
 import { groupSkills } from './skillGroups'
 import { SkillMachines, SkillShareActions } from './SkillShare'
+import { useSkillEditor, writeSkillSource } from './useSkillEditor'
 import { exportSkill } from './exportSkill'
 
 /**
@@ -120,6 +121,8 @@ const SkillsInventory = memo(function SkillsInventory({
   const refusal = useRemoteLanesStore((s) =>
     remote ? hostFeatureRefusal(s.hosts[hostId], 'skills.read') : undefined,
   )
+  const hostEditor = useSkillEditor(workspacePath)
+  const hostStatus = hostEditor ? null : <span>Read only</span>
   const result = useSkillsStore((s) => s.byWorkspace[workspacePath])
   const loading = useSkillsStore((s) => s.loading[workspacePath] ?? false)
   const error = useSkillsStore((s) => s.error[workspacePath])
@@ -136,10 +139,7 @@ const SkillsInventory = memo(function SkillsInventory({
   const skills = useMemo(() => result?.skills ?? [], [result])
   const selected = skills.find((skill) => skill.dir === selectedDir)
 
-  const pickImport = async (): Promise<void> => {
-    const preview = await window.phosphor.invoke('skills:importPick')
-    if (preview) setImportPreview(preview)
-  }
+  const pickImport = () => window.phosphor.invoke('skills:importPick').then(setImportPreview)
 
   return (
     <PageShell
@@ -148,7 +148,7 @@ const SkillsInventory = memo(function SkillsInventory({
         <div className="flex items-center gap-1.5">
           {machinePicker}
           {remote ? (
-            <span>Read only</span>
+            hostStatus
           ) : (
             <>
               <Button size="sm" onClick={() => void pickImport()}>
@@ -395,6 +395,8 @@ function SkillDetail({
   const [failure, setFailure] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const hostEditor = useSkillEditor(workspacePath)
+  const hostEdit = skill.scope === 'user' ? hostEditor : null
 
   useEffect(() => {
     setContent(null)
@@ -527,7 +529,7 @@ function SkillDetail({
         ))}
         <span className="flex-1" />
         {platform.fileEditing &&
-          skill.writable &&
+          (hostEdit || skill.writable) &&
           view === 'source' &&
           content !== null &&
           !editing && (
@@ -595,13 +597,7 @@ function SkillDetail({
             disabled={pending != null}
             onClick={() =>
               void run('save', async () => {
-                await window.phosphor.invoke(
-                  'skills:writeFile',
-                  skill.dir,
-                  file,
-                  draft,
-                  workspacePath,
-                )
+                await writeSkillSource(hostEdit, skill, workspacePath, file, draft)
                 setContent(draft)
                 setEditing(false)
               })

@@ -119,7 +119,8 @@ it('leaves OAuth sign-out and retargeting to the surface, but can edit metadata 
 
 it('resolves a surface directive by repository id, never by a string path or an unknown id', async () => {
   const f = await fixture()
-  const set = (project: string) => f.run('directives.set', { project, key: 'worktreeGuard', on: false })
+  const set = (project: string) =>
+    f.run('directives.set', { project, key: 'worktreeGuard', on: false })
   for (const invalid of [f.repo, '0000000000000000'])
     await expect(set(invalid)).rejects.toMatchObject({ code: 'bad-request' })
   await set(f.repository.id)

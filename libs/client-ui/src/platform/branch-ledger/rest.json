@@ -1,0 +1,62 @@
+{
+  "features/artifacts/ArtifactsPage.tsx": {
+    "protocol": 5,
+    "same-machine": 0
+  },
+  "features/artifacts/ArtifactsPane.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/artifacts/RemoteArtifactsPane.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/artifacts/globalArtifacts.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/artifacts/remoteArtifactRefresh.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/connectors/LaneConnectorStatus.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/files/LaneChangesPane.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/files/RightPane.tsx": {
+    "protocol": 2,
+    "same-machine": 0
+  },
+  "features/files/filesSource.ts": {
+    "protocol": 2,
+    "same-machine": 0
+  },
+  "features/files/laneWriteRefusal.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/routines/ActivityAccordion.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/routines/RoutinesPage.tsx": {
+    "protocol": 5,
+    "same-machine": 0
+  },
+  "features/settings/SettingsMachineScope.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/settings/machine/HostScopeControls.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/skills/SkillsPage.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  }
+}

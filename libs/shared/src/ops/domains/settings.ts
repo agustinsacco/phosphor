@@ -50,7 +50,11 @@ export const settingsOps = [
     'directives.set',
     'Enable or disable a prompt directive.',
     'configure',
-    object({ key: choice(...AGENT_DIRECTIVE_KEYS), on, project: optional(Type.Union([on, Type.String({ pattern: '^[0-9a-f]{16}$' })])) }),
+    object({
+      key: choice(...AGENT_DIRECTIVE_KEYS),
+      on,
+      project: optional(Type.Union([on, Type.String({ pattern: '^[0-9a-f]{16}$' })])),
+    }),
     {
       applies: 'next-request',
       flag: 'folderDirectives',

@@ -321,9 +321,9 @@ it("links a Host's Accounts to its Claude Code page under Extensions", async () 
 
 it('offers only reviewed settings JSON when the Host announces config files', async () => {
   const hosts = mixedRemoteHosts()
-  Object.assign(hosts[machine.id]!, {ops:true,configFiles:true})
-  useRemoteLanesStore.setState({hosts})
-  useSettingsUiStore.setState({folder:null})
+  Object.assign(hosts[machine.id]!, { ops: true, configFiles: true })
+  useRemoteLanesStore.setState({ hosts })
+  useSettingsUiStore.setState({ folder: null })
   await render('agent')
   expect(button('Edit reviewed JSON')).toBeDefined()
   expect(container.textContent).not.toContain('models.json')

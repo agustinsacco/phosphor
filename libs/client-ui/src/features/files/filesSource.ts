@@ -154,21 +154,40 @@ export function useHostFilesSource(sessionId: string, workspacePath: string): Fi
   })
   const writeRefusal = useLaneWriteRefusal(sessionId) ?? null
   const native = usePlatform().nativeFiles
+  const local =
+    useRemoteLanesStore((s) => hostOf(s)?.local === true && laneOf(s) !== undefined) && native
   const served = useRemoteLanesStore((s) => hostOf(s)?.fileBytes === true)
   return useMemo(
-    () => ({
+    (): FilesSource =>
+      local && !unavailable
+        ? { ...localFilesSource(workspacePath), pathRoot, refreshKey }
+        : {
+            sessionId,
+            workspacePath,
+            pathRoot,
+            unavailable,
+            writeRefusal,
+            listing: 'flat',
+            refreshKey,
+            textLimitBytes: FILE_LIMITS.textBytes,
+            byteLimits: native ? NATIVE_BYTE_LIMITS : BROWSER_BYTE_LIMITS,
+            features: !served
+              ? HOST_FEATURES
+              : native
+                ? NATIVE_BYTES_FEATURES
+                : BROWSER_BYTES_FEATURES,
+          },
+    [
+      local,
       sessionId,
       workspacePath,
       pathRoot,
       unavailable,
       writeRefusal,
-      listing: 'flat',
       refreshKey,
-      textLimitBytes: FILE_LIMITS.textBytes,
-      byteLimits: native ? NATIVE_BYTE_LIMITS : BROWSER_BYTE_LIMITS,
-      features: !served ? HOST_FEATURES : native ? NATIVE_BYTES_FEATURES : BROWSER_BYTES_FEATURES,
-    }),
-    [sessionId, workspacePath, pathRoot, unavailable, writeRefusal, refreshKey, native, served],
+      native,
+      served,
+    ],
   )
 }
 

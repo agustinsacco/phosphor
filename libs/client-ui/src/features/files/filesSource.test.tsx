@@ -162,8 +162,12 @@ it('refreshes on the lane’s summary, the connection and the runtime, not on ot
   source.done()
 })
 
-it.each([[DESKTOP_PLATFORM, true], [WIDE_BROWSER_PLATFORM, false]] as const)(
-  'only a native client gets the local service lane’s same-machine file tools', async (platform, local) => {
+it.each([
+  [DESKTOP_PLATFORM, true],
+  [WIDE_BROWSER_PLATFORM, false],
+] as const)(
+  'only a native client gets the local service lane’s same-machine file tools',
+  async (platform, local) => {
     seed(true, ['workspaces.read', 'workspaces.write'])
     await update(() => ({ local: true, ownerLocal: true }))
     const source = await hostSource(platform)
