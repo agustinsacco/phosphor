@@ -51,7 +51,7 @@ function track(
 }
 
 async function sendReload(
-  state: ReloadState,
+  log: RuntimeLog,
   sessionId: string,
   client: ReloadClient,
 ): Promise<LaneReloadOutcome> {
@@ -80,8 +80,20 @@ async function sendReload(
     client.off('extension-ui', onStatus)
   }
   const result = outcome ?? 'failed'
-  state.deps.log('pi', 'lane reload', { sessionId, outcome: result, ms: Date.now() - started })
+  log('pi', 'lane reload', { sessionId, outcome: result, ms: Date.now() - started })
   return result
+}
+
+/** An unknown slash command is sent to the model as text, so ask pi for the command first. */
+async function reloadOnce(
+  log: RuntimeLog,
+  sessionId: string,
+  client: ReloadClient,
+): Promise<BeforePromptResult> {
+  const commands = await client.request({ type: 'get_commands' })
+  if (!commands.success) return 'failed'
+  if (!commands.data?.commands.some((c) => c.name === LANE_RELOAD_COMMAND)) return 'unsupported'
+  return sendReload(log, sessionId, client)
 }
 
 async function reloadIfChanged(
@@ -95,18 +107,12 @@ async function reloadIfChanged(
   const current = await safeRead(state, cwd)
   if (current === null || current === before) return 'unchanged'
 
-  // An unknown slash command is sent to the model as text. Ask first; this
-  // only runs when something changed.
-  const commands = await client.request({ type: 'get_commands' })
-  if (!commands.success) return 'failed'
-  if (!commands.data?.commands.some((c) => c.name === LANE_RELOAD_COMMAND)) {
+  // Asked only when something changed.
+  const result = await reloadOnce(state.deps.log, sessionId, client)
+  if (result === 'unsupported') {
     state.deps.log('pi', 'lane cannot reload; config change waits for a new lane', { sessionId })
     state.loaded.set(sessionId, current)
-    return 'unsupported'
-  }
-
-  const result = await sendReload(state, sessionId, client)
-  if (result === 'applied') {
+  } else if (result === 'applied') {
     state.loaded.set(sessionId, current)
     state.deps.onApplied?.(sessionId)
   }
@@ -141,6 +147,23 @@ async function beforePrompt(
  * remembered value alone, so the next prompt tries again, and never holds up
  * the prompt itself.
  */
+/**
+ * Reloads an idle lane now, whatever its configuration fingerprint: an agent
+ * asked (`lane.reload`), and its run has settled. Never throws.
+ */
+export async function reloadLaneNow(
+  sessionId: string,
+  client: ReloadClient,
+  log: RuntimeLog,
+): Promise<BeforePromptResult> {
+  try {
+    return await reloadOnce(log, sessionId, client)
+  } catch (error) {
+    log('pi', 'lane reload failed', { sessionId, error: String(error) })
+    return 'failed'
+  }
+}
+
 export function createLaneReload(deps: LaneReloadDeps) {
   const state: ReloadState = { deps, loaded: new Map() }
   return {

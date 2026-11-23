@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { LANE_RELOAD_COMMAND, LANE_RELOAD_STATUS_KEY } from '@phosphor/pi-extensions/lane-reload'
 import type { RpcCommand } from '@shared/rpc'
-import { createLaneReload } from './lane-reload'
+import { createLaneReload, reloadLaneNow } from './lane-reload'
 
 /** A pi that answers the reload command by publishing `outcome` first, as the extension does. */
 function fakeClient(options: { outcome?: string; hasCommand?: boolean; fail?: boolean } = {}) {
@@ -132,5 +132,21 @@ describe('lane reload', () => {
     lane.emitter.emit('exit', { code: 0, signal: null, expected: true })
     h.set('v2')
     expect(await h.reload.beforePrompt('s1', lane.client, '/repo')).toBe('unchanged')
+  })
+})
+
+describe('reloadLaneNow', () => {
+  it('reloads an untracked lane whose config never changed, and reports the outcome', async () => {
+    const lane = fakeClient({ outcome: 'applied' })
+    expect(await reloadLaneNow('s1', lane.client, () => undefined)).toBe('applied')
+    expect(lane.sent.map((c) => c.type)).toEqual(['get_commands', 'prompt'])
+  })
+
+  it('never sends the command to a pi that does not advertise it, and never throws', async () => {
+    const missing = fakeClient({ hasCommand: false })
+    expect(await reloadLaneNow('s1', missing.client, () => undefined)).toBe('unsupported')
+    expect(missing.sent.map((c) => c.type)).toEqual(['get_commands'])
+    const dead = fakeClient({ fail: true })
+    expect(await reloadLaneNow('s1', dead.client, () => undefined)).toBe('failed')
   })
 })
