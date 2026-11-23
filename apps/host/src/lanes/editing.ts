@@ -5,7 +5,7 @@ import { forkClaudeLedgerForClone } from '@phosphor/session-runtime/claude/ledge
 import { readSessionTree } from '@phosphor/session-runtime/pi/session-tree'
 import * as writer from '@phosphor/session-runtime/pi/session-writer'
 import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
-import { laneIdInRef } from '../ops/binding'
+import { laneIdInRef } from '../ops/lane-ref'
 import type { HostRuntime } from '../session/runtime'
 import { LaneCapacityReached, type HostStore, type StoredLane } from './store'
 

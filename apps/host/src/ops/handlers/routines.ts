@@ -1,4 +1,4 @@
-import { laneRefFor } from '../binding'
+import { laneRefFor } from '../lane-ref'
 import { parseRoutineHistory } from '@phosphor/shared/host-protocol-routines'
 import { randomUUID } from 'node:crypto'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'

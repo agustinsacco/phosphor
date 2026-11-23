@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { AuditEntry } from '@phosphor/session-runtime/ops/audit'
 import type { DaemonHandlerDeps } from './index'
-import { laneIdOf } from '../binding'
+import { laneIdOf } from '../lane-ref'
 
 /** A different session, mark, control fence or archive tombstone invalidates the inverse. */
 function fingerprint(deps: DaemonHandlerDeps, id: string) {

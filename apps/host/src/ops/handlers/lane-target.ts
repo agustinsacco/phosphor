@@ -5,6 +5,7 @@ import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { LaneFacts, OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import type { McpLaneResult } from '@phosphor/shared/mcp-inspection'
 import type { CallOutcome, LaneService } from '../../lanes/service'
+import { laneIdOfRef } from '../lane-ref'
 
 /** The lane runtime H4's lane handlers act through, beside the lane service. */
 export interface DaemonLaneRuntime {
@@ -20,11 +21,6 @@ export interface DaemonLaneRuntime {
   /** Republishes the lane's summary after a store change (pin, marker). */
   publishSummary(laneId: string): void
 }
-
-const LANE_ID = /\/lane:([^/]+)$/
-
-/** The lane id in a ref this machine resolved (`host:<id>/lane:<laneId>`). */
-export const laneIdOfRef = (ref: string): string | undefined => LANE_ID.exec(ref)?.[1]
 
 /** The lane an op is about, with its id on this machine. */
 export function targetLane(ctx: OpHandlerContext): LaneFacts & { readonly laneId: string } {

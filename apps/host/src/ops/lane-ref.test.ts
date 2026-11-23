@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
-import { laneIdInRef, laneIdOf, laneRefFor } from './binding'
-import { laneIdOfRef } from './handlers/lane-target'
+import { laneIdInRef, laneIdOf, laneIdOfRef, laneRefFor } from './lane-ref'
 
 const ID = '11111111-1111-4111-8111-111111111111'
 

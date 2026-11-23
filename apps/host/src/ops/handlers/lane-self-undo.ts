@@ -1,7 +1,7 @@
 import type { UndoPorts } from '@phosphor/session-runtime/ops/undo'
 import type { LaneFacts } from '@phosphor/session-runtime/ops/types'
 import type { HostStore } from '../../lanes/store'
-import { laneIdOfRef } from './lane-target'
+import { laneIdOfRef } from '../lane-ref'
 
 export interface LaneSelfUndoPorts {
   resolve(ref: string): LaneFacts | null

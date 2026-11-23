@@ -3,7 +3,8 @@ import { parseClientFrame, type LaneOp } from '@phosphor/shared/host-protocol'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { OpHandlerContext, OpPrincipal } from '@phosphor/session-runtime/ops/types'
 import type { LaneCommandClient, LaneCommandPorts } from '../../lanes/commands/state'
-import { laneIdOf, hasCaps, type DaemonLanes } from '../binding'
+import { hasCaps, type DaemonLanes } from '../binding'
+import { laneIdOf } from '../lane-ref'
 import type { DaemonHandlerDeps } from './index'
 
 export interface LaneHandlerPorts {

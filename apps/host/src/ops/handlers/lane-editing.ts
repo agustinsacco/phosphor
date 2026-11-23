@@ -15,7 +15,7 @@ import {
   type LaneForkKind,
 } from '../../lanes/editing'
 import type { StoredLane } from '../../lanes/store'
-import { laneIdInRef } from '../binding'
+import { laneIdInRef } from '../lane-ref'
 import type { DaemonHandlerDeps, DaemonUndoCheck } from './index'
 
 /**

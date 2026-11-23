@@ -13,6 +13,7 @@ import { createJobStore } from '@phosphor/session-runtime/ops/jobs'
 import { archiveSelection } from './handlers/archives'
 import { laneJob } from './handlers/lanes'
 import { recordCreator } from './binding'
+import { laneRefFor } from './lane-ref'
 import { argsSummary } from '@phosphor/session-runtime/ops/redact'
 import { createUndo } from '@phosphor/session-runtime/ops/undo'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
@@ -27,7 +28,6 @@ import { loadSqlite } from '../lanes/sqlite'
 import { prepareStateFile } from '../lanes/state-dir'
 import {
   daemonLaneBinding,
-  laneRefFor,
   servedFlags,
   surfaceAdmits,
   type DaemonBindingPorts,
