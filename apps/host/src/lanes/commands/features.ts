@@ -34,8 +34,10 @@ export function executeLaneTerminal(
   }
   const completion = dispatch(state, ports, job, queue, async () => {
     try {
-      const ownerExempt = job.client.ownerExemption !== undefined
-      return { data: await terminals.execute(admitted.laneId, terminalOp, allowed, ownerExempt) }
+      const data = job.client.ownerExemption
+        ? await terminals.execute(admitted.laneId, terminalOp, allowed, true)
+        : await terminals.execute(admitted.laneId, terminalOp, allowed)
+      return { data }
     } catch (error) {
       if (error instanceof TerminalForbidden) return { forbidden: true }
       throw error

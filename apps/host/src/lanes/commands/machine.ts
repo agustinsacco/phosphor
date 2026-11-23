@@ -101,8 +101,11 @@ export function executeMachineTerminal(
     }
     if (!ports.terminals || !terminalOp) throw new Error('unavailable')
     const configuration = (client.currentCaps?.() ?? client.caps).includes('machine.configure')
-    const ownerExempt = client.ownerExemption !== undefined
-    return ports.terminals.machineOp(client.id, terminalOp, configuration, ownerExempt)
+    if (client.ownerExemption)
+      return ports.terminals.machineOp(client.id, terminalOp, configuration, true)
+    return configuration
+      ? ports.terminals.machineOp(client.id, terminalOp, true)
+      : ports.terminals.machineOp(client.id, terminalOp)
   }).then((result) => {
     if (!result.answered) return terminal(state, ports, job, { requestId, status: 'unknown' }, true)
     terminal(state, ports, job, { requestId, status: 'done', data: result.value }, true)
