@@ -1,7 +1,7 @@
 import { useSessionsStore } from '@/stores/sessions'
 import { isNewerVersion } from '@shared/version'
 import { useChatStore } from '@/stores/chat'
-import { piCallOk } from '@/lib/rpc'
+import { piCallInline, piCallOk } from '@/lib/rpc'
 
 /** The pi release that added `clear_queue`. Above `MIN_PI_VERSION`, on purpose. */
 export const CLEAR_QUEUE_MIN_PI = '0.84.4'
@@ -72,6 +72,25 @@ export async function unqueueMessage(
   if (dropped === null) {
     chat.setError(sessionId, 'That message was already delivered to the agent.')
   }
+}
+
+/**
+ * Stop the running turn, handing `restore` what was queued behind it first.
+ *
+ * pi's abort keeps both queues and its next turn delivers them, so Stop drains them first and
+ * restores what pi drained. On a pi without `clear_queue`, or when the drain fails, it restores
+ * the rendered queue and pi keeps its own. A failed abort is reported on the chat.
+ */
+export async function stopRun(sessionId: string, restore: (text: string) => void): Promise<void> {
+  const queues = useChatStore.getState().sessions[sessionId]?.queues
+  const shown = [...(queues?.steering ?? []), ...(queues?.followUp ?? [])]
+  if (shown.length > 0) {
+    const drain = await piCallInline(sessionId, { type: 'clear_queue' })
+    const drained = drain.ok ? drain.data : undefined
+    const text = drained ? [...drained.steering, ...drained.followUp] : shown
+    if (text.length > 0) restore(text.join('\n'))
+  }
+  await piCallOk(sessionId, { type: 'abort' })
 }
 
 /**
