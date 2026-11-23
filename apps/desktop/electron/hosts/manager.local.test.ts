@@ -76,6 +76,7 @@ function setup(options: { user?: string | null; machines?: number } = {}) {
   })
   return {
     manager,
+    list,
     remote,
     machines,
     account(next: string | null) {
@@ -162,4 +163,36 @@ it('clearing the slot or stopping the manager closes the local connection', asyn
   const late = vi.fn(() => fakeConnection())
   t.manager.setLocal({ hostId: LOCAL, label: 'This Mac', create: late })
   expect(late).not.toHaveBeenCalled()
+})
+
+it('holds first-launch admission until the owner identifies itself; never opens TCP for the alias', async () => {
+  const t = setup({ machines: 2 })
+  const [self, other] = t.list.map((m) => m.id)
+  const local = fakeConnection(1)
+  t.manager.directory(undefined)
+  t.manager.setLocal({ hostId: LOCAL, label: 'This Mac', create: () => local })
+  await drain()
+  expect(t.remote).not.toHaveBeenCalled()
+  expect(t.manager.snapshot()[other]).toMatchObject({
+    state: 'connecting',
+    lastError: 'waiting-local-service',
+  })
+  t.manager.directory(self)
+  expect(t.remote.mock.calls.map(([id]) => id)).toEqual([other])
+  expect(t.manager.snapshot()[LOCAL]).toMatchObject({ enrolledHostId: self })
+  expect(t.manager.snapshot()[self]).toBeUndefined()
+  expect(t.manager.present(self)).toBe(false)
+  t.manager.directory(other)
+  expect(t.manager.snapshot()[other]).toBeUndefined()
+  expect(t.remote.mock.calls.map(([id]) => id)).toEqual([other, self])
+  expect(local.close).not.toHaveBeenCalled()
+})
+
+it('uses the remembered alias before the local socket is ready, admitting only other machines', async () => {
+  const t = setup({ machines: 2 })
+  const [self, other] = t.list.map((m) => m.id)
+  t.manager.directory(self)
+  await drain()
+  expect(t.remote.mock.calls.map(([id]) => id)).toEqual([other])
+  expect(t.manager.present(self)).toBe(false)
 })
