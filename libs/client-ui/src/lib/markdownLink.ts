@@ -1,3 +1,4 @@
+import { parseLaneHref } from './laneMention'
 import { defaultUrlTransform } from 'react-markdown'
 
 /**
@@ -18,6 +19,7 @@ import { defaultUrlTransform } from 'react-markdown'
  */
 export type LinkTarget =
   | { kind: 'external'; url: string }
+  | { kind: 'lane'; href: string }
   | { kind: 'file'; path: string; line?: number }
   /** `artifact://<id>` — an artifact of THIS session, opened in its pane. */
   | { kind: 'artifact'; id: string; version?: number }
@@ -37,6 +39,7 @@ export function classifyLink(href: string): LinkTarget {
   // A one-letter "scheme" is a Windows drive (`C:\repo\x.ts`), not a scheme.
   if (scheme && scheme.length > 1) {
     if (scheme === 'http' || scheme === 'https') return { kind: 'external', url: raw }
+    if (parseLaneHref(raw)) return { kind: 'lane', href: raw }
     if (scheme === 'artifact') return artifactTarget(raw.slice(scheme.length + 1))
     if (scheme === 'file') {
       try {
@@ -134,7 +137,8 @@ function decode(path: string): string {
  * it through and defer to react-markdown's own filter for every other URL.
  * `javascript:` and friends must keep being stripped there.
  */
-export function artifactUrlTransform(url: string): string {
+export function artifactUrlTransform(url: string, key = 'href'): string {
+  if (key === 'href' && parseLaneHref(url)) return url
   return /^artifact:/i.test(url.trim()) ? url : defaultUrlTransform(url)
 }
 
@@ -157,6 +161,6 @@ export function fileUrlTransform(base: string): (url: string, key: string) => st
         // Fall through to the default treatment.
       }
     }
-    return artifactUrlTransform(url)
+    return artifactUrlTransform(url, key)
   }
 }

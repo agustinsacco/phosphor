@@ -1,3 +1,4 @@
+import { LaneMentionChip } from '@/features/chat/LaneMentionChip'
 import { useSessionFileTarget } from '@/features/files/SessionFileTarget'
 import { classifyLink, type LinkTarget } from '@/lib/markdownLink'
 import { openFileInWorkspace } from '@/stores/layout'
@@ -24,6 +25,8 @@ export function MarkdownLink({
   const sourceSessionId = useSessionFileTarget()
   const target = href ? classifyLink(href) : ({ kind: 'none' } as const)
 
+  if (target.kind === 'lane')
+    return <LaneMentionChip href={target.href}>{children}</LaneMentionChip>
   const activate = (event: { preventDefault: () => void }): void => {
     event.preventDefault()
     if (target.kind === 'external') {
@@ -64,8 +67,7 @@ export function MarkdownLink({
     })
   }
 
-  const className = 'text-info hover:underline'
-  if (target.kind === 'file' || target.kind === 'artifact') {
+  if (target.kind === 'file' || target.kind === 'artifact')
     return (
       <a
         {...rest}
@@ -73,7 +75,7 @@ export function MarkdownLink({
         role="link"
         tabIndex={0}
         data-tooltip={inAppTitle(target)}
-        className={`${className} cursor-pointer`}
+        className="text-info cursor-pointer hover:underline"
         onClick={activate}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') activate(event)
@@ -82,13 +84,12 @@ export function MarkdownLink({
         {children}
       </a>
     )
-  }
 
   return (
     <a
       href={href}
       {...rest}
-      className={className}
+      className="text-info hover:underline"
       onClick={activate}
       data-tooltip={target.kind === 'external' ? 'Open in browser' : undefined}
       aria-description={title}
