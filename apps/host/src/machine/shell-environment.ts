@@ -10,6 +10,12 @@ type Policy = Parameters<typeof buildPiEnvironment>[0]
 /** One cache per validated local machine. No periodic timer and no profile reads at spawn. */
 export function createShellEnvironment(policy: Policy, timeoutMs = 15_000) {
   const base = buildPiEnvironment(policy)
+  // The runtime later adjusts its process PATH for git. Refresh the same launch environment,
+  // never a PATH (or provider setting) mutated by a different consumer since startup.
+  const probeEnv: Record<string, string> = {
+    ...base.env,
+    PATH: policy.hostEnv.PATH ?? base.env.PATH!,
+  }
   let current = base
   let additions: Record<string, string> = {}
   let log: HostLog | undefined
@@ -20,10 +26,10 @@ export function createShellEnvironment(policy: Policy, timeoutMs = 15_000) {
     // The interactive and fallback forms share a deadline, including both halves of the probe.
     const deadline = performance.now() + Math.min(15_000, timeoutMs)
     try {
-      const shell = policy.hostEnv.SHELL || userInfo().shell || '/bin/zsh'
+      const shell = probeEnv.SHELL || userInfo().shell || '/bin/zsh'
       const result = await captureShellEnvironment({
         shell: () => shell,
-        env: () => policy.hostEnv,
+        env: () => probeEnv,
         platform: () => policy.platform,
         now: Date.now,
         // PATH in env -0 also distinguishes a successful empty allowlist from a failed probe.
@@ -32,7 +38,7 @@ export function createShellEnvironment(policy: Policy, timeoutMs = 15_000) {
           const remaining = Math.min(limits.timeoutMs, deadline - performance.now())
           if (remaining <= 0) throw new Error('capture timed out')
           const output = await probe(file, args, {
-            env: { ...base.env, PATH: policy.hostEnv.PATH ?? base.env.PATH! },
+            env: probeEnv,
             // Private capture only: parse the raw values; never forward output or error text.
             secrets: [],
             timeoutMs: remaining,
@@ -44,7 +50,11 @@ export function createShellEnvironment(policy: Policy, timeoutMs = 15_000) {
         },
       })
       if (!result?.path.length || !result.values.PATH) throw new Error('incomplete capture')
-      const next = buildPiEnvironment({ ...policy, shell: result })
+      const next = buildPiEnvironment({ ...policy, hostEnv: base.env, shell: result })
+      // Non-lane services can still use the base environment (e.g. launchd's SSH_AUTH_SOCK).
+      next.secrets = [...new Set([...base.secrets, ...next.secrets])].sort(
+        (a, b) => b.length - a.length,
+      )
       log?.addSecrets(next.secrets)
       additions = Object.fromEntries(
         Object.entries(next.env).filter(([key, value]) => value !== base.env[key]),

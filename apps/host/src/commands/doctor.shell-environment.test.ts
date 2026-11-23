@@ -48,6 +48,17 @@ it('headless doctor builds a policy PATH without consulting a login shell', asyn
   expect(report.checks.map(({ id }) => id)).not.toContain('shell-env')
 })
 
+it('does not run a login shell when the local marker opts out', async () => {
+  writeFileSync(
+    join(dirname(context.configPath), 'local-mode.json'),
+    JSON.stringify({ version: 1, enabledAt: 'today', shellEnvironment: false }),
+    { mode: 0o600 },
+  )
+  const { checks } = await runDoctor(context)
+  expect(checks.map(({ id }) => id)).not.toContain('shell-env')
+  expect(existsSync(join(machine.home, 'invoked'))).toBe(false)
+})
+
 it('a local lane receives the login-shell PATH and passed token through its spawn contribution', async () => {
   writeFileSync(
     join(dirname(context.configPath), 'local-mode.json'),
@@ -63,8 +74,8 @@ it('a local lane receives the login-shell PATH and passed token through its spaw
   expect(inspected?.shellEnvironment).toBeDefined()
   const log = createHostLog(join(machine.dir, 'logs'), [])
   const contributions = hostSpawnContributions(inspected!.shellEnvironment, log)
-  const spawn = async () => {
-    const options = { env: { ...inspected!.env } }
+  const spawn = async (laneEnv: Record<string, string> = {}) => {
+    const options = { env: { ...inspected!.env, ...laneEnv } }
     await applySpawnContributions(
       contributions,
       options,
@@ -74,6 +85,7 @@ it('a local lane receives the login-shell PATH and passed token through its spaw
     )
     return opChildEnv(options.env, false)
   }
+  expect((await spawn({ PASSED_TOKEN: 'lane-specific' })).PASSED_TOKEN).toBe('lane-specific')
   const original = await spawn()
   expect(original.PATH?.split(':')[0]).toBe(join(machine.home, 'bin'))
   expect(original.PASSED_TOKEN).toBe('test-passed-value')

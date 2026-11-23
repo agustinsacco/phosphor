@@ -171,7 +171,11 @@ export function buildPiEnvironment(input: {
     env,
     names,
     ambient: names.filter((name) => AMBIENT_NAMES.has(name)),
-    unset: [...pass].filter((name) => env[name] === undefined).sort(),
+    unset: [...pass]
+      .filter(
+        (name) => input.hostEnv[name] === undefined && !(input.shell && Object.hasOwn(env, name)),
+      )
+      .sort(),
     secrets: [...secrets].sort((a, b) => b.length - a.length),
   }
 }
