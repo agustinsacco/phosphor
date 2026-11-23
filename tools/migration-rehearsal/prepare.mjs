@@ -1,7 +1,7 @@
 import { constants } from 'node:fs'
 import { copyFile, mkdir, readdir, lstat, realpath, writeFile } from 'node:fs/promises'
-import { isAbsolute, join } from 'node:path'
-import { assertRoots, checkedLayout, flags, inside, main } from './assert-scratch.mjs'
+import { dirname, isAbsolute, join } from 'node:path'
+import { checkDescendants, checkedLayout, flags, inside, main } from './assert-scratch.mjs'
 import { hashFile, identity, manifestChanges, snapshot } from './manifest.mjs'
 
 const json = (path, data) =>
@@ -11,7 +11,9 @@ const overlaps = (a, b) => a === b || inside(a, b) || inside(b, a)
 async function sourceRoot(input) {
   if (!isAbsolute(input) || !(await lstat(input)).isDirectory())
     throw new Error('Expected source directory')
-  return realpath(input)
+  const path = await realpath(input)
+  if (dirname(path) === path) throw new Error('Root cannot be a source')
+  return path
 }
 
 async function cloneFile(source, dest, entry) {
@@ -52,16 +54,20 @@ export async function prepare(input, user, agent) {
   for (const kind of Object.keys(sources)) await mkdir(roots[kind], { mode: 0o700 })
   let clones = 0,
     copies = 0
-  for (const [key, entry] of Object.entries(before.entries)) {
-    const [kind, ...parts] = key.split('/'),
-      dest = join(roots[kind], ...parts)
-    assertRoots(root, { dest })
-    if (entry[0] === 'dir') await mkdir(dest, { mode: 0o700 })
-    else if (await cloneFile(join(sources[kind], ...parts), dest, entry)) clones++
-    else copies++
+  let after
+  try {
+    for (const [key, entry] of Object.entries(before.entries)) {
+      const [kind, ...parts] = key.split('/'),
+        dest = join(roots[kind], ...parts)
+      checkDescendants(root, { dest })
+      if (entry[0] === 'dir') await mkdir(dest, { mode: 0o700 })
+      else if (await cloneFile(join(sources[kind], ...parts), dest, entry)) clones++
+      else copies++
+    }
+  } finally {
+    after = await snapshot(sources)
+    await json(join(root, 'after.json'), after)
   }
-  const after = await snapshot(sources)
-  await json(join(root, 'after.json'), after)
   if (
     manifestChanges(before.entries, after.entries).length ||
     JSON.stringify(before.excluded) !== JSON.stringify(after.excluded)

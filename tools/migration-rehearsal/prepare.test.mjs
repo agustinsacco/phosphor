@@ -65,3 +65,9 @@ it.each(['symlink', 'hardlink'])('refuses a %s at an allowed name', async (kind)
   ;(kind === 'symlink' ? symlinkSync : linkSync)(join(source, 'other'), join(user, 'config.json'))
   await expect(prepare(root, user, agent)).rejects.toThrow()
 })
+
+it('refuses the wrong scratch mode before listing the inputs', async () => {
+  const { chmodSync } = await import('node:fs')
+  chmodSync(root, 0o755)
+  await expect(prepare(root, user, agent)).rejects.toThrow('unsafe rehearsal root')
+})

@@ -6,8 +6,11 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 export const main = (url) => process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === url
+/** @returns {Record<string,string>} All accepted options are named strings. */
 export const flags = (...names) =>
-  parseArgs({ options: Object.fromEntries(names.map((k) => [k, { type: 'string' }])) }).values
+  /** @type {Record<string,string>} */ (
+    parseArgs({ options: Object.fromEntries(names.map((k) => [k, { type: 'string' }])) }).values
+  )
 export const inside = (parent, child) => child.startsWith(parent + sep)
 const refuse = () => {
   throw new Error('Refusing unsafe rehearsal root')
@@ -26,7 +29,6 @@ export function layout(root) {
     socket: join(state, 'run/phosphor.sock'),
     launchAgents: join(home, 'Library/LaunchAgents'),
     units: join(root, 'c/systemd/user'),
-    tmp: join(root, 'tmp'),
     runtime: join(root, 'runtime'),
     ownerKey: join(root, 'owner-key.pem'),
   }
@@ -55,7 +57,7 @@ export function scratchDir(input) {
     !allowed.includes(temp) ||
     dirname(root) !== temp ||
     !stat.isDirectory() ||
-    stat.uid !== process.getuid() ||
+    stat.uid !== process.getuid?.() ||
     (stat.mode & 0o777) !== 0o700 ||
     inside(userInfo().homedir, root)
   )
@@ -66,6 +68,10 @@ export function scratchDir(input) {
 /** Reject links (even dangling or internal ones) at every existing component below scratch. */
 export function assertRoots(input, roots) {
   const root = scratchDir(input)
+  checkDescendants(root, roots, input)
+}
+
+export function checkDescendants(root, roots, input = root) {
   for (const path of Object.values(roots)) {
     if (!isAbsolute(path) || resolve(path) !== path || !(inside(input, path) || inside(root, path)))
       refuse()
