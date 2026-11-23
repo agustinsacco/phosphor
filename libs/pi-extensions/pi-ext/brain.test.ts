@@ -111,3 +111,35 @@ it('uses the lane editor sender for recall when loaded with no injected transpor
     deadlineMs: 10_000,
   })
 })
+
+it('sends a flag with its reason in the request envelope, where the owner audits it', async () => {
+  const tools: ToolDefinition<Record<string, unknown>, unknown, unknown>[] = []
+  const send = vi.fn<Parameters<typeof registerBrain>[1]>()
+  registerBrain({ registerTool: (tool) => tools.push(tool as (typeof tools)[number]) }, send)
+  const flag = tools.find((tool) => tool.name === 'brain_flag')!
+  send.mockResolvedValue({
+    v: 1,
+    id: '1',
+    status: 'ok',
+    applies: 'now',
+    text: 'Flagged',
+    data: { status: 'ok' },
+  })
+  const signal = new AbortController().signal
+  await flag.execute(
+    'f',
+    { ref: 2, problem: 'outdated', reason: 'Owner left' },
+    signal,
+    undefined,
+    {},
+  )
+  expect(send).toHaveBeenCalledWith(
+    {},
+    {
+      op: 'brain.flag',
+      args: { ref: 2, problem: 'outdated', reason: 'Owner left' },
+      reason: 'Owner left',
+    },
+    { signal, deadlineMs: 10_000 },
+  )
+})
