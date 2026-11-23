@@ -20,6 +20,7 @@ import type { LaneHandlerPorts } from './lane-ports'
 import type { ServicePauseState } from '@phosphor/shared/host-protocol-owner'
 import type { ServiceUpdatePorts } from '../service-update'
 import { archiveHandlers } from './archives'
+import { artifactRemoveHandlers } from './artifact-remove'
 import { artifactHandlers } from './artifacts'
 import { configHandlers } from './config'
 import { fileHandlers, type DaemonFileWrites } from './files'
@@ -57,6 +58,8 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly log: RuntimeLog
   /** `state.sqlite` beside the lane store's connection: `lane_prefs`. */
   readonly db: DatabaseSync
+  /** The Host state folder; its `artifacts` store has one writer, this daemon. */
+  readonly stateDirectory?: string
   /** The runtime's path lock and the lanes topic, for lane editing. */
   readonly editing: LaneEditingRuntime
   /** The lane runtime beside the lane service: lane commands, connectors, summaries. */
@@ -76,6 +79,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
     ...laneHandlers(deps),
     ...archiveHandlers(deps),
     ...artifactHandlers(deps),
+    ...artifactRemoveHandlers(deps),
     ...settingsHandlers(deps),
     ...mcpHandlers(deps),
     ...packageHandlers(deps),
@@ -123,11 +127,10 @@ export async function daemonUndoIsCurrent(
 /**
  * Catalog ops the daemon serves once their package lands, by package and
  * handler file. Until then the dispatcher answers them `unsupported`, and a
- * `ready` flag whose ops are pending is not announced.
+ * `ready` flag whose ops are pending is not announced. Every catalog op now
+ * has a daemon handler or a documented gap (`OP_GAPS.daemon`).
  */
-const PENDING = {
-  'P4b artifact-remove.ts': 'artifact.remove',
-} as const
+const PENDING: Readonly<Record<string, string>> = {}
 
 export interface PendingHandler {
   readonly package: string

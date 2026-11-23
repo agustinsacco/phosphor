@@ -25,12 +25,16 @@ export interface ArtifactLanePorts {
 /** pi names session files `<timestamp>_<session id>.jsonl`; the store keys on that id. */
 const PI_SESSION_FILE = /_([0-9A-Za-z-]{8,128})\.jsonl$/
 
+/** The artifact store's key for a session file, or null for a name pi did not write. */
+export const artifactSessionId = (sessionFile: string): string | null =>
+  PI_SESSION_FILE.exec(sessionFile)?.[1] ?? null
+
 /**
  * The index this file was last saved under, to resume from. A wrong guess only
  * costs a full scan: the indexer resumes only an index of this very file.
  */
 function savedIndex(root: string, sessionFile: string): SessionArtifactIndex | null {
-  const id = PI_SESSION_FILE.exec(sessionFile)?.[1]
+  const id = artifactSessionId(sessionFile)
   return id ? readIndex(root, id) : null
 }
 
