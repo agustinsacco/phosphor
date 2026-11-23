@@ -46,38 +46,42 @@ export function openOwnerChannel(ports: OwnerChannelPorts): Promise<OwnerChannel
   if (!identity) return Promise.resolve(null)
   const connect = ports.connect ?? createLocalMachineConnection
   return new Promise((resolve) => {
-    let settled = false
-    let connection: ReturnType<NonNullable<OwnerChannelPorts['connect']>> | undefined
-    const finish = (ready: boolean) => {
-      if (settled) return
-      settled = true
+    // Filled once `connect` returns; its first state change can arrive before that.
+    const ref: { connection?: ReturnType<NonNullable<OwnerChannelPorts['connect']>> } = {}
+    let outcome: 'pending' | 'ready' | 'refused' = 'pending'
+    const settle = () => {
+      const { connection } = ref
+      if (outcome === 'pending' || !connection) return
       clearTimeout(timer)
-      if (!ready || !connection) {
-        connection?.close()
+      if (outcome === 'refused') {
+        connection.close()
         resolve(null)
         return
       }
-      const open = connection
       resolve({
         machineId: identity.machineId,
-        call: (method, params) => ownerCall(open, method, params),
-        close: () => open.close(),
+        call: (method, params) => ownerCall(connection, method, params),
+        close: () => connection.close(),
       })
     }
     const changed = () => {
-      const state = connection?.snapshot().state
-      if (state === 'ready') finish(true)
-      else if (state && TERMINAL.has(state)) finish(false)
+      if (outcome !== 'pending') return
+      const state = ref.connection?.snapshot().state
+      if (state === 'ready') outcome = 'ready'
+      else if (state && TERMINAL.has(state)) outcome = 'refused'
+      settle()
     }
-    const timer = setTimeout(() => finish(false), ports.timeoutMs ?? OWNER_CHANNEL_OPEN_MS)
+    const timer = setTimeout(() => {
+      if (outcome !== 'pending') return
+      outcome = 'refused'
+      settle()
+    }, ports.timeoutMs ?? OWNER_CHANNEL_OPEN_MS)
     timer.unref?.()
-    connection = connect(identity, {
+    ref.connection = connect(identity, {
       location: ports.location,
       ownerKey: ports.ownerKey,
       uid: ports.uid,
-      changed: () => {
-        if (!settled) changed()
-      },
+      changed,
     })
     changed()
   })
