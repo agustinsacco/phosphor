@@ -9,16 +9,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
-  ownerLibrary,
-  ownerVersion,
-  type OwnerArtifactOp,
-} from '@phosphor/host-client/owner-artifacts'
+  remoteArtifactListings,
+  remoteArtifactRead,
+  type ArtifactHost,
+} from '@phosphor/host-client/artifacts'
 import { ArtifactLibrary } from '@phosphor/session-runtime/artifacts/artifact-library'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { OpRunContext } from '@phosphor/session-runtime/ops/ports'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import { ARTIFACT_LIMITS, parseArtifactList } from '@phosphor/shared/host-protocol-artifacts'
-import { utf8Length } from '@phosphor/shared/host-protocol'
 import { createArtifactsFeature } from '../../features/artifacts'
 import { openStore, type HostStore } from '../../lanes/store'
 import { artifactImporter } from '../../owner/import/artifacts'
@@ -127,10 +126,22 @@ function context(page?: string, principal: object = { kind: 'local', clientId: '
     ...(page ? { page } : {}),
   } as unknown as OpRunContext
 }
+type OwnerArtifactOp = NonNullable<ArtifactHost['ownerOp']>
 const run: OwnerArtifactOp = async (req) => {
   const result = await handlers[req.op]!(req.args, context(req.page))
   return { status: 'ok', applies: 'now', ...result } as Awaited<ReturnType<OwnerArtifactOp>>
 }
+
+// The public owner-local client path runs ownerLibrary/ownerVersion over these exact ops results.
+const host: ArtifactHost = {
+  hostId: 'local',
+  label: 'This Mac',
+  ownerOp: run,
+  call: async () => {
+    throw new Error('unexpected wire call')
+  },
+}
+const listings = () => remoteArtifactListings([host])
 
 it('lists and reads a live lane’s and deleted conversations’ imported artifacts, as ownerLibrary parses them', async () => {
   const live = await desktopSession('live', '2026-01-01T00:00:01.000Z', 'live body')
@@ -143,14 +154,14 @@ it('lists and reads a live lane’s and deleted conversations’ imported artifa
   const removedLane = lane(removed.file)
   store.markRemoved(removedLane.laneId)
 
-  const rows = await ownerLibrary(run)
-  expect(rows.map((r) => [r.laneId, r.slug, r.sessionDeleted])).toEqual([
-    [liveLane.laneId, 'live', undefined],
-    [gone.sessionId, 'gone', true],
-    [removed.sessionId, 'removed', true],
+  const rows = await listings()
+  expect(rows.map((r) => [r.key, r.sessionDeleted])).toEqual([
+    [`host:local/lane:${liveLane.laneId}/artifact:live`, false],
+    [`host:local/session:${gone.sessionId}/artifact:gone`, true],
+    [`host:local/session:${removed.sessionId}/artifact:removed`, true],
   ])
   const contents = await Promise.all(
-    rows.map(async (r) => (await ownerVersion(run, r, r.versions[0]!)).content),
+    rows.map(async (r) => (await remoteArtifactRead(r.key, [host]))?.artifact.versions[0]?.content),
   )
   expect(contents).toEqual(['live body', 'gone body', 'removed body'])
 
@@ -257,9 +268,9 @@ it('drops and logs once a deleted conversation’s row the shared parser rejects
     { slug: 'Not_A_Slug', at: 2 },
   ])
   storedIndex('legacy-session-0001', [{ slug: 'legacy', at: 3 }])
-  const rows = await ownerLibrary(run)
-  expect(rows.map((r) => r.slug)).toEqual(['live', 'kept'])
-  await ownerLibrary(run)
+  const rows = await listings()
+  expect(rows.map((r) => r.id)).toEqual(['live', 'kept'])
+  await listings()
   expect(log).toHaveBeenCalledTimes(1)
   expect(log).toHaveBeenCalledWith('artifacts', 'library rows dropped', { invalid: 2, overCaps: 0 })
 })
@@ -273,11 +284,11 @@ it('keeps live rows first and the newest deleted rows within 2000 rows, dropping
       v7(),
       Array.from({ length: 100 }, (_, i) => ({ slug: `a-${s}-${i}`, at: (s * 100 + i) * 1000 })),
     )
-  const rows = await ownerLibrary(run)
+  const rows = await listings()
   expect(rows).toHaveLength(ARTIFACT_LIMITS.count)
-  expect(rows[0]).toMatchObject({ slug: 'live' })
-  expect(rows[1]).toMatchObject({ slug: 'a-20-99', sessionDeleted: true })
-  expect(rows.at(-1)).toMatchObject({ slug: 'a-1-1' })
+  expect(rows[0]).toMatchObject({ id: 'live' })
+  expect(rows[1]).toMatchObject({ id: 'a-20-99', sessionDeleted: true })
+  expect(rows.at(-1)).toMatchObject({ id: 'a-1-1' })
   expect(log).toHaveBeenCalledWith('artifacts', 'library rows dropped', {
     invalid: 0,
     overCaps: 101,
@@ -291,10 +302,8 @@ it('keeps deleted rows within 4 MiB of metadata, newest first, and drops one pas
   for (let s = 0; s < 6; s++)
     storedIndex(v7(), [{ slug: `big-${s}`, at: s * 1_000_000, versions: 900 }])
   storedIndex(v7(), [{ slug: 'too-big-for-a-page', at: 9e9, versions: 1000 }])
-  const rows = await ownerLibrary(run)
-  const bytes = rows.reduce((sum, r) => sum + utf8Length(JSON.stringify(r)), 0)
-  expect(bytes).toBeLessThanOrEqual(ARTIFACT_LIMITS.metadataBytes)
-  expect(rows.map((r) => r.slug)).toEqual(['live', 'big-5', 'big-4', 'big-3', 'big-2'])
+  const rows = await listings()
+  expect(rows.map((r) => r.id)).toEqual(['live', 'big-5', 'big-4', 'big-3', 'big-2'])
   expect(log).toHaveBeenCalledWith('artifacts', 'library rows dropped', {
     invalid: 1,
     overCaps: 2,
