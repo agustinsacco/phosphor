@@ -1,3 +1,4 @@
+import { bytesToBase64 } from './base64'
 import type { AgentDirectivePrefs, GitInfo } from './models'
 import { machinePromptBlock, type MachineContext } from './machine-prompt'
 
@@ -152,4 +153,12 @@ export function composeDirectives({
     prefs.subagentPolicy ? subagentPolicyBlock() : undefined,
   ]
   return blocks.filter(Boolean).join('\n\n') || undefined
+}
+
+/** The base carried alongside pi's original --append-system-prompt, never in its place. */
+export function directiveDelivery(appendSystemPrompt: string | undefined) {
+  const env: Record<string, string> = {}
+  if (appendSystemPrompt)
+    env.PHOSPHOR_DIRECTIVES_BASE = bytesToBase64(new TextEncoder().encode(appendSystemPrompt))
+  return { appendSystemPrompt, env }
 }

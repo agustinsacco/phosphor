@@ -300,8 +300,9 @@ only with `PHOSPHOR_OPS=v1`. `op-channel.ts` sends raw argv in a
 `phosphor-op/v1` editor request; the title is not a security boundary. The
 owner derives the principal from the lane process and verifies confirmations;
 the tool cannot approve its own request. `lane-controls.ts` applies an owner's
-effects to that session. The shipped `directives.ts` and `live-context.ts` are
-stubs. No spawn loads the tool or skill yet.
+effects to that session. `directives.ts` and `live-context.ts` refresh a lane's directives and its
+discovered repository instruction files on the next request, without rewriting
+the session's base prompt. No spawn loads the tool or skill yet.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 
 A feature that adds spawn-time inputs (env, `-e`, `--skill`) does it through
@@ -600,10 +601,17 @@ reports such a file with `excludedBy: 'main-checkout'` and `included: false`.
 Before that filter, `global-context.ts` keeps the agent directory's file current.
 pi reads it once per session start or reload, so on every request the extension
 stats the candidates in pi's order, re-reads the first one when its size or mtime
-changed, and replaces, adds or removes the global block to match. Repository
-blocks stay as pi rendered them, the session file keeps the text the lane started
-with, and a lane started with `--no-context-files` gains nothing. The context
-breakdown measures the swapped prompt.
+changed, and replaces, adds or removes the global block to match. `live-context.ts`
+also refreshes the repository instruction files pi already rendered. Edits and
+removals take effect on the next model request; new paths need reload or resume.
+Repository symlinks keep pi’s snapshot. A lane started with `--no-context-files`
+gains nothing. The context breakdown measures the refreshed prompt.
+
+`directives.ts` registers `/phosphor-directives <base64 UTF-8 | ->` on the parent
+lane. It replaces the spawn’s `--append-system-prompt` addendum for each request,
+without changing the session prompt. `-` removes the directives. When the
+addendum is not Phosphor’s (for example `APPEND_SYSTEM.md`), the extension uses
+a separate `phosphor_directives` section and preserves the user’s text.
 
 `context-breakdown.ts` exists because pi reports context usage as one number,
 and the composed system prompt and active tool schemas are not reachable from

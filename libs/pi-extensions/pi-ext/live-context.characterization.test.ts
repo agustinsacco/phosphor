@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { parseProjectContext, renderProjectContext } from './context-files'
-import { renderContextBlock } from './global-context'
+import { renderContextBlock } from './live-context'
 
 // pi 1.5.2, core/system-prompt.js: buildSystemPromptSections with two contextFiles.
 const section = `<project_context>

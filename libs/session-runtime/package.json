@@ -244,6 +244,10 @@
       "types": "./src/pi/session-service.ts",
       "default": "./src/pi/session-service.ts"
     },
+    "./pi/contributions/directives": {
+      "types": "./src/pi/contributions/directives.ts",
+      "default": "./src/pi/contributions/directives.ts"
+    },
     "./pi/spawn-contributions": {
       "types": "./src/pi/spawn-contributions.ts",
       "default": "./src/pi/spawn-contributions.ts"

@@ -79,19 +79,12 @@ describe('standalone extension registration', () => {
         expect(registered.commands).toEqual([
           'phosphor-context-budget',
           'phosphor-prs',
+          'phosphor-directives',
           'phosphor-context-files',
           'phosphor-swarm',
         ])
       }
       if (file === 'lane-reload.ts') expect(registered.commands).toEqual(['phosphor-reload'])
-    },
-  )
-
-  it.each(['directives.ts', 'live-context.ts'])(
-    'loads the shipped %s stub alone and registers nothing',
-    async (file) => {
-      expect(BUNDLED_EXTENSION_FILES).not.toContain(file)
-      expect(await registerCopied(file, true)).toEqual({ events: [], commands: [], tools: [] })
     },
   )
 

@@ -31,6 +31,7 @@ import swarm from './swarm'
 import lanePrs from './lane-prs'
 import contextFiles, { contextFilesIn, type ContextFileInfo } from './context-files'
 import globalContext from './global-context'
+import directives from './directives'
 import { measureMessages, type LedgerEntry } from './message-ledger'
 import { registerSubagentChildren } from './subagent-children'
 
@@ -51,6 +52,7 @@ interface ToolLike {
 }
 
 interface ExtensionContext {
+  cwd?: string
   ui?: { setStatus?(key: string, text: string | undefined): void }
   getSystemPrompt?(): string | undefined
   getContextUsage?(): { tokens?: number; contextWindow?: number } | undefined
@@ -172,16 +174,17 @@ function toolList(raw: unknown): ToolLike[] {
 }
 
 /** What shares this extension's load without measuring anything. */
-function registerHostControls(pi: PiExtensionApi): void {
+function registerHostControls(pi: PiExtensionApi) {
   contextBudget(pi)
   registerSubagentChildren(pi)
   lanePrs(pi)
+  return directives(pi)
 }
 
 export default function contextBreakdownExtension(pi: PiExtensionApi): void {
-  registerHostControls(pi)
+  const policy = registerHostControls(pi)
   // Before the filter: it must see the global file as it is now.
-  const live = globalContext(pi)
+  const live = globalContext(pi, undefined, undefined, () => files.worktree())
   // A toggle runs no turn, so publish from the command itself.
   const files = contextFiles(pi, (ctx) => {
     latestContext = ctx as ExtensionContext
@@ -199,7 +202,7 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     if (typeof setStatus !== 'function') return
 
     const usage = ctx.getContextUsage?.()
-    const systemPrompt = live.prompt(ctx.getSystemPrompt?.() ?? '') // global file as sent now
+    const systemPrompt = policy.prompt(live.prompt(ctx.getSystemPrompt?.() ?? '', ctx.cwd))
 
     // getAllTools() yields definitions (name + description + schema);
     // getActiveTools() yields the ACTIVE NAMES. Only the definitions carry

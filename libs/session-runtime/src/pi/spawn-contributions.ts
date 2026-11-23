@@ -14,6 +14,7 @@ export interface SpawnInputs {
 /** The lane being started, after the owner resolved its folder and policy. */
 export interface SpawnPolicyFacts {
   readonly options: CreateSessionOptions
+  readonly appendSystemPrompt?: string
   readonly accountId?: string
 }
 
@@ -53,7 +54,12 @@ export async function applySpawnContributions(
   for (const contribution of contributions) {
     let inputs: SpawnInputs | undefined
     try {
-      inputs = await contribution.spawn(execution, policy)
+      inputs = await contribution.spawn(
+        execution,
+        spawnOptions.appendSystemPrompt
+          ? { ...policy, appendSystemPrompt: spawnOptions.appendSystemPrompt }
+          : policy,
+      )
     } catch (error) {
       log('pi', 'spawn contribution unavailable', {
         contribution: contribution.name,
