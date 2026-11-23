@@ -8,7 +8,7 @@ import type { BrainStore } from '@phosphor/memory-engine/types'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
 import type { BrainService, BrainServiceOptions, BrainRecallLaunch, BrainSearchPort } from './types'
 import { projectContext } from './lane'
-import { brainBriefing } from '@phosphor/brain-client/client'
+import { createLaneBrain } from '@phosphor/brain-client/lane'
 import { brainFlagLimit } from './tidy/flag-limit'
 import { fileBrainFlag, flagResponse, type BrainFlagPort } from './tidy/flag'
 
@@ -81,47 +81,17 @@ export function createRecall(
   }
   return {
     agent,
-    forLane: (lane: Parameters<BrainService['forLane']>[0]) => lanePort(agent, lane),
+    forLane: (lane: Parameters<BrainService['forLane']>[0]) =>
+      createLaneBrain(
+        {
+          search: (query) => agent('search', query),
+          flag: async (params) => brainFlagLimit() ?? (await agent('flag', params)),
+        },
+        lane,
+      ),
     recallLaunch,
     async dispose() {
       disposed = true
-    },
-  }
-}
-
-/** Only the owner binds lane facts. No extension-supplied path, id, title or memory id is trusted. */
-function lanePort(agent: BrainService['agent'], lane: Parameters<BrainService['forLane']>[0]) {
-  let refs = new Map<number, string>()
-  return {
-    async search(input: Readonly<Record<string, unknown>>) {
-      refs.clear()
-      const query = validateBrainRequest('search', {
-        query: input.query,
-        limit: input.limit,
-        cwd: lane.cwd,
-        sessionId: lane.sessionId,
-      })
-      const result = await agent('search', query)
-      const briefing = brainBriefing(result, lane.cwd)
-      refs = briefing.refs
-      return { text: briefing.text, data: { status: result.status, memories: result.hits.length } }
-    },
-    async flag(input: Readonly<Record<string, unknown>>) {
-      const memoryId = typeof input.ref === 'number' && refs.get(input.ref)
-      if (!memoryId)
-        return {
-          text: 'That number is not in the latest Brain briefing for this lane; search again first.',
-          data: { status: 'unavailable' },
-        }
-      const params = validateBrainRequest('flag', {
-        memoryId,
-        problem: input.problem,
-        reason: input.reason,
-        sessionId: lane.sessionId,
-        title: (lane.title.trim() || 'Lane').slice(0, 120),
-      })
-      const result = brainFlagLimit() ?? (await agent('flag', params))
-      return { text: result.message, data: { status: result.status } }
     },
   }
 }
