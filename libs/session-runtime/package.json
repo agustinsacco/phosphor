@@ -196,6 +196,10 @@
       "types": "./src/pi/rpc-client.ts",
       "default": "./src/pi/rpc-client.ts"
     },
+    "./pi/node-identity": {
+      "types": "./src/pi/node-identity.ts",
+      "default": "./src/pi/node-identity.ts"
+    },
     "./pi/op-channel": {
       "types": "./src/pi/op-channel.ts",
       "default": "./src/pi/op-channel.ts"
