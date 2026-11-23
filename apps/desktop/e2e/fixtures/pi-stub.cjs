@@ -884,6 +884,8 @@ function handle(cmd) {
         )
       } else if (message === 'terminal-command') {
         runTextTurn('```bash\nprintf one >> command-ran.txt\nprintf two >> command-ran.txt\n```')
+      } else if (message.includes('explorerreport')) {
+        runTextTurn('Report: [artifacts/reports/report.md](artifacts/reports/report.md)')
       } else if (message.includes('speclink')) runTextTurn()
       else if (message.includes('artifactlink')) runArtifactLinkTurn()
       else if (message.includes('longartifact')) runLongArtifactTurn()
