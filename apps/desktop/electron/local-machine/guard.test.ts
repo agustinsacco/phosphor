@@ -67,7 +67,7 @@ describe('in daemon mode', () => {
   it('print mode answers the refusal as its error and never runs pi', async () => {
     const { IN_APP_RUNTIME_REFUSED } = await daemonMode()
     const { runPrintMode } = await import('../pi/print-mode')
-    await expect(runPrintMode('pi', ['-p'], {})).resolves.toEqual({
+    await expect(runPrintMode('pi', ['-p'], { cwd: '/tmp/m2a', env: {} })).resolves.toEqual({
       stdout: '',
       error: IN_APP_RUNTIME_REFUSED,
     })
@@ -100,7 +100,9 @@ describe('in daemon mode', () => {
 describe('in-app (the default; nothing decides daemon mode yet)', () => {
   it('print mode and the registry behave as before', async () => {
     const { runPrintMode } = await import('../pi/print-mode')
-    await expect(runPrintMode('pi', ['-p'], {})).resolves.toEqual({ stdout: 'ran' })
+    await expect(runPrintMode('pi', ['-p'], { cwd: '/tmp/m2a', env: {} })).resolves.toEqual({
+      stdout: 'ran',
+    })
     expect(lib.print).toHaveBeenCalledOnce()
     const { registry } = await import('../registry')
     expect(registry.create('/tmp/m2a/workspace', {}).workspacePath).toBe('/tmp/m2a/workspace')
