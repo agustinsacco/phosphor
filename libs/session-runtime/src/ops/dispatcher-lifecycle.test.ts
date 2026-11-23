@@ -135,7 +135,10 @@ describe('in-band answers', () => {
   it('serves policy.show and audits agent ops but not surface ones', async () => {
     const h = createHarness({ policy: { agentControl: 'read' } })
     const shown = await h.run(agent(), { op: 'policy.show', args: {} })
-    expect(shown).toMatchObject({ status: 'ok', data: { agentControl: 'read', version: 1 } })
+    expect(shown).toMatchObject({
+      status: 'ok',
+      data: { policy: { agentControl: 'read', version: 1 }, changedOutside: false },
+    })
     expect(shown.status === 'ok' && shown.text).toContain('Agent control: read.')
     await h.run(surface(), { op: 'archive.list', args: {} })
     expect(h.calls.audit.map((r) => [r.principal, r.op, r.decision])).toEqual([
@@ -159,7 +162,13 @@ describe('tool replies', () => {
       status: 'ok',
       text: 'Renamed.',
       applies: 'now',
-      effects: [{ kind: 'notify', message: 'Agent ran lane.rename: Renamed.', level: 'info' }],
+      effects: [
+        {
+          kind: 'notify',
+          message: 'Agent ran lane.rename: Renamed. Reason: testing',
+          level: 'info',
+        },
+      ],
       auditId: 'audit-1',
     })
     expect(h.calls.audit[0]).toMatchObject({
