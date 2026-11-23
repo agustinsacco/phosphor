@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { writeFileSync } from 'node:fs'
 import { afterEach, expect, it, vi } from 'vitest'
 import { scratch } from './__fixtures__/scratch'
-import { downloadRelease, releaseUrl } from './download'
+import { ReleaseNotFound, downloadRelease, releaseUrl } from './download'
 const fileHooks = vi.hoisted(() => ({ stalled: false }))
 vi.mock('node:fs', async (original) => {
   const fs = await original<typeof Fs>()
@@ -174,4 +174,30 @@ it('follows exactly three HTTPS redirects, rejects four, downgrades, missing loc
   await expect(downloadRelease(new URL('http://example.test'), 4, signal())).rejects.toThrow(
     'Invalid release URL',
   )
+})
+it('marks only a 404 or a missing file as not found', async () => {
+  const f = scratch()
+  fixtures.push(f)
+  const missing = downloadRelease(pathToFileURL(join(f.home, 'absent')), 4, signal())
+  await expect(missing).rejects.toBeInstanceOf(ReleaseNotFound)
+  replies([{ code: 302, location: '/next' }, { code: 404 }])
+  const gone = downloadRelease(new URL('https://example.test'), 4, signal())
+  await expect(gone).rejects.toBeInstanceOf(ReleaseNotFound)
+  await expect(gone).rejects.toThrow('Release download failed')
+  for (const code of [403, 500, 503]) {
+    replies([{ code }])
+    const error: unknown = await downloadRelease(
+      new URL('https://example.test'),
+      4,
+      signal(),
+    ).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect(error).not.toBeInstanceOf(ReleaseNotFound)
+  }
+  replies([], true)
+  await expect(
+    downloadRelease(new URL('https://example.test'), 4, signal()).catch((e: unknown) => {
+      throw e instanceof ReleaseNotFound ? new Error('not found') : e
+    }),
+  ).rejects.toThrow('timed out')
 })

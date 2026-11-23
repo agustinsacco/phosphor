@@ -1,7 +1,48 @@
 import { createReadStream } from 'node:fs'
 import { request } from 'node:https'
+import { errnoIs } from '../fs-safety'
 
 export const HOST_RELEASE_BASE_URL = 'https://github.com/agustinsacco/Phosphor/releases/download'
+
+/**
+ * The asset does not exist: HTTP 404, or a missing `file:` path. Only this lets a
+ * reader fall back to an older manifest; every other failure is a plain Error.
+ */
+export class ReleaseNotFound extends Error {
+  constructor(message = 'Release download failed', options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'ReleaseNotFound'
+  }
+}
+
+/** A `file:` asset (offline tests and mirrors), with the same cap and inactivity deadline. */
+async function downloadFile(url: URL, cap: number, signal: AbortSignal): Promise<Buffer> {
+  let size = 0
+  const bytes = Buffer.alloc(cap)
+  const stream = createReadStream(url, { signal })
+  const expire = () => stream.destroy(new Error('Release download timed out'))
+  let deadline = setTimeout(expire, 30_000)
+  try {
+    for await (const chunk of stream) {
+      clearTimeout(deadline)
+      deadline = setTimeout(expire, 30_000)
+      if (!Buffer.isBuffer(chunk)) throw new Error('Invalid release download')
+      size += chunk.length
+      if (size > cap) {
+        stream.destroy()
+        throw new Error('Release download too large')
+      }
+      chunk.copy(bytes, size - chunk.length)
+    }
+    return bytes.subarray(0, size)
+  } catch (error) {
+    if (errnoIs(error, 'ENOENT') && error instanceof Error)
+      throw new ReleaseNotFound(error.message, { cause: error })
+    throw error
+  } finally {
+    clearTimeout(deadline)
+  }
+}
 
 /** Bound bytes while receiving; each chunk resets the inactivity deadline. */
 export async function downloadRelease(
@@ -12,28 +53,7 @@ export async function downloadRelease(
 ): Promise<Buffer> {
   signal.throwIfAborted()
   let size = 0
-  if (url.protocol === 'file:') {
-    const bytes = Buffer.alloc(cap)
-    const stream = createReadStream(url, { signal })
-    const expire = () => stream.destroy(new Error('Release download timed out'))
-    let deadline = setTimeout(expire, 30_000)
-    try {
-      for await (const chunk of stream) {
-        clearTimeout(deadline)
-        deadline = setTimeout(expire, 30_000)
-        if (!Buffer.isBuffer(chunk)) throw new Error('Invalid release download')
-        size += chunk.length
-        if (size > cap) {
-          stream.destroy()
-          throw new Error('Release download too large')
-        }
-        chunk.copy(bytes, size - chunk.length)
-      }
-      return bytes.subarray(0, size)
-    } finally {
-      clearTimeout(deadline)
-    }
-  }
+  if (url.protocol === 'file:') return downloadFile(url, cap, signal)
   if (url.protocol !== 'https:' || url.username || url.password || redirects > 3)
     throw new Error('Invalid release URL')
   return new Promise((resolve, reject) => {
@@ -55,7 +75,11 @@ export async function downloadRelease(
       }
       if (response.statusCode !== 200) {
         response.destroy()
-        reject(new Error('Release download failed'))
+        reject(
+          response.statusCode === 404
+            ? new ReleaseNotFound()
+            : new Error('Release download failed'),
+        )
         return
       }
       const bytes = Buffer.alloc(cap)
