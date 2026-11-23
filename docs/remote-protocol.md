@@ -504,6 +504,16 @@ still has no handler, so it answers the call `unsupported` and the command
 `libs/shared/src/base-684cb3478.compatibility.test.ts` runs every new frame
 through frozen copies of the previous release's parsers.
 
+Clients project the flags as `HostConnectionView` booleans, false when absent so a
+reconnect to an older Host forgets them (`libs/host-client/src/ready-view.ts`).
+`ownerLocal` is projected only on a connection created with `local: true`, this
+machine's own socket; a connection created with `lanes: false` skips the
+automatic `lanes` subscription. `opsRun` (`libs/host-client/src/ops.ts`) sends a
+read as the call and a write as the command; the caller chooses by the op's
+catalog tier. It reads an older Host's `unsupported`, a rejected receipt or a
+call error, as `{status: 'denied', code: 'unsupported'}` with text telling the
+user to update that machine, and throws on any other failure without resending.
+
 ## Paged lanes
 
 The `lanes` topic keeps its 64 folders and 1000 lanes for older clients. Past
@@ -570,4 +580,8 @@ may call. Mutations are idempotent by their key (`migrationId`, `leaseId`,
 
 `OWNER_LIMITS` is separate from `HOST_LIMITS`, which only ever goes down. Owner calls
 get a 120 s answer deadline. A daemon that predates these calls answers
-`unsupported`. No daemon serves them yet.
+`unsupported`. No daemon serves them yet. Clients send them with `ownerCall`
+(`libs/host-client/src/owner.ts`), which checks params before sending and throws
+`OwnerCallError` with the daemon's code. It still rides the connection's 30 s call
+deadline, so a call that runs longer reads as `internal` until the local binding
+gives owner calls their own deadline.

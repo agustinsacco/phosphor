@@ -18,6 +18,21 @@ exist; no lane, Host or Desktop serves an op yet.
   client answers `{status: 'unsupported', code: 'no-owner'}` at once.
 - Policy and audit: `libs/shared/src/ops/policy.ts` (`AgentPolicy`, the audit
   row, `ConfirmInfo`).
+- Surfaces: one IPC channel, `ops:run` (`libs/shared/src/ipc/ops.ts`), runs a
+  catalog op as the user on This Mac (`local`) or a Host (`remote`). Audit,
+  policy, confirmations and undo are catalog ops on it, not channels of their own.
+  `onOpsChanged` pushes a change signal (`ops:changed`); listeners reload through
+  `ops:run`. The browser serves only `ops:run`. Desktop and the browser answer
+  every `ops:run` `{status: 'denied', code: 'unsupported'}` until a binding serves
+  ops. Before migration, Desktop keeps the policy in `AppPrefs.agentPolicy`.
+- Owners: `libs/session-runtime/src/ops/types.ts` names the four principals
+  (`surface`, `agent`, `machine`, `local`), `OpHandler`, the per-owner
+  `OpsBinding` (handlers, gaps, ready flags, policy and audit stores, lanes,
+  deferred work, `--host`, Brain) and the `OpsDispatcher` interface.
+  `libs/session-runtime/src/ops/reach.ts` is the caller-side port for other
+  machines (`Reach`).
+- Clients: `opsRun` and `ownerCall` in `libs/host-client`
+  ([Host protocol](remote-protocol.md#agent-ops)).
 
 ## Catalog
 

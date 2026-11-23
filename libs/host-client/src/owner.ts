@@ -22,7 +22,8 @@ export class OwnerCallError extends Error {
 /**
  * One owner call on this machine's own socket. Params are checked before they
  * are sent; the result is typed, not parsed, because only the local daemon
- * answers these.
+ * answers these. It rides the connection's 30 s call deadline, shorter than the
+ * daemon's `OWNER_LIMITS.callAnswerMs`: a longer call reads as `internal`.
  */
 export async function ownerCall<M extends OwnerMethod>(
   connection: Connection,
