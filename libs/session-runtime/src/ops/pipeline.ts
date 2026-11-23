@@ -13,7 +13,9 @@ import {
   type OpsRunResult,
 } from '@phosphor/shared/host-protocol-ops'
 import { OP_CATALOG, type CatalogSpec } from '@phosphor/shared/ops-catalog'
-import type { AuditDecision, LaneEffect, OpArgs, OpFacts } from '@phosphor/shared/ops'
+import type { AuditDecision, LaneEffect, OpFacts } from '@phosphor/shared/ops'
+import { undoRecordFor } from './undo'
+import type { UndoRecord } from './audit'
 import { orderDeferred, type LaneDeferredQueue } from './deferred'
 import {
   argsError,
@@ -94,7 +96,7 @@ async function audit(
   j: Judged,
   decision: AuditDecision,
   result: string,
-  undo = false,
+  undoRecord: UndoRecord | null = null,
 ): Promise<string | undefined> {
   if (j.governed === 'surface') return undefined
   try {
@@ -112,7 +114,8 @@ async function audit(
       decision,
       result: result.slice(0, 200),
       applies: j.spec.applies,
-      undo,
+      undo: undoRecord !== null,
+      undoRecord,
     })
     env.binding.notifySurfaces({
       kind: 'audit',
@@ -136,7 +139,7 @@ async function ask(env: PipelineEnv, j: Judged): Promise<OpOutcome | null> {
   const confirm = j.request.confirm
   if (confirm) {
     const redeemed = await env.deps.confirms.consume({
-      creator: j.key,
+      principal: j.principal,
       sessionId,
       confirm,
       op: j.spec.name,
@@ -157,7 +160,7 @@ async function ask(env: PipelineEnv, j: Judged): Promise<OpOutcome | null> {
       text: `${j.spec.name} needs the user’s approval, and no one is watching this run.`,
     })
   const result = await env.deps.confirms.create({
-    creator: j.key,
+    principal: j.principal,
     sessionId,
     origin: confirmOrigin(j.principal, j.request, j.askingTitle),
     spec: j.spec,
@@ -220,22 +223,6 @@ function withToast(j: Judged, effects: readonly LaneEffect[], text: string): rea
   return [...effects, { kind: 'notify', message, level: 'info' }]
 }
 
-/** A failed Undo record costs the Undo button, never the op's answer. */
-async function recordUndo(
-  env: PipelineEnv,
-  auditId: string,
-  inverse: { op: string; args: OpArgs },
-  before: unknown,
-): Promise<boolean> {
-  try {
-    await env.deps.undo.record(auditId, inverse, before)
-    return true
-  } catch (error) {
-    env.deps.log('ops', 'undo record failed', { auditId, error: String(error) })
-    return false
-  }
-}
-
 async function finish(
   env: PipelineEnv,
   j: Judged,
@@ -244,12 +231,13 @@ async function finish(
 ): Promise<OpOutcome> {
   const plan = reloadPlan(env, j, out)
   const text = clipBytes(plan.note ? `${out.text}\n${plan.note}` : out.text, OPS_LIMITS.resultBytes)
-  const inverse = j.governed === 'surface' ? null : (j.spec.inverse?.(j.args, out.before) ?? null)
-  const auditId = await audit(env, j, decision, text, inverse !== null)
+  const record =
+    j.governed === 'surface'
+      ? null
+      : undoRecordFor(j.spec, j.args, out.before, (op) => env.specs.get(op))
+  const auditId = await audit(env, j, decision, text, record)
   const undo =
-    auditId !== undefined &&
-    inverse !== null &&
-    (await recordUndo(env, auditId, inverse, out.before))
+    auditId !== undefined && record !== null && env.binding.audit.get(auditId)?.undo === true
   await placeDeferred(env, j, plan.items).catch((error: unknown) => {
     env.deps.log('ops', 'deferred work failed', { op: j.spec.name, error: String(error) })
   })

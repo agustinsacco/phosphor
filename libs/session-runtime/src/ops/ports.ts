@@ -38,7 +38,7 @@ export type OpsConfirmResult = Extract<OpsRunResult, { status: 'confirm' }>
 /** What an asked op leaves pending until the user answers. */
 export interface PendingConfirm {
   /** `principalKey` of the asker; only it may read the status or redeem it. */
-  readonly creator: string
+  readonly principal: OpPrincipal
   /** The asking lane's pi session, whose dialog the confirmation binds to; null for CLI and machine asks. */
   readonly sessionId: string | null
   readonly origin: ConfirmInfo['origin']
@@ -53,7 +53,7 @@ export interface PendingConfirm {
 
 /** A resubmission that carries a confirmation reference. */
 export interface ConfirmAttempt {
-  readonly creator: string
+  readonly principal: OpPrincipal
   readonly sessionId: string | null
   readonly confirm: OpsConfirmRef
   readonly op: string
@@ -68,10 +68,12 @@ export type ConfirmRedemption = 'approved' | 'pending' | 'denied' | 'expired' | 
 
 /** The pending-confirmation store (bind, digest, single use, expiry, creator-only status). */
 export interface OpsConfirmPort {
-  create(pending: PendingConfirm): Promise<OpsConfirmResult>
+  create(
+    pending: PendingConfirm,
+  ): Promise<OpsConfirmResult | Extract<OpsRunResult, { status: 'denied' }>>
   consume(attempt: ConfirmAttempt): Promise<ConfirmRedemption>
   /** Null unless `creator` created it. */
-  status(confirmId: string, creator: string): Promise<ConfirmInfo | null>
+  status(confirmId: string, principal: OpPrincipal): Promise<ConfirmInfo | null>
   surfaceAnswered(
     sessionId: string,
     response: ExtensionUIResponse,
@@ -84,8 +86,6 @@ export interface OpsConfirmPort {
 
 /** The redo record and the surface-only Undo. */
 export interface OpsUndoPort {
-  /** The audited op can be undone by `inverse` while the state still matches `before`. */
-  record(auditId: string, inverse: { op: string; args: OpArgs }, before: unknown): Promise<void>
   run(
     principal: OpPrincipal,
     auditId: string,

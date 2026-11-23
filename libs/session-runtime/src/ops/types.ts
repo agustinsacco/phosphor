@@ -17,6 +17,7 @@ import type {
 } from '@phosphor/shared/ops'
 import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import type { OpsChangedEvent } from '@phosphor/shared/ipc'
+import type { AuditLog } from './audit'
 import type { RuntimeLog } from '../file-log'
 
 /**
@@ -77,6 +78,8 @@ export interface LaneFacts {
 export type LaneDeferred =
   | { readonly kind: 'model'; readonly provider: string; readonly modelId: string }
   | { readonly kind: 'thinking'; readonly level: string }
+  | { readonly kind: 'autoCompaction' | 'autoRetry'; readonly enabled: boolean }
+  | { readonly kind: 'steering' | 'follow-up'; readonly mode: 'all' | 'one-at-a-time' }
   | { readonly kind: 'reload'; readonly what: string }
   | { readonly kind: 'stop' }
   | { readonly kind: 'archive' }
@@ -141,7 +144,7 @@ export interface OpsBinding {
   /** The `ready` flags this owner serves; an op whose flag is absent is a gap. */
   readonly flags: ReadonlySet<ReadyOpFlag>
   readonly policy: PolicyStore
-  readonly audit: AuditStore
+  readonly audit: AuditLog
   readonly lanes: {
     resolve(ref: string): LaneFacts | null
     createdBy(laneRef: string): { readonly lineage: number } | null

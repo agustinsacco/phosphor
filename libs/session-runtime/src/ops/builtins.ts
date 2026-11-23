@@ -7,7 +7,6 @@
 import type { ConfirmItem, OpsDenyCode } from '@phosphor/shared/host-protocol-ops'
 import type { AgentPolicy } from '@phosphor/shared/ops'
 import type { Judged } from './judge'
-import { principalKey } from './principals'
 import type { OpsDispatcherDeps } from './ports'
 import type { OpHandler, OpsBinding } from './types'
 
@@ -43,11 +42,11 @@ export function builtinHandlers(
   return {
     'policy.show': async () => {
       const { policy, changedOutside } = await binding.policy.read()
-      return { text: describePolicy(policy, changedOutside), data: { policy, changedOutside } }
+      return { text: describePolicy(policy, changedOutside), data: policy }
     },
     'confirm.status': async (args, ctx) => {
       const confirmId = (args as { confirmId: string }).confirmId
-      const info = await deps.confirms.status(confirmId, principalKey(ctx.principal))
+      const info = await deps.confirms.status(confirmId, ctx.principal)
       if (!info)
         throw new OpRefusal('forbidden', `No confirmation ${confirmId} that you asked for.`)
       return { text: `Confirmation ${confirmId.slice(0, 8)}: ${info.state}.`, data: info }

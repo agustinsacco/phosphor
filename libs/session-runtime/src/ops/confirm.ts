@@ -28,6 +28,7 @@ import { CONFIRM_TITLE_PREFIX, type ConfirmInfo } from '@phosphor/shared/ops'
 import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import { renderConfirm, type ConfirmTarget } from './confirm-message'
 import { canonicalJson, sha256Hex } from './redact'
+import type { OpsConfirmPort } from './ports'
 import type { OpPrincipal } from './types'
 
 export type { ConfirmTarget } from './confirm-message'
@@ -319,4 +320,49 @@ class MemoryConfirmStore implements ConfirmStore {
 
 export function createConfirmStore(options: ConfirmStoreOptions = {}): ConfirmStore {
   return new MemoryConfirmStore(options.now ?? Date.now, options.newId ?? randomUUID)
+}
+
+/** Adapt dispatch to the store without deriving a principal from caller-controlled attribution. */
+export function confirmPort(store: ConfirmStore, changed: () => void): OpsConfirmPort {
+  return {
+    async create(p) {
+      if (p.principal.kind === 'surface')
+        return {
+          status: 'denied',
+          code: 'forbidden',
+          text: 'An attributed surface cannot ask on behalf of a lane.',
+        }
+      const result = store.create({
+        creator: p.principal,
+        origin: p.origin,
+        op: p.spec.name,
+        summary: p.spec.summary,
+        args: p.args,
+        reason: p.reason,
+        batchId: p.batch?.id,
+        targets: p.items.map((item) => ({
+          ...item,
+          controlledBy: item.ids.map((id) =>
+            id === p.lane?.ref ? (p.lane.controller?.label ?? null) : null,
+          ),
+        })),
+      })
+      if ('ok' in result) return { status: 'denied', code: result.code, text: result.text }
+      changed()
+      return result
+    },
+    async consume(a) {
+      const r = store.consume(a.principal, a.confirm, a.op, a.args)
+      if (r.ok) return 'approved'
+      if (r.code === 'confirm-expired') return 'expired'
+      return r.state === 'pending' ? 'pending' : r.state === 'denied' ? 'denied' : 'mismatch'
+    },
+    async status(id, p) {
+      const r = store.status(p, id)
+      return r.ok ? r.info : null
+    },
+    surfaceAnswered: (id, response, origin) => store.surfaceAnswered(id, response, { origin }),
+    confirmSeen: store.confirmSeen,
+    voidSession: store.voidSession,
+  }
 }

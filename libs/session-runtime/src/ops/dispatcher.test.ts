@@ -305,7 +305,7 @@ describe('confirmations', () => {
     if (asked.status !== 'confirm') throw new Error('expected a confirm')
     expect(asked.timeoutMs).toBe(600_000)
     expect(h.calls.created[0]).toMatchObject({
-      creator: `agent:${OWN}`,
+      principal: agent(),
       sessionId: 's1',
       items: [{ hostId: null, op: 'lane.delete', ids: [OTHER], labels: ['Other'] }],
       lane: { ref: OTHER },

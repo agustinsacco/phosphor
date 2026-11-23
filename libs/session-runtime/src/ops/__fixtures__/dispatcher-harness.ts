@@ -1,3 +1,4 @@
+import { principalKey } from '../principals'
 import { randomUUID } from 'node:crypto'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
@@ -91,7 +92,6 @@ function newCalls() {
     jobs: [] as Parameters<OpsJobPort['start']>[0][],
     notified: [] as Omit<OpsChangedEvent, 'machine'>[],
     voided: [] as string[],
-    undoRecords: [] as { auditId: string; inverse: unknown }[],
     log: [] as { scope: string; message: string }[],
   }
 }
@@ -134,6 +134,9 @@ function fakeBinding(
         return `audit-${calls.audit.length}`
       },
       list: async () => [],
+      get: () => null,
+      markUndone: () => false,
+      prune: () => 0,
     },
     lanes: {
       resolve: (ref) => state.lanes.get(ref) ?? null,
@@ -161,7 +164,7 @@ function fakeConfirms(
     create: async (pending) => {
       calls.created.push(pending)
       const confirmId = randomUUID()
-      confirms.set(confirmId, { creator: pending.creator, state: 'pending' })
+      confirms.set(confirmId, { creator: principalKey(pending.principal), state: 'pending' })
       return {
         status: 'confirm',
         confirmId,
@@ -175,14 +178,15 @@ function fakeConfirms(
     consume: async (attempt) => {
       calls.consumed.push(attempt)
       const entry = confirms.get(attempt.confirm.confirmId)
-      if (!entry || entry.creator !== attempt.creator || entry.state === 'used') return 'mismatch'
+      if (!entry || entry.creator !== principalKey(attempt.principal) || entry.state === 'used')
+        return 'mismatch'
       if (entry.state === 'pending') return 'pending'
       entry.state = 'used'
       return 'approved'
     },
     status: async (confirmId, creator) => {
       const entry = confirms.get(confirmId)
-      return entry && entry.creator === creator
+      return entry && entry.creator === principalKey(creator)
         ? ({ confirmId, state: entry.state === 'pending' ? 'pending' : 'approved' } as ConfirmInfo)
         : null
     },
@@ -209,9 +213,6 @@ function fakeDeps(
     confirms,
     redact: (spec) => `${spec.name} args`,
     undo: {
-      record: async (auditId, inverse) => {
-        calls.undoRecords.push({ auditId, inverse })
-      },
       run: async (principal, _auditId, run) => run(principal, { op: 'swarm.off', args: {} }),
     },
     ...(options.jobs

@@ -11,6 +11,10 @@ import type { LaneDeferred, OpsBinding } from './types'
 const ORDER: readonly LaneDeferred['kind'][] = [
   'model',
   'thinking',
+  'autoCompaction',
+  'autoRetry',
+  'steering',
+  'follow-up',
   'compact',
   'reload',
   'stop',

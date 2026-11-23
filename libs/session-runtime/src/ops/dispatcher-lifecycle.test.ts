@@ -162,7 +162,13 @@ describe('tool replies', () => {
       effects: [{ kind: 'notify', message: 'Agent ran lane.rename: Renamed.', level: 'info' }],
       auditId: 'audit-1',
     })
-    expect(h.calls.audit[0]).toMatchObject({undo: true, undoRecord: {inverse: {op:'lane.rename', args:{name:'old', ref: OWN}}, forward:{name:'new'}}})
+    expect(h.calls.audit[0]).toMatchObject({
+      undo: true,
+      undoRecord: {
+        inverse: { op: 'lane.rename', args: { name: 'old', ref: OWN } },
+        forward: { name: 'new' },
+      },
+    })
     const read = await h.tool({ op: 'lane.read', args: { ref: OTHER } })
     expect(read).toMatchObject({ status: 'ok', untrusted: true })
     expect(read.status === 'ok' && read.effects).toBeFalsy()
@@ -297,8 +303,10 @@ describe('undo', () => {
 
 it('never offers Undo when the audit insert fails', async () => {
   const h = createHarness()
-  h.binding.audit.append = async () => { throw new Error('disk full') }
-  const result = await h.run(agent(), { op:'swarm.on', args:{}, reason:'testing' })
+  h.binding.audit.append = async () => {
+    throw new Error('disk full')
+  }
+  const result = await h.run(agent(), { op: 'swarm.on', args: {}, reason: 'testing' })
   expect(result.status).toBe('ok')
   expect(result).not.toHaveProperty('undo')
   expect(h.calls.audit).toEqual([])
