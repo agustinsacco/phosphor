@@ -255,3 +255,28 @@ it('traverses private parser modules once and permits relative cycles', () => {
     },
   )
 })
+
+it('lets a test fixture use the kit, but not a production source that reaches one', () => {
+  withSources(
+    {
+      'apps/host/src/reach/__fixtures__/siblings.ts':
+        "import { createFakeHost } from '@phosphor/shared/host-protocol-testing'",
+      'apps/host/src/reach/__fixtures__/wrapper.ts': "export * from './siblings'",
+      'apps/host/src/reach/pool.test.ts': "import { x } from './__fixtures__/wrapper'",
+      'libs/client-ui/src/dev/__fixtures__/data.ts': 'export const data = 1',
+      'libs/client-ui/src/dev/plain.ts': "import { data } from './__fixtures__/data'",
+      'libs/client-ui/src/dev/mock.ts':
+        "import { x } from '../../../../apps/host/src/reach/__fixtures__/wrapper'",
+      'libs/client-ui/src/dev/typed.ts':
+        "type S = import('../../../../apps/host/src/reach/__fixtures__/siblings.ts').X",
+    },
+    (directory) => {
+      expect(
+        productionViolations(directory, join(directory, 'libs/shared/src/host-protocol-testing')),
+      ).toEqual([
+        'libs/client-ui/src/dev/mock.ts: ../../../../apps/host/src/reach/__fixtures__/wrapper',
+        'libs/client-ui/src/dev/typed.ts: ../../../../apps/host/src/reach/__fixtures__/siblings.ts',
+      ])
+    },
+  )
+})
