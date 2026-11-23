@@ -43,6 +43,7 @@ beforeEach(async () => {
     enrolledId: () => null,
     selfIds: () => [],
     store: f.store,
+    editing: {} as never,
     lanes: {
       commands: f.service,
       calls: {
