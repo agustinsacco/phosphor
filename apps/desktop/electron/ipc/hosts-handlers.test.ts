@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   localList: vi.fn(),
   remoteList: vi.fn(),
   connection: vi.fn(),
+  snapshot: vi.fn((): Record<string, unknown> => ({})),
 }))
 vi.mock('electron', () => ({ app: { once: vi.fn() }, BrowserWindow: {}, Notification: {} }))
 vi.mock('../account', () => ({ accountUserId: vi.fn(), onAccountChange: vi.fn() }))
@@ -23,7 +24,11 @@ vi.mock('../hosts/client-id', () => ({ createClientIds: () => ({}) }))
 vi.mock('../hosts/grants', () => ({ createGrants: () => ({}) }))
 vi.mock('../hosts/connection', () => ({ createHostConnection: vi.fn() }))
 vi.mock('../hosts/manager', () => ({
-  createHostManager: () => ({ snapshot: () => ({}), connection: mocks.connection }),
+  createHostManager: () => ({
+    snapshot: mocks.snapshot,
+    connection: mocks.connection,
+    label: () => 'This Mac',
+  }),
 }))
 vi.mock('../hosts/socket', () => ({
   openHostSocket: vi.fn(),
@@ -218,15 +223,33 @@ it('registers the Host catalogue and repository reads over the manager connectio
 })
 
 it('never reads the frozen artifact library in daemon mode, including during an outage', async () => {
-  const mode=await import('../local-machine/mode')
-  const spy=vi.spyOn(mode,'localRuntimeMode').mockReturnValue('daemon')
+  const mode = await import('../local-machine/mode')
+  const spy = vi.spyOn(mode, 'localRuntimeMode').mockReturnValue('daemon')
   mocks.localList.mockClear()
-  mocks.remoteList.mockResolvedValueOnce([{key:'served'}]).mockRejectedValueOnce(new Error('unavailable'))
+  mocks.remoteList
+    .mockResolvedValueOnce([{ key: 'served' }])
+    .mockRejectedValueOnce(new Error('unavailable'))
   try {
     registerHostsHandlers()
-    const router=mocks.router.mock.calls.at(-1)?.[0]
-    expect(await router(1,'artifacts:list',[[]]).result).toEqual([{key:'served'}])
-    await expect(router(1,'artifacts:list',[[]]).result).rejects.toThrow()
+    const router: unknown = mocks.router.mock.calls.at(-1)?.[0]
+    if (typeof router !== 'function') throw Error('Missing router')
+    expect(await router(1, 'artifacts:list', [[]]).result).toEqual([{ key: 'served' }])
+    await expect(router(1, 'artifacts:list', [[]]).result).rejects.toThrow()
     expect(mocks.localList).not.toHaveBeenCalled()
-  } finally {spy.mockRestore()}
+    expect(() => router(1, 'artifacts:read', ['frozen/guide'])).toThrow()
+    mocks.snapshot.mockReturnValue({
+      here: { local: true, state: 'ready', capabilities: ['routines'], repositories: [] },
+    })
+    const snapshot = await router(1, 'routines:list', []).result
+    expect(snapshot).toMatchObject({
+      routines: [],
+      runs: [],
+      machines: [{ id: 'host:here', available: true }],
+    })
+    spy.mockReturnValue('in-app')
+    expect(router(1, 'routines:list', [])).toBeNull()
+  } finally {
+    mocks.snapshot.mockReturnValue({})
+    spy.mockRestore()
+  }
 })

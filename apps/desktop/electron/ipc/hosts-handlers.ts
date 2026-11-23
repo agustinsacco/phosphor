@@ -25,11 +25,10 @@ import { handle, setRemoteReadRouter } from './handle'
 import {
   createArtifactHost,
   remoteSessionArtifacts,
-  remoteArtifactListings,
   remoteArtifactRead,
   type ArtifactHost,
 } from '@phosphor/host-client/artifacts'
-import { artifactLibrary } from '../artifacts/artifact-sync'
+import { libraryListing } from './artifact-listing'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
 import { routeRemoteRead } from '@phosphor/host-client/read-features'
 import {
@@ -54,6 +53,7 @@ import { admitLocalMachine } from '../local-machine/admit'
 import { trafficLog } from '../hosts/traffic-log'
 import { tappedLog } from '../hosts/traffic-tap'
 import { desktopDirectory } from '../hosts/dedupe'
+import { localRuntimeMode } from '../local-machine/mode'
 
 let routines: ReturnType<typeof createRemoteRoutines> | undefined
 export const remoteRoutineMachines = () => routines?.machines() ?? []
@@ -234,6 +234,23 @@ export function registerHostsHandlers(): void {
     label: manager.label,
   })
   setRemoteReadRouter((windowId, channel, args) => {
+    const daemon = localRuntimeMode() === 'daemon'
+    if (daemon && channel === 'routines:list' && args[0] === undefined)
+      return {
+        result: Promise.resolve({
+          routines: [],
+          runs: [],
+          machines: remoteRoutineMachines(),
+          background: false,
+          error: null,
+        }),
+      }
+    if (
+      daemon &&
+      channel === 'artifacts:read' &&
+      (typeof args[0] !== 'string' || !args[0].startsWith('host:'))
+    )
+      throw new Error(REMOTE_UNAVAILABLE)
     const terminal = terminals.route(windowId, channel, args)
     if (terminal) return terminal
     const routed = routines?.route(channel, args) ?? github(channel, args)
@@ -253,18 +270,7 @@ export function registerHostsHandlers(): void {
     if (channel === 'artifacts:read' && typeof key === 'string' && key.startsWith('host:'))
       return { result: remoteArtifactRead(key, artifactHosts()) }
     if (channel === 'artifacts:list') {
-      if (
-        !Array.isArray(key) ||
-        key.length > 2000 ||
-        key.some((p) => typeof p !== 'string' || p.startsWith('host:') || p.startsWith('remote-'))
-      )
-        throw new Error(REMOTE_UNAVAILABLE)
-      return {
-        result: Promise.all([
-          artifactLibrary.list(key),
-          remoteArtifactListings(artifactHosts()).catch(() => []),
-        ]).then(([local, remote]) => [...local, ...remote]),
-      }
+      return libraryListing(key, artifactHosts(), daemon)
     }
     return (
       routeRemoteWrite(channel, args, (key) => remoteLanes().readLane(windowId, key)) ??

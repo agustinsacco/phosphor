@@ -1,3 +1,5 @@
+import { runAgentOp } from '@/features/agent-control/agentOps'
+import { serviceScope } from '@/stores/localServiceScope'
 import { usePlatform } from '@/platform/Platform'
 import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
 import { MachinePicker } from '@/features/machines/MachinePicker'
@@ -48,8 +50,8 @@ import {
 export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
   const filter = useRemoteLanesStore((s) => s.filter)
   const override = useMachinePagesStore((s) => s.artifactsMachine)
-  const machine = pageMachine(filter, override, true)
   const hosts = useRemoteLanesStore((s) => s.hosts)
+  const machine = serviceScope(pageMachine(filter, override, true), hosts)
   const bySession = useArtifactsStore((s) => s.bySession)
   const live = useSessionsStore((s) => s.live)
   // Reload when a session opens, closes or changes on disk, so a session
@@ -326,7 +328,11 @@ function StoredArtifactView({
 
   const remove = async (): Promise<void> => {
     try {
-      if (await window.phosphor.invoke('artifacts:remove', artifactKey)) onRemoved()
+      const owner = /^host:([^/]+)\/session:([^/]+)\/artifact:([^/]+)$/.exec(artifactKey)
+      if (owner?.[1] && loaded?.listing.sessionDeleted) {
+        await runAgentOp(owner[1], 'artifact.remove', { key: `${owner[2]}/${owner[3]}` })
+        onRemoved()
+      } else if (await window.phosphor.invoke('artifacts:remove', artifactKey)) onRemoved()
     } catch (error) {
       useExtensionUiStore.getState().pushToast(ipcErrorText(error), 'error')
     }
