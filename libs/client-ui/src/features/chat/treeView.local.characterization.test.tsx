@@ -57,3 +57,32 @@ it('forks an in-app tree node by file, refreshes the workspace and opens the cre
     vi.unstubAllGlobals()
   }
 })
+
+it('offers Retry after a failed tree read instead of leaving the modal loading forever', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const invoke = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({ sessionId: 's', leafId: null, entries: [] })
+  Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
+  const root = createRoot(document.createElement('div'))
+  try {
+    await act(async () =>
+      root.render(
+        <TreeViewModal
+          meta={{ path: '/fixture/session' }}
+          workspacePath="/fixture"
+          onClose={() => {}}
+        />,
+      ),
+    )
+    const retry = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+    expect(retry).toBeDefined()
+    await act(async () => retry!.click())
+    expect(document.body.textContent).toContain('0 nodes')
+    expect(invoke).toHaveBeenCalledTimes(2)
+  } finally {
+    act(() => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})
