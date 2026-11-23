@@ -184,3 +184,12 @@ it('accepts root SKILL.md but refuses missing or multiple-root archives', async 
     'the archive has no SKILL.md',
   )
 })
+
+it('never downloads an unreviewed skill from a known library', async () => {
+  const fetchZip = vi.fn(async () => repoZip())
+  await expect(installCatalogSkill({ ...options, skillName: 'unknown', fetchZip })).rejects.toThrow(
+    'is not in Reviewed library',
+  )
+  expect(fetchZip).not.toHaveBeenCalled()
+  expect(existsSync(join(root, 'skills'))).toBe(false)
+})
