@@ -314,6 +314,30 @@ describe('context files extension', () => {
     expect([...untouched.state.off()]).toEqual(['agents'])
   })
 
+  it('refuses an agent override of a user opt-out without partially applying the effect', async () => {
+    const pi = fakePi('agents=off')
+    const { control } = pi.state
+    expect(control.facts()).toEqual({ off: ['agents'], userOff: ['agents'] })
+    expect(() => control.setArgs('claude=off agents=on', 'ctx')).toThrow(/user.*agents/i)
+    expect(pi.entries).toEqual([])
+    expect(() => control.agentSet(true, 'need instructions', 'ctx')).toThrow(/user.*agents/i)
+    control.setArgs('claude=off', 'ctx')
+    const restored = fakePi()
+    restored.start(pi.entries)
+    expect(restored.state.control.facts()).toEqual({ off: ['agents', 'claude'], userOff: ['agents'] })
+    await restored.command('agents=on')
+    // A user command about agents does not claim the agent's opt-out of claude.
+    restored.state.control.agentSet(true, 'include files', 'ctx')
+    expect(restored.state.control.facts()).toEqual({ off: [], userOff: [] })
+    expect(restored.changes).toEqual(['ctx', 'ctx'])
+  })
+
+  it('treats old branch entries without attribution as user choices', () => {
+    const pi = fakePi()
+    pi.start([{ type: 'custom', customType: CONTEXT_FILES_ENTRY, data: { off: ['claude'] } }])
+    expect(() => pi.state.control.setArgs('claude=on', 'ctx')).toThrow(/user.*claude/i)
+  })
+
   it("hands the lane's current setting to the sub-agents it starts", async () => {
     const pi = fakePi('claude=off')
     await pi.command('claude=on agents=off')
