@@ -13,7 +13,7 @@ import {
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { readOwnerLock } from '@phosphor/session-runtime/owner-lock/owner-lock'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
-import { startLocalServer } from '../api/local-server'
+import { LocalSocketRefused, startLocalServer } from '../api/local-server'
 import { hostLinks } from '../api/server'
 import { readSidecar, writeSidecar } from '../config/sidecar'
 import { readIdentityFile } from '../control/identity-files'
@@ -125,6 +125,16 @@ function removeLocalRun(state: string, uid: number | undefined) {
   }
 }
 
+/** A socket that cannot be served safely is a configuration failure: one line, exit 78. */
+async function refusedAsConfig<T>(start: () => Promise<T>): Promise<T> {
+  try {
+    return await start()
+  } catch (error) {
+    if (error instanceof LocalSocketRefused) throw new IdentityFailure(error.message)
+    throw error
+  }
+}
+
 export interface LocalSocketOptions {
   /** Tests pass temporary paths; the service uses `localSocketPaths`. */
   candidates?: readonly string[]
@@ -150,27 +160,29 @@ export function createLocalSocketStarter(
     const configDirectory = dirname(resolve(context.configPath))
     const now = context.now ?? Date.now
     const startedAt = now()
-    const server = await startLocalServer({
-      candidates: options.candidates ?? localSocketPaths(context),
-      uid,
-      hostVersion: HOST_VERSION,
-      auth: {
-        machineId: identity.machineId,
-        key,
-        ownerClients: () => {
-          const read = readSidecar(
-            configDirectory,
-            HOST_SIDECARS.ownerClients,
-            parseOwnerClientsFile,
-            { uid },
-          )
-          return read.state === 'ok' ? read.value : null
+    const server = await refusedAsConfig(() =>
+      startLocalServer({
+        candidates: options.candidates ?? localSocketPaths(context),
+        uid,
+        hostVersion: HOST_VERSION,
+        auth: {
+          machineId: identity.machineId,
+          key,
+          ownerClients: () => {
+            const read = readSidecar(
+              configDirectory,
+              HOST_SIDECARS.ownerClients,
+              parseOwnerClientsFile,
+              { uid },
+            )
+            return read.state === 'ok' ? read.value : null
+          },
         },
-      },
-      links: [createOwnerAdapter(handlers)],
-      log: (event, fields) => context.log?.('host', event, fields),
-      now,
-    })
+        links: [createOwnerAdapter(handlers)],
+        log: (event, fields) => context.log?.('host', event, fields),
+        now,
+      }),
+    )
     const state = hostStateDirectory(context.env, context.home)
     const run: LocalRunFile = {
       version: 1,
