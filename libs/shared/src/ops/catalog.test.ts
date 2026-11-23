@@ -129,3 +129,10 @@ it('allows only surfaces to address a different lane for reload, context and MCP
   expect(accepts('contextFiles.set', { ref: 'lane' })).toBe(false)
   expect(accepts('contextFiles.set', { ref: 'lane', claude: true })).toBe(true)
 })
+
+it('allows a Settings surface to address one registered folder for directives, never a path', () => {
+  const prefs = { key: 'worktreeGuard', on: false }
+  for (const project of [true, false, '0123456789abcdef'])
+    expect(accepts('directives.set', { ...prefs, project })).toBe(true)
+  expect(accepts('directives.set', { ...prefs, project: '/folder' })).toBe(false)
+})
