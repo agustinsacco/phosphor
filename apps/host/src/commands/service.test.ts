@@ -532,3 +532,15 @@ it('follows from the read end across intervening growth and starts missing logs 
   expect(await runService(f.context, 'logs', true)).toBe(0)
   expect(f.calls).toEqual([{ file: 'tail', args: ['-c', '+1', '-F', hostLog], follow: true }])
 })
+
+it('installs a service from the local marker without enrollment or implicit linger', async () => {
+  const f = fixture()
+  await writeFile(
+    join(machine.root, 'conf/local-mode.json'),
+    JSON.stringify({ version: 1, enabledAt: new Date().toISOString(), shellEnvironment: true }),
+    { mode: 0o600 },
+  )
+  expect(await runService(f.context, 'install')).toBe(0)
+  expect(await readFile(f.unit, 'utf8')).toContain('ExecStart=')
+  expect(f.calls.some(({ args }) => args.includes('enable-linger'))).toBe(false)
+})

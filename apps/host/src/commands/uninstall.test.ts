@@ -204,3 +204,11 @@ it('leaves the program in place if service uninstall fails', async () => {
   expect(existsSync(f.lib)).toBe(true)
   expect(existsSync(unit)).toBe(true)
 })
+
+it('refuses purge before logout or service changes if state contains foreign files', async () => {
+  const f = setup()
+  expect(await runUninstall(f.context, true, true)).not.toBe(0)
+  expect(logout.run).not.toHaveBeenCalled()
+  expect(readFileSync(join(f.home, '.local/state/phosphor-host/marker'), 'utf8')).toBe('keep')
+  expect(existsSync(f.lib)).toBe(true)
+})
