@@ -75,6 +75,31 @@ describe('OpChannel', () => {
     }
   })
 
+  it("adds only Desktop's typed Brain lane connection, after the scrub; hooks stay withheld", () => {
+    const keys = ['PHOSPHOR_BRAIN_EMBEDDING_MODEL_DIR', 'PHOSPHOR_BRAIN_TEST_EMBEDDINGS']
+    for (const key of [...keys, 'PHOSPHOR_BRAIN_TOKEN']) vi.stubEnv(key, 'parent')
+    try {
+      const own = {
+        A: '1',
+        PHOSPHOR_BRAIN_ENDPOINT: '/own.sock',
+        PHOSPHOR_BRAIN_TOKEN: 'own',
+        PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1',
+      }
+      const connection = { endpoint: '/tmp/ph-brain-x/rpc.sock', token: 'curator' }
+      for (const inherit of [true, false]) {
+        const env = opChildEnv(own, inherit, connection)
+        expect(env).toMatchObject({
+          A: '1',
+          PHOSPHOR_BRAIN_ENDPOINT: '/tmp/ph-brain-x/rpc.sock',
+          PHOSPHOR_BRAIN_TOKEN: 'curator',
+        })
+        for (const key of keys) expect(env).not.toHaveProperty(key)
+      }
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('consumes only the reserved editor title in a marker session', () => {
     const { ops } = channel()
     expect(ops.consume(editor(envelope, 'Edit notes'))).toBe(false)

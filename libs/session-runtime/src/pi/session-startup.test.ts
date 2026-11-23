@@ -126,6 +126,7 @@ describe('portable startup', () => {
     const h = sessionFixture()
     const legacyResources = {
       env: { PHOSPHOR_BRAIN_ENDPOINT: 'ignored', PHOSPHOR_BRAIN_TOKEN: 'ignored' },
+      brainConnection: { endpoint: '/ignored.sock', token: 'ignored' },
       extensions: ['/res/brain.mjs'],
       skills: ['/res/skills/brain'],
     }
@@ -133,6 +134,7 @@ describe('portable startup', () => {
     await h.spawn({ workspacePath: '/repo' }, h.sink)
     expect(h.clients[0]!.options.env).not.toHaveProperty('PHOSPHOR_BRAIN_TOKEN')
     expect(h.clients[0]!.options.env).not.toHaveProperty('PHOSPHOR_BRAIN_ENDPOINT')
+    expect(h.clients[0]!.options.brainConnection).toBeUndefined()
     expect(h.clients[0]!.options).toMatchObject({
       extensions: ['/res/brain.mjs'],
       skills: ['/res/skills/brain'],
@@ -148,6 +150,16 @@ describe('portable startup', () => {
       contribution: 'brain',
       error: 'Error: worker down',
     })
+    await h.registry.disposeAll()
+  })
+
+  it("hands a contribution's typed Brain connection to the spawn, never into its env", async () => {
+    const h = sessionFixture()
+    const brainConnection = { endpoint: '/tmp/ph-brain-x/rpc.sock', token: 'curator' }
+    h.runtime.contributions = [{ name: 'brain', spawn: () => ({ brainConnection }) }]
+    await h.spawn({ workspacePath: '/brain/Brain' }, h.sink)
+    expect(h.clients[0]!.options.brainConnection).toEqual(brainConnection)
+    expect(h.clients[0]!.options.env).not.toHaveProperty('PHOSPHOR_BRAIN_TOKEN')
     await h.registry.disposeAll()
   })
 
