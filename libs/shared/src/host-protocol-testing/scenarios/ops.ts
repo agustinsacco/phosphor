@@ -59,7 +59,7 @@ async function opsCall(kit: ConformanceKit, c: ConformanceViewer, params: unknow
   const found = c.frames.find(
     (f): f is Extract<HostFrame, { type: 'result' }> => f.type === 'result' && f.id === id,
   )
-  return found?.ok ? (found.data as Record<string, unknown>) : found
+  return found?.ok ? (found.data as Record<string, unknown>) : { frame: found }
 }
 
 function opsCallAndCommand(principal: ConformancePrincipal) {

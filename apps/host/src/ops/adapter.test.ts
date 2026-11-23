@@ -6,7 +6,7 @@ import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
 import type { ReadyConnection } from '../api/connection'
 import { createOpsAdapter, type OpsAdapterPorts } from './adapter'
-import { surfaceAdmits } from './binding'
+import { surfaceAdmits, type HostSurfacePrincipal } from './binding'
 
 function connection(caps: readonly HostCapability[], label: string) {
   const sent: { type: string; data?: unknown }[] = []
@@ -56,7 +56,7 @@ it('gives each surface request its own connection’s capabilities, even interle
   expect(byLabel('reader').length).toBeGreaterThanOrEqual(1)
   for (const caps of byLabel('reader')) expect(caps).toEqual(['sessions.read'])
   expect(byLabel('admin')).toEqual([['sessions.read', 'sessions.control', 'machine.configure']])
-  const configure = { caps: ['sessions.control' as const], configure: true }
+  const configure = { caps: ['sessions.control' as const], configure: true as const }
   const [readerPrincipal] = seen.filter((p) => p.kind === 'surface' && p.label === 'reader')
   const [adminPrincipal] = seen.filter((p) => p.kind === 'surface' && p.label === 'admin')
   expect(surfaceAdmits(readerPrincipal as never, configure)).toBe(false)
@@ -77,6 +77,7 @@ it('reads the slot per connection: one made before the dispatcher is bound answe
 
 it('refuses a surface principal that carries no capabilities', () => {
   const bare = { kind: 'surface', clientId: 'c', label: 'x', via: 'grant' } as const
+  const withNone: HostSurfacePrincipal = { ...bare, caps: [] }
   expect(surfaceAdmits(bare, {})).toBe(false)
-  expect(surfaceAdmits({ ...bare, caps: [] }, {})).toBe(true)
+  expect(surfaceAdmits(withNone, {})).toBe(true)
 })

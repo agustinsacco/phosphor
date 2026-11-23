@@ -28,16 +28,19 @@ interface PolicyMeta {
   readonly snapshot: AgentPolicy
 }
 
+function parseSnapshot(text: string): AgentPolicy | null {
+  try {
+    return parseAgentPolicy(JSON.parse(text))
+  } catch {
+    return null
+  }
+}
+
 function readMeta(db: DatabaseSync): PolicyMeta | null {
   const row = db.prepare('SELECT written_sha256, snapshot FROM agent_policy_meta WHERE id=1').get()
   if (!row || typeof row.written_sha256 !== 'string' || typeof row.snapshot !== 'string')
     return null
-  let snapshot: AgentPolicy | null = null
-  try {
-    snapshot = parseAgentPolicy(JSON.parse(row.snapshot))
-  } catch {
-    snapshot = null
-  }
+  const snapshot = parseSnapshot(row.snapshot)
   return snapshot ? { written: row.written_sha256, snapshot } : null
 }
 

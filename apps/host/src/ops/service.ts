@@ -13,6 +13,7 @@ import { createJobStore } from '@phosphor/session-runtime/ops/jobs'
 import { argsSummary } from '@phosphor/session-runtime/ops/redact'
 import { createUndo } from '@phosphor/session-runtime/ops/undo'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import type { OpsDispatcherDeps } from '@phosphor/session-runtime/ops/ports'
 import type { OpsBinding, OpsDispatcher } from '@phosphor/session-runtime/ops/types'
 import { HOST_SIDECARS, parseLocalIdentityFile } from '@phosphor/shared/host-local'
 import type { LaneSummary } from '@phosphor/shared/host-protocol'
@@ -103,7 +104,8 @@ export async function createOpsService(ports: OpsServicePorts): Promise<OpsServi
   }
 }
 
-function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): OpsService {
+/** The service's stores: audit, confirmations, jobs, the policy file, and what follows a policy change. */
+function opsStores(ports: OpsServicePorts, db: DatabaseSync, now: () => number) {
   const { log } = ports
   const audit = createAuditLog(db)
   const confirms = createConfirmStore()
@@ -130,6 +132,47 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     if (event.kind === 'policy') sendMachineOps()
   }
   const changed = () => notify({ kind: 'confirm' })
+  return {
+    audit,
+    confirms,
+    jobs,
+    policy,
+    notify,
+    changed,
+    bindMachineOps(target: (enabled: boolean) => void) {
+      machineTarget = target
+      sendMachineOps()
+    },
+  }
+}
+
+/** The agent principal for a live session of one of this machine's lanes. */
+function daemonAgentFor(
+  ports: OpsServicePorts,
+  createdBy: OpsBinding['lanes']['createdBy'],
+): OpsDispatcherDeps['agentFor'] {
+  return (sessionId) => {
+    const lanes = ports.daemonLanes
+    const lane = lanes.list().find((l) => lanes.sessionFor(l.laneId) === sessionId)
+    if (!lane) return null
+    const laneRef = laneRefFor(ports.selfIds(), lane.laneId)
+    return {
+      kind: 'agent',
+      sessionId,
+      laneRef,
+      lineage: createdBy(laneRef)?.lineage ?? 0,
+      unattended: ports.unattended(sessionId),
+    }
+  }
+}
+
+function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): OpsService {
+  const { log } = ports
+  const { audit, confirms, jobs, policy, notify, changed, bindMachineOps } = opsStores(
+    ports,
+    db,
+    now,
+  )
   const handlers = {
     ...domainHandlers(ports),
     ...daemonMetaHandlers({
@@ -165,20 +208,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   }
   const dispatcher = createOpsDispatcher(binding, {
     parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
-    agentFor(sessionId) {
-      const lane = ports.daemonLanes
-        .list()
-        .find((l) => ports.daemonLanes.sessionFor(l.laneId) === sessionId)
-      if (!lane) return null
-      const laneRef = laneRefFor(ports.selfIds(), lane.laneId)
-      return {
-        kind: 'agent',
-        sessionId,
-        laneRef,
-        lineage: laneBinding.lanes.createdBy(laneRef)?.lineage ?? 0,
-        unattended: ports.unattended(sessionId),
-      }
-    },
+    agentFor: daemonAgentFor(ports, laneBinding.lanes.createdBy),
     surfaceAdmits,
     confirms: confirmPort(confirms, changed),
     redact: argsSummary,
@@ -201,10 +231,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
       if (!sessionId) return 'relay'
       return dispatcher.surfaceAnswered(sessionId, response, client.origin ?? 'surface')
     },
-    bindMachineOps(target) {
-      machineTarget = target
-      sendMachineOps()
-    },
+    bindMachineOps,
     agentControl: async () => (await policy.read()).policy.agentControl !== 'off',
     close() {
       jobs.close()
