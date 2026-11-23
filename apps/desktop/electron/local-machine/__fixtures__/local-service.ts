@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { vi } from 'vitest'
 import type { HostConnectionSnapshot } from '@phosphor/host-client/connection'
 import type { LeaseRefusal } from '@phosphor/shared/host-protocol-owner'
@@ -65,7 +66,7 @@ export function fakeLocalService(hostId = 'mac-0001'): FakeLocalService {
               if (held.some((p) => inside(p, path) || inside(path, p)))
                 return ok(id, { refused: 'busy', path })
           }
-          const leaseId = `lease-${id}`
+          const leaseId = randomUUID()
           service.leases.set(leaseId, paths)
           return ok(id, { leaseId })
         }
