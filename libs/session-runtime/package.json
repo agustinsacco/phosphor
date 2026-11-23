@@ -492,13 +492,45 @@
       "types": "./src/ops/reach.ts",
       "default": "./src/ops/reach.ts"
     },
+    "./ops/builtins": {
+      "types": "./src/ops/builtins.ts",
+      "default": "./src/ops/builtins.ts"
+    },
+    "./ops/deferred": {
+      "types": "./src/ops/deferred.ts",
+      "default": "./src/ops/deferred.ts"
+    },
     "./ops/dispatcher": {
       "types": "./src/ops/dispatcher.ts",
       "default": "./src/ops/dispatcher.ts"
     },
+    "./ops/judge": {
+      "types": "./src/ops/judge.ts",
+      "default": "./src/ops/judge.ts"
+    },
+    "./ops/limits": {
+      "types": "./src/ops/limits.ts",
+      "default": "./src/ops/limits.ts"
+    },
+    "./ops/pipeline": {
+      "types": "./src/ops/pipeline.ts",
+      "default": "./src/ops/pipeline.ts"
+    },
     "./ops/policy": {
       "types": "./src/ops/policy.ts",
       "default": "./src/ops/policy.ts"
+    },
+    "./ops/ports": {
+      "types": "./src/ops/ports.ts",
+      "default": "./src/ops/ports.ts"
+    },
+    "./ops/principals": {
+      "types": "./src/ops/principals.ts",
+      "default": "./src/ops/principals.ts"
+    },
+    "./ops/route": {
+      "types": "./src/ops/route.ts",
+      "default": "./src/ops/route.ts"
     },
     "./owner-lock/types": {
       "types": "./src/owner-lock/types.ts",

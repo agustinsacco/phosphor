@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { agent, createHarness, OTHER, OWN, surface } from './__fixtures__/dispatcher-harness'
-import { OpRefusal } from './dispatcher'
+import { OpRefusal } from './builtins'
 import type { OpHandler, OpHandlerResult } from './types'
 
 function gate() {

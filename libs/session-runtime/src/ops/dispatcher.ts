@@ -15,10 +15,6 @@ import { principalKey } from './principals'
 import type { OpsDispatcherDeps } from './ports'
 import type { OpPrincipal, OpsBinding, OpsDispatcher } from './types'
 
-export { OpRefusal } from './builtins'
-export { requestPage } from './ports'
-export type * from './ports'
-
 type ToolRequest =
   | { readonly request: OpsRunRequest; readonly hosts?: readonly string[] | 'all' }
   | { readonly error: string }
