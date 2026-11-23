@@ -223,6 +223,28 @@ with only the Host id and an error code. Hosts treat missing fields as no news,
 not as clearing earlier revocations. The grant's five-minute lifetime bounds
 access during an outage; the ten-minute window covers a later successful beat.
 
+## Machine reach
+
+`libs/shared/src/control-api/machine-reach.ts` defines how one enrolled machine
+reaches a sibling. `CONTROL_MACHINE_ROUTES` names these routes, separate from
+`CONTROL_ROUTES`:
+
+- `GET /api/v1/hosts/self/machines`, Host-signed: a `MachineDirectoryResponse`. It
+  holds `self {id, label, machineReach}` and at most 20 siblings, each with
+  version, last seen, state, readiness, `machineGrants`, `machineReach` and
+  `reachable` (the sibling has an endpoint).
+- `POST /api/v1/hosts/self/machine-grants`, Host-signed, `{targetHostId}`: a
+  `GrantIssueResponse` whose grant carries `origin: 'machine'`, the caller's id and
+  no caps ([machine-origin grants](remote-protocol.md#machine-origin-grants)).
+- `PATCH /api/v1/machines/:id/reach` (`machineReachRoute`), user-authenticated,
+  `{enabled}`: `{machineReach}`.
+
+Heartbeat requests may carry `machineGrants`, and heartbeat responses
+`machineReach`. `MachineView` may carry `machineReach` and `machineGrants`. The
+parsers keep each one only when it is a boolean. An absent `machineReach` means
+older control, so clients hide the switch instead of showing it off. Control
+does not serve the three routes yet; they answer 404 like any unknown route.
+
 ## Configuration and local use
 
 | Variable                   | Default                          | Constraint                                                                              |

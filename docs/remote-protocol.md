@@ -363,6 +363,18 @@ The additive `laneArchive` boolean in `ready` says the Host accepts `lane.archiv
 `HostConnectionView.laneArchive`. Without it, clients disable Archive and send
 none of these; they never fall back to `lane.delete`.
 
+### Machine-origin grants
+
+A grant may carry `origin: 'machine'` and `machine`, the calling machine's enrolled
+Host id. Control signs it when one enrolled machine asks for a grant to a sibling
+([Control plane](control-plane.md#machine-reach)). The parser requires both claims
+together, `caps: []` and no `configure`; any other mix fails with `machine`.
+`grantPrincipal` names it a `machine` principal, and `sameGrantIdentity` refuses a
+renewal that changes owner, client, origin or machine. A Host checks it only with
+`machineOrigin: true` in its expectations; otherwise `checkGrantClaims` answers
+`machine-origin`. An older Host drops both claims and reads a grant with no caps,
+which admits nothing. No Host opts in yet.
+
 ### Machine configuration operations
 
 `machine.settings.read`, `machine.settings.patch` and `machine.settings.check`
@@ -452,3 +464,110 @@ accepts this cost so that it keeps no unbounded state and no per-grant
 bookkeeping. [Control's per-owner caps](control-plane.md#grants-and-revocation)
 keep an honest account well below 1000 live ids, so the cap is only reached in
 exceptional cases.
+
+## Agent ops
+
+`libs/shared/src/host-protocol-ops.ts` defines `ops.run`, the one wire for every
+agent-control catalog op ([Agent control](agent-control.md)). A read is a `call`
+with `method: 'ops.run'` and an `OpsRunRequest` as params. A write is a laneless,
+unfenced `command` whose op is `{type: 'ops.run', ...OpsRunRequest}`; target lanes
+travel in `args`. `LaneOp` gains only this member, and `HOST_CALL_METHODS` and
+`CAPABILITY_FOR` are unchanged.
+
+The request is `{op, args, reason?, actor?, confirm?, batch?, page?}` with exact
+keys. `op` is one to three dot-separated camelCase words, at most 64 characters.
+`actor: {kind: 'agent', lane?, title?}` is attribution and only ever a downgrade.
+The first submission of an asked op answers `{status: 'confirm', confirmId, digest,
+title, message, items, expiresAt}` and runs nothing; the run submission carries
+`confirm: {confirmId, digest}`. A batch the origin fans out to several Hosts names
+each share as `batch: {id, index, size}`. `OpsRunResult` is `ok`, `confirm` or
+`denied`. Refusals the dispatcher decides travel in band as `{status: 'denied',
+code, text}` on both paths; frame-level refusal stays for malformed frames. An op
+that may outlast the Host's answer deadline answers `ok` with `data: {jobId}`.
+
+`OPS_LIMITS`: the `args` JSON is at most 300 KiB, a content argument inside it at
+most 256 KiB, a command result and tool text 64 KiB, a call's `data` 1 MiB, a reason
+300 characters, 200 ids per op, 20 Hosts per batch reached four at a time, and a
+confirmation lives ten minutes.
+
+`ready` announces the related UI with additive booleans (`READY_OP_FLAGS`): `ops`,
+`ownerLocal`, `laneEditing`, `laneContext`, `laneReload`, `sandboxes`,
+`folderDirectives`, `configFiles` and `pagedLanes`. Each is absent, true or false;
+any other value refuses the frame. A lane summary may carry `pause: {reason:
+'service-update', at}`; an invalid pause is dropped, never the summary.
+
+Older readers stay safe. A previous-release client drops the flags and the pause.
+A previous-release Host answers an `ops.run` command `unsupported`, and the call
+too. No Host announces `ops` or serves `ops.run` yet: a Host from this release
+still has no handler, so it answers the call `unsupported` and the command
+`unknown-lane`. Clients send neither without `ready.ops`.
+`libs/shared/src/base-684cb3478.compatibility.test.ts` runs every new frame
+through frozen copies of the previous release's parsers.
+
+## Paged lanes
+
+The `lanes` topic keeps its 64 folders and 1000 lanes for older clients. Past
+those, a Host that announces `ready.pagedLanes` serves the catalog ops
+`folder.list` and `lane.list` through `ops.run`, to owner and surface principals.
+The request's `page` carries the previous page's `next`; each result's `data` is a
+`FolderListPage` (at most 64 folders) or a `LaneListPage` (at most 200 lane
+summaries), with `next: null` on the last page
+(`libs/shared/src/host-protocol-paged-lanes.ts`).
+
+## The local socket
+
+`libs/shared/src/host-local.ts` is the contract for a machine's local daemon. A
+client on the machine connects over a Unix socket. It fetches a single-use nonce
+from `GET /v1/hello` on that socket. It then sends the unchanged `auth` frame
+with a local credential:
+`phosphor-local.v1.<base64url(payload)>.<base64url(signature) | "">`. The
+payload names `kind: 'owner' | 'local'`, the machine id, the client, the 64-hex
+nonce and `iat`. An owner credential is signed with a key whose public half
+`setup --local` wrote to `owner-clients.json`. A local one is unsigned and may
+name its lane (`PI_SESSION_ID`), as attribution only. The TCP listener refuses
+this prefix and the socket refuses `phosphor-grant.`.
+
+Desktop's grant port returns `localGrantIssueResponse`: `host.id` is the
+machine id from `local-identity.json`, `host.endpoint` is
+`phosphor-local:<machineId>`, and `host.publicKey` is the raw Ed25519 key
+`local-identity.json` carries.
+
+`localSocketCandidates` lists, in order: on Linux `$XDG_RUNTIME_DIR/phosphor-host/phosphor.sock`,
+then `<state>/run/phosphor.sock`, then `/tmp/phosphor-<uid>/<hash>.sock`.
+`chooseLocalSocket` takes the first within 103 UTF-8 bytes. The path is
+measured before binding: Node 22 silently truncates a longer path, and Node 24
+throws. `HOST_SIDECARS` names the daemon's files, and `OWNER_LOCK_FILE` is the
+owner lock in pi's agent folder.
+
+## Owner calls
+
+`libs/shared/src/host-protocol-owner.ts` lists `OWNER_METHODS`. These are `call`
+methods served only on the local socket, ahead of the lane adapter, so they work in
+standby. Only the attested owner reaches them, except `machine.local`,
+`machine.identity.reload` and `headroom.status`, which any socket principal
+may call. Mutations are idempotent by their key (`migrationId`, `leaseId`,
+`accountId`, `action`). Long work answers at once and is observed through
+`machine.local`. No token lands in a receipt.
+
+- Machine: `machine.local` (`LocalStatus`; fields after `mode` are owner-only),
+  `machine.identity.reload`, `machine.enroll` (refused in standby), `machine.owner`
+  (owner lock), `machine.pause` (service update), `app.service.register`,
+  `headroom.status` and `headroom.set`.
+- Migration: `owner.index` (paged lane rows), `owner.migrate.begin|import|status|commit|abort`.
+  Import sections are folders, policy, accounts, lanes, marks, archives, artifacts
+  and routines. They carry Desktop-minted lane UUIDs, so Desktop can re-key drafts.
+  Each lane carries its title, branch, model, `createdAt` and `updatedAt`.
+  Archives carry new daemon manifests: a lane UUID `id` and `metadata.repositoryId`,
+  with the Desktop record's paths and identities kept byte-equal. Account folders
+  live in the account root the section names. Bindings name known accounts.
+  Unread marks import as `attention = read + 1`. Routine workspaces are realpaths.
+- Leases: `owner.lease.take|renew|release` over absolute folder paths.
+- `owner.transcript.page` reads complete JSONL lines of a lane's session file from an
+  offset (at most 4 MiB per page), so transcripts too large for `lane.messages` open.
+- `owner.account.prepare|register|discard`: the daemon issues an empty account
+  folder under its account root, registers the folder it issued (the call takes no
+  path), or removes it after a cancelled login.
+
+`OWNER_LIMITS` is separate from `HOST_LIMITS`, which only ever goes down. Owner calls
+get a 120 s answer deadline. A daemon that predates these calls answers
+`unsupported`. No daemon serves them yet.

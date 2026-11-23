@@ -38,6 +38,7 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 | [usage-analytics.md](usage-analytics.md)       | Anonymous download and usage counters, the owner-only admin summary     |
 | [remote-desktop.md](remote-desktop.md)         | Desktop Host connections, machine context, routing and isolation        |
 | [remote-protocol.md](remote-protocol.md)       | Host frames, receipts, streams, fences and grant verification           |
+| [agent-control.md](agent-control.md)           | Agent ops: the catalog, the op channel, policy and confirmations        |
 | [remote-development.md](remote-development.md) | Remote diagnostics, disposable validation and transport probes          |
 
 Start with **[Remote access](remote-access.md)** for the three parts, setup,
