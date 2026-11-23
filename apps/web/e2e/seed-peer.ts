@@ -95,6 +95,8 @@ export async function askToPurge(ports: SeedPorts, id: string, reason: string) {
   })
   const result = parseOpsRunResult(receipt.data)
   if (result?.status !== 'confirm')
-    throw Error(`Expected a pending request, got ${result?.status}.`)
+    throw Error(
+      `Expected a pending request, got ${result?.status === 'denied' ? `${result.code}: ${result.text}` : result?.status}.`,
+    )
   return result.confirmId
 }

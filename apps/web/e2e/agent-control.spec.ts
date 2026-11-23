@@ -24,7 +24,7 @@ test('reviews and approves the exact request held by a Host announcing agent con
   page,
   stack,
 }) => {
-  const archive = 'fixture-unused-archive'
+  const archive = crypto.randomUUID()
   const reason = 'Retire the synthetic archive after review.'
   const confirmId = await stack.askToPurge(archive, reason)
   await page.goto(stack.origin)
