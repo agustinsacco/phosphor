@@ -29,6 +29,7 @@ function fixture(...replies: object[]) {
   const requests: OpRequestEnvelope[] = []
   const ctx = {
     isIdle: () => true,
+    modelRegistry: { find: () => undefined },
     sessionManager: { getSessionId: () => session, getBranch: () => [] },
     ui: {
       setStatus: vi.fn<(key: string, text: string) => void>(),
@@ -244,7 +245,7 @@ async function startParent(...replies: object[]) {
   contextBreakdown({
     ...f.pi,
     on: (name, listener) => events.set(name, [...(events.get(name) ?? []), listener]),
-    registerCommand: (name, command) => commands.set(name, command as Command<typeof f.ctx>),
+    registerCommand: (name, command) => commands.set(name, command),
     getAllTools: () => [{ name: 'subagent' }],
     getActiveTools: () => ['subagent'],
   })
@@ -274,7 +275,7 @@ it('applies swarm on to the pill’s own policy, then respects a user off', asyn
     source: 'agent',
     reason: swarm.reason,
   })
-  await f.run({ args: ['swarm', 'status'] })
+  await f.run({ args: ['whoami'] })
   expect(f.requests[1]?.facts?.swarm).toMatchObject({
     requested: true,
     enabled: true,

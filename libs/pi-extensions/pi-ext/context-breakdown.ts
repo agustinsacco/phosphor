@@ -29,6 +29,8 @@
 import contextBudget, { type BudgetApi } from './context-budget'
 import swarm from './swarm'
 import lanePrs from './lane-prs'
+import { registerLaneControl } from './lane-controls'
+import type { SessionManager } from './pi-api'
 import contextFiles, { contextFilesIn, type ContextFileInfo } from './context-files'
 import globalContext from './global-context'
 import directives from './directives'
@@ -181,6 +183,29 @@ function registerHostControls(pi: PiExtensionApi) {
   return directives(pi)
 }
 
+/** Publish the parent policies to the separately loaded phosphor tool for this session only. */
+function bindLaneControls(
+  pi: PiExtensionApi,
+  swarmControl: ReturnType<typeof swarm>['control'],
+  filesControl: ReturnType<typeof contextFiles>['control'],
+): void {
+  let unregister: (() => void) | undefined
+  pi.on('session_start', (_event, ctx) => {
+    unregister?.()
+    const key = (ctx as { sessionManager: SessionManager }).sessionManager.getSessionId()
+    const releaseSwarm = registerLaneControl(key, 'swarm', swarmControl)
+    const releaseFiles = registerLaneControl(key, 'contextFiles', filesControl)
+    unregister = () => {
+      releaseSwarm()
+      releaseFiles()
+    }
+  })
+  pi.on('session_shutdown', () => {
+    unregister?.()
+    unregister = undefined
+  })
+}
+
 export default function contextBreakdownExtension(pi: PiExtensionApi): void {
   const policy = registerHostControls(pi)
   // Before the filter: it must see the global file as it is now.
@@ -191,9 +216,8 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     publish(latestContext)
   })
   const swarmPolicy = swarm(pi, (ctx) => publish(ctx as ExtensionContext))
-  // The last lifecycle context, for a publish no event triggers: an MCP server
-  // that finishes connecting after `session_start` (see `watchConnections`).
-  // Session replacement fires a fresh `session_start`, which replaces it.
+  bindLaneControls(pi, swarmPolicy.control, files.control)
+  // The last lifecycle context, for an MCP server connecting after session_start.
   let latestContext: ExtensionContext | undefined
   let publishedMcp = ''
 

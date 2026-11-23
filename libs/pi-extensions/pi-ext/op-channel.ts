@@ -10,6 +10,7 @@ export type OpSender = (
 ) => Promise<OpReplyEnvelope>
 type Payload = Omit<OpRequestEnvelope, 'v' | 'id' | 'deadlineMs'>
 export const OP_TITLE = 'phosphor-op/v1'
+export const laneOpsEnabled = () => process.env.PHOSPHOR_OPS === 'v1'
 // Runtime imports must resolve from pi's shipped siblings. Mirror OPS_LIMITS here.
 const ARGS_BYTES = 300 * 1024
 const CONTENT_BYTES = 256 * 1024

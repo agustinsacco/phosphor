@@ -1,7 +1,7 @@
 import { Type } from 'typebox'
 import type { OpReplyEnvelope } from '@phosphor/shared/ops'
 import { applyLaneEffect, laneControlFacts } from './lane-controls'
-import { sendOpRequest } from './op-channel'
+import { laneOpsEnabled, sendOpRequest } from './op-channel'
 import type { ToolDefinition, SessionEntryApi } from './pi-api'
 
 type Ok = Extract<OpReplyEnvelope, { status: 'ok' }>
@@ -166,7 +166,7 @@ async function execute(pi: Api, params: Params, signal: AbortSignal | undefined,
 }
 
 export default function phosphorExtension(pi: Api): void {
-  if (process.env.PHOSPHOR_OPS !== 'v1') return
+  if (!laneOpsEnabled()) return
   pi.registerTool({
     name: 'phosphor',
     label: 'Phosphor',

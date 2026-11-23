@@ -1,18 +1,8 @@
 import { Type } from 'typebox'
-import {
-  noOwnerReply,
-  OP_MARKER_ENV,
-  OP_MARKER_VALUE,
-  type OpReplyEnvelope,
-} from '@phosphor/shared/ops'
 import type { BrainTidyProblem } from '@phosphor/shared/brain-tidy'
+import { laneOpsEnabled, sendOp, type OpSender } from './op-channel'
 import type { ToolDefinition } from './pi-api'
 
-type OpSender = (
-  ctx: unknown,
-  request: { op: string; args: Record<string, unknown>; reason?: string; content?: string },
-  opts?: { signal?: AbortSignal; deadlineMs?: number },
-) => Promise<OpReplyEnvelope>
 export interface BrainPiApi {
   registerTool<P, D>(definition: ToolDefinition<P, unknown, D>): void
 }
@@ -81,11 +71,8 @@ export function registerBrain(pi: BrainPiApi, send: OpSender): void {
   registerFlag(pi, send)
 }
 
-export default function brainExtension(
-  pi: BrainPiApi,
-  send: OpSender = async () => noOwnerReply(null),
-): void {
-  if (process.env[OP_MARKER_ENV] === OP_MARKER_VALUE) registerBrain(pi, send)
+export default function brainExtension(pi: BrainPiApi, send: OpSender = sendOp): void {
+  if (laneOpsEnabled()) registerBrain(pi, send)
 }
 
 function registerFlag(pi: BrainPiApi, send: OpSender): void {
