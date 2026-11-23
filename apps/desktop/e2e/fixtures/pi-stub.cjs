@@ -461,7 +461,7 @@ function handle(cmd) {
           isCompacting: compacting,
           steeringMode: 'all',
           followUpMode: 'one-at-a-time',
-          sessionId: 'stub-session',
+          sessionId: process.env.PHOSPHOR_E2E_OPS === '1' ? `stub-${process.pid}` : 'stub-session',
           sessionName: SESSION_NAME,
           // Real pi always reports the file it persists to. The app stores
           // this as the session's disk path and reopens it on relaunch.
@@ -502,7 +502,7 @@ function handle(cmd) {
         command: 'get_session_stats',
         success: true,
         data: {
-          sessionId: 'stub-session',
+          sessionId: process.env.PHOSPHOR_E2E_OPS === '1' ? `stub-${process.pid}` : 'stub-session',
           userMessages: 1,
           assistantMessages: 1,
           toolCalls: 2,
