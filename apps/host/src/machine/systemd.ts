@@ -6,7 +6,6 @@ import { IdentityFailure } from '../control/identity'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { probe } from './probe'
 
-export const HOST_UNIT = 'phosphor-host.service'
 const safe = (value: string, max: number) =>
   value.length <= max && !/[\p{Cc}\u2028\u2029]/u.test(value)
 function quote(value: string, exec = false, max = 65536) {

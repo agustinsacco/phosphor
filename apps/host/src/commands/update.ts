@@ -32,8 +32,8 @@ import { acquireInstallLock, hasCode } from '@phosphor/session-runtime/host-inst
 import { atomicRecord, readBounded } from '@phosphor/session-runtime/host-install/files'
 import { readRunHealth } from '../update/health'
 import { installLifetime, signalTurn } from '../update/lifetime'
-import { HOST_AGENT } from '../machine/launchd'
-import { HOST_UNIT, serviceRunner } from '../machine/systemd'
+import { HOST_AGENT, HOST_UNIT } from '@phosphor/shared/host-local'
+import { serviceRunner } from '../machine/systemd'
 import { hostStateDirectory } from '../lanes/state-dir'
 import { runService, type ServiceContext } from './service'
 

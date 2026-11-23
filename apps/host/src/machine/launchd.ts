@@ -14,9 +14,9 @@ import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
 import { errnoCode, errnoIs } from '@phosphor/session-runtime/fs-safety'
+import { HOST_AGENT } from '@phosphor/shared/host-local'
 import { hostLogDirectory } from './log'
 
-export const HOST_AGENT = 'com.saccolabs.phosphor-host'
 function xml(value: string): string {
   if (value.length > 65536 || /[\p{Cc}\u2028\u2029]/u.test(value))
     throw new IdentityFailure('Service paths and PATH must not contain control characters.')

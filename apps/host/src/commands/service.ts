@@ -5,8 +5,8 @@ import { userInfo } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { traceCommand, controlResult, prepareControl, withCommandLock } from '../control/command'
 import { IdentityFailure } from '../control/identity'
+import { HOST_AGENT, HOST_UNIT } from '@phosphor/shared/host-local'
 import {
-  HOST_UNIT,
   serviceRunner,
   serviceUnit,
   writeServiceUnit,
@@ -14,7 +14,6 @@ import {
   type ServiceRunner,
 } from '../machine/systemd'
 import {
-  HOST_AGENT,
   launchAgentPlist,
   launchctlMissing,
   launchdStatusLines,

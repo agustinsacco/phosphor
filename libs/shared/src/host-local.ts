@@ -237,6 +237,13 @@ export const HOST_SIDECARS = {
   appServices: 'app-services.json',
 } as const
 
+/**
+ * The Host's per-user service names: `~/Library/LaunchAgents/<HOST_AGENT>.plist` on macOS and
+ * `<XDG_CONFIG_HOME>/systemd/user/<HOST_UNIT>` on Linux. Desktop reads them to spot a source Host.
+ */
+export const HOST_AGENT = 'com.saccolabs.phosphor-host'
+export const HOST_UNIT = 'phosphor-host.service'
+
 /** In pi's agent folder; held by whichever of Desktop and the daemon owns the machine's lanes. */
 export const OWNER_LOCK_FILE = '.phosphor-owner.lock'
 

@@ -2,6 +2,8 @@ import { generateKeyPairSync, sign, verify } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { parseGrantIssueResponse } from './control-api'
 import {
+  HOST_AGENT,
+  HOST_UNIT,
   LOCAL_CREDENTIAL_PREFIX,
   LOCAL_LIMITS,
   chooseLocalSocket,
@@ -151,5 +153,12 @@ describe('sidecar files', () => {
     expect(parseOwnerClientsFile({ version: 1, clients: [client, client] })).toBeNull()
     const many = Array.from({ length: LOCAL_LIMITS.ownerClients + 1 }, () => client)
     expect(parseOwnerClientsFile({ version: 1, clients: many })).toBeNull()
+  })
+})
+
+describe('Host service names', () => {
+  it('are the names every installed Host service already uses', () => {
+    expect(HOST_AGENT).toBe('com.saccolabs.phosphor-host')
+    expect(HOST_UNIT).toBe('phosphor-host.service')
   })
 })
