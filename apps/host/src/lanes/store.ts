@@ -1,5 +1,6 @@
 import { FolderRows } from './store/folder-rows'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
+import { repositoryIdForPath } from '@phosphor/session-runtime/host-local/repository-id'
 import { realpathSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
@@ -138,7 +139,7 @@ export class HostStore {
           continue
         }
         absolutePath(real)
-        const id = createHash('sha256').update(real).digest('hex').slice(0, 16)
+        const id = repositoryIdForPath(real)
         repositories.set(id, { id, path: real, name: basename(real) })
       } catch (error) {
         if (!(error instanceof Error && errnoIs(error, 'ENOENT', 'ENOTDIR', 'EACCES'))) throw error

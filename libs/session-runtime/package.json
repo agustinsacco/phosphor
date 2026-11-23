@@ -652,6 +652,10 @@
       "types": "./src/host-local/transport.ts",
       "default": "./src/host-local/transport.ts"
     },
+    "./host-local/repository-id": {
+      "types": "./src/host-local/repository-id.ts",
+      "default": "./src/host-local/repository-id.ts"
+    },
     "./skills/catalog": {
       "types": "./src/skills/catalog.ts",
       "default": "./src/skills/catalog.ts"
