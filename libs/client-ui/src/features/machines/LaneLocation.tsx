@@ -1,9 +1,11 @@
 import { BranchIcon } from '@/components/icons'
+import clsx from 'clsx'
+import { Chip, CHIP_MARK } from '@/components/form'
 import { useSessionsStore } from '@/stores/sessions'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 
-const CHIP =
-  'bg-bg-secondary text-text-secondary flex min-w-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-sm'
+/** A lane's location is read-only, so it takes the bar's neutral ground. */
+const GROUND = 'bg-bg-secondary text-text-secondary'
 
 /**
  * Where a Host lane works: its repository, `wt` for a worktree, and its branch.
@@ -32,22 +34,22 @@ export function LaneLocation({
   return (
     <span data-testid="lane-location" className="flex min-w-0 shrink items-center gap-2">
       {repository && (
-        <span className={CHIP} data-tooltip={lane.cwd}>
+        <Chip className={GROUND} data-tooltip={lane.cwd}>
           <span className="truncate">{repository.name}</span>
-        </span>
+        </Chip>
       )}
       {lane.branch && (
-        <span
-          className={CHIP}
+        <Chip
+          className={GROUND}
           data-testid="lane-branch"
           data-tooltip={lane.worktree ? `Worktree of ${where}` : `Branch ${lane.branch}`}
         >
           {lane.worktree && (
-            <span className="bg-accent-soft text-accent rounded px-1 text-2xs font-medium">wt</span>
+            <span className={clsx('bg-accent-soft text-accent', CHIP_MARK)}>wt</span>
           )}
           <BranchIcon size={10} />
           <span className="max-w-36 truncate">{lane.branch}</span>
-        </span>
+        </Chip>
       )}
     </span>
   )

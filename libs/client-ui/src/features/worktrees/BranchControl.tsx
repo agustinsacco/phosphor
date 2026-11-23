@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorktreeInfo } from '@shared/models'
 import { BranchIcon, ChevronIcon } from '@/components/icons'
+import { CHIP, CHIP_MARK } from '@/components/form'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { revealLabel } from '@/lib/reveal'
 import { useSessionsStore } from '@/stores/sessions'
@@ -112,14 +113,14 @@ export function BranchControl({
         data-testid="branch-chip"
         aria-expanded={open}
         className={clsx(
-          'flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-sm transition-colors',
+          CHIP,
           open
             ? 'bg-bg-secondary text-text'
             : 'bg-bg-secondary text-text-secondary hover:text-text',
         )}
       >
         {info.isWorktree && (
-          <span className="bg-accent-soft text-accent rounded px-1 text-2xs font-medium">wt</span>
+          <span className={clsx('bg-accent-soft text-accent', CHIP_MARK)}>wt</span>
         )}
         <BranchIcon size={10} />
         <span
