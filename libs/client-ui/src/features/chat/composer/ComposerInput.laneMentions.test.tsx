@@ -79,7 +79,7 @@ it('keeps files first and inserts one stable ref for a saved lane or a connected
   try {
     act(() => root.render(<Harness />))
     const open = async () => {
-      await act(async () => el.querySelector('button:last-of-type')?.click())
+      await act(async () => el.querySelector<HTMLButtonElement>('button:last-of-type')?.click())
     }
     await open()
     const menu = el.querySelector('[data-popup-menu]')!
