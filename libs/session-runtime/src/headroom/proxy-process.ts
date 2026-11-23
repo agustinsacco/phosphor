@@ -2,9 +2,8 @@ import type { ChildProcess, spawn } from 'node:child_process'
 import type { Detection } from './proxy-detection'
 
 export const HEADROOM_PROXY_PORT = 8787
-export const HEADROOM_PROXY_URL = `http://127.0.0.1:${HEADROOM_PROXY_PORT}`
 
-/** Loopback URL for a port. The port is only ever non-default in tests. */
+/** Loopback URL for a port. */
 export function proxyUrl(port: number): string {
   return `http://127.0.0.1:${port}`
 }
@@ -18,7 +17,7 @@ const CRASH_WINDOW_MS = 10_000
 const MAX_CRASHES = 2
 
 /** Argv for the managed proxy. Exported for tests — this list is a contract. */
-export function proxyArgs(port: number = HEADROOM_PROXY_PORT): string[] {
+export function proxyArgs(port: number): string[] {
   return [
     'proxy',
     '--host',
@@ -54,8 +53,7 @@ export interface ProxyProcessDeps {
   envImpl: () => Promise<NodeJS.ProcessEnv>
   onWillQuit: (handler: () => void) => void
   logImpl: (message: string) => void
-  /** Defaults to 8787. Only a test ever moves it off the machine-wide port. */
-  port?: number
+  port: number
 }
 
 export interface SupervisorState {
@@ -84,7 +82,7 @@ export class HeadroomProxyProcess {
     private readonly deps: ProxyProcessDeps,
     private readonly detect: () => Promise<Detection>,
   ) {
-    this.port = deps.port ?? HEADROOM_PROXY_PORT
+    this.port = deps.port
     this.url = proxyUrl(this.port)
   }
 

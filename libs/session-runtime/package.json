@@ -435,6 +435,18 @@
     "./pi/shell-env": {
       "types": "./src/pi/shell-env.ts",
       "default": "./src/pi/shell-env.ts"
+    },
+    "./headroom/proxy-process": {
+      "types": "./src/headroom/proxy-process.ts",
+      "default": "./src/headroom/proxy-process.ts"
+    },
+    "./headroom/proxy-detection": {
+      "types": "./src/headroom/proxy-detection.ts",
+      "default": "./src/headroom/proxy-detection.ts"
+    },
+    "./headroom/supervisor": {
+      "types": "./src/headroom/supervisor.ts",
+      "default": "./src/headroom/supervisor.ts"
     }
   },
   "nx": {

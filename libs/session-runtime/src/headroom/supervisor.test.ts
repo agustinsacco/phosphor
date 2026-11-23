@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { createHeadroomSupervisor, HEADROOM_PROXY_URL, proxyArgs, proxyEnv } from './proxy'
+import { createHeadroomSupervisor } from './supervisor'
+import { proxyUrl, proxyArgs, proxyEnv } from './proxy-process'
 
 /**
  * The supervisor's promises are lifecycle SAFETY properties, not features:
@@ -37,6 +38,7 @@ function rig(options: { healthy?: boolean; installed?: boolean; enabled?: boolea
   const quitHandlers: Array<() => void> = []
 
   const supervisor = createHeadroomSupervisor({
+    port: 9876,
     fetchImpl: (async () =>
       healthy
         ? new Response('{"status":"ok"}')
@@ -82,7 +84,7 @@ describe('spawn contract', () => {
     // A user-profile HEADROOM_HOST must not widen the bind.
     expect(env.HEADROOM_HOST).toBe('127.0.0.1')
 
-    const args = proxyArgs()
+    const args = proxyArgs(9876)
     expect(args).toContain('--no-subscription-tracking')
     expect(args.join(' ')).toContain('--host 127.0.0.1')
   })
@@ -199,7 +201,7 @@ describe('sessionEnv', () => {
     const r = rig({ healthy: false })
     expect(r.supervisor.sessionEnv()).toEqual({})
     await r.supervisor.ensure()
-    expect(r.supervisor.sessionEnv()).toEqual({ PHOSPHOR_HEADROOM_URL: HEADROOM_PROXY_URL })
+    expect(r.supervisor.sessionEnv()).toEqual({ PHOSPHOR_HEADROOM_URL: proxyUrl(9876) })
   })
 
   it('self-heals in the background after a stale miss', async () => {

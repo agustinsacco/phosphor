@@ -1,7 +1,8 @@
 import { EventEmitter } from 'node:events'
 import type { ChildProcess, spawn } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createHeadroomSupervisor, HEADROOM_PROXY_URL } from './proxy'
+import { createHeadroomSupervisor } from './supervisor'
+import { proxyUrl } from './proxy-process'
 
 class CharacterizationChild extends EventEmitter {
   exitCode: number | null = null
@@ -34,6 +35,7 @@ function supervisorRig(
   }) as unknown as typeof spawn
   const fetchImpl = vi.fn(async () => new Response('', { status: endpoint.healthy ? 200 : 503 }))
   const supervisor = createHeadroomSupervisor({
+    port: 9876,
     fetchImpl: fetchImpl as typeof fetch,
     spawnImpl,
     resolveBinaryImpl: async () => '/bin/headroom',
@@ -62,7 +64,7 @@ describe('Headroom supervisor lifecycle characterization', () => {
     expect((await r.supervisor.status()).proxy).toEqual({
       running: true,
       owned: false,
-      url: HEADROOM_PROXY_URL,
+      url: proxyUrl(9876),
     })
     expect((await r.supervisor.stop()).proxy.running).toBe(true)
     expect((await r.supervisor.setEnabled(false)).proxy.running).toBe(true)
@@ -147,7 +149,7 @@ describe('Headroom supervisor lifecycle characterization', () => {
     expect(r.supervisor.sessionEnv()).toEqual({})
     await r.supervisor.ensure()
     r.endpoint.healthy = false
-    expect(r.supervisor.sessionEnv()).toEqual({ PHOSPHOR_HEADROOM_URL: HEADROOM_PROXY_URL })
+    expect(r.supervisor.sessionEnv()).toEqual({ PHOSPHOR_HEADROOM_URL: proxyUrl(9876) })
     await r.supervisor.ensure()
     await r.supervisor.setEnabled(false)
     expect(r.supervisor.sessionEnv()).toEqual({})
