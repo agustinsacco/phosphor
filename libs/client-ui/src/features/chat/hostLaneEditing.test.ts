@@ -1,5 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { mockRemoteHosts, MOCK_HOST_ID as hostId } from '@/dev/mockRemoteLanes'
+import { branchMessageForItem, currentBranchUserMessages } from './rewind'
+import { useChatStore } from '@/stores/chat'
+import { useSessionsStore } from '@/stores/sessions'
+import { hostLaneSession, mockRemoteHosts, MOCK_HOST_ID as hostId } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useDraftsStore } from '@/stores/drafts'
 import { remoteLaneKey, remoteLaneResourceKey } from '@shared/remote-host'
@@ -81,4 +84,36 @@ it('folds only recorded stopped predecessors of lanes still present on this Host
   expect(visibleHostLanes([old])).toEqual([old])
   expect(visibleHostLanes([{ ...old, pinned: true }, replacement])).toHaveLength(2)
   expect(visibleHostLanes([{ ...old, activity: 'working' }, replacement])).toHaveLength(2)
+})
+
+it('assigns rendered images only to an unambiguous user message on the current branch', async () => {
+  const { live } = hostLaneSession({ self: true, sessionId: 's' })
+  useSessionsStore.setState({ live })
+  const image = { type: 'image' as const, data: 'abcd', mimeType: 'image/png' }
+  useChatStore.getState().hydrate('s', [{ role: 'user', timestamp: 42, content: [image] }])
+  const clicked = useChatStore.getState().sessions.s!.items[0]!
+  if (clicked.kind !== 'user') throw new Error('expected a rendered user message')
+  const row = {
+    id: 'u',
+    parentId: null,
+    role: 'user',
+    type: 'message',
+    timestamp: 'entry write time',
+    messageTimestamp: 42,
+  }
+  const data = { sessionId: 'pi', leafId: 'u', entries: [row, { ...row, id: 'abandoned' }] }
+  invoke.mockResolvedValue(ok(data))
+  expect(await branchMessageForItem('s', clicked)).toMatchObject({ entryId: 'u', images: [image] })
+  invoke.mockResolvedValue(
+    ok({
+      ...data,
+      leafId: 'duplicate',
+      entries: [row, { ...row, id: 'duplicate', parentId: 'u' }],
+    }),
+  )
+  expect(await branchMessageForItem('s', clicked)).toBeNull()
+  expect((await currentBranchUserMessages('s'))?.map((c) => [c.entryId, c.images])).toEqual([
+    ['u', undefined],
+    ['duplicate', undefined],
+  ])
 })
