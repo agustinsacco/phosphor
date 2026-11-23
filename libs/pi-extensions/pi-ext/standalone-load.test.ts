@@ -87,6 +87,14 @@ describe('standalone extension registration', () => {
     },
   )
 
+  it.each(['phosphor.ts', 'op-channel.ts', 'lane-controls.ts', 'directives.ts', 'live-context.ts'])(
+    'loads the shipped %s stub alone and registers nothing',
+    async (file) => {
+      expect(BUNDLED_EXTENSION_FILES).not.toContain(file)
+      expect(await registerCopied(file, true)).toEqual({ events: [], commands: [], tools: [] })
+    },
+  )
+
   it('registers the optional gate from one copied file without siblings', async () => {
     expect(await registerCopied('optional/permission-gate.ts', true)).toEqual({
       events: ['tool_call'],

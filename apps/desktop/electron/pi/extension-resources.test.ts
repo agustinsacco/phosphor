@@ -27,21 +27,27 @@ const root = resolve(appRoot, '../..')
 const library = join(root, 'libs/pi-extensions')
 // This is the existing unpacked production inventory, including the imported
 // budget, context-file and global-instructions helpers, the artifact store format the artifacts extension reads, and
-// the optional gate, the dependency-free status/widget key vocabulary, and the set
-// pi-subagents children load. Python helpers remain source-only as before.
+// the optional gate, the dependency-free status/widget key vocabulary, the set
+// pi-subagents children load, and the agent-control stubs no spawn loads yet.
+// Python helpers remain source-only as before.
 const shippedFiles = [
   'artifact-store.ts',
   'artifacts.ts',
   'context-breakdown.ts',
   'context-budget.ts',
   'context-files.ts',
+  'directives.ts',
   'global-context.ts',
   'headroom.ts',
+  'lane-controls.ts',
   'lane-prs.ts',
   'lane-reload.ts',
+  'live-context.ts',
   'main-checkout.ts',
   'message-ledger.ts',
+  'op-channel.ts',
   'optional/permission-gate.ts',
+  'phosphor.ts',
   'pi-api.ts',
   'status-keys.ts',
   'subagent-children.ts',

@@ -87,6 +87,26 @@
     "./brain-fork-guard": {
       "types": "./pi-ext/brain-fork-guard.ts",
       "default": "./pi-ext/brain-fork-guard.ts"
+    },
+    "./phosphor": {
+      "types": "./pi-ext/phosphor.ts",
+      "default": "./pi-ext/phosphor.ts"
+    },
+    "./op-channel": {
+      "types": "./pi-ext/op-channel.ts",
+      "default": "./pi-ext/op-channel.ts"
+    },
+    "./lane-controls": {
+      "types": "./pi-ext/lane-controls.ts",
+      "default": "./pi-ext/lane-controls.ts"
+    },
+    "./directives": {
+      "types": "./pi-ext/directives.ts",
+      "default": "./pi-ext/directives.ts"
+    },
+    "./live-context": {
+      "types": "./pi-ext/live-context.ts",
+      "default": "./pi-ext/live-context.ts"
     }
   },
   "dependencies": {
