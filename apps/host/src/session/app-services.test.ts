@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { HARBOR_RECALL } from '@phosphor/brain-client/__fixtures__/recall'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
-import type { ReadyConnection } from '../api/connection'
+import { createBrainContribution } from './contributions/brain'
 import { createOwnerAdapter } from '../owner/adapter'
 import { createBrainHandlers } from '../ops/handlers/brain'
 import { createAppServices } from './app-services'
@@ -41,10 +41,18 @@ function harness() {
   function connection(connectionId: string) {
     return createOwnerAdapter(services.handlers)({
       connectionId,
+      caps: [],
       principal: { kind: 'owner', clientId: 'desktop' },
       client: { id: 'desktop', label: 'Desktop' },
-      socket: { isOpen: () => true, send: (text: string) => sent.push(text) },
-    } as ReadyConnection)!
+      socket: {
+        isOpen: () => true,
+        send: (text: string) => sent.push(text),
+        close: vi.fn(),
+        onMessage: vi.fn(),
+        onClose: vi.fn(),
+        bufferedBytes: () => 0,
+      },
+    })!
   }
   async function register(link: ReturnType<typeof connection>, endpoint: string, recall = true) {
     const index = sent.length
@@ -78,10 +86,12 @@ it('keeps only recall preferences after the registering connection closes, inclu
   await h.register(second, endpoint)
   first.close?.()
   expect(h.services.status()).toEqual({ brain: 'registered' })
+  h.services.attachLane('session', '/repo')
   second.close?.()
   expect(h.services.status()).toEqual({ brain: 'known' })
   const restarted = createAppServices(h.state, uid)
-  expect(restarted.resources('/res')).toEqual({
+  const contribution = createBrainContribution({ appServices: restarted, resourceRoot: '/res' })
+  expect(await contribution.spawn({}, { options: { workspacePath: '/repo' } })).toEqual({
     extensions: ['/res/brain-ext/brain.mjs'],
     skills: ['/res/skills/brain'],
   })
