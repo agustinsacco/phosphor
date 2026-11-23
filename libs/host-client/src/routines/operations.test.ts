@@ -305,3 +305,12 @@ it('keeps token admission checks after awaited queries, sends and history fallba
   await expect(run(s.state, s.ports, s.host, s.id)).rejects.toThrow(UNAVAILABLE)
   expect(s.send).toHaveBeenCalledTimes(2)
 })
+
+it('reads owner activity over ops and keeps only an output lane on this connection', async () => {
+  const s = setup(), laneId = randomUUID()
+  Object.assign(s.view, {ownerLocal:true, ops:true})
+  s.call.mockImplementation(async (method) => ({type:'result', id:randomUUID(),ok:true, data:method === 'routines.list' ? [s.row] : {status:'ok',text:'Runs',applies:'now',data:[{...s.remoteRun, laneRef:`host:${s.host}/lane:${laneId}`}, {...s.remoteRun,id:randomUUID()}]}}))
+  const result = await list(s.state,s.ports,s.host)
+  expect(result.runs.map(r => r.outputLaneId)).toEqual([laneId, undefined])
+  expect(s.call).toHaveBeenCalledWith('ops.run',{op:'routine.activity',args:{}})
+})

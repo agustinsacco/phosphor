@@ -318,3 +318,13 @@ it("links a Host's Accounts to its Claude Code page under Extensions", async () 
   expect(selected).toEqual(['Extensions', 'Claude Code'])
   expect(container.textContent).toContain('work@bee1.example')
 })
+
+it('offers only reviewed settings JSON when the Host announces config files', async () => {
+  const hosts = mixedRemoteHosts()
+  Object.assign(hosts[machine.id]!, {ops:true,configFiles:true})
+  useRemoteLanesStore.setState({hosts})
+  useSettingsUiStore.setState({folder:null})
+  await render('agent')
+  expect(button('Edit reviewed JSON')).toBeDefined()
+  expect(container.textContent).not.toContain('models.json')
+})

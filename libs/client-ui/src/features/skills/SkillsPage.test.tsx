@@ -151,6 +151,13 @@ it('keeps remote skills read-only, gates capability and never offers local insta
   )
   for (const label of ['Delete', 'Edit', 'Publish', 'Update'])
     expect(container.textContent).not.toContain(label)
+  await act(async () => useRemoteLanesStore.setState({hosts: { [hostId]: {...host, ops:true, configFiles:true, capabilities:['skills.read','sessions.control','machine.configure']} }}))
+  await act(async () => button('source').click())
+  await act(async () => button('Edit source').click())
+  invoke.mockResolvedValueOnce({status:'ok', text:'Edited.', applies:'reload'})
+  await act(async () => button('Save source').click())
+  expect(invoke).toHaveBeenCalledWith('ops:run', {kind:'remote',hostId}, {op:'skill.edit', args:{scope:'user',name:'remote-skill',file:'SKILL.md',content:'skill text'}})
+  expect(container.textContent).not.toContain('Undo')
   // Export keeps a copy on this device, so a read-only Host skill offers it too.
   expect(container.textContent).toContain('Export')
   await act(async () => useRemoteLanesStore.setState({ hosts: {} }))

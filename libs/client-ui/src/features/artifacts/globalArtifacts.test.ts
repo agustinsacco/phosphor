@@ -205,3 +205,9 @@ it('hides remote library rows and open viewers when ready artifact capability is
     }),
   ).toBe(false)
 })
+
+it('keys daemon rows by lane ref and slug, not shared revisions across lanes', () => {
+  const refs = ['host:here/lane:first', 'host:here/lane:second']
+  const rows = mergeGlobalArtifacts(refs.map((ref) => stored({sessionId:ref, sessionFile:ref, key:`${ref}/artifact:guide`})), [])
+  expect(rows.map((r) => r.sessionFile).sort()).toEqual(refs)
+})
