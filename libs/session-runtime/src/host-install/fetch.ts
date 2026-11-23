@@ -50,6 +50,8 @@ export interface FetchContext {
 }
 
 type Artifact = ReturnType<typeof verifyReleaseManifest>['artifacts'][number]
+/** What staging reads from an artifact; a v1 or v2 manifest entry both fit. */
+type StagedArtifact = Pick<Artifact, 'file' | 'bytes' | 'sha256'>
 
 /** The signed release to move to: its version, this machine's artifact and any protocol notice. */
 export async function fetchSignedRelease(
@@ -98,7 +100,7 @@ export async function fetchSignedRelease(
 async function downloadTar(
   context: FetchContext & { expandedCap?: number },
   version: string,
-  artifact: Artifact,
+  artifact: StagedArtifact,
   signal: AbortSignal,
 ): Promise<Buffer> {
   const bytes = await downloadRelease(
@@ -114,7 +116,7 @@ export async function stageRelease(
   context: FetchContext & { expandedCap?: number },
   stage: string,
   version: string,
-  artifact: Artifact,
+  artifact: StagedArtifact,
   signal: AbortSignal,
 ): Promise<void> {
   context.progress?.({ step: 'download', version, bytes: artifact.bytes })

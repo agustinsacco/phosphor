@@ -133,7 +133,10 @@ function verifySignedManifest<T>(
     throw new Error('Invalid release manifest or signature')
   }
 }
-export function verifyReleaseArtifact(bytes: Buffer, artifact: HostReleaseArtifact): void {
+export function verifyReleaseArtifact(
+  bytes: Buffer,
+  artifact: Pick<HostReleaseArtifact, 'bytes' | 'sha256'>,
+): void {
   if (
     bytes.length !== artifact.bytes ||
     createHash('sha256').update(bytes).digest('hex') !== artifact.sha256

@@ -520,6 +520,10 @@
       "types": "./src/host-install/lock-retirement.ts",
       "default": "./src/host-install/lock-retirement.ts"
     },
+    "./host-install/release-v2": {
+      "types": "./src/host-install/release-v2.ts",
+      "default": "./src/host-install/release-v2.ts"
+    },
     "./ops/types": {
       "types": "./src/ops/types.ts",
       "default": "./src/ops/types.ts"
