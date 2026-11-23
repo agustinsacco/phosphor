@@ -25,7 +25,7 @@ import { createGitFeature } from '../features/git'
 import { githubRunner } from '../features/git/github'
 import { createLaneDeletion } from '../lanes/delete'
 import { createArtifactsFeature } from '../features/artifacts'
-import { createSkillsFeature } from '../features/skills'
+import { createSkillsFeature, resolveSkills } from '../features/skills'
 import { createSkillInstallFeature } from '../features/skill-install'
 import { createLaneTransferFeatures } from '../features/lane-transfer'
 import { hostTransferRuntime } from '../features/lane-transfer/runtime'
@@ -180,6 +180,12 @@ export function createRunAdministration(options: AdministrationOptions) {
   })
   const { machineTasks, task } = runTaskPorts(options, settings)
   return {
+    skills: {
+      agentDir: settings.agentDir,
+      context: featureContext,
+      resolveProject: (cwd: string) =>
+        resolveSkills(featureContext, { configPath: options.configPath }, undefined, cwd),
+    },
     archives,
     providerLogins,
     moveClaudeAccount,

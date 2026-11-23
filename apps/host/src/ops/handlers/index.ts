@@ -1,4 +1,8 @@
 import type { SettingsOps } from './settings-access'
+import type { RepositorySummary } from '@phosphor/shared/host-protocol'
+import type { createRepositories } from '../../features/repositories'
+import type { HostRoutines } from '../../routines/service'
+import type { SkillPorts } from './skills'
 import type { HostShellEnvironment } from '../../machine/shell-environment'
 import type { LaneService } from '../../lanes/service'
 import type { HostStore } from '../../lanes/store'
@@ -25,6 +29,10 @@ import { skillHandlers } from './skills'
 /** What the daemon's domain handlers wrap: its existing services, never copies of them. */
 export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly settingsOps?: SettingsOps
+  readonly ownerFolders?: () => readonly RepositorySummary[]
+  readonly repositories?: Pick<ReturnType<typeof createRepositories>, 'execute'>
+  readonly routines?: Pick<HostRoutines, 'execute'>
+  readonly skills?: SkillPorts
   readonly store: HostStore
   /** The lane service `ops.run` sits beside: commands, calls and topics. */
   readonly lanes: LaneService
@@ -63,11 +71,6 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
  * empty stubs; P1, P2, P4b and D9 add theirs.
  */
 const PENDING = {
-  'H3 skills.ts':
-    'skill.list skill.read skill.create skill.edit skill.install skill.share skill.delete',
-  'H3 routines.ts':
-    'routine.list routine.history routine.activity routine.create routine.edit routine.enable routine.disable routine.run routine.cancel routine.skipNext routine.pauseAll routine.archive routine.delete',
-  'H3 folders.ts': 'folder.list folder.browse folder.add folder.create folder.order folder.remove',
   'H4 lane-self.ts':
     'swarm.on swarm.off model.set thinking.set lane.rename lane.pin lane.marker pr.track pr.hide pr.clear contextFiles.set mcp.lane lane.compact lane.autoCompaction lane.autoRetry lane.queueMode lane.reload notify ui.open',
   'H4 machine.ts':

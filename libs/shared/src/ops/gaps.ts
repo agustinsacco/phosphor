@@ -93,6 +93,8 @@ export const OP_GAPS: Readonly<
   daemon: Object.freeze({
     'lane.move':
       "Moving a lane between machines runs from the Phosphor app: open the lane's menu and choose Move to…",
+    'skill.share':
+      'The Phosphor service cannot copy skills between machines; share skills from the Phosphor app.',
     ...Object.fromEntries(
       daemon.map((name) => [name, `${name} is not available through the Phosphor service.`]),
     ),

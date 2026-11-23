@@ -37,6 +37,9 @@ import {
 import { SETTINGS_UNDO_OPS, settingsAreCurrent } from './handlers/settings'
 import { undoCurrent } from './undo-current'
 import { domainHandlers, type DaemonHandlerDeps } from './handlers'
+import { folderUndoCurrent } from './handlers/folders'
+import { routineUndoCurrent } from './handlers/routines'
+import { RESOURCE_JOBS } from './handlers/resources-call'
 import { daemonMetaHandlers } from './handlers/meta'
 import { createPolicyFile } from './policy-file'
 import { createHostResolver } from './remote'
@@ -227,6 +230,10 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     notifySurfaces: notify,
   }
   const dispatcher = createOpsDispatcher(binding, {
+    // Daemon-only jobs: the catalog stays frozen; these may run past 20 s here.
+    catalog: OP_CATALOG.map((s) =>
+      RESOURCE_JOBS.has(s.name) || s.name === 'package.checkUpdates' ? { ...s, job: true } : s,
+    ),
     parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
     agentFor: daemonAgentFor(ports, laneBinding.lanes.createdBy),
     surfaceAdmits,
@@ -234,9 +241,6 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     redact: argsSummary,
     background: (r, self) => !inverseRequests.has(r) && laneJob(r.op, self),
     archiveIds: () => archiveSelection(domain),
-    catalog: OP_CATALOG.map((spec) =>
-      spec.name === 'package.checkUpdates' ? { ...spec, job: true } : spec,
-    ),
     undo: { run: (principal, id) => undo(principal, id) },
     jobs: jobs.port,
     ...(ports.directory
@@ -248,6 +252,8 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   const undo = createUndo({
     audit,
     isCurrent: undoCurrent([
+      [(op) => op.startsWith('routine.'), async (entry) => routineUndoCurrent(domain, entry)],
+      [(op) => op.startsWith('folder.'), async (entry) => folderUndoCurrent(domain, entry)],
       [(op) => SETTINGS_UNDO_OPS.has(op), settingsAreCurrent(domain)],
       [() => true, async (entry) => laneUndoCurrent(domain, entry)],
     ]),
@@ -276,6 +282,10 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
 /** What run hands agent control once the machine's lane service exists. */
 export interface RunOpsPorts extends Pick<
   OpsServicePorts,
+  | 'routines'
+  | 'repositories'
+  | 'skills'
+  | 'ownerFolders'
   | 'stateDirectory'
   | 'uid'
   | 'store'

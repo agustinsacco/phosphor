@@ -189,7 +189,7 @@ function createMachineCommands(
       live.lanesTopic.repositoriesChanged()
     },
   })
-  const { features, settingsOps, ...administration } = createRunAdministration({
+  const { features, settingsOps, skills, ...administration } = createRunAdministration({
     context,
     configPath: config.path,
     env: machine.env,
@@ -230,7 +230,14 @@ function createMachineCommands(
   })
   parts.commands = commands
   const management = laneManagement(administration, binding, parts)
-  return { features, commands, terminals, management, settingsOps }
+  return {
+    features,
+    commands,
+    terminals,
+    management,
+    settingsOps,
+    resources: { skills, repositories, routines },
+  }
 }
 
 /** Owner-authorized lane maintenance uses the same archive, stop, resume and delete services. */
@@ -308,6 +315,7 @@ export async function startRunMachine(
     settingsOps,
     features: administrationFeatures,
     management,
+    resources,
     commands,
     terminals,
   } = createMachineCommands(context, parts, ports, machine, log, started)
@@ -352,6 +360,7 @@ export async function startRunMachine(
     lanes,
     management,
     settingsOps,
+    resources,
   })
   started.routines.start()
   return { lanes, accounts: started.accounts }
@@ -368,12 +377,14 @@ async function bindRunOps(
     lanes: LaneService
     management: ReturnType<typeof createMachineCommands>['management']
     settingsOps: ReturnType<typeof createMachineCommands>['settingsOps']
+    resources: ReturnType<typeof createMachineCommands>['resources']
   },
 ) {
   const { ops } = ports
   if (!ops) return
   const { runtime, live } = started
   parts.ops = await startRunOps({
+    ...started.resources,
     slot: ops.slot,
     stateDirectory: ports.stateDirectory,
     configDirectory: dirname(resolve(context.configPath)),

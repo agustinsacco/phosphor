@@ -3,7 +3,7 @@ import { OP_CATALOG, OP_GAPS } from './index'
 
 it('keeps only the reviewed Phosphor service gaps', () => {
   const expected =
-    `lane.move brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane
+    `lane.move skill.share brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane
  git.branches git.worktrees git.diff git.fetch git.pull git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge
  worktree.add worktree.remove worktree.prune worktree.restore worktree.recreate files.search maintenance.scan maintenance.run`
       .trim()
@@ -23,7 +23,7 @@ it('declares every owner-goal operation without a service gap', () => {
   const goals =
     `settings.read settings.set directives.set instructions.read instructions.edit config.read config.write
  mcp.list mcp.check mcp.add mcp.update mcp.enable mcp.disable mcp.remove mcp.lane package.list package.checkUpdates package.install package.update package.remove
- skill.list skill.read skill.create skill.edit skill.delete skill.install skill.share routine.list routine.history routine.activity routine.create routine.edit routine.enable routine.disable routine.run routine.cancel routine.skipNext routine.pauseAll routine.archive routine.delete
+ skill.list skill.read skill.create skill.edit skill.delete skill.install routine.list routine.history routine.activity routine.create routine.edit routine.enable routine.disable routine.run routine.cancel routine.skipNext routine.pauseAll routine.archive routine.delete
  swarm.on swarm.off model.set thinking.set pr.track pr.hide pr.clear contextFiles.set lane.compact lane.autoCompaction lane.autoRetry lane.queueMode lane.reload
  lane.create lane.list lane.search lane.read lane.stop lane.archive lane.resume lane.delete lane.tree lane.fork lane.clone lane.label lane.jump lane.rewind
  archive.list archive.restore archive.purge artifact.list artifact.read artifact.remove hosts.list folder.list sandbox.create sandbox.list sandbox.rename sandbox.delete machine.status machine.doctor`

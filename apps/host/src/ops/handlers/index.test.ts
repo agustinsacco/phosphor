@@ -17,7 +17,7 @@ const served = {
 const ALLOWED_GAPS =
   `lane.move git.fetch git.pull git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge
  worktree.add worktree.remove worktree.prune worktree.restore worktree.recreate files.search maintenance.scan maintenance.run
- brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane git.branches git.worktrees git.diff`
+ skill.share brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane git.branches git.worktrees git.diff`
     .trim()
     .split(/\s+/)
 
@@ -61,7 +61,7 @@ it('lists a pending op once, never also served or a gap, and only for a catalog 
 
 it('has a stub file for every H1–H4 pending op, which serves nothing yet', () => {
   const owned = Object.values(PENDING_HANDLERS).filter((p) => /^H[1-4]$/.test(p.package))
-  expect(new Set(owned.map((p) => p.package))).toEqual(new Set(['H3', 'H4']))
+  expect(new Set(owned.map((p) => p.package))).toEqual(new Set(['H4']))
   for (const { file } of owned) expect(existsSync(join(import.meta.dirname, file)), file).toBe(true)
 })
 
