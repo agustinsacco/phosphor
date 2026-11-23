@@ -238,7 +238,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   expanded: {},
   directoryMtimes: {},
   showHidden: false,
-  respectGitignore: true,
+  respectGitignore: false,
   byWorkspace: {},
   listErrors: {},
 
@@ -351,7 +351,6 @@ export const useFilesStore = create<FilesState>((set, get) => ({
       const byWorkspace = { ...s.byWorkspace }
       delete byWorkspace[workspacePath]
       const listErrors = { ...s.listErrors }
-      delete listErrors[workspacePath]
       // Explorer listings and expansion flags are keyed by absolute dir path,
       // so they are pruned by prefix rather than by workspace key.
       const prefix = workspacePath.endsWith('/') ? workspacePath : workspacePath + '/'
@@ -361,6 +360,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
       const directoryMtimes = Object.fromEntries(
         Object.entries(s.directoryMtimes).filter(([k]) => keep(k)),
       )
+      for (const key of Object.keys(listErrors)) if (!keep(key)) delete listErrors[key]
       return { byWorkspace, listErrors, entries, expanded, directoryMtimes }
     })
     if (paths.length > 0) {

@@ -97,14 +97,14 @@ function ListOptions({ workspacePath }: { workspacePath: string }): React.JSX.El
   return (
     <>
       <IconToggle
-        title="Show hidden files"
+        title="Show dotfiles"
         pressed={showHidden}
         onClick={() => useFilesStore.getState().setShowHidden(workspacePath, !showHidden)}
       >
         <EyeIcon />
       </IconToggle>
       <IconToggle
-        title="Respect .gitignore"
+        title="Hide Git-ignored files"
         pressed={respectGitignore}
         onClick={() =>
           useFilesStore.getState().setRespectGitignore(workspacePath, !respectGitignore)

@@ -205,12 +205,12 @@ it('stops an old reveal when navigation changes during a directory read', async 
   expect(row('/repo/a.ts')?.getAttribute('aria-pressed')).toBe('true')
 })
 
-it('announces Show hidden files and Respect .gitignore as on/off toggles', async () => {
-  useFilesStore.setState({ showHidden: false, respectGitignore: true })
+it('announces dotfiles and Git-ignored files as separate on/off toggles', async () => {
+  useFilesStore.setState({ showHidden: false, respectGitignore: false })
   await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   const pressed = (label: string) =>
     container.querySelector(`button[aria-label="${label}"]`)?.getAttribute('aria-pressed')
-  expect(pressed('Show hidden files')).toBe('false')
-  expect(pressed('Respect .gitignore')).toBe('true')
+  expect(pressed('Show dotfiles')).toBe('false')
+  expect(pressed('Hide Git-ignored files')).toBe('false')
   expect(pressed('Refresh explorer')).toBeNull()
 })

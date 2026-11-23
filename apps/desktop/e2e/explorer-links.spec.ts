@@ -32,7 +32,10 @@ test('explorer shows ignored entries and opens a report through a symlink', asyn
     await expect(row('prompts')).toBeVisible()
     await row('prompts').click()
     await expect(row('report.md')).toBeVisible()
-    await info.attach('Explorer at open', { body: await explorer.screenshot(), contentType: 'image/png' })
+    await info.attach('Explorer at open', {
+      body: await explorer.screenshot(),
+      contentType: 'image/png',
+    })
 
     await expect(row('generated')).toHaveAttribute('aria-description', 'Git-ignored')
     await expect(row('node_modules')).toHaveAttribute('aria-expanded', 'false')
@@ -48,7 +51,6 @@ test('explorer shows ignored entries and opens a report through a symlink', asyn
       contentType: 'image/png',
     })
 
-    await row('report.md').filter({ visible: true }).first().focus()
     const hideIgnored = row('Hide Git-ignored files')
     await hideIgnored.click()
     await expect(row('artifacts')).toHaveCount(0)

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
-import { listDir, readTextFile } from './fs-service'
+import { listDir, MAX_LINK_DIR_ENTRIES, readTextFile } from './fs-service'
 
 const scratch: string[] = []
 
@@ -81,10 +81,26 @@ it('shows a broken symlink without treating it as a folder', async () => {
   ])
 })
 
+it('refuses to list an oversized linked directory', async () => {
+  const dir = await tempRepo()
+  const target = join(dir, 'target')
+  await mkdir(target)
+  await symlink('target', join(dir, 'large'), 'dir')
+  for (let i = 0; i <= MAX_LINK_DIR_ENTRIES; i += 100) {
+    await Promise.all(
+      Array.from({ length: Math.min(100, MAX_LINK_DIR_ENTRIES + 1 - i) }, (_, j) =>
+        writeFile(join(target, String(i + j)), ''),
+      ),
+    )
+  }
+  await expect(listDir(dir, join(dir, 'large'), {})).rejects.toThrow(
+    'Linked folder is too large to list',
+  )
+}, 20_000)
+
 describe('listDir gitignore filtering', () => {
   it('filters ignored entries inside a repo', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'phosphor-gi-'))
-    execFileSync('git', ['init', '-q'], { cwd: dir })
+    const dir = await tempRepo()
     await writeFile(join(dir, '.gitignore'), 'secret.txt\nbuilt/\n')
     await writeFile(join(dir, 'keep.txt'), 'x')
     await writeFile(join(dir, 'secret.txt'), 'x')
@@ -97,8 +113,7 @@ describe('listDir gitignore filtering', () => {
   })
 
   it('lists everything when nothing is ignored (git exit 1)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'phosphor-gi-'))
-    execFileSync('git', ['init', '-q'], { cwd: dir })
+    const dir = await tempRepo()
     await writeFile(join(dir, 'a.txt'), 'x')
     await writeFile(join(dir, 'b.txt'), 'x')
     const names = (await listDir(dir, dir, { respectGitignore: true })).map((e) => e.name)
@@ -110,6 +125,7 @@ describe('listDir gitignore filtering', () => {
     // large stdin write hit a closed pipe and the unhandled EPIPE crashed the
     // main process.
     const dir = await mkdtemp(join(tmpdir(), 'phosphor-nonrepo-'))
+    scratch.push(dir)
     await Promise.all(
       Array.from({ length: 300 }, (_, i) => writeFile(join(dir, `f-${i}.txt`), 'x')),
     )

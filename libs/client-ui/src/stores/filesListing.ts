@@ -1,5 +1,6 @@
 import type { StoreApi } from 'zustand'
 import { fileListErrorText } from '@shared/host-protocol-files'
+import { ipcErrorText } from '@shared/errors'
 import { foldFileList } from '@/features/files/fileListTree'
 import { filesSourceTraits, patchWorkspace, workspaceFiles, type FilesState } from './files'
 import { REMOTE_UNAVAILABLE } from './hostRefusals'
@@ -87,14 +88,29 @@ export function fileListingActions(
 
     setShowHidden: (workspacePath, value) => {
       set({ showHidden: value, entries: {}, directoryMtimes: {} })
-      void get().refreshDir(workspacePath, workspacePath)
+      void reloadExpanded(get, workspacePath, workspacePath)
     },
 
     setRespectGitignore: (workspacePath, value) => {
       set({ respectGitignore: value, entries: {}, directoryMtimes: {} })
-      void get().refreshDir(workspacePath, workspacePath)
+      void reloadExpanded(get, workspacePath, workspacePath)
     },
   }
+}
+
+/** Reload only branches still visible with the new filters. */
+async function reloadExpanded(
+  get: GetFiles,
+  workspacePath: string,
+  dirPath: string,
+): Promise<void> {
+  await get().refreshDir(workspacePath, dirPath)
+  const { entries, expanded } = get()
+  await Promise.all(
+    (entries[dirPath] ?? [])
+      .filter((entry) => entry.isDirectory && expanded[entry.path])
+      .map((entry) => reloadExpanded(get, workspacePath, entry.path)),
+  )
 }
 
 /** Lists in flight per flat workspace, and the one list a caller asked for meanwhile. */
@@ -159,25 +175,33 @@ async function readDir(
 ): Promise<void> {
   if (filesSourceTraits(workspacePath).listing === 'flat') return listFlat(set, workspacePath)
   const { showHidden, respectGitignore } = get()
+  const current = (s: FilesState) =>
+    showHidden === s.showHidden && respectGitignore === s.respectGitignore
   try {
     const list = await window.phosphor.invoke('fs:readDir', workspacePath, dirPath, {
       showHidden,
       respectGitignore,
     })
     set((s) => {
+      if (!current(s)) return s
       const entries = { ...s.entries, [dirPath]: list }
+      const listErrors = { ...s.listErrors }
+      delete listErrors[dirPath]
       const expanded = { ...s.expanded }
       const directoryMtimes = { ...s.directoryMtimes }
-      const nextPaths = new Set(list.map((entry) => entry.path))
+      const nextDirs = new Set(list.filter((entry) => entry.isDirectory).map((entry) => entry.path))
 
       // A removed or moved directory must not leave its old lazy subtree in
       // memory. The row selection derives from these listings, so deleting a
       // selected entry also clears the selection without disturbing one that
       // still exists at the same path.
       for (const old of s.entries[dirPath] ?? []) {
-        if (!old.isDirectory || nextPaths.has(old.path)) continue
+        if (!old.isDirectory || nextDirs.has(old.path)) continue
         for (const key of Object.keys(entries)) {
-          if (atOrBelow(key, old.path)) delete entries[key]
+          if (atOrBelow(key, old.path)) {
+            delete entries[key]
+            delete listErrors[key]
+          }
         }
         for (const key of Object.keys(expanded)) {
           if (atOrBelow(key, old.path)) delete expanded[key]
@@ -186,10 +210,17 @@ async function readDir(
           if (atOrBelow(key, old.path)) delete directoryMtimes[key]
         }
       }
-      return { entries, expanded, directoryMtimes }
+      return { entries, expanded, directoryMtimes, listErrors }
     })
-  } catch {
-    set((s) => ({ entries: { ...s.entries, [dirPath]: [] } }))
+  } catch (error) {
+    set((s) =>
+      current(s)
+        ? {
+            entries: { ...s.entries, [dirPath]: [] },
+            listErrors: { ...s.listErrors, [dirPath]: ipcErrorText(error) },
+          }
+        : s,
+    )
   }
 }
 
