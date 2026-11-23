@@ -1,3 +1,5 @@
+import { readLocalMode } from '../config/sidecar'
+import { runLocalServiceInstall } from './setup-local-service'
 import { mkdir } from 'node:fs/promises'
 import { userInfo } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -38,6 +40,8 @@ export function isServiceAction(value: unknown): value is ServiceAction {
 export interface ServiceContext extends RunContext {
   home: string
   service?: {
+    localLabel?: string
+    linger?: boolean
     runner?: ServiceRunner
     node?: string
     bundle?: string
@@ -64,16 +68,9 @@ async function runServiceCommand(
   }
   const runner =
     context.service?.runner ?? serviceRunner(context.env, context.print, context.signal)
-  const invoke: ServiceRunner = async (program, args, stream) => {
-    context.log?.('service', 'exec', { program, args, trace: context.trace })
-    const result = await runner(program, args, stream)
-    context.log?.('service', 'exec.finished', {
-      program,
-      exitCode: result.code,
-      trace: context.trace,
-    })
-    return result
-  }
+  const invoke = tracedRunner(context, runner)
+  if (action === 'install' && readLocalMode(dirname(resolve(context.configPath)), context.uid))
+    return runLocalServiceInstall(context, invoke)
   if (context.platform === 'darwin') return runLaunchdService(context, action, follow, invoke)
   const call = (args: readonly string[]) => invoke('systemctl', ['--user', ...args])
   const unit = join(
@@ -322,4 +319,17 @@ export function runService(
   return traceCommand(context, `service.${action}`, (traced) =>
     runServiceCommand({ ...context, ...traced }, action, follow),
   )
+}
+
+function tracedRunner(context: ServiceContext, runner: ServiceRunner): ServiceRunner {
+  return async (program, args, stream) => {
+    context.log?.('service', 'exec', { program, args, trace: context.trace })
+    const result = await runner(program, args, stream)
+    context.log?.('service', 'exec.finished', {
+      program,
+      exitCode: result.code,
+      trace: context.trace,
+    })
+    return result
+  }
 }

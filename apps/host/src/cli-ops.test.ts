@@ -62,7 +62,10 @@ describe('local setup and staged update flags', () => {
   const usage = (problem: string) => ({ kind: 'usage', problem })
   const owner = ['--owner-id', 'id', '--owner-key', 'key', '--owner-label', 'Mac']
   it.each([
-    [['setup', '--local', ...owner, '--linger'], 'setup --local is not available in this build'],
+    [
+      ['setup', '--local', ...owner, '--replace'],
+      'setup --local does not take --repository or --replace',
+    ],
     [['setup', '--local'], 'setup --local needs --owner-id, --owner-key and --owner-label'],
     [['setup', '--linger'], 'setup does not take --linger without --local'],
     [['setup', ...owner], 'setup does not take --owner-id without --local'],

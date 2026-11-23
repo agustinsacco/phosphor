@@ -32,6 +32,7 @@ export const CLI_PARSE_CONFIG = {
     'owner-id': { type: 'string' },
     'owner-key': { type: 'string' },
     'owner-label': { type: 'string' },
+    standby: { type: 'boolean' },
     linger: { type: 'boolean' },
     stage: { type: 'boolean' },
     apply: { type: 'string' },
@@ -54,6 +55,7 @@ const COMMAND_OPTIONS = {
     'owner-key',
     'owner-label',
     'linger',
+    'standby',
   ],
   doctor: ['config', 'json'],
   run: ['config', 'supervisor'],
@@ -250,16 +252,18 @@ function updateProblem({ version, check, rollback, stage, apply }: CliOptions): 
   return undefined
 }
 
-const OWNER_OPTIONS = ['owner-id', 'owner-key', 'owner-label', 'linger'] as const
+const OWNER_OPTIONS = ['owner-id', 'owner-key', 'owner-label', 'linger', 'standby'] as const
 
-/** Local mode makes this machine its owner's daemon: refused until this build can. */
+/** Local setup is additive: never rewrite existing config or adopt a folder. */
 function localSetupProblem(options: CliOptions): string | undefined {
   const owner = OWNER_OPTIONS.filter((name) => options[name] !== undefined)
   if (!options.local)
     return owner.length > 0 ? `setup does not take --${owner[0]} without --local` : undefined
   if (!options['owner-id'] || !options['owner-key'] || !options['owner-label'])
     return 'setup --local needs --owner-id, --owner-key and --owner-label'
-  return 'setup --local is not available in this build'
+  if (options.repository || options.replace)
+    return 'setup --local does not take --repository or --replace'
+  return undefined
 }
 
 /**

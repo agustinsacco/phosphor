@@ -18,7 +18,13 @@ function quote(value: string, exec = false, max = 65536) {
     .replaceAll('%', '%%')
     .replaceAll('$', () => (exec ? '$$' : '$'))}"`
 }
-export function serviceUnit(node: string, bundle: string, config: string, path: string): string {
+export function serviceUnit(
+  node: string,
+  bundle: string,
+  config: string,
+  path: string,
+  xdg: Record<string, string> = {},
+): string {
   if (![node, bundle, config].every(isAbsolute))
     throw new IdentityFailure('Service paths must be absolute.')
   // systemd stores the executable separately from argv; dollar expansion differs there.
@@ -26,7 +32,13 @@ export function serviceUnit(node: string, bundle: string, config: string, path: 
     throw new IdentityFailure(
       "the node path contains '$', which systemd cannot run safely; install Node elsewhere",
     )
-  return `[Unit]\nDescription=Phosphor Host\n\n[Service]\nType=simple\nExecStart=${[node, bundle, 'run', '--config', config].map((value, index) => quote(value, index !== 0)).join(' ')}\nEnvironment=${quote(`PATH=${path}`, false, 65541)}\nRestart=on-failure\nRestartSec=10\nRestartPreventExitStatus=64 69 77 78\n\n[Install]\nWantedBy=default.target\n`
+  return `[Unit]\nDescription=Phosphor Host\n\n[Service]\nType=simple\nExecStart=${[node, bundle, 'run', '--config', config].map((value, index) => quote(value, index !== 0)).join(' ')}\nEnvironment=${quote(`PATH=${path}`, false, 65541)}${Object.entries(
+    xdg,
+  )
+    .map(([key, value]) => `\nEnvironment=${quote(`${key}=${value}`)}`)
+    .join(
+      '',
+    )}\nRestart=on-failure\nRestartSec=10\nRestartPreventExitStatus=64 69 77 78\n\n[Install]\nWantedBy=default.target\n`
 }
 export async function writeServiceUnit(path: string, text: string) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })

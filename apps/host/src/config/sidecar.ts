@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs'
 import { join } from 'node:path'
-import type { HOST_SIDECARS } from '@phosphor/shared/host-local'
+import { HOST_SIDECARS, type LocalModeFile } from '@phosphor/shared/host-local'
 import { atomicRecord, readBounded } from '@phosphor/session-runtime/host-install/files'
 import { errnoIs, isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
 
@@ -85,4 +85,27 @@ export function writeSidecar(
   if (Buffer.byteLength(JSON.stringify(next)) + 1 > (options.maxBytes ?? SIDECAR_MAX_BYTES))
     throw new Error(`${name}: too large`)
   atomicRecord(join(directory, name), next, 0o600)
+}
+
+/** Missing means ordinary headless operation, even when its config folder is not private. */
+export function readLocalMode(directory: string, uid: number | undefined): LocalModeFile | null {
+  try {
+    lstatSync(join(directory, HOST_SIDECARS.localMode))
+  } catch (error) {
+    if (errnoIs(error, 'ENOENT')) return null
+    throw error
+  }
+  const result = readSidecar(
+    directory,
+    HOST_SIDECARS.localMode,
+    (raw) =>
+      raw.version === 1 &&
+      typeof raw.enabledAt === 'string' &&
+      typeof raw.shellEnvironment === 'boolean'
+        ? { version: 1 as const, enabledAt: raw.enabledAt, shellEnvironment: raw.shellEnvironment }
+        : null,
+    { uid },
+  )
+  if (result.state !== 'ok') throw new Error('Local service marker is not usable.')
+  return result.value
 }

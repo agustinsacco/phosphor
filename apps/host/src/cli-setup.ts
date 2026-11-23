@@ -1,3 +1,4 @@
+import { runLocalSetup } from './commands/setup-local'
 import { EXIT } from './checks'
 import { commandLifetime } from './cli-control'
 import { configPathOf, type CliContext, type CliIo, type CommandOf } from './cli-handlers'
@@ -13,6 +14,7 @@ export function handleSetup(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
+  if (command.options.local) return localSetup(command, io, context)
   return context.terminal
     ? guidedSetup(command, io, context)
     : configOnlySetup(command, io, context)
@@ -80,4 +82,35 @@ async function guidedSetup(
   }
   if (options.json) io.stdout(`${JSON.stringify(report, null, 2)}\n`)
   return report.exitCode
+}
+
+async function localSetup(
+  { options }: CommandOf<'setup'>,
+  io: CliIo,
+  context: CliContext,
+): Promise<number> {
+  const lifetime = commandLifetime(context, 'Local setup could not finish.')
+  try {
+    const report = await runLocalSetup({
+      ...context,
+      ...context.control,
+      signal: lifetime.signal,
+      configPath: configPathOf(options, context),
+      cwd: context.cwd ?? process.cwd(),
+      pi: options.pi,
+      node: options.node,
+      owner: {
+        id: options['owner-id']!,
+        publicKey: options['owner-key']!,
+        label: options['owner-label']!,
+      },
+      standby: options.standby,
+      service: { ...context.service, linger: options.linger },
+      print: (line) => io.stderr(`${line}\n`),
+    })
+    io.stdout(options.json ? `${JSON.stringify(report)}\n` : renderSetup(report))
+    return report.exitCode
+  } finally {
+    lifetime.end()
+  }
 }

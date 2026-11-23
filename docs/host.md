@@ -310,6 +310,18 @@ refused as not available in this build.
 | 78            | the config or state storage is invalid                                                                              |
 | 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                                              |
 
+### Pairing the local Phosphor service
+
+`setup --local --owner-id UUID --owner-key PUBLIC_KEY --owner-label LABEL --json`
+never prompts, enrolls, installs providers or changes Tailscale. The key is the owner's
+raw Ed25519 public key in base64url. JSON returns the service's `machineId` and `publicKey`.
+An existing valid config is not rewritten. A new config starts with no repositories,
+allows `SSH_AUTH_SOCK`, and uses the first available loopback port from 47615 through 47631.
+`--pi` and `--node` set the executables in a new config. Setup refuses an unsafe existing
+state directory rather than changing its permissions. `--standby` holds lane startup for
+migration. On Linux linger is enabled only when `--linger` is supplied to local setup.
+A running service is not restarted by local installation.
+
 ## Build
 
 `npm run build:host` writes `apps/host/dist/`, which git ignores. It runs
@@ -475,7 +487,7 @@ place, and the command prints the config and state directories. Add `--json`
 for a machine-readable result. On a screen, `phosphor uninstall` without `--yes`
 first asks; No exits 0 and Escape exits 130, both leaving everything in place.
 
-`phosphor uninstall --purge --yes` first logs out remotely and only on success
+`phosphor uninstall --purge --yes` refuses if the state folder contains unknown top-level entries. Otherwise it first logs out remotely and only on success
 removes the default config and state directories too. Both flags are required.
 A failed logout keeps the program, service and data and exits 75. Every directory
 removed is checked for ownership, its expected location and symlinked ancestors.
