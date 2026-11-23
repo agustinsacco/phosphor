@@ -1,4 +1,3 @@
-import { createSessionPathRuntime } from '@phosphor/session-runtime/pi/session-path-lock'
 import {
   indexSessionFile,
   readIndex,
@@ -41,7 +40,14 @@ function savedIndex(root: string, sessionFile: string): SessionArtifactIndex | n
 
 // Wire calls and the owner library share the same index writer. A slower scan
 // must not overwrite a newer projection of the same growing transcript.
-const scans = createSessionPathRuntime()
+const scans = new Map<string, Promise<SessionArtifactIndex | null>>()
+
+async function scan(root: string, file: string) {
+  const previous = savedIndex(root, file)
+  const saved = await indexSessionFile(root, file, previous, ARTIFACT_LIMITS.sessionBytes)
+  if (saved && saved !== previous) await writeIndex(root, saved)
+  return saved
+}
 
 export async function indexArtifacts(
   root: string,
@@ -51,13 +57,16 @@ export async function indexArtifacts(
   const lane = store.getLane(laneId)
   if (!lane || lane.removedAt !== null) throw new FeatureFailure('unknown-lane')
   if (!lane.sessionFile) return null
-  const file = lane.sessionFile
-  return scans.withSessionPath(file, async () => {
-    const previous = savedIndex(root, file)
-    const saved = await indexSessionFile(root, file, previous, ARTIFACT_LIMITS.sessionBytes)
-    if (saved && saved !== previous) await writeIndex(root, saved)
-    return saved
-  })
+  const key = `${root}\0${lane.sessionFile}`
+  const pending = scans.get(key)
+  if (pending) return pending
+  const started = scan(root, lane.sessionFile)
+  scans.set(key, started)
+  try {
+    return await started
+  } finally {
+    scans.delete(key)
+  }
 }
 
 /**
