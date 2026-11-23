@@ -81,3 +81,12 @@ it('refuses a surface principal that carries no capabilities', () => {
   expect(surfaceAdmits(bare, {})).toBe(false)
   expect(surfaceAdmits(withNone, {})).toBe(true)
 })
+
+it.each(['grant-user', 'grant-machine', 'owner'] as const)('never admits ops.cli as %s', (kind) => {
+  const { ready, caps, sent } = connection([], 'other')
+  const principal = { kind, clientId: ready.client.id, machineId: randomUUID() }
+  const adapter = createOpsAdapter({ dispatcher: { run: async () => { throw Error('unexpected') } } })
+  const handled = adapter({ ...ready, principal })!.handle({type:'call', id:'a', method:'ops.cli', params:{}}, caps)
+  expect(handled).toBe(true)
+  expect(sent).toMatchObject([{ok:false,error:{code:'forbidden'}}])
+})

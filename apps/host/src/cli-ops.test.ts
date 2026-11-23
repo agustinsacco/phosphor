@@ -33,7 +33,7 @@ async function cli(argv: string[]) {
 }
 
 describe('catalog ops routing', () => {
-  it.each([[['lane', 'list']], [['serve', '--json']], [['--config', '/c.json', 'artifact']]])(
+  it.each([[['serve', '--json']], [['--config', '/c.json', 'artifact']]])(
     'routes %j to the ops CLI, which still answers unknown command',
     async (argv) => {
       vi.mocked(runCliOps).mockClear()
@@ -52,6 +52,11 @@ describe('catalog ops routing', () => {
       expect(runCliOps).not.toHaveBeenCalled()
     },
   )
+
+  it('keeps catalog help offline and lists its domains alongside the fixed commands', async () => {
+    expect((await cli(['help'])).stdout).toContain('Domains:')
+    expect((await cli(['help', 'lane'])).stdout).toContain('lane.read:')
+  })
 
   it('answers help through the ops CLI as the command table does', async () => {
     expect(await cli(['lane', '--help'])).toEqual({ code: 0, stdout: USAGE, stderr: '' })
