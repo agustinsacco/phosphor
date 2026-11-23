@@ -111,6 +111,10 @@
     "./lane-move": {
       "types": "./src/lane-move.ts",
       "default": "./src/lane-move.ts"
+    },
+    "./grant-cache": {
+      "types": "./src/grant-cache.ts",
+      "default": "./src/grant-cache.ts"
     }
   },
   "dependencies": {
