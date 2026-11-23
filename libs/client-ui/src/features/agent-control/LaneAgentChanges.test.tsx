@@ -11,6 +11,8 @@ import { SessionMenu } from '@/features/chat/SessionMenu'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { ExtensionDialogHost } from '@/features/extension-ui/ExtensionUiHosts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import type { RpcSessionState } from '@phosphor/shared/rpc'
+import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { mockRemoteHosts, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { useAgentHints } from './useAgentHints'
@@ -122,4 +124,29 @@ it('keeps the observed reason when returning to the same live lane', async () =>
   await act(async () => root.render(null))
   await act(async () => root.render(<Hint />))
   expect(el.textContent).toContain('Need vision')
+})
+
+it('refreshes only the matching lane, recovers after failure and never overlaps get_state', async () => {
+  setup()
+  const chat = useChatStore.getState()
+  chat.ensure(sid)
+  chat.setMeta(sid, { sessionId: 'pi-id', thinkingLevel: 'off' } as RpcSessionState)
+  const command = vi.spyOn(fake.api, 'piCommand')
+  const waiting = Promise.withResolvers<void>()
+  command.mockRejectedValueOnce(new Error('not ready')).mockImplementation(async () => {
+    await waiting.promise
+    return { command: 'get_state', type: 'response', success: true, data: { sessionId: 'pi-id', thinkingLevel: 'high' } as RpcSessionState }
+  })
+  function Hint() { useAgentHints(sid); return null }
+  await act(async () => root.render(<Hint />))
+  await act(async () => { for (const patch of [{ laneRef: 'other' }, { fields: ['pinned'] }, { machine: 'local' }]) fake.events.onOpsChanged.emit({ machine: `host:${MOCK_HOST_ID}`, laneRef: lane, kind: 'lane', fields: ['model'], ...patch }) })
+  expect(command).not.toHaveBeenCalled()
+  await emit()
+  expect(command).toHaveBeenCalledWith(sid, { type: 'get_state' })
+  expect(useChatStore.getState().sessions[sid]?.meta?.thinkingLevel).toBe('off')
+  await emit()
+  await emit()
+  expect(command).toHaveBeenCalledTimes(2)
+  await act(async () => waiting.resolve())
+  expect(useChatStore.getState().sessions[sid]?.meta?.thinkingLevel).toBe('high')
 })
