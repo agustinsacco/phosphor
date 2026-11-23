@@ -13,7 +13,9 @@ export const OP_TITLE = 'phosphor-op/v1'
 // Runtime imports must resolve from pi's shipped siblings. Mirror OPS_LIMITS here.
 const ARGS_BYTES = 300 * 1024
 const CONTENT_BYTES = 256 * 1024
-const PREFILL_BYTES = 2 * ARGS_BYTES // OP_CHANNEL_LIMITS.prefillBytes on the owner.
+const PREFILL_BYTES = 2 * ARGS_BYTES
+/** The mirrored limits; a test keeps them equal to OPS_LIMITS and OP_CHANNEL_LIMITS. */
+export const LANE_OP_LIMITS = { ARGS_BYTES, CONTENT_BYTES, PREFILL_BYTES } as const
 const MAX_DEADLINE = 600_000
 const error = (
   id: string,

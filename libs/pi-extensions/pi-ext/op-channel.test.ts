@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { OP_TITLE, parseOpChannelRequest } from '@phosphor/shared/ops'
-import { sendOp } from './op-channel'
+import { OP_CHANNEL_LIMITS, OP_TITLE, parseOpChannelRequest } from '@phosphor/shared/ops'
+import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
+import { LANE_OP_LIMITS, sendOp } from './op-channel'
 
 const request = { op: 'brain.search', args: { query: 'release' } }
 afterEach(() => vi.useRealTimers())
@@ -81,4 +82,12 @@ it('never starts a request for an already stopped turn', async () => {
     code: 'aborted',
   })
   expect(ui.editor).not.toHaveBeenCalled()
+})
+
+it('mirrors the owner limits it cannot import at runtime', () => {
+  expect(LANE_OP_LIMITS).toEqual({
+    ARGS_BYTES: OPS_LIMITS.argsBytes,
+    CONTENT_BYTES: OPS_LIMITS.contentBytes,
+    PREFILL_BYTES: OP_CHANNEL_LIMITS.prefillBytes,
+  })
 })
