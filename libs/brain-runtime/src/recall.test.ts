@@ -18,7 +18,7 @@ it('enables and revokes read-only recall launch without allowing a disabled sear
     store.prefs.enabled = true
     const launch = await recall.recallLaunch()
     expect(launch).toMatchObject({ extensions: ['/brain.mjs'], skills: ['/brain/SKILL.md'] })
-    expect(launch!.env.PHOSPHOR_BRAIN_TOKEN).toBeTruthy()
+    expect(launch).not.toHaveProperty('env')
     store.prefs.recall = false
     expect(await recall.recallLaunch()).toBeUndefined()
   } finally {
