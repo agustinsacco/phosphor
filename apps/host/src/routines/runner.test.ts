@@ -115,6 +115,7 @@ async function start() {
   const runtime = {
     withAuthorization: <T>(_allowed: () => boolean, run: () => Promise<T>) => run(),
     mutateStoppedSession: <T>(_path: string, change: () => Promise<T>) => change(),
+    withSessionFile: <T>(_path: string, read: () => Promise<T>) => read(),
     replaceRoots: vi.fn<HostRuntime['replaceRoots']>(),
     life: createLifecycle(vi.fn()),
     drain: vi.fn<HostRuntime['drain']>(),

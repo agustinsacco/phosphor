@@ -92,6 +92,11 @@ export function laneIdOf(ref: string, selfIds: readonly string[]): string | null
     : null
 }
 
+/** The lane id in a ref this machine resolved (`LaneFacts.ref`, an agent's `laneRef`), or a bare id. */
+export function laneIdInRef(ref: string): string {
+  return LANE_REF.exec(ref)?.[2] ?? ref
+}
+
 /** The ref this machine writes for its own lane: under the enrolled id when there is one. */
 export function laneRefFor(selfIds: readonly string[], laneId: string): string {
   return remoteLaneKey(selfIds[0] ?? 'local', laneId)

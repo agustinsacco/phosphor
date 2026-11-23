@@ -71,6 +71,10 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
         return change()
       })
     },
+    /** Reads a transcript, live or not, inside its path lock: a fork's source (P1). */
+    withSessionFile<T>(path: string, read: () => Promise<T>): Promise<T> {
+      return state.paths.withSessionPath(path, read)
+    },
   }
 }
 
