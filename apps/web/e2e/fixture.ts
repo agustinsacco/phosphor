@@ -7,19 +7,12 @@ import { tmpdir } from 'node:os'
 import { createServer } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
-import { WebSocket } from 'ws'
+import { askToPurge, seedPeer } from './seed-peer'
 import { createApp, type AppDeps } from '../../control/src/app'
 import { parseConfig } from '../../control/src/config'
 import { ControlFailure } from '../../control/src/http'
 import { NonceCache, RateLimiter, RATE_PURPOSE_CAPACITIES } from '../../control/src/limits'
 import { formatKeyFingerprint, type MachineView } from '@phosphor/shared/control-api'
-import { HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
-import {
-  parseHostFrame,
-  type ClientFrame,
-  type HostFrame,
-  type LaneOp,
-} from '@phosphor/shared/host-protocol'
 import { evidence } from '../playwright.config'
 
 const project = resolve(import.meta.dirname, '../../..')
@@ -34,7 +27,14 @@ const removeRoot = (root: string) =>
 const createRoot = async () => mkdtemp(join(await realpath(tmpdir()), 'phosphor-web-'))
 
 /** The production stack runs no Host, so it seeds no lanes. */
-const UNSEEDED = { laneId: '', secondLaneId: '', repository: '' }
+const UNSEEDED = {
+  askToPurge: async (_id: string, _reason: string): Promise<string> => {
+    throw Error('No fixture Host')
+  },
+  laneId: '',
+  secondLaneId: '',
+  repository: '',
+}
 
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
 export async function browserFixture(production = false) {
@@ -61,6 +61,7 @@ export async function browserFixture(production = false) {
       closedConnections: 0,
       offline: false,
       workerRevision: 0,
+      machineReach: undefined as boolean | undefined,
     }
     const machine: MachineView = {
       id: hostId,
@@ -249,6 +250,20 @@ export async function browserFixture(production = false) {
                     : [],
                 serverTime: new Date().toISOString(),
               }
+            case 'control_machine_reach_list':
+              return state.machineReach === undefined || args.p_user !== owners[0]
+                ? []
+                : [{ id: hostId, machineReach: state.machineReach, machineGrants: true }]
+            case 'control_machine_reach_set':
+              if (
+                state.machineReach === undefined ||
+                args.p_host !== hostId ||
+                args.p_user !== owners[0] ||
+                typeof args.p_enabled !== 'boolean'
+              )
+                return { outcome: 'not-found' }
+              state.machineReach = args.p_enabled
+              return { outcome: 'set', machineReach: state.machineReach }
             case 'control_grant_issue': {
               const client = clients.get(String(args.p_client))
               if (
@@ -423,68 +438,20 @@ export async function browserFixture(production = false) {
         { timeout: 20_000 },
       )
       .toBe(200)
-    const peer = new WebSocket(`ws://127.0.0.1:${hostPort}/v1/stream`)
-    cleanups.push(async () => {
-      peer.terminate()
-    })
-    const frames: HostFrame[] = []
-    peer.on('message', (raw) => {
-      const frame = parseHostFrame(raw.toString())
-      if (frame.ok) frames.push(frame.value)
-    })
-    await once(peer, 'open')
-    const send = (frame: ClientFrame) => peer.send(JSON.stringify(frame))
-    const iat = Math.floor(Date.now() / 1000)
-    send({
-      type: 'auth',
-      challenge: 'b'.repeat(64),
-      trace: '0123456789abcdef',
-      grant: config.grantKeys!.sign({
-        v: 1,
-        iss: controlOrigin,
-        kid: config.grantKeys!.kid,
-        sub: owners[0]!,
-        sid,
-        hostId,
-        epoch: 1,
-        client: { id: randomUUID(), label: 'Synthetic seeder' },
-        caps: HOST_CAPABILITIES,
-        iat,
-        exp: iat + 300,
-        jti: randomBytes(8).toString('hex'),
-      }),
-    })
-    await expect.poll(() => frames.some((f) => f.type === 'ready')).toBe(true)
+    const ports = {
+      hostPort,
+      keys: config.grantKeys!,
+      controlOrigin,
+      owner: owners[0]!,
+      sid,
+      hostId,
+      cleanups,
+    }
+    const { send, frames, command } = await seedPeer(ports)
     send({ type: 'subscribe', id: 'seed', topic: 'lanes' })
     await expect.poll(() => frames.some((f) => f.type === 'lanes')).toBe(true)
     const directory = frames.find((f) => f.type === 'lanes')
     if (directory?.type !== 'lanes') throw new Error('Missing Host directory')
-    const command = async (op: LaneOp, laneId?: string, fence?: number) => {
-      const requestId = randomUUID()
-      send({
-        type: 'command',
-        requestId,
-        op,
-        ...(laneId ? { laneId } : {}),
-        ...(fence === undefined ? {} : { fence }),
-      })
-      await expect
-        .poll(() =>
-          frames.some(
-            (f) =>
-              f.type === 'receipt' &&
-              f.receipt.requestId === requestId &&
-              f.receipt.status !== 'pending',
-          ),
-        )
-        .toBe(true)
-      const result = frames.findLast(
-        (f) => f.type === 'receipt' && f.receipt.requestId === requestId,
-      )
-      if (result?.type !== 'receipt' || result.receipt.status !== 'done')
-        throw new Error('Host seed command failed')
-      return result.receipt
-    }
     const lanes: string[] = []
     for (const [index, name] of ['repository', 'other'].entries()) {
       const repositoryId = directory.repositories.find((r) => r.name === name)!.id
@@ -510,7 +477,12 @@ export async function browserFixture(production = false) {
       await command({ type: 'control.release' }, laneId, control.fence)
     }
     // `repository` is the first lane's folder on the Host, which a spec may read and change.
-    const seeded = { laneId: lanes[0]!, secondLaneId: lanes[1]!, repository: repo }
+    const seeded = {
+      askToPurge: (id: string, reason: string) => askToPurge(ports, id, reason),
+      laneId: lanes[0]!,
+      secondLaneId: lanes[1]!,
+      repository: repo,
+    }
     return { origin, state, hostId, close, owners, ...seeded, ...gate.api }
   } catch (error) {
     await close()
