@@ -263,7 +263,7 @@ export function createDrain(host: {
 }
 
 /** The promise's value, or undefined if it rejects or `until` passes first. */
-async function within<T>(promise: Promise<T>, until: number): Promise<T | undefined> {
+export async function within<T>(promise: Promise<T>, until: number): Promise<T | undefined> {
   let timer: NodeJS.Timeout | undefined
   const late = new Promise<undefined>((resolve) => {
     timer = setTimeout(() => resolve(undefined), Math.max(0, until - Date.now()))

@@ -1,4 +1,4 @@
-import { createDrain, endTurn } from './lifecycle'
+import { createDrain, endTurn, within } from './lifecycle'
 import { createRuntimeOperations } from './runtime-operations'
 import { createRuntimeState, type HostMachine, type RuntimeOptions } from './runtime-state'
 import { wireRuntimeDeletion, wireRuntimeService, wireRuntimeStartup } from './runtime-wiring'
@@ -44,7 +44,10 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
           ? [s.refreshDirectives(s.client.request.bind(s.client), project)]
           : []
       })
-      const results = await Promise.allSettled(updates)
+      // An unresponsive pi must not hold the settings op. A late push is still ordered
+      // on that process and recomposes from current preferences, never from stale args.
+      const results = await within(Promise.allSettled(updates), Date.now() + 5000)
+      if (!results) return updates.length
       return results.filter((r) => r.status === 'rejected' || !r.value).length
     },
     drain,

@@ -20,7 +20,9 @@ export function createLiveDirectives(
           const check = await request({ type: 'get_commands' })
           if (!check.success) return false
           supported =
-            check.data?.commands.some((cmd) => cmd.name === 'phosphor-directives') ?? false
+            check.data?.commands.some(
+              (cmd) => cmd.name === 'phosphor-directives' && cmd.source === 'extension',
+            ) ?? false
         }
         if (!supported) return false // An unknown slash command would reach the model.
         const arg = next ? Buffer.from(next).toString('base64') : '-'

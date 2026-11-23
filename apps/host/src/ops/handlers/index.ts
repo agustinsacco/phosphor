@@ -1,3 +1,4 @@
+import type { SettingsOps } from './settings-access'
 import type { HostShellEnvironment } from '../../machine/shell-environment'
 import type { LaneService } from '../../lanes/service'
 import type { HostStore } from '../../lanes/store'
@@ -23,7 +24,7 @@ import { skillHandlers } from './skills'
 
 /** What the daemon's domain handlers wrap: its existing services, never copies of them. */
 export interface DaemonHandlerDeps extends LaneHandlerPorts {
-  readonly settingsOps?: import('./settings-access').SettingsOps
+  readonly settingsOps?: SettingsOps
   readonly store: HostStore
   /** The lane service `ops.run` sits beside: commands, calls and topics. */
   readonly lanes: LaneService

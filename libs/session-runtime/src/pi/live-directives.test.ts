@@ -6,7 +6,10 @@ it('pushes only changed text in scope, after one supported-command check per lan
   const live = createLiveDirectives('/repo', () => text, text)
   const request = vi.fn(async ({ type }) => ({
     success: true,
-    data: type === 'get_commands' ? { commands: [{ name: 'phosphor-directives' }] } : undefined,
+    data:
+      type === 'get_commands'
+        ? { commands: [{ name: 'phosphor-directives', source: 'extension' }] }
+        : undefined,
   }))
   await live(request as never)
   text = 'changed'

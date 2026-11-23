@@ -136,6 +136,10 @@ function agentHandlers(deps: DaemonHandlerDeps) {
         before,
       }
     }),
+  }
+}
+function instructionHandlers(deps: DaemonHandlerDeps) {
+  return {
     'instructions.read': op((a, c) =>
       dataResult(readGlobalInstructions(instructions(deps, a.project, c), { followLinks: false })),
     ),
@@ -162,6 +166,7 @@ function agentHandlers(deps: DaemonHandlerDeps) {
 export function settingsHandlers(deps: DaemonHandlerDeps) {
   return {
     ...agentHandlers(deps),
+    ...instructionHandlers(deps),
     'claude.accounts': op(async () =>
       dataResult((await readSection(deps, 'providers')).providers?.accounts ?? []),
     ),
@@ -171,9 +176,13 @@ export function settingsHandlers(deps: DaemonHandlerDeps) {
       await patchSection(deps, snapshot, { type: 'claude.routing', ...a }, c)
       return {
         text: 'Updated Claude routing.',
-        before: before
-          ? { mode: before.mode, ...(before.pinnedId ? { pinnedId: before.pinnedId } : {}) }
-          : undefined,
+        before:
+          before && (!a.pinnedId || before.pinnedId)
+            ? {
+                mode: before.mode,
+                ...(a.pinnedId && before.pinnedId ? { pinnedId: before.pinnedId } : {}),
+              }
+            : undefined,
       }
     }),
     'claude.reorder': op(async (a, c) => {

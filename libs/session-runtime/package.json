@@ -164,6 +164,14 @@
       "types": "./src/pi/lane-reload.ts",
       "default": "./src/pi/lane-reload.ts"
     },
+    "./pi/live-directives": {
+      "types": "./src/pi/live-directives.ts",
+      "default": "./src/pi/live-directives.ts"
+    },
+    "./pi/package-updates": {
+      "types": "./src/pi/package-updates.ts",
+      "default": "./src/pi/package-updates.ts"
+    },
     "./pi/package-resources": {
       "types": "./src/pi/package-resources.ts",
       "default": "./src/pi/package-resources.ts"

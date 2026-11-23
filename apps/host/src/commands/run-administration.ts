@@ -110,6 +110,29 @@ function features(
   ]
 }
 
+/** The PTY and headless runners admit only one machine program between them. */
+function runTaskPorts(
+  options: AdministrationOptions,
+  settings: ReturnType<typeof createMachineSettings>,
+) {
+  const { context, terminals } = options
+  const programs = { settings, home: context.home, env: options.env, pi: options.pi }
+  const machineTasks = terminals
+    ? createMachineTasks({
+        ...programs,
+        terminals,
+        hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
+        headlessActive: () => task.active(),
+      })
+    : undefined
+  const task: ReturnType<typeof createHeadlessTasks> = createHeadlessTasks(
+    programs,
+    options.hide,
+    () => machineTasks?.active() ?? false,
+  )
+  return { machineTasks, task }
+}
+
 /** Bind administration to this run's existing runtime, path locks and terminal owner. */
 export function createRunAdministration(options: AdministrationOptions) {
   const { context, terminals, accounts } = options
@@ -155,20 +178,7 @@ export function createRunAdministration(options: AdministrationOptions) {
     store: options.store,
     binding: options.binding,
   })
-  const programs = { settings, home: context.home, env: options.env, pi: options.pi }
-  const machineTasks = terminals
-    ? createMachineTasks({
-        ...programs,
-        terminals,
-        hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
-        headlessActive: () => task.active(),
-      })
-    : undefined
-  const task: ReturnType<typeof createHeadlessTasks> = createHeadlessTasks(
-    programs,
-    options.hide,
-    () => machineTasks?.active() ?? false,
-  )
+  const { machineTasks, task } = runTaskPorts(options, settings)
   return {
     archives,
     providerLogins,
@@ -226,7 +236,6 @@ export function startRunWebPush(
   options: Pick<WebPushOptions, 'authority' | 'lanesTopic' | 'receipt'> & {
     identity: HostIdentity
     controlUrl: string
-    hide: HostMachine['log']['hide']
     log: HostMachine['log']['write']
   },
 ) {

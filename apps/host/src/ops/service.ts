@@ -173,6 +173,16 @@ function daemonAgentFor(
   }
 }
 
+function settledAccountMove(ports: OpsServicePorts) {
+  return async (sessionId: string, accountId: string) => {
+    const id = ports.daemonLanes
+      .list()
+      .find((l) => ports.daemonLanes.sessionFor(l.laneId) === sessionId)?.laneId
+    if (!id || !ports.settingsOps) throw new Error('No live lane to move.')
+    await ports.settingsOps.moveClaudeAccount(id, accountId, () => true)
+  }
+}
+
 function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): OpsService {
   const { log } = ports
   const { audit, confirms, jobs, policy, notify, changed, bindMachineOps } = opsStores(
@@ -200,13 +210,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     lanes: ports.daemonLanes,
     db,
     command: ports.command,
-    account: async (sessionId, accountId) => {
-      const id = ports.daemonLanes
-        .list()
-        .find((l) => ports.daemonLanes.sessionFor(l.laneId) === sessionId)?.laneId
-      if (!id || !ports.settingsOps) throw new Error('No live lane to move.')
-      await ports.settingsOps.moveClaudeAccount(id, accountId, () => true)
-    },
+    account: settledAccountMove(ports),
   })
   const binding: OpsBinding = {
     // Read per use: a local daemon may enroll while it runs.
