@@ -10,11 +10,23 @@ export async function resolveResumeTarget(
     lastSessionPath,
     lastWorkspacePath,
     recentWorkspaces,
-  }: Pick<AppPrefs, 'lastSessionPath' | 'lastWorkspacePath' | 'recentWorkspaces'>,
+    lastLocal,
+    localRuntime,
+  }: Pick<
+    AppPrefs,
+    'lastSessionPath' | 'lastWorkspacePath' | 'recentWorkspaces' | 'lastLocal' | 'localRuntime'
+  >,
   pathExists: (path: string) => Promise<boolean>,
   mode: 'in-app' | 'daemon' = 'in-app',
 ) {
-  if (mode === 'daemon') return { kind: 'none' as const }
+  if (mode === 'daemon')
+    return typeof lastLocal?.laneId === 'string' &&
+      lastLocal.laneId &&
+      localRuntime?.mode === 'daemon' &&
+      typeof localRuntime.machineId === 'string' &&
+      localRuntime.machineId
+      ? { kind: 'lane' as const, hostId: localRuntime.machineId, laneId: lastLocal.laneId }
+      : { kind: 'none' as const }
   // Prefer the exact session, but only if BOTH it and its workspace still
   // exist — a session file whose folder was deleted can't be resumed.
   if (lastSessionPath && lastWorkspacePath) {
