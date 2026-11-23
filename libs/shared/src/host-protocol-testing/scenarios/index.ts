@@ -23,6 +23,11 @@ export function defineAgentControlConformance(
     name,
     factory,
     options.capabilities ?? ['sessions.read', 'sessions.control'],
-    [...opsScenarios(principal), ...ownerScenarios(), ...localScenarios(), ...machineScenarios()],
+    [
+      ...opsScenarios(principal),
+      ...ownerScenarios(principal),
+      ...localScenarios(),
+      ...machineScenarios(),
+    ],
   )
 }

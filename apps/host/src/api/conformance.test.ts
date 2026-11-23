@@ -30,6 +30,8 @@ import { fixtureGrantAuth } from './__fixtures__/grant-auth'
 import { createLaneAdapter } from './lanes'
 import { createAdapterChain } from './adapter'
 import { hostLinks } from './server'
+import { OWNER_METHODS } from '@phosphor/shared/host-protocol-owner'
+import type { OwnerHandlers } from '../owner/adapter'
 
 // The kit uses virtual time. Only git's read-only branch lookup is scripted;
 // lane creation, SQLite, transcript reads and all protocol services are real.
@@ -41,6 +43,14 @@ type Session = {
   deliver: Delivery
   pending: Set<() => void>
 }
+
+/**
+ * Owner handlers that answer every owner method, as the local socket would for
+ * an attested owner. A grant connection must still never reach one.
+ */
+const everyOwnerMethod = Object.fromEntries(
+  OWNER_METHODS.map((method) => [method, async () => ({})]),
+) as OwnerHandlers
 
 const factory: HostConformanceFactory = async (limits) => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'host-conformance-')))
@@ -314,7 +324,8 @@ const factory: HostConformanceFactory = async (limits) => {
       const connection = createConnection({
         socket: pair.server,
         authenticate: fixtureGrantAuth(authority, claims, { control, host }, hello()),
-        handler: (ready) => createAdapterChain(hostLinks(), adapter.handler)(ready),
+        handler: (ready) =>
+          createAdapterChain(hostLinks(undefined, everyOwnerMethod), adapter.handler)(ready),
         admit: (id) =>
           [...connections.values()].filter((c) => c.clientId() === id).length <
           (limits.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient),
