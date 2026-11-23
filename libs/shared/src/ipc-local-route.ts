@@ -44,7 +44,8 @@ export const LOCAL_ROUTE = {
   'routines:delete': 'in-app-only',
   'routines:pauseAll': 'in-app-only',
   'routines:background': 'in-app-only',
-  'pi:health': 'in-app-only',
+  // A read-only probe of the same user's pi; the first screen waits on it.
+  'pi:health': 'app',
   'pi:createSession': 'in-app-only',
   // Routed by lane handle; a local handle meets the registry's own daemon-mode guard.
   'pi:command': 'host',
