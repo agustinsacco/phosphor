@@ -65,7 +65,8 @@ export const LOCAL_ROUTE = {
   'artifacts:list': 'app',
   'artifacts:read': 'app',
   'artifacts:remove': 'in-app-only',
-  'app:resumeTarget': 'in-app-only',
+  // Answers home in daemon mode (resume-target.ts); M4's re-key adds the last lane.
+  'app:resumeTarget': 'app',
   'app:userInfo': 'app',
   'app:saveDialog': 'app',
   'app:revealPath': 'same-machine',

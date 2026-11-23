@@ -1,6 +1,10 @@
 import type { AppPrefs } from '@shared/models'
 
-/** Resolve the saved launch location without changing the preference order. */
+/**
+ * Resolve the saved launch location without changing the preference order.
+ * In daemon mode This Mac's lanes belong to its service, so an in-app session
+ * or folder is never resumed: launch lands on home.
+ */
 export async function resolveResumeTarget(
   {
     lastSessionPath,
@@ -8,7 +12,9 @@ export async function resolveResumeTarget(
     recentWorkspaces,
   }: Pick<AppPrefs, 'lastSessionPath' | 'lastWorkspacePath' | 'recentWorkspaces'>,
   pathExists: (path: string) => Promise<boolean>,
+  mode: 'in-app' | 'daemon' = 'in-app',
 ) {
+  if (mode === 'daemon') return { kind: 'none' as const }
   // Prefer the exact session, but only if BOTH it and its workspace still
   // exist — a session file whose folder was deleted can't be resumed.
   if (lastSessionPath && lastWorkspacePath) {

@@ -28,6 +28,7 @@ import {
   sweepComposerDrafts,
 } from '../app/draft-service'
 import { resolveResumeTarget } from '../app/resume-target'
+import { localRuntimeMode } from '../local-machine/mode'
 import { showNativeNotice } from '../app/native-notice'
 import {
   getPrefs,
@@ -171,7 +172,7 @@ function registerContextHandlers(): void {
 }
 
 function registerRuntimeHandlers(): void {
-  handle('app:resumeTarget', () => resolveResumeTarget(getPrefs(), pathExists))
+  handle('app:resumeTarget', () => resolveResumeTarget(getPrefs(), pathExists, localRuntimeMode()))
   handle('app:userInfo', () => ({
     username: userInfo().username,
     // Only the profile NAME, never credentials — used to build the right
