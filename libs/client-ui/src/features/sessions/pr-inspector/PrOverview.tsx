@@ -81,7 +81,7 @@ function Ended({ summary, detail }: { summary: GhPrSummary; detail?: GhPrDetail 
   const now = useNow(30_000)
   if (summary.state === 'CLOSED')
     return (
-      <p className="text-danger flex items-center gap-1.5 text-base">
+      <p className="text-closed flex items-center gap-1.5 text-base">
         <PrGlyph glyph="closed" size={14} />
         Closed without merging
         {summary.closedAt ? `, ${agoText(Date.parse(summary.closedAt), now)}` : ''}

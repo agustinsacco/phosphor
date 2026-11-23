@@ -78,7 +78,7 @@ export function PrRow({
 
 function stateColor(state: GhPullRequest['state']): string {
   if (state === 'MERGED') return 'text-accent'
-  if (state === 'CLOSED') return 'text-danger'
+  if (state === 'CLOSED') return 'text-closed'
   if (state === 'DRAFT') return 'text-text-tertiary'
   return 'text-success'
 }

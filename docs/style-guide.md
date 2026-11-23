@@ -111,6 +111,8 @@ Cool neutral greys. The accent is the only warm element on the page.
 | `--px-danger-soft`    | `#f8e8e4`             |                                          |
 | `--px-merged`         | `#7c5cbf`             | merged PRs — deliberately not success    |
 | `--px-merged-soft`    | `#efe9fa`             |                                          |
+| `--px-closed`         | `#6a6a78`             | closed PRs — deliberately not danger     |
+| `--px-closed-soft`    | `#e9e9ee`             |                                          |
 | `--px-info`           | `#47708f`             |                                          |
 | `--px-user-bubble`    | `#eeeef1`             |                                          |
 | `--px-code-bg`        | `#f2f2f4`             |                                          |
@@ -145,6 +147,8 @@ Cool neutral greys. The accent is the only warm element on the page.
 | `--px-danger-soft`    | `#46302a`                |                                       |
 | `--px-merged`         | `#a98ce0`                | merged PRs — deliberately not success |
 | `--px-merged-soft`    | `#2f2740`                |                                       |
+| `--px-closed`         | `#a8a298`                | closed PRs — deliberately not danger  |
+| `--px-closed-soft`    | `#35312a`                |                                       |
 | `--px-info`           | `#82a9c9`                |                                       |
 | `--px-user-bubble`    | `#2f2b24`                |                                       |
 | `--px-code-bg`        | `#24211c`                |                                       |
@@ -160,6 +164,11 @@ Cool neutral greys. The accent is the only warm element on the page.
   green" are the two states the sidebar is scanned to tell apart, so rendering
   both in `--px-success` hides the one meaning _this lane is done_. Violet was
   the only hue unspoken for. A sixth semantic color needs that kind of reason.
+- **`--px-closed` is the second exception, and it is a neutral.** A closed PR is
+  neither an alarm nor a colour: rendering it in `--px-danger` puts the one state
+  that asks nothing of you in the colour that means _a build needs you_. It is
+  slate, not violet: distinct from `--px-text-secondary` and
+  `--px-text-tertiary` so it still reads as a state rather than dimmed text.
 - **`bg-danger` + `text-white` is a standing exception** (`libs/client-ui/src/components/form/fields.tsx`),
   3.1:1 in dark and below AA. Accepted because danger buttons are short, bold,
   and never the only signal. Don't copy it; don't "fix" it without changing
