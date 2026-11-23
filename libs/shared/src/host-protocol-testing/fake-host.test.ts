@@ -99,50 +99,6 @@ const factory = (limits: Partial<ConformanceOptions>): HostConformanceHarness =>
 
 defineAgentControlConformance('fake Host agent control', factory)
 
-it('serves ops.run through a plugged handler as the grant principal, and announces ready.ops', async () => {
-  vi.useFakeTimers()
-  try {
-    const h = factory({})
-    const result = { status: 'ok', text: 'listed', applies: 'now' } as const
-    const handler = vi.fn(() => result)
-    ;(h.driver as ReturnType<typeof createFakeHost>).ops(handler)
-    const pair = h.connect()
-    const frames: HostFrame[] = []
-    pair.socket.onMessage((text) => {
-      const parsed = parseHostFrame(text)
-      if (parsed.ok) frames.push(parsed.value)
-    })
-    const send = (frame: unknown) => pair.socket.send(JSON.stringify(frame))
-    send({ type: 'auth', grant: h.mintGrant({ caps: [] }), challenge: 'a'.repeat(64) })
-    await vi.advanceTimersByTimeAsync(0)
-    expect(frames[0]).toMatchObject({ type: 'ready', ops: true })
-    send({ type: 'call', id: 'q', method: 'ops.run', params: { op: 'lane.list', args: {} } })
-    const requestId = randomUUID()
-    send({ type: 'command', requestId, op: { type: 'ops.run', op: 'lane.list', args: {} } })
-    send({ type: 'call', id: 'bad', method: 'ops.run', params: { op: 'Bad', args: {} } })
-    await vi.advanceTimersByTimeAsync(0)
-    expect(frames.slice(1)).toEqual([
-      {
-        type: 'result',
-        id: 'bad',
-        ok: false,
-        error: { code: 'bad-request', message: 'bad-request' },
-      },
-      { type: 'result', id: 'q', ok: true, data: result },
-      { type: 'receipt', receipt: { requestId, status: 'done', data: result } },
-    ])
-    expect(handler).toHaveBeenCalledWith(
-      { op: 'lane.list', args: {} },
-      { kind: 'user', clientId: h.claims.client.id, label: 'First viewer' },
-      false,
-    )
-    expect(handler).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), true)
-    await h.driver.stop()
-  } finally {
-    vi.useRealTimers()
-  }
-})
-
 defineHostConformance('fake Host protocol v1', async (limits) => {
   const h = factory(limits)
   return {
@@ -254,6 +210,50 @@ it('bounds stored UI keys while allowing replacement and clearing at capacity', 
   } finally {
     h.driver.stop()
     await vi.advanceTimersByTimeAsync(0)
+    vi.useRealTimers()
+  }
+})
+
+it('serves ops.run through a plugged handler as the grant principal, and announces ready.ops', async () => {
+  vi.useFakeTimers()
+  try {
+    const h = factory({})
+    const result = { status: 'ok', text: 'listed', applies: 'now' } as const
+    const handler = vi.fn(() => result)
+    ;(h.driver as ReturnType<typeof createFakeHost>).ops(handler)
+    const pair = h.connect()
+    const frames: HostFrame[] = []
+    pair.socket.onMessage((text) => {
+      const parsed = parseHostFrame(text)
+      if (parsed.ok) frames.push(parsed.value)
+    })
+    const send = (frame: unknown) => pair.socket.send(JSON.stringify(frame))
+    send({ type: 'auth', grant: h.mintGrant({ caps: [] }), challenge: 'a'.repeat(64) })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(frames[0]).toMatchObject({ type: 'ready', ops: true })
+    send({ type: 'call', id: 'q', method: 'ops.run', params: { op: 'lane.list', args: {} } })
+    const requestId = randomUUID()
+    send({ type: 'command', requestId, op: { type: 'ops.run', op: 'lane.list', args: {} } })
+    send({ type: 'call', id: 'bad', method: 'ops.run', params: { op: 'Bad', args: {} } })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(frames.slice(1)).toEqual([
+      {
+        type: 'result',
+        id: 'bad',
+        ok: false,
+        error: { code: 'bad-request', message: 'bad-request' },
+      },
+      { type: 'result', id: 'q', ok: true, data: result },
+      { type: 'receipt', receipt: { requestId, status: 'done', data: result } },
+    ])
+    expect(handler).toHaveBeenCalledWith(
+      { op: 'lane.list', args: {} },
+      { kind: 'user', clientId: h.claims.client.id, label: 'First viewer' },
+      false,
+    )
+    expect(handler).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), true)
+    await h.driver.stop()
+  } finally {
     vi.useRealTimers()
   }
 })
