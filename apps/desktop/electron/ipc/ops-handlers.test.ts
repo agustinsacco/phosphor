@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
+  run: vi.fn().mockResolvedValue({ status: 'ok', text: 'local' }),
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
 }))
 vi.mock('electron', () => ({
@@ -9,6 +10,7 @@ vi.mock('electron', () => ({
       state.handlers.set(channel, handler),
   },
 }))
+vi.mock('../ops/service', () => ({ desktopOps: () => ({ run: state.run }) }))
 vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 
 const invoke = (channel: string, ...args: unknown[]) => {
@@ -25,13 +27,12 @@ beforeEach(async () => {
   registerLocalMachineHandlers()
 })
 
-it('answers every ops:run as not served yet, on This Mac and on a Host', () => {
-  for (const target of [{ kind: 'local' }, { kind: 'remote', hostId: 'host' }])
-    expect(invoke('ops:run', target, { op: 'lane.list', args: {} })).toEqual({
-      status: 'denied',
-      code: 'unsupported',
-      text: 'This version of Phosphor does not run agent ops yet.',
-    })
+it('dispatches only the local surface, deriving authority from the sender', async () => {
+  const request = {op:'whoami', args:{}}
+  expect(await invoke('ops:run',{kind:'local'},request)).toMatchObject({status:'ok'})
+  expect(state.run).toHaveBeenCalledWith({kind:'surface',clientId:'1',label:'This Mac',via:'owner'}, request)
+  expect(await invoke('ops:run',{kind:'remote',hostId:'host'},request)).toMatchObject({code:'unsupported'})
+  expect(state.run).toHaveBeenCalledTimes(1)
 })
 
 it('reports This Mac as in-app with nothing to move, and refuses every action', () => {

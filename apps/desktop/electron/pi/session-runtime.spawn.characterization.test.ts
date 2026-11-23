@@ -39,6 +39,7 @@ vi.mock('@phosphor/session-runtime/pi/lane-reload', () => ({
   createLaneReload: () => ({ capture: async () => 'config', track: vi.fn() }),
 }))
 vi.mock('./session-launch', () => ({
+  resourceRoot: () => '/resources',
   prepareDesktopSessionLaunch: async () => ({
     stub: false,
     binaryPath: '/Applications/Phosphor.app/node',
@@ -72,7 +73,7 @@ vi.mock('./session-policy', () => ({
 beforeEach(() => vi.stubEnv('PI_CODING_AGENT_DIR', '/nonexistent/pinned-agent'))
 afterEach(() => vi.unstubAllEnvs())
 
-it('spawns one Desktop lane with exactly the argv and env inputs it had before contributions', async () => {
+it('adds the local agent tool, skill and marker without changing the other spawn inputs', async () => {
   await import('./session-runtime')
   const runtime = vi.mocked(createSessionStartup).mock.calls[0]![0]
   const captured: unknown[] = []
@@ -107,8 +108,10 @@ it('spawns one Desktop lane with exactly the argv and env inputs it had before c
         prefs: DIRECTIVES,
         machine: { kind: 'desktop', signedIn: true },
       }),
-      extensions: ['/resources/pi-ext/artifacts.ts', '/resources/pi-ext/lane-reload.ts'],
+      extensions: ['/resources/pi-ext/artifacts.ts', '/resources/pi-ext/lane-reload.ts', '/resources/pi-ext/phosphor.ts'],
+      skills: ['/resources/skills/phosphor'],
       env: {
+        PHOSPHOR_OPS: 'v1',
         PATH: '/usr/bin:/bin',
         PHOSPHOR_ARTIFACT_STORE: '/artifacts',
         HEADROOM_URL: 'http://127.0.0.1:8787',
@@ -124,5 +127,4 @@ it('spawns one Desktop lane with exactly the argv and env inputs it had before c
       },
     },
   ])
-  expect(Object.keys(captured[0] as object)).not.toContain('skills')
 })

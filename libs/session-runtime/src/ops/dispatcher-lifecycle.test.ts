@@ -135,7 +135,7 @@ describe('in-band answers', () => {
   it('serves policy.show and audits agent ops but not surface ones', async () => {
     const h = createHarness({ policy: { agentControl: 'read' } })
     const shown = await h.run(agent(), { op: 'policy.show', args: {} })
-    expect(shown).toMatchObject({ status: 'ok', data: { changedOutside: false } })
+    expect(shown).toMatchObject({ status: 'ok', data: { agentControl: 'read', version: 1 } })
     expect(shown.status === 'ok' && shown.text).toContain('Agent control: read.')
     await h.run(surface(), { op: 'archive.list', args: {} })
     expect(h.calls.audit.map((r) => [r.principal, r.op, r.decision])).toEqual([
@@ -162,9 +162,7 @@ describe('tool replies', () => {
       effects: [{ kind: 'notify', message: 'Agent ran lane.rename: Renamed.', level: 'info' }],
       auditId: 'audit-1',
     })
-    expect(h.calls.undoRecords).toEqual([
-      { auditId: 'audit-1', inverse: { op: 'lane.rename', args: { name: 'old', ref: OWN } } },
-    ])
+    expect(h.calls.audit[0]).toMatchObject({undo: true, undoRecord: {inverse: {op:'lane.rename', args:{name:'old', ref: OWN}}, forward:{name:'new'}}})
     const read = await h.tool({ op: 'lane.read', args: { ref: OTHER } })
     expect(read).toMatchObject({ status: 'ok', untrusted: true })
     expect(read.status === 'ok' && read.effects).toBeFalsy()
@@ -295,4 +293,13 @@ describe('undo', () => {
     expect(await h.dispatcher.undo(surface(), 'audit-1')).toMatchObject({ status: 'ok' })
     expect(h.calls.handled.map((c) => c.op)).toEqual(['swarm.off'])
   })
+})
+
+it('never offers Undo when the audit insert fails', async () => {
+  const h = createHarness()
+  h.binding.audit.append = async () => { throw new Error('disk full') }
+  const result = await h.run(agent(), { op:'swarm.on', args:{}, reason:'testing' })
+  expect(result.status).toBe('ok')
+  expect(result).not.toHaveProperty('undo')
+  expect(h.calls.audit).toEqual([])
 })
