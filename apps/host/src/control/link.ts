@@ -34,7 +34,7 @@ export interface LinkEnrollment {
 /** One enrollment's heartbeat. `run` resolves 77 when control answers 410. */
 export interface LinkSession {
   run(): Promise<number>
-  drain(): Promise<{ state: 'stopped' | 'failed' }>
+  drain(): Promise<{ state: 'stopped' }>
 }
 
 export interface ControlLinkPorts<T extends LinkEnrollment> {
@@ -81,7 +81,7 @@ export interface ControlLink {
   cancelEnrollment(): Promise<void>
   /** Resolves when the process must end: 77 on a 410 without the marker, else 0 once drained. */
   run(): Promise<number>
-  drain(): Promise<{ state: 'stopped' | 'failed' }>
+  drain(): Promise<{ state: 'stopped' }>
   exitCode(): number
 }
 

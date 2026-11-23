@@ -3,9 +3,11 @@ import { randomInt } from 'node:crypto'
 import { setTimeout } from 'node:timers/promises'
 import { parseHeartbeatResponse } from '@phosphor/shared/control-api'
 import type { Receipt } from '@phosphor/shared/host-protocol'
-import type { Authority } from '../api/authority'
+import { createAuthority, type Authority } from '../api/authority'
 import { startApi } from '../api/server'
 import type { ControlClient } from '../control/client'
+import { prepareControl, withCommandLock } from '../control/command'
+import { createControlLink, type ControlLink, type ControlLinkPorts } from '../control/link'
 import { REMOVED, createHeartbeat, createSequenceStore } from '../control/heartbeat'
 import type { HostIdentity } from '../control/identity'
 import type { LaneService } from '../lanes/service'
@@ -145,4 +147,56 @@ export function createRunHeartbeat(
       context.print(line)
     },
   })
+}
+
+/** The control link over run's API and heartbeat. In local mode a 410 stops only the TCP API. */
+export function createRunLink(
+  context: RunContext,
+  parts: RunParts,
+  sink: ReceiptSink,
+  options: {
+    initial: EnrolledControl | null
+    /** The local-mode marker exists: a 410 keeps the lanes. */
+    local: boolean
+    /** The local daemon's in-process enrollment; absent for a headless Host. */
+    enroll?: ControlLinkPorts<EnrolledControl>['enroll']
+    directory: string
+    config: RunConfig
+    epoch: string
+    stateDirectory: string
+    lanes?: LaneService
+    accounts?: HostClaudeAccounts
+  },
+): ControlLink {
+  const { config, stateDirectory, accounts } = options
+  const now = context.now ?? Date.now
+  return createControlLink<EnrolledControl>(
+    {
+      local: options.local,
+      load: async () => {
+        const found = await withCommandLock(context, () => prepareControl(context))
+        if (!found.loaded) return null
+        const { client, url } = found
+        const authority = createAuthority(now)
+        return { ...found.loaded, client, url, directory: options.directory, authority }
+      },
+      connect: (control) => {
+        startRunApi(context, parts, sink, {
+          control,
+          config,
+          epoch: options.epoch,
+          lanes: options.lanes,
+        })
+        return createRunHeartbeat(context, { control, config, stateDirectory, accounts })
+      },
+      disconnect: async () => {
+        await parts.api?.stop()
+      },
+      enroll: options.enroll,
+      now,
+      wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
+      log: (event, fields) => context.log?.('host', event, fields),
+    },
+    options.initial,
+  )
 }

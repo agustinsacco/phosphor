@@ -21,13 +21,17 @@ import {
 } from '../machine/launchd'
 import { StateFailure } from '../lanes/state-dir'
 import type { reconcile } from '../lanes/reconcile'
+import type { LocalModeFile } from '@phosphor/shared/host-local'
+import type { ControlLink } from '../control/link'
 import {
   createReceiptSink,
-  createRunHeartbeat,
+  createRunLink,
   runWebPush,
-  startRunApi,
   type EnrolledControl,
+  type ReceiptSink,
+  type StartWebPush,
 } from './run-control'
+import { createLocalDaemon, runLocalMode, type StartLocalSocket } from './run-local'
 import { startRunMachine } from './run-machine'
 import { openRunState } from './run-state'
 import { createRunTeardown, type RunParts } from './run-teardown'
@@ -48,26 +52,74 @@ export interface RunContext extends ControlContext {
   }
   loadConfig?: typeof loadHostConfig
   reconcile?: typeof reconcile
+  /** Local mode only: starts the owner socket (D3). */
+  startLocalSocket?: StartLocalSocket
+}
+
+/** What run starts with: the identity it found and, in local mode, the marker. */
+interface RunStart {
+  initial: EnrolledControl | null
+  mode: LocalModeFile | null
+  directory: string
+}
+
+/**
+ * Opens state; in local mode starts the socket seam and waits until the daemon
+ * owns the machine's lanes; then starts the machine and builds the control link.
+ */
+async function startRun(
+  context: RunContext,
+  parts: RunParts,
+  sink: ReceiptSink,
+  start: RunStart,
+  signal: AbortSignal,
+): Promise<ControlLink> {
+  const { config, stateDirectory, store } = await openRunState(context, parts, sink, signal)
+  signal.throwIfAborted()
+  const local = start.mode ? createLocalDaemon(context, start.mode) : undefined
+  await local?.own(parts, store, signal)
+  signal.throwIfAborted()
+  const epoch = randomBytes(8).toString('hex')
+  // Web Push needs the identity run started with; a later enrollment gets it on the next start.
+  const webPush: StartWebPush = start.initial
+    ? runWebPush(context, start.initial)
+    : async () => undefined
+  const ports = { epoch, config, stateDirectory, store, sink, webPush }
+  const machine = await startRunMachine(context, parts, ports, signal)
+  signal.throwIfAborted()
+  const link = createRunLink(context, parts, sink, {
+    ...machine,
+    initial: start.initial,
+    local: local !== undefined,
+    enroll: local?.enroll,
+    directory: start.directory,
+    config,
+    epoch,
+    stateDirectory,
+  })
+  local?.attach(link)
+  return link
 }
 
 /**
  * Prepares control, takes the run lock, attaches the drain, opens state,
  * starts the machine, then the API and the heartbeat, and tears down in order.
- * Unenrolled exits 69 before the run lock; a removed Host's heartbeat exits 77.
+ * Without the local-mode marker, unenrolled exits 69 before the run lock and a
+ * removed Host's heartbeat exits 77. With it, run starts unenrolled and a 410
+ * stops only the TCP API.
  */
 async function runHostCommand(context: RunContext): Promise<number> {
   const parts: RunParts = {}
   const teardown = createRunTeardown(parts)
   const sink = createReceiptSink()
-  const authority = createAuthority(context.now ?? Date.now)
   const initAbort = new AbortController()
   let initialization: Promise<void> | undefined
-  let loop: ReturnType<typeof createRunHeartbeat> | undefined
-  let launchApi: (() => void) | undefined
+  let link: ControlLink | undefined
   let detach: (() => void) | undefined
   try {
     const prepared = await withCommandLock(context, () => prepareControl(context))
-    if (!prepared.loaded) {
+    const mode = runLocalMode(context)
+    if (!prepared.loaded && !mode) {
       context.print('Run phosphor setup first.')
       return 69
     }
@@ -79,36 +131,26 @@ async function runHostCommand(context: RunContext): Promise<number> {
       '.run-lock',
     )
     context.afterRunLock?.()
-    const { client, url } = prepared
-    const control: EnrolledControl = { ...prepared.loaded, client, url, directory, authority }
+    const { client, url, loaded } = prepared
+    const authority = createAuthority(context.now ?? Date.now)
+    const initial = loaded ? { ...loaded, client, url, directory, authority } : null
     // Start-up can await SQLite and disk scans. A signal must wait for cleanup
     // here too, not just once the heartbeat loop is running.
     detach = context.attach?.(
       teardown.drainTarget({
         abort: () => initAbort.abort(),
-        loop: () => loop,
+        loop: () => link,
         initialization: () => initialization,
       }),
     )
     initialization = (async () => {
-      const signal = initAbort.signal
-      const { config, stateDirectory, store } = await openRunState(context, parts, sink, signal)
-      signal.throwIfAborted()
-      const epoch = randomBytes(8).toString('hex')
-      const webPush = runWebPush(context, control)
-      const ports = { epoch, config, stateDirectory, store, sink, webPush }
-      const machine = await startRunMachine(context, parts, ports, signal)
-      signal.throwIfAborted()
-      launchApi = () =>
-        startRunApi(context, parts, sink, { control, config, epoch, lanes: machine.lanes })
-      const { accounts } = machine
-      loop = createRunHeartbeat(context, { control, config, stateDirectory, accounts })
+      link = await startRun(context, parts, sink, { initial, mode, directory }, initAbort.signal)
     })()
     await initialization
     initAbort.signal.throwIfAborted()
-    launchApi?.()
-    if (!loop) throw new Error('Heartbeat was not initialized.')
-    return await loop.run()
+    if (!link) throw new Error('Control link was not initialized.')
+    link.start()
+    return await link.run()
   } catch (error) {
     if (error === initAbort.signal.reason && initAbort.signal.aborted) {
       teardown.abortedCleanly()
