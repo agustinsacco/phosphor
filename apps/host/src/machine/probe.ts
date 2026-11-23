@@ -55,7 +55,7 @@ function killGroup(child: ChildProcess): void {
 export function probe(
   file: string,
   args: readonly string[],
-  options: ProbeEnvironment & { timeoutMs?: number },
+  options: ProbeEnvironment & { timeoutMs?: number; maxBytes?: number },
 ): Promise<ProbeResult> {
   let child: ChildProcess
   try {
@@ -87,7 +87,7 @@ export function probe(
       // The cap can split a character. Leave its first bytes out, rather than
       // decoding them to U+FFFD, so a secret's first characters still end the text.
       const decoded = cut[stream] ? new StringDecoder('utf8').write(bytes) : bytes.toString('utf8')
-      return redact(decoded, options.secrets, cut[stream])
+      return options.secrets.length ? redact(decoded, options.secrets, cut[stream]) : decoded
     }
 
     const settle = (code: number | null, signal: NodeJS.Signals | null, error?: string) => {
@@ -113,7 +113,7 @@ export function probe(
 
     for (const stream of ['stdout', 'stderr'] as const) {
       child[stream]?.on('data', (chunk: Buffer) => {
-        const room = PROBE_OUTPUT_CAP - size[stream]
+        const room = (options.maxBytes ?? PROBE_OUTPUT_CAP) - size[stream]
         if (chunk.length > room) cut[stream] = true
         if (room <= 0) return
         const part = chunk.subarray(0, room)

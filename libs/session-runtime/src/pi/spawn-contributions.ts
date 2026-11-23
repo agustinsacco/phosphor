@@ -6,6 +6,8 @@ import type { LiveSession } from './session-registry'
 
 /** What one contributor adds to a lane's spawn. Extensions and skills are absolute paths. */
 export interface SpawnInputs {
+  /** Lower priority than lane policy (including its selected provider account). */
+  readonly envDefaults?: Readonly<Record<string, string>>
   readonly env?: Readonly<Record<string, string>>
   readonly extensions?: readonly string[]
   readonly skills?: readonly string[]
@@ -68,7 +70,8 @@ export async function applySpawnContributions(
       continue
     }
     if (!inputs) continue
-    if (inputs.env) spawnOptions.env = { ...spawnOptions.env, ...inputs.env }
+    if (inputs.envDefaults || inputs.env)
+      spawnOptions.env = { ...inputs.envDefaults, ...spawnOptions.env, ...inputs.env }
     if (inputs.extensions?.length)
       spawnOptions.extensions = [...(spawnOptions.extensions ?? []), ...inputs.extensions]
     if (inputs.skills?.length)

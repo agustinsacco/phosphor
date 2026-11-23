@@ -1,3 +1,4 @@
+import type { HostShellEnvironment } from '../machine/shell-environment'
 import { hostname, type as osType } from 'node:os'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
@@ -34,6 +35,7 @@ export interface HostMachine {
   /** In Desktop's grammar; '' is the 200k default. */
   contextBudget: string
   machineContext?: Extract<MachineContext, { kind: 'host' }>
+  shellEnvironment?: HostShellEnvironment
   log: HostLog
 }
 

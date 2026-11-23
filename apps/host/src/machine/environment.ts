@@ -1,4 +1,4 @@
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import { isForwardedEnvName } from '@phosphor/session-runtime/pi/forwarded-env'
 
 /**
@@ -97,6 +97,27 @@ export interface PiEnvironment {
   secrets: string[]
 }
 
+/** A shell profile cannot relocate pi or impersonate a lane's owner-side wiring. */
+export function acceptsShellName(name: string, pass: readonly string[]): boolean {
+  const upper = name.toUpperCase()
+  if (
+    upper === 'HOME' ||
+    upper === 'PATH' ||
+    upper.startsWith('XDG_') ||
+    upper === 'PI_CODING_AGENT_DIR' ||
+    upper === 'PI_CODING_AGENT_SESSION_DIR' ||
+    upper.startsWith('PHOSPHOR_') ||
+    isDeniedName(name)
+  )
+    return false
+  return pass.includes(name) || isForwardedEnvName(name)
+}
+
+export interface ShellSnapshot {
+  path: readonly string[]
+  values: Readonly<Record<string, string>>
+}
+
 /**
  * Base names, `LC_*`, the provider names Desktop imports from a login shell,
  * and the config's `pass` list, minus the hooks above. PATH is never
@@ -106,6 +127,7 @@ export interface PiEnvironment {
  * where sessions live.
  */
 export function buildPiEnvironment(input: {
+  shell?: ShellSnapshot
   hostEnv: NodeJS.ProcessEnv
   pass?: readonly string[]
   path?: readonly string[]
@@ -119,10 +141,22 @@ export function buildPiEnvironment(input: {
     const standard = BASE_NAMES.has(name) || name.startsWith('LC_') || isForwardedEnvName(name)
     if (pass.has(name) || standard) env[name] = value
   }
+  for (const [name, value] of Object.entries(input.shell?.values ?? {})) {
+    if (
+      acceptsShellName(name, input.pass ?? []) &&
+      (env[name] === undefined || AMBIENT_NAMES.has(name))
+    )
+      env[name] = value
+  }
+  const shellPath =
+    input.shell?.path.filter(
+      (dir) => isAbsolute(dir) && !dir.split('/').includes('fnm_multishells'),
+    ) ?? []
   // Built last, so an inherited or passed PATH never survives.
   const node = input.nodePath ? [dirname(input.nodePath)] : []
   env.PATH = [
     ...new Set([
+      ...[...new Set(shellPath)].slice(0, 256),
       ...node,
       ...(input.path ?? []),
       ...(env.HOME ? [join(env.HOME, '.local/bin')] : []),
@@ -137,7 +171,7 @@ export function buildPiEnvironment(input: {
     env,
     names,
     ambient: names.filter((name) => AMBIENT_NAMES.has(name)),
-    unset: [...pass].filter((name) => input.hostEnv[name] === undefined).sort(),
+    unset: [...pass].filter((name) => env[name] === undefined).sort(),
     secrets: [...secrets].sort((a, b) => b.length - a.length),
   }
 }

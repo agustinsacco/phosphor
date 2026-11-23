@@ -1,6 +1,6 @@
 import type { HostReleaseFeature } from '@phosphor/shared/host-release'
 import { createLanePauses, FEATURE as PAUSE_FEATURE } from '../lanes/pause'
-import { createShellEnvironment, FEATURE as SHELL_FEATURE } from '../machine/shell-environment'
+import { type HostShellEnvironment, FEATURE as SHELL_FEATURE } from '../machine/shell-environment'
 import { createOpsService, FEATURE as OPS_FEATURE } from '../ops/service'
 import { createReach, FEATURE as REACH_FEATURE } from '../reach'
 import { createAppServices, FEATURE as APP_SERVICES_FEATURE } from '../session/app-services'
@@ -19,14 +19,14 @@ export function runServiceFeatures(): readonly HostReleaseFeature[] {
 }
 
 /** The machine services `run` starts once, beside the lane service. Each is null until built. */
-export function createRunServices() {
+export function createRunServices(shellEnvironment?: HostShellEnvironment) {
   return {
     ops: createOpsService(),
     reach: createReach(),
     headroom: createHeadroomService(),
     appServices: createAppServices(),
     pauses: createLanePauses(),
-    shellEnvironment: createShellEnvironment(),
+    shellEnvironment: shellEnvironment ?? null,
   }
 }
 

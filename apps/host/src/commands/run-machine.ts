@@ -181,7 +181,7 @@ export async function startRunMachine(
   ports: RunMachinePorts,
   signal: AbortSignal,
 ): Promise<{ lanes?: LaneService; accounts?: HostClaudeAccounts }> {
-  const inspection = await inspectHost(context)
+  const inspection = await inspectHost(context, { captureShell: true })
   signal.throwIfAborted()
   if (!inspection.machine) {
     context.log?.('host', 'lanes.unavailable', { reason: 'machine-unusable' })
@@ -191,7 +191,7 @@ export async function startRunMachine(
   const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
   parts.log = log
   const started = await startRuntime(context, parts, ports, machine, log)
-  parts.services = createRunServices()
+  parts.services = createRunServices(machine.shellEnvironment)
   const { live, runtime, routines } = started
   const {
     features: administrationFeatures,

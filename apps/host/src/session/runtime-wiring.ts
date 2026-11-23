@@ -74,7 +74,7 @@ export function wireRuntimeStartup(
     accounts,
     recordWorkspace: () => {},
     ...(laneReload ? { laneReload } : {}),
-    contributions: hostSpawnContributions(),
+    contributions: hostSpawnContributions(machine.shellEnvironment, machine.log),
   })
 }
 

@@ -46,7 +46,7 @@ it('spawns one Host lane with exactly the argv and env inputs it had before cont
       resourceRoot: EXTENSIONS_ROOT,
       contextBudget: '',
       machineContext: { kind: 'host', label: 'pinned', os: 'Linux', repositories: [] },
-      log: { write: vi.fn(), hide: (text) => text, path: () => null },
+      log: { addSecrets: vi.fn(), write: vi.fn(), hide: (text) => text, path: () => null },
     },
     {},
   )

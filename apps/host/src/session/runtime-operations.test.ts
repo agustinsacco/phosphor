@@ -33,6 +33,7 @@ function harness(options: RuntimeOptions = {}) {
       resourceRoot: EXTENSIONS_ROOT,
       contextBudget: '',
       log: {
+        addSecrets: vi.fn(),
         write: vi.fn(),
         hide: (text) => text.replaceAll('secret', '[redacted]'),
         path: () => null,

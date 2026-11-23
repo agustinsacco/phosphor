@@ -2,7 +2,7 @@ import { applySpawnContributions } from '@phosphor/session-runtime/pi/spawn-cont
 import { opChildEnv } from '@phosphor/session-runtime/pi/op-channel'
 import { hostSpawnContributions } from '../session/contributions'
 import { createHostLog } from '../machine/log'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { fakeMachine, type FakeMachine } from '../__fixtures__/machine'
@@ -88,6 +88,9 @@ it('a local lane receives the login-shell PATH and passed token through its spaw
   expect(original.PASSED_TOKEN).toBe('test-passed-value')
   machine.script('shell', 'exit 1')
   await inspected!.shellEnvironment!.refresh()
-  expect((await spawn()).PASSED_TOKEN).toBe('changed-test-value')
+  const afterFailure = await spawn()
+  expect(afterFailure.PASSED_TOKEN).toBe('changed-test-value')
+  expect(afterFailure.PATH?.split(':')[0]).toBe(join(machine.home, 'updated'))
+  expect(readFileSync(log.path()!, 'utf8')).toContain('environment.shell_unavailable')
   expect(log.hide('changed-test-value test-passed-value')).toBe('[redacted] [redacted]')
 })

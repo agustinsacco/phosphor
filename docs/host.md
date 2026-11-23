@@ -1046,7 +1046,7 @@ child stdin is ignored. Test runners replace service managers and log followers.
 ## pi's environment
 
 The Host filters its environment through one policy rather than inheriting it
-wholesale. Only allowed variables present in the Host process reach pi. A terminal,
+wholesale. On headless Hosts, only allowed variables present in the Host process reach pi. A terminal,
 `env -i` and a service manager can supply different values or omit credentials;
 config pins program paths and builds PATH independently of that ambient PATH.
 
@@ -1075,6 +1075,19 @@ by a service manager.
   doctor report has each secret value replaced with `[redacted]`, overlapping
   values included, and reports list variable names, never values. PATH is
   shown as its folders.
+
+On a machine paired with Desktop, when the local-mode marker enables shell
+capture, the Phosphor service also probes the user's login shell at startup.
+Each new lane uses that cached result; starting lanes does not re-run shell
+profiles. Up to 256 distinct absolute shell PATH folders come **before** the
+built PATH (transient `fnm_multishells` folders are skipped). Provider and
+explicitly passed names fill gaps; for passed ambient authority such as
+`SSH_AUTH_SOCK`, the shell's value wins. The shell cannot change `HOME`, pi's
+folder layout, loader hooks or Phosphor's own variables. A failed refresh
+keeps the last successful capture, or the Host policy alone if there is none.
+`phosphor doctor` checks a fresh capture (`shell-env`); it never prints the
+values. A capture has a 15-second deadline and timed-out shell process groups
+are killed. Headless Hosts never run a shell for this.
 
 ## doctor
 

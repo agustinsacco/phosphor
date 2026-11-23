@@ -49,7 +49,7 @@ function setup(options: RuntimeOptions = {}) {
       roots: [repo],
       resourceRoot: EXTENSIONS_ROOT,
       contextBudget: '123456',
-      log: { write: vi.fn(), hide: (text) => text, path: () => null },
+      log: { addSecrets: vi.fn(), write: vi.fn(), hide: (text) => text, path: () => null },
     },
     options,
   )

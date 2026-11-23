@@ -5,13 +5,13 @@ import { loadHostConfig } from '../config/load'
 import { resolveHostId, type ConfigError } from '../config/schema'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import type { ClaudeLane } from '../machine/claude'
-import { buildPiEnvironment, type PiEnvironment } from '../machine/environment'
+import type { PiEnvironment } from '../machine/environment'
 import { checkHostNode, type PiLaunch } from '../machine/executables'
 import type { ProviderState } from '../machine/providers'
 import type { tailscalePorts } from '../machine/tailscale'
 import type { HostMachine } from '../session/runtime'
 import { HOST_VERSION } from '../version'
-import { inspectProbes, inspectClaude } from './doctor-probes'
+import { inspectProbes, inspectClaude, doctorEnvironment } from './doctor-probes'
 import {
   buildHello,
   helloExposure,
@@ -92,11 +92,14 @@ export interface HostInspection {
  * replaced, so it is safe to paste.
  */
 export async function runDoctor(context: DoctorContext): Promise<DoctorReport> {
-  return (await inspectHost(context)).report
+  return (await inspectHost(context, { captureShell: true })).report
 }
 
 /** doctor's checks, with what a session needs when the machine passes them. */
-export async function inspectHost(context: DoctorContext): Promise<HostInspection> {
+export async function inspectHost(
+  context: DoctorContext,
+  { captureShell = false } = {},
+): Promise<HostInspection> {
   const host = { version: HOST_VERSION, node: context.nodeVersion, platform: context.platform }
   const checks: Check[] = [checkHostNode(context.nodeVersion)]
   const loaded = await loadHostConfig(context.configPath, context.uid)
@@ -104,13 +107,12 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
   const { config } = loaded
   checks.push(pass('config', loaded.path))
 
-  const environment = buildPiEnvironment({
-    hostEnv: context.env,
-    pass: config.environment?.pass,
-    path: config.environment?.path,
-    nodePath: config.pi.node,
-    platform: context.platform,
-  })
+  const { base, environment, shellEnvironment } = await doctorEnvironment(
+    context,
+    config,
+    checks,
+    captureShell,
+  )
   if (environment.ambient.length > 0) {
     const names = environment.ambient.join(', ')
     checks.push(warn('environment', `pi receives ${names}, which act on other systems for you`))
@@ -148,10 +150,10 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
     },
     environment.secrets,
   )
-  const machine = await buildMachine(context, config, environment, probes, native)
+  const machine = await buildMachine(context, config, base, probes, native)
   return {
     report,
-    machine,
+    machine: machine && shellEnvironment ? { ...machine, shellEnvironment } : machine,
     secrets: environment.secrets,
     piVersion: pi.launch?.version ?? null,
     claude: claudeLane,
