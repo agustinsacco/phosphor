@@ -7,6 +7,7 @@ import { Spinner } from '@/components/icons'
 import { localMachineLabel } from '@/lib/localMachine'
 import { useArchiveInventory, loadArchives } from '@/stores/archives'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { laneHaystack, laneMatches, laneQueryTerms } from '../sessions/laneSearch'
 import { ARCHIVE_WARNING_BYTES } from '@phosphor/shared/lane-archive'
 import type { LaneArchiveEntry, LaneArchiveList } from '@phosphor/shared/lane-archive'
 
@@ -37,9 +38,12 @@ export function ArchiveMachine({
   const view = useArchiveInventory(machine, available)
   const actions = useArchiveMutation(machine, writable)
   const entries = view.data?.entries ?? NONE
-  const needle = query.toLowerCase()
-  const shown = needle
-    ? entries.filter((entry) => `${entry.title} ${entry.cwd}`.toLowerCase().includes(needle))
+  // The sidebar's matcher, so the same words find the same lane in both places.
+  const terms = laneQueryTerms(query)
+  const shown = terms.length
+    ? entries.filter((entry) =>
+        laneMatches(laneHaystack({ title: entry.title, cwd: entry.cwd }), terms),
+      )
     : entries
   return (
     <section className="border-border space-y-3 rounded-lg border p-4">
@@ -62,14 +66,11 @@ export function ArchiveMachine({
       ) : (
         <>
           <ArchiveStorage data={view.data} count={entries.length} />
-          {(actions.error || view.error) && (
-            <SettingsNotice
-              tone="danger"
-              title="This machine refused the archive list."
-              body={actions.error || view.error}
-              action={{ label: 'Try again', onClick: () => void loadArchives(machine) }}
-            />
-          )}
+          <ArchiveErrors
+            machine={machine}
+            listError={view.error}
+            actionError={actions.purging ? null : actions.error}
+          />
           {!view.data && view.loading && <WaitingNote>Loading archives…</WaitingNote>}
           {!!view.data && !shown.length && (
             <p className="text-text-secondary text-sm">
@@ -88,6 +89,37 @@ export function ArchiveMachine({
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * A list the machine refused and an operation it refused are different problems,
+ * so they say so differently: only the list offers a reload, and an operation
+ * still open in its own dialog reports the failure there instead.
+ */
+function ArchiveErrors({
+  machine,
+  listError,
+  actionError,
+}: {
+  machine: string
+  listError: string | null | undefined
+  actionError: string | null
+}): React.JSX.Element {
+  return (
+    <>
+      {listError && (
+        <SettingsNotice
+          tone="danger"
+          title="This machine refused the archive list."
+          body={listError}
+          action={{ label: 'Try again', onClick: () => void loadArchives(machine) }}
+        />
+      )}
+      {actionError && (
+        <SettingsNotice tone="danger" title="That archive operation failed." body={actionError} />
+      )}
+    </>
   )
 }
 

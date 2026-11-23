@@ -35,9 +35,13 @@ function selectOf(
     selected: keys.includes(entry.id),
     selecting,
     onToggle: (shiftKey) => toggleLane(key, order, entry.id, shiftKey),
-    blocked: writable
-      ? `Not until this archive settles (${entry.state}).`
-      : 'This machine does not let this device clean up archives.',
+    // `blocked` is the reason a row cannot join the selection, so a selectable
+    // row must leave it undefined: any string disables the box entirely.
+    blocked: !writable
+      ? 'This machine does not let this device clean up archives.'
+      : canPurge(entry, writable)
+        ? undefined
+        : `Not until this archive settles (${entry.state}).`,
   }
 }
 

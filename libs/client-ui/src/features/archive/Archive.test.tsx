@@ -168,3 +168,76 @@ it('cleans up the whole selection in one confirm, and keeps the checkout unless 
     expect(invoke).toHaveBeenCalledWith('sessions:purgeArchive', String(n).repeat(64), false)
   expect(document.querySelector('[data-testid="bulk-bar"]')).toBeNull()
 })
+
+const list = (n: number) => ({
+  entries: Array.from({ length: n }, (_, i) => archived(i + 1)),
+  bytes: 0,
+  measuredAt: Date.now(),
+  measuring: false,
+  truncated: false,
+})
+
+it('selects from the row box, so a permanent cleanup can be narrowed', async () => {
+  const invoke = vi.fn(async (channel: string) =>
+    channel === 'sessions:archives' ? list(2) : undefined,
+  )
+  Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
+  await act(async () => root.render(<ArchiveMachine machine="local" query="" />))
+  const box = (n: number) =>
+    document.querySelector<HTMLElement>(`[role="checkbox"][aria-label="Select Lane ${n}"]`)!
+  // A selectable row must not carry a block reason: any string kills the box.
+  expect(box(1).getAttribute('aria-disabled')).toBeNull()
+  act(() => box(1).click())
+  expect(document.querySelector('[data-testid="bulk-bar"]')?.textContent).toContain('1 selected')
+  act(() => box(2).click())
+  expect(document.querySelector('[data-testid="bulk-bar"]')?.textContent).toContain('2 selected')
+  act(() => box(1).click())
+  expect(document.querySelector('[data-testid="bulk-bar"]')?.textContent).toContain('1 selected')
+})
+
+it('keeps the confirmation open when the machine refuses a cleanup', async () => {
+  const invoke = vi.fn(async (channel: string) => {
+    if (channel === 'sessions:archives') return list(1)
+    throw new Error('Worktree is shared by another lane.')
+  })
+  Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
+  await act(async () => root.render(<ArchiveMachine machine="local" query="" />))
+  act(() => button('Clean up…').click())
+  const confirm = button('Permanently clean up')
+  act(() => document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[0]!.click())
+  await act(async () => confirm.click())
+  // The dialog is the only place that explains a refusal. The failed cleanup
+  // refreshes the list, and a list that blanks remounts the dialog out from
+  // under the reader, resetting the acknowledgement they just gave.
+  expect(document.body.textContent).toContain('Clean up “Lane 1”?')
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('shared by another lane')
+  expect(document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[0]!.checked).toBe(
+    true,
+  )
+})
+
+it('keeps cleaning up after one lane is refused, and says what survived', async () => {
+  const refused = '2'.repeat(64)
+  const invoke = vi.fn(async (channel: string, ...args: unknown[]) => {
+    if (channel === 'sessions:archives') return list(3)
+    if (channel === 'sessions:purgeArchive' && args[0] === refused)
+      throw new Error('Worktree is shared by another lane.')
+    return undefined
+  })
+  Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
+  await act(async () => root.render(<ArchiveMachine machine="local" query="" />))
+
+  act(() => button('Select all').click())
+  const bar = document.querySelector('[data-testid="bulk-bar"]')!
+  act(() => [...bar.querySelectorAll('button')].find((b) => b.textContent === 'Clean up…')!.click())
+  const confirm = [...document.querySelectorAll('button')].find((b) =>
+    b.textContent?.startsWith('Clean up 3 archived lanes'),
+  )!
+  act(() => document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[0]!.click())
+  await act(async () => confirm.click())
+
+  // The refusal belongs to one lane, so the rows after it still go.
+  expect(invoke).toHaveBeenCalledWith('sessions:purgeArchive', '3'.repeat(64), false)
+  expect(document.body.textContent).toContain('2 cleaned up, 1 kept.')
+  expect(document.body.textContent).toContain('Lane 2: Worktree is shared by another lane.')
+})
