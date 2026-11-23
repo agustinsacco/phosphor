@@ -535,6 +535,26 @@
     "./owner-lock/types": {
       "types": "./src/owner-lock/types.ts",
       "default": "./src/owner-lock/types.ts"
+    },
+    "./ops/confirm": {
+      "types": "./src/ops/confirm.ts",
+      "default": "./src/ops/confirm.ts"
+    },
+    "./ops/confirm-message": {
+      "types": "./src/ops/confirm-message.ts",
+      "default": "./src/ops/confirm-message.ts"
+    },
+    "./ops/audit": {
+      "types": "./src/ops/audit.ts",
+      "default": "./src/ops/audit.ts"
+    },
+    "./ops/redact": {
+      "types": "./src/ops/redact.ts",
+      "default": "./src/ops/redact.ts"
+    },
+    "./ops/undo": {
+      "types": "./src/ops/undo.ts",
+      "default": "./src/ops/undo.ts"
     }
   },
   "nx": {
