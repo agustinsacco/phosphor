@@ -93,7 +93,11 @@ describe('status wire runtime characterization', () => {
 })
 
 const root = resolve(import.meta.dirname, '../../..')
-const hostPath = 'libs/client-ui/src/features/extension-ui/ExtensionUiHosts.tsx'
+// Each structured Set lives beside the one renderer that consults it.
+const structuredSetPaths: Record<string, string> = {
+  STRUCTURED_STATUS_KEYS: 'libs/client-ui/src/features/extension-ui/StatusStrip.tsx',
+  STRUCTURED_WIDGET_KEYS: 'libs/client-ui/src/features/extension-ui/ExtensionUiHosts.tsx',
+}
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap((entry) => {
@@ -251,6 +255,8 @@ function literalAudit(texts: Map<string, string>) {
     scan(source)
   }
   function structuredSet(name: string): string[] {
+    const hostPath = structuredSetPaths[name]
+    if (!hostPath) throw new Error(`Unknown structured wire Set: ${name}`)
     const expression = initializer(hostPath, name)
     if (
       !expression ||
@@ -409,6 +415,7 @@ describe('status wire AST literal audit', () => {
         name === 'STRUCTURED_STATUS_KEYS'
           ? 'CONTEXT_BREAKDOWN_STATUS_KEY'
           : 'SUBAGENT_ASYNC_WIDGET_KEY'
+      const hostPath = structuredSetPaths[name]!
       texts.set(
         hostPath,
         texts

@@ -654,13 +654,14 @@ emitting side in that repo's `docs/ARCHITECTURE.md`. Rules for all of them: the
 payload is JSON in a string, every parser returns `null` rather than throwing,
 and a missing key means "render nothing", never an empty section. A structured
 key must also be listed in `STRUCTURED_STATUS_KEYS`
-(`features/extension-ui/ExtensionUiHosts.tsx`) or the status strip prints its
+(`features/extension-ui/StatusStrip.tsx`) or the status strip prints its
 JSON as prose. Status pushes must never be able to break a turn, so emitters
 swallow their own errors.
 
 **Widgets are the same bus with the same rule.** `setWidget` carries lines for
 the composer slot, and a key carrying a machine payload must be in
-`STRUCTURED_WIDGET_KEYS` (same file) or the slot prints it. Two are
+`STRUCTURED_WIDGET_KEYS` (`features/extension-ui/ExtensionUiHosts.tsx`) or the
+slot prints it. Two are
 load-bearing today, both from `pi-subagents` in RPC mode:
 
 | Key                | Payload                                                                        | Consumer                                                     |

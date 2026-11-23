@@ -15,7 +15,7 @@ vi.mock('./banners', () => ({
   NoModelsBanner: () => null,
   RewoundBanner: () => null,
 }))
-vi.mock('@/features/extension-ui/ExtensionUiHosts', () => ({ StatusStrip: () => null }))
+vi.mock('@/features/extension-ui/StatusStrip', () => ({ StatusStrip: () => null }))
 
 let root: Root | undefined
 afterEach(() => {

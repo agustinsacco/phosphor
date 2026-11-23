@@ -13,7 +13,7 @@ vi.hoisted(() => {
 
 import { LANE_RELOAD_STATUS_KEY } from '@phosphor/pi-extensions/lane-reload'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { StatusStrip } from './ExtensionUiHosts'
+import { StatusStrip } from './StatusStrip'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true

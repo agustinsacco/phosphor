@@ -90,7 +90,6 @@
     "src/features/connectors/MigrationCard.tsx::MigrationCard[1]": 139,
     "src/features/connectors/catalog.ts::file": 527,
     "src/features/extension-ui/CommandApprovalSheet.tsx::CommandApprovalSheet[1]": 162,
-    "src/features/extension-ui/ExtensionUiHosts.tsx::file": 438,
     "src/features/extension-ui/ExtensionUiHosts.tsx::DialogSheet[1]": 147,
     "src/features/feedback/FeedbackModal.tsx::FeedbackModal[1]": 159,
     "src/features/files/EditorPane.tsx::Tab[1]": 142,

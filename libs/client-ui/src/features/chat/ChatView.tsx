@@ -5,7 +5,7 @@ import { ReadOnlyLaneBar, RemoteLaneControls } from '@/features/machines/RemoteL
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { ForkPickerModal } from './ForkPickerModal'
-import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
+import { StatusStrip } from '@/features/extension-ui/StatusStrip'
 import { CrashBanner, NoModelsBanner, RewoundBanner } from './banners'
 
 /**

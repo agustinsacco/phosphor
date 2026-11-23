@@ -16,7 +16,7 @@ vi.mock('@/features/chat/banners', () => ({
   NoModelsBanner: () => null,
   RewoundBanner: () => null,
 }))
-vi.mock('@/features/extension-ui/ExtensionUiHosts', () => ({ StatusStrip: () => null }))
+vi.mock('@/features/extension-ui/StatusStrip', () => ({ StatusStrip: () => null }))
 vi.mock('@/stores/remoteLanes', async (original) => ({
   ...(await original<object>()),
   openRemoteLane: vi.fn(async () => true),

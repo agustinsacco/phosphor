@@ -16,7 +16,7 @@ import type { ToolState } from '@/features/chat/chatItems'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useLayoutStore } from '@/stores/layout'
-import { StatusStrip } from './ExtensionUiHosts'
+import { StatusStrip } from './StatusStrip'
 
 const STRUCTURED = {
   'phosphor-context-breakdown': '{"total":1}',
