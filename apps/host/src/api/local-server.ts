@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { chmodSync, lstatSync, mkdirSync, unlinkSync } from 'node:fs'
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import { dirname } from 'node:path'
 import {
@@ -21,7 +21,12 @@ import {
   type ConnectionPorts,
   type ReadyConnection,
 } from './connection'
-import { createLocalAuth, createLocalNonces, type LocalAuthPorts } from './local-auth'
+import {
+  createLocalAuth,
+  createLocalNonces,
+  type LocalAuthPorts,
+  type LocalNonces,
+} from './local-auth'
 import { API_LIMITS } from './server'
 import { createWsUpgrade, rejectTransport } from './ws-upgrade'
 
@@ -170,27 +175,8 @@ function requestStatus(request: IncomingMessage): number {
   return request.method === 'GET' ? 0 : 405
 }
 
-/**
- * The machine's owner socket: the same hello and frames as the TCP listener,
- * with `phosphor-local.` credentials. It serves the given links from the start
- * (standby included) and the lane adapter once `serveLanes` is called.
- */
-export async function startLocalServer(options: LocalServerOptions) {
-  const path = chooseSocketPath(options.candidates)
-  prepareSocketFolder(dirname(path), options.uid)
-  await clearStaleSocket(path)
-  const now = options.now ?? Date.now
-  const nonces = createLocalNonces(now)
-  let lanes: LocalLanes | undefined
-  const standbyEpoch = randomBytes(8).toString('hex')
-  const hello = (): HostHello => ({
-    hostId: options.auth.machineId,
-    hostVersion: options.hostVersion,
-    protocolVersion: HOST_PROTOCOL_VERSION,
-    runtimeEpoch: lanes?.epoch ?? standbyEpoch,
-    capabilities: [...(lanes?.capabilities ?? [])],
-  })
-  let stopped = false
+/** The socket's HTTP side: hello only, every other request refused, raw sockets bounded. */
+function helloServer(answer: (challenge: string) => object | null, log: ApiLog | undefined) {
   const raw = new Set<Socket>()
   const server = createServer(
     {
@@ -201,14 +187,8 @@ export async function startLocalServer(options: LocalServerOptions) {
     (request, response) => {
       const status = requestStatus(request)
       if (status) return void response.writeHead(status).end()
-      helloRoute(request, response, (challenge) => {
-        const nonce = nonces.issue()
-        const current = hello()
-        return nonce
-          ? { hello: current, proof: hostProof(current, challenge, options.auth.key), nonce }
-          : null
-      })
-      options.log?.('local.hello', {})
+      helloRoute(request, response, answer)
+      log?.('local.hello', {})
     },
   )
   server.on('connection', (socket) => {
@@ -217,11 +197,25 @@ export async function startLocalServer(options: LocalServerOptions) {
     raw.add(socket)
     socket.on('close', () => raw.delete(socket))
   })
+  return { server, raw }
+}
+
+/** What the socket's connections share: the hello now, its nonces and the lanes once served. */
+interface SocketState {
+  hello(): HostHello
+  nonces: LocalNonces
+  lanes(): LocalLanes | undefined
+  stopped(): boolean
+  now(): number
+}
+
+/** The socket's stream route: local credentials, then the links, then the lanes once served. */
+function socketUpgrades(options: LocalServerOptions, state: SocketState) {
   const limits = options.connectionLimits
   const upgrades = createWsUpgrade({
     status: (request) =>
       requestStatus(request) || (request.url !== HOST_API_ROUTES.stream ? 404 : 0),
-    accepting: () => !stopped,
+    accepting: () => !state.stopped(),
     limits: API_LIMITS,
     sendQueueBytes: limits?.sendQueueBytes ?? HOST_LIMITS.sendQueueBytes,
     connect: (socket, ping): ReturnType<typeof createConnection> =>
@@ -229,23 +223,30 @@ export async function startLocalServer(options: LocalServerOptions) {
         socket,
         ping,
         limits,
-        now,
+        now: state.now,
         log: options.log,
         // In standby only the links answer; the lane adapter joins with `serveLanes`.
-        handler: (ready) =>
-          lanes
+        handler: (ready) => {
+          const lanes = state.lanes()
+          return lanes
             ? createAdapterChain(lanes.links, lanes.handler)(ready)
-            : createAdapterChain(options.links, undefined)(ready),
-        authenticate: createLocalAuth({ ...options.auth, hello, nonces, now }),
+            : createAdapterChain(options.links, undefined)(ready)
+        },
+        authenticate: createLocalAuth({ ...options.auth, ...state }),
         admit: (clientId): boolean => {
-          const held: number = [...upgrades.connections(), ...(lanes?.peers?.() ?? [])].filter(
+          const peers = state.lanes()?.peers?.() ?? []
+          const held: number = [...upgrades.connections(), ...peers].filter(
             (c) => c.clientId() === clientId,
           ).length
           return held < (limits?.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient)
         },
       }),
   })
-  server.on('upgrade', upgrades.upgrade)
+  return upgrades
+}
+
+/** Binds the checked path, then makes the socket 0600. Returns the socket file's inode. */
+async function bind(server: Server, path: string, log: ApiLog | undefined): Promise<number> {
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
     server.listen(path, () => {
@@ -253,10 +254,48 @@ export async function startLocalServer(options: LocalServerOptions) {
       resolve()
     })
   })
-  server.on('error', () => options.log?.('local.error', {}))
+  server.on('error', () => log?.('local.error', {}))
   chmodSync(path, 0o600)
-  const bound = lstatSync(path).ino
-  options.log?.('local.listening', { bytes: utf8Length(path) })
+  log?.('local.listening', { bytes: utf8Length(path) })
+  return lstatSync(path).ino
+}
+
+/**
+ * The machine's owner socket: the same hello and frames as the TCP listener,
+ * with `phosphor-local.` credentials. It serves the given links from the start
+ * (standby included) and the lane adapter once `serveLanes` is called.
+ */
+export async function startLocalServer(options: LocalServerOptions) {
+  const path = chooseSocketPath(options.candidates)
+  prepareSocketFolder(dirname(path), options.uid)
+  await clearStaleSocket(path)
+  let lanes: LocalLanes | undefined
+  let stopped = false
+  const standbyEpoch = randomBytes(8).toString('hex')
+  const state: SocketState = {
+    hello: () => ({
+      hostId: options.auth.machineId,
+      hostVersion: options.hostVersion,
+      protocolVersion: HOST_PROTOCOL_VERSION,
+      runtimeEpoch: lanes?.epoch ?? standbyEpoch,
+      capabilities: [...(lanes?.capabilities ?? [])],
+    }),
+    nonces: createLocalNonces(options.now),
+    lanes: () => lanes,
+    stopped: () => stopped,
+    now: options.now ?? Date.now,
+  }
+  const { server, raw } = helloServer((challenge) => {
+    const nonce = state.nonces.issue()
+    const hello = state.hello()
+    return nonce ? { hello, proof: hostProof(hello, challenge, options.auth.key), nonce } : null
+  }, options.log)
+  const upgrades = socketUpgrades(options, state)
+  server.on('upgrade', upgrades.upgrade)
+  const bound = await bind(server, path, options.log)
+  const closeAll = () => {
+    for (const connection of upgrades.connections()) connection.close(1001)
+  }
   return {
     path,
     connections: () => upgrades.connections(),
@@ -267,11 +306,11 @@ export async function startLocalServer(options: LocalServerOptions) {
      */
     serveLanes(next: LocalLanes) {
       lanes = next
-      for (const connection of upgrades.connections()) connection.close(1001)
+      closeAll()
       return {
         stop: async () => {
           if (lanes === next) lanes = undefined
-          for (const connection of upgrades.connections()) connection.close(1001)
+          closeAll()
         },
       }
     },

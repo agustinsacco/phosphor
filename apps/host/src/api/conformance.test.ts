@@ -45,12 +45,13 @@ type Session = {
 }
 
 /**
- * Owner handlers that answer every owner method, as the local socket would for
+ * The chain with owner handlers that answer every owner method, as the socket would for
  * an attested owner. A grant connection must still never reach one.
  */
-const everyOwnerMethod = Object.fromEntries(
-  OWNER_METHODS.map((method) => [method, async () => ({})]),
-) as OwnerHandlers
+const links = hostLinks(
+  undefined,
+  Object.fromEntries(OWNER_METHODS.map((method) => [method, async () => ({})])) as OwnerHandlers,
+)
 
 const factory: HostConformanceFactory = async (limits) => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'host-conformance-')))
@@ -324,8 +325,7 @@ const factory: HostConformanceFactory = async (limits) => {
       const connection = createConnection({
         socket: pair.server,
         authenticate: fixtureGrantAuth(authority, claims, { control, host }, hello()),
-        handler: (ready) =>
-          createAdapterChain(hostLinks(undefined, everyOwnerMethod), adapter.handler)(ready),
+        handler: (ready) => createAdapterChain(links, adapter.handler)(ready),
         admit: (id) =>
           [...connections.values()].filter((c) => c.clientId() === id).length <
           (limits.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient),
