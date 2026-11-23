@@ -1,8 +1,7 @@
 /**
- * The `policy` section: context budget, naming and directives go into the
+ * The `policy` section: context defaults, naming and directives go into the
  * Host config through its one settings writer; Headroom's switch into its
- * sidecar. The new-lane context-files default has no Host home yet, so it is
- * logged and dropped (docs/known-issues.md).
+ * sidecar.
  */
 import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -39,6 +38,7 @@ export function importedPolicy(
     else next[key] = value
   }
   set('contextBudget', section.contextBudget || undefined)
+  set('contextFiles', section.contextFiles)
   set('autoNameLanes', section.autoNameLanes)
   set('agentDirectives', section.agentDirectives)
   const byProject = {
@@ -72,7 +72,6 @@ export function policyImporter(ports: ImportPorts): MigrationImporter<'policy'> 
       })
       if (!merge || !(await exists(headroom)))
         writeHeadroomPreference(ports.stateDirectory, ports.uid, section.headroom)
-      ports.log('owner.migrate.context_files_dropped', { ...section.contextFiles })
     },
     async snapshot(into) {
       await keepFile(ports.configPath, into, 'config')

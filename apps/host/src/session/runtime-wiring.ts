@@ -59,6 +59,7 @@ export function wireRuntimeStartup(
       machineContext: () => machineContext,
       // Read per lane: Settings saves the toggles to the Host config.
       preferences: () => ({
+        contextFiles: options.contextFiles?.(),
         agentDirectives: options.agentDirectives?.() ?? DEFAULT_AGENT_DIRECTIVES,
         agentDirectivesByProject: options.agentDirectivesByProject?.() ?? {},
       }),

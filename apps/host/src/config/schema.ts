@@ -1,4 +1,5 @@
 import { isAbsolute, normalize } from 'node:path'
+import { isContextFilePrefs, type ContextFilePrefs } from '@phosphor/shared/context-files'
 import { isValidContextBudgetValue } from '@phosphor/shared/context-budget'
 import { AGENT_DIRECTIVE_KEYS, type AgentDirectivePrefs } from '@phosphor/shared/models'
 import { isWebOrigin } from '../api/browser-origin'
@@ -29,6 +30,7 @@ export interface HostConfigV1 {
   allowRepositoryChanges?: boolean
   autoNameLanes?: boolean
   contextBudget?: string
+  contextFiles?: ContextFilePrefs
   /** The generated blocks lanes get at start; an absent key is on. Read at each lane start. */
   agentDirectives?: Partial<AgentDirectivePrefs>
   agentDirectivesByProject?: Record<string, AgentDirectivePrefs>
@@ -66,6 +68,7 @@ const KEYS = {
     'resourceRoot',
     'repositories',
     'contextBudget',
+    'contextFiles',
     'autoNameLanes',
     'agentDirectives',
     'agentDirectivesByProject',
@@ -115,6 +118,11 @@ function policyErrors(config: Record<string, unknown>): ConfigError[] {
     config.autoNameLanes !== undefined && typeof config.autoNameLanes !== 'boolean'
       ? [{ pointer: '/autoNameLanes', message: 'must be a boolean' }]
       : []
+  if (config.contextFiles !== undefined && !isContextFilePrefs(config.contextFiles))
+    errors.push({
+      pointer: '/contextFiles',
+      message: 'must contain the claude and agents boolean switches',
+    })
   const projects = config.agentDirectivesByProject
   if (
     projects !== undefined &&

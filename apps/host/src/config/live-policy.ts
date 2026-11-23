@@ -65,6 +65,7 @@ export function hostLivePolicy(configPath: string, started: HostConfigV1) {
   return {
     agentDirectivesByProject: () => read().agentDirectivesByProject ?? {},
     agentDirectives: hostDirectives(configPath, started),
+    contextFiles: () => read().contextFiles,
     contextBudget: hostContextBudget(configPath, started),
   }
 }
