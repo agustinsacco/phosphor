@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
-import { LOCAL_ROUTE, resolvesSameMachine } from '@phosphor/shared/ipc/local-route'
+import { LOCAL_ROUTE, resolvesSameMachine } from '@phosphor/shared/ipc-local-route'
 import { InAppRuntimeRefused, localRuntimeMode } from '../local-machine/mode'
 import { sameMachineArgs } from '../local-machine/same-machine'
 import { isMachineChannel, refusesMachineResourceArgs } from './machine-resource-args'

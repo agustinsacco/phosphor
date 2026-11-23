@@ -1,4 +1,4 @@
-import type { MachineChannel } from '../ipc-scope'
+import type { MachineChannel } from './ipc-scope'
 
 /**
  * How Desktop main serves each machine channel once This Mac's lanes belong to

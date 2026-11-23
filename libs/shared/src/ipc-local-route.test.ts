@@ -1,6 +1,6 @@
 import { expect, expectTypeOf, it } from 'vitest'
-import { IPC_SCOPE, type MachineChannel } from '../ipc-scope'
-import { LOCAL_ROUTE, resolvesSameMachine, type LocalRoute } from './local-route'
+import { IPC_SCOPE, type MachineChannel } from './ipc-scope'
+import { LOCAL_ROUTE, resolvesSameMachine, type LocalRoute } from './ipc-local-route'
 
 type Routed = keyof typeof LOCAL_ROUTE
 

@@ -168,9 +168,9 @@
       "types": "./src/ipc.ts",
       "default": "./src/ipc.ts"
     },
-    "./ipc/local-route": {
-      "types": "./src/ipc/local-route.ts",
-      "default": "./src/ipc/local-route.ts"
+    "./ipc-local-route": {
+      "types": "./src/ipc-local-route.ts",
+      "default": "./src/ipc-local-route.ts"
     },
     "./machine-settings-result": {
       "types": "./src/machine-settings-result.ts",
