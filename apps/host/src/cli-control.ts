@@ -3,6 +3,7 @@ import { configPathOf, type CliContext, type CliIo, type CommandOf } from './cli
 import { runHost } from './commands/run'
 import { headroomSocketStarter } from './session/headroom-run'
 import { migrationOwnerHandlers } from './owner/migrate'
+import { migrationImporters } from './owner/import'
 import type { OpsAdapterPorts } from './ops/adapter'
 import { runService } from './commands/service'
 import { runLogin } from './commands/login'
@@ -102,7 +103,7 @@ export async function handleRun(
     // Only a Host with the local-mode marker starts the socket; a headless Host never calls it.
     const startLocalSocket = headroomSocketStarter(context, {
       ops,
-      owner: migrationOwnerHandlers(context),
+      owner: migrationOwnerHandlers(context, migrationImporters(context)),
     })
     return await runHost({ ...context, ops, startLocalSocket })
   } finally {
