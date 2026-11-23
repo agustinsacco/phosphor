@@ -267,6 +267,66 @@ describe('run with the local-mode marker serves the owner socket', () => {
     }
   }, 30_000)
 
+  it('machine.owner: acquire leaves standby; release writes the marker and exits 75 for a restart in standby', async () => {
+    const host = await localRunMachine({
+      enrolled: false,
+      marker: true,
+      standby: true,
+      heartbeat: 'accepted',
+    })
+    const path = await socketPath()
+    const context = host.context()
+    const local = await writeLocalIdentity(dirname(context.configPath), context.uid)
+    const clock = context.now ?? Date.now
+    const run = runHost({
+      ...context,
+      startLocalSocket: createLocalSocketStarter(context, { candidates: [path] }),
+    })
+    const marker = join(host.state, HOST_SIDECARS.standby)
+    hooks.machine = host.machine
+    try {
+      await vi.waitFor(() => expect(existsSync(path)).toBe(true), { timeout: 10_000 })
+      const desktop = await ownerConnection(path, local, clock)
+      desktop.send({
+        type: 'call',
+        id: 'idle',
+        method: 'machine.owner',
+        params: { action: 'release' },
+      })
+      expect(await result(desktop, 'idle')).toMatchObject({
+        ok: true,
+        data: { held: false, standby: true },
+      })
+      desktop.send({
+        type: 'call',
+        id: 'own',
+        method: 'machine.owner',
+        params: { action: 'acquire' },
+      })
+      expect(await result(desktop, 'own')).toMatchObject({ ok: true, data: { standby: false } })
+      expect(existsSync(marker)).toBe(false)
+      await vi.waitFor(() => expect(desktop.closed()).toEqual({ code: 1001 }), { timeout: 10_000 })
+      const again = await ownerConnection(path, local, clock)
+      again.send({
+        type: 'call',
+        id: 'free',
+        method: 'machine.owner',
+        params: { action: 'release' },
+      })
+      expect(await result(again, 'free')).toMatchObject({
+        ok: true,
+        data: { held: true, holder: 'daemon', standby: true },
+      })
+      expect(existsSync(marker)).toBe(true)
+      expect(await run).toBe(75)
+      expect(existsSync(join(host.state, HOST_SIDECARS.localRun))).toBe(false)
+    } finally {
+      await host.target()?.drain('SIGTERM')
+      await run
+      await host.cleanup()
+    }
+  }, 30_000)
+
   it('serves the Brain registration as an owner call and drops it on disconnect', async () => {
     const host = await localRunMachine({
       enrolled: false,
