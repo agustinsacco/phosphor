@@ -63,6 +63,8 @@ export interface LaneSummary {
   readonly control: LaneControl
   /** Pinned on the Host. Absent when not pinned. */
   readonly pinned?: true
+  /** Lane this rewind replaced on the same machine. */
+  readonly rewoundFrom?: string
   /** An explicit marker choice; '' is "no marker" on purpose. Absent: the derived auto marker. */
   readonly marker?: string
   /**

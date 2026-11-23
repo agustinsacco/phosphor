@@ -83,6 +83,7 @@ export function parseLaneSummary(v: unknown): LaneSummary | null {
     read: v.read,
     control: c,
     // Additive marks and PR signals: an invalid one is dropped, never the whole summary.
+    ...(isUuid(v.rewoundFrom) && v.rewoundFrom !== v.laneId ? { rewoundFrom: v.rewoundFrom } : {}),
     ...(v.pinned === true ? { pinned: true as const } : {}),
     ...(isLaneMarker(v.marker) ? { marker: v.marker } : {}),
     ...(pullRequests ? { pullRequests } : {}),

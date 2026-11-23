@@ -33,6 +33,7 @@ export interface BaselineSessionTreeEntry {
   parentId: string | null
   type: string
   timestamp: string
+  messageTimestamp?: number
   role?: string
   preview?: string
   toolName?: string

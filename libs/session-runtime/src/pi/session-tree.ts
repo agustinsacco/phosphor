@@ -15,7 +15,10 @@ import { extractText } from './session-content'
 type JsonRecord = Record<string, unknown>
 
 /** Optional entry fields read straight off the row as strings. */
-type OptionalStringField = Exclude<keyof SessionTreeEntry, 'id' | 'parentId' | 'type' | 'timestamp'>
+type OptionalStringField = Exclude<
+  keyof SessionTreeEntry,
+  'id' | 'parentId' | 'type' | 'timestamp' | 'messageTimestamp'
+>
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -55,6 +58,8 @@ function readMessage(node: SessionTreeEntry, message: JsonRecord): void {
   const role = stringOrUndefined(message.role)
   if (role === undefined) return
   node.role = role
+  if (typeof message.timestamp === 'number' && Number.isSafeInteger(message.timestamp))
+    node.messageTimestamp = message.timestamp
   if (role === 'user') {
     setIfString(node, 'preview', previewOf(message.content))
   } else if (role === 'assistant' && Array.isArray(message.content)) {
