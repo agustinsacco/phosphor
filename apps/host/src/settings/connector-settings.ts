@@ -1,4 +1,4 @@
-import { guardedEntry } from './agent-connectors'
+import { guardedEntry, AGENT_CONNECTOR_FIELDS } from './agent-connectors'
 import { join } from 'node:path'
 import {
   parseSettingsPatch,
@@ -180,7 +180,7 @@ export async function changeAgentConnector(
     throw new SettingsFailure('bad-request', 'Invalid connector configuration.')
   if (
     input.change.type === 'mcp.upsert' &&
-    Object.keys(input.change.config).some((k) => !AGENT_FIELDS.has(k))
+    Object.keys(input.change.config).some((k) => !AGENT_CONNECTOR_FIELDS.has(k))
   )
     throw new SettingsFailure('forbidden', 'Only Settings can edit private connector fields.')
   const cwd = state.workspace(before.repositoryId)

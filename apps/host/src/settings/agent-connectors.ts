@@ -6,7 +6,7 @@ import { validMcpConfig } from '@phosphor/shared/machine-settings-mcp'
 import { SettingsFailure } from '@phosphor/session-runtime/pi/settings-file'
 
 type Mutation = Extract<MachineSettingsChange, { type: `mcp.${string}` }>
-const AGENT_FIELDS = new Set([
+export const AGENT_CONNECTOR_FIELDS: ReadonlySet<string> = new Set([
   'url',
   'type',
   'args',
@@ -47,7 +47,7 @@ export function guardedEntry(
   }
   if (!replace) return change.config // the normal add path refuses an existing entry
   if (oauth && (!existing.url || existing.url !== change.config.url)) throw signOutFirst()
-  const privateFields = Object.entries(existing).filter(([key]) => !AGENT_FIELDS.has(key))
+  const privateFields = Object.entries(existing).filter(([key]) => !AGENT_CONNECTOR_FIELDS.has(key))
   if (
     privateFields.length &&
     ['command', 'cwd', 'args', 'url'].some(
