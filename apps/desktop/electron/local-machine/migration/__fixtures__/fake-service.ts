@@ -14,39 +14,28 @@ import { MACHINE_ID, SESSIONS } from './plan-facts'
  * durable), the lanes import feeding `owner.index`, and `machine.local`.
  * `kill()` makes every later call fail, as a crashed Desktop would see.
  */
-export function fakeService(over: { features?: string[]; standby?: boolean } = {}) {
-  const states = new Map<string, MigrationState>()
-  let lanes: OwnerLaneRow[] = []
-  let dead = false
-  const calls: string[] = []
-  const standby = { value: over.standby ?? true }
-  const handlers: { [M in OwnerMethod]?: (p: OwnerCalls[M]['params']) => unknown } = {
-    'machine.local': () => ({
-      machineId: MACHINE_ID,
-      hostVersion: '1.0.0',
-      mode: 'local',
-      features: over.features ?? ['local-mode', 'owner-socket'],
-      ownerLock: {
-        held: !standby.value,
-        holder: standby.value ? null : 'daemon',
-        pid: null,
-        standby: standby.value,
-      },
-    }),
-    'machine.owner': () => {
-      throw new OwnerCallError('unsupported', 'machine.owner is not served yet.')
-    },
+interface ServiceState {
+  readonly states: Map<string, MigrationState>
+  lanes: OwnerLaneRow[]
+  readonly standby: { value: boolean }
+  readonly features: string[]
+}
+
+type Handlers = { [M in OwnerMethod]?: (p: OwnerCalls[M]['params']) => unknown }
+
+function migrateHandlers(s: ServiceState): Handlers {
+  return {
     'owner.migrate.begin': ({ migrationId }) => {
-      const staged = [...states].find(([id, s]) => s === 'staged' && id !== migrationId)
+      const staged = [...s.states].find(([id, st]) => st === 'staged' && id !== migrationId)
       if (staged) throw new OwnerCallError('forbidden', 'Another migration is staged.')
-      if (!states.has(migrationId)) states.set(migrationId, 'staged')
-      return { state: states.get(migrationId) }
+      if (!s.states.has(migrationId)) s.states.set(migrationId, 'staged')
+      return { state: s.states.get(migrationId) }
     },
     'owner.migrate.import': (params) => {
-      if (states.get(params.migrationId) !== 'staged')
+      if (s.states.get(params.migrationId) !== 'staged')
         throw new OwnerCallError('forbidden', 'Not staged.')
       if (params.section === 'lanes')
-        lanes = params.items.map((item) => ({
+        s.lanes = params.items.map((item) => ({
           laneId: item.laneId,
           sessionFile: item.sessionFile,
           sessionId: null,
@@ -55,29 +44,62 @@ export function fakeService(over: { features?: string[]; standby?: boolean } = {
         }))
       return { staged: true, replayed: false }
     },
-    'owner.migrate.status': ({ migrationId }) => ({ state: states.get(migrationId) ?? 'none' }),
+    'owner.migrate.status': ({ migrationId }) => ({ state: s.states.get(migrationId) ?? 'none' }),
     'owner.migrate.commit': ({ migrationId }) => {
-      if (states.get(migrationId) !== 'staged' && states.get(migrationId) !== 'committed')
+      const state = s.states.get(migrationId)
+      if (state !== 'staged' && state !== 'committed')
         throw new OwnerCallError('forbidden', 'Not staged.')
-      states.set(migrationId, 'committed')
-      standby.value = false
+      s.states.set(migrationId, 'committed')
+      s.standby.value = false
       return { state: 'committed' }
     },
     'owner.migrate.abort': ({ migrationId }) => {
-      if (states.get(migrationId) !== 'staged') return { state: 'none' }
-      states.set(migrationId, 'aborted')
-      lanes = []
+      if (s.states.get(migrationId) !== 'staged') return { state: 'none' }
+      s.states.set(migrationId, 'aborted')
+      s.lanes = []
       return { state: 'aborted' }
+    },
+  }
+}
+
+function machineHandlers(s: ServiceState): Handlers {
+  return {
+    'machine.local': () => ({
+      machineId: MACHINE_ID,
+      hostVersion: '1.0.0',
+      mode: 'local',
+      features: s.features,
+      ownerLock: {
+        held: !s.standby.value,
+        holder: s.standby.value ? null : 'daemon',
+        pid: null,
+        standby: s.standby.value,
+      },
+    }),
+    'machine.owner': () => {
+      throw new OwnerCallError('unsupported', 'machine.owner is not served yet.')
     },
     'owner.index': () => ({
       machineId: MACHINE_ID,
       agentDir: '/fixture/.pi/agent',
       sessionsRoot: SESSIONS,
-      owning: !standby.value,
+      owning: !s.standby.value,
       migrateLevel: 1,
-      lanes,
+      lanes: s.lanes,
     }),
   }
+}
+
+export function fakeService(over: { features?: string[]; standby?: boolean } = {}) {
+  const s: ServiceState = {
+    states: new Map(),
+    lanes: [],
+    standby: { value: over.standby ?? true },
+    features: over.features ?? ['local-mode', 'owner-socket'],
+  }
+  const handlers: Handlers = { ...machineHandlers(s), ...migrateHandlers(s) }
+  let dead = false
+  const calls: string[] = []
   const channel: OwnerChannel = {
     machineId: MACHINE_ID,
     async call(method, params) {
@@ -92,15 +114,15 @@ export function fakeService(over: { features?: string[]; standby?: boolean } = {
   return {
     channel,
     calls,
-    states,
-    standby,
+    states: s.states,
+    standby: s.standby,
     kill: () => {
       dead = true
     },
     revive: () => {
       dead = false
     },
-    committed: () => [...states.values()].filter((s) => s === 'committed').length,
-    staged: () => [...states.values()].filter((s) => s === 'staged').length,
+    committed: () => [...s.states.values()].filter((st) => st === 'committed').length,
+    staged: () => [...s.states.values()].filter((st) => st === 'staged').length,
   }
 }
