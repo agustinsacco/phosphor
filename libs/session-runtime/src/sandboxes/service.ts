@@ -8,6 +8,7 @@ export interface SandboxOwner {
   env?: NodeJS.ProcessEnv
   home?: string
   retainedCwds?(path: string): readonly string[]
+  guardTranscripts?(sources: readonly string[], targets?: readonly string[]): Promise<void>
   hasLiveFolder(path: string): boolean
   hasArchivedFolder(path: string): Promise<boolean>
   trashItem(path: string): Promise<void>
@@ -48,20 +49,20 @@ export async function renameSandbox(base: string, path: string, name: string, ow
   // folder is still at `from`, and a destination only once it is at `to`.
   const root = piSessionsRoot(owner.env, owner.home)
   const cwds = [...new Set([...sandboxCwds(plan.from), ...(owner.retainedCwds?.(plan.from) ?? [])])]
-  const before = cwds.flatMap((cwd) => [
-    sessionDirForCwd(cwd, root),
-    claudeProjectDirForCwd(cwd, owner.env, owner.home),
-  ])
+  const directories = (paths: readonly string[]) =>
+    paths.flatMap((cwd) => [
+      sessionDirForCwd(cwd, root),
+      claudeProjectDirForCwd(cwd, owner.env, owner.home),
+    ])
+  const before = directories(cwds)
+  const movedCwds = cwds.map((cwd) => rebaseWithinFolder(cwd, plan.from, plan.to))
+  if (owner.guardTranscripts) await owner.guardTranscripts(before, directories(movedCwds))
   try {
     await rename(plan.from, plan.to)
   } catch {
     return { ok: false as const, reason: 'failed' as const }
   }
-  const movedCwds = cwds.map((cwd) => rebaseWithinFolder(cwd, plan.from, plan.to))
-  const after = movedCwds.flatMap((cwd) => [
-    sessionDirForCwd(cwd, root),
-    claudeProjectDirForCwd(cwd, owner.env, owner.home),
-  ])
+  const after = directories(movedCwds)
 
   // Best-effort, and after the folder: transcripts left behind cost history,
   // which is worse than the folder not moving but not worth failing over —
@@ -114,6 +115,7 @@ export async function deleteSandbox(base: string, path: string, owner: SandboxOw
     sessionDirForCwd(cwd, piSessionsRoot(owner.env, owner.home)),
     claudeProjectDirForCwd(cwd, owner.env, owner.home),
   ])
+  await owner.guardTranscripts?.(transcripts)
   try {
     await owner.trashItem(target)
   } catch {

@@ -113,13 +113,13 @@ it('checks live and archived descendants, existing leases, and the current confi
   expect(service.list()).toMatchObject([{ name: 'mine' }])
 })
 
-it('refuses a rename onto an occupied transcript directory without moving the workspace',async () => {
+it('refuses a rename onto an occupied transcript directory without moving the workspace', async () => {
   const service = createHostSandboxes(p)
-  const {path} = await service.create('one')
-  const other = join(p.stateDirectory,'sandboxes','two')
-  const sessions = join(root,'pi','sessions')
-  mkdirSync(sessionDirForCwd(other,sessions),{recursive:true})
-  await expect(service.change(path,'two',true)).rejects.toThrow()
+  const { path } = await service.create('one')
+  const other = join(p.stateDirectory, 'sandboxes', 'two')
+  const sessions = join(root, 'pi', 'sessions')
+  mkdirSync(sessionDirForCwd(other, sessions), { recursive: true })
+  await expect(service.change(path, 'two', true)).rejects.toThrow()
   expect(existsSync(path)).toBe(true)
   expect(existsSync(other)).toBe(false)
 })

@@ -133,7 +133,7 @@ export class HostStore {
       absolutePath(path)
       try {
         const real = realpathSync.native(path)
-        if (!statSync(real).isDirectory()) {
+        if (real === '/' || !statSync(real).isDirectory()) {
           unavailable++
           continue
         }

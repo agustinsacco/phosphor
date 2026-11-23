@@ -1,3 +1,4 @@
+import { guardSandboxTranscripts } from './sandbox-transcript-guard'
 import { lstatSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
@@ -84,9 +85,13 @@ function sandboxOwner(p: SandboxPorts, r: Records, path: string, owner: boolean)
   return {
     env: p.env,
     home: p.home,
+    guardTranscripts: guardSandboxTranscripts,
     hasLiveFolder: p.live,
     hasArchivedFolder: async (path) => p.store.folders.hasArchivedFolder(path),
-    retainedCwds: () => rows.map((l) => l.cwd).filter((cwd) => isWithinFolder(cwd, path)),
+    retainedCwds: () =>
+      rows
+        .map((l) => l.cwd)
+        .filter((cwd) => isWithinFolder(cwd, path) && realOrLexical(cwd) === cwd),
     trashItem: (file) => p.trashItem(file, owner),
     repointStoredPaths(moves) {
       const to = moves[0]!.to
