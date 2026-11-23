@@ -4,7 +4,7 @@
  * M5c's `ownerLibrary` parses; `artifact.read` takes both key forms.
  */
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -224,6 +224,7 @@ it('refuses a deleted conversation’s artifact to a connection without the arti
 function storedIndex(
   sessionId: string,
   artifacts: { slug: string; at: number; versions?: number }[],
+  live = false,
 ) {
   const dir = join(state, 'artifacts', 'sessions')
   mkdirSync(dir, { recursive: true })
@@ -234,6 +235,7 @@ function storedIndex(
     cwd: join(root, 'repo'),
     deleted: true,
     scan: { offset: 0, size: 0, mtimeMs: 0, signature: '', leafId: null },
+    ...(live ? JSON.parse(readFileSync(join(dir, `${sessionId}.json`), 'utf8')) : {}),
     artifacts: Object.fromEntries(
       artifacts.map(({ slug, at, versions = 1 }) => [
         slug,
@@ -309,3 +311,41 @@ it('keeps deleted rows within 4 MiB of metadata, newest first, and drops one pas
     overCaps: 2,
   })
 }, 20_000)
+
+it.each(['row count', 'metadata bytes'])(
+  'trims live rows by recency when they alone exceed the %s cap; the wire still refuses',
+  async (cap) => {
+    const live = await desktopSession('live', '2026-01-01T00:00:01.000Z')
+    await importDesktopLibrary()
+    lane(live.file)
+    const byCount = cap === 'row count'
+    const count = byCount ? ARTIFACT_LIMITS.count + 1 : 6
+    storedIndex(
+      live.sessionId,
+      Array.from({ length: count }, (_, i) => ({
+        slug: `live-${i}`,
+        at: i * 1000,
+        versions: byCount ? 1 : 900,
+      })),
+      true,
+    )
+    storedIndex(v7(), [{ slug: 'newer-but-deleted', at: 9e9 }])
+    expect(await feature.call('artifacts.list', {})).toMatchObject({
+      ok: false,
+      error: { code: 'too-large' },
+    })
+    const rows = await listings()
+    const kept = byCount ? ARTIFACT_LIMITS.count : 4
+    expect(rows.filter((r) => !r.sessionDeleted).map((r) => r.id)).toEqual(
+      Array.from({ length: kept }, (_, i) => `live-${count - 1 - i}`),
+    )
+    expect(rows.filter((r) => r.sessionDeleted).map((r) => r.id)).toEqual(
+      byCount ? [] : ['newer-but-deleted'],
+    )
+    expect(log).toHaveBeenCalledExactlyOnceWith('artifacts', 'library rows dropped', {
+      invalid: 0,
+      overCaps: count + 1 - rows.length,
+    })
+  },
+  20000,
+)
