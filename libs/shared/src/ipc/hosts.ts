@@ -107,7 +107,10 @@ export interface HostsInvokeMap {
   'hosts:createLane': { args: [hostId: string, input: RemoteLaneCreate]; result: LiveSessionInfo }
   'hosts:stopLane': { args: [hostId: string, laneId: string]; result: void }
   'hosts:resumeLane': { args: [hostId: string, laneId: string]; result: void }
-  'hosts:takeControl': { args: [hostId: string, laneId: string]; result: void }
+  'hosts:takeControl': {
+    args: [hostId: string, laneId: string, options?: { ifUnheld: true }]
+    result: void
+  }
   'hosts:markRead': { args: [hostId: string, laneId: string]; result: void }
   /** A lane this window opened, exported by its Host as one HTML document. */
   'hosts:exportLaneHtml': { args: [sessionId: string]; result: { html: string } }

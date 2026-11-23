@@ -1,3 +1,4 @@
+import { ensureServiceLaneControl } from '@/platform/serviceLaneControl'
 import { remoteBranchName } from './remoteBranchName'
 import { ipcErrorText } from '@shared/errors'
 import { rememberRemoteModel } from '@/stores/remoteModelPicks'
@@ -46,7 +47,10 @@ export async function startRemoteChat(
     rememberRemoteModel(hostId, { id: input.model, provider: input.provider })
   await adoptRemoteLane(info, nav)
   if (!info.laneId) throw new Error()
-  if (!canControlSession(info.sessionId))
+  if (host.local) {
+    await refreshHostsSnapshot()
+    await ensureServiceLaneControl(hostId, info.laneId)
+  } else if (!canControlSession(info.sessionId))
     await window.phosphor.invoke('hosts:takeControl', hostId, info.laneId)
   // Main rechecks the fence; the renderer must not attempt a viewer prompt.
   await refreshHostsSnapshot()

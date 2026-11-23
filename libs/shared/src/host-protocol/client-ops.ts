@@ -109,9 +109,14 @@ function coreOp(v: OpFields): LaneOp | null {
     case 'abort_retry':
     case 'lane.resume':
     case 'lane.stop':
-    case 'control.take':
     case 'control.release':
       return { type: v.type }
+    case 'control.take':
+      return v.ifUnheld === undefined
+        ? { type: v.type }
+        : v.ifUnheld === true
+          ? { type: v.type, ifUnheld: true }
+          : null
     case 'set_model':
       return text(v.provider, 200) && text(v.modelId, 200)
         ? { type: v.type, provider: v.provider, modelId: v.modelId }

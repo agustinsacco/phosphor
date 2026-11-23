@@ -272,7 +272,10 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     'hosts:createLane': (host, input) => lanes.create(ports.window(), host, input),
     'hosts:stopLane': (host, lane) => lanes.action(host, lane, 'lane.stop'),
     'hosts:resumeLane': (host, lane) => lanes.action(host, lane, 'lane.resume'),
-    'hosts:takeControl': (host, lane) => lanes.action(host, lane, 'control.take'),
+    'hosts:takeControl': (host, lane, options) => {
+      if (options !== undefined) throw new Error(REMOTE_UNAVAILABLE)
+      return lanes.action(host, lane, 'control.take')
+    },
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
     ...laneHandlers(lanes, () => ports.fileBytes, hosts.connection),

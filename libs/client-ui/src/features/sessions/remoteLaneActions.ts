@@ -1,3 +1,4 @@
+import { laneControlPolicy } from '@/platform/serviceLaneControl'
 import { featureNotOffered } from '@/stores/hostRefusals'
 import type { MachineCaps } from '@/stores/machineCaps'
 import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
@@ -47,15 +48,15 @@ export interface RemoteLaneActionState {
 }
 
 /** What this client may do to the lane, and why not. One rule for every surface. */
-export function remoteLaneAccess({ lane, caps, ready }: RemoteLaneActionState) {
+export function remoteLaneAccess({ lane, caps, ready, sameMachine }: RemoteLaneActionState) {
   const canControl = caps.granted('sessions.control')
-  const self = lane.control.controller?.self === true
+  const { actionable } = laneControlPolicy(sameMachine, lane)
   return {
-    controlled: ready && canControl && self,
+    controlled: ready && canControl && actionable,
     running: lane.activity !== 'stopped' && lane.activity !== 'failed',
     canWrite: caps.granted('workspaces.write'),
     canMark: ready && caps.laneMarks && canControl,
-    controlHint: remoteControlHint(ready, canControl, self),
+    controlHint: remoteControlHint(ready, canControl, actionable),
     markHint: !ready
       ? REMOTE_NOT_READY
       : !caps.laneMarks
@@ -87,7 +88,7 @@ export function hostLaneContext(state: RemoteLaneActionState): LaneActionContext
     unseen: lane.attention > lane.read,
     running,
     spend: {},
-    control: state.sameMachine ? undefined : { self },
+    control: laneControlPolicy(state.sameMachine, lane).transfer ? { self } : undefined,
     busy: state.busy,
     refusals: {
       open: notReady,

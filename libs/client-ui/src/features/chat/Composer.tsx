@@ -1,3 +1,4 @@
+import { ensureSessionControl } from '@/platform/serviceLaneControl'
 import { offersLaneEditing } from './hostLaneEditing'
 import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
@@ -217,7 +218,8 @@ export function Composer({
           throw new Error('Attachment upload unavailable.')
         uploading.current = true
         const attached = remote
-          ? await remotePromptAttachments(submitted, (files) => {
+          ? await remotePromptAttachments(submitted, async (files) => {
+              await ensureSessionControl(sessionId)
               consumed = true
               return window.phosphor.invoke('hosts:uploadAttachments', sessionId, files)
             })

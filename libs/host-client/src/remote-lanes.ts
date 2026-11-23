@@ -407,14 +407,24 @@ export function createRemoteLanes(ports: {
     async action(
       hostId: string,
       laneId: string,
-      type: 'lane.stop' | 'lane.resume' | 'control.take' | 'control.release' | 'lane.markRead',
+      type:
+        | 'lane.stop'
+        | 'lane.resume'
+        | 'control.take'
+        | 'control.release'
+        | 'lane.markRead'
+        | Extract<LaneOp, { type: 'control.take' }>,
     ) {
       const c = connection(hostId, true)
       const summary = c.snapshot().lanes.find((l) => l.laneId === laneId)
       await mutate(
         hostId,
         laneId,
-        type === 'lane.markRead' ? { type, upTo: summary?.attention ?? 0 } : { type },
+        typeof type === 'object'
+          ? type
+          : type === 'lane.markRead'
+            ? { type, upTo: summary?.attention ?? 0 }
+            : { type },
       )
     },
     /** A read of a lane this window opened, answered by its Host; the reads are in lane-reads. */

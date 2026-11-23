@@ -49,6 +49,7 @@ import { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals
 import { createRemoteRoutines } from '@phosphor/host-client/routines'
 import { readHostReceipt } from '@phosphor/host-client/attention'
 import { createHostAttention } from '../hosts/attention'
+import { sameMachine } from '../local-machine/same-machine'
 import { admitLocalMachine } from '../local-machine/admit'
 import { trafficLog } from '../hosts/traffic-log'
 import { tappedLog } from '../hosts/traffic-tap'
@@ -132,9 +133,13 @@ function registerLaneActionHandlers(): void {
   handle('hosts:resumeLane', (_event, hostId, laneId) =>
     remoteLanes().action(hostId, laneId, 'lane.resume'),
   )
-  handle('hosts:takeControl', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'control.take'),
-  )
+  handle('hosts:takeControl', (_event, hostId, laneId, options) => {
+    if (options === undefined) return remoteLanes().action(hostId, laneId, 'control.take')
+    // Older remote Hosts discard unknown take options: never send a conditional take there.
+    if (options?.ifUnheld !== true || sameMachine()?.hostId !== hostId)
+      throw new Error(REMOTE_UNAVAILABLE)
+    return remoteLanes().action(hostId, laneId, { type: 'control.take', ifUnheld: true })
+  })
   handle('hosts:releaseControl', (_event, hostId, laneId) =>
     remoteLanes().action(hostId, laneId, 'control.release'),
   )

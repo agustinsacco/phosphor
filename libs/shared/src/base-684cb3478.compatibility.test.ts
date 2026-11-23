@@ -63,6 +63,19 @@ describe('frozen 684cb3478 parsers agree with today on frames both releases send
     expect(baseLanes.parseLaneSummary(summary)).toStrictEqual(parseLaneSummary(summary))
   })
 
+  it('preserves conditional take only on the bundled reader; old Hosts would take unconditionally', () => {
+    const frame = {
+      ...CLIENT_FRAMES.command.unfenced,
+      op: { type: 'control.take', ifUnheld: true },
+    }
+    expect(parseCommandFrame(frame)).toStrictEqual({ ok: true, frame })
+    expect(baseCommands.parseCommandFrame(frame)).toStrictEqual({
+      ok: true,
+      frame: { ...frame, op: { type: 'control.take' } },
+    })
+    expect(parseCommandFrame({ ...frame, op: { ...frame.op, ifUnheld: false } }).ok).toBe(false)
+  })
+
   it('reads commands alike', () => {
     for (const frame of [CLIENT_FRAMES.command.fenced, CLIENT_FRAMES.command.unfenced])
       expect(baseCommands.parseCommandFrame(frame)).toStrictEqual(parseCommandFrame(frame))

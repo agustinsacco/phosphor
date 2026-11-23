@@ -1,3 +1,4 @@
+import { laneControlPolicy } from '@/platform/serviceLaneControl'
 import { serviceScope } from './localServiceScope'
 import {
   bindRemoteHostView,
@@ -104,7 +105,7 @@ function heldLane(sessionId: string) {
   if (!remote) return null
   const { host, lane } = remote
   const held =
-    machineCaps(host).granted('sessions.control') && lane?.control.controller?.self === true
+    machineCaps(host).granted('sessions.control') && laneControlPolicy(host?.local, lane).actionable
   return { state: host?.state, held }
 }
 

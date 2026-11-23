@@ -80,7 +80,7 @@ export type LaneOp =
   | { readonly type: 'lane.resume' }
   | { readonly type: 'lane.stop' }
   | { readonly type: 'lane.markRead'; readonly upTo: number }
-  | { readonly type: 'control.take' }
+  | { readonly type: 'control.take'; readonly ifUnheld?: true }
   | { readonly type: 'control.release' }
 
 export type LaneOpType = LaneOp['type']

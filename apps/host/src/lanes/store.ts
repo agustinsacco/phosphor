@@ -322,12 +322,15 @@ export class HostStore {
       return { released: true, control: this.setControl(id, null) }
     })
   }
-  admit(id: string, controller: Controller, fence: number): Admission {
+  admit(id: string, controller: Controller, fence: number | 'if-unheld'): Admission {
     this.validateController(controller)
-    integer(fence, 1)
+    if (fence !== 'if-unheld') integer(fence, 1)
     return this.transaction(() => {
       const control = this.requireLane(id).control
-      if (control.fence !== fence) return { admitted: false, code: 'stale-fence', control }
+      if (fence === 'if-unheld' && control.controller)
+        return { admitted: false, code: 'not-controller', control }
+      if (fence !== 'if-unheld' && control.fence !== fence)
+        return { admitted: false, code: 'stale-fence', control }
       if (control.controller === null)
         return { admitted: true, control: this.setControl(id, controller) }
       if (control.controller.clientId !== controller.clientId)

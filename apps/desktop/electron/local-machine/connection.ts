@@ -143,10 +143,17 @@ export function startLocalMachine(
       timer.unref()
       return
     }
+    let clientId: string | null = null
+    const ownerKey = async () => {
+      const key = await ports.ownerKey()
+      clientId = key.id
+      return key
+    }
     ports.attach({
+      clientId: () => clientId,
       hostId: identity.machineId,
       label: LOCAL_MACHINE_LABEL,
-      create: () => createLocalMachineConnection(identity, ports),
+      create: () => createLocalMachineConnection(identity, { ...ports, ownerKey }),
     })
   }
   attempt()

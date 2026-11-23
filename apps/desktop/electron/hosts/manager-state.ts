@@ -23,6 +23,8 @@ export type HostManagerPorts = {
  * directory, needs no sign-in or grant, and is outside the 32-socket cap.
  */
 export interface LocalHostSlot {
+  /** Identity used to attest on the socket, independent of the directory account. */
+  clientId?: () => string | null
   hostId: string
   label: string
   create: () => ReturnType<typeof createHostConnection>
@@ -102,7 +104,9 @@ export function hostManagerSnapshot(
               ? {
                   label: control.controller.label,
                   connected: control.controller.connected,
-                  self: control.controller.clientId === clientId,
+                  self:
+                    control.controller.clientId ===
+                    (id === state.local?.hostId ? state.local.clientId?.() : clientId),
                 }
               : null,
           },

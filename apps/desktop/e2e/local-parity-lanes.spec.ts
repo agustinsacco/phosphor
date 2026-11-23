@@ -66,8 +66,7 @@ test('start a lane in a service folder', async ({ parity: { page, daemon } }) =>
   await expect(laneRow(page, daemon, id)).toBeVisible()
 })
 
-// startRemoteChat creates on the service but loses the self fence before the first prompt finishes.
-test.fixme('new lane receives a reply from the daemon pi', async ({ parity: { page, daemon } }) => {
+test('new lane receives a reply from the daemon pi', async ({ parity: { page, daemon } }) => {
   await startLane(page, daemon)
   // Only Host fake-pi echoes a PHX token back to the user.
   await expect(page.locator('main').getByText('PHX-parity', { exact: true })).toHaveCount(2)
@@ -99,8 +98,7 @@ test('change a service lane marker', async ({ parity: { page, daemon } }) => {
   await expect.poll(async () => (await state())?.marker).toBe('🚀')
 })
 
-// remoteLaneAccess disables Stop with “Take control first” on the owner's newly created lane.
-test.fixme('stop a newly created service lane', async ({ parity: { page, daemon } }) => {
+test('stop a newly created service lane', async ({ parity: { page, daemon } }) => {
   const id = await startLane(page, daemon)
   await clickLaneMenu(page, daemon, id, 'Stop')
   await expect
@@ -110,8 +108,7 @@ test.fixme('stop a newly created service lane', async ({ parity: { page, daemon 
     .toBe('stopped')
 })
 
-// remoteLaneAccess requires a self controller to archive an unheld stopped lane; no handoff exists here.
-test.fixme('archive a stopped service lane', async ({ parity: { page, daemon } }) => {
+test('archive a stopped service lane', async ({ parity: { page, daemon } }) => {
   const [saved] = (await serviceView(page, daemon))!.lanes
   await clickLaneMenu(page, daemon, saved!.laneId, 'Archive')
   await page.getByRole('button', { name: 'Archive lane', exact: true }).click()

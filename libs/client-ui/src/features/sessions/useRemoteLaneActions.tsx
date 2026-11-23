@@ -1,3 +1,4 @@
+import { runLaneAction, ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
 import { HostTreeDialog, useEditingMenu } from '@/features/chat/HostTreeDialog'
 import { useHostTraits } from '@/platform/machineTraits'
 import { useState } from 'react'
@@ -195,9 +196,10 @@ function useLaneActionRunner(onDone: (() => void) | undefined) {
       setError(null)
       onDone?.()
       return true
-    } catch {
-      setError(ACTION_FAILED)
-      useRemoteLanesStore.setState({ error: ACTION_FAILED })
+    } catch (error) {
+      const message = error instanceof ServiceLaneControlRefused ? error.message : ACTION_FAILED
+      setError(message)
+      useRemoteLanesStore.setState({ error: message })
       return false
     } finally {
       setBusy(false)
@@ -243,7 +245,7 @@ function laneHandlers({
   onMarked: () => void
 }): LaneActionHandlers {
   const send = (channel: HostLaneChannel) => () =>
-    void act(() => window.phosphor.invoke(channel, hostId, lane.laneId))
+    void act(() => runLaneAction(channel, hostId, lane.laneId))
   // setRemoteLaneMarks reports its own failure, including the "update the Host" case.
   const mark = (change: Parameters<typeof setRemoteLaneMarks>[2]) =>
     void setRemoteLaneMarks(hostId, lane.laneId, change).then((ok) => {
@@ -274,7 +276,7 @@ function laneHandlers({
     moveTo: () =>
       void act(async () => {
         if (lane.activity !== 'stopped' && lane.activity !== 'failed')
-          await window.phosphor.invoke('hosts:stopLane', hostId, lane.laneId)
+          await runLaneAction('hosts:stopLane', hostId, lane.laneId)
         openLaneMove({ machine: hostId, laneId: lane.laneId }, title, {
           pinned: lane.pinned === true,
           marker: remoteLaneMarker(lane, useLanePrefsStore.getState().lanes.markers),
