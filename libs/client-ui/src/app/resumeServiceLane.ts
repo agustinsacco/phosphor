@@ -1,13 +1,16 @@
 import type { HostsSnapshot } from '@phosphor/shared/ipc'
+import { useLayoutStore } from '../stores/layout'
 import { openRemoteLane, useRemoteLanesStore } from '../stores/remoteLanes'
+import { useSessionsStore } from '../stores/sessions'
 
-/** How long launch waits for This Mac's service to list the last lane. */
-const RESUME_WAIT_MS = 10_000
+/** How long launch waits for This Mac's service to list the last lane: a loaded Mac can be slow. */
+const RESUME_WAIT_MS = 30_000
 
 /**
  * Daemon mode's launch resume: once This Mac's service lists the last lane,
- * open it. A lane that never appears, or a launch that moved on, is skipped
- * quietly; resuming is a convenience, not a request that can fail.
+ * open it. A lane that never appears, a launch that moved on, or a page or
+ * lane you opened while it waited is skipped quietly; resuming is a
+ * convenience, never a request that can fail or take you somewhere.
  */
 export function resumeServiceLane(
   hostId: string,
@@ -18,6 +21,10 @@ export function resumeServiceLane(
     const host = hosts[hostId]
     return host?.state === 'ready' && host.lanes.some((lane) => lane.laneId === laneId)
   }
+  const nav = useSessionsStore.getState().navSeq
+  const page = useLayoutStore.getState().page
+  const moved = () =>
+    useSessionsStore.getState().navSeq !== nav || useLayoutStore.getState().page !== page
   return new Promise<boolean>((resolve) => {
     let settled = false
     const finish = (found: boolean) => {
@@ -25,7 +32,7 @@ export function resumeServiceLane(
       settled = true
       off()
       clearTimeout(timer)
-      if (!found || cancelled()) resolve(false)
+      if (!found || cancelled() || moved()) resolve(false)
       else openRemoteLane(hostId, laneId).then(resolve, () => resolve(false))
     }
     const off = useRemoteLanesStore.subscribe((state) => {
