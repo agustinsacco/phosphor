@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
+import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
 import { parseOpChannelRequest, type OpRequestEnvelope } from '@phosphor/shared/ops'
 import { OP_MARKER_ENV, OP_MARKER_VALUE, LANE_CONTROLS_SLOT } from '@phosphor/shared/ops'
 import phosphor from './phosphor'
@@ -56,17 +57,35 @@ it('publishes the always-rules even to a provider that never reads the skill', (
 })
 
 it('sends argv unchanged and applies both UTF-8 limits before opening the editor', async () => {
-  const f = fixture(ok)
+  const f = fixture(ok, ok)
   const args = ['skill', 'edit', 'two words']
   const p = { args, content: '💡'.repeat(65536), reason: 'Requested edit' }
   await f.run(p)
   expect(f.requests).toMatchObject([
     { argv: args, content: p.content, reason: p.reason, deadlineMs: 60_000 },
   ])
-  for (const content of [p.content + '!', '\n'.repeat(160 * 1024)]) {
-    expect((await f.run({ ...p, content })).details.status).toBe('error')
-  }
-  expect(f.ctx.ui.editor).toHaveBeenCalledTimes(1)
+  const escaped = '\n"'.repeat(128 * 1024)
+  expect((await f.run({ ...p, content: escaped })).details.status).toBe('ok')
+  expect(f.requests[1]?.content === escaped).toBe(true)
+  expect((await f.run({ ...p, content: p.content + '!' })).details.status).toBe('error')
+  const largeArgs = [...args, ...Array<string>(12).fill('x'.repeat(4096))]
+  expect((await f.run({ ...p, args: largeArgs })).details.status).toBe('error')
+  expect(f.ctx.ui.editor).toHaveBeenCalledTimes(2)
+})
+
+it('sends exactly the editor prefill budget but refuses one more UTF-8 byte locally', async () => {
+  const f = fixture(ok, ok)
+  const args = ['skill.edit', 'example']
+  await f.run({ args, content: '' })
+  const overhead = Buffer.byteLength(f.ctx.ui.editor.mock.calls[0]![1])
+  const room = 2 * OPS_LIMITS.argsBytes - overhead - Buffer.byteLength('💡')
+  const content = '💡' + '\0'.repeat(Math.floor(room / 6)) + 'a'.repeat(room % 6)
+  const sent = await f.run({ args, content })
+  expect(sent.details.status).toBe('ok')
+  expect(Buffer.byteLength(f.ctx.ui.editor.mock.calls[1]![1])).toBe(2 * OPS_LIMITS.argsBytes)
+  const refused = await f.run({ args, content: content + 'a' })
+  expect(refused.content[0]?.text).toBe('That request is too large to send; split the content.')
+  expect(f.ctx.ui.editor).toHaveBeenCalledTimes(2)
 })
 
 it('fits escaped UTF-8 data on whole lines, closes the boundary and replaces the cursor', async () => {
