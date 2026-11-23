@@ -77,6 +77,32 @@ it('cannot be relaxed by removing or corrupting the file', async () => {
   expect(corrupt.policy).toMatchObject({ machineOps: 'read', ops: { 'lane.rename': 'deny' } })
 })
 
+it('keeps the saved per-op asks and allows when the file is removed or drops them', async () => {
+  const saved: AgentPolicy = {
+    ...AGENT_POLICY_DEFAULT,
+    tiers: { destructive: 'deny' },
+    ops: { 'lane.create': 'ask', 'files.trash': 'allow' },
+  }
+  await store().write(saved)
+  unlinkSync(file())
+  expect((await store().read()).policy.ops).toEqual({
+    'lane.create': 'ask',
+    'files.trash': 'allow',
+  })
+  // An edited file may add a deny, or tighten a saved entry, but never drop one.
+  edit({ ...AGENT_POLICY_DEFAULT, ops: { 'files.trash': 'ask', 'lane.rename': 'deny' } })
+  const edited = await store().read()
+  expect(edited.policy.ops).toEqual({
+    'lane.create': 'ask',
+    'files.trash': 'ask',
+    'lane.rename': 'deny',
+  })
+  expect(edited.policy.tiers).toMatchObject({ destructive: 'deny' })
+  // A file-only ask could override the saved tier deny, so it does not apply.
+  edit({ ...AGENT_POLICY_DEFAULT, ops: { 'lane.delete': 'ask' } })
+  expect((await store().read()).policy.ops).not.toHaveProperty('lane.delete')
+})
+
 it('lets a file it never wrote only tighten the default', async () => {
   edit({ ...AGENT_POLICY_DEFAULT, agentControl: 'off', ops: { 'lane.delete': 'allow' } })
   const read = await store().read()
