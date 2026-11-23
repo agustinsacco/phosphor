@@ -16,7 +16,18 @@ export type HostManagerPorts = {
   changed: () => void
 }
 
+/**
+ * This machine's own service, reached over its Unix socket. It is not in the
+ * directory, needs no sign-in or grant, and is outside the 32-socket cap.
+ */
+export interface LocalHostSlot {
+  hostId: string
+  label: string
+  create: () => ReturnType<typeof createHostConnection>
+}
+
 export interface HostManagerState {
+  local?: LocalHostSlot & { connection: ReturnType<typeof createHostConnection> }
   connections: Map<
     string,
     { endpoint: string | null; connection: ReturnType<typeof createHostConnection> }
@@ -62,6 +73,8 @@ export function hostManagerSnapshot(
 ): HostsSnapshot {
   const result = structuredClone(state.cached)
   for (const [id, c] of state.connections) result[id] = c.connection.snapshot()
+  if (state.local)
+    result[state.local.hostId] = { ...state.local.connection.snapshot(), local: true }
   const clientId = ports.clientId()
   return Object.fromEntries(
     Object.entries(result).map(([id, view]) => [
