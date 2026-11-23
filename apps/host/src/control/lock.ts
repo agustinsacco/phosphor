@@ -1,13 +1,12 @@
-import { mkdir, open, link, unlink } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
+import { publishLinkLock } from '@phosphor/session-runtime/owner-lock/link-lock'
 import { checkIdentityDirectory, IdentityFailure } from './identity'
 import {
-  lockBusy,
-  reclaimLock,
+  identityLinkLock,
   releaseIdentityLock,
-  snapshotLock,
   type LockPorts,
   type LockState,
 } from './lock-recovery'
@@ -41,32 +40,10 @@ export async function acquireIdentityLock(
   const token = randomBytes(32).toString('hex')
   const temp = join(directory, `${name}.${token}.tmp`)
   const state: LockState = { path, gatePath, token, name, directory, uid, ports }
-  const existing = await snapshotLock(state)
-  if (existing?.lock && ports.isAlive(existing.lock.pid)) throw lockBusy(state, existing.lock.pid)
-  const file = await open(temp, 'wx', 0o600)
-  try {
-    try {
-      await file.writeFile(
-        JSON.stringify({ pid: ports.pid, token, startedAt: new Date().toISOString() }) + '\n',
-      )
-      await file.sync()
-    } finally {
-      await file.close()
-    }
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        await (ports.link ?? link)(temp, path)
-        break
-      } catch (error) {
-        if (!(error instanceof Error && errnoIs(error, 'EEXIST'))) throw error
-        const stale = await snapshotLock(state)
-        if (stale?.lock && ports.isAlive(stale.lock.pid)) throw lockBusy(state, stale.lock.pid)
-        if (attempt === 1) throw lockBusy(state)
-        await reclaimLock(state, stale)
-      }
-    }
-  } finally {
-    await unlink(temp)
-  }
+  await publishLinkLock(
+    identityLinkLock(state),
+    temp,
+    JSON.stringify({ pid: ports.pid, token, startedAt: new Date().toISOString() }) + '\n',
+  )
   return () => releaseIdentityLock(state)
 }

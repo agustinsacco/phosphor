@@ -568,6 +568,10 @@
       "types": "./src/owner-lock/types.ts",
       "default": "./src/owner-lock/types.ts"
     },
+    "./owner-lock/link-lock": {
+      "types": "./src/owner-lock/link-lock.ts",
+      "default": "./src/owner-lock/link-lock.ts"
+    },
     "./ops/confirm": {
       "types": "./src/ops/confirm.ts",
       "default": "./src/ops/confirm.ts"
