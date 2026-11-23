@@ -12,7 +12,6 @@ import { createOpsDispatcher } from '@phosphor/session-runtime/ops/dispatcher'
 import { createJobStore } from '@phosphor/session-runtime/ops/jobs'
 import { archiveSelection } from './handlers/archives'
 import { laneJob } from './handlers/lanes'
-import { laneUndoCurrent } from './handlers/lane-undo'
 import { recordCreator } from './binding'
 import { argsSummary } from '@phosphor/session-runtime/ops/redact'
 import { createUndo } from '@phosphor/session-runtime/ops/undo'
@@ -35,21 +34,12 @@ import {
   type DaemonLanes,
   type DeferredActions,
 } from './binding'
-import { SETTINGS_UNDO_OPS, settingsAreCurrent } from './handlers/settings'
-import { undoCurrent } from './undo-current'
-import {
-  daemonUndoIsCurrent,
-  domainHandlers,
-  hasDaemonUndoCheck,
-  type DaemonHandlerDeps,
-} from './handlers'
-import { folderUndoCurrent } from './handlers/folders'
-import { routineUndoCurrent } from './handlers/routines'
+import { daemonUndoChecks } from './undo-current'
+import { domainHandlers, type DaemonHandlerDeps } from './handlers'
 import { resourceJobSpec } from './handlers/resources-call'
 import { daemonMetaHandlers } from './handlers/meta'
 import { createPolicyFile } from './policy-file'
 import { createHostResolver } from './remote'
-import { LANE_SELF_UNDO_OPS, laneSelfUndoCurrent } from './handlers/lane-self-undo'
 
 export interface OpsServicePorts extends Omit<DaemonHandlerDeps, 'log' | 'recordCreator' | 'db'> {
   /** The Host state folder: `state.sqlite` and `agent-policy.json`. */
@@ -195,6 +185,31 @@ function settledAccountMove(ports: OpsServicePorts) {
   }
 }
 
+// Daemon-only jobs: the catalog stays frozen; these may run past 20 s here.
+const DAEMON_CATALOG = OP_CATALOG.map((s) =>
+  s.name === 'package.checkUpdates' ? { ...s, job: true as const } : resourceJobSpec(s),
+)
+
+/** The dispatcher's view of this machine: its handlers, gaps, policy, audit and lanes. */
+function daemonBinding(
+  ports: OpsServicePorts,
+  parts: Pick<OpsBinding, 'handlers' | 'policy' | 'audit' | 'notifySurfaces'>,
+  laneBinding: ReturnType<typeof daemonLaneBinding>,
+): OpsBinding {
+  const { handlers } = parts
+  return {
+    ...parts,
+    // Read per use: a local daemon may enroll while it runs.
+    get machineId() {
+      return ports.enrolledId()
+    },
+    gaps: OP_GAPS.daemon,
+    flags: servedFlags(handlers),
+    ...laneBinding,
+    ...(ports.remote ? { remote: ports.remote } : {}),
+  }
+}
+
 function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): OpsService {
   const { log } = ports
   const { audit, confirms, jobs, policy, notify, changed, bindMachineOps } = opsStores(
@@ -225,25 +240,13 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     account: settledAccountMove(ports),
     ...(ports.deferredActions ? { actions: ports.deferredActions } : {}),
   })
-  const binding: OpsBinding = {
-    // Read per use: a local daemon may enroll while it runs.
-    get machineId() {
-      return ports.enrolledId()
-    },
-    handlers,
-    gaps: OP_GAPS.daemon,
-    flags: servedFlags(handlers),
-    policy,
-    audit,
-    ...laneBinding,
-    ...(ports.remote ? { remote: ports.remote } : {}),
-    notifySurfaces: notify,
-  }
+  const binding = daemonBinding(
+    ports,
+    { handlers, policy, audit, notifySurfaces: notify },
+    laneBinding,
+  )
   const dispatcher = createOpsDispatcher(binding, {
-    // Daemon-only jobs: the catalog stays frozen; these may run past 20 s here.
-    catalog: OP_CATALOG.map((s) =>
-      s.name === 'package.checkUpdates' ? { ...s, job: true } : resourceJobSpec(s),
-    ),
+    catalog: DAEMON_CATALOG,
     parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
     agentFor: daemonAgentFor(ports, laneBinding.lanes.createdBy),
     surfaceAdmits,
@@ -261,17 +264,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   })
   const undo = createUndo({
     audit,
-    isCurrent: undoCurrent([
-      [hasDaemonUndoCheck, async (entry) => daemonUndoIsCurrent(entry, domain)],
-      [(op) => op.startsWith('routine.'), async (entry) => routineUndoCurrent(domain, entry)],
-      [(op) => op.startsWith('folder.'), async (entry) => folderUndoCurrent(domain, entry)],
-      [(op) => SETTINGS_UNDO_OPS.has(op), settingsAreCurrent(domain)],
-      [
-        (op) => LANE_SELF_UNDO_OPS.has(op),
-        laneSelfUndoCurrent({ resolve: laneBinding.lanes.resolve, store: ports.store }),
-      ],
-      [() => true, async (entry) => laneUndoCurrent(domain, entry)],
-    ]),
+    isCurrent: daemonUndoChecks(domain, laneBinding.lanes.resolve),
     run: (principal, request) => {
       inverseRequests.add(request)
       return dispatcher.run(principal, request)
