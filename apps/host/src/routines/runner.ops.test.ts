@@ -102,6 +102,8 @@ function execute(env: Record<string, string>, owner?: (event: OpChannelRequestEv
     stopRoutine: vi.fn<HostRuntime['stopRoutine']>().mockImplementation(() => client.dispose()),
     refreshDirectives: vi.fn(async () => 0),
     abortTurns: vi.fn<HostRuntime['abortTurns']>(async () => []),
+    mcpControl: vi.fn<HostRuntime['mcpControl']>(),
+    reloadNow: vi.fn<HostRuntime['reloadNow']>(),
   } satisfies HostRuntime
   const signal = new AbortController().signal
   return createRoutineExecutor(runtime, (path) => path)(run(), signal, vi.fn())

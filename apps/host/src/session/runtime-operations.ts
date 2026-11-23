@@ -1,6 +1,7 @@
 import { basename } from 'node:path'
 import type { LiveSessionInfo } from '@phosphor/shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@phosphor/shared/rpc'
+import { reloadLaneNow } from '@phosphor/session-runtime/pi/lane-reload'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { commandRefusal, mayRunExtensionCommand } from './command-policy'
 import { exportSessionHtml } from './html-export'
@@ -133,6 +134,15 @@ export function createRuntimeOperations(
     /** The session as one HTML document, exported to a Host-owned file that is then removed. */
     exportHtml: (id: string, maxBytes: number) =>
       exportSessionHtml((sid, request) => service.command(sid, request), id, maxBytes),
+    /** Inspect or reconnect a connector inside a live lane, under the service's admission. */
+    mcpControl: (id: string, name: string, operation: 'inspect' | 'reconnect') =>
+      service.mcpControl(id, name, operation),
+    /** Reload a settled lane's pi now (`lane.reload`); never throws. */
+    async reloadNow(id: string) {
+      const session = registry.get(id)
+      if (!session?.client.alive) return 'failed' as const
+      return reloadLaneNow(id, session.client, state.machine.log.write)
+    },
     /** Send a controller's answer without treating it as an RPC command. */
     extensionUiResponse(id: string, response: ExtensionUIResponse): void {
       life.assertReady()

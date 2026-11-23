@@ -137,6 +137,8 @@ async function start() {
     }),
     refreshDirectives: vi.fn(async () => 0),
     abortTurns: vi.fn<HostRuntime['abortTurns']>(async () => []),
+    mcpControl: vi.fn<HostRuntime['mcpControl']>(),
+    reloadNow: vi.fn<HostRuntime['reloadNow']>(),
   } satisfies HostRuntime
   const admittedRoot = vi.fn((path: string) => path)
   const progress = vi.fn()
