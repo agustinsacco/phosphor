@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import type { MigrationImport, MigrationSection } from '@phosphor/shared/host-protocol-owner'
 import type { OwnerCallContext } from '../adapter'
+import { loadRunConfig, syncRunRepositories } from '../../commands/run-state'
+import { writeOwnerFolders } from '../../config/folders-file'
 import { createOwnerMigration } from '../migrate'
 import { scratchHost, uid, type ScratchHost } from './__fixtures__/scratch-host'
 import { migrationImporters, sectionImporters } from './index'
@@ -17,7 +19,7 @@ beforeEach(async () => {
 })
 afterEach(() => host.close())
 
-function migration() {
+function migration(refresh = async () => {}) {
   const { handlers } = createOwnerMigration({
     stateDirectory: host.state,
     uid,
@@ -29,7 +31,7 @@ function migration() {
       },
     },
     importers: sectionImporters(host.ports),
-    refresh: async () => {},
+    refresh,
     now: () => 1_000,
     log: () => {},
   })
@@ -88,6 +90,37 @@ it('abort undoes every section: folders file, lanes and marks', async () => {
   expect(existsSync(join(host.root, 'config', 'folders.json'))).toBe(false)
   expect(readFileSync(host.config)).toEqual(before)
   expect(readdirSync(join(host.state, 'owner-migration'))).toEqual([])
+})
+
+it('abort refresh preserves the owner folders even when config.repositories differs', async () => {
+  const own = host.folder('own')
+  writeOwnerFolders(join(host.root, 'config'), uid, {
+    version: 1,
+    items: [{ path: own, name: 'own', order: 0 }],
+  })
+  host.store.syncRepositories([own])
+  const before = host.store.listRepositories()
+  const run = {
+    env: {},
+    home: host.root,
+    configPath: host.config,
+    uid,
+    hostname: 'test',
+    platform: process.platform,
+    nodeVersion: process.versions.node,
+    defaultResourceRoot: host.root,
+    print: () => {},
+  }
+  const m = migration(async () => syncRunRepositories(run, host.store, await loadRunConfig(run)))
+  const id = randomUUID()
+  await m.begin(id)
+  await m.import(id, {
+    section: 'folders',
+    items: [{ path: host.folder('different'), name: 'different', order: 0 }],
+  })
+  expect(host.store.listRepositories()).not.toEqual(before)
+  await m.abort(id)
+  expect(host.store.listRepositories()).toEqual(before)
 })
 
 it('a replayed section is a no-op, and commit keeps what was imported', async () => {
