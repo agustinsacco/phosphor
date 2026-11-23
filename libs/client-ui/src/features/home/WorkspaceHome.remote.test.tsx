@@ -429,3 +429,19 @@ it('can start in the checkout through the service without an in-app probe', asyn
   expect(created?.[2]).not.toHaveProperty('worktree')
   expect(invoke.mock.calls.some(([ch]) => ch === 'pi:commands')).toBe(false)
 })
+
+it('shows the same-machine branch control only in the Desktop service composer', async () => {
+  const { PlatformProvider, WIDE_BROWSER_PLATFORM, COMPACT_PLATFORM, DESKTOP_PLATFORM } =
+    await import('@/platform/Platform')
+  useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.local = true
+  for (const platform of [WIDE_BROWSER_PLATFORM, COMPACT_PLATFORM, DESKTOP_PLATFORM]) {
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <WorkspaceHome workspacePath="/ws" />
+        </PlatformProvider>,
+      ),
+    )
+    expect(el.querySelector('input[type=checkbox]') !== null).toBe(platform === DESKTOP_PLATFORM)
+  }
+})
