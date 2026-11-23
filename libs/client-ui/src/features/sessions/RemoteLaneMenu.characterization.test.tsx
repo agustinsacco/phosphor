@@ -182,3 +182,8 @@ it('offers Lane marker… on a Host lane only while markers are on', async () =>
     act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
   }
 })
+
+it('adds a tree and clone only when the connected machine announces lane editing', () => {
+  render({ ...host(true), ops: true, laneEditing: true })
+  expect(menuRows()).toEqual(expect.arrayContaining([['Session tree…', false], ['Clone', false]]))
+})
