@@ -62,3 +62,17 @@ it('refuses a changed backup before stopping any service lanes', async () => {
   ).rejects.toThrow()
   expect(owner.stopLanes).not.toHaveBeenCalled()
 })
+
+it('refuses the other runtime’s routines filename before stopping lanes', async () => {
+  const owner = service()
+  await expect(
+    restoreInAppRuntime({
+      userData: w.userData,
+      permit,
+      ...owner,
+      routinesFile: 'routines-dev.sqlite',
+    }),
+  ).rejects.toThrow('routines database')
+  expect(owner.stopLanes).not.toHaveBeenCalled()
+  expect(readJournal(w.writer.dir)).toMatchObject({ journal: { state: 'committed' } })
+})
