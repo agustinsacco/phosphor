@@ -201,6 +201,35 @@ describe('run with the local-mode marker serves the owner socket', () => {
     }
   }, 30_000)
 
+  it('serves the Brain registration as an owner call and drops it on disconnect', async () => {
+    const host = await localRunMachine({enrolled:false,marker:true,standby:true,heartbeat:'accepted'})
+    const path = await socketPath()
+    const log = vi.fn()
+    const context = {...host.context(),log}
+    const local = await writeLocalIdentity(dirname(context.configPath),context.uid)
+    const run = runHost({...context,startLocalSocket:createLocalSocketStarter(context,{candidates:[path]})})
+    try {
+      await vi.waitFor(() => expect(existsSync(path)).toBe(true), {timeout:10_000})
+      const desktop = await ownerConnection(path,local,context.now ?? Date.now)
+      const token = 'synthetic-private-token'
+      desktop.send({type:'call',id:'register',method:'app.service.register',params:{service:'brain',endpoint:join(dirname(path),'brain.sock'),token,recall:true}})
+      expect(await result(desktop,'register')).toEqual({type:'result',id:'register',ok:true,data:{registered:true}})
+      desktop.send({type:'call',id:'live',method:'machine.local'})
+      expect(await result(desktop,'live')).toMatchObject({data:{appServices:{brain:'registered'}}})
+      desktop.close()
+      await vi.waitFor(() => expect(desktop.closed()).toBeTruthy())
+      const again = await ownerConnection(path,local,context.now ?? Date.now)
+      again.send({type:'call',id:'closed',method:'machine.local'})
+      expect(await result(again,'closed')).toMatchObject({data:{appServices:{brain:'known'}}})
+      again.close()
+      expect(JSON.stringify([...log.mock.calls,...desktop.frames,...again.frames])).not.toContain(token)
+    } finally {
+      await host.target()?.drain('SIGTERM')
+      await run
+      await host.cleanup()
+    }
+  })
+
   it('exits 78 when the marker exists but the local identity does not', async () => {
     const host = await localRunMachine({ enrolled: false, marker: true, heartbeat: 'accepted' })
     try {
