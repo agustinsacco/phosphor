@@ -154,6 +154,11 @@ interface CompressResponse {
   tokens_saved?: number
 }
 
+type HeadroomFetch = (
+  url: string,
+  init: RequestInit,
+) => Promise<Pick<Response, 'ok' | 'status' | 'json'>>
+
 /**
  * The `tool_result` handler, with the HTTP boundary injected for tests.
  * One instance per session; state is the health verdict, the failure count
@@ -161,7 +166,7 @@ interface CompressResponse {
  */
 export function createHeadroomHandler(deps: {
   baseUrl: string
-  fetchImpl: typeof fetch
+  fetchImpl: HeadroomFetch
 }): (rawEvent: unknown, rawCtx: unknown) => Promise<Record<string, unknown> | undefined> {
   const baseUrl = deps.baseUrl.replace(/\/+$/, '')
   let enabled = true
@@ -265,28 +270,29 @@ export function createHeadroomHandler(deps: {
 }
 
 /** No redirects or TCP fallback: the daemon lane talks only to its own Unix socket. */
-function socketFetch(socketPath: string): typeof fetch {
+function socketFetch(socketPath: string): HeadroomFetch {
   return (input, init) =>
-    new Promise<Response>((resolve, reject) => {
+    new Promise((resolve, reject) => {
       const req = request(
         {
           socketPath,
-          path: new URL(String(input)).pathname,
+          path: new URL(input).pathname,
           method: init?.method,
           headers: { 'content-type': 'application/json' },
           signal: init?.signal ?? undefined,
           agent: false,
         },
         (res) => {
+          const status = res.statusCode ?? 503
           const chunks: Buffer[] = []
           res.on('data', (chunk: Buffer) => chunks.push(chunk))
           res.on('error', reject)
           res.on('end', () =>
-            resolve(
-              new Response(Buffer.concat(chunks).toString(), {
-                status: res.statusCode ?? 503,
-              }),
-            ),
+            resolve({
+              ok: status >= 200 && status < 300,
+              status,
+              json: async () => JSON.parse(Buffer.concat(chunks).toString()),
+            }),
           )
         },
       )
