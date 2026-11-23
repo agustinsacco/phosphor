@@ -140,3 +140,27 @@ describe('buildTreeLayout', () => {
     expect(layout.nodes.find((n) => n.id === 'b1')?.kind).toBe('summary')
   })
 })
+
+it('connects user messages through a session_info root and an intervening label', () => {
+  const { edges } = buildTreeLayout({
+    sessionId: 's',
+    cwd: '/x',
+    leafId: 'second',
+    entries: [
+      entry({ id: 'meta', type: 'session_info' }),
+      entry({ id: 'first', role: 'user', parentId: 'meta' }),
+      entry({
+        id: 'label',
+        type: 'label',
+        parentId: 'first',
+        targetId: 'first',
+        label: 'checkpoint',
+      }),
+      entry({ id: 'second', role: 'user', parentId: 'label' }),
+    ],
+  })
+  expect(edges.map((e) => [e.fromId, e.toId, e.collapsedCount])).toEqual([
+    ['__root__', 'first', 0],
+    ['first', 'second', 0],
+  ])
+})
