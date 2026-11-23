@@ -30,7 +30,7 @@ import { mockLocalRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockHostConnectionInvoke } from './mockHostConnectionInvoke'
 import { OPS_MOCK, mockOpsInvoke } from './mock/ops'
 import { LOCAL_MACHINE_MOCK, mockLocalMachineInvoke } from './mock/localMachine'
-import { REACH_MOCK, mockReachInvoke } from './mock/reach'
+import { REACH_MOCK, mockReachFlags, mockReachInvoke } from './mock/reach'
 import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
 import type {
   ConnectorAuthPush,
@@ -324,6 +324,7 @@ const harnessRemoved = new Set<string>()
 const harnessLabels = new Map<string, string>()
 function harnessMachine(id: string, label: string, lastSeenAt: string | null): MachineView {
   return {
+    ...mockReachFlags(id),
     id,
     label,
     hostname: label,
@@ -374,7 +375,11 @@ function harnessMachines(): MachineView[] {
   if (harnessAdded) machines.push(harnessAdded)
   return machines
     .filter((machine) => !harnessRemoved.has(machine.id))
-    .map((machine) => ({ ...machine, label: harnessLabels.get(machine.id) ?? machine.label }))
+    .map((machine) => ({
+      ...machine,
+      ...mockReachFlags(machine.id),
+      label: harnessLabels.get(machine.id) ?? machine.label,
+    }))
 }
 let mockClaudeLoginTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -951,7 +956,12 @@ export function installMockPhosphor(): void {
         return Promise.resolve().then(() => mockInstructionsInvoke(channel, args) as never)
       if (OPS_MOCK.has(channel)) return mockOpsInvoke() as never
       if (LOCAL_MACHINE_MOCK.has(channel)) return mockLocalMachineInvoke(channel) as never
-      if (REACH_MOCK.has(channel)) return mockReachInvoke() as never
+      if (REACH_MOCK.has(channel))
+        return mockReachInvoke(
+          args,
+          mockAccountView().account.status === 'signed-in',
+          harnessMachines,
+        ) as never
       switch (channel) {
         case 'pi:health':
           return Promise.resolve({
