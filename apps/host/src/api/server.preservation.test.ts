@@ -14,7 +14,7 @@ import { RoutineRepository } from '@phosphor/session-runtime/routines/repository
 import { piSessionsRoot, sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { fakeMachine, EXTENSIONS_ROOT } from '../__fixtures__/machine'
 import { controlMachine, hostId, oldId } from '../control/__fixtures__/machine'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { openStore } from '../lanes/store'
 import type { HostMachine } from '../session/runtime'
 import type { Drainable } from '../shutdown'

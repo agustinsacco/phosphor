@@ -9,6 +9,7 @@ import {
   parseOwnerClientsFile,
   type LocalIdentityFile,
   type LocalRunFile,
+  hostStateDirectory,
 } from '@phosphor/shared/host-local'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { readOwnerLock } from '@phosphor/session-runtime/owner-lock/owner-lock'
@@ -24,7 +25,6 @@ import { runServiceFeatures } from '../commands/run-services'
 import type { RunContext } from '../commands/run'
 import type { LocalDaemon, LocalSocket, StartLocalSocket } from '../commands/run-local'
 import { answerPauseCall, PAUSE_NONE, type LanePauses } from '../lanes/pause'
-import { hostStateDirectory } from '../lanes/state-dir'
 import type { HostStore } from '../lanes/store'
 import { readUpdateResult } from '../update/health'
 import type { OpsAdapterPorts } from '../ops/adapter'

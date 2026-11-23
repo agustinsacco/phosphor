@@ -1,6 +1,11 @@
 import { isAbsolute, join, normalize } from 'node:path'
 import type { HostReleaseKey } from '@phosphor/shared/host-release'
-import { HOST_AGENT, HOST_UNIT } from '@phosphor/shared/host-local'
+import {
+  HOST_AGENT,
+  HOST_UNIT,
+  hostConfigDirectory,
+  hostStateDirectory,
+} from '@phosphor/shared/host-local'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 
 /**
@@ -27,6 +32,10 @@ export interface DaemonRoots {
   serviceFile: string
   /** XDG folders the service child must see; empty when the user set none. */
   xdg: Record<string, string>
+  /** The service's config folder (`local-identity.json`), as the Host resolves it from `xdg`. */
+  configDir: string
+  /** The service's state folder (`local.json`), as the Host resolves it from `xdg`. */
+  stateDir: string
   /** Release lookup: `env` carries only the release URL override, `keys` only test keys. */
   release: { env: NodeJS.ProcessEnv; keys?: readonly HostReleaseKey[] }
 }
@@ -66,6 +75,8 @@ function build(
         ? join(home, 'Library/LaunchAgents', `${HOST_AGENT}.plist`)
         : join(xdg.XDG_CONFIG_HOME ?? join(home, '.config'), 'systemd/user', HOST_UNIT),
     xdg,
+    configDir: hostConfigDirectory(xdg, home),
+    stateDir: hostStateDirectory(xdg, home),
     release,
   }
 }

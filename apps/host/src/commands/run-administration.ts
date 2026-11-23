@@ -33,7 +33,7 @@ import { hostUpdateProgram } from '../update/handoff'
 import { loadHostPty } from '../terminals/native'
 import { createTerminals } from '../terminals/service'
 import { terminalState } from '../terminals/state'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { identityDirectory, type HostIdentity } from '../control/identity'
 import { startHostWebPush, type WebPushOptions } from '../push/web-push'
 

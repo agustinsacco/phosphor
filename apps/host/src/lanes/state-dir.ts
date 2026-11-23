@@ -8,7 +8,7 @@ import {
   mkdirSync,
   openSync,
 } from 'node:fs'
-import { dirname, isAbsolute, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { errnoIs, isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
 
 export class StateFailure extends Error {
@@ -19,12 +19,6 @@ export class StateFailure extends Error {
   ) {
     super(`Host state in ${directory}: ${detail}`)
   }
-}
-
-/** Relative XDG_STATE_HOME is ignored, on Linux and macOS alike. */
-export function hostStateDirectory(env: NodeJS.ProcessEnv, home: string): string {
-  const state = env.XDG_STATE_HOME
-  return join(state && isAbsolute(state) ? state : join(home, '.local', 'state'), 'phosphor-host')
 }
 
 export function prepareStateDirectory(directory: string, uid: number | undefined): void {

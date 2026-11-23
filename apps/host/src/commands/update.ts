@@ -26,9 +26,8 @@ import {
   type UpdateResult,
 } from '../update/health'
 import { installLifetime, signalTurn } from '../update/lifetime'
-import { HOST_AGENT, HOST_UNIT } from '@phosphor/shared/host-local'
+import { HOST_AGENT, HOST_UNIT, hostStateDirectory } from '@phosphor/shared/host-local'
 import { serviceRunner } from '../machine/systemd'
-import { hostStateDirectory } from '../lanes/state-dir'
 import { runService, type ServiceContext } from './service'
 import { installedVersion, prune, selectVersion } from './update-select'
 import { updateClaudeProvider } from './update-claude'

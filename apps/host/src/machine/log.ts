@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { createFileLog, type RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { redact } from './environment'
 

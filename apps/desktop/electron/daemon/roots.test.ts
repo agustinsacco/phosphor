@@ -26,6 +26,8 @@ const paths = (roots: DaemonRoots) => [
   roots.lib,
   roots.agentDir,
   roots.serviceFile,
+  roots.configDir,
+  roots.stateDir,
   ...Object.values(roots.xdg),
 ]
 
@@ -71,6 +73,8 @@ describe('daemonRoots', () => {
     expect(result.roots.serviceFile).toBe(
       '/scratch/m1/home/Library/LaunchAgents/com.saccolabs.phosphor-host.plist',
     )
+    expect(result.roots.configDir).toBe('/scratch/m1/home/.config/phosphor-host')
+    expect(result.roots.stateDir).toBe('/scratch/m1/home/.local/state/phosphor-host')
   })
   it('in a packaged app ignores the dev hook and release overrides and uses pinned keys', () => {
     const result = daemonRoots(input(hook('/scratch/m1'), true, 'linux'))
@@ -81,6 +85,15 @@ describe('daemonRoots', () => {
     expect(result.roots.serviceFile).toBe(`${HOME}/.config/systemd/user/phosphor-host.service`)
     expect(result.roots.release).toEqual({ env: {} })
     expect(result.roots.target).toBe('linux-arm64')
+    expect(result.roots.configDir).toBe(`${HOME}/.config/phosphor-host`)
+    expect(result.roots.stateDir).toBe(`${HOME}/.local/state/phosphor-host`)
+  })
+  it('in a packaged app follows absolute XDG folders and ignores relative ones', () => {
+    const env = { XDG_CONFIG_HOME: '/xdg/config', XDG_STATE_HOME: 'relative' }
+    const result = daemonRoots(input(env, true, 'darwin'))
+    if (!result.on) throw new Error(result.reason)
+    expect(result.roots.configDir).toBe('/xdg/config/phosphor-host')
+    expect(result.roots.stateDir).toBe(`${HOME}/.local/state/phosphor-host`)
   })
   it('keeps Windows on the in-app runtime', () => {
     expect(daemonRoots(input({}, true, 'win32')).on).toBe(false)

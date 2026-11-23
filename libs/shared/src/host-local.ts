@@ -193,6 +193,41 @@ export function chooseLocalSocket(candidates: readonly string[]): string | null 
   return candidates.find((path) => utf8Length(path) <= LOCAL_LIMITS.socketPathBytes) ?? null
 }
 
+/** POSIX `path.join` without Node: segments joined by `/`, then `.` and `..` resolved. */
+function joinPosix(...segments: string[]): string {
+  const joined = segments.filter((s) => s.length > 0).join('/')
+  if (!joined) return '.'
+  const absolute = joined.startsWith('/')
+  const out: string[] = []
+  for (const part of joined.split('/')) {
+    if (part === '' || part === '.') continue
+    if (part !== '..') out.push(part)
+    else if (out.length && out[out.length - 1] !== '..') out.pop()
+    else if (!absolute) out.push('..')
+  }
+  return (absolute ? '/' : '') + out.join('/') || (absolute ? '/' : '.')
+}
+
+type HostEnv = Readonly<Record<string, string | undefined>>
+
+/** An XDG base folder; a relative value is ignored, as the XDG spec asks. */
+function xdgBase(value: string | undefined, home: string, fallback: string): string {
+  return value?.startsWith('/') ? value : joinPosix(home, fallback)
+}
+
+/**
+ * `${XDG_CONFIG_HOME:-~/.config}/phosphor-host`, on Linux and macOS alike: the
+ * folder of `config.json` and the sidecars beside it (`local-identity.json`).
+ */
+export function hostConfigDirectory(env: HostEnv, home: string): string {
+  return joinPosix(xdgBase(env.XDG_CONFIG_HOME, home, '.config'), 'phosphor-host')
+}
+
+/** `${XDG_STATE_HOME:-~/.local/state}/phosphor-host`, on Linux and macOS alike (`local.json`). */
+export function hostStateDirectory(env: HostEnv, home: string): string {
+  return joinPosix(xdgBase(env.XDG_STATE_HOME, home, '.local/state'), 'phosphor-host')
+}
+
 /** `<state>/local.json`: written once the socket accepts connections. */
 export interface LocalRunFile {
   version: 1

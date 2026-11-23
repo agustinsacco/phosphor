@@ -1,7 +1,7 @@
 import { lstatSync, readlinkSync, readdirSync, rmSync, rmdirSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { defaultConfigPath } from '../config/load'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
 import { SERVICE_LOG_NAMES } from './setup-local-service'
 import { checkedFolder } from '@phosphor/session-runtime/host-install/files'

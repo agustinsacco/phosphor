@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { openStore, type HostStore } from '../lanes/store'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import type { FeatureContext, HostFeature } from './feature'
 import { createLaneTransferFeatures } from './lane-transfer'
 

@@ -8,6 +8,7 @@ import {
   parseLocalIdentityFile,
   parseOwnerClientsFile,
   type OwnerClientsFile,
+  hostStateDirectory,
 } from '@phosphor/shared/host-local'
 import { errorText } from '@phosphor/shared/errors'
 import { errnoIs, isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
@@ -24,7 +25,7 @@ import {
 import { exportKeyPem } from '../control/identity-records'
 import { LockBusy } from '../control/lock'
 import { freshKey, publicIdentity } from '../control/signer'
-import { hostStateDirectory, prepareStateDirectory } from '../lanes/state-dir'
+import { prepareStateDirectory } from '../lanes/state-dir'
 import { SERVICE_LOG_NAMES } from './setup-local-service'
 import { runService, type ServiceContext } from './service'
 import { runSetup, type SetupContext, type SetupReport } from './setup'

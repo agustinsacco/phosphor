@@ -1,4 +1,5 @@
 import { generateKeyPairSync, sign, verify } from 'node:crypto'
+import { isAbsolute, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseGrantIssueResponse } from './control-api'
 import {
@@ -8,6 +9,8 @@ import {
   LOCAL_LIMITS,
   chooseLocalSocket,
   encodeLocalCredential,
+  hostConfigDirectory,
+  hostStateDirectory,
   isLocalEndpoint,
   localEndpoint,
   localGrantIssueResponse,
@@ -160,5 +163,30 @@ describe('Host service names', () => {
   it('are the names every installed Host service already uses', () => {
     expect(HOST_AGENT).toBe('com.saccolabs.phosphor-host')
     expect(HOST_UNIT).toBe('phosphor-host.service')
+  })
+})
+
+describe('Host folders', () => {
+  const envs = [
+    {},
+    { XDG_CONFIG_HOME: '/xdg/config', XDG_STATE_HOME: '/xdg/state' },
+    { XDG_CONFIG_HOME: '/xdg/config/', XDG_STATE_HOME: '/xdg//state/' },
+    { XDG_CONFIG_HOME: '/a/./b/../config', XDG_STATE_HOME: '/../state' },
+    { XDG_CONFIG_HOME: 'relative', XDG_STATE_HOME: 'relative' },
+    { XDG_CONFIG_HOME: '', XDG_STATE_HOME: '' },
+  ]
+  it.each(
+    envs.flatMap((env) =>
+      ['/Users/someone', '/home/me/', '/', 'rel/home'].map((home) => [env, home] as const),
+    ),
+  )('match path.join for %j with home %s', (env, home) => {
+    const xdg = (value: string | undefined, fallback: string) =>
+      value && isAbsolute(value) ? value : join(home, fallback)
+    expect(hostConfigDirectory(env, home)).toBe(
+      join(xdg(env.XDG_CONFIG_HOME, '.config'), 'phosphor-host'),
+    )
+    expect(hostStateDirectory(env, home)).toBe(
+      join(xdg(env.XDG_STATE_HOME, join('.local', 'state')), 'phosphor-host'),
+    )
   })
 })

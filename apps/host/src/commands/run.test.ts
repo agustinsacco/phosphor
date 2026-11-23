@@ -1,7 +1,7 @@
 import { symlinkSync } from 'node:fs'
 import { openStore } from '../lanes/store'
 import { loadSqlite } from '../lanes/sqlite'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
