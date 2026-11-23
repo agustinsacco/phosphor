@@ -72,7 +72,7 @@ describe('lane Swarm authorization', () => {
       [true, false].map((enabled) => ({
         type: 'custom',
         customType: SWARM_COMMAND,
-        data: { enabled, sessionId: 'one' },
+        data: { enabled, sessionId: 'one', by: 'user' },
       })),
     )
   })
@@ -152,6 +152,7 @@ describe('lane Swarm authorization', () => {
     expect(f.status().requested).toBe(true)
     expect(f.pi.appendEntry).toHaveBeenLastCalledWith(SWARM_COMMAND, {
       enabled: true,
+      by: 'user',
       sessionId: 'clone',
     })
     const writes = f.pi.appendEntry.mock.calls.length

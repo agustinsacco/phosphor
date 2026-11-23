@@ -1,3 +1,6 @@
+import type { SwarmFacts } from '@phosphor/shared/ops'
+import type { LaneControl } from './types/lane-control'
+
 /** Lane authorization, not an agent runner. Loaded by context-breakdown.ts. */
 export const SWARM_COMMAND = 'phosphor-swarm'
 export const SWARM_STATUS_KEY = 'phosphor-swarm'
@@ -10,17 +13,26 @@ export interface SwarmStatus {
   available: boolean
   enabled: boolean
   requested: boolean
+  source?: 'agent'
+  reason?: string
 }
 
 export function parseSwarmStatus(text: string | undefined): SwarmStatus | null {
   try {
     const value = JSON.parse(text ?? '') as SwarmStatus | null
-    return value?.version === 1 &&
-      typeof value.available === 'boolean' &&
-      typeof value.enabled === 'boolean' &&
-      typeof value.requested === 'boolean'
-      ? value
-      : null
+    if (
+      value?.version !== 1 ||
+      typeof value.available !== 'boolean' ||
+      typeof value.enabled !== 'boolean' ||
+      typeof value.requested !== 'boolean'
+    )
+      return null
+    const { source, reason, ...status } = value
+    return {
+      ...status,
+      ...(source === 'agent' && { source }),
+      ...(typeof reason === 'string' && { reason: reason.slice(0, 200) }),
+    }
   } catch {
     return null
   }
@@ -33,7 +45,7 @@ interface SwarmContext {
     getBranch(): unknown[]
     getHeader?(): { parentSession?: string } | null
   }
-  ui: { setStatus(key: string, text: string): void }
+  ui: { setStatus(key: string, text: string): void; notify(message: string): void }
 }
 interface SwarmApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
@@ -46,16 +58,37 @@ interface SwarmApi {
   ): void
 }
 
-/** Inheritance is explicit at startup; ordinary restoration remains identity-scoped. */
-export function savedSwarm(branch: unknown[], sessionId: string, inherit = false): boolean {
+interface SwarmDecision {
+  enabled: boolean
+  by: 'user' | 'agent'
+  reason?: string
+}
+
+function lastSwarm(branch: unknown[], sessionId: string, inherit = false): SwarmDecision | null {
   for (let i = branch.length - 1; i >= 0; i--) {
     const entry = branch[i] as
-      | { type?: string; customType?: string; data?: { sessionId?: string; enabled?: unknown } }
+      | {
+          type?: string
+          customType?: string
+          data?: Partial<Record<'sessionId' | 'enabled' | 'by' | 'reason', unknown>>
+        }
       | undefined
-    if (entry?.type === 'custom' && entry.customType === SWARM_COMMAND)
-      return (inherit || entry.data?.sessionId === sessionId) && entry.data?.enabled === true
+    if (entry?.type !== 'custom' || entry.customType !== SWARM_COMMAND) continue
+    const data = entry.data
+    if ((!inherit && data?.sessionId !== sessionId) || typeof data?.enabled !== 'boolean')
+      return null
+    return {
+      enabled: data.enabled,
+      by: data.by === 'agent' ? 'agent' : 'user',
+      ...(typeof data.reason === 'string' && { reason: data.reason }),
+    }
   }
-  return false
+  return null
+}
+
+/** Inheritance is explicit at startup; ordinary restoration remains identity-scoped. */
+export function savedSwarm(branch: unknown[], sessionId: string, inherit = false): boolean {
+  return lastSwarm(branch, sessionId, inherit)?.enabled === true
 }
 
 /** Request-local: never persist authorization in the conversation's system messages. */
@@ -74,90 +107,126 @@ export function applySwarmContext(messages: unknown[], enabled: boolean): void {
   }
 }
 
-function inheritSwarm(pi: SwarmApi, ctx: SwarmContext): void {
-  const id = ctx.sessionManager.getSessionId()
-  const branch = ctx.sessionManager.getBranch()
-  // Adopt copied policy only with explicit ancestry, and bind it durably to
-  // this identity before applying it. Unrelated sessions still start off.
-  if (
-    ctx.sessionManager.getHeader?.()?.parentSession &&
-    !savedSwarm(branch, id) &&
-    savedSwarm(branch, id, true)
-  ) {
-    if (!pi.appendEntry) throw new Error('This Pi version cannot persist Swarm authorization.')
-    pi.appendEntry(SWARM_COMMAND, { enabled: true, sessionId: id })
+function persist(pi: SwarmApi, ctx: SwarmContext, decision: SwarmDecision): void {
+  if (!pi.appendEntry) throw new Error('This Pi version cannot persist Swarm authorization.')
+  pi.appendEntry(SWARM_COMMAND, { ...decision, sessionId: ctx.sessionManager.getSessionId() })
+}
+
+function available(pi: SwarmApi): boolean {
+  const all = pi.getAllTools?.()
+  const active = pi.getActiveTools?.()
+  return (
+    Array.isArray(all) &&
+    all.some((t) => t?.name === 'subagent') &&
+    Array.isArray(active) &&
+    (active.includes('subagent') || active.includes('subagents_enable'))
+  )
+}
+
+const UNAVAILABLE = 'Swarm requires pi-subagents loaded and available in this session.'
+
+function swarmPolicy(pi: SwarmApi, onChange: (ctx: unknown) => void) {
+  let last: SwarmDecision | null = null
+  let enabled = false
+  function facts(): SwarmFacts {
+    return {
+      available: available(pi),
+      requested: last?.enabled === true,
+      enabled,
+      lastBy: last?.by ?? 'user',
+      userOff: last?.by === 'user' && !last.enabled,
+    }
+  }
+  function publish(ctx: SwarmContext): void {
+    const status: SwarmStatus = {
+      version: 1,
+      available: available(pi),
+      enabled,
+      requested: last?.enabled === true,
+    }
+    if (last?.by === 'agent' && last.enabled) {
+      status.source = 'agent'
+      if (last.reason) status.reason = last.reason
+    }
+    ctx.ui.setStatus(SWARM_STATUS_KEY, JSON.stringify(status))
+    onChange(ctx)
+  }
+  function apply(ctx: SwarmContext): void {
+    enabled = last?.enabled === true && available(pi)
+    publish(ctx)
+  }
+  function restore(ctx: SwarmContext, inherit: boolean): void {
+    const branch = ctx.sessionManager.getBranch()
+    const id = ctx.sessionManager.getSessionId()
+    last = lastSwarm(branch, id)
+    if (!last && inherit && ctx.sessionManager.getHeader?.()?.parentSession) {
+      const inherited = lastSwarm(branch, id, true)
+      if (inherited) {
+        persist(pi, ctx, inherited)
+        last = inherited
+      }
+    }
+    apply(ctx)
+  }
+  function write(ctx: SwarmContext, decision: SwarmDecision): void {
+    persist(pi, ctx, decision)
+    last = decision
+    if (decision.by === 'agent' || ctx.isIdle()) apply(ctx)
+    else publish(ctx) // Only the user's toggle waits for a turn boundary.
+  }
+  return { facts, apply, restore, write, enabled: () => enabled }
+}
+
+export function createSwarmLaneControl(
+  deps: Pick<ReturnType<typeof swarmPolicy>, 'facts' | 'write'>,
+): LaneControl<SwarmFacts> {
+  return {
+    facts: deps.facts,
+    agentSet(next, reason, context) {
+      const ctx = context as SwarmContext
+      const facts = deps.facts()
+      if (next && !facts.available) throw new Error(UNAVAILABLE)
+      if (!reason.trim()) throw new Error('Changing Swarm requires a reason.')
+      if (facts.userOff) {
+        if (next)
+          throw new Error('The user turned Swarm off for this lane. Ask them to turn it on.')
+        return // A redundant agent off must not overwrite the user's veto.
+      }
+      deps.write(ctx, { enabled: next, by: 'agent', reason: reason.trim() })
+      ctx.ui.notify(`Agent turned ${next ? 'on' : 'off'} Swarm: ${reason.trim()}.`)
+    },
   }
 }
 
 export default function swarm(
   pi: SwarmApi,
   onChange: (ctx: unknown) => void = () => undefined,
-): { tokens: () => number } {
-  let requested = false
-  let enabled = false
-  function available(): boolean {
-    const all = pi.getAllTools?.()
-    const active = pi.getActiveTools?.()
-    return (
-      Array.isArray(all) &&
-      all.some((t) => t?.name === 'subagent') &&
-      Array.isArray(active) &&
-      (active.includes('subagent') || active.includes('subagents_enable'))
-    )
-  }
-  function publish(ctx: SwarmContext): void {
-    const status: SwarmStatus = { version: 1, available: available(), enabled, requested }
-    ctx.ui.setStatus(SWARM_STATUS_KEY, JSON.stringify(status))
-    onChange(ctx)
-  }
-  function apply(ctx: SwarmContext): void {
-    enabled = requested && available()
-    publish(ctx)
-  }
-  const restore = (_event: unknown, context: unknown): void => {
-    const ctx = context as SwarmContext
-    requested = savedSwarm(ctx.sessionManager.getBranch(), ctx.sessionManager.getSessionId())
-    apply(ctx)
-  }
-  pi.on('session_start', (event, context) => {
-    const ctx = context as SwarmContext
-    inheritSwarm(pi, ctx)
-    restore(event, context)
-  })
-  pi.on('session_tree', restore)
+): { tokens: () => number; control: LaneControl<SwarmFacts> } {
+  const policy = swarmPolicy(pi, onChange)
+  pi.on('session_start', (_event, ctx) => policy.restore(ctx as SwarmContext, true))
+  pi.on('session_tree', (_event, ctx) => policy.restore(ctx as SwarmContext, false))
   pi.registerCommand?.(SWARM_COMMAND, {
     description: 'Host control: toggle lane Swarm authorization without running a model',
     async handler(args, context) {
-      const ctx = context as SwarmContext
       if (args !== 'on' && args !== 'off') throw new Error('Expected swarm on or off.')
-      if (args === 'on' && !available())
-        throw new Error('Swarm requires pi-subagents loaded and available in this session.')
-      if (!pi.appendEntry) throw new Error('This Pi version cannot persist Swarm authorization.')
-      const next = args === 'on'
-      pi.appendEntry(SWARM_COMMAND, { enabled: next, sessionId: ctx.sessionManager.getSessionId() })
-      requested = next
-      if (ctx.isIdle()) apply(ctx)
-      else publish(ctx) // Do not change authorization beneath an in-flight turn.
+      if (args === 'on' && !available(pi)) throw new Error(UNAVAILABLE)
+      policy.write(context as SwarmContext, { enabled: args === 'on', by: 'user' })
     },
   })
-  // Pi stays busy after agent_end while compacting or preparing a continuation.
-  // A later toggle must apply on settlement, or at the next run's start if Pi
-  // continues without settling. Never change policy within a running tool loop.
+  // A user toggle after agent_end applies on settlement or the next run's start.
   for (const boundary of ['agent_end', 'agent_settled', 'agent_start']) {
-    pi.on(boundary, (_event, ctx) => apply(ctx as SwarmContext))
+    pi.on(boundary, (_event, ctx) => policy.apply(ctx as SwarmContext))
   }
   pi.on('context_with_system', (event, ctx) => {
     // Recheck after tool/provider changes without granting new authority.
-    if (enabled && !available()) {
-      enabled = false
-      publish(ctx as SwarmContext)
-    }
+    if (policy.enabled() && !available(pi)) policy.apply(ctx as SwarmContext)
     const messages = (event as { messages: unknown[] }).messages
-    applySwarmContext(messages, enabled)
+    applySwarmContext(messages, policy.enabled())
     return { messages }
   })
   return {
+    control: createSwarmLaneControl(policy),
     tokens: () =>
-      enabled ? Math.ceil((SWARM_PROMPT.length + SWARM_SECTION.length * 2 + 7) / 4) : 0,
+      policy.enabled() ? Math.ceil((SWARM_PROMPT.length + SWARM_SECTION.length * 2 + 7) / 4) : 0,
   }
 }
