@@ -16,6 +16,13 @@ const ROW_HEIGHT = 92
 const NODE_WIDTH = 190
 const NODE_HEIGHT = 64
 
+interface TreeDrag {
+  startX: number
+  startY: number
+  originX: number
+  originY: number
+}
+
 /** Interactive session tree: pan/zoom, jump, fork-at-node, label, preview. */
 export function TreeViewModal({
   meta,
@@ -31,12 +38,7 @@ export function TreeViewModal({
   const { tree, error, reload } = useSessionTree(meta.path, hostLane)
   const [selected, setSelected] = useState<DisplayNode | null>(null)
   const [transform, setTransform] = useState({ x: 60, y: 40, scale: 1 })
-  const dragRef = useRef<{
-    startX: number
-    startY: number
-    originX: number
-    originY: number
-  } | null>(null)
+  const dragRef = useRef<TreeDrag | null>(null)
 
   useEscapeKey(onClose)
 

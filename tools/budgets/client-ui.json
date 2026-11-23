@@ -134,7 +134,7 @@
     "src/features/sessions/SessionList.tsx::SessionList[1]": 148,
     "src/features/sessions/SessionList.tsx::SessionList[1]/map[1]": 93,
     "src/features/sessions/Sidebar.tsx::Sidebar[1]": 130,
-    "src/features/sessions/TreeViewModal.tsx::TreeViewModal[1]": 336,
+    "src/features/sessions/TreeViewModal.tsx::TreeViewModal[1]": 332,
     "src/features/sessions/TreeViewModal.tsx::TreeViewModal[1]/map[2]": 131,
     "src/features/sessions/WorkspaceSwitcher.tsx::WorkspaceSwitcher[1]": 123,
     "src/features/sessions/groupSessions.ts::groupSessionsByProject[1]": 112,
