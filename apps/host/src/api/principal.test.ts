@@ -93,7 +93,9 @@ describe('connection principals', () => {
       open: () => true,
     })
     expect(authority.sender(client, 'c1')).not.toHaveProperty('origin')
-    expect(authority.sender(client, 'c1', laneCommandOrigin(local))).toMatchObject({
+    expect(authority.sender(client, 'c1', owner)).toHaveProperty('owner', true)
+    expect(authority.sender(client, 'c1', user)).not.toHaveProperty('owner')
+    expect(authority.sender(client, 'c1', local)).toMatchObject({
       id: client.id,
       origin: 'local',
     })

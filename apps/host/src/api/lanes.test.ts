@@ -585,6 +585,8 @@ describe('lane adapter', () => {
     await flush()
     expect(h.service.commands.submit).toHaveBeenCalledOnce()
     const sender = vi.mocked(h.service.commands.submit).mock.calls[0]?.[0]
+    // A TCP user grant never selects the local macOS Trash target.
+    expect(sender).not.toHaveProperty('owner')
     expect(sender?.currentCaps?.()).toContain('workspaces.write')
     a.auth([], false)
     await flush()
