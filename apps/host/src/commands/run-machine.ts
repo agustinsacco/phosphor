@@ -421,6 +421,13 @@ async function bindRunOps(
     live,
     command: (sessionId, rpc) => runtime.command(sessionId, rpc),
     shellEnvironment: started.machine.shellEnvironment ?? null,
+    editing: {
+      runtime,
+      announce: (laneId) => {
+        const summary = live.summaryFor(laneId)
+        if (summary) live.lanesTopic.delta([summary])
+      },
+    },
     enrolledId: () => ops.enrolled.current?.identity.hostId ?? null,
     remote: ops.remote,
     directory: ops.directory,

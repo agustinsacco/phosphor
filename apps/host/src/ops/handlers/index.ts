@@ -5,9 +5,12 @@ import type { HostRoutines } from '../../routines/service'
 import type { SkillPorts } from './skills'
 import type { createHostSandboxes } from '../../features/sandboxes'
 import { sandboxHandlers } from './sandboxes'
+import type { DatabaseSync } from 'node:sqlite'
 import type { HostShellEnvironment } from '../../machine/shell-environment'
+import type { LaneEditingRuntime } from '../../lanes/editing'
 import type { LaneService } from '../../lanes/service'
 import type { HostStore } from '../../lanes/store'
+import type { AuditEntry, UndoRecord } from '@phosphor/session-runtime/ops/audit'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { Reach } from '@phosphor/session-runtime/ops/reach'
@@ -19,6 +22,7 @@ import { fileHandlers } from './files'
 import { folderHandlers } from './folders'
 import { gitHandlers } from './git'
 import { hostsHandlers } from './hosts'
+import { laneEditingHandlers, laneEditingUndoChecks } from './lane-editing'
 import { laneSelfHandlers } from './lane-self'
 import { laneHandlers } from './lanes'
 import { machineHandlers } from './machine'
@@ -44,6 +48,10 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   /** Control's machine directory (X3 reach); absent: this machine reaches no other. */
   readonly directory?: Reach['directory']
   readonly log: RuntimeLog
+  /** `state.sqlite` beside the lane store's connection: `lane_prefs`. */
+  readonly db: DatabaseSync
+  /** The runtime's path lock and the lanes topic, for lane editing. */
+  readonly editing: LaneEditingRuntime
 }
 
 /** Every domain file's handlers. Meta ops come from `meta.ts`, bound over the dispatcher's stores. */
@@ -61,6 +69,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
     ...folderHandlers(deps),
     ...sandboxHandlers(deps),
     ...laneSelfHandlers(deps),
+    ...laneEditingHandlers(deps),
     ...machineHandlers(deps),
     ...fileHandlers(deps),
     ...gitHandlers(deps),
@@ -69,10 +78,37 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
 }
 
 /**
+ * Undo's precondition for one op: the state its change left is still in
+ * place. `before` is the inverse's args, `forward` the change's own args when
+ * the audit kept them. An op without a check never counts as current.
+ */
+export type DaemonUndoCheck = (
+  before: unknown,
+  deps: DaemonHandlerDeps,
+  forward?: Readonly<Record<string, unknown>>,
+) => boolean | Promise<boolean>
+
+const UNDO_CHECKS: Readonly<Record<string, DaemonUndoCheck>> = {
+  ...laneEditingUndoChecks,
+}
+
+/** Whether an op has a check in this table. */
+export const hasDaemonUndoCheck = (op: string) => Object.hasOwn(UNDO_CHECKS, op)
+
+/** Whether an audited change can still be undone without overwriting a newer one. */
+export async function daemonUndoIsCurrent(
+  entry: AuditEntry & { readonly undoRecord: UndoRecord },
+  deps: DaemonHandlerDeps,
+): Promise<boolean> {
+  const check = Object.hasOwn(UNDO_CHECKS, entry.op) ? UNDO_CHECKS[entry.op] : undefined
+  return check ? await check(entry.undoRecord.inverse.args, deps, entry.undoRecord.forward) : false
+}
+
+/**
  * Catalog ops the daemon serves once their package lands, by package and
  * handler file. Until then the dispatcher answers them `unsupported`, and a
  * `ready` flag whose ops are pending is not announced. H1–H4's files exist as
- * empty stubs; P1, P4b and D9 add theirs.
+ * empty stubs; P4b and D9 add theirs.
  */
 const PENDING = {
   'H4 lane-self.ts':
@@ -82,7 +118,6 @@ const PENDING = {
   'H4 files.ts':
     'files.list files.read files.write files.create files.mkdir files.trash files.rename files.transfer',
   'H4 git.ts': 'git.info git.status git.show pr.list pr.status pr.detail',
-  'P1 lane-editing.ts': 'lane.tree lane.fork lane.clone lane.label lane.jump lane.rewind',
   'P4b artifact-remove.ts': 'artifact.remove',
   'D9 brain.ts': 'brain.search brain.flag',
 } as const

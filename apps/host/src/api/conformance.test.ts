@@ -82,6 +82,7 @@ async function conformanceOps(
     live: { summaryFor: (id) => live().summaryFor(id), sessionFor: (id) => live().sessionFor(id) },
     command: (id, rpc) => runtime.command(id, rpc),
     shellEnvironment: null,
+    editing: {} as never,
     enrolledId: () => hostId,
     unattended: new Set(),
     log: () => {},

@@ -47,6 +47,7 @@ beforeEach(async () => {
     store,
     lanes: {} as never,
     shellEnvironment: null,
+    editing: {} as never,
     daemonLanes: {
       list: () => [lane],
       summary: (id) => (id === lane.laneId ? lane : null),

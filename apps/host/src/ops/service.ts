@@ -36,7 +36,12 @@ import {
 } from './binding'
 import { SETTINGS_UNDO_OPS, settingsAreCurrent } from './handlers/settings'
 import { undoCurrent } from './undo-current'
-import { domainHandlers, type DaemonHandlerDeps } from './handlers'
+import {
+  daemonUndoIsCurrent,
+  domainHandlers,
+  hasDaemonUndoCheck,
+  type DaemonHandlerDeps,
+} from './handlers'
 import { folderUndoCurrent } from './handlers/folders'
 import { routineUndoCurrent } from './handlers/routines'
 import { resourceJobSpec } from './handlers/resources-call'
@@ -44,7 +49,7 @@ import { daemonMetaHandlers } from './handlers/meta'
 import { createPolicyFile } from './policy-file'
 import { createHostResolver } from './remote'
 
-export interface OpsServicePorts extends Omit<DaemonHandlerDeps, 'log' | 'recordCreator'> {
+export interface OpsServicePorts extends Omit<DaemonHandlerDeps, 'log' | 'recordCreator' | 'db'> {
   /** The Host state folder: `state.sqlite` and `agent-policy.json`. */
   readonly stateDirectory: string
   readonly uid: number | undefined
@@ -193,7 +198,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     db,
     now,
   )
-  const domain = { ...ports, recordCreator: recordCreator(db, ports) }
+  const domain = { ...ports, db, recordCreator: recordCreator(db, ports) }
   const inverseRequests = new WeakSet<object>()
   const handlers = {
     ...domainHandlers(domain),
@@ -252,6 +257,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   const undo = createUndo({
     audit,
     isCurrent: undoCurrent([
+      [hasDaemonUndoCheck, async (entry) => daemonUndoIsCurrent(entry, domain)],
       [(op) => op.startsWith('routine.'), async (entry) => routineUndoCurrent(domain, entry)],
       [(op) => op.startsWith('folder.'), async (entry) => folderUndoCurrent(domain, entry)],
       [(op) => SETTINGS_UNDO_OPS.has(op), settingsAreCurrent(domain)],
@@ -294,6 +300,7 @@ export interface RunOpsPorts extends Pick<
   | 'management'
   | 'settingsOps'
   | 'shellEnvironment'
+  | 'editing'
   | 'enrolledId'
   | 'remote'
   | 'directory'
