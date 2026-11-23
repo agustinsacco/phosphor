@@ -333,6 +333,27 @@ it('treats a legacy off as the user’s on its branch and does not let an agent 
   expect(f.ctx.ui.notify).not.toHaveBeenCalled()
 })
 
+it('applies an agent off on the next request without turning it into a user veto', async () => {
+  const f = fixture()
+  await f.command('on')
+  f.ctx.isIdle.mockReturnValue(false)
+  f.emit('agent_start')
+  expect(f.send()).toContain(SWARM_PROMPT)
+  const { control } = f.state
+  await control.agentSet(false, 'Review complete', f.ctx)
+  expect(f.send()).not.toContain(SWARM_PROMPT)
+  expect(f.ctx.ui.notify.mock.calls).toEqual([['Agent turned off Swarm: Review complete.']])
+  f.emit('session_start')
+  expect(control.facts()).toEqual({
+    available: true,
+    requested: false,
+    enabled: false,
+    lastBy: 'agent',
+    userOff: false,
+  })
+  expect(f.status()).not.toHaveProperty('source')
+})
+
 it('normalizes only the version-one attribution fields', () => {
   const old = { version: 1, available: true, requested: true, enabled: true }
   expect(parseSwarmStatus(JSON.stringify({ ...old, source: 'user', reason: 42 }))).toEqual(old)

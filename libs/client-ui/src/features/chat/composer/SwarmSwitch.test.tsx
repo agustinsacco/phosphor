@@ -287,5 +287,9 @@ it('marks agent authorization, explains its reason and leaves the off action wit
     message: '/phosphor-swarm off',
   })
   status(false)
-  expect(button.textContent).not.toContain('agent turned Swarm on')
+  expect(button.dataset.state).toBe('off')
+  expect([...button.querySelectorAll('span')].map((span) => span.textContent)).not.toContain(
+    'agent',
+  )
+  expect(button.dataset.tooltipDescription).not.toContain('Review independent changes')
 })
