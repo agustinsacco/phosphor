@@ -1,4 +1,5 @@
 import { Type } from 'typebox'
+import type { OpArgs, OpContext } from '../types'
 import { isLaneMarker, LANE_MARKER_MAX_UNITS } from '../../host-protocol-lane-marks'
 import { ALL_THINKING_LEVELS } from '../../thinking'
 import {
@@ -18,6 +19,13 @@ import {
 } from './spec'
 
 const self = domain('self', control, { routable: false })
+// Only a surface can change another lane's conversation. The binding resolves ref
+// against the authenticated lane (ctx.self) and still checks the controller fence.
+const ownLane = (args: OpArgs, ctx: OpContext) => args.ref === undefined || ctx.self
+const conversation = domain((a, c) => (ownLane(a, c) ? 'self' : 'other-lane'), control, {
+  routable: false,
+})
+const ownOrNever = (a: OpArgs, c: OpContext) => (ownLane(a, c) ? 'lane' : 'never')
 const marks = domain(laneScope, control)
 const target = optional(ref)
 const pr = object({ url: text(2048) })
@@ -71,11 +79,14 @@ export const laneControls = [
     inverse: reverse('pr.clear'),
   }),
   self('pr.clear', 'Clear a pull request tracking override.', 'lane', pr, { positional: ['url'] }),
-  self(
+  conversation(
     'contextFiles.set',
-    'Enable or disable context files in this lane.',
-    'lane',
-    object({ claude: optional(on), agents: optional(on) }, { minProperties: 1 }),
+    'Enable or disable context files in a lane.',
+    ownOrNever,
+    object(
+      { ref: target, claude: optional(on), agents: optional(on) },
+      { anyOf: [{ required: ['agents'] }, { required: ['claude'] }] },
+    ),
     { ...next, flag: 'laneContext', inverse: previous('contextFiles.set') },
   ),
   self(
@@ -101,19 +112,25 @@ export const laneControls = [
     object({ queue: choice('steering', 'follow-up'), mode: choice('all', 'one-at-a-time') }),
     { ...after, positional: ['queue', 'mode'], inverse: previous('lane.queueMode') },
   ),
-  self('lane.reload', 'Reload this lane after it settles.', 'lane', undefined, {
-    applies: 'reload',
-    flag: 'laneReload',
-  }),
+  conversation(
+    'lane.reload',
+    'Reload a lane after it settles.',
+    ownOrNever,
+    object({ ref: target }),
+    {
+      applies: 'reload',
+      flag: 'laneReload',
+    },
+  ),
   self('notify', 'Show a notification in this lane.', 'lane', object({ text: text(200) }), {
     positional: ['text'],
     sensitive: ['text'],
   }),
-  self(
+  conversation(
     'mcp.lane',
-    'Inspect or reconnect a server in this lane.',
-    'lane',
-    object({ server: id, action: choice('inspect', 'reconnect') }),
+    'Inspect or reconnect a server in a lane.',
+    ownOrNever,
+    object({ ref: target, server: id, action: choice('inspect', 'reconnect') }),
     { positional: ['server', 'action'], flag: 'laneContext', untrustedResult: true },
   ),
   self(

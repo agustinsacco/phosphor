@@ -30,14 +30,14 @@ lane.marker lane self/other-lane now - - - - f9b61ca0e4568606e5bfb945dc97be106a5
 pr.track lane self now - - local - 2579f6ecb63bc84cdca35ec0c3fa667ce68abec42b4042b47db4928003ceec3f
 pr.hide lane self now - - local - 2579f6ecb63bc84cdca35ec0c3fa667ce68abec42b4042b47db4928003ceec3f
 pr.clear lane self now - - local - 2579f6ecb63bc84cdca35ec0c3fa667ce68abec42b4042b47db4928003ceec3f
-contextFiles.set lane self next-request laneContext - local - e6b438ca7b4da93b08efa745b6d2c1eefffe7df3d1092f1d08fb1070ebb00842
+contextFiles.set lane/never self/other-lane next-request laneContext - local - dd78653ca0ef406a672138b443adfb33926a8cb1926023504d277e2ec63fd828
 lane.compact lane self after-run - - local - c0a276dc3917cae839ee44430cecad98d4a57e608138f6f81b73cdbd29b21e04
 lane.autoCompaction lane self after-run - - local - 747277e2e03bcd747b9bb8f7d09989bdf7755c2751b18d2260707db4a51e9e04
 lane.autoRetry lane self after-run - - local - 747277e2e03bcd747b9bb8f7d09989bdf7755c2751b18d2260707db4a51e9e04
 lane.queueMode lane self after-run - - local - 3af915363b23553ae96974c4f1a959542bbd62519fea03ac477a4bed932fceaf
-lane.reload lane self reload laneReload - local - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+lane.reload lane/never self/other-lane reload laneReload - local - 9eb3030695c5a31deb3f75fce35fac70add152588f6b45a181047dd25a3dc3c2
 notify lane self now - - local - 3af0e74ed7b972a0784ddbf3ef32ed963f2ef621be162f5c9483e37d71679c64
-mcp.lane lane self now laneContext - local - 90153caa9ce5c1465c7513e8902e509a786551336b0bdb2c4c759c6669cb2634
+mcp.lane lane/never self/other-lane now laneContext - local - 645a2c1fbdfcef399dac5ff8fdc445047851c2279fca85c8c1aef3b10e841dfa
 account.move configure self reload - - local - 439252a416678fb7efbad406ecb6831f5d3803752351cb651c4f0b8117032ca9
 lane.list read machine now pagedLanes - - - 8552951b8539e4f24a2918ff9a313f1f05af691598df7dd2a288b00db716fba1
 lane.search read machine now - - - - d77496d582b31579076f80c7083a68682949b8b0c9bf8a793ea0a7c21414b559
@@ -203,7 +203,7 @@ function variants<T extends string>(field: T | ((a: OpArgs, c: OpContext) => T))
   return [
     ...new Set([
       field({ file: 'settings' }, { self: true }),
-      field({ file: 'settings', lane: 'other' }, { self: false }),
+      field({ file: 'settings', lane: 'other', ref: 'other' }, { self: false }),
       field({ file: 'models' }, { self: false }),
     ]),
   ].join('/')
@@ -229,7 +229,7 @@ it('names each op once; help, positionals and redactions describe the actual arg
   for (const op of OP_CATALOG) {
     expect(isOpName(op.name), op.name).toBe(true)
     expect(op.summary, op.name).toMatch(/^[^\n]+$/)
-    expect(op.args.additionalProperties, op.name).toBe(false)
+    expect(op.args, op.name).toMatchObject({ additionalProperties: false })
     for (const key of [...(op.positional ?? []), ...(op.sensitive ?? [])])
       expect(Object.hasOwn(op.args.properties, key), `${op.name}.${key}`).toBe(true)
   }

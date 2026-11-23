@@ -109,3 +109,23 @@ it('keeps agent Brain recall on the service queue and external text marked untru
   ])
     expect(spec(op).untrustedResult).toBe(true)
 })
+
+it('allows only surfaces to address a different lane for reload, context and MCP', () => {
+  for (const name of ['lane.reload', 'contextFiles.set', 'mcp.lane']) {
+    const { scope, tier, routable } = spec(name)
+    expect(routable).toBe(false)
+    if (typeof scope !== 'function' || typeof tier !== 'function')
+      throw Error(`Expected target-aware ${name}`)
+    for (const [args, self] of [
+      [{}, false],
+      [{ ref: 'actor' }, true],
+    ] as const) {
+      expect(scope(args, { self })).toBe('self')
+      expect(tier(args, { self })).toBe('lane')
+    }
+    expect(scope({ ref: 'elsewhere' }, { self: false })).toBe('other-lane')
+    expect(tier({ ref: 'elsewhere' }, { self: false })).toBe('never')
+  }
+  expect(accepts('contextFiles.set', { ref: 'lane' })).toBe(false)
+  expect(accepts('contextFiles.set', { ref: 'lane', claude: true })).toBe(true)
+})
