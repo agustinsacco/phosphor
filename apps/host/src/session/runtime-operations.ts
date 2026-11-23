@@ -59,7 +59,10 @@ async function start(
   // pi's stderr may hold a secret, so each line leaves the Host redacted.
   const delivery: Delivery = (push) =>
     deliver(push.kind === 'stderr' ? { ...push, text: state.machine.log.hide(push.text) } : push)
-  const session = await service.create(options, delivery)
+  const create = () => service.create(options, delivery)
+  const session = state.options.leases
+    ? await state.options.leases.withUse(options.workspacePath, 'live-lane', create)
+    : await create()
   if (!state.started.has(delivery)) throw new Error('the session is already running')
   return session
 }
@@ -99,10 +102,15 @@ export function createRuntimeOperations(
     },
     /** Internal runner only: still uses the shared service and path-lock domain. */
     async startRoutine(request: unknown, deliver: Delivery, execution: SessionExecution) {
-      return service.create(await parse(state, request), deliver, {
-        ...execution,
-        unattended: true,
-      })
+      const parsed = await parse(state, request)
+      const create = () =>
+        service.create(parsed, deliver, {
+          ...execution,
+          unattended: true,
+        })
+      return options.leases
+        ? options.leases.withUse(parsed.workspacePath, 'routine', create)
+        : create()
     },
     routineClient(id: string) {
       if (!options.routines?.owns(id)) throw new Error('not a routine session')

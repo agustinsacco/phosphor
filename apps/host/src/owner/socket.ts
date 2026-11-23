@@ -225,7 +225,7 @@ function ownerSocket(
         server.serveLanes({
           epoch: lanes.service.epoch,
           capabilities: lanes.service.capabilities,
-          links: hostLinks(options.ops, handlers),
+          links: hostLinks(options.ops, { ...handlers, ...lanes.service.ownerHandlers }),
           handler: lanes.adapter.handler,
           peers: lanes.peers,
         }),

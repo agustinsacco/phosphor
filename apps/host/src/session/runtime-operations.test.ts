@@ -215,10 +215,13 @@ it('requires readiness and a living client before delivering dialog responses', 
 
 it('a workspace lease blocks fresh, resumed and unattended starts before service creation', async () => {
   const leases = createWorkspaceLeases(() => [])
-  const { operations, ready, service, file } = harness({ leases }); ready()
+  const { operations, ready, service, file } = harness({ leases })
+  ready()
   expect(await leases.take('desktop', [repo], 10000)).toHaveProperty('leaseId')
-  await expect(operations.start({repository:repo})).rejects.toThrow('leased')
-  await expect(operations.start({repository:repo,sessionPath:file})).rejects.toThrow('leased')
-  await expect(operations.startRoutine({repository:repo}, vi.fn(), {unattended:true})).rejects.toThrow('leased')
+  await expect(operations.start({ repository: repo })).rejects.toThrow('leased')
+  await expect(operations.start({ repository: repo, sessionPath: file })).rejects.toThrow('leased')
+  await expect(
+    operations.startRoutine({ repository: repo }, vi.fn(), { unattended: true }),
+  ).rejects.toThrow('leased')
   expect(service.create).not.toHaveBeenCalled()
 })

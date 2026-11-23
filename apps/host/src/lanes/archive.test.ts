@@ -220,7 +220,9 @@ it('a workspace lease blocks restore before moving the transcript', async () => 
   archives = service(leases)
   expect(await archives.execute({ type: 'lane.archive', laneId }, () => true)).toEqual({ ok: true })
   await leases.take('owner', [root], 10000)
-  expect(await archives.execute({type:'archive.restore', archiveId:laneId}, () => true)).toEqual({ok:false,code:'busy'})
+  expect(
+    await archives.execute({ type: 'archive.restore', archiveId: laneId }, () => true),
+  ).toEqual({ ok: false, code: 'busy' })
   expect(store.listLanes()).toEqual([])
   expect(await readFile(`${transcript}.archived`, 'utf8')).toBe('original conversation')
 })

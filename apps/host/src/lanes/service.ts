@@ -1,3 +1,4 @@
+import type { OwnerHandlers } from '../owner/adapter'
 import type { HostTerminals } from '../terminals/service'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import type { HostCapability } from '@phosphor/shared/remote-host'
@@ -5,6 +6,8 @@ import type { LaneCommandClient, LaneCommandFrame } from './commands'
 import type { LaneStreams, LanesTopic } from './stream'
 
 export interface LaneService {
+  /** Owner methods available only while this daemon owns the lanes. */
+  ownerHandlers?: OwnerHandlers
   terminals?: HostTerminals
   epoch: string
   capabilities: readonly HostCapability[]

@@ -1,3 +1,5 @@
+import { createWorkspaceLeases, leaseHandlers } from '../owner/lease'
+import { isRoutineSession } from '@phosphor/session-runtime/routines/ownership'
 import { join } from 'node:path'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
@@ -33,6 +35,7 @@ import { createRunServices } from './run-services'
 /** What the machine needs from the rest of run: state it opened, and the control link's ports. */
 export interface RunMachinePorts {
   appServices?: AppServices
+  local?: boolean
   epoch: string
   config: RunConfig
   stateDirectory: string
@@ -55,9 +58,20 @@ async function startRuntime(
   const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
   await trash.sweep().catch(() => {})
   const accounts = createRunAccounts(context, ports.stateDirectory, machine.env)
+  const leases = ports.local
+    ? createWorkspaceLeases(
+        () =>
+          (parts.runtime?.list() ?? []).map(({ workspacePath, sessionId }) => ({
+            workspacePath,
+            reason: isRoutineSession(sessionId) ? 'routine' : 'live-lane',
+          })),
+        context.now,
+      )
+    : undefined
   const runtime = createHostRuntime(
     { ...machine, log, appServices: ports.appServices },
     {
+      leases,
       claudeAccounts: accounts,
       ...hostLivePolicy(config.path, config.config),
       dialogs: 'forward',
@@ -97,7 +111,7 @@ async function startRuntime(
   parts.routines = routines
   const nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, accounts))
   parts.nameLane = nameLane
-  return { accounts, runtime, live, unattached: hosted.unattached, routines, nameLane }
+  return { leases, accounts, runtime, live, unattached: hosted.unattached, routines, nameLane }
 }
 
 type StartedRuntime = Awaited<ReturnType<typeof startRuntime>>
@@ -143,6 +157,7 @@ function createMachineCommands(
     store,
     runtime,
     accounts: started.accounts,
+    leases: started.leases,
     terminals,
     attachments: parts.attachments,
     binding,
@@ -153,6 +168,7 @@ function createMachineCommands(
   })
   const commands = createLaneCommands({
     ...administration,
+    leases: started.leases,
     repositories,
     attachments: parts.attachments,
     terminals,
@@ -217,6 +233,7 @@ export async function startRunMachine(
     log: log.write,
   })
   const lanes: LaneService = {
+    ownerHandlers: started.leases && leaseHandlers(started.leases),
     terminals,
     epoch: ports.epoch,
     capabilities: [

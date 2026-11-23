@@ -1,3 +1,4 @@
+import type { WorkspaceLeases } from '../../owner/lease'
 import type { LaneArchiveOp } from '@phosphor/shared/lane-archive'
 import type { DeleteLaneOp, RepositoryOp } from '@phosphor/shared/host-protocol-repositories'
 import type { FileWriteOp } from '@phosphor/shared/host-protocol-writes'
@@ -39,6 +40,7 @@ export interface LaneCommandClient {
   ownerExemption?: OwnerExemption
 }
 export interface LaneCommandPorts {
+  leases?: WorkspaceLeases
   archives?: {
     execute(
       op: LaneArchiveOp,

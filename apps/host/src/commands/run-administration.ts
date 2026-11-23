@@ -1,3 +1,4 @@
+import type { WorkspaceLeases } from '../owner/lease'
 import { join } from 'node:path'
 import { HostArchives } from '../lanes/archive'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
@@ -37,6 +38,7 @@ import { identityDirectory, type HostIdentity } from '../control/identity'
 import { startHostWebPush, type WebPushOptions } from '../push/web-push'
 
 interface AdministrationOptions {
+  leases?: WorkspaceLeases
   context: RunContext
   configPath: string
   env: Record<string, string>
@@ -130,6 +132,7 @@ export function createRunAdministration(options: AdministrationOptions) {
     sessionFor: options.live.sessionFor,
   })
   const archives = new HostArchives({
+    leases: options.leases,
     directory: hostStateDirectory(context.env, context.home),
     sessionsRoot: piSessionsRoot(context.env, context.home),
     store: options.store,
