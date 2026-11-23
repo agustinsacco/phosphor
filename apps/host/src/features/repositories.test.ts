@@ -286,3 +286,43 @@ it('serializes overlapping adds from catalog and legacy callers, past a refusal'
   expect(results).toMatchObject([{ ok: true }, { ok: false, code: 'conflict' }, { ok: true }])
   expect(store.listRepositories().map((r) => r.name)).toEqual(['original', 'Projects', '.hidden'])
 })
+
+it.each([false, true])(
+  'keeps sandbox roots after a legacy folder add (local=%s)',
+  async (local) => {
+    const sandbox = join(home, 'sandbox')
+    await mkdir(sandbox)
+    const { writeOwnerFolders, readOwnerFolders } = await import('../config/folders-file')
+    const original = join(home, 'original')
+    writeOwnerFolders(home, process.getuid?.(), {
+      version: 1,
+      items: [
+        ...(local ? [{ path: original, name: 'original', order: 0 }] : []),
+        { path: sandbox, name: 'sandbox', order: 1, sandbox: true },
+      ],
+    })
+    store.syncRepositories([original, sandbox])
+    const folders = createRepositories({
+      local,
+      home,
+      configPath,
+      uid: process.getuid?.(),
+      store,
+      live: () => false,
+      changed,
+    })
+    expect(
+      await folders.execute({ type: 'host.repositories.add', path: 'Projects' }, () => true),
+    ).toMatchObject({ ok: true })
+    expect(
+      store
+        .listRepositories()
+        .map((v) => v.path)
+        .sort(),
+    ).toEqual([original, sandbox, join(home, 'Projects')].sort())
+    if (local)
+      expect(readOwnerFolders(home, process.getuid?.())?.items.map((i) => i.path)).toContain(
+        join(home, 'Projects'),
+      )
+  },
+)
