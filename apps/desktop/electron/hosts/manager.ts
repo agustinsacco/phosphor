@@ -1,3 +1,4 @@
+import type { DirectoryAlias } from './dedupe'
 import {
   createHostManagerState,
   hostManagerSnapshot,
@@ -13,7 +14,7 @@ import {
 } from './manager-reconcile'
 
 export function createHostManager(ports: HostManagerPorts) {
-  const state = createHostManagerState(ports.user())
+  const state = createHostManagerState(ports.user(), ports.directory)
   const notify = () => notifyHostManager(state, ports)
   const refresh = () => refreshHostManager(state, ports)
   const offAccount = ports.accountChanged(() => {
@@ -47,8 +48,17 @@ export function createHostManager(ports: HostManagerPorts) {
     label: (hostId: string) =>
       local(hostId)?.label ?? state.list?.machines.find((m) => m.id === hostId)?.label ?? hostId,
     present: (hostId: string) =>
-      !!local(hostId) || !!state.list?.machines.some((m) => m.id === hostId),
+      !!local(hostId) ||
+      (state.directory.get() !== undefined &&
+        state.directory.get() !== hostId &&
+        !!state.list?.machines.some((m) => m.id === hostId)),
     setLocal,
+    directory(alias: DirectoryAlias) {
+      if (!state.directory.set(alias)) return false
+      reconcileHostManager(state, ports)
+      notify()
+      return true
+    },
     disabled: () => disableHostManager(state, ports),
     /**
      * A user's explicit retry: re-read the directory, then replace this Host's

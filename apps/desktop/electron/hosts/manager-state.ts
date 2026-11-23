@@ -1,9 +1,11 @@
+import { createDirectoryDedupe } from './dedupe'
 import type { MachinesResponse } from '@shared/control-api'
 import type { ControlResult, HostsSnapshot } from '@shared/ipc'
 import type { createHostConnection } from './connection'
 import type { HostConnectionSnapshot } from '@phosphor/host-client/connection'
 
 export type HostManagerPorts = {
+  directory?: ReturnType<typeof createDirectoryDedupe>
   testEndpoint?: string
   user: () => string | null
   clientId: () => string | null
@@ -27,6 +29,7 @@ export interface LocalHostSlot {
 }
 
 export interface HostManagerState {
+  directory: ReturnType<typeof createDirectoryDedupe>
   local?: LocalHostSlot & { connection: ReturnType<typeof createHostConnection> }
   connections: Map<
     string,
@@ -44,8 +47,12 @@ export interface HostManagerState {
   debounce: ReturnType<typeof setTimeout> | undefined
 }
 
-export function createHostManagerState(user: string | null): HostManagerState {
+export function createHostManagerState(
+  user: string | null,
+  directory = createDirectoryDedupe(),
+): HostManagerState {
   return {
+    directory,
     connections: new Map(),
     cached: {},
     list: null,
@@ -73,8 +80,14 @@ export function hostManagerSnapshot(
 ): HostsSnapshot {
   const result = structuredClone(state.cached)
   for (const [id, c] of state.connections) result[id] = c.connection.snapshot()
+  const alias = state.directory.get()
+  if (alias) delete result[alias]
   if (state.local)
-    result[state.local.hostId] = { ...state.local.connection.snapshot(), local: true }
+    result[state.local.hostId] = {
+      ...state.local.connection.snapshot(),
+      local: true,
+      ...(alias ? { enrolledHostId: alias } : {}),
+    }
   const clientId = ports.clientId()
   return Object.fromEntries(
     Object.entries(result).map(([id, view]) => [

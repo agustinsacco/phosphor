@@ -12,6 +12,10 @@ vi.mock('electron', () => ({ app: { once: vi.fn() }, BrowserWindow: {}, Notifica
 vi.mock('../account', () => ({ accountUserId: vi.fn(), onAccountChange: vi.fn() }))
 vi.mock('../broadcast', () => ({ broadcast: vi.fn() }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
+vi.mock('../prefs/backend', () => ({
+  getLocalEnrolledId: () => undefined,
+  setLocalEnrolledId: vi.fn(),
+}))
 vi.mock('../store', () => ({
   getRemoteClients: vi.fn(),
   setRemoteClients: vi.fn(),
@@ -24,6 +28,7 @@ vi.mock('../hosts/connection', () => ({ createHostConnection: vi.fn() }))
 vi.mock('../hosts/manager', () => ({
   createHostManager: () => ({
     snapshot: () => ({}),
+    directory: vi.fn(),
     connection: mocks.connection,
     setLocal: mocks.setLocal,
   }),

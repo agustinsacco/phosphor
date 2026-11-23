@@ -55,6 +55,8 @@ import { tappedLog } from '../hosts/traffic-tap'
 import { startLocalMachine } from '../local-machine/connection'
 import { onDaemonMode } from '../local-machine/mode'
 import { desktopBrainApp } from '../brain/app-service'
+import { desktopDirectory } from '../hosts/dedupe'
+import { bindLocalEnrollment } from '../control/local-enroll-binding'
 import { bindSameMachine, sameMachine } from '../local-machine/same-machine'
 
 let routines: ReturnType<typeof createRemoteRoutines> | undefined
@@ -151,18 +153,23 @@ function admitLocalMachine(
   attention: ReturnType<typeof createHostAttention>,
 ): void {
   onDaemonMode((access) => {
+    let id: string | undefined
+    const enroll = bindLocalEnrollment(manager, controlClient(), () => id)
     const local = startLocalMachine({
       ...access,
       uid: process.getuid?.(),
       attach: (slot) => {
         manager.setLocal(slot)
         const hostId = slot?.hostId
+        id = hostId
+        enroll.changed()
         bindSameMachine(hostId ? { hostId, connection: () => manager.connection(hostId) } : null)
         desktopBrainApp.ownerChanged(sameMachine()?.connection)
       },
       changed: () => {
         desktopBrainApp.ownerChanged(sameMachine()?.connection)
         manager.changed()
+        enroll.changed()
       },
       log: tappedLog,
       traffic: (hostId, direction, frame, bytes) => {
@@ -173,7 +180,10 @@ function admitLocalMachine(
       onAttention: (hostId, event) => attention.receive(hostId, event),
       onRoutinesChanged: (hostId) => broadcast('routines:changed', { machine: `host:${hostId}` }),
     })
-    app.once('will-quit', () => local.stop())
+    app.once('will-quit', () => {
+      enroll.stop()
+      local.stop()
+    })
   })
 }
 
@@ -199,6 +209,7 @@ export function registerHostsHandlers(): void {
     present: (id) => manager.present(id),
   })
   const manager = createHostManager({
+    directory: desktopDirectory,
     testEndpoint,
     user: accountUserId,
     clientId: clients.current,
