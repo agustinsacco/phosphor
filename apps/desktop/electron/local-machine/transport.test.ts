@@ -1,3 +1,4 @@
+import { fetchSocketHello, openLocalSocket } from '@phosphor/session-runtime/host-local/transport'
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -9,10 +10,8 @@ import { HOST_SIDECARS } from '@phosphor/shared/host-local'
 import {
   LOCAL_DAEMON_CONFIG_ENV,
   LOCAL_DAEMON_SOCKET_ENV,
-  fetchSocketHello,
   localDaemonLocation,
   localSocketPath,
-  openLocalSocket,
   readLocalIdentity,
 } from './transport'
 

@@ -1,3 +1,4 @@
+import { fetchSocketHello, openLocalSocket } from '@phosphor/session-runtime/host-local/transport'
 import { randomBytes } from 'node:crypto'
 import { createHostConnection } from '@phosphor/host-client/connection'
 import type { TraceLog } from '@phosphor/host-client/ports'
@@ -14,9 +15,7 @@ import type { OwnerKey } from '../daemon/owner-key'
 import { desktopIdentity } from '../hosts/connection'
 import type { LocalHostSlot } from '../hosts/manager-state'
 import {
-  fetchSocketHello,
   localSocketPath,
-  openLocalSocket,
   readLocalIdentity,
   type LocalDaemonLocation,
 } from './transport'

@@ -43,7 +43,7 @@ beforeAll(async () => {
     },
     build: {
       lib: {
-        entry: 'electron/local-machine/transport.ts',
+        entry: resolve(APP, '../../libs/session-runtime/src/host-local/transport.ts'),
         formats: ['es'],
         fileName: () => 'transport.mjs',
       },
