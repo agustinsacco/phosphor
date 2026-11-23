@@ -163,6 +163,10 @@ export interface OpsBinding {
 
 /** The owner's one entry point for ops from a lane's tool and from every other principal. */
 export interface OpsDispatcher {
+  runFromCli(
+    principal: Extract<OpPrincipal, { kind: 'local' }>,
+    envelope: OpRequestEnvelope,
+  ): Promise<OpsRunResult>
   runFromTool(sessionId: string, envelope: OpRequestEnvelope): Promise<OpReplyEnvelope>
   run(principal: OpPrincipal, request: OpsRunRequest): Promise<OpsRunResult>
   /** A surface answered a lane's dialog: relay it, or refuse a forged answer to an op confirm. */

@@ -172,10 +172,11 @@ async function runOp(
   core: DispatcherCore,
   principal: OpPrincipal,
   request: OpsRunRequest,
+  hosts?: OpRunExtras['hosts'],
 ): Promise<OpsRunResult> {
   const { controller, release } = track(core, principal)
   try {
-    const outcome = await execute(core, principal, request, controller.signal)
+    const outcome = await execute(core, principal, request, controller.signal, { hosts })
     return outcome?.result ?? { status: 'denied', code: 'unavailable', text: STOPPED }
   } finally {
     release()
@@ -241,6 +242,11 @@ export function createOpsDispatcher(binding: OpsBinding, deps: OpsDispatcherDeps
   const run = (principal: OpPrincipal, request: OpsRunRequest) => runOp(core, principal, request)
   return {
     run,
+    async runFromCli(principal, envelope) {
+      const parsed = toolRequest(deps, envelope)
+      if ('error' in parsed) return { status: 'denied', code: 'bad-request', text: parsed.error }
+      return runOp(core, principal, parsed.request, parsed.hosts)
+    },
     runFromTool: (sessionId, envelope) => runFromTool(core, sessionId, envelope),
     surfaceAnswered: (sessionId, response, origin) =>
       deps.confirms.surfaceAnswered(sessionId, response, origin),

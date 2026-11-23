@@ -258,6 +258,16 @@ export function refuseOp(
   limits: OpLimits,
   j: Judged,
 ): Refusal | null {
+  // PI_SESSION_ID can only downgrade a CLI caller; never turn it into an agent.
+  if (j.principal.kind === 'local' && j.principal.lane !== undefined) {
+    const lane = j.principal.lane
+    const own =
+      (j.args.ref === undefined && j.args.lane === undefined) ||
+      j.lane?.sessionId === lane ||
+      j.lane?.ref === lane
+    if (resolveSpecValue(j.spec.scope, j.args, own) === 'self')
+      return { code: 'forbidden', text: 'Use the phosphor tool for this lane.' }
+  }
   const gate = gateVerdict(policyCheck(j))
   if (gate?.kind === 'deny') return fromVerdict(gate)
   const unavailable = availability(binding, j.spec) ?? surfaceRefusal(j, deps)

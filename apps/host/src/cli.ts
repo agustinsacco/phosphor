@@ -7,7 +7,7 @@ import {
   supervisedRun,
   type ValidatedCommand,
 } from './cli-args'
-import { runCliOps } from './cli-ops'
+import { catalogTopic, runCliOps } from './cli-ops'
 import { handleControl, handleRun, handleService } from './cli-control'
 import {
   handleAccept,
@@ -79,7 +79,7 @@ async function runCommandTable(
   const supervised = supervisedRun(argv)
   const request = readCliRequest(argv, context.terminal)
   if (request.kind === 'help') {
-    io.stdout(USAGE)
+    io.stdout((argv[0] === 'help' && argv.length === 2 && catalogTopic(argv[1])) || USAGE)
     return EXIT.ok
   }
   if (request.kind === 'usage') {

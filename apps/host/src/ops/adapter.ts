@@ -1,11 +1,12 @@
 import { OPS_RUN, parseOpsRunRequest, type OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
-import type { OpClass } from '@phosphor/shared/ops'
+import { parseOpChannelRequest, type OpClass } from '@phosphor/shared/ops'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { OpPrincipal, OpsDispatcher } from '@phosphor/session-runtime/ops/types'
 import type { FrameSocket, ReadyOpFlag } from '@phosphor/shared/host-protocol'
 import { sendFrame, type FrameLink, type FrameLinkFactory } from '../api/adapter'
 import { opPrincipalFor } from '../api/principal'
+import { OPS_CLI } from './cli-method'
 import type { HostSurfacePrincipal } from './binding'
 
 /** `ops.run` needs no capability: the dispatcher decides per principal and op. */
@@ -60,7 +61,7 @@ function opClass(request: OpsRunRequest): OpClass {
  * answers `unsupported`, as an older Host does.
  */
 export interface OpsAdapterPorts {
-  dispatcher?: Pick<OpsDispatcher, 'run'>
+  dispatcher?: Pick<OpsDispatcher, 'run'> & Partial<Pick<OpsDispatcher, 'runFromCli'>>
   /** The `ready` flags announced beside the bound dispatcher. */
   readyFlags?: ReadonlySet<ReadyOpFlag>
   queue?: OpsQueue
@@ -112,14 +113,28 @@ export function createOpsAdapter(ports: OpsAdapterPorts = {}): FrameLinkFactory 
         closed = true
       },
       handle(frame, caps) {
-        if (frame.type === 'call' && frame.method === OPS_RUN) {
-          const request = parseOpsRunRequest(frame.params)
-          if (!request) {
-            const error = { code: 'bad-request', message: 'bad-request' } as const
+        if (frame.type === 'call' && (frame.method === OPS_RUN || frame.method === OPS_CLI)) {
+          const task = ():
+            ReturnType<typeof execute> | 'bad-request' | 'unsupported' | 'forbidden' => {
+            if (frame.method === OPS_RUN) {
+              const request = parseOpsRunRequest(frame.params)
+              if (request) return execute(request, caps)
+            } else {
+              if (principal.kind !== 'local') return 'forbidden'
+              if (!dispatcher.runFromCli) return 'unsupported'
+              const envelope = parseOpChannelRequest(JSON.stringify(frame.params ?? null))
+              if (envelope && 'argv' in envelope && envelope.argv && !envelope.facts)
+                return dispatcher.runFromCli(principal, envelope)
+            }
+            return 'bad-request'
+          }
+          const pending = task()
+          if (typeof pending === 'string') {
+            const error = { code: pending, message: pending }
             sendFrame(socket, { type: 'result', id: frame.id, ok: false, error })
             return true
           }
-          void execute(request, caps).then(
+          void pending.then(
             (data) => {
               if (!closed) sendFrame(socket, { type: 'result', id: frame.id, ok: true, data })
             },

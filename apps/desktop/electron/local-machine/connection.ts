@@ -14,11 +14,7 @@ import {
 import type { OwnerKey } from '../daemon/owner-key'
 import { desktopIdentity } from '../hosts/connection'
 import type { LocalHostSlot } from '../hosts/manager-state'
-import {
-  localSocketPath,
-  readLocalIdentity,
-  type LocalDaemonLocation,
-} from './transport'
+import { localSocketPath, readLocalIdentity, type LocalDaemonLocation } from './transport'
 
 /**
  * Desktop's connection to This Mac's own Phosphor service: the portable Host
