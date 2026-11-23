@@ -41,3 +41,11 @@ it('does not send ops to a Host without ready.ops or route This Mac to any Host'
   expect(b.call).not.toHaveBeenCalled()
   expect(b.send).not.toHaveBeenCalled()
 })
+
+it('uses the resolved catalog tier for an argument-dependent settings read', async () => {
+  const b = bridge(true)
+  const read = { op: 'config.read', args: { file: 'settings' } }
+  await b.run(target, read)
+  expect(b.call).toHaveBeenCalledWith('ops.run', read)
+  expect(b.send).not.toHaveBeenCalled()
+})
