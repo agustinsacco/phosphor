@@ -10,6 +10,8 @@ export interface HostRoutineOptions {
   runtime: HostRuntime
   changed(): void
   now?: () => number
+  /** A service pause holds: the scheduler starts no run until it ends. */
+  paused?: () => boolean
 }
 
 /** One service owns the scheduler, database and shutdown barrier together. */

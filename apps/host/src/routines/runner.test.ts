@@ -134,6 +134,7 @@ async function start() {
     stopRoutine: vi.fn<HostRuntime['stopRoutine']>().mockImplementation(async () => {
       expect(isRoutineSession(sessionId)).toBe(true)
     }),
+    abortTurns: vi.fn<HostRuntime['abortTurns']>(async () => []),
   } satisfies HostRuntime
   const admittedRoot = vi.fn((path: string) => path)
   const progress = vi.fn()

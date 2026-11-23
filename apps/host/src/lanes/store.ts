@@ -15,6 +15,7 @@ import { openStoreDatabase } from './store/open'
 import { validateRepositoryIdentity } from './store/identity'
 import { LANE_SELECT, writeLaneMarks } from './store/marks'
 import { LaneArchiveRows, pruneRemoved } from './store/archives'
+import { LanePauseRows } from './store/pauses'
 import {
   laneFromRow,
   repositoryFromRow,
@@ -40,9 +41,7 @@ export * from './store/types'
 import { absolutePath, check, integer, text, uuid } from './validation'
 export { opHash } from './validation'
 export { validateRepositoryIdentity } from './store/identity'
-
 export { REMOVED_LANE_TTL_MS } from './store/archives'
-
 export function openStore(
   directory: string,
   uid: number | undefined,
@@ -61,6 +60,7 @@ export class HostStore {
   private configOrder: Record<string, number> = {} // Config positions: the listing order.
   readonly limits: Readonly<StoreLimits>
   readonly archives: LaneArchiveRows
+  readonly pauses: LanePauseRows
   constructor(
     private readonly db: DatabaseSync,
     private readonly ports: StorePorts,
@@ -85,6 +85,7 @@ export class HostStore {
     }
     this.limits = Object.freeze(limits)
     this.archives = new LaneArchiveRows(db, this.now, limits.lanesPerHost)
+    this.pauses = new LanePauseRows(db)
   }
   private transaction<T>(fn: () => T): T {
     this.db.exec('BEGIN IMMEDIATE')

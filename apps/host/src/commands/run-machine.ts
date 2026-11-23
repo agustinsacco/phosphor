@@ -12,6 +12,7 @@ import { ownerTrash } from '../lanes/delete-target'
 import { transcriptTrash } from '../lanes/delete'
 import { createHostLiveLanes } from '../lanes/live-host'
 import { createLaneNamer, hostLaneNaming } from '../lanes/naming'
+import { hostLanePausePorts } from '../lanes/pause'
 import { createRuntimeLanes } from '../lanes/runtime-host'
 import type { LaneService } from '../lanes/service'
 import { hostStateDirectory } from '../lanes/state-dir'
@@ -21,6 +22,8 @@ import type { HostClaudeAccounts } from '../providers/accounts'
 import { createHostRoutines, routineOwnership } from '../routines/service'
 import { createHostRuntime, type HostMachine } from '../session/runtime'
 import type { AppServices } from '../session/app-services'
+import { serviceRunner } from '../machine/systemd'
+import { retireUpdateJobAtStart } from '../update/launchd-job'
 import { inspectHost } from './doctor'
 import type { RunContext } from './run'
 import {
@@ -117,6 +120,7 @@ async function startRuntime(
     now: context.now ?? Date.now,
     log: log.write,
     sessionsRoot: piSessionsRoot(context.env, context.home),
+    pauseFor: (laneId) => parts.services?.pauses?.pauseFor(laneId),
   })
   const live = hosted.live
   parts.live = live
@@ -128,6 +132,7 @@ async function startRuntime(
     runtime,
     changed: () => activeTopic.routinesChanged(),
     now: context.now,
+    paused: () => (parts.services?.pauses?.state().kind ?? 'none') !== 'none',
   })
   parts.routines = routines
   const nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, accounts))
@@ -206,6 +211,7 @@ function createMachineCommands(
     ...binding,
     runtime: binding,
     routines,
+    pauses: parts.services?.pauses ?? undefined,
     sessionFor: live.sessionFor,
     openDialogs: live.openDialogs,
     dialogGuard: (laneId, response, client) =>
@@ -241,9 +247,30 @@ export async function startRunMachine(
   const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
   parts.log = log
   ports.headroom?.activate(machine.env)
+  if (context.platform === 'darwin')
+    retireUpdateJobAtStart(
+      ports.stateDirectory,
+      context.uid,
+      serviceRunner(context.env, () => {}),
+      (event, fields) => log.write('host', event, fields),
+    )
   const started = await startRuntime(context, parts, ports, machine, log)
-  parts.services = createRunServices(machine.shellEnvironment, ports.appServices, ports.headroom)
   const { live, runtime, routines } = started
+  const now = context.now ?? Date.now
+  const pausePorts = hostLanePausePorts({
+    store: ports.store,
+    live,
+    routines,
+    runtime,
+    now,
+    log: log.write,
+  })
+  parts.services = createRunServices(
+    machine.shellEnvironment,
+    ports.appServices,
+    ports.headroom,
+    pausePorts,
+  )
   const {
     features: administrationFeatures,
     commands,

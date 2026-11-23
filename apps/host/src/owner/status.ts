@@ -1,5 +1,9 @@
 import type { HostReleaseFeature } from '@phosphor/shared/host-release'
-import type { LocalStatus, OwnerLockStatus } from '@phosphor/shared/host-protocol-owner'
+import type {
+  LocalStatus,
+  OwnerLockStatus,
+  ServicePauseState,
+} from '@phosphor/shared/host-protocol-owner'
 import type { OwnerLockRecord } from '@phosphor/session-runtime/owner-lock/types'
 import type { ControlLinkState } from '../control/link'
 import type { LocalDaemon } from '../commands/run-local'
@@ -14,6 +18,10 @@ export interface LocalStatusPorts {
   features(): readonly HostReleaseFeature[]
   /** The machine's owner lock record, or null when nobody holds it. */
   ownerLock(): Promise<Pick<OwnerLockRecord, 'owner' | 'pid'> | null>
+  /** The service pause while lanes run. Absent: the field stays out. */
+  pause?(): ServicePauseState
+  /** The last update's outcome from `update-result.json`. Absent: the field stays out. */
+  lastUpdate?(): LocalStatus['lastUpdate']
 }
 
 function enrollment(
@@ -57,5 +65,7 @@ export async function localStatus(
     features: ports.features(),
     ...enrollment(link?.state()),
     ownerLock,
+    ...(ports.pause ? { pause: ports.pause() } : {}),
+    ...(ports.lastUpdate ? { lastUpdate: ports.lastUpdate() } : {}),
   }
 }

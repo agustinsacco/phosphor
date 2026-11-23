@@ -1,4 +1,4 @@
-import type { LaneSummary } from '@phosphor/shared/host-protocol'
+import type { LanePause, LaneSummary } from '@phosphor/shared/host-protocol'
 import type { LaneProjection } from '@phosphor/session-runtime/lanes/projection'
 import type { createHostLaneProjection, SnapshotResult } from '../projection-host'
 import type { HostStore } from '../store'
@@ -39,6 +39,8 @@ export type LiveOptions = {
   gitTracking?: GitProbe
   /** Reads a lane file's PR signals. Absent: summaries carry no `pullRequests`. */
   lanePrs?: LanePrRead
+  /** The lane's service-update pause. Absent: summaries carry no `pause`. */
+  pauseFor?(laneId: string): LanePause | undefined
 }
 
 export type LiveState = {

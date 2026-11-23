@@ -97,6 +97,7 @@ function shareLanes(
     service: lanes,
     adapter,
     peers: () => parts.api?.connections() ?? [],
+    pauses: parts.services?.pauses ?? undefined,
   })
   return adapter
 }

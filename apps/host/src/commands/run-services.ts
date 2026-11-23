@@ -1,5 +1,5 @@
 import type { HostReleaseFeature } from '@phosphor/shared/host-release'
-import { createLanePauses, FEATURE as PAUSE_FEATURE } from '../lanes/pause'
+import { createLanePauses, FEATURE as PAUSE_FEATURE, type LanePausePorts } from '../lanes/pause'
 import { type HostShellEnvironment, FEATURE as SHELL_FEATURE } from '../machine/shell-environment'
 import { FEATURE as OPS_FEATURE } from '../ops/service'
 import { createReach, FEATURE as REACH_FEATURE } from '../reach'
@@ -23,12 +23,13 @@ export function createRunServices(
   shellEnvironment?: HostShellEnvironment,
   appServices?: AppServices,
   headroom?: DaemonHeadroom,
+  pauses?: LanePausePorts,
 ) {
   return {
     reach: createReach(),
     headroom: headroom ?? null,
     appServices: appServices ?? null,
-    pauses: createLanePauses(),
+    pauses: pauses ? createLanePauses(pauses) : null,
     shellEnvironment: shellEnvironment ?? null,
   }
 }

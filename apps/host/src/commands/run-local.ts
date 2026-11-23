@@ -16,6 +16,7 @@ import { readLocalMode, readSidecar } from '../config/sidecar'
 import { IdentityFailure } from '../control/identity'
 import { EnrollmentRefused, type ControlLink, type EnrollmentOffer } from '../control/link'
 import { hostStateDirectory } from '../lanes/state-dir'
+import type { LanePauses } from '../lanes/pause'
 import type { LaneService } from '../lanes/service'
 import type { HostStore } from '../lanes/store'
 import type { LaneAdapter } from '../api/lanes'
@@ -60,6 +61,8 @@ export interface LocalSocketLanes {
   adapter: LaneAdapter
   /** The TCP listener's connections, so `connectionsPerClient` holds across both listeners. */
   peers(): Iterable<{ clientId(): string | undefined }>
+  /** The service pause `machine.pause` drives, while lanes run. */
+  pauses?: LanePauses
 }
 
 /** The owner socket as run drives it. */

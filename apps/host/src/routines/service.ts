@@ -12,6 +12,7 @@ import { prepareStateDirectory, prepareStateFile } from '../lanes/state-dir'
 import { createRoutineExecutor } from './runner'
 import { admittedRoutineRoot, executeRoutineOperation } from './operations'
 import { createRoutineQueries } from './queries'
+import { PAUSED_MESSAGE } from '../lanes/pause'
 import type { HostRoutineOptions, HostRoutineState } from './service-state'
 
 export function routineOwnership(cancel: (id: string) => Promise<void>) {
@@ -41,11 +42,13 @@ export function createHostRoutines(options: HostRoutineOptions) {
       now,
       () => {},
       {
+        // A pause stops ticks, so queued runs wait for it instead of being skipped.
         get closing() {
-          return state.closing
+          return state.closing || options.paused?.() === true
         },
         assertCanStart() {
           if (state.closing) throw new Error('stopping')
+          if (options.paused?.()) throw new Error(PAUSED_MESSAGE)
           options.runtime.life.assertReady()
         },
       },
@@ -62,6 +65,10 @@ export function createHostRoutines(options: HostRoutineOptions) {
       state.scheduler.start()
     },
     stop,
+    /** Runs in flight, for a service pause to wait on. */
+    running: () => repository.pending().filter((run) => run.status === 'running').length,
+    /** A pause ended: start whatever queued while it held. */
+    resume: () => state.scheduler.tick(),
     async close() {
       await stop()
       if (!state.closed) {

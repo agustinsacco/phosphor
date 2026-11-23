@@ -1,4 +1,4 @@
-import { createDrain } from './lifecycle'
+import { createDrain, endTurn } from './lifecycle'
 import { createRuntimeOperations } from './runtime-operations'
 import { createRuntimeState, type HostMachine, type RuntimeOptions } from './runtime-state'
 import { wireRuntimeDeletion, wireRuntimeService, wireRuntimeStartup } from './runtime-wiring'
@@ -38,6 +38,18 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     ...(options.leases ? { leases: options.leases } : {}),
     life: state.life,
     drain,
+    /** The drain's abort-and-save step, with no stop: a service pause's Abort now. */
+    async abortTurns(): Promise<string[]> {
+      const sessions = state.registry
+        .list()
+        .flatMap((info) => state.registry.get(info.sessionId) ?? [])
+      const ends = await Promise.all(
+        sessions.map((session) =>
+          endTurn(session.client, state.timings.abortMs).catch(() => 'unfinished' as const),
+        ),
+      )
+      return sessions.flatMap((session, i) => (ends[i] === 'idle' ? [] : [session.sessionId]))
+    },
     async mutateStoppedSession<T>(path: string, change: () => Promise<T>): Promise<T> {
       state.paths.cancelSessionOpens(path)
       return state.paths.withSessionPath(path, async () => {

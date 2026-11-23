@@ -23,8 +23,10 @@ import { publicIdentity } from '../control/signer'
 import { runServiceFeatures } from '../commands/run-services'
 import type { RunContext } from '../commands/run'
 import type { LocalDaemon, LocalSocket, StartLocalSocket } from '../commands/run-local'
+import { answerPauseCall, PAUSE_NONE, type LanePauses } from '../lanes/pause'
 import { hostStateDirectory } from '../lanes/state-dir'
 import type { HostStore } from '../lanes/store'
+import { readUpdateResult } from '../update/health'
 import type { OpsAdapterPorts } from '../ops/adapter'
 import { createAppServices, type AppServices } from '../session/app-services'
 import { HOST_VERSION } from '../version'
@@ -71,14 +73,22 @@ async function readLocalIdentity(
   return { identity: read.value, key }
 }
 
-/** The calls D3 serves: the machine's status, identity re-read and in-process enrollment. */
+/**
+ * The calls D3 serves (the machine's status, identity re-read and in-process
+ * enrollment) and D4's `machine.pause`, which reaches the pause once lanes run.
+ */
 function daemonHandlers(
   context: RunContext,
   daemon: LocalDaemon,
   machineId: string,
   appServices: AppServices,
+  pausing: { current?: LanePauses },
 ): OwnerHandlers {
   const agentDir = piAgentDir(context.env, context.home)
+  const state = hostStateDirectory(context.env, context.home)
+  const now = context.now ?? Date.now
+  const log = (event: string, fields: Record<string, unknown>) =>
+    context.log?.('host', event, fields)
   const statusPorts = {
     machineId,
     hostVersion: HOST_VERSION,
@@ -86,9 +96,16 @@ function daemonHandlers(
     features: runServiceFeatures,
     appServices: appServices.status,
     ownerLock: () => readOwnerLock(agentDir, context.uid),
+    pause: () => pausing.current?.state() ?? PAUSE_NONE,
+    lastUpdate: () => readUpdateResult(state, context.uid, now()),
   }
   return {
     ...leaseHandlers(() => daemon.leases?.()),
+    'machine.pause': async (params) => {
+      const answer = answerPauseCall(pausing.current ?? null, params, log)
+      if (answer) return answer
+      throw new OwnerCallRefused('unsupported', 'This Phosphor service runs no lanes yet.')
+    },
     'machine.local': (_params, call) => localStatus(statusPorts, call.principal),
     'machine.identity.reload': async () => {
       await daemon.link()?.reload()
@@ -185,8 +202,9 @@ function ownerSocket(
     const uid = context.uid
     const { identity, key } = await readLocalIdentity(dirname(resolve(context.configPath)), uid)
     const owned = await options.owner?.({ daemon, store, machineId: identity.machineId })
+    const pausing: { current?: LanePauses } = {}
     const handlers = {
-      ...daemonHandlers(context, daemon, identity.machineId, appServices),
+      ...daemonHandlers(context, daemon, identity.machineId, appServices, pausing),
       ...options.handlers,
       ...owned,
     }
@@ -236,14 +254,22 @@ function ownerSocket(
     return {
       appServices,
       connections: server.connections,
-      serveLanes: (lanes) =>
-        server.serveLanes({
+      serveLanes: (lanes) => {
+        pausing.current = lanes.pauses
+        const serving = server.serveLanes({
           epoch: lanes.service.epoch,
           capabilities: lanes.service.capabilities,
           links: hostLinks(options.ops, handlers),
           handler: lanes.adapter.handler,
           peers: lanes.peers,
-        }),
+        })
+        return {
+          stop: async () => {
+            pausing.current = undefined
+            await serving.stop()
+          },
+        }
+      },
       async stop() {
         try {
           removeLocalRun(state, uid)
