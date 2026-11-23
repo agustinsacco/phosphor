@@ -461,3 +461,13 @@ it.each([
     expect(header?.textContent).not.toContain('other-repository-id')
   }
 })
+
+it('the service home switches Host folders, not in-app workspaces', async () => {
+  const host = { ...mockRemoteHosts[MOCK_HOST_ID]!, local: true as const }
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: MOCK_HOST_ID })
+  useSessionsStore.setState({ activeSessionId: null })
+  await act(async () => root.render(<Sidebar workspacePath="" />))
+  act(() => container.querySelector<HTMLButtonElement>('[data-testid=workspace-switcher]')!.click())
+  expect(document.body.textContent).toContain(`Add folder on ${localMachineLabel()}`)
+  expect(document.body.textContent).not.toContain('Open Folder…')
+})
