@@ -22,7 +22,7 @@ export const identity = (s) => [
   String(s.mtimeNs),
 ]
 
-export async function hashFile(path, expected) {
+export async function openVerified(path, expected) {
   const f = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   try {
     const stat = await f.stat({ bigint: true })
@@ -32,6 +32,16 @@ export async function hashFile(path, expected) {
       JSON.stringify(identity(stat)) !== JSON.stringify(expected)
     )
       throw new Error('Source identity changed')
+    return f
+  } catch (error) {
+    await f.close()
+    throw error
+  }
+}
+
+export async function hashFile(path, expected) {
+  const f = await openVerified(path, expected)
+  try {
     const hash = createHash('sha256')
     for await (const chunk of f.createReadStream({ autoClose: false })) hash.update(chunk)
     return hash.digest('hex')

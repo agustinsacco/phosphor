@@ -1,8 +1,9 @@
-import { constants } from 'node:fs'
-import { copyFile, mkdir, readdir, lstat, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, lstat, realpath, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { checkDescendants, checkedLayout, flags, inside, main } from './assert-scratch.mjs'
-import { hashFile, identity, manifestChanges, snapshot } from './manifest.mjs'
+import { manifestChanges, snapshot } from './manifest.mjs'
+
+import { cloneFile } from './clone.mjs'
 
 const json = (path, data) =>
   writeFile(path, JSON.stringify(data) + '\n', { flag: 'wx', mode: 0o600 })
@@ -14,30 +15,6 @@ async function sourceRoot(input) {
   const path = await realpath(input)
   if (dirname(path) === path) throw new Error('Root cannot be a source')
   return path
-}
-
-async function cloneFile(source, dest, entry) {
-  const id = identity(await lstat(source, { bigint: true }))
-  if (
-    (await realpath(source)) !== source ||
-    JSON.stringify(entry.slice(1, -1)) !== JSON.stringify(id)
-  )
-    throw new Error('Source changed before copy')
-  let cloned = true
-  try {
-    await copyFile(source, dest, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE_FORCE)
-  } catch (err) {
-    if (!['ENOTSUP', 'ENOSYS', 'EXDEV', 'EINVAL', 'EOPNOTSUPP'].includes(err.code)) throw err
-    cloned = false
-    await copyFile(source, dest, constants.COPYFILE_EXCL)
-  }
-  const stat = await lstat(dest, { bigint: true })
-  if (
-    (String(stat.dev) === id[0] && String(stat.ino) === id[1]) ||
-    (await hashFile(dest, identity(stat))) !== entry.at(-1)
-  )
-    throw new Error('Copy verification failed')
-  return cloned
 }
 
 export async function prepare(input, user, agent) {
