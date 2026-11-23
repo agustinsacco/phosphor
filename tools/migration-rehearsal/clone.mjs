@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { spawnSync } from 'node:child_process'
 import { constants, createWriteStream } from 'node:fs'
 import { lstat, open, utimes } from 'node:fs/promises'

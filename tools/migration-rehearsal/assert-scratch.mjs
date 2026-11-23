@@ -1,3 +1,6 @@
+import process from 'node:process'
+import console from 'node:console'
+import { Buffer } from 'node:buffer'
 import { execFileSync } from 'node:child_process'
 import { lstatSync, realpathSync } from 'node:fs'
 import { tmpdir, userInfo } from 'node:os'

@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { execFileSync, spawn } from 'node:child_process'
 import { createPublicKey, generateKeyPairSync, randomInt, randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'

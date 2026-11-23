@@ -1,3 +1,5 @@
+import process from 'node:process'
+import console from 'node:console'
 import { access, lstat, mkdir, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'

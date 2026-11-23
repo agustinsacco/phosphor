@@ -1,3 +1,5 @@
+import process from 'node:process'
+import console from 'node:console'
 import { mkdir, readdir, lstat, realpath, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { checkDescendants, checkedLayout, flags, inside, main } from './assert-scratch.mjs'
