@@ -16,7 +16,7 @@ import { brainHandlers } from './brain'
 import { conversationHandlers } from './conversation'
 import { inventoryHandlers } from './inventory'
 import { controlHandlers, markHandlers, deferred } from './controls'
-import { liveOpLane, localLaneRef, resolveLiveLane, findDiskLane } from './lanes'
+import { liveOpLane, liveOpRef, resolveLiveLane, findDiskLane } from './lanes'
 import { activeDesktopOps, installDesktopOps } from './lifecycle'
 import type { OpsBinding } from '@phosphor/session-runtime/ops/types'
 
@@ -65,12 +65,13 @@ export function openDesktopOps(userData: string) {
     const dispatcher = createOpsDispatcher(binding, {
       parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
       agentFor: (id) => {
+        const laneRef = liveOpRef(id)
         const lane = liveOpLane(id)
-        return lane
+        return lane && laneRef
           ? {
               kind: 'agent',
               sessionId: id,
-              laneRef: localLaneRef(id),
+              laneRef,
               lineage: 0,
               unattended: lane.unattended,
             }

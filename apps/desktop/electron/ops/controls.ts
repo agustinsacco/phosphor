@@ -8,7 +8,7 @@ import type { LaneEffect } from '@phosphor/shared/ops'
 import { CONTEXT_FILE_KINDS, type ContextFilePrefs } from '@shared/context-files'
 import type { RpcCommand, ThinkingLevel } from '@shared/rpc'
 import { broadcast } from '../broadcast'
-import { lanePath, liveOpLane, localLaneRef, targetLane } from './lanes'
+import { lanePath, liveOpLane, liveOpRef, targetLane } from './lanes'
 import { op } from './results'
 
 async function command(id: string, rpc: RpcCommand) {
@@ -41,12 +41,14 @@ export const deferred: OpsBinding['deferred'] = {
   async apply(id, items) {
     for (const item of items) {
       await command(id, deferredCommand(item))
-      broadcast('ops:changed', {
-        machine: 'local',
-        kind: 'lane',
-        laneRef: localLaneRef(id),
-        fields: [item.kind],
-      })
+      const laneRef = liveOpRef(id)
+      if (laneRef)
+        broadcast('ops:changed', {
+          machine: 'local',
+          kind: 'lane',
+          laneRef,
+          fields: [item.kind],
+        })
     }
     return { ok: true }
   },

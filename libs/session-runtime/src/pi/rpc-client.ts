@@ -128,6 +128,11 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     return this.ops.pendingCount
   }
 
+  private learnedSessionId: string | undefined
+  get piSessionId(): string | undefined {
+    return this.learnedSessionId
+  }
+
   private learnedSessionFile: string | undefined
 
   /** Updated before get_state reaches any caller, including routine execution. */
@@ -358,6 +363,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       this.activity.responded(response)
       if (response.command === 'get_state' && response.success) {
         const state = response.data as RpcResponseDataMap['get_state'] | undefined
+        if (typeof state?.sessionId === 'string') this.learnedSessionId = state.sessionId
         if (state?.sessionFile && state.sessionFile !== this.learnedSessionFile) {
           this.learnedSessionFile = state.sessionFile
           this.emit('session-file', state.sessionFile)

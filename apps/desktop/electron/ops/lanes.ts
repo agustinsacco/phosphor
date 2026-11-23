@@ -12,7 +12,7 @@ interface Entry {
   brain?: BrainOpsPort
 }
 const entries = new Map<string, Entry>()
-export const localLaneRef = (id: string) => `local/session:${id}`
+const localLaneRef = (id: string) => `local/session:${id}`
 export function rememberOpLane(
   session: LiveSession,
   title: string | undefined,
@@ -28,14 +28,20 @@ export function rememberOpLane(
   }
 }
 export const liveOpLane = (id: string) => entries.get(id)
-export const liveOpLanes = () => Array.from(entries.values()).map((e) => liveFacts(e))
+export function liveOpRef(handle: string) {
+  const piId = liveOpLane(handle)?.session.client.piSessionId
+  return piId ? localLaneRef(piId) : null
+}
+export const liveOpLanes = () => Array.from(entries.values()).flatMap((e) => liveFacts(e) ?? [])
 export interface DesktopLane extends LaneFacts {
   path?: string
   meta?: SessionMeta
 }
-function liveFacts({ session, title }: Entry): DesktopLane {
+function liveFacts({ session, title }: Entry): DesktopLane | null {
+  const ref = liveOpRef(session.sessionId)
+  if (!ref) return null
   return {
-    ref: localLaneRef(session.sessionId),
+    ref,
     sessionId: session.sessionId,
     title,
     cwd: session.workspacePath,
@@ -45,8 +51,7 @@ function liveFacts({ session, title }: Entry): DesktopLane {
   }
 }
 export function resolveLiveLane(ref: string): DesktopLane | null {
-  const entry = entries.get(ref.replace(/^local\/session:/, ''))
-  return entry ? liveFacts(entry) : null
+  return liveOpLanes().find((lane) => lane.ref === ref) ?? null
 }
 export function targetLane(ctx: OpHandlerContext): DesktopLane {
   if (!ctx.lane) throw new OpRefusal('bad-request', 'Name a local lane.')
