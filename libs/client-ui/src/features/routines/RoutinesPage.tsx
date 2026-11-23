@@ -32,7 +32,7 @@ import {
   useRoutinesStore,
   type EditorDraft,
 } from '@/stores/routines'
-import { useSessionsStore } from '@/stores/sessions'
+import { openRun } from './openRun'
 import { ActivityAccordion } from './ActivityAccordion'
 import { RoutineDetail, routineTone, scheduleLabel } from './RoutineDetail'
 import { RoutineEditor } from './RoutineEditor'
@@ -224,37 +224,6 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
       const rank = (r: Routine): number => (r.attention ? 0 : running(r.id) ? 1 : r.enabled ? 2 : 3)
       return rank(a) - rank(b) || a.name.localeCompare(b.name)
     })
-
-  /**
-   * Hand this run's lane back to its workspace, then open it.
-   *
-   * Opening is the promotion: there is no read-only transcript view in
-   * Phosphor — reopening a session file spawns a real pi process — so a lane
-   * you have opened is one you own, and it has to be reachable from the
-   * sidebar rather than only from this page.
-   */
-  const openRun = async (run: RoutineRun): Promise<void> => {
-    if (run.id.startsWith('host:')) throw new Error('Output not available from this machine yet')
-    const store = useSessionsStore.getState()
-    if (run.sessionPath) await window.phosphor.invoke('routines:promoteRun', run.id)
-    const live = (await window.phosphor.invoke('pi:listLiveSessions')).find(
-      (s) => s.sessionId === run.sessionId,
-    )
-    if (live) {
-      await store.adoptSession(live.sessionId, live.workspacePath, run.sessionPath ?? undefined)
-      store.activate(live.sessionId)
-    } else if (run.sessionPath && run.workspacePath) {
-      // A live view may have watched this routine finish and be disposed.
-      if (run.sessionId && store.live[run.sessionId]) await store.disposeSession(run.sessionId)
-      const sessionId = await store.createSession(run.workspacePath, {
-        sessionPath: run.sessionPath,
-      })
-      store.activate(sessionId)
-    } else
-      throw new Error(
-        'No transcript is available yet. The run may have stopped before pi saved its first message.',
-      )
-  }
 
   return (
     <PageShell

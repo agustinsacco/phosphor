@@ -102,3 +102,38 @@ it('undo of a pause cannot enable a routine whose trust was cleared', async () =
   row.trusted = false
   expect(await routineUndoCurrent(deps, entry)).toBe(false)
 })
+
+it('links only an existing non-removed lane without exposing transcript paths', async () => {
+  const gone = '22222222-2222-4222-8222-222222222222'
+  const deps = {
+    selfIds: () => ['here'],
+    store: {
+      listLanes: () => [
+        { laneId: 'open', sessionFile: '/kept', removedAt: null },
+        { laneId: 'lost', sessionFile: '/gone', removedAt: 'then' },
+      ],
+    },
+    routines: { sessionPathForRun: (i: string) => (i === id ? '/kept' : '/gone') },
+    lanes: {
+      calls: {
+        call: async () => ({
+          ok: true,
+          data: [id, gone].map((i) => ({
+            id: i,
+            routineId: id,
+            scheduledAt: 0,
+            endedAt: 1,
+            startedAt: 0,
+            status: 'finished',
+          })),
+        }),
+      },
+    },
+  } as unknown as DaemonHandlerDeps
+  const answer = await routineHandlers(deps)['routine.activity']!({}, {} as never)
+  expect(answer.data).toEqual([
+    expect.objectContaining({ id, laneRef: 'host:here/lane:open' }),
+    expect.not.objectContaining({ laneRef: expect.anything() }),
+  ])
+  expect(answer.text).not.toMatch(/\/kept|\/gone/)
+})

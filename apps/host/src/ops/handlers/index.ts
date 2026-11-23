@@ -43,7 +43,8 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly settingsOps?: SettingsOps
   readonly ownerFolders?: () => readonly RepositorySummary[]
   readonly repositories?: Pick<ReturnType<typeof createRepositories>, 'execute'>
-  readonly routines?: Pick<HostRoutines, 'execute'>
+  readonly routines?: Pick<HostRoutines, 'execute'> &
+    Partial<Pick<HostRoutines, 'sessionPathForRun'>>
   readonly skills?: SkillPorts
   readonly sandboxes?: ReturnType<typeof createHostSandboxes>
   readonly store: HostStore

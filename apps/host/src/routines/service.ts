@@ -61,6 +61,7 @@ export function createHostRoutines(options: HostRoutineOptions) {
   return {
     feature: createRoutineQueries(state),
     scheduler: state.scheduler,
+    sessionPathForRun: (id: string) => repository.run(id).sessionPath,
     start() {
       state.scheduler.start()
     },
