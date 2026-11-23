@@ -17,6 +17,8 @@ vi.mock('./BranchControl', () => ({
   }) => <button onClick={() => selectPath('/configured')}>{workspacePath}</button>,
 }))
 it('uses the ready local projection for native Git and selects the configured folder on that Host', () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke: vi.fn().mockResolvedValue(undefined) })
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
   const sessionId = mockRemoteInfo.sessionId
   host.repositories = [{ ...host.repositories[0]!, path: '/configured' }]
@@ -38,5 +40,6 @@ it('uses the ready local projection for native Git and selects the configured fo
     })
   } finally {
     act(() => root.unmount())
+    vi.unstubAllGlobals()
   }
 })
