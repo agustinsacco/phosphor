@@ -1,0 +1,66 @@
+{
+  "features/chat/ChatView.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/Composer.tsx": {
+    "protocol": 2,
+    "same-machine": 0
+  },
+  "features/chat/MessageItem.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/ComposerInput.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/ContextMeter.tsx": {
+    "protocol": 2,
+    "same-machine": 0
+  },
+  "features/chat/composer/ContextSourcesMenu.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/ContinueButton.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/ModelPicker.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/PlanUsageView.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/laneContextSource.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/queueActions.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/useSessionModelActions.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/composer/useSessionModelSwitch.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/hostRewind.ts": {
+    "protocol": 2,
+    "same-machine": 0
+  },
+  "features/chat/subagentReads.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/chat/subagentView.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  }
+}

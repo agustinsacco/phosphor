@@ -1,3 +1,5 @@
+import { editingError, useTreeActions } from '@/features/chat/treeViewActions'
+import { readHostTree, type HostEditLane } from '@/features/chat/hostLaneEditing'
 import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -5,9 +7,7 @@ import clsx from 'clsx'
 import type { SessionMeta } from '@shared/models'
 import type { SessionTree } from '@shared/ipc'
 import { buildTreeLayout, type DisplayNode } from './treeLayout'
-import { useSessionsStore } from '@/stores/sessions'
 import { useEscapeKey } from '@/components/Modal'
-import { promptText } from '@/stores/prompt'
 import { panBy, zoomAtPoint } from './panZoom'
 import { sessionTitle } from '@/lib/sessionTitle'
 
@@ -19,17 +19,18 @@ const NODE_HEIGHT = 64
 /** Interactive session tree: pan/zoom, jump, fork-at-node, label, preview. */
 export function TreeViewModal({
   meta,
+  hostLane,
   workspacePath,
   onClose,
 }: {
-  meta: SessionMeta
+  hostLane?: HostEditLane
+  meta: Pick<SessionMeta, 'path' | 'firstUserText' | 'name'>
   workspacePath: string
   onClose: () => void
 }): React.JSX.Element {
   const [tree, setTree] = useState<SessionTree | null>(null)
   const [selected, setSelected] = useState<DisplayNode | null>(null)
   const [transform, setTransform] = useState({ x: 60, y: 40, scale: 1 })
-  const [busy, setBusy] = useState<string | null>(null)
   const dragRef = useRef<{
     startX: number
     startY: number
@@ -38,8 +39,12 @@ export function TreeViewModal({
   } | null>(null)
 
   const reload = useCallback((): void => {
-    void window.phosphor.invoke('sessions:readTree', meta.path).then(setTree)
-  }, [meta.path])
+    void (
+      hostLane ? readHostTree(hostLane) : window.phosphor.invoke('sessions:readTree', meta.path)
+    )
+      .then(setTree)
+      .catch(editingError)
+  }, [hostLane, meta.path])
 
   useEffect(() => reload(), [reload])
 
@@ -84,64 +89,16 @@ export function TreeViewModal({
     dragRef.current = null
   }
 
-  // ---------- node actions ----------
-
-  const withSessionClosed = async (action: () => Promise<void>): Promise<void> => {
-    const store = useSessionsStore.getState()
-    const live = Object.values(store.live).find((l) => l.diskPath === meta.path)
-    if (live) await store.disposeSession(live.phosphorId)
-    await action()
-    await store.refreshDisk(workspacePath)
-  }
-
-  const jumpHere = async (node: DisplayNode): Promise<void> => {
-    setBusy('Jumping…')
-    try {
-      await withSessionClosed(async () => {
-        await window.phosphor.invoke('sessions:jump', meta.path, node.id)
-      })
-      const metas = await window.phosphor.invoke('sessions:list', workspacePath)
-      const updated = metas.find((m) => m.path === meta.path)
-      if (updated) await useSessionsStore.getState().openDiskSession(workspacePath, updated)
-      onClose()
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const forkHere = async (node: DisplayNode): Promise<void> => {
-    setBusy('Forking…')
-    try {
-      const newPath = await window.phosphor.invoke('sessions:forkAt', meta.path, node.id)
-      await useSessionsStore.getState().refreshDisk(workspacePath)
-      const metas = await window.phosphor.invoke('sessions:list', workspacePath)
-      const created = metas.find((m) => m.path === newPath)
-      if (created) await useSessionsStore.getState().openDiskSession(workspacePath, created)
-      onClose()
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const labelNode = async (node: DisplayNode): Promise<void> => {
-    const label = await promptText({
-      title: 'Label this point',
-      message: 'Empty to clear the label',
-      initialValue: node.label ?? '',
-      allowEmpty: true,
-    })
-    if (label === undefined) return
-    setBusy('Labeling…')
-    try {
-      await withSessionClosed(async () => {
-        await window.phosphor.invoke('sessions:appendLabel', meta.path, node.id, label || undefined)
-      })
+  const { busy, jumpHere, forkHere, labelNode } = useTreeActions(
+    meta.path,
+    workspacePath,
+    hostLane,
+    onClose,
+    () => {
       reload()
       setSelected(null)
-    } finally {
-      setBusy(null)
-    }
-  }
+    },
+  )
 
   return createPortal(
     <div className="bg-bg/95 fixed inset-0 z-40 flex flex-col backdrop-blur-sm">

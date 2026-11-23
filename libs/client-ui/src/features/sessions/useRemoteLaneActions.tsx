@@ -1,3 +1,4 @@
+import { HostTreeDialog, useEditingMenu } from '@/features/chat/HostTreeDialog'
 import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
@@ -28,7 +29,7 @@ import { MarkerPickerModal } from './MarkerPickerModal'
 import { useSessionOrderActions } from './SessionList'
 
 const ACTION_FAILED = 'The Host could not confirm this. Check the lane before retrying.'
-type LaneDialog = 'delete' | 'marker' | null
+type LaneDialog = 'delete' | 'marker' | 'tree' | null
 type HostLaneChannel =
   | 'hosts:takeControl'
   | 'hosts:releaseControl'
@@ -85,6 +86,7 @@ export function useRemoteLaneActions({
     entry?.phosphorId,
     runner.busy,
   )
+  const editing = useEditingMenu(hostId, lane, () => setDialog('tree'), runner.act)
   const access = remoteLaneAccess(state)
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
@@ -104,7 +106,6 @@ export function useRemoteLaneActions({
     onMarked: () => onDone?.(),
   })
 
-  /** Names the lane through its live session; resolves false when the Host refused. */
   const saveName = async (name: string): Promise<boolean> =>
     access.controlled && access.running && !!name.trim() && !state.busy
       ? runner.act(async () => renameLane(await session(), name.trim()))
@@ -122,7 +123,8 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] => laneActions(hostLaneContext(state), handlers, orderActions),
+    items: (): ContextMenuItem[] =>
+      laneActions(hostLaneContext(state), { ...handlers, ...editing }, orderActions),
     dialogs,
     title,
     busy: state.busy,
@@ -302,6 +304,8 @@ function RemoteLaneDialogs({
   const hostLanes = useRemoteLanesStore((s) =>
     dialog === 'marker' ? s.hosts[hostId]?.lanes : undefined,
   )
+  if (dialog === 'tree')
+    return <HostTreeDialog hostId={hostId} laneId={lane.laneId} title={title} onClose={onClose} />
   if (dialog === 'delete')
     return (
       <RemoteLaneDeleteDialog

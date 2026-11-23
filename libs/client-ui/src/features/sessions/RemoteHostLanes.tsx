@@ -1,3 +1,4 @@
+import { useLaneEditing, visibleHostLanes } from '@/features/chat/hostLaneEditing'
 import { useState } from 'react'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { Button } from '@/components/form'
@@ -26,6 +27,7 @@ export function RemoteHostLanes({
   density?: LaneGroupDensity
 }): React.JSX.Element {
   const ready = useMachineCaps(hostId).ready
+  const visible = useLaneEditing(hostId) ? visibleHostLanes(lanes) : lanes
   const pinned = useRemoteLaneOrder(
     hostId,
     lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation),
@@ -38,7 +40,7 @@ export function RemoteHostLanes({
       )}
       {groupRemoteLanes(
         repositories,
-        lanes.filter((lane) => !lane.pinned),
+        visible.filter((lane) => !lane.pinned),
       ).map((group) => (
         <RemoteRepositoryGroup
           key={group.repositoryId}

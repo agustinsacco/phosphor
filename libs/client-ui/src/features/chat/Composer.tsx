@@ -1,3 +1,4 @@
+import { offersLaneEditing } from './hostLaneEditing'
 import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
 import { TooltipButton } from '@/components/Tooltip'
@@ -340,10 +341,9 @@ export function Composer({
       void abort()
       return
     }
-    // Esc Esc → rewind, as in Claude Code. The first press is left alone so
-    // it can still blur/close whatever else is listening.
+    // Esc Esc → rewind; leave the first press alone.
     const now = Date.now()
-    if (!remote && now - lastEscapeRef.current < DOUBLE_ESCAPE_MS) {
+    if ((!remote || offersLaneEditing(host)) && now - lastEscapeRef.current < DOUBLE_ESCAPE_MS) {
       event.preventDefault()
       lastEscapeRef.current = 0
       useChatUiStore.getState().openForkPicker(sessionId)

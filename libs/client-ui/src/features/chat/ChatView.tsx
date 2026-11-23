@@ -1,3 +1,4 @@
+import { useRewindAvailable } from './hostRewind'
 import { SessionFileTarget } from '@/features/files/SessionFileTarget'
 import { useRemoteLanesStore, readOnlyLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -36,6 +37,7 @@ export function ChatView({
   // A lane whose Host is retrying keeps its composer, locked: it is waiting, not read-only.
   const readOnly = readOnlyLane(sessionId)
   // A header that carries the controller state and actions would only be repeated by the row.
+  const rewindAvailable = useRewindAvailable(sessionId)
   const header = laneControls === 'header'
   return (
     <SessionFileTarget.Provider value={sessionId}>
@@ -55,7 +57,7 @@ export function ChatView({
           <Composer sessionId={sessionId} workspacePath={workspacePath} />
         )}
         <StatusStrip sessionId={sessionId} />
-        {!remote && <ForkPickerModal sessionId={sessionId} />}
+        {rewindAvailable && <ForkPickerModal sessionId={sessionId} />}
       </div>
     </SessionFileTarget.Provider>
   )
