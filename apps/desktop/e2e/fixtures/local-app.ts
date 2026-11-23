@@ -76,6 +76,7 @@ export async function launch(
     userDataDir?: string
     /** Override the run-wide agent dir; see `privateAgentDir`. */
     agentDir?: string
+    args?: string[]
     env?: Record<string, string>
   } = {},
 ): Promise<Harness> {
@@ -83,7 +84,7 @@ export async function launch(
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
 
   const app = await electron.launch({
-    ...desktopElectronLaunchOptions([repoRoot]),
+    ...desktopElectronLaunchOptions([repoRoot, ...(options.args ?? [])]),
     env: {
       ...devServerEnvStripped(),
       NODE_ENV: 'production',

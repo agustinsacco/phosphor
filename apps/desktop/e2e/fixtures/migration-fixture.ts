@@ -86,7 +86,7 @@ export async function migrationFixtureWorld(roots: MigrationWorldRoots): Promise
   const lanes = {
     checkout: await writeFixtureLane(
       agentDir,
-      'checkout-lane',
+      '11111111-0000-4000-8000-000000000001',
       repository,
       'Checkout migration lane',
     ),
