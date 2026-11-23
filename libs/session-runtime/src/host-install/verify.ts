@@ -4,8 +4,10 @@ import {
   HOST_RELEASE_NAMESPACE,
   HOST_RELEASE_MANIFEST_MAX_BYTES,
   parseHostReleaseManifest,
+  parseHostReleaseManifestV2,
   type HostReleaseKey,
   type HostReleaseManifest,
+  type HostReleaseManifestV2,
   type HostReleaseArtifact,
 } from '@phosphor/shared/host-release'
 
@@ -49,6 +51,22 @@ export function verifyReleaseManifest(
   signature: string,
   keys: readonly HostReleaseKey[] = HOST_RELEASE_KEYS,
 ): HostReleaseManifest {
+  return verifySignedManifest(manifest, signature, keys, parseHostReleaseManifest)
+}
+/** The v2 manifest: same key, namespace and checks; only the parser differs. */
+export function verifyReleaseManifestV2(
+  manifest: Buffer,
+  signature: string,
+  keys: readonly HostReleaseKey[] = HOST_RELEASE_KEYS,
+): HostReleaseManifestV2 {
+  return verifySignedManifest(manifest, signature, keys, parseHostReleaseManifestV2)
+}
+function verifySignedManifest<T>(
+  manifest: Buffer,
+  signature: string,
+  keys: readonly HostReleaseKey[],
+  parse: (value: unknown) => T | null,
+): T {
   try {
     if (
       manifest.length > HOST_RELEASE_MANIFEST_MAX_BYTES ||
@@ -108,7 +126,7 @@ export function verifyReleaseManifest(
       string(createHash('sha512').update(manifest).digest()),
     ])
     if (!verify(null, message, key, signed)) throw new Error()
-    const parsed = parseHostReleaseManifest(JSON.parse(manifest.toString('utf8')))
+    const parsed = parse(JSON.parse(manifest.toString('utf8')))
     if (!parsed) throw new Error()
     return parsed
   } catch {
