@@ -69,6 +69,7 @@ export function ModelChipSkeleton(): React.JSX.Element {
 
 export function ModelChip({
   testId,
+  agentHint,
   title,
   active,
   disabled,
@@ -78,6 +79,7 @@ export function ModelChip({
   grouped,
 }: {
   testId: string
+  agentHint?: string | undefined
   title?: string | undefined
   active: boolean
   /** Home disables the chip until the catalogue lands: a click on a
@@ -96,7 +98,7 @@ export function ModelChip({
       disabled={disabled}
       data-testid={testId}
       data-loading={loading ? 'true' : undefined}
-      title={title}
+      title={[title, agentHint].filter(Boolean).join(' · ') || undefined}
       className={clsx(
         CHIP_CLASS,
         'min-w-0 flex-1 text-left font-medium',
@@ -116,11 +118,13 @@ export function ModelChip({
 
 export function ThinkingChip({
   testId,
+  agentHint,
   active,
   onClick,
   label,
 }: {
   testId: string
+  agentHint?: string | undefined
   active: boolean
   onClick: () => void
   label: string
@@ -129,7 +133,7 @@ export function ThinkingChip({
     <TooltipButton
       onClick={onClick}
       data-testid={testId}
-      tooltip="Thinking level"
+      tooltip={agentHint ? `Thinking level · ${agentHint}` : 'Thinking level'}
       className={clsx(
         CHIP_CLASS,
         'border-border flex shrink-0 cursor-pointer items-center gap-1 rounded-r-md border-l',

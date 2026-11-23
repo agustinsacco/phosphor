@@ -1,3 +1,4 @@
+import { LaneChangesOverlay } from '@/features/agent-control/LaneAgentChanges'
 import { CONFIRM_TITLE_PREFIX } from '@phosphor/shared/ops'
 import { AgentDialog } from '@/features/agent-control/AgentConfirmSheet'
 import { ToastCard } from '@/features/notifications/ToastCard'
@@ -24,7 +25,7 @@ import { AnsiText } from './AnsiText'
 export function ExtensionDialogHost(): React.JSX.Element | null {
   useRemoteLanesStore((s) => s.hosts)
   const dialog = useExtensionUiStore((s) => s.dialogs[0])
-  if (!dialog) return null
+  if (!dialog) return <LaneChangesOverlay />
   if (!canControlSession(dialog.sessionId))
     return (
       <div

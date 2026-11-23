@@ -15,6 +15,7 @@ export function useSessionModelSwitch(
   sessionId: string,
   currentModel: Model | null | undefined,
   remote: boolean,
+  onSelected: () => void,
 ): { switchingTo: string | null; switchTo: (model: Model) => Promise<void> } {
   const [switchingTo, setSwitchingTo] = useState<string | null>(null)
   const switchTo = async (model: Model): Promise<void> => {
@@ -30,6 +31,7 @@ export function useSessionModelSwitch(
         modelId: model.id,
       })
       if (!selected) return
+      onSelected()
       const target = useSessionsStore.getState().live[sessionId]?.target
       if (target?.kind === 'remote') rememberRemoteModel(target.hostId, selected)
       const chat = useChatStore.getState()
