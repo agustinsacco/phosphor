@@ -98,6 +98,128 @@ interface Enrolling {
   done: Promise<void>
 }
 
+/** One link's mutable state, shared by the steps below. */
+interface LinkCore<T extends LinkEnrollment> {
+  ports: ControlLinkPorts<T>
+  state: ControlLinkState
+  session?: LinkSession
+  enrolling?: Enrolling
+  ending: boolean
+  stop: AbortController
+  wake: ReturnType<typeof signalled>
+  listeners: Set<() => void>
+}
+
+function set(core: LinkCore<LinkEnrollment>, next: ControlLinkState) {
+  core.state = next
+  for (const listener of core.listeners) listener()
+}
+
+function notify(core: LinkCore<LinkEnrollment>) {
+  const woken = core.wake
+  core.wake = signalled()
+  woken.resolve()
+}
+
+function connect<T extends LinkEnrollment>(core: LinkCore<T>, enrollment: T) {
+  core.session = core.ports.connect(enrollment)
+  const { hostId, label, ownerLogin } = enrollment.identity
+  set(core, { kind: 'enrolled', hostId, label, ownerLogin })
+  core.ports.log('control.enrolled', { hostId })
+  notify(core)
+}
+
+async function reload<T extends LinkEnrollment>(core: LinkCore<T>) {
+  const busy = () => core.ending || core.session !== undefined || core.enrolling !== undefined
+  if (busy()) return
+  const found = await core.ports.load()
+  if (busy() || !found) return
+  if (core.state.kind === 'removed' && core.state.hostId === found.identity.hostId) return
+  connect(core, found)
+}
+
+/** Waits for a change, or re-reads the identity every `LINK_RECHECK_MS`. */
+async function idle<T extends LinkEnrollment>(core: LinkCore<T>) {
+  const turn = new AbortController()
+  const signal = AbortSignal.any([core.stop.signal, turn.signal])
+  await Promise.race([core.wake.promise, core.ports.wait(LINK_RECHECK_MS, signal).catch(() => {})])
+  turn.abort()
+  if (core.ending || core.session) return
+  await reload(core).catch((error: unknown) =>
+    core.ports.log('control.reload_failed', {
+      code: error instanceof Error ? error.name : 'unknown',
+    }),
+  )
+}
+
+async function run<T extends LinkEnrollment>(core: LinkCore<T>): Promise<number> {
+  while (!core.ending) {
+    if (!core.session) {
+      await idle(core)
+      continue
+    }
+    const code = await core.session.run()
+    if (code !== 77 || !core.ports.local || core.ending) return code
+    const hostId = core.state.kind === 'enrolled' ? core.state.hostId : ''
+    core.session = undefined
+    set(core, { kind: 'removed', at: new Date(core.ports.now()).toISOString(), hostId })
+    core.ports.log('control.removed', { hostId })
+    await core.ports.disconnect()
+  }
+  return 0
+}
+
+function finishEnrollment(core: LinkCore<LinkEnrollment>, previous: ControlLinkState) {
+  core.enrolling = undefined
+  if (core.state.kind === 'enrolling') set(core, previous)
+  notify(core)
+}
+
+async function beginEnrollment<T extends LinkEnrollment>(
+  core: LinkCore<T>,
+): Promise<EnrollmentOffer> {
+  if (core.ending) throw new EnrollmentRefused('stopping')
+  if (core.state.kind === 'enrolling') return core.state.offer
+  if (core.state.kind === 'enrolled') throw new EnrollmentRefused('enrolled')
+  const enroll = core.ports.enroll
+  if (!enroll) throw new EnrollmentRefused('unavailable')
+  const previous = core.state
+  const abort = new AbortController()
+  let offered: ((offer: EnrollmentOffer) => void) | undefined
+  let ended: ((error: Error) => void) | undefined
+  const offer = new Promise<EnrollmentOffer>((resolve, reject) => {
+    offered = resolve
+    ended = reject
+  })
+  const work = enroll(abort.signal, (next) => {
+    if (abort.signal.aborted || core.state.kind === 'enrolled') return
+    set(core, { kind: 'enrolling', offer: next })
+    offered?.(next)
+  })
+  const done = work.then(
+    () => {
+      finishEnrollment(core, previous)
+      ended?.(new EnrollmentRefused('unavailable', 'The enrollment ended without a code.'))
+    },
+    (error: unknown) => {
+      finishEnrollment(core, previous)
+      ended?.(error instanceof Error ? error : new Error('Enrollment failed.'))
+    },
+  )
+  core.enrolling = { abort, done }
+  return offer
+}
+
+async function drain<T extends LinkEnrollment>(core: LinkCore<T>): Promise<{ state: 'stopped' }> {
+  core.ending = true
+  core.stop.abort()
+  core.enrolling?.abort.abort()
+  notify(core)
+  const result = core.session ? await core.session.drain() : { state: 'stopped' as const }
+  await core.enrolling?.done
+  return result
+}
+
 /**
  * The machine's link to control. Lanes never depend on it: enrollment and
  * removal are state changes here, and only the heartbeat and TCP API follow.
@@ -106,135 +228,34 @@ export function createControlLink<T extends LinkEnrollment>(
   ports: ControlLinkPorts<T>,
   initial: T | null,
 ): ControlLink {
-  let state: ControlLinkState = { kind: 'local' }
-  let session: LinkSession | undefined
-  let enrolling: Enrolling | undefined
-  let ending = false
-  const stop = new AbortController()
-  let wake = signalled()
-  const listeners = new Set<() => void>()
-  const set = (next: ControlLinkState) => {
-    state = next
-    for (const listener of listeners) listener()
+  const core: LinkCore<T> = {
+    ports,
+    state: { kind: 'local' },
+    ending: false,
+    stop: new AbortController(),
+    wake: signalled(),
+    listeners: new Set(),
   }
-  const notify = () => {
-    const woken = wake
-    wake = signalled()
-    woken.resolve()
-  }
-
-  function connect(enrollment: T) {
-    session = ports.connect(enrollment)
-    const { hostId, label, ownerLogin } = enrollment.identity
-    set({ kind: 'enrolled', hostId, label, ownerLogin })
-    ports.log('control.enrolled', { hostId })
-    notify()
-  }
-
-  async function reload() {
-    if (ending || session || enrolling) return
-    const found = await ports.load()
-    if (ending || session || enrolling || !found) return
-    if (state.kind === 'removed' && state.hostId === found.identity.hostId) return
-    connect(found)
-  }
-
-  /** Waits for a change, or re-reads the identity every `LINK_RECHECK_MS`. */
-  async function idle() {
-    const turn = new AbortController()
-    const signal = AbortSignal.any([stop.signal, turn.signal])
-    await Promise.race([wake.promise, ports.wait(LINK_RECHECK_MS, signal).catch(() => {})])
-    turn.abort()
-    if (ending || session) return
-    await reload().catch((error: unknown) =>
-      ports.log('control.reload_failed', { code: error instanceof Error ? error.name : 'unknown' }),
-    )
-  }
-
-  async function run(): Promise<number> {
-    while (!ending) {
-      if (!session) {
-        await idle()
-        continue
-      }
-      const code = await session.run()
-      if (code !== 77 || !ports.local || ending) return code
-      const hostId = state.kind === 'enrolled' ? state.hostId : ''
-      session = undefined
-      set({ kind: 'removed', at: new Date(ports.now()).toISOString(), hostId })
-      ports.log('control.removed', { hostId })
-      await ports.disconnect()
-    }
-    return 0
-  }
-
-  function finishEnrollment(previous: ControlLinkState) {
-    enrolling = undefined
-    if (state.kind === 'enrolling') set(previous)
-    notify()
-  }
-
-  async function beginEnrollment(): Promise<EnrollmentOffer> {
-    if (ending) throw new EnrollmentRefused('stopping')
-    if (state.kind === 'enrolling') return state.offer
-    if (state.kind === 'enrolled') throw new EnrollmentRefused('enrolled')
-    const enroll = ports.enroll
-    if (!enroll) throw new EnrollmentRefused('unavailable')
-    const previous = state
-    const abort = new AbortController()
-    let offered: ((offer: EnrollmentOffer) => void) | undefined
-    let ended: ((error: Error) => void) | undefined
-    const offer = new Promise<EnrollmentOffer>((resolve, reject) => {
-      offered = resolve
-      ended = reject
-    })
-    const work = enroll(abort.signal, (next) => {
-      if (abort.signal.aborted || state.kind === 'enrolled') return
-      set({ kind: 'enrolling', offer: next })
-      offered?.(next)
-    })
-    const done = work.then(
-      () => {
-        finishEnrollment(previous)
-        ended?.(new EnrollmentRefused('unavailable', 'The enrollment ended without a code.'))
-      },
-      (error: unknown) => {
-        finishEnrollment(previous)
-        ended?.(error instanceof Error ? error : new Error('Enrollment failed.'))
-      },
-    )
-    enrolling = { abort, done }
-    return offer
-  }
-
   return {
-    state: () => state,
-    mode: () => state.kind,
+    state: () => core.state,
+    mode: () => core.state.kind,
     onChange(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
+      core.listeners.add(listener)
+      return () => core.listeners.delete(listener)
     },
     start() {
-      if (initial && !session && !ending) connect(initial)
+      if (initial && !core.session && !core.ending) connect(core, initial)
     },
-    reload,
-    beginEnrollment,
+    reload: () => reload(core),
+    beginEnrollment: () => beginEnrollment(core),
     async cancelEnrollment() {
-      const current = enrolling
+      const current = core.enrolling
       if (!current) return
       current.abort.abort()
       await current.done
     },
-    run,
-    async drain() {
-      ending = true
-      stop.abort()
-      enrolling?.abort.abort()
-      notify()
-      const result = session ? await session.drain() : { state: 'stopped' as const }
-      await enrolling?.done
-      return result
-    },
+    run: () => run(core),
+    drain: () => drain(core),
     exitCode: () => 0,
   }
 }

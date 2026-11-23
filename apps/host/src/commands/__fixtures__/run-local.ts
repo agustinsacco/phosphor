@@ -11,6 +11,21 @@ import type { HostMachine } from '../../session/runtime'
 import type { Drainable } from '../../shutdown'
 import type { RunContext } from '../run'
 
+/** The machine `inspectHost` would find: the pi stub under this process's Node. */
+function piMachine(pi: ReturnType<typeof fakeMachine>): Omit<HostMachine, 'log'> {
+  return {
+    pi: { binaryPath: process.execPath, prefixArgs: [pi.cli] },
+    env: buildPiEnvironment({
+      hostEnv: pi.hostEnv,
+      nodePath: process.execPath,
+      platform: process.platform,
+    }).env,
+    roots: [pi.repository],
+    resourceRoot: EXTENSIONS_ROOT,
+    contextBudget: '',
+  }
+}
+
 export interface LocalRunOptions {
   enrolled: boolean
   /** Writes `local-mode.json` beside the config. */
@@ -49,17 +64,7 @@ export async function localRunMachine(options: LocalRunOptions) {
       prepareStateDirectory(state, uid)
       writeSidecar(state, HOST_SIDECARS.standby, { version: 1 }, { uid, known: [] })
     }
-    const machine: Omit<HostMachine, 'log'> = {
-      pi: { binaryPath: process.execPath, prefixArgs: [pi.cli] },
-      env: buildPiEnvironment({
-        hostEnv: pi.hostEnv,
-        nodePath: process.execPath,
-        platform: process.platform,
-      }).env,
-      roots: [pi.repository],
-      resourceRoot: EXTENSIONS_ROOT,
-      contextBudget: '',
-    }
+    const machine = piMachine(pi)
     let target: Drainable | undefined
     const context = (): RunContext => ({
       ...control.context,

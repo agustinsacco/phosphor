@@ -96,81 +96,98 @@ function enrollInProcess(context: RunContext) {
   }
 }
 
+/** Removes the standby marker, then syncs its folder so the removal survives a crash. */
+async function removeStandby(state: string) {
+  await unlink(join(state, HOST_SIDECARS.standby)).catch((error: unknown) => {
+    if (!errnoIs(error, 'ENOENT')) throw error
+  })
+  const folder = await open(state, 'r')
+  try {
+    await folder.sync()
+  } finally {
+    await folder.close()
+  }
+}
+
+interface Owning {
+  standby(): boolean
+  /** Resolves once `leaveStandby` has run. */
+  left(): Promise<void>
+  log(event: string, fields?: Record<string, unknown>): void
+}
+
+/** Waits out standby, then takes the owner lock as `daemon`, retrying while a live holder has it. */
+async function acquireWhenOwning(
+  context: RunContext,
+  owning: Owning,
+  ports: LocalDaemonPorts,
+  signal: AbortSignal,
+): Promise<OwnerLock> {
+  const wait = context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal }))
+  let busyLogged = false
+  for (;;) {
+    signal.throwIfAborted()
+    if (owning.standby()) {
+      owning.log('owner.standby')
+      await Promise.race([owning.left(), aborted(signal)])
+      continue
+    }
+    try {
+      return await acquireOwnerLock(
+        piAgentDir(context.env, context.home),
+        'daemon',
+        ports.ownerLock,
+        { program: 'phosphor run', uid: context.uid },
+      )
+    } catch (error) {
+      const busy =
+        error instanceof OwnerLockBusy ||
+        (error instanceof OwnerLockUnavailable && error.reason === 'contended')
+      if (!busy)
+        throw new IdentityFailure(error instanceof Error ? error.message : 'Owner lock failed.')
+      if (!busyLogged)
+        owning.log(
+          'owner.busy',
+          error instanceof OwnerLockBusy ? { holder: error.holder.owner } : {},
+        )
+      busyLogged = true
+      await wait(OWNER_RETRY_MS, signal)
+    }
+  }
+}
+
 export function createLocalDaemon(
   context: RunContext,
   mode: LocalModeFile,
   ports: LocalDaemonPorts = {},
 ) {
   const state = hostStateDirectory(context.env, context.home)
-  const marker = join(state, HOST_SIDECARS.standby)
-  const log = (event: string, fields: Record<string, unknown> = {}) =>
-    context.log?.('host', event, fields)
-  const wait = context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal }))
   let link: ControlLink | null = null
-  let left: () => void = () => {}
-  // A marker this Host cannot read still holds it back: never acquire while one exists.
-  const standby = () =>
-    readSidecar(state, HOST_SIDECARS.standby, (raw) => raw, { uid: context.uid }).state !==
-    'missing'
+  let leave: () => void = () => {}
+  const owning: Owning = {
+    // A marker this Host cannot read still holds it back: never acquire while one exists.
+    standby: () =>
+      readSidecar(state, HOST_SIDECARS.standby, (raw) => raw, { uid: context.uid }).state !==
+      'missing',
+    left: () => new Promise<void>((resolve) => (leave = resolve)),
+    log: (event, fields = {}) => context.log?.('host', event, fields),
+  }
   const daemon: LocalDaemon = {
     mode,
-    standby,
+    standby: owning.standby,
     async leaveStandby() {
-      await unlink(marker).catch((error: unknown) => {
-        if (!errnoIs(error, 'ENOENT')) throw error
-      })
-      const folder = await open(state, 'r')
-      try {
-        await folder.sync()
-      } finally {
-        await folder.close()
-      }
-      log('owner.standby_left')
-      left()
+      await removeStandby(state)
+      owning.log('owner.standby_left')
+      leave()
     },
     link: () => link,
     async beginEnrollment() {
-      if (standby()) throw new EnrollmentRefused('standby')
+      if (owning.standby()) throw new EnrollmentRefused('standby')
       if (!link) throw new EnrollmentRefused('starting')
       return link.beginEnrollment()
     },
     cancelEnrollment: async () => link?.cancelEnrollment(),
   }
-
-  /** Waits out standby, then takes the owner lock as `daemon`, retrying while a live holder has it. */
-  async function acquire(signal: AbortSignal): Promise<OwnerLock> {
-    let busyLogged = false
-    for (;;) {
-      signal.throwIfAborted()
-      if (standby()) {
-        log('owner.standby')
-        await Promise.race([new Promise<void>((done) => (left = done)), aborted(signal)])
-        continue
-      }
-      try {
-        return await acquireOwnerLock(
-          piAgentDir(context.env, context.home),
-          'daemon',
-          ports.ownerLock,
-          {
-            program: 'phosphor run',
-            uid: context.uid,
-          },
-        )
-      } catch (error) {
-        const busy =
-          error instanceof OwnerLockBusy ||
-          (error instanceof OwnerLockUnavailable && error.reason === 'contended')
-        if (!busy)
-          throw new IdentityFailure(error instanceof Error ? error.message : 'Owner lock failed.')
-        if (!busyLogged)
-          log('owner.busy', error instanceof OwnerLockBusy ? { holder: error.holder.owner } : {})
-        busyLogged = true
-        await wait(OWNER_RETRY_MS, signal)
-      }
-    }
-  }
-
   return {
     daemon,
     enroll: enrollInProcess(context),
@@ -178,9 +195,9 @@ export function createLocalDaemon(
     async own(parts: RunParts, store: HostStore, signal: AbortSignal): Promise<void> {
       const socket = context.startLocalSocket?.(daemon, store)
       if (socket) releaseFirst(parts, () => socket.stop())
-      const lock = await acquire(signal)
+      const lock = await acquireWhenOwning(context, owning, ports, signal)
       releaseFirst(parts, () => lock.release())
-      log('owner.acquired')
+      owning.log('owner.acquired')
     },
     attach(started: ControlLink) {
       link = started
