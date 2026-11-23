@@ -66,6 +66,23 @@ async function result(stream: ReturnType<typeof socketStream>, id: string) {
   return stream.frames.find((f) => f.type === 'result' && f.id === id)
 }
 
+async function expectLease(stream: ReturnType<typeof socketStream>, path: string, active: boolean) {
+  stream.send({
+    type: 'call',
+    id: 'lease',
+    method: 'owner.lease.take',
+    params: { paths: [path], ttlMs: 1000 },
+  })
+  expect(await result(stream, 'lease')).toMatchObject(
+    active
+      ? { ok: true, data: { leaseId: expect.any(String) } }
+      : {
+          ok: false,
+          error: { code: 'forbidden', message: "Lanes on this Mac aren't running yet." },
+        },
+  )
+}
+
 describe('run with the local-mode marker serves the owner socket', () => {
   it('R1: a marker without a control identity serves the socket and writes local.json', async () => {
     const host = await localRunMachine({ enrolled: false, marker: true, heartbeat: 'accepted' })
@@ -172,17 +189,7 @@ describe('run with the local-mode marker serves the owner socket', () => {
         ok: false,
         error: { code: 'forbidden' },
       })
-      const take = {
-        type: 'call',
-        id: 'lease',
-        method: 'owner.lease.take',
-        params: { paths: [host.state], ttlMs: 1000 },
-      }
-      desktop.send(take)
-      expect(await result(desktop, 'lease')).toMatchObject({
-        ok: false,
-        error: { code: 'forbidden', message: "Lanes on this Mac aren't running yet." },
-      })
+      await expectLease(desktop, host.state, false)
       desktop.send({ type: 'subscribe', id: 'lanes', topic: 'lanes' })
       await vi.waitFor(() =>
         expect(desktop.frames).toContainEqual({
@@ -203,11 +210,7 @@ describe('run with the local-mode marker serves the owner socket', () => {
       expect(await result(again, 'status')).toMatchObject({
         data: { ownerLock: { held: true, holder: 'daemon', pid: process.pid, standby: false } },
       })
-      again.send(take)
-      expect(await result(again, 'lease')).toMatchObject({
-        ok: true,
-        data: { leaseId: expect.any(String) },
-      })
+      await expectLease(again, host.state, true)
       again.close()
       await host.target()?.drain('SIGTERM')
       expect(await run).toBe(0)
