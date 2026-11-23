@@ -51,7 +51,7 @@ export function domain(
     name: string,
     summary: string,
     tier: CatalogSpec['tier'],
-    args = object({}) as TObject,
+    args: TObject = object({}),
     options: Options = {},
   ): CatalogSpec => ({
     name,
