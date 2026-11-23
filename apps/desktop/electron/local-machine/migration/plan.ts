@@ -63,6 +63,8 @@ export interface MigrationPlan {
    * `repositoryIds` so nothing that counts folders counts one twice.
    */
   readonly folderAliases: Readonly<Record<string, string>>
+  /** Desktop's draft key for an archived lane → the lane id its archive restores to. */
+  readonly archiveDrafts: Readonly<Record<string, string>>
   /** G3's ten spot lanes, by session file. */
   readonly spots: readonly string[]
   /** The files the session witness covers (G8). */
@@ -125,6 +127,19 @@ function refusalsOf(facts: PlanFacts, lanes: number, sections: PlanSections): Pl
   return refusals
 }
 
+function archiveDrafts(
+  facts: PlanFacts,
+  manifests: readonly { readonly id: string; readonly metadata: { draftKey?: string } }[],
+): Record<string, string> {
+  return Object.fromEntries(
+    facts.archives.flatMap(({ record }, i) => {
+      const key = record.metadata?.draftKey
+      const manifest = manifests[i]
+      return typeof key === 'string' && manifest?.metadata.draftKey ? [[key, manifest.id]] : []
+    }),
+  )
+}
+
 function folderAliases(facts: PlanFacts): Record<string, string> {
   const migrated = new Set(facts.folders.map((f) => f.path))
   return Object.fromEntries(
@@ -172,6 +187,7 @@ export function buildPlan(
       facts.folders.map((f) => [f.path, repositoryIdForPath(f.path)]),
     ),
     folderAliases: folderAliases(facts),
+    archiveDrafts: archiveDrafts(facts, sections.archives?.manifests ?? []),
     spots: spotLanes(facts, lanes),
     witness: [...new Set([...lanes.map((l) => l.path), ...archived])].sort(),
     expected: {

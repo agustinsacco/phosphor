@@ -48,7 +48,8 @@ function draftsFor(
       mapped.push([key, value])
       continue
     }
-    const lane = key.startsWith('session:') && lookup(plan.laneIds, key.slice(8))
+    const lane =
+      (key.startsWith('session:') && lookup(plan.laneIds, key.slice(8))) || plan.archiveDrafts[key]
     const repo = key === homeSource ? lastRepo : undefined
     const target = lane ? remoteLaneResourceKey(host, lane) : repo ? home : undefined
     if (!target || Object.hasOwn(records, target)) {
