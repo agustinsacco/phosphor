@@ -671,6 +671,10 @@
     "./ops/completion": {
       "types": "./src/ops/completion.ts",
       "default": "./src/ops/completion.ts"
+    },
+    "./ops/lane-controls": {
+      "types": "./src/ops/lane-controls.ts",
+      "default": "./src/ops/lane-controls.ts"
     }
   },
   "nx": {

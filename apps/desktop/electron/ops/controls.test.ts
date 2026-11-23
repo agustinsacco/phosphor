@@ -65,9 +65,10 @@ it('defers model, thinking, compaction, retry and queue changes until the run en
     text: 'Queued model for after this run.',
     deferred: [{ kind: 'model', provider: 'openai', modelId: 'gpt-5' }],
   })
-  await expect(controlHandlers['model.set']({ model: 'gpt-5' }, ctx(agent))).rejects.toMatchObject(
-    { code: 'bad-request', message: 'Use provider/model.' },
-  )
+  await expect(controlHandlers['model.set']({ model: 'gpt-5' }, ctx(agent))).rejects.toMatchObject({
+    code: 'bad-request',
+    message: 'Use provider/model.',
+  })
   expect(await controlHandlers['thinking.set']({ level: 'high' }, ctx(agent))).toMatchObject({
     deferred: [{ kind: 'thinking', level: 'high' }],
   })
