@@ -44,13 +44,36 @@ const opsCommand = {
 } as const
 
 describe('adapter chain', () => {
-  it('hands a user grant connection the lane adapter handler itself', () => {
+  it('hands a connection no link answers for the lane adapter handler itself, or none', () => {
     const { inner, factory } = lanes()
     const { ready } = connection()
-    expect(createAdapterChain(links(), factory)(ready)).toBe(inner)
-    expect(createAdapterChain(links(), undefined)(ready)).toBeUndefined()
+    const quiet = [createOwnerAdapter(), createMachineAdapter()]
+    expect(createAdapterChain(quiet, factory)(ready)).toBe(inner)
+    expect(createAdapterChain(quiet, undefined)(ready)).toBeUndefined()
     const user = connection({ kind: 'grant-user', clientId: client.id })
-    expect(createAdapterChain(links(), factory)(user.ready)).toBe(inner)
+    expect(createAdapterChain(quiet, factory)(user.ready)).toBe(inner)
+  })
+
+  it('answers ops.run unsupported without a dispatcher and passes every other frame on', () => {
+    const { inner, factory } = lanes()
+    const user = connection({ kind: 'grant-user', clientId: client.id })
+    const handler = createAdapterChain(links(), factory)(user.ready)!
+    handler.handle(call('ops.run', { op: 'lane.list', args: {} }), [])
+    handler.handle(opsCommand, [])
+    handler.handle(call('lane.state', {}), ['sessions.read'])
+    expect(user.sent).toEqual([
+      {
+        type: 'result',
+        id: 'q1',
+        ok: false,
+        error: { code: 'unsupported', message: 'unsupported' },
+      },
+      {
+        type: 'receipt',
+        receipt: { requestId: opsCommand.requestId, status: 'rejected', code: 'unsupported' },
+      },
+    ])
+    expect(inner.handle).toHaveBeenCalledExactlyOnceWith(call('lane.state', {}), ['sessions.read'])
   })
 
   it('answers owner methods for socket principals only and passes the rest on', () => {
@@ -73,6 +96,7 @@ describe('adapter chain', () => {
     localHandler.handle(call('owner.index', {}), [])
     localHandler.handle(call('machine.local'), [])
     localHandler.handle(call('artifacts.list', {}), [])
+    localHandler.handle({ type: 'unsubscribe', id: 's' }, [])
     expect(local.sent.map((f) => (f as { error: { code: string } }).error.code)).toEqual([
       'forbidden',
       'unsupported',
@@ -98,7 +122,7 @@ describe('adapter chain', () => {
       { type: 'result', id: 'q1', ok: false, error: { code: 'forbidden', message: 'forbidden' } },
       {
         type: 'receipt',
-        receipt: { requestId: opsCommand.requestId, status: 'rejected', code: 'forbidden' },
+        receipt: { requestId: opsCommand.requestId, status: 'rejected', code: 'unsupported' },
       },
       { type: 'terminal.ack', terminalId: 't', seq: 1, accepted: false },
     ])

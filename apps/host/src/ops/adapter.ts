@@ -3,7 +3,8 @@ import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import type { OpClass } from '@phosphor/shared/ops'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { OpPrincipal, OpsDispatcher } from '@phosphor/session-runtime/ops/types'
-import { sendFrame, type FrameLinkFactory } from '../api/adapter'
+import type { FrameSocket } from '@phosphor/shared/host-protocol'
+import { sendFrame, type FrameLink, type FrameLinkFactory } from '../api/adapter'
 import { opPrincipalFor } from '../api/principal'
 
 /** `ops.run` needs no capability: the dispatcher decides per principal and op. */
@@ -53,9 +54,29 @@ function opClass(request: OpsRunRequest): OpClass {
 }
 
 export interface OpsAdapterPorts {
-  /** Absent until the Host serves ops: `ops.run` then falls through, as on an older Host. */
+  /** Absent until the Host serves ops: `ops.run` then answers `unsupported`, as an older Host does. */
   dispatcher?: Pick<OpsDispatcher, 'run'>
   queue?: OpsQueue
+}
+
+/** Without a dispatcher every `ops.run`, either form, is `unsupported`: no capability gates it. */
+function unsupportedOps(socket: FrameSocket): FrameLink {
+  return {
+    handle(frame) {
+      if (frame.type === 'call' && frame.method === OPS_RUN) {
+        const error = { code: 'unsupported', message: 'unsupported' } as const
+        sendFrame(socket, { type: 'result', id: frame.id, ok: false, error })
+        return true
+      }
+      if (frame.type !== 'command' || frame.op.type !== OPS_RUN) return false
+      const { requestId } = frame
+      sendFrame(socket, {
+        type: 'receipt',
+        receipt: { requestId, status: 'rejected', code: 'unsupported' },
+      })
+      return true
+    },
+  }
 }
 
 /** `ops.run` as a call (reads) and as a laneless command (writes), ahead of the lane adapter. */
@@ -63,7 +84,7 @@ export function createOpsAdapter(ports: OpsAdapterPorts = {}): FrameLinkFactory 
   const { dispatcher } = ports
   const queue = ports.queue ?? createOpsQueue()
   return (connection) => {
-    if (!dispatcher) return null
+    if (!dispatcher) return unsupportedOps(connection.socket)
     const run = dispatcher.run.bind(dispatcher)
     const { socket, client } = connection
     const principal = connection.principal ?? { kind: 'grant-user', clientId: client.id }
