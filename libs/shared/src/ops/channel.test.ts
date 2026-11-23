@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { OPS_LIMITS } from '../host-protocol-ops'
 import {
   LANE_LIVENESS_OP,
+  OP_CHANNEL_LIMITS,
   OP_METHOD,
   OP_REPLY_CODES,
   OP_TITLE,
@@ -38,6 +39,8 @@ describe('op channel constants', () => {
       code: 'no-owner',
     })
     expect(OP_REPLY_CODES).toContain('timeout')
+    // Twice the args budget: content is JSON-escaped inside the prefill. Both ends refuse above it.
+    expect(OP_CHANNEL_LIMITS.prefillBytes).toBe(2 * OPS_LIMITS.argsBytes)
   })
 })
 
