@@ -109,8 +109,14 @@ async function reorder(
 }
 
 export function createRepositories(options: RepositoryOptions) {
+  // Legacy commands and catalog ops have distinct queues. Read/modify/publish as one turn.
+  let tail: Promise<unknown> = Promise.resolve()
   return {
     feature: createFoldersFeature(options, homeDirectory),
-    execute: (op: RepositoryOp, allowed: () => boolean) => executeRepository(options, op, allowed),
+    execute(op: RepositoryOp, allowed: () => boolean) {
+      const run = tail.then(() => executeRepository(options, op, allowed))
+      tail = run.catch(() => undefined)
+      return run
+    },
   }
 }
