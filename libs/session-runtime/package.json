@@ -576,6 +576,10 @@
       "types": "./src/ops/route.ts",
       "default": "./src/ops/route.ts"
     },
+    "./ops/route-batch": {
+      "types": "./src/ops/route-batch.ts",
+      "default": "./src/ops/route-batch.ts"
+    },
     "./owner-lock/types": {
       "types": "./src/owner-lock/types.ts",
       "default": "./src/owner-lock/types.ts"

@@ -2,16 +2,18 @@
  * `--host`: one agent op sent to other machines through `binding.remote`.
  * This machine refuses first (routable, kill switch, never tier, `machineOps`,
  * reason, policy deny, limits), so a refused op makes no network call. Each
- * target applies its own policy and asks its own confirmations. Hosts are
+ * target applies its own policy; the targets that ask become one confirmation
+ * here (`route-batch.ts`). `--host all` is every other machine. Hosts are
  * reached four at a time; one failing host never fails the others; results
  * keep the order the caller gave. Living contract: docs/agent-control.md
  * ("Machines").
  */
+import { randomUUID } from 'node:crypto'
 import { normalizeLabel } from '@phosphor/shared/control-api'
 import {
   OPS_LIMITS,
-  type ConfirmItem,
   type OpsActor,
+  type OpsBatchRef,
   type OpsRunRequest,
   type OpsRunResult,
 } from '@phosphor/shared/host-protocol-ops'
@@ -20,6 +22,13 @@ import { effectiveLimits, type OpLimits } from './limits'
 import { gateVerdict, policyVerdict } from './policy'
 import { policyCheck, type Judged, type Refusal } from './judge'
 import type { OpsDispatcherDeps, RoutedHost } from './ports'
+import {
+  askBatch,
+  resubmitBatch,
+  type BatchTarget,
+  type RouteBatches,
+  type Routed,
+} from './route-batch'
 import type { OpsBinding } from './types'
 
 type Remote = NonNullable<OpsBinding['remote']>
@@ -58,18 +67,26 @@ export function routeRefusal(
   return limited ? { code: limited.code, text: limited.text, decision: limited.decision } : null
 }
 
-async function resolveHosts(
+/** The machines `--host` names; `self` when its one value names this machine. */
+export async function routeTargets(
   deps: Pick<OpsDispatcherDeps, 'hosts'>,
   hosts: readonly string[] | 'all',
-): Promise<{ ok: true; hosts: readonly RoutedHost[] } | { ok: false; text: string }> {
-  if (deps.hosts) return deps.hosts.resolve(hosts)
-  if (hosts === 'all')
-    return { ok: false, text: 'This machine has no machine list for --host all.' }
-  return { ok: true, hosts: hosts.map((id) => ({ id, label: id })) }
+): Promise<readonly RoutedHost[] | 'self' | Refusal> {
+  const bad = (text: string): Refusal => ({ code: 'bad-request', text })
+  if (!deps.hosts && hosts === 'all') return bad('This machine has no machine list for --host all.')
+  const resolved = deps.hosts
+    ? await deps.hosts.resolve(hosts)
+    : { ok: true as const, hosts: (hosts as readonly string[]).map((id) => ({ id, label: id })) }
+  if (!resolved.ok) return bad(resolved.text)
+  if ('self' in resolved) return 'self'
+  if (resolved.hosts.length === 0) return bad('No machine matched --host.')
+  if (resolved.hosts.length > OPS_LIMITS.hostsPerBatch)
+    return bad(`At most ${OPS_LIMITS.hostsPerBatch} machines per operation.`)
+  return resolved.hosts
 }
 
-/** The request each target receives: attribution only, never authority. */
-function forwarded(j: Judged, single: boolean): OpsRunRequest {
+/** The request each target receives: attribution only, never authority, and never the caller's confirm. */
+function forwarded(j: Judged, batch?: OpsBatchRef): OpsRunRequest {
   const title = j.askingTitle
   const actor: OpsActor = {
     kind: 'agent',
@@ -82,7 +99,7 @@ function forwarded(j: Judged, single: boolean): OpsRunRequest {
     args: r.args,
     actor,
     ...(r.reason !== undefined ? { reason: r.reason } : {}),
-    ...(single && r.confirm ? { confirm: r.confirm } : {}),
+    ...(batch ? { batch } : {}),
     ...(r.page !== undefined ? { page: r.page } : {}),
   }
 }
@@ -120,81 +137,16 @@ function line(host: RoutedHost, result: OpsRunResult): string {
   return `${host.label}: asks the user first: ${result.title}`
 }
 
-/**
- * Several targets asked. Each keeps its own confirmation, listed per host; the
- * single origin confirmation that covers them all is X4's.
- * TODO(X4): replace with one origin confirmation over every target's items.
- */
-function perHostConfirm(
-  hosts: readonly RoutedHost[],
-  results: readonly OpsRunResult[],
-): OpsRunResult | null {
-  const asked = results.flatMap((r, i) => (r.status === 'confirm' ? [{ r, host: hosts[i]! }] : []))
-  const first = asked[0]?.r
-  if (first?.status !== 'confirm') return null
-  const items: ConfirmItem[] = asked.flatMap(({ r, host }) =>
-    r.status === 'confirm'
-      ? r.items.map((item) => ({
-          ...item,
-          hostId: host.id,
-          confirmId: r.confirmId,
-          digest: r.digest,
-        }))
-      : [],
-  )
+/** Every target's answer, in the caller's order; one target's answer unchanged. */
+function merged(j: Judged, hosts: readonly RoutedHost[], results: readonly OpsRunResult[]) {
+  if (hosts.length === 1) return results[0]!
+  const share = Math.floor(OPS_LIMITS.resultBytes / hosts.length)
   return {
-    status: 'confirm',
-    confirmId: first.confirmId,
-    digest: first.digest,
-    title: first.title,
-    message: clipBytes(
-      hosts.map((host, i) => line(host, results[i]!)).join('\n'),
-      OPS_LIMITS.resultBytes,
-    ),
-    items: items.slice(0, OPS_LIMITS.hostsPerBatch),
-    expiresAt: Math.min(...asked.map(({ r }) => (r.status === 'confirm' ? r.expiresAt : Infinity))),
-  }
-}
-
-/** Sends the judged op to each named machine and merges the answers in the caller's order. */
-export async function routeOp(
-  binding: Pick<OpsBinding, 'remote'>,
-  deps: Pick<OpsDispatcherDeps, 'hosts'>,
-  j: Judged,
-  hosts: readonly string[] | 'all',
-): Promise<OpsRunResult> {
-  const remote = binding.remote
-  if (!remote)
-    return {
-      status: 'denied',
-      code: 'unsupported',
-      text: 'This machine cannot reach other machines.',
-    }
-  const resolved = await resolveHosts(deps, hosts)
-  if (!resolved.ok) return { status: 'denied', code: 'bad-request', text: resolved.text }
-  const targets = resolved.hosts
-  if (targets.length === 0)
-    return { status: 'denied', code: 'bad-request', text: 'No machine matched --host.' }
-  if (targets.length > OPS_LIMITS.hostsPerBatch)
-    return {
-      status: 'denied',
-      code: 'bad-request',
-      text: `At most ${OPS_LIMITS.hostsPerBatch} machines per operation.`,
-    }
-  const request = forwarded(j, targets.length === 1)
-  const results = await mapLimit(targets, OPS_LIMITS.batchConcurrency, (host) =>
-    reach(remote, host, request),
-  )
-  if (targets.length === 1) return results[0]!
-  const asked = perHostConfirm(targets, results)
-  if (asked) return asked
-  const share = Math.floor(OPS_LIMITS.resultBytes / targets.length)
-  return {
-    status: 'ok',
-    text: targets.map((host, i) => clipBytes(line(host, results[i]!), share - 1)).join('\n'),
+    status: 'ok' as const,
+    text: hosts.map((host, i) => clipBytes(line(host, results[i]!), share - 1)).join('\n'),
     applies: j.spec.applies,
     data: {
-      hosts: targets.map((host, i) => {
+      hosts: hosts.map((host, i) => {
         const r = results[i]!
         return {
           hostId: host.id,
@@ -205,4 +157,47 @@ export async function routeOp(
       }),
     },
   }
+}
+
+const EXPIRED: Refusal = {
+  code: 'confirm-expired',
+  decision: 'timeout',
+  text: 'This confirmation expired. Ask again.',
+}
+
+/**
+ * Sends the judged op to each named machine and merges the answers in the
+ * caller's order. Targets that ask become one origin confirmation; a run
+ * submission whose origin confirmation was redeemed goes to the asking
+ * targets only (`route-batch.ts`).
+ */
+export async function routeOp(
+  binding: Pick<OpsBinding, 'remote'>,
+  deps: Pick<OpsDispatcherDeps, 'confirms'>,
+  batches: RouteBatches,
+  j: Judged,
+  targets: readonly RoutedHost[],
+): Promise<Routed | Refusal> {
+  const remote = binding.remote
+  if (!remote) return { code: 'unsupported', text: 'This machine cannot reach other machines.' }
+  const send = (host: RoutedHost, request: OpsRunRequest) => reach(remote, host, request)
+  const confirm = j.request.confirm
+  if (confirm) {
+    const again = await resubmitBatch(batches, j, confirm, send, (batch) => forwarded(j, batch))
+    if (!again) return EXPIRED
+    return { result: merged(j, again.hosts, again.results), decision: 'approved' }
+  }
+  const batchId = targets.length > 1 ? randomUUID() : undefined
+  const results = await mapLimit(targets, OPS_LIMITS.batchConcurrency, (host, index) =>
+    send(host, forwarded(j, batchId ? { id: batchId, index, size: targets.length } : undefined)),
+  )
+  const first: BatchTarget[] = targets.map((host, i) => {
+    const r = results[i]!
+    return r.status === 'confirm'
+      ? { host, first: r, confirm: { confirmId: r.confirmId, digest: r.digest } }
+      : { host, first: r }
+  })
+  const asked = await askBatch(deps, batches, j, first, batchId)
+  if (asked) return asked
+  return { result: merged(j, targets, results), decision: 'allowed' }
 }

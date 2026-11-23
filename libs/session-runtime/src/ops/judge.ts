@@ -47,6 +47,15 @@ export interface Refusal {
   readonly decision?: AuditDecision
 }
 
+/** An asked op in a run no one watches: nobody can approve it. */
+export function unattendedRefusal(op: string): Refusal {
+  return {
+    code: 'unattended',
+    decision: 'denied-unattended',
+    text: `${op} needs the user’s approval, and no one is watching this run.`,
+  }
+}
+
 /** Ops the dispatcher serves itself, whatever the binding's handlers hold. */
 export const DISPATCHER_OPS: ReadonlySet<string> = new Set(['policy.show', 'confirm.status'])
 

@@ -71,36 +71,33 @@ describe('--host refusals on this machine', () => {
 
 describe('--host fan-out', () => {
   it('returns one host’s answer unchanged and forwards attribution only', async () => {
-    const asked: OpsRunResult = {
-      status: 'confirm',
-      confirmId: '11111111-1111-4111-8111-111111111111',
-      digest: DIGEST,
-      title: 'Phosphor: archive.purge',
-      message: 'm',
-      items: [{ hostId: null, op: 'archive.purge', ids: ['a'], labels: ['a'] }],
-      expiresAt: 5,
-    }
-    const r = remoteOf({ bee1: async () => asked })
+    const r = remoteOf({ bee1: async () => ok('2 artifacts') })
     const h = harness(r.remote)
-    const confirm = { confirmId: '22222222-2222-4222-8222-222222222222', digest: DIGEST }
-    const reply = await h.tool(
-      { op: 'archive.purge', args: { all: true }, hosts: ['bee1'] },
-      { confirm },
-    )
-    expect(reply).toMatchObject({ status: 'confirm', confirmId: asked.confirmId })
+    const reply = await h.tool({ ...list, hosts: ['bee1'] }, { reason: 'looking' })
+    expect(reply).toMatchObject({ status: 'ok', text: '2 artifacts' })
     expect(r.sent).toEqual([
       {
         hostId: 'bee1',
         request: {
-          op: 'archive.purge',
-          args: { all: true },
+          op: 'artifact.list',
+          args: {},
           actor: { kind: 'agent', lane: OWN, title: 'Mine' },
-          reason: 'testing',
-          confirm,
+          reason: 'looking',
         },
       },
     ])
-    expect(h.calls.audit.at(-1)).toMatchObject({ op: 'archive.purge', scope: 'machine' })
+    expect(h.calls.audit.at(-1)).toMatchObject({ op: 'artifact.list', scope: 'machine' })
+  })
+
+  it('never forwards the caller’s confirm: a target only sees its own', async () => {
+    const r = remoteOf({ bee1: async () => ok('x') })
+    const confirm = { confirmId: '22222222-2222-4222-8222-222222222222', digest: DIGEST }
+    const reply = await harness(r.remote).tool(
+      { op: 'archive.purge', args: { all: true }, hosts: ['bee1'] },
+      { confirm },
+    )
+    expect(reply).toMatchObject({ status: 'denied', code: 'confirm-mismatch' })
+    expect(r.sent).toEqual([])
   })
 
   it('keeps the caller’s order and survives a host that fails', async () => {
@@ -146,32 +143,6 @@ describe('--host fan-out', () => {
     if (reply.status !== 'ok') throw new Error('expected ok')
     expect(Buffer.byteLength(reply.text)).toBeLessThanOrEqual(OPS_LIMITS.resultBytes)
     expect(reply.text.split('\n').map((l) => l.endsWith('[…cut]'))).toEqual([true, true])
-  })
-
-  it('lists each asking target’s own confirmation by host', async () => {
-    const confirmOf = (id: string): OpsRunResult => ({
-      status: 'confirm',
-      confirmId: id,
-      digest: DIGEST,
-      title: 'Phosphor: archive.purge',
-      message: 'm',
-      items: [{ hostId: null, op: 'archive.purge', ids: ['x'], labels: ['x'] }],
-      expiresAt: id.startsWith('1') ? 9 : 7,
-    })
-    const one = '11111111-1111-4111-8111-111111111111'
-    const two = '33333333-3333-4333-8333-333333333333'
-    const r = remoteOf({
-      a: async () => confirmOf(one),
-      b: async () => ok('nothing to purge'),
-      c: async () => confirmOf(two),
-    })
-    const reply = await harness(r.remote).tool({
-      op: 'archive.purge',
-      args: { all: true },
-      hosts: ['a', 'b', 'c'],
-    })
-    expect(reply).toMatchObject({ status: 'confirm', confirmId: one, timeoutMs: 1000 })
-    expect(r.sent.map((s) => s.hostId)).toEqual(['a', 'b', 'c'])
   })
 
   it('resolves names and all through the resolver, in directory order', async () => {

@@ -6,7 +6,6 @@
  * Living contract: docs/agent-control.md.
  */
 import type {
-  ConfirmItem,
   OpsBatchRef,
   OpsConfirmRef,
   OpsJobData,
@@ -17,6 +16,7 @@ import type { CatalogSpec } from '@phosphor/shared/ops-catalog'
 import type { ConfirmInfo, OpArgs } from '@phosphor/shared/ops'
 import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '../file-log'
+import type { ConfirmTarget } from './confirm-message'
 import type { AgentPrincipal } from './principals'
 import type { LaneFacts, OpHandlerContext, OpHandlerResult, OpPrincipal } from './types'
 
@@ -45,7 +45,8 @@ export interface PendingConfirm {
   readonly spec: CatalogSpec
   readonly args: OpArgs
   readonly reason?: string
-  readonly items: readonly ConfirmItem[]
+  /** A `--host` ask names each machine (`machineLabel`) and carries its own confirm. */
+  readonly items: readonly ConfirmTarget[]
   /** The target lane; the message names its controlling client when another one controls it. */
   readonly lane?: LaneFacts
   readonly batch?: OpsBatchRef
@@ -108,12 +109,17 @@ export interface RoutedHost {
   readonly label: string
 }
 
-/** `--host` resolution (labels, id prefixes, `all` in directory order). */
+/**
+ * `--host` resolution (labels, id prefixes, `all` in directory order, which is
+ * every other machine). `self` means the one value named this machine, which
+ * then runs the op here.
+ */
 export interface OpsHostResolver {
   resolve(
     hosts: readonly string[] | 'all',
   ): Promise<
     | { readonly ok: true; readonly hosts: readonly RoutedHost[] }
+    | { readonly ok: true; readonly self: true }
     | { readonly ok: false; readonly text: string }
   >
 }

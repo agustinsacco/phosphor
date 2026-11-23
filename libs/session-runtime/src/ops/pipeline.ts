@@ -8,6 +8,7 @@
  */
 import {
   OPS_LIMITS,
+  type OpsConfirmRef,
   type OpsDenyCode,
   type OpsRunRequest,
   type OpsRunResult,
@@ -23,13 +24,15 @@ import {
   policyCheck,
   refuseOp,
   resolveTarget,
+  unattendedRefusal,
   type Judged,
   type Refusal,
 } from './judge'
 import { LANE_CREATING_OPS, type OpLimits } from './limits'
 import { policyVerdict } from './policy'
 import { askingSession, confirmOrigin, isUnattended } from './principals'
-import { clipBytes, routeOp, routeRefusal } from './route'
+import { clipBytes, routeOp, routeRefusal, routeTargets } from './route'
+import { createRouteBatches, type RouteBatches } from './route-batch'
 import { builtinHandlers, confirmItems, OpRefusal } from './builtins'
 import type { OpRunContext, OpsDispatcherDeps } from './ports'
 import type { LaneDeferred, OpHandler, OpHandlerResult, OpPrincipal, OpsBinding } from './types'
@@ -89,6 +92,7 @@ export interface PipelineEnv {
   readonly now: () => number
   readonly specs: ReadonlyMap<string, CatalogSpec>
   readonly builtins: Readonly<Record<string, OpHandler>>
+  readonly batches: RouteBatches
 }
 
 async function audit(
@@ -133,32 +137,34 @@ async function refuse(env: PipelineEnv, j: Judged, refusal: Refusal): Promise<Op
   return denied(refusal.code, refusal.text)
 }
 
+/** The run submission's confirmation: null once approved; a denied or expired one also ends its `--host` batch. */
+async function redeem(
+  env: PipelineEnv,
+  j: Judged,
+  confirm: OpsConfirmRef,
+): Promise<OpOutcome | null> {
+  const redeemed = await env.deps.confirms.consume({
+    principal: j.principal,
+    sessionId: askingSession(j.principal),
+    confirm,
+    op: j.spec.name,
+    args: j.args,
+  })
+  if (redeemed === 'approved') return null
+  if (redeemed === 'pending')
+    return denied(
+      'confirm-denied',
+      'The user has not approved this yet. Ask again after they answer.',
+    )
+  if (redeemed !== 'mismatch') env.batches.drop(confirm.confirmId)
+  return refuse(env, j, REDEMPTION[redeemed])
+}
+
 /** An asked op: redeem its confirmation, or leave one pending. Null means approved. */
 async function ask(env: PipelineEnv, j: Judged): Promise<OpOutcome | null> {
   const sessionId = askingSession(j.principal)
-  const confirm = j.request.confirm
-  if (confirm) {
-    const redeemed = await env.deps.confirms.consume({
-      principal: j.principal,
-      sessionId,
-      confirm,
-      op: j.spec.name,
-      args: j.args,
-    })
-    if (redeemed === 'approved') return null
-    if (redeemed === 'pending')
-      return denied(
-        'confirm-denied',
-        'The user has not approved this yet. Ask again after they answer.',
-      )
-    return refuse(env, j, REDEMPTION[redeemed])
-  }
-  if (isUnattended(j.principal))
-    return refuse(env, j, {
-      code: 'unattended',
-      decision: 'denied-unattended',
-      text: `${j.spec.name} needs the user’s approval, and no one is watching this run.`,
-    })
+  if (j.request.confirm) return redeem(env, j, j.request.confirm)
+  if (isUnattended(j.principal)) return refuse(env, j, unattendedRefusal(j.spec.name))
   const result = await env.deps.confirms.create({
     principal: j.principal,
     sessionId,
@@ -298,17 +304,27 @@ async function perform(
   }
 }
 
-/** `--host`: judged as a machine-scope op with no local target, refused here or sent on. */
+/** `--host`: judged as a machine-scope op with no local target, refused here or sent on. Null: it names this machine. */
 async function executeRouted(
   env: PipelineEnv,
   input: Omit<Parameters<typeof judgeOp>[1], 'target' | 'routed'>,
   hosts: readonly string[] | 'all',
-): Promise<OpOutcome> {
+): Promise<OpOutcome | null> {
   const j = judgeOp(env.binding, { ...input, target: { self: false }, routed: true })
   const refusal = routeRefusal(env.binding, env.limits, j)
   if (refusal) return refuse(env, j, refusal)
-  const result = await routeOp(env.binding, env.deps, j, hosts)
-  await audit(env, j, 'allowed', result.status === 'ok' ? result.text : result.status)
+  const confirm = j.request.confirm
+  // A pending batch already holds the machines the user approved.
+  const targets =
+    confirm && env.batches.has(confirm.confirmId) ? [] : await routeTargets(env.deps, hosts)
+  if (targets === 'self') return null
+  if ('code' in targets) return refuse(env, j, targets)
+  const blocked = confirm ? await redeem(env, j, confirm) : null
+  if (blocked) return blocked
+  const routed = await routeOp(env.binding, env.deps, env.batches, j, targets)
+  if ('code' in routed) return refuse(env, j, routed)
+  const { result } = routed
+  await audit(env, j, routed.decision, result.status === 'ok' ? result.text : result.status)
   return { result, ...(j.spec.untrustedResult ? { untrusted: true as const } : {}) }
 }
 
@@ -323,7 +339,10 @@ async function execute(
   const invalid = argsError(spec, request.args)
   if (invalid) return denied('bad-request', `${spec.name}: ${invalid}`)
   const { policy } = await env.binding.policy.read()
-  if (extras.hosts) return executeRouted(env, { principal, request, spec, policy }, extras.hosts)
+  const routed = extras.hosts
+    ? await executeRouted(env, { principal, request, spec, policy }, extras.hosts)
+    : null
+  if (routed) return routed
   // An audit filter names a historical ref, not an execution target. A gap has no target
   // to discover; let the usual kill/never/gap checks decide without probing disk.
   const args = request.op === 'audit.list' || env.binding.gaps[spec.name] ? {} : request.args
@@ -357,6 +376,7 @@ export function createOpPipeline(
     ...state,
     specs: new Map((deps.catalog ?? OP_CATALOG).map((spec) => [spec.name, spec])),
     builtins: builtinHandlers(binding, deps),
+    batches: createRouteBatches(state.now),
   }
   return {
     spec: (op: string): CatalogSpec | undefined => env.specs.get(op),

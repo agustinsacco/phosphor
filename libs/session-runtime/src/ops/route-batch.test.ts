@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
-import { confirmPort, createConfirmStore } from './confirm'
+import { CONFIRM_STORE_LIMITS, confirmPort, createConfirmStore } from './confirm'
+import { createRouteBatches, ROUTE_BATCH_LIMITS } from './route-batch'
 import {
   createHarness,
   DIGEST,
@@ -252,5 +253,59 @@ describe('--host asks: one origin confirmation over every target', () => {
     ])
     expect(reply.message).toContain('On bee1:\n• a1')
     expect(reply.message).toContain('On bee3:\n• c1')
+  })
+})
+
+describe('--host naming this machine', () => {
+  it('runs the op here and reaches no other machine', async () => {
+    const r = remoteOf({})
+    const h = createHarness({
+      remote: r.remote,
+      hosts: { resolve: async () => ({ ok: true, self: true }) },
+    })
+    expect(await h.tool({ op: 'artifact.list', hosts: ['this-mac'] })).toMatchObject({
+      status: 'ok',
+      text: 'artifact.list done',
+    })
+    expect(h.calls.handled.map((c) => c.op)).toEqual(['artifact.list'])
+    expect(r.sent).toEqual([])
+  })
+})
+
+describe('createRouteBatches', () => {
+  const batch = (expiresAt: number, creator = 'agent:a') => ({
+    creator,
+    expiresAt,
+    targets: [{ host: { id: BEE1, label: 'bee1' }, first: ok('x') }],
+  })
+
+  it('keeps a batch until its confirm expires, then forgets it', () => {
+    const clock = { now: 0 }
+    const batches = createRouteBatches(() => clock.now)
+    batches.remember('c1', batch(600_000))
+    clock.now = 599_999
+    expect(batches.has('c1')).toBe(true)
+    clock.now = 600_000
+    expect(batches.has('c1')).toBe(false)
+    expect(batches.take('c1', 'agent:a')).toBeNull()
+  })
+
+  it('hands a batch only to its creator, once, and drops it on request', () => {
+    const batches = createRouteBatches(() => 0)
+    batches.remember('c1', batch(10))
+    batches.remember('c2', batch(10))
+    expect(batches.take('c1', 'agent:b')).toBeNull()
+    expect(batches.take('c1', 'agent:a')).toMatchObject({ creator: 'agent:a' })
+    expect(batches.take('c1', 'agent:a')).toBeNull()
+    batches.drop('c2')
+    expect(batches.size()).toBe(0)
+  })
+
+  it('holds at most its limit, dropping the oldest first', () => {
+    expect(ROUTE_BATCH_LIMITS.entries).toBe(CONFIRM_STORE_LIMITS.records)
+    const batches = createRouteBatches(() => 0, 2)
+    for (const id of ['c1', 'c2', 'c3']) batches.remember(id, batch(10))
+    expect(batches.size()).toBe(2)
+    expect([batches.has('c1'), batches.has('c2'), batches.has('c3')]).toEqual([false, true, true])
   })
 })
