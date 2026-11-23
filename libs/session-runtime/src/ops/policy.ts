@@ -78,6 +78,18 @@ export function stricterDecision(a: PolicyDecision, b: PolicyDecision): PolicyDe
   return DECISION_RANK[a] >= DECISION_RANK[b] ? a : b
 }
 
+/**
+ * Ops whose `target` argument names a lane (its folder, checkout or PRs). The
+ * judge resolves it like `ref`, and a write into another lane's folder asks.
+ * `ui.open`'s target is a view, not a lane.
+ */
+export const LANE_TARGET_OPS: ReadonlySet<string> = new Set(
+  `files.list files.read files.search files.write files.create files.mkdir files.trash files.rename
+ files.transfer git.info git.status git.diff git.show git.branches git.worktrees git.fetch git.pull
+ git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge pr.list
+ pr.status pr.detail`.split(/\s+/),
+)
+
 /** Destructive ops ask, everything else is allowed (and audited). */
 export function defaultDecision(tier: Exclude<OpTier, 'never'>): PolicyDecision {
   return tier === 'destructive' ? 'ask' : 'allow'
@@ -86,16 +98,22 @@ export function defaultDecision(tier: Exclude<OpTier, 'never'>): PolicyDecision 
 /**
  * A tier entry only tightens. An op entry may relax a destructive op to allow,
  * except on another lane: stopping, archiving, deleting or rewinding someone
- * else's lane always asks at least.
+ * else's lane, or writing into its folder, always asks at least.
  */
 export function policyDecision(check: Omit<PolicyCheck, 'governed'>): PolicyDecision {
   if (check.tier === 'never') return 'deny'
   const byTier = check.policy.tiers?.[check.tier]
-  const base = stricterDecision(defaultDecision(check.tier), byTier ?? 'allow')
+  const otherLane = check.scope === 'other-lane' && check.tier !== 'read'
+  const otherLaneWrite = otherLane && LANE_TARGET_OPS.has(check.op)
+  const base = stricterDecision(
+    otherLaneWrite ? 'ask' : defaultDecision(check.tier),
+    byTier ?? 'allow',
+  )
   const byOp = check.policy.ops?.[check.op]
   if (byOp === undefined) return base
-  const otherLaneAsk = check.scope === 'other-lane' && check.tier === 'destructive'
-  return otherLaneAsk ? stricterDecision(base, byOp) : byOp
+  return otherLaneWrite || (otherLane && check.tier === 'destructive')
+    ? stricterDecision(base, byOp)
+    : byOp
 }
 
 /** The decision for a principal that passed the gate, user-off and limits. */

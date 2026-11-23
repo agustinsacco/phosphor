@@ -21,6 +21,7 @@ import { orderDeferred, type LaneDeferredQueue } from './deferred'
 import {
   argsError,
   judgeOp,
+  laneRefArg,
   policyCheck,
   refuseOp,
   resolveTarget,
@@ -353,12 +354,12 @@ async function execute(
   // An audit filter names a historical ref, not an execution target. A gap has no target
   // to discover; let the usual kill/never/gap checks decide without probing disk.
   const args = request.op === 'audit.list' || env.binding.gaps[spec.name] ? {} : request.args
-  const ref = args.ref ?? args.lane
+  const ref = laneRefArg(spec.name, args)
   const discovered =
-    typeof ref === 'string' && env.binding.lanes.lookup && !env.binding.lanes.resolve(ref)
+    ref !== undefined && env.binding.lanes.lookup && !env.binding.lanes.resolve(ref)
       ? await env.binding.lanes.lookup(ref)
       : null
-  const target = resolveTarget(env.binding, principal, args, extras.facts, discovered)
+  const target = resolveTarget(env.binding, principal, spec.name, args, extras.facts, discovered)
   if ('code' in target) return denied(target.code, target.text)
   let j = judgeOp(env.binding, { principal, request, spec, target, policy })
   const refusal = refuseOp(env.binding, env.deps, env.limits, j)

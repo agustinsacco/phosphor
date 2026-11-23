@@ -17,7 +17,7 @@ import type {
   OpTier,
 } from '@phosphor/shared/ops'
 import { effectiveLimits, type OpLimits } from './limits'
-import { gateVerdict, type PolicyCheck, type PolicyVerdict } from './policy'
+import { gateVerdict, LANE_TARGET_OPS, type PolicyCheck, type PolicyVerdict } from './policy'
 import { askingLane, governedAs, principalKey, type GovernedAs } from './principals'
 import type { OpsDispatcherDeps } from './ports'
 import type { LaneFacts, OpPrincipal, OpsBinding } from './types'
@@ -100,15 +100,21 @@ function resolveSpecValue<T extends string>(
 }
 
 /** The lane an op names (`ref`, or `lane` for artifacts and Brain), or the agent's own lane. */
+/** The lane an op's args name: `ref`, `lane`, or `target` for the ops whose target is a lane. */
+export function laneRefArg(op: string, args: OpArgs): string | undefined {
+  const named = args.ref ?? args.lane ?? (LANE_TARGET_OPS.has(op) ? args.target : undefined)
+  return typeof named === 'string' ? named : undefined
+}
+
 export function resolveTarget(
   binding: Pick<OpsBinding, 'lanes'>,
   principal: OpPrincipal,
+  op: string,
   args: OpArgs,
   facts: OpFacts | undefined,
   discovered?: LaneFacts | null,
 ): { readonly self: boolean; readonly lane?: LaneFacts } | Refusal {
-  const ref =
-    typeof args.ref === 'string' ? args.ref : typeof args.lane === 'string' ? args.lane : undefined
+  const ref = laneRefArg(op, args)
   const withFacts = (lane: LaneFacts) => (facts ? { ...lane, facts } : lane)
   if (principal.kind === 'agent' && ref === undefined) {
     const own = binding.lanes.resolve(principal.laneRef)
