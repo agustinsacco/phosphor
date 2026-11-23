@@ -32,9 +32,19 @@ export function bindLocalEnrollment(
     },
   })
   const offAccount = onAccountChange(enroll.changed)
+  // The projection changes on lane traffic too. Coalesce those callbacks instead of
+  // copying every lane on every frame; current() still checks the socket before approval.
+  let timer: ReturnType<typeof setTimeout> | undefined
   return {
-    changed: enroll.changed,
+    changed() {
+      timer ??= setTimeout(() => {
+        timer = undefined
+        enroll.changed()
+      }, 250)
+      timer.unref()
+    },
     stop() {
+      if (timer) clearTimeout(timer)
       enroll.stop()
       offAccount()
     },

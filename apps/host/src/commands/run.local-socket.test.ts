@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HOST_SIDECARS } from '@phosphor/shared/host-local'
 import { helloProofMessage } from '@phosphor/shared/host-protocol'
+import type * as ApiServer from '../api/server'
 import type * as Runtime from '../session/runtime'
 import { socketHello } from '../api/__fixtures__/local-client'
 import { writeLocalIdentity } from '../owner/__fixtures__/local-identity'
@@ -24,7 +25,7 @@ vi.mock('./doctor', () => ({
 
 // No TCP listener, including when enrollment starts the heartbeat.
 vi.mock('../api/server', async (original) => ({
-  ...(await original<typeof import('../api/server')>()),
+  ...(await original<typeof ApiServer>()),
   startApi: () => ({ deliver() {}, connections: () => [], stop: async () => {} }),
 }))
 
