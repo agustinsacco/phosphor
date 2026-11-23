@@ -1,8 +1,20 @@
-import type { HostLaneView } from '@shared/ipc'
+import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { ipcErrorText } from '@shared/errors'
 import { remoteLaneResourceKey } from '@shared/remote-host'
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
-import { sessionHostLane, useRemoteLanesStore } from '@/stores/remoteLanes'
+import type { SessionHostLane } from '@/stores/hostLaneOf'
+
+// RPC is used by the session stores themselves. Read their projections at action time,
+// without importing the stores (and their initialization cycle) into the RPC layer.
+let views:
+  | {
+      host(id: string): HostConnectionView | undefined
+      session(id: string): SessionHostLane | null
+    }
+  | undefined
+export function bindServiceLaneViews(read: NonNullable<typeof views>) {
+  views = read
+}
 
 /** An absent lane is not an unheld lane. Even a disconnected controller needs an explicit Take. */
 export function laneControlPolicy(local: boolean | undefined, lane: HostLaneView | undefined) {
@@ -20,7 +32,7 @@ const claims = new Map<string, Promise<void>>()
 
 /** Only call for an action, never navigation. The Host atomically arbitrates a stale view or competing claim. */
 export async function ensureServiceLaneControl(hostId: string, laneId: string): Promise<void> {
-  const host = useRemoteLanesStore.getState().hosts[hostId]
+  const host = views?.host(hostId)
   if (!host?.local) return
   const lane = host.lanes.find((l) => l.laneId === laneId)
   const policy = laneControlPolicy(true, lane)
@@ -51,7 +63,7 @@ export async function ensureServiceLaneControl(hostId: string, laneId: string): 
 }
 
 export function ensureSessionControl(sessionId: string) {
-  const remote = sessionHostLane(sessionId)
+  const remote = views?.session(sessionId)
   if (remote?.host?.local && remote.laneId)
     return ensureServiceLaneControl(remote.hostId, remote.laneId)
 }

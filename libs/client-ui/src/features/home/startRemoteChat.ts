@@ -1,14 +1,11 @@
+import { uploadPromptFiles } from '@/features/chat/uploadPromptFiles'
 import { ensureServiceLaneControl } from '@/platform/serviceLaneControl'
 import { remoteBranchName } from './remoteBranchName'
 import { ipcErrorText } from '@shared/errors'
 import { rememberRemoteModel } from '@/stores/remoteModelPicks'
 import type { RemoteLaneCreate } from '@shared/ipc'
 import type { PendingAttachment } from '@/features/chat/attachments'
-import {
-  composePrompt,
-  toImageContents,
-  remotePromptAttachments,
-} from '@/features/chat/attachments'
+import { composePrompt, toImageContents } from '@/features/chat/attachments'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore, canControlSession, adoptRemoteLane } from '@/stores/remoteLanes'
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
@@ -58,9 +55,7 @@ export async function startRemoteChat(
   // As on This Mac: the first prompt never runs without the authorization the user chose.
   if (swarm)
     await requestSwarm(info.sessionId, true).catch(() => Promise.reject(new Error('swarm-failed')))
-  const uploaded = await remotePromptAttachments(attachments, (files) =>
-    window.phosphor.invoke('hosts:uploadAttachments', info.sessionId, files),
-  )
+  const uploaded = await uploadPromptFiles(info.sessionId, attachments)
   if (
     !(await piCallOk(info.sessionId, {
       type: 'prompt',

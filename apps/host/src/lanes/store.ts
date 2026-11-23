@@ -39,7 +39,7 @@ import {
 } from './store/types'
 import * as receipts from './store/receipts'
 export * from './store/types'
-import { absolutePath, check, integer, text, uuid } from './validation'
+import { absolutePath, check, integer, text, uuid, validateController } from './validation'
 export { opHash } from './validation'
 export { validateRepositoryIdentity } from './store/identity'
 export { REMOVED_LANE_TTL_MS } from './store/archives'
@@ -228,7 +228,7 @@ export class HostStore {
           .run(str(existing, 'lane_id'))
         return this.requireLane(str(existing, 'lane_id'))
       }
-      if (options.controller !== undefined) this.validateController(options.controller)
+      if (options.controller !== undefined) validateController(options.controller)
       const id = options.restoreId ?? randomUUID()
       uuid(id)
       const now = this.clock()
@@ -294,11 +294,6 @@ export class HostStore {
   pruneRemovedLanes(now: number = this.clock()): void {
     this.transaction(() => pruneRemoved(this.db, now, this.limits.lanesPerHost))
   }
-  private validateController(controller: Controller): void {
-    uuid(controller.clientId)
-    check(typeof controller.label === 'string')
-    text(controller.label, HOST_LIMITS.labelChars)
-  }
   private setControl(id: string, controller: Controller | null): LaneControl {
     this.db
       .prepare(
@@ -308,7 +303,7 @@ export class HostStore {
     return this.requireLane(id).control
   }
   takeControl(id: string, controller: Controller): LaneControl {
-    this.validateController(controller)
+    validateController(controller)
     return this.transaction(() => {
       this.requireLane(id)
       return this.setControl(id, controller)
@@ -323,7 +318,7 @@ export class HostStore {
     })
   }
   admit(id: string, controller: Controller, fence: number | 'if-unheld'): Admission {
-    this.validateController(controller)
+    validateController(controller)
     if (fence !== 'if-unheld') integer(fence, 1)
     return this.transaction(() => {
       const control = this.requireLane(id).control

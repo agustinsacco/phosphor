@@ -15,6 +15,8 @@ import type { createHostConnection, LaneFrame } from './connection'
 import {
   createFailureText,
   laneOperation,
+  laneActionOp,
+  type LaneAction,
   receiptResponse,
   REMOTE_UNAVAILABLE,
   sendToLane,
@@ -404,28 +406,11 @@ export function createRemoteLanes(ports: {
         throw new Error('Lane creation not confirmed.')
       return open(window, hostId, result.laneId)
     },
-    async action(
-      hostId: string,
-      laneId: string,
-      type:
-        | 'lane.stop'
-        | 'lane.resume'
-        | 'control.take'
-        | 'control.release'
-        | 'lane.markRead'
-        | Extract<LaneOp, { type: 'control.take' }>,
-    ) {
-      const c = connection(hostId, true)
-      const summary = c.snapshot().lanes.find((l) => l.laneId === laneId)
-      await mutate(
-        hostId,
-        laneId,
-        typeof type === 'object'
-          ? type
-          : type === 'lane.markRead'
-            ? { type, upTo: summary?.attention ?? 0 }
-            : { type },
-      )
+    async action(hostId: string, laneId: string, action: LaneAction) {
+      const summary = connection(hostId, true)
+        .snapshot()
+        .lanes.find((l) => l.laneId === laneId)
+      await mutate(hostId, laneId, laneActionOp(action, summary?.attention ?? 0))
     },
     /** A read of a lane this window opened, answered by its Host; the reads are in lane-reads. */
     onLane<T>(windowId: number, id: string, read: LaneRead<T>): Promise<T> {

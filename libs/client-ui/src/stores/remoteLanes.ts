@@ -1,4 +1,4 @@
-import { laneControlPolicy } from '@/platform/serviceLaneControl'
+import { bindServiceLaneViews, laneControlPolicy } from '@/platform/serviceLaneControl'
 import { serviceScope } from './localServiceScope'
 import {
   bindRemoteHostView,
@@ -137,7 +137,9 @@ export const useRemoteLanesStore = create<{
   setFilter: (filter) => set((s) => ({ filter: serviceScope(filter, s.hosts) })),
 }))
 
-bindRemoteHostView((hostId) => useRemoteLanesStore.getState().hosts[hostId])
+const hostView = (hostId: string) => useRemoteLanesStore.getState().hosts[hostId]
+bindRemoteHostView(hostView)
+bindServiceLaneViews({ host: hostView, session: sessionHostLane })
 useRemoteLanesStore.subscribe((state) => migrateLegacyLaneMarks(state.hosts))
 
 // Window-local selection survives sidebar remounts, but not account or directory removal.

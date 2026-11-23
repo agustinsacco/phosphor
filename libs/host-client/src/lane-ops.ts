@@ -138,3 +138,15 @@ export function receiptResponse(
       }
   }
 }
+
+export type LaneAction =
+  | 'control.take'
+  | 'control.release'
+  | 'lane.markRead'
+  | 'lane.stop'
+  | 'lane.resume'
+  | Extract<LaneOp, { type: 'control.take' }>
+export function laneActionOp(action: LaneAction, attention: number): LaneOp {
+  if (typeof action === 'object') return action
+  return action === 'lane.markRead' ? { type: action, upTo: attention } : { type: action }
+}
