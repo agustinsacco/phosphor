@@ -25,6 +25,7 @@ import { openStore } from '../lanes/store'
 import { createUnattachedSnapshots } from '../lanes/transcript'
 import { createAuthority } from './authority'
 import { createConnection, hostProof } from './connection'
+import { fixtureGrantAuth } from './__fixtures__/grant-auth'
 import { createLaneAdapter } from './lanes'
 
 // The kit uses virtual time. Only git's read-only branch lookup is scripted;
@@ -309,11 +310,7 @@ const factory: HostConformanceFactory = async (limits) => {
       const pair = createLoopbackPair()
       const connection = createConnection({
         socket: pair.server,
-        authority,
-        origin: claims.iss,
-        hello: hello(),
-        key: host.privateKey,
-        keyset: { get: async (kid) => (kid === claims.kid ? control.publicKey : undefined) },
+        authenticate: fixtureGrantAuth(authority, claims, { control, host }, hello()),
         handler: adapter.handler,
         admit: (id) =>
           [...connections.values()].filter((c) => c.clientId() === id).length <

@@ -1,11 +1,5 @@
-import { randomBytes, verify, type KeyObject } from 'node:crypto'
-import { CONTROL_LIMITS } from '@phosphor/shared/control-api'
-import {
-  checkGrantClaims,
-  splitGrant,
-  type GrantPayload,
-  type GrantClient,
-} from '@phosphor/shared/host-grant'
+import { randomBytes } from 'node:crypto'
+import type { GrantClient } from '@phosphor/shared/host-grant'
 import {
   HOST_LIMITS,
   parseClientFrame,
@@ -15,10 +9,8 @@ import {
   type HostCloseCode,
   type ClientFrame,
 } from '@phosphor/shared/host-protocol'
-import type { HostHello, HostCapability } from '@phosphor/shared/remote-host'
-import type { Authority } from './authority'
-import type { Keyset } from './keyset'
-import { grantedCapabilities, readyFrame } from './ready-frame'
+import type { HostCapability } from '@phosphor/shared/remote-host'
+import type { Authentication, ConnectionAuthenticator } from './grant-auth'
 import { connectionLimits, type ConnectionLimits } from './connection-limits'
 
 export { hostProof } from './ready-frame'
@@ -39,13 +31,8 @@ export interface AuthenticatedHandler {
 }
 export interface ConnectionPorts {
   socket: FrameSocket
-  authority: Authority
-  keyset: Keyset
-  origin: string
-  hello: HostHello
-  key: KeyObject
-  /** Announced in ready when the Host sends Web Push. */
-  webPushKey?: string
+  /** Verifies auth frames and watches what admitted the connection. */
+  authenticate: ConnectionAuthenticator
   admit(clientId: string): boolean
   ping?: () => void
   handler?(connection: ReadyConnection): AuthenticatedHandler
@@ -63,7 +50,8 @@ export function createConnection(ports: ConnectionPorts) {
   const connectionId = randomBytes(8).toString('hex')
   const started = now()
   let trace: string | undefined
-  let grant: GrantPayload | undefined
+  /** The authenticated client; set once the first credential is accepted. */
+  let client: GrantClient | undefined
   let handler: AuthenticatedHandler | undefined
   let caps: readonly HostCapability[] = []
   let ended = false
@@ -73,25 +61,7 @@ export function createConnection(ports: ConnectionPorts) {
   let idle = setTimeout(() => close(4401), limits.idleCloseMs)
   const heartbeat = setInterval(() => ports.ping?.(), limits.pingIntervalMs)
   heartbeat.unref()
-  const admittedAuthority = ports.authority.snapshot()
-  const unsubscribe = ports.authority.onChange(() => {
-    const authority = ports.authority.snapshot()
-    if (
-      !authority ||
-      authority.owner !== admittedAuthority?.owner ||
-      authority.epoch !== admittedAuthority?.epoch
-    )
-      close(4403)
-    else if (
-      grant &&
-      (!authority ||
-        grant.sub !== authority.owner ||
-        grant.epoch !== authority.epoch ||
-        authority.revokedSessions.has(grant.sid) ||
-        authority.revokedClients.has(grant.client.id))
-    )
-      close(4403)
-  })
+  const unsubscribe = ports.authenticate.watch(() => close(4403))
   function finish(code: number) {
     if (ended) return
     ended = true
@@ -131,64 +101,37 @@ export function createConnection(ports: ConnectionPorts) {
     finish(code)
     queueMicrotask(() => socket.close(code, String(code)))
   }
-  async function authenticate(token: string, challenge?: string) {
-    const parsed = splitGrant(token)
-    if (!parsed.ok) return refuse(4401, 'token')
-    const { payload, payloadBytes, signature } = parsed.value
-    const key = await ports.keyset.get(payload.kid)
-    if (ended) return
-    if (!key || !verify(null, payloadBytes, key, signature)) return refuse(4401, 'signature')
-    const authority = ports.authority.snapshot()
-    if (!authority) return refuse(4403, 'authority')
-    const failure = checkGrantClaims(
-      payload,
-      { ...authority, iss: ports.origin, hostId: ports.hello.hostId },
-      now() / 1000,
-      CONTROL_LIMITS.signatureSkewSec,
-    )
-    if (failure)
-      return refuse(failure === 'expired' || failure === 'not-yet-valid' ? 4401 : 4403, failure)
-    if (
-      grant &&
-      (grant.sub !== payload.sub ||
-        grant.client.id !== payload.client.id ||
-        challenge !== undefined)
-    )
-      return refuse(4403, 'identity')
-    if (!grant && !ports.admit(payload.client.id)) return refuse(4429, 'connections')
-    const initial = !grant
-    grant = payload
-    caps = grantedCapabilities(ports.hello, payload)
+  function accept(authentication: Authentication, challenge: string | undefined) {
+    const initial = !client
+    client = authentication.client
+    caps = authentication.caps
     clearTimeout(deadline)
     clearTimeout(expiry)
-    expiry = setTimeout(
-      () => close(4401),
-      Math.max(0, (payload.exp + CONTROL_LIMITS.signatureSkewSec) * 1000 - now()),
-    )
-    const grantExpiresAt = new Date(payload.exp * 1000).toISOString()
+    expiry = setTimeout(() => close(4401), Math.max(0, authentication.closeAt - now()))
     if (initial && challenge !== undefined) {
-      send(
-        readyFrame({
-          hello: ports.hello,
-          grant: payload,
-          key: ports.key,
-          challenge,
-          connectionId,
-          grantExpiresAt,
-          caps,
-          webPushKey: ports.webPushKey,
-        }),
-      )
+      send(authentication.ready(challenge, connectionId))
       if (!ended) {
-        const ready = { connectionId, trace, client: payload.client, caps, socket }
+        const ready = { connectionId, trace, client: authentication.client, caps, socket }
         handler = ports.handler?.(ready)
         ports.onReady?.(ready)
         ports.log?.('api.connected', trace ? { trace } : {})
       }
     } else {
       handler?.renew(caps)
-      send({ type: 'auth-renewed', grantExpiresAt, capabilities: caps })
+      send({
+        type: 'auth-renewed',
+        grantExpiresAt: authentication.grantExpiresAt,
+        capabilities: caps,
+      })
     }
+  }
+  function authenticate(token: string, challenge?: string) {
+    return ports.authenticate.verify(token, challenge, {
+      ended: () => ended,
+      refuse,
+      admit: (clientId) => ports.admit(clientId),
+      accept: (authentication) => accept(authentication, challenge),
+    })
   }
   socket.onClose((code) => finish(code))
   socket.onMessage((text) => {
@@ -198,7 +141,7 @@ export function createConnection(ports: ConnectionPorts) {
     if (utf8Length(text) > limits.inboundFrameBytes) return close(4400)
     const parsed = parseClientFrame(text)
     if (
-      !grant &&
+      !client &&
       (!parsed.ok || parsed.frame.type !== 'auth' || parsed.frame.challenge === undefined)
     ) {
       close(4401)
@@ -226,7 +169,7 @@ export function createConnection(ports: ConnectionPorts) {
     }
     const frame = parsed.frame
     if (frame.type === 'auth') {
-      if (!grant) trace = frame.trace
+      if (!client) trace = frame.trace
       clearTimeout(deadline)
       if (checking) return close(4429)
       checking = true
@@ -259,7 +202,7 @@ export function createConnection(ports: ConnectionPorts) {
   return {
     connectionId,
     close,
-    rejectFrame: () => close(grant ? 4400 : 4401),
-    clientId: () => grant?.client.id,
+    rejectFrame: () => close(client ? 4400 : 4401),
+    clientId: () => client?.id,
   }
 }

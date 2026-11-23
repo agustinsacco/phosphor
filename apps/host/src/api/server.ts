@@ -10,8 +10,9 @@ import {
 } from '@phosphor/shared/host-protocol'
 import type { HostHello } from '@phosphor/shared/remote-host'
 import type { Authority } from './authority'
-import { createKeyset } from './keyset'
+import { createKeyset, type Keyset } from './keyset'
 import { createConnection, hostProof, type ApiLog, type ConnectionPorts } from './connection'
+import { createGrantAuth } from './grant-auth'
 import type { LaneService } from '../lanes/service'
 import { createLaneAdapter } from './lanes'
 import { admitsBrowserOrigin, resolveWebOrigin } from './browser-origin'
@@ -62,7 +63,19 @@ function admits(
   return held < (limits?.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient)
 }
 
-export function startApi(options: {
+/** A TCP connection's authenticator: control-signed grants for this Host. */
+function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
+  return createGrantAuth({
+    authority: options.authority,
+    keyset,
+    origin: options.origin,
+    hello,
+    key: options.key,
+    webPushKey: options.lanes?.webPushKey,
+  })
+}
+
+interface ApiOptions {
   authority: Authority
   origin: string
   webOrigin?: string | null
@@ -77,7 +90,9 @@ export function startApi(options: {
   ports?: Pick<ConnectionPorts, 'onReady' | 'onClose'>
   connectionLimits?: ConnectionPorts['limits']
   limits?: Partial<Record<keyof typeof API_LIMITS, number>>
-}) {
+}
+
+export function startApi(options: ApiOptions) {
   const webOrigin = resolveWebOrigin(options.origin, options.webOrigin)
   const limits = { ...API_LIMITS, ...options.limits }
   for (const name of [
@@ -197,12 +212,7 @@ export function startApi(options: {
         socket,
         ping,
         limits: options.connectionLimits,
-        authority: options.authority,
-        keyset,
-        origin: options.origin,
-        hello,
-        key: options.key,
-        webPushKey: options.lanes?.webPushKey,
+        authenticate: grantAuth(options, keyset, hello),
         log: options.log,
         admit: (clientId): boolean =>
           admits(upgrades.connections(), clientId, options.connectionLimits),
