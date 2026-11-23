@@ -547,7 +547,7 @@ own, so colour is never the only signal:
 | ------------------- | ------- | --------------------------- |
 | `failing`           | danger  | ✕                           |
 | `conflict`          | danger  | !                           |
-| `closed`            | danger  | a slash                     |
+| `closed`            | closed  | a slash                     |
 | `pending`           | warning | a half-filled clock, static |
 | `blocked` (changes) | warning | ↺                           |
 | `review`            | success | ✓                           |
@@ -559,7 +559,10 @@ own, so colour is never the only signal:
 A failing optional check reads red: the bead says what GitHub shows, and the
 tooltip says it is not required. Merged gets its own colour because in the
 success colour "merged" and "in review" are indistinguishable, and those are
-the two states the sidebar is scanned to tell apart.
+the two states the sidebar is scanned to tell apart. Closed gets a third
+because red is the one colour that means "a build needs you", and a PR you
+abandoned needs nothing: it reads as spent ink, so the red beads in a list are
+only ever the ones worth opening.
 
 One tooltip for the whole group lists every PR on its own line ("#57 Failing ·
 Rocky review failed (not required)"), including those behind `+N`; the group's

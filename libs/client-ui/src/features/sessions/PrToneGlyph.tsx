@@ -74,7 +74,7 @@ export function PrToneGlyph({
 export const PR_TONE_BEAD_CLASSES: Record<PrTone, string> = {
   failing: 'text-danger bg-danger-soft border-danger/40',
   conflict: 'text-danger bg-danger-soft border-danger/40',
-  closed: 'text-danger bg-danger-soft border-danger/40',
+  closed: 'text-closed bg-closed-soft border-closed/40',
   pending: 'text-warning bg-warning/10 border-warning/40',
   blocked: 'text-warning bg-warning/10 border-warning/40',
   review: 'text-success bg-success/10 border-success/40',
