@@ -76,7 +76,7 @@ export function prepareSocketFolder(folder: string, uid: number | undefined): vo
     )
 }
 
-/** True when something already accepts connections on `path`. */
+/** True unless connecting is refused: only ECONNREFUSED proves no listener holds `path`. */
 function answering(path: string): Promise<boolean> {
   return new Promise((resolve) => {
     const probe: Socket = connect(path)
@@ -84,7 +84,7 @@ function answering(path: string): Promise<boolean> {
       probe.destroy()
       resolve(true)
     })
-    probe.once('error', () => resolve(false))
+    probe.once('error', (error) => resolve(!errnoIs(error, 'ECONNREFUSED')))
   })
 }
 
