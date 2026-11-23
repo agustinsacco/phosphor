@@ -1,3 +1,5 @@
+import { open } from 'node:fs/promises'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { userInfo } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { serviceProgram } from '@phosphor/session-runtime/host-install/layout'
@@ -55,6 +57,7 @@ export async function runLocalServiceInstall(
     if (!launchctlMissing('print', status.code)) return 69
     const logs = join(state, 'logs')
     prepareStateDirectory(logs, context.uid)
+    await prepareLaunchdStderr(logs)
     const plist = join(context.home, 'Library', 'LaunchAgents', `${label}.plist`)
     await write(plist, launchAgentPlist(node, bundle, config, path, logs, xdg, label))
     // RunAtLoad starts it. No bootout or forced kickstart, even in a race.
@@ -99,4 +102,14 @@ function localProgram(context: ServiceContext) {
     ...(context.env.PATH ?? '').split(':').filter((d) => d && d !== dirname(node)),
   ].join(':')
   return { node, bundle, path }
+}
+
+/** launchd creates a missing stderr file with its own umask. Make it private on first use. */
+async function prepareLaunchdStderr(logs: string) {
+  try {
+    const fd = await open(join(logs, 'launchd.err.log'), 'wx', 0o600)
+    await fd.close()
+  } catch (error) {
+    if (!errnoIs(error, 'EEXIST')) throw error
+  }
 }

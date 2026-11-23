@@ -132,6 +132,8 @@ async function checkLogs(state: string, uid: number | undefined) {
   const logs = join(state, 'logs')
   if (!(await identityEntryExists(logs))) return
   prepareStateDirectory(logs, uid)
+  if (((await lstat(logs)).mode & 0o7777) !== 0o700)
+    throw new Error('The existing logs directory must be 0700. No permissions were changed.')
   for (const name of ['phosphor.log', 'phosphor.log.1', 'launchd.err.log']) {
     const path = join(logs, name)
     if (!(await identityEntryExists(path))) continue

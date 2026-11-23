@@ -157,3 +157,42 @@ it('does not generate a replacement key when pairing metadata is inconsistent', 
     code: 'ENOENT',
   })
 })
+
+it.each([0o700, 0o750, 0o701])(
+  'preflights the existing logs directory without repairing it (mode %i)',
+  async (mode) => {
+    const logs = join(state, 'logs')
+    await mkdir(logs)
+    await chmod(logs, mode)
+    const foreign = join(logs, 'runner-log')
+    await writeFile(foreign, 'keep')
+    const before = await lstat(logs)
+    const result = await runLocalSetup(ctx)
+    expect(result.exitCode).toBe(mode === 0o700 ? 0 : 78)
+    if (mode !== 0o700) {
+      expect(result.notes.join(' ')).toContain('Unsafe storage')
+      expect(runner).not.toHaveBeenCalled()
+    }
+    expect(await lstat(logs)).toMatchObject({ ino: before.ino, mode: before.mode })
+    expect(await readFile(foreign, 'utf8')).toBe('keep')
+  },
+)
+it('bootstraps a fresh temporary macOS job without bootout or forced kickstart', async () => {
+  const label = 'com.example.temp-phosphor'
+  const mac = vi.fn(async (_file: string, args: readonly string[]) => ({
+    code: args[0] === 'print' ? 113 : 0,
+    stdout: '',
+  }))
+  const result = await runLocalSetup({
+    ...ctx,
+    platform: 'darwin',
+    service: { ...ctx.service, localLabel: label, runner: mac },
+  })
+  expect(result.exitCode, result.notes.join('\n')).toBe(0)
+  const plist = join(root, 'Library/LaunchAgents', `${label}.plist`)
+  expect(mac.mock.calls.map(([, args]) => args[0])).toEqual(['print', 'bootstrap'])
+  expect(await readFile(plist, 'utf8')).toContain(
+    `<key>XDG_STATE_HOME</key><string>${dirname(state)}</string>`,
+  )
+  expect((await lstat(join(state, 'logs/launchd.err.log'))).mode & 0o777).toBe(0o600)
+})
