@@ -96,3 +96,49 @@ describe('run without the local-mode marker (characterization)', () => {
     }
   })
 })
+
+/** True once `run` has ended; checked after the event loop has turned. */
+async function ended(run: Promise<number>): Promise<boolean> {
+  return Promise.race([
+    run.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 50)),
+  ])
+}
+
+describe('run with the local-mode marker', () => {
+  it('R2: a 410 closes the TCP API and keeps the lanes until the service stops', async () => {
+    const host = await localRunMachine({ enrolled: true, marker: true, heartbeat: 'gone' })
+    try {
+      hooks.machine = host.machine
+      const run = runHost(host.context())
+      await vi.waitFor(() => expect(hooks.order).toContain('api.stop'), { timeout: 10_000 })
+      expect(await ended(run)).toBe(false)
+      expect(hooks.order).not.toContain('runtime.drain')
+      await host.target()?.drain('SIGTERM')
+      expect(await run).toBe(0)
+      expect(hooks.order).toContain('runtime.drain')
+      expect(host.beats.filter((beat) => beat === 'running')).toEqual(['running'])
+    } finally {
+      await host.cleanup()
+    }
+  }, 20_000)
+
+  it('starts its lanes without an identity, with no heartbeat and no TCP API', async () => {
+    const host = await localRunMachine({ enrolled: false, marker: true, heartbeat: 'accepted' })
+    try {
+      hooks.machine = host.machine
+      const run = runHost(host.context())
+      await vi.waitFor(() => expect(hooks.order).toContain('routines.start'), { timeout: 10_000 })
+      expect(await ended(run)).toBe(false)
+      await host.target()?.drain('SIGTERM')
+      expect(await run).toBe(0)
+      expect(hooks.order).toEqual(['inspect', 'runtime', 'routines.start', 'runtime.drain'])
+      expect(host.beats).toEqual([])
+    } finally {
+      await host.cleanup()
+    }
+  }, 20_000)
+})
