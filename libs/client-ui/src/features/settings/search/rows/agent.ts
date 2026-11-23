@@ -35,6 +35,9 @@ const DIRECTIVES: SettingRows = [
 /** Agent, from the field table the shared view renders, on every machine. */
 export const AGENT_ROWS: SettingEntry[] = [
   ...section('agent', ['Agent defaults', 'default model thinking']),
+  ...section('agent', null, [['Reviewed settings', 'edit reviewed JSON agent behavior']], {
+    host: true,
+  }).map(atMachine),
   ...section('agent', group('lanes'), [
     row(AGENT_ROW_TEXT.model),
     row(AGENT_ROW_TEXT.provider),
