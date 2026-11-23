@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => ({ app: h.app }))
 vi.mock('./health', () => ({ cachedPiHealth: h.health }))
-vi.mock('./shell-env', () => ({ piProcessEnv: h.environment }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.environment }))
 
 beforeEach(() => {
   vi.clearAllMocks()

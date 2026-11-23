@@ -10,7 +10,9 @@ vi.mock('./binary-lookup', () => ({
   resolveBinary: h.lookup,
   windowsWhereOutput: vi.fn(),
 }))
-vi.mock('./shell-env', () => ({ piProcessEnv: async () => ({ PATH: '/shell' }) }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: async () => ({ PATH: '/shell' }),
+}))
 vi.mock('./stub', () => ({ piStubPath: () => undefined }))
 vi.mock('./print-mode', () => ({ OWN_GROUP: true, killProcessTree: h.kill, runPrintMode: vi.fn() }))
 let child: EventEmitter & { stdout: PassThrough; stderr: PassThrough }

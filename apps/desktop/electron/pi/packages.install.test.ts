@@ -8,7 +8,9 @@ vi.mock('./binary-lookup', () => ({
   resolveBinary: async () => '/usr/bin/npm',
   windowsWhereOutput: vi.fn(),
 }))
-vi.mock('./shell-env', () => ({ piProcessEnv: async () => ({ PATH: '/shell' }) }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: async () => ({ PATH: '/shell' }),
+}))
 vi.mock('./print-mode', () => ({
   OWN_GROUP: true,
   killProcessTree: vi.fn(),

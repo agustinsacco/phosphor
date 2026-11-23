@@ -273,3 +273,24 @@ it('returns null to concurrent callers on a miss, then the cached empty PATH', a
   expect(await getLoginShellPath()).toBe('')
   expect(execFileMock).toHaveBeenCalledTimes(2)
 })
+
+it('captures a fresh path and caller-allowed values with the injected shell and clock', async () => {
+  const { captureShellEnvironment } = await import('./shell-env')
+  const run = vi.fn(async (_shell: string, args: string[]) =>
+    args[1] === 'env -0' ? 'NAME=ok\0OTHER=no\0' : '/one:/two',
+  )
+  expect(
+    await captureShellEnvironment({
+      shell: () => '/mock',
+      platform: () => 'linux',
+      env: () => ({}),
+      run,
+      now: () => 123,
+      accepts: (name) => name === 'NAME',
+    }),
+  ).toEqual({ path: ['/one', '/two'], values: { NAME: 'ok' }, at: 123 })
+  expect(run).toHaveBeenCalledWith('/mock', ['-lic', 'env -0'], {
+    timeoutMs: 15_000,
+    maxBytes: 4 * 1024 * 1024,
+  })
+})

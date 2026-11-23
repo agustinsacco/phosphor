@@ -5,7 +5,7 @@ import type * as ChildProcessModule from 'node:child_process'
 import type { ClaudeLoginState, ClaudeStatus } from '@shared/models'
 import { shell } from 'electron'
 import { claudeStatus, resolveBinary } from './packages'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import {
   cancelClaudeLogin,
   claudeLoginInFlight,
@@ -19,7 +19,7 @@ vi.mock('node:child_process', async (importOriginal) => ({
 }))
 vi.mock('electron', () => ({ shell: { openExternal: vi.fn() } }))
 vi.mock('./packages', () => ({ claudeStatus: vi.fn(), resolveBinary: vi.fn() }))
-vi.mock('./shell-env', () => ({ piProcessEnv: vi.fn() }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: vi.fn() }))
 
 const FIRST_URL = 'https://claude.com/oauth/authorize?state=first'
 const NEXT_URL = 'https://claude.com/oauth/authorize?state=next'

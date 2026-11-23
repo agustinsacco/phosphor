@@ -5,7 +5,7 @@ const h = vi.hoisted(() => ({ exec: vi.fn(), lookup: vi.fn(), env: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFile: h.exec }))
 vi.mock('node:util', () => ({ promisify: () => h.exec }))
 vi.mock('./binary-lookup', () => ({ resolveBinary: h.lookup }))
-vi.mock('./shell-env', () => ({ piProcessEnv: h.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.env }))
 beforeEach(() => {
   vi.clearAllMocks()
   h.lookup.mockResolvedValue('/claude')

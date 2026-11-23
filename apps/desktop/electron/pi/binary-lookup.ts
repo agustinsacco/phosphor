@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { getLoginShellPath } from './shell-env'
+import { getLoginShellPath } from '@phosphor/session-runtime/pi/shell-env'
 import { pickWhereMatch } from './win-launch'
 
 const execFileAsync = promisify(execFile)

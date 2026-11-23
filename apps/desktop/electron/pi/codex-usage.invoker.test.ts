@@ -5,7 +5,7 @@ const h = vi.hoisted(() => ({ exec: vi.fn(), health: vi.fn(), env: vi.fn(), stub
 vi.mock('node:child_process', () => ({ execFile: h.exec }))
 vi.mock('node:util', () => ({ promisify: () => h.exec }))
 vi.mock('./health', () => ({ checkPiHealth: h.health, cachedPiHealth: h.health }))
-vi.mock('./shell-env', () => ({ piProcessEnv: h.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.env }))
 vi.mock('./stub', () => ({ piStubPath: h.stub }))
 
 beforeEach(() => {

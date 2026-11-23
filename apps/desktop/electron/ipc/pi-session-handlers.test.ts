@@ -65,7 +65,9 @@ vi.mock('../pi/health', async (original) => ({
   cachedPiHealth: vi.fn().mockResolvedValue({ ok: true, binaryPath: '/bin/pi' }),
 }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => undefined }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }) }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }),
+}))
 vi.mock('@phosphor/session-runtime/pi/resume-provider', () => ({
   resumeProvider: vi.fn(async () => undefined),
 }))

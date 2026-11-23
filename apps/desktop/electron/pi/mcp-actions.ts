@@ -8,7 +8,7 @@ import {
   type PiCli,
 } from './mcp-cli'
 import { checkPiHealth } from './health'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { piStubPath } from './stub'
 
 export { cancelMcpLogin } from './mcp-cli'

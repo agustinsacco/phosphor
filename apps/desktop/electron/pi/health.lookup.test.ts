@@ -71,7 +71,7 @@ vi.mock('node:fs', async (importOriginal) => {
   return { ...actual, existsSync, readFileSync }
 })
 
-vi.mock('./shell-env', () => ({
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   getLoginShellPath: () => lookup.loginShellPath(),
   piProcessEnv: async () => ({ PATH: '/usr/bin:/bin' }),
 }))

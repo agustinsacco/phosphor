@@ -1,5 +1,5 @@
 import { failedJob, resolveBinary, startJob, type JobSender } from '../pi/packages'
-import { piProcessEnv } from '../pi/shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 
 /**
  * Guided Headroom install as a streamed job (same channels as package jobs,

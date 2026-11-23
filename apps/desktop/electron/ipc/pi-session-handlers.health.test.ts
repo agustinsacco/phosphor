@@ -25,7 +25,7 @@ vi.mock('../pi/binary-lookup', () => ({
 vi.mock('../pi/win-launch', () => ({
   resolveWindowsLaunch: async () => ({ ok: true, launch: { file: h.binary, prefixArgs: [] } }),
 }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: h.environment }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.environment }))
 vi.mock('./handle', () => ({
   handle: (name: string, callback: (...args: unknown[]) => unknown) =>
     h.handlers.set(name, callback),

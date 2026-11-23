@@ -1,8 +1,50 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { isForwardedEnvName } from '@phosphor/session-runtime/pi/forwarded-env'
+import { isForwardedEnvName } from './forwarded-env'
 
 const execFileAsync = promisify(execFile)
+
+export interface ShellEnvironmentPorts {
+  shell(): string
+  platform(): NodeJS.Platform
+  env(): NodeJS.ProcessEnv
+  run(
+    shell: string,
+    args: string[],
+    limits: { timeoutMs: number; maxBytes?: number },
+  ): Promise<string>
+  now(): number
+  accepts(name: string): boolean
+}
+
+const nodePorts: ShellEnvironmentPorts = {
+  shell: () => process.env.SHELL || '/bin/zsh',
+  platform: () => process.platform,
+  env: () => process.env,
+  now: Date.now,
+  accepts: isForwardedEnvName,
+  run: async (shell, args, { timeoutMs: timeout, maxBytes: maxBuffer }) =>
+    (
+      await execFileAsync(shell, args, {
+        timeout,
+        ...(maxBuffer === undefined ? {} : { maxBuffer }),
+      })
+    ).stdout,
+}
+
+/** A fresh, timestamped probe. The caller owns its cache lifetime; Desktop caches each half separately below. */
+export async function captureShellEnvironment(ports: ShellEnvironmentPorts) {
+  const [path, values] = await Promise.all([
+    resolveLoginShellPath(ports),
+    resolveLoginShellEnv(ports),
+  ])
+  if (!path && Object.keys(values).length === 0) return null
+  return {
+    path: path?.split(ports.platform() === 'win32' ? ';' : ':').filter(Boolean) ?? [],
+    values,
+    at: ports.now(),
+  }
+}
 
 /**
  * GUI-launched apps on macOS/Linux inherit a minimal PATH (`/usr/bin:/bin:…`),
@@ -28,7 +70,7 @@ export async function getLoginShellPath(): Promise<string | null> {
   if (cachedPath !== null) return cachedPath
   if (inFlight) return inFlight
 
-  inFlight = resolveLoginShellPath()
+  inFlight = resolveLoginShellPath(nodePorts)
     .then((value) => {
       cachedPath = value ?? ''
       return value
@@ -39,10 +81,10 @@ export async function getLoginShellPath(): Promise<string | null> {
   return inFlight
 }
 
-async function resolveLoginShellPath(): Promise<string | null> {
-  if (process.platform === 'win32') return process.env.PATH ?? null
+async function resolveLoginShellPath(ports: ShellEnvironmentPorts): Promise<string | null> {
+  if (ports.platform() === 'win32') return ports.env().PATH ?? null
 
-  const shell = process.env.SHELL || '/bin/zsh'
+  const shell = ports.shell()
   // A login+interactive shell so rc files that set up version managers run.
   // `-i` matters for fnm/nvm, which are typically wired up in .zshrc.
   for (const args of [
@@ -50,7 +92,7 @@ async function resolveLoginShellPath(): Promise<string | null> {
     ['-lc', 'printf %s "$PATH"'],
   ]) {
     try {
-      const { stdout } = await execFileAsync(shell, args, { timeout: 15_000 })
+      const stdout = await ports.run(shell, args, { timeoutMs: 15_000 })
       const value = stdout.trim().split('\n').pop()?.trim()
       if (value && value.includes('/')) return value
     } catch {
@@ -76,7 +118,7 @@ export async function getLoginShellEnv(): Promise<Record<string, string>> {
   if (cachedShellEnv !== null) return cachedShellEnv
   if (envInFlight) return envInFlight
 
-  envInFlight = resolveLoginShellEnv()
+  envInFlight = resolveLoginShellEnv(nodePorts)
     .then((value) => {
       cachedShellEnv = value
       return value
@@ -87,21 +129,21 @@ export async function getLoginShellEnv(): Promise<Record<string, string>> {
   return envInFlight
 }
 
-async function resolveLoginShellEnv(): Promise<Record<string, string>> {
-  if (process.platform === 'win32') return {}
+async function resolveLoginShellEnv(ports: ShellEnvironmentPorts): Promise<Record<string, string>> {
+  if (ports.platform() === 'win32') return {}
 
-  const shell = process.env.SHELL || '/bin/zsh'
+  const shell = ports.shell()
   for (const args of [
     ['-lic', 'env -0'],
     ['-lc', 'env -0'],
   ]) {
     try {
-      const { stdout } = await execFileAsync(shell, args, {
-        timeout: 15_000,
+      const stdout = await ports.run(shell, args, {
+        timeoutMs: 15_000,
         // Credentials are small, but rc-file chatter is unbounded.
-        maxBuffer: 4 * 1024 * 1024,
+        maxBytes: 4 * 1024 * 1024,
       })
-      const parsed = parseNulEnv(stdout)
+      const parsed = parseNulEnv(stdout, ports.accepts)
       if (Object.keys(parsed).length > 0) return parsed
     } catch {
       // try the next form
@@ -116,7 +158,7 @@ async function resolveLoginShellEnv(): Promise<Record<string, string>> {
  * NUL delimiting matters: values may legally contain newlines, so a
  * line-oriented parse would split one variable into several bogus ones.
  */
-function parseNulEnv(stdout: string): Record<string, string> {
+function parseNulEnv(stdout: string, accepts: (name: string) => boolean): Record<string, string> {
   const result: Record<string, string> = {}
   for (const record of stdout.split('\0')) {
     const eq = record.indexOf('=')
@@ -127,7 +169,7 @@ function parseNulEnv(stdout: string): Record<string, string> {
     const newline = rawName.lastIndexOf('\n')
     const name = newline === -1 ? rawName : rawName.slice(newline + 1)
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue
-    if (!isForwardedEnvName(name)) continue
+    if (!accepts(name)) continue
     result[name] = record.slice(eq + 1)
   }
   return result

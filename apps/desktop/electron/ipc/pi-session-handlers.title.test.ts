@@ -18,7 +18,7 @@ vi.mock('./hosts-handlers', () => ({ remoteLanes: vi.fn() }))
 vi.mock('../pi/session-runtime', () => ({ desktopSessions: {} }))
 vi.mock('../pi/health', () => ({ cachedPiHealth: state.health }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => state.stub }))
-vi.mock('../pi/shell-env', () => ({
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   piProcessEnv: async () => ({ PATH: '/pi/bin', PI_CLAUDE_CLI_KEEPALIVE_MS: '999' }),
 }))
 vi.mock('../pi/catalogue', () => ({ catalogueModels: state.catalogue }))

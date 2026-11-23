@@ -431,6 +431,10 @@
     "./sandboxes/transcripts": {
       "types": "./src/sandboxes/transcripts.ts",
       "default": "./src/sandboxes/transcripts.ts"
+    },
+    "./pi/shell-env": {
+      "types": "./src/pi/shell-env.ts",
+      "default": "./src/pi/shell-env.ts"
     }
   },
   "nx": {

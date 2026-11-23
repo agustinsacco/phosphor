@@ -20,7 +20,7 @@ vi.mock('./model-catalogue', async (original) => ({
 }))
 vi.mock('./health', () => ({ cachedPiHealth: state.health }))
 vi.mock('./stub', () => ({ piStubPath: state.stub }))
-vi.mock('./shell-env', () => ({ piProcessEnv: state.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: state.env }))
 vi.mock('./desktop-rpc-client', () => ({
   PiRpcClient: class {
     spawn = state.spawn

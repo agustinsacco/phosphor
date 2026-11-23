@@ -45,7 +45,7 @@ vi.mock('../pi/model-catalogue', async (original) => ({
 }))
 vi.mock('../pi/health', () => ({ cachedPiHealth: state.health }))
 vi.mock('../pi/stub', () => ({ piStubPath: state.stub }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: state.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: state.env }))
 vi.mock('../pi/commands', () => ({
   probeCommandsCached: state.commands,
   invalidateCommandCaches: state.invalidateCommands,

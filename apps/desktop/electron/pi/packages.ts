@@ -7,7 +7,7 @@ import {
   claudeOneShotEnv,
   claudeProviderSpawnEnv,
 } from '@phosphor/session-runtime/pi/provider-detect'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
 import { resolveBinary, windowsWhereOutput } from './binary-lookup'
 import { resolveWindowsLaunch } from './win-launch'

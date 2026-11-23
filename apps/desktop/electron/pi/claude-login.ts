@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 import type { ClaudeLoginState } from '@shared/models'
 import { claudeStatus, resolveBinary } from './packages'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import {
   cancelLoginAttempt,
   createLoginAttempt,

@@ -27,7 +27,7 @@ import {
   claudeOneShotEnv,
   claudeProviderSpawnEnv,
 } from '@phosphor/session-runtime/pi/provider-detect'
-import { resetShellPathCache } from './shell-env'
+import { resetShellPathCache } from '@phosphor/session-runtime/pi/shell-env'
 
 // Real print mode unless a test says otherwise, so the proof's delegation is
 // observable without spending a real provider turn.

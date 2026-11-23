@@ -37,7 +37,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('node:fs/promises', () => ({ writeFile: h.write }))
 vi.mock('../pi/health', () => ({ cachedPiHealth: h.health }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: h.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.env }))
 vi.mock('../pi/catalogue', () => ({ invalidatePiCommands: h.invalidate }))
 vi.mock('../pi/session-launch', () => ({ ensureDesktopArtifactSkill: h.restore }))
 vi.mock('../pi/skills', () => h.skills)

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { isPiTooOld, MIN_PI_VERSION, type PiHealth } from '@shared/models'
 import { extractVersion } from '@phosphor/session-runtime/pi/versions'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { lookupPosixBinary, windowsWhereOutput } from './binary-lookup'
 import { createTtlCache } from './ttl-cache'
 import {

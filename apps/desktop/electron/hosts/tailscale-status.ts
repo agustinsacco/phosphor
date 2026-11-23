@@ -8,7 +8,7 @@ import {
   readTailscaleStatus as readTailscaleFacts,
   type TailscaleStatus,
 } from '@phosphor/shared/tailscale-status'
-import { getLoginShellPath } from '../pi/shell-env'
+import { getLoginShellPath } from '@phosphor/session-runtime/pi/shell-env'
 
 export const TAILSCALE_OPTIONS = {
   timeout: 5_000,

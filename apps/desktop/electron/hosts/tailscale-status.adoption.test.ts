@@ -8,7 +8,7 @@ const { exec, fileStat, fileAccess, loginPath } = vi.hoisted(() => ({
 }))
 vi.mock('node:child_process', () => ({ execFile: exec }))
 vi.mock('node:fs/promises', () => ({ stat: fileStat, access: fileAccess }))
-vi.mock('../pi/shell-env', () => ({ getLoginShellPath: loginPath }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ getLoginShellPath: loginPath }))
 import {
   parseTailscaleStatus,
   readTailscaleStatus,

@@ -24,7 +24,7 @@ vi.mock('./health', async () => {
   h.resetHealth.mockImplementation(cache.invalidate)
   return { cachedPiHealth: () => cache.get().catch((health: PiHealth) => health) }
 })
-vi.mock('./shell-env', () => ({ piProcessEnv: h.environment }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.environment }))
 vi.mock('@phosphor/session-runtime/pi/provider-detect', () => ({
   claudeProviderSpawnEnv: h.provider,
 }))
