@@ -83,7 +83,10 @@ The composer is one small field with several ways in.
 - **While streaming**: Enter queues a **steering** message (delivered after the
   current tool calls), Alt/Cmd/Ctrl+Enter queues a **follow-up** (after the
   agent finishes). Same semantics as pi's TUI; the two queues look different.
-  Escape aborts and hands queued messages back to the composer. Once the draft
+  Escape and Stop abort and hand queued messages back to the composer. pi's abort
+  keeps its queues, so they first drain them with `clear_queue`; otherwise the
+  messages would also go out with the next one. On a pi without `clear_queue`
+  they come back from the chips and pi keeps its own. Once the draft
   has text, **Steer now** and **Queue follow-up** buttons expose both without
   a keyboard.
 - A queued message is a chip above the composer, not a bubble. Its bubble
