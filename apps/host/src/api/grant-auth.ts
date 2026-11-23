@@ -7,7 +7,7 @@ import {
   type GrantClient,
   type GrantPayload,
 } from '@phosphor/shared/host-grant'
-import type { HostCloseCode, HostFrame } from '@phosphor/shared/host-protocol'
+import type { HostCloseCode, HostFrame, ReadyOpFlag } from '@phosphor/shared/host-protocol'
 import type { HostCapability, HostHello } from '@phosphor/shared/remote-host'
 import type { Authority } from './authority'
 import type { Keyset } from './keyset'
@@ -51,6 +51,8 @@ export interface GrantAuthPorts {
   key: KeyObject
   /** Announced in ready when the Host sends Web Push. */
   webPushKey?: string
+  /** Announced in ready; none until the Host serves agent control. */
+  readyFlags?: ReadonlySet<ReadyOpFlag>
   now?: () => number
 }
 
@@ -132,6 +134,7 @@ export function createGrantAuth(ports: GrantAuthPorts): ConnectionAuthenticator 
             grantExpiresAt,
             caps,
             webPushKey: ports.webPushKey,
+            flags: ports.readyFlags,
           }),
       })
     },
