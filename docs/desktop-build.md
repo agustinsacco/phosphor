@@ -116,6 +116,10 @@ managed scratch path, never a checkout `release/` directory. Do not install or
 launch that scratch bundle against real user data. Signing/update behavior is
 owned by [updates.md](updates.md).
 
+Host bundles use a separate native matrix for the bundled Node, not Electron.
+The Intel macOS leg runs on `macos-15-intel` and must spawn a PTY under the
+pinned x64 Node before publication ([Host releases](host.md#install-from-a-release)).
+
 ## Native modules and the glibc floor
 
 Native modules (node-pty above all) are compiled on the build machine by

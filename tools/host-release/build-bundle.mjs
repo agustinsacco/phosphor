@@ -61,7 +61,8 @@ export async function buildBundle(
   const version = process.env.HOST_RELEASE_VERSION
   if (!version || !contract.HOST_RELEASE_VERSION_PATTERN.test(version))
     throw new Error('Invalid HOST_RELEASE_VERSION')
-  if (!contract.HOST_RELEASE_TARGETS.includes(target)) throw new Error('Unsupported bundle target')
+  if (!contract.HOST_RELEASE_TARGETS_V2.includes(target))
+    throw new Error('Unsupported bundle target')
   if (native) validateNative(native, target)
   const node = await nodeArchive(target, cache, nodePin)
   const temp = mkdtempSync(join(tmpdir(), 'phosphor-bundle-'))

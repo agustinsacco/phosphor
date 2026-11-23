@@ -24,16 +24,16 @@ every library import against the package's exports.
 ### Install from a release
 
 This repository builds signed bundles, manifests and an installer for Linux x64,
-Linux arm64 and macOS arm64. The **Host Release** workflow
+Linux arm64, macOS arm64 and macOS x64. The **Host Release** workflow
 (`.github/workflows/release-host.yml`) runs after every green CI push to main and
 publishes the next patch version when Nx reports `host` affected since the newest
 `host-v*` tag, unless the merge carries a `Skip-Release: true` trailer. Run by hand
 from main, it releases that commit as the given version (higher than every
 published one) or the next patch. Either way it requires main's CI to have passed
-for that exact commit. It builds all
-three, signs the manifest with the `HOST_RELEASE_SIGNING_KEY` secret, verifies the
-signature against the pinned keys, and publishes `host-v<version>`. It then
-replaces the unversioned manifest, its signature and the installer on the rolling
+for that exact commit. It builds all four bundles, signs both manifests with the
+`HOST_RELEASE_SIGNING_KEY` secret, verifies both signatures against the pinned
+keys, and publishes `host-v<version>`. It then replaces the unversioned
+manifests and signatures before replacing the installer on the rolling
 `host-latest` release. Neither release is marked latest, so Desktop keeps
 `releases/latest`. The workflow refuses to build while `HOST_RELEASE_KEYS` is
 empty, and an installer with no keys refuses installation. Each bundle carries Node 24.14.1, so no system Node is needed.
@@ -42,6 +42,10 @@ The installer needs curl, ssh-keygen, tar, awk, base64, od and sha256sum or shas
 ```sh
 curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && phosphor setup
 ```
+
+The installer reads v2 first. Only a missing manifest (HTTP 404 or an absent
+file on an offline mirror) permits fallback to v1. A bad signature or invalid
+v2 never does. Intel Macs need v2.
 
 The generated installer verifies the manifest's OpenSSH Ed25519 signature in
 namespace `phosphor-host-release` against embedded pinned keys. It then checks
@@ -342,9 +346,13 @@ one platform are byte-identical. The archive includes Node and its license,
 `lib/` with the Host and its resources, `VERSION`, and a POSIX launcher that
 resolves symlinks without `readlink -f`.
 
-After all three targets are built, `tools/host-release/manifest.mjs --out DIR`
-writes a manifest with version, protocols, pinned Node version, source commit,
-and each artifact's target, file, bytes and SHA-256. It signs the exact bytes
+After all four targets are built, `tools/host-release/manifest.mjs --out DIR`
+writes two manifests with the same version, protocols, pinned Node version,
+source commit, and target, filename, size and SHA-256 for the shared bundles.
+The frozen `phosphor-host-<version>.manifest.json` keeps three targets for old
+installers and updaters. `phosphor-host-<version>.manifest.v2.json` adds
+`darwin-x64` and a `features` list. The `host-latest` names omit `-<version>`.
+The builder signs each manifest's exact bytes
 with `ssh-keygen -Y sign`, namespace `phosphor-host-release`, hash `sha512`.
 `HOST_RELEASE_SIGNING_KEY` supplies an OpenSSH Ed25519 private key, never a
 path. A 0600 temporary key file is removed on success and failure. The public
