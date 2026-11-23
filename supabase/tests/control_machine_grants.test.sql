@@ -168,6 +168,9 @@ select public.control_machine_reach_set('00000000-0000-4000-8000-000000000001', 
 select is(public.control_machine_directory('00000000-0000-4000-8000-0000000000a1')->'machines', '[]'::jsonb,
   'a caller with reach off sees no siblings');
 select public.control_machine_reach_set('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', true);
+-- Switching reach off above revoked 'reissue', so Alpha mints the live principal the rest uses.
+insert into machine_context values ('live', public.control_machine_grant_issue('00000000-0000-4000-8000-0000000000a1',
+  '00000000-0000-4000-8000-0000000000b1'));
 select is(public.control_machine_reach_list('00000000-0000-4000-8000-000000000001'), jsonb_build_array(
   jsonb_build_object('id', '00000000-0000-4000-8000-0000000000a1', 'machineReach', true, 'machineGrants', true),
   jsonb_build_object('id', '00000000-0000-4000-8000-0000000000b1', 'machineReach', true, 'machineGrants', true),
@@ -178,7 +181,7 @@ select is(public.control_machine_reach_list('00000000-0000-4000-8000-00000000000
 update public.remote_hosts set endpoint = 'https://charlie.ts.net' where id = '00000000-0000-4000-8000-0000000000c1';
 insert into public.remote_machine_principals(host_id, owner_id, revoked_at)
   select '00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-000000000001', now() - i * interval '1 second'
-  from generate_series(1, 38) i;
+  from generate_series(1, 37) i;
 select is((select count(*) from public.remote_machine_principals), 40::bigint, 'owner holds 40 live or recent principals');
 select is(public.control_machine_grant_issue('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000b1')->>'outcome',
   'too-many-requests', 'a 41st principal is refused');
@@ -190,8 +193,11 @@ insert into public.remote_machine_principals(host_id, owner_id, revoked_at)
   from generate_series(1, 10);
 select is(jsonb_array_length(public.control_machine_beat('00000000-0000-4000-8000-0000000000b1', true)->'revoked'), 40,
   'revoked principals capped at 40');
-select is(public.control_machine_beat('00000000-0000-4000-8000-0000000000b1', true)->'revoked'->>0,
-  (select value->'client'->>'id' from machine_context where name = 'issue'), 'most recent revocation first');
+-- 'issue' and 'reissue' were both revoked at this transaction's now(), so they share first place.
+select is((select jsonb_agg(r.v order by r.v) from jsonb_array_elements_text(
+    public.control_machine_beat('00000000-0000-4000-8000-0000000000b1', true)->'revoked') with ordinality r(v, n) where r.n <= 2),
+  (select jsonb_agg(value->'client'->>'id' order by value->'client'->>'id') from machine_context
+    where name in ('issue', 'reissue')), 'most recent revocations first');
 select is(jsonb_array_length(public.control_machine_beat('00000000-0000-4000-8000-0000000000d1', true)->'revoked'), 0,
   'another owner sees none of them');
 update public.remote_machine_principals set revoked_at = now() - interval '10 minutes' where revoked_at is not null;
@@ -218,7 +224,7 @@ select is((select count(*) from public.remote_machine_principals where owner_id 
 select is(public.control_machine_revoke('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1')->>'outcome',
   'revoked', 'v1 removal');
 select is(public.control_machine_beat('00000000-0000-4000-8000-0000000000b1', true)->'revoked',
-  jsonb_build_array((select value->'client'->>'id' from machine_context where name = 'reissue')),
+  jsonb_build_array((select value->'client'->>'id' from machine_context where name = 'live')),
   'a removed caller''s live principal is listed as revoked');
 select is(public.control_machine_grant_issue('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000b1')->>'outcome',
   'gone', 'a removed caller is gone');
