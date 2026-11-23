@@ -1,7 +1,11 @@
 import type { GitInfo, SessionMeta, SessionScanStatus } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { projectPathFor, workspaceName } from '@/lib/path'
-import { latestRewoundVersion, presentSessionFiles, type RewoundSessions } from './rewound'
+import {
+  visibleLane,
+  presentSessionFiles,
+  type RewoundSessions,
+} from '@phosphor/shared/visible-lanes'
 
 /** Group actions and navigation use the main repo only when it is listed. */
 export function representativeGroupPath(projectKey: string, paths: readonly string[]): string {
@@ -84,8 +88,8 @@ export function groupSessionsByProject(
   // Display only, and only for a rewind Phosphor recorded: never a live row
   // (the one the user may be looking at), and never while no later version
   // exists, on disk or live: the chat must never be left with no row at all.
-  const rewoundAway = (meta: SessionMeta): boolean =>
-    !isLive(meta) && latestRewoundVersion(rewound, meta.path, present) !== null
+  const visible = (m: SessionMeta) =>
+    visibleLane(m.path, rewound, present, { live: isLive(m), hidden: isHidden(m) })
   const byProject = new Map<
     string,
     {
@@ -110,7 +114,7 @@ export function groupSessionsByProject(
     // Shared ancestry does not mean a session was replaced: forks and clones
     // copy entries too, and each saved file stays reachable. Only a recorded
     // rewind folds its old file away.
-    const metas = (disk[path] ?? []).filter((m) => !isHidden(m) && !rewoundAway(m))
+    const metas = (disk[path] ?? []).filter(visible)
     const liveCount = metas.filter(isLive).length
     const scanned = path in disk
     const attempted = path in scanStatus

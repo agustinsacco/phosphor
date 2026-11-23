@@ -1,9 +1,8 @@
 import { realpathSync } from 'node:fs'
-import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
+import { reconcileRunFolders } from '../lanes/reconcile/run'
 import { loadHostConfig } from '../config/load'
 import { IdentityFailure } from '../control/identity'
 import { createAttachments } from '../features/attachments'
-import { reconcile } from '../lanes/reconcile'
 import { StateFailure } from '../lanes/state-dir'
 import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { openStore, type HostStore } from '../lanes/store'
@@ -38,6 +37,7 @@ export async function openRunState(
   parts: RunParts,
   sink: ReceiptSink,
   signal: AbortSignal,
+  local = false,
 ): Promise<{ config: RunConfig; stateDirectory: string; store: HostStore }> {
   signal.throwIfAborted()
   const config = await loadRunConfig(context, signal)
@@ -53,16 +53,7 @@ export async function openRunState(
     })
     parts.store = store
     signal.throwIfAborted()
-    syncRunRepositories(context, store, config)
-    signal.throwIfAborted()
-    const counts = await (context.reconcile ?? reconcile)(
-      store,
-      piSessionsRoot(context.env, context.home),
-      (skipped) => context.log?.('host', 'lanes.skipped', { skipped }),
-      signal,
-    )
-    signal.throwIfAborted()
-    context.log?.('host', 'lanes.reconciled', counts)
+    if (!local) await reconcileRunFolders(context, store, config, false, signal)
     parts.attachments = createAttachments({
       log: (event) => context.log?.('host', event, {}),
       directory: realpathSync(stateDirectory),

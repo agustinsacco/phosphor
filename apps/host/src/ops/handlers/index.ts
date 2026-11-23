@@ -3,6 +3,8 @@ import type { RepositorySummary } from '@phosphor/shared/host-protocol'
 import type { createRepositories } from '../../features/repositories'
 import type { HostRoutines } from '../../routines/service'
 import type { SkillPorts } from './skills'
+import type { createHostSandboxes } from '../../features/sandboxes'
+import { sandboxHandlers } from './sandboxes'
 import type { HostShellEnvironment } from '../../machine/shell-environment'
 import type { LaneService } from '../../lanes/service'
 import type { HostStore } from '../../lanes/store'
@@ -33,6 +35,7 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly repositories?: Pick<ReturnType<typeof createRepositories>, 'execute'>
   readonly routines?: Pick<HostRoutines, 'execute'>
   readonly skills?: SkillPorts
+  readonly sandboxes?: ReturnType<typeof createHostSandboxes>
   readonly store: HostStore
   /** The lane service `ops.run` sits beside: commands, calls and topics. */
   readonly lanes: LaneService
@@ -56,6 +59,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
     ...skillHandlers(deps),
     ...routineHandlers(deps),
     ...folderHandlers(deps),
+    ...sandboxHandlers(deps),
     ...laneSelfHandlers(deps),
     ...machineHandlers(deps),
     ...fileHandlers(deps),
@@ -68,7 +72,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
  * Catalog ops the daemon serves once their package lands, by package and
  * handler file. Until then the dispatcher answers them `unsupported`, and a
  * `ready` flag whose ops are pending is not announced. H1–H4's files exist as
- * empty stubs; P1, P2, P4b and D9 add theirs.
+ * empty stubs; P1, P4b and D9 add theirs.
  */
 const PENDING = {
   'H4 lane-self.ts':
@@ -79,7 +83,6 @@ const PENDING = {
     'files.list files.read files.write files.create files.mkdir files.trash files.rename files.transfer',
   'H4 git.ts': 'git.info git.status git.show pr.list pr.status pr.detail',
   'P1 lane-editing.ts': 'lane.tree lane.fork lane.clone lane.label lane.jump lane.rewind',
-  'P2 sandboxes.ts': 'sandbox.list sandbox.create sandbox.rename sandbox.delete',
   'P4b artifact-remove.ts': 'artifact.remove',
   'D9 brain.ts': 'brain.search brain.flag',
 } as const

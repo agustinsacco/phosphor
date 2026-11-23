@@ -1,10 +1,13 @@
 import { rename } from 'node:fs/promises'
 import { rebaseWithinFolder } from '@phosphor/shared/paths'
 import { planSandboxRename, resolveSandboxFolder, sandboxCwds } from './folders'
-import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
+import { claudeProjectDirForCwd, sessionDirForCwd, piSessionsRoot } from '../pi/pi-paths'
 import { moveIfPresent, repointTranscripts, trashIfPresent } from './transcripts'
 
 export interface SandboxOwner {
+  env?: NodeJS.ProcessEnv
+  home?: string
+  retainedCwds?(path: string): readonly string[]
   hasLiveFolder(path: string): boolean
   hasArchivedFolder(path: string): Promise<boolean>
   trashItem(path: string): Promise<void>
@@ -43,15 +46,22 @@ export async function renameSandbox(base: string, path: string, name: string, ow
   // Resolved on either side of the move, and that order matters: every
   // mangling runs on the REAL path, so a source cwd only resolves while the
   // folder is still at `from`, and a destination only once it is at `to`.
-  const cwds = sandboxCwds(plan.from)
-  const before = cwds.flatMap((cwd) => [sessionDirForCwd(cwd), claudeProjectDirForCwd(cwd)])
+  const root = piSessionsRoot(owner.env, owner.home)
+  const cwds = [...new Set([...sandboxCwds(plan.from), ...(owner.retainedCwds?.(plan.from) ?? [])])]
+  const before = cwds.flatMap((cwd) => [
+    sessionDirForCwd(cwd, root),
+    claudeProjectDirForCwd(cwd, owner.env, owner.home),
+  ])
   try {
     await rename(plan.from, plan.to)
   } catch {
     return { ok: false as const, reason: 'failed' as const }
   }
   const movedCwds = cwds.map((cwd) => rebaseWithinFolder(cwd, plan.from, plan.to))
-  const after = movedCwds.flatMap((cwd) => [sessionDirForCwd(cwd), claudeProjectDirForCwd(cwd)])
+  const after = movedCwds.flatMap((cwd) => [
+    sessionDirForCwd(cwd, root),
+    claudeProjectDirForCwd(cwd, owner.env, owner.home),
+  ])
 
   // Best-effort, and after the folder: transcripts left behind cost history,
   // which is worse than the folder not moving but not worth failing over —
@@ -64,7 +74,7 @@ export async function renameSandbox(base: string, path: string, name: string, ow
   // over one, and its transcripts are the CLI's file format, not pi's.
   await Promise.all(
     cwds.map((cwd, index) =>
-      repointTranscripts(sessionDirForCwd(movedCwds[index]!), cwd, movedCwds[index]!),
+      repointTranscripts(sessionDirForCwd(movedCwds[index]!, root), cwd, movedCwds[index]!, root),
     ),
   )
 
@@ -99,9 +109,10 @@ export async function deleteSandbox(base: string, path: string, owner: SandboxOw
 
   // Resolved before the folder goes: every path mangles the REAL cwd, which
   // is unknowable once the folder is in the Trash.
-  const transcripts = sandboxCwds(target).flatMap((cwd) => [
-    sessionDirForCwd(cwd),
-    claudeProjectDirForCwd(cwd),
+  const cwds = [...new Set([...sandboxCwds(target), ...(owner.retainedCwds?.(target) ?? [])])]
+  const transcripts = cwds.flatMap((cwd) => [
+    sessionDirForCwd(cwd, piSessionsRoot(owner.env, owner.home)),
+    claudeProjectDirForCwd(cwd, owner.env, owner.home),
   ])
   try {
     await owner.trashItem(target)

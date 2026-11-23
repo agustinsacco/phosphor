@@ -14,7 +14,7 @@ import {
   latestRewoundVersion,
   presentSessionFiles,
   sessionFileName,
-} from '@/features/sessions/rewound'
+} from '@phosphor/shared/visible-lanes'
 
 /** Inline banners: pi crashed, no models configured, and an old version of a rewound chat. */
 

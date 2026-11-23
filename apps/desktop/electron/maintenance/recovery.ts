@@ -6,13 +6,8 @@ import { parseSessionEntries } from '@phosphor/session-runtime/pi/session-contex
 import { normalizePrefix } from '@shared/branchName'
 import { errorText } from '@shared/errors'
 import type { WorktreeInfo, WorktreeRecovery, WorktreeRecreateSource } from '@shared/models'
-import {
-  addWorktree,
-  listWorktrees,
-  normalizeRealPath,
-  startPoint,
-  worktreeRootFor,
-} from '../fs/git-worktrees'
+import { normalizeRealPath } from '@phosphor/session-runtime/git/worktree-metadata'
+import { addWorktree, listWorktrees, startPoint, worktreeRootFor } from '../fs/git-worktrees'
 import { sessionDirForCwd } from '../pi/pi-paths'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { notifyWorkspaceSessions } from '../pi/session-watcher'

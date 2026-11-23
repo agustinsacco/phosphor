@@ -286,6 +286,7 @@ export interface RunOpsPorts extends Pick<
   | 'repositories'
   | 'skills'
   | 'ownerFolders'
+  | 'sandboxes'
   | 'stateDirectory'
   | 'uid'
   | 'store'

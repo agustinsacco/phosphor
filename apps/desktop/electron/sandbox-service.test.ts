@@ -28,6 +28,7 @@ vi.mock('@phosphor/session-runtime/sandboxes/folders', () => ({
   sandboxCwds: (path: string) => [path, path + '/lane'],
 }))
 vi.mock('@phosphor/session-runtime/pi/pi-paths', () => ({
+  piSessionsRoot: () => '/pi',
   sessionDirForCwd: (cwd: string) => {
     effects.order.push('pi:' + cwd)
     return '/pi' + cwd
@@ -94,7 +95,7 @@ it('orders both cwd mappings around rename, then moves, repairs and preferences'
     'prefs',
   ])
   expect(effects.move).toHaveBeenCalledWith('/cli/old/lane', '/cli/new/lane')
-  expect(effects.repair).toHaveBeenCalledWith('/pi/new/lane', '/old/lane', '/new/lane')
+  expect(effects.repair).toHaveBeenCalledWith('/pi/new/lane', '/old/lane', '/new/lane', '/pi')
 })
 
 it('refuses a live descendant and accepts no-op rename before liveness checks', async () => {

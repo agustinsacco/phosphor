@@ -118,3 +118,29 @@ export function latestRewoundVersion(
   }
   return latest
 }
+
+/** A pinned row has its own section even if the rewind predecessor is folded in the project. */
+export function visibleLane(
+  path: string,
+  rewound: RewoundSessions,
+  present: ReadonlySet<string>,
+  flags: { live?: boolean; pinned?: boolean; hidden?: boolean },
+) {
+  return (
+    !flags.hidden &&
+    (flags.pinned || flags.live || latestRewoundVersion(rewound, path, present) === null)
+  )
+}
+
+/** A retained checkout need no longer be on disk; otherwise trust git's live worktree list. */
+export function visibleWorktrees(
+  retained: readonly string[],
+  worktrees: readonly { isMain: boolean; prunable: boolean; path: string; realPath: string }[],
+) {
+  return [
+    ...new Set([
+      ...retained,
+      ...worktrees.filter((w) => !w.isMain && !w.prunable).map((w) => w.realPath || w.path),
+    ]),
+  ]
+}

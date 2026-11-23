@@ -1,3 +1,5 @@
+import { createHostSandboxes } from '../features/sandboxes'
+import { isWithinFolder } from '@phosphor/shared/paths'
 import { createWorkspaceLeases } from '../owner/lease'
 import { isRoutineSession } from '@phosphor/session-runtime/routines/ownership'
 import type { DaemonHeadroom } from '../session/headroom'
@@ -89,7 +91,7 @@ async function startRuntime(
   const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
   await trash.sweep().catch(() => {})
   const accounts = createRunAccounts(context, ports.stateDirectory, machine.env)
-  const leases = ports.local ? runLeases(context, parts) : undefined
+  const leases = runLeases(context, parts)
   const opsLanes: HostOpsLanePorts = {
     service: () => parts.ops ?? null,
     resourceRoot: () => machine.resourceRoot,
@@ -297,7 +299,10 @@ export async function startRunMachine(
     context.log?.('host', 'lanes.unavailable', { reason: 'machine-unusable' })
     return {}
   }
-  const machine = inspection.machine
+  const machine = {
+    ...inspection.machine,
+    roots: ports.store.listRepositories().map((repo) => repo.path),
+  }
   const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
   parts.log = log
   ports.headroom?.activate(machine.env)
@@ -385,6 +390,24 @@ async function bindRunOps(
   const { runtime, live } = started
   parts.ops = await startRunOps({
     ...started.resources,
+    sandboxes: createHostSandboxes({
+      ...context,
+      local: !!ports.local,
+      configPath: ports.config.path,
+      stateDirectory: ports.stateDirectory,
+      store: ports.store,
+      leases: started.leases,
+      live: (path) => runtime.list().some((s) => isWithinFolder(s.workspacePath, path)),
+      trashItem: (file, owner) =>
+        (
+          ownerTrash(!!ports.local && owner, context.platform, context.trashRunner) ??
+          transcriptTrash(ports.stateDirectory).move
+        )(file),
+      changed: (roots) => {
+        runtime.replaceRoots(roots)
+        live.lanesTopic.repositoriesChanged()
+      },
+    }),
     slot: ops.slot,
     stateDirectory: ports.stateDirectory,
     configDirectory: dirname(resolve(context.configPath)),

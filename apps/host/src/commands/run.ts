@@ -1,3 +1,4 @@
+import { reconcileRunFolders } from '../lanes/reconcile/run'
 import type { TrashRunner } from '../lanes/delete-target'
 import { randomBytes } from 'node:crypto'
 import { createAuthority } from '../api/authority'
@@ -136,7 +137,7 @@ async function startRun(
   start: RunStart,
   signal: AbortSignal,
 ): Promise<ControlLink> {
-  const opened = await openRunState(context, parts, sink, signal)
+  const opened = await openRunState(context, parts, sink, signal, !!start.mode)
   const { stateDirectory, store } = opened
   signal.throwIfAborted()
   const local = start.mode
@@ -148,6 +149,7 @@ async function startRun(
   const owned = await local?.own(parts, store, opened.config, signal)
   const { socket, config } = owned ?? { socket: undefined, config: opened.config }
   signal.throwIfAborted()
+  if (local) await reconcileRunFolders(context, store, config, true, signal)
   const epoch = randomBytes(8).toString('hex')
   // Web Push needs the identity run started with; a later enrollment gets it on the next start.
   const webPush: StartWebPush = start.initial

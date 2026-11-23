@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { parseWorktreeList } from '@phosphor/session-runtime/git/worktree-metadata'
 import {
   addWorktree,
   commitAll,
@@ -13,7 +14,6 @@ import {
   listBranches,
   listWorktrees,
   mergeBranch,
-  parseWorktreeList,
   pruneWorktrees,
   removeWorktree,
   renameBranch,

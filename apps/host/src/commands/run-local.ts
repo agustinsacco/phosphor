@@ -22,7 +22,7 @@ import type { LaneAdapter } from '../api/lanes'
 import type { AppServices } from '../session/app-services'
 import { runLogin } from './login'
 import type { RunContext } from './run'
-import { loadRunConfig, syncRunRepositories, type RunConfig } from './run-state'
+import { loadRunConfig, type RunConfig } from './run-state'
 import type { RunParts } from './run-teardown'
 
 /** How often a daemon whose owner lock a live Desktop holds tries again. */
@@ -246,7 +246,6 @@ export function createLocalDaemon(
       owning.log('owner.acquired')
       if (!waited) return { socket, config }
       const reloaded = await loadRunConfig(context, signal)
-      syncRunRepositories(context, store, reloaded)
       return { socket, config: reloaded }
     },
     attach(started: ControlLink) {

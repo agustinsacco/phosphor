@@ -1,3 +1,4 @@
+import { FolderRows } from './store/folder-rows'
 import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
@@ -42,11 +43,7 @@ import { absolutePath, check, integer, text, uuid } from './validation'
 export { opHash } from './validation'
 export { validateRepositoryIdentity } from './store/identity'
 export { REMOVED_LANE_TTL_MS } from './store/archives'
-export function openStore(
-  directory: string,
-  uid: number | undefined,
-  ports: StorePorts = {},
-): Promise<HostStore> {
+export function openStore(directory: string, uid: number | undefined, ports: StorePorts = {}) {
   return openStoreDatabase(directory, uid, ports, (db, options) => new HostStore(db, options))
 }
 
@@ -60,6 +57,7 @@ export class HostStore {
   private configOrder: Record<string, number> = {} // Config positions: the listing order.
   readonly limits: Readonly<StoreLimits>
   readonly archives: LaneArchiveRows
+  readonly folders: FolderRows
   readonly pauses: LanePauseRows
   constructor(
     private readonly db: DatabaseSync,
@@ -85,6 +83,7 @@ export class HostStore {
     }
     this.limits = Object.freeze(limits)
     this.archives = new LaneArchiveRows(db, this.now, limits.lanesPerHost)
+    this.folders = new FolderRows(db)
     this.pauses = new LanePauseRows(db)
   }
   private transaction<T>(fn: () => T): T {

@@ -126,7 +126,9 @@ function accounts(v: Record<string, unknown>): MigrationSection | null {
   }
 }
 
-function folders(v: Record<string, unknown>): MigrationSection | null {
+export function parseMigrationFolders(
+  v: Record<string, unknown>,
+): Extract<MigrationSection, { section: 'folders' }> | null {
   const items = list(v.items, MIGRATION_LIMITS.folders, (x) =>
     record(x) && isOwnerPath(x.path) && text(x.name, 200) && isTrue(x.sandbox) && integer(x.order)
       ? {
@@ -195,7 +197,7 @@ function marks(v: Record<string, unknown>): MigrationSection | null {
 function section(v: Record<string, unknown>): MigrationSection | null {
   switch (v.section) {
     case 'folders':
-      return folders(v)
+      return parseMigrationFolders(v)
     case 'policy':
       return policy(v)
     case 'accounts':

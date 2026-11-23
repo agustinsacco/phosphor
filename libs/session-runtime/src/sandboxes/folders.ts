@@ -159,7 +159,15 @@ export function listSandboxFolders(base: string): SandboxInfo[] {
 }
 
 /** Create a randomly-named folder under `base` and return its path. */
-export function createSandboxFolder(base: string): string {
+export function createSandboxFolder(base: string, rawName?: string): string {
+  if (rawName !== undefined) {
+    const name = validateSandboxName(rawName)
+    if (!name) throw new Error('Invalid sandbox name.')
+    mkdirSync(base, { recursive: true, mode: 0o700 })
+    const path = join(realpathSync.native(base), name)
+    mkdirSync(path, { mode: 0o700 })
+    return path
+  }
   mkdirSync(base, { recursive: true })
   const existing = readdirSync(base)
   // `randomSandboxName` already avoids what it can see; the retry is for the
@@ -206,7 +214,7 @@ export function openSandboxFolder(base: string): string {
  * lexical form, so a vanished folder is still judged rather than crashing, and
  * the caller still has to cope with it being gone.
  */
-function realOrLexical(path: string): string {
+export function realOrLexical(path: string): string {
   try {
     return realpathSync.native(path)
   } catch {
@@ -248,6 +256,8 @@ export function sandboxCwds(folder: string): string[] {
   for (const parent of WORKTREE_PARENTS) {
     const root = join(folder, parent, 'worktrees')
     try {
+      if (realpathSync.native(root) !== join(realpathSync.native(folder), parent, 'worktrees'))
+        continue
       for (const entry of readdirSync(root, { withFileTypes: true })) {
         if (entry.isDirectory()) cwds.push(join(root, entry.name))
       }

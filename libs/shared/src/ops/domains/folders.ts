@@ -42,9 +42,11 @@ export const folders = [
   write('sandbox.rename', 'Rename a sandbox.', 'persistence', object({ path, name: id }), {
     ...sandbox,
     positional: ['path', 'name'],
+    job: true,
   }),
   write('sandbox.delete', 'Delete a sandbox.', 'destructive', object({ path }), {
     ...sandbox,
     ...byPath,
+    job: true,
   }),
 ]

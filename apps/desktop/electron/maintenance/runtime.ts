@@ -1,7 +1,8 @@
 import type { MaintenanceReport } from '@shared/models'
 import { registry } from '../registry'
 import { getPrefs } from '../store'
-import { normalizeRealPath } from '../fs/git-worktrees'
+import { normalizeRealPath } from '@phosphor/session-runtime/git/worktree-metadata'
+
 import { MaintenanceScheduler } from './scheduler'
 import { sweep } from './sweep'
 import { routineProtectedPaths } from '../routines'

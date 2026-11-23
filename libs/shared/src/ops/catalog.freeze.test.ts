@@ -101,8 +101,8 @@ folder.order create machine now - - - - 8d1ef8acd4670b7556748173a0f322af414e0abc
 folder.remove destructive machine now - - - - 0a84dfa50cf2c48d9ce01fd3f2f7748a5eb0105a528af804826b3c62d5048050
 sandbox.list read machine now sandboxes - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 sandbox.create create machine now sandboxes - - - 44d002cc5c2e53919d36f5ee14b7dd5db5770a5f38af14ea41679838e72cbc1d
-sandbox.rename persistence machine now sandboxes - - - 87a3d75aa8d4d1e2efa3a40d2c83cb63541787f2091875189b98ab6341e15ae3
-sandbox.delete destructive machine now sandboxes - - - 27df0035ed29980f4a14e99c65409125f30d9c5a73acf34a68458e96ee97bbb9
+sandbox.rename persistence machine now sandboxes - - job 87a3d75aa8d4d1e2efa3a40d2c83cb63541787f2091875189b98ab6341e15ae3
+sandbox.delete destructive machine now sandboxes - - job 27df0035ed29980f4a14e99c65409125f30d9c5a73acf34a68458e96ee97bbb9
 routine.list read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 routine.history read machine now - - - - ac2273c53a48d45f4e63a9d91a879e9c07646daaef58667d342acf67891f0d7f
 routine.activity read machine now - - - - b67317bb3a20672a858a98a5d7d430ce15fcd9a876f444965fdce55346bba3fc

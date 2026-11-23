@@ -48,7 +48,12 @@ export async function moveIfPresent(from: string, to: string): Promise<void> {
  * Best-effort per file, like the moves above — one unreadable transcript is
  * not a reason to fail a rename that has already happened on disk.
  */
-export async function repointTranscripts(dir: string, from: string, to: string): Promise<void> {
+export async function repointTranscripts(
+  dir: string,
+  from: string,
+  to: string,
+  root?: string,
+): Promise<void> {
   let names: string[]
   try {
     names = await readdir(dir)
@@ -58,6 +63,6 @@ export async function repointTranscripts(dir: string, from: string, to: string):
   await Promise.allSettled(
     names
       .filter((name) => name.endsWith('.jsonl'))
-      .map((name) => repointSessionCwd(join(dir, name), from, to)),
+      .map((name) => repointSessionCwd(join(dir, name), from, to, root)),
   )
 }

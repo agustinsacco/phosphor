@@ -62,6 +62,7 @@ async function admitSession(
   cwd: string,
   repositoryId: string,
 ): Promise<void> {
+  if (state.visible && !state.visible(file, repositoryId)) return
   const existing = store.sessionLane(file)
   if (existing?.removedAt === null) return
   if (state.liveLanes >= store.limits.lanesPerHost) {
@@ -76,7 +77,10 @@ async function admitSession(
     }
     let storedCwd = cwd
     if (existing) {
-      if (existing.repositoryId !== repositoryId || (await realpath(existing.cwd)) !== cwd) {
+      if (
+        existing.repositoryId !== repositoryId ||
+        (existing.cwd !== cwd && (await realpath(existing.cwd)) !== cwd)
+      ) {
         state.skipped++
         return
       }
