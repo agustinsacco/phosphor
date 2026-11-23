@@ -1,7 +1,7 @@
-import { parseSettingsPatch } from '@phosphor/shared/machine-settings'
+import { SettingsFailure } from '@phosphor/session-runtime/pi/settings-file'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { dataResult, op } from '@phosphor/session-runtime/ops/results'
-import { patchSection, projectId, readSection, scopedProject, settingsOps } from './settings-access'
+import { projectId, readSection, scopedProject, settingsOps } from './settings-access'
 import type { DaemonHandlerDeps } from './index'
 
 export function mcpHandlers(deps: DaemonHandlerDeps) {
@@ -10,38 +10,24 @@ export function mcpHandlers(deps: DaemonHandlerDeps) {
       const id = projectId(deps, scopedProject(a.scope, a.project), c)
       const before = await readSection(deps, 'connectors', id, c.signal)
       const name = String(a.name)
-      if (action === 'add' || action === 'update') {
-        const change = { type: 'mcp.upsert', name, config: a.config, approveCode: true }
-        if (action === 'add') await patchSection(deps, before, change, c)
-        else {
-          const input = parseSettingsPatch({
-            section: 'connectors',
-            repositoryId: id,
-            revision: before.revision,
-            change,
-          })
-          if (input?.change.type !== 'mcp.upsert')
-            throw new OpRefusal('bad-request', 'Invalid connector configuration.')
-          const settings = settingsOps(deps).settings
-          const cwd = settings.workspace(id)
-          await settings.replaceConnector(
-            input.change,
-            before,
-            cwd,
-            before.revision,
-            () => !c.signal.aborted && settings.workspace(id) === cwd,
-            true,
-          )
-        }
-      } else
-        await patchSection(
-          deps,
-          before,
-          action === 'remove'
+      const change =
+        action === 'add' || action === 'update'
+          ? { type: 'mcp.upsert', name, config: a.config, approveCode: true }
+          : action === 'remove'
             ? { type: 'mcp.remove', name }
-            : { type: 'mcp.enabled', name, enabled: action === 'enable' },
-          c,
+            : { type: 'mcp.enabled', name, enabled: action === 'enable' }
+      try {
+        await settingsOps(deps).settings.changeAgentConnector(
+          before,
+          change,
+          action === 'update',
+          () => !c.signal.aborted,
         )
+      } catch (error) {
+        if (error instanceof SettingsFailure)
+          throw new OpRefusal(error.code === 'internal' ? 'unavailable' : error.code, error.message)
+        throw error
+      }
       // No full connector snapshot goes to audit. Its private attributes cannot be reconstructed.
       return { text: `Saved connector change: ${name}.`, undo: false }
     })
