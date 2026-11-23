@@ -77,6 +77,28 @@ async function indexForList(
   }
 }
 
+/** One stored artifact as a listed row: its versions on the session's branch, oldest first. */
+export function artifactMeta(
+  laneId: string,
+  a: SessionArtifactIndex['artifacts'][string],
+): ArtifactMeta | null {
+  const versions = a.versions.filter((v) => v.onBranch).sort((a, b) => a.version - b.version)
+  if (!versions.length) return null
+  return {
+    laneId,
+    slug: a.slug,
+    title: a.title,
+    type: a.type,
+    ...(a.language ? { language: a.language } : {}),
+    versions: versions.map((v) => ({
+      version: v.version,
+      title: v.title,
+      createdAt: Date.parse(v.createdAt) || 0,
+      bytes: v.bytes,
+    })),
+  }
+}
+
 export async function listArtifacts(
   root: string,
   ports: ArtifactLanePorts,
@@ -98,21 +120,8 @@ export async function listArtifacts(
       : await indexForList(root, ports, laneId)
     if (!saved) continue
     for (const a of Object.values(saved.artifacts)) {
-      const versions = a.versions.filter((v) => v.onBranch).sort((a, b) => a.version - b.version)
-      if (!versions.length) continue
-      const item: ArtifactMeta = {
-        laneId,
-        slug: a.slug,
-        title: a.title,
-        type: a.type,
-        ...(a.language ? { language: a.language } : {}),
-        versions: versions.map((v) => ({
-          version: v.version,
-          title: v.title,
-          createdAt: Date.parse(v.createdAt) || 0,
-          bytes: v.bytes,
-        })),
-      }
+      const item = artifactMeta(laneId, a)
+      if (!item) continue
       metadataBytes += utf8Length(JSON.stringify(item))
       if (metadataBytes > ARTIFACT_LIMITS.metadataBytes) throw new FeatureFailure('too-large')
       items.push(item)

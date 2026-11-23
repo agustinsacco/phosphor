@@ -5,12 +5,11 @@
  * its history and go with the lane. The blobs are collected, so there is no Undo.
  */
 import { join } from 'node:path'
-import { isUuid } from '@phosphor/shared/control-api'
 import { isSessionId, readIndex } from '@phosphor/session-runtime/artifacts/artifact-indexer'
 import { ArtifactLibrary } from '@phosphor/session-runtime/artifacts/artifact-library'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { op } from '@phosphor/session-runtime/ops/results'
-import { artifactSessionId } from '../../features/artifacts/query'
+import { artifactOwner } from './artifacts'
 import type { DaemonHandlerDeps } from './index'
 
 export const ARTIFACT_REMOVE_REFUSALS = {
@@ -21,20 +20,13 @@ export const ARTIFACT_REMOVE_REFUSALS = {
 } as const
 
 /**
- * The session an artifact key names. `artifact.list` keys by lane id; This
- * Mac's library keys by pi session id. A lane id names its own session.
+ * The session an artifact key names. `artifact.list` keys by lane id or, for a
+ * conversation no lane holds, by pi session id. A live lane's is refused.
  */
 function sessionOf(deps: DaemonHandlerDeps, prefix: string): string | null {
-  const lane = isUuid(prefix) ? deps.store.getLane(prefix) : null
-  if (lane) {
-    if (lane.removedAt === null) throw new OpRefusal('forbidden', ARTIFACT_REMOVE_REFUSALS.live)
-    return lane.sessionFile ? artifactSessionId(lane.sessionFile) : null
-  }
-  const live = deps.store
-    .listLanes()
-    .some((l) => l.sessionFile !== null && artifactSessionId(l.sessionFile) === prefix)
-  if (live) throw new OpRefusal('forbidden', ARTIFACT_REMOVE_REFUSALS.live)
-  return prefix
+  const owner = artifactOwner(deps, prefix)
+  if ('laneId' in owner) throw new OpRefusal('forbidden', ARTIFACT_REMOVE_REFUSALS.live)
+  return owner.sessionId
 }
 
 export async function removeArtifact(deps: DaemonHandlerDeps, key: string) {

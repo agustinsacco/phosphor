@@ -24,14 +24,9 @@ export function laneId(deps: LaneHandlerPorts, c: OpHandlerContext) {
   return id
 }
 
-export async function laneCall(
-  deps: DaemonHandlerDeps,
-  method: string,
-  params: unknown,
-  c: OpHandlerContext,
-) {
-  const calls = deps.lanes.calls
-  const capability = calls.capabilityFor(method)
+/** Refuses a call the principal could not make on its own connection. */
+export function requireCall(deps: DaemonHandlerDeps, method: string, c: OpHandlerContext) {
+  const capability = deps.lanes.calls.capabilityFor(method)
   if (!capability) throw new OpRefusal('unsupported', `${method} is not available.`)
   if (
     c.principal.kind === 'surface' &&
@@ -39,7 +34,16 @@ export async function laneCall(
   )
     throw new OpRefusal('forbidden', `This connection cannot call ${method}.`)
   c.signal.throwIfAborted()
-  const result = await calls.call(method, params, () => !c.signal.aborted)
+}
+
+export async function laneCall(
+  deps: DaemonHandlerDeps,
+  method: string,
+  params: unknown,
+  c: OpHandlerContext,
+) {
+  requireCall(deps, method, c)
+  const result = await deps.lanes.calls.call(method, params, () => !c.signal.aborted)
   if (!result.ok) {
     const { code, message } = result.error
     throw new OpRefusal(

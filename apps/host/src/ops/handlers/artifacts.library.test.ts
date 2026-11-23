@@ -16,6 +16,7 @@ import {
 import { ArtifactLibrary } from '@phosphor/session-runtime/artifacts/artifact-library'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { OpRunContext } from '@phosphor/session-runtime/ops/ports'
+import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import { ARTIFACT_LIMITS, parseArtifactList } from '@phosphor/shared/host-protocol-artifacts'
 import { utf8Length } from '@phosphor/shared/host-protocol'
 import { createArtifactsFeature } from '../../features/artifacts'
@@ -29,6 +30,8 @@ let root: string, state: string, store: HostStore, repositoryId: string
 let deps: DaemonHandlerDeps
 let log: ReturnType<typeof vi.fn>
 let feature: ReturnType<typeof createArtifactsFeature>
+/** Built once, as `domainHandlers` builds them for the daemon. */
+let handlers: Readonly<Record<string, OpHandler>>
 
 beforeEach(async () => {
   root = realpathSync(mkdtempSync(join(tmpdir(), 'p4c-artifact-library-')))
@@ -55,6 +58,7 @@ beforeEach(async () => {
       },
     },
   } as unknown as DaemonHandlerDeps
+  handlers = artifactHandlers(deps)
 })
 afterEach(() => {
   store.close()
@@ -124,7 +128,7 @@ function context(page?: string, principal: object = { kind: 'local', clientId: '
   } as unknown as OpRunContext
 }
 const run: OwnerArtifactOp = async (req) => {
-  const result = await artifactHandlers(deps)[req.op]!(req.args, context(req.page))
+  const result = await handlers[req.op]!(req.args, context(req.page))
   return { status: 'ok', applies: 'now', ...result } as Awaited<ReturnType<OwnerArtifactOp>>
 }
 
@@ -280,20 +284,19 @@ it('keeps live rows first and the newest deleted rows within 2000 rows, dropping
   })
 })
 
-it('keeps deleted rows within 4 MiB of metadata, newest first', async () => {
+it('keeps deleted rows within 4 MiB of metadata, newest first, and drops one past a page', async () => {
   const live = await desktopSession('live', '2026-01-01T00:00:01.000Z')
   await importDesktopLibrary()
   lane(live.file)
-  for (let s = 0; s < 45; s++)
-    storedIndex(v7(), [{ slug: `big-${s}`, at: s * 1_000_000, versions: 100 }])
+  for (let s = 0; s < 6; s++)
+    storedIndex(v7(), [{ slug: `big-${s}`, at: s * 1_000_000, versions: 900 }])
+  storedIndex(v7(), [{ slug: 'too-big-for-a-page', at: 9e9, versions: 1000 }])
   const rows = await ownerLibrary(run)
   const bytes = rows.reduce((sum, r) => sum + utf8Length(JSON.stringify(r)), 0)
   expect(bytes).toBeLessThanOrEqual(ARTIFACT_LIMITS.metadataBytes)
-  expect(rows.length).toBeLessThan(46)
-  expect(rows[0]).toMatchObject({ slug: 'live' })
-  expect(rows[1]).toMatchObject({ slug: 'big-44' })
-  expect(rows.map((r) => r.slug)).toEqual([
-    'live',
-    ...Array.from({ length: rows.length - 1 }, (_, i) => `big-${44 - i}`),
-  ])
-})
+  expect(rows.map((r) => r.slug)).toEqual(['live', 'big-5', 'big-4', 'big-3', 'big-2'])
+  expect(log).toHaveBeenCalledWith('artifacts', 'library rows dropped', {
+    invalid: 1,
+    overCaps: 2,
+  })
+}, 20_000)
