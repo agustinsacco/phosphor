@@ -152,3 +152,25 @@ it('archives a worktree lane whose checkout is already gone, without a checkout 
   await storage.archive(id)
   await storage.purge(id, async () => {})
 })
+
+it('adopts a record another runtime archived, as written, and refuses its id for another lane', async () => {
+  await prepare()
+  await storage.archive(id)
+  const record = await storage.get(id)
+  await storage.finish(id)
+  const adopted = {
+    ...record,
+    id: '0b6a3c3e-5d0e-4c55-9f61-6a1f6c1d9e10',
+    metadata: { repositoryId: 'a' },
+  }
+  await storage.adopt(adopted)
+  expect(await storage.get(adopted.id)).toEqual(adopted)
+  expect(await readFile(`${file}.archived`, 'utf8')).toBe('conversation\n')
+  await storage.adopt(adopted)
+  await expect(storage.adopt({ ...adopted, cwd: join(root, 'other') })).rejects.toThrow(
+    'This archive ID already belongs to a different lane.',
+  )
+  await expect(
+    storage.adopt({ ...adopted, transcript: join(sessions, 'cwd', '2026_b.jsonl') }),
+  ).rejects.toThrow('This archive ID already belongs to a different lane.')
+})
