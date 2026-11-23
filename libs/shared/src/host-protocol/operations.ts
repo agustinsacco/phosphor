@@ -8,6 +8,7 @@ import type { DeleteLaneOp, RepositoryOp } from '../host-protocol-repositories'
 import type { RoutineOp } from '../host-protocol-routines'
 import type { TerminalOp } from '../host-protocol-terminals'
 import type { FileWriteOp } from '../host-protocol-writes'
+import type { OpsRunOp } from '../host-protocol-ops'
 import type { HostCapability } from '../remote-host'
 import type { ExtensionUIResponse, RpcCommand } from '../rpc'
 import type { LaneControl } from './lanes'
@@ -58,6 +59,7 @@ export type LaneOp =
   | RoutineOp
   | FileWriteOp
   | AttachmentOp
+  | OpsRunOp
   | LanePiOp
   | { readonly type: 'extension_ui_response'; readonly response: ExtensionUIResponse }
   | {
@@ -93,6 +95,7 @@ export const UNFENCED_OPS: readonly LaneOpType[] = [
   'host.repositories.createFolder',
   'host.repositories.order',
   'lane.marks',
+  'ops.run',
 ]
 
 export type RejectCode =

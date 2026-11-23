@@ -34,6 +34,8 @@ export const LEGACY_HOST_CAPABILITIES = Object.freeze([
 ] as const satisfies readonly HostCapability[])
 
 export type HostCapability = (typeof HOST_CAPABILITIES)[number]
+/** A capability a user grant can carry. */
+export type LegacyHostCapability = (typeof LEGACY_HOST_CAPABILITIES)[number]
 
 /**
  * A Host lane's client-side key, `host:<hostId>/lane:<laneId>`: its live

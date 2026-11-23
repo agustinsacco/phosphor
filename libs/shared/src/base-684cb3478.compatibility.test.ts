@@ -83,7 +83,32 @@ describe('frozen 684cb3478 parsers agree with today on frames both releases send
   })
 })
 
-describe('frozen 684cb3478 parsers accept the machine-reach additions and drop them', () => {
+describe('frozen 684cb3478 parsers accept the agent-control additions and drop them', () => {
+  it('reads a ready frame with every op flag as one without them', () => {
+    const { opFlags } = HOST_FRAMES.ready
+    const parsed = parseReadyFrame(opFlags)
+    expect(parsed).toMatchObject({ ops: true, ownerLocal: true, pagedLanes: false })
+    expect(base.parseReadyFrame(opFlags)).toStrictEqual(parseReadyFrame(HOST_FRAMES.ready.ready))
+  })
+
+  it('reads a paused lane summary without its pause', () => {
+    // The same summary as the plain `lanes` frame's, plus `pause`.
+    const paused = HOST_FRAMES.lanes.paused.lanes[0]
+    const plain = HOST_FRAMES.lanes.lanes.lanes[0]
+    expect(parseLaneSummary(paused)).toMatchObject({ pause: { reason: 'service-update' } })
+    expect(baseLanes.parseLaneSummary(paused)).toStrictEqual(parseLaneSummary(plain))
+  })
+
+  it('answers an ops.run command unsupported, never bad-request', () => {
+    const frame = CLIENT_FRAMES.command.ops
+    expect(parseCommandFrame(frame)).toStrictEqual({ ok: true, frame })
+    expect(baseCommands.parseCommandFrame(frame)).toStrictEqual({
+      ok: false,
+      reason: 'command',
+      reply: { kind: 'receipt', requestId: frame.requestId, code: 'unsupported' },
+    })
+  })
+
   it('reads a machine grant as a user grant with no caps', () => {
     const machine: GrantPayload = { ...BASE_GRANT, caps: [], origin: 'machine', machine: UUID(6) }
     expect(parseGrantPayload(machine)).toStrictEqual({ ok: true, value: machine })

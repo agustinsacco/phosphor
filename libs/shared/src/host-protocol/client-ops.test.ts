@@ -225,6 +225,7 @@ describe('client-ops.ts', () => {
       'lane.marks',
       'control.take',
       'control.release',
+      'ops.run',
     ])
     expect(BAD_REQUEST_OP_TYPES.some((type) => /^(files|attachments)\./.test(type))).toBe(false)
   })

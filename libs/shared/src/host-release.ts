@@ -88,3 +88,118 @@ export function parseHostReleaseManifest(value: unknown): HostReleaseManifest | 
     artifacts,
   }
 }
+
+// ---------- manifest v2 ----------
+// v1 stays byte-compatible and frozen at three targets: an old updater reads
+// only `phosphor-host[-<tag>].manifest.json`, and its parser refuses a fourth
+// target. v2 is a separate asset that adds darwin-x64 and the feature list.
+
+/** The frozen v1 target list. Never add to it; new targets go in v2 only. */
+export const LEGACY_HOST_RELEASE_TARGETS = HOST_RELEASE_TARGETS
+export const HOST_RELEASE_TARGETS_V2 = [...HOST_RELEASE_TARGETS, 'darwin-x64'] as const
+export type HostReleaseTargetV2 = (typeof HOST_RELEASE_TARGETS_V2)[number]
+
+/**
+ * What a Host build can do, as its v2 manifest and `phosphor version --json` report
+ * it. Distinct from `apps/host`'s `HostFeature`, which is a served protocol feature.
+ */
+export const HOST_RELEASE_FEATURES = [
+  'local-mode',
+  'owner-socket',
+  'owner-lock',
+  'service-pause',
+  'headroom',
+  'app-services',
+  'ops',
+  'machine-grants',
+  'migrate-v1',
+] as const
+export type HostReleaseFeature = (typeof HOST_RELEASE_FEATURES)[number]
+
+/** On `host-latest`; with `.sig` beside it. */
+export const HOST_RELEASE_MANIFEST_V2 = 'phosphor-host.manifest.v2.json'
+/** On `host-<tag>` for a tag such as `v1.2.3`; with `.sig` beside it. */
+export const hostReleaseManifestV2Name = (tag: string): string =>
+  `phosphor-host-${tag}.manifest.v2.json`
+
+export const HOST_RELEASE_V2_LIMITS = { artifacts: 16, features: 32 } as const
+
+export interface HostReleaseArtifactV2 {
+  target: HostReleaseTargetV2
+  file: string
+  bytes: number
+  sha256: string
+}
+export interface HostReleaseManifestV2 {
+  schema: 2
+  version: string
+  protocols: number[]
+  node: string
+  sourceCommit: string
+  /** Every listed name, known or not; a reader checks for the ones it needs. */
+  features: string[]
+  /** Known targets only. */
+  artifacts: HostReleaseArtifactV2[]
+}
+
+function v2Artifact(a: unknown, version: string): HostReleaseArtifactV2 | null | undefined {
+  if (a === null || typeof a !== 'object' || Array.isArray(a)) return null
+  const v = a as Record<string, unknown>
+  const target = HOST_RELEASE_TARGETS_V2.find((t) => t === v.target)
+  if (!target) return typeof v.target === 'string' ? undefined : null
+  return v.file === `phosphor-host-${version}-${target}.tar.gz` &&
+    typeof v.bytes === 'number' &&
+    Number.isSafeInteger(v.bytes) &&
+    v.bytes >= 1 &&
+    v.bytes <= HOST_RELEASE_ARTIFACT_MAX_BYTES &&
+    typeof v.sha256 === 'string' &&
+    /^[0-9a-f]{64}$/.test(v.sha256)
+    ? { target, file: v.file, bytes: v.bytes, sha256: v.sha256 }
+    : null
+}
+
+/** Tolerant where v1 is exact: unknown top-level and artifact keys are ignored, unknown targets skipped. */
+export function parseHostReleaseManifestV2(value: unknown): HostReleaseManifestV2 | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  const v = value as Record<string, unknown>
+  const { protocols, features, artifacts } = v
+  if (
+    v.schema !== 2 ||
+    typeof v.version !== 'string' ||
+    !HOST_RELEASE_VERSION_PATTERN.test(v.version) ||
+    typeof v.node !== 'string' ||
+    !HOST_RELEASE_VERSION_PATTERN.test(v.node) ||
+    typeof v.sourceCommit !== 'string' ||
+    !/^[0-9a-f]{40}$/.test(v.sourceCommit) ||
+    !Array.isArray(protocols) ||
+    protocols.length < 1 ||
+    protocols.length > 8 ||
+    !protocols.every((p): p is number => Number.isSafeInteger(p) && p >= 1 && p <= 65535) ||
+    new Set(protocols).size !== protocols.length ||
+    !Array.isArray(features) ||
+    features.length > HOST_RELEASE_V2_LIMITS.features ||
+    !features.every(
+      (f): f is string => typeof f === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(f),
+    ) ||
+    new Set(features).size !== features.length ||
+    !Array.isArray(artifacts) ||
+    artifacts.length < 1 ||
+    artifacts.length > HOST_RELEASE_V2_LIMITS.artifacts
+  )
+    return null
+  const known: HostReleaseArtifactV2[] = []
+  for (const a of artifacts) {
+    const artifact = v2Artifact(a, v.version)
+    if (artifact === null || known.some((k) => k.target === artifact?.target)) return null
+    if (artifact) known.push(artifact)
+  }
+  return {
+    schema: 2,
+    version: v.version,
+    protocols,
+    node: v.node,
+    sourceCommit: v.sourceCommit,
+    features,
+    artifacts: known,
+  }
+}

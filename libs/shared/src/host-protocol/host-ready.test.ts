@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseHostFrame } from '../host-protocol'
-import { parseReadyFrame } from './host-ready'
+import { READY_OP_FLAGS, parseReadyFrame } from './host-ready'
 
 const HOST = '00000000-0000-4000-8000-000000000006'
 const CLIENT = '00000000-0000-4000-8000-000000000005'
@@ -177,5 +177,20 @@ describe('lane marks support marker', () => {
     })
     expect(parseReadyFrame({ ...READY, laneMarks: 'yes' })).toBeNull()
     expect(ready({ laneMarks: true })).toMatchObject({ ok: true, value: { laneMarks: true } })
+  })
+})
+
+describe('agent-control op flags', () => {
+  it('carries each flag only as a boolean and leaves absent flags absent', () => {
+    for (const flag of READY_OP_FLAGS) {
+      for (const value of [true, false])
+        expect(parseReadyFrame({ ...READY, [flag]: value }), flag).toStrictEqual({
+          ...READY,
+          [flag]: value,
+        })
+      expect(parseReadyFrame({ ...READY, [flag]: 'yes' }), flag).toBeNull()
+      expect(parseReadyFrame({ ...READY, [flag]: null }), flag).toBeNull()
+    }
+    expect(parseReadyFrame(READY)).toStrictEqual(READY)
   })
 })

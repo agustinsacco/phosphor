@@ -29,6 +29,7 @@ export type {
   LaneControl,
   LaneController,
   LaneEvent,
+  LanePause,
   LanePiPush,
   LaneSnapshot,
   LaneSummary,
@@ -56,3 +57,4 @@ export type { ClientFrame, ClientFrameParse, FrameSocket, HostFrame } from './ho
 export { isLaneBranchName, utf8Length } from './host-protocol/primitives'
 export { parseClientFrame } from './host-protocol/client'
 export { parseHostFrame } from './host-protocol/host'
+export { READY_OP_FLAGS, type ReadyOpFlag } from './host-protocol/host-ready'

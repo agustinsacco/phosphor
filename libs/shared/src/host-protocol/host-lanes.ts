@@ -4,7 +4,7 @@ import { isLaneMarker } from '../host-protocol-lane-marks'
 import { parseLanePrSignals } from '../host-protocol-pr-status'
 import { HOST_LIMITS } from './constants'
 import type { HostFrame } from './frames'
-import type { LaneControl, LaneSummary, RepositorySummary } from './lanes'
+import type { LaneControl, LanePause, LaneSummary, RepositorySummary } from './lanes'
 import {
   cursor,
   frameId,
@@ -31,11 +31,22 @@ export function parseLaneControl(v: unknown): LaneControl | null {
     : null
 }
 
+/** A pause with an unknown reason or extra keys is invalid; the summary drops it. */
+export function parseLanePause(v: unknown): LanePause | null {
+  return record(v) &&
+    Object.keys(v).length === 2 &&
+    v.reason === 'service-update' &&
+    isIsoTime(v.at)
+    ? { reason: 'service-update', at: v.at }
+    : null
+}
+
 /** A lane's summary; its read counter can never pass its attention counter. */
 export function parseLaneSummary(v: unknown): LaneSummary | null {
   if (!record(v)) return null
   const c = parseLaneControl(v.control)
   const pullRequests = v.pullRequests === undefined ? null : parseLanePrSignals(v.pullRequests)
+  const pause = v.pause === undefined ? null : parseLanePause(v.pause)
   if (
     !isUuid(v.laneId) ||
     !hex(v.repositoryId) ||
@@ -75,6 +86,7 @@ export function parseLaneSummary(v: unknown): LaneSummary | null {
     ...(v.pinned === true ? { pinned: true as const } : {}),
     ...(isLaneMarker(v.marker) ? { marker: v.marker } : {}),
     ...(pullRequests ? { pullRequests } : {}),
+    ...(pause ? { pause } : {}),
   }
 }
 
@@ -94,7 +106,7 @@ export function boundedList<T>(
   return out
 }
 
-function repository(v: unknown): RepositorySummary | null {
+export function parseRepositorySummary(v: unknown): RepositorySummary | null {
   return record(v) &&
     hex(v.id) &&
     text(v.name, HOST_LIMITS.outboundFrameBytes) &&
@@ -106,7 +118,7 @@ function repository(v: unknown): RepositorySummary | null {
 
 export function parseLanesFrame(v: Record<string, unknown>): Frame<'lanes'> | null {
   const c = cursor(v.cursor),
-    r = boundedList(v.repositories, HOST_LIMITS.repositoriesPerHost, repository),
+    r = boundedList(v.repositories, HOST_LIMITS.repositoriesPerHost, parseRepositorySummary),
     l = boundedList(v.lanes, HOST_LIMITS.lanesPerHost, parseLaneSummary)
   return frameId(v.id) && c && r && l
     ? { type: 'lanes', id: v.id, cursor: c, repositories: r, lanes: l }

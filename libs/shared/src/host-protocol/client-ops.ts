@@ -8,6 +8,7 @@ import { parseDeleteLaneOp, parseRepositoryOp } from '../host-protocol-repositor
 import { parseRoutineOp, ROUTINE_OPS } from '../host-protocol-routines'
 import { parseTerminalOp } from '../host-protocol-terminals'
 import { parseFileWriteOp } from '../host-protocol-writes'
+import { OPS_RUN, parseOpsRunOp } from '../host-protocol-ops'
 import { parseExtensionUiResponse, parsePromptImages } from './client-content'
 import { HOST_LIMITS } from './constants'
 import { LANE_PI_OPS, type LaneOp } from './operations'
@@ -48,6 +49,7 @@ export const BAD_REQUEST_OP_TYPES = [
   'lane.marks',
   'control.take',
   'control.release',
+  'ops.run',
 ] as const
 
 function messageOp(v: OpFields, type: 'prompt' | 'steer' | 'follow_up'): LaneOp | null {
@@ -171,6 +173,7 @@ function familyParser(type: unknown): ((v: OpFields) => LaneOp | null) | undefin
   if (typeof type === 'string' && type.startsWith('host.repositories.')) return parseRepositoryOp
   if (type === 'provider.login') return parseProviderLoginOp
   if (type === 'machine.task') return parseMachineTask
+  if (type === OPS_RUN) return parseOpsRunOp
   if (typeof type === 'string' && type.startsWith('terminal.')) return parseTerminalOp
   if (typeof type === 'string' && type.startsWith('routine.')) return parseRoutineOp
   return undefined

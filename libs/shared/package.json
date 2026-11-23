@@ -415,6 +415,26 @@
     "./session-title": {
       "types": "./src/session-title.ts",
       "default": "./src/session-title.ts"
+    },
+    "./host-protocol-ops": {
+      "types": "./src/host-protocol-ops.ts",
+      "default": "./src/host-protocol-ops.ts"
+    },
+    "./host-protocol-paged-lanes": {
+      "types": "./src/host-protocol-paged-lanes.ts",
+      "default": "./src/host-protocol-paged-lanes.ts"
+    },
+    "./host-protocol-owner": {
+      "types": "./src/host-protocol-owner.ts",
+      "default": "./src/host-protocol-owner.ts"
+    },
+    "./host-local": {
+      "types": "./src/host-local.ts",
+      "default": "./src/host-local.ts"
+    },
+    "./ops": {
+      "types": "./src/ops.ts",
+      "default": "./src/ops.ts"
     }
   },
   "dependencies": {

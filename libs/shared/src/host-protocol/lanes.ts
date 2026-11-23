@@ -71,6 +71,14 @@ export interface LaneSummary {
    * Absent while unread, when the lane points at none, and from older Hosts.
    */
   readonly pullRequests?: LanePrSignals
+  /** The machine is pausing or paused this lane for a service update. Absent otherwise. */
+  readonly pause?: LanePause
+}
+
+export interface LanePause {
+  readonly reason: 'service-update'
+  /** When the pause began, ISO 8601. */
+  readonly at: string
 }
 
 /** One consistent view of a lane at `(epoch, seq)`; events continue from `seq + 1`. */
