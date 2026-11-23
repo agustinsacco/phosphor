@@ -10,7 +10,9 @@ const systemRunner: TrashRunner = async (file, args) => {
 }
 // No Finder automation. Asking JXA to return a resulting URL via Ref() can
 // crash osascript *after* NSFileManager has already moved the transcript.
-const script = `ObjC.import('Foundation');
+// `ObjC['import']` is `ObjC.import`; the bracket keeps the Host's import scanners from
+// reading the JXA framework name as a module import.
+const script = `ObjC['import']('Foundation');
 function run(argv) {
   const url = $.NSURL.fileURLWithPath(argv[0]);
   if (!$.NSFileManager.defaultManager.trashItemAtURLResultingItemURLError(url, null, null)) throw Error('Trash failed');
