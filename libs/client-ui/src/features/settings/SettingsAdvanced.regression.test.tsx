@@ -115,3 +115,21 @@ it('the raw config editor says the file could not be read and retries it (regres
   expect(document.querySelector('[data-testid=editor]')?.textContent).toBe('{"theme":"dark"}')
   expect(alerts()).toEqual([])
 })
+
+it('recovers a failed first Phosphor service read, without offering in-app lanes', async () => {
+  let changed: ((status: import('@shared/ipc').LocalMachineStatus) => void) | undefined
+  vi.stubGlobal('phosphor', {
+    ...window.phosphor,
+    onLocalMachineChanged: (cb: typeof changed) => { changed = cb; return () => { changed = undefined } },
+  })
+  failing.add('app:localMachine')
+  answers['app:localMachine'] = { mode: 'daemon', migration: 'committed', service: 'down' }
+  await showAdvanced()
+  expect(alerts().join()).toContain('Couldn’t check the Phosphor service')
+  await act(async () => retryIn('Phosphor service').click())
+  expect(container.textContent).toContain('Start service')
+  expect(container.textContent).not.toContain('pi health')
+  act(() => changed?.({ mode: 'daemon', migration: 'committed', service: 'ready' }))
+  expect(container.textContent).toContain('Update Phosphor service')
+  expect(container.textContent).not.toContain('Start service')
+})
