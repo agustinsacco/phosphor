@@ -302,15 +302,14 @@ owner derives the principal from the lane process and verifies confirmations;
 the tool cannot approve its own request. `lane-controls.ts` applies an owner's
 effects to that session. `directives.ts` and `live-context.ts` refresh a lane's directives and its
 discovered repository instruction files on the next request, without rewriting
-the session's base prompt. No spawn loads the tool or skill yet.
+the session's base prompt. The [op channel](agent-control.md#the-op-channel) is shared by in-app and service lanes.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 
 A feature that adds spawn-time inputs (env, `-e`, `--skill`) does it through
 `SessionStartupRuntime.contributions` (`libs/session-runtime/src/pi/spawn-contributions.ts`),
 one file per feature in each owner's `contributions/` folder
 (`apps/desktop/electron/pi/contributions/`, `apps/host/src/session/contributions/`).
-Every contribution is empty today, so argv and env are unchanged; characterization
-tests pin both owners' spawn options for one lane.
+Ops and Brain contribute lane resources separately; a lane can have recall without the general-purpose agent tool.
 
 | File                   | Why it must run inside pi                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------- |
@@ -664,7 +663,7 @@ disagree.
 
 | Key                          | Emitter                                          | Consumer                                                                                                                   |
 | ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `phosphor-swarm`             | `libs/pi-extensions/pi-ext/swarm.ts`             | Composer pill (four looks), outline and lane-title badge; versioned native authorization state, never activity             |
+| `phosphor-swarm`             | `libs/pi-extensions/pi-ext/swarm.ts`             | Composer pill (four looks), outline and lane-title badge; versioned authorization state, never activity; optional agent source and reason             |
 | `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes, the composer's per-lane MCP tool counts       |
 | `phosphor-reload`            | `libs/pi-extensions/pi-ext/lane-reload.ts`       | `libs/session-runtime/src/pi/lane-reload.ts` (main), JSON `{ token, outcome }`; hidden from the status strip               |
 | `phosphor-headroom`          | `libs/pi-extensions/pi-ext/headroom.ts`          | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                                    |

@@ -140,10 +140,10 @@ edge secrets or peer error messages. [Tracing a machine](remote-development.md#t
 lists the events and their correlation rules.
 
 Rate limits are sliding windows held per purpose, the key prefix before the
-first colon. Each of the eleven purposes (`enrollment-create`, `enrollment-poll-ip`,
+first colon. Each of the fourteen purposes (`enrollment-create`, `enrollment-poll-ip`,
 `enrollment-poll`, `enrollment-failure`, `user-verify`, `host-auth`,
-`grant-issue`, `client-register`, `usage-ping`, `usage-download`, `admin-read`) has
-its own 10,000-key cap, 110,000 keys in all. The two usage purposes never answer 429:
+`grant-issue`, `client-register`, `usage-ping`, `usage-download`, `admin-read`, `machine-auth`, `machine-directory`, `machine-grant-issue`) has
+its own 10,000-key cap, 140,000 keys in all. The two usage purposes never answer 429:
 an over-limit request is answered normally and not counted.
 At capacity a purpose sweeps its expired windows and refuses new keys with 429
 rather than evicting live windows. Saturating one purpose never refuses another,
@@ -242,8 +242,9 @@ reaches a sibling. `CONTROL_MACHINE_ROUTES` names these routes, separate from
 Heartbeat requests may carry `machineGrants`, and heartbeat responses
 `machineReach`. `MachineView` may carry `machineReach` and `machineGrants`. The
 parsers keep each one only when it is a boolean. An absent `machineReach` means
-older control, so clients hide the switch instead of showing it off. Control
-does not serve the three routes yet; they answer 404 like any unknown route.
+older control, so clients hide the switch instead of showing it off. Host-signed routes spend a separate pre-signature IP budget (120/min), then a per-caller directory (30/min) or issue (60/min) budget. Control issues only to a sibling on the same account with reach on at both ends; a target must be running, have an endpoint, report machine grants and have been seen within 90 seconds. A disabled account or reach-off is forbidden; an unknown target is not found, an unavailable target is a conflict, and exhaustion of the principal cap is rate-limited.
+
+Turning off reach revokes the machine principal. Heartbeats distribute revoked IDs alongside revoked client IDs; if the machine lookup fails, control accepts the ordinary heartbeat without the extra fields. A failed reach lookup on the machine list likewise omits reach metadata. Existing grants are short-lived even if a heartbeat cannot deliver a revocation.
 
 ## Configuration and local use
 
@@ -363,7 +364,7 @@ physical-device acceptance.
 
 ## Control-directory schema
 
-`supabase/migrations/` holds versioned PostgreSQL migrations for six tables:
+`supabase/migrations/` holds versioned PostgreSQL migrations including these tables:
 
 - `remote_access_accounts`: server-managed suspension state, GitHub login and
   update time. New accounts are enabled by default.
@@ -371,6 +372,7 @@ physical-device acceptance.
   architecture, version, heartbeat sequence and state, readiness, lane counts,
   optional bare HTTPS endpoint and revocation epoch.
 - `remote_clients`: owner, client kind, display label and revocation metadata.
+- `remote_machine_principals`: the distinct client and session IDs for sibling grants, scoped to the owner and machine. No client policy; issuance bounds live and recently revoked principals to 40 per owner. Machine grant sessions are not user grant sessions.
 - `remote_grant_sessions`: recently issued Auth session ids and times for bounded
   heartbeat revocation checks. It has no client grants or policies.
 - `remote_enrollments`: hashed user codes, public keys and machine metadata.

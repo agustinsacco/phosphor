@@ -99,7 +99,7 @@ The composer is one small field with several ways in.
   deadline shows as unconfirmed, not failed, and keeps Stop
   ([remote desktop](remote-desktop.md)).
 - `@` → fuzzy file search across the workspace (gitignore-aware), inserts a
-  path reference.
+  path reference. Files come first; **Lanes** searches lane titles and machine names on readable machines. Selecting a lane inserts a `phosphor-lane:` reference, not its transcript. Click its chip to open it. The agent can request its context with `lane.read` under the normal [agent-control policy](agent-control.md).
 - **Dictation:** with voice input on (Settings → Voice), a microphone beside
   Attach records until clicked again, then inserts the transcript at the caret
   without sending. Undo removes it. Transcribed locally ([voice.md](voice.md)).
@@ -716,7 +716,7 @@ to acquire the command. A missing or excluded pi-subagents tool surface disables
 The short `phosphor_swarm` authorization section is added **request-locally** by
 `context_with_system`, including native background-completion requests. Switching
 off removes that section from subsequent requests entirely, rather than appending a
-contradictory “off” instruction. A mid-run change stays visibly pending until
+contradictory “off” instruction. An agent can request Swarm for its own lane with a reason: the change applies on the next model request, even in this run. An agent enable shows **agent** on the pill, the reason in its hint, and one toast. An explicit user off blocks later agent enables on this branch. A mid-run **user** change stays visibly pending until
 `agent_end`, so it never changes policy beneath an in-flight turn. Changes made
 while Pi is still busy after that boundary (compaction or continuation preparation)
 apply at settlement, or at the next `agent_start` if Pi continues without settling.
@@ -793,9 +793,7 @@ Phosphor appends its directive blocks in this order: worktree guard, machine
 awareness, lane charter, sub-agent policy. Each is a switch with no free text;
 what the user writes for every lane is the machine's
 [global instructions](#global-instructions). pi's own system prompt and project
-rules remain separate inputs. The blocks are composed once
-for a process spawn; a resume that starts a new process uses current context and
-preferences. Reopening an already-live process does not replace its prompt.
+rules remain separate inputs. A spawn supplies the base directives; a live directive update replaces the blocks for the next model request, without rewriting that base prompt.
 
 Settings > Agent > Directives has **Machine awareness**, default on, backed by
 its own `AgentDirectivePrefs.machineAwareness` field. Like other directives it can
@@ -873,8 +871,7 @@ thousands of tokens on every request.
   never sent, whatever the checkbox: it is listed as **Excluded · main checkout**
   and the worktree's own copy is the one sent
   ([extensions.md](extensions.md#bundled-extensions-phosphors-own)).
-- **In a Host lane:** the same readout and popover, read-only, because a Host
-  lane has no context-files write yet. Rules show checked or unchecked as the
+- **In a Host lane:** the same readout and popover, read-only in this popover. The service separately supports the `contextFiles.set` and `mcp.lane` catalog ops. Rules show checked or unchecked as the
   lane's breakdown reports them, and connectors list the servers the lane
   connected, with their tool counts, so the badge reads `MCP n` (only the
   connected count is known). Before the lane reports, the popover says so and
@@ -884,8 +881,7 @@ thousands of tokens on every request.
 - **Routines** always send every context file, whatever the preference: an
   unattended run keeps the project's rules ([routines.md](routines.md)). A
   routine-owned lane refuses a toggle, like any other manual command, until
-  the routine lets it go. The Host CLI has no such preference and sends every
-  file.
+  the routine lets it go. New interactive service lanes use the machine’s saved default.
 
 The filter runs inside pi ([extensions.md](extensions.md#bundled-extensions-phosphors-own))
 and leaves the transcript untouched. Each in-lane toggle also appends a

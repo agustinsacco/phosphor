@@ -59,7 +59,9 @@ Tailscale HTTPS/WSS, not SSH.
 
 ## Connect and authorize
 
-Enrollment associates a machine key with your account. It does not grant execution.
+Enrollment associates a machine key with your account. With **Machine reach** on (the default), that key can obtain grants to run catalog operations on other reach-enabled machines on the same account. Under Machines, switching reach off on either end disables this path in both directions. Older control or a Host without support shows an explanation rather than a switch.
+
+The machine key is a file readable by programs running as that user, including a lane's shell. Hostile instructions on one machine can therefore affect lanes and settings elsewhere. Ops-only grants, target policy, approvals and a target-side audit limit this exposure; they do not isolate two reach-enabled machines. Turn reach off where that trust is inappropriate.
 Desktop registers its own client identity and asks control for a five-minute grant.
 The Host authenticates that grant and proves its enrolled identity to Desktop.
 Effective capabilities are the intersection of the grant and the Host's features.
