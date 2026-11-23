@@ -88,6 +88,11 @@ describe('readSessionTree', () => {
     return read
   }
 
+  it('exposes the user message clock separately from its later entry write time', async () => {
+    const tree = await treeOf(line(HEADER), line(message('u1', null, { role: 'user', timestamp: 42, content: 'hi' })))
+    expect(tree.entries[0]).toMatchObject({ messageTimestamp: 42, timestamp: '2026-08-01T10:00:01.000Z' })
+  })
+
   it('skips a null or non-record line and keeps every valid row around it', async () => {
     const tree = await treeOf(
       line(HEADER),

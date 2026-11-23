@@ -164,6 +164,7 @@ describe('fork, clone and rewind create a new lane and leave the source', () => 
         lines.slice(1).join('') +
         jumpLine('a1', 'u2'),
     )
+    expect(fx.store.getLane(rewound.lane.laneId)).toMatchObject({ rewoundFrom: source.laneId })
     expect(fx.prefs(rewound.lane.laneId)).toEqual({ rewound_from: source.laneId })
     expect(fx.store.getLane(source.laneId)?.removedAt).toBeNull()
   })

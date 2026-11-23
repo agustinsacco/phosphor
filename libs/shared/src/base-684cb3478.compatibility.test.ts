@@ -91,6 +91,13 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
     expect(base.parseReadyFrame(opFlags)).toStrictEqual(parseReadyFrame(HOST_FRAMES.ready.ready))
   })
 
+  it('keeps the rewind predecessor lane id only on the new reader', () => {
+    const plain = HOST_FRAMES.lanes.lanes.lanes[0]
+    const replacement = { ...plain, rewoundFrom: UUID(99) }
+    expect(parseLaneSummary(replacement)).toStrictEqual(replacement)
+    expect(baseLanes.parseLaneSummary(replacement)).toStrictEqual(parseLaneSummary(plain))
+  })
+
   it('reads a paused lane summary without its pause', () => {
     // The same summary as the plain `lanes` frame's, plus `pause`.
     const paused = HOST_FRAMES.lanes.paused.lanes[0]
