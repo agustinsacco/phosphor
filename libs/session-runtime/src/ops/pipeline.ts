@@ -219,7 +219,10 @@ async function placeDeferred(
 function withToast(j: Judged, effects: readonly LaneEffect[], text: string): readonly LaneEffect[] {
   if (j.principal.kind !== 'agent' || j.tier === 'read') return effects
   if (effects.some((e) => e.kind === 'notify' || e.kind === 'swarm')) return effects
-  const message = `Agent ran ${j.spec.name}: ${firstLine(text)}`.slice(0, 200)
+  // A governed agent write carries a reason (the judge refuses one without it).
+  const reason = j.request.reason?.trim()
+  const why = reason ? ` Reason: ${firstLine(reason)}` : ''
+  const message = `Agent ran ${j.spec.name}: ${firstLine(text)}${why}`.slice(0, 200)
   return [...effects, { kind: 'notify', message, level: 'info' }]
 }
 

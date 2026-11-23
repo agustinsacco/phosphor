@@ -42,7 +42,7 @@ export function builtinHandlers(
   return {
     'policy.show': async () => {
       const { policy, changedOutside } = await binding.policy.read()
-      return { text: describePolicy(policy, changedOutside), data: policy }
+      return { text: describePolicy(policy, changedOutside), data: { policy, changedOutside } }
     },
     'confirm.status': async (args, ctx) => {
       const confirmId = (args as { confirmId: string }).confirmId
