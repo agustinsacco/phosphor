@@ -184,3 +184,63 @@ it('renders just the owner notify toast with its reason, not a second one for th
   expect(document.querySelector('[data-testid="toast-stack"]')?.children.length).toBe(1)
   expect(document.body.textContent).toContain('the task needs vision')
 })
+
+it('only undoes the chosen machine’s audit id and reads it again after success', async () => {
+  const row = {
+    id: 'row-3',
+    at: 123,
+    principal: 'machine:bee',
+    tier: 'lane',
+    scope: 'self',
+    op: 'lane.pin',
+    argsSummary: '{}',
+    reason: 'Keep this visible',
+    decision: 'allowed',
+    result: 'Pinned',
+    undo: true,
+  }
+  invoke.mockImplementation(async (_ch, _target, req) =>
+    ok(req.op === 'audit.list' ? [row] : req.op === 'policy.show' ? policy : []),
+  )
+  await mount(<AgentControl machine="local" />)
+  expect(document.body.textContent).toContain('Keep this visible')
+  await click('Undo')
+  expect(invoke).toHaveBeenCalledWith(
+    'ops:run',
+    { kind: 'local' },
+    { op: 'audit.undo', args: { auditId: 'row-3' } },
+  )
+  expect(count('audit.list')).toBe(2)
+})
+it('reviews CLI asks by exact id, without answering a pi dialog', async () => {
+  const pending = {
+    ...info,
+    origin: { kind: 'local', label: 'Command line' },
+    items: [{ hostId: null, op: info.op, ids: ['abc'], labels: ['old lane'] }],
+  }
+  invoke.mockImplementation(async (_ch, _target, req) =>
+    ok(req.op === 'confirm.list' ? [pending] : req.op === 'policy.show' ? policy : []),
+  )
+  await mount(<AgentControl machine="local" />)
+  await click('Review')
+  expect(document.body.textContent).toContain(message)
+  await click('Approve')
+  expect(invoke).toHaveBeenCalledWith(
+    'ops:run',
+    { kind: 'local' },
+    { op: 'confirm.approve', args: { confirmId } },
+  )
+  expect(count('confirm.list')).toBe(2)
+})
+it('does not trust another machine’s proposed target digest', async () => {
+  useRemoteLanesStore.setState({
+    hosts: { [MOCK_HOST_ID]: { ...mockRemoteHosts[MOCK_HOST_ID]!, ops: true } },
+  })
+  invoke.mockImplementation(async (_ch, t) =>
+    ok(t.kind === 'local' ? info : { ...info, digest: 'ef'.repeat(32) }),
+  )
+  await dialog()
+  expect(document.body.textContent).toContain('no longer matches')
+  expect(button('Approve')!.disabled).toBe(true)
+  expect(count('confirm.approve')).toBe(0)
+})
