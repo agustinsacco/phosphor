@@ -114,6 +114,14 @@ async function indexPages(owner: OwnerChannel): Promise<OwnerIndex> {
   return { ...first, lanes, next: undefined }
 }
 
+/** The lanes the service already has, by session file: a re-migration keeps their ids. */
+async function serviceLaneIds(owner: OwnerChannel): Promise<Record<string, string>> {
+  const { lanes } = await indexPages(owner)
+  return Object.fromEntries(
+    lanes.flatMap((row) => (row.sessionFile ? [[row.sessionFile, row.laneId]] : [])),
+  )
+}
+
 async function stage(run: Run, plan: MigrationPlan): Promise<void> {
   const { owner } = run.ports
   const { migrationId } = run.journal
@@ -171,7 +179,8 @@ async function prepare(run: Run): Promise<void> {
   })
   const plan = await step(run, 'plan', async () => {
     const routinesCopy = manifest.routines ? join(backupDir, manifest.routines.name) : null
-    const built = buildPlan(await ports.scan({ migrationId, machineId, backupDir, routinesCopy }))
+    const facts = await ports.scan({ migrationId, machineId, backupDir, routinesCopy })
+    const built = buildPlan(facts, await serviceLaneIds(ports.owner))
     if (built.refusals.length > 0) throw new StepFailed(built.refusals[0]!)
     const digest = writePlan(backupDir, built)
     writeWitness(backupDir, takeWitness(built.witness))

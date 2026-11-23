@@ -134,11 +134,18 @@ function folderAliases(facts: PlanFacts): Record<string, string> {
   )
 }
 
-export function buildPlan(facts: PlanFacts): MigrationPlan {
+/**
+ * `existing`: session file → lane id the service already has, as after a
+ * break-glass restore. Its import keeps those lanes, so the plan names them.
+ */
+export function buildPlan(
+  facts: PlanFacts,
+  existing: Readonly<Record<string, string>> = {},
+): MigrationPlan {
   const lanes = plannedLanes(facts)
   const lanesSection = {
     section: 'lanes' as const,
-    items: lanes.map((lane) => laneItem(facts.migrationId, lane)),
+    items: lanes.map((lane) => laneItem(facts.migrationId, lane, existing[lane.path])),
   }
   const marks = marksSection(facts, lanes)
   const routines = routinesSection(facts)

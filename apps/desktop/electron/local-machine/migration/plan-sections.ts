@@ -104,9 +104,14 @@ export function accountsSection(facts: PlanFacts): Section<'accounts'> {
   }
 }
 
-export function laneItem(migrationId: string, session: PlanSessionFact): MigrationLaneItem {
+/** `existingId`: the lane the service already has for this file, which its import keeps. */
+export function laneItem(
+  migrationId: string,
+  session: PlanSessionFact,
+  existingId?: string,
+): MigrationLaneItem {
   return {
-    laneId: plannedUuid(migrationId, 'lane', session.path),
+    laneId: existingId ?? plannedUuid(migrationId, 'lane', session.path),
     sessionFile: session.path,
     cwd: session.cwd,
     rootPath: session.rootPath,
