@@ -60,8 +60,12 @@ test('relaunch selects the re-keyed last lane and restores its unsent draft', as
   await committed(await m.start())
   const page = await m.start()
   await committed(page)
+  // The sidebar's row: This Mac's home lists the same lane until the resume opens it.
   await expect(
-    page.getByTestId('remote-session-row').filter({ hasText: m.world.lanes.checkout.name }),
+    page
+      .getByRole('region', { name: 'This Mac' })
+      .getByTestId('remote-session-row')
+      .filter({ hasText: m.world.lanes.checkout.name }),
   ).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('main textarea')).toHaveValue(draftText)
 })
