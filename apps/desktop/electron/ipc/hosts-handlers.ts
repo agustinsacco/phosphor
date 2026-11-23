@@ -51,6 +51,8 @@ import { readHostReceipt } from '@phosphor/host-client/attention'
 import { createHostAttention } from '../hosts/attention'
 import { trafficLog } from '../hosts/traffic-log'
 import { tappedLog } from '../hosts/traffic-tap'
+import { startLocalMachine } from '../local-machine/connection'
+import { onDaemonMode } from '../local-machine/mode'
 
 let routines: ReturnType<typeof createRemoteRoutines> | undefined
 export const remoteRoutineMachines = () => routines?.machines() ?? []
@@ -298,6 +300,20 @@ export function registerHostsHandlers(): void {
       destroyed: () => sender.isDestroyed(),
     }
   }
+  // Inert until the launch gate decides daemon mode (M3): then This Mac's service joins the manager.
+  onDaemonMode((access) => {
+    const local = startLocalMachine({
+      ...access,
+      uid: process.getuid?.(),
+      attach: (slot) => manager.setLocal(slot),
+      changed: () => manager.changed(),
+      log: tappedLog,
+      traffic: (hostId, ...frame) => trafficLog.frame(hostId, ...frame),
+      onAttention: (hostId, event) => attention.receive(hostId, event),
+      onRoutinesChanged: (hostId) => broadcast('routines:changed', { machine: `host:${hostId}` }),
+    })
+    app.once('will-quit', () => local.stop())
+  })
   app.once('will-quit', () => {
     off()
     terminals?.clear()
