@@ -184,3 +184,25 @@ describe('createHeadroomHandler', () => {
     expect(totals.beforeTokens).toBe(2500)
   })
 })
+
+it('a daemon socket takes precedence; its failure cannot send tool results to a URL', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+  const { default: extension } = await import('./headroom')
+  const dir = await mkdtemp(join(tmpdir(), 'hr-'))
+  try {
+    const fetchImpl = fetchStub(compressed('leak'))
+    vi.stubGlobal('fetch', fetchImpl)
+    vi.stubEnv('PHOSPHOR_HEADROOM_URL', 'http://desktop.invalid')
+    vi.stubEnv('PHOSPHOR_HEADROOM_SOCKET', join(dir, 'missing.sock'))
+    const on = vi.fn()
+    extension({ on })
+    expect(await on.mock.calls[0]![1](textResult(), {})).toBeUndefined()
+    expect(fetchImpl).not.toHaveBeenCalled()
+  } finally {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+    await rm(dir, { recursive: true, force: true })
+  }
+})
