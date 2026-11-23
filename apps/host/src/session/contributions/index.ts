@@ -1,3 +1,4 @@
+import type { DaemonHeadroom } from '../headroom'
 import type { HostShellEnvironment } from '../../machine/shell-environment'
 import type { HostLog } from '../../machine/log'
 import { shellEnvironmentContribution } from './shell-environment'
@@ -12,7 +13,7 @@ export function hostSpawnContributions(
   shell: HostShellEnvironment | undefined,
   log: HostLog,
   brain?: Parameters<typeof createBrainContribution>[0],
-  headroom?: import('../headroom').DaemonHeadroom,
+  headroom?: DaemonHeadroom,
 ): readonly SpawnContribution[] {
   shell?.bindLog(log)
   return [

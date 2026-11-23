@@ -1,4 +1,5 @@
 import type { WorkspaceLeases } from '../owner/lease'
+import type { DaemonHeadroom } from '../session/headroom'
 import { open, unlink } from 'node:fs/promises'
 import { setTimeout } from 'node:timers/promises'
 import { dirname, join, resolve } from 'node:path'
@@ -63,7 +64,7 @@ export interface LocalSocketLanes {
 /** The owner socket as run drives it. */
 export interface LocalSocket {
   readonly appServices?: AppServices
-  headroom?: import('../session/headroom').DaemonHeadroom
+  headroom?: DaemonHeadroom
   stop(): Promise<void>
   /**
    * Starts serving lanes, ops and the machine guard beside the owner calls.

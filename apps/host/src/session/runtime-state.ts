@@ -1,5 +1,6 @@
 import type { AppServices } from './app-services'
 import type { WorkspaceLeases } from '../owner/lease'
+import type { DaemonHeadroom } from './headroom'
 import type { HostShellEnvironment } from '../machine/shell-environment'
 import { hostname, type as osType } from 'node:os'
 import { AsyncLocalStorage } from 'node:async_hooks'
@@ -38,7 +39,7 @@ export interface HostMachine {
   /** In Desktop's grammar; '' is the 200k default. */
   contextBudget: string
   machineContext?: Extract<MachineContext, { kind: 'host' }>
-  headroom?: import('./headroom').DaemonHeadroom
+  headroom?: DaemonHeadroom
   shellEnvironment?: HostShellEnvironment
   log: HostLog
 }

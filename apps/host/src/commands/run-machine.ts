@@ -1,5 +1,6 @@
 import { createWorkspaceLeases } from '../owner/lease'
 import { isRoutineSession } from '@phosphor/session-runtime/routines/ownership'
+import type { DaemonHeadroom } from '../session/headroom'
 import { join } from 'node:path'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
@@ -42,7 +43,7 @@ export interface RunMachinePorts {
   stateDirectory: string
   store: HostStore
   sink: ReceiptSink
-  headroom?: import('../session/headroom').DaemonHeadroom
+  headroom?: DaemonHeadroom
   webPush: StartWebPush
 }
 
