@@ -61,7 +61,8 @@ export class NonceCache {
 /**
  * The control plane's rate-limit purposes: a key's purpose is its prefix before the
  * first colon. Each purpose holds its own keys, so saturating one never refuses
- * another, and together they hold at most 110,000.
+ * another, and together they hold at most 140,000. Host-signed machine routes spend
+ * `machine-auth:<ip>`, never `host-auth:<ip>`, so they cannot push heartbeats into 429.
  */
 export const RATE_PURPOSE_CAPACITIES = Object.freeze({
   'enrollment-create': 10_000,
@@ -75,6 +76,9 @@ export const RATE_PURPOSE_CAPACITIES = Object.freeze({
   'usage-ping': 10_000,
   'usage-download': 10_000,
   'admin-read': 10_000,
+  'machine-auth': 10_000,
+  'machine-directory': 10_000,
+  'machine-grant-issue': 10_000,
 })
 /**
  * Sliding windows in one map of at most `capacity` keys. Given a table of purpose

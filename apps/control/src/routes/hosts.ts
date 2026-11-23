@@ -1,21 +1,12 @@
 import type { Hono } from 'hono'
-import {
-  CONTROL_ROUTES,
-  CONTROL_LIMITS,
-  isPublicKey,
-  isUuid,
-  HOST_HEADERS,
-  parseHostSelfResponse,
-  parseHeartbeatRequest,
-  parseHeartbeatResponse,
-  parseHostRevocations,
-  type HostRevocations,
-} from '@phosphor/shared/control-api'
+import { CONTROL_ROUTES, isPublicKey, parseHostSelfResponse } from '@phosphor/shared/control-api'
 import type { TraceEvents } from '../events'
 import type { AppDeps } from '../app'
 import type { HostAuthDeps } from '../auth/host'
 import { ControlFailure, type Env } from '../http'
-import { body, emptyBody, host, outcome, parsed, record } from './shared'
+import { emptyBody, host, outcome, parsed, record } from './shared'
+import { heartbeat } from './heartbeat'
+import { machineGrants } from './machine-grants'
 
 export function hostAuthentication(deps: AppDeps): HostAuthDeps {
   return {
@@ -38,52 +29,8 @@ export function hosts(app: Hono<Env>, deps: AppDeps, auth: HostAuthDeps, events:
     outcome(value, 'active')
     return c.json(parsed(parseHostSelfResponse(value)))
   })
-  app.post(CONTROL_ROUTES.hostHeartbeat, async (c) => {
-    const input = parsed(parseHeartbeatRequest(body(c)), 'bad-request')
-    try {
-      const id = await host(c, auth, 'host')
-      const value = record(
-        await deps.supabase.rpc('control_host_heartbeat', {
-          p_host_id: id,
-          p_seq: input.seq,
-          p_state: input.state,
-          p_host_version: input.hostVersion,
-          p_uptime_sec: input.uptimeSec,
-          p_readiness: input.readiness,
-          p_running: input.lanes.running,
-          p_waiting: input.lanes.waiting,
-          p_endpoint: input.endpoint,
-        }),
-      )
-      outcome(value, 'accepted')
-      events.accepted(c, id, input)
-      let revocations: HostRevocations | undefined
-      try {
-        revocations = parsed(
-          parseHostRevocations(await deps.supabase.rpc('control_host_revocations', { p_host: id })),
-        )
-      } catch (error) {
-        events.emit(c, 'heartbeat.revocations_unavailable', {
-          hostId: id,
-          reason: error instanceof ControlFailure ? error.code : 'unavailable',
-        })
-      }
-      return c.json(
-        parsed(
-          parseHeartbeatResponse({
-            accepted: true,
-            nextInSec: CONTROL_LIMITS.heartbeatSec,
-            ...revocations,
-          }),
-        ),
-      )
-    } catch (error) {
-      const hostId = c.req.header(HOST_HEADERS.host)
-      if (error instanceof ControlFailure && error.code === 'gone' && isUuid(hostId))
-        events.emit(c, 'host.refused', { hostId, reason: 'gone' })
-      throw error
-    }
-  })
+  heartbeat(app, deps, auth, events)
+  machineGrants(app, deps, auth, events)
   app.post(CONTROL_ROUTES.hostRevoke, async (c) => {
     emptyBody(c)
     const id = await host(c, auth, 'host')

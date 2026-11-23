@@ -1,7 +1,12 @@
 import { browserAuth, isWebHost } from './web/auth'
 import { WEB_AUTH_ROUTES } from '@phosphor/shared/web-auth'
 import { Hono } from 'hono'
-import { CONTROL_LIMITS, CONTROL_ROUTES, type ControlErrorBody } from '@phosphor/shared/control-api'
+import {
+  CONTROL_LIMITS,
+  CONTROL_MACHINE_ROUTES,
+  CONTROL_ROUTES,
+  type ControlErrorBody,
+} from '@phosphor/shared/control-api'
 import { TraceEvents, type EventLog } from './events'
 import type { Config } from './config'
 import {
@@ -60,12 +65,17 @@ const routeMethods: Record<string, readonly string[]> = {
   [CONTROL_ROUTES.hostRevoke]: ['POST'],
   [CONTROL_ROUTES.usagePing]: ['POST'],
   [CONTROL_ROUTES.adminStats]: ['GET'],
+  [CONTROL_MACHINE_ROUTES.hostMachines]: ['GET'],
+  [CONTROL_MACHINE_ROUTES.hostMachineGrants]: ['POST'],
 }
 /** The methods a registered API path takes; undefined for a path no route owns. */
 function allowedMethods(path: string): readonly string[] | undefined {
-  const child = (parent: string) =>
-    path.startsWith(parent + '/') && path.slice(parent.length + 1).split('/').length === 1
+  const child = (parent: string, rest = '') =>
+    path.startsWith(parent + '/') &&
+    path.endsWith(rest) &&
+    path.slice(parent.length + 1, path.length - rest.length).split('/').length === 1
   if (child(CONTROL_ROUTES.machines)) return ['PATCH', 'DELETE']
+  if (child(CONTROL_ROUTES.machines, '/reach')) return ['PATCH']
   if (child(CONTROL_ROUTES.clients)) return ['DELETE']
   return routeMethods[path]
 }
