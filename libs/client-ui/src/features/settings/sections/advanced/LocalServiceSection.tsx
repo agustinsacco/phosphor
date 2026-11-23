@@ -118,6 +118,12 @@ function ServiceCard({ machine, children }: { machine: string; children?: ReactN
     return id && s.hosts[id]?.state === 'ready' ? hostTasks(id, s.hosts[id]).length : undefined
   })
   const action = useServiceAction(status, working, reload)
+  const retryService = () =>
+    action.run(async () => {
+      const id = localServiceId(useRemoteLanesStore.getState().hosts)
+      if (id) await window.phosphor.invoke('hosts:reconnect', id)
+      reload()
+    })
   const button: Click = (name, label) => (
     <Button disabled={action.busy} onClick={() => action.invoke(name)}>
       {action.failed && name === 'update-service' ? 'Update again' : label}
@@ -131,7 +137,9 @@ function ServiceCard({ machine, children }: { machine: string; children?: ReactN
         </div>
       )}
       {status && migrationRow(status, button)}
-      {status && <ServiceRows status={status} working={working} reload={reload} button={button} />}
+      {status && (
+        <ServiceRows status={status} working={working} reload={retryService} button={button} />
+      )}
       {action.message && <p role="status">{action.message}</p>}
       {(machine !== 'local' || status?.mode === 'in-app') && children}
     </>

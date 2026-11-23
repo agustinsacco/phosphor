@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { LocalMachineStatus } from '@shared/ipc'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -117,7 +118,7 @@ it('the raw config editor says the file could not be read and retries it (regres
 })
 
 it('recovers a failed first Phosphor service read, without offering in-app lanes', async () => {
-  let changed: ((status: import('@shared/ipc').LocalMachineStatus) => void) | undefined
+  let changed: ((status: LocalMachineStatus) => void) | undefined
   vi.stubGlobal('phosphor', {
     ...window.phosphor,
     onLocalMachineChanged: (cb: typeof changed) => {

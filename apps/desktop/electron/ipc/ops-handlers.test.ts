@@ -13,9 +13,13 @@ vi.mock('electron', () => ({
       state.handlers.set(channel, handler),
   },
 }))
+vi.mock('../broadcast', () => ({ broadcast: vi.fn() }))
 vi.mock('../ops/service', () => ({ desktopOps: () => ({ run: state.run }) }))
 vi.mock('../local-machine/mode', () => ({ localRuntimeMode: () => state.mode }))
-vi.mock('../local-machine/same-machine', () => ({ sameMachine: () => state.service }))
+vi.mock('../local-machine/same-machine', () => ({
+  sameMachine: () => state.service,
+  localSlotConnection: () => undefined,
+}))
 vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 
 const invoke = (channel: string, ...args: unknown[]) => {

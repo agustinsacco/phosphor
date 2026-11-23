@@ -6,32 +6,32 @@ import type { LocalMachineStatus } from '@phosphor/shared/ipc'
 export function useLocalServiceStatus() {
   const [status, setStatus] = useState<LocalMachineStatus>()
   const [error, setError] = useState('')
-  const serial = useRef(0)
+  const serial = useRef({ ticket: 0 }).current
   const reload = useCallback(() => {
-    const ticket = ++serial.current
+    const ticket = ++serial.ticket
     void window.phosphor.invoke('app:localMachine').then(
       (next) => {
-        if (ticket !== serial.current) return
+        if (ticket !== serial.ticket) return
         setStatus(next)
         setError('')
       },
       (cause) => {
-        if (ticket === serial.current) setError(ipcErrorText(cause))
+        if (ticket === serial.ticket) setError(ipcErrorText(cause))
       },
     )
-  }, [])
+  }, [serial])
   useEffect(() => {
     const off = window.phosphor.onLocalMachineChanged((next) => {
-      serial.current++
+      serial.ticket++
       setStatus(next)
       setError('')
     })
     reload()
     return () => {
-      serial.current++
+      serial.ticket++
       off()
     }
-  }, [reload])
+  }, [reload, serial])
   useEffect(() => {
     if (status?.mode !== 'daemon') return
     const timer = window.setInterval(() => {

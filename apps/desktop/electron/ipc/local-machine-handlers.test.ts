@@ -51,6 +51,8 @@ function slot() {
     capabilities: [],
   } as const
   const call = vi.fn(async (_method: string, _params: unknown) => ({
+    type: 'result' as const,
+    id: 'call-1',
     ok: true as const,
     data: { machineId: machine, hostVersion: '1.2.3', pause: none },
   }))
@@ -58,6 +60,7 @@ function slot() {
     snapshot: () => ({ ...snap, lanes: [], repositories: [], capabilities: [] }),
     call,
     send: vi.fn(async () => ({
+      requestId: 'req-1',
       status: 'done' as const,
       data: { status: 'ok', text: 'Started: update', applies: 'now' },
     })),
@@ -121,6 +124,8 @@ it('routes update only over the local service write receipt; before Abort now an
     ['update-cancel', 'cancel'],
   ] as const) {
     c.call.mockResolvedValueOnce({
+      type: 'result',
+      id: 'call-1',
       ok: true,
       data: { machineId: machine, hostVersion: '1.2.3', pause: pausing },
     })

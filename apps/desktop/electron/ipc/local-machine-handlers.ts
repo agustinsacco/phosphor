@@ -23,11 +23,12 @@ let facts: { token?: string; pause: LocalMachineStatus['pause']; version: string
 let read: { slot: Slot; token?: string; done: Promise<LocalMachineStatus> } | undefined
 
 export function bindLocalMachineGate(next: LocalMachineGate | null): void {
+  const previous = gate
   off?.()
   gate = next
   facts = read = undefined
-  lastPush = ''
   off = next?.onStatus(notifyLocalMachineChanged)
+  if (previous || next) pushStatus(snapshot())
 }
 
 function snapshot(): LocalMachineStatus {
@@ -45,7 +46,10 @@ function snapshot(): LocalMachineStatus {
   }
   facts = undefined
   const service =
-    slot?.state === 'wrong-machine' || slot?.state === 'signed-out'
+    slot?.state === 'wrong-machine' ||
+    slot?.state === 'signed-out' ||
+    slot?.lastError === 'forbidden' ||
+    slot?.lastError === 'grant-refused'
       ? 'attestation-failed'
       : slot?.state === 'connecting' || slot?.state === 'reconnecting'
         ? 'connecting'
@@ -58,7 +62,10 @@ function snapshot(): LocalMachineStatus {
 /** Called by the gate and local slot; lane traffic must not trigger owner calls or redundant pushes. */
 export function notifyLocalMachineChanged(): void {
   if (!gate) return
-  const status = snapshot()
+  pushStatus(snapshot())
+}
+
+function pushStatus(status: LocalMachineStatus) {
   const key = JSON.stringify(status)
   if (key === lastPush) return
   lastPush = key
@@ -101,9 +108,9 @@ const unavailable = () =>
   )
 async function action(current: LocalMachineGate, name: LocalMachineAction): Promise<Answer> {
   const base = current.status()
+  if (name === 'retry-migration' && ['failed', 'reverted', 'waiting'].includes(base.migration))
+    return current.retry()
   if (base.mode === 'in-app') {
-    if (name === 'retry-migration' && ['failed', 'reverted', 'waiting'].includes(base.migration))
-      return current.retry()
     if (name === 'consent-migration' && base.migration === 'consent-needed')
       return current.consent()
     if (name === 'restart-to-finish' && base.migration === 'committed') return restartToFinish()
