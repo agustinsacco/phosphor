@@ -97,6 +97,42 @@ const archived = (n: number, worktree = false) => ({
   ...(worktree ? { worktree: true } : {}),
 })
 
+it('labels only the button whose operation is running', async () => {
+  let settleRestore!: () => void
+  const pending = new Promise<void>((resolve) => (settleRestore = resolve))
+  const list = {
+    entries: [archived(1)],
+    bytes: 0,
+    measuredAt: Date.now(),
+    measuring: false,
+    truncated: false,
+  }
+  const invoke = vi.fn(async (channel: string) => {
+    if (channel === 'sessions:archives') return list
+    if (channel === 'sessions:restoreArchive') {
+      await pending
+      return { path: '/repo/lane-1.jsonl', cwd: '/repo/lane-1' }
+    }
+    return undefined
+  })
+  Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
+  vi.spyOn(useSessionsStore.getState(), 'refreshDisk').mockResolvedValue(undefined)
+  await act(async () => root.render(<ArchiveMachine machine="local" query="" />))
+
+  await act(async () => button('Restore').click())
+  // The row shares one busy flag with its sibling, so "Clean up…" must not
+  // claim to be working just because a restore is in flight.
+  expect(button('Restoring…')).toBeTruthy()
+  expect(button('Clean up…')).toBeTruthy()
+  expect(button('Cleaning up…')).toBeUndefined()
+
+  await act(async () => {
+    settleRestore()
+    await pending
+  })
+  expect(button('Restore')).toBeTruthy()
+})
+
 it('cleans up the whole selection in one confirm, and keeps the checkout unless asked', async () => {
   const list = {
     entries: [archived(1), archived(2), archived(3, true)],

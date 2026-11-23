@@ -25,17 +25,20 @@ export async function restoreArchive(machine: string, id: string): Promise<void>
  * and two at once can act on an entry the other already removed.
  */
 export function useArchiveMutation(machine: string, writable: boolean | undefined) {
-  const [busy, setBusy] = useState<string | null>(null)
+  const [busy, setBusy] = useState<{ id: string; purge: boolean } | null>(null)
   const [bulk, setBulk] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [purging, setPurging] = useState<LaneArchiveEntry | null>(null)
   const running = busy !== null || bulk > 0
+  /** Which operation this row is running, so only that button changes its label. */
+  const busyFor = (id: string): 'restore' | 'purge' | null =>
+    busy?.id === id ? (busy.purge ? 'purge' : 'restore') : null
   const fail = (cause: unknown, fallback: string): void =>
     setError(cause instanceof Error ? cause.message : fallback)
 
   const mutate = async (entry: LaneArchiveEntry, purge: boolean, removeWorktree = false) => {
     if (!writable || running) return
-    setBusy(entry.id)
+    setBusy({ id: entry.id, purge })
     setError(null)
     try {
       if (purge) await purgeArchive(machine, entry.id, removeWorktree)
@@ -73,7 +76,7 @@ export function useArchiveMutation(machine: string, writable: boolean | undefine
 
   return {
     running,
-    busy,
+    busyFor,
     bulkCount: bulk,
     error,
     purging,

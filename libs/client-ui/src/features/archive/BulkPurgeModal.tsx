@@ -25,15 +25,16 @@ export function BulkPurgeModal({
   const worktree = worktrees
     ? {
         label: `Also remove their dedicated worktrees (${worktrees})`,
-        note: `Permanently deletes each worktree under \`.phosphor/worktrees/\`, uncommitted,
-          untracked and ignored files included. Refused for any folder another lane still uses.
-          Shared folders and branches are never removed.`,
+        note:
+          'Permanently deletes each worktree under `.phosphor/worktrees/`, uncommitted, ' +
+          'untracked and ignored files included. Refused for any folder another lane still ' +
+          'uses. Shared folders and branches are never removed.',
       }
     : undefined
   return (
     <PurgeConfirm
       title={`Clean up ${entries.length} archived ${plural}`}
-      subtitle={`Remove these archived conversations and their lane-owned files from Phosphor. This cannot be undone from Archive. Shared project folders and branches are kept.`}
+      subtitle="Remove these archived conversations and their lane-owned files from Phosphor. This cannot be undone from Archive. Shared project folders and branches are kept."
       confirmLabel={`Clean up ${entries.length} archived ${plural}`}
       acknowledgement={`${entries.length} archived ${plural} on this machine.`}
       busy={busy}

@@ -19,7 +19,8 @@ export function ArchiveRow({
 }: {
   entry: LaneArchiveEntry
   select: LaneSelect
-  busy: boolean
+  /** Which operation this row is running. Only that button changes its label. */
+  busy: 'restore' | 'purge' | null
   canRestore: boolean
   canPurge: boolean
   onRestore: () => void
@@ -32,7 +33,7 @@ export function ArchiveRow({
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="truncate font-medium">{entry.title}</h3>
           {entry.state !== 'archived' && (
-            <Tag className="bg-warning/12 text-warning">{entry.state}</Tag>
+            <Tag className="bg-warning/15 text-warning">{entry.state}</Tag>
           )}
         </div>
         <p className="text-text-tertiary truncate text-xs" {...tooltipProps(entry.cwd)}>
@@ -43,10 +44,14 @@ export function ArchiveRow({
         </p>
       </div>
       <Button size="sm" disabled={!canRestore} onClick={onRestore}>
-        {busy ? 'Restoring…' : 'Restore'}
+        {busy === 'restore' ? 'Restoring…' : 'Restore'}
       </Button>
       <Button size="sm" variant="danger" disabled={!canPurge} onClick={onPurge}>
-        {busy ? 'Cleaning up…' : entry.state === 'purging' ? 'Retry cleanup…' : 'Clean up…'}
+        {busy === 'purge'
+          ? 'Cleaning up…'
+          : entry.state === 'purging'
+            ? 'Retry cleanup…'
+            : 'Clean up…'}
       </Button>
     </li>
   )

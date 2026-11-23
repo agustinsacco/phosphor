@@ -60,7 +60,7 @@ export function ArchiveList({
   shown: readonly LaneArchiveEntry[]
   actions: ReturnType<typeof useArchiveMutation>
 }): React.JSX.Element {
-  const { running, busy, setError, setPurging, mutate } = actions
+  const { running, busyFor, setError, setPurging, mutate } = actions
   const [confirming, setConfirming] = useState(false)
   const selection = useGroupSelection(`archive:${machine}`)
   const owner = useSelectionOwner([selection.key], confirming || running)
@@ -87,7 +87,7 @@ export function ArchiveList({
             key={entry.id}
             entry={entry}
             select={selectOf(entry, keys, order, selection.selecting, writable, selection.key)}
-            busy={busy === entry.id}
+            busy={busyFor(entry.id)}
             canRestore={writable && !running && entry.state !== 'purging'}
             canPurge={canPurge(entry, writable) && !running}
             onRestore={() => {
