@@ -27,6 +27,7 @@ import { registerBrainHandlers } from './ipc/brain-handlers'
 import { registerOpsHandlers } from './ipc/ops-handlers'
 import { registerLocalMachineHandlers } from './ipc/local-machine-handlers'
 import { brainService, installBrainRecall } from './brain/runtime'
+import { decideE2eDaemonMode } from './local-machine/e2e-daemon'
 
 /**
  * Register every IPC invoke handler, grouped by domain.
@@ -35,6 +36,7 @@ import { brainService, installBrainRecall } from './brain/runtime'
  * channel prefix, so a new handler has exactly one obvious home.
  */
 export function registerIpcHandlers(): void {
+  decideE2eDaemonMode()
   registerPiSessionHandlers()
   registerAppHandlers()
   registerLocalMachineHandlers()
