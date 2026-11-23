@@ -51,7 +51,11 @@ export type {
   OwnerTranscriptPage,
   ServicePauseState,
 } from './host-protocol-owner/status'
-export { MIGRATION_LIMITS, parseMigrationImport } from './host-protocol-owner/migration'
+export {
+  MIGRATION_LIMITS,
+  parseMigrationImport,
+  parseMigrationFolders,
+} from './host-protocol-owner/migration'
 export type {
   MigrationArchiveManifest,
   MigrationImport,

@@ -655,6 +655,14 @@
     "./skills/zip": {
       "types": "./src/skills/zip.ts",
       "default": "./src/skills/zip.ts"
+    },
+    "./git/worktree-metadata": {
+      "types": "./src/git/worktree-metadata.ts",
+      "default": "./src/git/worktree-metadata.ts"
+    },
+    "./lanes/visible-lanes": {
+      "types": "./src/lanes/visible-lanes.ts",
+      "default": "./src/lanes/visible-lanes.ts"
     }
   },
   "nx": {

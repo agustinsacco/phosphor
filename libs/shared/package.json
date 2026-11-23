@@ -443,6 +443,10 @@
     "./ops-catalog": {
       "types": "./src/ops-catalog.ts",
       "default": "./src/ops-catalog.ts"
+    },
+    "./visible-lanes": {
+      "types": "./src/visible-lanes.ts",
+      "default": "./src/visible-lanes.ts"
     }
   },
   "dependencies": {
