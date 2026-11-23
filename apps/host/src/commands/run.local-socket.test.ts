@@ -22,6 +22,12 @@ vi.mock('./doctor', () => ({
   inspectHost: vi.fn(async () => ({ machine: hooks.machine, secrets: [] })),
 }))
 
+// No TCP listener, including when enrollment starts the heartbeat.
+vi.mock('../api/server', async (original) => ({
+  ...(await original<typeof import('../api/server')>()),
+  startApi: () => ({ deliver() {}, connections: () => [], stop: async () => {} }),
+}))
+
 const folders: string[] = []
 afterEach(async () => {
   hooks.machine = null
@@ -132,6 +138,49 @@ describe('run with the local-mode marker serves the owner socket', () => {
       expect(await run).toBe(0)
       expect(existsSync(path)).toBe(false)
     } finally {
+      await host.cleanup()
+    }
+  }, 30_000)
+
+  it('keeps ready.hello.hostId on the owner socket across enrollment', async () => {
+    const host = await localRunMachine({ enrolled: false, marker: true, heartbeat: 'accepted' })
+    hooks.machine = host.machine
+    const path = await socketPath()
+    const context = host.context()
+    const local = await writeLocalIdentity(dirname(context.configPath), context.uid)
+    let daemon: LocalDaemon | undefined
+    const starter = createLocalSocketStarter(context, { candidates: [path] })
+    const run = runHost({
+      ...context,
+      startLocalSocket: (d, store) => {
+        daemon = d
+        return starter(d, store)
+      },
+      wait: (ms, signal) => (ms <= 5000 ? Promise.resolve() : context.wait!(ms, signal)),
+    })
+    try {
+      await vi.waitFor(() => expect(daemon?.link()?.mode()).toBe('local'), { timeout: 10_000 })
+      const before = await ownerConnection(path, local, context.now ?? Date.now)
+      expect(before.frames[0]).toMatchObject({ hello: { hostId: local.machineId } })
+      before.send({
+        type: 'call',
+        id: 'begin',
+        method: 'machine.enroll',
+        params: { action: 'begin' },
+      })
+      expect(await result(before, 'begin')).toMatchObject({ ok: true })
+      await vi.waitFor(() => expect(host.beats).toContain('running'), { timeout: 10_000 })
+      before.close()
+      const after = await ownerConnection(path, local, context.now ?? Date.now)
+      expect(after.frames[0]).toMatchObject({ hello: { hostId: local.machineId } })
+      after.send({ type: 'call', id: 'status', method: 'machine.local' })
+      expect(await result(after, 'status')).toMatchObject({
+        data: { mode: 'enrolled', machineId: local.machineId },
+      })
+      after.close()
+    } finally {
+      await host.target()?.drain('SIGTERM')
+      await run
       await host.cleanup()
     }
   }, 30_000)
