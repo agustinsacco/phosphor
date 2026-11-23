@@ -206,3 +206,33 @@ it('a daemon socket takes precedence; its failure cannot send tool results to a 
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+it('reads health and compresses an eligible result over the configured socket', async () => {
+  const { createServer } = await import('node:http')
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+  const { default: extension } = await import('./headroom')
+  const dir = await mkdtemp(join(tmpdir(), 'hr-'))
+  const socket = join(dir, 'relay.sock')
+  const requests: string[] = []
+  const relay = createServer((req, res) => {
+    requests.push(`${req.method} ${req.url}`)
+    if (req.url === '/health') res.writeHead(204).end()
+    else res.end(JSON.stringify(compressed('smaller')))
+  })
+  try {
+    await new Promise<void>((resolve) => relay.listen(socket, resolve))
+    vi.stubEnv('PHOSPHOR_HEADROOM_SOCKET', socket)
+    const on = vi.fn()
+    extension({ on })
+    expect(await on.mock.calls[0]![1](textResult(), {})).toMatchObject({
+      content: [{ type: 'text', text: 'smaller' }],
+    })
+    expect(requests).toEqual(['GET /health', 'POST /v1/compress'])
+  } finally {
+    vi.unstubAllEnvs()
+    await new Promise<void>((resolve) => relay.close(() => resolve()))
+    await rm(dir, { recursive: true, force: true })
+  }
+})
