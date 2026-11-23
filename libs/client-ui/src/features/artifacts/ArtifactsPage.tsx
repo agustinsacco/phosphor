@@ -328,11 +328,7 @@ function StoredArtifactView({
 
   const remove = async (): Promise<void> => {
     try {
-      const owner = /^host:([^/]+)\/session:([^/]+)\/artifact:([^/]+)$/.exec(artifactKey)
-      if (owner?.[1] && loaded?.listing.sessionDeleted) {
-        await runAgentOp(owner[1], 'artifact.remove', { key: `${owner[2]}/${owner[3]}` })
-        onRemoved()
-      } else if (await window.phosphor.invoke('artifacts:remove', artifactKey)) onRemoved()
+      if (await removeStoredArtifact(artifactKey, loaded?.listing)) onRemoved()
     } catch (error) {
       useExtensionUiStore.getState().pushToast(ipcErrorText(error), 'error')
     }
@@ -385,4 +381,15 @@ function StoredArtifactView({
       }}
     />
   )
+}
+
+async function removeStoredArtifact(
+  key: string,
+  listing: ArtifactListing | undefined,
+): Promise<boolean> {
+  if (!listing?.sessionDeleted) return false
+  const owner = /^host:([^/]+)\/session:([^/]+)\/artifact:([^/]+)$/.exec(key)
+  if (!owner?.[1]) return window.phosphor.invoke('artifacts:remove', key)
+  await runAgentOp(owner[1], 'artifact.remove', { key: `${owner[2]}/${owner[3]}` })
+  return true
 }
