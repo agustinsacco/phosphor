@@ -38,6 +38,8 @@ const invoke = (channel: string, ...args: unknown[]) => {
 it('registers the channels and rejects malformed renderer inputs before a request', async () => {
   expect(state.handlers.size).toBe(6)
   for (const [channel, args] of [
+    ['control:setMachineReach', ['../bad', true]],
+    ['control:setMachineReach', ['11111111-1111-4111-8111-111111111111', 1]],
     ['control:lookupEnrollment', [7]],
     ['control:renameMachine', ['../bad', 'x']],
     ['control:renameMachine', ['11111111-1111-4111-8111-111111111111', '']],
@@ -52,6 +54,7 @@ it('registers the channels and rejects malformed renderer inputs before a reques
 it('returns signed-out for every channel without a token and sends no request', async () => {
   state.token = null
   for (const [channel, args] of [
+    ['control:setMachineReach', ['11111111-1111-4111-8111-111111111111', true]],
     ['control:machines', []],
     ['control:lookupEnrollment', ['BCDFGHJK']],
     ['control:approveEnrollment', ['BCDFGHJK', 'bee1']],
@@ -61,12 +64,21 @@ it('returns signed-out for every channel without a token and sends no request', 
     expect(await invoke(channel, ...args)).toMatchObject({ error: { code: 'signed-out' } })
   expect(fetchImpl).not.toHaveBeenCalled()
 })
-it('answers the machine reach switch as unavailable and sends no request', async () => {
-  expect(
-    await invoke('control:setMachineReach', '11111111-1111-4111-8111-111111111111', false),
-  ).toEqual({
-    ok: false,
-    error: { code: 'unavailable', message: 'Machine reach is not available yet.' },
-  })
-  expect(fetchImpl).not.toHaveBeenCalled()
+it.each([200, 404])('PATCHes the enrolled machine reach route (HTTP %s)', async (status) => {
+  const id = '11111111-1111-4111-8111-111111111111'
+  fetchImpl
+    .mockResolvedValueOnce(
+      Response.json({ account: { login: 'octo' }, enabled: true, maxHosts: 20 }),
+    )
+    .mockResolvedValueOnce(
+      status === 200 ? Response.json({ machineReach: false }) : new Response(null, { status }),
+    )
+  expect(await invoke('control:setMachineReach', id, false)).toMatchObject(
+    status === 200
+      ? { ok: true, machineReach: false }
+      : { ok: false, error: { code: 'not-found' } },
+  )
+  const [url, options] = fetchImpl.mock.calls[1]!
+  expect(url.pathname).toBe(`/api/v1/machines/${id}/reach`)
+  expect(options).toMatchObject({ method: 'PATCH', body: '{"enabled":false}' })
 })

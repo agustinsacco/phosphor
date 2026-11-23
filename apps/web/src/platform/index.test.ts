@@ -1,3 +1,4 @@
+import { WEB_CSRF_HEADER } from '@phosphor/shared/web-auth'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrowserApi } from './index'
 import { IPC_WEB } from '@phosphor/shared/ipc-web'
@@ -125,4 +126,35 @@ it('bundles the production adapter without Node, Desktop, runtime or test depend
   for (const input of Object.keys(result.metafile!.inputs))
     expect(input).not.toMatch(/apps\/desktop|session-runtime|node:|\.test\./)
   expect(result.outputFiles[0]?.text).not.toMatch(/\bBuffer\b|\bprocess\.|node:|electron/)
+})
+
+it.each([200, 404])('serves the reach IPC over the user session (HTTP %s)', async (status) => {
+  const s = setup()
+  const id = '11111111-1111-4111-8111-111111111111'
+  const csrfToken = 'a'.repeat(43)
+  const path = `/api/v1/machines/${id}/reach`
+  s.fetch.mockImplementation(async (url) => {
+    if (url === '/api/auth/session')
+      return Response.json({ user: { id, login: null }, clientId: id, csrfToken })
+    if (url === path)
+      return status === 200
+        ? Response.json({ machineReach: false })
+        : new Response(null, { status })
+    return Response.json({ machines: [], serverTime: new Date().toISOString() })
+  })
+  await s.start()
+  expect(await s.api.invoke('control:setMachineReach', id, false)).toMatchObject(
+    status === 200
+      ? { ok: true, machineReach: false }
+      : { ok: false, error: { code: 'not-found' } },
+  )
+  expect(s.fetch).toHaveBeenCalledWith(
+    path,
+    expect.objectContaining({
+      method: 'PATCH',
+      credentials: 'same-origin',
+      body: '{"enabled":false}',
+      headers: expect.objectContaining({ [WEB_CSRF_HEADER]: csrfToken }),
+    }),
+  )
 })
