@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
+import { refreshAgentModel } from './refreshAgentModel'
 import { useAgentLaneScope } from './laneScope'
 import { machineEventKey, readChanges } from './agentOps'
 
@@ -46,6 +47,7 @@ export function useAgentHints(sessionId: string) {
         return
       const changed = fields.filter((f) => event.fields?.includes(f))
       if (!changed.length) return
+      void refreshAgentModel(sessionId)
       const turns = changed.map((field) => ({ field, turn: ++versions.current[field] }))
       void readChanges(machine, lane).then(
         ({ rows }) => {
@@ -76,6 +78,6 @@ export function useAgentHints(sessionId: string) {
       live = false
       stop?.()
     }
-  }, [machine, lane, entry, clear, put])
+  }, [machine, lane, entry, clear, put, sessionId])
   return { ...hints, clear }
 }

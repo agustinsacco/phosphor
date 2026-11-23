@@ -135,11 +135,28 @@ it('refreshes only the matching lane, recovers after failure and never overlaps 
   const waiting = Promise.withResolvers<void>()
   command.mockRejectedValueOnce(new Error('not ready')).mockImplementation(async () => {
     await waiting.promise
-    return { command: 'get_state', type: 'response', success: true, data: { sessionId: 'pi-id', thinkingLevel: 'high' } as RpcSessionState }
+    return {
+      command: 'get_state',
+      type: 'response',
+      success: true,
+      data: { sessionId: 'pi-id', thinkingLevel: 'high' } as RpcSessionState,
+    }
   })
-  function Hint() { useAgentHints(sid); return null }
+  function Hint() {
+    useAgentHints(sid)
+    return null
+  }
   await act(async () => root.render(<Hint />))
-  await act(async () => { for (const patch of [{ laneRef: 'other' }, { fields: ['pinned'] }, { machine: 'local' }]) fake.events.onOpsChanged.emit({ machine: `host:${MOCK_HOST_ID}`, laneRef: lane, kind: 'lane', fields: ['model'], ...patch }) })
+  await act(async () => {
+    for (const patch of [{ laneRef: 'other' }, { fields: ['pinned'] }, { machine: 'local' }])
+      fake.events.onOpsChanged.emit({
+        machine: `host:${MOCK_HOST_ID}`,
+        laneRef: lane,
+        kind: 'lane',
+        fields: ['model'],
+        ...patch,
+      })
+  })
   expect(command).not.toHaveBeenCalled()
   await emit()
   expect(command).toHaveBeenCalledWith(sid, { type: 'get_state' })

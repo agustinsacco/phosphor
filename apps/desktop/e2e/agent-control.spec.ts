@@ -174,6 +174,7 @@ test('model chip changes only after agent_settled', async ({ desktop: { page } }
     await window.phosphor.piCommand(lane!.sessionId, { type: 'prompt', message: '/stub-op-settle' })
   })
   await expect(chip).toContainText('GPT-5')
+  await expect(chip).toHaveAccessibleDescription(/Changed by the agent: Compare the result/)
 })
 
 test('select a local @lane, send the chip, and open the referenced conversation', async ({
