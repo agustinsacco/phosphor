@@ -89,6 +89,12 @@ it('reconciles new files, preserves UUIDs across open, and marks vanished files 
   expect((await scan()).added).toBe(1)
   expect(store.sessionLane(file)?.laneId).toBe(id)
 })
+it('does not discover an unknown deleted checkout in the headless scan', async () => {
+  const cwd = join(repository, '.phosphor', 'worktrees', 'missing')
+  const file = session(cwd)
+  expect((await scan()).added).toBe(0)
+  expect(store.sessionLane(file)).toBeNull()
+})
 it('scans known worktree cwd as well as active repositories', async () => {
   const cwd = join(root, 'worktree')
   mkdirSync(cwd)
