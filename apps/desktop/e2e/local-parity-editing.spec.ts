@@ -1,8 +1,7 @@
 import { expect } from '@playwright/test'
 import { test, sidebar, laneRow, savedTitle, serviceView } from './fixtures/local-parity'
 
-// buildTreeLayout omits the session_info root but leaves its user-message child attached to it: 0 nodes.
-test.fixme('inspect a stopped service conversation whose first entry names the lane', async ({
+test('inspect a stopped service conversation whose first entry names the lane', async ({
   parity: { page, daemon },
 }) => {
   const before = (await serviceView(page, daemon))!.lanes[0]!
