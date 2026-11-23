@@ -136,3 +136,15 @@ it('shows the consent notice and explicit action and limits restart to a committ
   push(ready)
   expect(el.textContent).not.toContain('Restart to finish')
 })
+
+it('does not let an Abort now acknowledgement hide a failed update after the pause', async () => {
+  await start()
+  push(pausing)
+  action.mockResolvedValueOnce({ ok: true, message: 'Saved the unfinished turns.' })
+  await click('Abort now')
+  expect(action).toHaveBeenCalledWith('update-abort-now')
+  push(ready)
+  expect(el.textContent).toContain(
+    "The update didn't finish. The Phosphor service is still on 1.2.3.",
+  )
+})
