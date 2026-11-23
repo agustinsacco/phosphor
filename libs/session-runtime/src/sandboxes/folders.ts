@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
-import type { SandboxInfo } from '@shared/models'
+import type { SandboxInfo } from '@phosphor/shared/models'
 
 /**
  * Sandbox folders back the "No folder" option: a session that belongs to no

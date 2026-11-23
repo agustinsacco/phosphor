@@ -17,7 +17,7 @@ function liveSessionsIn(path: string): { phosphorId: string }[] {
  *
  * Shared by the sidebar's group menu and Settings so both state the same
  * rules. The rules are stated UP FRONT rather than only enforced on submit:
- * main validates the name (electron/sandbox.ts is the guard, since the string
+ * main validates the name (sandboxes/folders.ts is the guard, since the string
  * comes from the renderer), but being told "no" after typing is worse than
  * knowing first, and the folder-on-disk part explains why there are rules at
  * all.

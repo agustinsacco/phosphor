@@ -7,15 +7,9 @@ const io = vi.hoisted(() => ({
   trash: vi.fn(),
   repoint: vi.fn(),
 }))
-vi.mock('electron', () => ({ shell: { trashItem: io.trash } }))
 vi.mock('node:fs/promises', () => ({ access: io.access, rename: io.rename, readdir: io.readdir }))
-vi.mock('@phosphor/session-runtime/pi/session-cwd', () => ({ repointSessionCwd: io.repoint }))
-import {
-  moveIfPresent,
-  pathExists,
-  repointTranscripts,
-  trashIfPresent,
-} from './sandbox-transcripts'
+vi.mock('../pi/session-cwd', () => ({ repointSessionCwd: io.repoint }))
+import { moveIfPresent, pathExists, repointTranscripts, trashIfPresent } from './transcripts'
 
 beforeEach(() => vi.resetAllMocks())
 
@@ -23,7 +17,7 @@ it('treats missing paths as absent and never moves or trashes them', async () =>
   io.access.mockRejectedValue(new Error('missing'))
   expect(await pathExists('/missing')).toBe(false)
   await moveIfPresent('/missing', '/new')
-  await trashIfPresent('/missing')
+  await trashIfPresent('/missing', io.trash)
   expect(io.rename).not.toHaveBeenCalled()
   expect(io.trash).not.toHaveBeenCalled()
 })
@@ -38,7 +32,7 @@ it('leaves occupied destinations alone; moves only to an absent target', async (
 
 it('uses Trash for present paths and lets the caller settle failures', async () => {
   io.trash.mockRejectedValue(new Error('denied'))
-  await expect(trashIfPresent('/old')).rejects.toThrow('denied')
+  await expect(trashIfPresent('/old', io.trash)).rejects.toThrow('denied')
   expect(io.trash).toHaveBeenCalledWith('/old')
 })
 

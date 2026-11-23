@@ -32,14 +32,14 @@ vi.mock('node:fs/promises', () => ({
   rename: mocks.rename,
   readdir: mocks.readdir,
 }))
-vi.mock('../sandbox', () => ({
+vi.mock('@phosphor/session-runtime/sandboxes/folders', () => ({
   planSandboxRename: mocks.plan,
   resolveSandboxFolder: mocks.resolve,
   sandboxCwds: (path: string) => [path, `${path}/.phosphor/worktrees/lane`],
   openSandboxFolder: mocks.open,
   listSandboxFolders: mocks.list,
 }))
-vi.mock('../pi/pi-paths', () => ({
+vi.mock('@phosphor/session-runtime/pi/pi-paths', () => ({
   sessionDirForCwd: mocks.sessionDir,
   claudeProjectDirForCwd: mocks.claudeDir,
 }))

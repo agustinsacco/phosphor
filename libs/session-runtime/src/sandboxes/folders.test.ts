@@ -20,7 +20,7 @@ import {
   resolveSandboxFolder,
   sandboxCwds,
   validateSandboxName,
-} from './sandbox'
+} from './folders'
 
 /**
  * A scratch base directory, removed after `run`.

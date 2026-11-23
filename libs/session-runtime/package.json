@@ -419,6 +419,18 @@
     "./pi/lane-config": {
       "types": "./src/pi/lane-config.ts",
       "default": "./src/pi/lane-config.ts"
+    },
+    "./sandboxes/folders": {
+      "types": "./src/sandboxes/folders.ts",
+      "default": "./src/sandboxes/folders.ts"
+    },
+    "./sandboxes/service": {
+      "types": "./src/sandboxes/service.ts",
+      "default": "./src/sandboxes/service.ts"
+    },
+    "./sandboxes/transcripts": {
+      "types": "./src/sandboxes/transcripts.ts",
+      "default": "./src/sandboxes/transcripts.ts"
     }
   },
   "nx": {

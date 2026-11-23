@@ -172,7 +172,7 @@ Signed-out windows have no machine switcher or remote groups.
   renaming a sandbox moved the folder out from under a running pi and orphaned
   every lane chat at once. Containment is `isWithinFolder` (`libs/shared/src/paths.ts`,
   shared because main guards on it and the renderer picks the chats to close
-  with it), and the cwd list is `sandboxCwds` (`apps/desktop/electron/sandbox.ts`). That
+  with it), and the cwd list is `sandboxCwds` (`libs/session-runtime/src/sandboxes/folders.ts`). That
   list is enumerated from DISK rather than by prefix-matching pi's mangled
   directory names: the mangling joins segments with `-` and folder names
   contain `-`, so `games` and `games-2` produce names one of which is a prefix

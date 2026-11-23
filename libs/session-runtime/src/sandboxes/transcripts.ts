@@ -1,7 +1,6 @@
-import { shell } from 'electron'
 import { access, readdir, rename } from 'node:fs/promises'
 import { join } from 'node:path'
-import { repointSessionCwd } from '@phosphor/session-runtime/pi/session-cwd'
+import { repointSessionCwd } from '../pi/session-cwd'
 
 /** True when the path is reachable — used to validate persisted locations. */
 export async function pathExists(path: string): Promise<boolean> {
@@ -14,9 +13,12 @@ export async function pathExists(path: string): Promise<boolean> {
 }
 
 /** Trash a path if it is there — a missing one is not an error here. */
-export async function trashIfPresent(path: string): Promise<void> {
+export async function trashIfPresent(
+  path: string,
+  trashItem: (path: string) => Promise<void>,
+): Promise<void> {
   if (!(await pathExists(path))) return
-  await shell.trashItem(path)
+  await trashItem(path)
 }
 
 /**

@@ -68,7 +68,7 @@ vi.mock('electron', () => ({
   shell: { showItemInFolder: m.reveal, openExternal: m.external },
 }))
 vi.mock('node:fs/promises', () => ({ access: m.access }))
-vi.mock('../sandbox', () => ({}))
+vi.mock('@phosphor/session-runtime/sandboxes/folders', () => ({}))
 vi.mock('../sandbox-service', () => ({}))
 vi.mock('../registry', () => ({ registry: { list: m.live, get: m.session } }))
 vi.mock('@phosphor/session-runtime/pi/context-budget', () => ({ syncContextBudget: m.sync }))
