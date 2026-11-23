@@ -6,12 +6,13 @@ const state = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
 }))
 vi.mock('electron', () => ({
-  app: { isPackaged: true, once: () => undefined },
+  app: { isPackaged: true, getVersion: () => '1.0.0', once: () => undefined },
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
       state.handlers.set(channel, handler),
   },
 }))
+vi.mock('../hosts/traffic-tap', () => ({ tappedLog: vi.fn() }))
 vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 vi.mock('../account', () => ({
   accountAccessToken: async () => state.token,

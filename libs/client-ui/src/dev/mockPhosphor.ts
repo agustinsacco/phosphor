@@ -324,7 +324,6 @@ const harnessRemoved = new Set<string>()
 const harnessLabels = new Map<string, string>()
 function harnessMachine(id: string, label: string, lastSeenAt: string | null): MachineView {
   return {
-    ...mockReachFlags(id),
     id,
     label,
     hostname: label,
