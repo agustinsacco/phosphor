@@ -155,6 +155,7 @@ function useSettingsIndex(
   kind: Parameters<typeof platformIndex>[1],
   id?: string,
 ) {
+  const localService = useRemoteLanesStore((s) => id !== undefined && s.hosts[id]?.local === true)
   const configFiles = useRemoteLanesStore((s) => {
     const h = id ? s.hosts[id] : undefined
     return (
@@ -164,5 +165,8 @@ function useSettingsIndex(
       h.capabilities.includes('sessions.control')
     )
   })
-  return useMemo(() => platformIndex(platform, kind, configFiles), [platform, kind, configFiles])
+  return useMemo(
+    () => platformIndex(platform, kind, configFiles, localService),
+    [platform, kind, configFiles, localService],
+  )
 }

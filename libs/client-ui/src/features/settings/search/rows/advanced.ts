@@ -2,8 +2,18 @@ import { LOCAL_ONLY, section, type SettingEntry } from '../settingEntry'
 
 const HOST_ONLY = { host: true }
 
+/** One permanent local heading; even searches for actions that are currently hidden land here. */
+export const SERVICE_SECTION_ENTRY: SettingEntry = {
+  tab: 'advanced',
+  title: 'Phosphor service',
+  on: LOCAL_ONLY,
+  requires: 'localLanes',
+  keywords: 'update restart migration retry export diagnostics quit lanes pause abort cancel',
+}
+
 /** Advanced: one view on every machine, each block where that machine has it. */
 export const ADVANCED_ROWS: SettingEntry[] = [
+  SERVICE_SECTION_ENTRY,
   ...section(
     'advanced',
     null,

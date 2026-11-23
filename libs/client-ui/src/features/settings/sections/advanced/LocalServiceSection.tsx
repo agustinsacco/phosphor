@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { LocalMachineAction, LocalMachineStatus } from '@phosphor/shared/ipc'
-import { Button, Row } from '@/components/form'
+import { Button, SectionTitle } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
 import { useServiceAction, laneCount } from '@/features/updates/useServiceAction'
 import { hostTasks } from '@/features/machines/runningTasks'
@@ -22,41 +22,49 @@ const notice = {
 function migrationRow(status: LocalMachineStatus, button: Click) {
   if (status.mode === 'in-app' && status.migration === 'committed')
     return (
-      <Row title="Restart to finish setting up this Mac">
+      <>
+        <p>Restart to finish setting up this Mac</p>
         {button('restart-to-finish', 'Restart Phosphor')}
-      </Row>
+      </>
     )
   switch (status.migration) {
     case 'failed':
       return (
-        <Row
-          title="Couldn’t finish setting up the Phosphor service"
-          description={
-            status.failure && (
-              <details>
-                <TooltipSummary>Setup details</TooltipSummary>
-                {status.failure.step}: {status.failure.code}
-              </details>
-            )
-          }
-        >
+        <>
+          <p>Couldn’t finish setting up the Phosphor service.</p>
+          {status.failure && (
+            <details>
+              <TooltipSummary>Setup details</TooltipSummary>
+              {status.failure.step}: {status.failure.code}
+            </details>
+          )}
           {button('retry-migration', 'Retry')}
           {button('export-diagnostics', 'Export diagnostics')}
-        </Row>
+        </>
       )
     case 'consent-needed':
       return (
-        <Row title="Service setup needs your attention" description={notice['other-daemon']}>
+        <>
+          <p>{notice['other-daemon']}</p>
           {button('consent-migration', 'Continue setup')}
-        </Row>
+        </>
       )
     case 'reverted':
-      return <Row title="Service setup was reverted">{button('retry-migration', 'Retry')}</Row>
+      return (
+        <>
+          <p>Service setup was reverted.</p>
+          {button('retry-migration', 'Retry')}
+        </>
+      )
     case 'repairing':
     case 'running':
-      return <Row title="Setting up the Phosphor service">{status.step}</Row>
+      return <p>Setting up the Phosphor service: {status.step}</p>
     default:
-      return status.notice && <p>{notice[status.notice]}</p>
+      return status.notice ? (
+        <p>{notice[status.notice]}</p>
+      ) : status.mode === 'in-app' ? (
+        <p>This Mac runs its lanes in Desktop.</p>
+      ) : null
   }
 }
 
@@ -74,40 +82,39 @@ function ServiceRows({
   if (status.mode !== 'daemon') return null
   if (status.service !== 'ready')
     return (
-      <Row
-        title="Phosphor service unavailable"
-        description={
-          status.service === 'attestation-failed'
+      <>
+        <p>
+          Phosphor service unavailable.{' '}
+          {status.service === 'attestation-failed'
             ? 'Phosphor could not verify this service.'
-            : 'This Mac’s lanes stay on the service. They will reappear when it reconnects.'
-        }
-      >
+            : 'This Mac’s lanes stay on the service. They will reappear when it reconnects.'}
+        </p>
         {status.notice !== 'dev-build' && button('start-service', 'Start service')}
         <Button onClick={reload}>Retry</Button>
-      </Row>
+      </>
     )
   const pause = status.pause
   if (pause?.kind === 'pausing')
     return (
-      <Row
-        title="Waiting to pause for the update"
-        description={`${pause.waitingOn.turns} turns, ${pause.waitingOn.subagents} sub-agents and ${pause.waitingOn.routines} routines remaining. Abort now saves and stops unfinished turns. Cancel leaves the update unapplied.`}
-      >
+      <>
+        <p>
+          Waiting to pause for the update: {pause.waitingOn.turns} turns,{' '}
+          {pause.waitingOn.subagents} sub-agents and {pause.waitingOn.routines} routines remaining.
+          Abort now saves and stops unfinished turns. Cancel leaves the update unapplied.
+        </p>
         {button('update-abort-now', 'Abort now')}
         {button('update-cancel', 'Cancel')}
-      </Row>
+      </>
     )
-  if (pause?.kind === 'paused')
-    return (
-      <Row title="Lanes paused for the service update">The service is applying the update.</Row>
-    )
+  if (pause?.kind === 'paused') return <p>Lanes paused. The service is applying the update.</p>
   return (
-    <Row
-      title="Phosphor service"
-      description={`${status.serviceVersion ? `Version ${status.serviceVersion}. ` : ''}${laneCount(working)}. Lanes keep running after Desktop quits.`}
-    >
+    <>
+      <p>
+        {status.serviceVersion && `Version ${status.serviceVersion}. `}
+        {laneCount(working)}. Lanes keep running after Desktop quits.
+      </p>
       {button('update-service', 'Update Phosphor service')}
-    </Row>
+    </>
   )
 }
 
@@ -131,16 +138,19 @@ function ServiceCard({ machine, children }: { machine: string; children?: ReactN
   )
   return (
     <>
-      {error && (
-        <div role="alert">
-          Couldn’t check the Phosphor service: {error} <Button onClick={reload}>Retry</Button>
-        </div>
-      )}
-      {status && migrationRow(status, button)}
-      {status && (
-        <ServiceRows status={status} working={working} reload={retryService} button={button} />
-      )}
-      {action.message && <p role="status">{action.message}</p>}
+      <section className="space-y-2 pb-3">
+        <SectionTitle small>Phosphor service</SectionTitle>
+        {error && (
+          <div role="alert">
+            Couldn’t check the Phosphor service: {error} <Button onClick={reload}>Retry</Button>
+          </div>
+        )}
+        {status && migrationRow(status, button)}
+        {status && (
+          <ServiceRows status={status} working={working} reload={retryService} button={button} />
+        )}
+        {action.message && <p role="status">{action.message}</p>}
+      </section>
       {(machine !== 'local' || status?.mode === 'in-app') && children}
     </>
   )
