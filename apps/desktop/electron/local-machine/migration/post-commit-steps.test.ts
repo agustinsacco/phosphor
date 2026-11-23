@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { remoteLaneResourceKey, remoteLaneKey } from '@shared/remote-host'
 import { remotePrKey } from '@shared/host-protocol-github'
 import { baseGetPrefs, baseRoutines } from './__fixtures__/base-desktop'
-import { MACHINE_ID, MIGRATION_ID, REPO } from './__fixtures__/plan-facts'
+import { MACHINE_ID, MIGRATION_ID, REPO, planFacts } from './__fixtures__/plan-facts'
 import { world, source, otherPin, ports } from './__fixtures__/post-commit-world'
 import { createPostCommitSteps } from './post-commit-steps'
 
@@ -46,6 +46,27 @@ it('maps drafts, collapse, order and last lane from backup, not from partially r
   })
   expect(log).toHaveBeenCalledWith('device-rekey', { orphans: 4 })
 })
+it('moves an archived lane’s draft to the lane its archive restores to', async () => {
+  const archived = planFacts().archives[0]!.record.metadata!.draftKey as string
+  const manifest = w.plan.sections.archives!.manifests[0]!
+  w.write({
+    ...w.config,
+    drafts: { [archived]: { key: archived, text: 'unsent', attachments: [] } },
+  })
+  // Device state comes from the backup: take it again with this draft.
+  rmSync(w.backupDir, { recursive: true, force: true })
+  backupUserData({
+    userData: w.userData,
+    backupDir: w.backupDir,
+    migrationId: MIGRATION_ID,
+    ...ports,
+  })
+  await createPostCommitSteps(ports).device!({ ...w, log })
+  const key = remoteLaneResourceKey(MACHINE_ID, manifest.id)
+  expect(manifest.metadata.draftKey).toBe(key)
+  expect(w.read().drafts).toEqual({ [key]: { key, text: 'unsent', attachments: [] } })
+})
+
 it('a base Desktop resumes nothing and opens zero routines, even across a partially completed rename', async () => {
   expect(baseGetPrefs(w.userData).recentWorkspaces).toHaveLength(1)
   expect(baseRoutines(w.userData)).toEqual([{ name: 'routine' }])
