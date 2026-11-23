@@ -42,6 +42,7 @@ const fake = vi.hoisted(() => {
     background: [] as Array<() => void>,
     pauseAll: () => {},
     wakeRoutines: () => {},
+    mode: 'in-app' as 'in-app' | 'daemon',
   }
 })
 
@@ -94,6 +95,13 @@ vi.mock('./routines/background', () => ({
   routinesKeepRunning: () => false,
 }))
 vi.mock('./ipc', () => ({ registerIpcHandlers: fake.record('registerIpcHandlers') }))
+vi.mock('./local-machine/launch-gate', () => ({
+  runLaunchGate: () => {
+    fake.calls.push('runLaunchGate')
+    return Promise.resolve(fake.mode)
+  },
+  quitLaunchGate: fake.record('quitLaunchGate', Promise.resolve()),
+}))
 vi.mock('./brain/runtime', () => ({ disposeBrain: fake.record('disposeBrain', Promise.resolve()) }))
 vi.mock('./artifacts/artifact-sync', () => ({
   startArtifactSync: fake.record('startArtifactSync'),
@@ -190,6 +198,7 @@ async function launchMain(testUserData?: string): Promise<void> {
 
 let scratch: string | undefined
 beforeEach(() => {
+  fake.mode = 'in-app'
   fake.packaged = true
   fake.userData = '/nonexistent/phosphor-startup-characterization/Phosphor'
 })
@@ -209,13 +218,15 @@ describe('main.ts startup order', () => {
       'app.on:window-all-closed',
       'app.on:before-quit',
       'initDebugLog',
-      'preparePiConfig',
       'registerArtifactProtocol',
       'registerFileProtocol',
       'installPermissionPolicy',
       'applyThemeSource',
       'applySpellcheck',
       'registerIpcHandlers',
+      // This Mac's runtime is decided before pi's config is prepared or anything starts.
+      'runLaunchGate',
+      'preparePiConfig',
       'startArtifactSync',
       'recordAppLaunch',
       'createWindow',
@@ -227,6 +238,30 @@ describe('main.ts startup order', () => {
       'app.on:activate',
     ])
     expect(fake.powerHandlers.get('resume')).toBe(fake.wakeRoutines)
+  })
+
+  it('in daemon mode starts no in-app runtime: no pi config, artifact sync or routines', async () => {
+    fake.mode = 'daemon'
+    await launchMain()
+    expect(fake.calls).toEqual([
+      'registerSchemesAsPrivileged',
+      'app.on:second-instance',
+      'app.on:window-all-closed',
+      'app.on:before-quit',
+      'initDebugLog',
+      'registerArtifactProtocol',
+      'registerFileProtocol',
+      'installPermissionPolicy',
+      'applyThemeSource',
+      'applySpellcheck',
+      'registerIpcHandlers',
+      'runLaunchGate',
+      'recordAppLaunch',
+      'createWindow',
+      'startUpdateChecks',
+      'maintenanceScheduler.start',
+      'app.on:activate',
+    ])
   })
 
   it('wires the routine background to open a window and pause the scheduler', async () => {
@@ -253,6 +288,8 @@ describe('main.ts startup order', () => {
     expect(event.preventDefault).toHaveBeenCalled()
     await flush()
     expect(fake.calls).toEqual([
+      // A migration under way aborts before its commit point, or finishes after it.
+      'quitLaunchGate',
       'stopUpdateChecks',
       'cancelAllLogins',
       'cancelAllClaudeLogins',
