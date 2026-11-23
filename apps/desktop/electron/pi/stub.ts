@@ -25,3 +25,10 @@ export function claudeBinOverride(): string | undefined {
   if (app.isPackaged) return undefined
   return process.env.PHOSPHOR_CLAUDE_BIN || undefined
 }
+
+/** Only redirected E2E profiles may bind the production op channel to the pi stub. */
+export function stubOpsEnabled(): boolean {
+  return (
+    !!piStubPath() && !!process.env.PHOSPHOR_TEST_USER_DATA && process.env.PHOSPHOR_E2E_OPS === '1'
+  )
+}

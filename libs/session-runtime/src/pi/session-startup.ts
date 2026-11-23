@@ -36,6 +36,7 @@ export interface SessionStartupRuntime {
   laneReload?: Pick<LaneReload, 'capture' | 'track'>
   /** Spawn inputs later features add; absent or empty leaves argv and env as the policy built them. */
   contributions?: readonly SpawnContribution[]
+  stubContributions?: readonly SpawnContribution[]
 }
 
 export type SessionSink = (sessionId: string) => (payload: SessionPush) => void
@@ -110,7 +111,7 @@ async function spawnSession(
     launch,
     runtime.policy,
   )
-  const contributions = launch.stub ? [] : (runtime.contributions ?? [])
+  const contributions = (launch.stub ? runtime.stubContributions : runtime.contributions) ?? []
   await applySpawnContributions(
     contributions,
     spawnOptions,
