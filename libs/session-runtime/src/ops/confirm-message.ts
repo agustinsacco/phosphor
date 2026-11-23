@@ -7,7 +7,8 @@
  * so it cannot fake a list entry or the request line.
  */
 import { OPS_LIMITS, type ConfirmItem } from '@phosphor/shared/host-protocol-ops'
-import { CONFIRM_TITLE_PREFIX, type ConfirmInfo } from '@phosphor/shared/ops'
+import { CONFIRM_TITLE_PREFIX, type AuditDecision, type ConfirmInfo } from '@phosphor/shared/ops'
+import type { OpsDenyCode } from '@phosphor/shared/host-protocol-ops'
 
 /** One machine's share of an asked op, with what only the message needs. */
 export interface ConfirmTarget extends ConfirmItem {
@@ -119,4 +120,24 @@ export function renderConfirm(input: RenderInput, confirmId: string): Rendered {
     code: 'too-large',
     text: 'Too many targets for one confirmation. Ask for fewer at a time.',
   }
+}
+
+/** What redeeming a confirmation that did not approve answers, and how the audit records it. */
+export const REDEMPTION: Readonly<
+  Record<
+    'denied' | 'expired' | 'mismatch',
+    { code: OpsDenyCode; decision: AuditDecision; text: string }
+  >
+> = {
+  denied: { code: 'confirm-denied', decision: 'denied-user', text: 'The user denied this.' },
+  expired: {
+    code: 'confirm-expired',
+    decision: 'timeout',
+    text: 'This confirmation expired. Ask again.',
+  },
+  mismatch: {
+    code: 'confirm-mismatch',
+    decision: 'denied-policy',
+    text: 'This confirmation does not match the request. Ask again.',
+  },
 }

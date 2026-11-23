@@ -15,7 +15,14 @@ import {
 } from '@phosphor/shared/host-protocol-ops'
 import { OP_CATALOG, type CatalogSpec } from '@phosphor/shared/ops-catalog'
 import type { AuditDecision, LaneEffect, OpFacts } from '@phosphor/shared/ops'
-import { inverse, completed, afterAudit, confirmationArgs } from './completion'
+import {
+  inverse,
+  completed,
+  afterAudit,
+  confirmationArgs,
+  firstLine,
+  withToast,
+} from './completion'
 import type { UndoRecord } from './audit'
 import { orderDeferred, type LaneDeferredQueue } from './deferred'
 import {
@@ -35,6 +42,7 @@ import { askingSession, confirmOrigin, isUnattended } from './principals'
 import { clipBytes, routeOp, routeRefusal, routeTargets } from './route'
 import { createRouteBatches, type RouteBatches } from './route-batch'
 import { builtinHandlers, confirmItems, OpRefusal } from './builtins'
+import { REDEMPTION } from './confirm-message'
 import type { OpRunContext, OpsDispatcherDeps } from './ports'
 import type { LaneDeferred, OpHandler, OpHandlerResult, OpPrincipal, OpsBinding } from './types'
 
@@ -56,27 +64,6 @@ export interface OpRunExtras {
 const denied = (code: OpsDenyCode, text: string): OpOutcome => ({
   result: { status: 'denied', code, text: clipBytes(text, 1000) },
 })
-
-const firstLine = (text: string): string => text.split('\n', 1)[0]?.slice(0, 160) ?? ''
-
-const REDEMPTION: Readonly<
-  Record<
-    'denied' | 'expired' | 'mismatch',
-    { code: OpsDenyCode; decision: AuditDecision; text: string }
-  >
-> = {
-  denied: { code: 'confirm-denied', decision: 'denied-user', text: 'The user denied this.' },
-  expired: {
-    code: 'confirm-expired',
-    decision: 'timeout',
-    text: 'This confirmation expired. Ask again.',
-  },
-  mismatch: {
-    code: 'confirm-mismatch',
-    decision: 'denied-policy',
-    text: 'This confirmation does not match the request. Ask again.',
-  },
-}
 
 const REFUSED_RELOAD = {
   live: 'This lane cannot reload while sub-agent work is live; the change applies on its next reload.',
@@ -225,17 +212,6 @@ async function placeDeferred(
       op: j.spec.name,
       message: outcome.message,
     })
-}
-
-/** The one toast an allowed change makes in the asking lane, unless the handler made its own. */
-function withToast(j: Judged, effects: readonly LaneEffect[], text: string): readonly LaneEffect[] {
-  if (j.principal.kind !== 'agent' || j.tier === 'read') return effects
-  if (effects.some((e) => e.kind === 'notify' || e.kind === 'swarm')) return effects
-  // A governed agent write carries a reason (the judge refuses one without it).
-  const reason = j.request.reason?.trim()
-  const why = reason ? ` Reason: ${firstLine(reason)}` : ''
-  const message = `Agent ran ${j.spec.name}: ${firstLine(text)}${why}`.slice(0, 200)
-  return [...effects, { kind: 'notify', message, level: 'info' }]
 }
 
 async function finish(

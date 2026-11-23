@@ -1,3 +1,4 @@
+import type { LaneEffect } from '@phosphor/shared/ops'
 import type { Judged } from './judge'
 import type { PipelineEnv } from './pipeline'
 import type { LaneDeferred, OpHandlerResult } from './types'
@@ -43,4 +44,21 @@ export function afterAudit(
           },
         }
   })
+}
+
+export const firstLine = (text: string): string => text.split('\n', 1)[0]?.slice(0, 160) ?? ''
+
+/** The one toast an allowed change makes in the asking lane, unless the handler made its own. */
+export function withToast(
+  j: Judged,
+  effects: readonly LaneEffect[],
+  text: string,
+): readonly LaneEffect[] {
+  if (j.principal.kind !== 'agent' || j.tier === 'read') return effects
+  if (effects.some((e) => e.kind === 'notify' || e.kind === 'swarm')) return effects
+  // A governed agent write carries a reason (the judge refuses one without it).
+  const reason = j.request.reason?.trim()
+  const why = reason ? ` Reason: ${firstLine(reason)}` : ''
+  const message = `Agent ran ${j.spec.name}: ${firstLine(text)}${why}`.slice(0, 200)
+  return [...effects, { kind: 'notify', message, level: 'info' }]
 }
