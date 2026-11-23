@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest'
 import {
   CONTROL_API_PREFIX,
   CONTROL_API_VERSION,
+  CONTROL_MACHINE_ROUTES,
   CONTROL_ROUTES,
+  machineReachRoute,
   machineRoute,
 } from '@phosphor/shared/control-api'
 
@@ -31,6 +33,16 @@ describe('control API routes', () => {
       usagePing: '/api/v1/usage/ping',
       adminStats: '/api/v1/admin/stats',
     })
+  })
+
+  it('keeps the machine reach routes exactly, apart from CONTROL_ROUTES', () => {
+    expect(CONTROL_MACHINE_ROUTES).toStrictEqual({
+      hostMachines: '/api/v1/hosts/self/machines',
+      hostMachineGrants: '/api/v1/hosts/self/machine-grants',
+    })
+    expect(machineReachRoute('00000000-0000-4000-8000-00000000000d')).toBe(
+      '/api/v1/machines/00000000-0000-4000-8000-00000000000d/reach',
+    )
   })
 
   it('forms the machine path from the machines route and the machine id', () => {

@@ -64,7 +64,7 @@ describe('frozen 684cb3478 parsers agree with today on frames both releases send
   })
 
   it('reads commands alike', () => {
-    for (const frame of Object.values(CLIENT_FRAMES.command))
+    for (const frame of [CLIENT_FRAMES.command.fenced, CLIENT_FRAMES.command.unfenced])
       expect(baseCommands.parseCommandFrame(frame)).toStrictEqual(parseCommandFrame(frame))
   })
 
@@ -80,5 +80,28 @@ describe('frozen 684cb3478 parsers agree with today on frames both releases send
     )
     expect(parseMachineView(BASE_MACHINE).ok).toBe(true)
     expect(parseHeartbeatRequest(BASE_BEAT).ok).toBe(true)
+  })
+})
+
+describe('frozen 684cb3478 parsers accept the machine-reach additions and drop them', () => {
+  it('reads a machine grant as a user grant with no caps', () => {
+    const machine: GrantPayload = { ...BASE_GRANT, caps: [], origin: 'machine', machine: UUID(6) }
+    expect(parseGrantPayload(machine)).toStrictEqual({ ok: true, value: machine })
+    const { origin: _origin, machine: _machine, ...legacy } = machine
+    expect(baseGrant.parseGrantPayload(machine)).toStrictEqual({ ok: true, value: legacy })
+  })
+
+  it('reads heartbeats and machines without the reach fields', () => {
+    const beat = { ...BASE_BEAT, machineGrants: true }
+    expect(parseHeartbeatRequest(beat)).toMatchObject({ ok: true, value: { machineGrants: true } })
+    expect(baseMachines.parseHeartbeatRequest(beat)).toStrictEqual(parseHeartbeatRequest(BASE_BEAT))
+    const reply = { accepted: true, nextInSec: 30, machineReach: false }
+    expect(parseHeartbeatResponse(reply)).toMatchObject({ value: { machineReach: false } })
+    expect(baseMachines.parseHeartbeatResponse(reply)).toStrictEqual(
+      parseHeartbeatResponse({ accepted: true, nextInSec: 30 }),
+    )
+    const view = { ...BASE_MACHINE, machineReach: true, machineGrants: false }
+    expect(parseMachineView(view)).toMatchObject({ value: { machineReach: true } })
+    expect(baseMachines.parseMachineView(view)).toStrictEqual(parseMachineView(BASE_MACHINE))
   })
 })

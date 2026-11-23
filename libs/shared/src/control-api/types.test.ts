@@ -55,9 +55,11 @@ describe('control wire types', () => {
     expectTypeOf<NullableKeys<GrantIssueResponse['host']>>().toEqualTypeOf<'endpoint'>()
   })
 
-  it('marks only the heartbeat revocation metadata as omissible', () => {
-    expectTypeOf<OptionalKeys<HeartbeatResponse>>().toEqualTypeOf<'epoch' | 'ownerId' | 'revoked'>()
-    expectTypeOf<OptionalKeys<MachineView>>().toEqualTypeOf<never>()
+  it('marks only the heartbeat revocation metadata and machine reach as omissible', () => {
+    expectTypeOf<OptionalKeys<HeartbeatResponse>>().toEqualTypeOf<
+      'epoch' | 'ownerId' | 'revoked' | 'machineReach'
+    >()
+    expectTypeOf<OptionalKeys<MachineView>>().toEqualTypeOf<'machineReach' | 'machineGrants'>()
     expectTypeOf<NonNullable<HeartbeatResponse['revoked']>>().toEqualTypeOf<
       HostRevocations['revoked']
     >()

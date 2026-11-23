@@ -83,7 +83,14 @@ export function parseMachineView(value: unknown): Parsed<MachineView> {
     readiness: ready,
     lanes: counts,
     endpoint,
+    ...flag('machineReach', value.machineReach),
+    ...flag('machineGrants', value.machineGrants),
   })
+}
+
+/** An optional boolean field: kept when boolean, dropped otherwise. */
+function flag<K extends string>(key: K, value: unknown): Partial<Record<K, boolean>> {
+  return typeof value === 'boolean' ? ({ [key]: value } as Record<K, boolean>) : {}
 }
 
 export function parseMachinesResponse(value: unknown): Parsed<MachinesResponse> {
@@ -141,6 +148,7 @@ export function parseHeartbeatRequest(value: unknown): Parsed<HeartbeatRequest> 
     readiness: ready,
     lanes: counts,
     endpoint,
+    ...flag('machineGrants', value.machineGrants),
   })
 }
 
@@ -159,5 +167,6 @@ export function parseHeartbeatResponse(value: unknown): Parsed<HeartbeatResponse
     ...(value.epoch !== undefined ? { epoch: value.epoch } : {}),
     ...(value.ownerId !== undefined ? { ownerId: value.ownerId } : {}),
     ...(revoked !== undefined ? { revoked } : {}),
+    ...flag('machineReach', value.machineReach),
   })
 }

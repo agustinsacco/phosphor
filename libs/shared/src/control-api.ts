@@ -72,6 +72,20 @@ export { parseMachinesResponse, parseMeResponse } from './control-api/machines'
 export { parseHostSelfResponse } from './control-api/machines'
 export { parseHeartbeatRequest, parseHeartbeatResponse } from './control-api/machines'
 
+export { CONTROL_MACHINE_ROUTES, machineReachRoute } from './control-api/machine-reach'
+export {
+  parseMachineDirectoryResponse,
+  parseMachineGrantIssueRequest,
+  parseMachineReachRequest,
+  parseMachineReachResponse,
+} from './control-api/machine-reach'
+export type { MachineDirectoryEntry, MachineDirectoryResponse } from './control-api/machine-reach'
+export type {
+  MachineGrantIssueRequest,
+  MachineGrantIssueResponse,
+} from './control-api/machine-reach'
+export type { MachineReachRequest, MachineReachResponse } from './control-api/machine-reach'
+
 export { parseClientRegisterRequest, parseClientRegisterResponse } from './control-api/grants'
 export { parseGrantIssueRequest, parseGrantIssueResponse } from './control-api/grants'
 export { parseHostRevocations } from './control-api/grants'
