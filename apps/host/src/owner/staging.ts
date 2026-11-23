@@ -178,19 +178,28 @@ export class MigrationRecords {
 }
 
 /** Runs `fn` over a fresh connection to `<stateDirectory>/state.sqlite`, then closes it. */
-export async function withMigrationRecords<T>(
+export async function withStateDatabase<T>(
   stateDirectory: string,
   uid: number | undefined,
-  now: () => number,
-  fn: (records: MigrationRecords) => T,
+  fn: (db: DatabaseSync) => T,
 ): Promise<T> {
   const path = prepareStateFile(stateDirectory, uid)
   const sqlite = await loadSqlite()
   const db = new sqlite.DatabaseSync(path)
   try {
     db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;')
-    return fn(new MigrationRecords(db, now))
+    return fn(db)
   } finally {
     db.close()
   }
+}
+
+/** The migration tables over a fresh connection (`withStateDatabase`). */
+export function withMigrationRecords<T>(
+  stateDirectory: string,
+  uid: number | undefined,
+  now: () => number,
+  fn: (records: MigrationRecords) => T,
+): Promise<T> {
+  return withStateDatabase(stateDirectory, uid, (db) => fn(new MigrationRecords(db, now)))
 }

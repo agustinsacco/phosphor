@@ -13,6 +13,23 @@ import { freeHeadroomPort, ownsHeadroomPort } from './headroom-port'
 export const FEATURE = 'headroom' as const
 
 type Status = OwnerCalls['headroom.status']['result']
+
+/** The persisted Headroom switch; the service reads it when it activates. */
+export function writeHeadroomPreference(
+  directory: string,
+  uid: number | undefined,
+  enabled: boolean,
+): void {
+  writeSidecar(
+    directory,
+    HOST_SIDECARS.headroom,
+    { version: 1, enabled },
+    {
+      uid,
+      known: ['version', 'enabled'],
+    },
+  )
+}
 interface HeadroomOptions {
   directory: string
   uid: number | undefined
@@ -39,15 +56,7 @@ export class DaemonHeadroom {
     'headroom.status': async () => this.status(),
     'headroom.set': async ({ enabled }) => {
       if (this.closed) throw new Error('Headroom stopped')
-      writeSidecar(
-        this.options.directory,
-        HOST_SIDECARS.headroom,
-        { version: 1, enabled },
-        {
-          uid: this.options.uid,
-          known: ['version', 'enabled'],
-        },
-      )
+      writeHeadroomPreference(this.options.directory, this.options.uid, enabled)
       if (enabled) this.ensure()
       else await this.cancel()
       return { enabled }
