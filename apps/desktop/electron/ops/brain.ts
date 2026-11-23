@@ -1,7 +1,7 @@
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { liveOpLane, lanePath, targetLane } from './lanes'
-import { op, dataResult } from './results'
+import { op, dataResult } from '@phosphor/session-runtime/ops/results'
 const service = async () => (await import('../brain/runtime')).brainService()
 async function port(ctx: OpHandlerContext) {
   const p = ctx.principal

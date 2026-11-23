@@ -1,6 +1,6 @@
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { diskLanes, lanePath, liveOpLanes, targetLane } from './lanes'
-import { op, pageRows, dataResult, pageOffset } from './results'
+import { op, pageRows, dataResult, pageOffset } from '@phosphor/session-runtime/ops/results'
 
 const library = async () => (await import('../artifacts/artifact-sync')).artifactLibrary
 async function listings() {

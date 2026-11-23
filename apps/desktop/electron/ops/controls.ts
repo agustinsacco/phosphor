@@ -6,10 +6,11 @@ import type {
 } from '@phosphor/session-runtime/ops/types'
 import type { LaneEffect } from '@phosphor/shared/ops'
 import { CONTEXT_FILE_KINDS, type ContextFilePrefs } from '@shared/context-files'
-import type { RpcCommand, ThinkingLevel } from '@shared/rpc'
+import type { RpcCommand } from '@shared/rpc'
+import { deferredRpcCommand } from '@phosphor/session-runtime/ops/deferred-rpc'
 import { broadcast } from '../broadcast'
 import { lanePath, liveOpLane, liveOpRef, targetLane } from './lanes'
-import { op } from './results'
+import { op } from '@phosphor/session-runtime/ops/results'
 
 async function command(id: string, rpc: RpcCommand) {
   const { desktopSessions } = await import('../pi/session-runtime')
@@ -18,24 +19,9 @@ async function command(id: string, rpc: RpcCommand) {
     throw new OpRefusal('unavailable', result.error ?? 'pi refused this command.')
 }
 function deferredCommand(item: LaneDeferred): RpcCommand {
-  switch (item.kind) {
-    case 'model':
-      return { type: 'set_model', provider: item.provider, modelId: item.modelId }
-    case 'thinking':
-      return { type: 'set_thinking_level', level: item.level as ThinkingLevel }
-    case 'compact':
-      return { type: 'compact', customInstructions: item.instructions }
-    case 'autoRetry':
-      return { type: 'set_auto_retry', enabled: item.enabled }
-    case 'autoCompaction':
-      return { type: 'set_auto_compaction', enabled: item.enabled }
-    case 'steering':
-      return { type: 'set_steering_mode', mode: item.mode }
-    case 'follow-up':
-      return { type: 'set_follow_up_mode', mode: item.mode }
-    default:
-      throw new Error('This Mac cannot apply that deferred operation.')
-  }
+  const rpc = deferredRpcCommand(item)
+  if (!rpc) throw new Error('This Mac cannot apply that deferred operation.')
+  return rpc
 }
 export const deferred: OpsBinding['deferred'] = {
   async apply(id, items) {

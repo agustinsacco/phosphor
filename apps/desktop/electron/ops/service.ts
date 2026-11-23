@@ -11,7 +11,7 @@ import { parseOpArgv } from '@phosphor/shared/ops-cli'
 import { broadcast } from '../broadcast'
 import { log } from '../debug-log'
 import { policyStore } from '../prefs/agent-policy'
-import { metaHandlers, settingsHandlers } from './meta'
+import { metaHandlers, settingsHandlers } from '@phosphor/session-runtime/ops/meta-handlers'
 import { brainHandlers } from './brain'
 import { conversationHandlers } from './conversation'
 import { inventoryHandlers } from './inventory'
@@ -43,7 +43,7 @@ export function openDesktopOps(userData: string) {
     const confirms = createConfirmStore()
     const changed = () => notify({ kind: 'confirm' })
     const handlers = {
-      ...metaHandlers(audit, confirms, changed),
+      ...metaHandlers(audit, confirms, changed, { gaps: OP_GAPS.desktop, machine: 'This Mac' }),
       ...settingsHandlers(policyStore, notify, (p, id) => dispatcher.undo(p, id)),
       ...controlHandlers,
       ...markHandlers,

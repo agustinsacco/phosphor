@@ -1,12 +1,13 @@
-import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { requestPage } from '@phosphor/session-runtime/ops/ports'
-import type {
-  OpHandler,
-  OpHandlerContext,
-  OpHandlerResult,
-} from '@phosphor/session-runtime/ops/types'
-import type { OpArgs } from '@phosphor/shared/ops'
+/**
+ * Small helpers every owner's op handlers share: a typed handler wrapper, a
+ * result carrying bounded `data`, and offset paging. Living contract:
+ * docs/agent-control.md.
+ */
 import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
+import type { OpArgs } from '@phosphor/shared/ops'
+import { OpRefusal } from './builtins'
+import { requestPage } from './ports'
+import type { OpHandler, OpHandlerContext, OpHandlerResult } from './types'
 
 /** Dispatcher validates args against the named catalog schema before calling a handler. */
 export function op<T = OpArgs>(

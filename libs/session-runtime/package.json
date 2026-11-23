@@ -611,6 +611,18 @@
     "./ops/undo": {
       "types": "./src/ops/undo.ts",
       "default": "./src/ops/undo.ts"
+    },
+    "./ops/results": {
+      "types": "./src/ops/results.ts",
+      "default": "./src/ops/results.ts"
+    },
+    "./ops/meta-handlers": {
+      "types": "./src/ops/meta-handlers.ts",
+      "default": "./src/ops/meta-handlers.ts"
+    },
+    "./ops/deferred-rpc": {
+      "types": "./src/ops/deferred-rpc.ts",
+      "default": "./src/ops/deferred-rpc.ts"
     }
   },
   "nx": {

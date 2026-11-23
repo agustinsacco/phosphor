@@ -6,7 +6,7 @@ import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { readGlobalInstructions } from '@phosphor/session-runtime/pi/global-instructions'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { liveOpLanes, projectFolders } from './lanes'
-import { op, dataResult, pageRows } from './results'
+import { op, dataResult, pageRows } from '@phosphor/session-runtime/ops/results'
 async function project(explicit: string | undefined, cwd?: string) {
   if (explicit && explicit !== cwd && !(await projectFolders()).includes(explicit))
     throw new OpRefusal('bad-request', 'Unknown local workspace.')
