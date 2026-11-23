@@ -170,7 +170,7 @@ A cancellation request holds the admission slot until execution cleanup returns.
 Deleting a running routine's session from the sidebar uses that same cancellation
 path and waits for cleanup before trashing the transcript.
 On POSIX, routine pi processes own a process group; cleanup signals that group,
-including nested providers that inherit it. Windows uses `taskkill /T /F`.
+including nested providers that inherit it.
 This is process cleanup, not a containment guarantee for independently detached
 or remote work. Force-killing Phosphor can leave an orphan; recovery pauses the
 routine and explicitly requires checking old workers and partial effects before
@@ -220,8 +220,8 @@ load errors, footer or background controls. **Activity** lists the recent runs o
 selected machine, rendered as This Mac's are; All machines lists every machine's runs
 in one feed. A Host that predates `routines.activity` shows its routines with no
 Activity, and each routine still opens its own history. All machines labels local
-load errors with the local machine's label (**This Mac** on macOS, **This PC** or
-**This computer** elsewhere). An unavailable Host shows its refusal, never local data
+load errors with the local machine's label (**This Mac** on macOS, **This computer**
+elsewhere). An unavailable Host shows its refusal, never local data
 under a remote label. Changing the selection clears an action error shown for the
 previous machine.
 Remote editors and detail labels use the Host model catalogue. Changing the

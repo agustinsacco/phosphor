@@ -2,14 +2,11 @@ import type { IpcInvokeChannel } from './ipc'
 
 /** Classification only. Remote routing is added by each feature's owner. */
 export const IPC_SCOPE = {
-  'brain:tidy': 'app',
-  'brain:tidyApply': 'app',
-  'brain:tidyCancel': 'app',
   'brain:tidyChanges': 'app',
-  'brain:tidyDismiss': 'app',
-  'brain:tidyRun': 'app',
-  'brain:tidySuggestion': 'app',
   'brain:tidyUndo': 'app',
+  'brain:defrag': 'app',
+  'brain:defragStop': 'app',
+  'brain:undoRun': 'app',
   'brain:status': 'app',
   'brain:history': 'app',
   'brain:reread': 'app',
@@ -21,7 +18,6 @@ export const IPC_SCOPE = {
   'brain:cancel': 'app',
   'brain:extraction': 'app',
   'brain:proposal': 'app',
-  'brain:review': 'app',
   'brain:retry': 'app',
   'brain:reset': 'app',
   'brain:merge': 'app',

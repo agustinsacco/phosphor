@@ -57,9 +57,23 @@ owner-local path-lock instance (§Sessions on disk covers the edits). The
 Node subprocess test exercises this complete path without Electron, using a
 fake pi, not a real provider.
 
-[Brain](brain.md) adds one optional startup hook to this service: while recall
-is on, a new lane gets the recall extension and skill, not bridge credentials. The tools ask the owner through the [op channel](agent-control.md#the-op-channel). A failure there
-starts the lane without them. Brain's model calls are not sessions: they are
+[Brain](brain.md) adds one optional startup hook to this service. It gets the
+lane's resolved workspace path. While recall is on, a new lane gets the recall
+extension and skill, not bridge credentials: the tools ask the owner through
+the [op channel](agent-control.md#the-op-channel). The Brain lane
+(`<userData>/brain/Brain`, compared by real path) instead gets Brain Agent's
+curator token and the private bridge's endpoint (the only Brain env a lane
+gets), the `brain-curator` extension and the `brain-agent` skill whenever Brain
+is on, and its default `AGENTS.md` if the file is missing. A failure there
+starts the lane without them. Desktop's session policy also marks that folder
+(`SessionPolicyRuntime.brainLane`), so its fixed block replaces the lane
+charter. Brain Agent's Defrag turns open the lane with `spawnSession`, as the
+owner would, and send the message through the service's `command`
+(`apps/desktop/electron/brain/agent-lane.ts`). They pass `keepLastWorkspace`
+(`SessionExecution`): the Brain folder joins the recents, so its sidebar group
+lasts across restarts, but `lastWorkspacePath`, the folder Phosphor reopens at
+launch, stays the owner's. The owner opening the lane from the sidebar records
+it like any lane. Brain's model calls are not sessions: they are
 session-less, tool-less `pi -p` runs through `print-mode.ts`, with the prompt on
 stdin, and Brain reads the lane's file itself.
 

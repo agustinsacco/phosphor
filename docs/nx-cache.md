@@ -129,8 +129,7 @@ env overrides; cache remains disabled and graph/install boundaries stay intact.
   Manual `workflow_dispatch` is main-only and waits for the same exact-SHA CI;
   it bypasses only affected selection, never CI or `Skip-Release: true`. Every checkout is pinned to that SHA.
   This is the only release workflow; tag pushes do not build another release.
-  One release builds macOS and Linux into a draft (Windows is paused; see
-  [future-features.md](future-features.md#windows-builds)). All platform jobs,
+  One release builds macOS and Linux into a draft. All platform jobs,
   binary/manifest presence checks and checksum generation must pass before it
   becomes latest. A failed or cancelled build leaves the previous release live;
   rerun the workflow to resume the same SHA's draft. Existing published tags

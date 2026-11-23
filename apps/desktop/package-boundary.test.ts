@@ -53,8 +53,9 @@ describe('Desktop application and native install boundary', () => {
       { target: 'dmg', arch: ['arm64', 'x64'] },
       { target: 'zip', arch: ['arm64', 'x64'] },
     ])
-    expect(config.win?.artifactName).toBe('${productName}-${version}-${arch}.${ext}')
-    expect(config.nsis).toMatchObject({ perMachine: false, deleteAppDataOnUninstall: false })
+    // macOS and Linux only: no Windows installer is configured.
+    expect(config.win).toBeUndefined()
+    expect(config.nsis).toBeUndefined()
     expect(config.publish).toEqual({ provider: 'github', releaseType: 'draft' })
     const vite = readFileSync(join(app, 'electron.vite.config.ts'), 'utf8')
     // out/main/main.js (the manifest's `main`) and the voice utility process beside it.
@@ -167,7 +168,6 @@ describe('Desktop application and native install boundary', () => {
       'dist',
       'dist:mac',
       'dist:linux',
-      'dist:win',
       'test:e2e',
     ]) {
       expect(facade.scripts[command]).toBe(`npm run ${command} --prefix apps/desktop --`)
@@ -215,7 +215,7 @@ describe('Brain resources and native packaging', () => {
     expect(config.extraResources).toContainEqual({
       from: '../../libs/pi-extensions/brain-ext',
       to: 'brain-ext',
-      filter: ['brain.mjs', 'brain-fork-guard.mjs'],
+      filter: ['brain.mjs', 'brain-fork-guard.mjs', 'brain-curator.mjs'],
     })
     expect(config.extraResources).toContainEqual({
       from: 'build/brain-third-party-notices.md',
@@ -224,12 +224,11 @@ describe('Brain resources and native packaging', () => {
     const dir = join(root, 'libs/pi-extensions/pi-ext')
     const copies = new FileMatcher(dir, '/dest', (p) => p, piExt.filter).createFilter() as Filter
     const kept = (name: string) => copies(join(dir, name), file(name))
-    expect(['artifacts.ts', 'brain.ts', 'brain-fork-guard.ts', 'brain.test.ts'].map(kept)).toEqual([
-      true,
-      false,
-      false,
-      false,
-    ])
+    expect(
+      ['artifacts.ts', 'brain.ts', 'brain-fork-guard.ts', 'brain-curator.ts', 'brain.test.ts'].map(
+        kept,
+      ),
+    ).toEqual([true, false, false, false, false])
     expect(kept('optional/brain.ts')).toBe(true)
   })
 
@@ -264,7 +263,6 @@ describe('Brain resources and native packaging', () => {
     ['mac', 'x64', `${ORT}/darwin/x64/x.node`, `${ORT}/darwin/arm64/libonnxruntime.1.dylib`],
     ['linux', 'x64', `${ORT}/linux/x64/libonnxruntime.so.1`, `${ORT}/linux/arm64/x.node`],
     ['linux', 'arm64', `${ORT}/linux/arm64/x.node`, `${ORT}/linux/x64/libonnxruntime.so.1`],
-    ['win', 'x64', `${ORT}/win32/x64/DirectML.dll`, `${ORT}/win32/arm64/onnxruntime.dll`],
   ] as const)('packs only the %s-%s ONNX Runtime binary', async (os, arch, own, other) => {
     const config = await getConfig(app, null, null)
     const matcher = getNodeModuleFileMatcher(

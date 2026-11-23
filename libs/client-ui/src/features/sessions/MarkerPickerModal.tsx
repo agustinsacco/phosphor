@@ -22,6 +22,7 @@ export function MarkerPickerModal({
   title,
   current,
   autoKey,
+  derivedMarker,
   mode,
   usedMarkers,
   onPick,
@@ -32,16 +33,14 @@ export function MarkerPickerModal({
   current: string | undefined
   /** Branch (or cwd) the Auto marker derives from. */
   autoKey: string | null | undefined
+  derivedMarker?: string
   mode: 'auto' | 'manual'
   usedMarkers: ReadonlySet<string>
   onPick: (marker: string | null) => void
   onClose: () => void
 }): React.JSX.Element {
-  const auto = laneMarker(undefined, autoKey, null, mode)
-  const [query, setQuery] = useState('')
-  const [group, setGroup] = useState('')
-  const [limit, setLimit] = useState(120)
-  const matches = useMemo(() => searchMarkers(query, group), [query, group])
+  const auto = derivedMarker ?? laneMarker(undefined, autoKey, null, mode)
+  const { query, setQuery, group, setGroup, limit, setLimit, matches } = useMarkerSearch()
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -66,9 +65,7 @@ export function MarkerPickerModal({
                 : 'border-border text-text-secondary hover:text-text',
             )}
             title={
-              mode === 'auto'
-                ? 'Derive the marker from the branch name'
-                : 'No marker unless you pick one'
+              mode === 'auto' ? 'Use the lane’s default marker' : 'No marker unless you pick one'
             }
           >
             <span>{auto}</span> {mode === 'auto' ? 'Auto' : 'Default'}
@@ -162,4 +159,13 @@ export function MarkerPickerModal({
       </div>
     </ModalOverlay>
   )
+}
+
+/** Search state stays local to the picker; changing either filter resets its page. */
+function useMarkerSearch() {
+  const [query, setQuery] = useState('')
+  const [group, setGroup] = useState('')
+  const [limit, setLimit] = useState(120)
+  const matches = useMemo(() => searchMarkers(query, group), [query, group])
+  return { query, setQuery, group, setGroup, limit, setLimit, matches }
 }

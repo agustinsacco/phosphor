@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Proposal } from '@phosphor/memory-engine/types'
 import { ExtractionQueue } from './queue'
 import { FakeBrainStore, HARBOR_JOB } from './__fixtures__/fake-store'
 
@@ -56,6 +57,24 @@ function setup() {
 afterEach(() => vi.useRealTimers())
 
 describe('ExtractionQueue', () => {
+  it('leaves a stale review in review until it is asked to refresh it', async () => {
+    const s = setup()
+    const job = s.enqueue('harbor')
+    s.store.updateJob(job.id, { state: 'review' })
+    s.store.proposals.set(job.id, { jobId: job.id, computedRevision: 0 } as Proposal)
+    s.store.rev++
+    s.queue.kick()
+    await flush()
+    expect(s.runs).toEqual([])
+    expect(s.store.job(job.id)?.state).toBe('review')
+    s.queue.recompute(job.id)
+    await flush()
+    expect(s.runs.map((run) => run.id)).toEqual([job.id])
+    expect(s.store.job(job.id)?.state).toBe('refreshing')
+    s.runs[0]!.finish()
+    await s.queue.dispose()
+  })
+
   it('runs oldest queued first, never overlaps, and starts only when the model and prefs are ready', async () => {
     const s = setup()
     s.setReady(false)

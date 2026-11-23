@@ -1,3 +1,4 @@
+import { scrubExcerpt } from '../secrets'
 import {
   BRAIN_TIDY_KINDS,
   type BrainTidyKind,
@@ -13,8 +14,7 @@ import { checkRevision } from './journal'
 import { flagKey } from './flag-keys'
 
 /**
- * A pair only the model check sees. Pages, counts and actions never show it; a `same` verdict
- * surfaces it as `same_memory`, `conflict` or `replaces` as `conflict`, `different` clears it.
+ * A possible repeat only Brain Agent sees. It stays out of the page and waiting count.
  */
 export const UNCHECKED = 'unchecked'
 export interface SuggestionRow {
@@ -121,7 +121,20 @@ export function closeMissing(ctx: Context, rows: SuggestionRow[]): void {
       row.state = 'cleared'
     }
 }
-export function suggestion(ctx: Context, row: SuggestionRow): BrainTidySuggestion | null {
+export function suggestion(
+  ctx: Context,
+  row: SuggestionRow,
+  curator = false,
+): BrainTidySuggestion | null {
+  const clean = (text: string) => (curator ? scrubExcerpt(text) : text)
+  if (curator)
+    row = {
+      ...row,
+      kind: row.kind === UNCHECKED ? 'same_memory' : row.kind,
+      reason: clean(row.reason),
+      verdict_reason: row.verdict_reason && clean(row.verdict_reason),
+      title: row.title && clean(row.title),
+    }
   if (
     row.kind === UNCHECKED ||
     !BRAIN_TIDY_KINDS.includes(row.kind) ||
@@ -141,9 +154,10 @@ export function suggestion(ctx: Context, row: SuggestionRow): BrainTidySuggestio
       .map((id) => ({
         type: row.subject_type,
         id,
-        label:
+        label: clean(
           one<{ label: string }>(ctx, `SELECT ${column} AS label FROM ${table} WHERE id=?`, id)
             ?.label ?? 'Removed',
+        ),
       })),
     reason: row.reason,
     verdict: row.verdict
@@ -160,14 +174,7 @@ export function suggestion(ctx: Context, row: SuggestionRow): BrainTidySuggestio
   }
 }
 export function summary(ctx: Context): BrainTidySummary {
-  const row = one<{ count: number; newest: number | null }>(
-    ctx,
-    "SELECT COUNT(*) AS count,MAX(created_at) AS newest FROM tidy_suggestions WHERE state='open' AND kind IN ('same_entity','same_memory','conflict','flagged')",
-  )!
   return {
-    open: row.count,
-    newestSuggestionAt: row.newest,
-    running: false,
     automaticFolds: Number(
       one<{ value: string }>(ctx, "SELECT value FROM meta WHERE key='tidy_automatic_folds'")
         ?.value ?? 0,
@@ -186,13 +193,14 @@ export function dismiss(ctx: Context, id: string, expected: number): void {
     bumpRevision(ctx)
   })
 }
-export function openSuggestion(ctx: Context, id: string): SuggestionRow {
+export function openSuggestion(ctx: Context, id: string, curator = false): SuggestionRow {
   const row = one<SuggestionRow>(
     ctx,
     "SELECT * FROM tidy_suggestions WHERE id=? AND state='open'",
     id,
   )
-  if (!row || !suggestion(ctx, row)) throw new Error('This Tidy suggestion is no longer available.')
+  if (!row || !suggestion(ctx, row, curator))
+    throw new Error('This Tidy suggestion is no longer available.')
   return row
 }
 export function flag(ctx: Context, input: BrainTidyFlag): BrainTidyFlagResult {

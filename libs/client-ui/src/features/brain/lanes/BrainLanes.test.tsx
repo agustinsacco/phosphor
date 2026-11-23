@@ -2,7 +2,13 @@
 import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { BrainExtractionView, BrainHistory, BrainStatus } from '@shared/brain'
+import type {
+  BrainExtractionView,
+  BrainHistory,
+  BrainStatus,
+  BrainProposalView,
+} from '@shared/brain'
+import { BRAIN_REVIEW_REFRESHING } from '@shared/brain-review'
 import type { BrainTidyChanges } from '@shared/brain-tidy'
 import {
   createFakePhosphor,
@@ -12,7 +18,7 @@ import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { PromptHost } from '@/components/PromptHost'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
-import { mockBrainJob, mockBrainStatus } from '../mockBrainData'
+import { mockBrainJob, mockBrainStatus, mockBrainProposal } from '../mockBrainData'
 import { mockCallTrace, mockExtractionView } from '../mockExtractionView'
 import { useBrain } from '../useBrain'
 import { BrainLanes } from './BrainLanes'
@@ -23,6 +29,7 @@ let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 let status: BrainStatus
 let selection: LaneSelection | null
 const NOW = 1_793_966_400_000
+const proposal = vi.fn<() => Promise<BrainProposalView>>()
 const history = vi.fn<(limit: number) => Promise<BrainHistory>>()
 const extraction = vi.fn<(id: string) => Promise<BrainExtractionView>>()
 const changes = vi.fn<(limit: number) => Promise<BrainTidyChanges>>()
@@ -31,14 +38,13 @@ const cancel = vi.fn<(id: string) => Promise<BrainStatus>>()
 const retry = vi.fn<(id: string) => Promise<BrainStatus>>()
 const queue = vi.fn<(lane: { sessionPath: string; title: string }) => Promise<BrainStatus>>()
 const reread = vi.fn<(id: string) => Promise<BrainStatus>>()
-const tidy = { page: null, error: '', loading: false, reload: vi.fn(async () => null) }
 
 function Harness({ initial }: { initial: LaneSelection | null }): React.JSX.Element {
   const [current, setCurrent] = useState(initial)
   selection = current
   return (
     <>
-      <BrainLanes tidy={tidy} selected={current} onSelect={setCurrent} onMemory={() => {}} />
+      <BrainLanes selected={current} onSelect={setCurrent} onMemory={() => {}} />
       <PromptHost />
     </>
   )
@@ -68,7 +74,11 @@ beforeEach(() => {
       {
         id: 'op-1',
         kind: 'merge',
-        automatic: false,
+        who: 'you',
+        reason: null,
+        runId: null,
+        jobId: null,
+        undoable: true,
         summary: 'Merged Rina into Rina Okafor',
         createdAt: NOW - 60_000,
         undoneAt: null,
@@ -79,9 +89,15 @@ beforeEach(() => {
   })
   for (const fn of [undo, cancel, retry, queue, reread])
     fn.mockReset().mockImplementation(async () => status)
+  proposal
+    .mockReset()
+    .mockImplementation(async () =>
+      mockBrainProposal(status.jobs.find((job) => job.state === 'review')),
+    )
   fake = createFakePhosphor({
     'brain:history': history,
     'brain:extraction': extraction,
+    'brain:proposal': proposal,
     'brain:tidyChanges': changes,
     'brain:tidyUndo': undo,
     'brain:cancel': cancel,
@@ -128,6 +144,7 @@ it('lists reads by state and Recent changes, and opens the first read in progres
   ])
   const list = section('Brain lanes')
   expect([...list.querySelectorAll('section')].map((s) => s.ariaLabel)).toEqual([
+    'Waiting for Defrag',
     'Reading',
     'Queued',
     'Read',
@@ -137,8 +154,8 @@ it('lists reads by state and Recent changes, and opens the first read in progres
   expect(section('Reading').textContent).toContain('Reading · 3 min')
   expect(section('Queued').textContent).toContain('Queued 2 h ago · 1 ahead')
   expect(section('Read').textContent).toContain('3 memories from this read · 2 h ago')
-  expect(list.textContent).not.toContain('review')
-  expect(selection).toEqual({ type: 'job', id: 'running' })
+  expect(section('Waiting for Defrag').textContent).toContain('2 memories')
+  expect(selection).toEqual({ type: 'job', id: 'review' })
 })
 
 it('shows a running read with its steps, honest time, Cancel and recoverable calls', async () => {
@@ -300,10 +317,10 @@ it('shows a refreshing review apart, with honest time and no Cancel', async () =
       runStartedAt: NOW - 2 * 60_000,
     }),
   ])
-  expect(section('Refreshing')).not.toBeNull()
-  expect(section('Refreshing').textContent).toContain('Refreshing for 2 min')
+  expect(section('Waiting for Defrag')).not.toBeNull()
+  expect(section('Waiting for Defrag').textContent).toContain('Refreshing for 2 min')
   const detail = section('Lane detail')
-  expect(detail.textContent).toContain('Refreshing for 2 min')
+  expect(detail.textContent).toContain('Waits for Defrag')
   expect(detail.textContent).toContain('Brain changed since this lane was read')
   expect(button('Cancel', detail)).toBeUndefined()
 })
@@ -374,4 +391,126 @@ it('lists the lanes Brain never reads, and sends the owner to Settings to change
   expect(detail.textContent).toContain('2 lanes switched off one by one')
   await click('Change in Settings', detail)
   expect(useSettingsUiStore.getState()).toMatchObject({ open: true, tab: 'brain' })
+})
+
+it('inspects a waiting read without manual decisions, and retries a failed proposal load', async () => {
+  proposal.mockRejectedValueOnce(new Error('Read unavailable'))
+  await render([mockBrainJob({ state: 'review' })])
+  expect(section('Waiting read').textContent).toContain('Read unavailable')
+  await click('Retry', section('Waiting read'))
+  expect(section('Waiting read').textContent).toContain(
+    'Waits for Defrag · 2 memories · 2 questions',
+  )
+  expect(section('Waiting read').textContent).toContain(
+    'Brain Agent reviews this read in the next Defrag.',
+  )
+  expect(container.querySelector('input')).toBeNull()
+  expect(button('Approve')).toBeUndefined()
+  await click('See how it was read')
+  expect(section('Read detail')).not.toBeNull()
+})
+it('explains that Brain Agent rejects a never-read waiting read', async () => {
+  const job = mockBrainJob({ title: 'Harbor 1:1' })
+  await render([job])
+  expect(section('Waiting for Defrag').textContent).toContain('Brain never reads this lane')
+  expect(section('Waiting read').textContent).toContain('Brain Agent will reject this read')
+})
+it('collapses long waiting groups without dropping the count', async () => {
+  await render(Array.from({ length: 6 }, (_, i) => mockBrainJob({ id: `review-${i}` })))
+  expect(section('Waiting for Defrag').querySelectorAll('li')).toHaveLength(3)
+  await click('3 more')
+  expect(section('Waiting for Defrag').querySelectorAll('li')).toHaveLength(6)
+})
+it('shows agent reasons, erasure finality, and the read behind an approval', async () => {
+  const base = (await changes(50)).items[0]!
+  changes.mockResolvedValue({
+    revision: 1,
+    items: [
+      {
+        ...base,
+        id: 'erase',
+        kind: 'erase',
+        who: 'agent',
+        undoable: false,
+        reason: 'This fact is outdated.',
+        summary: 'Erased a memory: This fact is outdated.',
+      },
+      {
+        ...base,
+        id: 'approve',
+        kind: 'approve',
+        who: 'agent',
+        jobId: 'harbor-read',
+        reason: 'The evidence supports these facts.',
+      },
+    ],
+  })
+  await render([], { type: 'change', id: 'erase' })
+  expect(section('Change detail').textContent).toContain('This fact is outdated.')
+  expect(section('Change detail').textContent).toContain('Erasing can’t be undone.')
+  expect(button('Undo', section('Change detail'))).toBeUndefined()
+  expect(section('Recent changes').textContent).toContain('can’t be undone')
+  await act(async () =>
+    [...section('Recent changes').querySelectorAll('button')]
+      .find((b) => b.textContent?.includes('Merged Rina'))!
+      .click(),
+  )
+  await click('See the read', section('Change detail'))
+  expect(selection).toEqual({ type: 'job', id: 'harbor-read' })
+})
+
+it('never uses an erased memory’s old summary in a row or its detail', async () => {
+  const base = (await changes(50)).items[0]!
+  changes.mockResolvedValue({
+    revision: 1,
+    items: [
+      {
+        ...base,
+        id: 'erase-redacted',
+        kind: 'erase',
+        undoable: false,
+        summary: 'OUTDATED MEMORY TEXT',
+        reason: 'The owner corrected this.',
+      },
+    ],
+  })
+  await render([], { type: 'change', id: 'erase-redacted' })
+  expect(container.textContent).not.toContain('OUTDATED MEMORY TEXT')
+  expect(section('Recent changes').textContent).toContain(
+    'Erased a memory: The owner corrected this.',
+  )
+})
+
+it('loads stored memories even while the waiting read is refreshing', async () => {
+  const job = mockBrainJob({ state: 'refreshing', runStartedAt: NOW - 60_000 })
+  const stored = mockBrainProposal(job)
+  proposal.mockResolvedValue(stored)
+  await render([job])
+  expect(section('Waiting read').textContent).toContain('Refreshing: Brain changed')
+  expect(section('Waiting read').textContent).toContain(stored.memories[0]!.summary)
+  expect(proposal).toHaveBeenCalledWith(job.id)
+  expect(button('Retry', section('Waiting read'))).toBeUndefined()
+})
+
+it('treats a legacy refreshing proposal refusal as progress, never a failure or toast', async () => {
+  const toast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast')
+  proposal.mockRejectedValueOnce(new Error(BRAIN_REVIEW_REFRESHING))
+  await render([mockBrainJob()])
+  expect(section('Waiting read').textContent).toContain('Refreshing: Brain changed')
+  expect(button('Retry', section('Waiting read'))).toBeUndefined()
+  expect(toast).not.toHaveBeenCalled()
+  toast.mockRestore()
+})
+
+it('uses the waiting row’s relative read time in its detail, including old reads', async () => {
+  await render([mockBrainJob({ finishedAt: NOW - 14 * 86_400_000 })])
+  expect(section('Waiting for Defrag').textContent).toContain('read 14 days ago')
+  expect(section('Waiting read').textContent).toContain('read 14 days ago')
+})
+
+it('uses singular memory wording for a never-read waiting row', async () => {
+  await render([mockBrainJob({ title: 'Harbor 1:1', memories: 1 })])
+  expect(section('Waiting for Defrag').textContent).toContain(
+    '1 memory · Brain never reads this lane',
+  )
 })

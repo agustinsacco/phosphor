@@ -2,7 +2,7 @@ import { shell } from 'electron'
 import type { LoginFlowState, LoginProviderId } from '@shared/models'
 import { externalUrl } from '../external-links'
 import { ptyManager } from '../pty/pty-manager'
-import { checkPiHealth, piArgs } from './health'
+import { checkPiHealth } from './health'
 import { LOGIN_TERMINAL_ARGS, signInCwd, startLogin } from './login-flow'
 import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 
@@ -41,7 +41,7 @@ export async function createLoginTerminal(cols: number, rows: number): Promise<{
   // An empty folder plus --no-approve avoids project trust questions from home.
   return ptyManager.create(signInCwd(), cols, rows, undefined, {
     file: health.binaryPath,
-    args: piArgs(health, LOGIN_TERMINAL_ARGS),
+    args: [...LOGIN_TERMINAL_ARGS],
     env: await piProcessEnv(),
   })
 }

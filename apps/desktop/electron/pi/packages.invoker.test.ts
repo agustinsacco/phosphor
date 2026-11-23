@@ -15,7 +15,6 @@ vi.mock('./health', () => ({ cachedPiHealth: h.health }))
 vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.env }))
 vi.mock('./stub', () => ({ piStubPath: () => '/implicit-stub.cjs' }))
 vi.mock('./print-mode', () => ({
-  OWN_GROUP: true,
   killProcessTree: vi.fn(),
   runPrintMode: h.proof,
 }))
@@ -35,8 +34,7 @@ beforeEach(() => {
   h.spawn.mockReturnValue(child)
   h.health.mockResolvedValue({
     ok: true,
-    binaryPath: '/node',
-    prefixArgs: ['/pi.js'],
+    binaryPath: '/opt/pi',
     minVersion: MIN_PI_VERSION,
   })
   h.env.mockResolvedValue({ PATH: '/shell', SECRET: 'shell' })
@@ -53,7 +51,7 @@ it.each([
   'preserves %s %s %s action argv and shell env',
   async (action, spec, scope, cwd, args) => {
     await runPackageAction(sender, action, spec, scope, cwd)
-    expect(h.spawn).toHaveBeenCalledWith('/node', ['/pi.js', ...args], {
+    expect(h.spawn).toHaveBeenCalledWith('/opt/pi', [...args], {
       cwd,
       env: { PATH: '/shell', SECRET: 'shell' },
       stdio: ['ignore', 'pipe', 'pipe'],

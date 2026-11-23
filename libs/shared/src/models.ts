@@ -1,10 +1,5 @@
 /** App-level domain declarations; import this facade from app code. */
-export {
-  piInstallLocation,
-  isPiTooOld,
-  MIN_PI_VERSION,
-  MIN_CLAUDE_CONTEXT_VERSION,
-} from './models/sessions'
+export { isPiTooOld, MIN_PI_VERSION, MIN_CLAUDE_CONTEXT_VERSION } from './models/sessions'
 export {
   CLAUDE_PROVIDER_PACKAGE,
   claudeContextProviderShortfall,

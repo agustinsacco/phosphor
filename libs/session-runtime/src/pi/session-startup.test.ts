@@ -22,6 +22,16 @@ describe('portable startup', () => {
     await h.registry.disposeAll()
   })
 
+  it('keeps the owner’s launch folder for a lane Phosphor opens for its own work', async () => {
+    const h = sessionFixture()
+    vi.mocked(h.runtime.resolveWorkspace).mockReturnValue('/real/Brain')
+    // Brain's host opens the Brain lane attended, so its dialogs still reach the owner.
+    const brainLane = { unattended: false, keepLastWorkspace: true }
+    await h.spawn({ workspacePath: '/brain/Brain' }, h.sink, brainLane)
+    expect(h.runtime.recordWorkspace).toHaveBeenCalledWith('/real/Brain', 'Brain', { last: false })
+    await h.registry.disposeAll()
+  })
+
   it('does not allocate a process after cancellation during policy preparation', async () => {
     const h = sessionFixture()
     const controller = new AbortController()
@@ -141,13 +151,27 @@ describe('portable startup', () => {
     await h.registry.disposeAll()
   })
 
-  it('gives the pi stub no recall', async () => {
+  it('asks recall for the resolved workspace, so the Brain lane can get its own tools', async () => {
+    const h = sessionFixture()
+    vi.mocked(h.runtime.resolveWorkspace).mockReturnValue('/real/brain/Brain')
+    const lookup = vi.fn(async () => undefined)
+    h.runtime.contributions = [brainContribution(lookup)]
+    await h.spawn({ workspacePath: '/alias/Brain' }, h.sink)
+    expect(lookup).toHaveBeenCalledWith('/real/brain/Brain')
+    await h.registry.disposeAll()
+  })
+
+  it('gives the pi stub recall only when the Desktop test runtime opts in', async () => {
     const h = sessionFixture()
     vi.mocked(h.runtime.launch).mockResolvedValue({ stub: true, env: {}, extensions: [] } as never)
     const lookup = vi.fn(async () => ({ extensions: ['/x'], skills: [] }))
     h.runtime.contributions = [brainContribution(lookup)]
-    await h.spawn({ workspacePath: '/repo' }, h.sink).catch(() => undefined)
+    await h.spawn({ workspacePath: '/repo' }, h.sink)
     expect(lookup).not.toHaveBeenCalled()
+    h.runtime.stubContributions = [brainContribution(lookup)]
+    await h.spawn({ workspacePath: '/brain/Brain' }, h.sink)
+    expect(lookup).toHaveBeenCalledWith('/brain/Brain')
+    expect(h.clients[1]!.options.extensions).toContain('/x')
     await h.registry.disposeAll()
   })
 })

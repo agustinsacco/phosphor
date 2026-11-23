@@ -9,8 +9,6 @@ export function tailscaleExecutableCandidates(platform: string): readonly string
       ]
     case 'linux':
       return ['/usr/bin/tailscale', '/usr/local/bin/tailscale', '/snap/bin/tailscale']
-    case 'win32':
-      return ['C:\\Program Files\\Tailscale\\tailscale.exe']
     default:
       return []
   }

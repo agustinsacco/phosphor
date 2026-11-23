@@ -1,4 +1,4 @@
-import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { JsonlDecoder } from './jsonl'
 import { SessionActivity } from './session-activity'
@@ -25,7 +25,7 @@ export interface PiSpawnOptions {
   binaryPath?: string
   /**
    * Args inserted before `--mode rpc`. Lets callers run pi through an
-   * interpreter (tests use `node fake-pi.cjs`; Windows npm shims may need it).
+   * interpreter (tests and the Host run `node <pi script>`).
    */
   prefixArgs?: string[]
   /** Resume an existing session file or id (`--session`). */
@@ -73,6 +73,11 @@ interface PiRpcClientEvents extends OpChannelEvents {
   'session-file': [string]
   /** Any protocol event from pi stdout (not responses, not extension UI). */
   event: [PiEvent]
+  /**
+   * Every command response, as pi prints it, before its waiter resumes: a listener can tell the
+   * events before a prompt's response (another turn's) from those after it (the prompt's own).
+   */
+  response: [RpcResponse]
   /** Extension UI request needing user interaction or display. */
   'extension-ui': [ExtensionUIRequest]
   /** Raw stderr text (diagnostics). */
@@ -170,7 +175,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       cwd: o.cwd,
       env: opChildEnv(o.env, o.inheritEnv !== false),
       stdio: ['pipe', 'pipe', 'pipe'],
-      detached: o.ownProcessGroup && process.platform !== 'win32',
+      detached: o.ownProcessGroup,
     })
     this.child = child
 
@@ -205,7 +210,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
     child.on('exit', (code, signal) => {
       // The group can outlive pi (notably a parked Claude CLI).
-      if (o.ownProcessGroup && process.platform !== 'win32') this.signalChild(child, 'SIGKILL')
+      if (o.ownProcessGroup) this.signalChild(child, 'SIGKILL')
       if (this.killTimer) {
         clearTimeout(this.killTimer)
         this.killTimer = null
@@ -329,17 +334,10 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       child.kill(signal)
       return
     }
-    if (process.platform === 'win32') {
-      // Windows has no POSIX groups. taskkill traverses the owned process tree.
-      execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], () => {
-        if (child.exitCode === null) child.kill(signal)
-      })
-    } else {
-      try {
-        process.kill(-child.pid, signal)
-      } catch {
-        /* already gone */
-      }
+    try {
+      process.kill(-child.pid, signal)
+    } catch {
+      /* already gone */
     }
   }
 
@@ -361,6 +359,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     if (record.type === 'response') {
       const response = record as unknown as RpcResponse
       this.activity.responded(response)
+      this.emit('response', response)
       if (response.command === 'get_state' && response.success) {
         const state = response.data as RpcResponseDataMap['get_state'] | undefined
         if (typeof state?.sessionId === 'string') this.learnedSessionId = state.sessionId

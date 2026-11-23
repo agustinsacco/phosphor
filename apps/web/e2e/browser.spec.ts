@@ -115,23 +115,13 @@ async function directBrainFailures(page: Page): Promise<string[]> {
         () => window.phosphor.invoke('brain:retry', 'synthetic-job'),
         () => window.phosphor.invoke('brain:reset'),
         () => window.phosphor.invoke('brain:queue', lane),
-        () => window.phosphor.invoke('brain:review', 'synthetic-job', null, 0),
         () => window.phosphor.invoke('brain:extraction', 'synthetic-job'),
         () => window.phosphor.invoke('brain:forget', 'synthetic-memory'),
-        () => window.phosphor.invoke('brain:tidy', null, null, 20),
-        () => window.phosphor.invoke('brain:tidySuggestion', 'synthetic-suggestion'),
-        () => window.phosphor.invoke('brain:tidyRun'),
-        () => window.phosphor.invoke('brain:tidyCancel'),
-        () =>
-          window.phosphor.invoke(
-            'brain:tidyApply',
-            'synthetic-suggestion',
-            { kind: 'merge', survivorId: 'synthetic-entity' },
-            0,
-          ),
-        () => window.phosphor.invoke('brain:tidyDismiss', 'synthetic-suggestion', 0),
         () => window.phosphor.invoke('brain:tidyChanges', 20),
         () => window.phosphor.invoke('brain:tidyUndo', 'synthetic-operation', 0),
+        () => window.phosphor.invoke('brain:defrag'),
+        () => window.phosphor.invoke('brain:defragStop'),
+        () => window.phosphor.invoke('brain:undoRun', 'synthetic-run'),
       ].map(async (request) => {
         try {
           await request()
@@ -520,6 +510,6 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       .getByRole('button', { name: 'Brain' }),
   ).toHaveCount(0)
   const failures = await directBrainFailures(page)
-  expect(failures).toHaveLength(32)
+  expect(failures).toHaveLength(28)
   for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
 })

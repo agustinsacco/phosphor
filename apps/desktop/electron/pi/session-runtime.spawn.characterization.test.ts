@@ -22,7 +22,11 @@ vi.mock('../maintenance/history', () => ({
   withWorkspace: vi.fn(),
 }))
 vi.mock('./session-path-lock', () => ({ sessionPaths: {} }))
-vi.mock('./stub', () => ({ piStubPath: () => null, stubOpsEnabled: () => false }))
+vi.mock('./stub', () => ({
+  piStubPath: () => null,
+  stubOpsEnabled: () => false,
+  stubBrainEnabled: () => false,
+}))
 vi.mock('./session-events', () => ({ desktopSessionSink: vi.fn() }))
 vi.mock('../claude/accounts', () => ({ holdAccount: vi.fn() }))
 vi.mock('./session-accounts', () => ({

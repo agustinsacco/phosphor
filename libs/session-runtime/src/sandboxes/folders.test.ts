@@ -50,7 +50,7 @@ describe('randomSandboxName', () => {
     expect(randomSandboxName([first], () => 0)).not.toBe(first)
   })
 
-  it('treats names case-insensitively, as macOS and Windows do', () => {
+  it('treats names case-insensitively, as macOS does', () => {
     const first = randomSandboxName([], () => 0)
     expect(randomSandboxName([first.toUpperCase()], () => 0)).not.toBe(first)
   })
@@ -76,11 +76,10 @@ describe('validateSandboxName', () => {
     expect(validateSandboxName('a\nb')).toBeNull()
   })
 
-  it('refuses names Windows cannot store', () => {
-    expect(validateSandboxName('CON')).toBeNull()
-    expect(validateSandboxName('lpt1')).toBeNull()
-    expect(validateSandboxName('trailing.')).toBeNull()
+  it('refuses shell wildcards and redirections in a name', () => {
     expect(validateSandboxName('a?b')).toBeNull()
+    expect(validateSandboxName('a*b')).toBeNull()
+    expect(validateSandboxName('a>b')).toBeNull()
   })
 
   it('refuses empty and over-long names', () => {

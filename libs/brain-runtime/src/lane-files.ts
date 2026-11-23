@@ -20,6 +20,8 @@ async function laneStamp(path: string): Promise<string | null> {
 
 export interface CurrentLane {
   title: string
+  /** The session header's cwd, null when the header has none. */
+  cwd: string | null
   /** Present only when the file had to be read, so its caller can reuse it instead of reading again. */
   entries?: LaneEntry[]
 }
@@ -29,13 +31,13 @@ export interface CurrentLane {
  * is re-read by whoever needs it next, because each write changes its size and mtime.
  */
 export class LaneFiles {
-  private titles = new Map<string, { stamp: string; title: string }>()
+  private titles = new Map<string, { stamp: string; title: string; cwd: string | null }>()
 
   /** Always reads, and remembers the title under the stat taken before the read. */
   async read(path: string): Promise<LaneEntry[]> {
     const stamp = await laneStamp(path).catch(() => null)
     const entries = await readLaneEntries(path)
-    if (stamp) this.remember(path, stamp, laneTitle(entries) ?? '')
+    if (stamp) this.remember(path, stamp, entries)
     return entries
   }
 
@@ -47,16 +49,21 @@ export class LaneFiles {
       throw new DeletedLaneError(path)
     }
     const known = this.titles.get(path)
-    if (known?.stamp === stamp) return { title: known.title }
+    if (known?.stamp === stamp) return { title: known.title, cwd: known.cwd }
     const entries = await readLaneEntries(path)
-    const title = laneTitle(entries) ?? ''
-    this.remember(path, stamp, title)
-    return { title, entries }
+    const { title, cwd } = this.remember(path, stamp, entries)
+    return { title, cwd, entries }
   }
 
-  private remember(path: string, stamp: string, title: string): void {
+  private remember(path: string, stamp: string, entries: LaneEntry[]) {
+    const lane = {
+      stamp,
+      title: laneTitle(entries) ?? '',
+      cwd: entries.find((entry) => entry.type === 'session')?.cwd ?? null,
+    }
     this.titles.delete(path)
-    this.titles.set(path, { stamp, title })
+    this.titles.set(path, lane)
     if (this.titles.size > REMEMBERED_LANES) this.titles.delete(this.titles.keys().next().value!)
+    return lane
   }
 }

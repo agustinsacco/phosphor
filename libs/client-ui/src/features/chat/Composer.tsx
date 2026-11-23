@@ -24,6 +24,7 @@ import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSession, renameSession } from '@/features/sessions/sessionActions'
 import { usePlatform } from '@/platform/Platform'
 import { piCallAccepted, piCallOk } from '@/lib/rpc'
+import { stopRun } from './composer/queueActions'
 import { formatShortcut } from '@/lib/shortcuts'
 import { softKeyboard } from '@/lib/softKeyboard'
 import {
@@ -284,19 +285,16 @@ export function Composer({
 
   const abort = useCallback(async () => {
     const chat = useChatStore.getState()
-    const queues = chat.sessions[sessionId]?.queues
-    const queuedText = [...(queues?.steering ?? []), ...(queues?.followUp ?? [])].join('\n')
     try {
       // An abort before pi ever started the run gets no agent event back, so
       // clear the booting state here or the strip waits forever.
       chat.clearPromptSent(sessionId)
-      await piCallOk(sessionId, { type: 'abort' })
-      // Escape semantics: restore queued messages into the composer.
-      if (queuedText) {
+      // Escape semantics: queued messages come back into the composer.
+      await stopRun(sessionId, (queuedText) => {
         const current = useDraftsStore.getState().get(draftKey).text
         setText(current ? current + '\n' + queuedText : queuedText)
         textareaRef.current?.focus()
-      }
+      })
     } catch (error) {
       chat.setError(sessionId, ipcErrorText(error))
     }

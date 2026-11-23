@@ -1,8 +1,12 @@
+import { useState } from 'react'
+import { useBrain } from '../useBrain'
+import { brainLaneNeverRead } from '@shared/brain'
 import type { BrainJob } from '@shared/brain'
 import type { BrainTidyOperation } from '@shared/brain-tidy'
 import { Button } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
+import { formatCount } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import {
   finishedRead,
@@ -15,6 +19,7 @@ import {
   type LaneSelection,
 } from './laneGroups'
 import { brainLaneTitle } from '../laneTitle'
+import { CHANGE_WHO, changeTitle } from './ChangeDetail'
 
 /** Reads by state, then Recent changes; one selectable row each. */
 export function LaneList({
@@ -40,6 +45,8 @@ export function LaneList({
   extra?: React.ReactNode
 }): React.JSX.Element {
   const key = laneKey(selected)
+  const status = useBrain((s) => s.status)!
+  const [expanded, setExpanded] = useState(false)
   return (
     <div className="min-w-0 space-y-3 p-2">
       {groups.map((group) => (
@@ -48,11 +55,15 @@ export function LaneList({
             {group.label} · {group.rows.length}
           </SectionLabel>
           <ul>
-            {group.rows.map((row) => (
+            {group.rows.slice(0, group.id === 'waiting' && !expanded ? 3 : undefined).map((row) => (
               <li key={row.job.id}>
                 <LaneRowButton
                   title={brainLaneTitle(row.job.title)}
-                  line={rowLine(row, jobs, now)}
+                  line={
+                    group.id === 'waiting' && brainLaneNeverRead(status.prefs.neverRead, row.job)
+                      ? `${formatCount(row.memories, 'memory', 'memories')} · Brain never reads this lane`
+                      : rowLine(row, jobs, now)
+                  }
                   danger={row.job.state === 'failed'}
                   selected={key === `job:${row.job.id}`}
                   onClick={() => onSelect({ type: 'job', id: row.job.id })}
@@ -60,36 +71,20 @@ export function LaneList({
               </li>
             ))}
           </ul>
+          {group.id === 'waiting' && !expanded && group.rows.length > 3 && (
+            <Button size="xs" onClick={() => setExpanded(true)}>
+              {group.rows.length - 3} more
+            </Button>
+          )}
         </section>
       ))}
-      {changes.length > 0 && (
-        <section aria-label="Recent changes">
-          <SectionLabel>Recent changes · {changes.length}</SectionLabel>
-          <ul>
-            {changes.map((change) => (
-              <li key={change.id} className="flex items-start gap-1">
-                <LaneRowButton
-                  title={change.summary}
-                  line={`${change.automatic ? 'Automatic' : 'By you'} · ${relativeTime(change.createdAt)}${change.undoneAt ? ' · Undone' : ''}`}
-                  selected={key === `change:${change.id}`}
-                  onClick={() => onSelect({ type: 'change', id: change.id })}
-                />
-                {!change.undoneAt && (
-                  <Button
-                    size="xs"
-                    className="mt-1.5 shrink-0"
-                    disabled={busy}
-                    tooltip={`Undo: ${change.summary}`}
-                    onClick={() => onUndo(change.id)}
-                  >
-                    Undo
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <RecentChanges
+        changes={changes}
+        selectedKey={key}
+        busy={busy}
+        onSelect={onSelect}
+        onUndo={onUndo}
+      />
       {extra}
     </div>
   )
@@ -121,16 +116,61 @@ export function LaneRowButton({
       className="brain-row min-w-0 flex-col gap-0"
       onClick={onClick}
     >
-      <span className="block w-full truncate font-medium">{title}</span>
+      <span className="block w-full whitespace-normal font-medium">{title}</span>
       <span
         className={
           danger
-            ? 'text-danger block w-full truncate text-sm'
-            : 'text-text-tertiary block w-full truncate text-sm'
+            ? 'text-danger block w-full whitespace-normal text-sm'
+            : 'text-text-tertiary block w-full whitespace-normal text-sm'
         }
       >
         {line}
       </span>
     </TooltipButton>
+  )
+}
+
+/** The same rows, with the journal's finality and attribution. */
+function RecentChanges({
+  changes,
+  selectedKey,
+  busy,
+  onSelect,
+  onUndo,
+}: {
+  changes: BrainTidyOperation[]
+  selectedKey: string
+  busy: boolean
+  onSelect: (selection: LaneSelection) => void
+  onUndo: (id: string) => void
+}): React.JSX.Element | null {
+  if (!changes.length) return null
+  return (
+    <section aria-label="Recent changes">
+      <SectionLabel>Recent changes · {changes.length}</SectionLabel>
+      <ul>
+        {changes.map((change) => (
+          <li key={change.id} className="flex items-start gap-1">
+            <LaneRowButton
+              title={changeTitle(change)}
+              line={`${CHANGE_WHO[change.who]} · ${relativeTime(change.createdAt)}${change.undoneAt ? ' · Undone' : change.kind === 'erase' ? ' · can’t be undone' : ''}`}
+              selected={selectedKey === `change:${change.id}`}
+              onClick={() => onSelect({ type: 'change', id: change.id })}
+            />
+            {change.undoable && !change.undoneAt && (
+              <Button
+                size="xs"
+                className="mt-1.5 shrink-0"
+                disabled={busy}
+                tooltip={`Undo: ${change.summary}`}
+                onClick={() => onUndo(change.id)}
+              >
+                Undo
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

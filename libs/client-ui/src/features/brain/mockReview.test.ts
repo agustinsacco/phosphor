@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import type { BrainReviewDecision, BrainStatus } from '@shared/brain'
 import { BRAIN_DECISION_REFUSALS, brainRequiredAnswerRefusal } from '@shared/brain-review'
-import { createMockBrain } from './mockBrain'
+import { mockBrainHarness as createMockBrain } from './mockBrain.test-support'
 
 const REVIEW = 'harbor-demo-review'
 const decide = (patch: Partial<Record<keyof BrainReviewDecision, unknown>> = {}) => ({
@@ -15,7 +15,7 @@ const decide = (patch: Partial<Record<keyof BrainReviewDecision, unknown>> = {})
 /** The harness's review: a required "Rina" question and two held claims. */
 function harness() {
   const call = createMockBrain(() => 0, { flagAfterMs: 20000, demoReviews: true })
-  const review = (decision: unknown) => call('brain:review', [REVIEW, decision, 0])
+  const review = (decision: unknown) => call.decideRead([REVIEW, decision, 0])
   const state = async () => {
     const status = (await call('brain:status', [])) as BrainStatus
     return { counts: status.counts, pending: status.jobs.some((job) => job.id === REVIEW) }

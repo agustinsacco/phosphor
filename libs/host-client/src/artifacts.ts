@@ -104,17 +104,41 @@ async function list(host: ArtifactHost, laneId?: string): Promise<LibraryItem[]>
     throw new Error(REMOTE_UNAVAILABLE)
   return data
 }
-async function snapshots(host: ArtifactHost, items: LibraryItem[]): Promise<ArtifactSnapshot[]> {
+/**
+ * The versions one call reads, chosen from declared sizes before any content
+ * call. A lane past the budget used to load nothing, so its pane failed and
+ * every chat link to its artifacts said they were not there. Now each
+ * artifact's latest version comes first, newest artifact first, then older
+ * versions newest first, until the version count or the bytes run out.
+ */
+function withinBudget(items: LibraryItem[]): LibraryItem[] {
+  type Version = LibraryItem['versions'][number]
+  const order = items.flatMap((a) =>
+    a.versions.map((v, i) => ({ v, latest: i === a.versions.length - 1 })),
+  )
+  order.sort(
+    (x, y) =>
+      Number(y.latest) - Number(x.latest) ||
+      y.v.createdAt - x.v.createdAt ||
+      y.v.version - x.v.version,
+  )
+  const keep = new Set<Version>()
+  let bytes = 0
+  for (const { v } of order) {
+    if (keep.size >= ARTIFACT_LIMITS.callVersions) break
+    if (bytes + v.bytes > ARTIFACT_LIMITS.callBytes) continue
+    bytes += v.bytes
+    keep.add(v)
+  }
+  return items
+    .map((a) => ({ ...a, versions: a.versions.filter((v) => keep.has(v)) }))
+    .filter((a) => a.versions.length > 0)
+}
+async function snapshots(host: ArtifactHost, all: LibraryItem[]): Promise<ArtifactSnapshot[]> {
   let bytes = 0
   const result: ArtifactSnapshot[] = []
-  if (items.reduce((sum, a) => sum + a.versions.length, 0) > ARTIFACT_LIMITS.callVersions)
-    throw new Error(REMOTE_UNAVAILABLE)
-  // Check declared sizes before sending any content calls, then count actual UTF-8 bytes too.
-  if (
-    items.reduce((sum, a) => sum + a.versions.reduce((s, v) => s + v.bytes, 0), 0) >
-    ARTIFACT_LIMITS.callBytes
-  )
-    throw new Error(REMOTE_UNAVAILABLE)
+  // Declared sizes pick the versions; actual UTF-8 bytes are counted too.
+  const items = withinBudget(all)
   for (const a of items) {
     const versions: ArtifactSnapshot['versions'] = []
     for (const v of a.versions) {

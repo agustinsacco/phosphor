@@ -7,30 +7,62 @@ import {
   BRAIN_PROTOCOL,
   type BrainAgentMethod,
   type BrainAgentResponse,
+  type BrainFlagResponse,
 } from '@phosphor/shared/brain'
+import { BRAIN_CURATOR_METHODS, BRAIN_LANE_METHODS } from '@phosphor/shared/brain-agent'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
-
+import { plainRefusal } from './agent/refusal'
 import { chooseLocalSocket } from '@phosphor/shared/host-local'
 import type { AppServiceRegistration } from '@phosphor/shared/host-protocol-owner'
 import { brainFlagLimit } from './tidy/flag-limit'
 
 const MAX_BYTES = 512 * 1024
-export type BridgeInvoke = (method: BrainAgentMethod, params: unknown) => Promise<unknown>
+/** Which token asked: any lane's, or the Brain lane's curator token. */
+export type BridgeRole = 'lane' | 'curator'
+type Role = BridgeRole
+/** `signal` aborts when the asking socket closes. */
+export type BridgeInvoke = (
+  method: BrainAgentMethod,
+  params: unknown,
+  signal: AbortSignal,
+  role: BridgeRole,
+) => Promise<unknown>
+interface Tokens {
+  lane: string
+  curator: string
+}
+const METHODS: Record<Role, ReadonlySet<string>> = {
+  lane: new Set(BRAIN_LANE_METHODS),
+  curator: new Set(BRAIN_CURATOR_METHODS),
+}
+const DENIED = { ok: false, error: 'Brain request unavailable' } as const
 
-/** One random recall/flag token per service lifetime, carried only over a private local socket. */
-export async function createBrainBridge(invoke: BridgeInvoke, limit = brainFlagLimit) {
+export interface BrainBridgeOptions {
+  /** Until a request authenticates. */
+  idleMs?: number
+  /** After a curator request authenticates: reading or deciding a review may refresh it first. */
+  curatorIdleMs?: number
+  /** Shared by both ingress paths in the Brain service process; tests inject their own. */
+  flagLimit?: () => BrainFlagResponse | undefined
+}
+
+/**
+ * Two random tokens per service lifetime, carried only over a private local socket: any lane's
+ * token calls search and flag; the Brain lane's curator token calls Brain Agent's methods.
+ */
+export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBridgeOptions = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'ph-brain-'))
   await chmod(directory, 0o700)
   const token = randomBytes(32).toString('hex')
-  const endpoint =
-    process.platform === 'win32'
-      ? `\\\\.\\pipe\\phosphor-brain-${randomBytes(12).toString('hex')}`
-      : join(directory, 'rpc.sock')
+  const curatorToken = randomBytes(32).toString('hex')
+  const idle = { lane: options.idleMs ?? 15_000, curator: options.curatorIdleMs ?? 15 * 60_000 }
+  const endpoint = join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
-  const limitedInvoke: BridgeInvoke = async (method, params) => {
+  const limit = options.flagLimit ?? brainFlagLimit
+  const limitedInvoke: BridgeInvoke = async (method, params, signal, role) => {
     const refusal = method === 'flag' && limit()
     if (refusal) return refusal
-    return invoke(method, params)
+    return invoke(method, params, signal, role)
   }
   const server = createServer((socket) => {
     if (sockets.size >= 32) {
@@ -39,11 +71,10 @@ export async function createBrainBridge(invoke: BridgeInvoke, limit = brainFlagL
     }
     sockets.add(socket)
     socket.once('close', () => sockets.delete(socket))
-    accept(socket, token, limitedInvoke)
+    accept(socket, { lane: token, curator: curatorToken }, limitedInvoke, idle)
   })
   try {
-    if (process.platform !== 'win32' && !chooseLocalSocket([endpoint]))
-      throw new Error('Brain socket path is too long.')
+    if (!chooseLocalSocket([endpoint])) throw new Error('Brain socket path is too long.')
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
       server.listen(endpoint, () => {
@@ -51,7 +82,7 @@ export async function createBrainBridge(invoke: BridgeInvoke, limit = brainFlagL
         resolve()
       })
     })
-    if (process.platform !== 'win32') await chmod(endpoint, 0o600)
+    await chmod(endpoint, 0o600)
   } catch (error) {
     server.close()
     await rm(directory, { recursive: true, force: true })
@@ -66,6 +97,7 @@ export async function createBrainBridge(invoke: BridgeInvoke, limit = brainFlagL
       token,
       recall,
     }),
+    curatorToken,
     async close() {
       for (const socket of sockets) socket.destroy()
       await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -74,10 +106,17 @@ export async function createBrainBridge(invoke: BridgeInvoke, limit = brainFlagL
   }
 }
 
-function accept(socket: Socket, token: string, invoke: BridgeInvoke): void {
+function accept(
+  socket: Socket,
+  tokens: Tokens,
+  invoke: BridgeInvoke,
+  idle: Record<Role, number>,
+): void {
   let buffer = Buffer.alloc(0)
   let handled = false
-  socket.setTimeout(15_000, () => socket.destroy())
+  const closed = new AbortController()
+  socket.setTimeout(idle.lane, () => socket.destroy())
+  socket.once('close', () => closed.abort())
   socket.on('error', () => socket.destroy())
   socket.on('data', (chunk: Buffer) => {
     if (handled || buffer.length + chunk.length > MAX_BYTES) {
@@ -94,7 +133,10 @@ function accept(socket: Socket, token: string, invoke: BridgeInvoke): void {
     }
     const text = buffer.subarray(0, newline).toString('utf8')
     buffer = Buffer.alloc(0)
-    respond(text, token, invoke)
+    const authenticated = (role: Role): void => {
+      if (role === 'curator') socket.setTimeout(idle.curator)
+    }
+    respond(text, tokens, invoke, closed.signal, authenticated)
       .then((response) => {
         if (socket.destroyed) return
         const body = JSON.stringify(response)
@@ -108,11 +150,23 @@ function accept(socket: Socket, token: string, invoke: BridgeInvoke): void {
   })
 }
 
-async function respond(
+/** Compares against both tokens every time, in constant time. */
+function roleOf(token: unknown, tokens: Tokens): Role | null {
+  if (typeof token !== 'string') return null
+  const given = Buffer.from(token)
+  const matches = (expected: string): boolean => {
+    const wanted = Buffer.from(expected)
+    return given.length === wanted.length && timingSafeEqual(given, wanted)
+  }
+  const lane = matches(tokens.lane)
+  const curator = matches(tokens.curator)
+  return lane ? 'lane' : curator ? 'curator' : null
+}
+
+function authorize(
   text: string,
-  token: string,
-  invoke: BridgeInvoke,
-): Promise<BrainAgentResponse> {
+  tokens: Tokens,
+): { role: Role; method: BrainAgentMethod; params: unknown } | null {
   try {
     const input = JSON.parse(text) as {
       version?: unknown
@@ -125,16 +179,34 @@ async function respond(
       typeof input !== 'object' ||
       Array.isArray(input) ||
       Object.keys(input).some((key) => !['version', 'token', 'method', 'params'].includes(key)) ||
-      input.version !== BRAIN_PROTOCOL ||
-      typeof input.token !== 'string' ||
-      input.token.length !== token.length ||
-      !timingSafeEqual(Buffer.from(input.token), Buffer.from(token)) ||
-      (input.method !== 'search' && input.method !== 'flag')
+      input.version !== BRAIN_PROTOCOL
     )
-      throw new Error('Denied')
-    const params = validateBrainRequest(input.method, input.params)
-    return { ok: true, data: await invoke(input.method, params) }
+      return null
+    const role = roleOf(input.token, tokens)
+    if (!role || typeof input.method !== 'string' || !METHODS[role].has(input.method)) return null
+    return { role, method: input.method as BrainAgentMethod, params: input.params }
   } catch {
-    return { ok: false, error: 'Brain request unavailable' }
+    return null
+  }
+}
+
+/** Lane agents get one refusal for everything; Brain Agent learns why, in one plain line. */
+async function respond(
+  text: string,
+  tokens: Tokens,
+  invoke: BridgeInvoke,
+  signal: AbortSignal,
+  authenticated: (role: Role) => void,
+): Promise<BrainAgentResponse> {
+  const request = authorize(text, tokens)
+  if (!request) return DENIED
+  authenticated(request.role)
+  try {
+    const params = validateBrainRequest(request.method, request.params)
+    return { ok: true, data: await invoke(request.method, params, signal, request.role) }
+  } catch (error) {
+    return request.role === 'lane'
+      ? DENIED
+      : { ok: false, error: plainRefusal(error, DENIED.error) }
   }
 }

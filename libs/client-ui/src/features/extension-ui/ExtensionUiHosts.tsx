@@ -241,7 +241,7 @@ export function ToastHost(): React.JSX.Element {
       aria-live="polite"
       data-testid="toast-stack"
       className={clsx(
-        'pointer-events-none fixed top-12 z-[110] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col',
+        'toast-stack pointer-events-none fixed top-12 z-[110] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col',
         // Beside the open drawer, not over its first rows.
         drawerOpen ? 'right-[calc(var(--px-drawer-width)+0.5rem)]' : 'right-2',
       )}

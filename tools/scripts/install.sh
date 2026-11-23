@@ -44,9 +44,6 @@ esac
 case "$OS" in
   Darwin) PLATFORM="mac" ;;
   Linux)  PLATFORM="linux" ;;
-  MINGW*|MSYS*|CYGWIN*)
-    die "Windows: download Phosphor-<version>-x64.exe from https://github.com/$REPO/releases/latest and run it"
-    ;;
   *) die "unsupported OS: $OS" ;;
 esac
 

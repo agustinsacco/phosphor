@@ -30,14 +30,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs())
 
 describe('MCP actions', () => {
-  it('uses the workspace cwd and shell environment including launch prefixes', async () => {
-    state.health.mockResolvedValue({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
+  it('uses the workspace cwd and shell environment', async () => {
+    state.health.mockResolvedValue({ ok: true, binaryPath: '/opt/pi' })
     const result = { ok: true, servers: [], errors: [] }
     state.list.mockResolvedValue(result)
     expect(await listMcpServers('/workspace')).toBe(result)
     expect(state.list).toHaveBeenCalledExactlyOnceWith({
-      binaryPath: '/node',
-      prefixArgs: ['/pi.js'],
+      binaryPath: '/opt/pi',
       cwd: '/workspace',
       env: { PATH: '/shell/bin', PI_CODING_AGENT_DIR: '/agent' },
     })
@@ -73,13 +72,11 @@ describe('MCP actions', () => {
     state.health.mockResolvedValue({
       ok: false,
       reason: 'too-old',
-      binaryPath: '/old-node',
-      prefixArgs: ['/old-pi.js'],
+      binaryPath: '/old-pi',
     })
     await listMcpServers('/workspace')
     expect(state.list).toHaveBeenCalledExactlyOnceWith({
-      binaryPath: '/old-node',
-      prefixArgs: ['/old-pi.js'],
+      binaryPath: '/old-pi',
       cwd: '/workspace',
       env: { PATH: '/shell/bin', PI_CODING_AGENT_DIR: '/agent' },
     })

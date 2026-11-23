@@ -45,7 +45,7 @@ export function BrainTab(): React.JSX.Element {
         <>
           <Row
             title="Recall in lanes"
-            description="Agents in new lanes get brain_search to recall approved knowledge and brain_flag to suggest a correction for you to review in the Brain Inbox, never to change Brain."
+            description="Agents in new lanes get brain_search to recall saved knowledge and brain_flag to suggest a correction for Brain Agent to review during Defrag, never to change Brain."
           >
             <Toggle
               on={status.prefs.recall}
@@ -55,7 +55,7 @@ export function BrainTab(): React.JSX.Element {
           </Row>
           <Row
             title="Review before saving"
-            description="New memories wait in Brain until you approve them. Turn this off to save them as soon as extraction finishes."
+            description="Reads wait for Defrag before saving. Turn this off to save them as soon as extraction finishes."
           >
             <Toggle
               on={status.prefs.review}
@@ -190,7 +190,7 @@ function BrainToggleRow({
       title="Brain"
       description={
         <>
-          Learns from lanes you queue and lets agents recall what you approve. Each queued lane is
+          Learns from lanes you queue and lets agents recall what Brain saves. Each queued lane is
           read in private windows with the chosen reader model, which can make several provider
           calls. Turning this on downloads EmbeddingGemma for search on this computer (
           <a

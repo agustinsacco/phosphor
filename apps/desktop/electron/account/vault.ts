@@ -14,7 +14,7 @@ export { VaultUnreadable, type Cipher, type Storage } from './vault-token'
 
 /**
  * Where a remembered sign-in lives: the refresh token encrypted by the OS
- * (macOS Keychain, Windows DPAPI, Linux Secret Service or KWallet), and a
+ * (macOS Keychain, Linux Secret Service or KWallet), and a
  * user-only plain token on Linux without a keyring. A plain profile lets startup
  * say who is signed in without touching the keychain. Nothing here ever reaches
  * electron-store, a log or the renderer.
@@ -67,7 +67,7 @@ export function safeStorageCipher(api: SafeStorageLike, platform: NodeJS.Platfor
     async storage() {
       if (platform !== 'linux') {
         if (!(await available())) return { ok: false, reason: 'no secure storage is available' }
-        return { ok: true, kind: platform === 'darwin' ? 'keychain' : 'dpapi' }
+        return { ok: true, kind: 'keychain' }
       }
       const backend = api.getSelectedStorageBackend?.() ?? 'unknown'
       // Only Chromium's own "no keyring" answer allows the file. Anything unrecognised fails closed.

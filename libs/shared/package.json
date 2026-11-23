@@ -408,6 +408,10 @@
       "types": "./src/brain-explore.ts",
       "default": "./src/brain-explore.ts"
     },
+    "./brain-agent": {
+      "types": "./src/brain-agent.ts",
+      "default": "./src/brain-agent.ts"
+    },
     "./brain-review": {
       "types": "./src/brain-review.ts",
       "default": "./src/brain-review.ts"

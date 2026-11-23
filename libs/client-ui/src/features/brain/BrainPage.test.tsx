@@ -15,17 +15,18 @@ import { PromptHost } from '@/components/PromptHost'
 import { BrainPage } from './BrainPage'
 import { openBrain, openTidy, useBrainNavigation } from './brainNavigation'
 import { createMockBrain } from './mockBrain'
-import { mockBrainJob } from './mockBrainData'
+import { mockBrainJob, mockBrainProposal } from './mockBrainData'
 import { useBrain } from './useBrain'
 
 let root: Root, container: HTMLDivElement
 let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 let mock: ReturnType<typeof createMockBrain>
+let defragError = ''
+let defragPending: Promise<BrainStatus> | null
 let patchStatus: ((status: BrainStatus) => BrainStatus) | null
-/** Every suggestion whose detail the Inbox loaded, in order: the last one is on screen. */
-const detailed: string[] = []
 const CHANNELS: IpcInvokeChannel[] = [
   'brain:status',
+  'brain:describe',
   'brain:setPrefs',
   'brain:history',
   'brain:entities',
@@ -37,13 +38,11 @@ const CHANNELS: IpcInvokeChannel[] = [
   'brain:connections',
   'brain:memory',
   'brain:find',
-  'brain:tidy',
-  'brain:tidySuggestion',
+  'brain:defrag',
+  'brain:defragStop',
+  'brain:undoRun',
   'brain:tidyChanges',
-  'brain:tidyApply',
-  'brain:tidyCancel',
   'brain:proposal',
-  'brain:review',
   'brain:extraction',
 ]
 beforeEach(async () => {
@@ -51,13 +50,15 @@ beforeEach(async () => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   mock = createMockBrain(() => 10000)
   patchStatus = null
-  detailed.length = 0
+  defragError = ''
+  defragPending = null
   await mock('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
   const handlers = Object.fromEntries(
     CHANNELS.map((channel) => [
       channel,
       async (...args: unknown[]) => {
-        if (channel === 'brain:tidySuggestion') detailed.push(args[0] as string)
+        if (channel === 'brain:defrag' && defragError) throw new Error(defragError)
+        if (channel === 'brain:defrag' && defragPending) return defragPending
         const result = await mock(channel, args)
         return channel === 'brain:status' && patchStatus
           ? patchStatus(result as BrainStatus)
@@ -115,13 +116,56 @@ const goToAnyone = () =>
     b.textContent?.includes('Go to anyone or anything'),
   )!
 
-it('opens on the Inbox with its count, and shows the Brain totals in the title', async () => {
+it('has Knowledge and Lanes only, and offers Defrag with the waiting breakdown', async () => {
   await render()
-  expect(selectedTab()).toBe('brain-tab-inbox')
+  expect(selectedTab()).toBe('brain-tab-knowledge')
+  expect(tab('inbox')).toBeNull()
   const status = useBrain.getState().status!
-  expect(tab('inbox').textContent).toBe(`Inbox ${1 + status.tidy.open}`)
-  expect(container.textContent).toMatch(/\d+ memories · \d+ people and things/)
-  expect(container.querySelector('#brain-tab-tidy')).toBeNull()
+  const total = Object.values(status.agent.waiting).reduce((sum, n) => sum + n, 0)
+  expect(container.textContent).toContain(`${total} waiting`)
+  expect(button('Defrag')?.disabled).toBe(false)
+  expect(button('Defrag')?.dataset.tooltip).toContain(`${total} waiting: 1 read`)
+  await click('Defrag')
+  expect(container.textContent).toContain('Defrag starts after the reads already queued')
+})
+
+it.each(['off', 'empty', 'queued', 'running'])(
+  'explains why Defrag is disabled: %s',
+  async (state) => {
+    patchStatus = (status) => {
+      if (state === 'off') status.prefs.enabled = false
+      if (state === 'empty')
+        status.agent.waiting = { reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 }
+      if (state === 'queued' || state === 'running')
+        status.agent.run = {
+          id: 'run',
+          state,
+          total: 0,
+          decided: 0,
+          erased: 0,
+          undoable: 0,
+          queuedAt: 0,
+          startedAt: null,
+          finishedAt: null,
+          sessionPath: null,
+          error: null,
+          rulesChanged: false,
+        }
+      return status
+    }
+    await render()
+    expect(button('Defrag')?.disabled).toBe(true)
+    expect(button('Defrag')?.dataset.tooltip).toMatch(
+      /Turn Brain on|Nothing is waiting|already queued/,
+    )
+  },
+)
+
+it('shows a Defrag refusal as a recoverable action error', async () => {
+  await render()
+  defragError = 'Defrag unavailable'
+  await click('Defrag')
+  expect(useBrain.getState().error).toBe('Defrag unavailable')
 })
 
 it('opens on Knowledge with nothing to decide, and on Lanes before anything is known', async () => {
@@ -143,14 +187,14 @@ it('opens on Knowledge with nothing to decide, and on Lanes before anything is k
 
 it('focuses Knowledge search with / from anywhere on the page, but not from a field', async () => {
   await render()
-  await press('/', section('Decisions'))
+  await press('/', section('Index'))
   expect(selectedTab()).toBe('brain-tab-knowledge')
   expect(document.activeElement).toBe(search())
   await press('/', search()!)
   expect(search()!.value).toBe('')
-  await act(async () => tab('inbox').click())
-  await press('k', section('Decisions'), { metaKey: true })
-  expect(selectedTab()).toBe('brain-tab-inbox')
+  await act(async () => tab('lanes').click())
+  await press('k', section('Brain lanes'), { metaKey: true })
+  expect(selectedTab()).toBe('brain-tab-lanes')
 })
 
 it('goes to Knowledge search from the header button', async () => {
@@ -209,23 +253,19 @@ it('names the review Brain refreshes in the status line, only while the refresh 
   )
 })
 
-it('routes a notice to the Inbox, and an automatic change to Lanes › Recent changes', async () => {
-  await mock('brain:tidy', [null, null, 20])
-  await mock('brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0])
+it('routes notices to Lanes and automatic changes to Recent changes', async () => {
+  await mock('brain:merge', ['tom', 'rina', 0])
   await render()
   await act(async () => openTidy(true))
   expect(selectedTab()).toBe('brain-tab-lanes')
   expect(section('Recent changes').querySelector('[aria-current="true"]')).not.toBeNull()
   expect(section('Change detail').textContent).toContain('Combined names, links and memories.')
   await act(async () => openTidy())
-  expect(selectedTab()).toBe('brain-tab-inbox')
-  await act(async () => openBrain({ tab: 'inbox', item: 'suggestion:tidy-2' }))
-  expect(section('Tidy suggestion')).not.toBeNull()
+  expect(selectedTab()).toBe('brain-tab-lanes')
 })
 
 it('selects Recent changes on a second Open recent changes', async () => {
-  await mock('brain:tidy', [null, null, 20])
-  await mock('brain:tidyApply', ['tidy-0', { kind: 'merge', survivorId: 'tidy-0-0' }, 0])
+  await mock('brain:merge', ['tom', 'rina', 0])
   await render()
   await act(async () => openTidy(true))
   const read = section('Brain lanes').querySelector<HTMLButtonElement>(
@@ -248,14 +288,6 @@ it('focuses the search again on a second click of the header button', async () =
   expect(document.activeElement).toBe(search())
 })
 
-it('routes a second notice to its own item', async () => {
-  await render()
-  await act(async () => openBrain({ tab: 'inbox', item: 'suggestion:tidy-2' }))
-  expect(detailed.at(-1)).toBe('tidy-2')
-  await act(async () => openBrain({ tab: 'inbox', item: 'suggestion:tidy-5' }))
-  expect(detailed.at(-1)).toBe('tidy-5')
-})
-
 it('never replays a consumed request on a page mounted later', async () => {
   await render()
   await act(async () => openBrain({ tab: 'lanes' }))
@@ -263,51 +295,37 @@ it('never replays a consumed request on a page mounted later', async () => {
   act(() => root.unmount())
   root = createRoot(container)
   await render()
-  expect(selectedTab()).toBe('brain-tab-inbox')
+  expect(selectedTab()).toBe('brain-tab-knowledge')
   expect(useBrainNavigation.getState().request).toBe(1)
 })
 
-it('opens a profile from the Inbox and keeps the Inbox selection across tabs', async () => {
+it('keeps stale waiting memories visible after a Knowledge edit without starting a refresh', async () => {
   await render()
-  await press('j', section('Decisions'))
-  const chosen = section('Decisions').querySelector('[aria-current="true"]')!.textContent
-  await click('Open profile', section('What Brain knows'))
-  expect(selectedTab()).toBe('brain-tab-knowledge')
-  expect(section('Profile').querySelector('h2')).not.toBeNull()
-  await act(async () => tab('inbox').click())
-  expect(section('Decisions').querySelector('[aria-current="true"]')!.textContent).toBe(chosen)
+  const before = useBrain.getState().status!
+  const job = before.jobs.find((read) => read.state === 'review')!
+  await mock('brain:describe', ['ledger', 'The Harbor ledger.', before.revision])
+  await act(async () => useBrain.getState().refresh())
+  await act(async () => tab('lanes').click())
+  expect(section('Waiting read').textContent).toContain(mockBrainProposal(job).memories[0]!.summary)
+  expect(section('Waiting read').textContent).toContain('Waits for Defrag')
+  expect(section('Waiting read').textContent).not.toContain('refreshing this review')
+  const after = (await mock('brain:status', [])) as BrainStatus
+  expect(after.jobs.find((read) => read.id === job.id)).toEqual(job)
 })
 
-it('approves a review, then finds its read in Lanes', async () => {
+it('disables Defrag during its request and enables retry after a refusal', async () => {
   await render()
-  await press('a', section('Decisions'))
-  expect(section('Decisions').textContent).not.toContain('Harbor identity review')
-  await click('Lanes')
-  expect(section('Read').textContent).toContain('Harbor identity review')
-})
-
-it('walks from a Knowledge memory to the read that produced it, and back', async () => {
-  await render()
-  await press('a', section('Decisions'))
-  await act(async () => tab('knowledge').click())
-  const learned = section('Recently learned').querySelector<HTMLButtonElement>('button')!
-  await act(async () => learned.click())
-  await click('See the read', section('Profile'))
-  expect(selectedTab()).toBe('brain-tab-lanes')
-  expect(section('Read detail').querySelector('h2')?.textContent).toBe('Harbor identity review')
-  const memory = section('Read detail').querySelector<HTMLButtonElement>('details li button')!
-  await act(async () => memory.click())
-  expect(selectedTab()).toBe('brain-tab-knowledge')
-})
-
-it('reloads every tab after a reset', async () => {
-  await render()
-  const before = useBrain.getState().status!.generation
-  await act(async () =>
-    useBrain.setState({
-      status: { ...useBrain.getState().status!, generation: `${before}-reset`, jobs: [] },
-    }),
-  )
-  expect(section('Decisions')).not.toBeNull()
-  expect(section('Decisions').textContent).not.toContain('Harbor identity review')
+  let refuse!: (reason: Error) => void
+  defragPending = new Promise<BrainStatus>((_resolve, reject) => {
+    refuse = reject
+  })
+  await click('Defrag')
+  expect(button('Defrag')?.disabled).toBe(true)
+  await click('Defrag')
+  await act(async () => refuse(new Error('Defrag unavailable')))
+  expect(useBrain.getState().error).toBe('Defrag unavailable')
+  expect(button('Defrag')?.disabled).toBe(false)
+  defragPending = null
+  await click('Defrag')
+  expect(container.textContent).toContain('Defrag starts after the reads already queued')
 })

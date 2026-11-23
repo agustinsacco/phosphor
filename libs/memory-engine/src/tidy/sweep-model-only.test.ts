@@ -1,5 +1,4 @@
 import { expect, it } from 'vitest'
-import type { BrainTidyVerdict } from '@phosphor/shared/brain-tidy'
 import { fixture, vector } from '../test-support'
 import { encodeVector } from '../vectors'
 import { seed } from './test-support'
@@ -19,38 +18,23 @@ function pair(similarity: number, shared = 2, patch = '') {
   return result
 }
 const pending = (store: ReturnType<typeof fixture>['store']) =>
-  store.pendingPairs(40).map((p) => p.subjects.map((s) => s.id))
-function judge(store: ReturnType<typeof fixture>['store'], verdict: BrainTidyVerdict) {
-  const [suggestionId] = store.pendingPairs(40).map((p) => p.suggestionId)
-  return store.recordVerdicts([{ suggestionId: suggestionId!, model: 'example/reader', verdict }])
-}
+  store
+    .waitingSuggestions(40, 40)
+    .items.map((p) => (p.kind !== 'read' ? p.subjects.map((s) => s.id) : []))
 
-it('queues a cross-lane disagreement only for the model check, never on the page', () => {
+it('queues a cross-lane disagreement only for Brain Agent, never on the page', () => {
   const { store } = pair(0.65)
-  const page = store.tidy(null, null, 20)
+  const page = store.suggestions(null, null, 20)
   expect(page.items).toEqual([])
   expect(page.counts).toEqual({ same_entity: 0, same_memory: 0, conflict: 0, flagged: 0 })
-  expect(store.tidySummary().open).toBe(0)
+  expect(store.waitingCounts()).toEqual({
+    reads: 0,
+    entities: 0,
+    repeats: 0,
+    conflicts: 0,
+    flags: 0,
+  })
   expect(pending(store)).toEqual([['memory-1', 'memory-2']])
-})
-
-it.each([
-  ['conflict', { kind: 'conflict', reason: 'Two different leads.' }, 'conflict'],
-  ['replaces', { kind: 'replaces', newerId: 'memory-2', reason: 'Newer lead.' }, 'conflict'],
-  ['same', { kind: 'same', reason: 'Same lead.' }, 'same_memory'],
-] as const)('a %s verdict surfaces the hidden pair as %s', (_, verdict, kind) => {
-  const { store } = pair(0.65)
-  expect(judge(store, verdict)).toEqual({ recorded: 1, settled: 0 })
-  const [item] = store.tidy(kind, null, 20).items
-  expect(item).toMatchObject({ kind, reason: verdict.reason, verdict: { kind: verdict.kind } })
-  expect(store.tidySuggestion(item!.id)!.allowed.length).toBeGreaterThan(0)
-})
-
-it('a different verdict clears the hidden pair quietly', () => {
-  const { store } = pair(0.65)
-  judge(store, { kind: 'different', reason: 'Different topics.' })
-  expect(store.tidy(null, null, 20).items).toEqual([])
-  expect(pending(store)).toEqual([])
 })
 
 it.each([
@@ -64,13 +48,10 @@ it.each([
   expect(pending(store)).toEqual([])
 })
 
-it('queues a looser paraphrase in the same lane, shown only after a same verdict', () => {
+it('queues a looser paraphrase in the same lane for Brain Agent', () => {
   const { store } = pair(0.8, 2, "UPDATE memories SET origin_session='lane-1',type='open'")
-  expect(store.tidy(null, null, 20).items).toEqual([])
-  judge(store, { kind: 'same', reason: 'Both say Rina leads Ledger.' })
-  expect(store.tidy('same_memory', null, 20).items.map((i) => i.reason)).toEqual([
-    'Both say Rina leads Ledger.',
-  ])
+  expect(store.suggestions(null, null, 20).items).toEqual([])
+  expect(pending(store)).toEqual([['memory-1', 'memory-2']])
 })
 
 it('checks every visible suggestion before any hidden pair', () => {
@@ -78,8 +59,12 @@ it('checks every visible suggestion before any hidden pair', () => {
   db.prepare(
     "INSERT INTO tidy_suggestions(id,pair_key,kind,source,state,subject_type,first_id,second_id,reason,created_at,updated_at) VALUES ('visible','memory:visible','same_memory','sweep','open','memory','memory-1','memory-2','These two sentences say nearly the same thing.',?,?)",
   ).run(Date.now() + 1000, Date.now() + 1000)
-  expect(store.pendingPairs(1).map((p) => p.suggestionId)).toEqual(['visible'])
-  expect(store.pendingPairs(2).map((p) => p.suggestionId)).toHaveLength(2)
+  expect(
+    store.waitingSuggestions(1, 40).items.map((p) => (p.kind !== 'read' ? p.suggestionId : '')),
+  ).toEqual(['visible'])
+  expect(
+    store.waitingSuggestions(2, 40).items.map((p) => (p.kind !== 'read' ? p.suggestionId : '')),
+  ).toHaveLength(2)
 })
 
 it('bounds the pairs one sweep queues and counts the rest as cut short', () => {

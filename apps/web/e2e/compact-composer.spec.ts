@@ -32,11 +32,34 @@ async function extraScrollers(page: Page): Promise<string[]> {
 function fieldState(field: Locator) {
   return field.evaluate((el) => {
     const box = el.getBoundingClientRect()
+    const style = getComputedStyle(el)
+    const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
     return {
       bottom: box.bottom,
       shellBottom: document.querySelector('.compact-shell')!.getBoundingClientRect().bottom,
       height: box.height,
+      /** Whole lines of text the field shows at once. */
+      lines: Math.round((el.clientHeight - padding) / parseFloat(style.lineHeight)),
+      scrolls: el.scrollHeight > el.clientHeight + 1,
       atEnd: el.scrollTop + el.clientHeight >= el.scrollHeight - 2,
+    }
+  })
+}
+
+/** The least clear space between the card's border and its controls, and above its text. */
+function cardRoom(page: Page) {
+  return page.getByTestId('composer-toolbar').evaluate((toolbar) => {
+    const card = toolbar.parentElement!.getBoundingClientRect()
+    const field = toolbar.parentElement!.querySelector('textarea')!
+    const boxes = [...toolbar.querySelectorAll('button')]
+      .map((b) => b.getBoundingClientRect())
+      .filter((box) => box.height > 0)
+    return {
+      below: Math.min(...boxes.map((box) => card.bottom - box.bottom)),
+      beside: Math.min(
+        ...boxes.map((box) => Math.min(box.left - card.left, card.right - box.right)),
+      ),
+      above: parseFloat(getComputedStyle(field).paddingTop),
     }
   })
 }
@@ -62,7 +85,7 @@ async function signIn(page: Page, origin: string): Promise<void> {
   await expect(page.getByTestId('home-board')).toBeVisible()
 }
 
-test('the phone lane composer keeps one control row, one scroller and the caret in view', async ({
+test('the phone lane composer keeps one roomy control row, one scroller and the caret in view', async ({
   stack,
   page,
 }, info) => {
@@ -80,6 +103,11 @@ test('the phone lane composer keeps one control row, one scroller and the caret 
   // Every control shares one row: the model name truncates instead of wrapping.
   expect((await toolbarLayout(page)).rows).toBe(1)
   expect(await extraScrollers(page)).toEqual([])
+  // No control sits on the card's border, and the text is not pressed against its top.
+  const room = await cardRoom(page)
+  expect(room.below).toBeGreaterThanOrEqual(8)
+  expect(room.beside).toBeGreaterThanOrEqual(8)
+  expect(room.above).toBeGreaterThanOrEqual(12)
   await page.screenshot({ path: info.outputPath('lane-composer-320.png') })
 
   // A typed `/` menu opens above the composer: Send stays tappable under it.
@@ -96,18 +124,35 @@ test('the phone lane composer keeps one control row, one scroller and the caret 
   expect(narrow.inside).toBe(true)
   await page.setViewportSize({ width: 320, height: 760 })
 
-  // The keyboard leaves half the screen: the field stops growing and scrolls itself.
-  await page.setViewportSize({ width: 412, height: 480 })
+  // A draft grows the field a line at a time, to three lines and no further.
+  await page.setViewportSize({ width: 412, height: 900 })
+  await chat.fill('One line')
+  await expect.poll(async () => (await fieldState(chat)).lines).toBe(1)
+  await chat.fill('One line\nand a second')
+  await expect.poll(async () => (await fieldState(chat)).lines).toBe(2)
   await chat.fill(DRAFT)
+  await expect.poll(async () => (await fieldState(chat)).lines).toBe(3)
+  expect((await fieldState(chat)).scrolls).toBe(true)
+
+  // The keyboard leaves half the screen: the field keeps its three lines and scrolls itself.
+  await page.setViewportSize({ width: 412, height: 480 })
   await chat.press('End')
   // Viewport updates and the textarea's ResizeObserver settle on animation frames.
   // Keep every geometry assertion, but re-read the layout instead of freezing one early frame.
   await expect(async () => {
     const field = await fieldState(chat)
     expect(field.bottom).toBeLessThanOrEqual(field.shellBottom)
-    expect(field.height).toBeLessThanOrEqual(480 * 0.35)
+    expect(field.lines).toBe(3)
     expect(field.atEnd).toBe(true)
     expect(await extraScrollers(page)).toEqual([])
+  }).toPass({ timeout: 15_000 })
+
+  // A keyboard that leaves very little: the field gives way before the transcript does.
+  await page.setViewportSize({ width: 412, height: 240 })
+  await expect(async () => {
+    const field = await fieldState(chat)
+    expect(field.bottom).toBeLessThanOrEqual(field.shellBottom)
+    expect(field.height).toBeLessThanOrEqual(240 / 3 + 1)
   }).toPass({ timeout: 15_000 })
 })
 

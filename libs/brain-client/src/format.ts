@@ -10,8 +10,8 @@ import type {
 import { BRAIN_PREDICATE_LABELS } from '@phosphor/shared/brain'
 
 /** Only angle brackets could close or fake the wrapper; names like S&T stay as written. */
-const escape = (text: string): string => text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const clip = (text: string, max: number): string =>
+export const escape = (text: string): string => text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+export const clip = (text: string, max: number): string =>
   text.length <= max ? text : `${text.slice(0, max - 1)}…`
 
 /** Approved notes are background data, not instructions or fresh findings. */
@@ -34,18 +34,14 @@ const SECTIONS: [Section, string][] = [
 const MAX_NAMES = 6
 const MAX_PATHS = 6
 
-function day(ms: number): string {
+export function day(ms: number): string {
   const date = new Date(ms)
   return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : 'date unknown'
 }
 function inProject(scope: string, cwd: string | undefined): boolean {
   if (!cwd) return false
   const rel = relative(scope, cwd)
-  return (
-    !isAbsolute(rel) &&
-    rel !== '..' &&
-    !rel.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
-  )
+  return !isAbsolute(rel) && rel !== '..' && !rel.startsWith('../')
 }
 function section(memory: BrainMemory, branch: string | null, now: number): Section {
   if (memory.state === 'disputed') return 'disputed'

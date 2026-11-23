@@ -3,6 +3,7 @@ import { Button } from '@/components/form'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { formatCount } from '@/lib/format'
+import { useBrain } from '../useBrain'
 import { LaneRowButton } from './LaneList'
 
 type NeverReadPrefs = BrainPrefs['neverRead']
@@ -28,9 +29,15 @@ export function NeverReadRow({
   selected: boolean
   onSelect: () => void
 }): React.JSX.Element {
+  const folder = useBrain((s) => s.status?.agent.folder)
   return (
     <section aria-label="Never read">
       <SectionLabel>Never read</SectionLabel>
+      {folder && (
+        <p className="text-text-tertiary px-2 py-1 text-sm">
+          🧠 Brain Agent · Brain never reads its own lane
+        </p>
+      )}
       <LaneRowButton
         title="Lanes Brain never reads"
         line={neverReadLine(never)}
@@ -49,7 +56,9 @@ export function NeverReadDetail({ never }: { never: NeverReadPrefs }): React.JSX
     <article aria-label="Never read detail" className="min-w-0 space-y-4 p-4">
       <header>
         <h2 className="text-xl font-semibold">Lanes Brain never reads</h2>
-        <p className="text-text-tertiary text-sm">Brain does not read these lanes.</p>
+        <p className="text-text-tertiary text-sm">
+          Brain does not read these lanes. Brain never reads its own lane.
+        </p>
       </header>
       <section aria-label="Title patterns" className="space-y-1">
         <SectionLabel>Titles</SectionLabel>

@@ -1,17 +1,10 @@
 import { execFile } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { isPiTooOld, MIN_PI_VERSION, type PiHealth } from '@shared/models'
 import { extractVersion } from '@phosphor/session-runtime/pi/versions'
 import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
-import { lookupPosixBinary, windowsWhereOutput } from './binary-lookup'
+import { resolveBinary } from './binary-lookup'
 import { createTtlCache } from './ttl-cache'
-import {
-  describeWindowsLaunchFailure,
-  resolveWindowsLaunch,
-  type WindowsLaunch,
-  type WindowsLaunchFailure,
-} from './win-launch'
 
 const execFileAsync = promisify(execFile)
 
@@ -23,27 +16,24 @@ const execFileAsync = promisify(execFile)
  * start at all — a GUI-inherited PATH isn't enough.
  */
 export async function checkPiHealth(): Promise<PiHealth> {
-  const found = await findPi()
-  if (!found.ok) {
+  // The login-shell PATH first: the version-manager-aware case, and what pi
+  // is also spawned with.
+  const binaryPath = await resolveBinary('pi')
+  if (!binaryPath) {
     return {
       ok: false,
       minVersion: MIN_PI_VERSION,
-      // A shim we cannot read through is "found but not runnable": the setup
-      // screen's install command is still the right advice, but the message
-      // must say where pi was seen, or the user reinstalls into the same spot.
-      reason: found.failure.kind === 'not-found' ? 'not-found' : 'version-check-failed',
-      message: describeWindowsLaunchFailure(found.failure),
+      reason: 'not-found',
+      message:
+        'The pi coding agent was not found on your PATH. Install it with: ' +
+        'npm install -g @earendil-works/pi-coding-agent',
     }
   }
-  const { file: binaryPath, prefixArgs } = found.launch
-  // Where pi lives, for messages: the entry script on Windows, pi elsewhere.
-  const location = prefixArgs[0] ?? binaryPath
-  // Only the Windows shape has a prefix; keep the POSIX result shape unchanged.
-  const launch = prefixArgs.length > 0 ? { binaryPath, prefixArgs } : { binaryPath }
+  const launch = { binaryPath }
 
   const env = await piProcessEnv()
   try {
-    const { stdout, stderr } = await execFileAsync(binaryPath, [...prefixArgs, '--version'], {
+    const { stdout, stderr } = await execFileAsync(binaryPath, ['--version'], {
       timeout: 15_000,
       env,
     })
@@ -55,7 +45,7 @@ export async function checkPiHealth(): Promise<PiHealth> {
         ...launch,
         minVersion: MIN_PI_VERSION,
         reason: 'version-check-failed',
-        message: versionFailureMessage(location, stdout, stderr),
+        message: versionFailureMessage(binaryPath, stdout, stderr),
       }
     }
     if (isPiTooOld(version)) {
@@ -79,17 +69,12 @@ export async function checkPiHealth(): Promise<PiHealth> {
       minVersion: MIN_PI_VERSION,
       reason: 'version-check-failed',
       message: versionFailureMessage(
-        location,
+        binaryPath,
         failure.stdout ?? '',
         failure.stderr || failure.message,
       ),
     }
   }
-}
-
-/** pi's arguments with the launch prefix a health result requires in front. */
-export function piArgs(health: PiHealth, args: string[]): string[] {
-  return [...(health.prefixArgs ?? []), ...args]
 }
 
 /** Explain the failure, calling out the common version-manager case. */
@@ -106,40 +91,6 @@ function versionFailureMessage(binaryPath: string, stdout: string, stderr: strin
   return detail
     ? `pi --version failed at ${binaryPath}: ${detail}`
     : `pi --version produced no output at ${binaryPath}.`
-}
-
-type PiLookup = { ok: true; launch: WindowsLaunch } | { ok: false; failure: WindowsLaunchFailure }
-
-async function findPi(): Promise<PiLookup> {
-  if (process.platform === 'win32') return probeWindows()
-  // The login-shell PATH first: the version-manager-aware case, and what pi
-  // is also spawned with.
-  const file = await lookupPosixBinary('pi')
-  return file
-    ? { ok: true, launch: { file, prefixArgs: [] } }
-    : { ok: false, failure: { kind: 'not-found' } }
-}
-
-/**
- * Windows: `where pi` lists npm's three shims (sh script, `.cmd`, `.ps1`) and
- * none of them is spawnable — see `win-launch.ts` for why the `.cmd` is read
- * for its entry script and run through `node.exe` instead. A GUI process gets
- * the user's PATH here (no login shell to consult), which is where npm puts
- * `%APPDATA%\npm` — so a plain `npm install -g` is found. A version manager
- * that only amends PATH per terminal (fnm, nvm-windows without a system link)
- * is not, and the failure message says so.
- */
-async function probeWindows(): Promise<PiLookup> {
-  return resolveWindowsLaunch(await windowsWhereOutput('pi'), {
-    readShim: (path) => {
-      try {
-        return readFileSync(path, 'utf8')
-      } catch {
-        return null
-      }
-    },
-    whereNode: () => windowsWhereOutput('node'),
-  })
 }
 
 /** How long a healthy pi stays believed without re-running `pi --version`. */

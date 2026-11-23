@@ -11,7 +11,7 @@ it('sweeps exact repeats only after approval commits, with an automatic undo ope
   approve(store, repeated())
   expect(store.snapshot().counts.memories).toBe(1)
   expect(store.tidySummary().automaticFolds).toBe(1)
-  expect(store.tidyChanges(20).items[0]).toMatchObject({ kind: 'fold', automatic: true })
+  expect(store.tidyChanges(20).items[0]).toMatchObject({ kind: 'fold', who: 'automatic' })
 })
 it('never reports a saved approval as failed when its post-commit sweep fails, and can retry', () => {
   const { store, db } = fixture()

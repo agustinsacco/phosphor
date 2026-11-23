@@ -2,7 +2,6 @@ import { appendFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { Proposal } from '@phosphor/memory-engine/types'
-import { BRAIN_REVIEW_REFRESHING } from '@phosphor/shared/brain-review'
 import { createBrainService } from './service'
 import { pipelineSetup } from './__fixtures__/pipeline'
 import { readLaneEntries } from './transcript'
@@ -142,17 +141,15 @@ it('reads a lane once to start its read, after Queue checks it once', async () =
   expect(readsOf(s.file)).toBe(2)
 })
 
-it('reads a stale review lane at most twice when the Inbox opens and refreshes it', async () => {
+it('reads a stale review lane at most twice when Brain Agent opens and refreshes it', async () => {
   const s = await setup()
   const id = (await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })).jobs[0]!.id
   await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
   reads.mockClear()
   s.store.rev++
-  await expect(s.service.api.proposal(id)).rejects.toThrow(BRAIN_REVIEW_REFRESHING)
-  await vi.waitFor(() => {
-    expect(s.store.job(id)?.state).toBe('review')
-    expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
-  })
+  await s.service.agent('readReview', { jobId: id })
+  expect(s.store.job(id)?.state).toBe('review')
+  expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
   expect(readsOf(s.file)).toBeLessThanOrEqual(2)
 })
 

@@ -1,3 +1,4 @@
+import { redactAgentReasons } from '../agent/text-privacy'
 import { all, one, run, type Context } from '../database'
 import { currentRow, decodeImage, knownTable } from './rows'
 import { flagKeyPrefix } from './flag-keys'
@@ -16,6 +17,7 @@ export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
       (r) => r.quote,
     ),
   ].filter(Boolean)
+  redactAgentReasons(ctx, forgotten[0]!)
   for (const op of ops) {
     if (
       op.kind !== 'merge' ||
@@ -76,14 +78,14 @@ export function eraseTidyMemory(ctx: Context, id: string, n: number): void {
 
 /**
  * A description or name an edit or merge replaced can quote the forgotten memory even when the
- * operation never touched it. At most 200 operations are retained, each with few entity rows.
+ * operation never touched it. Read undo records can hold the same text in a whole proposal.
  */
 function eraseEntityText(ctx: Context, forgotten: string[]): void {
   const rows = all<{ id: string; table_name: string; before_image: string }>(
     ctx,
     `SELECT r.operation_id AS id,r.table_name,r.before_image FROM tidy_operation_rows r
       JOIN tidy_operations o ON o.id=r.operation_id
-      WHERE r.table_name IN ('entities','entity_names','merges')`,
+      WHERE r.table_name IN ('entities','entity_names','merges','proposals','extractions')`,
   )
   const holds = (row: (typeof rows)[number]): boolean => {
     try {
@@ -124,10 +126,15 @@ function retainedText(
   if (!knownTable(value.table_name)) return true
   const image = decodeImage(ctx, value.table_name, value.before_image)
   // Other rows are redacted by their memory/relation identity below. Entity descriptions and
-  // aliases can themselves quote a forgotten sentence, making the whole undo unsafe to keep.
-  if (!['entities', 'entity_names', 'merges'].includes(value.table_name)) return false
+  // aliases and read snapshots can quote a forgotten sentence, making the whole undo unsafe.
+  if (
+    !['entities', 'entity_names', 'merges', 'proposals', 'extractions'].includes(value.table_name)
+  )
+    return false
+  // Proposal payloads and extraction calls/outcomes hold their text inside a JSON string.
+  const phrases = forgotten.flatMap((phrase) => [phrase, JSON.stringify(phrase).slice(1, -1)])
   return Object.values(image.row ?? {}).some(
-    (text) => typeof text === 'string' && forgotten.some((phrase) => text.includes(phrase)),
+    (text) => typeof text === 'string' && phrases.some((phrase) => text.includes(phrase)),
   )
 }
 

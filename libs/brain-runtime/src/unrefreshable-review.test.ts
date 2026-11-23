@@ -1,3 +1,4 @@
+import { decideRead } from './__fixtures__/decide-read'
 import { unlink } from 'node:fs/promises'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
@@ -31,7 +32,8 @@ it.each(['never-read', 'deleted'] as const)(
     expect(proposal.revision).toBe(0)
     expect(proposal.memories).toHaveLength(1)
     await expect(
-      service.api.review(
+      decideRead(
+        service,
         id,
         {
           memories: [0],
@@ -47,7 +49,7 @@ it.each(['never-read', 'deleted'] as const)(
         ? "Brain changed since this was read, and this lane is set to never be read, so it can't be refreshed. Reject it instead."
         : "This lane was deleted, so this review can't be refreshed. Reject it.",
     )
-    await expect(service.api.review(id, null, proposal.revision)).resolves.toMatchObject({
+    await expect(decideRead(service, id, null, proposal.revision)).resolves.toMatchObject({
       jobs: [],
     })
     expect(s.store.job(id)?.state).toBe('rejected')

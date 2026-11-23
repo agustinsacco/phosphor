@@ -184,61 +184,58 @@ it('cancels active naming and discards all queued and future work on shutdown', 
   expect(apply).not.toHaveBeenCalled()
 })
 
-it.skipIf(process.platform === 'win32')(
-  'shutdown cancellation leaves no real naming process group alive',
-  async () => {
-    vi.mocked(process.kill).mockRestore()
-    const actual = await vi.importActual<typeof ChildProcess>('node:child_process')
-    let pid: number | undefined
-    let ready = false
-    vi.mocked(spawn).mockImplementationOnce((...args: Parameters<typeof spawn>) => {
-      const child = actual.spawn(...args)
-      pid = child.pid
-      child.stdout?.on('data', () => {
-        ready = true
-      })
-      return child
+it('shutdown cancellation leaves no real naming process group alive', async () => {
+  vi.mocked(process.kill).mockRestore()
+  const actual = await vi.importActual<typeof ChildProcess>('node:child_process')
+  let pid: number | undefined
+  let ready = false
+  vi.mocked(spawn).mockImplementationOnce((...args: Parameters<typeof spawn>) => {
+    const child = actual.spawn(...args)
+    pid = child.pid
+    child.stdout?.on('data', () => {
+      ready = true
     })
-    const name = createLaneNamer({
-      pi: {
-        binaryPath: process.execPath,
-        prefixArgs: [
-          '-e',
-          "require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }); process.stdout.write('ready'); setInterval(() => {}, 1000)",
-          '--',
-        ],
-      },
-      env: {},
+    return child
+  })
+  const name = createLaneNamer({
+    pi: {
+      binaryPath: process.execPath,
+      prefixArgs: [
+        '-e',
+        "require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }); process.stdout.write('ready'); setInterval(() => {}, 1000)",
+        '--',
+      ],
+    },
+    env: {},
+  })
+  try {
+    name({
+      cwd: process.cwd(),
+      sessionId: 'session-1',
+      existingNames: [],
+      message: 'first',
+      model: { provider: 'native', id: 'test' },
+      models: [],
+      current: () => true,
+      apply: async () => {},
     })
-    try {
-      name({
-        cwd: process.cwd(),
-        sessionId: 'session-1',
-        existingNames: [],
-        message: 'first',
-        model: { provider: 'native', id: 'test' },
-        models: [],
-        current: () => true,
-        apply: async () => {},
-      })
-      await vi.waitFor(() => expect(ready).toBe(true))
-      name.cancel()
-      await vi.waitFor(() => {
-        expect(pid).toBeTypeOf('number')
-        expect(() => process.kill(-pid!, 0)).toThrow()
-      })
-    } finally {
-      name.cancel()
-      if (pid) {
-        try {
-          process.kill(-pid, 'SIGKILL')
-        } catch {
-          /* Already gone. */
-        }
+    await vi.waitFor(() => expect(ready).toBe(true))
+    name.cancel()
+    await vi.waitFor(() => {
+      expect(pid).toBeTypeOf('number')
+      expect(() => process.kill(-pid!, 0)).toThrow()
+    })
+  } finally {
+    name.cancel()
+    if (pid) {
+      try {
+        process.kill(-pid, 'SIGKILL')
+      } catch {
+        /* Already gone. */
       }
     }
-  },
-)
+  }
+})
 
 it('waits for close when exit arrives before the final stdout data', async () => {
   const drained = job()

@@ -29,7 +29,7 @@ export function hideWindowsForE2E(): boolean {
 }
 
 /**
- * Window Controls Overlay colors (Windows/Linux; macOS draws traffic lights),
+ * Window Controls Overlay colors (Linux; macOS draws traffic lights),
  * and the page zoom that backs the "UI scale" preference.
  *
  * The overlay strip is painted by the OS rather than the renderer, so it does

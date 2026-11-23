@@ -50,16 +50,6 @@ it('counts distinct neighbours per predicate and direction as an entity connecti
   expect(store.overview(300).nodes.find((node) => node.id === rina)!.connections).toBe(1)
 })
 
-it('gives the Tidy entity card distinct neighbours', () => {
-  const { store, db, rina, tom } = setup()
-  db.prepare(
-    "INSERT INTO tidy_suggestions(id,pair_key,kind,source,state,subject_type,first_id,second_id,reason,created_at,updated_at) VALUES ('pair','entity:pair','same_entity','sweep','open','entity',?,?,'Made-up pair.',1,1)",
-  ).run(rina, tom)
-  const [pair] = store.pendingPairs(40)
-  const card = pair!.subjects[0]
-  expect(card.type === 'entity' && card.neighbours).toEqual([{ name: 'Harbor', link: 'Owns' }])
-})
-
 it('pages distinct neighbours with a stable cursor when their support interleaves', () => {
   const { store } = fixture()
   const data = extraction('pages')

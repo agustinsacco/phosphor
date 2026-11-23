@@ -851,7 +851,7 @@ test('text fields get a right-click menu, and composers learn autocomplete @syst
       .toEqual([0, 'pasted from the menu'.length])
 
     // macOS: the system spellchecker answers synchronously, so the fix is
-    // deterministic there. Hunspell (Windows, Linux) downloads its
+    // deterministic there. Hunspell (Linux) downloads its
     // dictionary first, so it is not asserted.
     if (process.platform === 'darwin') {
       await home.fill('recieve')
@@ -1864,15 +1864,7 @@ test('explorer copies, cuts, multi-drags and imports disk-backed files @system-c
               `<?xml version="1.0"?><plist version="1.0"><array><string>${source}</string></array></plist>`,
             ),
           )
-        else if (process.platform === 'win32') {
-          const header = Buffer.alloc(20)
-          header.writeUInt32LE(20, 0)
-          header.writeUInt32LE(1, 16)
-          clipboard.writeBuffer(
-            'CF_HDROP',
-            Buffer.concat([header, Buffer.from(source + '\0\0', 'utf16le')]),
-          )
-        } else clipboard.writeBuffer('text/uri-list', Buffer.from(url))
+        else clipboard.writeBuffer('text/uri-list', Buffer.from(url))
       },
       { source, url: pathToFileURL(source).href },
     )
@@ -2246,7 +2238,7 @@ test('a notice with an unbreakable path stays inside the window', async () => {
 test('right-hand pane controls stay clear of the OS window controls', async () => {
   // Regression: the pane header used to render its own expand/close buttons at
   // the top-right of the window, directly underneath the Window Controls
-  // Overlay that Electron paints there on Windows/Linux — so "close pane" sat
+  // Overlay that Electron paints there on Linux — so "close pane" sat
   // on top of "close app". Only the chat header carried the inset padding, and
   // it stops spanning the window as soon as a pane opens.
   const harness = await launch()

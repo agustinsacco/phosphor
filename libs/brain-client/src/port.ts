@@ -7,7 +7,7 @@ export interface BrainTransport {
     signal?: AbortSignal,
   ): Promise<BrainAgentMap[M]['result']>
 }
-/** Node transport accepts only a machine-issued Unix socket / Windows pipe and capability. */
+/** Node transport accepts only a machine-issued Unix socket and capability. */
 export interface BrainConnection {
   endpoint: string
   token: string

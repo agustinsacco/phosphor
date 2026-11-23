@@ -18,18 +18,14 @@ export const BRAIN_TOKEN_ENV = 'PHOSPHOR_BRAIN_TOKEN'
 const LF = 0x0a
 const MAX_TOKEN_CHARS = 4096
 const MAX_REMOTE_ERROR_CHARS = 500
-/** Local pipes only: `\\server\pipe\…` would reach another machine. */
-const WINDOWS_LOCAL_PIPE = /^\\\\\.\\pipe\\[^\0/]{1,240}$/
 const TOKEN_SHAPE = /^[\x21-\x7e]+$/
 
 export interface NodeBrainTransportOptions {
   timeoutMs?: number
-  platform?: NodeJS.Platform
 }
 
-/** A Unix socket path or a local Windows named pipe; never a host, port or URL. */
-export function isBrainEndpoint(endpoint: string, platform: NodeJS.Platform): boolean {
-  if (platform === 'win32') return WINDOWS_LOCAL_PIPE.test(endpoint)
+/** An absolute Unix socket path; never a host, port or URL. */
+export function isBrainEndpoint(endpoint: string): boolean {
   return posix.isAbsolute(endpoint) && !endpoint.includes('\0') && !endpoint.includes('\n')
 }
 
@@ -45,16 +41,33 @@ export function brainConnectionFromEnv(env: NodeJS.ProcessEnv): BrainConnection 
   return { endpoint, token }
 }
 
+/** pi reloads an extension by evaluating it again in the same process; this slot outlives that. */
+const CONNECTION_SLOT = Symbol.for('phosphor/brain-connection/v1')
+
+/**
+ * The lane's Brain connection, taken out of the environment on first read. pi's bash tool, MCP
+ * servers and sub-agents copy the environment into their children, and a token left there lets
+ * any of them call the bridge. The extension keeps it for itself, across its own reloads.
+ */
+export function takeBrainConnection(
+  env: NodeJS.ProcessEnv = process.env,
+  slots: object = globalThis,
+): BrainConnection | null {
+  const kept = slots as { [CONNECTION_SLOT]?: BrainConnection }
+  const fresh = brainConnectionFromEnv(env)
+  delete env[BRAIN_ENDPOINT_ENV]
+  delete env[BRAIN_TOKEN_ENV]
+  if (fresh) kept[CONNECTION_SLOT] = fresh
+  return kept[CONNECTION_SLOT] ?? null
+}
+
 export function createNodeBrainTransport(
   connection: BrainConnection,
   options: NodeBrainTransportOptions = {},
 ): BrainTransport {
   const { endpoint, token } = connection
-  if (!isBrainEndpoint(endpoint, options.platform ?? process.platform)) {
-    throw new BrainClientError(
-      'invalid_connection',
-      'Brain endpoint must be a local socket or pipe',
-    )
+  if (!isBrainEndpoint(endpoint)) {
+    throw new BrainClientError('invalid_connection', 'Brain endpoint must be a local socket')
   }
   if (!isBrainToken(token)) {
     throw new BrainClientError('invalid_connection', 'Brain capability token is malformed')

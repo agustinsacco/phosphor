@@ -104,6 +104,17 @@ describe('workspace preferences', () => {
     expect(s.get('recentWorkspaces').map(({ path }) => path)).toEqual(paths)
   })
 
+  it('adds a recent but keeps the launch folder when asked to', () => {
+    const s = getStore()
+    s.set('recentWorkspaces', [workspace('/harbor')])
+    s.set('lastWorkspacePath', '/harbor')
+    recordWorkspace(getStore, '/brain/Brain', 'Brain', { last: false })
+    expect(s.get('recentWorkspaces').map(({ path }) => path)).toEqual(['/harbor', '/brain/Brain'])
+    expect(s.get('lastWorkspacePath')).toBe('/harbor')
+    recordWorkspace(getStore, '/brain/Brain', 'Brain')
+    expect(s.get('lastWorkspacePath')).toBe('/brain/Brain')
+  })
+
   it.each(['.phosphor', '.pidex'])(
     'remembers %s worktree resume without adding a recent',
     (segment) => {

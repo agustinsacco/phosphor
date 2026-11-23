@@ -17,11 +17,8 @@ import { log } from '../debug-log'
 export function registerPiSessionHandlers(): void {
   handle('pi:health', async () => {
     // Where pi looks, for Advanced: the PATH it runs with and its agent directory.
-    // A copy of Windows' environment keeps its key as `Path`.
-    const pathOf = (env: NodeJS.ProcessEnv) =>
-      env.PATH ?? Object.entries(env).find(([key]) => key.toUpperCase() === 'PATH')?.[1] ?? ''
     const where = (env: NodeJS.ProcessEnv) => ({
-      path: pathOf(env).split(delimiter).filter(Boolean),
+      path: (env.PATH ?? '').split(delimiter).filter(Boolean),
       agentDir: piAgentDir(),
     })
     if (piStubPath()) {
@@ -34,8 +31,7 @@ export function registerPiSessionHandlers(): void {
       }
     }
     const health = await cachedPiHealth()
-    // Beside the spawn argv, record WHICH node.exe and entry script the
-    // Windows launcher settled on (also asserted by the packaged-app smoke).
+    // Beside the spawn argv, record which pi the probe settled on.
     const { message: _message, ...facts } = health
     log('pi', 'health', facts)
     return { ...health, ...where(await piProcessEnv()) }

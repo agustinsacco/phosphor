@@ -31,7 +31,7 @@ describe('prompt corpus', () => {
 
   it('writes a file only its owner can read', async () => {
     await createPromptCorpus(() => file).record('private prompt')
-    if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600)
+    expect(statSync(file).mode & 0o777).toBe(0o600)
   })
 
   it('learns nothing from commands, empty text or paste-sized prompts', async () => {

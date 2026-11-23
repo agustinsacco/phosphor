@@ -224,10 +224,6 @@ jobs:
           - os: ubuntu-22.04
             name: Linux
             args: --linux
-          # Windows (NSIS x64 installer + latest.yml, `args: --win`) is paused to
-          # save CI time and returns in a later release. Its signing block and
-          # installer check below are inert until the matrix entry comes back;
-          # re-add the exe, latest.yml and checksum entries in finalize too.
     steps:
       - uses: actions/checkout@v4
         with:
@@ -260,8 +256,6 @@ jobs:
       # manifests electron-updater polls) and the .blockmap files that make
       # updates differential instead of a full ~100MB re-download.
       - name: Package and publish
-        # The Windows runner's default shell is PowerShell; everything below is
-        # bash (arrays, `set -u`, `[ ]`), so pin it on every platform.
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -273,10 +267,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows Authenticode, when a certificate exists. Separate secrets
-          # from the Mac ones on purpose — see the Windows block below.
-          WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: |
           set -euo pipefail
           SIGNED=false
@@ -287,19 +277,6 @@ jobs:
             # AppImage self-updates without any signing requirement.
             SIGNED=true
           fi
-          if [ "${RUNNER_OS}" = "Windows" ]; then
-            # electron-builder's Windows signer reads WIN_CSC_LINK and FALLS
-            # BACK to CSC_LINK, so the Mac .p12 above must never reach this
-            # runner: it would try to Authenticode-sign the installer with an
-            # Apple certificate and fail the build.
-            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
-            # NSIS installs self-update signed or not: electron-updater only
-            # verifies the downloaded installer's signature when the running
-            # app has a publisherName to compare against, which an unsigned
-            # build does not. SmartScreen's "unknown publisher" interstitial
-            # is the only cost of shipping unsigned here.
-            SIGNED=true
-          fi
           # An EMPTY CSC_LINK is worse than an absent one: electron-builder reads
           # it as a certificate PATH, resolves it to the project dir, and dies
           # with "<projectDir> not a file". Missing secrets arrive as empty
@@ -307,9 +284,6 @@ jobs:
           if [ -z "${CSC_LINK:-}" ]; then
             unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             export CSC_IDENTITY_AUTO_DISCOVERY=false
-          fi
-          if [ -z "${WIN_CSC_LINK:-}" ]; then
-            unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
           fi
           # `hardenedRuntime` is false in electron-builder.yml because it cannot
           # be satisfied by the ad-hoc signature apps/desktop/scripts/adhoc-sign-mac.mjs
@@ -370,24 +344,6 @@ jobs:
             echo "   signature verified"
           done
           [ "$FOUND" -eq 1 ] || { echo "::error::no packaged .app found to verify"; exit 1; }
-
-      # The installer must exist under the exact name install docs, checksums
-      # and the finalize job's asset check use, and latest.yml — the manifest
-      # electron-updater polls on Windows — must name the same file. A publish
-      # that uploaded one without the other would leave every Windows install
-      # unable to self-update, silently.
-      - name: Verify the Windows installer
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.guard.outputs.version }}"
-          EXE="apps/desktop/release/Phosphor-${VERSION}-x64.exe"
-          [ -f "$EXE" ] || { echo "::error::${EXE} was not produced"; ls apps/desktop/release; exit 1; }
-          [ -f "apps/desktop/release/latest.yml" ] || { echo "::error::apps/desktop/release/latest.yml was not produced"; exit 1; }
-          grep -q "^version: ${VERSION}$" apps/desktop/release/latest.yml || { echo "::error::latest.yml does not carry ${VERSION}"; cat apps/desktop/release/latest.yml; exit 1; }
-          grep -q "Phosphor-${VERSION}-x64.exe" apps/desktop/release/latest.yml || { echo "::error::latest.yml does not reference ${EXE}"; cat apps/desktop/release/latest.yml; exit 1; }
-          echo "   $(du -h "$EXE" | cut -f1) installer, manifest names it"
 
   finalize:
     name: Attach installer script and notes
@@ -504,8 +460,6 @@ jobs:
             '```' \
             "" \
             "This replaces an existing install in place." \
-            "" \
-            "Windows builds are paused for now and will return in a later release." \
             "" \
             "Already running Phosphor? It will offer to update itself." \
             "" \

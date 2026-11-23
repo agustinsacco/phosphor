@@ -58,7 +58,7 @@ describe('Desktop remote artifacts', () => {
       ).rejects.toThrow()
     }
   })
-  it('checks the total budget before content requests at and above 8 MiB', async () => {
+  it('keeps every version within 8 MiB, then the newest that fit, never reading past it', async () => {
     const versions = Array.from({ length: 4 }, (_, i) => ({
       version: i + 1,
       title: '',
@@ -77,9 +77,16 @@ describe('Desktop remote artifacts', () => {
       1,
     )
     versions.push({ version: 5, title: '', bytes: 1, createdAt: 0 })
+    call.mockImplementation(async (_cap, method, params) => {
+      const version = parseArtifactParams(method, params)?.version
+      if (method === 'artifacts.list') return [{ ...item, versions }]
+      return { version, content: 'x'.repeat(version === 5 ? 1 : ARTIFACT_LIMITS.contentBytes) }
+    })
     call.mockClear()
-    await expect(remoteSessionArtifacts({ laneId, workspacePath: '', call })).rejects.toThrow()
-    expect(call).toHaveBeenCalledTimes(1)
+    // A lane past the budget used to load nothing; its latest version comes first.
+    const [kept] = await remoteSessionArtifacts({ laneId, workspacePath: '', call })
+    expect(kept?.versions.map((v) => v.version)).toEqual([2, 3, 4, 5])
+    expect(call).toHaveBeenCalledTimes(5)
   })
 })
 
@@ -141,8 +148,13 @@ it('bounds version requests even when contents are empty', async () => {
     versions: [{ version: 1, title: '', createdAt: 0, bytes: 0 }],
   })
   call.mockClear()
-  await expect(remoteSessionArtifacts({ laneId, workspacePath: '', call })).rejects.toThrow()
-  expect(call).toHaveBeenCalledTimes(1)
+  // Every artifact's latest version first, then the newest older ones.
+  const kept = await remoteSessionArtifacts({ laneId, workspacePath: '', call })
+  expect(kept.map((a) => [a.id, a.versions.length, a.versions[0]?.version])).toEqual([
+    ['guide', ARTIFACT_LIMITS.callVersions - 1, 2],
+    ['extra', 1, 1],
+  ])
+  expect(call).toHaveBeenCalledTimes(1 + ARTIFACT_LIMITS.callVersions)
 })
 
 it('library omits failing machines but retains healthy machines', async () => {

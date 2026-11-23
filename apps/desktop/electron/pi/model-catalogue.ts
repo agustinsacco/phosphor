@@ -149,12 +149,10 @@ export async function listModelsViaRpc(
     binaryPath,
     ...(prefixArgs?.length ? { prefixArgs } : {}),
     noSession: true,
-    // Callers that know the environment pass it (a real pi on Windows also
-    // has prefixArgs — node.exe plus the entry script — so the prefix alone no
-    // longer says "stub"). Without one: stub mode runs the script through
-    // Electron's own binary, which needs ELECTRON_RUN_AS_NODE to behave as
-    // plain Node — the same contract `pi:createSession` uses. The login-shell
-    // PATH only matters for a real pi.
+    // Callers that know the environment pass it. Without one: stub mode runs
+    // the script through Electron's own binary, which needs
+    // ELECTRON_RUN_AS_NODE to behave as plain Node — the same contract
+    // `pi:createSession` uses. The login-shell PATH only matters for a real pi.
     env: env ?? (prefixArgs ? { ELECTRON_RUN_AS_NODE: '1' } : await piProcessEnv()),
   })
   client.spawn()

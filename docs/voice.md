@@ -85,8 +85,7 @@ voice-worker.js (worker.ts): Silero VAD → Moonshine → text, returned by voic
   builds signed with the hardened runtime. Main asks for the microphone through
   `systemPreferences` on the first dictation; when it is refused, the dictation
   fails with a pointer to the system privacy settings.
-- **Windows** honours the system microphone switch, read through the same API.
-  **Linux** has no OS gate to ask.
+- **Linux** has no OS gate to ask.
 - **Chromium permissions** (`electron/voice/permissions.ts`): a media request
   is granted only for audio and only for the app's top-level page. Artifact and
   preview iframes never get the microphone. Every other permission keeps

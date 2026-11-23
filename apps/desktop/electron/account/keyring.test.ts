@@ -49,7 +49,7 @@ describe('passwordStore', () => {
   })
   it('never probes with an explicit flag, off Linux, or without a session bus', () => {
     const probe = vi.fn()
-    for (const platform of ['darwin', 'win32'] as const)
+    for (const platform of ['darwin', 'freebsd'] as const)
       expect(passwordStore(platform, false, env, probe)).toBeNull()
     expect(passwordStore('linux', true, env, probe)).toBeNull()
     expect(passwordStore('linux', false, {}, probe)).toBeNull()

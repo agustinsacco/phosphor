@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { killProcessTree, OWN_GROUP, runPrintMode } from './print-mode'
+import { killProcessTree, runPrintMode } from './print-mode'
 
 /** Sender surface the runner needs (subset of Electron.WebContents). */
 export interface JobSender {
@@ -95,7 +95,7 @@ export function startJob(
     cwd: options.cwd,
     env: options.env,
     stdio: ['ignore', 'pipe', 'pipe'],
-    detached: OWN_GROUP,
+    detached: true,
   })
   const job = trackJob(
     sender,

@@ -20,29 +20,18 @@ Desktop and This Mac’s lane service update independently. [This Mac’s servic
 `resolveUpdatePath()` in [apps/desktop/electron/updates/updater.ts](../apps/desktop/electron/updates/updater.ts)
 picks one and caches it for the life of the process.
 
-| Path       | When                                                           | What a click does                   |
-| ---------- | -------------------------------------------------------------- | ----------------------------------- |
-| `updater`  | `phosphorSigned` **and** (signed macOS \| AppImage \| Windows) | `electron-updater` `quitAndInstall` |
-| `mac-self` | unsigned macOS, bundle writable, not translocated              | swap the bundle, relaunch           |
-| `manual`   | anything else (`.deb`, read-only bundle)                       | open the releases page              |
+| Path       | When                                                | What a click does                   |
+| ---------- | --------------------------------------------------- | ----------------------------------- |
+| `updater`  | `phosphorSigned` **and** (signed macOS \| AppImage) | `electron-updater` `quitAndInstall` |
+| `mac-self` | unsigned macOS, bundle writable, not translocated   | swap the bundle, relaunch           |
+| `manual`   | anything else (`.deb`, read-only bundle)            | open the releases page              |
 
 `phosphorSigned` is stamped into the packaged `package.json` by CI, not probed
 at runtime, so the UI knows before the first check whether it can promise a
 restart. It is `true` for every Linux build (AppImage self-updates without a
-signature), for every Windows build, and only for macOS builds where
-`MAC_CERT_P12` was set.
+signature) and only for macOS builds where `MAC_CERT_P12` was set.
 
 **A `.deb` is deliberately `manual`.** The package manager owns those files.
-
-**Windows is `updater` even unsigned.** The NSIS installer is per-user
-(`perMachine: false` in [electron-builder.yml](../apps/desktop/electron-builder.yml)), so
-`electron-updater` can replace the install without elevation, and it only
-verifies the downloaded installer's Authenticode signature when the running
-app carries a `publisherName` to compare against — an unsigned build does not,
-so the check is skipped rather than failed. The manifest it polls is
-`latest.yml`. What signing would buy is the SmartScreen interstitial on first
-install, not the update path; `WIN_CERT_PFX` / `WIN_CERT_PASSWORD` turn it on
-in the release workflow when they exist.
 
 ## Why macOS needs its own installer
 
@@ -136,7 +125,7 @@ inspection and abort commands remain available. Duplicate quit/update requests
 cannot share an approval to launch competing installs. Failed update preparation
 reopens admission unless teardown has already begun.
 
-On Windows/Linux, closing the final window asks before destroying its renderer
+On Linux, closing the final window asks before destroying its renderer
 unless background routines keep the app alive. macOS window-close behavior is
 unchanged. This guard does not yet provide editor save/discard prompts, a
 wait-until-finished action, or an interruption recovery journal. OS signals and

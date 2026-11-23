@@ -16,6 +16,10 @@
       "types": "./pi-ext/subagent-snapshot.ts",
       "default": "./pi-ext/subagent-snapshot.ts"
     },
+    "./artifact-nested": {
+      "types": "./pi-ext/artifact-nested.ts",
+      "default": "./pi-ext/artifact-nested.ts"
+    },
     "./artifact-store": {
       "types": "./pi-ext/artifact-store.ts",
       "default": "./pi-ext/artifact-store.ts"
@@ -107,6 +111,14 @@
     "./live-context": {
       "types": "./pi-ext/live-context.ts",
       "default": "./pi-ext/live-context.ts"
+    },
+    "./brain-curator": {
+      "types": "./pi-ext/brain-curator.ts",
+      "default": "./pi-ext/brain-curator.ts"
+    },
+    "./brain-curator-writes": {
+      "types": "./pi-ext/brain-curator-writes.ts",
+      "default": "./pi-ext/brain-curator-writes.ts"
     }
   },
   "dependencies": {

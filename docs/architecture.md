@@ -15,7 +15,7 @@
 | Charts               | Two fences: `chart` JSON → Chart.js, `vega-lite` JSON → vega-embed                                  |
 | HTML preview         | `<iframe sandbox="allow-scripts">` over `phosphor-artifact://`, never `srcDoc`; Code/Preview toggle |
 | File watching        | chokidar (main process)                                                                             |
-| Packaging            | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb); Windows (nsis) paused          |
+| Packaging            | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb)                                 |
 | Install              | GitHub Releases + `curl … install.sh \| sh` (`tools/scripts/install.sh`)                            |
 | IPC                  | Typed contextBridge preload; renderer never touches Node APIs                                       |
 | pi integration       | RPC subprocess, one `pi --mode rpc` per live session ([pi-integration.md](pi-integration.md))       |
@@ -164,6 +164,6 @@ and [control-plane.md](control-plane.md) for the server's routes and authenticat
 - Single source of truth for session state lives in main (`SessionRegistry`: live sessions ↔ pi children); renderer stores are projections.
 - All long/streaming output is incrementally reduced — never rebuild whole message arrays per delta.
 - Work whose cost the user's input decides runs off main's thread. The workspace search runs each query in its own worker thread (`apps/desktop/electron/fs/workspace-search-service.ts`): a regex can backtrack for minutes on one line, and a worker can be terminated mid-match where main's thread would freeze every window.
-- Desktop targets macOS, Linux and Windows (path handling via `node:path`, PTY shells per-OS: `$SHELL` / PowerShell).
+- Desktop targets macOS and Linux (path handling via `node:path`, the PTY shell is `$SHELL`).
 - App prefs in electron-store — `AppPrefs` in [`libs/shared/src/models.ts`](../libs/shared/src/models.ts): theme, recent/last workspace, last + pinned sessions, model picks, lane markers and `lanes`, `fonts` (UI scale and the three font sizes), agent directives (global and per-project), worktrees, maintenance, headroom. **Pane layout is not among them**: it is per-session and lives in `localStorage` under `phosphor-pane-layout` (`libs/client-ui/src/stores/layout.ts`), because it is view state that should not survive a prefs migration or cost an IPC round-trip per drag.
 - Prefs are never written into pi's config files. pi config editing is explicit and user-initiated ([settings.md](settings.md)).

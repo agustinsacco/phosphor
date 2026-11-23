@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { latestNpmVersion } from '@phosphor/session-runtime/pi/package-updates'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
@@ -9,8 +8,7 @@ import {
 } from '@phosphor/session-runtime/pi/provider-detect'
 import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
-import { resolveBinary, windowsWhereOutput } from './binary-lookup'
-import { resolveWindowsLaunch } from './win-launch'
+import { resolveBinary } from './binary-lookup'
 import { failedJob, startJob, startPrintModeJob, type JobSender } from './package-jobs'
 
 export { failedJob, startJob, disposePackageJobs, type JobSender } from './package-jobs'
@@ -96,7 +94,7 @@ export async function runPiInstall(sender: JobSender): Promise<{ jobId: string }
     piInstallRunning = false
   }
   try {
-    const npm = await resolveLaunch('npm')
+    const npm = await resolveBinary('npm')
     if (!npm) {
       release()
       return failedJob(
@@ -104,39 +102,14 @@ export async function runPiInstall(sender: JobSender): Promise<{ jobId: string }
         'npm was not found on your PATH. Install Node.js 22+ first (https://nodejs.org), then retry.',
       )
     }
-    return startJob(
-      sender,
-      npm.file,
-      [...npm.prefixArgs, 'install', '-g', '@earendil-works/pi-coding-agent'],
-      { env: await piProcessEnv(), onExit: release },
-    )
+    return startJob(sender, npm, ['install', '-g', '@earendil-works/pi-coding-agent'], {
+      env: await piProcessEnv(),
+      onExit: release,
+    })
   } catch (error) {
     release()
     throw error
   }
-}
-
-/**
- * A binary as something `spawn` accepts. Same as `resolveBinary` everywhere
- * but Windows, where an npm CLI (`npm.cmd` itself included) is a shim that
- * has to be run as node.exe plus its entry script — see win-launch.ts.
- */
-async function resolveLaunch(name: string): Promise<{ file: string; prefixArgs: string[] } | null> {
-  if (process.platform !== 'win32') {
-    const file = await resolveBinary(name)
-    return file ? { file, prefixArgs: [] } : null
-  }
-  const result = await resolveWindowsLaunch(await windowsWhereOutput(name), {
-    readShim: (path) => {
-      try {
-        return readFileSync(path, 'utf8')
-      } catch {
-        return null
-      }
-    },
-    whereNode: () => windowsWhereOutput('node'),
-  })
-  return result.ok ? result.launch : null
 }
 
 /** Binary presence for catalogue recommendations. */

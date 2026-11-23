@@ -10,10 +10,10 @@ import { agoWords, durationWords, progressLine } from '../jobProgress'
  */
 export type LaneSelection =
   { type: 'job'; id: string } | { type: 'change'; id: string | null } | { type: 'never' }
-export type LaneGroupId = 'reading' | 'refreshing' | 'queued' | 'failed' | 'read'
+export type LaneGroupId = 'waiting' | 'reading' | 'queued' | 'failed' | 'read'
 export const LANE_GROUP_LABELS: Record<LaneGroupId, string> = {
+  waiting: 'Waiting for Defrag',
   reading: 'Reading',
-  refreshing: 'Refreshing',
   queued: 'Queued',
   failed: 'Failed',
   read: 'Read',
@@ -31,14 +31,15 @@ export interface LaneGroup {
   rows: LaneRow[]
 }
 
-/** The Lanes group of a job; null for a review, which belongs to the Inbox. */
+/** The Lanes group of a job; waiting reads come first. */
 function laneGroupOf(job: BrainJob): LaneGroupId | null {
   // Exhaustive: a new job state must choose its group here.
   switch (job.state) {
     case 'running':
       return 'reading'
     case 'refreshing':
-      return 'refreshing'
+    case 'review':
+      return 'waiting'
     case 'queued':
     case 'waiting':
       return 'queued'
@@ -48,8 +49,6 @@ function laneGroupOf(job: BrainJob): LaneGroupId | null {
     case 'empty':
     case 'rejected':
       return 'read'
-    case 'review':
-      return null
   }
 }
 
@@ -61,8 +60,8 @@ export function finishedRead(job: BrainJob): boolean {
 export function laneGroups(jobs: BrainJob[], history: BrainHistory | null): LaneGroup[] {
   const read = new Map((history?.items ?? []).map((item) => [item.job.id, item]))
   const groups: Record<LaneGroupId, LaneRow[]> = {
+    waiting: [],
     reading: [],
-    refreshing: [],
     queued: [],
     failed: [],
     read: [],
@@ -144,6 +143,7 @@ export function laneLine(job: BrainJob, now: number, ahead: number): string {
     case 'rejected':
       return 'Rejected'
     case 'review':
+      return `${formatCount(job.memories, 'memory', 'memories')}${job.finishedAt === null ? '' : ` · read ${agoWords(now - job.finishedAt)}`}`
     case 'done':
       return ''
   }

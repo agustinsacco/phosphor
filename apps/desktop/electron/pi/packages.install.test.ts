@@ -4,18 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({ spawn: vi.fn() }))
 vi.mock('node:child_process', () => ({ spawn: h.spawn, execFile: vi.fn() }))
-vi.mock('./binary-lookup', () => ({
-  resolveBinary: async () => '/usr/bin/npm',
-  windowsWhereOutput: vi.fn(),
-}))
+vi.mock('./binary-lookup', () => ({ resolveBinary: async () => '/usr/bin/npm' }))
 vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   piProcessEnv: async () => ({ PATH: '/shell' }),
 }))
-vi.mock('./print-mode', () => ({
-  OWN_GROUP: true,
-  killProcessTree: vi.fn(),
-  runPrintMode: vi.fn(),
-}))
+vi.mock('./print-mode', () => ({ killProcessTree: vi.fn(), runPrintMode: vi.fn() }))
 
 type Child = EventEmitter & { stdout: PassThrough; stderr: PassThrough }
 const children: Child[] = []

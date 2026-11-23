@@ -176,6 +176,16 @@ describe('portable session policy', () => {
     })
   })
 
+  it('gives the lane the owner calls the Brain lane its fixed block, and no other lane', async () => {
+    const runtime = { ...ports(), brainLane: vi.fn((cwd: string) => cwd === '/brain/Brain') }
+    runtime.git.mockResolvedValue({ isRepo: false })
+    const brain = await prepareSessionPolicy({ workspacePath: '/brain/Brain' }, {}, launch, runtime)
+    expect(runtime.brainLane).toHaveBeenCalledWith('/brain/Brain')
+    expect(brain.spawnOptions.appendSystemPrompt).toContain('<phosphor_brain_lane>')
+    const lane = await prepareSessionPolicy({ workspacePath: '/repo/lane' }, {}, launch, runtime)
+    expect(lane.spawnOptions.appendSystemPrompt).not.toContain('<phosphor_brain_lane>')
+  })
+
   it('omits only the lane charter for report execution', async () => {
     const { spawnOptions } = await prepareSessionPolicy(
       { workspacePath: '/repo/lane' },

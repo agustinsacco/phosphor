@@ -5,12 +5,14 @@ import { createRecall } from './recall'
 import { parseOwnerParams } from '@phosphor/shared/host-protocol-owner'
 import { createConnection } from 'node:net'
 import { expect, it, vi } from 'vitest'
+import { BRAIN_PROTOCOL } from '@phosphor/shared/brain'
 import { createBrainBridge as openBridge, type BridgeInvoke } from './bridge'
 import { createBrainFlagLimit } from './tidy/flag-limit'
 
 vi.mock('./lane', () => ({ projectContext: async (cwd: string) => ({ scope: cwd, branch: null }) }))
 
-const createBrainBridge = (invoke: BridgeInvoke) => openBridge(invoke, createBrainFlagLimit())
+const createBrainBridge = (invoke: BridgeInvoke) =>
+  openBridge(invoke, { flagLimit: createBrainFlagLimit() })
 
 function request(endpoint: string, input: unknown): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -36,7 +38,12 @@ it('accepts only versioned, authenticated requests with validated fields', async
     degradation: [],
   }))
   const bridge = await createBrainBridge(invoke)
-  const input = { version: 5, token: bridge.token, method: 'search', params: { query: 'Harbor' } }
+  const input = {
+    version: BRAIN_PROTOCOL,
+    token: bridge.token,
+    method: 'search',
+    params: { query: 'Harbor' },
+  }
   try {
     const registration = bridge.registration(true)
     expect(parseOwnerParams('app.service.register', registration)).toEqual({
@@ -46,7 +53,12 @@ it('accepts only versioned, authenticated requests with validated fields', async
       recall: true,
     })
     expect(await request(bridge.endpoint, input)).toMatchObject({ ok: true })
-    expect(invoke).toHaveBeenCalledWith('search', { query: 'Harbor' })
+    expect(invoke).toHaveBeenCalledWith(
+      'search',
+      { query: 'Harbor' },
+      expect.any(AbortSignal),
+      'lane',
+    )
     invoke.mockClear()
     for (const patch of [
       { token: 'x'.repeat(64) },
@@ -66,7 +78,7 @@ it('accepts only versioned, authenticated requests with validated fields', async
   }
 })
 
-it('protocol 4 clients fail cleanly and flags reject unknown keys and oversize fields', async () => {
+it('older protocol clients fail cleanly and flags reject unknown keys and oversize fields', async () => {
   const invoke = vi.fn(async () => ({
     status: 'filed',
     message: 'Flag filed for review; Brain knowledge has not changed.',
@@ -79,16 +91,16 @@ it('protocol 4 clients fail cleanly and flags reject unknown keys and oversize f
     sessionId: 'harbor-lane',
     title: 'Harbor billing',
   }
-  const input = { version: 5, token: bridge.token, method: 'flag', params }
+  const input = { version: BRAIN_PROTOCOL, token: bridge.token, method: 'flag', params }
   try {
     expect(await request(bridge.endpoint, input)).toMatchObject({
       ok: true,
       data: { status: 'filed' },
     })
-    expect(invoke).toHaveBeenCalledWith('flag', params)
+    expect(invoke).toHaveBeenCalledWith('flag', params, expect.any(AbortSignal), 'lane')
     invoke.mockClear()
     for (const patch of [
-      { version: 4 },
+      { version: BRAIN_PROTOCOL - 1 },
       { unknown: true },
       { params: { ...params, unknown: true } },
       { params: { ...params, reason: 'x'.repeat(301) } },
@@ -111,7 +123,7 @@ it('limits flags across twelve claimed sessions and sockets, while search and la
   const invoke = vi.fn(async () => ({ status: 'filed', message: 'Filed.' }))
   const bridge = await createBrainBridge(invoke)
   const input = (i: number) => ({
-    version: 5,
+    version: BRAIN_PROTOCOL,
     token: bridge.token,
     method: 'flag',
     params: {
@@ -139,7 +151,7 @@ it('limits flags across twelve claimed sessions and sockets, while search and la
     )
     expect(invoke).toHaveBeenCalledTimes(10)
     await request(bridge.endpoint, {
-      version: 5,
+      version: BRAIN_PROTOCOL,
       token: bridge.token,
       method: 'search',
       params: { query: 'Harbor' },
@@ -164,7 +176,7 @@ it('a wall-clock step back does not hold the flag window shut', async () => {
   const invoke = vi.fn(async () => ({ status: 'filed', message: 'Filed.' }))
   const bridge = await createBrainBridge(invoke)
   const input = (i: number) => ({
-    version: 5,
+    version: BRAIN_PROTOCOL,
     token: bridge.token,
     method: 'flag',
     params: {
@@ -196,7 +208,7 @@ it('keeps the tenth flag but not an eleventh just inside the rolling minute', as
   const bridge = await createBrainBridge(async () => ({ status: 'filed', message: 'Filed.' }))
   const flag = () =>
     request(bridge.endpoint, {
-      version: 5,
+      version: BRAIN_PROTOCOL,
       token: bridge.token,
       method: 'flag',
       params: {
@@ -235,7 +247,12 @@ it('charges channel and private bridge flags to the same service-wide window', a
     reason: 'Verified.',
   }
   const flag = () =>
-    request(bridge.endpoint, { version: 5, token: bridge.token, method: 'flag', params })
+    request(bridge.endpoint, {
+      version: BRAIN_PROTOCOL,
+      token: bridge.token,
+      method: 'flag',
+      params,
+    })
   try {
     for (let n = 0; n < 9; n++) expect(await flag()).toMatchObject({ data: { status: 'filed' } })
     await lane.search({ query: 'Harbor' })

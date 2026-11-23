@@ -227,18 +227,11 @@ describe('workspace installation closure', () => {
         '--no-fund',
       ]
       const options = { cwd: dir, encoding: 'utf8' as const }
-      execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
-        ...options,
-        shell: process.platform === 'win32',
-      })
+      execFileSync('npm', args, options)
       const sentinel = join(dir, 'desktop-lifecycle-fired')
       expect(existsSync(sentinel)).toBe(true)
       rmSync(sentinel)
-      execFileSync(
-        process.platform === 'win32' ? 'npm.cmd' : 'npm',
-        [...args, '--ignore-scripts'],
-        { ...options, shell: process.platform === 'win32' },
-      )
+      execFileSync('npm', [...args, '--ignore-scripts'], options)
       expect(existsSync(sentinel)).toBe(false)
       expect(realpathSync(join(dir, 'node_modules/@phosphor/session-runtime'))).toBe(
         realpathSync(join(dir, 'libs/runtime')),

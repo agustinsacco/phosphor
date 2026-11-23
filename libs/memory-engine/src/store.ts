@@ -1,6 +1,7 @@
 import { afterChange, afterOperation } from './tidy/hooks'
 import { mergeEntities } from './tidy/operations'
 import { tidyStore } from './tidy/store'
+import { agentStore } from './agent/store'
 import { randomUUID } from 'node:crypto'
 import type { BrainSnapshot } from '@phosphor/shared/brain'
 import { all, type Context } from './database'
@@ -54,6 +55,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
   }
   return {
     ...tidyStore(ctx),
+    ...agentStore(ctx),
     snapshot: () => snapshot(ctx),
     setPrefs: (value) => setPrefs(ctx, value),
     revision: () => revision(ctx),

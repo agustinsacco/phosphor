@@ -8,6 +8,7 @@ import {
   type BrainMemory,
   type BrainRecall,
 } from '@phosphor/shared/brain'
+import { isBrainCuratorMethod, validateCuratorRequest } from './validate-curator'
 
 const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -20,11 +21,14 @@ const member = (v: unknown, values: readonly string[]): boolean =>
 const hasStrings = (v: Record<string, unknown>, keys: string[]): boolean =>
   keys.every((key) => typeof v[key] === 'string')
 
+/** Search, flag, or one of Brain Agent's curator methods (validate-curator.ts). */
 export function validateBrainRequest<M extends BrainAgentMethod>(
   method: M,
   input: unknown,
 ): BrainAgentMap[M]['request'] {
   if (method === 'flag') return validateFlag(input) as BrainAgentMap[M]['request']
+  if (isBrainCuratorMethod(method))
+    return validateCuratorRequest(method, input) as BrainAgentMap[M]['request']
   if (method !== 'search' || !record(input)) throw new Error('Invalid Brain request.')
   const text = input.query
   const keys = new Set(['query', 'limit', 'sessionId', 'cwd'])
@@ -59,7 +63,7 @@ function link(v: unknown): boolean {
 }
 const date = (v: unknown): boolean => v === null || number(v)
 
-function memory(v: unknown): v is BrainMemory {
+export function isBrainMemory(v: unknown): v is BrainMemory {
   return (
     record(v) &&
     hasStrings(v, ['id', 'summary', 'scope']) &&
@@ -88,7 +92,7 @@ export function isBrainRecall(v: unknown): v is BrainRecall {
     v.hits.every(
       (hit: unknown) =>
         record(hit) &&
-        memory(hit.memory) &&
+        isBrainMemory(hit.memory) &&
         number(hit.score) &&
         strings(hit.reasons) &&
         hit.reasons.every((r) => ['exact', 'lexical', 'semantic', 'linked'].includes(r)),

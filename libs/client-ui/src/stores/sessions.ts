@@ -1,4 +1,4 @@
-import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
+import { refreshArtifactsAfter } from '@/features/artifacts/remoteArtifactRefresh'
 import { hostResourceKey } from '@shared/remote-host'
 import { archivesChanged } from './archiveChanges'
 import { loadWorktreeRemover, removeLaneWorktree } from './removeLaneWorktree'
@@ -640,9 +640,9 @@ export async function forgetRemoteSession(sessionId: string): Promise<void> {
 function attachSessionPushHandler(phosphorId: string): void {
   const unsubscribe = window.phosphor.onSessionPush(phosphorId, (push: SessionPush) => {
     const chatStore = useChatStore.getState()
+    refreshArtifactsAfter(phosphorId, push)
     switch (push.kind) {
       case 'resync':
-        void refreshRemoteArtifacts(phosphorId)
         void rehydrateTranscript(phosphorId).then(() => bootstrapSession(phosphorId))
         break
       case 'event': {
@@ -675,8 +675,6 @@ function attachSessionPushHandler(phosphorId: string): void {
               ),
           )
         }
-        if (push.event.type === 'tool_execution_end' && isArtifactWriteTool(push.event.toolName))
-          void refreshRemoteArtifacts(phosphorId)
         if (push.event.type === 'tool_execution_end') {
           // Bash can move/delete/create arbitrary paths, so its result cannot
           // name a safe minimal invalidation set. Re-read the root and loaded
@@ -1015,9 +1013,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         void window.phosphor.invoke('app:setLastSession', options.sessionPath)
       }
 
-      // History-bearing starts share the same required identity + reconciliation
-      // path as a live branch change. Failed loads keep a retry, not an empty chat.
-      if (options.sessionPath || options.forkFrom) await restoreSession(phosphorId)
+      // A returned diskPath means main found an existing lane, which may be running.
+      // Failed history loads keep a retry, not an empty chat.
+      if (options.sessionPath || options.forkFrom) await restoreSession(phosphorId, !!info.diskPath)
       if (!sessionIsOpen(phosphorId)) return phosphorId
       const bootstrapped =
         options.sessionPath || options.forkFrom ? Promise.resolve() : bootstrapSession(phosphorId)

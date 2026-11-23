@@ -10,7 +10,7 @@
 agents, built on the [pi coding agent](https://pi.dev). Run independent lanes,
 inspect changes and delegated work, keep reviewed knowledge with Brain, and
 reach your own machines from Desktop or the Host-backed PWA. Desktop releases
-currently target macOS and Linux; Windows builds are paused.
+target macOS and Linux.
 
 [![Website](https://img.shields.io/badge/phosphor.saccolabs.com-eca03d?label=web&labelColor=1e1c18)](https://phosphor.saccolabs.com)
 [![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
@@ -132,11 +132,14 @@ Remote execution now runs on enrolled Hosts you own, separately from Swarm.
 
 Brain is **off by default, Desktop-only and machine-local**. Enable it in
 Settings → Brain, read the model terms and download the local embedding model.
-Queue selected local lanes for extraction; review proposed identities, memories,
-relationships and source quotes before saving. Review is on by default but can be
-disabled. Explore entities in 2D/3D, follow supported paths, inspect extraction,
-Forget memories or merge duplicate entities. The Tidy tab finds repeats locally and
-lists them as suggestions. Merges and Tidy changes can be undone; Forget cannot.
+Queue lanes to read. With **Review before saving** on (the default), finished reads
+wait for **Defrag**, which runs only when you click it. Brain Agent is an ordinary
+lane in a Brain folder, marked 🧠 in the sidebar. Ask it to change its rules.
+During Defrag it approves or rejects waiting reads, settles people and things,
+folds repeats and answers flags, with a reason for each change. Recent changes
+shows who made them; undo one change or a whole run while later edits allow it.
+Erasing cannot be undone. Explore entities in 2D/3D, follow supported paths,
+inspect a read, Forget memories or merge duplicate entities.
 
 ![Brain enabled with local search ready and review on, using fictional data](apps/site/src/assets/shots/brain-ready.webp)
 
@@ -145,11 +148,12 @@ lists them as suggestions. Merges and Tidy changes can be undone; Forget cannot.
 New or restarted local lanes can use read-only `brain_search` to recall a bounded
 briefing with dates, disputes, sources and branch context, and `brain_flag` to
 file a suggestion about a wrong memory. **Local does not mean
-fully offline:** extraction calls the lane’s provider model with scrubbed user and
-assistant text and can consume quota; **Tidy now** sends up to 40 small pairs of
-memories or names to the model that reads lanes; later recall can enter provider context.
-Brain does not sync to Hosts or run in the PWA. Turning it off retains knowledge;
-Reset clears it while keeping settings and the embedding model.
+fully offline:** reading calls the reader model with scrubbed user and assistant
+text. Defrag sends what waits, including memories, names and scrubbed excerpts,
+to the Brain lane’s model. Brain Agent may use that lane’s connectors to check
+facts, read-only. Later recall can enter provider context. Brain does not sync to
+Hosts or run in the PWA. Turning it off retains knowledge; Reset clears it while
+keeping settings and the embedding model. Forget is permanent too.
 [Brain guide](https://phosphor.saccolabs.com/guides/brain/) · [Contract](docs/brain.md).
 
 ## Machines, browser and deliberate lane moves
@@ -338,9 +342,8 @@ verifies the download against the release's `checksums.txt`. Binaries are also
 on the [Releases page](https://github.com/agustinsacco/Phosphor/releases): DMG
 and ZIP for macOS, AppImage and `.deb` for Linux.
 
-Windows builds are paused to keep CI fast and will return in a later release.
-Existing Windows installs keep running the last Windows release; they find no
-newer Windows update until builds resume.
+There is no Windows build. An existing Windows install keeps running its last
+release and finds no newer one.
 
 Phosphor needs `pi` on your PATH:
 
@@ -364,7 +367,7 @@ release, including skipped ones, since they ship in that build. An
 installed app checks at launch and every 30 minutes, and shows an update button
 in the sidebar footer above Settings when there's something new.
 
-Linux AppImage, Windows and signed macOS installs download in the background
+Linux AppImage and signed macOS installs download in the background
 and offer "Restart to update". An unsigned macOS app swaps its own bundle and
 relaunches. A `.deb` install, or a macOS bundle it can't write to, links to the
 release page instead. Update checks only run in a packaged app. Details:

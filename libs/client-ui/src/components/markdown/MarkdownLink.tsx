@@ -4,7 +4,7 @@ import { classifyLink, type LinkTarget } from '@/lib/markdownLink'
 import { openFileInWorkspace } from '@/stores/layout'
 import { getActiveWorkspace } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { openArtifact } from '@/stores/artifacts'
+import { openArtifactLink } from '@/features/artifacts/openArtifactLink'
 import { useSessionsStore } from '@/stores/sessions'
 
 /**
@@ -35,10 +35,7 @@ export function MarkdownLink({
     }
     if (target.kind === 'artifact') {
       const sessionId = sourceSessionId ?? useSessionsStore.getState().activeSessionId
-      if (sessionId && openArtifact(sessionId, target.id, target.version)) return
-      useExtensionUiStore
-        .getState()
-        .pushToast(`No artifact "${target.id}" in this session`, 'error')
+      void openArtifactLink(sessionId, target.id, target.version)
       return
     }
     if (target.kind !== 'file') return

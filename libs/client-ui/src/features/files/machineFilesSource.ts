@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { fileListErrorText } from '@shared/host-protocol-files'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useWorkspacesStore } from '@/stores/workspaces'
 
 /** How a machine's files are read; one object per machine, so a view can depend on it. */
 export interface MachineFileReads {
@@ -14,11 +13,11 @@ export interface MachineFileReads {
   modelPath: (repositoryId: string, path: string) => string
 }
 
-/** What Machine files browses, read only: This Mac's recent folders or a Host's repositories. */
+/** What Machine files browses, read only: a Host's registered repositories. */
 export interface MachineFilesSource {
   /** Why nothing can be browsed now, or null. */
   unavailable: string | null
-  /** What the choices are called: This Mac's sidebar folders, a Host's repositories. */
+  /** What the choices are called. */
   noun: { one: string; many: string }
   repositories: { id: string; name: string }[]
   reads: MachineFileReads
@@ -44,29 +43,5 @@ export function useHostFiles(hostId: string): MachineFilesSource {
     noun: { one: 'Repository', many: 'Repositories' },
     repositories: host?.repositories ?? [],
     reads,
-  }
-}
-
-const LOCAL_READS: MachineFileReads = {
-  list: (folder) => window.phosphor.invoke('fs:listFiles', folder),
-  read: async (folder, path) => {
-    const file = await window.phosphor.invoke('fs:readFile', `${folder}/${path}`)
-    if (file.binary) return { binary: true, content: 'Binary file' }
-    if (file.tooLarge) return { binary: true, content: 'Too large to preview' }
-    return { binary: false, content: file.content }
-  },
-  listError: () => 'Could not list these files.',
-  readError: 'Could not read this file.',
-  modelPath: (folder, path) => `local:${folder}/${path}`,
-}
-
-/** This Mac's recent folders, the ones its sidebar lists. */
-export function useLocalFiles(): MachineFilesSource {
-  const recents = useWorkspacesStore((s) => s.recents)
-  return {
-    unavailable: null,
-    noun: { one: 'Folder', many: 'Folders' },
-    repositories: recents.map((workspace) => ({ id: workspace.path, name: workspace.name })),
-    reads: LOCAL_READS,
   }
 }

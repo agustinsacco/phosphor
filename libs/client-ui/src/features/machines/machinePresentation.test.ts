@@ -176,7 +176,7 @@ it("characterize: This Mac's Claude provider state follows main's refusal rule",
 it("describes This Mac's unavailable pi by its reason, and offers the install command once", () => {
   const piCheck = (health: Parameters<typeof localChecks>[0]['health']) =>
     localChecks({ health, failed: false }, false)[0]
-  // Main's messages end with an install command of their own (health.ts, win-launch.ts).
+  // Main's messages end with an install command of their own (health.ts).
   expect(
     piCheck({
       ok: false,

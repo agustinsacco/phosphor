@@ -6,7 +6,6 @@ import type { LaneSelection } from './lanes/laneGroups'
 export function useBrainTargets(
   target: { value: BrainTarget; request: number } | null,
   actions: {
-    setInboxItem: (key: string | null) => void
     setLane: (selection: LaneSelection | null) => void
     focusSearch: () => void
   },
@@ -18,8 +17,7 @@ export function useBrainTargets(
     if (!target || target.request === applied.current) return
     applied.current = target.request
     const { value } = target
-    const { setInboxItem, setLane, focusSearch } = latest.current
-    if (value.tab === 'inbox' && value.item) setInboxItem(value.item)
+    const { setLane, focusSearch } = latest.current
     if (value.tab === 'lanes' && value.jobId) setLane({ type: 'job', id: value.jobId })
     if (value.tab === 'lanes' && value.recent) setLane({ type: 'change', id: null })
     if (value.tab === 'knowledge' && value.search) focusSearch()

@@ -1,3 +1,4 @@
+import { MOCK_BRAIN_FOLDER, MOCK_BRAIN_SESSION } from '../features/brain/mockBrainAgent'
 import { mockBrainCall } from '../features/brain/mockBrain'
 import {
   REMOTE_LANE_MOCK,
@@ -529,6 +530,28 @@ function respond(command: RpcCommand): RpcResponse {
  */
 const MOCK_DISK_SESSIONS: SessionMeta[] = [
   {
+    path: MOCK_BRAIN_SESSION,
+    sessionId: 'brain-agent',
+    cwd: MOCK_BRAIN_FOLDER,
+    name: 'Brain Agent',
+    firstUserText: 'Review the waiting knowledge.',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    lastActivityAt: '2026-11-01T10:00:00.000Z',
+    userMessages: 1,
+    assistantMessages: 1,
+    toolCalls: 0,
+    totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    cost: 0,
+    headroomSavedTokens: 0,
+    entryCount: 2,
+    branchCount: 0,
+    mtimeMs: Date.now(),
+  },
+  {
     path: '/mock/sessions/a.jsonl',
     sessionId: 'a',
     pullRequests: MOCK_LANE_PRS.a,
@@ -930,6 +953,12 @@ const mockLearnedPrompts: string[] = [
   'can you review the diff for bugs and regressions',
 ]
 
+const MOCK_RECENT_WORKSPACES = [
+  { path: '/Users/dev/projects/phosphor', name: 'phosphor', lastOpenedAt: Date.now() },
+  { path: '/Users/dev/projects/other', name: 'other', lastOpenedAt: Date.now() - 8.64e7 },
+  { path: MOCK_BRAIN_FOLDER, name: 'Brain', lastOpenedAt: Date.now() },
+]
+
 export function installMockPhosphor(): void {
   const api: PhosphorApi = {
     // The browser harness has no Electron; report the real host so key hints
@@ -941,7 +970,7 @@ export function installMockPhosphor(): void {
         : 'linux',
 
     invoke: (channel: string, ...args: unknown[]) => {
-      // All v4 Brain channels use the bounded, invented Explorer and review fixtures.
+      // Brain channels include clock-driven Defrag and reasoned changes, with no inference.
       // Includes read history and reread; Brain remains local-only in the real web bridge.
       if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
       if (channel.startsWith('routines:')) return mockLocalRoutineCall(channel, args)
@@ -983,14 +1012,7 @@ export function installMockPhosphor(): void {
         case 'app:getPrefs':
           return Promise.resolve({
             theme: DEFAULT_APP_PREFS.theme,
-            recentWorkspaces: [
-              { path: '/Users/dev/projects/phosphor', name: 'phosphor', lastOpenedAt: Date.now() },
-              {
-                path: '/Users/dev/projects/other',
-                name: 'other',
-                lastOpenedAt: Date.now() - 8.64e7,
-              },
-            ],
+            recentWorkspaces: MOCK_RECENT_WORKSPACES,
             pinnedSessions: [],
             rewoundSessions: {},
             sessionOrder: JSON.parse(localStorage.getItem('mock:sessionOrder') ?? '[]'),
@@ -2024,6 +2046,7 @@ export function installMockPhosphor(): void {
         case 'app:markSessionSeen':
           return Promise.resolve(undefined)
         case 'git:listWorktrees':
+          if (args[0] === MOCK_BRAIN_FOLDER) return Promise.resolve([])
           return Promise.resolve([
             {
               path: '/Users/dev/projects/phosphor',
@@ -2198,7 +2221,11 @@ export function installMockPhosphor(): void {
         case 'sessions:readTranscript':
           return Promise.resolve([{ role: 'user', content: 'Saved conversation' }])
         case 'sessions:readTree':
-          return Promise.resolve(mockTree())
+          return Promise.resolve(
+            args[0] === MOCK_BRAIN_SESSION
+              ? { ...mockTree(), cwd: MOCK_BRAIN_FOLDER, sessionId: 'brain-agent' }
+              : mockTree(),
+          )
         // No provider sidecar here; debug falls back to the pi session id.
         case 'sessions:claudeSessionId':
           return Promise.resolve(null)

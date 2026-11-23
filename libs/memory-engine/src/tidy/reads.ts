@@ -1,7 +1,7 @@
+import { undoableSql } from '../agent/notes'
 import {
   BRAIN_TIDY_KINDS,
   type BrainTidyKind,
-  type BrainTidyPage,
   type BrainTidySuggestionDetail,
   type BrainTidyChanges,
   type BrainTidyOperation,
@@ -23,7 +23,7 @@ export function page(
   kind: BrainTidyKind | null,
   cursor: string | null,
   limit: number,
-): BrainTidyPage {
+) {
   limitOf(limit)
   if (kind !== null && !BRAIN_TIDY_KINDS.includes(kind)) throw new Error('Invalid Tidy kind.')
   let time = Number.MAX_SAFE_INTEGER,
@@ -67,18 +67,21 @@ export function page(
     counts,
     revision: revision(ctx),
     coverage: publicCoverage(ctx),
-    run: null,
   }
 }
-export function detail(ctx: Context, id: string): BrainTidySuggestionDetail | null {
+export function detail(
+  ctx: Context,
+  id: string,
+  curator = false,
+): BrainTidySuggestionDetail | null {
   const row = one<SuggestionRow>(ctx, 'SELECT * FROM tidy_suggestions WHERE id=?', id)
   if (!row) return null
   if (row.state === 'open') closeMissing(ctx, [row])
-  const item = suggestion(ctx, row)
+  const item = suggestion(ctx, row, curator)
   if (!item) return null
   return {
     suggestion: item,
-    ...allowedActions(ctx, row),
+    ...allowedActions(ctx, row, curator),
     subjects: item.subjects.flatMap((s): BrainTidySuggestionDetail['subjects'] => {
       const table = s.type === 'entity' ? 'entities' : 'memories'
       if (!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, s.id)) return []
@@ -91,10 +94,14 @@ export function detail(ctx: Context, id: string): BrainTidySuggestionDetail | nu
 }
 export function changes(ctx: Context, limit: number): BrainTidyChanges {
   limitOf(limit)
-  const rows = all<Omit<BrainTidyOperation, 'automatic'> & { automatic: number }>(
+  const rows = all<BrainTidyOperation>(
     ctx,
-    `SELECT id,kind,automatic,summary,created_at AS createdAt,undone_at AS undoneAt,suggestion_id AS suggestionId FROM tidy_operations WHERE kind IN ('merge','fold','dispute','replace','split','unname','describe') ORDER BY created_at DESC,id DESC LIMIT ?`,
+    `SELECT o.id,o.kind,o.summary,o.created_at AS createdAt,o.undone_at AS undoneAt,o.suggestion_id AS suggestionId,
+      CASE WHEN a.operation_id IS NOT NULL THEN 'agent' WHEN o.automatic=1 THEN 'automatic' ELSE 'you' END AS who,
+      a.reason,a.run_id AS runId,a.job_id AS jobId,${undoableSql} AS undoable
+      FROM tidy_operations o LEFT JOIN agent_notes a ON a.operation_id=o.id AND a.role='made'
+      ORDER BY o.created_at DESC,o.id DESC LIMIT ?`,
     limit,
   )
-  return { items: rows.map((r) => ({ ...r, automatic: !!r.automatic })), revision: revision(ctx) }
+  return { items: rows.map((r) => ({ ...r, undoable: !!r.undoable })), revision: revision(ctx) }
 }

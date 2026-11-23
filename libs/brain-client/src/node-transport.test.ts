@@ -3,10 +3,12 @@ import { createServer, type Server, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { BRAIN_PROTOCOL } from '@phosphor/shared/brain'
 import { BrainClientError } from './client'
 import {
   BRAIN_MAX_FRAME_BYTES,
   brainConnectionFromEnv,
+  takeBrainConnection,
   createNodeBrainTransport,
   isBrainEndpoint,
 } from './node-transport'
@@ -71,7 +73,7 @@ describe('createNodeBrainTransport', () => {
     expect(brain.requests[0]!.endsWith('\n')).toBe(true)
     expect(brain.requests[0]!.indexOf('\n')).toBe(brain.requests[0]!.length - 1)
     expect(JSON.parse(brain.requests[0]!)).toEqual({
-      version: 5,
+      version: BRAIN_PROTOCOL,
       token: TOKEN,
       method: 'search',
       params: { query: 'Harbor' },
@@ -189,17 +191,15 @@ describe('createNodeBrainTransport', () => {
 
 describe('isBrainEndpoint', () => {
   it.each([
-    ['/tmp/phosphor/brain.sock', 'darwin', true],
-    ['relative/brain.sock', 'linux', false],
-    ['http://127.0.0.1:8080', 'darwin', false],
-    ['127.0.0.1:8080', 'linux', false],
-    ['tcp://localhost:9', 'linux', false],
-    ['\\\\.\\pipe\\phosphor-brain-1', 'win32', true],
-    ['\\\\server\\pipe\\phosphor-brain', 'win32', false],
-    ['C:\\brain.sock', 'win32', false],
-    ['/tmp/brain.sock', 'win32', false],
-  ] as const)('%s on %s is %s', (endpoint, platform, expected) => {
-    expect(isBrainEndpoint(endpoint, platform)).toBe(expected)
+    ['/tmp/phosphor/brain.sock', true],
+    ['relative/brain.sock', false],
+    ['http://127.0.0.1:8080', false],
+    ['127.0.0.1:8080', false],
+    ['tcp://localhost:9', false],
+    ['\\\\.\\pipe\\phosphor-brain-1', false],
+    ['C:\\brain.sock', false],
+  ] as const)('%s is %s', (endpoint, expected) => {
+    expect(isBrainEndpoint(endpoint)).toBe(expected)
   })
 
   it('makes the transport refuse a TCP-shaped endpoint', () => {
@@ -220,13 +220,37 @@ describe('brainConnectionFromEnv', () => {
   })
 })
 
-it('protocol 5 against a protocol 4 server fails with the existing unavailable message', async () => {
+describe('takeBrainConnection', () => {
+  it('empties the environment and keeps the connection for later reads in the process', () => {
+    const env: NodeJS.ProcessEnv = {
+      PHOSPHOR_BRAIN_ENDPOINT: '/s',
+      PHOSPHOR_BRAIN_TOKEN: 't',
+      HOME: '/h',
+    }
+    const slots = {}
+    expect(takeBrainConnection(env, slots)).toEqual({ endpoint: '/s', token: 't' })
+    expect(env).toEqual({ HOME: '/h' })
+    expect(takeBrainConnection(env, slots)).toEqual({ endpoint: '/s', token: 't' })
+    // A new connection in the environment replaces the kept one.
+    env.PHOSPHOR_BRAIN_ENDPOINT = '/n'
+    env.PHOSPHOR_BRAIN_TOKEN = 'u'
+    expect(takeBrainConnection(env, slots)).toEqual({ endpoint: '/n', token: 'u' })
+  })
+
+  it('removes half a connection too, and has none to give', () => {
+    const env: NodeJS.ProcessEnv = { PHOSPHOR_BRAIN_TOKEN: 't' }
+    expect(takeBrainConnection(env, {})).toBeNull()
+    expect(env).toEqual({})
+  })
+})
+
+it('the current protocol against an older server fails with the existing unavailable message', async () => {
   const brain = await fakeBrain((socket, line) => {
     const input = JSON.parse(line) as { version: number }
-    expect(input.version).toBe(5)
+    expect(input.version).toBe(BRAIN_PROTOCOL)
     socket.end(
       JSON.stringify(
-        input.version === 4
+        input.version === BRAIN_PROTOCOL - 1
           ? { ok: true, data: {} }
           : { ok: false, error: 'Brain request unavailable' },
       ) + '\n',

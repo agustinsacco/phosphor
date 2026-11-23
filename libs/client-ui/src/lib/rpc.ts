@@ -1,5 +1,11 @@
 import { ensureSessionControl } from '@/platform/serviceLaneControl'
-import type { AgentMessage, RpcCommand, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
+import type {
+  AgentMessage,
+  PiEvent,
+  RpcCommand,
+  RpcResponse,
+  RpcResponseDataMap,
+} from '@shared/rpc'
 import { ipcErrorText } from '@shared/errors'
 import { useChatStore } from '@/stores/chat'
 
@@ -146,5 +152,20 @@ export async function rehydrateTranscript(
     return undefined
   }
   useChatStore.getState().hydrate(sessionId, data.messages)
+  return data.messages
+}
+
+/**
+ * `rehydrateTranscript` for a lane whose turn is running, which never refuses for activity:
+ * `events` holds every event the lane sent since the renderer attached, still growing while this
+ * loads, and the transcript keeps those its messages do not already hold.
+ */
+export async function rehydrateRunningTranscript(
+  sessionId: string,
+  events: readonly PiEvent[],
+): Promise<AgentMessage[] | undefined> {
+  const data = await piCall(sessionId, { type: 'get_messages' })
+  if (!data || !useChatStore.getState().sessions[sessionId]) return undefined
+  useChatStore.getState().hydrate(sessionId, data.messages, events)
   return data.messages
 }

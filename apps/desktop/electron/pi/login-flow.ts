@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { LoginFlowState, LoginProviderId } from '@shared/models'
-import { checkPiHealth, piArgs } from './health'
+import { checkPiHealth } from './health'
 import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { ptyManager } from '../pty/pty-manager'
 import { checkProviderAuth } from './auth-status'
@@ -161,7 +161,7 @@ export async function startLogin(
   // split it across three lines. Wider than any URL is the fix.
   const { ptyId } = ptyManager.create(signInCwd(), TERMINAL_COLS, 40, undefined, {
     file: health.binaryPath,
-    args: piArgs(health, SIGN_IN_ARGS),
+    args: [...SIGN_IN_ARGS],
     env: await piProcessEnv(),
   })
 

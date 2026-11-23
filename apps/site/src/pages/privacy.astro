@@ -89,15 +89,15 @@ const sections: [string, string][] = [
       enable Brain.
     </p>
     <p>
-      For a lane you explicitly queue, extraction sends scrubbed user and assistant text to that
-      lane’s configured provider model in tool-less calls. It can consume tokens and quota.
-      Scrubbing is not a guarantee that every sensitive detail is removed. With recall on, kept
-      knowledge can become context in later provider requests.
+      For a lane you explicitly queue, reading sends scrubbed user and assistant text to the reader
+      model in tool-less calls. It can consume tokens and quota. Scrubbing is not a guarantee that
+      every sensitive detail is removed. With recall on, kept knowledge can become context in later
+      provider requests.
     </p>
     <p>
-      Tidy looks for repeats on this computer. <strong>Tidy now</strong> also sends up to 40 small
-      pairs of memories or names to the model that reads lanes. Lane agents can flag a memory; a
-      flag only files a suggestion for you to review.
+      Defrag runs only when you click it. Defrag sends what waits, including memories, names and
+      scrubbed excerpts, to the Brain lane's model. Brain Agent may read the connectors that lane
+      has to check facts. Lane agents can flag a memory for Brain Agent to check during Defrag.
     </p>
     <p>
       Review before saving is on by default. Forget removes an individual memory and unused

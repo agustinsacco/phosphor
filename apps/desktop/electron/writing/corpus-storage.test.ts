@@ -113,7 +113,7 @@ describe('corpus storage', () => {
     expect(state.prompts).toEqual(['new', 'latest'])
     expect(state.fileLines).toBe(2)
     expect(state.torn).toBe(false)
-    if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600)
+    expect(statSync(file).mode & 0o777).toBe(0o600)
   })
 
   it('leaves rewrite counters unchanged on rename failure and can retry the replacement', async () => {

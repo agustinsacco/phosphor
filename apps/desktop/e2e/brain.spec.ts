@@ -1,9 +1,3 @@
-import {
-  seedBrainTidyLanes,
-  readTidyLane,
-  openTidyNotice,
-  mergeOtherAndUndo,
-} from './fixtures/brain-tidy-flow'
 import { test, expect, type Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -13,13 +7,12 @@ import { seedBrainLanes } from './fixtures/brain-lanes'
 import {
   attachBrainFailure,
   expectGraphFocusClear,
-  expectReviewRowAligned,
   watchBrainErrors,
   expectBoundedReadText,
-  expectReviewBarAtBottom,
 } from './fixtures/brain-inspection'
 import {
-  approveLane,
+  defragRead,
+  defragButton,
   READ_TIMEOUT,
   awaitRead,
   brainNav,
@@ -30,11 +23,11 @@ import {
   readNewMessages,
   readRow,
   resetBrain,
-  reviewRow,
+  waitingRow,
   status,
 } from './fixtures/brain-flow'
 
-test('Brain v4 reviews directed links, explores across lanes, retries and resets without changing lane files', async () => {
+test('Brain Agent decides reads and preserves directed links, explores across lanes, retries and resets without changing lane files', async () => {
   // Four reads, one of them failing first: allow each its read budget on a loaded runner.
   test.setTimeout(300_000)
   const seed = await seedBrainLanes()
@@ -54,9 +47,10 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
     await awaitRead(page, null)
     await noReadErrors()
     expect((await status(page)).counts).toEqual({ memories: 0, entities: 0 })
-    await expect(brainNav(page)).toHaveAccessibleName('Brain 1 to decide')
-    await expect(brainTab(page, 'Inbox')).toContainText('1')
-    const firstJob = await approveLane(page, seed.harbor)
+    await expect(brainNav(page)).toHaveAccessibleName('Brain 1 waiting')
+    await expect(waitingRow(page, seed.harbor)).toContainText('2 memories')
+    await expect(page.locator('.page-shell-header')).toContainText('1 waiting')
+    const firstJob = await defragRead(page, seed.harbor)
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 2, entities: 3 })
     await expect(brainNav(page)).toHaveAccessibleName('Brain')
     await expectFinishedRead(page, seed.harbor)
@@ -82,7 +76,7 @@ test('Brain v4 reviews directed links, explores across lanes, retries and resets
       'extract\n',
     )
     await failed.getByRole('button', { name: 'Retry', exact: true }).click()
-    expect(await approveLane(page, seed.ledger)).toBe(failedJob.id)
+    expect(await defragRead(page, seed.ledger)).toBe(failedJob.id)
     await expect.poll(async () => (await status(page)).counts).toEqual({ memories: 4, entities: 5 })
     const combined = await page.evaluate(() => window.phosphor.invoke('brain:overview'))
     expect(combined.nodes.filter((e) => e.label === 'Harbor').map((e) => e.id)).toEqual([harbor.id])
@@ -118,7 +112,7 @@ async function expectFinishedRead(page: Page, lane: BrainLane): Promise<void> {
   await row.click()
   const read = page.getByRole('article', { name: 'Read detail', exact: true })
   await expect(read.getByRole('heading', { name: lane.title, exact: true })).toBeVisible()
-  await expect(read).toContainText(/took (?:less than a minute|\d+ min)/)
+  await expect(read).toContainText(/took (?:less than a minute|\d+ (?:s|min))/)
   await expect(read).not.toContainText(/took \d+:\d{2}/)
 }
 
@@ -168,21 +162,23 @@ async function rereadHarbor(page: Page, lane: BrainLane, earlier: string): Promi
   const detail = page.getByRole('article', { name: 'Read detail', exact: true })
   await detail.getByRole('button', { name: 'Read again', exact: true }).click()
   const confirm = page.getByRole('dialog', { name: `Read “${lane.title}” again?` })
-  await expect(confirm).toContainText('The 2 memories from the earlier read stay until you approve')
+  await expect(confirm).toContainText(
+    'The 2 memories from the earlier read stay until the new result is saved',
+  )
   await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(detail).toBeVisible()
   const old = await page.evaluate((id) => window.phosphor.invoke('brain:extraction', id), earlier)
   expect(old.prompts.every((p) => !p.startsWith('Prompt not available'))).toBe(true)
   await detail.getByRole('button', { name: 'Read again', exact: true }).click()
   await confirm.getByRole('button', { name: 'Read again', exact: true }).click()
-  await brainTab(page, 'Inbox').click()
+  await brainTab(page, 'Lanes').click()
   await awaitRead(page, lane)
-  await expect(reviewRow(page, lane)).toContainText('2 memories to review · read again')
+  await expect(waitingRow(page, lane)).toContainText('2 memories')
   for (const memory of old.memories)
     expect(
       await page.evaluate((id) => window.phosphor.invoke('brain:memory', id), memory.id),
     ).toHaveProperty('memory.id', memory.id)
-  const next = await approveLane(page, lane)
+  const next = await defragRead(page, lane)
   expect(next).not.toBe(earlier)
   await brainTab(page, 'Lanes').click()
   // Both reads stay, newest first; the replaced one now counts nothing of its own.
@@ -237,16 +233,13 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
       .toBe('pi-claude-cli/claude-opus-5')
     await page.keyboard.press('Escape')
     await queueLane(page, seed.harbor)
-    await brainTab(page, 'Inbox').click()
+    await brainTab(page, 'Lanes').click()
     await awaitRead(page, seed.harbor)
-    await expect(reviewRow(page, seed.harbor)).toContainText('2 memories to review')
-    await reviewRow(page, seed.harbor).click()
-    const review = page.getByRole('article', { name: 'Review memories', exact: true })
-    await expect(review).toContainText('read by Claude Opus 5')
+    await expect(waitingRow(page, seed.harbor)).toContainText('2 memories')
+    await waitingRow(page, seed.harbor).click()
+    const review = page.getByRole('article', { name: 'Waiting read', exact: true })
     await review.getByRole('button', { name: 'See how it was read', exact: true }).click()
-    await expect(page.getByRole('region', { name: 'Extraction detail' })).toContainText(
-      'Claude Opus 5 · medium thinking',
-    )
+    await expect(page.getByRole('article', { name: 'Read detail' })).toContainText('Claude Opus 5')
     const launches = (await readFile(argvLog, 'utf8'))
       .trim()
       .split('\n')
@@ -266,7 +259,48 @@ test('Brain reads a queued lane with the reader selected in Settings', async () 
   }
 })
 
-test('Brain review wraps a 300-character identity description without sideways scrolling', async () => {
+test('Brain saves with review off and journals a Knowledge edit that can be undone', async () => {
+  const seed = await seedBrainLanes()
+  const h = await launch({
+    workspace: seed.workspace,
+    agentDir: seed.agent,
+    userDataDir: seed.profile,
+    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
+  })
+  const { page } = h
+  try {
+    await enableBrain(page, seed.harbor)
+    await page.locator('.page-shell-header').getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('switch', { name: 'Review before saving' }).click()
+    await expect.poll(async () => (await status(page)).prefs.review).toBe(false)
+    await page.keyboard.press('Escape')
+    await queueLane(page, seed.harbor)
+    await expect
+      .poll(async () => (await status(page)).counts, { timeout: READ_TIMEOUT })
+      .toEqual({ memories: 2, entities: 3 })
+    expect((await status(page)).agent.waiting.reads).toBe(0)
+    await expect(defragButton(page)).toBeDisabled()
+    await exploreBrain(page)
+    const profile = page.getByRole('region', { name: 'Profile', exact: true })
+    await profile.getByRole('button', { name: 'More actions' }).click()
+    await page.getByText('Edit description…', { exact: true }).click()
+    const description = page.getByRole('dialog', { name: 'Describe Rina Okafor' })
+    await description.getByRole('textbox', { name: 'Description' }).fill('Harbor ledger owner')
+    await description.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(profile).toContainText('Harbor ledger owner')
+    await brainTab(page, 'Lanes').click()
+    const recent = page.getByRole('region', { name: 'Recent changes', exact: true })
+    await expect(recent).toContainText('By you')
+    await recent.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect(recent).toContainText('Undone')
+    await brainTab(page, 'Knowledge').click()
+    await expect(profile).not.toContainText('Harbor ledger owner')
+  } finally {
+    await shutdown(h)
+  }
+})
+
+test('Brain waiting memories wrap without sideways scrolling', async () => {
   const seed = await seedBrainLanes()
   const h = await launch({
     workspace: seed.workspace,
@@ -284,44 +318,19 @@ test('Brain review wraps a 300-character identity description without sideways s
       (id) => window.phosphor.invoke('brain:proposal', id),
       job.id,
     )
-    const identity = proposal.identities[0]!
-    identity.decision = 'reuse'
-    identity.entityId = 'harbor-candidate'
-    // Unsure, so it is asked as a question with the candidate's description in view.
-    identity.auto = false
-    identity.candidates = [
-      {
-        id: 'harbor-candidate',
-        label: 'Harbor',
-        kind: 'project',
-        aliases: [],
-        description: 'Harbor and Ledger share a billing workflow with Kestrel. '
-          .repeat(6)
-          .slice(0, 300),
-      },
-      {
-        id: 'ledger-candidate',
-        label: 'Ledger',
-        kind: 'project',
-        aliases: [],
-        description: 'Another project.',
-      },
-    ]
-    // Leave the Inbox first, so the review loads the replaced proposal when it opens again.
+    const sentence = 'Harbor and Ledger share a billing workflow with Kestrel. '
+      .repeat(6)
+      .slice(0, 300)
+    proposal.memories[0]!.summary = sentence
     await brainTab(page, 'Knowledge').click()
     await h.app.evaluate(({ ipcMain }, value) => {
       ipcMain.removeHandler('brain:proposal')
       ipcMain.handle('brain:proposal', () => value)
     }, proposal)
-    await brainTab(page, 'Inbox').click()
-    await reviewRow(page, seed.harbor).click()
-    const review = page.getByRole('article', { name: 'Review memories', exact: true })
-    await expect(review.getByText(identity.candidates[0]!.description)).toBeVisible()
-    const fits = await review
-      .locator('.brain-scroll')
-      .evaluate((pane) => pane.scrollWidth <= pane.clientWidth)
-    expect(fits, 'review scrollWidth <= clientWidth').toBe(true)
-    await expectReviewRowAligned(page)
+    await brainTab(page, 'Lanes').click()
+    await waitingRow(page, seed.harbor).click()
+    const waiting = page.getByRole('article', { name: 'Waiting read', exact: true })
+    await expect(waiting.getByText(sentence)).toBeVisible()
     await expectBrainPanesToFit(page)
   } finally {
     await shutdown(h)
@@ -400,7 +409,7 @@ async function expectBrainPanesToFit(page: Page): Promise<void> {
   await page.setViewportSize(original)
 }
 
-test('Brain caps long read text and anchors a short review action bar', async () => {
+test('Brain caps long read output, prompts and source text', async () => {
   const seed = await seedBrainLanes()
   const h = await launch({
     workspace: seed.workspace,
@@ -449,59 +458,10 @@ test('Brain caps long read text and anchors a short review action bar', async ()
       },
       { proposal, record },
     )
-    await brainTab(page, 'Inbox').click()
-    await reviewRow(page, seed.harbor).click()
-    await expectReviewBarAtBottom(page)
+    await brainTab(page, 'Lanes').click()
+    await waitingRow(page, seed.harbor).click()
     await page.getByRole('button', { name: 'See how it was read', exact: true }).click()
     await expectBoundedReadText(page)
-  } finally {
-    await shutdown(h)
-  }
-})
-
-test('Brain Tidy reviews shared names, opens its rolling notice, checks, keeps the other side and undoes', async () => {
-  // Two reads and a Tidy model batch each get their own budget on a loaded runner.
-  test.setTimeout(240_000)
-  const seed = await seedBrainTidyLanes()
-  const h = await launch({
-    workspace: seed.workspace,
-    agentDir: seed.agent,
-    userDataDir: seed.profile,
-    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
-  })
-  const { page } = h
-  try {
-    await enableBrain(page, seed.harbor)
-    await readTidyLane(page, seed.harbor)
-    await readTidyLane(page, seed.ledger)
-    const count = (await status(page)).tidy.open
-    expect(count).toBeGreaterThan(0)
-    await expect(brainTab(page, 'Inbox')).toContainText(String(count))
-    await expect(brainNav(page)).toHaveAccessibleName(`Brain ${count} to decide`)
-    await brainTab(page, 'Inbox').click()
-    const people = page
-      .getByRole('region', { name: 'Decisions', exact: true })
-      .getByRole('region', { name: 'Same person or thing?', exact: true })
-    await expect(people).toContainText('Rina Okafor')
-    await openTidyNotice(page, count)
-    await page
-      .getByRole('region', { name: 'Tidy check', exact: true })
-      .getByRole('button', { name: /^Check (?:with .+|for repeats)$/ })
-      .click()
-    await expect(
-      page.getByRole('status').filter({ hasText: /^Checking \d+ of \d+$/ }),
-    ).toBeVisible()
-    const detail = page.getByRole('article', { name: 'Tidy suggestion', exact: true })
-    await expect(detail).toContainText('Same supported fixture assertion.', {
-      timeout: READ_TIMEOUT,
-    })
-    await expect(detail).toContainText('Checked by')
-    await mergeOtherAndUndo(page)
-    for (const lane of [seed.harbor, seed.ledger])
-      expect(await readFile(lane.source, 'utf8')).toBe(lane.original)
-  } catch (error) {
-    await attachBrainFailure(page)
-    throw error
   } finally {
     await shutdown(h)
   }

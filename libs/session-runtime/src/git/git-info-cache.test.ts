@@ -134,7 +134,7 @@ describe('display Git cache', () => {
   it('shares symlink aliases but not different worktrees', async () => {
     const root = mkdtempSync(join(tmpdir(), 'phosphor-git-cache-'))
     try {
-      symlinkSync(root, join(root, 'alias'), process.platform === 'win32' ? 'junction' : 'dir')
+      symlinkSync(root, join(root, 'alias'), 'dir')
       const cache = new GitInfoCache()
       const load = vi.fn(async () => info())
       await cache.get(root, 'full', load)

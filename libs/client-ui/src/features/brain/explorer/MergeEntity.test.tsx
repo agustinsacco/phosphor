@@ -11,7 +11,6 @@ import { MockExplorer } from '../mockExplorer'
 import { useBrain } from '../useBrain'
 import { usePromptStore } from '@/stores/prompt'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { emptyBrainTidyPage } from '@shared/brain-tidy'
 import { MergeEntity } from './MergeEntity'
 
 let root: Root,
@@ -40,7 +39,6 @@ beforeEach(() => {
     'brain:entity': read,
     'brain:merge': merge,
     'brain:status': () => status,
-    'brain:tidy': () => emptyBrainTidyPage(status.revision),
     'brain:tidyUndo': undo,
   })
   restore = installFakePhosphor(fake)
@@ -155,4 +153,11 @@ it('reloads Recent changes and distinguishes a raced Undo from an engine refusal
   expect(useExtensionUiStore.getState().toasts[0]!.message).toBe(
     'Later facts prevent a clean undo.',
   )
+})
+
+it('reloads a refused Knowledge merge without using the removed Tidy surface', async () => {
+  merge.mockRejectedValueOnce(new Error('These records cannot be combined.'))
+  await render()
+  await answer()
+  expect(container.textContent).toContain('These records cannot be combined.')
 })

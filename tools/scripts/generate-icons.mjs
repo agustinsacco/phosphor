@@ -11,7 +11,6 @@
  *   apps/desktop/build/icon.png     1024×1024 (linux; install.sh downloads this)
  *   apps/desktop/build/icons/*.png  per-size linux set (electron-builder picks the best)
  *   apps/desktop/build/icon.icns    macOS (via `iconutil`, so darwin-only)
- *   apps/desktop/build/icon.ico     windows (via `npx png-to-ico`, network on first run)
  *   apps/site/public/favicon.svg  a copy of icon.svg
  *   apps/web/public/icons/*.png    regular, Android maskable and Apple touch icons
  *
@@ -31,7 +30,6 @@
  * and commit the regenerated binaries.
  */
 import { chromium } from '@playwright/test'
-import { Buffer } from 'node:buffer'
 import { execFileSync } from 'node:child_process'
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -108,7 +106,7 @@ try {
   console.log('✓ apps/web/public/icons/ (regular, maskable, Apple touch)')
   if (!webOnly) {
     for (const size of SIZES) {
-      // Full-size for linux/windows, inset for the macOS iconset.
+      // Full-size for linux, inset for the macOS iconset.
       writeFileSync(join(tmp, `icon-${size}.png`), await render(browser, size, 1))
       writeFileSync(join(tmp, `mac-${size}.png`), await render(browser, size, MACOS_TILE_RATIO))
     }
@@ -150,43 +148,6 @@ if (process.platform === 'darwin') {
 } else {
   console.log('– skipped icon.icns (iconutil is darwin-only)')
 }
-
-// windows
-//
-// The .ico container is written here rather than via `png-to-ico`, which
-// silently dropped the 128 and 64 entries (the committed icon.ico had only
-// 256/48/32/16, so Windows upscaled 48 into every mid-size slot). The format
-// is a 6-byte header + 16 bytes per entry + the PNG payloads, and PNG-in-ICO
-// is supported by every Windows version this app targets.
-const ICO_SIZES = [256, 128, 64, 48, 32, 16]
-
-const pngs = ICO_SIZES.map((size) => ({ size, data: readFileSync(join(tmp, `icon-${size}.png`)) }))
-
-const header = Buffer.alloc(6)
-header.writeUInt16LE(0, 0) // reserved
-header.writeUInt16LE(1, 2) // type: 1 = icon
-header.writeUInt16LE(pngs.length, 4)
-
-let offset = 6 + 16 * pngs.length
-const entries = pngs.map(({ size, data }) => {
-  const entry = Buffer.alloc(16)
-  entry[0] = size >= 256 ? 0 : size // 0 means 256
-  entry[1] = size >= 256 ? 0 : size
-  entry[2] = 0 // palette colours
-  entry[3] = 0 // reserved
-  entry.writeUInt16LE(1, 4) // colour planes
-  entry.writeUInt16LE(32, 6) // bits per pixel
-  entry.writeUInt32LE(data.length, 8)
-  entry.writeUInt32LE(offset, 12)
-  offset += data.length
-  return entry
-})
-
-writeFileSync(
-  buildDir + '/icon.ico',
-  Buffer.concat([header, ...entries, ...pngs.map((p) => p.data)]),
-)
-console.log(`✓ build/icon.ico (${ICO_SIZES.join(', ')})`)
 
 // site — the browser tab. A plain copy, so `git status` after a mark change
 // shows the site asset alongside the binaries instead of hiding the drift.

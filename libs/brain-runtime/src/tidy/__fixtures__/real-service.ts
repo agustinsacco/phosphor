@@ -1,5 +1,5 @@
 import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -8,7 +8,7 @@ import { openBrainStore } from '@phosphor/memory-engine/store'
 import { openBrainSearch } from '@phosphor/memory-engine/search'
 import type { BrainStore, Proposal } from '@phosphor/memory-engine/types'
 import type { BrainService, BrainServiceOptions, BrainSearchPort } from '../../types'
-import type { ModelCallInput } from '../../model-call'
+import type { ModelCallInput, ModelCallResult } from '../../model-call'
 import { createBrainService } from '../../service'
 
 const cleanups: (() => Promise<void>)[] = []
@@ -32,7 +32,7 @@ function searchPort(path: string): BrainSearchPort {
   }
 }
 
-export async function realService() {
+export async function realService(overrides: Partial<BrainServiceOptions> = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'brain-tidy-integration-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const store = openBrainStore({ path: join(directory, 'brain.sqlite'), Database: DatabaseSync })
@@ -43,31 +43,9 @@ export async function realService() {
     model: 'example/reader',
     neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
-  const call = vi.fn(async (input: ModelCallInput) => {
-    if (input.stage !== 'tidy') throw new Error('Only fake Tidy calls are expected')
-    const pairs = JSON.parse(input.prompt.split('authority="none">\n')[1]!.split('\n</')[0]!) as {
-      ref: string
-      a: { type: string; sentence?: string }
-      b: { sentence?: string }
-    }[]
-    return {
-      text: JSON.stringify({
-        decisions: pairs.map(({ ref, a, b }) => ({
-          ref,
-          verdict:
-            a.type === 'entity'
-              ? 'same'
-              : [a.sentence, b.sentence].every((s) => s?.startsWith('Ledger bills'))
-                ? 'conflict'
-                : 'different',
-          reason:
-            a.type === 'entity'
-              ? 'Both describe the Ledger lead.'
-              : 'The supplied assertions differ.',
-        })),
-      }),
-      usage: { tokens: 0, cost: 0 },
-    }
+  // Nothing here reads a lane: a model call would be a bug.
+  const call = vi.fn(async (_input: ModelCallInput): Promise<ModelCallResult> => {
+    throw new Error('No model call is expected')
   })
   const options: BrainServiceOptions = {
     directory,
@@ -94,6 +72,7 @@ export async function realService() {
     },
     guardExtension: '/made-up/guard.mjs',
     recall: { extension: '/made-up/brain.mjs', skill: '/made-up/brain' },
+    ...overrides,
   }
   const service = await createBrainService(options)
   cleanups.push(() => service.dispose())
@@ -115,11 +94,44 @@ export async function approveRead(
   options: BrainServiceOptions,
   summaries = SUMMARIES,
 ) {
+  const job = await proposeRead(store, options, summaries)
+  store.review(
+    job.id,
+    {
+      memories: summaries.map((_, i) => i),
+      identities: {},
+      groups: [],
+      descriptions: [],
+      confirmations: [],
+    },
+    store.knowledgeRevision(),
+  )
+  // Wake the service after seeding through the real store; no manual-review API remains.
+  await service.api.setPrefs(store.snapshot().prefs)
+  return service.api.status()
+}
+
+/** A read waiting in review with one proposed memory per summary. */
+export async function proposeRead(
+  store: BrainStore,
+  options: BrainServiceOptions,
+  summaries = SUMMARIES,
+) {
+  const lane = { sessionPath: join(options.directory, 'harbor.jsonl'), title: 'Harbor planning' }
+  // A waiting read's lane exists: Brain checks it, as it is now, before every decision.
+  await writeFile(
+    lane.sessionPath,
+    [
+      { type: 'session', id: 'harbor-read', cwd: '/Harbor' },
+      { type: 'session_info', name: lane.title },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n'),
+  )
   const job = store.enqueue(
     {
       sessionId: 'harbor-read',
-      sessionPath: join(options.directory, 'harbor.jsonl'),
-      title: 'Harbor planning',
+      ...lane,
       scope: '/Harbor',
       branch: null,
       model: 'example/reader',
@@ -177,17 +189,7 @@ export async function approveRead(
     })),
     evidence: evidence(summaries, job.sessionId),
   })
-  return service.api.review(
-    job.id,
-    {
-      memories: summaries.map((_, i) => i),
-      identities: {},
-      groups: [],
-      descriptions: [],
-      confirmations: [],
-    },
-    store.knowledgeRevision(),
-  )
+  return store.job(job.id)!
 }
 
 function evidence(summaries: string[], sessionId: string): Proposal['evidence'] {

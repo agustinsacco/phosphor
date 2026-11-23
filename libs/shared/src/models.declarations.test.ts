@@ -128,7 +128,6 @@ const publicExports = [
   'isPiTooOld',
   'normalizeAgentDirectives',
   'normalizeLanePrefs',
-  'piInstallLocation',
 ]
 
 describe('models public declarations', () => {
@@ -171,24 +170,6 @@ describe('models public declarations', () => {
       tooLarge?: boolean
       binary?: boolean
     }>()
-  })
-
-  it('prefers the pi entry script without treating an empty string as absent', () => {
-    expect(
-      models.piInstallLocation({
-        minVersion: '1',
-        ok: true,
-        binaryPath: 'node',
-        prefixArgs: ['pi.js'],
-      }),
-    ).toBe('pi.js')
-    expect(
-      models.piInstallLocation({ minVersion: '1', ok: true, binaryPath: 'pi', prefixArgs: [] }),
-    ).toBe('pi')
-    expect(
-      models.piInstallLocation({ minVersion: '1', ok: true, binaryPath: 'pi', prefixArgs: [''] }),
-    ).toBe('')
-    expect(models.piInstallLocation({ minVersion: '1', ok: false })).toBeUndefined()
   })
 
   it('keeps minimum supported versions', () => {

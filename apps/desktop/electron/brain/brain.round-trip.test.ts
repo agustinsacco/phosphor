@@ -98,6 +98,7 @@ it('returns a Desktop briefing to the pi tool through the daemon dispatcher, the
   expect(agent).toHaveBeenCalledWith(
     'search',
     expect.objectContaining({ query: 'Harbor', sessionId: session, cwd: dir }),
+    expect.any(AbortSignal),
   )
   lifetime.abort()
   expect((await search()).details).toEqual({ status: 'unavailable', memories: 0 })

@@ -1,3 +1,5 @@
+import { useBrain } from '@/features/brain/useBrain'
+import { laneMarker } from '@/lib/laneMarker'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useLaneBrainActions } from './useLaneBrainActions'
 import type { ContextMenuItem } from '@/components/ContextMenu'
@@ -186,6 +188,7 @@ function LocalMarkerPicker({
   onClose: () => void
 }): React.JSX.Element {
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
+  const brainFolder = useBrain((s) => s.status?.agent.folder)
   /**
    * Markers already spoken for on this machine, in any workspace, so the
    * picker can dim them (a Host's picker dims its own lanes' alike).
@@ -206,6 +209,7 @@ function LocalMarkerPicker({
         title={title}
         current={explicitMarker}
         autoKey={git?.branch || meta.cwd}
+        derivedMarker={laneMarker(undefined, git?.branch, meta.cwd, mode, brainFolder)}
         mode={mode}
         usedMarkers={takenMarkers}
         onPick={(next) => {

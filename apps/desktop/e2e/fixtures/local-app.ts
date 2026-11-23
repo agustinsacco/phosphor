@@ -67,6 +67,9 @@ function devServerEnvStripped(): NodeJS.ProcessEnv {
   delete env.ELECTRON_RENDERER_URL
   delete env.NODE_ENV_ELECTRON_VITE
   delete env.ELECTRON_CLI_ARGS
+  // A test launched from a Phosphor lane must only see its own Brain bridge.
+  delete env.PHOSPHOR_BRAIN_ENDPOINT
+  delete env.PHOSPHOR_BRAIN_TOKEN
   return env
 }
 

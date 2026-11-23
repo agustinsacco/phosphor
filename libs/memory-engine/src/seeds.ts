@@ -1,7 +1,7 @@
 import type { BrainEntity } from '@phosphor/shared/brain'
 import { entityMatches, STOPWORDS, wordRows } from './candidates'
 import { all, one, type Context } from './database'
-import { entity, entityNumber } from './entities'
+import { entity, entityNumber, survivingEntityId } from './entities'
 import { tokens, wholePhrase } from './text'
 
 const trimEdges = (text: string): string =>
@@ -57,7 +57,7 @@ export function about(ctx: Context, ids: string[], limit = 50): string[] {
     for (const row of all<{ id: string }>(
       ctx,
       "SELECT m.id FROM mentions a JOIN memories m ON m.n=a.memory WHERE a.entity=? AND m.state IN ('active','disputed') ORDER BY m.observed_at DESC LIMIT ?",
-      entityNumber(ctx, id),
+      entityNumber(ctx, survivingEntityId(ctx, id)),
       limit,
     ))
       result.add(row.id)

@@ -19,25 +19,6 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllEnvs())
 
-it('keeps Windows node and entry-script prefix separate and protects cached prefix arguments', async () => {
-  const prefixArgs = ['C:\\pi\\index.js']
-  h.health.mockResolvedValue({
-    ok: true,
-    binaryPath: 'C:\\node.exe',
-    prefixArgs,
-    minVersion: MIN_PI_VERSION,
-  })
-  const invoker = await resolvePiInvoker('minimal-stub')
-  expect(invoker).toEqual({
-    binaryPath: 'C:\\node.exe',
-    prefixArgs,
-    stub: false,
-    env: { PATH: '/shell/bin', SHELL_SECRET: 'current' },
-  })
-  invoker.prefixArgs.push('caller-only')
-  expect(prefixArgs).toEqual(['C:\\pi\\index.js'])
-})
-
 it.each(['minimal-stub', 'inherited-stub', 'piProcessEnv-stub'] as PiInvocationProfile[])(
   'uses the login-shell environment for real pi under %s',
   async (profile) => {

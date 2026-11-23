@@ -3,6 +3,10 @@ import { all, one, type Bind, type Context } from '../database'
 
 /** Only source rows belong in the journal; counts, FTS and sign bits are projections. */
 export const rowKeys = {
+  jobs: ['id'],
+  proposals: ['job_id'],
+  proposal_vectors: ['job_id', 'kind', 'idx'],
+  extractions: ['job_id'],
   entities: ['n'],
   entity_names: ['n'],
   entity_keys: ['namespace', 'value'],
@@ -30,6 +34,7 @@ export type Rows = Map<RowTable, Map<string, Row>>
 export interface Selection {
   entities: number[]
   memories: number[]
+  jobs?: string[]
 }
 export function knownTable(table: string): table is RowTable {
   return Object.hasOwn(rowKeys, table)
@@ -114,8 +119,13 @@ export function currentRow(ctx: Context, table: RowTable, key: Row): Row | null 
     ) ?? null
   )
 }
-/** `only` narrows the capture to the tables an edit can change; the rest read as empty. */
-export function capture(ctx: Context, selection: Selection, only?: ReadonlySet<RowTable>): Rows {
+/** Read approvals change entity metadata, but only the selected memories' neighbourhood. */
+export function capture(
+  ctx: Context,
+  selection: Selection,
+  only?: ReadonlySet<RowTable>,
+  memoryScoped = false,
+): Rows {
   const rows: Rows = new Map()
   const e = JSON.stringify(selection.entities),
     m = JSON.stringify(selection.memories)
@@ -149,14 +159,14 @@ export function capture(ctx: Context, selection: Selection, only?: ReadonlySet<R
   select(
     'mentions',
     'entity IN (SELECT value FROM json_each(?)) OR memory IN (SELECT value FROM json_each(?))',
-    e,
+    memoryScoped ? '[]' : e,
     m,
   )
   const relations = select(
     'relations',
     'subject IN (SELECT value FROM json_each(?)) OR object IN (SELECT value FROM json_each(?)) OR memory IN (SELECT value FROM json_each(?))',
-    e,
-    e,
+    memoryScoped ? '[]' : e,
+    memoryScoped ? '[]' : e,
     m,
   )
   const support = select(
@@ -172,5 +182,11 @@ export function capture(ctx: Context, selection: Selection, only?: ReadonlySet<R
   )
   const evidence = [...(rows.get('citations')?.values() ?? []), ...support].map((r) => r.evidence)
   select('evidence', 'n IN (SELECT value FROM json_each(?))', JSON.stringify(evidence))
+  for (const table of ['jobs', 'proposals', 'proposal_vectors', 'extractions'] as const)
+    select(
+      table,
+      `${table === 'jobs' ? 'id' : 'job_id'} IN (SELECT value FROM json_each(?))`,
+      JSON.stringify(selection.jobs ?? []),
+    )
   return rows
 }

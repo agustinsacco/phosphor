@@ -13,7 +13,11 @@ import type { OpsChangedEvent } from './ops'
 import type { IpcInvokeMap, IpcInvokeChannel } from '../ipc'
 
 /** The API surface exposed on window.phosphor by the preload script. */
-/** Host platform, normalized. Anything exotic (bsd, sunos) reads as 'linux'. */
+/**
+ * The client's platform, normalized. Desktop reports 'darwin' or 'linux'
+ * (anything exotic reads as 'linux'); 'win32' comes only from the web client
+ * in a browser on Windows.
+ */
 export type PhosphorPlatform = 'darwin' | 'win32' | 'linux'
 
 export interface PhosphorApi {

@@ -39,8 +39,7 @@ beforeEach(() => {
   h.health.mockResolvedValue({
     ok: true,
     minVersion: MIN_PI_VERSION,
-    binaryPath: '/tools/node',
-    prefixArgs: ['/tools/pi.js'],
+    binaryPath: '/tools/pi',
   })
   vi.stubEnv('PHOSPHOR_PI_STUB', '')
   Object.defineProperty(process, 'resourcesPath', {
@@ -54,11 +53,11 @@ afterEach(() => {
   else Reflect.deleteProperty(process, 'resourcesPath')
 })
 
-it('retains shell PATH, provider overrides, Windows prefix arguments and dev resources', async () => {
+it('retains shell PATH, provider overrides and dev resources', async () => {
   const launch = await prepare()
   expect(launch).toMatchObject({
-    binaryPath: '/tools/node',
-    prefixArgs: ['/tools/pi.js'],
+    binaryPath: '/tools/pi',
+    prefixArgs: [],
     stub: false,
     env: {
       PATH: '/login-shell/bin',
@@ -92,7 +91,7 @@ it('ignores the stub in a packaged app and uses real discovery and packaged reso
   h.app.isPackaged = true
   vi.stubEnv('PHOSPHOR_PI_STUB', '/untrusted.cjs')
   const launch = await prepare()
-  expect(launch).toMatchObject({ stub: false, binaryPath: '/tools/node' })
+  expect(launch).toMatchObject({ stub: false, binaryPath: '/tools/pi' })
   expect(launch.env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
   expect(launch.extensions[0]).toBe(join('/desktop/resources', 'pi-ext', 'artifacts.ts'))
   expect(h.app.getAppPath).not.toHaveBeenCalled()

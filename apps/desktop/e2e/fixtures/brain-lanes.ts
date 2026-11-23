@@ -94,11 +94,26 @@ export async function seedBrainLanes() {
   const armed = join(workspace, 'arm-failure')
   const failureDirectory = join(workspace, 'failure')
   const wrapper = join(workspace, 'pi-brain-test.cjs')
+  const audit = join(workspace, 'brain-stub-audit.jsonl')
+  const hold = join(workspace, 'hold-defrag')
   await writeFile(
     wrapper,
-    `if (require('node:fs').existsSync(${JSON.stringify(armed)}))
+    `process.env.PHOSPHOR_STUB_BRAIN_AUDIT = ${JSON.stringify(audit)};
+process.env.PHOSPHOR_STUB_BRAIN_HOLD = ${JSON.stringify(hold)};
+if (require('node:fs').existsSync(${JSON.stringify(armed)}))
   process.env.PHOSPHOR_STUB_BRAIN_FAIL_ONCE = ${JSON.stringify(failureDirectory)};
 require(${JSON.stringify(join(import.meta.dirname, 'pi-stub.cjs'))});\n`,
   )
-  return { workspace, profile, agent, harbor, ledger, armed, failureDirectory, wrapper }
+  return {
+    workspace,
+    profile,
+    agent,
+    harbor,
+    ledger,
+    armed,
+    failureDirectory,
+    wrapper,
+    audit,
+    hold,
+  }
 }

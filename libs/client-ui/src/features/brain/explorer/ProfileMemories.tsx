@@ -12,7 +12,7 @@ import { TooltipButton } from '@/components/Tooltip'
 import { useBrain } from '../useBrain'
 import { useBrainResource } from '../useBrainResource'
 import { MEMORY_LABELS } from '../memoryLabels'
-import { REVIEW_TYPE_ORDER } from '../inbox/reviewModel'
+import { MEMORY_TYPE_ORDER } from '../memoryLabels'
 import { MemoryOpen, MemoryRow, type MemoryRowActions } from './MemoryRow'
 import { brainLaneTitle } from '../laneTitle'
 
@@ -68,7 +68,7 @@ export function ProfileMemories({
             count={all}
             onClick={() => onFilters({ ...filters, type: '' })}
           />
-          {REVIEW_TYPE_ORDER.filter((type) => counts[type] > 0).map((type) => (
+          {MEMORY_TYPE_ORDER.filter((type) => counts[type] > 0).map((type) => (
             <TypeChip
               key={type}
               pressed={filters.type === type}

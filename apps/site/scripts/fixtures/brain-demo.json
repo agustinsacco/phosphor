@@ -19,7 +19,7 @@
       "id": "rina",
       "label": "Rina Okafor",
       "kind": "person",
-      "description": "Owns Ledger migrations; identity must be confirmed in review",
+      "description": "Owns Ledger migrations for the Harbor pilot",
       "aliases": []
     },
     {
@@ -178,7 +178,7 @@
           "id": "rina",
           "label": "Rina Okafor",
           "kind": "person",
-          "description": "Owns Ledger migrations; identity must be confirmed in review",
+          "description": "Owns Ledger migrations for the Harbor pilot",
           "aliases": []
         }
       ],
@@ -506,7 +506,7 @@
           "id": "rina",
           "label": "Rina Okafor",
           "kind": "person",
-          "description": "Owns Ledger migrations; identity must be confirmed in review",
+          "description": "Owns Ledger migrations for the Harbor pilot",
           "aliases": []
         },
         {

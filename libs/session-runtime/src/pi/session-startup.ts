@@ -32,7 +32,8 @@ export interface SessionStartupRuntime {
     forget: (sessionId: string) => void
     hold: (accountId: string, until: number) => Promise<void>
   }
-  recordWorkspace: (path: string, name: string) => void
+  /** `last: false` adds the folder to the recents without making it the launch folder. */
+  recordWorkspace: (path: string, name: string, remember?: { last: boolean }) => void
   laneReload?: Pick<LaneReload, 'capture' | 'track'>
   /** Spawn inputs later features add; absent or empty leaves argv and env as the policy built them. */
   contributions?: readonly SpawnContribution[]
@@ -76,9 +77,14 @@ function completeStartup(
   if (!session.client.alive) throw new Error('Session stopped during startup.')
   if (accountId) runtime.accounts.remember(session.sessionId, accountId)
   runtime.laneReload?.track(session.sessionId, laneConfig, session.client)
-  // Automation must not replace the user's launch-resume folder.
-  if (!execution.unattended)
-    runtime.recordWorkspace(options.workspacePath, basename(options.workspacePath))
+  // Automation must not replace the user's launch-resume folder; a lane Phosphor opens for its
+  // own work (the Brain lane) only joins the recents.
+  if (!execution.unattended) {
+    const name = basename(options.workspacePath)
+    if (execution.keepLastWorkspace)
+      runtime.recordWorkspace(options.workspacePath, name, { last: false })
+    else runtime.recordWorkspace(options.workspacePath, name)
+  }
   return {
     sessionId: session.sessionId,
     workspacePath: session.workspacePath,

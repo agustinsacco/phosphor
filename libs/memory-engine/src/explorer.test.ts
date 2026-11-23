@@ -114,6 +114,6 @@ it('merge repoints mentions, keys, names and duplicate support, removes self-lin
   expect(store.memory(old.id).linkQuotes[store.memory(old.id).memory.links[0]!.id]).toHaveLength(1)
   expect(store.entity(target.id).merged).toContain('Rina Okafor')
   expect(store.entity(target.id).entity.aliases).toContain('Rina')
-  expect(() => store.entity(source.id)).toThrow('not found')
+  expect(store.entity(source.id)).toEqual(store.entity(target.id))
   expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
 })

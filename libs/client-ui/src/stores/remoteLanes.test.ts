@@ -247,6 +247,49 @@ it('hydrates on open and replaces artifacts after an artifact tool ends, includi
   )
 })
 
+it('reads artifacts again once the turn ends, since pi writes tool results after the tool ends', async () => {
+  const snapshot = {
+    id: 'nvda-position-month',
+    title: 'NVDA',
+    type: 'html',
+    versions: [{ version: 1, title: 'NVDA', content: '<p/>', createdAt: 1 }],
+  }
+  let persisted = false
+  invoke.mockImplementation(async (channel) =>
+    channel === 'artifacts:forSession' ? (persisted ? [snapshot] : []) : mockRemoteInfo,
+  )
+  await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+  const reads = () => invoke.mock.calls.filter(([channel]) => channel === 'artifacts:forSession')
+  const before = reads().length
+  // A codemode script's nested write: its end arrives before anything is on disk.
+  push?.({
+    kind: 'event',
+    event: {
+      type: 'tool_execution_end',
+      toolCallId: 'call/1',
+      toolName: 'artifact_create',
+      result: { content: [] },
+      isError: false,
+      parentToolCallId: 'call',
+    },
+  })
+  await vi.waitFor(() => expect(reads().length).toBe(before + 1))
+  persisted = true
+  push?.({
+    kind: 'event',
+    event: {
+      type: 'turn_end',
+      message: { role: 'user', content: '', timestamp: 0 },
+      toolResults: [],
+    },
+  })
+  await vi.waitFor(() =>
+    expect(
+      Object.keys(useArtifactsStore.getState().bySession[mockRemoteInfo.sessionId] ?? {}),
+    ).toEqual(['nvda-position-month']),
+  )
+})
+
 it.each(['reconnect', 'epoch'] as const)(
   'refreshes authoritative artifacts after %s',
   async (change) => {

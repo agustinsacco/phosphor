@@ -24,16 +24,17 @@ extraResources:
     to: host-install.sh
   - from: build/icons/32x32.png
     to: routine-tray.png
-  # brain.ts and brain-fork-guard.ts import workspace packages pi cannot
-  # resolve from an installed app; they ship only as brain-ext's bundles.
+  # The brain*.ts sources import workspace packages pi cannot resolve from an
+  # installed app; they ship only as brain-ext's bundles.
   - from: ../../libs/pi-extensions/pi-ext
     to: pi-ext
     filter: ['**/*.ts', '!**/*.test.ts', '!brain*.ts']
   # Staged by the main build (electron.vite.config.ts). Lanes load brain.mjs
-  # only while Brain recall is on; knowledge forks load the guard.
+  # only while Brain recall is on; knowledge forks load the guard; the Brain
+  # lane loads brain-curator.mjs instead of brain.mjs.
   - from: ../../libs/pi-extensions/brain-ext
     to: brain-ext
-    filter: ['brain.mjs', 'brain-fork-guard.mjs']
+    filter: ['brain.mjs', 'brain-fork-guard.mjs', 'brain-curator.mjs']
   - from: build/brain-third-party-notices.md
     to: brain-third-party-notices.md
   - from: ../../libs/pi-extensions/skills
@@ -122,36 +123,6 @@ linux:
       arch: [x64, arm64]
     - target: deb
       arch: [x64, arm64]
-
-win:
-  icon: build/icon.ico
-  files:
-    - '!**/node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}{,/**}'
-    - '!**/node_modules/onnxruntime-node/bin/napi-v6/win32/!(${arch}){,/**}'
-  # Same shape as the mac/linux names, so checksums.txt, the release-notes
-  # link and the finalize job's asset check can all name it without a space:
-  # electron-builder's NSIS default is `Phosphor Setup 0.1.x.exe`.
-  artifactName: ${productName}-${version}-${arch}.${ext}
-  # Unsigned unless WIN_CSC_LINK is set in CI (release-continuous.yml). An
-  # unsigned installer opens through SmartScreen's "More info → Run anyway";
-  # electron-updater still self-updates an unsigned install, because it only
-  # verifies the downloaded installer's signature when the running app has a
-  # publisherName to compare against — which an unsigned build has not.
-  target:
-    - target: nsis
-      arch: [x64]
-
-nsis:
-  # Per-user (no UAC prompt), with the classic installer so the destination
-  # can be changed. `perMachine: false` is also what lets electron-updater
-  # replace the install without elevation.
-  oneClick: false
-  allowToChangeInstallationDirectory: true
-  perMachine: false
-  shortcutName: Phosphor
-  # Uninstall leaves %APPDATA%\Phosphor (prefs, drafts, window state) alone,
-  # exactly as removing the macOS bundle does.
-  deleteAppDataOnUninstall: false
 
 publish:
   provider: github

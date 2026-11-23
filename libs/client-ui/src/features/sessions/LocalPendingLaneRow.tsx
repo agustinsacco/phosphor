@@ -1,3 +1,4 @@
+import { useBrain } from '@/features/brain/useBrain'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo } from '@shared/models'
@@ -79,8 +80,7 @@ export function PendingSessionRow({
   // slot that appeared only after the swap would shift the title mid-turn —
   // the exact twitch the shared subtitle above exists to avoid. There is no
   // meta.path yet, so there can be no explicit override: always Auto.
-  const markerMode = useLanePrefsStore((s) => s.lanes.markers)
-  const marker = laneMarker(undefined, git?.branch, null, markerMode)
+  const { marker, markerMode } = usePendingMarker(phosphorId, git?.branch)
 
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState('')
@@ -193,4 +193,12 @@ export function PendingSessionRow({
       {body}
     </TooltipButton>
   )
+}
+
+/** Pending and persisted rows must derive the same marker before the file arrives. */
+function usePendingMarker(id: string, branch: string | undefined) {
+  const markerMode = useLanePrefsStore((s) => s.lanes.markers)
+  const brainFolder = useBrain((s) => s.status?.agent.folder)
+  const cwd = useSessionsStore((s) => s.live[id]?.workspacePath)
+  return { markerMode, marker: laneMarker(undefined, branch, cwd, markerMode, brainFolder) }
 }

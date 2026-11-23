@@ -104,6 +104,11 @@
      invisible. Violet is the only hue not already spoken for here. */
   --px-merged: #7c5cbf;
   --px-merged-soft: #efe9fa;
+  /* Closed-without-merging PRs. Deliberately NOT --px-danger: red is the one
+     colour the sidebar means "a build needs you", and a PR you abandoned asks
+     for nothing. It reads as spent ink, not an alarm. */
+  --px-closed: #6a6a78;
+  --px-closed-soft: #e9e9ee;
   --px-info: #47708f;
   --px-user-bubble: #eeeef1;
   --px-code-bg: #f2f2f4;
@@ -162,6 +167,8 @@
   --px-danger-soft: #46302a;
   --px-merged: #a98ce0;
   --px-merged-soft: #2f2740;
+  --px-closed: #a8a298;
+  --px-closed-soft: #35312a;
   --px-info: #82a9c9;
   --px-user-bubble: #2f2b24;
   --px-code-bg: #24211c;
@@ -194,6 +201,8 @@
   --color-danger-soft: var(--px-danger-soft);
   --color-merged: var(--px-merged);
   --color-merged-soft: var(--px-merged-soft);
+  --color-closed: var(--px-closed);
+  --color-closed-soft: var(--px-closed-soft);
   --color-info: var(--px-info);
   --color-user-bubble: var(--px-user-bubble);
   --color-code-bg: var(--px-code-bg);
@@ -366,7 +375,7 @@ html {
   background: var(--px-accent);
 }
 
-/* Window drag region: macOS traffic lights, Windows/Linux controls overlay */
+/* Window drag region: macOS traffic lights, Linux controls overlay */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
@@ -377,7 +386,7 @@ html {
 }
 
 /*
- * On Windows/Linux the Window Controls Overlay paints close/minimize over the
+ * On Linux the Window Controls Overlay paints close/minimize over the
  * top-right of the page, so anything in that strip must inset past them.
  * `titlebar-area-width` is the width NOT covered by the controls; the fallback
  * of 100vw collapses this to the plain 0.75rem gutter on macOS, where the env
@@ -396,7 +405,7 @@ html {
 
 /*
  * The mirror image, for the top-LEFT corner: only macOS parks window controls
- * there (the traffic lights, ~70px under `hiddenInset`). On Windows/Linux the
+ * there (the traffic lights, ~70px under `hiddenInset`). On Linux the
  * controls are top-right — .titlebar-inset-end's job — so this collapses to a
  * plain gutter. Previously a 44px-tall vertical spacer above the sidebar's
  * workspace switcher; with a single top bar the corner has exactly one

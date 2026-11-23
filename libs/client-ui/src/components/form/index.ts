@@ -1,5 +1,6 @@
 export {
   Button,
+  CheckRow,
   NumberField,
   Row,
   SectionTitle,

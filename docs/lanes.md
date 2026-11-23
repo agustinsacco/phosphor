@@ -198,7 +198,8 @@ An emoji pinned left of the title. Two rules, both about the **column**:
    has to re-find it on each row.
 2. **The fallback is derived, not stored.** Explicit choices live in
    `AppPrefs.laneMarkers` keyed by session path; every other lane hashes its
-   **branch**. Phosphor does not add fields to pi's session format.
+   **branch**, except the Brain lane, whose derived marker is 🧠
+   ([Brain](brain.md#brain-agent)). Phosphor does not add fields to pi's session format.
 
 Keying on the branch, not the title, matters: a session is named only after
 its first turn **ends**, so a title-derived marker would change under you the
@@ -220,7 +221,7 @@ not be supported by older systems. Skin-tone variations are consolidated into
 base emoji. No image CDN or network access is needed.
 
 **None** explicitly clears a lane. **Auto** removes its override and returns to
-the branch-derived marker; in Manual mode this action is labelled **Default**
+the derived marker; in Manual mode this action is labelled **Default**
 and leaves the lane unmarked. Escape or Cancel leaves the choice unchanged.
 Explicit choices persist across reloads and mode changes. The picker dims
 markers other lanes on the same machine chose explicitly, in any workspace:
@@ -552,7 +553,7 @@ own, so colour is never the only signal:
 | ------------------- | ------- | --------------------------- |
 | `failing`           | danger  | ✕                           |
 | `conflict`          | danger  | !                           |
-| `closed`            | danger  | a slash                     |
+| `closed`            | closed  | a slash                     |
 | `pending`           | warning | a half-filled clock, static |
 | `blocked` (changes) | warning | ↺                           |
 | `review`            | success | ✓                           |
@@ -564,7 +565,10 @@ own, so colour is never the only signal:
 A failing optional check reads red: the bead says what GitHub shows, and the
 tooltip says it is not required. Merged gets its own colour because in the
 success colour "merged" and "in review" are indistinguishable, and those are
-the two states the sidebar is scanned to tell apart.
+the two states the sidebar is scanned to tell apart. Closed gets a third
+because red is the one colour that means "a build needs you", and a PR you
+abandoned needs nothing: it reads as spent ink, so the red beads in a list are
+only ever the ones worth opening.
 
 One tooltip for the whole group lists every PR on its own line ("#57 Failing ·
 Rocky review failed (not required)"), including those behind `+N`; the group's
@@ -804,6 +808,17 @@ unless the archive changes. When a machine's archives pass 1 GB, Phosphor shows
 one toast per machine and account and a warning on the page. It never cleans up
 on its own.
 
+One search box filters every machine by title or path. **Select all** on a
+machine enters select mode with the same row boxes and bulk bar as the sidebar
+([Deleting lanes](#deleting-lanes)), and offers **Clean up…** for the whole
+selection: one confirm lists the entries, asks once, and defaults to keeping
+every checkout. Ticking worktree removal names how many dedicated worktrees go,
+and the acknowledgement has to be renewed whenever that choice changes. The
+cleanup runs one entry at a time and keeps going after a refusal, because the
+machine checks ownership per entry and one shared checkout must not hold up the
+rest; whatever survived stays listed. A cleanup in progress holds that machine's
+list, so no second operation can act on an entry the first already removed.
+
 A Host offers Archive when its `ready` frame carries `laneArchive: true`
 ([Host](host.md#lane-archives)). On an older Host, Archive is disabled; Phosphor
 never falls back to deleting.
@@ -866,7 +881,12 @@ A missing transcript is not an error; other failures stay visible in the
 confirmation so archiving can be retried. Pending rows do not invent a
 timestamp from the current time.
 
-Concurrent opens of the same transcript share one process. Main serializes
+Concurrent opens of the same transcript share one process. Opening a lane whose turn is
+running, such as the Brain lane during Defrag, loads its history and then follows the turn:
+the lane shows it running, with Stop, from the moment it opens; events that arrived during the
+load apply once; an answer pi began before the lane opened gets its own message, never the last
+finished one; and artifacts made meanwhile stay. If the load fails, Retry loads it again the
+same way, and nothing is kept from the failed attempt. Main serializes
 resume and deletion by transcript path, cancels queued or hung startup opens,
 and stops every matching writer (including
 handles not yet adopted by the renderer), then trashes the file. Deleting a
@@ -1076,6 +1096,6 @@ sizes for at most four worktrees at a time, rather than spawning subprocesses
 for every registered checkout together. These bounds do not queue interactive
 Git operations behind background scans.
 
-Sizes come from `du`, which Windows lacks; an unmeasured size reports "unknown"
+Sizes come from `du`; an unmeasured size reports "unknown"
 and the policy never depends on the number. The scheduler is a plain interval
 in main with a 5-minute warmup and a 15-minute floor, one sweep at a time.

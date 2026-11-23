@@ -5,7 +5,7 @@ import {
 import { assertInAppRuntime } from '../local-machine/mode'
 
 // The frozen packages.characterization.test.ts mocks these through './print-mode'.
-export { OWN_GROUP, killProcessTree } from '@phosphor/session-runtime/pi/print-mode'
+export { killProcessTree } from '@phosphor/session-runtime/pi/print-mode'
 export type { PrintModeOptions }
 
 /** Keep Desktop's established result shape; transport failure categories are Host-local. */

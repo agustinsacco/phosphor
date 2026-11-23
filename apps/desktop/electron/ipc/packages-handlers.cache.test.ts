@@ -20,7 +20,6 @@ vi.mock('../pi/catalogue', () => ({
 vi.mock('node:child_process', () => ({ spawn: h.spawn, execFile: vi.fn() }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => '/stub.cjs', claudeBinOverride: () => undefined }))
 vi.mock('../pi/print-mode', () => ({
-  OWN_GROUP: true,
   killProcessTree: vi.fn(),
   runPrintMode: vi.fn(),
 }))

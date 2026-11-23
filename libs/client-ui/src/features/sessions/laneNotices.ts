@@ -1,3 +1,4 @@
+import { useBrain } from '@/features/brain/useBrain'
 import type { ChatSessionState } from '@/features/chat/chatItems'
 import { laneReceipt } from './laneReceipt'
 import { remoteLaneMarker } from './remoteLaneView'
@@ -56,6 +57,7 @@ export function notifyLane(
       sessions.gitByCwd[live.workspacePath]?.branch,
       live.workspacePath,
       useLanePrefsStore.getState().lanes.markers,
+      useBrain.getState().status?.agent.folder,
     ),
     onOpen: () => navigateToLane({ sessionId }),
   })

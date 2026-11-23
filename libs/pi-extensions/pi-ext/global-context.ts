@@ -45,13 +45,21 @@ export const GLOBAL_CONTEXT_NAMES = [
 type Refresh = (block: ContextBlock) => string | null
 
 /**
- * The section with its global block replaced by `file`: unchanged when it
- * already matches or the shape is unknown, null when nothing is left.
+ * Where a swapped block goes: the global file first, as pi orders it; a lane
+ * folder's own file (Brain Agent's rules, brain-curator.ts) last.
+ */
+export type ContextPlacement = 'first' | 'last'
+
+/**
+ * The section with the block of `agentDir`'s file replaced by `file`:
+ * unchanged when it already matches or the shape is unknown, null when
+ * nothing is left.
  */
 export function swapGlobalContext(
   section: string | undefined,
   file: ContextFile | null,
   agentDir: string,
+  placement: ContextPlacement = 'first',
   refresh: Refresh = (block) => block.text,
 ): string | null | undefined {
   if (section === undefined)
@@ -59,10 +67,9 @@ export function swapGlobalContext(
   const blocks = parseProjectContext(section)
   if (!blocks) return section
   const project = blocks.filter((block) => !isGlobalContextPath(block.path, agentDir))
-  const texts = [
-    ...(file ? [renderContextBlock(file)] : []),
-    ...project.map(refresh).filter((text): text is string => text !== null),
-  ]
+  const own = file ? [renderContextBlock(file)] : []
+  const others = project.map(refresh).filter((text): text is string => text !== null)
+  const texts = placement === 'first' ? [...own, ...others] : [...others, ...own]
   if (texts.length === blocks.length && texts.every((text, i) => text === blocks[i]!.text))
     return section
   return texts.length ? renderProjectContext(texts) : null
@@ -99,6 +106,7 @@ export function applyGlobalContext(
   messages: unknown[],
   file: ContextFile | null,
   agentDir: string,
+  placement: ContextPlacement = 'first',
   refresh: Refresh = (block) => block.text,
 ): boolean {
   let changed = false
@@ -110,7 +118,7 @@ export function applyGlobalContext(
     leading = false
     const current = m.sections?.project_context
     if (current === null || (current === undefined && !isLeading)) continue
-    const next = swapGlobalContext(current, file, agentDir, refresh)
+    const next = swapGlobalContext(current, file, agentDir, placement, refresh)
     if (next === current) continue
     changed = true
     if (current === undefined) m.sections = withContextSection(m.sections ?? {}, next!)
@@ -150,12 +158,12 @@ export function liveSystemPrompt(
     return added ? `${prompt}\n\n${added}` : prompt
   }
   const section = prompt.slice(start, end + '\n</project_context>'.length)
-  const next = swapGlobalContext(section, file, agentDir, refresh)
+  const next = swapGlobalContext(section, file, agentDir, 'first', refresh)
   return `${prompt.slice(0, start)}${next ?? ''}${prompt.slice(start + section.length)}`
 }
 
 /** pi was told to load no context files at all; the swap must not add one. */
-function contextFilesDisabled(argv: readonly string[]): boolean {
+export function contextFilesDisabled(argv: readonly string[]): boolean {
   return argv.includes('--no-context-files') || argv.includes('-nc')
 }
 
@@ -186,6 +194,7 @@ export default function globalContext(
         messages,
         read(),
         agentDir,
+        'first',
         refresh((ctx as { cwd?: string } | undefined)?.cwd),
       )
     )

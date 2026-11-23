@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AgentMessage, ImageContent } from '@shared/rpc'
+import type { AgentMessage, ImageContent, PiEvent } from '@shared/rpc'
 import type { ArtifactSnapshot } from '@shared/artifacts'
 import { ipcErrorText } from '@shared/errors'
 import { parseSwarmStatus, SWARM_STATUS_KEY } from '@phosphor/pi-extensions/swarm'
@@ -8,7 +8,7 @@ import { useChatStore } from '@/stores/chat'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useChatUiStore } from '@/features/chat/uiState'
-import { piCall, rehydrateTranscript } from '@/lib/rpc'
+import { piCall, rehydrateRunningTranscript, rehydrateTranscript } from '@/lib/rpc'
 import { requestSwarm } from '@/lib/swarm'
 import { drop } from '@/stores/keyedSlice'
 
@@ -21,6 +21,25 @@ export const useSessionTransition = create<{ bySession: Record<string, Transitio
   bySession: {},
 }))
 const queue = new Map<string, Promise<void>>()
+/**
+ * Every event of a lane main already ran when this window opened it, from the moment its push
+ * handler attached until its history has loaded: a running turn's history keeps the events pi's
+ * messages do not hold yet.
+ */
+const sinceAttach = new Map<string, { events: PiEvent[]; stop(): void }>()
+
+function recordSinceAttach(id: string): void {
+  if (sinceAttach.has(id)) return
+  const events: PiEvent[] = []
+  const stop = window.phosphor.onSessionPush(id, (push) => {
+    if (push.kind === 'event') events.push(push.event)
+  })
+  sinceAttach.set(id, { events, stop })
+}
+function stopRecording(id: string): void {
+  sinceAttach.get(id)?.stop()
+  sinceAttach.delete(id)
+}
 
 function setTransition(id: string, state?: Transition): void {
   useSessionTransition.setState((s) => ({
@@ -29,6 +48,7 @@ function setTransition(id: string, state?: Transition): void {
 }
 export function forgetSessionTransition(id: string): void {
   setTransition(id)
+  stopRecording(id)
 }
 export function sessionTransitionPending(id: string): boolean {
   return (
@@ -84,12 +104,31 @@ function transition(id: string, mutate: () => Promise<Restore | undefined>): Pro
   return run
 }
 
-/** Used by resume, closed clones and live branch changes, including recovery. */
-export function restoreSession(id: string): Promise<void> {
-  return transition(id, async () => () => restoreBranch(id))
+/**
+ * Used by resume, closed clones and live branch changes, including recovery. `alreadyLive`: main
+ * already ran the lane, which may be mid-turn. Call it in the task that attached the lane's push
+ * handler, before any await, so the recording a running turn's history needs misses no event.
+ */
+export function restoreSession(id: string, alreadyLive = false): Promise<void> {
+  if (alreadyLive) recordSinceAttach(id)
+  const restore = async () => {
+    // A retry records again from here: a load that failed keeps nothing it recorded.
+    if (alreadyLive) recordSinceAttach(id)
+    try {
+      await restoreBranch(id, undefined, alreadyLive)
+    } finally {
+      stopRecording(id)
+    }
+  }
+  // Nor does an open that never loads: the lane closed, or it already waits on Retry.
+  return transition(id, async () => restore).finally(() => stopRecording(id))
 }
 
-async function restoreBranch(id: string, afterIdentity?: Restore): Promise<void> {
+async function restoreBranch(
+  id: string,
+  afterIdentity?: Restore,
+  alreadyLive = false,
+): Promise<void> {
   if (!(await bootstrapSession(id)))
     throw new Error('Could not refresh session identity. Retry loading the session.')
   if (!useSessionsStore.getState().live[id] || !useSessionTransition.getState().bySession[id])
@@ -98,16 +137,17 @@ async function restoreBranch(id: string, afterIdentity?: Restore): Promise<void>
   const file = useSessionsStore.getState().live[id]?.diskPath
   if (!file) throw new Error('Session identity is unavailable. Retry loading the session.')
   const chat = useChatStore.getState().sessions[id]
-  if (
-    chat?.isStreaming ||
-    chat?.isCompacting ||
-    chat?.meta?.isStreaming ||
-    chat?.meta?.isCompacting
-  )
+  const busy =
+    chat?.isStreaming || chat?.isCompacting || chat?.meta?.isStreaming || chat?.meta?.isCompacting
+  if (busy && !alreadyLive)
     throw new Error('Wait for this turn to finish, then retry loading the session.')
+  // A lane main runs mid-turn loads beside its live events; any other load must hold still.
+  const running = busy && alreadyLive
   const artifactsBefore = useArtifactsStore.getState().bySession[id]
   const [messages, snapshots] = await Promise.all([
-    rehydrateTranscript(id, true),
+    running
+      ? rehydrateRunningTranscript(id, sinceAttach.get(id)?.events ?? [])
+      : rehydrateTranscript(id, true),
     window.phosphor.invoke('artifacts:forSession', file),
   ])
   const current = useChatStore.getState().sessions[id]
@@ -117,10 +157,18 @@ async function restoreBranch(id: string, afterIdentity?: Restore): Promise<void>
     !useSessionTransition.getState().bySession[id]
   )
     return
-  if (useArtifactsStore.getState().bySession[id] !== artifactsBefore)
+  if (!running && useArtifactsStore.getState().bySession[id] !== artifactsBefore)
     throw new Error('Artifacts changed while loading. Retry when the turn finishes.')
   if (!messages) throw new Error(current.error ?? 'Could not load session history.')
-  replaceArtifacts(id, messages, snapshots ?? [])
+  if (running) mergeArtifacts(id, messages, snapshots ?? [])
+  else replaceArtifacts(id, messages, snapshots ?? [])
+}
+
+/** A running lane's artifacts: the stored ones join those it made while its history loaded. */
+function mergeArtifacts(id: string, messages: AgentMessage[], snapshots: ArtifactSnapshot[]): void {
+  const artifacts = useArtifactsStore.getState()
+  if (snapshots.length) artifacts.hydrate(id, snapshots)
+  else artifacts.ingestFromHistory(id, messages)
 }
 
 function replaceArtifacts(

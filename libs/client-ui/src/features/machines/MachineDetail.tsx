@@ -9,7 +9,6 @@ import { TooltipSummary } from '@/components/Tooltip'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { CopyCommand, Troubleshooting } from './MachineControls'
 import { MachineDetailHeader } from './MachineDetailHeader'
-import { MachineFilesButton } from './MachineFilesButton'
 import { useHostOverview, type MachineOverview } from './machineOverview'
 import { HOST_SERVICE_STATUS, relativeTime } from './machinePresentation'
 import { Card, CheckRow } from './MachineUi'
@@ -150,7 +149,7 @@ export function HostMachineDetail({
   return <MachineDetail overview={useHostOverview(machine, now, offset)} {...rest} />
 }
 
-/** The same views for every machine: this Overview, its Settings and its files. */
+/** The same views for every machine: this Overview and its Settings. */
 function MachineViews({ overview }: { overview: MachineOverview }): React.JSX.Element {
   const openSettings = useOpenSettings()
   return (
@@ -165,7 +164,6 @@ function MachineViews({ overview }: { overview: MachineOverview }): React.JSX.El
       >
         Settings
       </UnderlinedTab>
-      <MachineFilesButton machine={overview} />
     </nav>
   )
 }

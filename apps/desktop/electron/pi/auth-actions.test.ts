@@ -121,13 +121,13 @@ describe('startLoginWithBrowser', () => {
 describe('createLoginTerminal', () => {
   it('uses fresh real pi discovery even when a stub is configured', async () => {
     vi.stubEnv('PHOSPHOR_PI_STUB', '/stub.cjs')
-    state.health.mockResolvedValueOnce({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
+    state.health.mockResolvedValueOnce({ ok: true, binaryPath: '/opt/pi' })
     const env = { PATH: '/shell/bin', CUSTOM: 'kept' }
     state.env.mockResolvedValueOnce(env)
     expect(await createLoginTerminal(120, 42)).toEqual({ ptyId: 'pty' })
     expect(state.create).toHaveBeenNthCalledWith(1, '/sign-in', 120, 42, undefined, {
-      file: '/node',
-      args: ['/pi.js', '--no-session', '--no-approve'],
+      file: '/opt/pi',
+      args: ['--no-session', '--no-approve'],
       env,
     })
     expect(state.create.mock.calls[0]![4].env).toBe(env)

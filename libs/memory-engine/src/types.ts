@@ -1,4 +1,5 @@
 import type { BrainTidyStore } from './tidy/types'
+import type { BrainAgentStore } from './agent/types'
 import type { BrainEntitySort } from '@phosphor/shared/brain-explore'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
@@ -73,7 +74,7 @@ export interface JobPart {
 }
 
 /** The single writer: queue, proposals, review and the Explorer's indexed reads. Synchronous. */
-export interface BrainStore extends BrainTidyStore {
+export interface BrainStore extends BrainTidyStore, BrainAgentStore {
   snapshot(): BrainSnapshot
   setPrefs(prefs: BrainPrefs): BrainPrefs
   revision(): number

@@ -29,8 +29,6 @@ export function createShellEnvironment(policy: Policy, timeoutMs = 15_000) {
       const shell = probeEnv.SHELL || userInfo().shell || '/bin/zsh'
       const result = await captureShellEnvironment({
         shell: () => shell,
-        env: () => probeEnv,
-        platform: () => policy.platform,
         now: Date.now,
         // PATH in env -0 also distinguishes a successful empty allowlist from a failed probe.
         accepts: (name) => name === 'PATH' || acceptsShellName(name, policy.pass ?? []),

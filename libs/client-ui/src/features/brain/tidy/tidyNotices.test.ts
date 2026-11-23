@@ -1,48 +1,32 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { emptyBrainTidyPage, type BrainTidyPage } from '@shared/brain-tidy'
-import {
-  createFakePhosphor,
-  installFakePhosphor,
-} from '../../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
+import { beforeEach, expect, it } from 'vitest'
 import { mockBrainStatus } from '../mockBrainData'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useLayoutStore } from '@/stores/layout'
 import { createTidyNotices } from './tidyNotices'
 import { useBrainNavigation } from '../brainNavigation'
+import type { BrainAgentRun } from '@shared/brain-agent'
 
-let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
-const list = vi.fn<() => Promise<BrainTidyPage>>()
+const run: BrainAgentRun = {
+  id: 'run',
+  state: 'running',
+  total: 31,
+  decided: 31,
+  erased: 2,
+  undoable: 29,
+  queuedAt: 1,
+  startedAt: 2,
+  finishedAt: null,
+  error: null,
+  sessionPath: null,
+  rulesChanged: false,
+}
 beforeEach(() => {
-  vi.useFakeTimers()
   useNotificationsStore.setState({ items: [], open: false })
   useExtensionUiStore.setState({ toasts: [] })
   useLayoutStore.setState({ page: null })
   useBrainNavigation.setState({ request: 0, tab: null, target: null })
-  list.mockReset().mockResolvedValue({
-    ...emptyBrainTidyPage(),
-    run: {
-      state: 'done',
-      suggestions: 8,
-      folded: 2,
-      checked: 12,
-      total: 12,
-      startedAt: 100,
-      finishedAt: 200,
-      message: null,
-      error: null,
-      model: null,
-      settled: 0,
-    },
-  })
-  fake = createFakePhosphor({ 'brain:tidy': list })
-  restore = installFakePhosphor(fake)
-})
-afterEach(() => {
-  restore()
-  fake.dispose()
-  vi.useRealTimers()
 })
 const enabled = () => {
   const s = mockBrainStatus()
@@ -50,155 +34,76 @@ const enabled = () => {
   return s
 }
 const notices = () => useNotificationsStore.getState().items
-const flush = async () => {
-  await Promise.resolve()
-  await Promise.resolve()
-}
-it('treats existing suggestions and automatic folds at startup as a silent baseline', () => {
+it('keeps startup and suggestion increases silent', () => {
   const observe = createTidyNotices(),
     status = enabled()
-  status.tidy = {
-    ...status.tidy,
-    open: 12,
-    automaticFolds: 4,
-    newestSuggestionAt: 10,
-    newestAutomaticFoldAt: 10,
-  }
   observe(status)
-  observe(structuredClone(status))
+  observe({
+    ...status,
+    agent: { ...status.agent, waiting: { ...status.agent.waiting, repeats: 10 } },
+  })
   expect(notices()).toEqual([])
-  expect(useExtensionUiStore.getState().toasts).toEqual([])
 })
-it('replaces one rolling notice only on an increase, and opens the Brain Inbox', async () => {
+it('announces the result in the single Brain notice, opening Lanes', async () => {
   const observe = createTidyNotices(),
     status = enabled()
-  observe(status)
-  observe({ ...status, tidy: { ...status.tidy, open: 3, newestSuggestionAt: 10 } })
-  observe({ ...status, tidy: { ...status.tidy, open: 5, newestSuggestionAt: 20 } })
+  observe({ ...status, agent: { ...status.agent, run } })
+  observe({ ...status, agent: { ...status.agent, run: { ...run, state: 'done', finishedAt: 50 } } })
   expect(notices()).toHaveLength(1)
-  expect(notices()[0]).toMatchObject({ key: 'brain:tidy', message: 'Brain has 5 things to tidy' })
-  expect(useExtensionUiStore.getState().toasts.filter((t) => !t.leaving)).toHaveLength(1)
-  observe({ ...status, tidy: { ...status.tidy, open: 4, newestSuggestionAt: 30 } })
-  expect(notices()[0]!.message).toBe('Brain has 5 things to tidy')
+  expect(notices()[0]!.message).toBe('Brain Agent decided 31 things and erased 2')
   await notices()[0]!.onOpen?.()
-  expect(useLayoutStore.getState().page).toBe('brain')
-  expect(useBrainNavigation.getState()).toMatchObject({ request: 1, target: { tab: 'inbox' } })
+  expect(useBrainNavigation.getState().target).toEqual({ tab: 'lanes', recent: false })
 })
-it('keeps one automatic-fold toast in the panel opening Lanes › Recent changes', async () => {
+it('stays quiet when Brain is open and clears its notice when Brain is off', () => {
+  const observe = createTidyNotices(),
+    status = enabled()
+  observe({ ...status, agent: { ...status.agent, run } })
+  useLayoutStore.setState({ page: 'brain' })
+  observe({ ...status, agent: { ...status.agent, run: { ...run, state: 'stopped' } } })
+  expect(notices()).toEqual([])
+  useLayoutStore.setState({ page: null })
+  observe({ ...status, agent: { ...status.agent, run } })
+  observe({ ...status, agent: { ...status.agent, run: { ...run, state: 'done' } } })
+  expect(notices()).toHaveLength(1)
+  observe(mockBrainStatus())
+  expect(notices()).toEqual([])
+})
+it('keeps automatic folds outside Defrag in the same notice, and suppresses those inside it', () => {
   const observe = createTidyNotices(),
     status = enabled()
   observe(status)
   observe({ ...status, tidy: { ...status.tidy, automaticFolds: 3, newestAutomaticFoldAt: 10 } })
   expect(notices()[0]!.message).toBe('Brain folded 3 exact repeats')
-  await notices()[0]!.onOpen?.()
-  expect(useBrainNavigation.getState().target).toEqual({ tab: 'lanes', recent: true })
-})
-it('announces a finished click only while elsewhere, without a second suggestions notice', async () => {
-  const observe = createTidyNotices(),
-    status = enabled()
-  observe(status)
-  observe({ ...status, tidy: { ...status.tidy, running: true } })
-  observe({ ...status, tidy: { ...status.tidy, open: 8, newestSuggestionAt: 10 } })
-  await flush()
-  expect(notices()).toHaveLength(1)
-  expect(notices()[0]!.message).toBe(
-    'Brain Tidy found 8 things to tidy and folded 2 exact repeats.',
-  )
-  useLayoutStore.setState({ page: 'brain' })
-  useBrainNavigation.setState({ tab: 'inbox' })
-  observe({ ...status, tidy: { ...status.tidy, running: true } })
-  observe(status)
-  await flush()
-  expect(list).toHaveBeenCalledOnce()
-})
-it('offers a route to Retry when the completion read fails, then succeeds on the next run', async () => {
-  list.mockRejectedValueOnce(new Error('Tidy result unavailable'))
-  const observe = createTidyNotices(),
-    status = enabled()
-  observe(status)
-  observe({ ...status, tidy: { ...status.tidy, running: true } })
-  observe(status)
-  await flush()
-  expect(notices()[0]!.message).toContain('Open the Brain Inbox to retry')
-  observe({ ...status, tidy: { ...status.tidy, running: true } })
-  observe(status)
-  await flush()
-  expect(notices()).toHaveLength(1)
-  expect(notices()[0]!.message).toContain('found 8')
-})
-it('ignores an older completion reply and says nothing when disabled or unsupported', async () => {
-  let resolve!: (page: BrainTidyPage) => void
-  list.mockImplementationOnce(
-    () =>
-      new Promise((r) => {
-        resolve = r
-      }),
-  )
-  const observe = createTidyNotices(),
-    status = enabled()
-  observe(status)
-  observe({ ...status, tidy: { ...status.tidy, running: true } })
-  observe(status)
-  observe({ ...status, tidy: { ...status.tidy, running: true } })
-  resolve({
-    ...emptyBrainTidyPage(),
-    run: {
-      state: 'failed',
-      checked: 0,
-      total: 0,
-      suggestions: 0,
-      folded: 0,
-      startedAt: 1,
-      finishedAt: 2,
-      message: null,
-      error: 'Old error',
-      model: null,
-      settled: 0,
-    },
-  })
-  await flush()
-  expect(notices()).toEqual([])
   observe({
     ...status,
-    supported: false,
-    tidy: { ...status.tidy, open: 12, newestSuggestionAt: 10 },
+    agent: { ...status.agent, run },
+    tidy: { ...status.tidy, automaticFolds: 6, newestAutomaticFoldAt: 20 },
   })
-  observe(mockBrainStatus())
-  expect(notices()).toEqual([])
-})
-it('removes Tidy notices when Brain is switched off and re-enabling establishes a new baseline', () => {
-  const observe = createTidyNotices(),
-    status = enabled()
-  observe(status)
-  const newer = { ...status, tidy: { ...status.tidy, open: 3, newestSuggestionAt: 10 } }
-  observe(newer)
+  expect(notices()[0]!.message).toBe('Brain folded 3 exact repeats')
+  observe({ ...status, agent: { ...status.agent, run: { ...run, state: 'done' } } })
   expect(notices()).toHaveLength(1)
-  observe({ ...newer, prefs: { ...newer.prefs, enabled: false } })
-  expect(notices()).toEqual([])
-  observe(newer)
-  expect(notices()).toEqual([])
+  expect(notices()[0]!.message).toBe('Brain Agent decided 31 things and erased 2')
 })
-it('counts one repeat, one thing to tidy and a run that folded nothing in plain words', async () => {
+
+it('marks a stopped Defrag notice as stopped while keeping its changes', () => {
   const observe = createTidyNotices(),
     status = enabled()
-  observe(status)
-  observe({ ...status, tidy: { ...status.tidy, automaticFolds: 1, newestAutomaticFoldAt: 10 } })
-  expect(notices()[0]!.message).toBe('Brain folded 1 exact repeat')
-  const folded = {
-    ...status,
-    tidy: { ...status.tidy, automaticFolds: 1, newestAutomaticFoldAt: 10 },
-  }
-  observe({ ...folded, tidy: { ...folded.tidy, open: 1, newestSuggestionAt: 20 } })
-  expect(notices().find((n) => n.key === 'brain:tidy')!.message).toBe('Brain has 1 thing to tidy')
-  list.mockResolvedValue({
-    ...emptyBrainTidyPage(),
-    run: { ...(await list()).run!, suggestions: 1, folded: 0 },
+  observe({ ...status, agent: { ...status.agent, run } })
+  observe({ ...status, agent: { ...status.agent, run: { ...run, state: 'stopped' } } })
+  expect(notices()[0]).toMatchObject({
+    kind: 'info',
+    message: 'Brain Agent decided 31 things and erased 2 · stopped',
   })
-  const ran = { ...folded, tidy: { ...folded.tidy, open: 1, newestSuggestionAt: 20 } }
-  observe({ ...ran, tidy: { ...ran.tidy, running: true } })
-  observe(ran)
-  await flush()
-  expect(notices().find((n) => n.key === 'brain:tidy:finished')!.message).toBe(
-    'Brain Tidy found 1 thing to tidy.',
-  )
+})
+
+it.each(['Ledger unavailable', null])('announces a failed Defrag as an error (%s)', (error) => {
+  const observe = createTidyNotices(),
+    status = enabled()
+  observe({ ...status, agent: { ...status.agent, run } })
+  observe({
+    ...status,
+    agent: { ...status.agent, run: { ...run, state: 'failed', decided: 0, erased: 0, error } },
+  })
+  expect(notices()[0]).toMatchObject({ kind: 'error', message: error ?? 'Defrag failed.' })
+  expect(useExtensionUiStore.getState().toasts.at(-1)?.kind).toBe('error')
 })

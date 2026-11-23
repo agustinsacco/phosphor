@@ -2,14 +2,11 @@ import { useEffect, useState } from 'react'
 import { create } from 'zustand'
 import type { BrainStatus } from '@shared/brain'
 import { useLayoutStore } from '@/stores/layout'
-import { inboxCount } from './inbox/inboxItems'
 
-export type BrainTab = 'inbox' | 'knowledge' | 'lanes'
+export type BrainTab = 'knowledge' | 'lanes'
 /** Where a notice, toast or another page asks the Brain page to go. */
 export type BrainTarget =
-  | { tab: 'inbox'; item?: string }
-  | { tab: 'lanes'; recent?: boolean; jobId?: string }
-  | { tab: 'knowledge'; search?: boolean }
+  { tab: 'lanes'; recent?: boolean; jobId?: string } | { tab: 'knowledge'; search?: boolean }
 export const useBrainNavigation = create<{
   /** Counts every openBrain() and never goes back, so each request has its own number. */
   request: number
@@ -23,14 +20,13 @@ export function openBrain(target: BrainTarget): void {
   useLayoutStore.getState().setPage('brain')
 }
 
-/** Open the Inbox on its suggestions, or Lanes on its newest recent change. */
+/** Open Lanes, optionally on its newest recent change. */
 export function openTidy(recent = false): void {
-  openBrain(recent ? { tab: 'lanes', recent: true } : { tab: 'inbox' })
+  openBrain({ tab: 'lanes', recent })
 }
 
-/** Something to decide opens the Inbox; otherwise knowledge, or the reads that will bring it. */
+/** Start with knowledge, or the reads that will bring it. */
 export function firstBrainTab(status: BrainStatus): BrainTab {
-  if (inboxCount(status)) return 'inbox'
   return !status.counts.memories && status.jobs.length ? 'lanes' : 'knowledge'
 }
 
@@ -54,6 +50,6 @@ export function useBrainTab(status: BrainStatus) {
   return { tab, setTab, target }
 }
 
-export function inboxIsVisible(): boolean {
-  return useLayoutStore.getState().page === 'brain' && useBrainNavigation.getState().tab === 'inbox'
+export function brainIsVisible(): boolean {
+  return useLayoutStore.getState().page === 'brain'
 }

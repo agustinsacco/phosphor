@@ -35,7 +35,8 @@ export function useLaneBrainActions(
 } {
   const status = useBrain((s) => s.status)
   const localBrain = usePlatform().localBrain
-  if (!localBrain || !status?.prefs.enabled || !meta.path) return { context: {}, handlers: {} }
+  if (!localBrain || !status?.prefs.enabled || !meta.path || meta.cwd === status.agent.folder)
+    return { context: {}, handlers: {} }
   const index = laneIndex(status)
   const job = index.active.get(meta.path)
   return {

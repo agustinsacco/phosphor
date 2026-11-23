@@ -1,12 +1,13 @@
+import type { JournalNote } from '../agent/notes'
 import { checkBrainTidyAction, type BrainTidyAction } from '@phosphor/shared/brain-tidy'
-import { run, transaction, type Context } from '../database'
+import { one, run, transaction, type Context } from '../database'
 import { removeMemory } from '../merge'
 import { pruneExtractions } from '../extractions'
 import { bumpRevision, bumpKnowledgeRevision } from '../prefs'
-import { checkRevision } from './journal'
+import { checkRevision, journal } from './journal'
 import { changeMemories, mergeChange } from './operations'
 import { actionRefusal } from './action-guards'
-import { openSuggestion } from './suggestions'
+import { openSuggestion, type SuggestionRow } from './suggestions'
 import { removableNames, removeNameChange } from './entity-edits'
 import { fold } from '../text'
 
@@ -15,57 +16,15 @@ export function apply(
   id: string,
   raw: BrainTidyAction,
   expected: number,
+  note?: JournalNote,
 ): string | null {
   const action = checkBrainTidyAction(raw)
   return transaction(ctx, () => {
     checkRevision(ctx, expected)
-    const row = openSuggestion(ctx, id)
-    const refusal = actionRefusal(ctx, row, action.kind)
+    const row = openSuggestion(ctx, id, !!note)
+    const refusal = actionRefusal(ctx, row, action.kind, !!note)
     if (refusal) throw new Error(refusal)
-    const ids = [row.first_id, row.second_id]
-    let operation: string | null = null
-    if (action.kind === 'merge' && ids.includes(action.survivorId)) {
-      operation = mergeChange(
-        ctx,
-        ids.find((s) => s !== action.survivorId)!,
-        action.survivorId,
-        id,
-      )
-    } else if (action.kind === 'fold' && ids.includes(action.survivorId)) {
-      operation = changeMemories(
-        ctx,
-        ids.find((s) => s !== action.survivorId)!,
-        action.survivorId,
-        'fold',
-        { suggestionId: id },
-      )
-    } else if (action.kind === 'dispute') {
-      operation = changeMemories(ctx, row.first_id, row.second_id!, 'dispute', { suggestionId: id })
-    } else if (action.kind === 'replace' && ids.includes(action.newerId)) {
-      operation = changeMemories(
-        ctx,
-        action.newerId,
-        ids.find((s) => s !== action.newerId)!,
-        'replace',
-        { suggestionId: id },
-      )
-    } else if (action.kind === 'unname' && ids.includes(action.entityId)) {
-      if (
-        !removableNames(ctx, row.first_id, row.second_id!).some(
-          (name) => name.entityId === action.entityId && name.folded === fold(action.name),
-        )
-      )
-        throw new Error('That is not a name these records share.')
-      operation = removeNameChange(ctx, action.entityId, action.name, id)
-      bumpKnowledgeRevision(ctx)
-    } else if (action.kind === 'forget' || action.kind === 'keep') {
-      if (action.kind === 'forget') {
-        removeMemory(ctx, row.first_id)
-        pruneExtractions(ctx)
-      }
-      if (action.kind === 'forget') bumpKnowledgeRevision(ctx)
-      else bumpRevision(ctx)
-    } else throw new Error('This action does not apply to this Tidy suggestion.')
+    const operation = applyAction(ctx, row, action, note)
     run(
       ctx,
       'UPDATE tidy_suggestions SET state=?,updated_at=? WHERE id=?',
@@ -76,4 +35,89 @@ export function apply(
     )
     return operation
   })
+}
+function applyAction(
+  ctx: Context,
+  row: SuggestionRow,
+  action: BrainTidyAction,
+  note?: JournalNote,
+): string | null {
+  const ids = [row.first_id, row.second_id],
+    id = row.id
+  if (action.kind === 'merge' && ids.includes(action.survivorId))
+    return mergeChange(
+      ctx,
+      ids.find((s) => s !== action.survivorId)!,
+      action.survivorId,
+      id,
+      note,
+    )
+  if (action.kind === 'fold' && ids.includes(action.survivorId))
+    return changeMemories(
+      ctx,
+      ids.find((s) => s !== action.survivorId)!,
+      action.survivorId,
+      'fold',
+      { suggestionId: id, note },
+    )
+  if (action.kind === 'dispute')
+    return changeMemories(ctx, row.first_id, row.second_id!, 'dispute', { suggestionId: id, note })
+  if (action.kind === 'replace' && ids.includes(action.newerId))
+    return changeMemories(
+      ctx,
+      action.newerId,
+      ids.find((s) => s !== action.newerId)!,
+      'replace',
+      { suggestionId: id, note },
+    )
+  if (action.kind === 'unname' && ids.includes(action.entityId)) {
+    if (
+      !removableNames(ctx, row.first_id, row.second_id!).some(
+        (name) => name.entityId === action.entityId && name.folded === fold(action.name),
+      )
+    )
+      throw new Error('That is not a name these records share.')
+    const operation = removeNameChange(ctx, action.entityId, action.name, id, note)
+    bumpKnowledgeRevision(ctx)
+    return operation
+  }
+  if (action.kind === 'keep' && note) return keepChange(ctx, row, note)
+  if (action.kind === 'forget') {
+    removeMemory(ctx, row.first_id)
+    pruneExtractions(ctx)
+    bumpKnowledgeRevision(ctx)
+    return null
+  }
+  if (action.kind === 'keep') {
+    bumpRevision(ctx)
+    return null
+  }
+  throw new Error('This action does not apply to this Tidy suggestion.')
+}
+function keepChange(ctx: Context, row: SuggestionRow, note: JournalNote): string {
+  const operation = journal(
+    ctx,
+    {
+      kind: 'keep',
+      note,
+      suggestionId: row.id,
+      subjects: {
+        type: row.subject_type,
+        first: row.first_id,
+        second: row.second_id ?? row.first_id,
+      },
+      selection: { entities: [], memories: [] },
+      summary: keepSummary(ctx, row),
+    },
+    () => undefined,
+  )
+  bumpRevision(ctx)
+  return operation
+}
+function keepSummary(ctx: Context, row: SuggestionRow): string {
+  if (row.kind === 'flagged') return 'Kept the flagged memory'
+  if (row.subject_type === 'memory') return 'Kept both memories'
+  const label = (id: string) =>
+    one<{ label: string }>(ctx, 'SELECT label FROM entities WHERE id=?', id)!.label
+  return `Not the same: ${label(row.first_id)} and ${label(row.second_id!)}`
 }

@@ -26,11 +26,12 @@ const appRoot = resolve(import.meta.dirname, '../..')
 const root = resolve(appRoot, '../..')
 const library = join(root, 'libs/pi-extensions')
 // This is the existing unpacked production inventory, including the imported
-// budget, context-file and global-instructions helpers, the artifact store format the artifacts extension reads, and
+// budget, context-file and global-instructions helpers, the artifact store format the artifacts extension reads, its nested-write saver, and
 // the optional gate, the dependency-free status/widget key vocabulary, the set
 // pi-subagents children load, and the agent-control stubs no spawn loads yet.
 // Python helpers remain source-only as before.
 const shippedFiles = [
+  'artifact-nested.ts',
   'artifact-store.ts',
   'artifacts.ts',
   'context-breakdown.ts',
@@ -58,7 +59,12 @@ const shippedFiles = [
 ]
 // Exported for source, build and test consumers; packaged resources carry only
 // their standalone bundles (brain-ext/), never these TypeScript sources.
-const bundleOnlySources = ['brain.ts', 'brain-fork-guard.ts']
+const bundleOnlySources = [
+  'brain.ts',
+  'brain-fork-guard.ts',
+  'brain-curator.ts',
+  'brain-curator-writes.ts',
+]
 
 describe('standalone pi extension resources', () => {
   it('exports production source files without exposing tests', () => {

@@ -1,4 +1,4 @@
-import { piInstallLocation, type PiHealth } from '@shared/models'
+import type { PiHealth } from '@shared/models'
 import { Button } from '@/components/form'
 import type { PackageJobState } from '@/features/settings/usePackageJob'
 import { JobOutput } from '@/features/settings/JobOutput'
@@ -46,7 +46,7 @@ export function PiMissingScreen({
 
         {health.version && (
           <p className="text-text-tertiary mt-3 text-base">
-            Found version {health.version} at {piInstallLocation(health)} — minimum supported is{' '}
+            Found version {health.version} at {health.binaryPath} — minimum supported is{' '}
             {health.minVersion}.
           </p>
         )}

@@ -138,9 +138,11 @@ export class BrainAppService {
         const service = await source()
         const recall = !!(await service.recallLaunch())
         if (this.owner !== owner || recall === owner.registered) continue
-        this.bridge ??= this.open((method, input) =>
-          service.agent(method, validateBrainRequest(method, input)),
-        ).catch((err: unknown) => {
+        // Host lanes hold only the lane token; this bridge's curator token is never handed out.
+        this.bridge ??= this.open(async (method, input, signal, role) => {
+          if (role !== 'lane') throw new Error('Brain request unavailable')
+          return service.agent(method, validateBrainRequest(method, input), signal)
+        }).catch((err: unknown) => {
           this.bridge = undefined
           throw err
         })

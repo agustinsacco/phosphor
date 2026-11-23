@@ -1,3 +1,4 @@
+import type { JournalNote } from '../agent/notes'
 import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@phosphor/shared/brain'
 import { all, one, run, transaction, type Context } from '../database'
 import { createEntity, entityNumber, recountEntities, refreshEntityWords } from '../entities'
@@ -24,7 +25,13 @@ const ENTITY_ROW = new Set<RowTable>(['entities'])
 const NAMES = new Set<RowTable>(['entity_names'])
 
 /** Replaces a description (trimmed, 1–160 characters, scrubbed like a read's). Undoable. */
-export function describeEntity(ctx: Context, id: string, value: string, expected: number): string {
+export function describeEntity(
+  ctx: Context,
+  id: string,
+  value: string,
+  expected: number,
+  note?: JournalNote,
+): string {
   const description = scrubExcerpt(value.trim())
   if (!description || description.length > 160)
     throw new Error('A description needs 1 to 160 characters.')
@@ -40,6 +47,7 @@ export function describeEntity(ctx: Context, id: string, value: string, expected
         subjects: { type: 'entity', first: id, second: id },
         selection: { entities: [entity.n], memories: [] },
         only: ENTITY_ROW,
+        note,
         summary: `Changed the description of ${entity.label}`,
       },
       () => {
@@ -86,6 +94,7 @@ export function removeNameChange(
   id: string,
   name: string,
   suggestionId?: string,
+  note?: JournalNote,
 ): string {
   const entity = record(ctx, id)
   if (fold(name) === fold(entity.label))
@@ -106,6 +115,7 @@ export function removeNameChange(
       only: NAMES,
       summary: `Removed the name "${row.name}" from ${entity.label}`,
       suggestionId,
+      note,
     },
     () => {
       run(ctx, 'DELETE FROM entity_grams WHERE rowid=?', row.n)
@@ -114,10 +124,16 @@ export function removeNameChange(
     },
   )
 }
-export function removeName(ctx: Context, id: string, name: string, expected: number): string {
+export function removeName(
+  ctx: Context,
+  id: string,
+  name: string,
+  expected: number,
+  note?: JournalNote,
+): string {
   return transaction(ctx, () => {
     checkRevision(ctx, expected)
-    const operation = removeNameChange(ctx, id, name)
+    const operation = removeNameChange(ctx, id, name, undefined, note)
     bumpKnowledgeRevision(ctx)
     return operation
   })
@@ -139,6 +155,7 @@ export function splitEntity(
   memoryIds: string[],
   target: SplitTarget,
   expected: number,
+  note?: JournalNote,
 ): string {
   const label = target.label.trim()
   if (
@@ -174,6 +191,7 @@ export function splitEntity(
       kind: 'split' as const,
       subjects: { type: 'entity' as const, first: id, second: id },
       selection: { entities: [] as number[], memories: moving },
+      note,
       summary: `Split ${label} from ${entity.label}`,
     }
     const operation = journal(ctx, input, () => {

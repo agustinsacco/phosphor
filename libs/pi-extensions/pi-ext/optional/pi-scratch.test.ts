@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { permissionDecision } from './permission-gate'
 
 const helper = fileURLToPath(new URL('./pi-scratch.py', import.meta.url))
-describe.skipIf(process.platform === 'win32')('opt-in scratch helper (Python 3.11+)', () => {
+describe('opt-in scratch helper (Python 3.11+)', () => {
   let home: string
   let root: string
   const run = (...args: string[]): string =>

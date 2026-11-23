@@ -115,7 +115,9 @@ function ProfilePane({
   if (entity)
     return (
       <KnowledgeProfile
+        key={entity.id}
         visit={entity}
+        onReplace={state.replace}
         trail={trail}
         map={map}
         connectionsRequest={view.connectionsRequest}

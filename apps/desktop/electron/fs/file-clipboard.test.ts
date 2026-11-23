@@ -10,7 +10,7 @@ vi.mock('electron', () => ({
     },
   },
 }))
-import { dropPaths, readFileClipboard, uriPaths, writeFilePaths } from './file-clipboard'
+import { readFileClipboard, uriPaths, writeFilePaths } from './file-clipboard'
 beforeEach(() => data.clear())
 
 it('round trips internal copy/cut and does not interpret copied text as file paths', async () => {
@@ -21,18 +21,10 @@ it('round trips internal copy/cut and does not interpret copied text as file pat
   expect(await readFileClipboard()).toEqual({ paths: [], cut: false })
 })
 
-it('decodes URL and Windows multi-file lists', () => {
-  const url = process.platform === 'win32' ? 'file:///C:/a%20b.txt' : 'file:///tmp/a%20b.txt'
+it('decodes file URL lists', () => {
+  const url = 'file:///tmp/a%20b.txt'
   expect(uriPaths(`# comment\nhttps://example.com\n${url}\nfile:%%%`)).toHaveLength(1)
   expect(uriPaths(url)[0]).toContain('a b.txt')
-  const header = Buffer.alloc(20)
-  header.writeUInt32LE(20, 0)
-  header.writeUInt32LE(1, 16)
-  expect(dropPaths(Buffer.concat([header, Buffer.from('C:\\a\0C:\\b\0\0', 'utf16le')]))).toEqual([
-    'C:\\a',
-    'C:\\b',
-  ])
-  expect(dropPaths(Buffer.alloc(5))).toEqual([])
 })
 
 it.skipIf(process.platform !== 'darwin')(

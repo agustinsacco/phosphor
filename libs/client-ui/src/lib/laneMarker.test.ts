@@ -89,3 +89,11 @@ describe('laneMarker modes', () => {
     expect(laneMarker(undefined, 'phosphor/x', '/cwd')).toBe(autoMarker('phosphor/x'))
   })
 })
+
+it('derives the Brain Agent marker only in auto mode, without overriding explicit choices', () => {
+  expect(laneMarker(undefined, null, '/brain/Brain', 'auto', '/brain/Brain')).toBe('🧠')
+  expect(laneMarker('🐙', null, '/brain/Brain', 'auto', '/brain/Brain')).toBe('🐙')
+  expect(laneMarker('', null, '/brain/Brain', 'auto', '/brain/Brain')).toBe('')
+  expect(laneMarker(undefined, null, '/brain/Brain', 'manual', '/brain/Brain')).toBe('')
+  expect(laneMarker(undefined, null, '/brain/Brain', 'off', '/brain/Brain')).toBe('')
+})

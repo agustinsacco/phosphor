@@ -40,7 +40,7 @@ it('remembers descriptions across restarts and failures, never stores config cre
   expect(failed.discoveredAt).toBe(success.discoveredAt)
   expect(await new McpInspectionCache(path).get(key)).toEqual(failed)
   expect(await readFile(path, 'utf8')).not.toContain('secret-value')
-  if (process.platform !== 'win32') expect((await stat(path)).mode & 0o777).toBe(0o600)
+  expect((await stat(path)).mode & 0o777).toBe(0o600)
 })
 it('isolates workspaces and invalidates changed connector configuration', async () => {
   const cache = new McpInspectionCache(await cachePath())

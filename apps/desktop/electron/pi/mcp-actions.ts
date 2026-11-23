@@ -35,7 +35,6 @@ export async function piCli(workspacePath: string | undefined): Promise<PiCli | 
   if (!health.binaryPath) return null
   return {
     binaryPath: health.binaryPath,
-    ...(health.prefixArgs ? { prefixArgs: health.prefixArgs } : {}),
     ...(health.version ? { version: health.version } : {}),
     cwd,
     env: await piProcessEnv(),

@@ -192,7 +192,7 @@ explicit timeout (#530).
 | TL-06 | tooling   | medium | Align development Node floor and Node types without changing shipped runtime                                                          | TL-04        |
 | TL-07 | security  | high   | Make Desktop installer checksum verification fail closed                                                                              | -            |
 | TL-09 | fix       | low    | Bring local CONTROL_DB validation to CI parity                                                                                        | -            |
-| TL-10 | dead-code | high   | Remove obsolete Windows smoke and pre-relocation release fallback                                                                     | TL-02        |
+| TL-10 | dead-code | high   | Remove pre-relocation release fallback                                                                                                | TL-02        |
 | TL-11 | docs      | low    | Correct verified living-document drift without deleting unverified issues                                                             | TL-07, TL-09 |
 | TL-14 | decompose | medium | Extract CI baseline selection without changing conservative fallback                                                                  | -            |
 

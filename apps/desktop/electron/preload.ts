@@ -42,8 +42,7 @@ function subscribe<A extends unknown[]>(
 
 const api: PhosphorApi = {
   // A sandboxed preload still gets `process.platform` from Electron's polyfill.
-  platform:
-    process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux',
+  platform: process.platform === 'darwin' ? 'darwin' : 'linux',
 
   invoke<C extends IpcInvokeChannel>(channel: C, ...args: IpcInvokeMap[C]['args']) {
     return ipcRenderer.invoke(channel, ...args) as Promise<IpcInvokeMap[C]['result']>

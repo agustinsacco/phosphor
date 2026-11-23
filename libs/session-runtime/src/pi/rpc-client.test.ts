@@ -73,6 +73,22 @@ describe('headless PiRpcClient', () => {
     )
   })
 
+  it('reports each response as pi prints it, in order with the events around it', async () => {
+    const instance = client({ log: vi.fn(), isClosing: () => false })
+    const order: string[] = []
+    instance.on('response', (response) => order.push(`response ${response.command}`))
+    const ended = new Promise<void>((resolve) => {
+      instance.on('event', (event) => {
+        order.push(event.type)
+        if (event.type === 'agent_end') resolve()
+      })
+    })
+    await instance.request({ type: 'get_state' })
+    await instance.request({ type: 'prompt', message: 'hello' })
+    await ended
+    expect(order.slice(0, 3)).toEqual(['response get_state', 'response prompt', 'agent_start'])
+  })
+
   it('keeps shutdown and logging scoped to the supplied runtime', async () => {
     let closing = false
     const firstLog = vi.fn()

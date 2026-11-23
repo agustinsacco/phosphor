@@ -173,7 +173,7 @@ describe('phosphor service', () => {
     const f = fixture()
     expect(await runService(f.context, 'install')).toBe(69)
     for (const action of ['install', 'status', 'restart', 'logs', 'uninstall'] as const)
-      expect(await runService({ ...f.context, platform: 'win32' }, action)).toBe(69)
+      expect(await runService({ ...f.context, platform: 'freebsd' }, action)).toBe(69)
     expect(f.calls).toEqual([])
     expect(machine.output).toContain('not supported on this platform yet')
   })

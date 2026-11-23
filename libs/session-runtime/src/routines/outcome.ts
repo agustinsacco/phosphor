@@ -1,4 +1,4 @@
-import type { AgentMessage } from '@phosphor/shared/rpc'
+import type { AgentMessage, AssistantMessage } from '@phosphor/shared/rpc'
 import type { RoutineRunStatus } from '@phosphor/shared/routines'
 
 export interface RunOutcome {
@@ -7,12 +7,29 @@ export interface RunOutcome {
   summary?: string
 }
 
+/**
+ * How a run's last assistant message ended: `missing` when the run has none, `aborted`, `error`
+ * (a provider or pi error, with or without `errorMessage`), or `ended` normally.
+ */
+export type AssistantEnd =
+  { kind: 'missing' } | { kind: 'aborted' | 'error' | 'ended'; message: AssistantMessage }
+
+/** The last assistant message of `messages` (an `agent_end`'s) and how it ended. */
+export function lastAssistantEnd(messages: readonly AgentMessage[]): AssistantEnd {
+  const last = messages.filter((m) => m.role === 'assistant').at(-1)
+  if (!last || last.role !== 'assistant') return { kind: 'missing' }
+  if (last.stopReason === 'aborted') return { kind: 'aborted', message: last }
+  if (last.errorMessage || last.stopReason === 'error') return { kind: 'error', message: last }
+  return { kind: 'ended', message: last }
+}
+
 /** A finished agent turn is not proof that a report or external write succeeded. */
 export function outcomeForMessages(messages: AgentMessage[], toolErrors: boolean): RunOutcome {
-  const last = messages.filter((m) => m.role === 'assistant').at(-1)
-  if (!last || last.role !== 'assistant')
+  const end = lastAssistantEnd(messages)
+  if (end.kind === 'missing')
     return { status: 'failed', reason: 'No assistant result was received.' }
-  if (last.errorMessage || last.stopReason === 'error' || last.stopReason === 'aborted') {
+  const last = end.message
+  if (end.kind !== 'ended') {
     return { status: 'failed', reason: last.errorMessage || `Agent stopped: ${last.stopReason}.` }
   }
   const summary = last.content

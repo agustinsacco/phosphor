@@ -1,7 +1,7 @@
 import { ArchiveNotices } from '@/features/archive/ArchiveNotices'
 import { useBrain } from '@/features/brain/useBrain'
 import { useBrainSync } from '@/features/brain/useBrainSync'
-import { inboxCount } from '@/features/brain/inbox/inboxItems'
+import { waitingCount } from '@/features/brain/agentStatus'
 import { usePlatform } from '@/platform/Platform'
 import type { GlobalPage } from '@/stores/layout'
 import { NavigationItem } from './NavigationItem'
@@ -22,7 +22,7 @@ export function PageLinks({
 }): React.JSX.Element {
   useBrainSync()
   const enabled = useBrain((s) => s.status?.prefs.enabled)
-  const decisions = useBrain((s) => inboxCount(s.status))
+  const decisions = useBrain((s) => waitingCount(s.status))
   const localBrain = usePlatform().localBrain
   return (
     <>
@@ -39,7 +39,7 @@ export function PageLinks({
               page === 'brain' && decisions > 0 ? (
                 <span
                   className="text-accent ml-auto text-xs tabular-nums"
-                  aria-label={`${decisions} to decide`}
+                  aria-label={`${decisions} waiting`}
                 >
                   {decisions}
                 </span>

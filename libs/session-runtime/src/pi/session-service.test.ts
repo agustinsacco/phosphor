@@ -45,7 +45,7 @@ async function transcript() {
 describe('portable session admission', () => {
   it('serializes symlink aliases and concurrent resumes into one writer', async () => {
     const { dir, path } = await transcript()
-    await symlink(dir, join(dir, 'alias'), process.platform === 'win32' ? 'junction' : 'dir')
+    await symlink(dir, join(dir, 'alias'), 'dir')
     const h = fixture()
     const sessions = await Promise.all(
       [path, join(dir, 'alias', 'session.jsonl'), path].map((sessionPath) =>

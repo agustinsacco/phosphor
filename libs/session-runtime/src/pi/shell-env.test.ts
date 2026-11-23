@@ -19,12 +19,7 @@ vi.mock('node:child_process', () => ({
 
 import { getLoginShellEnv, getLoginShellPath, piProcessEnv, resetShellPathCache } from './shell-env'
 
-const ORIGINAL_PLATFORM = process.platform
 const ORIGINAL_ENV = { ...process.env }
-
-function setPlatform(platform: string): void {
-  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
-}
 
 /** Resolve the Nth invocation with `stdout`; earlier ones reject. */
 function shellReturns(stdout: string, failFirst = 0): void {
@@ -40,12 +35,10 @@ function shellReturns(stdout: string, failFirst = 0): void {
 beforeEach(() => {
   resetShellPathCache()
   execFileMock.mockReset()
-  setPlatform('darwin')
   process.env.SHELL = '/bin/zsh'
 })
 
 afterEach(() => {
-  setPlatform(ORIGINAL_PLATFORM)
   process.env = { ...ORIGINAL_ENV }
   resetShellPathCache()
 })
@@ -118,13 +111,6 @@ describe('getLoginShellPath', () => {
     expect(execFileMock).toHaveBeenCalledTimes(2)
   })
 
-  it('uses process.env.PATH directly on Windows without spawning a shell', async () => {
-    setPlatform('win32')
-    process.env.PATH = 'C:\\Windows'
-    expect(await getLoginShellPath()).toBe('C:\\Windows')
-    expect(execFileMock).not.toHaveBeenCalled()
-  })
-
   it('defaults to /bin/zsh when SHELL is unset', async () => {
     delete process.env.SHELL
     shellReturns('/usr/bin')
@@ -173,17 +159,6 @@ describe('piProcessEnv', () => {
     shellReturns('/usr/bin')
     expect((await piProcessEnv()).SOME_MARKER).toBe('marker-value')
   })
-
-  it('leaves a Windows PATH exactly as inherited', async () => {
-    // Windows has no login shell to merge in, and a `:`-split de-dupe would
-    // shred `C:\\…` entries: `C:\\a;C:\\b` used to come back as `C;\\a;C;\\b`.
-    setPlatform('win32')
-    process.env.PATH = 'C:\\Program Files\\nodejs;C:\\Users\\dev\\AppData\\Roaming\\npm'
-    expect((await piProcessEnv()).PATH).toBe(
-      'C:\\Program Files\\nodejs;C:\\Users\\dev\\AppData\\Roaming\\npm',
-    )
-    expect(execFileMock).not.toHaveBeenCalled()
-  })
 })
 
 /** NUL-delimited `env -0` output from a fixture map. */
@@ -231,12 +206,6 @@ describe('getLoginShellEnv', () => {
     expect(await getLoginShellEnv()).toEqual({})
   })
 
-  it('spawns no shell on Windows', async () => {
-    setPlatform('win32')
-    expect(await getLoginShellEnv()).toEqual({})
-    expect(execFileMock).not.toHaveBeenCalled()
-  })
-
   it('caches, sharing one in-flight resolution between callers', async () => {
     shellReturns(envRecords({ AWS_PROFILE: 'dev' }))
     const [a, b] = await Promise.all([getLoginShellEnv(), getLoginShellEnv()])
@@ -282,8 +251,6 @@ it('captures a fresh path and caller-allowed values with the injected shell and 
   expect(
     await captureShellEnvironment({
       shell: () => '/mock',
-      platform: () => 'linux',
-      env: () => ({}),
       run,
       now: () => 123,
       accepts: (name) => name === 'NAME',

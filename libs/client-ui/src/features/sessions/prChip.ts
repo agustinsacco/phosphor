@@ -133,5 +133,5 @@ export const PR_CHIP_CLASSES: Record<PrChipVariant, string> = {
   conflict: 'text-danger bg-danger-soft border-danger/25',
   draft: 'text-text-tertiary bg-chip border-transparent',
   merged: 'text-merged bg-merged-soft border-merged/25',
-  closed: 'text-danger bg-danger-soft border-danger/25',
+  closed: 'text-closed bg-closed-soft border-closed/25',
 }

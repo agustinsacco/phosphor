@@ -2,14 +2,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { LoginFlowState } from '@shared/models'
 import type { AuthCheck } from '@phosphor/session-runtime/pi/provider-auth'
 import { checkProviderAuth } from './auth-status'
-import { checkPiHealth, piArgs } from './health'
+import { checkPiHealth } from './health'
 import { ptyManager } from '../pty/pty-manager'
 import { log } from '../debug-log'
 import { cancelAllLogins, cancelLogin, loginInFlight, startLogin } from './login-flow'
 
 vi.mock('node:fs', () => ({ mkdirSync: vi.fn() }))
 vi.mock('electron', () => ({ app: { getPath: () => '/test/user-data' } }))
-vi.mock('./health', () => ({ checkPiHealth: vi.fn(), piArgs: vi.fn() }))
+vi.mock('./health', () => ({ checkPiHealth: vi.fn() }))
 vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   piProcessEnv: async () => ({ PATH: '/test/bin' }),
 }))
@@ -36,7 +36,6 @@ beforeEach(() => {
     binaryPath: '/test/pi',
     minVersion: '0.84.1',
   })
-  vi.mocked(piArgs).mockImplementation((_health, args) => ['pi-prefix', ...args])
   vi.mocked(checkProviderAuth).mockResolvedValue(old)
   vi.mocked(ptyManager.create).mockReturnValue({ ptyId: 'login-pty' })
   vi.mocked(ptyManager.attach).mockImplementation(() => ({ scrollback: screen }))
@@ -73,7 +72,7 @@ it('drives the full TUI sequence once and preserves spawn arguments and provider
     undefined,
     {
       file: '/test/pi',
-      args: ['pi-prefix', '--no-session', '--no-approve', '--no-extensions'],
+      args: ['--no-session', '--no-approve', '--no-extensions'],
       env: { PATH: '/test/bin' },
     },
   )

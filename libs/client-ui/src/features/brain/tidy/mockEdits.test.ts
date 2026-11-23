@@ -2,6 +2,10 @@ import { expect, it } from 'vitest'
 import type { BrainEntityView, BrainStatus } from '@shared/brain'
 import type { BrainTidyChanges, BrainTidyMutation } from '@shared/brain-tidy'
 import { createMockBrain } from '../mockBrain'
+import { MockExplorer } from '../mockExplorer'
+import { MockTidy } from './mockTidy'
+import { mockBrainStatus } from '../mockBrainData'
+import { seedMockTidy } from './mockTidyData'
 
 const everyState = { states: ['active', 'disputed', 'superseded'] }
 const revision = async (call: ReturnType<typeof createMockBrain>) =>
@@ -70,13 +74,19 @@ it.each([
 })
 
 it('refuses to split off every current memory while a superseded one remains, as Desktop does', async () => {
-  const call = createMockBrain(() => 10000)
-  await call('brain:tidy', [null, null, 20])
-  await call('brain:tidyApply', ['tidy-2', { kind: 'replace', newerId: 'tidy-2-1' }, 0])
+  const explorer = new MockExplorer()
+  seedMockTidy(explorer, 12, 10000)
+  explorer.memory('tidy-2-0').memory.state = 'superseded'
+  const state = mockBrainStatus()
+  const tidy = new MockTidy(explorer, state, () => 10000, {})
   const named = async (states: string[]): Promise<string[]> => {
     const ids: string[] = []
     for (let cursor: string | null = null; ;) {
-      const page = (await call('brain:entityMemories', ['harbor', { states }, cursor])) as {
+      const page = explorer.memories(
+        'harbor',
+        { states: states as ('active' | 'disputed' | 'superseded')[] },
+        cursor,
+      ) as {
         memories: { id: string }[]
         next: string | null
       }
@@ -87,7 +97,7 @@ it('refuses to split off every current memory while a superseded one remains, as
   expect(await named(['superseded'])).toContain('tidy-2-0')
   const current = await named(['active', 'disputed'])
   const target = { label: 'Harbor vendor', kind: 'organization' }
-  await expect(
-    call('brain:split', ['harbor', current, target, await revision(call)]),
-  ).rejects.toThrow('rename')
+  expect(() => tidy.edit('brain:split', ['harbor', current, target, state.revision])).toThrow(
+    'rename',
+  )
 })

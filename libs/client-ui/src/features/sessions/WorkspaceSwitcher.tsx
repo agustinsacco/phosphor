@@ -38,7 +38,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
       : 'Workspace'
 
   return (
-    // Draggable: on Windows/Linux this row sits flush against the top of the
+    // Draggable: on Linux this row sits flush against the top of the
     // window (there is no traffic-light strip above it), so it is the only
     // grab handle the sidebar has. The trigger and the menu opt back out.
     <div className="titlebar-drag relative px-3 pb-1.5 pt-1">

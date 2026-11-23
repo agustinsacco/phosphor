@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { hostResourceKey } from '@shared/remote-host'
+import type { RpcResponse, RpcResponseDataMap } from '@shared/rpc'
 import { expect, it, vi } from 'vitest'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -344,3 +345,55 @@ it.each(['local', 'host'] as const)(
     }
   },
 )
+
+/*
+ * pi's abort keeps the messages queued behind the stopped turn and sends them with the next
+ * one. Stop takes them back into the composer, so it must also take them out of pi's queue.
+ */
+it.each([
+  [
+    'drains',
+    { success: true, data: { steering: ['check the logs'], followUp: ['then the docs'] } },
+  ],
+  ['predates clear_queue', { success: false, error: 'Unknown command: clear_queue' }],
+])('Stop takes queued messages back when pi %s', async (_case, drained) => {
+  const sessionId = 'stop-queued'
+  const draftKey = sessionDraftKey(undefined, sessionId)
+  useChatStore.setState({ sessions: {} })
+  useDraftsStore.getState().patch(draftKey, { text: '', attachments: [] })
+  useChatStore.getState().ensure(sessionId)
+  useChatStore.setState((s) => ({
+    sessions: {
+      ...s.sessions,
+      [sessionId]: {
+        ...s.sessions[sessionId]!,
+        isStreaming: true,
+        queues: { steering: ['check the logs'], followUp: ['then the docs'] },
+      },
+    },
+  }))
+  const command = vi.spyOn(window.phosphor, 'piCommand')
+  command.mockImplementation(async (_id, request) =>
+    request.type === 'clear_queue'
+      ? ({ type: 'response', command: 'clear_queue', ...drained } as RpcResponse<
+          RpcResponseDataMap['clear_queue']
+        >)
+      : { type: 'response', command: request.type, success: true },
+  )
+  const el = document.createElement('div')
+  document.body.append(el)
+  const root = createRoot(el)
+  try {
+    await act(async () => root.render(<Composer sessionId={sessionId} workspacePath="/tmp/w" />))
+    await act(async () =>
+      (el.querySelector('button[aria-label="Stop"]') as HTMLButtonElement).click(),
+    )
+    expect(command.mock.calls.map(([, request]) => request.type)).toEqual(['clear_queue', 'abort'])
+    expect(useDraftsStore.getState().get(draftKey).text).toBe('check the logs\nthen the docs')
+    expect(useChatStore.getState().sessions[sessionId]!.error ?? null).toBeNull()
+  } finally {
+    act(() => root.unmount())
+    el.remove()
+    command.mockRestore()
+  }
+})

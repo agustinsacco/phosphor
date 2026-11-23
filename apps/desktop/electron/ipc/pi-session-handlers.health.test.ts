@@ -18,13 +18,7 @@ vi.mock('node:child_process', () => ({
     [Symbol.for('nodejs.util.promisify.custom')]: h.version,
   }),
 }))
-vi.mock('../pi/binary-lookup', () => ({
-  lookupPosixBinary: async () => h.binary,
-  windowsWhereOutput: async () => '',
-}))
-vi.mock('../pi/win-launch', () => ({
-  resolveWindowsLaunch: async () => ({ ok: true, launch: { file: h.binary, prefixArgs: [] } }),
-}))
+vi.mock('../pi/binary-lookup', () => ({ resolveBinary: async () => h.binary }))
 vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.environment }))
 vi.mock('./handle', () => ({
   handle: (name: string, callback: (...args: unknown[]) => unknown) =>
@@ -82,11 +76,6 @@ it('reports the PATH pi runs with and its agent directory', async () => {
     path: ['/shell/bin', '/usr/bin'],
     agentDir: piAgentDir(),
   })
-})
-
-it("reports Windows' PATH, whose environment key is Path", async () => {
-  h.environment.mockResolvedValue({ Path: ['/pi/bin', '/windows'].join(delimiter) })
-  expect(await call('pi:health')).toMatchObject({ ok: true, path: ['/pi/bin', '/windows'] })
 })
 
 it('retries unhealthy health IPC probes instead of caching failures', async () => {

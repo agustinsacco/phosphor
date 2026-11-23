@@ -161,9 +161,9 @@ function fileEvents(): string[] {
   return events.sort(([a], [b]) => a - b).map(([, event]) => event)
 }
 
-describe.skipIf(process.platform === 'win32')('Linux-only plain fallback', () => {
+describe('Linux-only plain fallback', () => {
   it('writes a plain token only on Linux; elsewhere a file cipher saves nothing and clears', async () => {
-    for (const platform of ['darwin', 'win32', 'freebsd', 'android'] as const) {
+    for (const platform of ['darwin', 'freebsd', 'android'] as const) {
       seed({ 'session.bin': 'x', 'session.txt': 'x', 'profile.json': 'x', 'avatar.json': 'x' })
       const log = vi.fn()
       const { cipher } = fakeCipher({ ok: true, kind: 'file' })
@@ -235,7 +235,7 @@ describe.skipIf(process.platform === 'win32')('Linux-only plain fallback', () =>
   })
 })
 
-describe.skipIf(process.platform === 'win32')('plain token descriptor checks', () => {
+describe('plain token descriptor checks', () => {
   it('opens once, read-only, no-follow and non-blocking, and reads only that descriptor', async () => {
     const secret = token()
     seedPlain(secret)
@@ -387,7 +387,7 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
   })
 })
 
-describe.skipIf(process.platform === 'win32')('encrypted preference and no downgrade', () => {
+describe('encrypted preference and no downgrade', () => {
   it('on Linux, a readable encrypted token wins over a plain one, which is removed', async () => {
     for (const kind of ['gnome_libsecret', 'file']) {
       const secret = token()
@@ -523,7 +523,7 @@ describe.skipIf(process.platform === 'win32')('encrypted preference and no downg
   })
 })
 
-describe.skipIf(process.platform === 'win32')('cleanup errors and credential-first clear', () => {
+describe('cleanup errors and credential-first clear', () => {
   const everything = {
     'session.bin': 'x',
     'session.txt': 'x',

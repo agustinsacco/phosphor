@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({ spawn: vi.fn(), kill: vi.fn(), proof: vi.fn() }))
 vi.mock('node:child_process', () => ({ spawn: h.spawn }))
-vi.mock('./print-mode', () => ({ OWN_GROUP: true, killProcessTree: h.kill, runPrintMode: h.proof }))
+vi.mock('./print-mode', () => ({ killProcessTree: h.kill, runPrintMode: h.proof }))
 const sender = { isDestroyed: () => false, send: vi.fn() }
 function child() {
   return Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough() })

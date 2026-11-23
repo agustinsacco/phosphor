@@ -74,7 +74,7 @@ describe('vaultPaths', () => {
 })
 
 // File modes and links are POSIX.
-describe.skipIf(process.platform === 'win32')('writeVaultFile', () => {
+describe('writeVaultFile', () => {
   it('writes through a 0600 temp in a 0700 directory, tightening one that was open', () => {
     mkdirSync(dir, { mode: 0o755 })
     const { files } = context()
@@ -132,7 +132,7 @@ describe.skipIf(process.platform === 'win32')('writeVaultFile', () => {
   })
 })
 
-describe.skipIf(process.platform === 'win32')('clearVaultFiles', () => {
+describe('clearVaultFiles', () => {
   it('is fine with nothing to clear, and removes the avatar too', () => {
     const { files } = context()
     clearVaultFiles(files)
@@ -161,7 +161,7 @@ describe.skipIf(process.platform === 'win32')('clearVaultFiles', () => {
   })
 })
 
-describe.skipIf(process.platform === 'win32')('vaultFileExists', () => {
+describe('vaultFileExists', () => {
   it('sees a file, a directory and a dangling link, and nothing for a missing path', () => {
     mkdirSync(join(dir, 'folder'), { recursive: true })
     writeFileSync(join(dir, 'file'), 'x')
@@ -172,7 +172,7 @@ describe.skipIf(process.platform === 'win32')('vaultFileExists', () => {
   })
 })
 
-describe.skipIf(process.platform === 'win32')('removeCopiedPlain', () => {
+describe('removeCopiedPlain', () => {
   it('keeps a plain token on Linux', () => {
     const { files, log } = context('linux')
     mkdirSync(dir)
@@ -182,7 +182,7 @@ describe.skipIf(process.platform === 'win32')('removeCopiedPlain', () => {
     expect(log).not.toHaveBeenCalled()
   })
 
-  it.each(['darwin', 'win32', 'freebsd'] as const)(
+  it.each(['darwin', 'freebsd'] as const)(
     'removes a copied plain token on %s, saying so without its contents',
     (platform) => {
       const { files, log } = context(platform)
@@ -197,7 +197,7 @@ describe.skipIf(process.platform === 'win32')('removeCopiedPlain', () => {
   )
 })
 
-describe.skipIf(process.platform === 'win32')('removeUnsafePlain', () => {
+describe('removeUnsafePlain', () => {
   it('removes a file, an empty directory or a link, never a link target', () => {
     const { files } = context()
     expect(removeUnsafePlain(files)).toBe(true)

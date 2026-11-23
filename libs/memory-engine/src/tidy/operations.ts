@@ -1,6 +1,7 @@
+import type { JournalNote } from '../agent/notes'
 import { settleFoldSuggestions } from './fold-ancestry'
 import { clearSubject } from './suggestions'
-import { all, transaction, type Context } from '../database'
+import { all, one, transaction, type Context } from '../database'
 import { entityNumber } from '../entities'
 import { memoryNumber } from '../knowledge'
 import { mergeRows } from '../merge'
@@ -18,10 +19,11 @@ export function mergeEntities(
   target: string,
   expected: number,
   suggestionId?: string,
+  note?: JournalNote,
 ): string {
   return transaction(ctx, () => {
     checkRevision(ctx, expected)
-    return mergeChange(ctx, source, target, suggestionId)
+    return mergeChange(ctx, source, target, suggestionId, note)
   })
 }
 export function mergeChange(
@@ -29,6 +31,7 @@ export function mergeChange(
   source: string,
   target: string,
   suggestionId?: string,
+  note?: JournalNote,
 ): string {
   const entities = [entityNumber(ctx, source), entityNumber(ctx, target)]
   const memories = all<{ memory: number }>(
@@ -43,6 +46,8 @@ export function mergeChange(
       subjects: { type: 'entity', first: source, second: target },
       selection: { entities, memories: [] },
       suggestionId,
+      note,
+      summary: `Merged ${entityLabel(ctx, source)} into ${entityLabel(ctx, target)}`,
     },
     () => mergeRows(ctx, source, target),
   )
@@ -73,7 +78,7 @@ export function changeMemories(
   sourceId: string,
   targetId: string,
   kind: 'fold' | 'dispute' | 'replace',
-  options: Pick<JournalInput, 'automatic' | 'suggestionId'> = {},
+  options: Pick<JournalInput, 'automatic' | 'suggestionId' | 'note'> = {},
 ): string {
   const source = memoryNumber(ctx, sourceId),
     target = memoryNumber(ctx, targetId)
@@ -103,4 +108,8 @@ export function changeMemories(
 }
 export function undoOperation(ctx: Context, id: string, expected: number): Selection {
   return undo(ctx, id, expected)
+}
+
+function entityLabel(ctx: Context, id: string): string {
+  return one<{ label: string }>(ctx, 'SELECT label FROM entities WHERE id=?', id)!.label
 }

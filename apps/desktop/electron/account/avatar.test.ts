@@ -144,12 +144,10 @@ it('stores a bounded avatar beside the profile, tied to its owner, and deletes i
   expect(cache.read(USER.id, 'https://avatars.githubusercontent.com/u/123?v=5')).toBeNull()
   cache.save(USER.id, 'https://example.com/a.png', data)
   expect(cache.read(USER.id, URL)).toBe(data)
-  if (process.platform !== 'win32') {
-    expect(statSync(dir).mode & 0o777).toBe(0o700)
-    expect(statSync(join(dir, 'avatar.json')).mode & 0o777).toBe(0o600)
-    chmodSync(join(dir, 'avatar.json'), 0o644)
-    expect(cache.read(USER.id, URL)).toBeNull()
-  }
+  expect(statSync(dir).mode & 0o777).toBe(0o700)
+  expect(statSync(join(dir, 'avatar.json')).mode & 0o777).toBe(0o600)
+  chmodSync(join(dir, 'avatar.json'), 0o644)
+  expect(cache.read(USER.id, URL)).toBeNull()
   const vault = createVault(dir, fakeCipher().cipher)
   vault.clear()
   expect(readdirSync(dir)).toEqual([])

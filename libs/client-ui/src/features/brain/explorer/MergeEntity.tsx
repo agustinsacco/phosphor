@@ -48,10 +48,10 @@ export function MergeEntity({
     } catch (cause) {
       resource.retry()
       try {
-        const page = await window.phosphor.invoke('brain:tidy', null, null, 20)
+        const status = await window.phosphor.invoke('brain:status')
         if (alive.current)
           setMessage(
-            page.revision !== data.revision
+            status.revision !== data.revision
               ? 'Brain changed. Check this again.'
               : ipcErrorText(cause),
           )

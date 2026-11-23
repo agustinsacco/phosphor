@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createVault, safeStorageCipher } from './vault'
 import { fakeCipher, fakeSeal, USER } from './__fixtures__/fakes'
 
-// These boundary tests use no filesystem, even on Windows.
+// These boundary tests use no filesystem.
 vi.mock('node:fs', async (original) => ({
   ...(await original<typeof FileSystem>()),
   chmodSync: vi.fn(),
@@ -54,7 +54,7 @@ function descriptor(regular: boolean) {
 describe('platform storage boundary', () => {
   it('never selects or writes a plain file off Linux, even with basic_text or no backend', async () => {
     const token = randomBytes(32).toString('base64url')
-    for (const platform of ['darwin', 'win32'] as const) {
+    for (const platform of ['darwin', 'freebsd'] as const) {
       for (const available of [false, true]) {
         for (const backend of ['basic_text', 'unknown']) {
           vi.mocked(writeFileSync).mockClear()
@@ -80,7 +80,7 @@ describe('platform storage boundary', () => {
       }
     }
   })
-  it.each(['darwin', 'win32'] as const)(
+  it.each(['darwin', 'freebsd'] as const)(
     'refuses a file-mode cipher on %s: saves nothing and clears every file',
     async (platform) => {
       vi.mocked(lstatSync)
@@ -98,7 +98,7 @@ describe('platform storage boundary', () => {
       expect(removed.some((path) => path.endsWith('session.bin'))).toBe(true)
     },
   )
-  it.each(['darwin', 'win32'] as const)(
+  it.each(['darwin', 'freebsd'] as const)(
     'ignores and removes copied plain tokens on %s, preserving encrypted tokens',
     async (platform) => {
       const { cipher } = fakeCipher()

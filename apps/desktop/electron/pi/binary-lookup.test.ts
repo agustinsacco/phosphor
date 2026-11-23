@@ -52,7 +52,7 @@ vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   getLoginShellPath: () => lookup.loginShellPath(),
 }))
 
-import { lookupPosixBinary, windowsWhereOutput } from './binary-lookup'
+import { resolveBinary } from './binary-lookup'
 
 const SCRIPT = 'command -v "$1"'
 const ORIGINAL_PATH = process.env.PATH
@@ -64,7 +64,7 @@ function useRealExecFile(): void {
   )
 }
 
-describe.skipIf(process.platform === 'win32')('lookupPosixBinary', () => {
+describe('resolveBinary', () => {
   let root: string
   let loginDir: string
   let processDir: string
@@ -108,7 +108,7 @@ describe.skipIf(process.platform === 'win32')('lookupPosixBinary', () => {
 
     for (const name of names) {
       lookup.execFile.mockClear()
-      expect(await lookupPosixBinary(name)).toBeNull()
+      expect(await resolveBinary(name)).toBeNull()
       expect(lookup.execFile.mock.calls.map(([file, args]) => [file, args])).toEqual([
         ['/bin/sh', ['-c', SCRIPT, 'sh', name]],
         ['/bin/sh', ['-c', SCRIPT, 'sh', name]],
@@ -120,7 +120,7 @@ describe.skipIf(process.platform === 'win32')('lookupPosixBinary', () => {
   it('finds a file whose name holds shell syntax, as named', async () => {
     for (const name of ['my tool', 'a;b', '$(x)', '`x`', "it's", 'say"hi"']) {
       const path = install(loginDir, name)
-      expect(await lookupPosixBinary(name)).toBe(path)
+      expect(await resolveBinary(name)).toBe(path)
     }
   })
 
@@ -128,7 +128,7 @@ describe.skipIf(process.platform === 'win32')('lookupPosixBinary', () => {
     const login = install(loginDir, 'claude')
     install(processDir, 'claude')
 
-    expect(await lookupPosixBinary('claude')).toBe(login)
+    expect(await resolveBinary('claude')).toBe(login)
     expect(lookup.execFile.mock.calls.map(([, , options]) => options)).toEqual([
       { timeout: 15_000, env: { ...process.env, PATH: loginDir } },
     ])
@@ -137,7 +137,7 @@ describe.skipIf(process.platform === 'win32')('lookupPosixBinary', () => {
   it('falls back to the process PATH, bounded', async () => {
     const fallback = install(processDir, 'claude')
 
-    expect(await lookupPosixBinary('claude')).toBe(fallback)
+    expect(await resolveBinary('claude')).toBe(fallback)
     expect(lookup.execFile.mock.calls[1]?.[2]).toEqual({ timeout: 15_000, env: { ...process.env } })
   })
 
@@ -146,12 +146,12 @@ describe.skipIf(process.platform === 'win32')('lookupPosixBinary', () => {
     install(loginDir, 'claude')
     const fallback = install(processDir, 'claude')
 
-    expect(await lookupPosixBinary('claude')).toBe(fallback)
+    expect(await resolveBinary('claude')).toBe(fallback)
     expect(lookup.execFile).toHaveBeenCalledTimes(1)
   })
 
   it('answers null when neither PATH has the name', async () => {
-    expect(await lookupPosixBinary('claude')).toBeNull()
+    expect(await resolveBinary('claude')).toBeNull()
     expect(lookup.execFile).toHaveBeenCalledTimes(2)
   })
 
@@ -162,7 +162,7 @@ describe.skipIf(process.platform === 'win32')('lookupPosixBinary', () => {
       callback(Object.assign(new Error('Command failed'), { killed: true }), '', ''),
     )
 
-    expect(await lookupPosixBinary('claude')).toBe(fallback)
+    expect(await resolveBinary('claude')).toBe(fallback)
   })
 
   it('takes the last line of the output, trimmed, and skips an empty answer', async () => {
@@ -172,44 +172,7 @@ describe.skipIf(process.platform === 'win32')('lookupPosixBinary', () => {
         callback(null, 'rc chatter\n  /opt/bin/claude  \n', ''),
       )
 
-    expect(await lookupPosixBinary('claude')).toBe('/opt/bin/claude')
-  })
-})
-
-describe('windowsWhereOutput', () => {
-  const STDOUT = 'C:\\npm\\claude\r\nC:\\npm\\claude.cmd\r\nC:\\npm\\claude.ps1\r\n'
-
-  beforeEach(() => {
-    lookup.execFile.mockReset()
-  })
-
-  it("returns `where`'s stdout as printed, without picking from it", async () => {
-    lookup.execFile.mockImplementation((_file, _args, _options, callback) =>
-      callback(null, STDOUT, ''),
-    )
-
-    expect(await windowsWhereOutput('claude')).toBe(STDOUT)
-    expect(
-      lookup.execFile.mock.calls.map(([file, args, options]) => [file, args, options]),
-    ).toEqual([['where', ['claude'], { timeout: 15_000 }]])
-  })
-
-  it('passes the name as one argument, with no shell between', async () => {
-    lookup.execFile.mockImplementation((_file, _args, _options, callback) => callback(null, '', ''))
-    const name = 'claude & echo C:\\evil.exe'
-
-    await windowsWhereOutput(name)
-
-    expect(lookup.execFile.mock.calls[0]?.[1]).toEqual([name])
-    expect(lookup.execFile.mock.calls[0]?.[2]).not.toHaveProperty('shell')
-  })
-
-  it("answers '' when `where` finds nothing, fails or runs past its bound", async () => {
-    lookup.execFile.mockImplementation((_file, _args, _options, callback) =>
-      callback(Object.assign(new Error('Command failed: where'), { code: 1 }), '', ''),
-    )
-
-    expect(await windowsWhereOutput('claude')).toBe('')
+    expect(await resolveBinary('claude')).toBe('/opt/bin/claude')
   })
 })
 

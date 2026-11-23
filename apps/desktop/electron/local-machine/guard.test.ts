@@ -21,7 +21,6 @@ vi.mock('electron', () => ({ app: { getPath: () => '/nonexistent/m2a-guard' } })
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 vi.mock('@phosphor/session-runtime/pi/print-mode', () => ({
   runPrintMode: lib.print,
-  OWN_GROUP: process.platform !== 'win32',
   killProcessTree: vi.fn(),
 }))
 vi.mock('@phosphor/session-runtime/pi/session-writer', () => ({

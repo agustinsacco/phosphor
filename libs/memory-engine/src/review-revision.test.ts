@@ -10,7 +10,7 @@ function pending() {
   s.store.propose(extraction(job.id))
   return { ...s, job }
 }
-it.each(['suggestions', 'dismissal', 'verdict', 'flag', 'keep'] as const)(
+it.each(['suggestions', 'dismissal', 'flag', 'keep'] as const)(
   'does not stale a review for Tidy %s bookkeeping',
   (kind) => {
     const { store, job } = pending()
@@ -22,19 +22,12 @@ it.each(['suggestions', 'dismissal', 'verdict', 'flag', 'keep'] as const)(
         problem: 'wrong',
         reason: 'Rina corrected this.',
       })
-      if (kind === 'keep') store.tidyApply(flag.suggestionId!, { kind: 'keep' }, store.revision())
+      if (kind === 'keep')
+        store.applySuggestion(flag.suggestionId!, { kind: 'keep' }, store.revision())
     } else {
       store.sweep('all')
-      const pair = store.pendingPairs(1)[0]!
-      if (kind === 'dismissal') store.tidyDismiss(pair.suggestionId, store.revision())
-      if (kind === 'verdict')
-        store.recordVerdicts([
-          {
-            suggestionId: pair.suggestionId,
-            model: 'example/reader',
-            verdict: { kind: 'different', reason: 'Different people.' },
-          },
-        ])
+      const pair = store.suggestions(null, null, 1).items[0]!
+      if (kind === 'dismissal') store.dismissSuggestion(pair.id, store.revision())
     }
     expect(store.revision()).toBeGreaterThan(0)
     expect(() => store.review(job.id, keep, 0)).not.toThrow()
@@ -65,8 +58,8 @@ it.each(['fold', 'dispute', 'replace'] as const)(
     const { store, db, job } = pending()
     db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
     store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
-    const pair = store.tidy('same_memory', null, 20).items[0]!
-    const operation = store.tidyApply(
+    const pair = store.suggestions('same_memory', null, 20).items[0]!
+    const operation = store.applySuggestion(
       pair.id,
       kind === 'fold'
         ? { kind, survivorId: pair.subjects[0]!.id }

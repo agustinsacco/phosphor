@@ -35,19 +35,14 @@ it('refuses overwrite, outside moves, workspace-root moves and directory recursi
   expect(await readFile(source)).toEqual(Buffer.from([0, 255, 1, 2]))
 })
 
-it.skipIf(process.platform === 'win32')(
-  'copies nested folders without following links and refuses destination symlink escape',
-  async () => {
-    const folder = join(root, 'import')
-    await mkdir(join(folder, 'nested'), { recursive: true })
-    await writeFile(join(folder, 'nested', 'a.txt'), 'nested')
-    await symlink(source, join(folder, 'link'))
-    const copied = await transferEntry(ws, folder, ws, 'copy')
-    expect(await readFile(join(copied, 'nested/a.txt'), 'utf8')).toBe('nested')
-    expect(await readlink(join(copied, 'link'))).toBe(source)
-    await symlink(root, join(ws, 'escape'))
-    await expect(transferEntry(ws, source, join(ws, 'escape'), 'copy')).rejects.toThrow(
-      'Destination',
-    )
-  },
-)
+it('copies nested folders without following links and refuses destination symlink escape', async () => {
+  const folder = join(root, 'import')
+  await mkdir(join(folder, 'nested'), { recursive: true })
+  await writeFile(join(folder, 'nested', 'a.txt'), 'nested')
+  await symlink(source, join(folder, 'link'))
+  const copied = await transferEntry(ws, folder, ws, 'copy')
+  expect(await readFile(join(copied, 'nested/a.txt'), 'utf8')).toBe('nested')
+  expect(await readlink(join(copied, 'link'))).toBe(source)
+  await symlink(root, join(ws, 'escape'))
+  await expect(transferEntry(ws, source, join(ws, 'escape'), 'copy')).rejects.toThrow('Destination')
+})

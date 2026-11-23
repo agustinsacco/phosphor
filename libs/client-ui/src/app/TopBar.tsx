@@ -36,7 +36,7 @@ import { NotificationsButton } from '@/features/notifications/NotificationsButto
  * Every column used to grow its own `h-11` header, and only the chat's carried
  * `.titlebar-inset-end` — the padding that keeps content clear of the OS
  * close/minimize buttons that Electron paints over the top-right of the page
- * on Windows and Linux. That worked exactly until a right-hand pane opened, at
+ * on Linux. That worked exactly until a right-hand pane opened, at
  * which point the *pane* owned the top-right corner and its expand/close
  * buttons rendered underneath the real window controls.
  *

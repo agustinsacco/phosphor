@@ -1,3 +1,4 @@
+import { useBrain } from '@/features/brain/useBrain'
 import { create } from 'zustand'
 import type { SessionMeta } from '@shared/models'
 import { laneMarker } from '@/lib/laneMarker'
@@ -71,7 +72,13 @@ export function buildLaneDelete(paths: string[], workspacePath: string): Preflig
             explicitName: liveName ?? meta.name,
             firstUserText: meta.firstUserText,
           }) ?? 'Untitled session',
-        marker: laneMarker(explicit, git?.branch, meta.cwd, markerPrefMode),
+        marker: laneMarker(
+          explicit,
+          git?.branch,
+          meta.cwd,
+          markerPrefMode,
+          useBrain.getState().status?.agent.folder,
+        ),
         git,
         pr: localLanePrs(meta, git).owned[0]?.pr,
         isLive: Boolean(livePhosphorId),

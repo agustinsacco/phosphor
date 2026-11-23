@@ -96,6 +96,11 @@ export function mockBrainStatus(): BrainStatus {
   return {
     supported: true,
     tidy: emptyBrainTidySummary(),
+    agent: {
+      waiting: { reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 },
+      run: null,
+      folder: null,
+    },
     prefs: { ...DEFAULT_BRAIN_PREFS },
     revision: 0,
     generation: 'mock-generation-0',

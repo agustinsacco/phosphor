@@ -7,7 +7,7 @@ import {
   parseAuthCheck,
   type AuthCheck,
 } from '@phosphor/session-runtime/pi/provider-auth'
-import { checkPiHealth, piArgs } from './health'
+import { checkPiHealth } from './health'
 import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 
 const execFileAsync = promisify(execFile)
@@ -29,7 +29,7 @@ export async function checkProviderAuth(providerId: string): Promise<AuthCheck> 
   try {
     const { stdout } = await execFileAsync(
       health.binaryPath,
-      piArgs(health, authCheckArgs(providerId, { credentials: true })),
+      authCheckArgs(providerId, { credentials: true }),
       {
         env,
         timeout: 10_000,
@@ -55,7 +55,7 @@ export async function logoutProvider(providerId: string): Promise<void> {
   if (!provider) throw new Error('Unknown provider.')
   const health = await checkPiHealth()
   if (!health.ok || !health.binaryPath) throw new Error(health.message ?? 'pi is not available')
-  await execFileAsync(health.binaryPath, piArgs(health, ['auth', 'logout', provider.id]), {
+  await execFileAsync(health.binaryPath, ['auth', 'logout', provider.id], {
     env: await piProcessEnv(),
     timeout: 15_000,
     encoding: 'utf8',
@@ -103,7 +103,7 @@ export async function checkSubscriptionAuth(): Promise<SubscriptionProviderStatu
       try {
         const { stdout } = await execFileAsync(
           binaryPath,
-          piArgs(health, authCheckArgs(provider.id, { credentials: true })),
+          authCheckArgs(provider.id, { credentials: true }),
           {
             env,
             timeout: 10_000,

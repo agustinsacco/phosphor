@@ -320,5 +320,5 @@ export function setTheme(theme: ThemePreference): void {
 
 export const repointStoredPaths = (moves: readonly PathMove[]): void =>
   workspaces.repointStoredPaths(prefs, moves)
-export const recordWorkspace = (path: string, name: string): void =>
-  workspaces.recordWorkspace(prefs, path, name)
+export const recordWorkspace = (path: string, name: string, remember?: { last: boolean }): void =>
+  workspaces.recordWorkspace(prefs, path, name, remember)

@@ -7,7 +7,7 @@ without leaving the session, and so a shell always sits in the right checkout.
 - **Real shells.** node-pty in main, xterm.js in the renderer. `$SHELL` on
   macOS/Linux as a **login** shell (`-l`, so your PATH and rc files load, which
   is where pi lives), falling back to `/bin/zsh` on macOS and `/bin/bash`
-  elsewhere; `powershell.exe` on Windows (`apps/desktop/electron/pty/pty-manager.ts`).
+  on Linux (`apps/desktop/electron/pty/pty-manager.ts`).
 - **Tabs.** Open several, rename, close. Every PTY is killed on quit,
   including the SIGINT/SIGTERM/SIGHUP paths Electron does not route through
   `before-quit`.
@@ -23,7 +23,7 @@ without leaving the session, and so a shell always sits in the right checkout.
   cannot launch files or custom protocol handlers.
 - **Clipboard is ours.** xterm ships no copy binding and its selection is
   invisible to the browser, so nothing copies by default. Copy/paste are ⌘C/⌘V
-  on macOS and Ctrl+Shift+C/V on Windows and Linux, where plain Ctrl+C must
+  on macOS and Ctrl+Shift+C/V on Linux, where plain Ctrl+C must
   stay SIGINT. These bindings cancel the browser's default clipboard action so
   each shortcut pastes only once, through xterm's bracketed-paste handling.
   Right-click opens Copy / Paste / Select all rather than pasting blind

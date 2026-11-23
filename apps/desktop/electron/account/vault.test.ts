@@ -29,21 +29,18 @@ afterEach(() => rmSync(root, { recursive: true, force: true }))
 const mode = (path: string) => statSync(path).mode & 0o777
 
 describe('createVault', () => {
-  it.skipIf(process.platform === 'win32')(
-    'keeps a session in two files only the user can read, the token encrypted',
-    async () => {
-      const vault = createVault(dir, fakeCipher().cipher)
-      expect(await vault.save(USER, 'refresh-secret')).toBe(true)
-      expect(readdirSync(dir).sort()).toEqual(['profile.json', 'session.bin'])
-      expect(mode(dir)).toBe(0o700)
-      expect(mode(join(dir, 'profile.json'))).toBe(0o600)
-      expect(mode(join(dir, 'session.bin'))).toBe(0o600)
-      expect(readFileSync(join(dir, 'session.bin'), 'utf8')).not.toContain('refresh-secret')
-      expect(readFileSync(join(dir, 'profile.json'), 'utf8')).not.toContain('refresh')
-      expect(vault.readProfile()).toEqual(USER)
-      expect(await vault.readToken(USER.id)).toBe('refresh-secret')
-    },
-  )
+  it('keeps a session in two files only the user can read, the token encrypted', async () => {
+    const vault = createVault(dir, fakeCipher().cipher)
+    expect(await vault.save(USER, 'refresh-secret')).toBe(true)
+    expect(readdirSync(dir).sort()).toEqual(['profile.json', 'session.bin'])
+    expect(mode(dir)).toBe(0o700)
+    expect(mode(join(dir, 'profile.json'))).toBe(0o600)
+    expect(mode(join(dir, 'session.bin'))).toBe(0o600)
+    expect(readFileSync(join(dir, 'session.bin'), 'utf8')).not.toContain('refresh-secret')
+    expect(readFileSync(join(dir, 'profile.json'), 'utf8')).not.toContain('refresh')
+    expect(vault.readProfile()).toEqual(USER)
+    expect(await vault.readToken(USER.id)).toBe('refresh-secret')
+  })
 
   it('writes nothing, and clears an older sign-in, without secure storage', async () => {
     const { cipher, state } = fakeCipher()
@@ -139,14 +136,10 @@ describe('safeStorageCipher', () => {
     decryptStringAsync: async (data) => ({ result: data.toString(), shouldReEncrypt: false }),
   })
 
-  it('trusts the macOS Keychain and Windows DPAPI when Electron says they work', async () => {
+  it('trusts the macOS Keychain when Electron says it works', async () => {
     expect(await safeStorageCipher(api(true), 'darwin').storage()).toEqual({
       ok: true,
       kind: 'keychain',
-    })
-    expect(await safeStorageCipher(api(true), 'win32').storage()).toEqual({
-      ok: true,
-      kind: 'dpapi',
     })
     expect((await safeStorageCipher(api(false), 'darwin').storage()).ok).toBe(false)
   })
@@ -210,7 +203,7 @@ describe('safeStorageCipher', () => {
 })
 
 // uid and mode bits are POSIX; file mode exists only on Linux.
-describe.skipIf(process.platform === 'win32')('Linux file storage', () => {
+describe('Linux file storage', () => {
   const plain = () => fakeCipher({ ok: true, kind: 'file' })
   const token = () => randomBytes(32).toString('base64url')
   it('saves raw at 0600 in a 0700 dir and signs out by removing all files', async () => {

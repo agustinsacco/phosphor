@@ -113,7 +113,7 @@ describe('AWS authorization is left to the machine', () => {
   })
 })
 
-describe.skipIf(process.platform === 'win32')('lane-local recursive deletion', () => {
+describe('lane-local recursive deletion', () => {
   let dir: string
   let main: string
   let lane: string
@@ -475,14 +475,12 @@ describe('only what the shell runs is judged', () => {
   })
 })
 
-it.skipIf(process.platform === 'win32')(
-  'runs both examples against a local AWS stub, never the real CLI',
-  () => {
-    const dir = mkdtempSync(join(tmpdir(), 'permission-gate-'))
-    try {
-      writeFileSync(
-        join(dir, 'aws'),
-        `#!${process.execPath}
+it('runs both examples against a local AWS stub, never the real CLI', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'permission-gate-'))
+  try {
+    writeFileSync(
+      join(dir, 'aws'),
+      `#!${process.execPath}
 const fs = require('node:fs');
 fs.appendFileSync(${JSON.stringify(join(dir, 'calls'))}, JSON.stringify({
   args: process.argv.slice(2), profile: process.env.AWS_PROFILE,
@@ -490,38 +488,34 @@ fs.appendFileSync(${JSON.stringify(join(dir, 'calls'))}, JSON.stringify({
 }) + '\\n');
 console.log(JSON.stringify({regions: []}));
 `,
-        { mode: 0o700 },
-      )
-      execFileSync(
-        '/bin/bash',
-        [
-          '--noprofile',
-          '--norc',
-          '-c',
-          `${listing}\n${compound}`.replaceAll(
-            '/tmp/nrs-manifest.json',
-            join(dir, 'manifest.json'),
-          ),
-        ],
-        {
-          env: { PATH: `${dir}:/usr/bin:/bin`, AWS_PROFILE: 'prod' },
-        },
-      )
-      const calls = readFileSync(join(dir, 'calls'), 'utf8')
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
-      expect(calls).toHaveLength(3)
-      for (const call of calls) {
-        expect(call).toMatchObject({ key: 'test', secret: 'test' })
-        expect(call.profile).toBeUndefined()
-        expect(call.args[0]).toBe('--endpoint-url=http://localhost:4566')
-      }
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
+      { mode: 0o700 },
+    )
+    execFileSync(
+      '/bin/bash',
+      [
+        '--noprofile',
+        '--norc',
+        '-c',
+        `${listing}\n${compound}`.replaceAll('/tmp/nrs-manifest.json', join(dir, 'manifest.json')),
+      ],
+      {
+        env: { PATH: `${dir}:/usr/bin:/bin`, AWS_PROFILE: 'prod' },
+      },
+    )
+    const calls = readFileSync(join(dir, 'calls'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(calls).toHaveLength(3)
+    for (const call of calls) {
+      expect(call).toMatchObject({ key: 'test', secret: 'test' })
+      expect(call.profile).toBeUndefined()
+      expect(call.args[0]).toBe('--endpoint-url=http://localhost:4566')
     }
-  },
-)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
 
 it('asks for approvals, never hard-blocks, and does not prompt for AWS at the hook', async () => {
   const on = vi.fn<Parameters<typeof permissionGate>[0]['on']>()

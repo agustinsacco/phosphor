@@ -52,7 +52,7 @@ function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDe
   )
     throw new Error(BRAIN_DECISION_REFUSALS.confirmation)
   // Every ref this approval resolves: ticked memories, confirmed groups, and confirmations that
-  // become new memories because the owner changed one of their identities.
+  // become new memories because the decider changed one of their identities.
   const used = new Set([
     ...decision.memories.flatMap((index) => claimRefs(value.memories[index]!)),
     ...decision.groups.flatMap((index) => {
@@ -91,7 +91,7 @@ function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) 
     if (reuse) {
       const n = entityNumber(ctx, reuse)
       addNames(ctx, n, [item.label, ...item.aliases], item.keys)
-      // The read's description replaces the stored one only when the owner chose it, and its
+      // The read's description replaces the stored one only when the decider chose it, and its
       // vector (label, kind and this description) replaces the stored vector with it.
       if (decision.descriptions.includes(ref)) {
         run(ctx, 'UPDATE entities SET description=? WHERE n=?', scrubExcerpt(item.description), n)
@@ -104,7 +104,8 @@ function resolver(ctx: Context, value: Proposal, decision: BrainReviewDecision) 
     return id
   }
 }
-function applyGroups(commit: CommitContext, groups: number[]): void {
+/** Only group answers create decider evidence; other choices keep the lane's original evidence. */
+function applyGroups(commit: CommitContext, groups: number[], who: 'you' | 'agent'): void {
   const { ctx, proposal, resolve } = commit
   for (const index of new Set(groups)) {
     const group = proposal.groups[index]!
@@ -119,8 +120,8 @@ function applyGroups(commit: CommitContext, groups: number[]): void {
       proposal.evidence.push({
         sessionId: proposal.origin.sessionId,
         entryId: `review:${proposal.jobId}:${index}:${id}`,
-        role: 'user',
-        label: 'Stated by you in review',
+        role: who === 'agent' ? 'assistant' : 'user',
+        label: who === 'agent' ? 'Brain Agent, in review' : 'Stated by you in review',
         observedAt: ctx.now(),
         text: summary,
       })
@@ -154,58 +155,70 @@ export function review(
   decision: BrainReviewDecision | null,
   expectedRevision: number,
 ): BrainTidyTouched {
+  return transaction(ctx, () => reviewChange(ctx, jobId, decision, expectedRevision))
+}
+/** Caller owns the transaction; agent decisions defer incidental finished-read pruning. */
+export function reviewChange(
+  ctx: Context,
+  jobId: string,
+  decision: BrainReviewDecision | null,
+  expectedRevision: number,
+  retainForUndo = false,
+  who: 'you' | 'agent' = 'you',
+): BrainTidyTouched {
   const touched = new Set<number>(),
     touchedMemories = new Set<number>()
-  transaction(ctx, () => {
-    const value = readProposal(ctx, jobId)
-    if (
-      decision !== null &&
-      (expectedRevision !== knowledgeRevision(ctx) ||
-        value.computedRevision !== knowledgeRevision(ctx))
-    )
-      throw new Error(BRAIN_REVIEW_CHANGED)
-    const current = job(ctx, jobId)!
-    if (decision) validateDecision(ctx, value, decision)
-    if (decision) {
-      const commit: CommitContext = {
-        ctx,
-        proposal: value,
-        resolve: resolver(ctx, value, decision),
-        evidence: new Map(),
-        touched,
-        touchedMemories,
-      }
-      for (const index of new Set(decision.memories)) {
-        const item = value.memories[index]!
-        const id = applyMemory(
-          commit,
-          identityChanged(item, value, decision) ? { ...item, action: 'add', target: null } : item,
-          value.memoryVectors[index],
-        )
-        linkOutcome(ctx, jobId, index, id)
-      }
-      applyGroups(commit, decision.groups)
-      const confirmed = applyConfirmations(commit, decision)
-      const replaced = current.replaces
-        ? laneMemories(ctx, current.sessionId, jobId).replaceable
-        : []
-      for (const id of replaced) removeMemory(ctx, id)
-      cleanOrphans(ctx, touched)
-      recountEntities(ctx, touched)
-      if (decision.memories.length || decision.groups.length || confirmed || replaced.length)
-        bumpKnowledgeRevision(ctx)
+  const value = readProposal(ctx, jobId)
+  if (
+    decision !== null &&
+    (expectedRevision !== knowledgeRevision(ctx) ||
+      value.computedRevision !== knowledgeRevision(ctx))
+  )
+    throw new Error(BRAIN_REVIEW_CHANGED)
+  const current = job(ctx, jobId)!
+  if (decision) validateDecision(ctx, value, decision)
+  if (decision) {
+    const commit: CommitContext = {
+      ctx,
+      proposal: value,
+      resolve: resolver(ctx, value, decision),
+      evidence: new Map(),
+      touched,
+      touchedMemories,
     }
-    updateJob(ctx, jobId, {
+    for (const index of new Set(decision.memories)) {
+      const item = value.memories[index]!
+      const id = applyMemory(
+        commit,
+        identityChanged(item, value, decision) ? { ...item, action: 'add', target: null } : item,
+        value.memoryVectors[index],
+      )
+      linkOutcome(ctx, jobId, index, id)
+    }
+    applyGroups(commit, decision.groups, who)
+    const confirmed = applyConfirmations(commit, decision)
+    const replaced = current.replaces ? laneMemories(ctx, current.sessionId, jobId).replaceable : []
+    for (const id of replaced) removeMemory(ctx, id)
+    cleanOrphans(ctx, touched)
+    recountEntities(ctx, touched)
+    if (decision.memories.length || decision.groups.length || confirmed || replaced.length)
+      bumpKnowledgeRevision(ctx)
+  }
+  updateJob(
+    ctx,
+    jobId,
+    {
       state: decision ? 'done' : 'rejected',
       memories: decision?.memories.length ?? 0,
       finishedAt: ctx.now(),
-    })
-    run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
-    pruneExtractions(ctx)
-  })
+    },
+    !retainForUndo,
+  )
+  run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
+  if (!retainForUndo) pruneExtractions(ctx)
   return touchedIds(ctx, touched, touchedMemories)
 }
-/** Every confirmation that is not held, and the held ones the owner ticked. */
+/** Every confirmation that is not held, and the held ones the decider ticked. */
 function appliedConfirmations(
   value: Proposal,
   decision: BrainReviewDecision,
@@ -216,7 +229,7 @@ function appliedConfirmations(
 }
 /**
  * A confirmation adds its quotes to the memory it repeats, or becomes a new memory when the
- * owner changed one of its identities. A held one does neither unless ticked. Returns how many
+ * decider changed one of its identities. A held one does neither unless ticked. Returns how many
  * applied.
  */
 function applyConfirmations(commit: CommitContext, decision: BrainReviewDecision): number {

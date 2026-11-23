@@ -194,14 +194,8 @@ it.each(subscriptions)(
   },
 )
 
-it('forwards the reviewed Tidy channels and revision-bearing entity edits unchanged', async () => {
+it('forwards Recent changes and revision-bearing entity edits unchanged', async () => {
   electron.ipcRenderer.invoke.mockResolvedValue({})
-  await api.invoke('brain:tidy', null, null, 20)
-  await api.invoke('brain:tidySuggestion', 'suggestion')
-  await api.invoke('brain:tidyRun')
-  await api.invoke('brain:tidyCancel')
-  await api.invoke('brain:tidyApply', 'suggestion', { kind: 'fold', survivorId: 'harbor' }, 3)
-  await api.invoke('brain:tidyDismiss', 'suggestion', 3)
   await api.invoke('brain:tidyChanges', 20)
   await api.invoke('brain:neverRead', 'lane', true)
   await api.invoke('brain:tidyUndo', 'operation', 4)
@@ -210,12 +204,6 @@ it('forwards the reviewed Tidy channels and revision-bearing entity edits unchan
   await api.invoke('brain:removeName', 'kestrel', 'Harbor', 6)
   await api.invoke('brain:split', 'tom', ['m1'], { label: 'Tom Lee', kind: 'person' }, 7)
   expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
-    ['brain:tidy', null, null, 20],
-    ['brain:tidySuggestion', 'suggestion'],
-    ['brain:tidyRun'],
-    ['brain:tidyCancel'],
-    ['brain:tidyApply', 'suggestion', { kind: 'fold', survivorId: 'harbor' }, 3],
-    ['brain:tidyDismiss', 'suggestion', 3],
     ['brain:tidyChanges', 20],
     ['brain:neverRead', 'lane', true],
     ['brain:tidyUndo', 'operation', 4],
@@ -226,10 +214,14 @@ it('forwards the reviewed Tidy channels and revision-bearing entity edits unchan
   ])
 })
 
-it('preserves a null Tidy detail when Forget or Reset removed its suggestion', async () => {
-  const response = Promise.resolve(null)
-  electron.ipcRenderer.invoke.mockReturnValue(response)
-  const result = api.invoke('brain:tidySuggestion', 'forgotten')
-  expect(result).toBe(response)
-  await expect(result).resolves.toBeNull()
+it('forwards the Defrag channels unchanged', async () => {
+  electron.ipcRenderer.invoke.mockResolvedValue({})
+  await api.invoke('brain:defrag')
+  await api.invoke('brain:defragStop')
+  await api.invoke('brain:undoRun', 'run')
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
+    ['brain:defrag'],
+    ['brain:defragStop'],
+    ['brain:undoRun', 'run'],
+  ])
 })

@@ -15,7 +15,7 @@ describe('launchRefusal', () => {
   it.each(['report.docx', 'sheet.xlsx', 'deck.key', 'archive.zip', 'image.heic', 'Makefile'])(
     'allows %s',
     (name) => {
-      expect(launchRefusal(`/w/${name}`, regular, 'darwin')).toBeNull()
+      expect(launchRefusal(`/w/${name}`, regular)).toBeNull()
     },
   )
 
@@ -29,21 +29,16 @@ describe('launchRefusal', () => {
     'link.webloc',
     'app.AppImage',
   ])('refuses %s, which the OS would run', (name) => {
-    expect(launchRefusal(`/w/${name}`, regular, 'darwin')).toEqual(launchable)
+    expect(launchRefusal(`/w/${name}`, regular)).toEqual(launchable)
   })
 
-  it('refuses anything with an execute bit outside Windows', () => {
-    const executable = { isFile: true, mode: 0o100755 }
-    expect(launchRefusal('/w/binary', executable, 'darwin')).toEqual(launchable)
-    expect(launchRefusal('/w/data.bin', { isFile: true, mode: 0o100744 }, 'linux')).toEqual(
-      launchable,
-    )
-    // NTFS reports no meaningful mode bits; the extension list is the guard.
-    expect(launchRefusal('C:\\w\\report.docx', executable, 'win32')).toBeNull()
+  it('refuses anything with an execute bit', () => {
+    expect(launchRefusal('/w/binary', { isFile: true, mode: 0o100755 })).toEqual(launchable)
+    expect(launchRefusal('/w/data.bin', { isFile: true, mode: 0o100744 })).toEqual(launchable)
   })
 
   it('refuses a non-file', () => {
-    expect(launchRefusal('/w/folder', { isFile: false, mode: 0o40755 }, 'darwin')).toEqual({
+    expect(launchRefusal('/w/folder', { isFile: false, mode: 0o40755 })).toEqual({
       ok: false,
       reason: 'not-a-file',
     })
@@ -67,7 +62,7 @@ describe('openInDefaultApp', () => {
     expect(openPath).toHaveBeenCalledWith(join(dir, 'report.docx'))
   })
 
-  it.skipIf(process.platform === 'win32')('never hands over an executable', async () => {
+  it('never hands over an executable', async () => {
     expect(await openInDefaultApp(join(dir, 'run'))).toEqual(launchable)
     expect(openPath).not.toHaveBeenCalled()
   })

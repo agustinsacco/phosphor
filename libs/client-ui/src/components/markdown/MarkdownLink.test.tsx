@@ -130,6 +130,36 @@ describe('MarkdownLink', () => {
     expect(sessionPanes(useLayoutStore.getState(), 's1').pane).toBeNull()
   })
 
+  it('reads a Host lane’s artifacts once more before saying a linked one is missing', async () => {
+    const { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+    const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+    const hosts = structuredClone(mockRemoteHosts)
+    hosts[MOCK_HOST_ID]!.capabilities.push('artifacts.read')
+    useRemoteLanesStore.setState({ hosts })
+    const id = mockRemoteInfo.sessionId
+    useSessionsStore.setState({
+      activeSessionId: id,
+      live: { [id]: { ...mockRemoteInfo, phosphorId: id } },
+    })
+    // The click's only call: the Host lane's artifacts, read once more.
+    invoke.mockResolvedValue([
+      {
+        id: 'nvda-position-month',
+        title: 'NVDA',
+        type: 'html',
+        versions: [{ version: 1, title: 'NVDA', content: '<p/>', createdAt: 1 }],
+      },
+    ])
+    render(<MarkdownLink href="artifact://nvda-position-month">NVDA</MarkdownLink>)
+    await click(link())
+    await vi.waitFor(() =>
+      expect(sessionPanes(useLayoutStore.getState(), id).pane).toBe('artifacts'),
+    )
+    expect(useArtifactsStore.getState().selected[id]).toBe('nvda-position-month')
+    expect(useExtensionUiStore.getState().toasts).toEqual([])
+    expect(invoke).toHaveBeenCalledWith('artifacts:forSession', id)
+  })
+
   it('does nothing for a scheme it refuses to act on', async () => {
     render(<MarkdownLink href="javascript:alert(1)">x</MarkdownLink>)
     await click(link())

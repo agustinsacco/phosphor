@@ -1,28 +1,13 @@
 import type { BrainStatus } from '@phosphor/shared/brain'
 import type { BrainTidyMutation } from '@phosphor/shared/brain-tidy'
+import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { BrainApi } from '../types'
-import type { TidyRunContext, TidyRunner } from './run'
 
 export function tidyApi(
-  { store }: TidyRunContext,
-  runner: TidyRunner,
+  store: BrainStore,
   status: () => BrainStatus,
   mutate: (run: () => void) => Promise<BrainStatus>,
-): Pick<
-  BrainApi,
-  | 'tidy'
-  | 'tidySuggestion'
-  | 'tidyRun'
-  | 'tidyCancel'
-  | 'tidyApply'
-  | 'tidyDismiss'
-  | 'tidyChanges'
-  | 'tidyUndo'
-  | 'merge'
-  | 'describe'
-  | 'removeName'
-  | 'split'
-> {
+): Pick<BrainApi, 'tidyChanges' | 'tidyUndo' | 'merge' | 'describe' | 'removeName' | 'split'> {
   /** A journaled change, with the operation its toast can undo. */
   const journaled = async (change: () => string | null): Promise<BrainTidyMutation> => {
     let operationId: string | null = null
@@ -32,22 +17,6 @@ export function tidyApi(
     return { ...result, operationId }
   }
   return {
-    tidy: async (kind, cursor, limit) => ({
-      ...store.tidy(kind, cursor, limit),
-      run: runner.current(),
-    }),
-    tidySuggestion: async (id) => store.tidySuggestion(id),
-    tidyRun: async () => {
-      runner.start()
-      return status()
-    },
-    tidyCancel: async () => {
-      runner.cancel()
-      return status()
-    },
-    tidyApply: async (id, action, revision) =>
-      journaled(() => store.tidyApply(id, action, revision)),
-    tidyDismiss: async (id, revision) => mutate(() => store.tidyDismiss(id, revision)),
     tidyChanges: async (limit) => store.tidyChanges(limit),
     tidyUndo: async (id, revision) => mutate(() => store.tidyUndo(id, revision)),
     merge: async (source, target, revision) =>

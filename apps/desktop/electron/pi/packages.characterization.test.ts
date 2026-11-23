@@ -5,16 +5,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({ spawn: vi.fn(), exec: vi.fn(), lookup: vi.fn(), kill: vi.fn() }))
 vi.mock('node:child_process', () => ({ spawn: h.spawn, execFile: h.exec }))
 vi.mock('node:util', () => ({ promisify: () => h.exec }))
-vi.mock('./binary-lookup', () => ({
-  lookupPosixBinary: h.lookup,
-  resolveBinary: h.lookup,
-  windowsWhereOutput: vi.fn(),
-}))
+vi.mock('./binary-lookup', () => ({ resolveBinary: h.lookup }))
 vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   piProcessEnv: async () => ({ PATH: '/shell' }),
 }))
 vi.mock('./stub', () => ({ piStubPath: () => undefined }))
-vi.mock('./print-mode', () => ({ OWN_GROUP: true, killProcessTree: h.kill, runPrintMode: vi.fn() }))
+vi.mock('./print-mode', () => ({ killProcessTree: h.kill, runPrintMode: vi.fn() }))
 let child: EventEmitter & { stdout: PassThrough; stderr: PassThrough }
 beforeEach(() => {
   vi.resetModules()

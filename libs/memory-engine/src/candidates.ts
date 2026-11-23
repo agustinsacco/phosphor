@@ -1,6 +1,6 @@
 import type { BrainPredicate } from '@phosphor/shared/brain'
 import { all, one, type Context } from './database'
-import { entity, entityNumber } from './entities'
+import { entity, entityNumber, survivingEntityId } from './entities'
 import { memoryCards } from './knowledge'
 import { fold, tokens } from './text'
 import type { ClaimProbe, EntityCard, EntityMatch, MemoryMatch, ProposalEntity } from './types'
@@ -157,7 +157,7 @@ export function entityMatches(
 function neighbours(ctx: Context, ids: string[], limit: number) {
   return ids
     .flatMap((id) => {
-      const n = entityNumber(ctx, id)
+      const n = entityNumber(ctx, survivingEntityId(ctx, id))
       return (['out', 'in'] as const).flatMap((direction) => {
         const own = direction === 'out' ? 'subject' : 'object'
         const other = direction === 'out' ? 'object' : 'subject'

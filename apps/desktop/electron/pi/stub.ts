@@ -32,3 +32,8 @@ export function stubOpsEnabled(): boolean {
     !!piStubPath() && !!process.env.PHOSPHOR_TEST_USER_DATA && process.env.PHOSPHOR_E2E_OPS === '1'
   )
 }
+
+/** The Brain e2e drives the real Brain bridge from pi stub lanes. */
+export function stubBrainEnabled(): boolean {
+  return !app.isPackaged && Boolean(process.env.PHOSPHOR_BRAIN_TEST_EMBEDDINGS)
+}

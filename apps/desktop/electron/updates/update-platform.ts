@@ -61,6 +61,5 @@ export function readPackagedFlag(): boolean | null {
  */
 export function manifestName(): string {
   if (process.platform === 'darwin') return 'latest-mac.yml'
-  if (process.platform === 'win32') return 'latest.yml'
   return process.arch === 'arm64' ? 'latest-linux-arm64.yml' : 'latest-linux.yml'
 }

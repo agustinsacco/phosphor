@@ -80,7 +80,7 @@ to its bottom.
 
 Device sections come first, then **Configure** (a selector of machines) and the
 chosen machine's sections. Configure lists **This Mac** (the local machine's
-platform label, This PC or This computer off macOS) when the client has local
+platform label, This computer off macOS) when the client has local
 lanes (`localLanes`) and every known Host (the machines directory and the connected
 Hosts) when it can configure one (`machineSettings`).
 
@@ -384,7 +384,7 @@ nothing leaves the machine.
 - **Check spelling** (on by default) switches Chromium's spellchecker for the
   app's session (`session.setSpellCheckerEnabled`, applied at launch and on
   change). macOS uses the system spellchecker and its language setting;
-  Windows and Linux use Hunspell, whose dictionaries Chromium downloads from
+  Linux uses Hunspell, whose dictionaries Chromium downloads from
   Google's CDN. Typed text is never sent.
 - **The right-click menu** is `features/writing/TextFieldMenu.tsx`: one
   window-level `contextmenu` listener for textareas and text inputs. It stands
@@ -394,7 +394,7 @@ nothing leaves the machine.
   `getWordSuggestions`), not from the `context-menu` event's
   `dictionarySuggestions`, which came back empty on macOS with the spelling
   language set to Automatic (electron#24455) while `webFrame` answered.
-  _Add to dictionary_ also writes to the OS dictionary on macOS and Windows,
+  _Add to dictionary_ also writes to the OS dictionary on macOS,
   which other apps share. Cut / Copy / Paste / Select all run in main
   (`writing:edit` → `webContents.paste()` and friends), so a paste still fires
   the field's paste event (images, list continuation).

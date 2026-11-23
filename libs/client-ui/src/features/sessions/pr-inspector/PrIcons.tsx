@@ -126,7 +126,7 @@ export function PrGlyph({
 export const TONE_TEXT: Record<PrTone, string> = {
   failing: 'text-danger',
   conflict: 'text-danger',
-  closed: 'text-danger',
+  closed: 'text-closed',
   pending: 'text-warning',
   blocked: 'text-warning',
   review: 'text-success',
@@ -140,7 +140,7 @@ export const TONE_TEXT: Record<PrTone, string> = {
 export const TONE_CHIP: Record<PrTone, string> = {
   failing: 'text-danger bg-danger-soft border-danger/30',
   conflict: 'text-danger bg-danger-soft border-danger/30',
-  closed: 'text-danger bg-danger-soft border-danger/30',
+  closed: 'text-closed bg-closed-soft border-closed/30',
   pending: 'text-warning bg-warning/10 border-warning/30',
   blocked: 'text-warning bg-warning/10 border-warning/30',
   review: 'text-success bg-success/10 border-success/30',

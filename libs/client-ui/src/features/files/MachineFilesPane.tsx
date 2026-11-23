@@ -6,26 +6,14 @@ import { RemoteFileTree } from './RemoteFileTree'
 import { useTreeFolders } from './useTreeFolders'
 import { releaseFileModel } from './MonacoEditor'
 import { useEffect, useState } from 'react'
-import {
-  useHostFiles,
-  useLocalFiles,
-  type MachineFileReads,
-  type MachineFilesSource,
-} from './machineFilesSource'
+import { useHostFiles, type MachineFileReads, type MachineFilesSource } from './machineFilesSource'
 
 /**
- * A machine's files, read only: This Mac's (`'local'`) recent folders or a
- * Host's registered repositories. It never mounts the editor's tabs or a disk watcher.
+ * A Host's registered repositories, read only, from its home's Files pane. It never
+ * mounts the editor's tabs or a disk watcher.
  */
 export function MachineFilesPane({ hostId }: { hostId: string }): React.JSX.Element {
-  return hostId === 'local' ? (
-    <LocalMachineFiles />
-  ) : (
-    <HostMachineFiles key={hostId} hostId={hostId} />
-  )
-}
-function LocalMachineFiles(): React.JSX.Element {
-  return <MachineFilesView source={useLocalFiles()} />
+  return <HostMachineFiles key={hostId} hostId={hostId} />
 }
 function HostMachineFiles({ hostId }: { hostId: string }): React.JSX.Element {
   return <MachineFilesView source={useHostFiles(hostId)} />

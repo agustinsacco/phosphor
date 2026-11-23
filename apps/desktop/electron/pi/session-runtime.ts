@@ -5,7 +5,8 @@ import { createSessionStartup } from '@phosphor/session-runtime/pi/session-start
 import { createSessionService } from '@phosphor/session-runtime/pi/session-service'
 import { sessionPaths } from './session-path-lock'
 import { createOpsContribution } from './contributions/ops'
-import { piStubPath, stubOpsEnabled } from './stub'
+import { createBrainContribution } from './contributions/brain'
+import { piStubPath, stubBrainEnabled, stubOpsEnabled } from './stub'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { desktopSessionSink } from './session-events'
 import { prepareDesktopSessionLaunch } from './session-launch'
@@ -51,7 +52,10 @@ const spawn = createSessionStartup({
   recordWorkspace,
   laneReload,
   contributions: desktopSpawnContributions(),
-  stubContributions: stubOpsEnabled() ? [createOpsContribution()] : [],
+  stubContributions: [
+    ...(stubOpsEnabled() ? [createOpsContribution()] : []),
+    ...(stubBrainEnabled() ? [createBrainContribution()] : []),
+  ],
 })
 
 const service = createSessionService<Electron.WebContents>({

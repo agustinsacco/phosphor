@@ -6,8 +6,6 @@ const execFileAsync = promisify(execFile)
 
 export interface ShellEnvironmentPorts {
   shell(): string
-  platform(): NodeJS.Platform
-  env(): NodeJS.ProcessEnv
   run(
     shell: string,
     args: string[],
@@ -19,8 +17,6 @@ export interface ShellEnvironmentPorts {
 
 const nodePorts: ShellEnvironmentPorts = {
   shell: () => process.env.SHELL || '/bin/zsh',
-  platform: () => process.platform,
-  env: () => process.env,
   now: Date.now,
   accepts: isForwardedEnvName,
   run: async (shell, args, { timeoutMs: timeout, maxBytes: maxBuffer }) =>
@@ -40,7 +36,7 @@ export async function captureShellEnvironment(ports: ShellEnvironmentPorts) {
   ])
   if (!path && Object.keys(values).length === 0) return null
   return {
-    path: path?.split(ports.platform() === 'win32' ? ';' : ':').filter(Boolean) ?? [],
+    path: path?.split(':').filter(Boolean) ?? [],
     values,
     at: ports.now(),
   }
@@ -82,8 +78,6 @@ export async function getLoginShellPath(): Promise<string | null> {
 }
 
 async function resolveLoginShellPath(ports: ShellEnvironmentPorts): Promise<string | null> {
-  if (ports.platform() === 'win32') return ports.env().PATH ?? null
-
   const shell = ports.shell()
   // A login+interactive shell so rc files that set up version managers run.
   // `-i` matters for fnm/nvm, which are typically wired up in .zshrc.
@@ -111,8 +105,7 @@ async function resolveLoginShellPath(ports: ShellEnvironmentPorts): Promise<stri
  * authenticate in a packaged build while working fine under `npm run dev`,
  * which inherits the terminal. Only names `isForwardedEnvName` accepts come in.
  *
- * Returns an empty object on Windows (GUI processes inherit the user
- * environment there) and whenever the shell can't be probed.
+ * Returns an empty object whenever the shell can't be probed.
  */
 export async function getLoginShellEnv(): Promise<Record<string, string>> {
   if (cachedShellEnv !== null) return cachedShellEnv
@@ -130,8 +123,6 @@ export async function getLoginShellEnv(): Promise<Record<string, string>> {
 }
 
 async function resolveLoginShellEnv(ports: ShellEnvironmentPorts): Promise<Record<string, string>> {
-  if (ports.platform() === 'win32') return {}
-
   const shell = ports.shell()
   for (const args of [
     ['-lic', 'env -0'],
@@ -190,34 +181,21 @@ export async function piProcessEnv(
   for (const [name, value] of Object.entries(shellEnv)) {
     if (base[name] === undefined) base[name] = value
   }
-  // Windows has no login shell to consult (`getLoginShellPath` hands back the
-  // inherited PATH), so there is nothing to merge — and merging would also
-  // have to survive `C:` drive colons, which `dedupePath` used to split on.
-  if (shellPath && process.platform !== 'win32') {
+  if (shellPath) {
     // Prefer the shell's PATH, keeping any inherited entries as a fallback.
     const inherited = process.env.PATH ?? ''
-    const merged = inherited ? `${shellPath}${pathDelimiter()}${inherited}` : shellPath
+    const merged = inherited ? `${shellPath}:${inherited}` : shellPath
     base.PATH = dedupePath(merged)
   }
   return { ...base, ...extra }
 }
 
-/**
- * From `process.platform`, not `node:path`'s `delimiter`: the two agree in
- * production, but the tests fake the platform, and `delimiter` is baked in
- * from the HOST — on the Windows CI runner it is `;`, which made the POSIX
- * cases produce `/opt/bin;/usr/bin:/bin`.
- */
-function pathDelimiter(): string {
-  return process.platform === 'win32' ? ';' : ':'
-}
-
 function dedupePath(path: string): string {
   const seen = new Set<string>()
   return path
-    .split(pathDelimiter())
+    .split(':')
     .filter((entry) => entry && !seen.has(entry) && (seen.add(entry), true))
-    .join(pathDelimiter())
+    .join(':')
 }
 
 /** Test seam: forget the cached PATH and shell env. */

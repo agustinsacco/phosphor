@@ -11,12 +11,12 @@ import { openPrNotice, runPrNoticeAction } from './prNoticeActions'
  * lane receipts compose `LaneReceipt.tsx`, so the two never drift apart.
  */
 
-type ToneGroup = 'bad' | 'warn' | 'good' | 'merged' | 'muted'
+type ToneGroup = 'bad' | 'warn' | 'good' | 'merged' | 'closed' | 'muted'
 
 const GROUP: Record<PrTone, ToneGroup> = {
   failing: 'bad',
   conflict: 'bad',
-  closed: 'bad',
+  closed: 'closed',
   pending: 'warn',
   blocked: 'warn',
   review: 'good',
@@ -31,6 +31,7 @@ const BEAD: Record<ToneGroup, string> = {
   warn: 'text-warning bg-warning/10 border-warning/40',
   good: 'text-success bg-success/10 border-success/40',
   merged: 'text-merged bg-merged-soft border-merged/40',
+  closed: 'text-closed bg-closed-soft border-closed/40',
   muted: 'text-text-tertiary bg-chip border-border-strong',
 }
 
@@ -40,6 +41,7 @@ export const PR_TONE_BAR: Record<ToneGroup, string> = {
   warn: 'bg-warning',
   good: 'bg-success',
   merged: 'bg-merged',
+  closed: 'bg-closed',
   muted: 'bg-border-strong',
 }
 

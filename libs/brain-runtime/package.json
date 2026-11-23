@@ -4,6 +4,50 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent/curator": {
+      "types": "./src/agent/curator.ts",
+      "default": "./src/agent/curator.ts"
+    },
+    "./agent/curator-context": {
+      "types": "./src/agent/curator-context.ts",
+      "default": "./src/agent/curator-context.ts"
+    },
+    "./agent/curator-view": {
+      "types": "./src/agent/curator-view.ts",
+      "default": "./src/agent/curator-view.ts"
+    },
+    "./agent/curator-writes": {
+      "types": "./src/agent/curator-writes.ts",
+      "default": "./src/agent/curator-writes.ts"
+    },
+    "./agent/defrag": {
+      "types": "./src/agent/defrag.ts",
+      "default": "./src/agent/defrag.ts"
+    },
+    "./agent/defrag-api": {
+      "types": "./src/agent/defrag-api.ts",
+      "default": "./src/agent/defrag-api.ts"
+    },
+    "./agent/local-pass": {
+      "types": "./src/agent/local-pass.ts",
+      "default": "./src/agent/local-pass.ts"
+    },
+    "./agent/own-lane": {
+      "types": "./src/agent/own-lane.ts",
+      "default": "./src/agent/own-lane.ts"
+    },
+    "./agent/read-decision": {
+      "types": "./src/agent/read-decision.ts",
+      "default": "./src/agent/read-decision.ts"
+    },
+    "./agent/refusal": {
+      "types": "./src/agent/refusal.ts",
+      "default": "./src/agent/refusal.ts"
+    },
+    "./agent/review-refresh": {
+      "types": "./src/agent/review-refresh.ts",
+      "default": "./src/agent/review-refresh.ts"
+    },
     "./api": {
       "types": "./src/api.ts",
       "default": "./src/api.ts"
@@ -124,6 +168,10 @@
       "types": "./src/source-checkpoint.ts",
       "default": "./src/source-checkpoint.ts"
     },
+    "./stale-review": {
+      "types": "./src/stale-review.ts",
+      "default": "./src/stale-review.ts"
+    },
     "./stage-call": {
       "types": "./src/stage-call.ts",
       "default": "./src/stage-call.ts"
@@ -224,10 +272,6 @@
       "types": "./src/tidy/api.ts",
       "default": "./src/tidy/api.ts"
     },
-    "./tidy/check": {
-      "types": "./src/tidy/check.ts",
-      "default": "./src/tidy/check.ts"
-    },
     "./tidy/flag": {
       "types": "./src/tidy/flag.ts",
       "default": "./src/tidy/flag.ts"
@@ -239,18 +283,6 @@
     "./tidy/maintenance": {
       "types": "./src/tidy/maintenance.ts",
       "default": "./src/tidy/maintenance.ts"
-    },
-    "./tidy/parse": {
-      "types": "./src/tidy/parse.ts",
-      "default": "./src/tidy/parse.ts"
-    },
-    "./tidy/prompt": {
-      "types": "./src/tidy/prompt.ts",
-      "default": "./src/tidy/prompt.ts"
-    },
-    "./tidy/run": {
-      "types": "./src/tidy/run.ts",
-      "default": "./src/tidy/run.ts"
     },
     "./transcript": {
       "types": "./src/transcript.ts",

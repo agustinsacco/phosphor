@@ -42,7 +42,7 @@ export async function resolvePiInvoker(
   }
   return {
     binaryPath: health.binaryPath,
-    prefixArgs: [...(health.prefixArgs ?? [])],
+    prefixArgs: [],
     env: { ...(await piProcessEnv()) },
     stub: false,
   }

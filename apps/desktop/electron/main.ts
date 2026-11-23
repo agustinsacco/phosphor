@@ -95,15 +95,15 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     // Frameless on every platform. The sidebar and chat header already reserve
-    // a 44px drag strip for macOS's traffic lights; leaving Windows/Linux on
+    // a 44px drag strip for macOS's traffic lights; leaving Linux on
     // 'default' stacked a native title bar AND a menu bar on top of that strip,
-    // so a third of the window height was chrome. Windows/Linux get no traffic
+    // so a third of the window height was chrome. Linux gets no traffic
     // lights, so Electron draws the controls via the Window Controls Overlay
-    // (@platform win32,linux) at the same 44px height the strip reserves.
+    // at the same 44px height the strip reserves.
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     ...(process.platform === 'darwin' ? {} : { titleBarOverlay: overlayFor(getPrefs().theme) }),
     // The in-window menu bar duplicated shortcuts already in the palette and
-    // cost another row of chrome; Alt still reveals it on Windows/Linux.
+    // cost another row of chrome; Alt still reveals it on Linux.
     autoHideMenuBar: process.platform !== 'darwin',
     backgroundColor: backgroundFor(getPrefs().theme),
     // Window/taskbar icon for unpackaged linux runs (packaged linux resolves

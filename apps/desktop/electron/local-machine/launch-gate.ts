@@ -8,7 +8,7 @@ import { log } from '../debug-log'
 import { createDaemonInstall, type DaemonInstall } from '../daemon/install'
 import { loadOwnerKey } from '../daemon/owner-key'
 import { daemonRoots } from '../daemon/roots'
-import { lookupPosixBinary } from '../pi/binary-lookup'
+import { resolveBinary } from '../pi/binary-lookup'
 import { desktopGatePorts } from './migration/desktop-ports'
 import { createLaunchGate, type LaunchGate } from './migration/gate'
 import type { ActionResult } from './migration/gate-actions'
@@ -96,7 +96,7 @@ function startServiceInstall(): void {
   }
   install = createDaemonInstall(roots, {
     ownerKey: () => loadOwnerKey({ dir: join(userData, 'daemon'), cipher: cipher() }),
-    findPi: () => lookupPosixBinary('pi'),
+    findPi: () => resolveBinary('pi'),
     shellPath: getLoginShellPath,
     baseEnv,
   })

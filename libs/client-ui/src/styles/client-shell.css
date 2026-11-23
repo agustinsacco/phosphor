@@ -86,6 +86,8 @@ html[data-form-factor='compact'] {
   background: var(--px-bg);
   color: var(--px-text);
   padding-top: env(safe-area-inset-top);
+  /* The home indicator's inset, except under an open keyboard, which already covers it. */
+  --compact-safe-bottom: max(0px, calc(env(safe-area-inset-bottom) - var(--compact-keyboard, 0px)));
 }
 .browser-shell {
   flex-direction: row;
@@ -131,6 +133,7 @@ html[data-form-factor='compact'] {
 /* A lane's transcript and panes scroll themselves; a second bar beside them is noise. */
 .compact-main[data-route='lane'] {
   overflow: hidden;
+  padding-bottom: var(--compact-safe-bottom);
 }
 .browser-navigation {
   display: flex;
@@ -472,25 +475,34 @@ html:not([data-form-factor='compact']) .attachment-remove::before {
   margin-left: 6px;
 }
 /*
- * The phone composer is the shared card, tightened: less padding round the field
- * and its single control row, a short readout strip, and a field that stops at
- * a third of what the keyboard leaves and scrolls itself, so the caret stays on
- * screen. Unlayered, so these beat the card's own utilities.
+ * The phone composer is the shared card at touch spacing: the field, its single
+ * control row and the readout strip each keep clear space, and no control sits
+ * on the card's border. A field stops at a third of what the keyboard leaves and
+ * scrolls itself, so the caret stays on screen. Text scrolled into the field's
+ * padding fades out instead of being cut at the card's edge, which also shows
+ * there is more above. Unlayered, so these beat the card's own utilities.
  */
 [data-form-factor='compact'] .composer {
-  padding: 2px 8px 4px;
+  padding: 6px 12px 8px;
 }
 [data-form-factor='compact'] .composer-field:not(input) {
   max-height: calc(var(--compact-height, 100dvh) / 3);
-  padding: 10px 12px 2px;
+  padding: 12px 14px 6px;
+  line-height: 24px;
+  -webkit-mask-image: linear-gradient(#0000, #000 12px, #000 calc(100% - 6px), #0000);
+  mask-image: linear-gradient(#0000, #000 12px, #000 calc(100% - 6px), #0000);
+}
+/* A lane's field shows three lines, then scrolls: the transcript keeps the screen. */
+[data-form-factor='compact'] .composer .composer-field:not(input) {
+  max-height: min(calc(3lh + 18px), calc(var(--compact-height, 100dvh) / 3));
 }
 [data-form-factor='compact'] .composer-toolbar {
-  gap: 6px;
-  padding: 0 4px;
+  gap: 8px;
+  padding: 2px 8px 8px;
 }
 [data-form-factor='compact'] .composer-status {
-  min-height: 0;
-  padding-top: 0;
+  min-height: 32px;
+  padding: 4px 6px 0;
 }
 [data-form-factor='compact'] .composer-status button {
   min-height: 32px;
@@ -502,6 +514,14 @@ html:not([data-form-factor='compact']) .attachment-remove::before {
 }
 [data-form-factor='compact'] .action-tooltip {
   display: none;
+}
+/* Notices span the phone under its lane header, clear of the status bar and the title. */
+[data-form-factor='compact'] .toast-stack {
+  top: calc(var(--compact-top, 0px) + env(safe-area-inset-top) + 64px);
+  right: max(8px, env(safe-area-inset-right));
+  left: max(8px, env(safe-area-inset-left));
+  width: auto;
+  max-width: none;
 }
 [data-form-factor='compact'] label:has(input[type='checkbox']),
 [data-form-factor='compact'] label:has(input[type='radio']) {
@@ -524,7 +544,7 @@ html:not([data-form-factor='compact']) .attachment-remove::before {
   display: flex;
   flex-shrink: 0;
   justify-content: space-around;
-  padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom))
+  padding: 4px max(8px, env(safe-area-inset-right)) max(4px, var(--compact-safe-bottom))
     max(8px, env(safe-area-inset-left));
   border-top: 1px solid var(--px-border);
   background: var(--px-sidebar);

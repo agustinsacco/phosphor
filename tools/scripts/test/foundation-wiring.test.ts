@@ -235,11 +235,17 @@ describe('foundation CI wiring', () => {
     const runsOn = [...workflow.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1])
     const linux = '[self-hosted, Linux, X64]'
     expect(runsOn.filter((value) => value === linux)).toHaveLength(7)
+    // The macOS leg alone falls back to a GitHub Mac, as mac-runner.mjs decides.
     expect(runsOn.filter((value) => value !== linux)).toEqual([
-      `\${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}`,
+      `\${{ matrix.os == 'macos' && fromJSON(needs.changes.outputs.mac || '"macos-15"') || fromJSON('["self-hosted","Linux","X64"]') }}`,
     ])
-    // A bare `self-hosted` would hand Linux work to the Mac.
-    expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-|macos-/m)
+    expect(job('changes')).toContain('run: node tools/scripts/mac-runner.mjs >> "$GITHUB_OUTPUT"')
+    expect(job('changes')).toContain('mac: ${{ steps.mac.outputs.mac }}')
+    // A bare `self-hosted` would hand Linux work to the Mac; no other job leaves the project.
+    expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-/m)
+    // The two fallbacks (the picker's and runs-on's own) are the only GitHub Mac.
+    const config = workflow.replace(/^\s*#.*$/gm, '')
+    expect(config.match(/macos-15/g)).toHaveLength(2)
   })
 
   it('narrows only the app jobs, by the changes job, and always runs the checks', () => {

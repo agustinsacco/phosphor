@@ -1,7 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { fixture, searchFixture, vector } from '../test-support'
-import { openBrainStore } from '../store'
 import { seed } from './test-support'
 
 it('retains only the newest 200 operations and immediately drops undone before-images', () => {
@@ -48,49 +47,4 @@ it('validates versioned journal envelopes and refuses corrupt rows without chang
   ).run('{"version":1,"key":{"n":2},"row":{"n":2,"unexpected":"Ledger"}}', op)
   expect(() => store.tidyUndo(op, store.revision())).toThrow('unreadable undo record')
   expect(store.snapshot().counts.entities).toBe(1)
-})
-it('persists the run checkpoint faithfully and leaves interrupted recovery to the runtime', () => {
-  const { store, path } = searchFixture()
-  const checkpoint = {
-    state: 'checking' as const,
-    checked: 12,
-    total: 40,
-    suggestions: 3,
-    folded: 2,
-    message: 'Checking small clusters.',
-    error: null,
-    startedAt: 1,
-    finishedAt: null,
-    model: null,
-    settled: 0,
-  }
-  store.writeRun(checkpoint)
-  const reopened = openBrainStore({ path, Database: DatabaseSync })
-  try {
-    expect(reopened.readRun()).toEqual(checkpoint)
-    for (const state of [
-      'queued',
-      'sweeping',
-      'checking',
-      'done',
-      'failed',
-      'cancelled',
-      'skipped',
-      'interrupted',
-    ] as const) {
-      const value = {
-        ...checkpoint,
-        state,
-        finishedAt: 9,
-        error: 'Invented transport failure',
-        message: 'Retry available.',
-      }
-      reopened.writeRun(value)
-      expect(reopened.readRun()).toEqual(value)
-    }
-    reopened.reset()
-    expect(reopened.readRun()).toBeNull()
-  } finally {
-    reopened.close()
-  }
 })

@@ -137,7 +137,7 @@ Desktop/browser difference is a capability listed in `platform/Platform.test.ts`
 its Session options and Settings match on Desktop, in a wide browser and on a
 phone. A shell passes layout down instead: the phone's lane header carries the
 lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
-as Machine files, is the `ListDetail` primitive, one at a time on a phone.
+as a Host home's Files pane, is the `ListDetail` primitive, one at a time on a phone.
 `localLanes`, `nativeFiles`, `nativeImageClipboard`, `fileEditing`, `splitPanes`, `localBrain`
 and `hostTrafficLog` remain false in the browser at every width. Modal/menu placement adapts without
 enabling pane controls. A Host lane's Files edits at both widths, in Monaco when wide and in a
@@ -185,7 +185,7 @@ it downloads files up to 100 MB and previews images, video and audio up to 50 MB
 from their bytes ([files](files.md#remote-lanes)). On a phone the tree and the
 file are separate screens, and a file reads coloured by its language, scrolled to
 the line a chat link names, until Edit. Changes' HEAD/working-copy comparisons
-and Machine files are read only. Like This Mac's viewer, a file offers Copy but
+and a Host home's Files pane are read only. Like This Mac's viewer, a file offers Copy but
 no chat code-block actions (Open as artifact, Run in terminal). New lanes and existing
 lane composers accept any file, as Desktop's Host lanes do: images go inline and
 other files upload to the Host before the prompt, which names their Host path. A
@@ -214,7 +214,8 @@ machine settings, including provider installation and Claude accounts, work afte
 [configuration access](#configuration-access-and-lane-deletion). Editing skills,
 artifacts and attachments in place, and This Mac's settings, are unavailable. Attention reaches the shared notification drawer
 and, with permission, native notifications while the app runs ([below](#notifications)). A Host's
-registered repositories open read-only from **Machines → a Host → Machine files**.
+registered repositories open read-only from the top bar's Files pane on that Host's
+home (no lane open).
 
 `PageShell` owns each page's single heading, actions and close behavior;
 `PageBody` supplies the shared width, gutters and scrolling for Machines,
@@ -316,14 +317,26 @@ through the compact `--text-*` tokens; wide screens and Desktop keep compact
 desktop density. Borderless phone controls are 44px; drawn ones (buttons, pills,
 the composer's Swarm and model chips) stay 32px tall with a transparent 44px
 hit-slop (`.hit-slop`), and text-entry fields are 16px. A phone page header
-keeps its actions beside a large title while they fit. Safe-area
-insets and visual-viewport resize/scroll follow the on-screen keyboard.
+keeps its actions beside a large title while they fit.
 
-On a phone the composer is the shared card, tightened (`client-shell.css`):
-less padding, one control row, a short readout strip, and Continue hidden
-while it cannot act. Its field stops growing at a third of what the keyboard
-leaves and scrolls itself, following the caret, so the line being typed stays
-on screen. A streaming placeholder names only what a soft keyboard can do.
+The shell follows the on-screen keyboard. `useCompactViewport` sizes it to the
+visual viewport (`--compact-height`, `--compact-top`), which is all iOS resizes;
+the viewport meta's `interactive-widget=resizes-content` makes Android resize the
+page itself, so nothing pans under the keyboard. A lane, the start page and the
+tab bar end above the home indicator (`--compact-safe-bottom`), and that inset
+gives way while a keyboard covers it (`--compact-keyboard`). A pinned transcript
+stays on its last message as the keyboard opens. Notices span the phone under
+the lane header, below the status bar.
+
+On a phone the composer is the shared card at touch spacing (`client-shell.css`):
+the field, one control row and the readout strip each keep clear space, no
+control sits on the card's border, and Continue is hidden while it cannot act.
+A lane's field grows a line at a time to three lines, then scrolls itself,
+following the caret, so the line being typed stays on screen and the transcript
+keeps the rest; text scrolled out of view fades at the field's edge. The start
+page's field, and any field beside a keyboard that leaves little room, stops at
+a third of the visible height. A streaming placeholder names only what a soft
+keyboard can do.
 Each page scrolls in one place: a lane's transcript, or the remote start
 page's intro above its composer, which is never a scroller of its own. A menu
 that opens upward (`/`, `@`, model, thinking, readouts) is a bottom sheet

@@ -8,7 +8,6 @@ afterEach(() => vi.unstubAllGlobals())
 
 it.each([
   ['darwin', 'This Mac', 'this Mac'],
-  ['win32', 'This PC', 'this PC'],
   ['linux', 'This computer', 'this computer'],
 ])(
   'names the local machine mid-sentence in lower case on %s (regression)',

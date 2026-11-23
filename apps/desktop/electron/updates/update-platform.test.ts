@@ -100,14 +100,16 @@ describe('computeUpdatePath', () => {
     expect(await computeUpdatePath()).toBe('manual')
   })
 
-  it('uses electron-updater for signed Windows and macOS without touching the bundle', async () => {
+  it('uses electron-updater for signed macOS without touching the bundle', async () => {
     signed(true)
     f.exe = '/not/a/bundle/phosphor'
-    for (const platform of ['win32', 'darwin']) {
-      setHost(platform)
-      expect(await computeUpdatePath()).toBe('updater')
-    }
-    setHost('win32')
+    setHost('darwin')
+    expect(await computeUpdatePath()).toBe('updater')
+  })
+
+  it('falls back to a manual download on a platform it has no installer for', async () => {
+    f.exe = '/not/a/bundle/phosphor'
+    setHost('freebsd')
     signed(false)
     expect(await computeUpdatePath()).toBe('manual')
   })
@@ -164,8 +166,6 @@ describe('manifestName', () => {
     const cases: [string, string, string][] = [
       ['darwin', 'arm64', 'latest-mac.yml'],
       ['darwin', 'x64', 'latest-mac.yml'],
-      ['win32', 'x64', 'latest.yml'],
-      ['win32', 'arm64', 'latest.yml'],
       ['linux', 'x64', 'latest-linux.yml'],
       ['linux', 'arm64', 'latest-linux-arm64.yml'],
     ]

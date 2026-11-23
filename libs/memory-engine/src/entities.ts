@@ -30,6 +30,22 @@ export function entityNumber(ctx: Context, id: string): number {
   if (!row) throw new Error('Brain entity not found.')
   return row.n
 }
+/** Read-only redirect; writes must continue using the strict entityNumber lookup. */
+export function survivingEntityId(ctx: Context, id: string): string {
+  const visited = new Set<string>()
+  while (!visited.has(id)) {
+    visited.add(id)
+    if (one(ctx, 'SELECT 1 FROM entities WHERE id=?', id)) return id
+    const merged = one<{ id: string }>(
+      ctx,
+      'SELECT e.id FROM merges m JOIN entities e ON e.n=m.target WHERE m.source_id=? ORDER BY m.recorded_at DESC,m.n DESC LIMIT 1',
+      id,
+    )
+    if (!merged) break
+    id = merged.id
+  }
+  throw new Error('Brain entity not found.')
+}
 export function referencedEntities(
   ctx: Context,
   memories: { entityIds: string[] }[],

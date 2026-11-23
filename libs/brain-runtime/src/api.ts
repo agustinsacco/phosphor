@@ -1,4 +1,3 @@
-import { createTidyRunner, type TidyRunner } from './tidy/run'
 import { tidyApi } from './tidy/api'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -12,19 +11,16 @@ import {
   type BrainStatus,
 } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
-import { BRAIN_REVIEW_REFRESHING } from '@phosphor/shared/brain-review'
 import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
 import { laneInfo } from './lane'
 import type { LaneFiles } from './lane-files'
-import {
-  currentReadCheck,
-  currentTitle,
-  NEVER_READ_REFRESH_REFUSAL,
-  DELETED_LANE_REFRESH_REFUSAL,
-} from './lane-read-rules'
+import { currentTitle } from './lane-read-rules'
 import type { TidyMaintenance } from './tidy/maintenance'
+import { BRAIN_OWN_LANE_REFUSAL, isBrainOwnLane } from './agent/own-lane'
+import type { Defrag } from './agent/defrag'
+import { defragApi } from './agent/defrag-api'
 
 interface ApiContext {
   store: BrainStore
@@ -35,6 +31,7 @@ interface ApiContext {
   changed(): void
   startModel(run: () => Promise<void>): void
   maintenance: Pick<TidyMaintenance, 'reset'>
+  defrag: Defrag
 }
 function checkPrefs(prefs: BrainPrefs): void {
   if (
@@ -64,6 +61,7 @@ async function enqueue(
       throw error
     })
   check()
+  if (isBrainOwnLane(lane.cwd, options.agent?.folder)) throw new Error(BRAIN_OWN_LANE_REFUSAL)
   const refusal = brainNeverReadReason(store.snapshot().prefs.neverRead, {
     sessionId: lane.sessionId,
     title: lane.title ?? '',
@@ -99,40 +97,22 @@ async function reread(id: string, context: ApiContext): Promise<void> {
     throw new Error('This lane is already queued.')
   await enqueue(previous, context, id)
 }
-async function currentReview(
-  id: string,
-  { store, queue, files, changed }: ApiContext,
-  intent: 'view' | 'approve',
-): Promise<void> {
+/**
+ * The review as stored, even when Brain changed since or while Brain Agent refreshes it: viewing
+ * never starts a refresh. Only its never-read note follows the lane's current name.
+ */
+async function storedReview(id: string, { store, files, changed }: ApiContext) {
   const job = store.job(id)
-  const proposal = store.storedProposal(id)
-  if (job && proposal && proposal.computedRevision !== store.knowledgeRevision()) {
-    const check = await currentReadCheck(store, files, job)
-    if (check.retitled) changed()
-    const reason = check.refusal
-    const refusal =
-      reason === DELETED_LANE_REFRESH_REFUSAL ? reason : reason ? NEVER_READ_REFRESH_REFUSAL : null
-    const latest = store.storedProposal(id)
-    if (!latest || latest.computedRevision === store.knowledgeRevision()) return
-    if (refusal) {
-      if (intent === 'view') return
-      throw new Error(refusal)
-    }
-    if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
-    queue.recompute(id)
-    throw new Error(BRAIN_REVIEW_REFRESHING)
-  }
-  if (intent === 'view' && job && proposal) {
-    // The never-read note follows the lane's current name. An unreadable lane keeps its stored one.
+  if (job && store.storedProposal(id)) {
+    // An unreadable lane keeps its stored name.
     const current = await currentTitle(store, files, job).catch(() => null)
     if (current?.retitled) changed()
   }
-  if (store.job(id)?.state === 'refreshing') throw new Error(BRAIN_REVIEW_REFRESHING)
+  return store.proposal(id)
 }
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
-  const tidy = createTidyRunner({ ...context, runState: store })
-  const status = (): BrainStatus => apiStatus(context, tidy)
+  const status = (): BrainStatus => apiStatus(context)
   const mutate = async (run: () => void): Promise<BrainStatus> => {
     run()
     await search.refresh()
@@ -166,15 +146,7 @@ export function createApi(context: ApiContext): BrainApi {
       return status()
     },
     extraction: async (id) => extractionView(store, id),
-    proposal: async (id) => {
-      await currentReview(id, context, 'view')
-      return store.proposal(id)
-    },
-    review: async (id, decision, revision) => {
-      if (decision !== null) await currentReview(id, context, 'approve')
-      else queue.abortRefresh(id)
-      return mutate(() => store.review(id, decision, revision))
-    },
+    proposal: (id) => storedReview(id, context),
     reset: async () => {
       await queue.pause()
       try {
@@ -192,7 +164,8 @@ export function createApi(context: ApiContext): BrainApi {
         queue.resume()
       }
     },
-    ...tidyApi(context, tidy, status, mutate),
+    ...tidyApi(store, status, mutate),
+    ...defragApi(store, context.defrag, status, mutate),
     ...readApi(context),
     forget: async (id) => mutate(() => store.forget(id)),
   }
@@ -273,13 +246,15 @@ function readApi({
   }
 }
 
-function apiStatus({ store, options }: ApiContext, tidy: TidyRunner): BrainStatus {
+function apiStatus({ store, options }: ApiContext): BrainStatus {
   const embedding = options.embeddings.status()
   return {
     ...store.snapshot(),
-    tidy: {
-      ...store.tidySummary(),
-      running: ['queued', 'sweeping', 'checking'].includes(tidy.current()?.state ?? ''),
+    tidy: store.tidySummary(),
+    agent: {
+      waiting: store.waitingCounts(),
+      run: store.latestRun(),
+      folder: options.agent?.folder ?? null,
     },
     supported: embedding.phase !== 'unsupported',
     embedding,

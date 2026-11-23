@@ -20,6 +20,7 @@ describe('bundledExtensions', () => {
       'message-ledger.ts',
       'swarm.ts',
       'lane-prs.ts',
+      'artifact-nested.ts',
       'artifact-store.ts',
       'subagent-snapshot.ts',
       'status-keys.ts',
@@ -27,7 +28,12 @@ describe('bundledExtensions', () => {
       'subagent-children.ts',
     ])
     // Opt-in Brain resources are bundled separately, never added to every session.
-    const optional = new Set(['brain.ts', 'brain-fork-guard.ts'])
+    const optional = new Set([
+      'brain.ts',
+      'brain-fork-guard.ts',
+      'brain-curator.ts',
+      'brain-curator-writes.ts',
+    ])
     // Agent-control stubs ship in pi-ext, but no spawn loads them yet.
     const unloaded = new Set([
       'phosphor.ts',

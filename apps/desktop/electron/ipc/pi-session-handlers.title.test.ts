@@ -50,7 +50,7 @@ beforeEach(async () => {
   vi.resetModules()
   vi.resetAllMocks()
   state.stub = undefined
-  state.health.mockResolvedValue({ ok: true, binaryPath: '/bin/pi', prefixArgs: ['entry.js'] })
+  state.health.mockResolvedValue({ ok: true, binaryPath: '/bin/pi' })
   state.catalogue.mockResolvedValue([])
   state.settings.mockResolvedValue({ defaultProvider: 'vendor' })
   state.packages.mockResolvedValue([])
@@ -134,7 +134,6 @@ it('carries invoker argv, Claude account, one-shot env and executable extension 
   expect(state.run).toHaveBeenCalledWith(
     '/bin/pi',
     expect.arrayContaining([
-      'entry.js',
       '-p',
       '--no-session',
       '--no-tools',

@@ -58,21 +58,6 @@ top-level `usage`; `partial` alone is 42.8% of its bytes. `apps/desktop/e2e/fixt
 still emits that older shape on some paths, while other stub paths emit lean
 updates. The captured fixture does not represent the current lean wire format.
 
-## Windows
-
-pi itself is reached correctly on Windows — `apps/desktop/electron/pi/win-launch.ts` reads
-npm's `.cmd` shim through to `node.exe` + `cli.js`, and every pi spawn goes
-through `PiHealth.prefixArgs`. The remaining gaps are the CLIs Phosphor runs
-_directly_, found through `resolveBinary` in `apps/desktop/electron/pi/packages.ts`, which
-still returns a single path.
-
-| #   | Issue                                                                                                                                                                                                        | Where                                                                                                               |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| W1  | An npm-installed Claude Code (`claude.cmd`) cannot be spawned for usage polling, status or sign-in; `spawn EINVAL`. The native `claude.exe` install is fine, and sessions are unaffected (pi spawns the CLI) | `apps/desktop/electron/pi/packages.ts` `resolveBinary` → `apps/desktop/electron/claude/usage.ts`, `claude-login.ts` |
-| W2  | Terminal busy detection is off (`isBusy` reads a POSIX process title); the tab count never shows a busy badge                                                                                                | `apps/desktop/electron/pty/pty-manager.ts` — `process.platform !== 'win32' &&`                                      |
-| W3  | Lane disk sizes report "unknown" (`du` has no Windows equivalent wired in)                                                                                                                                   | `apps/desktop/electron/maintenance/sweep.ts`                                                                        |
-| W4  | The installer is unsigned: SmartScreen shows "unknown publisher" on first install until `WIN_CERT_PFX` is configured in the release workflow                                                                 | `.github/workflows/release-continuous.yml`                                                                          |
-
 ## macOS
 
 | #   | Issue                                                                                                                                                                                                                                                                                                                                                                               | Where                                                           |

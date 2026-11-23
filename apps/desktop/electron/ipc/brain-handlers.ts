@@ -1,4 +1,3 @@
-import { BRAIN_TIDY_KINDS, checkBrainTidyAction } from '@phosphor/shared/brain-tidy'
 import {
   BRAIN_ENTITY_KINDS,
   setBrainLaneNeverRead,
@@ -8,7 +7,6 @@ import { BRAIN_ENTITY_SORTS } from '@phosphor/shared/brain-explore'
 import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
 import {
-  checkDecision,
   checkFilter,
   checkSplit,
   checkLane,
@@ -24,7 +22,7 @@ import {
   text,
 } from './brain-checks'
 
-export { checkDecision, checkLane, checkPrefs } from './brain-checks'
+export { checkLane, checkPrefs } from './brain-checks'
 
 /** Desktop-only. Lazy acquisition keeps a failed startup retryable. */
 export function registerBrainHandlers(service: () => Promise<BrainService>): void {
@@ -59,9 +57,6 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
   handle('brain:retry', async (_event, job) => (await api()).retry(id(job)))
   handle('brain:extraction', async (_event, job) => (await api()).extraction(id(job)))
   handle('brain:proposal', async (_event, job) => (await api()).proposal(id(job)))
-  handle('brain:review', async (_event, job, decision, revision) =>
-    (await api()).review(id(job), checkDecision(decision), revisionOf(revision)),
-  )
   handle('brain:reset', async () => (await api()).reset())
   handle('brain:merge', async (_event, source, target, revision) => {
     const from = id(source)
@@ -104,22 +99,11 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
 }
 
 function registerTidyHandlers(api: () => Promise<BrainApi>): void {
-  handle('brain:tidy', async (_event, kind, cursor, limit) => {
-    if (kind !== null && !BRAIN_TIDY_KINDS.includes(kind))
-      throw new Error('Invalid Brain Tidy kind.')
-    return (await api()).tidy(kind, cursorOf(cursor), limitOf(limit))
-  })
-  handle('brain:tidySuggestion', async (_event, value) => (await api()).tidySuggestion(id(value)))
-  handle('brain:tidyRun', async () => (await api()).tidyRun())
-  handle('brain:tidyCancel', async () => (await api()).tidyCancel())
-  handle('brain:tidyApply', async (_event, value, action, revision) =>
-    (await api()).tidyApply(id(value), checkBrainTidyAction(action), revisionOf(revision)),
-  )
-  handle('brain:tidyDismiss', async (_event, value, revision) =>
-    (await api()).tidyDismiss(id(value), revisionOf(revision)),
-  )
   handle('brain:tidyChanges', async (_event, limit) => (await api()).tidyChanges(limitOf(limit)))
   handle('brain:tidyUndo', async (_event, value, revision) =>
     (await api()).tidyUndo(id(value), revisionOf(revision)),
   )
+  handle('brain:defrag', async () => (await api()).defrag())
+  handle('brain:defragStop', async () => (await api()).defragStop())
+  handle('brain:undoRun', async (_event, run) => (await api()).undoRun(id(run)))
 }

@@ -1,3 +1,4 @@
+import { useBrain } from '@/features/brain/useBrain'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta } from '@shared/models'
@@ -113,7 +114,8 @@ export function SessionRow({
   // Keyed on the branch, not the title: Phosphor names a session only after its
   // first turn ends, so a title-derived marker would change under the user the
   // moment the auto-namer landed.
-  const marker = laneMarker(explicitMarker, git?.branch, meta.cwd, markerMode)
+  const brainFolder = useBrain((s) => s.status?.agent.folder)
+  const marker = laneMarker(explicitMarker, git?.branch, meta.cwd, markerMode, brainFolder)
   const naming = useNameTransition(livePhosphorId)
   // A live session's own name beats the scanned one: `meta.name` follows a
   // rename only once the folder watcher's debounce has passed. The top bar

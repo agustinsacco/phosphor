@@ -89,25 +89,26 @@ private transcripts or paid inference. The SQLite store is real.
 node_modules/.bin/vitest run libs/memory-engine libs/brain-client libs/brain-runtime \
   apps/desktop/electron/brain apps/desktop/electron/ipc/brain-handlers.test.ts
 npm run build
-node_modules/.bin/playwright test --config apps/desktop/playwright.config.ts brain.spec.ts
+node_modules/.bin/playwright test --config apps/desktop/playwright.config.ts brain.spec.ts brain-agent.spec.ts
 node_modules/.bin/playwright test --config apps/web/playwright.config.ts browser.spec.ts -g Brain
 ```
 
-The Desktop case seeds two stopped lanes that share a project, turns Brain on,
-queues the first, watches the inbox progress, approves its review and checks the
-graph's directed links and the explorer (find, hops, back, path). The second lane
-fails both automatic attempts, offers UI Retry, and its approval reuses the shared entity instead of
-duplicating it. It then refuses an unchanged re-queue and resets Brain, checking the
-lane files never change. Brain's model calls go to `e2e/fixtures/pi-stub-brain.cjs`,
-which `pi-stub.cjs` dispatches for session-less `-p` runs with the guard extension.
-It reads the stage from the system prompt and stdin and answers each stage
-deterministically. Parent links come only from the small links call, and the spec checks they
-reach review and the graph. It also exercises links repair and registry handles. The stub errors unless the run has `--no-tools` and the guard. The
-spec writes a small wrapper into its scratch workspace that sets the stub's
-fail-one-job switch (two failed attempts) and then loads the real stub; it reaches the app through the
-existing `PHOSPHOR_PI_STUB` hook. `PHOSPHOR_BRAIN_TEST_EMBEDDINGS` swaps the model
-for word-hash vectors; like every e2e hook it is ignored in a packaged app.
-The browser case checks the deep link refuses and every `brain:*` call fails.
+The Desktop specs queue made-up lanes and inspect their stored reads under **Waiting
+for Defrag**. They run Defrag, check the directed graph and explorer, exercise a
+failed read and Retry, check that two reads share an entity, and reset without
+changing the lane files. They also check the reader model choice, Read again and
+narrow panes. The Brain Agent spec checks the waiting count, run progress, the
+journal's attribution and reason, Undo run, Stop, attachment to the already-running
+Brain lane and refusal of curator calls from an ordinary lane.
+
+The reader's stub answers deterministic stages in a guarded, tool-less `-p` run.
+Parent links come only from the links call. The ordinary Brain Agent stub sends
+`waiting`, `readReview` and `decideRead` frames over the real local bridge using
+the token its lane receives. An ordinary lane's stub verifies that its different
+token cannot read the waiting list. `PHOSPHOR_BRAIN_TEST_EMBEDDINGS` uses word-hash
+vectors and enables the stub's bridge traffic only in unpackaged Desktop builds.
+The browser case checks the Brain deep link is unavailable and every `brain:*`
+call fails.
 
 ## Layout and helpers
 
@@ -265,7 +266,12 @@ the code imports now, or delete the mock.
 
 CI runs on the project's own runners, three Linux (x64) and one macOS (ARM64),
 selected by their `[self-hosted, Linux, X64]` and `[self-hosted, macOS, ARM64]`
-labels. Each runner takes one job
+labels. The one exception is the macOS e2e leg: `changes` asks the runners API
+whether the project Mac is online (`tools/scripts/mac-runner.mjs`), and while it
+is offline the leg runs on GitHub's `macos-15` instead of queueing until it
+returns. A busy Mac still takes it. The check needs the `RUNNER_STATUS_TOKEN`
+secret, a token with Administration (read) on this repository; without it (forks
+included) and on any doubt, the leg goes to GitHub's Mac. Each runner takes one job
 at a time, so jobs on the same OS queue and a split pays only when there is a
 runner instance to take it. Each job installs what it needs and runs each
 mandatory command exactly once:
