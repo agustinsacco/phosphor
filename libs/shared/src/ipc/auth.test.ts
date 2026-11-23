@@ -156,6 +156,11 @@ export interface BaselineControlInvokeMap {
   }
 
   'control:removeMachine': { args: [id: string]; result: ControlResult<Record<never, never>> }
+
+  'control:setMachineReach': {
+    args: [machineId: string, enabled: boolean]
+    result: ControlResult<{ machineReach: boolean }>
+  }
 }
 it('freezes claude, account, control channel tuples and results through ipc.ts', () => {
   expectTypeOf<

@@ -25,6 +25,7 @@ it('lists the reviewed machine surface; everything else is app-local', () => {
     maintenance: 'scan run',
     headroom: 'status setEnabled start stop install',
     optimization: 'stats',
+    ops: 'run',
     pty: 'create attach write resize kill',
   }
   const expected = Object.entries(machine)

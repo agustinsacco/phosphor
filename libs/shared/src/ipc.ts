@@ -8,6 +8,7 @@
 import type { BrainInvokeMap } from './ipc/brain'
 import type { HostsInvokeMap } from './ipc/hosts'
 import type { AppInvokeMap } from './ipc/app'
+import type { OpsInvokeMap } from './ipc/ops'
 import type { PiInvokeMap } from './ipc/pi'
 import type { ClaudeInvokeMap, AccountInvokeMap, ControlInvokeMap } from './ipc/auth'
 import type {
@@ -43,12 +44,17 @@ export type {
   RemoteLaneCreate,
   HostAttention,
   FileDownloadProgress,
+  LocalRuntimeMode,
+  LocalMachineStatus,
+  LocalMachineAction,
 } from './ipc/views'
+export type { OpsChangedEvent } from './ipc/ops'
 export type { PhosphorApi, PhosphorPlatform } from './ipc/api'
 
 export type IpcInvokeMap = BrainInvokeMap &
   HostsInvokeMap &
   AppInvokeMap &
+  OpsInvokeMap &
   PiInvokeMap &
   ClaudeInvokeMap &
   AccountInvokeMap &

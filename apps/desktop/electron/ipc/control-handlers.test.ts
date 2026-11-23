@@ -36,7 +36,7 @@ const invoke = (channel: string, ...args: unknown[]) => {
   return handler({}, ...args)
 }
 it('registers the channels and rejects malformed renderer inputs before a request', async () => {
-  expect(state.handlers.size).toBe(5)
+  expect(state.handlers.size).toBe(6)
   for (const [channel, args] of [
     ['control:lookupEnrollment', [7]],
     ['control:renameMachine', ['../bad', 'x']],
@@ -59,5 +59,14 @@ it('returns signed-out for every channel without a token and sends no request', 
     ['control:renameMachine', ['11111111-1111-4111-8111-111111111111', 'new-label']],
   ] satisfies [string, unknown[]][])
     expect(await invoke(channel, ...args)).toMatchObject({ error: { code: 'signed-out' } })
+  expect(fetchImpl).not.toHaveBeenCalled()
+})
+it('answers the machine reach switch as unavailable and sends no request', async () => {
+  expect(
+    await invoke('control:setMachineReach', '11111111-1111-4111-8111-111111111111', false),
+  ).toEqual({
+    ok: false,
+    error: { code: 'unavailable', message: 'Machine reach is not available yet.' },
+  })
   expect(fetchImpl).not.toHaveBeenCalled()
 })

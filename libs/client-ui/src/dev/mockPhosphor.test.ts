@@ -75,6 +75,23 @@ it('answers each delegated channel group from its owning mock module', async () 
   })
 })
 
+it("answers agent ops, This Mac's runtime and the reach switch from their stub modules", async () => {
+  expect(
+    await window.phosphor.invoke('ops:run', { kind: 'local' }, { op: 'help', args: {} }),
+  ).toMatchObject({ status: 'denied', code: 'unsupported' })
+  expect(await window.phosphor.invoke('app:localMachine')).toEqual({
+    mode: 'in-app',
+    migration: 'not-needed',
+  })
+  expect(await window.phosphor.invoke('app:localMachineAction', 'retry-migration')).toMatchObject({
+    ok: false,
+  })
+  expect(await window.phosphor.invoke('control:setMachineReach', 'machine', true)).toMatchObject({
+    ok: false,
+    error: { code: 'unavailable' },
+  })
+})
+
 it('dispatches the Brain v4 queue, review and Explorer channels', async () => {
   vi.useFakeTimers()
   const { DEFAULT_BRAIN_PREFS } = await import('@shared/brain')

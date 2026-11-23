@@ -164,6 +164,9 @@ function browserSurface(
     onClaudeLoginState: (listener) => events.on('claude-login', listener),
     onVoiceStatus: (listener) => events.on('voice', listener),
     onFileDownloadProgress: (listener) => events.on('file-download', listener),
+    onOpsChanged: (listener) => events.on('ops', listener),
+    // The browser has no This Mac: nothing is ever pushed here.
+    onLocalMachineChanged: (listener) => events.on('local-machine', listener),
     ...NATIVE_ONLY,
   }
 }

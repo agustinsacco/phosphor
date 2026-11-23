@@ -24,6 +24,8 @@ import { registerAccountHandlers } from './ipc/account-handlers'
 import { registerVoiceHandlers } from './ipc/voice-handlers'
 import { registerWritingHandlers } from './ipc/writing-handlers'
 import { registerBrainHandlers } from './ipc/brain-handlers'
+import { registerOpsHandlers } from './ipc/ops-handlers'
+import { registerLocalMachineHandlers } from './ipc/local-machine-handlers'
 import { brainService, installBrainRecall } from './brain/runtime'
 
 /**
@@ -35,6 +37,7 @@ import { brainService, installBrainRecall } from './brain/runtime'
 export function registerIpcHandlers(): void {
   registerPiSessionHandlers()
   registerAppHandlers()
+  registerLocalMachineHandlers()
   registerDebugLogHandlers()
   registerArtifactsHandlers()
   registerClipboardHandlers()
@@ -61,4 +64,5 @@ export function registerIpcHandlers(): void {
   registerWritingHandlers()
   installBrainRecall()
   registerBrainHandlers(brainService)
+  registerOpsHandlers()
 }

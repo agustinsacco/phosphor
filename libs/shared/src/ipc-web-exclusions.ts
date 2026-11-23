@@ -48,3 +48,18 @@ export const BRAIN_WEB = {
   'brain:memory': localBrain,
   'brain:forget': localBrain,
 }
+
+const localRuntime = {
+  kind: 'unsupported',
+  reason: "This Mac's runtime and its move to the Phosphor service belong to Desktop.",
+} as const
+
+/** This Mac's runtime card and the per-machine reach switch: Desktop only for now. */
+export const LOCAL_MACHINE_WEB = {
+  'app:localMachine': localRuntime,
+  'app:localMachineAction': localRuntime,
+  'control:setMachineReach': {
+    kind: 'unsupported',
+    reason: 'The machine reach switch is on the Machines page in Desktop.',
+  },
+} as const

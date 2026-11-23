@@ -137,7 +137,8 @@ export function App(): React.JSX.Element {
         }
 
         const target = await window.phosphor.invoke('app:resumeTarget')
-        if (cancelled || target.kind === 'none') return
+        // Main answers `lane` only once This Mac's lanes run on the Phosphor service.
+        if (cancelled || target.kind === 'none' || target.kind === 'lane') return
 
         useWorkspacesStore.getState().openWorkspace(target.workspacePath)
         if (target.kind === 'session' && !cancelled) {

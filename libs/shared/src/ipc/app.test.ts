@@ -15,6 +15,7 @@ import type {
   ComposerDraftRecord,
   LanePrefs,
 } from '../models'
+import type { LocalMachineAction, LocalMachineStatus } from './views'
 export interface BaselineAppInvokeMap {
   'app:getPrefs': { args: []; result: AppPrefs }
 
@@ -90,7 +91,15 @@ export interface BaselineAppInvokeMap {
     result:
       | { kind: 'session'; sessionPath: string; workspacePath: string }
       | { kind: 'workspace'; workspacePath: string }
+      | { kind: 'lane'; hostId: string; laneId: string }
       | { kind: 'none' }
+  }
+
+  'app:localMachine': { args: []; result: LocalMachineStatus }
+
+  'app:localMachineAction': {
+    args: [action: LocalMachineAction]
+    result: { ok: boolean; message?: string }
   }
 
   'app:setFontPrefs': { args: [FontPrefs]; result: void }

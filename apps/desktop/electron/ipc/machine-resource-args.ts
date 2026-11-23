@@ -247,6 +247,8 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   'headroom:stop': 'none',
   'headroom:install': 'none',
   'optimization:stats': [{ arg: 0 }],
+  // The target is a HostTarget, authenticated by its handler; the request names no local path.
+  'ops:run': 'none',
   'fs:listFiles': [{ arg: 0 }],
   'fs:readDir': [{ arg: 0 }, { arg: 1 }],
   'fs:readFile': [{ arg: 0 }],

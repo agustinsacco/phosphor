@@ -13,4 +13,9 @@ export function registerControlHandlers(): void {
   )
   handle('control:renameMachine', (_event, id, label) => client.renameMachine(id, label))
   handle('control:removeMachine', (_event, id) => client.removeMachine(id))
+  // Machine reach lands with the control API's reach switch; until then nothing changes.
+  handle('control:setMachineReach', () => ({
+    ok: false,
+    error: { code: 'unavailable', message: 'Machine reach is not available yet.' },
+  }))
 }

@@ -29,6 +29,7 @@ import type { createBrowserTerminals } from './terminals'
 import type { createBrowserSettings } from './settings'
 import type { createBrowserFileBytes } from './file-bytes'
 import type { BrowserPush } from './push'
+import { opsHandlers } from './ops'
 
 export type BrowserHandlers = {
   [C in WebSupportedChannel]: (
@@ -248,6 +249,7 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     'control:renameMachine': (id, label) => directoryMutation(control.rename(id, label)),
     'control:removeMachine': (id) => directoryMutation(control.remove(id)),
     ...machineHandlers(resources.machines, hosts.connection),
+    ...opsHandlers(),
     ...folderHandlers(resources.folders),
     ...terminalHandlers(ports.terminals),
     ...settingsHandlers(() => ports.settings),

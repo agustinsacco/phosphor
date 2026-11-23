@@ -1,6 +1,6 @@
 import { ARCHIVE_WEB } from './ipc-web-archive'
 import type { IpcInvokeChannel } from './ipc'
-import { BRAIN_WEB, connectorConfig } from './ipc-web-exclusions'
+import { BRAIN_WEB, LOCAL_MACHINE_WEB, connectorConfig } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -21,6 +21,8 @@ const hostFilesOnly = unsupported('Browser file access goes through Host reads a
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
   ...BRAIN_WEB,
+  ...LOCAL_MACHINE_WEB,
+  'ops:run': remote,
   'hosts:tailscaleStatus': native,
   'hosts:models': remote,
   'hosts:commands': remote,

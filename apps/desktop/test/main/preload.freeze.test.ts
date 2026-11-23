@@ -47,8 +47,10 @@ it('exposes only the reviewed phosphor API keys through the original preload', (
     'onHostAttention',
     'onHostOpenLane',
     'onHostsChanged',
+    'onLocalMachineChanged',
     'onMachinesChanged',
     'onMcpAuthState',
+    'onOpsChanged',
     'onPackagesJobExit',
     'onPackagesJobOutput',
     'onPiCommandsChanged',
@@ -151,6 +153,12 @@ const subscriptions: ReadonlyArray<readonly [string, string, Subscribe]> = [
   ],
   ['onVoiceStatus', 'voice:statusChanged', (api, listener) => api.onVoiceStatus(listener)],
   ['onPtyStatus', 'pty:status', (api, listener) => api.onPtyStatus(listener)],
+  ['onOpsChanged', 'ops:changed', (api, listener) => api.onOpsChanged(listener)],
+  [
+    'onLocalMachineChanged',
+    'app:localMachineChanged',
+    (api, listener) => api.onLocalMachineChanged(listener),
+  ],
 ]
 
 it.each(subscriptions)(

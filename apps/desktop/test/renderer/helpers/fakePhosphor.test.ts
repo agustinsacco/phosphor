@@ -40,6 +40,8 @@ describe('createFakePhosphor', () => {
         'onHostOpenLane',
         'onFileDownloadProgress',
         'onVoiceStatus',
+        'onOpsChanged',
+        'onLocalMachineChanged',
       ].sort(),
     )
     expect(fake.api.platform).toBe('linux')

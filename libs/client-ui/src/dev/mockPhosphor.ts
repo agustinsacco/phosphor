@@ -28,6 +28,9 @@ import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockLocalRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockHostConnectionInvoke } from './mockHostConnectionInvoke'
+import { OPS_MOCK, mockOpsInvoke } from './mock/ops'
+import { LOCAL_MACHINE_MOCK, mockLocalMachineInvoke } from './mock/localMachine'
+import { REACH_MOCK, mockReachInvoke } from './mock/reach'
 import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
 import type {
   ConnectorAuthPush,
@@ -946,6 +949,9 @@ export function installMockPhosphor(): void {
         return mockSessionMaintenance(channel, args, MOCK_DISK_SESSIONS)
       if (INSTRUCTIONS_MOCK.has(channel))
         return Promise.resolve().then(() => mockInstructionsInvoke(channel, args) as never)
+      if (OPS_MOCK.has(channel)) return mockOpsInvoke() as never
+      if (LOCAL_MACHINE_MOCK.has(channel)) return mockLocalMachineInvoke(channel) as never
+      if (REACH_MOCK.has(channel)) return mockReachInvoke() as never
       switch (channel) {
         case 'pi:health':
           return Promise.resolve({
@@ -2456,6 +2462,8 @@ export function installMockPhosphor(): void {
     onHostOpenLane: () => () => undefined,
     onFileDownloadProgress: () => () => undefined,
     onMachinesChanged: () => () => undefined,
+    onOpsChanged: () => () => undefined,
+    onLocalMachineChanged: () => () => undefined,
 
     onVoiceStatus: (listener) => {
       mockVoiceListeners.add(listener)
