@@ -142,7 +142,7 @@ export function wireRuntimeService(
   })
 }
 
-export function wireRuntimeDeletion(state: RuntimeState) {
+export function wireRuntimeDeletion(state: RuntimeState, trash = state.options.trashTranscript) {
   const { registry, paths, options } = state
   return createSessionDeletion({
     registry,
@@ -150,7 +150,7 @@ export function wireRuntimeDeletion(state: RuntimeState) {
     ownsRoutine: options.routines?.owns ?? NO_ROUTINES.owns,
     cancelRoutine: options.routines?.cancel ?? NO_ROUTINES.cancel,
     forgetAccount: () => {},
-    deleteTranscript: (path) => unlinkTranscript(path, options.trashTranscript),
+    deleteTranscript: (path) => unlinkTranscript(path, trash),
     deleteDraft: async () => {},
     // Cancel pending starts, but refuse an already running session instead of stopping it.
     assertDeletable: (id) => {

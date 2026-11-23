@@ -1,3 +1,4 @@
+import type { TrashRunner } from '../lanes/delete-target'
 import { randomBytes } from 'node:crypto'
 import { createAuthority } from '../api/authority'
 import {
@@ -50,6 +51,7 @@ export interface RunContext extends ControlContext {
   home: string
   nodeVersion: string
   defaultResourceRoot: string
+  trashRunner?: TrashRunner
   supervisor?: 'launchd'
   afterRunLock?: () => void
   stderrIdentity?: LaunchdRunPorts['stderrIdentity']

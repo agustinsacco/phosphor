@@ -16,6 +16,9 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
   const spawn = wireRuntimeStartup(state)
   const service = wireRuntimeService(state, spawn)
   const deleteLane = wireRuntimeDeletion(state)
+  const ownerDeleteLane = options.ownerTrashTranscript
+    ? wireRuntimeDeletion(state, options.ownerTrashTranscript)
+    : deleteLane
   const drain = createDrain({
     life: state.life,
     registry: state.registry,
@@ -31,7 +34,7 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     resourceRoot: machine.resourceRoot,
   })
   return {
-    ...createRuntimeOperations(state, service, deleteLane),
+    ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
     life: state.life,
     drain,
     async mutateStoppedSession<T>(path: string, change: () => Promise<T>): Promise<T> {

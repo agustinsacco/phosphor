@@ -57,6 +57,7 @@ export interface RuntimeOptions {
   leases?: WorkspaceLeases
   claudeAccounts?: HostClaudeAccounts
   trashTranscript?: (path: string) => Promise<void>
+  ownerTrashTranscript?: (path: string) => Promise<void>
   life?: Lifecycle
   timings?: Partial<DrainTimings>
   dialogs?: 'cancel' | 'forward'

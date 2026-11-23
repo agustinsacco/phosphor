@@ -38,6 +38,8 @@ export interface LaneCommandClient {
   origin?: LaneCommandOrigin
   /** Only on the attested owner's socket connection: the parity exemptions apply. */
   ownerExemption?: OwnerExemption
+  /** Only the server-side attested connection supplies this; never a command field. */
+  owner?: true
 }
 export interface LaneCommandPorts {
   leases?: WorkspaceLeases
@@ -62,6 +64,7 @@ export interface LaneCommandPorts {
   deleteLane?: (
     op: DeleteLaneOp,
     allowed: () => boolean,
+    owner?: boolean,
   ) => Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }>
   providerLogins?: Pick<ProviderLogins, 'execute'>
   attachments?: HostAttachments

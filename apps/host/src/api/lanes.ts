@@ -8,7 +8,6 @@ import { createLaneSender, laneLimits } from './lane-transport'
 import type { ApiLog, AuthenticatedHandler, ReadyConnection } from './connection'
 import { createConfigurationAuthority } from './configuration-authority'
 import { createOwnerExemption } from './owner-exemptions'
-import { laneCommandOrigin } from './principal'
 
 /** A keystroke frame: control and terminal caps, then the terminal service's own checks. */
 function terminalInput(
@@ -43,7 +42,6 @@ export function createLaneAdapter(
   const clients = new Map<string, Set<string>>()
   function handler(connection: ReadyConnection): AuthenticatedHandler {
     const { socket, connectionId, client } = connection
-    const origin = laneCommandOrigin(connection.principal)
     const exemption = createOwnerExemption(connection.principal)
     let caps = connection.caps
     let closed = false
@@ -228,7 +226,7 @@ export function createLaneAdapter(
           pending.add(frame.requestId)
           interest(frame.requestId, 'command')
           const sender = {
-            ...authorization.sender(client, connectionId, origin),
+            ...authorization.sender(client, connectionId, connection.principal),
             ...exemption.sender,
           }
           void (async () => {

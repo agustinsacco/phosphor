@@ -173,7 +173,8 @@ export function deleteLane(
   const remove =
     op.type === 'lane.archive'
       ? ports.archives && ((allowed: () => boolean) => ports.archives!.execute(op, allowed))
-      : ports.deleteLane && ((allowed: () => boolean) => ports.deleteLane!(op, allowed))
+      : ports.deleteLane &&
+        ((allowed: () => boolean) => ports.deleteLane!(op, allowed, job.client.owner === true))
   if (!remove) return rejected(state, ports, job, 'unsupported', true)
   const deletable = deletionAllowed(ports, job, input.admitted, input.allowed)
   const completion = dispatch(state, ports, job, queue, () => remove(deletable)).then((result) => {

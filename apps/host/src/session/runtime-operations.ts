@@ -90,6 +90,7 @@ export function createRuntimeOperations(
   state: RuntimeState,
   service: RuntimeService,
   deleteLane: RuntimeDeletion,
+  ownerDeleteLane = deleteLane,
 ) {
   const { roots, machineContext, life, registry, options, timings } = state
   return {
@@ -147,10 +148,10 @@ export function createRuntimeOperations(
       await stopSession(session, registry, timings)
     },
     /** Delete a stopped session's file. A running session is refused. */
-    async remove(request: unknown): Promise<void> {
+    async remove(request: unknown, owner = false): Promise<void> {
       const { sessionPath } = await parse(state, request, true)
       assertFilesKnown(state)
-      await deleteLane(sessionPath)
+      await (owner ? ownerDeleteLane : deleteLane)(sessionPath)
     },
   }
 }

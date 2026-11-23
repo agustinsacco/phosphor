@@ -7,6 +7,7 @@ import { hostLivePolicy } from '../config/live-policy'
 import { createRepositories } from '../features/repositories'
 import { createLaneCalls } from '../lanes/calls'
 import { createLaneCommands } from '../lanes/commands'
+import { ownerTrash } from '../lanes/delete-target'
 import { transcriptTrash } from '../lanes/delete'
 import { createHostLiveLanes } from '../lanes/live-host'
 import { createLaneNamer, hostLaneNaming } from '../lanes/naming'
@@ -76,6 +77,7 @@ async function startRuntime(
       ...hostLivePolicy(config.path, config.config),
       dialogs: 'forward',
       trashTranscript: trash.move,
+      ownerTrashTranscript: ownerTrash(ports.local === true, context.platform, context.trashRunner),
       routines: routineOwnership(async (id) => {
         if (!parts.routines) throw new Error('routine service unavailable')
         await parts.routines.cancelSession(id)
