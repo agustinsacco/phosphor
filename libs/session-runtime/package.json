@@ -456,6 +456,18 @@
       "types": "./src/fs-safety.ts",
       "default": "./src/fs-safety.ts"
     },
+    "./host-install/launcher": {
+      "types": "./src/host-install/launcher.ts",
+      "default": "./src/host-install/launcher.ts"
+    },
+    "./host-install/probe": {
+      "types": "./src/host-install/probe.ts",
+      "default": "./src/host-install/probe.ts"
+    },
+    "./host-install/release-source": {
+      "types": "./src/host-install/release-source.ts",
+      "default": "./src/host-install/release-source.ts"
+    },
     "./host-install/verify": {
       "types": "./src/host-install/verify.ts",
       "default": "./src/host-install/verify.ts"
