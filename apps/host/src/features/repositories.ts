@@ -109,14 +109,18 @@ async function reorder(
 }
 
 export function createRepositories(options: RepositoryOptions) {
-  // Legacy commands and catalog ops have distinct queues. Read/modify/publish as one turn.
+  // Legacy commands, catalog ops and sandbox records share one queue: each
+  // reads, modifies and publishes the folder records as one turn.
   let tail: Promise<unknown> = Promise.resolve()
+  function serialize<T>(work: () => Promise<T>): Promise<T> {
+    const run = tail.then(work)
+    tail = run.catch(() => undefined)
+    return run
+  }
   return {
     feature: createFoldersFeature(options, homeDirectory),
-    execute(op: RepositoryOp, allowed: () => boolean) {
-      const run = tail.then(() => executeRepository(options, op, allowed))
-      tail = run.catch(() => undefined)
-      return run
-    },
+    serialize,
+    execute: (op: RepositoryOp, allowed: () => boolean) =>
+      serialize(() => executeRepository(options, op, allowed)),
   }
 }

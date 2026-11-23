@@ -39,6 +39,8 @@ export interface SandboxPorts {
   live(path: string): boolean
   trashItem(path: string, owner: boolean): Promise<void>
   changed(roots: readonly string[]): void
+  /** The folder service's queue, so a sandbox write never races a folder change. */
+  serialize?<T>(work: () => Promise<T>): Promise<T>
 }
 
 type Records = { file: OwnerFolders; configured: string[]; base: string }
@@ -119,7 +121,8 @@ export function createHostSandboxes(p: SandboxPorts) {
     if (writing) throw busy()
     writing = true
     try {
-      return await run(await records(p))
+      const turn = async () => run(await records(p))
+      return await (p.serialize ? p.serialize(turn) : turn())
     } finally {
       writing = false
     }

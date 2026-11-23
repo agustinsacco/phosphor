@@ -408,6 +408,7 @@ async function bindRunOps(
         runtime.replaceRoots(roots)
         live.lanesTopic.repositoriesChanged()
       },
+      serialize: (work) => started.resources.repositories.serialize(work),
     }),
     slot: ops.slot,
     stateDirectory: ports.stateDirectory,

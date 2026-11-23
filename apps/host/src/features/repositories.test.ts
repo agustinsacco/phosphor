@@ -326,3 +326,21 @@ it.each([false, true])(
       )
   },
 )
+
+it('runs other folder-record writers in the same queue as folder changes', async () => {
+  const order: string[] = []
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const first = service.serialize(async () => {
+    await held
+    order.push('sandbox')
+  })
+  const add = service
+    .execute({ type: 'host.repositories.add', path: 'Projects' }, () => true)
+    .then(() => order.push('add'))
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  expect(order).toEqual([])
+  release()
+  await Promise.all([first, add])
+  expect(order).toEqual(['sandbox', 'add'])
+})
