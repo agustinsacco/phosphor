@@ -43,7 +43,7 @@ beforeEach(async () => {
     {
       sessionId: 'mine',
       workspacePath: dir,
-      client: { sessionFile: join(dir, 'mine.jsonl'), activity: { busy: true } },
+      client: { piSessionId: 'disk-id', sessionFile: join(dir, 'mine.jsonl'), activity: { busy: true } },
     } as LiveSession,
     'My lane',
     true,
@@ -131,7 +131,7 @@ it('reads a departed lane’s redacted audit by its original ref, including equa
     const list = (page?: string) =>
       owner.dispatcher.run(surface, {
         op: 'audit.list',
-        args: { lane: 'local/session:mine', limit: 1 },
+        args: { lane: 'local/session:disk-id', limit: 1 },
         page,
       })
     const first = await list()
@@ -153,7 +153,7 @@ it('binds an attended confirmation to one surface answer, and redeems it only on
     {
       sessionId: 'mine',
       workspacePath: dir,
-      client: { sessionFile: join(dir, 'mine.jsonl'), activity: { busy: true } },
+      client: { piSessionId: 'disk-id', sessionFile: join(dir, 'mine.jsonl'), activity: { busy: true } },
     } as LiveSession,
     'My lane',
     false,
@@ -225,4 +225,16 @@ it('refuses both user-only operations before looking up even a supplied confirma
       }),
     ).toMatchObject({ status: 'denied', code: 'never' })
   }
+})
+
+it('uses the disk identity for lane signals but commands the registry handle', async () => {
+  expect(await tool(['model.set', 'p/m'])).toMatchObject({ status: 'ok' })
+  await owner.dispatcher.settled('mine', {})
+  expect(h.command).toHaveBeenCalledWith('mine', { type: 'set_model', provider: 'p', modelId: 'm' })
+  expect(h.broadcast).toHaveBeenCalledWith('ops:changed', { machine: 'local', kind: 'lane', laneRef: 'local/session:disk-id', fields: ['model'] })
+})
+it('never invents a lane ref while waiting for get_state', async () => {
+  forget()
+  forget = rememberOpLane({ sessionId: 'mine', workspacePath: dir, client: { activity: { busy: false } } } as LiveSession, undefined, false)
+  expect(await tool(['whoami'])).toMatchObject({ status: 'denied', code: 'unavailable' })
 })

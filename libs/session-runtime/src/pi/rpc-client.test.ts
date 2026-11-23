@@ -61,6 +61,7 @@ describe('headless PiRpcClient', () => {
       })
     })
     expect((await instance.request({ type: 'get_state' })).success).toBe(true)
+    expect(instance.piSessionId).toBe('fake-session')
     expect(instance.sessionFile).toBe('/fake/session.jsonl')
     expect((await instance.request({ type: 'prompt', message: 'hello' })).success).toBe(true)
     await ended
