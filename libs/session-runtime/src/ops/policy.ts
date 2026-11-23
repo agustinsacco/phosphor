@@ -175,6 +175,23 @@ function stricterLimits(a: AgentPolicy, b: AgentPolicy): NonNullable<AgentPolicy
  * Key by key, the stricter of two policies: what an owner enforces when its
  * policy file and its own last-written snapshot disagree.
  */
+/**
+ * The policy the daemon saved, tightened by a copy changed outside it. Every
+ * saved op entry stays, made stricter by the copy's entry for that op; an
+ * entry only the copy has applies only as `deny`, since an op entry overrides
+ * its tier and a copy-only `ask` could undo a saved tier `deny`.
+ */
+export function tightenedPolicy(saved: AgentPolicy, outside: AgentPolicy): AgentPolicy {
+  const { ops: _merged, ...rest } = stricterPolicy(saved, outside)
+  const ops: Record<string, PolicyDecision> = { ...saved.ops }
+  for (const [op, decision] of Object.entries(outside.ops ?? {})) {
+    const own = saved.ops?.[op]
+    if (own !== undefined) ops[op] = stricterDecision(own, decision)
+    else if (decision === 'deny') ops[op] = 'deny'
+  }
+  return { ...rest, ...(Object.keys(ops).length > 0 ? { ops } : {}) }
+}
+
 export function stricterPolicy(a: AgentPolicy, b: AgentPolicy): AgentPolicy {
   const tiers = stricterTiers(a, b)
   const ops = stricterOps(a, b)

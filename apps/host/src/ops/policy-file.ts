@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { HOST_SIDECARS } from '@phosphor/shared/host-local'
 import { AGENT_POLICY_DEFAULT, parseAgentPolicy, type AgentPolicy } from '@phosphor/shared/ops'
-import { stricterPolicy } from '@phosphor/session-runtime/ops/policy'
+import { stricterPolicy, tightenedPolicy } from '@phosphor/session-runtime/ops/policy'
 import type { PolicyStore } from '@phosphor/session-runtime/ops/types'
 import { readSidecar, writeSidecar } from '../config/sidecar'
 
@@ -67,14 +67,9 @@ export function createPolicyFile(ports: PolicyFilePorts): PolicyStore {
       if (file.state === 'ok' && policyDigest(file.value) === meta.written)
         return { policy: file.value, changedOutside: false }
       ports.log?.('ops.policy_changed_outside', { file: file.state })
-      // A removed file reads as the default; an unreadable one cannot relax anything.
-      const found =
-        file.state === 'ok'
-          ? file.value
-          : file.state === 'missing'
-            ? AGENT_POLICY_DEFAULT
-            : meta.snapshot
-      return { policy: stricterPolicy(found, meta.snapshot), changedOutside: true }
+      // The saved snapshot holds; a removed or unreadable file tightens nothing.
+      const found = file.state === 'ok' ? file.value : meta.snapshot
+      return { policy: tightenedPolicy(meta.snapshot, found), changedOutside: true }
     },
     async write(policy) {
       const normal = parseAgentPolicy(policy)
