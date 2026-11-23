@@ -1,3 +1,4 @@
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { isPiTooOld, MIN_PI_VERSION } from '@shared/models'
 import { useHostSection } from '../../machine/HostSection'
 import type { AdvancedSource, PiFacts } from './source'
@@ -22,6 +23,7 @@ function hostPi(pi: { version?: string; path: string }): PiFacts {
 /** A Host's update, runtime, pi, PATH and environment names; never values or raw editors. */
 export function useHostAdvanced(): AdvancedSource {
   const { machine, settings, programs } = useHostSection()
+  const local = useRemoteLanesStore((s) => s.hosts[machine.id]?.local)
   const runtime = settings.data?.advanced
   return {
     status: runtime ? 'ready' : 'loading',
@@ -43,12 +45,14 @@ export function useHostAdvanced(): AdvancedSource {
       version: runtime.hostVersion,
       platform: runtime.platform,
       configPath: runtime.configPath,
-      update: {
-        note: `Install the newest signed Phosphor Host release on ${machine.label}. Its lanes pause while it restarts, and a failed health check brings the old version back.${programs.available ? '' : ' Needs Host terminal access.'}`,
-        action: 'Pause and update',
-        disabled: !programs.available || programs.busy,
-        run: () => programs.task({ task: 'host.update' }),
-      },
+      update: local
+        ? undefined
+        : {
+            note: `Install the newest signed Phosphor Host release on ${machine.label}. Its lanes pause while it restarts, and a failed health check brings the old version back.${programs.available ? '' : ' Needs Host terminal access.'}`,
+            action: 'Pause and update',
+            disabled: !programs.available || programs.busy,
+            run: () => programs.task({ task: 'host.update' }),
+          },
     },
     footnote:
       'Secret values are never returned. Set them in the Host service’s environment, not in this page or the control plane; an interactive SSH shell’s variables may differ from the service.',

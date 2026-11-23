@@ -120,7 +120,12 @@ it('recovers a failed first Phosphor service read, without offering in-app lanes
   let changed: ((status: import('@shared/ipc').LocalMachineStatus) => void) | undefined
   vi.stubGlobal('phosphor', {
     ...window.phosphor,
-    onLocalMachineChanged: (cb: typeof changed) => { changed = cb; return () => { changed = undefined } },
+    onLocalMachineChanged: (cb: typeof changed) => {
+      changed = cb
+      return () => {
+        changed = undefined
+      }
+    },
   })
   failing.add('app:localMachine')
   answers['app:localMachine'] = { mode: 'daemon', migration: 'committed', service: 'down' }

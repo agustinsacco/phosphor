@@ -1,3 +1,4 @@
+import { LocalServiceSection } from './sections/advanced/LocalServiceSection'
 import { AgentControl } from '@/features/agent-control/AgentControl'
 import { HostGate } from './machine/HostGate'
 import { HostSectionProvider } from './machine/HostSection'
@@ -33,7 +34,13 @@ export function SettingsPanel({
           {views.scoped && <LocalScopeRow />}
           <LocalRefresh />
         </SettingsScopeLine>
-        <views.Local />
+        {tab === 'advanced' ? (
+          <LocalServiceSection machine={machine.id}>
+            <views.Local />
+          </LocalServiceSection>
+        ) : (
+          <views.Local />
+        )}
         {tab === 'agent' && <AgentControl machine={machine.id} />}
       </>
     ) : null
@@ -50,6 +57,7 @@ export function SettingsPanel({
         <HostRefresh />
       </SettingsScopeLine>
       <div data-testid="settings-host-section">
+        {tab === 'advanced' && <LocalServiceSection machine={machine.id} />}
         <HostGate>
           <views.Host />
         </HostGate>
