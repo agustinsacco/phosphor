@@ -324,7 +324,10 @@ describe('context files extension', () => {
     control.setArgs('claude=off', 'ctx')
     const restored = fakePi()
     restored.start(pi.entries)
-    expect(restored.state.control.facts()).toEqual({ off: ['agents', 'claude'], userOff: ['agents'] })
+    expect(restored.state.control.facts()).toEqual({
+      off: ['agents', 'claude'],
+      userOff: ['agents'],
+    })
     await restored.command('agents=on')
     // A user command about agents does not claim the agent's opt-out of claude.
     restored.state.control.agentSet(true, 'include files', 'ctx')

@@ -585,7 +585,9 @@ transcript keeps pi's own sections, so a file turned back on is sent again from
 the next request with no restart. The starting state arrives in
 `PHOSPHOR_CONTEXT_FILES` and changes as the host-only `/phosphor-context-files`
 command (`claude=off agents=on`), which pi runs at once, mid-turn included,
-with no model. Files are matched by name in every directory pi searched except
+with no model. The lane control exposes the effective off list and which kinds the
+user turned off. An agent cannot turn those kinds back on. Session entries from
+before attribution count as user choices. Files are matched by name in every directory pi searched except
 its agent directory, whose file always stays (`AGENTS.override.md` counts as
 AGENTS.md). The parser expects pi's rendering verbatim; an unknown shape is sent
 unchanged. In a linked worktree the filter also drops, whatever the toggles,
