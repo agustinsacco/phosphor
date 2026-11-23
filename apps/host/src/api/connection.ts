@@ -12,6 +12,7 @@ import {
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { Authentication, ConnectionAuthenticator } from './grant-auth'
 import { connectionLimits, type ConnectionLimits } from './connection-limits'
+import type { ConnectionPrincipal } from './principal'
 
 export { hostProof } from './ready-frame'
 
@@ -20,6 +21,8 @@ export interface ReadyConnection {
   connectionId: string
   trace?: string
   client: GrantClient
+  /** Absent means a user grant: every connection before principals existed. */
+  principal?: ConnectionPrincipal
   caps: readonly HostCapability[]
   socket: FrameSocket
 }
@@ -41,6 +44,11 @@ export interface ConnectionPorts {
   log?: ApiLog
   now?: () => number
   limits?: ConnectionLimits
+}
+
+/** Who an accepted credential speaks for, as the ready connection carries it. */
+function identity({ client, principal }: Authentication) {
+  return { client, principal }
 }
 
 export function createConnection(ports: ConnectionPorts) {
@@ -111,7 +119,7 @@ export function createConnection(ports: ConnectionPorts) {
     if (initial && challenge !== undefined) {
       send(authentication.ready(challenge, connectionId))
       if (!ended) {
-        const ready = { connectionId, trace, client: authentication.client, caps, socket }
+        const ready = { connectionId, trace, caps, socket, ...identity(authentication) }
         handler = ports.handler?.(ready)
         ports.onReady?.(ready)
         ports.log?.('api.connected', trace ? { trace } : {})

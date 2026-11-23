@@ -12,6 +12,7 @@ import type { RoutineOp } from '@phosphor/shared/host-protocol-routines'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { RpcCommand } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import type { LaneCommandOrigin } from '@phosphor/session-runtime/ops/types'
 import type { HostAttachments } from '../../features/attachments'
 import type { WriteOutcome } from '../../features/writes'
 import type { ProviderLogins } from '../../providers/login'
@@ -30,6 +31,8 @@ export interface LaneCommandClient {
   currentCaps?: () => readonly HostCapability[]
   connectionId?: string
   caps: readonly HostCapability[]
+  /** Who sent it; absent means a surface over a user grant. */
+  origin?: LaneCommandOrigin
 }
 export interface LaneCommandPorts {
   archives?: {

@@ -2,6 +2,7 @@ import { verify, type KeyObject } from 'node:crypto'
 import { CONTROL_LIMITS } from '@phosphor/shared/control-api'
 import {
   checkGrantClaims,
+  grantPrincipal,
   splitGrant,
   type GrantClient,
   type GrantPayload,
@@ -11,10 +12,12 @@ import type { HostCapability, HostHello } from '@phosphor/shared/remote-host'
 import type { Authority } from './authority'
 import type { Keyset } from './keyset'
 import { grantedCapabilities, readyFrame } from './ready-frame'
+import { grantConnectionPrincipal, type ConnectionPrincipal } from './principal'
 
 /** A credential a connection accepted: who it is, what it may do and until when. */
 export interface Authentication {
   client: GrantClient
+  principal: ConnectionPrincipal
   caps: readonly HostCapability[]
   /** Epoch milliseconds at which the credential lapses, clock skew included. */
   closeAt: number
@@ -115,6 +118,7 @@ export function createGrantAuth(ports: GrantAuthPorts): ConnectionAuthenticator 
       const grantExpiresAt = new Date(payload.exp * 1000).toISOString()
       outcome.accept({
         client: payload.client,
+        principal: grantConnectionPrincipal(grantPrincipal(payload)),
         caps,
         closeAt: (payload.exp + CONTROL_LIMITS.signatureSkewSec) * 1000,
         grantExpiresAt,

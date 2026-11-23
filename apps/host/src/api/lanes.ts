@@ -6,6 +6,7 @@ import type { StreamLimits } from '../lanes/stream'
 import { createLaneSender, laneLimits } from './lane-transport'
 import type { ApiLog, AuthenticatedHandler, ReadyConnection } from './connection'
 import { createConfigurationAuthority } from './configuration-authority'
+import { laneCommandOrigin } from './principal'
 
 export function createLaneAdapter(
   service: LaneService,
@@ -24,6 +25,7 @@ export function createLaneAdapter(
   const clients = new Map<string, Set<string>>()
   function handler(connection: ReadyConnection): AuthenticatedHandler {
     const { socket, connectionId, client } = connection
+    const origin = laneCommandOrigin(connection.principal)
     let caps = connection.caps
     let closed = false
     const authorization = createConfigurationAuthority({
@@ -209,7 +211,7 @@ export function createLaneAdapter(
           options.log?.('api.command', { ...traceFields, op: frame.op.type })
           pending.add(frame.requestId)
           interest(frame.requestId, 'command')
-          const sender = authorization.sender(client, connectionId)
+          const sender = authorization.sender(client, connectionId, origin)
           void (async () => {
             try {
               await service.commands.submit(sender, frame)

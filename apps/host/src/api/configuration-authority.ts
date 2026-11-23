@@ -1,5 +1,6 @@
 import type { GrantClient } from '@phosphor/shared/host-grant'
 import type { HostCapability } from '@phosphor/shared/remote-host'
+import type { LaneCommandOrigin } from '@phosphor/session-runtime/ops/types'
 
 /** A lost configuration grant cannot be restored for already admitted work. */
 export function createConfigurationAuthority(ports: {
@@ -14,7 +15,7 @@ export function createConfigurationAuthority(ports: {
       if (lost) epoch++
       return lost
     },
-    sender(client: GrantClient, connectionId: string) {
+    sender(client: GrantClient, connectionId: string, origin?: LaneCommandOrigin) {
       const admittedEpoch = epoch
       return {
         id: client.id,
@@ -27,6 +28,7 @@ export function createConfigurationAuthority(ports: {
               ? ports.caps().filter((cap) => cap !== 'machine.configure')
               : ports.caps(),
         connectionId,
+        ...(origin ? { origin } : {}),
       }
     },
     admit(capability: HostCapability | null): () => boolean {
