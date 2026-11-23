@@ -218,6 +218,18 @@ describe('owner.migrate.abort', () => {
     expect(await m.begin(randomUUID())).toEqual({ state: 'staged' })
   })
 
+  it('never empties the state when the begin snapshot is gone', async () => {
+    const m = migration({ lanes: { apply: laneImporters().lanes.apply } })
+    const id = randomUUID()
+    await m.begin(id)
+    await m.import(lanesSection(id, [join(folder, 'a.jsonl')]))
+    await rm(join(state, 'owner-migration', id, 'state.sqlite'))
+    await expect(m.abort(id)).rejects.toThrow()
+    expect(store.listLanes()).toHaveLength(1)
+    expect(store.listRepositories()).toHaveLength(1)
+    expect(await m.status(id)).toEqual({ state: 'staged' })
+  })
+
   it('answers none for an unknown id and refuses a committed one', async () => {
     const m = migration()
     expect(await m.abort(randomUUID())).toEqual({ state: 'none' })
