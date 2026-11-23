@@ -1,10 +1,16 @@
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
 import { parseOpChannelRequest, type OpRequestEnvelope } from '@phosphor/shared/ops'
 import { OP_MARKER_ENV, OP_MARKER_VALUE, LANE_CONTROLS_SLOT } from '@phosphor/shared/ops'
 import phosphor from './phosphor'
 import lanePrs from './lane-prs'
+import contextBreakdown from './context-breakdown'
+import type { Command, EventApi } from './pi-api'
+import { parseSwarmStatus, SWARM_STATUS_KEY } from './swarm'
 import { laneControlFacts, registerLaneControl, type ContextFilesControl } from './lane-controls'
 
 type Tool = Parameters<Parameters<typeof phosphor>[0]['registerTool']>[0]
@@ -22,8 +28,10 @@ function fixture(...replies: object[]) {
   const session = randomUUID()
   const requests: OpRequestEnvelope[] = []
   const ctx = {
-    sessionManager: { getSessionId: () => session },
+    isIdle: () => true,
+    sessionManager: { getSessionId: () => session, getBranch: () => [] },
     ui: {
+      setStatus: vi.fn<(key: string, text: string) => void>(),
       notify: vi.fn(),
       confirm: vi.fn(async () => true),
       editor: vi.fn(async (_title: string, prefill: string) => {
@@ -223,4 +231,92 @@ it('applies the context control, a notification, and exactly the same PR entry a
   } finally {
     cleanup()
   }
+})
+
+/** Load the other parent extension as pi does: all listeners run, in registration order. */
+async function startParent(...replies: object[]) {
+  const f = fixture(...replies)
+  const directory = mkdtempSync(join(tmpdir(), 'phosphor-parent-lane-'))
+  vi.stubEnv('PI_CODING_AGENT_DIR', directory)
+  vi.stubEnv('PHOSPHOR_CONTEXT_FILES', '')
+  const events = new Map<string, Parameters<EventApi['on']>[1][]>()
+  const commands = new Map<string, Command<typeof f.ctx>>()
+  contextBreakdown({
+    ...f.pi,
+    on: (name, listener) => events.set(name, [...(events.get(name) ?? []), listener]),
+    registerCommand: (name, command) => commands.set(name, command as Command<typeof f.ctx>),
+    getAllTools: () => [{ name: 'subagent' }],
+    getActiveTools: () => ['subagent'],
+  })
+  const emit = async (name: string, ctx = f.ctx) => {
+    for (const listener of events.get(name) ?? []) await listener({}, ctx)
+  }
+  onTestFinished(async () => {
+    await emit('session_shutdown')
+    rmSync(directory, { recursive: true, force: true })
+  })
+  await emit('session_start')
+  return {
+    ...f,
+    emit,
+    command: (name: string, args: string) => commands.get(name)!.handler(args, f.ctx),
+  }
+}
+
+it('applies swarm on to the pill’s own policy, then respects a user off', async () => {
+  const reply = { ...ok, effects: [swarm] }
+  const f = await startParent(reply, ok, reply)
+  const enable = { args: ['swarm', 'on'], reason: swarm.reason }
+  expect((await f.run(enable)).details.status).toBe('ok')
+  const pill = f.ctx.ui.setStatus.mock.calls.filter(([key]) => key === SWARM_STATUS_KEY).at(-1)
+  expect(parseSwarmStatus(pill?.[1])).toMatchObject({
+    enabled: true,
+    source: 'agent',
+    reason: swarm.reason,
+  })
+  await f.run({ args: ['swarm', 'status'] })
+  expect(f.requests[1]?.facts?.swarm).toMatchObject({
+    requested: true,
+    enabled: true,
+    lastBy: 'agent',
+  })
+  await f.command('phosphor-swarm', 'off')
+  expect(await f.run(enable)).toMatchObject({
+    details: { status: 'denied' },
+    content: [{ text: 'The user turned Swarm off for this lane. Ask them to turn it on.' }],
+  })
+  expect(f.requests[2]?.facts?.swarm?.userOff).toBe(true)
+})
+
+it('returns a context-file user veto in the tool reply without persisting an agent override', async () => {
+  const f = await startParent({ ...ok, effects: [{ kind: 'contextFiles', args: 'agents=on' }] })
+  await f.command('phosphor-context-files', 'agents=off')
+  f.pi.appendEntry.mockClear()
+  const result = await f.run({
+    args: ['contextFiles.set', '--agents', 'on'],
+    reason: 'Read project instructions',
+  })
+  expect(result).toMatchObject({
+    details: { status: 'denied' },
+    content: [{ text: 'The user turned agents files off for this lane.' }],
+  })
+  expect(f.requests[0]?.facts?.contextFiles).toEqual({ off: ['agents'], userOff: ['agents'] })
+  expect(f.pi.appendEntry).not.toHaveBeenCalled()
+})
+
+it('unregisters both controls on session replacement and shutdown', async () => {
+  const f = await startParent()
+  const key = randomUUID()
+  const replacement = {
+    ...f.ctx,
+    sessionManager: { ...f.ctx.sessionManager, getSessionId: () => key },
+  }
+  await f.emit('session_start', replacement)
+  expect(laneControlFacts(f.session)).toEqual({})
+  expect(laneControlFacts(key)).toMatchObject({
+    swarm: { available: true },
+    contextFiles: { off: [] },
+  })
+  await f.emit('session_shutdown', replacement)
+  expect(laneControlFacts(key)).toEqual({})
 })

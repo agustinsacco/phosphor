@@ -1,18 +1,25 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { noOwnerReply, type OpReplyEnvelope } from '@phosphor/shared/ops'
+import {
+  noOwnerReply,
+  OP_MARKER_ENV,
+  OP_MARKER_VALUE,
+  OP_TITLE,
+  parseOpChannelRequest,
+  type OpReplyEnvelope,
+} from '@phosphor/shared/ops'
 import brainExtension, { registerBrain } from './brain'
 import type { ToolDefinition } from './pi-api'
 
 afterEach(() => vi.unstubAllEnvs())
 
 it('only installs the two explicit tools on a marker lane; stale bridge env cannot enable them', () => {
-  vi.stubEnv('PHOSPHOR_OPS', '')
+  vi.stubEnv(OP_MARKER_ENV, '')
   vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', 'ignored')
   vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', 'ignored')
   const pi = { registerTool: vi.fn(), on: vi.fn() }
   brainExtension(pi)
   expect(pi.registerTool).not.toHaveBeenCalled()
-  vi.stubEnv('PHOSPHOR_OPS', 'v1')
+  vi.stubEnv(OP_MARKER_ENV, OP_MARKER_VALUE)
   brainExtension(pi)
   expect(pi.registerTool.mock.calls.map(([tool]) => tool.name)).toEqual([
     'brain_search',
@@ -71,4 +78,36 @@ it('reports a missing service, failed transport or unexpected confirmation as un
       details: { status: 'unavailable', memories: 0 },
     })
   }
+})
+
+it('uses the lane editor sender for recall when loaded with no injected transport', async () => {
+  vi.stubEnv(OP_MARKER_ENV, OP_MARKER_VALUE)
+  const tools = new Map<string, ToolDefinition<{ query: string }, unknown, unknown>>()
+  brainExtension({
+    registerTool: (tool) =>
+      tools.set(tool.name, tool as ToolDefinition<{ query: string }, unknown, unknown>),
+  })
+  const data = { status: 'ok', memories: 1 }
+  const editor = vi.fn(async (_title: string, prefill: string) => {
+    const request = parseOpChannelRequest(prefill)
+    return JSON.stringify({
+      v: 1,
+      id: request?.id,
+      status: 'ok',
+      applies: 'now',
+      text: 'A recalled note',
+      data,
+    })
+  })
+  const result = await tools
+    .get('brain_search')!
+    .execute('search', { query: 'Harbor' }, undefined, undefined, { ui: { editor } })
+  expect(result).toEqual({ content: [{ type: 'text', text: 'A recalled note' }], details: data })
+  const [title, prefill] = editor.mock.calls[0]!
+  expect(title).toBe(OP_TITLE)
+  expect(parseOpChannelRequest(prefill)).toMatchObject({
+    op: 'brain.search',
+    input: { query: 'Harbor' },
+    deadlineMs: 10_000,
+  })
 })
