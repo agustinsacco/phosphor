@@ -247,7 +247,6 @@ function updateProblem({ version, check, rollback, stage, apply }: CliOptions): 
       return 'invalid update options'
     if (stage === (apply !== undefined) || rollback || check || version !== undefined)
       return 'invalid update options'
-    return 'update --stage and --apply are not available in this build'
   }
   return undefined
 }

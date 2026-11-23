@@ -17,7 +17,8 @@ import { errnoCode, errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { HOST_AGENT } from '@phosphor/shared/host-local'
 import { hostLogDirectory } from './log'
 
-function xml(value: string): string {
+/** Escapes a plist string; refuses control characters. */
+export function xml(value: string): string {
   if (value.length > 65536 || /[\p{Cc}\u2028\u2029]/u.test(value))
     throw new IdentityFailure('Service paths and PATH must not contain control characters.')
   return value

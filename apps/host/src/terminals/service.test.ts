@@ -163,7 +163,11 @@ describe('Host terminals', () => {
       ['-l'],
       expect.objectContaining({
         cwd: root,
-        env: { PATH: '/usr/bin:/bin', TERM: 'xterm-256color' },
+        env: {
+          PATH: '/usr/bin:/bin',
+          TERM: 'xterm-256color',
+          PHOSPHOR_HOST_PID: String(process.pid),
+        },
       }),
     )
     await expect(

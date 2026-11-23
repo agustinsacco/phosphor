@@ -121,6 +121,8 @@ it('uses machine-only executable/environment and canonical workspace confinement
     PI_CLAUDE_CLI_CONTEXT: 'pi',
     PI_CLAUDE_CLI_KEEPALIVE_MS: '3600000',
     PI_SUBAGENT_CACHE_RETENTION: 'short',
+    // An updater started from the lane's bash finds the service it runs inside.
+    PHOSPHOR_HOST_PID: String(process.pid),
   })
   expect(launch.extensions).toHaveLength(6)
   expect(state.machine.env).not.toHaveProperty('PI_CLAUDE_CLI_CONTEXT')

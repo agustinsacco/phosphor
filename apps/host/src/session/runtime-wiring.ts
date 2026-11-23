@@ -16,6 +16,7 @@ import { isInside } from '@phosphor/session-runtime/fs-safety'
 import { unlinkTranscript } from './transcript-removal'
 import type { Delivery, RuntimeState } from './runtime-state'
 import { hostSpawnContributions } from './contributions'
+import { HOST_PID_ENV } from '../update/handoff'
 
 const ignore: Delivery = () => {}
 /** The extension UI requests that wait for an answer. */
@@ -45,7 +46,12 @@ export function wireRuntimeStartup(
     launch: () =>
       prepareSessionLaunch({
         resolveExecutable: async () => ({ stub: false, ...machine.pi }),
-        readEnvironment: async () => ({ ...machine.env, ...claudeProviderSpawnEnv() }),
+        // The service's pid: an updater run from a lane's bash hands off before the restart.
+        readEnvironment: async () => ({
+          ...machine.env,
+          ...claudeProviderSpawnEnv(),
+          [HOST_PID_ENV]: String(process.pid),
+        }),
         resourceRoot: () => machine.resourceRoot,
       }),
     policy: {

@@ -69,6 +69,8 @@ it('spawns one Host lane with exactly the argv and env inputs it had before cont
   const pinned = JSON.parse(readFileSync(PINNED, 'utf8')) as Record<string, unknown>
   Object.assign(pinned.env as object, {
     PHOSPHOR_DIRECTIVES_BASE: Buffer.from(pinned.appendSystemPrompt as string).toString('base64'),
+    // D4: the service's pid, so an updater in the lane's bash hands off before the restart.
+    PHOSPHOR_HOST_PID: String(process.pid),
   })
   expect(portable(captured[0]!)).toEqual(pinned)
 })

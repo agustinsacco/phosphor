@@ -235,6 +235,7 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
       [
         ...environment.names,
         'PHOSPHOR_DIRECTIVES_BASE',
+        'PHOSPHOR_HOST_PID',
         'PI_CLAUDE_CLI_CONTEXT',
         'PI_CLAUDE_CLI_KEEPALIVE_MS',
         'PI_SUBAGENT_CACHE_RETENTION',

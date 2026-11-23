@@ -69,14 +69,23 @@ describe('local setup and staged update flags', () => {
     [['setup', '--local'], 'setup --local needs --owner-id, --owner-key and --owner-label'],
     [['setup', '--linger'], 'setup does not take --linger without --local'],
     [['setup', ...owner], 'setup does not take --owner-id without --local'],
-    [['update', '--stage'], 'update --stage and --apply are not available in this build'],
-    [['update', '--apply', '1.2.3'], 'update --stage and --apply are not available in this build'],
     [['update', '--stage', '--apply', '1.2.3'], 'invalid update options'],
     [['update', '--apply', 'latest'], 'invalid update options'],
     [['update', '--stage', '--check'], 'invalid update options'],
     [['doctor', '--stage'], 'doctor does not take --stage'],
   ])('refuses %j: %s', (argv, problem) => {
     expect(readCliRequest(argv, false)).toEqual(usage(problem))
+  })
+
+  it('reads update --stage and --apply as update commands', () => {
+    expect(readCliRequest(['update', '--stage', '--json'], false)).toMatchObject({
+      kind: 'command',
+      command: { name: 'update', options: { stage: true, json: true } },
+    })
+    expect(readCliRequest(['update', '--apply', '1.2.3'], false)).toMatchObject({
+      kind: 'command',
+      command: { name: 'update', options: { apply: '1.2.3' } },
+    })
   })
 
   it('leaves setup and update without the new flags unchanged', () => {

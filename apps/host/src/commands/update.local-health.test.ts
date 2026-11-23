@@ -42,7 +42,8 @@ function localDaemon() {
         pid: process.pid,
         hostVersion: version,
         machineId: randomUUID(),
-        socket: join(state, 'run/phosphor.sock'),
+        // Only a record: nothing binds it, and a temp state path is over the 103-byte limit.
+        socket: '/tmp/phosphor-d4-test.sock',
         startedAt: now,
         localReadyAt: now,
       },

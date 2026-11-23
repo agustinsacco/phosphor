@@ -11,6 +11,7 @@ import {
 } from '@phosphor/shared/host-protocol-terminals'
 import type { HostFeature } from '../features/feature'
 import { laneRoot } from '../features/files'
+import { HOST_PID_ENV } from '../update/handoff'
 import { createEntry, type Entry, type TerminalState } from './service-state'
 import { persist, alive, kill, reap, close } from './lifecycle'
 import { emit, output } from './output'
@@ -69,7 +70,8 @@ function createTerminal(
       cols: op.cols,
       rows: op.rows,
       name: 'xterm-256color',
-      env: { ...options.env, TERM: 'xterm-256color' },
+      // An updater typed here hands off before the service restart ends this shell.
+      env: { ...options.env, TERM: 'xterm-256color', [HOST_PID_ENV]: String(process.pid) },
     })
     entry.pty.onData((data) => output(state, entry, data))
     entry.pty.onExit(({ exitCode }) => exited(state, entry, exitCode))
