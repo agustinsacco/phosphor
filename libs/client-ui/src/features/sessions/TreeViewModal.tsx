@@ -1,11 +1,11 @@
-import { editingError, useTreeActions } from '@/features/chat/treeViewActions'
-import { readHostTree, type HostEditLane } from '@/features/chat/hostLaneEditing'
+import { useTreeActions } from '@/features/chat/treeViewActions'
+import { useSessionTree } from '@/features/chat/useSessionTree'
+import type { HostEditLane } from '@/features/chat/hostLaneEditing'
 import { TooltipButton } from '@/components/Tooltip'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import type { SessionMeta } from '@shared/models'
-import type { SessionTree } from '@shared/ipc'
 import { buildTreeLayout, type DisplayNode } from './treeLayout'
 import { useEscapeKey } from '@/components/Modal'
 import { panBy, zoomAtPoint } from './panZoom'
@@ -28,7 +28,7 @@ export function TreeViewModal({
   workspacePath: string
   onClose: () => void
 }): React.JSX.Element {
-  const [tree, setTree] = useState<SessionTree | null>(null)
+  const { tree, error, reload } = useSessionTree(meta.path, hostLane)
   const [selected, setSelected] = useState<DisplayNode | null>(null)
   const [transform, setTransform] = useState({ x: 60, y: 40, scale: 1 })
   const dragRef = useRef<{
@@ -37,16 +37,6 @@ export function TreeViewModal({
     originX: number
     originY: number
   } | null>(null)
-
-  const reload = useCallback((): void => {
-    void (
-      hostLane ? readHostTree(hostLane) : window.phosphor.invoke('sessions:readTree', meta.path)
-    )
-      .then(setTree)
-      .catch(editingError)
-  }, [hostLane, meta.path])
-
-  useEffect(() => reload(), [reload])
 
   useEscapeKey(onClose)
 
@@ -110,7 +100,18 @@ export function TreeViewModal({
               'Session tree'}
           </span>
           <span className="text-text-tertiary ml-2 text-sm">
-            {layout ? `${layout.nodes.length - 1} nodes` : 'loading…'}
+            {error ? (
+              <>
+                {error}{' '}
+                <TooltipButton tooltip="Reload the session tree" onClick={reload}>
+                  Retry
+                </TooltipButton>
+              </>
+            ) : layout ? (
+              `${layout.nodes.length - 1} nodes`
+            ) : (
+              'loading…'
+            )}
             {busy ? ` · ${busy}` : ''}
           </span>
         </div>
