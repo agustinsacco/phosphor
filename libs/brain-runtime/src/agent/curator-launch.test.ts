@@ -37,16 +37,16 @@ it('hands the Brain lane its own token, extension and skill; any lane keeps toke
   expect(brain).toMatchObject({
     extensions: [curator.extension],
     skills: [curator.skill],
-    env: { PHOSPHOR_BRAIN_ENDPOINT: expect.any(String), PHOSPHOR_BRAIN_TOKEN: expect.any(String) },
+    connection: { endpoint: expect.any(String), token: expect.any(String) },
   })
   // Every other lane reaches Brain over its op channel, so recall carries no endpoint or token.
-  expect(lane).not.toHaveProperty('env')
+  expect(lane).not.toHaveProperty('connection')
   expect(lane?.extensions).toEqual(['/brain.mjs'])
 
   const client = createBrainCuratorClient(
     createNodeBrainTransport({
-      endpoint: brain!.env.PHOSPHOR_BRAIN_ENDPOINT!,
-      token: brain!.env.PHOSPHOR_BRAIN_TOKEN!,
+      endpoint: brain!.connection.endpoint,
+      token: brain!.connection.token,
     }),
   )
   const waiting = await client.call('waiting', {})
@@ -58,8 +58,8 @@ it('hands the Brain lane its own token, extension and skill; any lane keeps toke
   // The curator token cannot flag (bridge-curator.test.ts pins the lane token's limits).
   const flagging = createBrainClient(
     createNodeBrainTransport({
-      endpoint: brain!.env.PHOSPHOR_BRAIN_ENDPOINT!,
-      token: brain!.env.PHOSPHOR_BRAIN_TOKEN!,
+      endpoint: brain!.connection.endpoint,
+      token: brain!.connection.token,
     }),
   )
   await expect(

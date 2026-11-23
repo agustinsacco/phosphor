@@ -1016,7 +1016,10 @@ only ask Brain Agent to check. Recall never blocks a lane: any failure starts it
 The Brain lane instead gets `PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN` (Brain Agent's
 curator token), `-e brain-ext/brain-curator.mjs` and `--skill skills/brain-agent`, the only
 Brain credentials any lane gets. The endpoint is Desktop's private local socket; the token is
-random per app run. `brain-curator.mjs` removes the two variables from pi's environment on load
+random per app run. Spawn `env` never carries them: every pi child's env loses all Brain
+variables, inherited or passed, and only the typed `PiSpawnOptions.brainConnection` adds the
+two back. Only Desktop's Brain contribution sets it, for the exact Brain lane folder; it is not
+argv and is never logged. `brain-curator.mjs` removes the two variables from pi's environment on load
 and keeps the connection for its own reloads, so bash commands, MCP servers and sub-agents
 started thereafter do not inherit them. Every curator tool uses the version 6 local bridge.
 

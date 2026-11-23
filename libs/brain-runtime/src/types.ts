@@ -93,9 +93,9 @@ export interface BrainRecallLaunch {
   skills: string[]
 }
 
-/** The Brain lane's launch, the only one with env: its private bridge endpoint and curator token. */
+/** The Brain lane's launch, the only one with a connection: the private bridge and curator token. */
 export interface BrainCuratorLaunch extends BrainRecallLaunch {
-  env: Record<string, string>
+  connection: { endpoint: string; token: string }
 }
 
 export interface BrainService {

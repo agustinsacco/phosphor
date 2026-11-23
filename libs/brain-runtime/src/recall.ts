@@ -151,10 +151,7 @@ export function createRecall(
       const connection = await connect()
       if (!brainOn()) return undefined
       return {
-        env: {
-          PHOSPHOR_BRAIN_ENDPOINT: connection.endpoint,
-          PHOSPHOR_BRAIN_TOKEN: connection.curatorToken,
-        },
+        connection: { endpoint: connection.endpoint, token: connection.curatorToken },
         extensions: [resources.extension],
         skills: [resources.skill],
       }

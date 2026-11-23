@@ -63,7 +63,8 @@ extension and skill, not bridge credentials: the tools ask the owner through
 the [op channel](agent-control.md#the-op-channel). The Brain lane
 (`<userData>/brain/Brain`, compared by real path) instead gets Brain Agent's
 curator token and the private bridge's endpoint (the only Brain env a lane
-gets), the `brain-curator` extension and the `brain-agent` skill whenever Brain
+gets, through the typed `PiSpawnOptions.brainConnection` that `opChildEnv` adds
+after it withholds every Brain variable from `env`), the `brain-curator` extension and the `brain-agent` skill whenever Brain
 is on, and its default `AGENTS.md` if the file is missing. A failure there
 starts the lane without them. Desktop's session policy also marks that folder
 (`SessionPolicyRuntime.brainLane`), so its fixed block replaces the lane

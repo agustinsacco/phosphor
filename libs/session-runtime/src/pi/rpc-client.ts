@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { JsonlDecoder } from './jsonl'
 import { SessionActivity } from './session-activity'
 import { OpChannel, opChildEnv, opMarkerSet, type OpChannelEvents } from './op-channel'
+import type { BrainLaneConnection } from './op-channel'
 import type { RuntimeLog } from '../file-log'
 import type {
   ExtensionUIRequest,
@@ -58,6 +59,9 @@ export interface PiSpawnOptions {
   noContextFiles?: boolean
   /** Owned process group: disposal must also stop nested CLI/tools. */
   ownProcessGroup?: boolean
+  /** Desktop's Brain lane only: added to the child's env after `opChildEnv` withholds every
+   * Brain variable from `env`. Not argv, never logged. */
+  brainConnection?: BrainLaneConnection
   /** Environment variables, merged over the inherited ones unless `inheritEnv` is false. */
   env?: Record<string, string>
   /**
@@ -173,7 +177,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
     const child = spawn(o.binaryPath ?? 'pi', args, {
       cwd: o.cwd,
-      env: opChildEnv(o.env, o.inheritEnv !== false),
+      env: opChildEnv(o.env, o.inheritEnv !== false, o.brainConnection),
       stdio: ['pipe', 'pipe', 'pipe'],
       detached: o.ownProcessGroup,
     })

@@ -80,14 +80,29 @@ const LANE_WITHHELD_ENV = [
   'PHOSPHOR_BRAIN_TEST_EMBEDDINGS',
 ] as const
 
+/** Desktop's Brain lane's private bridge (`PiSpawnOptions.brainConnection`). */
+export interface BrainLaneConnection {
+  readonly endpoint: string
+  readonly token: string
+}
+
+/**
+ * `brainConnection` is the one way Brain credentials reach a child: a typed
+ * spawn field set only for Desktop's Brain lane, added after the scrub.
+ */
 export function opChildEnv(
   own: Readonly<Record<string, string>> | undefined,
   inheritEnv: boolean,
+  brainConnection?: BrainLaneConnection,
 ): Record<string, string | undefined> {
   const env = inheritEnv ? { ...process.env, ...own } : { ...own }
   if (!own?.PHOSPHOR_HEADROOM_SOCKET) delete env.PHOSPHOR_HEADROOM_SOCKET
   if (!opMarkerSet(own)) delete env[OP_MARKER_ENV]
   for (const key of LANE_WITHHELD_ENV) delete env[key]
+  if (brainConnection) {
+    env.PHOSPHOR_BRAIN_ENDPOINT = brainConnection.endpoint
+    env.PHOSPHOR_BRAIN_TOKEN = brainConnection.token
+  }
   return env
 }
 

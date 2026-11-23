@@ -11,6 +11,8 @@ export interface SpawnInputs {
   readonly env?: Readonly<Record<string, string>>
   readonly extensions?: readonly string[]
   readonly skills?: readonly string[]
+  /** Desktop's Brain lane only; never an env value (`PiSpawnOptions.brainConnection`). */
+  readonly brainConnection?: PiSpawnOptions['brainConnection']
 }
 
 /** The lane being started, after the owner resolved its folder and policy. */
@@ -76,6 +78,7 @@ export async function applySpawnContributions(
       spawnOptions.extensions = [...(spawnOptions.extensions ?? []), ...inputs.extensions]
     if (inputs.skills?.length)
       spawnOptions.skills = [...(spawnOptions.skills ?? []), ...inputs.skills]
+    if (inputs.brainConnection) spawnOptions.brainConnection = inputs.brainConnection
   }
 }
 
