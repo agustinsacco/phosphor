@@ -3,6 +3,16 @@ import { request } from 'node:http'
 import { WebSocket } from 'ws'
 import { HOST_API_ROUTES, type HostFrame } from '@phosphor/shared/host-protocol'
 
+/** The body as JSON, the raw text when it is not JSON, or null when empty. */
+function parsed(text: string): unknown {
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
+}
+
 /** One HTTP GET over a Unix socket: status and parsed JSON body (or null). */
 export function socketGet(
   socketPath: string,
@@ -15,13 +25,7 @@ export function socketGet(
       response.on('data', (chunk: Buffer) => chunks.push(chunk))
       response.on('end', () => {
         const text = Buffer.concat(chunks).toString()
-        let body: unknown = null
-        try {
-          body = text ? JSON.parse(text) : null
-        } catch {
-          body = text
-        }
-        resolve({ status: response.statusCode ?? 0, body })
+        resolve({ status: response.statusCode ?? 0, body: parsed(text) })
       })
     })
     req.on('error', reject)
