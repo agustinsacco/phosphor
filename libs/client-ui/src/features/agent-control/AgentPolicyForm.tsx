@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Row, Select } from '@/components/form'
+import { TooltipSummary } from '@/components/Tooltip'
 import {
   AGENT_POLICY_DEFAULT,
   AGENT_POLICY_LIMITS,
@@ -40,7 +41,9 @@ function PolicyDetails({ policy, save }: { policy: AgentPolicy; save: Save }) {
   const [op, setOp] = useState(ops[0]!.value)
   return (
     <details>
-      <summary className="cursor-pointer">Tier defaults, individual operations and limits</summary>
+      <TooltipSummary className="cursor-pointer">
+        Tier defaults, individual operations and limits
+      </TooltipSummary>
       {OP_TIERS.filter((t) => t !== 'never').map((tier) => (
         <Row key={tier} title={tier}>
           <Select
