@@ -58,7 +58,7 @@ Node subprocess test exercises this complete path without Electron, using a
 fake pi, not a real provider.
 
 [Brain](brain.md) adds one optional startup hook to this service: while recall
-is on, a new lane gets Brain's env, recall extension and skill. A failure there
+is on, a new lane gets the recall extension and skill, not bridge credentials. The tools ask the owner through the [op channel](agent-control.md#the-op-channel). A failure there
 starts the lane without them. Brain's model calls are not sessions: they are
 session-less, tool-less `pi -p` runs through `print-mode.ts`, with the prompt on
 stdin, and Brain reads the lane's file itself.
@@ -193,7 +193,8 @@ migration, and rewrites only the disposable header cwd to isolate project resour
   shows a LIVE session's title prefers the chat store's `meta.sessionName` over
   the scanned `meta.name`, and a new session shows a placeholder sidebar row
   (`PendingSessionRow`) until the scan finds its file.
-- The tree view's labels, branch jumps and forks (`sessions:appendLabel`, `sessions:jump`,
+- On the service, `apps/host/src/lanes/editing.ts` uses the shared writer through `mutateStoppedSession` (label/jump) and `withSessionFile` (fork/clone/rewind). It does not send pi a fork or clone RPC.
+- In-app, the tree view's labels, branch jumps and forks (`sessions:appendLabel`, `sessions:jump`,
   `sessions:forkAt`) write pi's files from main, through
   `apps/desktop/electron/pi/session-mutation.ts` and inside the same path lock as resume
   and deletion. Edits and admissions of one transcript therefore run in call order.

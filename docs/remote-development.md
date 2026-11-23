@@ -69,6 +69,8 @@ For example, enrolling bee1 produces this order:
    `enrollment.poll` likewise carries the claimed enrollment id and the
    failure code as its result.
 
+For machine reach, `machine.grant_issued` records issuance and `machine.reach` the owner’s switch change. `heartbeat.machine_unavailable` and `machines.reach_unavailable` indicate that control could not add reach metadata; they do not by themselves mean the Host is offline.
+
 Server heartbeat observation is process-local, capped at 10,000 Hosts with the
 least recently beaten evicted. Restarting the server emits `host.connected`
 again on each Host's next accepted beat. Refused beats do not update this history.

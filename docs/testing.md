@@ -4,6 +4,8 @@ This is the living contract for test layout, frozen interfaces and local/CI
 guardrails. Tests provide evidence of behaviour; coverage and size reports do not
 replace assertions or independent review.
 
+Local-service Desktop specs start the foreground Host fixture (`apps/desktop/e2e/fixtures/local-daemon.ts`), not a user service. `assert-scratch.ts` checks the roots under one short temporary folder. The unpackaged-only hook uses an isolated owner key instead of protected storage; no real account enrollment or migration is required for parity tests.
+
 ## Install and run
 
 Use Node 22.19+ and local dependency installations in this checkout:

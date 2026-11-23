@@ -233,8 +233,7 @@ The Host daemon owns its own scheduler and SQLite database at
 `<state>/routines/state.sqlite`. The Host footer states that routines run while
 the Host is running and awake; Desktop can be closed. The scheduler belongs to
 the Host daemon, not a Desktop window or connection.
-Desktop's local scheduler, notifications, background setting and database do not
-change. The Routines page lists this computer and every connected machine that
+In-app mode keeps Desktop's scheduler and database; after migration the service schedules This Mac’s routines. The Routines page lists this computer and every connected machine that
 announces `routines`, with a machine tag and filter. In All machines, local rows
 load first; an unavailable machine has its own status and never hides local rows.
 Definitions with their recent activity, and each routine's history, are fetched independently and refreshed on Host

@@ -1,6 +1,6 @@
 # This Mac’s Phosphor service
 
-**A normal first launch still runs lanes in-app.** Desktop can hand them to the local Host service, but requires `local-mode` and `owner-socket` in both the signed release manifest and the staged program. This build’s `version --json` advertises `headroom` and `service-pause`, not those two features or `app-services`. Protocol support on a running Host is not a release announcement.
+Packaged Desktop automatically moves This Mac’s lanes to the service **once**, when a compatible signed release is available. It installs the service in standby while still running in-app, then migrates at the next eligible launch. Both the signed v2 manifest and the staged program must advertise `local-mode` and `owner-socket`. An older bundle does not trigger the move. **Settings → Advanced** shows its state and offers recovery actions.
 
 ## Installation and launch
 
@@ -12,7 +12,7 @@ Desktop checks for a compatible service release at startup and periodically. It 
 
 1. Desktop checks its installation record, the pi agent directory’s owner lock, migration journal and the running service’s features and standby state. If Desktop finds a service that already owns lanes and it has in-app data to move, it asks for explicit merge consent in **Settings → Advanced**. Stop that service’s live lanes first; release refuses while even one lane has a pi process. Consent and Retry take effect on relaunch.
 2. Before commit, Desktop backs up device state, plans the import and verifies the staged result. Service sections cover folders, policy, accounts, lanes, marks, archives, artifacts and routines. Import is keyed by migration ID and section hash; failures before the commit point can abort and restore staged state. Folder or lane counts over the legacy limits keep This Mac in-app; migration does not silently select a subset.
-3. `commit-requested` is the point of no return for automatic recovery. On restart Desktop checks the service’s migration status: it resends a staged commit, finishes one already committed, and reports a lost commit rather than starting an in-app writer. An exception while deciding the runtime falls back by journal: unreadable, commit-requested or committed means daemon mode with the service down; otherwise in-app.
+3. `commit-requested` is the point of no return for automatic recovery. On restart Desktop checks the service’s migration status: it resends a staged commit, finishes one already committed, and reports a lost commit rather than starting an in-app writer. An unexpected error while the gate is deciding or migrating falls back by journal: unreadable, commit-requested or committed means daemon mode with the service down; otherwise in-app.
 4. Desktop re-keys drafts and sidebar preferences to service identities; the plan maps alternate folder spellings to the repository ID. Marks belong to service lanes. It clears the legacy recents and last session and moves the old routines database aside, so an older Desktop does not automatically reopen the same work. On daemon-mode launch it waits up to ten seconds for the last service lane to appear before giving up on reopening it.
 
 ## Using the service

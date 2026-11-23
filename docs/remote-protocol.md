@@ -595,7 +595,7 @@ may call. Mutations are idempotent by their key (`migrationId`, `leaseId`,
 
 Parity exemptions belong only to the attested owner: no per-lane terminal cap, terminal input throttle or hourly attachment quota, and no answer deadline for `bash` or `compact`. Their receipts settle when pi answers, the operation fails, or the owner connection closes. The 32-terminal machine limit remains. Neither a user grant nor a machine grant gets an exemption.
 
-`OWNER_LIMITS` defines a 120 s owner-call budget separately from `HOST_LIMITS`. Clients send them with `ownerCall`
+`OWNER_LIMITS` defines a 120 s owner-call budget separately from `HOST_LIMITS`. Clients send owner calls with `ownerCall`
 (`libs/host-client/src/owner.ts`), which checks params before sending and throws
 `OwnerCallError` with the daemon's code. It still rides the connection's 30 s call
 deadline, so a call that runs longer reads as `internal` until the local binding

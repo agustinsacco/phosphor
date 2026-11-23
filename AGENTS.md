@@ -128,7 +128,7 @@ Read the linked doc before touching any of these.
 - `apps/desktop/electron/store.ts` builds its electron-store lazily, so E2E can
   redirect `userData` first.
 - E2E env hooks (`PHOSPHOR_PI_STUB`, `PHOSPHOR_E2E_WORKSPACE`,
-  `PHOSPHOR_TEST_USER_DATA`, local daemon socket/config and owner-key overrides,
+  `PHOSPHOR_TEST_USER_DATA`, `PHOSPHOR_LOCAL_DAEMON_SOCKET`, `PHOSPHOR_LOCAL_DAEMON_CONFIG`, `PHOSPHOR_E2E_OWNER_KEY`,
   `PHOSPHOR_MIGRATE`, `PHOSPHOR_E2E_SERVICE_FEATURES`, `PHOSPHOR_MIGRATION_CRASH_AT`) stay gated on `!app.isPackaged`. Ungated, they are
   env-triggered code execution in a shipped app.
 - `bootstrapSession` learns the session path asynchronously, so last-session
@@ -189,6 +189,8 @@ Read the linked doc before touching any of these.
   Fixing a [known issue](docs/known-issues.md) deletes its row in the same diff.
 
 ## Running the app
+
+Use isolated `PHOSPHOR_TEST_USER_DATA` for dev against a migrated machine. Dev does not take over service-owned data; see the [launch gate](docs/local-service.md#installation-and-launch).
 
 `npm run dev` needs `pi` on PATH (`npm i -g @earendil-works/pi-coding-agent`,
 Node ≥ 22.19); without it This Mac's home shows the pi setup (Hosts still work). `apps/desktop/vite.config.ts`

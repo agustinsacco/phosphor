@@ -370,7 +370,7 @@ physical-device acceptance.
   update time. New accounts are enabled by default.
 - `remote_hosts`: owner, label, hostname, public key, fingerprint, platform,
   architecture, version, heartbeat sequence and state, readiness, lane counts,
-  optional bare HTTPS endpoint and revocation epoch.
+  optional bare HTTPS endpoint, revocation epoch, `machine_reach` (default true) and reported `machine_grants`.
 - `remote_clients`: owner, client kind, display label and revocation metadata.
 - `remote_machine_principals`: the distinct client and session IDs for sibling grants, scoped to the owner and machine. No client policy; issuance bounds live and recently revoked principals to 40 per owner. Machine grant sessions are not user grant sessions.
 - `remote_grant_sessions`: recently issued Auth session ids and times for bounded
@@ -393,7 +393,7 @@ rows have no client grants or RLS policies. Clients cannot write any table.
 Only the server writes. The `service_role` can execute the public `control_*`
 functions for account refresh, enrollment create/poll/lookup/approve, machine
 list/rename/revoke and Host key/self/self-revoke/heartbeat, client registration and
-revocation, grant issuance and revocation lookup. These functions use an empty
+revocation, grant issuance and revocation lookup, plus machine directory, grant issue, beat and reach reads/writes. These functions use an empty
 search path. They are security invokers except the revocation lookup described in
 [Grants and revocation](#grants-and-revocation), account deletion, and the admin
 check described in [Usage analytics](usage-analytics.md#admin-summary). Each of

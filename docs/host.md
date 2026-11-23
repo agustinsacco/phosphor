@@ -289,8 +289,7 @@ is not a terminal, with `--json`, under CI (`CI` or `GITHUB_ACTIONS`), with
 agents and pipes read the same lines as before.
 `version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
 for dev builds (`0.0.0-dev.source` when no commit is stamped). `version --json`
-adds `features`, the machine services the build runs, only when there is one;
-see [This Mac’s service](local-service.md) for the distinction between built and announced features.
+reports these release features: `ops`, `machine-grants`, `headroom`, `app-services`, `service-pause`, `local-mode`, `owner-socket`, `owner-lock` and `migrate-v1`. An attested owner sees the same list in `machine.local.features`. These describe the bundle; a client uses the connected Host’s `ready` frame for admission. See [This Mac’s service](local-service.md) for the installation gate.
 
 Fixed commands win over catalog names. For tool syntax, routing, approvals and catalog-specific exit codes, see [From a terminal](agent-control.md#from-a-terminal). `setup --local` takes `--owner-id`, `--owner-key` and `--owner-label`; it pairs without enrollment and can install in standby. It does not replace a valid configuration.
 
@@ -678,13 +677,13 @@ a `user_version` change and `phosphor update --rollback` still opens the file:
 the older Host ignores the table. The same rule creates the agent-control and
 local-mode tables (`lanes/store/additive.ts`): `lane_pauses`, `lane_prefs`,
 `agent_ops`, `agent_policy_meta`, `agent_jobs`, `owner_migrations` and
-`owner_migration_staging`. Nothing writes them yet. A test opens such a file,
+`owner_migration_staging`. These hold pause and editing state, agent policy, audit and jobs, and recoverable migration state. A test opens such a file,
 beside every sidecar file, through a frozen copy of the 684cb3478 open path.
 On start, run
 reconciles pi's session files against the lane index and marks interrupted
 requests as unknown. Unavailable configured repositories become inactive, with
 one count-only log line; they do not stop heartbeats. Their ids stay stable when
-the folders return. Run scans active repository roots, up to 256 direct worktree
+the folders return. For an owner folder the daemon uses Desktop’s worktree discovery, including retained conversations after a checkout is removed. For ordinary headless repositories, run scans active repository roots, up to 256 direct worktree
 folders per repository, and live lanes' folders. Worktree links and folders
 outside the repository are skipped. Removed lanes are kept for 30 days, with at
 most 1000 removed rows after reconciliation. A returning session file keeps its

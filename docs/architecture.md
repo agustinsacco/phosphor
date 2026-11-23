@@ -22,6 +22,8 @@
 
 ## Process model
 
+Desktop first decides who owns This Mac’s lanes. The diagram below describes **in-app** mode. In **service** mode the Host daemon owns the session runtime and terminals; main connects to it on the attested local socket and routes machine IPC rather than starting local lanes. The renderer still uses the same preload. [This Mac’s service](local-service.md) owns installation, cutover and recovery.
+
 ```
 ┌────────────────────────── Electron main ──────────────────────────┐
 │  SessionRegistry     ptyManager    fs-service / git-service       │

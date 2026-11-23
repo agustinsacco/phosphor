@@ -12,12 +12,12 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 
 | Surface         | Missing capability                                                                                                                                                                                    |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat and lanes  | Writable Host composer rules/MCP popover; worktree Merge into main                                                                                    |
+| Chat and lanes  | Writable Host composer rules/MCP popover; worktree Merge into main                                                                                                                                    |
 | Files           | Content search, Quick Look, external imports, per-file Revert in Changes, Host file-list truncation flags; in a browser, files over 100 MB to download or 50 MB to preview, and drag moves on a phone |
-| Skills          | Upload and discovery UI; editing beyond user skill source                                                                                                                                               |
-| Settings        | Unrestricted raw file editors, project/non-npm package mutation and cross-machine settings sync                                                    |
-| Routine history | Opening output that has no existing Host lane; full execution diagnostics                                                                                                                                  |
-| Portability     | Larger lane transfers, submodule/LFS support, primitive copy/sync                                                                                                 |
+| Skills          | Upload and discovery UI; editing beyond user skill source                                                                                                                                             |
+| Settings        | Unrestricted raw file editors, project/non-npm package mutation and cross-machine settings sync                                                                                                       |
+| Routine history | Opening output that has no existing Host lane; full execution diagnostics                                                                                                                             |
+| Portability     | Larger lane transfers, submodule/LFS support, primitive copy/sync                                                                                                                                     |
 
 ## Service follow-ups
 
