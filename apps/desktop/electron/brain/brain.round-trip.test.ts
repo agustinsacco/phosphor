@@ -9,10 +9,10 @@ import type { ToolDefinition } from '@phosphor/pi-extensions/pi-api'
 import { parseOpChannelRequest, OP_TITLE } from '@phosphor/shared/ops'
 import type { LaneSummary } from '@phosphor/shared/host-protocol'
 import { parseOwnerParams } from '@phosphor/shared/host-protocol-owner'
-import { BrainAppService } from '../../../../desktop/electron/brain/app-service'
-import { createAppServices } from '../../session/app-services'
-import { openStore } from '../../lanes/store'
-import { createOpsService, type OpsService } from '../service'
+import { BrainAppService } from './app-service'
+import { createAppServices } from '../../../host/src/session/app-services'
+import { openStore } from '../../../host/src/lanes/store'
+import { createOpsService, type OpsService } from '../../../host/src/ops/service'
 
 function piSearch(ops: OpsService, session: string) {
   const tools: ToolDefinition<{ query: string }, unknown, unknown>[] = []
