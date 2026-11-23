@@ -96,7 +96,11 @@ const json = (path: string, value: unknown) =>
 export interface LocalDaemonOptions {
   /** Writes `owner-standby.json`: the daemon serves owner calls only, as before a migration commit. */
   standby?: boolean
-  repositories?: string[]
+  repositories?:
+    | string[]
+    | ((
+        layout: Pick<DaemonLayout, 'root' | 'home' | 'agentDir' | 'userData' | 'stateDir'>,
+      ) => Promise<string[]>)
 }
 
 export type LocalDaemon = Awaited<ReturnType<typeof localDaemonFixture>>
@@ -153,7 +157,10 @@ async function writeDaemonWorld(layout: DaemonLayout, options: LocalDaemonOption
       node: process.execPath,
       executable: join(project, 'apps/host/src/__fixtures__/fake-pi.cjs'),
     },
-    repositories: options.repositories ?? [],
+    repositories:
+      typeof options.repositories === 'function'
+        ? await options.repositories(layout)
+        : (options.repositories ?? []),
     // Nothing listens on either port: an unenrolled daemon reaches neither.
     control: { url: `http://127.0.0.1:${await closedPort()}` },
     api: { port: apiPort },
@@ -293,8 +300,14 @@ export async function localDaemonFixture(options: LocalDaemonOptions = {}) {
         PI_CODING_AGENT_DIR: layout.agentDir,
       },
       apiRefused: () => refused(apiPort),
-      output: daemon.output,
-      stop: daemon.stop,
+      output: () => daemon?.output() ?? '',
+      stop: () => daemon!.stop(),
+      async restart() {
+        await daemon!.stop()
+        daemon = spawnDaemon(layout)
+        await ownerSocket(layout, machineId, daemon)
+        if (!(await refused(apiPort))) throw new Error('The restarted daemon opened its TCP API.')
+      },
       close,
     }
   } catch (error) {

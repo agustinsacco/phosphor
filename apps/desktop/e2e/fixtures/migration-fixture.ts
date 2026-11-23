@@ -37,7 +37,7 @@ const git = (cwd: string, ...args: string[]) =>
 const sessionFolder = (agentDir: string, cwd: string) =>
   join(agentDir, 'sessions', `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`)
 
-async function writeLane(agentDir: string, id: string, cwd: string, name: string) {
+export async function writeFixtureLane(agentDir: string, id: string, cwd: string, name: string) {
   const folder = sessionFolder(agentDir, cwd)
   await mkdir(folder, { recursive: true })
   const transcript = join(folder, `2026-09-01T00-00-00-000Z_${id}.jsonl`)
@@ -80,9 +80,24 @@ export async function migrationFixtureWorld(roots: MigrationWorldRoots): Promise
   git(repository, 'worktree', 'add', '-q', '-b', 'spike', removed, 'main')
   git(repository, 'worktree', 'remove', removed)
   const lanes = {
-    checkout: await writeLane(agentDir, 'checkout-lane', repository, 'Checkout migration lane'),
-    worktree: await writeLane(agentDir, 'worktree-lane', worktree, 'Worktree migration lane'),
-    removedWorktree: await writeLane(agentDir, 'removed-lane', removed, 'Removed worktree lane'),
+    checkout: await writeFixtureLane(
+      agentDir,
+      'checkout-lane',
+      repository,
+      'Checkout migration lane',
+    ),
+    worktree: await writeFixtureLane(
+      agentDir,
+      'worktree-lane',
+      worktree,
+      'Worktree migration lane',
+    ),
+    removedWorktree: await writeFixtureLane(
+      agentDir,
+      'removed-lane',
+      removed,
+      'Removed worktree lane',
+    ),
   }
   await mkdir(userData, { recursive: true, mode: 0o700 })
   await writeFile(
