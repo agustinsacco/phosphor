@@ -436,6 +436,10 @@
       "types": "./src/ops.ts",
       "default": "./src/ops.ts"
     },
+    "./ops-cli": {
+      "types": "./src/ops-cli.ts",
+      "default": "./src/ops-cli.ts"
+    },
     "./ops-catalog": {
       "types": "./src/ops-catalog.ts",
       "default": "./src/ops-catalog.ts"
