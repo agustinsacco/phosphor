@@ -1,3 +1,4 @@
+import { AgentControl } from '@/features/agent-control/AgentControl'
 import { HostGate } from './machine/HostGate'
 import { HostSectionProvider } from './machine/HostSection'
 import { HostRefresh, HostScopeRow } from './machine/HostScopeControls'
@@ -33,6 +34,7 @@ export function SettingsPanel({
           <LocalRefresh />
         </SettingsScopeLine>
         <views.Local />
+        {tab === 'agent' && <AgentControl machine={machine.id} />}
       </>
     ) : null
   if (!views.Host || !section.host) return null
@@ -51,6 +53,7 @@ export function SettingsPanel({
         <HostGate>
           <views.Host />
         </HostGate>
+        {tab === 'agent' && <AgentControl machine={machine.id} />}
       </div>
     </HostSectionProvider>
   )

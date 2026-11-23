@@ -1,3 +1,5 @@
+import { CONFIRM_TITLE_PREFIX } from '@phosphor/shared/ops'
+import { AgentDialog } from '@/features/agent-control/AgentConfirmSheet'
 import { ToastCard } from '@/features/notifications/ToastCard'
 import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
 import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -42,7 +44,15 @@ export function ExtensionDialogHost(): React.JSX.Element | null {
   if (approval) {
     return <CommandApprovalSheet key={dialog.request.id} dialog={dialog} approval={approval} />
   }
-  return <DialogSheet key={dialog.request.id} dialog={dialog} />
+  const generic = <DialogSheet key={dialog.request.id} dialog={dialog} />
+  return dialog.request.method === 'confirm' &&
+    dialog.request.title.startsWith(CONFIRM_TITLE_PREFIX) ? (
+    <AgentDialog key={`${dialog.sessionId}:${dialog.request.id}`} dialog={dialog}>
+      {generic}
+    </AgentDialog>
+  ) : (
+    generic
+  )
 }
 
 function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {

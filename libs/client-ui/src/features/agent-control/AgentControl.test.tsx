@@ -120,15 +120,13 @@ it('recovers from a failed first local read and edits the policy it received', a
 })
 async function dialog() {
   act(() =>
-    useExtensionUiStore
-      .getState()
-      .handleRequest('sid', {
-        type: 'extension_ui_request',
-        method: 'confirm',
-        id: 'dlg',
-        title,
-        message,
-      }),
+    useExtensionUiStore.getState().handleRequest('sid', {
+      type: 'extension_ui_request',
+      method: 'confirm',
+      id: 'dlg',
+      title,
+      message,
+    }),
   )
   await mount(<ExtensionDialogHost />)
 }
@@ -174,15 +172,13 @@ it('renders just the owner notify toast with its reason, not a second one for th
     </>,
   )
   await act(async () => {
-    useExtensionUiStore
-      .getState()
-      .handleRequest('sid', {
-        type: 'extension_ui_request',
-        method: 'notify',
-        id: 'n',
-        message: 'Agent changed model: the task needs vision.',
-        notifyType: 'info',
-      })
+    useExtensionUiStore.getState().handleRequest('sid', {
+      type: 'extension_ui_request',
+      method: 'notify',
+      id: 'n',
+      message: 'Agent changed model: the task needs vision.',
+      notifyType: 'info',
+    })
     changed.forEach((cb) => cb({ kind: 'audit', machine: 'local' }))
   })
   expect(document.querySelector('[data-testid="toast-stack"]')?.children.length).toBe(1)
