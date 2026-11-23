@@ -61,6 +61,18 @@ describe('spawn contributions', () => {
     })
   })
 
+  it('uses only the explicitly selected contribution on an opted-in stub launch', async () => {
+    const spawn = vi.fn(() => ({ env: { UNEXPECTED: 'yes' } }))
+    const h = fixture([{ name: 'real-only', spawn }])
+    const attach = vi.fn()
+    h.runtime.stubContributions = [{ name: 'ops', spawn: () => ({ env: { MARK: 'yes' } }), attach }]
+    h.runtime.launch = async () => ({ stub: true, env: {}, extensions: [] })
+    await h.spawn({ workspacePath: '/repo' }, h.sink)
+    expect(h.clients[0]!.options.env).toEqual({ MARK: 'yes' })
+    expect(attach).toHaveBeenCalledOnce()
+    expect(spawn).not.toHaveBeenCalled()
+  })
+
   it('never applies to a stub launch', async () => {
     const spawn = vi.fn(() => ({ env: { NO: 'no' } }))
     const attach = vi.fn()

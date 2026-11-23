@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const app = vi.hoisted(() => ({ isPackaged: false }))
 vi.mock('electron', () => ({ app }))
-import { claudeBinOverride, piStubPath } from './stub'
+import { claudeBinOverride, piStubPath, stubOpsEnabled } from './stub'
 
 beforeEach(() => {
   app.isPackaged = false
@@ -43,4 +43,20 @@ describe.each([
     vi.stubEnv(env, undefined)
     expect(gate()).toBeUndefined()
   })
+})
+
+it('opts into stub ops only in an unpackaged, redirected test run', () => {
+  vi.stubEnv('PHOSPHOR_PI_STUB', '/test/stub.cjs')
+  vi.stubEnv('PHOSPHOR_TEST_USER_DATA', '/test/profile')
+  vi.stubEnv('PHOSPHOR_E2E_OPS', '1')
+  expect(stubOpsEnabled()).toBe(true)
+  app.isPackaged = true
+  expect(stubOpsEnabled()).toBe(false)
+  app.isPackaged = false
+  for (const key of ['PHOSPHOR_PI_STUB', 'PHOSPHOR_TEST_USER_DATA', 'PHOSPHOR_E2E_OPS']) {
+    const value = process.env[key]
+    vi.stubEnv(key, undefined)
+    expect(stubOpsEnabled()).toBe(false)
+    vi.stubEnv(key, value)
+  }
 })
