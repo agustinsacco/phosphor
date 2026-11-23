@@ -1,3 +1,4 @@
+import type * as NodeCrypto from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,7 +16,7 @@ import { editingFixture, line, transcript, type EditingFixture } from './__fixtu
 // The writer's ids, pinned as R2's bytes test pins them; lane ids stay distinct v4 UUIDs.
 let uuids = 0
 vi.mock('node:crypto', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:crypto')>()
+  const actual = await importOriginal<typeof NodeCrypto>()
   return {
     ...actual,
     randomBytes: (size: number) =>
@@ -24,7 +25,6 @@ vi.mock('node:crypto', async (importOriginal) => {
   }
 })
 
-const AT = '2026-08-01T10:00:00.000Z'
 const NOW = '2026-09-01T12:00:00.000Z'
 const JUMPED = 'Jumped here from another branch in Phosphor (tree view).'
 const jumpLine = (parentId: string, fromId: string) =>
@@ -265,7 +265,13 @@ describe('laneLineage', () => {
     const surface = { kind: 'surface', clientId: 'c', label: 'Mac', via: 'owner' } as const
     expect(laneLineage(surface, fx.db)).toBeNull()
     expect(laneLineage({ kind: 'local', clientId: 'cli' }, fx.db)).toBeNull()
-    const machine = { kind: 'machine', machineId: 'm2', clientId: 'c', label: 'PC', lane: null }
-    expect(laneLineage(machine as const, fx.db)).toEqual({ createdBy: 'machine:m2', lineage: 1 })
+    const machine = {
+      kind: 'machine',
+      machineId: 'm2',
+      clientId: 'c',
+      label: 'PC',
+      lane: null,
+    } as const
+    expect(laneLineage(machine, fx.db)).toEqual({ createdBy: 'machine:m2', lineage: 1 })
   })
 })

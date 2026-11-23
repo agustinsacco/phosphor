@@ -54,11 +54,12 @@ afterEach(() => {
 })
 
 const refOf = (laneId: string) => `host:${MACHINE}/lane:${laneId}`
-const run = (principal: OpPrincipal, op: string, args: object, page?: string) =>
+type Args = Readonly<Record<string, unknown>>
+const run = (principal: OpPrincipal, op: string, args: Args, page?: string) =>
   service.dispatcher.run(principal, { op, args, ...(page !== undefined ? { page } : {}) })
 
 /** An asked op, approved by the user, then resubmitted with its confirmation. */
-async function approved(principal: OpPrincipal, op: string, args: object) {
+async function approved(principal: OpPrincipal, op: string, args: Args) {
   const asked = await run(principal, op, args)
   if (asked.status !== 'confirm') return asked
   ok(await run(surface, 'confirm.approve', { confirmId: asked.confirmId }))
