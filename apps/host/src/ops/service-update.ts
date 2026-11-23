@@ -1,6 +1,6 @@
 import type { LanePauses } from '../lanes/pause'
 import { probe, probeFailure, type ProbeResult } from '../machine/probe'
-import { stagedVersionIn, UP_TO_DATE } from '../commands/update'
+import { stagedVersionIn, UP_TO_DATE } from '../update/staged'
 
 /** A staging run may download a release; applying hands off and returns. */
 const STAGE_TIMEOUT_MS = 15 * 60_000

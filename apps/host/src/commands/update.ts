@@ -26,6 +26,7 @@ import {
   type UpdateResult,
 } from '../update/health'
 import { installLifetime, signalTurn } from '../update/lifetime'
+import { stagedLine, UP_TO_DATE } from '../update/staged'
 import { HOST_AGENT, HOST_UNIT, hostStateDirectory } from '@phosphor/shared/host-local'
 import { serviceRunner } from '../machine/systemd'
 import { runService, type ServiceContext } from './service'
@@ -135,19 +136,6 @@ async function restartHealthy(
   }
   return false
 }
-/** What an update prints when the installed release is the newest. */
-export const UP_TO_DATE = 'already up to date'
-/** What `update --stage` prints once a release is staged; `stagedVersionIn` reads it back. */
-export const stagedLine = (version: string) =>
-  `Staged Host ${version}; apply it with: phosphor update --apply ${version}`
-
-/** The version a `update --stage` run reports it staged, or null. */
-export function stagedVersionIn(output: string): string | null {
-  const match = /^Staged Host (\S+); apply it with: phosphor update --apply (\S+)$/m.exec(output)
-  if (!match || match[1] !== match[2] || !HOST_RELEASE_VERSION_PATTERN.test(match[1]!)) return null
-  return match[1]!
-}
-
 /** Printed by a plain update of a local daemon: it restarts without pausing lanes first. */
 export const LANES_STOP_NOTICE =
   'Lanes that are working will be stopped and saved. Update from Phosphor to pause them first.'

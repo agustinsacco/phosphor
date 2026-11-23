@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import type { ProbeResult } from '../machine/probe'
-import { stagedLine, stagedVersionIn, UP_TO_DATE } from '../commands/update'
+import { stagedLine, stagedVersionIn, UP_TO_DATE } from '../update/staged'
 import { runServiceUpdate, updaterSteps, type ServiceUpdateSteps } from './service-update'
 
 const result = (stdout: string, code = 0): ProbeResult => ({
