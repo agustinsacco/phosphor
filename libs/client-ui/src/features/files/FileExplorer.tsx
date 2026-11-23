@@ -5,7 +5,7 @@ import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu, useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { revealLabel } from '@/lib/reveal'
-import { ChevronIcon } from '@/components/icons'
+import { ChevronIcon, LinkIcon } from '@/components/icons'
 import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
 import { downloadEntry } from './download'
 import { useExplorer } from './useExplorer'
@@ -307,15 +307,7 @@ function ExplorerRow({
         <span className={clsx('min-w-0 flex-1 truncate', entry.isIgnored && 'text-text-tertiary')}>
           {entry.name}
         </span>
-        {description && (
-          <span
-            aria-hidden="true"
-            className="text-text-tertiary shrink-0 text-xs"
-            data-tooltip={description}
-          >
-            {[entry.isIgnored && 'ignored', linkLabel].filter(Boolean).join(' · ')}
-          </span>
-        )}
+        {description && <EntryMarks entry={entry} description={description} />}
         {(dot || dirDirty) && (
           <span
             data-tooltip={dot?.label ?? 'contains changes'}
@@ -335,6 +327,21 @@ const LINK_LABELS = {
   resolved: 'Symlink',
   loop: 'Symlink loop',
   unavailable: 'Unavailable symlink',
+}
+
+function EntryMarks({ entry, description }: { entry: DirEntry; description: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="text-text-tertiary flex shrink-0 items-center gap-1 text-xs"
+      data-tooltip={description}
+    >
+      {entry.isIgnored && 'ignored'}
+      {entry.symlink && <LinkIcon />}
+      {entry.symlink === 'loop' && 'loop'}
+      {entry.symlink === 'unavailable' && 'broken'}
+    </span>
+  )
 }
 
 function ExplorerChildren({

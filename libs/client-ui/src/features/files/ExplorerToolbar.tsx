@@ -23,7 +23,7 @@ export function ExplorerToolbar({
       <span className="text-text-tertiary text-xs font-semibold font-mono uppercase tracking-wider">
         Explorer
       </span>
-      <div className="flex items-center gap-0.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-0.5">
         {writeRefusal && <Tag data-tooltip={writeRefusal}>Read only</Tag>}
         {features.search && (
           <IconToggle

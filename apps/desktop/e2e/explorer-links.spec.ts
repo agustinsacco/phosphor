@@ -5,7 +5,8 @@ import { expect, test } from '@playwright/test'
 import { launch, openWorkspace, shutdown } from './fixtures/local-app'
 import { scratchDir } from './fixtures/scratch'
 
-test('explorer shows ignored entries and opens a report through a symlink', async ({}, info) => {
+test('explorer shows ignored entries and opens a report through a symlink', async () => {
+  const info = test.info()
   const repo = await scratchDir('phosphor-e2e-explorer-')
   const workspace = join(repo, 'lane')
   const artifacts = join(repo, 'artifacts')
