@@ -339,3 +339,19 @@ it('does not count a concurrently admitted live row against the cached addition 
     lookupSpy.mockRestore()
   }
 })
+
+it('discovers retained owner worktrees once, including a sandbox reached through a link', async () => {
+  const alias = join(root, 'linked-sandbox')
+  symlinkSync(repository, alias)
+  const [repo] = store.syncRepositories([alias, repository])
+  const gone = join(repository, '.phosphor', 'worktrees', 'gone')
+  const file = session(gone)
+  const scratch = session(repository)
+  session(join(root, 'other', '.phosphor', 'worktrees', 'unlisted'))
+  const owner = { roots: [alias], routinePaths: new Set<string>() }
+  expect(await reconcile(store, join(root, 'sessions'), undefined, undefined, owner)).toEqual({
+    repositories: 1, lanes: 2, added: 2, removed: 0,
+  })
+  expect(store.sessionLane(file)).toMatchObject({ repositoryId: repo!.id, cwd: gone })
+  expect(store.sessionLane(scratch)).toMatchObject({ repositoryId: repo!.id, cwd: repository })
+})
