@@ -142,7 +142,7 @@ claude.installProvider persistence machine reload - - - job 32062bdb9024160d3b98
 claude.installCli persistence machine reload - - - job 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 settings.read read machine now - - - - b583a3ed7b8127be3f8295c5b0c5ee0001bfefa7f705cb826e6ab7f6a3eeae8d
 settings.set configure machine new-lanes - - - - 485f4a960173a17dc2cefacaab8c8407bb7d144771b0caa06fd3519a079f1683
-directives.set configure machine next-request folderDirectives - - - ab0b3b1be28a352335934d88720fa83661a4245e23213864fbd7fb9908d5b42c
+directives.set configure machine next-request folderDirectives - - - 151c12ef19a8018b29008c40db21c09d94e8ed4a9036aca93160f96ea69837c1
 instructions.read read machine now - - - - c226287455067d173a9742fe4d3f4cc53ff0e7512ed7df9276c655a3630912b6
 instructions.edit persistence machine next-request - - - - b71c4121501aef1177284d95ca2742b3f1d30f8bba3692c2d34ab793a76dce48
 config.read read/never machine now configFiles - - - 998b4a286805425b70e925d4ee9f505399c3d0e39fd42052a634e0972da84fe7

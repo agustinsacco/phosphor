@@ -109,6 +109,8 @@ function agentHandlers(deps: DaemonHandlerDeps) {
     }),
     'directives.set': op(async (a, c) => {
       const key = a.key as keyof AgentDirectivePrefs
+      if (typeof a.project === 'string' && !deps.store.listRepositories().some((r) => r.id === a.project))
+        throw new OpRefusal('bad-request', 'Select a registered Host folder.')
       const id = projectId(deps, a.project, c)
       const ports = settingsOps(deps)
       let folder: string | undefined
