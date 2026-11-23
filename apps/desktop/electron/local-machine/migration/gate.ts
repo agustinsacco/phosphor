@@ -184,20 +184,30 @@ async function migrate(gate: Gate, plan: Extract<LaunchPlan, { kind: 'migrate' }
   }
 }
 
-async function run(gate: Gate): Promise<LocalRuntimeMode> {
-  const { migrationDir } = gate.ports
-  const plan = decideLaunch(await facts(gate.ports, readJournal(migrationDir)))
+async function decideAndRun(gate: Gate): Promise<LocalRuntimeMode> {
+  const plan = decideLaunch(await facts(gate.ports, readJournal(gate.ports.migrationDir)))
   if (plan.kind === 'in-app') return decide(gate, 'in-app', plan.status)
   if (plan.kind === 'daemon') return decide(gate, 'daemon', plan.status)
   if (plan.kind === 'resume') return resume(gate, plan.journal)
+  return migrate(gate, plan)
+}
+
+/**
+ * Anything unforeseen, deciding included: in-app is safe only while no commit
+ * was asked for. A journal this code cannot read may be past it, so it is not.
+ */
+async function run(gate: Gate): Promise<LocalRuntimeMode> {
   try {
-    return await migrate(gate, plan)
+    return await decideAndRun(gate)
   } catch {
-    // Anything unforeseen: in-app is safe only while no commit was asked for.
-    const after = journalOf(readJournal(migrationDir))
-    if (after && (after.state === 'commit-requested' || after.state === 'committed'))
-      return serviceDown(gate, 'running')
-    return decide(gate, 'in-app', { mode: 'in-app', migration: 'failed' })
+    const read = readJournal(gate.ports.migrationDir)
+    if (read.kind === 'unreadable') return serviceDown(gate, 'running')
+    const state = journalOf(read)?.state
+    if (state === 'commit-requested' || state === 'committed') return serviceDown(gate, 'running')
+    return decide(gate, 'in-app', {
+      mode: 'in-app',
+      migration: read.kind === 'none' ? 'not-needed' : 'failed',
+    })
   }
 }
 
