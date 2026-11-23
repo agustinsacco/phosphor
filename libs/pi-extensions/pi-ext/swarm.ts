@@ -1,5 +1,5 @@
 import type { SwarmFacts } from '@phosphor/shared/ops'
-import type { LaneControl } from './types/lane-control'
+import type { LaneControl } from '../types/lane-control'
 
 /** Lane authorization, not an agent runner. Loaded by context-breakdown.ts. */
 export const SWARM_COMMAND = 'phosphor-swarm'
