@@ -1,6 +1,6 @@
 import { verify } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -214,6 +214,29 @@ describe('run with the local-mode marker serves the owner socket', () => {
       expect(await run).toBe(78)
       expect(host.control.output).toEqual([
         'The local service identity is not usable. Run phosphor setup --local again.',
+      ])
+      expect(existsSync(path)).toBe(false)
+    } finally {
+      await host.cleanup()
+    }
+  }, 30_000)
+
+  it('exits 78 with one line when the socket folder is not private', async () => {
+    const host = await localRunMachine({ enrolled: false, marker: true, heartbeat: 'accepted' })
+    try {
+      hooks.machine = host.machine
+      await writeLocalIdentity(dirname(host.control.configPath), host.control.context.uid)
+      const path = await socketPath()
+      await mkdir(dirname(path), { mode: 0o755 })
+      await chmod(dirname(path), 0o755)
+      const context = host.context()
+      const run = runHost({
+        ...context,
+        startLocalSocket: createLocalSocketStarter(context, { candidates: [path] }),
+      })
+      expect(await run).toBe(78)
+      expect(host.control.output).toEqual([
+        'The local socket folder must be a folder you own with mode 0700.',
       ])
       expect(existsSync(path)).toBe(false)
     } finally {
