@@ -36,7 +36,8 @@ const drain = async () => {
 
 const SOCKET = '/tmp/m2a-test/phosphor.sock'
 
-function setup(options: { helloHostId?: string; ownerKey?: () => Promise<OwnerKey> } = {}) {
+/** A service identity, Desktop's owner key and a fake Host that checks owner credentials. */
+function fakeService() {
   const local = generateKeyPairSync('ed25519')
   const owner = generateKeyPairSync('ed25519')
   const machineId = randomUUID()
@@ -54,7 +55,6 @@ function setup(options: { helloHostId?: string; ownerKey?: () => Promise<OwnerKe
   }
   const issued = new Set<string>()
   const credentials: LocalCredentialPayload[] = []
-  const auths: Extract<ClientFrame, { type: 'auth' }>[] = []
   const claims = (payload: LocalCredentialPayload): GrantPayload => ({
     v: 1,
     iss: 'phosphor-local',
@@ -90,6 +90,12 @@ function setup(options: { helloHostId?: string; ownerKey?: () => Promise<OwnerKe
     },
     sign: (bytes) => sign(null, bytes, local.privateKey),
   })
+  return { identity, ownerKey, machineId, issued, credentials, host }
+}
+
+function setup(options: { helloHostId?: string; ownerKey?: () => Promise<OwnerKey> } = {}) {
+  const { identity, ownerKey, machineId, issued, credentials, host } = fakeService()
+  const auths: Extract<ClientFrame, { type: 'auth' }>[] = []
   const pairs: ReturnType<typeof createLoopbackPair>[] = []
   const hello = vi.fn(async (path: string, challenge: string) => {
     expect(path).toBe(SOCKET)
