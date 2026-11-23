@@ -1,7 +1,7 @@
 import { join, basename, dirname } from 'node:path'
 import type { RunContext } from '../commands/run'
 import type { StartLocalSocket } from '../commands/run-local'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import {
   createLocalSocketStarter,
   localSocketPaths,

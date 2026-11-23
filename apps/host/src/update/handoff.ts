@@ -6,7 +6,7 @@ import { serviceRunner, type ServiceRunner } from '../machine/systemd'
 import type { UpdateContext, UpdateOptions } from '../commands/update'
 import { fetchSignedRelease, UpdateFailure } from '@phosphor/session-runtime/host-install/fetch'
 import { commandLayout } from '@phosphor/session-runtime/host-install/layout'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { servicePid, startUpdateJob, updateJob } from './launchd-job'
 import { HOST_PID_ENV } from './host-pid'
 
