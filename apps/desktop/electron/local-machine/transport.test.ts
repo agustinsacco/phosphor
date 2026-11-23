@@ -192,12 +192,13 @@ describe('the socket transport', () => {
   it.each([
     [{ status: 429, body: '' }, 'too-many-requests'],
     [{ status: 500, body: '{}' }, 'offline'],
+    [{ status: 200, body: ' '.repeat(65537) }, 'offline'],
     [{ status: 200, body: 'not json' }, 'offline'],
     [
       { status: 200, body: JSON.stringify({ hello: { hostId: MACHINE }, nonce: 'short' }) },
       'offline',
     ],
-  ])('a refused or malformed hello is an error (%j)', async (answer, message) => {
+  ])('a refused, oversized or malformed hello is an error (case %#)', async (answer, message) => {
     hello = () => answer
     await expect(fetchSocketHello(path, 'c'.repeat(64))).rejects.toThrow(message)
   })
