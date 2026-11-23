@@ -11,6 +11,39 @@ import { runLogout } from './logout'
 import { runService } from './service'
 import { serviceState, type UpdateContext } from './update'
 
+// Names reserved by the Host in its state root. An unrecognized entry is never ours to purge.
+const stateEntries = new Set([
+  'logs',
+  'state.sqlite',
+  'state.sqlite-wal',
+  'state.sqlite-shm',
+  'run.json',
+  'service-exit.json',
+  'attachments',
+  'lane-transfer',
+  'routines',
+  'trash',
+  'artifacts',
+  'run',
+  'update',
+  'terminals.json',
+  'local.json',
+  'owner-standby.json',
+  'update-result.json',
+  'headroom.json',
+  'app-services.json',
+])
+function checkedEntries(state: string) {
+  const entries = readdirSync(state)
+  if (entries.some((name) => !stateEntries.has(name)))
+    throw new Error('State contains unknown entries; nothing in this folder will be purged.')
+  return entries
+}
+function purgeState(state: string) {
+  for (const name of checkedEntries(state)) rmSync(join(state, name), { recursive: true })
+  // Never recursively remove the root: a foreign entry may have appeared since the check.
+  rmdirSync(state)
+}
 export async function runUninstall(
   context: UpdateContext,
   purge = false,
@@ -34,11 +67,12 @@ export async function runUninstall(
       if (layout) safe(layout.lib)
       if (purge) {
         safe(config)
-        safe(state)
+        const hasState = safe(state)
         if (context.configPath !== defaultConfigPath(context.env, context.home)) {
           context.print('Purge requires the default config path.')
           return 64
         }
+        if (hasState) checkedEntries(state)
         const result = await runLogout({ ...context, signal })
         if (result.exitCode !== 0) {
           context.print('Logout failed; nothing was uninstalled.')
@@ -88,15 +122,10 @@ export async function runUninstall(
         )
       removeHostPathBlocks(context.home, context.uid)
       if (purge) {
-        for (const path of [config, state]) if (safe(path)) rmSync(path, { recursive: true })
+        if (safe(state)) purgeState(state)
+        if (safe(config)) rmSync(config, { recursive: true })
       } else context.print(`Kept config and identity: ${config}; state: ${state}`)
-      const backup = join(context.home, '.local/bin/phosphor.before-release')
-      try {
-        lstatSync(backup)
-        context.print(`Previous launcher kept at ${backup}`)
-      } catch (error) {
-        if (!hasCode(error, 'ENOENT')) throw error
-      }
+      reportBackup(context)
       await signalTurn()
       signal.throwIfAborted()
       context.print('Host uninstalled.')
@@ -104,7 +133,8 @@ export async function runUninstall(
     } catch (error) {
       if (signal.aborted) return typeof signal.reason === 'number' ? signal.reason : 70
       context.print(
-        error instanceof Error && error.message.startsWith('Install lock:')
+        error instanceof Error &&
+          /^(Install lock:|State contains unknown entries;)/.test(error.message)
           ? error.message
           : 'Host uninstall could not finish safely.',
       )
@@ -113,4 +143,14 @@ export async function runUninstall(
       release?.()
     }
   })
+}
+
+function reportBackup(context: UpdateContext) {
+  const backup = join(context.home, '.local/bin/phosphor.before-release')
+  try {
+    lstatSync(backup)
+    context.print(`Previous launcher kept at ${backup}`)
+  } catch (error) {
+    if (!hasCode(error, 'ENOENT')) throw error
+  }
 }
