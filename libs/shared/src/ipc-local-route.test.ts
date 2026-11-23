@@ -54,3 +54,9 @@ it('serves files, previews, git and gh reads on this machine', () => {
   expect(resolvesSameMachine('host')).toBe(false)
   expect(resolvesSameMachine('in-app-only')).toBe(false)
 })
+
+it('serves every machine channel the shell awaits before its first screen in daemon mode', () => {
+  // The pi probe is read-only (`pi --version`); the service runs lanes with the same user's pi.
+  for (const channel of ['pi:health'] as const)
+    expect([channel, LOCAL_ROUTE[channel]]).not.toEqual([channel, 'in-app-only'])
+})
