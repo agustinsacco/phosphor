@@ -15,6 +15,10 @@
     "protocol": 1,
     "same-machine": 0
   },
+  "features/artifacts/openArtifactLink.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
   "features/artifacts/remoteArtifactRefresh.ts": {
     "protocol": 1,
     "same-machine": 0
