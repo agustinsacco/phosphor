@@ -1,5 +1,6 @@
 import { dirname, join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
+import { CONTROL_ROUTES } from '@phosphor/shared/control-api'
 import { HOST_SIDECARS } from '@phosphor/shared/host-local'
 import { controlMachine } from '../../control/__fixtures__/machine'
 import { fakeMachine, EXTENSIONS_ROOT } from '../../__fixtures__/machine'
@@ -75,7 +76,12 @@ export async function localRunMachine(options: LocalRunOptions) {
         target = drainable
         return () => {}
       },
-      fetch: async (_url, init) => {
+      // Heartbeats are answered here; every other route goes to the fake control plane.
+      fetch: async (url, init) => {
+        if (new URL(String(url)).pathname !== CONTROL_ROUTES.hostHeartbeat) {
+          if (!control.context.fetch) throw new Error('The control fixture has no transport')
+          return control.context.fetch(url, init)
+        }
         const body: unknown = JSON.parse(String(init?.body))
         const beat = body && typeof body === 'object' && 'state' in body ? body.state : undefined
         beats.push(String(beat))
