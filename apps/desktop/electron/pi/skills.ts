@@ -30,7 +30,8 @@ import {
   skillRoots,
 } from './skills/bundle'
 
-export { installCatalogSkill, type InstallSkillOptions } from './skills/catalog-install'
+export type { InstallSkillOptions } from '@phosphor/session-runtime/skills/catalog'
+export { installCatalogSkill } from './skills/catalog-install'
 export {
   confirmSkillImport,
   previewSkillImport,

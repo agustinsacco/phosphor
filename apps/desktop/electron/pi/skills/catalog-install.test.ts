@@ -3,12 +3,12 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { catalogLibrary, type SkillCatalogLibrary } from '@shared/skillsCatalog'
+import { catalogLibrary, type SkillCatalogLibrary } from '@phosphor/shared/skillsCatalog'
 import { installCatalogSkill } from './catalog-install'
 import { readSkillFileEntry, SKILL_SIDECAR } from './bundle'
-import { writeZipStore } from '../zip'
+import { writeZipStore } from '@phosphor/session-runtime/skills/zip'
 
-vi.mock('@shared/skillsCatalog', () => ({ catalogLibrary: vi.fn() }))
+vi.mock('@phosphor/shared/skillsCatalog', () => ({ catalogLibrary: vi.fn() }))
 let root: string
 let library: SkillCatalogLibrary
 beforeEach(async () => {

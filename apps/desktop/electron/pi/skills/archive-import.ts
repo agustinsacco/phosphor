@@ -9,8 +9,9 @@ import {
   type SkillImportPreview,
   type SkillScope,
 } from '@shared/skills'
-import { readZipEntries, type ZipEntry } from '../zip'
-import { MAX_ARCHIVE_BYTES, registerKnownSkillDir, skillRoots, within } from './bundle'
+import { readZipEntries, type ZipEntry } from '@phosphor/session-runtime/skills/zip'
+import { MAX_ARCHIVE_BYTES } from '@phosphor/session-runtime/skills/limits'
+import { registerKnownSkillDir, skillRoots, within } from './bundle'
 
 /** Inspect a user-chosen `.md` / `.zip` / `.skill` without writing anything. */
 export async function previewSkillImport(sourcePath: string): Promise<SkillImportPreview> {

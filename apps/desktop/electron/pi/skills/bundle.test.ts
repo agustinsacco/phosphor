@@ -18,7 +18,7 @@ import {
   walkBundle,
   within,
 } from './bundle'
-import { readZipEntries } from '../zip'
+import { readZipEntries } from '@phosphor/session-runtime/skills/zip'
 
 let root: string
 beforeEach(async () => {

@@ -643,6 +643,18 @@
     "./host-local/transport": {
       "types": "./src/host-local/transport.ts",
       "default": "./src/host-local/transport.ts"
+    },
+    "./skills/catalog": {
+      "types": "./src/skills/catalog.ts",
+      "default": "./src/skills/catalog.ts"
+    },
+    "./skills/limits": {
+      "types": "./src/skills/limits.ts",
+      "default": "./src/skills/limits.ts"
+    },
+    "./skills/zip": {
+      "types": "./src/skills/zip.ts",
+      "default": "./src/skills/zip.ts"
     }
   },
   "nx": {

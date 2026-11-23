@@ -12,7 +12,7 @@ import {
   SKILL_SIDECAR,
   writeSkillFileEntry,
 } from './skills'
-import { readZipEntries } from './zip'
+import { readZipEntries } from '@phosphor/session-runtime/skills/zip'
 
 vi.mock('electron', () => ({ shell: { trashItem: vi.fn() } }))
 vi.mock('./commands', () => ({ probeCommandsCached: vi.fn() }))
