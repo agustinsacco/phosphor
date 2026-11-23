@@ -1,7 +1,12 @@
 import { createPrivateKey, createHash, verify, createPublicKey } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { CONTROL_LIMITS, HOST_HEADERS, hostSigningString } from '@phosphor/shared/control-api'
+import {
+  CONTROL_LIMITS,
+  CONTROL_MACHINE_ROUTES,
+  HOST_HEADERS,
+  hostSigningString,
+} from '@phosphor/shared/control-api'
 import { freshKey, publicIdentity, signRequest } from './signer'
 
 const value: unknown = JSON.parse(
@@ -141,5 +146,41 @@ describe('Host signer', () => {
       'Invalid nonce source',
     )
     expect(publicIdentity(freshKey()).publicKey).toHaveLength(43)
+  })
+  // Machine reach routes have hyphenated segments; control verifies whatever path was signed.
+  it('signs the machine reach routes so the signature verifies over the same path', () => {
+    const hostId = '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00'
+    for (const [method, path, body] of [
+      ['GET', CONTROL_MACHINE_ROUTES.hostMachines, ''],
+      ['POST', CONTROL_MACHINE_ROUTES.hostMachineGrants, '{"targetHostId":"x"}'],
+    ] as const) {
+      const headers = signRequest({ ...input, method, path, identity: { hostId }, body })
+      const signed = hostSigningString({
+        method,
+        path,
+        identity: hostId,
+        timestamp: vector.input.timestamp,
+        nonce: vector.input.nonce,
+        bodySha256: createHash('sha256').update(body).digest('hex'),
+      })
+      const signature = Buffer.from(headers[HOST_HEADERS.signature] ?? '', 'base64url')
+      expect(verify(null, Buffer.from(signed), createPublicKey(key), signature)).toBe(true)
+    }
+  })
+  it('allows a hyphen only inside a lowercase segment, never a digit or a UUID', () => {
+    for (const path of [
+      '/api/v1/a--b',
+      '/api/v1/a-',
+      '/api/v1/-a',
+      '/api/v1/hosts/-/x',
+      '/api/v1/Bad',
+      '/api/v1/hosts/self/machine-grants/',
+      '/api/v1/hosts/self/machine-grants?x=1',
+      '/api/v1/hosts/../machine-grants',
+      '/api/v1/machines/0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00',
+      '/api/v1/v2/hosts',
+    ]) {
+      expect(() => signRequest({ ...input, path })).toThrow('Invalid signed request')
+    }
   })
 })
