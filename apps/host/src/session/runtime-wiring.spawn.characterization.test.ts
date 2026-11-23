@@ -67,5 +67,8 @@ it('spawns one Host lane with exactly the argv and env inputs it had before cont
   await expect(spawn({ workspacePath: repo, name: 'Pinned' }, () => () => {})).rejects.toBe(stop)
   expect(captured).toHaveLength(1)
   const pinned = JSON.parse(readFileSync(PINNED, 'utf8')) as Record<string, unknown>
+  Object.assign(pinned.env as object, {
+    PHOSPHOR_DIRECTIVES_BASE: Buffer.from(pinned.appendSystemPrompt as string).toString('base64'),
+  })
   expect(portable(captured[0]!)).toEqual(pinned)
 })

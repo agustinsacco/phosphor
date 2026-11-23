@@ -113,6 +113,14 @@ it('spawns one Desktop lane with exactly the argv and env inputs it had before c
         PHOSPHOR_ARTIFACT_STORE: '/artifacts',
         HEADROOM_URL: 'http://127.0.0.1:8787',
         PHOSPHOR_CONTEXT_FILES: 'agents=off',
+        PHOSPHOR_DIRECTIVES_BASE: Buffer.from(
+          composeDirectives({
+            cwd: '/repo',
+            git: { isRepo: false },
+            prefs: DIRECTIVES,
+            machine: { kind: 'desktop', signedIn: true },
+          })!,
+        ).toString('base64'),
       },
     },
   ])
