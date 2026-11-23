@@ -28,10 +28,19 @@ it('keeps control signed out by default and supports first-class enrollment', as
     ok: true,
     hostname: 'buildbox',
   })
-  expect(
-    await window.phosphor.invoke('control:approveEnrollment', 'BCDFGHJK', 'buildbox'),
-  ).toMatchObject({ ok: true })
-  expect(await window.phosphor.invoke('control:machines')).toMatchObject({ ok: true })
+  const approval = await window.phosphor.invoke('control:approveEnrollment', 'BCDFGHJK', 'buildbox')
+  if (!approval.ok) throw new Error('mock enrollment failed')
+  const id = approval.machine.id
+  expect(await window.phosphor.invoke('control:machines')).toMatchObject({
+    machines: [{ id, machineGrants: true, machineReach: true }],
+  })
+  expect(await window.phosphor.invoke('control:setMachineReach', id, false)).toEqual({
+    ok: true,
+    machineReach: false,
+  })
+  expect(await window.phosphor.invoke('control:machines')).toMatchObject({
+    machines: [{ id, machineReach: false }],
+  })
   await window.phosphor.invoke('account:signOut')
   expect(await window.phosphor.invoke('control:machines')).toMatchObject({
     error: { code: 'signed-out' },
@@ -75,7 +84,7 @@ it('answers each delegated channel group from its owning mock module', async () 
   })
 })
 
-it("answers agent ops, This Mac's runtime and the reach switch from their stub modules", async () => {
+it("answers agent ops, This Mac's runtime from their stub modules", async () => {
   expect(
     await window.phosphor.invoke('ops:run', { kind: 'local' }, { op: 'help', args: {} }),
   ).toMatchObject({ status: 'denied', code: 'unsupported' })
@@ -86,9 +95,10 @@ it("answers agent ops, This Mac's runtime and the reach switch from their stub m
   expect(await window.phosphor.invoke('app:localMachineAction', 'retry-migration')).toMatchObject({
     ok: false,
   })
+  await window.phosphor.invoke('account:signOut')
   expect(await window.phosphor.invoke('control:setMachineReach', 'machine', true)).toMatchObject({
     ok: false,
-    error: { code: 'unavailable' },
+    error: { code: 'signed-out' },
   })
 })
 
