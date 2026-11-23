@@ -38,7 +38,7 @@ export interface ConnectionPorts {
   authenticate: ConnectionAuthenticator
   admit(clientId: string): boolean
   ping?: () => void
-  handler?(connection: ReadyConnection): AuthenticatedHandler
+  handler?(connection: ReadyConnection): AuthenticatedHandler | undefined
   onReady?(connection: ReadyConnection): void
   onClose?(connectionId: string): void
   log?: ApiLog

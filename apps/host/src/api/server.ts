@@ -17,6 +17,10 @@ import type { LaneService } from '../lanes/service'
 import { createLaneAdapter } from './lanes'
 import { admitsBrowserOrigin, resolveWebOrigin } from './browser-origin'
 import { createWsUpgrade, rejectTransport } from './ws-upgrade'
+import { createAdapterChain } from './adapter'
+import { createMachineAdapter } from './machine-adapter'
+import { createOwnerAdapter } from '../owner/adapter'
+import { createOpsAdapter, type OpsAdapterPorts } from '../ops/adapter'
 
 export const API_LIMITS = {
   connections: 64,
@@ -75,6 +79,13 @@ function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
   })
 }
 
+/** Owner methods, then `ops.run`, then the machine guard, then the lane adapter. */
+function connectionAdapters(options: ApiOptions) {
+  const adapter = options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined
+  const links = [createOwnerAdapter(), createOpsAdapter(options.ops), createMachineAdapter()]
+  return { adapter, handler: createAdapterChain(links, adapter?.handler) }
+}
+
 interface ApiOptions {
   authority: Authority
   origin: string
@@ -83,6 +94,8 @@ interface ApiOptions {
   hostVersion: string
   runtimeEpoch?: string
   lanes?: LaneService
+  /** Unbound until the Host serves ops; `ops.run` then reaches the lane adapter as before. */
+  ops?: OpsAdapterPorts
   key: KeyObject
   port?: number
   fetch?: typeof fetch
@@ -118,7 +131,7 @@ export function startApi(options: ApiOptions) {
     (options.lanes && options.lanes.epoch !== runtimeEpoch)
   )
     throw new Error('Invalid runtime epoch')
-  const adapter = options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined
+  const { adapter, handler } = connectionAdapters(options)
   const hello: HostHello = {
     hostId: options.hostId,
     hostVersion: options.hostVersion,
@@ -208,7 +221,7 @@ export function startApi(options: ApiOptions) {
     connect: (socket, ping) =>
       createConnection({
         ...options.ports,
-        handler: adapter?.handler,
+        handler,
         socket,
         ping,
         limits: options.connectionLimits,
