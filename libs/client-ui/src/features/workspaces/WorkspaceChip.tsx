@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import clsx from 'clsx'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
 import { CheckIcon, ChevronIcon } from '@/components/icons'
+import { CHIP } from '@/components/form'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { projectName } from '@/lib/path'
@@ -51,9 +52,11 @@ export function WorkspaceChip({
         data-testid="workspace-chip"
         aria-expanded={open}
         className={clsx(
-          'flex cursor-pointer items-center gap-1.5 transition-colors',
+          // `compact` is the bar's flat chip; the composer keeps its own bordered
+          // look, sitting above the draft rather than in a row of labels.
+          compact ? CHIP : 'flex cursor-pointer items-center gap-1.5 transition-colors',
           compact
-            ? 'bg-bg-secondary text-text-secondary hover:text-text rounded-md px-2 py-0.5 text-sm'
+            ? 'bg-bg-secondary text-text-secondary hover:text-text'
             : clsx(
                 FOLDER_CHIP,
                 open ? 'bg-bg-secondary text-text border-border-strong' : FOLDER_CHIP_IDLE,
