@@ -18,6 +18,7 @@ import { createConfigureHosts } from '../hosts/configure-hosts'
 import { createGrants } from '../hosts/grants'
 import { createHostConnection } from '../hosts/connection'
 import { createHostManager } from '../hosts/manager'
+import { bindOpsHosts } from './ops-handlers'
 import { e2eHostEndpoint, openHostSocket } from '../hosts/socket'
 import { controlClient, onMachinesChanged } from './control-handlers'
 import { handle, setRemoteReadRouter } from './handle'
@@ -219,6 +220,7 @@ export function registerHostsHandlers(): void {
       }),
   })
   registerManagementHandlers(manager.connection)
+  bindOpsHosts(manager.connection)
   const { github, catalogues } = registerHostReadHandlers(manager.connection)
   remote = createRemoteLanes({
     connection: manager.connection,
