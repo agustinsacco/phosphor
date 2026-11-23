@@ -4,6 +4,7 @@ import { useChatStore } from '@/stores/chat'
 import type * as ChatStoreModule from '@/stores/chat'
 import { useComposerMachine } from '@/features/home/useComposerMachine'
 import { Sidebar } from './Sidebar'
+import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useRemoteComposer, rememberRemoteRepository } from '@/features/home/remoteComposer'
 import { requestReveal, remoteLaneGroupKey } from './laneReveal'
 import { createRoot, type Root } from 'react-dom/client'
@@ -466,7 +467,7 @@ it('the service home switches Host folders, not in-app workspaces', async () => 
   const host = { ...mockRemoteHosts[MOCK_HOST_ID]!, local: true as const }
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: MOCK_HOST_ID })
   useSessionsStore.setState({ activeSessionId: null })
-  await act(async () => root.render(<Sidebar workspacePath="" />))
+  await act(async () => root.render(<WorkspaceSwitcher />))
   act(() => container.querySelector<HTMLButtonElement>('[data-testid=workspace-switcher]')!.click())
   expect(document.body.textContent).toContain(`Add folder on ${localMachineLabel()}`)
   expect(document.body.textContent).not.toContain('Open Folder…')
