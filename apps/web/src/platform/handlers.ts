@@ -258,7 +258,7 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     'account:signOut': () => signOut(control, ports.broadcastLogout),
     ...directoryHandlers(ports),
     ...machineHandlers(resources.machines, hosts.connection),
-    ...opsHandlers(),
+    ...opsHandlers(hosts.connection),
     ...folderHandlers(resources.folders),
     ...terminalHandlers(ports.terminals),
     ...settingsHandlers(() => ports.settings),
