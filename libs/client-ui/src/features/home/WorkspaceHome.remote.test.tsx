@@ -417,3 +417,15 @@ it('keeps a Host home reachable while This Mac’s home shows its setup', async 
   await act(async () => useRemoteLanesStore.setState({ filter: MOCK_HOST_ID }))
   expect(el.querySelector('[data-testid=home-composer]')).not.toBeNull()
 })
+
+it('can start in the checkout through the service without an in-app probe', async () => {
+  useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.local = true
+  useWorktreesStore.setState({ preferWorktree: false })
+  await render()
+  expect(el.querySelector('input[type=checkbox]')).not.toBeNull()
+  await send()
+  const created = invoke.mock.calls.find(([ch]) => ch === 'hosts:createLane')
+  expect(created?.[1]).toBe(MOCK_HOST_ID)
+  expect(created?.[2]).not.toHaveProperty('worktree')
+  expect(invoke.mock.calls.some(([ch]) => ch === 'pi:commands')).toBe(false)
+})

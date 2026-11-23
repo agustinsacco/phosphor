@@ -426,3 +426,11 @@ it('leaves an unnamed Host lane’s routine draft unnamed, as This Mac does, not
     instructions: 'Fix the flaky test',
   })
 })
+
+it('keeps the local Host row menu without offering Release control', () => {
+  useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.local = true
+  render()
+  menu()
+  expect(button('Stop')).toBeTruthy()
+  expect(document.body.textContent).not.toContain('Release control')
+})
