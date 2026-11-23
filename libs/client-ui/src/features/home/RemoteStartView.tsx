@@ -10,6 +10,7 @@ import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { hostCommandSource } from '@/stores/piCommands'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { ServiceBranchControl } from '@/features/worktrees/ServiceLaneBranchControl'
 import { IsolateToggle, NoGitNote } from './IsolateToggle'
 import { StartComposer, type StartTarget } from './StartComposer'
 import { useRemoteStart } from './useRemoteStart'
@@ -154,6 +155,9 @@ function HostStartTargets({
             'Choose repository'}
         </span>
       </ChoiceMenu>
+      {c.isolate !== undefined && c.ready && c.repository && (
+        <ServiceBranchControl hostId={hostId} cwd={c.repository.path} />
+      )}
       {c.isolate !== undefined && (
         <IsolateToggle
           checked={c.isolate}

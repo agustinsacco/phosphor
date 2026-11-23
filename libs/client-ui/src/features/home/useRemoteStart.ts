@@ -64,6 +64,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   return {
     host,
     repositoryId,
+    repository,
     selection,
     text,
     attachments,

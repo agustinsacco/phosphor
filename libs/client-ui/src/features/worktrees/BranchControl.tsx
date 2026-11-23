@@ -33,8 +33,12 @@ function chipTitle(branch: string, provisional: boolean, worktreeOf: string | un
 
 export function BranchControl({
   workspacePath,
+  selectPath,
+  configured,
 }: {
   workspacePath: string
+  selectPath?: (cwd: string) => void
+  configured?: (path: string) => boolean
 }): React.JSX.Element | null {
   const { info, refresh } = useGitInfo(workspacePath)
   const [open, setOpen] = useState(false)
@@ -74,21 +78,16 @@ export function BranchControl({
     refresh(true)
   }, [repoLoadedAt, refresh])
 
-  /**
-   * A branch about to be renamed says so.
-   *
-   * An auto-created chat branch starts as a slug of the first message and is
-   * renamed once the chat's generated name arrives. A branch name silently
-   * changing under the user is alarming — this is the one surface where that
-   * shows — so it shimmers while the rename is still possible and animates the
-   * new name in when it happens.
-   */
   const naming = useWorkspaceNameTransition(workspacePath)
 
   if (!info?.isRepo || !info.branch) return null
 
   const openWorkspaceAt = (cwd: string): void => {
     setOpen(false)
+    if (selectPath) {
+      selectPath(cwd)
+      return
+    }
     useWorkspacesStore.getState().openWorkspace(cwd)
     useSessionsStore.getState().activate(null)
   }
@@ -169,6 +168,7 @@ export function BranchControl({
           <div className="border-border my-1 border-t" />
 
           <BranchPicker
+            configured={configured}
             repoPath={repoPath}
             currentCwd={info.isWorktree ? workspacePath : null}
             mainBranch={info.isWorktree ? undefined : info.branch}

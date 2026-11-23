@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { localServiceId } from '@/stores/localServiceScope'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { SessionMeta } from '@shared/models'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
@@ -39,15 +40,12 @@ export function Sidebar({
   workspacePath: string
   onInitialReady?: (ready: boolean) => void
 }): React.JSX.Element {
-  const machineFilter = useRemoteLanesStore((s) => s.filter)
-  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
-  const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
-  const [worktreeModal, setWorktreeModal] = useState<LocalWorktreeModal | null>(null)
+  const service = useRemoteLanesStore((s) => localServiceId(s.hosts))
+  useEffect(() => {
+    if (service) onInitialReady?.(true)
+  }, [service, onInitialReady])
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
-  const { ready, collapseLoaded, groups, pinnedMetas, pendingByWorkspace, isGroupCollapsed } =
-    useLocalSidebarGroups(workspacePath, onInitialReady)
-
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
     const startX = event.clientX
@@ -71,10 +69,6 @@ export function Sidebar({
     window.addEventListener('pointerup', onUp)
   }
 
-  const { rowProps } = useLocalRows(workspacePath, setTreeFor)
-
-  const sidebarLoading = !ready
-
   return (
     <aside className="bg-sidebar relative flex h-full shrink-0 flex-col" style={{ width }}>
       {/* No drag strip here any more: the window's title bar is now a single
@@ -84,48 +78,78 @@ export function Sidebar({
 
       <SidebarNavigation onPage={toggleDesktopPage} />
       <div data-session-scroll className="flex-1 overflow-y-auto px-2 pb-2">
-        <div hidden={machineFilter !== 'all' && machineFilter !== 'local'}>
-          {machineFilter === 'all' && <MachineLabelLine id="local" />}
-          {!sidebarLoading && pinnedMetas.length > 0 && (
-            <>
-              <SectionLabel>Pinned</SectionLabel>
-              <SessionList
-                disabled={bulkDeleteRunning}
-                items={pinnedMetas.map((meta) => ({
-                  id: meta.path,
-                  path: meta.path,
-                  content: <SessionRow {...rowProps(meta)} isPinned showWorkspace />,
-                }))}
-              />
-            </>
-          )}
-
-          {/* Prefs decide both which workspaces exist and what order they sit
-            in, so any header painted before they land can be wrong or about
-            to jump. A skeleton is the honest answer for that window. */}
-          {sidebarLoading && <WorkspaceGroupSkeletons />}
-
-          {!sidebarLoading &&
-            collapseLoaded &&
-            groups.map((group, index) => (
-              <LocalWorkspaceGroup
-                key={group.workspacePath}
-                group={group}
-                first={index === 0}
-                last={index === groups.length - 1}
-                collapsed={isGroupCollapsed(group)}
-                workspacePath={workspacePath}
-                pending={pendingByWorkspace.get(group.workspacePath) ?? NO_PENDING}
-                onOpenTree={setTreeFor}
-                onWorktreeModal={setWorktreeModal}
-              />
-            ))}
-        </div>
+        {!service && <InAppLanes workspacePath={workspacePath} onInitialReady={onInitialReady} />}
         <RemoteLanes />
       </div>
 
       <SidebarFooter />
 
+      {/* Width resize handle: an invisible strip over the right border. */}
+      <div
+        onPointerDown={startResize}
+        className={clsx(
+          'hover:bg-accent/40 absolute -right-0.5 top-0 z-30 h-full w-1 cursor-col-resize transition-colors',
+          resizing && 'bg-accent/40',
+        )}
+      />
+      {resizing && <div className="fixed inset-0 z-50 cursor-col-resize select-none" />}
+    </aside>
+  )
+}
+
+function InAppLanes({
+  workspacePath,
+  onInitialReady,
+}: {
+  workspacePath: string
+  onInitialReady?: (ready: boolean) => void
+}): React.JSX.Element {
+  const machineFilter = useRemoteLanesStore((s) => s.filter)
+  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
+  const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
+  const [worktreeModal, setWorktreeModal] = useState<LocalWorktreeModal | null>(null)
+  const { ready, collapseLoaded, groups, pinnedMetas, pendingByWorkspace, isGroupCollapsed } =
+    useLocalSidebarGroups(workspacePath, onInitialReady)
+
+  const { rowProps } = useLocalRows(workspacePath, setTreeFor)
+
+  return (
+    <>
+      <div hidden={machineFilter !== 'all' && machineFilter !== 'local'}>
+        {machineFilter === 'all' && <MachineLabelLine id="local" />}
+        {ready && pinnedMetas.length > 0 && (
+          <>
+            <SectionLabel>Pinned</SectionLabel>
+            <SessionList
+              disabled={bulkDeleteRunning}
+              items={pinnedMetas.map((meta) => ({
+                id: meta.path,
+                path: meta.path,
+                content: <SessionRow {...rowProps(meta)} isPinned showWorkspace />,
+              }))}
+            />
+          </>
+        )}
+
+        {/* Prefs decide both which workspaces exist and their order. */}
+        {!ready && <WorkspaceGroupSkeletons />}
+
+        {ready &&
+          collapseLoaded &&
+          groups.map((group, index) => (
+            <LocalWorkspaceGroup
+              key={group.workspacePath}
+              group={group}
+              first={index === 0}
+              last={index === groups.length - 1}
+              collapsed={isGroupCollapsed(group)}
+              workspacePath={workspacePath}
+              pending={pendingByWorkspace.get(group.workspacePath) ?? NO_PENDING}
+              onOpenTree={setTreeFor}
+              onWorktreeModal={setWorktreeModal}
+            />
+          ))}
+      </div>
       {treeFor && (
         <TreeViewModal
           meta={treeFor}
@@ -149,16 +173,6 @@ export function Sidebar({
       )}
 
       <LocalDeleteDialogs workspacePath={workspacePath} />
-
-      {/* Width resize handle: an invisible strip over the right border. */}
-      <div
-        onPointerDown={startResize}
-        className={clsx(
-          'hover:bg-accent/40 absolute -right-0.5 top-0 z-30 h-full w-1 cursor-col-resize transition-colors',
-          resizing && 'bg-accent/40',
-        )}
-      />
-      {resizing && <div className="fixed inset-0 z-50 cursor-col-resize select-none" />}
-    </aside>
+    </>
   )
 }

@@ -269,6 +269,14 @@ export async function openRemoteLane(hostId: string, laneId: string): Promise<bo
   return navigateToLane({ hostId, laneId })
 }
 
+function acceptSnapshot(hosts: HostsSnapshot): void {
+  useRemoteLanesStore.setState((s) => ({
+    hosts,
+    filter: serviceScope(s.filter, hosts),
+    snapshotStatus: 'ready',
+  }))
+}
+
 /** Main owns the bounded cache. Refetch serially, and reject replies after detach. */
 export function attachRemoteLanesListener(): () => void {
   useRemoteLanesStore.setState({ snapshotStatus: 'loading' })
@@ -290,11 +298,7 @@ export function attachRemoteLanesListener(): () => void {
         const hosts = await window.phosphor.invoke('hosts:snapshot')
         if (active) {
           const previousHosts = useRemoteLanesStore.getState().hosts
-          useRemoteLanesStore.setState((s) => ({
-            hosts,
-            filter: serviceScope(s.filter, hosts),
-            snapshotStatus: 'ready',
-          }))
+          acceptSnapshot(hosts)
           const currentId = useSessionsStore.getState().activeSessionId
           const current = currentId ? useSessionsStore.getState().live[currentId] : undefined
           if (currentId && current?.target?.kind === 'remote') {

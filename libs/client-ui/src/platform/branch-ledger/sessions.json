@@ -1,0 +1,74 @@
+{
+  "app/TopBar.tsx": {
+    "protocol": 3,
+    "same-machine": 0
+  },
+  "features/machines/RemoteLaneControls.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/MachineSwitcher.tsx": {
+    "protocol": 2,
+    "same-machine": 0
+  },
+  "features/sessions/RemoteLaneList.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/RemoteLanePresentation.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/RemoteRepositoryGroup.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/WorkspaceSwitcher.tsx": {
+    "protocol": 5,
+    "same-machine": 0
+  },
+  "features/sessions/deleteRemoteLanes.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/lanePrOverrides.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/pr-inspector/LanePrInspector.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/prLaneIndex.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/sessionActions.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/useKnownWorkspaces.ts": {
+    "protocol": 2,
+    "same-machine": 0
+  },
+  "features/sessions/useRemoteLaneActions.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "platform/machineTraits.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "stores/hostLaneOf.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "stores/remoteLanes.ts": {
+    "protocol": 11,
+    "same-machine": 0
+  },
+  "stores/sessions.ts": {
+    "protocol": 9,
+    "same-machine": 0
+  }
+}

@@ -21,7 +21,7 @@ function sandbox(value: unknown): value is Sandbox {
 }
 
 /** Never interpret a Host sandbox path on this device. The Host that listed it owns the mutation. */
-export function HostSandboxes({ hostId }: { hostId: string }): React.JSX.Element {
+function useSandboxActions(hostId: string) {
   const [rows, setRows] = useState<Sandbox[]>([])
   const [refresh, setRefresh] = useState(0)
   const [error, setError] = useState('')
@@ -81,6 +81,10 @@ export function HostSandboxes({ hostId }: { hostId: string }): React.JSX.Element
       setBusy(false)
     }
   }
+  return { rows, busy, job, error, mutate, checkJob, refresh: () => setRefresh((n) => n + 1) }
+}
+export function HostSandboxes({ hostId }: { hostId: string }): React.JSX.Element {
+  const { rows, busy, job, error, mutate, checkJob, refresh } = useSandboxActions(hostId)
   const disabled = busy || !!job
   return (
     <section aria-label="Sandboxes" className="space-y-2">
@@ -88,7 +92,7 @@ export function HostSandboxes({ hostId }: { hostId: string }): React.JSX.Element
       <Button size="sm" disabled={disabled} onClick={() => void mutate('sandbox.create')}>
         New sandbox…
       </Button>
-      <Button size="sm" disabled={busy} onClick={() => setRefresh((n) => n + 1)}>
+      <Button size="sm" disabled={busy} onClick={refresh}>
         Refresh sandboxes
       </Button>
       {rows.map((row) => (
