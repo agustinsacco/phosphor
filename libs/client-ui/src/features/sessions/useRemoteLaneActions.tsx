@@ -4,17 +4,15 @@ import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
 import type { ContextMenuItem } from '@/components/ContextMenu'
-import { piCall, piCallOk } from '@/lib/rpc'
 import { remoteLaneMarker } from './remoteLaneView'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
 import { useMachineCaps } from '@/stores/machineCaps'
 import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
-import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { makeRoutine } from '@/stores/routines'
 import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { lanePrMenuEntries, openLanePr, useRemoteLanePrs } from './lanePrMenu'
 import type { LanePr } from './lanePrs'
@@ -25,9 +23,15 @@ import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from '.
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
 import { openLaneMove } from './sidebarActions'
-import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { useSessionOrderActions } from './SessionList'
+import {
+  remoteLaneDebugSource,
+  renameLane,
+  routineFromLane,
+  sessionCost,
+  usedMarkers,
+} from './remoteLaneSessionHelpers'
 
 const ACTION_FAILED = 'The Host could not confirm this. Check the lane before retrying.'
 type LaneDialog = 'delete' | 'marker' | 'tree' | null
@@ -337,66 +341,4 @@ function RemoteLaneDialogs({
       />
     )
   return null
-}
-
-/**
- * Markers other lanes on this Host chose, in any folder, for the picker to dim:
- * This Mac dims every lane's choice on the machine too. Explicit choices only,
- * as on This Mac: derived markers collide by design.
- */
-function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView): Set<string> {
-  return new Set(
-    lanes.flatMap((other) => (other.laneId !== lane.laneId && other.marker ? [other.marker] : [])),
-  )
-}
-
-async function renameLane(sessionId: string, name: string): Promise<void> {
-  if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) throw new Error()
-  useChatStore.getState().patchMeta(sessionId, { sessionName: name })
-}
-
-/**
- * "Make routine…" on a Host lane: This Mac's draft (the lane's own name, blank
- * when it has none, and its first prompt), opened on the lane's Host and
- * folder. The lane's session is open by now, so its transcript holds the first prompt.
- */
-function routineFromLane(hostId: string, lane: HostLaneView, sessionId: string) {
-  const chat = useChatStore.getState().sessions[sessionId]
-  const first = chat?.items.find((i) => i.kind === 'user')
-  const name = chat?.meta?.sessionName?.trim() || lane.title || ''
-  makeRoutine('', name, first?.kind === 'user' ? first.text : '', {
-    hostId,
-    repositoryId: lane.repositoryId,
-  })
-}
-
-async function sessionCost(sessionId: string): Promise<number> {
-  const stats = await piCall(sessionId, { type: 'get_session_stats' })
-  if (!stats) throw new Error()
-  return stats.cost
-}
-
-/**
- * A Host lane's debug block: pi's id and model from its open session (else the
- * Host summary's model) and where it runs. Never a Host path: the lane's folder
- * and session file stay on the Host.
- */
-function remoteLaneDebugSource(
-  hostId: string,
-  lane: HostLaneView,
-  sessionId: string | undefined,
-): SessionDebugSource {
-  const meta = sessionId ? useChatStore.getState().sessions[sessionId]?.meta : null
-  const model = meta?.model ?? lane.model
-  return {
-    sessionId: meta?.sessionId,
-    provider: model?.provider,
-    model: model?.id,
-    context: [
-      ['machine', machineLabel(hostId)],
-      ['host', hostId],
-      ['lane', lane.laneId],
-      ['branch', lane.branch ?? 'none'],
-    ],
-  }
 }
