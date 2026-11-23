@@ -21,6 +21,8 @@ function Control({ machine }: { machine: string }) {
     ((!data && !error) || (error instanceof OpDenied && error.code === 'unsupported'))
   )
     return null
+  if (machine === 'local' && error && !(error instanceof OpDenied))
+    return <LoadError error={error} retry={reload} />
   return (
     <div className="mt-6 space-y-6 border-t border-border pt-4">
       {error != null && <LoadError error={error} retry={reload} />}

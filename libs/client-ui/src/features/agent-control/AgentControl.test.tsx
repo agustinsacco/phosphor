@@ -3,7 +3,10 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AGENT_POLICY_DEFAULT, CONFIRM_TITLE_PREFIX } from '@phosphor/shared/ops'
-import type { OpsChangedEvent } from '@phosphor/shared/ipc'
+import {
+  createFakePhosphor,
+  installFakePhosphor,
+} from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import type { OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
 
 window.matchMedia = vi
@@ -41,7 +44,8 @@ const info = {
 }
 const ok = (data: unknown) => ({ status: 'ok', applies: 'now', text: 'Done', data })
 const invoke = vi.fn()
-let changed: ((event: OpsChangedEvent) => void)[]
+let fake: ReturnType<typeof createFakePhosphor>
+let restore: () => void
 let root: Root
 const mount = (node: React.ReactNode) => act(async () => root.render(node))
 const button = (text: string) =>
@@ -54,16 +58,11 @@ const focus = () =>
 const count = (op: string) => invoke.mock.calls.filter(([, , req]) => req?.op === op).length
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  changed = []
-  vi.stubGlobal('phosphor', {
-    invoke,
-    onOpsChanged: (cb: (event: OpsChangedEvent) => void) => {
-      changed.push(cb)
-      return () => {
-        changed = changed.filter((l) => l !== cb)
-      }
-    },
+  fake = createFakePhosphor({
+    'ops:run': (target, req) => invoke('ops:run', target, req),
+    'pi:extensionUiResponse': (session, res) => invoke('pi:extensionUiResponse', session, res),
   })
+  restore = installFakePhosphor(fake)
   root = createRoot(document.body.appendChild(document.createElement('div')))
   useExtensionUiStore.setState({ dialogs: [], toasts: [] })
   useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts) })
@@ -76,6 +75,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   document.body.innerHTML = ''
+  restore()
+  fake.dispose()
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
@@ -179,7 +180,7 @@ it('renders just the owner notify toast with its reason, not a second one for th
       message: 'Agent changed model: the task needs vision.',
       notifyType: 'info',
     })
-    changed.forEach((cb) => cb({ kind: 'audit', machine: 'local' }))
+    fake.events.onOpsChanged.emit({ kind: 'audit', machine: 'local' })
   })
   expect(document.querySelector('[data-testid="toast-stack"]')?.children.length).toBe(1)
   expect(document.body.textContent).toContain('the task needs vision')

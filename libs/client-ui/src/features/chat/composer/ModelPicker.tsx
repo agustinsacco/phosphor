@@ -89,8 +89,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         agentHint={hints.model}
         grouped={levelsToRender.length > 1}
         active={open === 'model'}
-        // Inert while switching: a second pick against a session that is being
-        // disposed and respawned races the restart it would be re-entering.
+        // A second pick would race the first one’s cross-provider restart.
         disabled={switchingTo !== null}
         loading={switchingTo !== null}
         onClick={() => setOpen(open === 'model' ? null : 'model')}

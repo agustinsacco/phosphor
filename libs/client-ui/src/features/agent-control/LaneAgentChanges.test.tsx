@@ -2,7 +2,10 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { OpsChangedEvent } from '@phosphor/shared/ipc'
+import {
+  createFakePhosphor,
+  installFakePhosphor,
+} from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 import { SessionMenu } from '@/features/chat/SessionMenu'
 import { ContextMenuHost } from '@/components/ContextMenu'
@@ -29,23 +32,27 @@ const row = {
 }
 const el = document.createElement('div')
 let root: ReturnType<typeof createRoot>
-let listener: ((event: OpsChangedEvent) => void) | undefined
+let fake: ReturnType<typeof createFakePhosphor>
+let restore: () => void
 const emit = () =>
   act(async () =>
-    listener?.({ machine: `host:${MOCK_HOST_ID}`, laneRef: lane, kind: 'lane', fields: ['model'] }),
+    fake.events.onOpsChanged.emit({
+      machine: `host:${MOCK_HOST_ID}`,
+      laneRef: lane,
+      kind: 'lane',
+      fields: ['model'],
+    }),
   )
 function setup() {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  const invoke = vi.fn(async () => ({ status: 'ok', data: [row], applies: 'now', text: 'Done' }))
-  vi.stubGlobal('phosphor', {
-    invoke,
-    onOpsChanged: (cb: typeof listener) => {
-      listener = cb
-      return () => {
-        listener = undefined
-      }
-    },
-  })
+  const invoke = vi.fn(async (_ch: string, _target: unknown, _req: unknown) => ({
+    status: 'ok' as const,
+    data: [row],
+    applies: 'now' as const,
+    text: 'Done',
+  }))
+  fake = createFakePhosphor({ 'ops:run': (t, r) => invoke('ops:run', t, r) })
+  restore = installFakePhosphor(fake)
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener: () => {},
@@ -62,6 +69,8 @@ function setup() {
 afterEach(() => {
   act(() => root.unmount())
   el.remove()
+  restore()
+  fake.dispose()
   vi.unstubAllGlobals()
 })
 it('opens read-only lane-scoped changes from Session options on a browser', async () => {

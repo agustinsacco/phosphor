@@ -83,9 +83,7 @@ export function Review({
   answer: (v: boolean) => Promise<void>
   onClose?: () => void
 }) {
-  const [generation, refresh] = useState(0)
-  const [targets, setTargets] = useState<Awaited<ReturnType<typeof reviewTargets>> | null>(null),
-    [error, setError] = useState('')
+  const { targets, error, retry } = useReviewedTargets(info)
   const action = useOpAction()
   const alive = useRef(false)
   useEffect(() => {
@@ -94,22 +92,6 @@ export function Review({
       alive.current = false
     }
   }, [])
-  useEffect(() => {
-    let live = true
-    setTargets(null)
-    setError('')
-    void reviewTargets(info).then(
-      (t) => {
-        if (live) setTargets(t)
-      },
-      (e) => {
-        if (live) setError(ipcErrorText(e))
-      },
-    )
-    return () => {
-      live = false
-    }
-  }, [info, generation])
   const decide = (yes: boolean) =>
     action.run(async () => {
       if (yes) {
@@ -164,14 +146,34 @@ export function Review({
             </section>
           ))}
           {(error || targets?.some((t) => t.error)) && (
-            <LoadError
-              error={error || 'A target could not be verified.'}
-              retry={() => refresh((g) => g + 1)}
-            />
+            <LoadError error={error || 'A target could not be verified.'} retry={retry} />
           )}
           {action.error && <p role="alert">{action.error}</p>}
         </div>
       </ModalPanel>
     </ModalOverlay>
   )
+}
+
+function useReviewedTargets(info: ConfirmInfo) {
+  const [generation, refresh] = useState(0)
+  const [targets, setTargets] = useState<Awaited<ReturnType<typeof reviewTargets>> | null>(null),
+    [error, setError] = useState('')
+  useEffect(() => {
+    let live = true
+    setTargets(null)
+    setError('')
+    void reviewTargets(info).then(
+      (t) => {
+        if (live) setTargets(t)
+      },
+      (e) => {
+        if (live) setError(ipcErrorText(e))
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [info, generation])
+  return { targets, error, retry: () => refresh((g) => g + 1) }
 }
