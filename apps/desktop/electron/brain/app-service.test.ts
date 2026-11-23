@@ -97,3 +97,22 @@ it('joins working and needs-input lanes to exact session files, waiting when the
   service.ownerChanged(undefined)
   expect(service.busy('/other')).toBe(true)
 })
+
+it('ignores cached idle rows until the new connection receives its initial lanes frame', () => {
+  const { service, view, connection } = setup()
+  view.lanes = []
+  service.ownerChanged(connection)
+  expect(service.busy('/lane')).toBe(true)
+  service.lanesSnapshot()
+  service.ownerChanged(connection)
+  expect(service.busy('/lane')).toBe(false)
+  service.ownerChanged(undefined)
+  view.connectionToken = 'reconnected'
+  service.ownerChanged(connection)
+  // ready and pending-command replay both notify before the first snapshot arrives.
+  service.ownerChanged(connection)
+  expect(service.busy('/lane')).toBe(true)
+  service.lanesSnapshot()
+  service.ownerChanged(connection)
+  expect(service.busy('/lane')).toBe(false)
+})
