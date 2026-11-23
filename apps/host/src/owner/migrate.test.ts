@@ -41,10 +41,8 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-/** Puts `folder` (a file the importer owns outside state.sqlite) beside the lanes it imports. */
-function laneImporters(
-  sideFile = join(root, 'side.txt'),
-): MigrationImporters & { applied: number } {
+/** A lanes importer that also writes `sideFile`, outside state.sqlite, which its snapshot covers. */
+function laneImporters(sideFile = join(root, 'side.txt')) {
   const importers = {
     applied: 0,
     lanes: {
