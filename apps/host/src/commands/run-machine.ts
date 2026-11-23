@@ -1,7 +1,7 @@
 import { createWorkspaceLeases } from '../owner/lease'
 import { isRoutineSession } from '@phosphor/session-runtime/routines/ownership'
 import type { DaemonHeadroom } from '../session/headroom'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
 import { hostLivePolicy } from '../config/live-policy'
@@ -33,6 +33,11 @@ import type { ReceiptSink, StartWebPush } from './run-control'
 import type { RunConfig } from './run-state'
 import type { RunParts } from './run-teardown'
 import { createRunServices } from './run-services'
+import type { OpsAdapterPorts } from '../ops/adapter'
+import type { OpsBinding } from '@phosphor/session-runtime/ops/types'
+import { startRunOps } from '../ops/service'
+import type { HostOpsLanePorts } from '../session/contributions/ops'
+import type { EnrolledControl } from './run-control'
 
 /** What the machine needs from the rest of run: state it opened, and the control link's ports. */
 export interface RunMachinePorts {
@@ -45,6 +50,12 @@ export interface RunMachinePorts {
   sink: ReceiptSink
   headroom?: DaemonHeadroom
   webPush: StartWebPush
+  /** Agent control: run's slot, the identity control connects, and machine reach. */
+  ops?: {
+    slot: OpsAdapterPorts
+    enrolled: { current: EnrolledControl | null }
+    remote: NonNullable<OpsBinding['remote']>
+  }
 }
 
 type HostLog = ReturnType<typeof createHostLog>
@@ -71,6 +82,11 @@ async function startRuntime(
         context.now,
       )
     : undefined
+  const opsLanes: HostOpsLanePorts = {
+    service: () => parts.ops ?? null,
+    resourceRoot: () => machine.resourceRoot,
+    unattended: new Set(),
+  }
   const runtime = createHostRuntime(
     { ...machine, log, appServices: ports.appServices, headroom: ports.headroom },
     {
@@ -78,6 +94,7 @@ async function startRuntime(
       claudeAccounts: accounts,
       ...hostLivePolicy(config.path, config.config),
       dialogs: 'forward',
+      ...(ports.ops ? { ops: opsLanes } : {}),
       trashTranscript: trash.move,
       ownerTrashTranscript: ownerTrash(ports.local === true, context.platform, context.trashRunner),
       routines: routineOwnership(async (id) => {
@@ -115,7 +132,16 @@ async function startRuntime(
   parts.routines = routines
   const nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, accounts))
   parts.nameLane = nameLane
-  return { leases, accounts, runtime, live, unattached: hosted.unattached, routines, nameLane }
+  return {
+    leases,
+    accounts,
+    runtime,
+    live,
+    unattached: hosted.unattached,
+    routines,
+    nameLane,
+    opsLanes,
+  }
 }
 
 type StartedRuntime = Awaited<ReturnType<typeof startRuntime>>
@@ -182,6 +208,8 @@ function createMachineCommands(
     routines,
     sessionFor: live.sessionFor,
     openDialogs: live.openDialogs,
+    dialogGuard: (laneId, response, client) =>
+      parts.ops?.dialogGuard(laneId, response, client) ?? 'relay',
     summaryFor: live.summaryFor,
     publish: live.publish,
     deliver: (...args) => ports.sink.deliver(...args),
@@ -255,6 +283,35 @@ export async function startRunMachine(
     lanesTopic: live.lanesTopic,
     controllerPresence: createRunControllerPresence(ports.store, live),
   }
+  await bindRunOps(context, parts, ports, { ...started, machine, log, lanes })
   routines.start()
   return { lanes, accounts: started.accounts }
+}
+
+/** Agent control over the started lane service, before routines can start a lane. */
+async function bindRunOps(
+  context: RunContext,
+  parts: RunParts,
+  ports: RunMachinePorts,
+  started: StartedRuntime & { machine: Omit<HostMachine, 'log'>; log: HostLog; lanes: LaneService },
+) {
+  const { ops } = ports
+  if (!ops) return
+  const { runtime, live } = started
+  parts.ops = await startRunOps({
+    slot: ops.slot,
+    stateDirectory: ports.stateDirectory,
+    configDirectory: dirname(resolve(context.configPath)),
+    uid: context.uid,
+    store: ports.store,
+    lanes: started.lanes,
+    live,
+    command: (sessionId, rpc) => runtime.command(sessionId, rpc),
+    shellEnvironment: started.machine.shellEnvironment ?? null,
+    enrolledId: () => ops.enrolled.current?.identity.hostId ?? null,
+    remote: ops.remote,
+    unattended: started.opsLanes.unattended,
+    log: started.log.write,
+    now: context.now,
+  })
 }

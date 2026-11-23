@@ -19,7 +19,7 @@ function capture() {
 describe('run services', () => {
   it('announces Headroom but starts no machine services without a runtime', () => {
     expect(runServiceFeatures()).toEqual(['headroom'])
-    expect(Object.values(createRunServices())).toEqual([null, null, null, null, null, null])
+    expect(Object.values(createRunServices())).toEqual([null, null, null, null, null])
   })
 
   it('reports only built service features in version --json', async () => {

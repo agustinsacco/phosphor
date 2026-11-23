@@ -210,6 +210,7 @@ function ownerSocket(
             )
             return read.state === 'ok' ? read.value : null
           },
+          readyFlags: () => options.ops?.readyFlags ?? new Set(),
         },
         links: [createOwnerAdapter(handlers)],
         log: (event, fields) => context.log?.('host', event, fields),

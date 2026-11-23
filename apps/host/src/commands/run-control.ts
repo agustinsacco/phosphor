@@ -12,6 +12,7 @@ import { createControlLink, type ControlLink, type ControlLinkPorts } from '../c
 import { REMOVED, createHeartbeat, createSequenceStore } from '../control/heartbeat'
 import type { HostIdentity } from '../control/identity'
 import type { LaneService } from '../lanes/service'
+import type { OpsAdapterPorts } from '../ops/adapter'
 import type { HostClaudeAccounts } from '../providers/accounts'
 import type { HostWebPush, WebPushOptions } from '../push/web-push'
 import { healthWriter } from '../update/health'
@@ -71,6 +72,7 @@ export function startRunApi(
     lanes?: LaneService
     laneAdapter?: LaneAdapter
     peers?: () => Iterable<{ clientId(): string | undefined }>
+    ops?: OpsAdapterPorts
   },
 ) {
   const { control, config } = options
@@ -79,6 +81,7 @@ export function startRunApi(
     lanes: options.lanes,
     laneAdapter: options.laneAdapter,
     peers: options.peers,
+    ops: options.ops,
     authority: control.authority,
     origin: control.url,
     hostId: control.identity.hostId,
@@ -115,6 +118,7 @@ export function createRunHeartbeat(
   return createHeartbeat({
     endpoint: () => endpoint,
     onAccepted: control.authority.accept,
+    machineGrants: control.authority.machineGrants,
     onRemoved: control.authority.remove,
     now: context.now ?? Date.now,
     wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
@@ -180,6 +184,8 @@ export function createRunLink(
     /** The local socket's connections, for the TCP listener's per-client admission. */
     peers?: () => Iterable<{ clientId(): string | undefined }>
     accounts?: HostClaudeAccounts
+    /** Agent control: run's slot, and the identity reach and confirm items use, kept current here. */
+    ops?: { slot: OpsAdapterPorts; enrolled: { current: EnrolledControl | null } }
   },
 ): ControlLink {
   const { config, stateDirectory, accounts } = options
@@ -195,6 +201,8 @@ export function createRunLink(
         return { ...found.loaded, client, url, directory: options.directory, authority }
       },
       connect: (control) => {
+        if (options.ops) options.ops.enrolled.current = control
+        parts.ops?.bindMachineOps(control.authority.setMachineOps)
         startRunApi(context, parts, sink, {
           control,
           config,
@@ -202,10 +210,12 @@ export function createRunLink(
           lanes: options.lanes,
           laneAdapter: options.laneAdapter,
           peers: options.peers,
+          ops: options.ops?.slot,
         })
         return createRunHeartbeat(context, { control, config, stateDirectory, accounts })
       },
       disconnect: async () => {
+        if (options.ops) options.ops.enrolled.current = null
         await parts.api?.stop()
       },
       enroll: options.enroll,

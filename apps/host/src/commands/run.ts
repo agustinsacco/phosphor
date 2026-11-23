@@ -39,6 +39,8 @@ import {
   type StartLocalSocket,
 } from './run-local'
 import { createLaneAdapter, type LaneAdapter } from '../api/lanes'
+import type { OpsAdapterPorts } from '../ops/adapter'
+import { createMachineReach, reachRemote } from '../reach'
 import type { LaneService } from '../lanes/service'
 import { startRunMachine } from './run-machine'
 import { openRunState } from './run-state'
@@ -63,6 +65,8 @@ export interface RunContext extends ControlContext {
   reconcile?: typeof reconcile
   /** Local mode only: starts the owner socket (D3). */
   startLocalSocket?: StartLocalSocket
+  /** Run's ops slot, shared with the owner socket; run fills it once the dispatcher is bound. */
+  ops?: OpsAdapterPorts
 }
 
 /** What run starts with: the identity it found and, in local mode, the marker. */
@@ -97,6 +101,24 @@ function shareLanes(
   return adapter
 }
 
+/** Agent control's run ports: the shared slot, the identity control connects, and machine reach (X3). */
+function runOps(context: RunContext, parts: RunParts, initial: EnrolledControl | null) {
+  const enrolled = { current: initial }
+  const reach = createMachineReach({
+    control: () => {
+      const control = enrolled.current
+      return control
+        ? { url: control.url, hostId: control.identity.hostId, key: control.key }
+        : null
+    },
+    fetch: context.fetch,
+    log: context.log,
+    trace: context.trace,
+  })
+  parts.reach = reach
+  return { slot: context.ops ?? {}, enrolled, remote: reachRemote(reach) }
+}
+
 /**
  * Opens state; in local mode starts the socket seam and waits until the daemon
  * owns the machine's lanes; then starts the machine and builds the control link.
@@ -125,6 +147,7 @@ async function startRun(
   const webPush: StartWebPush = start.initial
     ? runWebPush(context, start.initial)
     : async () => undefined
+  const ops = runOps(context, parts, start.initial)
   const ports = {
     epoch,
     config,
@@ -135,6 +158,7 @@ async function startRun(
     appServices: socket?.appServices,
     headroom: socket?.headroom,
     local: !!local,
+    ops,
   }
   const machine = await startRunMachine(context, parts, ports, signal)
   signal.throwIfAborted()
@@ -150,6 +174,7 @@ async function startRun(
     config,
     epoch,
     stateDirectory,
+    ops,
   })
   local?.attach(link)
   return link

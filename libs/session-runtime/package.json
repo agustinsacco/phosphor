@@ -623,6 +623,10 @@
     "./ops/deferred-rpc": {
       "types": "./src/ops/deferred-rpc.ts",
       "default": "./src/ops/deferred-rpc.ts"
+    },
+    "./ops/jobs": {
+      "types": "./src/ops/jobs.ts",
+      "default": "./src/ops/jobs.ts"
     }
   },
   "nx": {

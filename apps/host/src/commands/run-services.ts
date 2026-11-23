@@ -1,7 +1,7 @@
 import type { HostReleaseFeature } from '@phosphor/shared/host-release'
 import { createLanePauses, FEATURE as PAUSE_FEATURE } from '../lanes/pause'
 import { type HostShellEnvironment, FEATURE as SHELL_FEATURE } from '../machine/shell-environment'
-import { createOpsService, FEATURE as OPS_FEATURE } from '../ops/service'
+import { FEATURE as OPS_FEATURE } from '../ops/service'
 import { createReach, FEATURE as REACH_FEATURE } from '../reach'
 import { type AppServices, FEATURE as APP_SERVICES_FEATURE } from '../session/app-services'
 import { type DaemonHeadroom, FEATURE as HEADROOM_FEATURE } from '../session/headroom'
@@ -25,7 +25,6 @@ export function createRunServices(
   headroom?: DaemonHeadroom,
 ) {
   return {
-    ops: createOpsService(),
     reach: createReach(),
     headroom: headroom ?? null,
     appServices: appServices ?? null,

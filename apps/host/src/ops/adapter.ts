@@ -3,9 +3,10 @@ import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import type { OpClass } from '@phosphor/shared/ops'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { OpPrincipal, OpsDispatcher } from '@phosphor/session-runtime/ops/types'
-import type { FrameSocket } from '@phosphor/shared/host-protocol'
+import type { FrameSocket, ReadyOpFlag } from '@phosphor/shared/host-protocol'
 import { sendFrame, type FrameLink, type FrameLinkFactory } from '../api/adapter'
 import { opPrincipalFor } from '../api/principal'
+import type { HostSurfacePrincipal } from './binding'
 
 /** `ops.run` needs no capability: the dispatcher decides per principal and op. */
 export const OPS_RUN_CAPABILITY: HostCapability | null = null
@@ -53,10 +54,23 @@ function opClass(request: OpsRunRequest): OpClass {
   return OP_CATALOG.find((spec) => spec.name === request.op)?.class ?? 'control'
 }
 
+/**
+ * Run's one ops slot, shared by both listeners and read per connection: empty
+ * until the machine's dispatcher is bound, so a connection made before then
+ * answers `unsupported`, as an older Host does.
+ */
 export interface OpsAdapterPorts {
-  /** Absent until the Host serves ops: `ops.run` then answers `unsupported`, as an older Host does. */
   dispatcher?: Pick<OpsDispatcher, 'run'>
+  /** The `ready` flags announced beside the bound dispatcher. */
+  readyFlags?: ReadonlySet<ReadyOpFlag>
   queue?: OpsQueue
+}
+
+/** A surface asks with the capabilities its own connection holds now. */
+function withCaps(principal: OpPrincipal, caps: readonly HostCapability[]): OpPrincipal {
+  if (principal.kind !== 'surface') return principal
+  const surface: HostSurfacePrincipal = { ...principal, caps: [...caps] }
+  return surface
 }
 
 /** Without a dispatcher every `ops.run`, either form, is `unsupported`: no capability gates it. */
@@ -81,23 +95,23 @@ function unsupportedOps(socket: FrameSocket): FrameLink {
 
 /** `ops.run` as a call (reads) and as a laneless command (writes), ahead of the lane adapter. */
 export function createOpsAdapter(ports: OpsAdapterPorts = {}): FrameLinkFactory {
-  const { dispatcher } = ports
   const queue = ports.queue ?? createOpsQueue()
   return (connection) => {
+    const { dispatcher } = ports
     if (!dispatcher) return unsupportedOps(connection.socket)
     const run = dispatcher.run.bind(dispatcher)
     const { socket, client } = connection
     const principal = connection.principal ?? { kind: 'grant-user', clientId: client.id }
     let closed = false
-    function execute(request: OpsRunRequest) {
-      const asked = opPrincipalFor(principal, client, request.actor)
+    function execute(request: OpsRunRequest, caps: readonly HostCapability[]) {
+      const asked = withCaps(opPrincipalFor(principal, client, request.actor), caps)
       return queue.run(queueKey(asked), opClass(request), () => run(asked, request))
     }
     return {
       close() {
         closed = true
       },
-      handle(frame) {
+      handle(frame, caps) {
         if (frame.type === 'call' && frame.method === OPS_RUN) {
           const request = parseOpsRunRequest(frame.params)
           if (!request) {
@@ -105,7 +119,7 @@ export function createOpsAdapter(ports: OpsAdapterPorts = {}): FrameLinkFactory 
             sendFrame(socket, { type: 'result', id: frame.id, ok: false, error })
             return true
           }
-          void execute(request).then(
+          void execute(request, caps).then(
             (data) => {
               if (!closed) sendFrame(socket, { type: 'result', id: frame.id, ok: true, data })
             },
@@ -120,7 +134,7 @@ export function createOpsAdapter(ports: OpsAdapterPorts = {}): FrameLinkFactory 
         const { requestId } = frame
         const { type: _type, ...request } = frame.op
         // The dispatcher may have acted before failing: say so rather than invent a refusal.
-        void execute(request).then(
+        void execute(request, caps).then(
           (data) => {
             if (!closed)
               sendFrame(socket, { type: 'receipt', receipt: { requestId, status: 'done', data } })

@@ -6,7 +6,7 @@ import type { SpawnContribution } from '@phosphor/session-runtime/pi/spawn-contr
 import { createBrainContribution } from './brain'
 import { createDirectivesContribution } from './directives'
 import { createHeadroomContribution } from './headroom'
-import { createOpsContribution } from './ops'
+import { createOpsContribution, type HostOpsLanePorts } from './ops'
 
 /** the Host's spawn contributions in argv order. Each feature fills only its own file. */
 export function hostSpawnContributions(
@@ -14,11 +14,12 @@ export function hostSpawnContributions(
   log: HostLog,
   brain?: Parameters<typeof createBrainContribution>[0],
   headroom?: DaemonHeadroom,
+  ops?: HostOpsLanePorts,
 ): readonly SpawnContribution[] {
   shell?.bindLog(log)
   return [
     shell ? shellEnvironmentContribution(shell) : null,
-    createOpsContribution(),
+    createOpsContribution(ops),
     createDirectivesContribution(),
     createHeadroomContribution(headroom),
     brain ? createBrainContribution(brain) : null,

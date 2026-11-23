@@ -14,6 +14,8 @@ import type { HostRuntime } from '../session/runtime'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
 import type { HostTerminals } from '../terminals/service'
 import type { RunServices } from './run-services'
+import type { OpsService } from '../ops/service'
+import type { Reach } from '@phosphor/session-runtime/ops/reach'
 
 /**
  * Shutdown exits as soon as the attached drain ends. A drain that ended before
@@ -51,6 +53,10 @@ export interface RunParts {
   release?: () => Promise<void>
   /** Machine services beside the lane service; each is null until built. */
   services?: RunServices
+  /** Agent control: its audit connection closes before the store. */
+  ops?: OpsService
+  /** Machine reach: its sibling connections close with the lanes. */
+  reach?: Pick<Reach, 'close'>
 }
 
 /** The parts of run a signal's drain waits on besides the started ones. */
@@ -89,6 +95,8 @@ async function closeAndRelease(parts: RunParts, state: TeardownState) {
     () => parts.attachments?.close(),
     () => parts.routines?.close(),
     () => parts.live?.close(),
+    () => parts.reach?.close(),
+    () => parts.ops?.close(),
     () => parts.store?.close(),
     () => parts.release?.(),
   ])

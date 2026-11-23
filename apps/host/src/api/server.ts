@@ -92,6 +92,7 @@ function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
     hello,
     key: options.key,
     webPushKey: options.lanes?.webPushKey,
+    readyFlags: options.ops?.readyFlags,
   })
 }
 
