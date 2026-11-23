@@ -667,6 +667,10 @@
     "./lanes/visible-lanes": {
       "types": "./src/lanes/visible-lanes.ts",
       "default": "./src/lanes/visible-lanes.ts"
+    },
+    "./ops/completion": {
+      "types": "./src/ops/completion.ts",
+      "default": "./src/ops/completion.ts"
     }
   },
   "nx": {
