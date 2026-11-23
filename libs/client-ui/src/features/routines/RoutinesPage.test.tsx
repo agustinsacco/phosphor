@@ -709,3 +709,13 @@ it("opens a Host lane's Make routine draft on that Host and folder, with the lan
     expect.arrayContaining(['Host lane', 'Fix the flaky test']),
   )
 })
+
+it('loads the service machine for a saved This Mac routines selection', async () => {
+  useMachinePagesStore.setState({ routinesMachine: 'local' })
+  const h = host.slice(5)
+  useRemoteLanesStore.setState((s) => ({ hosts: { [h]: { ...s.hosts[h]!, local: true } } }))
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  expect(container.textContent).toContain('Remote task')
+  expect(container.textContent).not.toContain('Local task')
+  expect(container.textContent).not.toContain('Keep Phosphor running')
+})

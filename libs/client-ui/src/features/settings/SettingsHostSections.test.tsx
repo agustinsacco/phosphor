@@ -328,3 +328,21 @@ it('offers only reviewed settings JSON when the Host announces config files', as
   expect(button('Edit reviewed JSON')).toBeDefined()
   expect(container.textContent).not.toContain('models.json')
 })
+
+it('sends This Mac folder switches to its registered service scope, not in-app settings', async () => {
+  const hosts = mixedRemoteHosts(),
+    h = hosts[machine.id]!,
+    project = h.repositories[0]!.id
+  Object.assign(h, { local: true, ops: true, folderDirectives: true })
+  useRemoteLanesStore.setState({ hosts })
+  useSettingsUiStore.setState({ folder: project })
+  await showHostSettings(root, 'local', 'agent')
+  await act(async () => toggle('Lane charter'))
+  expect(invoke).toHaveBeenCalledWith(
+    'ops:run',
+    { kind: 'remote', hostId: machine.id },
+    { op: 'directives.set', args: { project, key: 'laneCharter', on: false } },
+  )
+  expect(invoke.mock.calls.some(([c]) => c === 'app:setAgentDirectives')).toBe(false)
+  useSettingsUiStore.setState({ folder: null })
+})

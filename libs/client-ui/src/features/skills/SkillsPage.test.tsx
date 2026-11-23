@@ -459,3 +459,24 @@ it('characterizes the neutral Skills filter selection and styling', async () => 
   expect(button('Yours').getAttribute('aria-pressed')).toBe('true')
   expect(button('Discover').getAttribute('aria-pressed')).toBe('false')
 })
+
+it('loads the owner skill catalogue instead of in-app skills for a default This Mac selection', async () => {
+  const { hostId, workspacePath, invoke } = hostSkillFixture()
+  remoteSelection.setState({
+    filter: 'local',
+    hosts: {
+      [hostId]: {
+        local: true,
+        state: 'ready',
+        capabilities: ['skills.read'],
+        repositories: [],
+        lanes: [],
+        connectionToken: 'owner',
+      },
+    },
+  })
+  await act(async () => root.render(<SkillsPage workspacePath="/local" />))
+  expect(invoke).toHaveBeenCalledWith('hosts:skills', hostId)
+  expect(container.textContent).not.toContain('Upload')
+  expect(useSkillsStore.getState().byWorkspace[workspacePath]).toBeDefined()
+})

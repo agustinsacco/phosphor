@@ -1,3 +1,4 @@
+import { serviceScope } from '@/stores/localServiceScope'
 import { NeutralSegmented as Segmented } from '@/components/form'
 import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
@@ -47,8 +48,8 @@ export const SkillsPage = memo(function SkillsPage({
 }): React.JSX.Element {
   const filter = useRemoteLanesStore((s) => s.filter)
   const choice = useMachinePagesStore((s) => s.skillsMachine)
-  const machine = pageMachine(filter, choice)
   const hosts = useRemoteLanesStore((s) => s.hosts)
+  const machine = serviceScope(pageMachine(filter, choice), hosts)
   const generation = useRemoteLanesStore(() => machineReadGeneration(machine))
   const catalogue = useMachineCataloguesStore(
     (s) => s.catalogues[machineCatalogueKey(machine, generation)] ?? EMPTY_MACHINE_CATALOGUE,

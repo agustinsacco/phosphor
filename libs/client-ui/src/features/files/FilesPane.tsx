@@ -27,7 +27,7 @@ export const FilesPane = memo(function FilesPane({
   // first read (a child's passive effect).
   useLayoutEffect(() => attachFilesSource(source), [source])
   useRefreshOnKey(source)
-  useWorkspaceWatch(workspacePath, features.watch)
+  useWorkspaceWatch(workspacePath, source.pathRoot, features.watch)
 
   const searchOpen = useWorkspaceSearchStore(
     (s) => features.search && workspaceSearch(s, workspacePath).open,
@@ -99,13 +99,13 @@ function useRefreshOnKey({ workspacePath, refreshKey, unavailable }: FilesSource
 }
 
 /** Live updates where the machine watches: the watcher's batches, and a directory poll behind it. */
-function useWorkspaceWatch(workspacePath: string, watch: boolean): void {
+function useWorkspaceWatch(workspacePath: string, pathRoot: string, watch: boolean): void {
   useEffect(() => {
     if (!watch) return
     const store = useFilesStore.getState()
     void window.phosphor.invoke('fs:watchWorkspace', workspacePath)
     const unsubscribe = window.phosphor.onFsChanged((payload) => {
-      if (payload.workspacePath !== workspacePath) return
+      if (payload.workspacePath !== pathRoot) return
       const current = useFilesStore.getState()
       void current.handleExternalChanges(workspacePath, payload.paths)
       void current.refreshGitStatus(workspacePath)
@@ -124,5 +124,5 @@ function useWorkspaceWatch(workspacePath: string, watch: boolean): void {
       window.clearInterval(poll)
       unsubscribe()
     }
-  }, [workspacePath, watch])
+  }, [workspacePath, pathRoot, watch])
 }
