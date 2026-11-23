@@ -1,4 +1,3 @@
-export { hostReconnecting, hostPending } from './hostConnectionState'
 import { serviceScope } from './localServiceScope'
 import {
   bindRemoteHostView,
@@ -18,9 +17,7 @@ import { migrateLegacyLaneMarks } from './remoteLaneMarks'
 import { bindHostsSnapshotRead } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
-import { useWorkspacesStore } from './workspaces'
-import { isWorktreeFolder, projectPathFor } from '@/lib/path'
-import { representativeGroupPath } from '@/features/sessions/groupSessions'
+import { localRevealGroup } from '@/features/sessions/localRevealGroup'
 import {
   localLaneGroupKey,
   remoteLaneGroupKey,
@@ -68,6 +65,17 @@ export function machineLabel(machine: string): string {
 
 export function canReadHost(host: HostConnectionView): boolean {
   return machineCaps(host).granted('sessions.read')
+}
+
+/** These retry on their own; every other state that is not ready needs the user. */
+export function hostReconnecting(state: HostConnectionView['state'] | undefined): boolean {
+  return state === 'connecting' || state === 'reconnecting'
+}
+
+/** Still reaching this Host: retrying, or the first snapshot has not listed it yet. */
+export function hostPending(s: { hosts: HostsSnapshot; snapshotStatus: string }, hostId: string) {
+  const host = s.hosts[hostId]
+  return host ? hostReconnecting(host.state) : s.snapshotStatus === 'loading'
 }
 
 /** What a screen says while a Host retries: a first attempt connects, a later one reconnects. */
@@ -157,24 +165,6 @@ export async function adoptRemoteLane(info: LiveSessionInfo, nav: number): Promi
 export function alignLaneMachineFilter(machine: string): void {
   const store = useRemoteLanesStore.getState()
   if (store.filter !== 'all' && store.filter !== machine) store.setFilter(machine)
-}
-
-function localRevealGroup(workspacePath: string): string {
-  const { gitByCwd, live } = useSessionsStore.getState()
-  const knownPaths = new Set(
-    useWorkspacesStore
-      .getState()
-      .recents.filter((workspace) => !isWorktreeFolder(workspace.path))
-      .map((workspace) => workspace.path),
-  )
-  knownPaths.add(workspacePath)
-  for (const entry of Object.values(live))
-    if (entry.target?.kind !== 'remote') knownPaths.add(entry.workspacePath)
-  const projectKey = projectPathFor(workspacePath, gitByCwd[workspacePath])
-  const groupPaths = [...knownPaths].filter(
-    (path) => projectPathFor(path, gitByCwd[path]) === projectKey,
-  )
-  return representativeGroupPath(projectKey, groupPaths)
 }
 
 type LaneDestination = { sessionId: string } | { hostId: string; laneId: string }

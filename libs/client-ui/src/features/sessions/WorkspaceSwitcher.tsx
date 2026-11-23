@@ -1,3 +1,4 @@
+import { localServiceId } from '@/stores/localServiceScope'
 import { useRef, useState } from 'react'
 import { ChevronDownIcon } from '@/components/icons'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
@@ -14,9 +15,9 @@ export function WorkspaceSwitcher(): React.JSX.Element {
     const entry = s.activeSessionId ? s.live[s.activeSessionId] : undefined
     return entry?.target?.kind === 'remote' ? entry : undefined
   })
-  const remoteHost = useRemoteLanesStore((s) =>
-    remote?.target?.kind === 'remote' ? s.hosts[remote.target.hostId] : undefined,
-  )
+  const service = useRemoteLanesStore((s) => localServiceId(s.hosts))
+  const hostId = remote?.target?.kind === 'remote' ? remote.target.hostId : service
+  const remoteHost = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const [addingFolder, setAddingFolder] = useState(false)
   const remoteRepo = remoteHost?.repositories.find((repo) =>
     remoteHost.lanes.some(
@@ -30,12 +31,11 @@ export function WorkspaceSwitcher(): React.JSX.Element {
   // Project only, no branch: the top bar's folder and branch chips sit a row
   // above this and already answer "where am I". Showing `Phosphor (phosphor/hey-2)`
   // here as well put the branch on screen twice and the folder twice.
-  const name =
-    remote?.target?.kind === 'remote'
-      ? `${remoteRepo?.name ?? 'Repository'} · ${machineLabel(remote.target.hostId)}`
-      : currentPath
-        ? projectName(currentPath, git)
-        : 'Workspace'
+  const name = hostId
+    ? `${remoteRepo?.name ?? 'Workspace'} · ${machineLabel(hostId)}`
+    : currentPath
+      ? projectName(currentPath, git)
+      : 'Workspace'
 
   return (
     // Draggable: on Windows/Linux this row sits flush against the top of the
@@ -53,17 +53,13 @@ export function WorkspaceSwitcher(): React.JSX.Element {
           {name.slice(0, 1)}
         </span>
         <span className="min-w-0 flex-1 truncate text-left text-lg font-semibold">{name}</span>
-        {!remote && <ChevronDownIcon className="text-text-tertiary shrink-0" />}
+        {!hostId && <ChevronDownIcon className="text-text-tertiary shrink-0" />}
       </TooltipButton>
 
-      {addingFolder && remote?.target?.kind === 'remote' && (
-        <HostFolderBrowser
-          key={remote.target.hostId}
-          hostId={remote.target.hostId}
-          onClose={() => setAddingFolder(false)}
-        />
+      {addingFolder && hostId && (
+        <HostFolderBrowser key={hostId} hostId={hostId} onClose={() => setAddingFolder(false)} />
       )}
-      {open && remote && (
+      {open && hostId && (
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
@@ -80,12 +76,11 @@ export function WorkspaceSwitcher(): React.JSX.Element {
               setAddingFolder(true)
             }}
           >
-            Add folder on{' '}
-            {remote.target?.kind === 'remote' ? machineLabel(remote.target.hostId) : 'machine'}…
+            Add folder on {machineLabel(hostId)}…
           </MenuRow>
         </PopupMenu>
       )}
-      {open && !remote && (
+      {open && !hostId && (
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}

@@ -24,7 +24,7 @@
     "same-machine": 0
   },
   "features/sessions/WorkspaceSwitcher.tsx": {
-    "protocol": 5,
+    "protocol": 2,
     "same-machine": 0
   },
   "features/sessions/deleteRemoteLanes.ts": {
@@ -32,6 +32,10 @@
     "same-machine": 0
   },
   "features/sessions/lanePrOverrides.ts": {
+    "protocol": 1,
+    "same-machine": 0
+  },
+  "features/sessions/localRevealGroup.ts": {
     "protocol": 1,
     "same-machine": 0
   },
@@ -64,7 +68,7 @@
     "same-machine": 0
   },
   "stores/remoteLanes.ts": {
-    "protocol": 11,
+    "protocol": 10,
     "same-machine": 0
   },
   "stores/sessions.ts": {
