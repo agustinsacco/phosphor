@@ -32,7 +32,7 @@ export interface ScanPorts {
   readonly realpath: (path: string) => string | null
   readonly listSessions: (folder: string) => Promise<readonly SessionMeta[]>
   readonly listWorktrees: (repo: string) => Promise<readonly WorktreeInfo[]>
-  readonly retainedWorkspaces: (repo: string) => readonly string[]
+  readonly retainedWorkspaces: (repo: string) => Promise<readonly string[]>
   readonly archives: () => Promise<readonly ArchiveRecord[]>
   readonly exists: (path: string) => boolean
   /** Bytes, or 0 when it cannot be read. */
@@ -95,8 +95,9 @@ async function sessionDirs(ports: ScanPorts, folders: readonly PlanFolderFact[])
     push({ dir: folder.path, root: folder.path, branch: null })
     if (folder.sandbox) continue
     const checkouts = await ports.listWorktrees(folder.path).catch(() => [] as WorktreeInfo[])
+    const retained = await ports.retainedWorkspaces(folder.path).catch(() => [] as string[])
     const branches = new Map(checkouts.map((w) => [w.realPath || w.path, w.branch]))
-    for (const path of visibleWorktrees(ports.retainedWorkspaces(folder.path), checkouts))
+    for (const path of visibleWorktrees(retained, checkouts))
       push({ dir: path, root: folder.path, branch: branches.get(path) ?? null })
   }
   return dirs

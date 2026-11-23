@@ -8,11 +8,11 @@ import { isInside, isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
 import { readBounded } from '@phosphor/session-runtime/host-install/files'
 import { log } from '../debug-log'
 import type { OwnerKey } from '../daemon/owner-key'
-import { decideLocalRuntimeMode, type LocalDaemonAccess } from './mode'
+import type { LocalDaemonAccess } from './mode'
 import { LOCAL_DAEMON_CONFIG_ENV, LOCAL_DAEMON_SOCKET_ENV, localDaemonLocation } from './transport'
 
 /**
- * The e2e stand-in for M3's launch gate: an unpackaged Desktop with an
+ * The e2e path into M3's launch gate: an unpackaged Desktop with an
  * isolated userData can be pointed at a fixture daemon
  * (`apps/desktop/e2e/fixtures/local-daemon.ts`) and run in daemon mode. The
  * owner key is a plain PEM in the test's scratch folder, so neither the
@@ -133,8 +133,12 @@ function systemScratchRoots(): string[] {
   return [...roots]
 }
 
-/** Called once before the host handlers register: decides daemon mode only for a gated e2e run. */
-export function decideE2eDaemonMode(): void {
+/**
+ * E1's gated hook, read once by the launch gate (`launch-gate.ts`), which
+ * then decides daemon mode with its access. Logs why it stays off only when
+ * a test asked for it.
+ */
+export function e2eDaemonHook(): E2eDaemonDecision {
   const decision = e2eDaemonAccess({
     isPackaged: app.isPackaged,
     env: process.env,
@@ -142,8 +146,8 @@ export function decideE2eDaemonMode(): void {
     uid: process.getuid?.(),
     scratchRoots: systemScratchRoots(),
   })
-  if (decision.on) {
-    decideLocalRuntimeMode('daemon', decision.access)
-    log('local-machine', 'e2e daemon mode', { socket: process.env[LOCAL_DAEMON_SOCKET_ENV] })
-  } else if (decision.reason) log('local-machine', 'e2e daemon hook inert', decision.reason)
+  if (decision.on)
+    log('local-machine', 'e2e daemon hook on', { socket: process.env[LOCAL_DAEMON_SOCKET_ENV] })
+  else if (decision.reason) log('local-machine', 'e2e daemon hook inert', decision.reason)
+  return decision
 }

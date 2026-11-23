@@ -28,6 +28,7 @@ import { externalUrl, isAppNavigation } from './external-links'
 import { installPermissionPolicy } from './voice/permissions'
 import { devRendererUrl } from './dev-renderer-url'
 import { startServices, stopServices } from './startup'
+import { quitLaunchGate, runLaunchGate } from './local-machine/launch-gate'
 
 const rendererUrl = devRendererUrl(process.env, app.isPackaged)
 const isDev = rendererUrl !== undefined
@@ -216,11 +217,10 @@ if (!singleInstance) {
     })
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     // First thing after ready: anything that throws below should land in the
     // log rather than only in a terminal nobody was attached to.
     initDebugLog()
-    preparePiConfig()
     if (devIcon && process.platform === 'darwin') {
       app.dock?.setIcon(devIcon)
     }
@@ -233,7 +233,11 @@ if (!singleInstance) {
     // Settings → Writing → Check spelling. Chromium's default is on.
     applySpellcheck(getWritingPrefs().spellcheck)
     registerIpcHandlers()
-    startServices({ createWindow })
+    // Once per process, before pi's config, a window or any session: in-app,
+    // or This Mac's Phosphor service (migrating to it first when it is time).
+    const mode = await runLaunchGate()
+    if (mode === 'in-app') preparePiConfig()
+    startServices({ createWindow, mode })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -299,10 +303,12 @@ function beginQuit(): void {
   if (quitting) return
   shutdownApproval.beginTeardown()
   quitting = true
-  void stopServices().finally(() => {
-    quitComplete = true
-    app.quit()
-  })
+  void quitLaunchGate()
+    .then(stopServices)
+    .finally(() => {
+      quitComplete = true
+      app.quit()
+    })
 }
 
 /**

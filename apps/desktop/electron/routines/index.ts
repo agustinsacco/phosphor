@@ -14,13 +14,16 @@ let scheduler: RoutineScheduler | undefined
 let error: string | null = null
 const changed = (): void => broadcast('routines:changed', {})
 
+/** The routines database in userData. A dev launch must never execute the installed app's saved automations. */
+export function routinesFileName(): string {
+  return !app.isPackaged && !piStubPath() ? 'routines-dev.sqlite' : 'routines.sqlite'
+}
+
 export function startRoutines(): void {
   try {
     const directory = app.getPath('userData')
     mkdirSync(directory, { recursive: true })
-    // A dev launch must never execute the installed app's saved automations.
-    const file = !app.isPackaged && !piStubPath() ? 'routines-dev.sqlite' : 'routines.sqlite'
-    const repository = new RoutineRepository(join(directory, file))
+    const repository = new RoutineRepository(join(directory, routinesFileName()))
     scheduler = new RoutineScheduler(repository, executeRoutine, changed, Date.now, (run) => {
       if (piStubPath() || !Notification.isSupported() || run.status === 'cancelled') return
       new Notification({

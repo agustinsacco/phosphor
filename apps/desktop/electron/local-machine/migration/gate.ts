@@ -248,6 +248,11 @@ export function createLaunchGate(ports: GatePorts) {
     retry: (): Promise<ActionResult> => retryMigration(actionPorts),
     consent: (): Promise<ActionResult> => consentMigration(actionPorts),
     quit: () => quit(gate),
+    /** The installer set up Desktop's service while in-app: the next launch moves This Mac. */
+    serviceInstalled(): void {
+      if (gate.status.mode === 'in-app' && gate.status.migration === 'not-needed')
+        publish(gate, { ...gate.status, migration: 'waiting' })
+    },
   }
 }
 

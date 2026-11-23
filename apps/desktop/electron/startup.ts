@@ -1,4 +1,5 @@
 import { BrowserWindow, powerMonitor } from 'electron'
+import type { LocalRuntimeMode } from '@phosphor/shared/ipc'
 import { startRoutines, stopRoutines, wakeRoutines, routineScheduler } from './routines'
 import { installRoutineBackground } from './routines/background'
 import { startArtifactSync } from './artifacts/artifact-sync'
@@ -19,21 +20,34 @@ import { disposeBrain } from './brain/runtime'
 export interface StartupContext {
   /** Opens a main window; main.ts owns its chrome and navigation policy. */
   createWindow: () => BrowserWindow
+  /** The launch gate's decision: in daemon mode the Phosphor service runs routines and indexes artifacts. */
+  mode: LocalRuntimeMode
 }
 
 /**
  * The services Desktop starts once Electron is ready and IPC is registered,
  * in launch order. main.ts calls it from `app.whenReady`.
  */
-export function startServices({ createWindow }: StartupContext): void {
+export function startServices({ createWindow, mode }: StartupContext): void {
   // Before anything can start a session (routines do, at launch): indexes
   // each session's artifacts as its turns end, then catches up with every
   // session file on disk once per launch.
-  startArtifactSync()
+  if (mode === 'in-app') startArtifactSync()
   // One count per app start, and the only thing gating the feedback nudge —
   // it waits for real use rather than interrupting a fresh install.
   recordAppLaunch()
   createWindow()
+  if (mode === 'in-app') startInAppRoutines(createWindow)
+  // No-op unless packaged: dev and E2E must never poll GitHub.
+  startUpdateChecks()
+  // Reclaims dead lanes on a timer. Unref'd, warms up before its first
+  // sweep, and deletes nothing unless the user turned that on. In daemon
+  // mode it sweeps through workspace leases on the service.
+  maintenanceScheduler.start()
+}
+
+/** Desktop's own routine scheduler, which only the in-app runtime runs. */
+function startInAppRoutines(createWindow: () => BrowserWindow): void {
   installRoutineBackground(
     () => {
       const window = BrowserWindow.getAllWindows()[0] ?? createWindow()
@@ -44,11 +58,6 @@ export function startServices({ createWindow }: StartupContext): void {
   )
   startRoutines()
   powerMonitor.on('resume', wakeRoutines)
-  // No-op unless packaged: dev and E2E must never poll GitHub.
-  startUpdateChecks()
-  // Reclaims dead lanes on a timer. Unref'd, warms up before its first
-  // sweep, and deletes nothing unless the user turned that on.
-  maintenanceScheduler.start()
 }
 
 /**

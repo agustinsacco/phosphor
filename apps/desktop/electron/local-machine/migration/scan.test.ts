@@ -112,7 +112,7 @@ function ports(over: Partial<ScanPorts> = {}): ScanPorts {
       worktree(WT),
       worktree('/fx/stale', { prunable: true }),
     ],
-    retainedWorkspaces: () => [GONE],
+    retainedWorkspaces: async () => [GONE],
     archives: async () => [],
     exists: (p) => p !== GONE,
     size: () => 10,
