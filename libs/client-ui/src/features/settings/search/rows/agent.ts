@@ -37,7 +37,7 @@ export const AGENT_ROWS: SettingEntry[] = [
   ...section('agent', ['Agent defaults', 'default model thinking']),
   ...section('agent', null, [['Reviewed settings', 'edit reviewed JSON agent behavior']], {
     host: true,
-  }).map(atMachine),
+  }).map((entry): SettingEntry => ({ ...atMachine(entry), configFiles: true })),
   ...section('agent', group('lanes'), [
     row(AGENT_ROW_TEXT.model),
     row(AGENT_ROW_TEXT.provider),

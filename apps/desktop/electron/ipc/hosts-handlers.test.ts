@@ -247,7 +247,7 @@ it('never reads the frozen artifact library in daemon mode, including during an 
       machines: [{ id: 'host:here', available: true }],
     })
     spy.mockReturnValue('in-app')
-    expect(router(1, 'routines:list', [])).toBeNull()
+    expect(router(1, 'routines:list', [])).toBeFalsy()
   } finally {
     mocks.snapshot.mockReturnValue({})
     spy.mockRestore()

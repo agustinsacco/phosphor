@@ -207,9 +207,16 @@ export function rowOnMachine(entry: SettingEntry, machine: MachineKind | null): 
  * The index rows this platform renders on this kind of machine; sections are
  * filtered by the caller's `available`.
  */
-export function platformIndex(platform: Platform, machine: MachineKind | null): SettingEntry[] {
+export function platformIndex(
+  platform: Platform,
+  machine: MachineKind | null,
+  configFiles = false,
+): SettingEntry[] {
   return SETTINGS_INDEX.filter(
-    (entry) => (!entry.requires || platform[entry.requires]) && rowOnMachine(entry, machine),
+    (entry) =>
+      (!entry.configFiles || configFiles) &&
+      (!entry.requires || platform[entry.requires]) &&
+      rowOnMachine(entry, machine),
   )
 }
 
