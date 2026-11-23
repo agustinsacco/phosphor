@@ -92,6 +92,27 @@ it('purges only after successful logout, and failed logout keeps everything', as
   expect(existsSync(join(f.home, '.config/phosphor-host'))).toBe(false)
   expect(existsSync(join(f.home, '.local/state/phosphor-host'))).toBe(false)
 })
+it('purges migrated state and config but never follows the migrated Claude account root', async () => {
+  const f = setup()
+  const state = join(f.home, '.local/state/phosphor-host')
+  const config = join(f.home, '.config/phosphor-host')
+  const external = join(f.home, 'desktop-account-root')
+  mkdirSync(external)
+  writeFileSync(join(external, 'keep'), 'keep')
+  rmSync(join(state, 'marker'))
+  writeFileSync(join(config, 'folders.json'), '{}')
+  writeFileSync(join(state, 'claude-accounts.json'), JSON.stringify({ version: 1, root: external }))
+  for (const file of ['agent-policy.json', 'web-push.json', 'state.sqlite'])
+    writeFileSync(join(state, file), 'fixture')
+  for (const dir of ['claude-accounts', 'owner-migration', 'sandboxes', 'routines', 'artifacts']) {
+    mkdirSync(join(state, dir))
+    writeFileSync(join(state, dir, 'fixture'), 'fixture')
+  }
+  expect(await runUninstall(f.context, true, true)).toBe(0)
+  expect(existsSync(state)).toBe(false)
+  expect(existsSync(config)).toBe(false)
+  expect(readFileSync(join(external, 'keep'), 'utf8')).toBe('keep')
+})
 it('requires both purge flags and a default config path, and refuses a held install lock', async () => {
   const f = setup()
   expect(await runUninstall(f.context, true)).toBe(64)
