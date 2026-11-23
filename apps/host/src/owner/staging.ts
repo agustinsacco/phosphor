@@ -5,7 +5,7 @@
  * state.sqlite, beside the lane store's, so the store's API stays unchanged;
  * the store prepares every read afresh, so its next read sees these writes.
  */
-import { closeSync, constants, fsyncSync, openSync } from 'node:fs'
+import { closeSync, constants, fsyncSync, lstatSync, openSync } from 'node:fs'
 import type { DatabaseSync } from 'node:sqlite'
 import type { MigrationState } from '@phosphor/shared/host-protocol-owner'
 import { loadSqlite } from '../lanes/sqlite'
@@ -149,6 +149,8 @@ export class MigrationRecords {
    * `path`, and marks `migration` aborted, in one transaction.
    */
   restore(path: string, migration: StoredMigration): void {
+    // ATTACH creates a missing file: an empty snapshot would restore nothing over everything.
+    if (!lstatSync(path).isFile()) throw new Error('The begin snapshot is not a file.')
     this.db.prepare('ATTACH ? AS snapshot').run(path)
     try {
       const names = (schema: string) =>
@@ -161,10 +163,11 @@ export class MigrationRecords {
           )
       const kept = new Set(names('snapshot'))
       const tables = names('main')
+      if (!tables.every((t) => kept.has(t))) throw new Error('The begin snapshot is incomplete.')
       this.transaction(() => {
         this.db.exec('PRAGMA defer_foreign_keys=ON')
         for (const table of tables) this.db.exec(`DELETE FROM main.${quoted(table)}`)
-        for (const table of tables.filter((t) => kept.has(t)))
+        for (const table of tables)
           this.db.exec(`INSERT INTO main.${quoted(table)} SELECT * FROM snapshot.${quoted(table)}`)
         this.setState(migration, 'aborted', migration.left)
       })
