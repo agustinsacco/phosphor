@@ -191,6 +191,25 @@ describe('scanPlanFacts', () => {
     expect(buildPlan(facts).refusals).toContain('folder-spellings')
   })
 
+  it("never plans Desktop's private Brain lane, though Brain Agent added it to the recents", async () => {
+    const BRAIN = '/fx/Phosphor/brain/Brain'
+    const base = ports()
+    const facts = await scanPlanFacts({
+      ...base,
+      prefs: {
+        ...base.prefs,
+        recentWorkspaces: [
+          ...base.prefs.recentWorkspaces,
+          { path: BRAIN, name: 'Brain', lastOpenedAt: 1 },
+        ],
+      },
+      listSessions: async (dir) =>
+        dir === BRAIN ? [meta(9, BRAIN, '--brain--')] : base.listSessions(dir),
+    })
+    expect(facts.folders.map((f) => f.path)).not.toContain(BRAIN)
+    expect(facts.sessions.map((s) => s.sessionId)).not.toContain(ID(9))
+  })
+
   it('keeps only account bindings whose session file exists', async () => {
     const base = ports()
     const facts = await scanPlanFacts({

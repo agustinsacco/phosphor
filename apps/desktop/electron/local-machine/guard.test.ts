@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as TitleRun from '@phosphor/session-runtime/pi/title-run'
 import type * as McpInspection from '@phosphor/session-runtime/pi/mcp-inspection'
@@ -17,7 +20,8 @@ const lib = vi.hoisted(() => ({
     return { spawn() {}, killNow() {}, async dispose() {} }
   }),
 }))
-vi.mock('electron', () => ({ app: { getPath: () => '/nonexistent/m2a-guard' } }))
+const userData = vi.hoisted(() => ({ path: '/nonexistent/m2a-guard' }))
+vi.mock('electron', () => ({ app: { getPath: () => userData.path } }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 vi.mock('@phosphor/session-runtime/pi/print-mode', () => ({
   runPrintMode: lib.print,
@@ -93,6 +97,55 @@ describe('in daemon mode', () => {
     )
     expect(lib.title).not.toHaveBeenCalled()
     expect(lib.list).not.toHaveBeenCalled()
+  })
+})
+
+describe("Desktop's Brain lane in daemon mode", () => {
+  it('is the one in-app lane the registry admits; near misses are refused', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'g2-brain-lane-')))
+    userData.path = root
+    const brain = join(root, 'brain', 'Brain')
+    const elsewhere = join(root, 'elsewhere')
+    for (const folder of [brain, join(root, 'brain', 'Brain2'), elsewhere])
+      mkdirSync(folder, { recursive: true })
+    symlinkSync(elsewhere, join(root, 'brain', 'link'))
+    try {
+      const { InAppRuntimeRefused } = await daemonMode()
+      const { registry } = await import('../registry')
+      for (const cwd of [
+        '/tmp/m2a/workspace',
+        join(root, 'brain'),
+        join(root, 'brain', 'Brain2'),
+        join(root, 'brain', 'link'),
+        join(brain, 'nested'),
+      ])
+        expect(() => registry.create(cwd, {})).toThrow(InAppRuntimeRefused)
+      expect(lib.rpc).not.toHaveBeenCalled()
+      expect(registry.create(brain, {}).workspacePath).toBe(brain)
+      expect(lib.rpc).toHaveBeenCalledOnce()
+    } finally {
+      userData.path = '/nonexistent/m2a-guard'
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('is refused when its folder is a symlink to somewhere else', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'g2-brain-link-')))
+    userData.path = root
+    const elsewhere = join(root, 'project')
+    mkdirSync(elsewhere)
+    mkdirSync(join(root, 'brain'))
+    symlinkSync(elsewhere, join(root, 'brain', 'Brain'))
+    try {
+      const { InAppRuntimeRefused } = await daemonMode()
+      const { registry } = await import('../registry')
+      for (const cwd of [elsewhere, join(root, 'brain', 'Brain')])
+        expect(() => registry.create(cwd, {})).toThrow(InAppRuntimeRefused)
+      expect(lib.rpc).not.toHaveBeenCalled()
+    } finally {
+      userData.path = '/nonexistent/m2a-guard'
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 
