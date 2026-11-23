@@ -85,10 +85,144 @@ const refuse = (message: string) => new OwnerCallRefused('forbidden', message)
 /** `<state>/owner-migration/<id>`: the begin snapshot, removed at commit and abort. */
 const SNAPSHOTS = 'owner-migration'
 
+/** What every migration step shares: the ports and a fresh connection per use. */
+interface Core {
+  readonly ports: OwnerMigrationPorts
+  records<T>(fn: (records: MigrationRecords) => T): Promise<T>
+  folderOf(id: string): string
+}
+
+function requireStandby(core: Core) {
+  if (!core.ports.daemon.standby()) throw refuse(MIGRATION_REFUSALS.notStandby)
+}
+
+async function stagedRow(core: Core, id: string): Promise<StoredMigration> {
+  const row = await core.records((r) => r.get(id))
+  if (row?.state !== 'staged') throw refuse(MIGRATION_REFUSALS.notStaged)
+  requireStandby(core)
+  return row
+}
+
+/** Removes the marker after a durable commit and records that it went. */
+async function rollForward(core: Core, row: StoredMigration) {
+  if (core.ports.daemon.standby()) await core.ports.daemon.leaveStandby()
+  await core.records((r) => r.markLeft(row))
+  core.ports.log('owner.migrate.rolled_forward', { migrationId: row.migrationId })
+}
+
+const removeSnapshot = (core: Core, id: string) =>
+  rm(core.folderOf(id), { recursive: true, force: true })
+
+async function begin(
+  core: Core,
+  params: OwnerCalls['owner.migrate.begin']['params'],
+): Promise<{ state: MigrationState }> {
+  const { ports } = core
+  const existing = await core.records((r) => r.get(params.migrationId))
+  if (existing) return { state: existing.state }
+  requireStandby(core)
+  if ((await core.records((r) => r.inState('staged'))).length > 0)
+    throw refuse(MIGRATION_REFUSALS.otherStaged)
+  const folder = core.folderOf(params.migrationId)
+  await removeSnapshot(core, params.migrationId)
+  prepareStateDirectory(folder, ports.uid)
+  await core.records((r) => r.snapshot(join(folder, 'state.sqlite')))
+  for (const [section, importer] of Object.entries(ports.importers)) {
+    if (!importer.snapshot) continue
+    prepareStateDirectory(join(folder, section), ports.uid)
+    await importer.snapshot(join(folder, section))
+  }
+  const migration = {
+    migrationId: params.migrationId,
+    desktopVersion: params.desktopVersion,
+    merge: params.merge === true,
+  }
+  await core.records((r) => r.begin(migration))
+  ports.log('owner.migrate.begun', { migrationId: params.migrationId, merge: migration.merge })
+  return { state: 'staged' }
+}
+
+async function importSection(
+  core: Core,
+  params: MigrationImport,
+): Promise<OwnerCalls['owner.migrate.import']['result']> {
+  const row = await stagedRow(core, params.migrationId)
+  const { migrationId, hash, ...section } = params
+  const payload = JSON.stringify(section)
+  const staged = await core.records((r) => r.staged(migrationId, section.section))
+  if (staged) {
+    if (staged.digest === hash && staged.payload === payload)
+      return { staged: true, replayed: true }
+    throw refuse(MIGRATION_REFUSALS.restaged)
+  }
+  const importer = core.ports.importers[section.section] as MigrationImporter | undefined
+  if (!importer) throw new OwnerCallRefused('unsupported', MIGRATION_REFUSALS.noImporter)
+  await importer.apply(section, { migrationId, merge: row.merge, store: core.ports.store })
+  await core.records((r) => r.stage(migrationId, section.section, { digest: hash, payload }))
+  return { staged: true, replayed: false }
+}
+
+/** Durable row first, then the marker goes, and only then the snapshot (a crash keeps it). */
+async function commit(
+  core: Core,
+  params: OwnerCalls['owner.migrate.commit']['params'],
+): Promise<{ state: 'committed' }> {
+  let row = await core.records((r) => r.get(params.migrationId))
+  if (row?.state === 'aborted') throw refuse(MIGRATION_REFUSALS.aborted)
+  if (row?.state !== 'committed') {
+    const staged = await stagedRow(core, params.migrationId)
+    await core.records((r) => r.commit(staged))
+    core.ports.log('owner.migrate.committed', { migrationId: staged.migrationId })
+    row = { ...staged, state: 'committed', left: false }
+  }
+  if (!row.left) await rollForward(core, row)
+  await removeSnapshot(core, row.migrationId)
+  return { state: 'committed' }
+}
+
+async function abort(
+  core: Core,
+  params: OwnerCalls['owner.migrate.abort']['params'],
+): Promise<{ state: 'aborted' | 'none' }> {
+  const { ports } = core
+  const row = await core.records((r) => r.get(params.migrationId))
+  if (!row) return { state: 'none' }
+  if (row.state === 'aborted') return { state: 'aborted' }
+  if (row.state === 'committed') throw refuse(MIGRATION_REFUSALS.committed)
+  requireStandby(core)
+  const folder = core.folderOf(row.migrationId)
+  for (const [section, importer] of Object.entries(ports.importers))
+    if (importer.restore) await importer.restore(join(folder, section))
+  await core.records((r) => r.restore(join(folder, 'state.sqlite'), row))
+  ports.log('owner.migrate.aborted', { migrationId: row.migrationId })
+  await ports.refresh().catch(() => ports.log('owner.migrate.refresh_failed'))
+  await removeSnapshot(core, row.migrationId)
+  return { state: 'aborted' }
+}
+
+/**
+ * At start: a commit whose marker survived a crash rolls forward, and a
+ * snapshot folder without a staged row (a crashed begin, commit or abort) goes.
+ */
+async function recover(core: Core): Promise<void> {
+  for (const row of await core.records((r) => r.inState('committed')))
+    if (!row.left) await rollForward(core, row)
+  const staged = new Set((await core.records((r) => r.inState('staged'))).map((r) => r.migrationId))
+  let names: string[] = []
+  try {
+    names = await readdir(join(core.ports.stateDirectory, SNAPSHOTS))
+  } catch (error) {
+    if (!errnoIs(error, 'ENOENT')) throw error
+  }
+  for (const name of names) if (!staged.has(name)) await removeSnapshot(core, name)
+}
+
 export function createOwnerMigration(ports: OwnerMigrationPorts) {
-  const folderOf = (id: string) => join(ports.stateDirectory, SNAPSHOTS, id)
-  const records = <T>(fn: (records: MigrationRecords) => T) =>
-    withMigrationRecords(ports.stateDirectory, ports.uid, ports.now, fn)
+  const core: Core = {
+    ports,
+    records: (fn) => withMigrationRecords(ports.stateDirectory, ports.uid, ports.now, fn),
+    folderOf: (id) => join(ports.stateDirectory, SNAPSHOTS, id),
+  }
   let queue: Promise<unknown> = Promise.resolve()
   /** One migration call at a time, in arrival order; a failure never blocks the next. */
   function serial<T>(fn: () => Promise<T>): Promise<T> {
@@ -96,131 +230,17 @@ export function createOwnerMigration(ports: OwnerMigrationPorts) {
     queue = run.catch(() => {})
     return run
   }
-  const requireStandby = () => {
-    if (!ports.daemon.standby()) throw refuse(MIGRATION_REFUSALS.notStandby)
-  }
-  async function stagedRow(id: string): Promise<StoredMigration> {
-    const row = await records((r) => r.get(id))
-    if (row?.state !== 'staged') throw refuse(MIGRATION_REFUSALS.notStaged)
-    requireStandby()
-    return row
-  }
-  /** Removes the marker after a durable commit and records that it went. */
-  async function rollForward(row: StoredMigration) {
-    if (ports.daemon.standby()) await ports.daemon.leaveStandby()
-    await records((r) => r.markLeft(row))
-    ports.log('owner.migrate.rolled_forward', { migrationId: row.migrationId })
-  }
-  const removeSnapshot = (id: string) => rm(folderOf(id), { recursive: true, force: true })
-
-  async function begin(
-    params: OwnerCalls['owner.migrate.begin']['params'],
-  ): Promise<{ state: MigrationState }> {
-    const existing = await records((r) => r.get(params.migrationId))
-    if (existing) return { state: existing.state }
-    requireStandby()
-    if ((await records((r) => r.inState('staged'))).length > 0)
-      throw refuse(MIGRATION_REFUSALS.otherStaged)
-    const folder = folderOf(params.migrationId)
-    await removeSnapshot(params.migrationId)
-    prepareStateDirectory(folder, ports.uid)
-    await records((r) => r.snapshot(join(folder, 'state.sqlite')))
-    for (const [section, importer] of Object.entries(ports.importers)) {
-      if (!importer.snapshot) continue
-      prepareStateDirectory(join(folder, section), ports.uid)
-      await importer.snapshot(join(folder, section))
-    }
-    const migration = {
-      migrationId: params.migrationId,
-      desktopVersion: params.desktopVersion,
-      merge: params.merge === true,
-    }
-    await records((r) => r.begin(migration))
-    ports.log('owner.migrate.begun', { migrationId: params.migrationId, merge: migration.merge })
-    return { state: 'staged' }
-  }
-
-  async function importSection(
-    params: MigrationImport,
-  ): Promise<OwnerCalls['owner.migrate.import']['result']> {
-    const row = await stagedRow(params.migrationId)
-    const { migrationId, hash, ...section } = params
-    const payload = JSON.stringify(section)
-    const staged = await records((r) => r.staged(migrationId, section.section))
-    if (staged) {
-      if (staged.digest === hash && staged.payload === payload)
-        return { staged: true, replayed: true }
-      throw refuse(MIGRATION_REFUSALS.restaged)
-    }
-    const importer = ports.importers[section.section] as MigrationImporter | undefined
-    if (!importer) throw new OwnerCallRefused('unsupported', MIGRATION_REFUSALS.noImporter)
-    await importer.apply(section, { migrationId, merge: row.merge, store: ports.store })
-    await records((r) => r.stage(migrationId, section.section, { digest: hash, payload }))
-    return { staged: true, replayed: false }
-  }
-
-  async function commit(
-    params: OwnerCalls['owner.migrate.commit']['params'],
-  ): Promise<{ state: 'committed' }> {
-    let row = await records((r) => r.get(params.migrationId))
-    if (row?.state === 'aborted') throw refuse(MIGRATION_REFUSALS.aborted)
-    if (row?.state !== 'committed') {
-      const staged = await stagedRow(params.migrationId)
-      await records((r) => r.commit(staged))
-      ports.log('owner.migrate.committed', { migrationId: staged.migrationId })
-      row = { ...staged, state: 'committed', left: false }
-    }
-    if (!row.left) await rollForward(row)
-    await removeSnapshot(row.migrationId)
-    return { state: 'committed' }
-  }
-
-  async function abort(
-    params: OwnerCalls['owner.migrate.abort']['params'],
-  ): Promise<{ state: 'aborted' | 'none' }> {
-    const row = await records((r) => r.get(params.migrationId))
-    if (!row) return { state: 'none' }
-    if (row.state === 'aborted') return { state: 'aborted' }
-    if (row.state === 'committed') throw refuse(MIGRATION_REFUSALS.committed)
-    requireStandby()
-    const folder = folderOf(row.migrationId)
-    for (const [section, importer] of Object.entries(ports.importers))
-      if (importer.restore) await importer.restore(join(folder, section))
-    await records((r) => r.restore(join(folder, 'state.sqlite'), row))
-    ports.log('owner.migrate.aborted', { migrationId: row.migrationId })
-    await ports.refresh().catch(() => ports.log('owner.migrate.refresh_failed'))
-    await removeSnapshot(row.migrationId)
-    return { state: 'aborted' }
-  }
-
-  /**
-   * At start: a commit whose marker survived a crash rolls forward, and a
-   * snapshot folder without a staged row (a crashed begin, commit or abort) goes.
-   */
-  async function recover(): Promise<void> {
-    for (const row of await records((r) => r.inState('committed')))
-      if (!row.left) await rollForward(row)
-    const staged = new Set((await records((r) => r.inState('staged'))).map((r) => r.migrationId))
-    let names: string[] = []
-    try {
-      names = await readdir(join(ports.stateDirectory, SNAPSHOTS))
-    } catch (error) {
-      if (!errnoIs(error, 'ENOENT')) throw error
-    }
-    for (const name of names) if (!staged.has(name)) await removeSnapshot(name)
-  }
-
   const handlers: OwnerMigrateHandlers = {
-    'owner.migrate.begin': (params) => serial(() => begin(params)),
-    'owner.migrate.import': (params) => serial(() => importSection(params)),
+    'owner.migrate.begin': (params) => serial(() => begin(core, params)),
+    'owner.migrate.import': (params) => serial(() => importSection(core, params)),
     'owner.migrate.status': (params) =>
       serial(async () => ({
-        state: (await records((r) => r.get(params.migrationId)))?.state ?? 'none',
+        state: (await core.records((r) => r.get(params.migrationId)))?.state ?? 'none',
       })),
-    'owner.migrate.commit': (params) => serial(() => commit(params)),
-    'owner.migrate.abort': (params) => serial(() => abort(params)),
+    'owner.migrate.commit': (params) => serial(() => commit(core, params)),
+    'owner.migrate.abort': (params) => serial(() => abort(core, params)),
   }
-  return { handlers, recover: () => serial(recover) }
+  return { handlers, recover: () => serial(() => recover(core)) }
 }
 
 /**
