@@ -3,9 +3,9 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { claudeProjectDirForCwd } from './pi-paths'
+import { claudeProjectDirForCwd } from '../pi/pi-paths'
 
-const { forkClaudeLedgerForClone } = await import('./claude-ledger')
+const { forkClaudeLedgerForClone } = await import('./ledger')
 
 const OLD_PI_ID = '01a07dbb-7dea-75b1-9d10-5abdf1499cf9'
 const NEW_PI_ID = '01a07ecb-f990-7149-879a-dcc27b874128'

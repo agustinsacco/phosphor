@@ -407,6 +407,14 @@
     "./pi/session-writer": {
       "types": "./src/pi/session-writer.ts",
       "default": "./src/pi/session-writer.ts"
+    },
+    "./claude/ledger": {
+      "types": "./src/claude/ledger.ts",
+      "default": "./src/claude/ledger.ts"
+    },
+    "./claude/session-map": {
+      "types": "./src/claude/session-map.ts",
+      "default": "./src/claude/session-map.ts"
     }
   },
   "nx": {

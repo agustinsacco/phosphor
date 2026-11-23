@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { claudeSessionIdFor } from './claude-session-map'
+import { claudeSessionIdFor } from './session-map'
 
 /**
  * The sidecar belongs to another program, so every failure mode it can

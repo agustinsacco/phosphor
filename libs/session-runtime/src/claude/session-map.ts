@@ -17,14 +17,14 @@
  *
  * The sidecar is the provider's, not ours. Nothing here writes to it, every
  * read is best-effort, and a miss falls back to the pi id, which is still
- * correct for sessions recorded before observer mode. `claude-ledger.ts` is
+ * correct for sessions recorded before observer mode. `ledger.ts` is
  * the one module that writes, and it re-reads through here immediately before
  * each write — a parked CLI process can touch the map at any moment.
  */
 
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { claudeProviderStateDir } from '@phosphor/session-runtime/pi/pi-paths'
+import { claudeProviderStateDir } from '../pi/pi-paths'
 
 /** Mirrors `stateDir()` in the provider's `src/session-map.ts`. */
 export function providerStateDir(): string {

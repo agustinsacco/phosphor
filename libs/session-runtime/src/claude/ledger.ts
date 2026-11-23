@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { copyFile, readFile, rm, writeFile } from 'node:fs/promises'
-import { claudeSessionFileForCwd } from './pi-paths'
-import { readSessionMap, sessionMapPath, storedPromptPath } from './claude-session-map'
+import { claudeSessionFileForCwd } from '../pi/pi-paths'
+import { readSessionMap, sessionMapPath, storedPromptPath } from './session-map'
 
 /**
  * The two writes Phosphor makes to `pi-claude-cli`'s sidecar map: pairing a
  * cloned pi session with its own CLI session, and forgetting a deleted one.
  *
  * The sidecar belongs to the provider, and a parked CLI process can write it
- * concurrently. So `claude-session-map.ts` stays read-only, this module is the
+ * concurrently. So `session-map.ts` stays read-only, this module is the
  * one sanctioned writer, and both operations keep the window between reading
  * the map and rewriting it as short as they can — a whole-map write is the
  * only shape the file supports, so anything the provider recorded inside that

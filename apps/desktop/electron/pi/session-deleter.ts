@@ -4,7 +4,7 @@ import { access, rmdir } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { claudeSessionFileForCwd, piSessionsRoot } from './pi-paths'
-import { forgetClaudePairing } from './claude-ledger'
+import { forgetClaudePairing } from '@phosphor/session-runtime/claude/ledger'
 import { laneAttachmentsDir } from '../lane-move/attachments-dir'
 
 /**

@@ -13,8 +13,8 @@ import {
 } from '../pi/session-scanner'
 import { deleteLane } from '../pi/delete-lane'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-mutation'
-import { claudeSessionIdFor } from '../pi/claude-session-map'
-import { forkClaudeLedgerForClone } from '../pi/claude-ledger'
+import { claudeSessionIdFor } from '@phosphor/session-runtime/claude/session-map'
+import { forkClaudeLedgerForClone } from '@phosphor/session-runtime/claude/ledger'
 
 /** On-disk session discovery, tree reading and history rewrites. */
 export function registerSessionsHandlers(): void {
