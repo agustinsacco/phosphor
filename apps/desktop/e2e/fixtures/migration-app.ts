@@ -24,6 +24,13 @@ async function scenario(daemon: LocalDaemon) {
     app = await launch({
       workspace: world.repository,
       args,
+      // A restore refusal quits Desktop. Never block CI on its native error box.
+      beforeWindow: args.includes('--restore-in-app-runtime')
+        ? (app) =>
+            app.evaluate(({ dialog }) => {
+              dialog.showErrorBox = () => {}
+            })
+        : undefined,
       env: {
         ...daemon.desktopEnv,
         HOME: home,
@@ -49,7 +56,9 @@ async function scenario(daemon: LocalDaemon) {
   return { start, close, journal, daemon, world }
 }
 
-export const test = base.extend<{ migration: Awaited<ReturnType<typeof scenario>> }>({
+export type MigrationApp = Awaited<ReturnType<typeof scenario>>
+
+export const test = base.extend<{ migration: MigrationApp }>({
   migration: async ({ browserName: _browserName }, use, info) => {
     const daemon = await localDaemonFixture({ standby: true })
     try {
@@ -75,6 +84,6 @@ export const test = base.extend<{ migration: Awaited<ReturnType<typeof scenario>
 
 export async function committed(page: Page) {
   await expect
-    .poll(() => status(page))
+    .poll(() => status(page).catch((error: unknown) => String(error)))
     .toMatchObject({ mode: 'daemon', migration: 'committed', service: 'ready' })
 }

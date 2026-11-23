@@ -18,6 +18,26 @@ export const archiveName = 'Parked migration lane'
 export const liveArtifact = 'Migration notes'
 export const deletedArtifact = 'Kept after deletion'
 
+async function parkedLane(userData: string, agentDir: string, repository: string) {
+  const parked = await writeFixtureLane(agentDir, randomUUID(), repository, archiveName)
+  const archives = createLaneArchiveStorage(
+    join(userData, 'lane-archive'),
+    join(agentDir, 'sessions'),
+  )
+  const archive = await archives.prepare({
+    id: archiveIdFor(parked.transcript),
+    title: parked.name,
+    repository,
+    cwd: parked.cwd,
+    transcript: parked.transcript,
+  })
+  await archives.archive(archive.id)
+  return {
+    transcript: `${parked.transcript}.archived`,
+    record: join(userData, 'lane-archive', `${archive.id}.json`),
+  }
+}
+
 export async function migrationWorld(roots: MigrationWorldRoots) {
   const world = await migrationFixtureWorld(roots)
   const { userData, agentDir } = roots
@@ -37,19 +57,7 @@ export async function migrationWorld(roots: MigrationWorldRoots) {
   const deleted = await writeFixtureLane(agentDir, deletedId, world.repository, 'Deleted lane')
   await seedArtifact(userData, deleted.transcript, deletedId, deletedArtifact, true)
   await rm(deleted.transcript)
-  const parked = await writeFixtureLane(agentDir, randomUUID(), world.repository, archiveName)
-  const archives = createLaneArchiveStorage(
-    join(userData, 'lane-archive'),
-    join(agentDir, 'sessions'),
-  )
-  const archive = await archives.prepare({
-    id: archiveIdFor(parked.transcript),
-    title: parked.name,
-    repository: world.repository,
-    cwd: parked.cwd,
-    transcript: parked.transcript,
-  })
-  await archives.archive(archive.id)
+  const parked = await parkedLane(userData, agentDir, world.repository)
   await seedRoutine(join(userData, 'routines.sqlite'), world.repository, routineName)
   const config = join(userData, 'config.json')
   const key = `session:${checkout.transcript}`
@@ -57,6 +65,10 @@ export async function migrationWorld(roots: MigrationWorldRoots) {
     config,
     JSON.stringify({
       ...JSON.parse(await readFile(config, 'utf8')),
+      recentWorkspaces: [
+        { path: world.repository, name: 'repository', lastOpenedAt: 2 },
+        { path: sandbox, name: 'migration-sandbox', lastOpenedAt: 1 },
+      ],
       lastSessionPath: checkout.transcript,
       pinnedSessions: [worktree.transcript],
       lanes: { markers: 'manual', autoName: false },
@@ -74,11 +86,7 @@ export async function migrationWorld(roots: MigrationWorldRoots) {
     }),
   )
   const lanes = { ...world.lanes, sandbox: sandboxLane }
-  const files = [
-    ...Object.values(lanes).map((l) => l.transcript),
-    `${parked.transcript}.archived`,
-    join(userData, 'lane-archive', `${archive.id}.json`),
-  ]
+  const files = [...Object.values(lanes).map((l) => l.transcript), parked.transcript, parked.record]
   for (const part of ['sessions', 'blobs']) {
     const dir = join(userData, 'artifacts', part)
     files.push(...(await readdir(dir)).map((name) => join(dir, name)))
@@ -95,5 +103,5 @@ export async function migrationWorld(roots: MigrationWorldRoots) {
         ]),
       ),
     )
-  return { ...world, lanes, manifest, deletedId }
+  return { ...world, lanes, manifest, parkedFile: parked.transcript }
 }

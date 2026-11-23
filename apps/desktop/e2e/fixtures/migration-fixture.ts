@@ -31,7 +31,18 @@ export interface MigrationWorld {
 }
 
 const git = (cwd: string, ...args: string[]) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' }).trim()
+  execFileSync('git', args, {
+    cwd,
+    env: {
+      ...process.env,
+      HOME: cwd,
+      XDG_CONFIG_HOME: cwd,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: '/dev/null',
+    },
+    encoding: 'utf8',
+    stdio: 'pipe',
+  }).trim()
 
 /** pi's session folder for `cwd`; the same rule as `sessionDirNameForCwd` and the pi stub. */
 const sessionFolder = (agentDir: string, cwd: string) =>

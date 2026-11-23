@@ -77,6 +77,7 @@ export async function launch(
     /** Override the run-wide agent dir; see `privateAgentDir`. */
     agentDir?: string
     args?: string[]
+    beforeWindow?: (app: ElectronApplication) => Promise<void>
     env?: Record<string, string>
   } = {},
 ): Promise<Harness> {
@@ -96,6 +97,7 @@ export async function launch(
     },
   })
   configureTestTeardown(app)
+  await options.beforeWindow?.(app)
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
   // After the window: main registers its own handlers before it opens one.

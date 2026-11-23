@@ -133,7 +133,7 @@ function daemonLayout(root: string) {
       launchAgents: join(home, 'Library', 'LaunchAgents'),
       systemdUnits: join(configHome, 'systemd', 'user'),
       ownerKey: join(root, 'owner-key.pem'),
-    } as Record<string, string>,
+    },
   }
 }
 
@@ -287,7 +287,7 @@ export async function localDaemonFixture(options: LocalDaemonOptions = {}) {
     if (!(await refused(apiPort))) throw new Error('The daemon opened its TCP API.')
     return {
       root: layout.root,
-      roots: { ...layout.roots, socket } as Readonly<Record<string, string>>,
+      roots: { ...layout.roots, socket } as const,
       machineId,
       socket,
       apiPort,
@@ -301,6 +301,7 @@ export async function localDaemonFixture(options: LocalDaemonOptions = {}) {
       },
       apiRefused: () => refused(apiPort),
       output: () => daemon?.output() ?? '',
+      exitCode: () => daemon!.child.exitCode,
       stop: () => daemon!.stop(),
       async restart() {
         await daemon!.stop()

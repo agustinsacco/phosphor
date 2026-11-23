@@ -47,7 +47,7 @@ export async function seedArtifact(
       timestamp: '2026-09-01T00:00:04Z',
       data: {
         id: 'card',
-        title: title,
+        title,
         version: 1,
         type: 'markdown',
         content: `${title} body`,
@@ -66,7 +66,7 @@ export async function seedRoutine(dbPath: string, cwd: string, name: string) {
     db.save(
       {
         ...newRoutine(cwd),
-        name: name,
+        name,
         instructions: 'Report only.',
         provider: 'fake',
         model: 'fake-model',
