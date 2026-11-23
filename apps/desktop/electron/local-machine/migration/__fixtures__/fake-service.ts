@@ -17,6 +17,8 @@ import { MACHINE_ID, SESSIONS } from './plan-facts'
 interface ServiceState {
   readonly states: Map<string, MigrationState>
   lanes: OwnerLaneRow[]
+  /** Lanes an earlier, committed migration left: an import keeps their ids, an abort keeps them. */
+  kept: OwnerLaneRow[]
   readonly standby: { value: boolean }
   readonly features: string[]
 }
@@ -35,13 +37,16 @@ function migrateHandlers(s: ServiceState): Handlers {
       if (s.states.get(params.migrationId) !== 'staged')
         throw new OwnerCallError('forbidden', 'Not staged.')
       if (params.section === 'lanes')
-        s.lanes = params.items.map((item) => ({
-          laneId: item.laneId,
-          sessionFile: item.sessionFile,
-          sessionId: null,
-          cwd: item.cwd,
-          repositoryId: 'r',
-        }))
+        s.lanes = params.items.map(
+          (item) =>
+            s.kept.find((row) => row.sessionFile === item.sessionFile) ?? {
+              laneId: item.laneId,
+              sessionFile: item.sessionFile,
+              sessionId: null,
+              cwd: item.cwd,
+              repositoryId: 'r',
+            },
+        )
       return { staged: true, replayed: false }
     },
     'owner.migrate.status': ({ migrationId }) => ({ state: s.states.get(migrationId) ?? 'none' }),
@@ -56,7 +61,7 @@ function migrateHandlers(s: ServiceState): Handlers {
     'owner.migrate.abort': ({ migrationId }) => {
       if (s.states.get(migrationId) !== 'staged') return { state: 'none' }
       s.states.set(migrationId, 'aborted')
-      s.lanes = []
+      s.lanes = [...s.kept]
       return { state: 'aborted' }
     },
   }
@@ -94,6 +99,7 @@ export function fakeService(over: { features?: string[]; standby?: boolean } = {
   const s: ServiceState = {
     states: new Map(),
     lanes: [],
+    kept: [],
     standby: { value: over.standby ?? true },
     features: over.features ?? ['local-mode', 'owner-socket'],
   }
@@ -121,6 +127,11 @@ export function fakeService(over: { features?: string[]; standby?: boolean } = {
     },
     revive: () => {
       dead = false
+    },
+    /** The service already has these lanes, as after a break-glass restore. */
+    keep(rows: OwnerLaneRow[]) {
+      s.kept = rows
+      s.lanes = [...rows]
     },
     committed: () => [...s.states.values()].filter((st) => st === 'committed').length,
     staged: () => [...s.states.values()].filter((st) => st === 'staged').length,

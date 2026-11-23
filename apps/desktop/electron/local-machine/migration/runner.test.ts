@@ -17,6 +17,7 @@ import {
   type MigrationStep,
 } from './journal'
 import type { PostCommitSteps } from './post-commit'
+import { buildPlan } from './plan'
 import { runMigration, type RunnerPorts } from './runner'
 
 const PERMIT = { allowed: true, brand: 'migration-permit' } as const
@@ -107,6 +108,24 @@ describe('runMigration', () => {
     expect(w.localRuntime).toHaveBeenCalledWith(
       expect.objectContaining({ mode: 'daemon', machineId: MACHINE_ID }),
     )
+    expect(w.service.committed()).toBe(1)
+  })
+
+  it('a re-migration after a restore keeps the lane ids the service already has', async () => {
+    const w = world()
+    const lane = buildPlan(planFacts()).sections.lanes!.items[0]!
+    const kept = '00000000-0000-4000-8000-00000000c0de'
+    w.service.keep([
+      {
+        laneId: kept,
+        sessionFile: lane.sessionFile,
+        sessionId: null,
+        cwd: lane.cwd,
+        repositoryId: 'r',
+      },
+    ])
+    const outcome = await runMigration(w.ports, { previous: null, machineId: MACHINE_ID })
+    expect(outcome.kind).toBe('committed')
     expect(w.service.committed()).toBe(1)
   })
 
