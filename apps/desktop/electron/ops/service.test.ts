@@ -99,3 +99,67 @@ it('serves a search and its numbered flag through the same owner-scoped Brain po
     cwd: dir,
   })
 })
+const surface = { kind: 'surface', clientId: 'view', via: 'owner', label: 'This Mac' } as const
+it('reads a departed lane’s redacted audit by its original ref, including equal-time pages', async () => {
+  const time = vi.spyOn(Date, 'now').mockReturnValue(200000)
+  try {
+    await tool(['notify', 'private text'])
+    await tool(['whoami'])
+    forget()
+    const list = (page?: string) =>
+      owner.dispatcher.run(surface, {
+        op: 'audit.list',
+        args: { lane: 'local/session:mine', limit: 1 },
+        page,
+      })
+    const first = await list()
+    expect(first).toMatchObject({ status: 'ok', data: [{ op: 'whoami', at: 200000 }] })
+    if (first.status !== 'ok' || !first.next) throw new Error('expected another page')
+    const second = await list(first.next)
+    expect(second).toMatchObject({
+      status: 'ok',
+      data: [{ op: 'notify', argsSummary: '{"text":"[redacted]"}' }],
+    })
+    expect(second).not.toHaveProperty('next')
+  } finally {
+    time.mockRestore()
+  }
+})
+it('binds an attended confirmation to one surface answer, and redeems it only once', async () => {
+  forget()
+  forget = rememberOpLane(
+    { sessionId: 'mine', workspacePath: dir, client: { activity: { busy: true } } } as LiveSession,
+    'My lane',
+    false,
+  )
+  h.policy.ops = { 'model.set': 'ask' }
+  const argv = ['model', 'set', 'p/m']
+  const planned = await tool(argv)
+  expect(planned.status).toBe('confirm')
+  if (planned.status !== 'confirm') throw new Error('expected ask')
+  const { confirmId, digest, title, message } = planned
+  owner.dispatcher.confirmSeen('mine', { id: 'dialog', title, message })
+  const answer = { type: 'extension_ui_response', id: 'dialog', confirmed: true } as const
+  expect(owner.dispatcher.surfaceAnswered('mine', answer, 'machine')).toBe('forbidden')
+  expect(
+    await owner.dispatcher.run(surface, { op: 'confirm.info', args: { dialogId: 'dialog' } }),
+  ).toMatchObject({ status: 'ok', data: { confirmId, state: 'pending' } })
+  expect(owner.dispatcher.surfaceAnswered('mine', answer, 'surface')).toBe('relay')
+  const redeem = () =>
+    owner.dispatcher.runFromTool('mine', {
+      v: 1,
+      id: 'resubmit',
+      argv,
+      reason: 'needed',
+      confirm: { confirmId, digest },
+      deadlineMs: 10000,
+    })
+  expect(await redeem()).toMatchObject({ status: 'ok' })
+  expect(await redeem()).toMatchObject({ code: 'confirm-expired' })
+  expect(
+    await owner.dispatcher.run(surface, {
+      op: 'confirm.info',
+      args: { confirmId: '00000000-0000-4000-8000-000000000000' },
+    }),
+  ).toMatchObject({ code: 'confirm-expired' })
+})
