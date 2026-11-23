@@ -40,6 +40,7 @@ vi.mock('@phosphor/session-runtime/sandboxes/folders', () => ({
   listSandboxFolders: mocks.list,
 }))
 vi.mock('@phosphor/session-runtime/pi/pi-paths', () => ({
+  piSessionsRoot: () => '/pi',
   sessionDirForCwd: mocks.sessionDir,
   claudeProjectDirForCwd: mocks.claudeDir,
 }))
@@ -130,11 +131,12 @@ it('maps paths before and after rename, repairs JSONL headers and repoints prefe
   expect(mocks.rename).toHaveBeenCalledWith(from, to)
   expect(mocks.rename).toHaveBeenCalledWith('/pi' + from, '/pi' + to)
   expect(mocks.rename).toHaveBeenCalledWith('/cli' + from, '/cli' + to)
-  expect(mocks.repoint).toHaveBeenCalledWith('/pi' + to + '/one.jsonl', from, to)
+  expect(mocks.repoint).toHaveBeenCalledWith('/pi' + to + '/one.jsonl', from, to, '/pi')
   expect(mocks.repoint).toHaveBeenCalledWith(
     '/pi' + to + '/.phosphor/worktrees/lane/two.jsonl',
     from + '/.phosphor/worktrees/lane',
     to + '/.phosphor/worktrees/lane',
+    '/pi',
   )
   expect(mocks.repoint).toHaveBeenCalledTimes(4)
   expect(mocks.stored).toHaveBeenCalledWith([

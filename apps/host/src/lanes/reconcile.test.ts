@@ -358,3 +358,33 @@ it('discovers retained owner worktrees once, including a sandbox reached through
   expect(store.sessionLane(file)).toMatchObject({ repositoryId: repo!.id, cwd: gone })
   expect(store.sessionLane(scratch)).toMatchObject({ repositoryId: repo!.id, cwd: repository })
 })
+
+it('owner discovery skips routine lanes and a recorded predecessor only while its successor is present', async () => {
+  const routine = session(),
+    old = session(),
+    next = session()
+  const input = { repositoryId, cwd: repository }
+  const predecessor = store.ensureLane({ ...input, sessionFile: old })
+  const successor = store.ensureLane({ ...input, sessionFile: next })
+  store.markRemoved(predecessor.laneId)
+  const { DatabaseSync } = await loadSqlite()
+  const db = new DatabaseSync(join(root, 'state', 'state.sqlite'))
+  try {
+    db.prepare("INSERT INTO lane_prefs VALUES (?,'rewound_from',?)").run(
+      successor.laneId,
+      predecessor.laneId,
+    )
+  } finally {
+    db.close()
+  }
+  const ownerScan = () =>
+    reconcile(store, join(root, 'sessions'), undefined, undefined, {
+      roots: [repository],
+      routinePaths: new Set([routine]),
+    })
+  expect((await ownerScan()).added).toBe(0)
+  expect(store.listLanes().map((l) => l.sessionFile)).toEqual([next])
+  unlinkSync(next)
+  expect((await ownerScan()).added).toBe(1)
+  expect(store.listLanes().map((l) => l.laneId)).toEqual([predecessor.laneId])
+})

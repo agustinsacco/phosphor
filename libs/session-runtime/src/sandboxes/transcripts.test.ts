@@ -39,10 +39,10 @@ it('uses Trash for present paths and lets the caller settle failures', async () 
 it('isolates JSONL header failures and ignores non-JSONL files', async () => {
   io.readdir.mockResolvedValue(['a.jsonl', 'notes.txt', 'b.jsonl'])
   io.repoint.mockRejectedValueOnce(new Error('unreadable'))
-  await expect(repointTranscripts('/sessions', '/old', '/new')).resolves.toBeUndefined()
+  await expect(repointTranscripts('/sessions', '/old', '/new', '/pi')).resolves.toBeUndefined()
   expect(io.repoint.mock.calls).toEqual([
-    ['/sessions/a.jsonl', '/old', '/new'],
-    ['/sessions/b.jsonl', '/old', '/new'],
+    ['/sessions/a.jsonl', '/old', '/new', '/pi'],
+    ['/sessions/b.jsonl', '/old', '/new', '/pi'],
   ])
 })
 
