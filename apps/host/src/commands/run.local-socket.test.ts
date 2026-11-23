@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HOST_SIDECARS } from '@phosphor/shared/host-local'
 import { helloProofMessage } from '@phosphor/shared/host-protocol'
 import type * as Runtime from '../session/runtime'
-import { socketHello, socketStream } from '../api/__fixtures__/local-client'
-import { localCredential, writeLocalIdentity } from '../owner/__fixtures__/local-identity'
+import { socketHello } from '../api/__fixtures__/local-client'
+import { writeLocalIdentity } from '../owner/__fixtures__/local-identity'
+import { ownerConnection, result } from '../owner/__fixtures__/owner-connection'
 import { createLocalSocketStarter } from '../owner/socket'
 import { runHost } from './run'
 import type { LocalDaemon } from './run-local'
@@ -34,39 +35,11 @@ async function socketPath() {
   return join(folder, 'run', 'phosphor.sock')
 }
 
-type Identity = Awaited<ReturnType<typeof writeLocalIdentity>>
-
-/** Desktop on the socket: a fresh nonce, a signed owner credential, then ready. */
-async function ownerConnection(path: string, local: Identity, now: () => number) {
-  const { body } = await socketHello(path)
-  const stream = socketStream(path)
-  await stream.opened
-  const nonce = (body as { nonce: string }).nonce
-  const grant = localCredential(
-    {
-      kind: 'owner',
-      machineId: local.machineId,
-      client: local.ownerClient,
-      nonce,
-      iat: Math.floor(now() / 1000),
-    },
-    local.owner.privateKey,
-  )
-  stream.send({ type: 'auth', grant, challenge: 'c'.repeat(64) })
-  await vi.waitFor(() => expect(stream.frames[0]).toMatchObject({ type: 'ready' }))
-  return stream
-}
-
-/** The result frame for call `id`, once it arrives. */
-async function result(stream: ReturnType<typeof socketStream>, id: string) {
-  await vi.waitFor(
-    () => expect(stream.frames.some((f) => f.type === 'result' && f.id === id)).toBe(true),
-    { timeout: 5000 },
-  )
-  return stream.frames.find((f) => f.type === 'result' && f.id === id)
-}
-
-async function expectLease(stream: ReturnType<typeof socketStream>, path: string, active: boolean) {
+async function expectLease(
+  stream: Awaited<ReturnType<typeof ownerConnection>>,
+  path: string,
+  active: boolean,
+) {
   stream.send({
     type: 'call',
     id: 'lease',
