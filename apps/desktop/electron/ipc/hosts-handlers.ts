@@ -123,6 +123,45 @@ function registerLaneReadHandlers(): void {
   )
 }
 
+/** Lane actions on any Host's lane, named by Host and lane id. */
+function registerLaneActionHandlers(): void {
+  handle('hosts:stopLane', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.stop'),
+  )
+  handle('hosts:resumeLane', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.resume'),
+  )
+  handle('hosts:takeControl', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'control.take'),
+  )
+  handle('hosts:releaseControl', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'control.release'),
+  )
+  handle('hosts:markRead', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.markRead'),
+  )
+}
+
+/** Inert until the launch gate decides daemon mode (M3): then This Mac's service joins the manager. */
+function admitLocalMachine(
+  manager: ReturnType<typeof createHostManager>,
+  attention: ReturnType<typeof createHostAttention>,
+): void {
+  onDaemonMode((access) => {
+    const local = startLocalMachine({
+      ...access,
+      uid: process.getuid?.(),
+      attach: (slot) => manager.setLocal(slot),
+      changed: () => manager.changed(),
+      log: tappedLog,
+      traffic: (hostId, ...frame) => trafficLog.frame(hostId, ...frame),
+      onAttention: (hostId, event) => attention.receive(hostId, event),
+      onRoutinesChanged: (hostId) => broadcast('routines:changed', { machine: `host:${hostId}` }),
+    })
+    app.once('will-quit', () => local.stop())
+  })
+}
+
 export function registerHostsHandlers(): void {
   const testEndpoint = e2eHostEndpoint(process.env, app.isPackaged)
   const control = controlClient()
@@ -300,20 +339,7 @@ export function registerHostsHandlers(): void {
       destroyed: () => sender.isDestroyed(),
     }
   }
-  // Inert until the launch gate decides daemon mode (M3): then This Mac's service joins the manager.
-  onDaemonMode((access) => {
-    const local = startLocalMachine({
-      ...access,
-      uid: process.getuid?.(),
-      attach: (slot) => manager.setLocal(slot),
-      changed: () => manager.changed(),
-      log: tappedLog,
-      traffic: (hostId, ...frame) => trafficLog.frame(hostId, ...frame),
-      onAttention: (hostId, event) => attention.receive(hostId, event),
-      onRoutinesChanged: (hostId) => broadcast('routines:changed', { machine: `host:${hostId}` }),
-    })
-    app.once('will-quit', () => local.stop())
-  })
+  admitLocalMachine(manager, attention)
   app.once('will-quit', () => {
     off()
     terminals?.clear()
@@ -327,21 +353,7 @@ export function registerHostsHandlers(): void {
   handle('hosts:createLane', (event, hostId, input) =>
     remoteLanes().create(window(event), hostId, input),
   )
-  handle('hosts:stopLane', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'lane.stop'),
-  )
-  handle('hosts:resumeLane', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'lane.resume'),
-  )
-  handle('hosts:takeControl', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'control.take'),
-  )
-  handle('hosts:releaseControl', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'control.release'),
-  )
-  handle('hosts:markRead', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'lane.markRead'),
-  )
+  registerLaneActionHandlers()
   registerLaneReadHandlers()
   handle('hosts:setFocusedLane', (event, target) => {
     window(event)
