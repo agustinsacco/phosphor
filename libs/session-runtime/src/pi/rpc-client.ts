@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child
 import { EventEmitter } from 'node:events'
 import { JsonlDecoder } from './jsonl'
 import { SessionActivity } from './session-activity'
+import { OpChannel, opChildEnv, opMarkerSet, type OpChannelEvents } from './op-channel'
 import type { RuntimeLog } from '../file-log'
 import type {
   ExtensionUIRequest,
@@ -67,7 +68,7 @@ export interface PiSpawnOptions {
   inheritEnv?: boolean
 }
 
-interface PiRpcClientEvents {
+interface PiRpcClientEvents extends OpChannelEvents {
   /** Private machine-local notification; the session file is never a remote frame. */
   'session-file': [string]
   /** Any protocol event from pi stdout (not responses, not extension UI). */
@@ -103,12 +104,28 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
   private nextRequestId = 1
   private shuttingDown = false
   private killTimer: NodeJS.Timeout | null = null
+  private readonly ops: OpChannel
 
   constructor(
     private readonly options: PiSpawnOptions,
     private readonly runtime: PiRpcRuntime,
   ) {
     super()
+    this.ops = new OpChannel(opMarkerSet(options.env), {
+      write: (response) => {
+        if (this.child && this.alive) this.child.stdin.write(JSON.stringify(response) + '\n')
+      },
+      log: runtime.log,
+      listening: () => this.listenerCount('phosphor-op') > 0,
+      emitRequest: (event) => this.emit('phosphor-op', event),
+      emitLiveness: (subagents) => this.emit('lane-liveness', subagents),
+      emitStop: () => this.emit('phosphor-op-stop'),
+    })
+  }
+
+  /** Op requests the owner has not answered yet. */
+  get pendingOps(): number {
+    return this.ops.pendingCount
   }
 
   private learnedSessionFile: string | undefined
@@ -146,7 +163,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
     const child = spawn(o.binaryPath ?? 'pi', args, {
       cwd: o.cwd,
-      env: o.inheritEnv === false ? { ...o.env } : { ...process.env, ...o.env },
+      env: opChildEnv(o.env, o.inheritEnv !== false),
       stdio: ['pipe', 'pipe', 'pipe'],
       detached: o.ownProcessGroup && process.platform !== 'win32',
     })
@@ -189,6 +206,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
         this.killTimer = null
       }
       const expected = this.shuttingDown
+      this.ops.closed()
       this.failAllPending(new Error(`pi exited (code=${code}, signal=${signal ?? 'none'})`))
       this.emit('exit', { code, signal, expected })
       this.child = null
@@ -197,6 +215,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     child.on('error', (error) => {
       // Spawn failure (e.g. binary vanished): surface as an unexpected exit.
       this.runtime.log('pi', 'spawn failed', { bin: o.binaryPath ?? 'pi', message: error.message })
+      this.ops.closed()
       this.failAllPending(error)
       this.emit('exit', { code: null, signal: null, expected: false })
       this.child = null
@@ -233,7 +252,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       this.runtime.log('pi', command.type, { sessionId: this.options.sessionId, requestId: id })
     }
 
-    return new Promise<RpcResponse<RpcResponseDataMap[T]>>((resolve, reject) => {
+    const sent = new Promise<RpcResponse<RpcResponseDataMap[T]>>((resolve, reject) => {
       this.activity.requested(id, command.type)
       this.pending.set(id, { resolve: resolve as (r: RpcResponse) => void, reject })
       child.stdin.write(JSON.stringify(payload) + '\n', (error) => {
@@ -244,6 +263,9 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
         }
       })
     })
+    // After the abort is written, never after its ack: pi acks only once the tool's editor resolves.
+    if (command.type === 'abort') this.ops.stop()
+    return sent
   }
 
   /** Reply to an extension UI dialog request. Fire-and-forget. */
@@ -351,6 +373,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     }
 
     if (record.type === 'extension_ui_request') {
+      if (this.ops.consume(record as unknown as ExtensionUIRequest)) return
       this.activity.dialog(record as unknown as ExtensionUIRequest)
       this.emit('extension-ui', record as unknown as ExtensionUIRequest)
       return

@@ -196,6 +196,14 @@
       "types": "./src/pi/rpc-client.ts",
       "default": "./src/pi/rpc-client.ts"
     },
+    "./pi/op-channel": {
+      "types": "./src/pi/op-channel.ts",
+      "default": "./src/pi/op-channel.ts"
+    },
+    "./pi/contributions/ops": {
+      "types": "./src/pi/contributions/ops.ts",
+      "default": "./src/pi/contributions/ops.ts"
+    },
     "./pi/session-activity": {
       "types": "./src/pi/session-activity.ts",
       "default": "./src/pi/session-activity.ts"

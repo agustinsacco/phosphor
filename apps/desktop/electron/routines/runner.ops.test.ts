@@ -15,7 +15,6 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('../pi/session-runtime', () => ({ spawnSession: h.spawn }))
 vi.mock('../registry', () => ({ registry: { get: h.get, list: () => [], dispose: h.dispose } }))
-vi.mock('../fs/lane-workspace', () => ({ createLaneWorkspace: vi.fn() }))
 vi.mock('@phosphor/session-runtime/git/git-info', () => ({ gitInfo: h.gitInfo }))
 vi.mock('../claude/accounts', () => ({ bindSession: vi.fn() }))
 vi.mock('../pi/session-accounts', () => ({
@@ -62,6 +61,8 @@ function run(): RoutineRun {
       name: 'Test',
       instructions: 'Report.',
       trusted: true,
+      isolated: false,
+      intent: 'report',
       id: 'routine',
       revision: 1,
       createdAt: Date.now(),

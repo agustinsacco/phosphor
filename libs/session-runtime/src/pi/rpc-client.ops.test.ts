@@ -57,12 +57,14 @@ async function until(check: () => boolean, ms = 2_000): Promise<void> {
 describe('PiRpcClient op channel', () => {
   it('consumes a marker session op request: no extension-ui, not busy, one phosphor-op', async () => {
     const { client, answers, dialogs } = start()
+    const dialog = vi.spyOn(client.activity, 'dialog')
     const op = nextOp(client)
     await client.request({ type: 'prompt', message: script([editor(envelope())]) })
     const event = await op
     expect(event.request).toMatchObject({ id: 'op-1', argv: ['lane', 'list'] })
     expect(dialogs).toEqual([])
-    expect(client.activity.busy).toBe(false)
+    // No dialog flag: the op never holds the lane busy the way a user dialog does.
+    expect(dialog).not.toHaveBeenCalled()
     expect(client.pendingOps).toBe(1)
     event.respond({ v: 1, id: 'op-1', status: 'ok', text: 'first', applies: 'now' })
     event.respond({ v: 1, id: 'op-1', status: 'ok', text: 'second', applies: 'now' })
@@ -89,7 +91,8 @@ describe('PiRpcClient op channel', () => {
     try {
       const { client, dialogs } = start({})
       const state = await client.request({ type: 'get_state' })
-      expect((state.data as unknown as { opsMarker: string | null }).opsMarker).toBeNull()
+      const data = (state as unknown as { data: { opsMarker: string | null } }).data
+      expect(data.opsMarker).toBeNull()
       await client.request({ type: 'prompt', message: script([editor(envelope())]) })
       await until(() => dialogs.length > 0)
     } finally {

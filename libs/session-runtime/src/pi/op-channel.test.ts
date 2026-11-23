@@ -4,6 +4,7 @@ import { JsonlDecoder } from './jsonl'
 import {
   OP_BACKSTOP_GRACE_MS,
   OpChannel,
+  opChildEnv,
   opMarkerSet,
   type OpChannelPorts,
   type OpChannelRequestEvent,
@@ -20,6 +21,7 @@ function channel(marked = true, overrides: Partial<OpChannelPorts> = {}) {
     listening: () => true,
     emitRequest: (event) => requests.push(event),
     emitLiveness: vi.fn(),
+    emitStop: vi.fn(),
     ...overrides,
   }
   return { ops: new OpChannel(marked, ports), written, requests, ports }
@@ -40,6 +42,18 @@ describe('OpChannel', () => {
     expect(opMarkerSet({ PHOSPHOR_OPS: 'v1' })).toBe(true)
     expect(opMarkerSet({ PHOSPHOR_OPS: 'v2' })).toBe(false)
     expect(opMarkerSet(undefined)).toBe(false)
+  })
+
+  it('builds the child env without an inherited marker', () => {
+    vi.stubEnv('PHOSPHOR_OPS', 'v1')
+    try {
+      expect(opChildEnv({ A: '1' }, true)).not.toHaveProperty('PHOSPHOR_OPS')
+      expect(opChildEnv({ A: '1' }, true).PATH).toBe(process.env.PATH)
+      expect(opChildEnv({ A: '1', PHOSPHOR_OPS: 'v1' }, true).PHOSPHOR_OPS).toBe('v1')
+      expect(opChildEnv({ A: '1' }, false)).toEqual({ A: '1' })
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('consumes only the reserved editor title in a marker session', () => {
