@@ -13,6 +13,7 @@ import type { HostRoutines } from '../routines/service'
 import type { HostRuntime } from '../session/runtime'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
 import type { HostTerminals } from '../terminals/service'
+import type { RunServices } from './run-services'
 
 /**
  * Shutdown exits as soon as the attached drain ends. A drain that ended before
@@ -46,6 +47,8 @@ export interface RunParts {
   attachments?: HostAttachments
   store?: HostStore
   release?: () => Promise<void>
+  /** Machine services beside the lane service; each is null until built. */
+  services?: RunServices
 }
 
 /** The parts of run a signal's drain waits on besides the started ones. */

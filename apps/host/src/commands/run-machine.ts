@@ -27,6 +27,7 @@ import {
 import type { ReceiptSink, StartWebPush } from './run-control'
 import type { RunConfig } from './run-state'
 import type { RunParts } from './run-teardown'
+import { createRunServices } from './run-services'
 
 /** What the machine needs from the rest of run: state it opened, and the control link's ports. */
 export interface RunMachinePorts {
@@ -190,6 +191,7 @@ export async function startRunMachine(
   const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
   parts.log = log
   const started = await startRuntime(context, parts, ports, machine, log)
+  parts.services = createRunServices()
   const { live, runtime, routines } = started
   const {
     features: administrationFeatures,
