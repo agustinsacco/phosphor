@@ -26,9 +26,11 @@ vi.mock('../pi/catalogue', () => ({
   invalidatePiCommands: state.invalidatePiCommands,
 }))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: state.listPackages }))
+vi.mock('@phosphor/session-runtime/pi/package-updates', () => ({
+  checkPackageUpdates: state.checkPackageUpdates,
+}))
 vi.mock('../pi/packages', () => ({
   checkClaudeCliUpdate: state.checkClaudeCliUpdate,
-  checkPackageUpdates: state.checkPackageUpdates,
   claudeStatus: state.claudeStatus,
   detectBinaries: state.detectBinaries,
   runClaudeProviderTest: state.runClaudeProviderTest,

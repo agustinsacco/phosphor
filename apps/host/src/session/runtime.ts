@@ -37,6 +37,16 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
     ...(options.leases ? { leases: options.leases } : {}),
     life: state.life,
+    async refreshDirectives(project?: string) {
+      const updates = state.registry.list().flatMap(({ sessionId }) => {
+        const s = state.registry.get(sessionId)
+        return s?.client.alive && s.refreshDirectives
+          ? [s.refreshDirectives(s.client.request.bind(s.client), project)]
+          : []
+      })
+      const results = await Promise.allSettled(updates)
+      return results.filter((r) => r.status === 'rejected' || !r.value).length
+    },
     drain,
     /** The drain's abort-and-save step, with no stop: a service pause's Abort now. */
     async abortTurns(): Promise<string[]> {

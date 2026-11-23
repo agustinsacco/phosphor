@@ -66,6 +66,7 @@ export interface RuntimeOptions {
   dialogs?: 'cancel' | 'forward'
   routines?: SessionServiceRuntime<Delivery>['routines']
   /** The generated directive blocks for the next lane; all on when absent. */
+  agentDirectivesByProject?: () => Record<string, AgentDirectivePrefs>
   agentDirectives?: () => AgentDirectivePrefs
   /** The context budget for the next lane and each settled turn; the machine's when absent. */
   contextBudget?: () => string

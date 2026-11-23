@@ -69,6 +69,7 @@ export interface DaemonLanes {
 }
 
 export interface DaemonBindingPorts {
+  readonly account?: (sessionId: string, accountId: string) => Promise<void>
   /** Every id this machine answers to: the enrolled Host id and the local machine id. */
   readonly selfIds: () => readonly string[]
   readonly lanes: DaemonLanes
@@ -140,6 +141,10 @@ export function daemonLaneBinding(
           if (item.action) {
             // The settle event reaches this contribution and the lane projection in the same tick.
             await Promise.resolve().then(item.action)
+            continue
+          }
+          if (item.kind === 'account' && ports.account) {
+            await ports.account(sessionId, item.accountId)
             continue
           }
           const rpc = deferredRpcCommand(item)

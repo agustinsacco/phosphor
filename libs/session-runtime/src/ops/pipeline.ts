@@ -185,9 +185,14 @@ function reloadPlan(env: PipelineEnv, j: Judged, out: OpHandlerResult) {
   if (j.spec.applies !== 'reload' || !j.self || j.principal.kind !== 'agent')
     return { items, note: '' }
   const withoutReload = items.filter((item) => item.kind !== 'reload')
+  const account = items.some((i) => i.kind === 'account')
+  if (account && j.lane?.facts?.subagentsLive) throw new OpRefusal('busy', REFUSED_RELOAD.live)
   if (j.lane?.facts?.subagentsLive) return { items: withoutReload, note: REFUSED_RELOAD.live }
-  if (!env.deferred.claimReload(j.principal.sessionId))
+  if (!env.deferred.claimReload(j.principal.sessionId)) {
+    if (account) throw new OpRefusal('busy', REFUSED_RELOAD.again)
     return { items: withoutReload, note: REFUSED_RELOAD.again }
+  }
+  if (account) return { items: withoutReload, note: '', terminate: true as const }
   const reload: LaneDeferred = { kind: 'reload', what: firstLine(out.text) || j.spec.name }
   return {
     items: items.some((item) => item.kind === 'reload') ? items : [...items, reload],

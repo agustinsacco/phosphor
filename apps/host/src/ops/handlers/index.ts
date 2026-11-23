@@ -23,6 +23,7 @@ import { skillHandlers } from './skills'
 
 /** What the daemon's domain handlers wrap: its existing services, never copies of them. */
 export interface DaemonHandlerDeps extends LaneHandlerPorts {
+  readonly settingsOps?: import('./settings-access').SettingsOps
   readonly store: HostStore
   /** The lane service `ops.run` sits beside: commands, calls and topics. */
   readonly lanes: LaneService
@@ -61,12 +62,6 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
  * empty stubs; P1, P2, P4b and D9 add theirs.
  */
 const PENDING = {
-  'H2 settings.ts':
-    'settings.read settings.set directives.set instructions.read instructions.edit claude.accounts claude.routing claude.reorder account.move',
-  'H2 mcp.ts': 'mcp.list mcp.check mcp.add mcp.update mcp.enable mcp.disable mcp.remove',
-  'H2 packages.ts':
-    'package.list package.checkUpdates package.install package.update package.remove claude.installProvider claude.installCli',
-  'H2 config.ts': 'config.read config.write',
   'H3 skills.ts':
     'skill.list skill.read skill.create skill.edit skill.install skill.share skill.delete',
   'H3 routines.ts':

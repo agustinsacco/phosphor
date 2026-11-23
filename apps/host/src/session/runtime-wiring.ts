@@ -60,7 +60,7 @@ export function wireRuntimeStartup(
       // Read per lane: Settings saves the toggles to the Host config.
       preferences: () => ({
         agentDirectives: options.agentDirectives?.() ?? DEFAULT_AGENT_DIRECTIVES,
-        agentDirectivesByProject: {},
+        agentDirectivesByProject: options.agentDirectivesByProject?.() ?? {},
       }),
       defaultProvider: async (cwd) => (await readAgentSettings(cwd, agentDir)).defaultProvider,
       packages: (cwd) => listPackages(cwd, agentDir),

@@ -57,10 +57,14 @@ function updateServers(
   servers: Record<string, unknown>,
   change: ConnectorChange,
   before: MachineSettings,
-  cwd?: string,
+  cwd: string | undefined,
+  replace: boolean,
 ) {
   if (change.type === 'mcp.upsert') {
-    if (Object.keys(servers).length >= 128 || (before.connectors?.servers.length ?? 0) >= 128)
+    if (
+      !replace &&
+      (Object.keys(servers).length >= 128 || (before.connectors?.servers.length ?? 0) >= 128)
+    )
       throw new SettingsFailure(
         'bad-request',
         'This settings page supports at most 128 connectors per scope.',
@@ -77,7 +81,32 @@ function updateServers(
       (change.config.url && change.config.command)
     )
       throw new SettingsFailure('bad-request', 'Invalid MCP server configuration.')
-    if (Object.hasOwn(servers, change.name))
+    if (replace) {
+      const existing = servers[change.name]
+      if (!machineRecord(existing))
+        throw new SettingsFailure('bad-request', 'No connector in this scope to replace.')
+      // Never retarget credentials, exposure rules, or unknown config to a new endpoint.
+      if (
+        Object.keys(existing).some(
+          (key) =>
+            ![
+              'url',
+              'type',
+              'args',
+              'command',
+              'cwd',
+              'enabled',
+              'description',
+              'timeout',
+              'exposure',
+            ].includes(key),
+        )
+      )
+        throw new SettingsFailure(
+          'forbidden',
+          'Edit this connector in Settings; it has private or unmanaged fields.',
+        )
+    } else if (Object.hasOwn(servers, change.name))
       throw new SettingsFailure(
         'bad-request',
         'This connector already exists. Remove it explicitly before replacing its configuration.',
@@ -112,6 +141,7 @@ export async function changeConnectorSettings(
   cwd: string | undefined,
   revision: string,
   commitAllowed: () => boolean,
+  replace = false,
 ) {
   if (before.connectors?.legacy)
     throw new SettingsFailure(
@@ -129,7 +159,7 @@ export async function changeConnectorSettings(
       Object.create(null),
       machineRecord(file.raw.mcpServers) ? file.raw.mcpServers : {},
     )
-    updateServers(servers, change, before, cwd)
+    updateServers(servers, change, before, cwd, replace)
     state.invalidateConnectors()
     await saveSettingsFile(
       path,

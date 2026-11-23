@@ -189,7 +189,7 @@ function createMachineCommands(
       live.lanesTopic.repositoriesChanged()
     },
   })
-  const { features, ...administration } = createRunAdministration({
+  const { features, settingsOps, ...administration } = createRunAdministration({
     context,
     configPath: config.path,
     env: machine.env,
@@ -204,6 +204,7 @@ function createMachineCommands(
     live,
     repositories,
     routines,
+    hide: log.hide,
     log: log.write,
   })
   const commands = createLaneCommands({
@@ -229,7 +230,7 @@ function createMachineCommands(
   })
   parts.commands = commands
   const management = laneManagement(administration, binding, parts)
-  return { features, commands, terminals, management }
+  return { features, commands, terminals, management, settingsOps }
 }
 
 /** Owner-authorized lane maintenance uses the same archive, stop, resume and delete services. */
@@ -304,6 +305,7 @@ export async function startRunMachine(
   const { live, runtime } = started
   parts.services = startServices(context, ports, machine, log, started)
   const {
+    settingsOps,
     features: administrationFeatures,
     management,
     commands,
@@ -343,7 +345,14 @@ export async function startRunMachine(
     lanesTopic: live.lanesTopic,
     controllerPresence: createRunControllerPresence(ports.store, live),
   }
-  await bindRunOps(context, parts, ports, { ...started, machine, log, lanes, management })
+  await bindRunOps(context, parts, ports, {
+    ...started,
+    machine,
+    log,
+    lanes,
+    management,
+    settingsOps,
+  })
   started.routines.start()
   return { lanes, accounts: started.accounts }
 }
@@ -358,6 +367,7 @@ async function bindRunOps(
     log: HostLog
     lanes: LaneService
     management: ReturnType<typeof createMachineCommands>['management']
+    settingsOps: ReturnType<typeof createMachineCommands>['settingsOps']
   },
 ) {
   const { ops } = ports
@@ -371,6 +381,7 @@ async function bindRunOps(
     store: ports.store,
     lanes: started.lanes,
     management: started.management,
+    settingsOps: { ...started.settingsOps, headroom: ports.headroom?.handlers },
     live,
     command: (sessionId, rpc) => runtime.command(sessionId, rpc),
     shellEnvironment: started.machine.shellEnvironment ?? null,

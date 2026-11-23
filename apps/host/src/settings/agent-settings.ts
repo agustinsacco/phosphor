@@ -56,7 +56,9 @@ export async function readAgentSettings(
       autoNameLanes: host.config.autoNameLanes !== false,
       // Read at each lane's first prompt (live-policy.ts): clients drop the restart notice.
       namingLive: true,
-      agentDirectives: normalizeAgentDirectives(host.config.agentDirectives),
+      agentDirectives: normalizeAgentDirectives(
+        (cwd && host.config.agentDirectivesByProject?.[cwd]) || host.config.agentDirectives,
+      ),
     },
   }
 }

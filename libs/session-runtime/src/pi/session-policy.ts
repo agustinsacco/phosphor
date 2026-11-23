@@ -1,3 +1,4 @@
+import { createLiveDirectives } from './live-directives'
 import type { AppPrefs, CreateSessionOptions, GitInfo, PiPackageEntry } from '@shared/models'
 import { CONTEXT_FILES_ENV, contextFilesEnvValue } from '@shared/context-files'
 import type { MachineContext } from '@phosphor/shared/machine-prompt'
@@ -36,22 +37,28 @@ export async function prepareSessionPolicy(
   execution: SessionExecution,
   launch: Awaited<ReturnType<typeof prepareSessionLaunch>>,
   runtime: SessionPolicyRuntime,
-): Promise<{ spawnOptions: Omit<PiSpawnOptions, 'cwd'>; accountId?: string }> {
+): Promise<{
+  spawnOptions: Omit<PiSpawnOptions, 'cwd'>
+  accountId?: string
+  refreshDirectives: ReturnType<typeof createLiveDirectives>
+}> {
   const { stub, binaryPath, prefixArgs, extensions } = launch
   const env = { ...launch.env }
   const git = stub ? { isRepo: false } : await runtime.git(options.workspacePath)
   const projectKey = git.mainRepoPath ?? options.workspacePath
   const prefs = runtime.preferences()
-  const directivePrefs = prefs.agentDirectivesByProject[projectKey] ?? prefs.agentDirectives
-  const appendSystemPrompt = composeDirectives({
-    cwd: options.workspacePath,
-    git,
-    prefs: directivePrefs,
-    machine: await runtime.machineContext(),
-    ...(git.isWorktree && git.branch && execution.intent !== 'report'
-      ? { charter: { branch: git.branch } }
-      : {}),
-  })
+  const machine = await runtime.machineContext()
+  const compose = (prefs: ReturnType<SessionPolicyRuntime['preferences']>) =>
+    composeDirectives({
+      cwd: options.workspacePath,
+      git,
+      prefs: prefs.agentDirectivesByProject[projectKey] ?? prefs.agentDirectives,
+      machine,
+      ...(git.isWorktree && git.branch && execution.intent !== 'report'
+        ? { charter: { branch: git.branch } }
+        : {}),
+    })
+  const appendSystemPrompt = compose(prefs)
   const account = await prepareProviderAccount(options, stub, runtime)
   if (account) Object.assign(env, account.env)
   if (!stub) Object.assign(env, runtime.compressionEnvironment())
@@ -70,6 +77,11 @@ export async function prepareSessionPolicy(
   if (!stub) await runtime.resetCompaction()
   return {
     accountId: account?.id,
+    refreshDirectives: createLiveDirectives(
+      projectKey,
+      () => compose(runtime.preferences()),
+      appendSystemPrompt,
+    ),
     spawnOptions: {
       ownProcessGroup: true,
       binaryPath,

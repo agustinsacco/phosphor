@@ -1,3 +1,4 @@
+import { checkPackageUpdates } from '@phosphor/session-runtime/pi/package-updates'
 import {
   chmodSync,
   existsSync,
@@ -14,7 +15,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CLAUDE_CLI_PACKAGE,
   checkClaudeCliUpdate,
-  checkPackageUpdates,
   detectBinaries,
   resolveBinary,
   runClaudeUpdate,

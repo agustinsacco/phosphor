@@ -61,7 +61,9 @@ export function hostAutoNameLanes(
 
 /** The runtime's per-lane readers of the Host config's policy. */
 export function hostLivePolicy(configPath: string, started: HostConfigV1) {
+  const read = lastValidConfig(configPath, started)
   return {
+    agentDirectivesByProject: () => read().agentDirectivesByProject ?? {},
     agentDirectives: hostDirectives(configPath, started),
     contextBudget: hostContextBudget(configPath, started),
   }

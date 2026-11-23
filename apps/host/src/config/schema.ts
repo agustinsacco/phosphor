@@ -31,6 +31,7 @@ export interface HostConfigV1 {
   contextBudget?: string
   /** The generated blocks lanes get at start; an absent key is on. Read at each lane start. */
   agentDirectives?: Partial<AgentDirectivePrefs>
+  agentDirectivesByProject?: Record<string, AgentDirectivePrefs>
   environment?: {
     /** Extra variable names pi receives. */
     pass?: string[]
@@ -67,6 +68,7 @@ const KEYS = {
     'contextBudget',
     'autoNameLanes',
     'agentDirectives',
+    'agentDirectivesByProject',
     'allowRepositoryChanges',
     'environment',
     'accounts',
@@ -113,6 +115,22 @@ function policyErrors(config: Record<string, unknown>): ConfigError[] {
     config.autoNameLanes !== undefined && typeof config.autoNameLanes !== 'boolean'
       ? [{ pointer: '/autoNameLanes', message: 'must be a boolean' }]
       : []
+  const projects = config.agentDirectivesByProject
+  if (
+    projects !== undefined &&
+    (!isRecord(projects) ||
+      Object.entries(projects).some(
+        ([path, prefs]) =>
+          !isPinnedPath(path) ||
+          !isRecord(prefs) ||
+          Object.keys(prefs).length !== AGENT_DIRECTIVE_KEYS.length ||
+          AGENT_DIRECTIVE_KEYS.some((key) => typeof prefs[key] !== 'boolean'),
+      ))
+  )
+    errors.push({
+      pointer: '/agentDirectivesByProject',
+      message: 'must map folder paths to directive switches',
+    })
   const value = config.agentDirectives
   if (value === undefined) return errors
   if (!isRecord(value))

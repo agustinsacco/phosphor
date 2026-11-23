@@ -4,7 +4,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { HostReleaseFeature } from '@phosphor/shared/host-release'
 import type { ReadyOpFlag } from '@phosphor/shared/host-protocol'
 import { parseOpArgv } from '@phosphor/shared/ops-cli'
-import { OP_GAPS } from '@phosphor/shared/ops-catalog'
+import { OP_CATALOG, OP_GAPS } from '@phosphor/shared/ops-catalog'
 import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import { AGENT_OPS_SCHEMA, createAuditLog } from '@phosphor/session-runtime/ops/audit'
 import { confirmPort, createConfirmStore } from '@phosphor/session-runtime/ops/confirm'
@@ -34,6 +34,8 @@ import {
   type DaemonBindingPorts,
   type DaemonLanes,
 } from './binding'
+import { SETTINGS_UNDO_OPS, settingsAreCurrent } from './handlers/settings'
+import { undoCurrent } from './undo-current'
 import { domainHandlers, type DaemonHandlerDeps } from './handlers'
 import { daemonMetaHandlers } from './handlers/meta'
 import { createPolicyFile } from './policy-file'
@@ -198,6 +200,13 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     lanes: ports.daemonLanes,
     db,
     command: ports.command,
+    account: async (sessionId, accountId) => {
+      const id = ports.daemonLanes
+        .list()
+        .find((l) => ports.daemonLanes.sessionFor(l.laneId) === sessionId)?.laneId
+      if (!id || !ports.settingsOps) throw new Error('No live lane to move.')
+      await ports.settingsOps.moveClaudeAccount(id, accountId, () => true)
+    },
   })
   const binding: OpsBinding = {
     // Read per use: a local daemon may enroll while it runs.
@@ -221,6 +230,9 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     redact: argsSummary,
     background: (r, self) => !inverseRequests.has(r) && laneJob(r.op, self),
     archiveIds: () => archiveSelection(domain),
+    catalog: OP_CATALOG.map((spec) =>
+      spec.name === 'package.checkUpdates' ? { ...spec, job: true } : spec,
+    ),
     undo: { run: (principal, id) => undo(principal, id) },
     jobs: jobs.port,
     ...(ports.directory
@@ -231,7 +243,10 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   })
   const undo = createUndo({
     audit,
-    isCurrent: async (entry) => laneUndoCurrent(domain, entry),
+    isCurrent: undoCurrent([
+      [(op) => SETTINGS_UNDO_OPS.has(op), settingsAreCurrent(domain)],
+      [() => true, async (entry) => laneUndoCurrent(domain, entry)],
+    ]),
     run: (principal, request) => {
       inverseRequests.add(request)
       return dispatcher.run(principal, request)
@@ -262,6 +277,7 @@ export interface RunOpsPorts extends Pick<
   | 'store'
   | 'lanes'
   | 'management'
+  | 'settingsOps'
   | 'shellEnvironment'
   | 'enrolledId'
   | 'remote'

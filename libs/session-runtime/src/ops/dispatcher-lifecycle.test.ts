@@ -321,13 +321,25 @@ it('never offers Undo when the audit insert fails', async () => {
   expect(h.calls.audit).toEqual([])
 })
 
-it('holds an account restart until settled and refuses, rather than dropping it, when the slot is unavailable',async()=>{
- const h = createHarness({handlers:{'account.move':async()=>({text:'Moving after this turn.',deferred:[{kind:'account',accountId:'a'}]})}})
- const move={op:'account.move',args:{accountId:'a'}}
- expect(await h.tool(move,{facts:{subagentsLive:true}})).toMatchObject({status:'denied',code:'busy'})
- expect(await h.tool(move)).toMatchObject({status:'ok',terminate:true})
- expect(await h.tool(move)).toMatchObject({status:'denied',code:'busy'})
- expect(h.calls.applied).toEqual([])
- await h.dispatcher.settled('s1',{terminatedBy:'phosphor'})
- expect(h.calls.applied).toEqual([{sessionId:'s1',items:[{kind:'account',accountId:'a'}]}])
+it('holds an account restart until settled and refuses, rather than dropping it, when the slot is unavailable', async () => {
+  const h = createHarness({
+    handlers: {
+      'account.move': async () => ({
+        text: 'Moving after this turn.',
+        deferred: [{ kind: 'account', accountId: 'a' }],
+      }),
+    },
+  })
+  const move = { op: 'account.move', args: { accountId: 'a' } }
+  expect(await h.tool(move, { facts: { subagentsLive: true } })).toMatchObject({
+    status: 'denied',
+    code: 'busy',
+  })
+  expect(await h.tool(move)).toMatchObject({ status: 'ok', terminate: true })
+  expect(await h.tool(move)).toMatchObject({ status: 'denied', code: 'busy' })
+  expect(h.calls.applied).toEqual([])
+  await h.dispatcher.settled('s1', { terminatedBy: 'phosphor' })
+  expect(h.calls.applied).toEqual([
+    { sessionId: 's1', items: [{ kind: 'account', accountId: 'a' }] },
+  ])
 })

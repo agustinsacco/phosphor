@@ -61,7 +61,7 @@ it('lists a pending op once, never also served or a gap, and only for a catalog 
 
 it('has a stub file for every H1–H4 pending op, which serves nothing yet', () => {
   const owned = Object.values(PENDING_HANDLERS).filter((p) => /^H[1-4]$/.test(p.package))
-  expect(new Set(owned.map((p) => p.package))).toEqual(new Set(['H2', 'H3', 'H4']))
+  expect(new Set(owned.map((p) => p.package))).toEqual(new Set(['H3', 'H4']))
   for (const { file } of owned) expect(existsSync(join(import.meta.dirname, file)), file).toBe(true)
 })
 

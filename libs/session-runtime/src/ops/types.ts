@@ -77,6 +77,7 @@ export interface LaneFacts {
 
 /** Work the owner applies to a lane after the op answers (next request, after the run, reload). */
 export type LaneDeferred = (
+  | { readonly kind: 'account'; readonly accountId: string }
   | { readonly kind: 'model'; readonly provider: string; readonly modelId: string }
   | { readonly kind: 'thinking'; readonly level: string }
   | { readonly kind: 'autoCompaction' | 'autoRetry'; readonly enabled: boolean }

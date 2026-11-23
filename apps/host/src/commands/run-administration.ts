@@ -17,6 +17,7 @@ import { createLaneUsage } from '../providers/lane-usage'
 import { createProviderLogins } from '../providers/login'
 import { createAccountMoves } from '../settings/account-moves'
 import { createMachineSettings } from '../settings/service'
+import { createHeadlessTasks } from '../settings/headless-tasks'
 import { createMachineTasks } from '../settings/tasks'
 import { createWrites } from '../features/writes'
 import { createFilesFeature } from '../features/files'
@@ -52,6 +53,7 @@ interface AdministrationOptions {
   live: ReturnType<typeof createLiveLanes>
   repositories: ReturnType<typeof createRepositories>
   routines: HostRoutines
+  hide: HostMachine['log']['hide']
   log: HostMachine['log']['write']
 }
 
@@ -147,26 +149,37 @@ export function createRunAdministration(options: AdministrationOptions) {
       if (summary) options.live.lanesTopic.delta([summary])
     },
   })
+  const moveClaudeAccount = createAccountMoves({
+    accounts,
+    runtime: options.runtime,
+    store: options.store,
+    binding: options.binding,
+  })
+  const programs = { settings, home: context.home, env: options.env, pi: options.pi }
+  const machineTasks = terminals
+    ? createMachineTasks({
+        ...programs,
+        terminals,
+        hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
+        headlessActive: () => task.active(),
+      })
+    : undefined
+  const task: ReturnType<typeof createHeadlessTasks> = createHeadlessTasks(
+    programs,
+    options.hide,
+    () => machineTasks?.active() ?? false,
+  )
   return {
     archives,
     providerLogins,
-    moveClaudeAccount: createAccountMoves({
-      accounts,
-      runtime: options.runtime,
-      store: options.store,
-      binding: options.binding,
-    }),
-    machineTasks: terminals
-      ? createMachineTasks({
-          terminals,
-          settings,
-          home: context.home,
-          env: options.env,
-          pi: options.pi,
-          // Read when asked: this process's own release, never a path from the request.
-          hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
-        })
-      : undefined,
+    moveClaudeAccount,
+    machineTasks,
+    settingsOps: {
+      settings,
+      moveClaudeAccount,
+      task,
+      refreshDirectives: options.runtime.refreshDirectives,
+    },
     writes: createWrites(featureContext),
     deleteLane: createLaneDeletion({
       archiveOwnsCwd: (cwd) => archives.ownsCwd(cwd),
@@ -213,6 +226,7 @@ export function startRunWebPush(
   options: Pick<WebPushOptions, 'authority' | 'lanesTopic' | 'receipt'> & {
     identity: HostIdentity
     controlUrl: string
+    hide: HostMachine['log']['hide']
     log: HostMachine['log']['write']
   },
 ) {

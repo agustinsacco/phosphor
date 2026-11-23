@@ -105,7 +105,7 @@ async function spawnSession(
     if (healed) runtime.log('pi', 'repointed session cwd', { path: options.sessionPath })
   }
   const launch = await runtime.launch()
-  const { spawnOptions, accountId } = await prepareSessionPolicy(
+  const { spawnOptions, accountId, refreshDirectives } = await prepareSessionPolicy(
     options,
     execution,
     launch,
@@ -126,6 +126,7 @@ async function spawnSession(
       ? await runtime.laneReload.capture(options.workspacePath)
       : null
   const session = runtime.registry.create(options.workspacePath, spawnOptions)
+  session.refreshDirectives = refreshDirectives
   const spawned = performance.now()
   const stopOnAbort = (): void => {
     void runtime.registry.dispose(session.sessionId).catch((error: unknown) => {

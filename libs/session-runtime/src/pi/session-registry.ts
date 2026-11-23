@@ -9,6 +9,7 @@ export interface SessionRegistryRuntime {
 }
 
 export interface LiveSession {
+  refreshDirectives?: ReturnType<typeof import('./live-directives').createLiveDirectives>
   sessionId: string
   workspacePath: string
   client: PiRpcClient

@@ -1,8 +1,8 @@
+import { checkPackageUpdates } from '@phosphor/session-runtime/pi/package-updates'
 import { handle } from './handle'
 import { invalidateCatalogueModels, invalidatePiCommands } from '../pi/catalogue'
 import {
   checkClaudeCliUpdate,
-  checkPackageUpdates,
   claudeStatus,
   detectBinaries,
   runClaudeProviderTest,

@@ -16,6 +16,7 @@ const ORDER: readonly LaneDeferred['kind'][] = [
   'steering',
   'follow-up',
   'compact',
+  'account',
   'reload',
   'stop',
   'archive',
