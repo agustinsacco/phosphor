@@ -107,6 +107,7 @@ export function laneFacts(
     title: lane.title ?? '',
     cwd: lane.cwd,
     busy: lane.activity === 'working' || lane.activity === 'needs-input',
+    controlFence: lane.control.fence,
     controller: controller ? { clientId: controller.clientId, label: controller.label } : null,
   }
 }
@@ -137,7 +138,8 @@ export function daemonLaneBinding(
       async apply(sessionId, items: readonly LaneDeferred[]) {
         for (const item of items) {
           if (item.action) {
-            await item.action()
+            // The settle event reaches this contribution and the lane projection in the same tick.
+            await Promise.resolve().then(item.action)
             continue
           }
           const rpc = deferredRpcCommand(item)

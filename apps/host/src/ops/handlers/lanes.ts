@@ -1,7 +1,7 @@
 import { requestPage } from '@phosphor/session-runtime/ops/ports'
 import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, dataResult, pageOffset, pageRows } from '@phosphor/session-runtime/ops/results'
+import { op, dataResult, pageRows } from '@phosphor/session-runtime/ops/results'
 import type { OpHandlerContext, OpHandlerResult } from '@phosphor/session-runtime/ops/types'
 import { PAGED_LANES_LIMITS } from '@phosphor/shared/host-protocol-paged-lanes'
 import type { DaemonHandlerDeps } from './index'
@@ -34,11 +34,10 @@ function listLanes(deps: DaemonHandlerDeps, { folder, state, q }: Filter, c: OpH
             s?.toLowerCase().includes(q.toLowerCase()),
           )),
     )
-  const offset = pageOffset(c)
   const page = pageRows(rows, c, PAGED_LANES_LIMITS.lanesPerPage)
   const lanes = page.data,
     next = page.next ?? null
-  return { ...dataResult({ lanes, next }), ...(next && offset < rows.length ? { next } : {}) }
+  return { ...dataResult({ lanes, next }), ...(next ? { next } : {}) }
 }
 async function readLane(
   deps: DaemonHandlerDeps,
@@ -89,7 +88,7 @@ async function create(deps: DaemonHandlerDeps, a: Create, c: OpHandlerContext) {
     deps.recordCreator(id, c.principal)
     if (a.prompt) await laneCommand(deps, client, { type: 'prompt', message: a.prompt }, target)
   } catch (error) {
-    throw new Error(`Created ${id}, but initialization failed: ${String(error)}`)
+    throw new Error(`Created ${id}, but initialization failed: ${String(error)}`, { cause: error })
   } finally {
     if (c.principal.kind !== 'surface')
       await laneCommand(deps, client, { type: 'control.release' }, target)
@@ -114,7 +113,7 @@ async function lifecycle(
     return (
       !c.signal.aborted &&
       (!lane ||
-        (lane.control.fence === initial.control.fence &&
+        (lane.control.fence === (c.lane?.controlFence ?? initial.control.fence) &&
           lane.activity !== 'working' &&
           lane.activity !== 'needs-input'))
     )

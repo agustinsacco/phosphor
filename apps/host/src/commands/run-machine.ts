@@ -228,7 +228,17 @@ function createMachineCommands(
     log: log.write,
   })
   parts.commands = commands
-  const management = {
+  const management = laneManagement(administration, binding, parts)
+  return { features, commands, terminals, management }
+}
+
+/** Owner-authorized lane maintenance uses the same archive, stop, resume and delete services. */
+function laneManagement(
+  administration: Pick<ReturnType<typeof createRunAdministration>, 'archives' | 'deleteLane'>,
+  binding: ReturnType<typeof createRuntimeLanes>,
+  parts: RunParts,
+) {
+  return {
     archives: administration.archives,
     deleteLane: administration.deleteLane,
     stopLane: binding.stopLane,
@@ -241,7 +251,6 @@ function createMachineCommands(
       return true
     },
   }
-  return { features, commands, terminals, management }
 }
 
 /** The machine services beside the lane service, with the pause over the started lanes. */

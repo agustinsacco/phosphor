@@ -15,7 +15,7 @@ import {
 } from '@phosphor/shared/host-protocol-ops'
 import { OP_CATALOG, type CatalogSpec } from '@phosphor/shared/ops-catalog'
 import type { AuditDecision, LaneEffect, OpFacts } from '@phosphor/shared/ops'
-import { undoRecordFor } from './undo'
+import { inverse, completed, afterAudit, confirmationArgs } from './completion'
 import type { UndoRecord } from './audit'
 import { orderDeferred, type LaneDeferredQueue } from './deferred'
 import {
@@ -148,7 +148,7 @@ async function redeem(
     sessionId: askingSession(j.principal),
     confirm,
     op: j.spec.name,
-    args: j.args,
+    args: confirmationArgs(j),
   })
   if (redeemed === 'approved') return null
   if (redeemed === 'pending')
@@ -170,7 +170,7 @@ async function ask(env: PipelineEnv, j: Judged): Promise<OpOutcome | null> {
     sessionId,
     origin: confirmOrigin(j.principal, j.request, j.askingTitle),
     spec: j.spec,
-    args: j.args,
+    args: confirmationArgs(j),
     ...(j.request.reason !== undefined ? { reason: j.request.reason } : {}),
     items: confirmItems(env.binding, j),
     ...(j.lane ? { lane: j.lane } : {}),
@@ -232,15 +232,6 @@ function withToast(j: Judged, effects: readonly LaneEffect[], text: string): rea
   return [...effects, { kind: 'notify', message, level: 'info' }]
 }
 
-function inverse(env: PipelineEnv, j: Judged, out: OpHandlerResult) {
-  if (out.undo === false || out.deferred?.some((i) => i.action)) return null
-  const record = undoRecordFor(j.spec, j.args, out.before, (op) => env.specs.get(op))
-  return record && out.fingerprint ? { ...record, fingerprint: out.fingerprint } : record
-}
-function completed(env: PipelineEnv, j: Judged, id: string | undefined, out: OpHandlerResult) {
-  if (id) env.binding.audit.complete?.(id, j.spec.name, out.text, inverse(env, j, out))
-}
-
 async function finish(
   env: PipelineEnv,
   j: Judged,
@@ -254,19 +245,7 @@ async function finish(
   const auditId = started ? started.auditId : await audit(env, j, decision, text, record)
   const undo =
     auditId !== undefined && record !== null && env.binding.audit.get(auditId)?.undo === true
-  const items = plan.items.map((item) => {
-    const action = item.action
-    return !action
-      ? item
-      : {
-          ...item,
-          action: async () => {
-            const result = await action()
-            completed(env, j, auditId, result)
-            return result
-          },
-        }
-  })
+  const items = afterAudit(env, j, auditId, plan.items)
   await placeDeferred(env, j, items).catch((error: unknown) => {
     env.deps.log('ops', 'deferred work failed', { op: j.spec.name, error: String(error) })
   })

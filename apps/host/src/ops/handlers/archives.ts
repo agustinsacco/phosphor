@@ -76,6 +76,7 @@ export function archiveHandlers(deps: DaemonHandlerDeps) {
           } catch (error) {
             throw new Error(
               `Purged ${purged.length} of ${ids.length}; stopped at ${id}: ${String(error)}`,
+              { cause: error },
             )
           }
           purged.push(id)

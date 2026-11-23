@@ -68,6 +68,7 @@ export interface LaneFacts {
   readonly cwd: string
   /** A turn is running. */
   readonly busy: boolean
+  readonly controlFence?: number
   /** The connected client in control, if any; surface ops on another lane check it. */
   readonly controller: { readonly clientId: string; readonly label: string } | null
   /** What the lane's own tool reported with this request; absent for any other lane. */
