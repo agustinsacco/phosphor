@@ -12,7 +12,7 @@
     "src/api/server.preservation.test.ts::it[1]": 353,
     "src/api/server.test.ts::file": 1013,
     "src/api/server.test.ts::it[11]": 95,
-    "src/api/server.ts::startApi[1]": 267,
+    "src/api/server.ts::startApi[1]": 185,
     "src/commands/guided-setup.test.ts::beforeEach[1]": 83,
     "src/commands/guided-setup.ts::runGuidedSetup[1]": 162,
     "src/commands/login.ts::runLoginCommand[1]": 182,
