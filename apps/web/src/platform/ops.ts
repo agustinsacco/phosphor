@@ -20,7 +20,9 @@ export function opsHandlers(connection: BrowserHosts['connection']) {
       if (!view.ops) return { status: 'denied', code: 'unsupported', text: OPS_HOST_TOO_OLD }
       const spec = OP_CATALOG.find((s) => s.name === request.op)
       if (!spec) return { status: 'denied', code: 'unsupported', text: 'Unknown agent operation.' }
-      return opsRun(host, request, { write: spec.tier !== 'read' })
+      const tier =
+        typeof spec.tier === 'function' ? spec.tier(request.args, { self: false }) : spec.tier
+      return opsRun(host, request, { write: tier !== 'read' })
     },
   } satisfies Partial<BrowserHandlers>
 }
