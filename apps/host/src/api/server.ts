@@ -14,12 +14,12 @@ import { createKeyset, type Keyset } from './keyset'
 import { createConnection, hostProof, type ApiLog, type ConnectionPorts } from './connection'
 import { createGrantAuth } from './grant-auth'
 import type { LaneService } from '../lanes/service'
-import { createLaneAdapter } from './lanes'
+import { createLaneAdapter, type LaneAdapter } from './lanes'
 import { admitsBrowserOrigin, resolveWebOrigin } from './browser-origin'
 import { createWsUpgrade, rejectTransport } from './ws-upgrade'
 import { createAdapterChain } from './adapter'
 import { createMachineAdapter } from './machine-adapter'
-import { createOwnerAdapter } from '../owner/adapter'
+import { createOwnerAdapter, type OwnerHandlers } from '../owner/adapter'
 import { createOpsAdapter, type OpsAdapterPorts } from '../ops/adapter'
 
 export const API_LIMITS = {
@@ -57,14 +57,30 @@ export function requestStatus(
   return 0
 }
 
-/** A client holds at most `connectionsPerClient` sockets at once. */
+type ClientConnection = { clientId(): string | undefined }
+
+/** A client holds at most `connectionsPerClient` sockets at once, across this listener and the local socket. */
 function admits(
-  connections: Iterable<ReturnType<typeof createConnection>>,
+  connections: Iterable<ClientConnection>,
   clientId: string,
-  limits: ConnectionPorts['limits'],
+  options: Pick<ApiOptions, 'connectionLimits' | 'peers'>,
 ) {
-  const held = [...connections].filter((c) => c.clientId() === clientId).length
-  return held < (limits?.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient)
+  const held = [...connections, ...(options.peers?.() ?? [])].filter(
+    (c) => c.clientId() === clientId,
+  ).length
+  return held < (options.connectionLimits?.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient)
+}
+
+/** Receipts and presence through the run's lane adapter, and this listener's connections. */
+function apiDelivery(
+  adapter: LaneAdapter | undefined,
+  connections: () => Iterable<ClientConnection>,
+) {
+  return {
+    deliver: adapter?.deliver ?? (() => {}),
+    isConnected: adapter?.isConnected ?? (() => false),
+    connections,
+  }
 }
 
 /** A TCP connection's authenticator: control-signed grants for this Host. */
@@ -84,12 +100,14 @@ function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
  * last. The guard answers only machine grants, so it sits ahead of `ops.run`
  * to refuse surface-only ops before the dispatcher sees them.
  */
-export function hostLinks(ops?: OpsAdapterPorts) {
-  return [createOwnerAdapter(), createMachineAdapter(), createOpsAdapter(ops)]
+export function hostLinks(ops?: OpsAdapterPorts, owner?: OwnerHandlers) {
+  return [createOwnerAdapter(owner), createMachineAdapter(), createOpsAdapter(ops)]
 }
 
 function connectionAdapters(options: ApiOptions) {
-  const adapter = options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined
+  const adapter =
+    options.laneAdapter ??
+    (options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined)
   return { adapter, handler: createAdapterChain(hostLinks(options.ops), adapter?.handler) }
 }
 
@@ -101,6 +119,10 @@ interface ApiOptions {
   hostVersion: string
   runtimeEpoch?: string
   lanes?: LaneService
+  /** The run's one lane adapter, shared with the local socket; built here when absent. */
+  laneAdapter?: LaneAdapter
+  /** The local socket's connections, for per-client admission across both listeners. */
+  peers?: () => Iterable<ClientConnection>
   /** Unbound until the Host serves ops; `ops.run` then reaches the lane adapter as before. */
   ops?: OpsAdapterPorts
   key: KeyObject
@@ -234,8 +256,7 @@ export function startApi(options: ApiOptions) {
         limits: options.connectionLimits,
         authenticate: grantAuth(options, keyset, hello),
         log: options.log,
-        admit: (clientId): boolean =>
-          admits(upgrades.connections(), clientId, options.connectionLimits),
+        admit: (clientId): boolean => admits(upgrades.connections(), clientId, options),
       }),
   })
   server.on('upgrade', upgrades.upgrade)
@@ -264,8 +285,7 @@ export function startApi(options: ApiOptions) {
   const unsubscribe = options.authority.onChange(listen)
   listen()
   return {
-    deliver: adapter?.deliver ?? (() => {}),
-    isConnected: adapter?.isConnected ?? (() => false),
+    ...apiDelivery(adapter, upgrades.connections),
     async stop() {
       stopped = true
       unsubscribe()

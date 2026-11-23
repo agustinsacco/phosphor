@@ -14,7 +14,9 @@ import { readLocalMode, readSidecar } from '../config/sidecar'
 import { IdentityFailure } from '../control/identity'
 import { EnrollmentRefused, type ControlLink, type EnrollmentOffer } from '../control/link'
 import { hostStateDirectory } from '../lanes/state-dir'
+import type { LaneService } from '../lanes/service'
 import type { HostStore } from '../lanes/store'
+import type { LaneAdapter } from '../api/lanes'
 import { runLogin } from './login'
 import type { RunContext } from './run'
 import type { RunParts } from './run-teardown'
@@ -47,12 +49,32 @@ export interface LocalDaemon {
   cancelEnrollment(): Promise<void>
 }
 
+/** The machine's lanes once they start: their service and the one lane adapter both listeners share. */
+export interface LocalSocketLanes {
+  service: LaneService
+  adapter: LaneAdapter
+  /** The TCP listener's connections, so `connectionsPerClient` holds across both listeners. */
+  peers(): Iterable<{ clientId(): string | undefined }>
+}
+
+/** The owner socket as run drives it. */
+export interface LocalSocket {
+  stop(): Promise<void>
+  /** Starts serving lanes, ops and the machine guard beside the owner calls. */
+  serveLanes?(lanes: LocalSocketLanes): void
+  /** The socket's connections, counted by the TCP listener's per-client admission. */
+  connections?(): Iterable<{ clientId(): string | undefined }>
+}
+
 /**
  * Where D3's owner socket starts: in local mode once the state store is open,
  * standby included, before the owner lock and lanes. Stopped after teardown
  * has closed everything else.
  */
-export type StartLocalSocket = (daemon: LocalDaemon, store: HostStore) => { stop(): Promise<void> }
+export type StartLocalSocket = (
+  daemon: LocalDaemon,
+  store: HostStore,
+) => LocalSocket | Promise<LocalSocket>
 
 export interface LocalDaemonPorts {
   ownerLock?: OwnerLockPorts
@@ -192,12 +214,17 @@ export function createLocalDaemon(
     daemon,
     enroll: enrollInProcess(context),
     /** Starts the socket seam, then holds start-up until this daemon owns the machine's lanes. */
-    async own(parts: RunParts, store: HostStore, signal: AbortSignal): Promise<void> {
-      const socket = context.startLocalSocket?.(daemon, store)
+    async own(
+      parts: RunParts,
+      store: HostStore,
+      signal: AbortSignal,
+    ): Promise<LocalSocket | undefined> {
+      const socket = await context.startLocalSocket?.(daemon, store)
       if (socket) releaseFirst(parts, () => socket.stop())
       const lock = await acquireWhenOwning(context, owning, ports, signal)
       releaseFirst(parts, () => lock.release())
       owning.log('owner.acquired')
+      return socket
     },
     attach(started: ControlLink) {
       link = started

@@ -278,3 +278,6 @@ export function createLaneAdapter(
     },
   }
 }
+
+/** One lane adapter per run: both listeners hand their connections to it, so receipts and presence are shared. */
+export type LaneAdapter = ReturnType<typeof createLaneAdapter>

@@ -4,6 +4,7 @@ import { setTimeout } from 'node:timers/promises'
 import { parseHeartbeatResponse } from '@phosphor/shared/control-api'
 import type { Receipt } from '@phosphor/shared/host-protocol'
 import { createAuthority, type Authority } from '../api/authority'
+import type { LaneAdapter } from '../api/lanes'
 import { startApi } from '../api/server'
 import type { ControlClient } from '../control/client'
 import { prepareControl, withCommandLock } from '../control/command'
@@ -63,12 +64,21 @@ export function startRunApi(
   context: RunContext,
   parts: RunParts,
   sink: ReceiptSink,
-  options: { control: EnrolledControl; config: RunConfig; epoch: string; lanes?: LaneService },
+  options: {
+    control: EnrolledControl
+    config: RunConfig
+    epoch: string
+    lanes?: LaneService
+    laneAdapter?: LaneAdapter
+    peers?: () => Iterable<{ clientId(): string | undefined }>
+  },
 ) {
   const { control, config } = options
   parts.api = startApi({
     runtimeEpoch: options.epoch,
     lanes: options.lanes,
+    laneAdapter: options.laneAdapter,
+    peers: options.peers,
     authority: control.authority,
     origin: control.url,
     hostId: control.identity.hostId,
@@ -165,6 +175,10 @@ export function createRunLink(
     epoch: string
     stateDirectory: string
     lanes?: LaneService
+    /** The run's one lane adapter, shared with the local socket. */
+    laneAdapter?: LaneAdapter
+    /** The local socket's connections, for the TCP listener's per-client admission. */
+    peers?: () => Iterable<{ clientId(): string | undefined }>
     accounts?: HostClaudeAccounts
   },
 ): ControlLink {
@@ -186,6 +200,8 @@ export function createRunLink(
           config,
           epoch: options.epoch,
           lanes: options.lanes,
+          laneAdapter: options.laneAdapter,
+          peers: options.peers,
         })
         return createRunHeartbeat(context, { control, config, stateDirectory, accounts })
       },

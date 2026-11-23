@@ -31,7 +31,14 @@ import {
   type ReceiptSink,
   type StartWebPush,
 } from './run-control'
-import { createLocalDaemon, runLocalMode, type StartLocalSocket } from './run-local'
+import {
+  createLocalDaemon,
+  runLocalMode,
+  type LocalSocket,
+  type StartLocalSocket,
+} from './run-local'
+import { createLaneAdapter, type LaneAdapter } from '../api/lanes'
+import type { LaneService } from '../lanes/service'
 import { startRunMachine } from './run-machine'
 import { openRunState } from './run-state'
 import { createRunTeardown, type RunParts } from './run-teardown'
@@ -64,6 +71,31 @@ interface RunStart {
 }
 
 /**
+ * One lane adapter for both listeners (V-D2.R3): receipts and presence reach a
+ * client on either, and the socket serves the lanes once they exist.
+ */
+function shareLanes(
+  context: RunContext,
+  parts: RunParts,
+  sink: ReceiptSink,
+  lanes: LaneService | undefined,
+  socket: LocalSocket | undefined,
+): LaneAdapter | undefined {
+  if (!lanes) return undefined
+  const adapter = createLaneAdapter(lanes, {
+    log: (event, fields) => context.log?.('host', event, fields),
+  })
+  sink.deliver = adapter.deliver
+  sink.isConnected = adapter.isConnected
+  socket?.serveLanes?.({
+    service: lanes,
+    adapter,
+    peers: () => parts.api?.connections() ?? [],
+  })
+  return adapter
+}
+
+/**
  * Opens state; in local mode starts the socket seam and waits until the daemon
  * owns the machine's lanes; then starts the machine and builds the control link.
  */
@@ -77,7 +109,7 @@ async function startRun(
   const { config, stateDirectory, store } = await openRunState(context, parts, sink, signal)
   signal.throwIfAborted()
   const local = start.mode ? createLocalDaemon(context, start.mode) : undefined
-  await local?.own(parts, store, signal)
+  const socket = await local?.own(parts, store, signal)
   signal.throwIfAborted()
   const epoch = randomBytes(8).toString('hex')
   // Web Push needs the identity run started with; a later enrollment gets it on the next start.
@@ -87,8 +119,11 @@ async function startRun(
   const ports = { epoch, config, stateDirectory, store, sink, webPush }
   const machine = await startRunMachine(context, parts, ports, signal)
   signal.throwIfAborted()
+  const laneAdapter = shareLanes(context, parts, sink, machine.lanes, socket)
   const link = createRunLink(context, parts, sink, {
     ...machine,
+    laneAdapter,
+    peers: () => socket?.connections?.() ?? [],
     initial: start.initial,
     local: local !== undefined,
     enroll: local?.enroll,
