@@ -99,3 +99,19 @@ it('relays an ordinary dialog answer from any origin', () => {
   expect(service.dialogGuard(lane.laneId, answer, { origin: 'machine' })).toBe('relay')
   expect(service.dialogGuard('no-such-lane', answer, { origin: 'machine' })).toBe('relay')
 })
+
+it.each(['lane.stop', 'lane.archive', 'lane.delete'])('asks about the named controller before %s of a bare lane id', async (op) => {
+  const controller = { clientId: 'other', label: 'My phone', connected: true }
+  const previous = lane.control.controller
+  Object.assign(lane.control, {controller})
+  try {
+    const request = {op, args: {ref: lane.laneId}, reason: 'tidy up'}
+    const result = await service.dispatcher.run({kind: 'local', clientId: 'cli'}, request)
+    expect(result).toMatchObject({status:'confirm', message:expect.stringContaining('controlled by My phone')})
+    Object.assign(lane, {activity:'working'})
+    expect(await service.dispatcher.run({kind:'local', clientId:'cli'}, request)).toMatchObject({status:'denied', code:'busy'})
+  } finally {
+    Object.assign(lane, {activity:'idle'})
+    Object.assign(lane.control, {controller:previous})
+  }
+})
