@@ -28,6 +28,45 @@ function message(id: string, parentId: string | null, body: unknown): Record<str
   return { type: 'message', id, parentId, timestamp: '2026-08-01T10:00:01.000Z', message: body }
 }
 
+/** One row of every kind the tree reads, each field well formed. */
+function wellFormedTranscript(at: string): string[] {
+  const long = 'x'.repeat(500)
+  return [
+    line(HEADER),
+    line({
+      type: 'model_change',
+      id: 'm1',
+      parentId: null,
+      timestamp: at,
+      provider: 'p',
+      modelId: 'm',
+    }),
+    line({
+      type: 'thinking_level_change',
+      id: 't1',
+      parentId: 'm1',
+      timestamp: at,
+      thinkingLevel: 'high',
+    }),
+    line(message('u1', 't1', { role: 'user', content: [{ type: 'text', text: 'hi' }] })),
+    line(
+      message('a1', 'u1', {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'hmm' },
+          { type: 'text', text: 'Reading.' },
+          { type: 'toolCall', id: 'c1', name: 'read', arguments: {} },
+          { type: 'toolCall', id: 'c2', name: 'grep', arguments: {} },
+        ],
+      }),
+    ),
+    line(message('r1', 'a1', { role: 'toolResult', toolName: 'read', content: [] })),
+    line({ type: 'label', id: 'l1', parentId: 'r1', timestamp: at, targetId: 'u1', label: 'cp' }),
+    line({ type: 'compaction', id: 'c1', parentId: 'l1', timestamp: at, summary: long }),
+    line({ type: 'session_info', id: 's1', parentId: 'c1', timestamp: at, name: 'Named' }),
+  ]
+}
+
 describe('readSessionTree', () => {
   let dir: string
   let sessionPath: string
@@ -190,41 +229,7 @@ describe('readSessionTree', () => {
 
   it('reads every field of a well-formed transcript', async () => {
     const at = '2026-08-01T10:00:01.000Z'
-    const long = 'x'.repeat(500)
-    const tree = await treeOf(
-      line(HEADER),
-      line({
-        type: 'model_change',
-        id: 'm1',
-        parentId: null,
-        timestamp: at,
-        provider: 'p',
-        modelId: 'm',
-      }),
-      line({
-        type: 'thinking_level_change',
-        id: 't1',
-        parentId: 'm1',
-        timestamp: at,
-        thinkingLevel: 'high',
-      }),
-      line(message('u1', 't1', { role: 'user', content: [{ type: 'text', text: 'hi' }] })),
-      line(
-        message('a1', 'u1', {
-          role: 'assistant',
-          content: [
-            { type: 'thinking', thinking: 'hmm' },
-            { type: 'text', text: 'Reading.' },
-            { type: 'toolCall', id: 'c1', name: 'read', arguments: {} },
-            { type: 'toolCall', id: 'c2', name: 'grep', arguments: {} },
-          ],
-        }),
-      ),
-      line(message('r1', 'a1', { role: 'toolResult', toolName: 'read', content: [] })),
-      line({ type: 'label', id: 'l1', parentId: 'r1', timestamp: at, targetId: 'u1', label: 'cp' }),
-      line({ type: 'compaction', id: 'c1', parentId: 'l1', timestamp: at, summary: long }),
-      line({ type: 'session_info', id: 's1', parentId: 'c1', timestamp: at, name: 'Named' }),
-    )
+    const tree = await treeOf(...wellFormedTranscript(at))
 
     expect(tree).toEqual({
       sessionId: 'sess-uuid-1',

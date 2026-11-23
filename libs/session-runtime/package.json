@@ -440,6 +440,10 @@
       "types": "./src/pi/session-writer.ts",
       "default": "./src/pi/session-writer.ts"
     },
+    "./pi/session-tree": {
+      "types": "./src/pi/session-tree.ts",
+      "default": "./src/pi/session-tree.ts"
+    },
     "./claude/ledger": {
       "types": "./src/claude/ledger.ts",
       "default": "./src/claude/ledger.ts"
