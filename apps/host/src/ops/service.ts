@@ -49,6 +49,7 @@ import { resourceJobSpec } from './handlers/resources-call'
 import { daemonMetaHandlers } from './handlers/meta'
 import { createPolicyFile } from './policy-file'
 import { createHostResolver } from './remote'
+import { LANE_SELF_UNDO_OPS, laneSelfUndoCurrent } from './handlers/lane-self-undo'
 
 export interface OpsServicePorts extends Omit<DaemonHandlerDeps, 'log' | 'recordCreator' | 'db'> {
   /** The Host state folder: `state.sqlite` and `agent-policy.json`. */
@@ -265,6 +266,10 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
       [(op) => op.startsWith('routine.'), async (entry) => routineUndoCurrent(domain, entry)],
       [(op) => op.startsWith('folder.'), async (entry) => folderUndoCurrent(domain, entry)],
       [(op) => SETTINGS_UNDO_OPS.has(op), settingsAreCurrent(domain)],
+      [
+        (op) => LANE_SELF_UNDO_OPS.has(op),
+        laneSelfUndoCurrent({ resolve: laneBinding.lanes.resolve, store: ports.store }),
+      ],
       [() => true, async (entry) => laneUndoCurrent(domain, entry)],
     ]),
     run: (principal, request) => {
@@ -309,6 +314,10 @@ export interface RunOpsPorts extends Pick<
   | 'remote'
   | 'directory'
   | 'deferredActions'
+  | 'laneRuntime'
+  | 'writes'
+  | 'serviceUpdate'
+  | 'pauseState'
   | 'log'
   | 'now'
 > {

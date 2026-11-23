@@ -42,6 +42,8 @@ import type { OpsAdapterPorts } from '../ops/adapter'
 import type { Reach } from '@phosphor/session-runtime/ops/reach'
 import type { OpsBinding } from '@phosphor/session-runtime/ops/types'
 import { startRunOps } from '../ops/service'
+import { daemonLanePorts } from '../ops/lane-ports'
+import { createRunEndings } from '../ops/lane-reload'
 import type { HostOpsLanePorts } from '../session/contributions/ops'
 import type { EnrolledControl } from './run-control'
 
@@ -92,11 +94,14 @@ async function startRuntime(
   await trash.sweep().catch(() => {})
   const accounts = createRunAccounts(context, ports.stateDirectory, machine.env)
   const leases = runLeases(context, parts)
-  const opsLanes: HostOpsLanePorts = {
+  const opsLanes = {
     service: () => parts.ops ?? null,
     resourceRoot: () => machine.resourceRoot,
-    unattended: new Set(),
-  }
+    unattended: new Set<string>(),
+    endings: createRunEndings(),
+    liveness: (sessionId: string, subagents: number) =>
+      parts.services?.pauses?.liveness(sessionId, subagents),
+  } satisfies HostOpsLanePorts
   const runtime = createHostRuntime(
     { ...machine, log, appServices: ports.appServices, headroom: ports.headroom },
     {
@@ -240,6 +245,8 @@ function createMachineCommands(
     management,
     settingsOps,
     resources: { skills, repositories, routines },
+    laneCommand: binding.command,
+    writes: administration.writes,
   }
 }
 
@@ -318,12 +325,10 @@ export async function startRunMachine(
   const { live, runtime } = started
   parts.services = startServices(context, ports, machine, log, started)
   const {
-    settingsOps,
     features: administrationFeatures,
-    management,
-    resources,
     commands,
     terminals,
+    ...opsCommands
   } = createMachineCommands(context, parts, ports, machine, log, started)
   parts.webPush = await ports.webPush({
     lanesTopic: live.lanesTopic,
@@ -359,15 +364,7 @@ export async function startRunMachine(
     lanesTopic: live.lanesTopic,
     controllerPresence: createRunControllerPresence(ports.store, live),
   }
-  await bindRunOps(context, parts, ports, {
-    ...started,
-    machine,
-    log,
-    lanes,
-    management,
-    settingsOps,
-    resources,
-  })
+  await bindRunOps(context, parts, ports, { ...started, ...opsCommands, machine, log, lanes })
   started.routines.start()
   return { lanes, accounts: started.accounts }
 }
@@ -377,14 +374,15 @@ async function bindRunOps(
   context: RunContext,
   parts: RunParts,
   ports: RunMachinePorts,
-  started: StartedRuntime & {
-    machine: Omit<HostMachine, 'log'>
-    log: HostLog
-    lanes: LaneService
-    management: ReturnType<typeof createMachineCommands>['management']
-    settingsOps: ReturnType<typeof createMachineCommands>['settingsOps']
-    resources: ReturnType<typeof createMachineCommands>['resources']
-  },
+  started: StartedRuntime &
+    Pick<
+      ReturnType<typeof createMachineCommands>,
+      'management' | 'settingsOps' | 'resources' | 'laneCommand' | 'writes'
+    > & {
+      machine: Omit<HostMachine, 'log'>
+      log: HostLog
+      lanes: LaneService
+    },
 ) {
   const { ops } = ports
   if (!ops) return
@@ -410,6 +408,18 @@ async function bindRunOps(
       },
       serialize: (work) => started.resources.repositories.serialize(work),
     }),
+    ...daemonLanePorts({
+      runtime,
+      laneCommand: started.laneCommand,
+      live,
+      endings: started.opsLanes.endings,
+      pauses: () => parts.services?.pauses,
+      env: started.machine.env,
+      home: context.home,
+      platform: context.platform,
+      log: started.log.write,
+    }),
+    ...(started.writes ? { writes: started.writes } : {}),
     slot: ops.slot,
     stateDirectory: ports.stateDirectory,
     configDirectory: dirname(resolve(context.configPath)),
@@ -419,7 +429,7 @@ async function bindRunOps(
     management: started.management,
     settingsOps: { ...started.settingsOps, headroom: ports.headroom?.handlers },
     live,
-    command: (sessionId, rpc) => runtime.command(sessionId, rpc),
+    command: started.laneCommand,
     shellEnvironment: started.machine.shellEnvironment ?? null,
     editing: {
       runtime,
