@@ -37,6 +37,8 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
     ...(options.leases ? { leases: options.leases } : {}),
     life: state.life,
+    /** Lanes with a live pi process. */
+    liveLanes: () => state.registry.list().length,
     async refreshDirectives(project?: string) {
       const updates = state.registry.list().flatMap(({ sessionId }) => {
         const s = state.registry.get(sessionId)

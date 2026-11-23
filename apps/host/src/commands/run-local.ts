@@ -12,7 +12,7 @@ import {
 } from '@phosphor/session-runtime/owner-lock/owner-lock'
 import { OwnerLockBusy, type OwnerLockPorts } from '@phosphor/session-runtime/owner-lock/types'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
-import { readLocalMode, readSidecar } from '../config/sidecar'
+import { readLocalMode, readSidecar, writeSidecar } from '../config/sidecar'
 import { IdentityFailure } from '../control/identity'
 import { EnrollmentRefused, type ControlLink, type EnrollmentOffer } from '../control/link'
 import type { LanePauses } from '../lanes/pause'
@@ -47,6 +47,16 @@ export interface LocalDaemon {
   standby(): boolean
   /** Removes the standby marker durably; run then takes the owner lock and starts its lanes. */
   leaveStandby(): Promise<void>
+  /**
+   * `machine.owner release`, refused while a lane runs: writes the standby
+   * marker durably. True when it did; false when already in standby.
+   */
+  release(): Promise<boolean>
+  /**
+   * After a release's answer: run drains and exits 75, so launchd or systemd
+   * starts it again in standby, without the owner lock.
+   */
+  restartInStandby(): void
   /** Null in standby and during start-up. */
   link(): ControlLink | null
   /** `machine.enroll begin`: refused in standby (N13) and while enrolled. */
@@ -91,7 +101,12 @@ export type StartLocalSocket = (
 export interface LocalDaemonPorts {
   leases?: LocalDaemon['leases']
   ownerLock?: OwnerLockPorts
+  /** Lanes with a live pi process; a release waits for none. */
+  liveLanes?(): number
 }
+
+/** `machine.owner release` while lanes run. */
+export class ReleaseRefused extends Error {}
 
 /** Runs `step` before the release run already has, which always runs too. */
 function releaseFirst(parts: RunParts, step: () => Promise<void>) {
@@ -136,6 +151,16 @@ async function removeStandby(state: string) {
   await unlink(join(state, HOST_SIDECARS.standby)).catch((error: unknown) => {
     if (!errnoIs(error, 'ENOENT')) throw error
   })
+  await syncFolder(state)
+}
+
+/** Writes the standby marker, then syncs its folder so it survives a crash. */
+async function writeStandby(state: string, uid: number | undefined) {
+  writeSidecar(state, HOST_SIDECARS.standby, { version: 1 }, { uid, known: [] })
+  await syncFolder(state)
+}
+
+async function syncFolder(state: string) {
   const folder = await open(state, 'r')
   try {
     await folder.sync()
@@ -199,6 +224,8 @@ export function createLocalDaemon(
   const state = hostStateDirectory(context.env, context.home)
   let link: ControlLink | null = null
   let leave: () => void = () => {}
+  let restart: () => void = () => {}
+  const restartRequested = new Promise<void>((resolve) => (restart = resolve))
   const owning: Owning = {
     // A marker this Host cannot read still holds it back: never acquire while one exists.
     standby: () =>
@@ -216,6 +243,18 @@ export function createLocalDaemon(
       owning.log('owner.standby_left')
       leave()
     },
+    async release() {
+      if (owning.standby()) return false
+      const live = ports.liveLanes?.() ?? 0
+      if (live > 0)
+        throw new ReleaseRefused(
+          `Stop this machine's ${live} running ${live === 1 ? 'lane' : 'lanes'} first.`,
+        )
+      await writeStandby(state, context.uid)
+      owning.log('owner.standby_entered')
+      return true
+    },
+    restartInStandby: () => restart(),
     link: () => link,
     async beginEnrollment() {
       if (owning.standby()) throw new EnrollmentRefused('standby')
@@ -226,6 +265,8 @@ export function createLocalDaemon(
   }
   return {
     daemon,
+    /** Resolves once a release asked run to exit for a restart in standby. */
+    restartRequested,
     enroll: enrollInProcess(context),
     /**
      * Starts the socket seam, then holds start-up until this daemon owns the

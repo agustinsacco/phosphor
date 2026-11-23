@@ -100,6 +100,7 @@ function execute(env: Record<string, string>, owner?: (event: OpChannelRequestEv
     }),
     routineClient: vi.fn<HostRuntime['routineClient']>().mockReturnValue(client),
     stopRoutine: vi.fn<HostRuntime['stopRoutine']>().mockImplementation(() => client.dispose()),
+    liveLanes: () => 0,
     refreshDirectives: vi.fn(async () => 0),
     abortTurns: vi.fn<HostRuntime['abortTurns']>(async () => []),
     mcpControl: vi.fn<HostRuntime['mcpControl']>(),

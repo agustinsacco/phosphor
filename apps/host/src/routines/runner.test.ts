@@ -135,6 +135,7 @@ async function start() {
     stopRoutine: vi.fn<HostRuntime['stopRoutine']>().mockImplementation(async () => {
       expect(isRoutineSession(sessionId)).toBe(true)
     }),
+    liveLanes: () => 0,
     refreshDirectives: vi.fn(async () => 0),
     abortTurns: vi.fn<HostRuntime['abortTurns']>(async () => []),
     mcpControl: vi.fn<HostRuntime['mcpControl']>(),

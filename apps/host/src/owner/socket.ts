@@ -23,7 +23,12 @@ import { EnrollmentRefused } from '../control/link'
 import { publicIdentity } from '../control/signer'
 import { runServiceFeatures } from '../commands/run-services'
 import type { RunContext } from '../commands/run'
-import type { LocalDaemon, LocalSocket, StartLocalSocket } from '../commands/run-local'
+import {
+  ReleaseRefused,
+  type LocalDaemon,
+  type LocalSocket,
+  type StartLocalSocket,
+} from '../commands/run-local'
 import { answerPauseCall, PAUSE_NONE, type LanePauses } from '../lanes/pause'
 import type { HostStore } from '../lanes/store'
 import { readUpdateResult } from '../update/health'
@@ -32,7 +37,7 @@ import { createAppServices, type AppServices } from '../session/app-services'
 import { HOST_VERSION } from '../version'
 import { createOwnerAdapter, OwnerCallRefused, type OwnerHandlers } from './adapter'
 import { leaseHandlers } from './lease'
-import { localStatus } from './status'
+import { localStatus, ownerLockStatus } from './status'
 
 /**
  * The socket paths `run` tries, in order: `$XDG_RUNTIME_DIR` on Linux, then
@@ -107,6 +112,20 @@ function daemonHandlers(
       throw new OwnerCallRefused('unsupported', 'This Phosphor service runs no lanes yet.')
     },
     'machine.local': (_params, call) => localStatus(statusPorts, call.principal),
+    'machine.owner': async (params) => {
+      let released = false
+      try {
+        if (params.action === 'release') released = await daemon.release()
+        else if (daemon.standby()) await daemon.leaveStandby()
+      } catch (error) {
+        if (error instanceof ReleaseRefused) throw new OwnerCallRefused('forbidden', error.message)
+        throw error
+      }
+      const status = await ownerLockStatus(statusPorts)
+      // The answer goes out in this turn's microtasks; the restart's drain closes the socket.
+      if (released) setImmediate(() => daemon.restartInStandby())
+      return status
+    },
     'machine.identity.reload': async () => {
       await daemon.link()?.reload()
       return { mode: daemon.link()?.mode() ?? 'local' }

@@ -35,6 +35,19 @@ function enrollment(
   return { enrolled: null }
 }
 
+/** The owner lock as `machine.local` and `machine.owner` report it. */
+export async function ownerLockStatus(
+  ports: Pick<LocalStatusPorts, 'ownerLock' | 'daemon'>,
+): Promise<OwnerLockStatus> {
+  const lock = await ports.ownerLock()
+  return {
+    held: lock !== null,
+    holder: lock?.owner ?? null,
+    pid: lock?.pid ?? null,
+    standby: ports.daemon.standby(),
+  }
+}
+
 /**
  * `machine.local`. A `local` principal reads the machine id, version and mode
  * only; the owner also reads enrollment, the owner lock and the features.
@@ -52,13 +65,7 @@ export async function localStatus(
     mode: link?.mode() ?? 'local',
   }
   if (principal.kind !== 'owner') return base
-  const lock = await ports.ownerLock()
-  const ownerLock: OwnerLockStatus = {
-    held: lock !== null,
-    holder: lock?.owner ?? null,
-    pid: lock?.pid ?? null,
-    standby: ports.daemon.standby(),
-  }
+  const ownerLock = await ownerLockStatus(ports)
   return {
     ...base,
     ...(ports.appServices ? { appServices: ports.appServices() } : {}),

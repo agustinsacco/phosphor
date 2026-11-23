@@ -51,6 +51,8 @@ export interface RunParts {
   attachments?: HostAttachments
   store?: HostStore
   release?: () => Promise<void>
+  /** Resolves once `machine.owner release` asked run to exit for a restart in standby. */
+  restartInStandby?: Promise<void>
   /** Machine services beside the lane service; each is null until built. */
   services?: RunServices
   /** Agent control: its audit connection closes before the store. */

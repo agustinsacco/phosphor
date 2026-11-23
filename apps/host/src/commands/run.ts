@@ -24,6 +24,7 @@ import {
 import { StateFailure } from '../lanes/state-dir'
 import type { reconcile } from '../lanes/reconcile'
 import type { LocalModeFile } from '@phosphor/shared/host-local'
+import { EXIT } from '../checks'
 import type { ControlLink } from '../control/link'
 import {
   createReceiptSink,
@@ -144,8 +145,10 @@ async function startRun(
     ? createLocalDaemon(context, start.mode, {
         leases: () =>
           parts.socketLanes && !parts.runtimeDrain ? parts.runtime?.leases : undefined,
+        liveLanes: () => parts.runtime?.liveLanes() ?? 0,
       })
     : undefined
+  parts.restartInStandby = local?.restartRequested
   const owned = await local?.own(parts, store, opened.config, signal)
   const { socket, config } = owned ?? { socket: undefined, config: opened.config }
   signal.throwIfAborted()
@@ -195,6 +198,16 @@ async function startRun(
  * removed Host's heartbeat exits 77. With it, run starts unenrolled and a 410
  * stops only the TCP API.
  */
+/** Run's exit: the link's, or 75 after a drain once a release asks to restart in standby. */
+async function untilRestart(link: ControlLink, restart: Promise<void> | undefined) {
+  if (!restart) return link.run()
+  const RESTART = Symbol('restart')
+  const first = await Promise.race([link.run(), restart.then(() => RESTART)])
+  if (typeof first === 'number') return first
+  await link.drain()
+  return EXIT.tempfail
+}
+
 async function runHostCommand(context: RunContext): Promise<number> {
   const parts: RunParts = {}
   const teardown = createRunTeardown(parts)
@@ -237,7 +250,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
     initAbort.signal.throwIfAborted()
     if (!link) throw new Error('Control link was not initialized.')
     link.start()
-    return await link.run()
+    return await untilRestart(link, parts.restartInStandby)
   } catch (error) {
     if (error === initAbort.signal.reason && initAbort.signal.aborted) {
       teardown.abortedCleanly()
