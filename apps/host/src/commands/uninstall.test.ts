@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -20,7 +21,7 @@ function setup() {
   const f = fixture()
   fixtures.push(f)
   for (const path of ['.config/phosphor-host', '.local/state/phosphor-host']) {
-    mkdirSync(join(f.home, path), { recursive: true })
+    mkdirSync(join(f.home, path), { recursive: true, mode: 0o700 })
     writeFileSync(join(f.home, path, 'marker'), 'keep')
   }
   return f
@@ -213,4 +214,21 @@ it('refuses purge before logout or service changes if state contains foreign fil
   expect(logout.run).not.toHaveBeenCalled()
   expect(readFileSync(join(f.home, '.local/state/phosphor-host/marker'), 'utf8')).toBe('keep')
   expect(existsSync(f.lib)).toBe(true)
+})
+
+it.each(['public state', 'shared log folder'])('refuses purge of a %s', async (kind) => {
+  const f = setup()
+  const state = join(f.home, '.local/state/phosphor-host')
+  rmSync(join(state, 'marker'))
+  if (kind === 'public state') chmodSync(state, 0o750)
+  else {
+    mkdirSync(join(state, 'logs'), { mode: 0o700 })
+    writeFileSync(join(state, 'logs/runner.log'), 'foreign')
+  }
+  expect(await runUninstall(f.context, true, true)).toBe(75)
+  expect(logout.run).not.toHaveBeenCalled()
+  expect(existsSync(f.lib)).toBe(true)
+  expect(existsSync(state)).toBe(true)
+  if (kind === 'shared log folder')
+    expect(readFileSync(join(state, 'logs/runner.log'), 'utf8')).toBe('foreign')
 })
