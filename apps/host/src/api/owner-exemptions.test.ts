@@ -60,7 +60,17 @@ async function host(kind: Kind) {
       f.cleanup()
     },
   })
-  const commands = createLaneCommands({ ...f.ports, terminals, attachments })
+  // Receipts reach the connection through the adapter, as in production, which frees its slots.
+  let adapter: ReturnType<typeof createLaneAdapter> | undefined
+  const commands = createLaneCommands({
+    ...f.ports,
+    terminals,
+    attachments,
+    deliver: (clientId, receipt, connectionId) => {
+      f.ports.deliver(clientId, receipt, connectionId)
+      adapter?.deliver(clientId, receipt, connectionId)
+    },
+  })
   const service = {
     terminals,
     epoch: 'e',
@@ -85,7 +95,8 @@ async function host(kind: Kind) {
     bufferedBytes: () => 0,
   }
   const client = { id: f.one.id, label: f.one.label }
-  const handler = createLaneAdapter(service).handler({
+  adapter = createLaneAdapter(service)
+  const handler = adapter.handler({
     connectionId: randomUUID(),
     client,
     principal: principal(kind, client.id),
@@ -220,7 +231,8 @@ describe('answer deadline for bash and compact', () => {
     const requestId = h.submit(op)
     await vi.waitFor(() => expect(h.f.pending).toHaveLength(1))
     await vi.advanceTimersByTimeAsync(10 * HOST_LIMITS.commandAnswerMs)
-    expect(h.f.last(requestId)?.status).toBe('pending')
+    expect(h.f.last(requestId)).toBeUndefined()
+    expect(h.f.store.getReceipt(requestId, h.f.one.id)?.status).toBe('pending')
     h.f.finish(0)
     await vi.waitFor(() => expect(h.f.last(requestId)?.status).toBe('done'))
   })
@@ -252,6 +264,6 @@ describe('answer deadline for bash and compact', () => {
     // pi's late answer is logged, never a second receipt.
     h.f.finish(0)
     await vi.waitFor(() => expect(h.f.logs.map((l) => l.message)).toContain('lane.command_late'))
-    expect(h.f.receipts(requestId).map((r) => r.status)).toEqual(['pending', 'unknown'])
+    expect(h.f.receipts(requestId).map((r) => r.status)).toEqual(['unknown'])
   })
 })
