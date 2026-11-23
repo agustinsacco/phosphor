@@ -44,6 +44,7 @@ function add(deps: DaemonHandlerDeps, create: boolean) {
       if (create)
         throw new Error(
           `Created the folder on disk but could not add it: ${e instanceof Error ? e.message : 'unavailable'}`,
+          { cause: e },
         )
       throw e
     }
