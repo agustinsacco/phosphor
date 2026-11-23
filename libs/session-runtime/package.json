@@ -483,6 +483,18 @@
     "./host-install/lock-retirement": {
       "types": "./src/host-install/lock-retirement.ts",
       "default": "./src/host-install/lock-retirement.ts"
+    },
+    "./ops/types": {
+      "types": "./src/ops/types.ts",
+      "default": "./src/ops/types.ts"
+    },
+    "./ops/reach": {
+      "types": "./src/ops/reach.ts",
+      "default": "./src/ops/reach.ts"
+    },
+    "./owner-lock/types": {
+      "types": "./src/owner-lock/types.ts",
+      "default": "./src/owner-lock/types.ts"
     }
   },
   "nx": {
