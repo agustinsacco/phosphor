@@ -100,3 +100,16 @@ describe('preference backend', () => {
     expect(JSON.stringify(state.stores[1]?.data)).not.toContain(host)
   })
 })
+
+it('remembers only a valid local directory id, including across a sign-out; null clears it', async () => {
+  const { getLocalEnrolledId: read, setLocalEnrolledId: write } = await import('./backend')
+  expect(read()).toBeUndefined()
+  const alias = randomUUID()
+  write(alias)
+  expect(read()).toBe(alias)
+  expect(state.stores[0]?.name).toBe('remote-clients')
+  write('../not-an-id')
+  expect(read()).toBe(alias)
+  write(null)
+  expect(read()).toBeUndefined()
+})

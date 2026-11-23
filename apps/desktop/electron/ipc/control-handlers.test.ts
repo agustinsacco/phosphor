@@ -83,3 +83,20 @@ it.each([200, 404])('PATCHes the enrolled machine reach route (HTTP %s)', async 
   expect(url.pathname).toBe(`/api/v1/machines/${id}/reach`)
   expect(options).toMatchObject({ method: 'PATCH', body: '{"enabled":false}' })
 })
+
+it('drops only the local alias from the renderer directory, leaving the raw control reply intact', async () => {
+  const { desktopDirectory } = await import('../hosts/dedupe')
+  const { controlClient } = await import('./control-handlers')
+  const { MACHINE } =
+    await import('../../../../libs/client-ui/src/features/machines/__fixtures__/control')
+  const other = { ...MACHINE, id: '22222222-2222-4222-8222-222222222222' }
+  const list = { ok: true as const, machines: [MACHINE, other], serverTime: MACHINE.enrolledAt }
+  vi.spyOn(controlClient(), 'machines').mockResolvedValue(list)
+  desktopDirectory.set(MACHINE.id)
+  try {
+    expect(await invoke('control:machines')).toEqual({ ...list, machines: [other] })
+    expect(list.machines).toHaveLength(2)
+  } finally {
+    desktopDirectory.set(null)
+  }
+})

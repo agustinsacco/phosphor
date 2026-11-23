@@ -1,11 +1,11 @@
-import { createDirectoryDedupe } from './dedupe'
+import { DirectoryDedupe } from './dedupe'
 import type { MachinesResponse } from '@shared/control-api'
 import type { ControlResult, HostsSnapshot } from '@shared/ipc'
 import type { createHostConnection } from './connection'
 import type { HostConnectionSnapshot } from '@phosphor/host-client/connection'
 
 export type HostManagerPorts = {
-  directory?: ReturnType<typeof createDirectoryDedupe>
+  directory?: DirectoryDedupe
   testEndpoint?: string
   user: () => string | null
   clientId: () => string | null
@@ -29,7 +29,7 @@ export interface LocalHostSlot {
 }
 
 export interface HostManagerState {
-  directory: ReturnType<typeof createDirectoryDedupe>
+  directory: DirectoryDedupe
   local?: LocalHostSlot & { connection: ReturnType<typeof createHostConnection> }
   connections: Map<
     string,
@@ -49,7 +49,7 @@ export interface HostManagerState {
 
 export function createHostManagerState(
   user: string | null,
-  directory = createDirectoryDedupe(),
+  directory = new DirectoryDedupe(),
 ): HostManagerState {
   return {
     directory,

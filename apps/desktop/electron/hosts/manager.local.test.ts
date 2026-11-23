@@ -167,7 +167,8 @@ it('clearing the slot or stopping the manager closes the local connection', asyn
 
 it('holds first-launch admission until the owner identifies itself; never opens TCP for the alias', async () => {
   const t = setup({ machines: 2 })
-  const [self, other] = t.list.map((m) => m.id)
+  const self = t.list[0]!.id,
+    other = t.list[1]!.id
   const local = fakeConnection(1)
   t.manager.directory(undefined)
   t.manager.setLocal({ hostId: LOCAL, label: 'This Mac', create: () => local })
@@ -190,7 +191,8 @@ it('holds first-launch admission until the owner identifies itself; never opens 
 
 it('uses the remembered alias before the local socket is ready, admitting only other machines', async () => {
   const t = setup({ machines: 2 })
-  const [self, other] = t.list.map((m) => m.id)
+  const self = t.list[0]!.id,
+    other = t.list[1]!.id
   t.manager.directory(self)
   await drain()
   expect(t.remote.mock.calls.map(([id]) => id)).toEqual([other])

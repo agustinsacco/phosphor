@@ -1,10 +1,11 @@
 import { expect, it, vi } from 'vitest'
+import { monitorLocalEnrollment } from './local-enroll-monitor'
 import { syncLocalEnrollment } from './local-enroll'
 
 function fixture() {
   const offer = {
     userCode: 'BCDFGHJK',
-    fingerprint: '0123 4567 89ab cdef',
+    fingerprint: '0123-4567-89ab-cdef',
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
   }
   const status = { machineId: 'mac', mode: 'local', enrolled: null, ownerLock: { standby: false } }
@@ -91,5 +92,66 @@ it('in standby or signed out, reads identity only', async () => {
     await syncLocalEnrollment({ ...t.p, user: signedOut ? null : 'a' })
     expect(t.call).toHaveBeenCalledTimes(1)
     expect(t.lookupEnrollment).not.toHaveBeenCalled()
+  }
+})
+
+it('standby does not erase a remembered id or open the directory before the link starts', async () => {
+  const t = fixture()
+  t.status.ownerLock.standby = true
+  await syncLocalEnrollment(t.p)
+  expect(t.p.directory).not.toHaveBeenCalled()
+  expect(t.p.remember).not.toHaveBeenCalled()
+})
+
+it('watches account and ready changes in either order; a timer only observes, and quit stops it', async () => {
+  vi.useFakeTimers()
+  const t = fixture()
+  let user: string | null = null
+  let ownerLocal = false
+  let connectionToken = 'first'
+  const snapshot = () => ({
+    state: 'ready' as const,
+    ownerLocal,
+    connectionToken,
+    capabilities: ['sessions.read' as const],
+    lanes: [],
+    repositories: [],
+  })
+  const monitor = monitorLocalEnrollment({
+    ...t.p,
+    user: () => user,
+    local: () => ({ hostId: t.p.hostId, connection: { snapshot, call: t.call } }),
+  })
+  try {
+    monitor.changed()
+    expect(t.call).not.toHaveBeenCalled()
+    ownerLocal = true
+    monitor.changed()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.approveEnrollment).not.toHaveBeenCalled()
+    user = 'a'
+    monitor.changed()
+    monitor.changed()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.approveEnrollment).toHaveBeenCalledTimes(1)
+    Object.assign(t.status, { mode: 'enrolled', enrolled: { hostId: 'enrolled-id' } })
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(t.p.remember).toHaveBeenLastCalledWith('enrolled-id')
+    user = 'b'
+    monitor.changed()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.p.notice).toHaveBeenCalledWith(expect.stringContaining('another account'))
+    connectionToken = 'second'
+    monitor.changed()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.p.control.machines).toHaveBeenCalledTimes(2)
+    expect(t.approveEnrollment).toHaveBeenCalledTimes(1)
+    monitor.stop()
+    t.call.mockClear()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(t.call).not.toHaveBeenCalled()
+  } finally {
+    monitor.stop()
+    vi.useRealTimers()
   }
 })
