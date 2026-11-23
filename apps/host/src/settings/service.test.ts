@@ -176,6 +176,20 @@ describe('machine-owned settings service', () => {
     expect(result.ok).toBe(false)
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ compaction: 'malformed' })
   })
+  it('sets and clears context file defaults through Host policy, never pi settings', async () => {
+    const f = await fixture()
+    for (const contextFiles of [{ claude: true, agents: false }, null]) {
+      const result = await f.patch(
+        'agent',
+        { type: 'agent.patch', patch: { contextFiles } },
+        (await f.read('agent')).revision,
+      )
+      expect(result.ok).toBe(true)
+      const config = JSON.parse(await readFile(f.configPath, 'utf8'))
+      expect(config.contextFiles).toEqual(contextFiles ?? undefined)
+      expect((await f.read('agent')).agent?.contextFiles).toEqual(contextFiles ?? undefined)
+    }
+  })
   it('saves Host policy separately without changing the running config or repository list', async () => {
     const f = await fixture()
     const before = await f.read('agent')

@@ -131,16 +131,13 @@ describe('policy', () => {
     await policyImporter(host.ports).apply(section, host.context())
     expect(config()).toMatchObject({
       contextBudget: '300k',
+      contextFiles: section.contextFiles,
       autoNameLanes: false,
       agentDirectives: directives,
       agentDirectivesByProject: section.directivesByFolder,
       repositories: [],
     })
     expect(JSON.parse(readFileSync(headroom(), 'utf8'))).toMatchObject({ enabled: true })
-    expect(host.events).toContainEqual({
-      event: 'owner.migrate.context_files_dropped',
-      fields: { claude: false, agents: true },
-    })
   })
 
   it('merge fills only what the daemon has not set, Headroom included', async () => {
@@ -151,6 +148,7 @@ describe('policy', () => {
         pi: { executable: '/usr/bin/pi' },
         repositories: [],
         autoNameLanes: true,
+        contextFiles: { claude: true, agents: false },
         agentDirectivesByProject: { '/work/a': directives },
       }),
       { mode: 0o600 },
@@ -160,6 +158,7 @@ describe('policy', () => {
     expect(config()).toMatchObject({
       contextBudget: '300k',
       autoNameLanes: true,
+      contextFiles: { claude: true, agents: false },
       agentDirectivesByProject: { '/work/a': directives },
     })
     expect(JSON.parse(readFileSync(headroom(), 'utf8'))).toMatchObject({ enabled: false })

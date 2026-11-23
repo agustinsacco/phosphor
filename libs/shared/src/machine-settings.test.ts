@@ -233,6 +233,21 @@ describe('machine settings boundaries', () => {
     ).toBeNull()
   })
 
+  it('accepts only a complete contextFiles policy or a clear, without a repository', () => {
+    const prefs = { claude: false, agents: true }
+    const change = (contextFiles: unknown) => ({ type: 'agent.patch', patch: { contextFiles } })
+    for (const value of [null, prefs]) {
+      expect(patch(change(value), 'agent')).toBeTruthy()
+      expect(patch(change(value), 'agent', { repositoryId })).toBeNull()
+    }
+    for (const value of [
+      {},
+      { claude: true },
+      { ...prefs, agents: 'yes' },
+      { ...prefs, extra: true },
+    ])
+      expect(patch(change(value), 'agent')).toBeNull()
+  })
   it('keeps namingLive only as true, so older Hosts read as needing a restart', () => {
     const agent = { contextBudget: '200k', autoNameLanes: true }
     const read = (extra: object) =>
