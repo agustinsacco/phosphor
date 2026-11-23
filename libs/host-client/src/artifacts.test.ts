@@ -179,3 +179,17 @@ it('fences an artifact read across a reconnect on the same connection object', a
   const bridge = createArtifactHost(host.hostId, 'Fixture', connection, () => connection)
   await expect(bridge.call('artifacts.list', {})).rejects.toThrow()
 })
+
+it('lists an owner library over ops, including deleted sessions, and reads their content by the returned key', async () => {
+  const key=`${laneId}/guide`
+  const call=vi.fn(async (_method:string, request:unknown) => {
+    const read=(request as {op:string}).op==='artifact.read'
+    return {type:'result' as const,id:randomUUID(),ok:true as const,data:{status:'ok',text:'OK',applies:'now',data:read ? {key, version:1,content:'é'} : [{...item,key,sessionDeleted:true}]}}
+  })
+  const c={snapshot:()=>({ownerLocal:true,state:'ready',capabilities:['artifacts.read'] as HostCapability[]}),call}
+  const owner=createArtifactHost(host.hostId,'This Mac',c,()=>c)
+  const [row]=await remoteArtifactListings([owner])
+  expect(row).toMatchObject({sessionDeleted:true, key:`host:${host.hostId}/session:${laneId}/artifact:guide`})
+  expect((await remoteArtifactRead(row!.key,[owner]))?.artifact.versions[0]?.content).toBe('é')
+  expect(call).toHaveBeenCalledWith('ops.run',{op:'artifact.read',args:{key,version:1}})
+})

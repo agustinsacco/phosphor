@@ -216,3 +216,17 @@ it('registers the Host catalogue and repository reads over the manager connectio
   await handler({ sender: { id: 7 } }, hostId, repositoryId).catch(() => undefined)
   expect(call).toHaveBeenCalledWith('files.list', expect.objectContaining({ repositoryId }))
 })
+
+it('never reads the frozen artifact library in daemon mode, including during an outage', async () => {
+  const mode=await import('../local-machine/mode')
+  const spy=vi.spyOn(mode,'localRuntimeMode').mockReturnValue('daemon')
+  mocks.localList.mockClear()
+  mocks.remoteList.mockResolvedValueOnce([{key:'served'}]).mockRejectedValueOnce(new Error('unavailable'))
+  try {
+    registerHostsHandlers()
+    const router=mocks.router.mock.calls.at(-1)?.[0]
+    expect(await router(1,'artifacts:list',[[]]).result).toEqual([{key:'served'}])
+    await expect(router(1,'artifacts:list',[[]]).result).rejects.toThrow()
+    expect(mocks.localList).not.toHaveBeenCalled()
+  } finally {spy.mockRestore()}
+})
