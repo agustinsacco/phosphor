@@ -80,9 +80,10 @@ export async function syncLocalEnrollment(p: EnrollmentPorts): Promise<void> {
     }
     return
   }
-  if (status.enrolled !== null || status.mode === 'enrolled') return
+  // In standby the link doesn't exist yet. Its null identity is not evidence of removal.
+  if (status.ownerLock.standby || status.enrolled !== null || status.mode === 'enrolled') return
   if (status.mode !== 'enrolling') p.remember(null)
-  if (!p.user || !p.attempt || status.ownerLock.standby) {
+  if (!p.user || !p.attempt) {
     if (status.mode !== 'enrolling') p.directory(null)
     return
   }

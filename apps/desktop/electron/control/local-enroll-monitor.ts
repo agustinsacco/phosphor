@@ -22,7 +22,11 @@ export function monitorLocalEnrollment(p: MonitorPorts) {
     const local = p.local()
     const snapshot = local?.connection.snapshot()
     const token =
-      snapshot?.state === 'ready' && snapshot.ownerLocal ? snapshot.connectionToken : undefined
+      snapshot?.state === 'ready' &&
+      snapshot.ownerLocal &&
+      snapshot.capabilities.includes('sessions.read')
+        ? snapshot.connectionToken
+        : undefined
     const user = p.user()
     if (user !== lastUser || token !== lastToken) {
       lastToken = token
