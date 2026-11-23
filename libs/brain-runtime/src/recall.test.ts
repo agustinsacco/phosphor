@@ -92,6 +92,10 @@ it('uses only owner facts and only the references shown in that lane’s latest 
       data: { status: 'ok', memories: 1 },
     })
     expect(projectContext).toHaveBeenCalledWith(lane.cwd)
+    expect(await one.flag({ ...input, ref: 99 })).toMatchObject({
+      data: { status: 'unavailable' },
+    })
+    expect(flag).not.toHaveBeenCalled()
     expect(await other.flag(input)).toMatchObject({ text: expect.stringContaining('search again') })
     expect(await one.flag(input)).toMatchObject({ data: { status: 'filed' } })
     expect(flag).toHaveBeenCalledWith({
