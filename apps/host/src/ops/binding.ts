@@ -9,6 +9,7 @@ import type {
   LaneDeferred,
   LaneFacts,
   OpHandler,
+  OpHandlerResult,
   OpPrincipal,
   OpsBinding,
 } from '@phosphor/session-runtime/ops/types'
@@ -23,7 +24,7 @@ export interface HostSurfacePrincipal extends SurfacePrincipal {
   readonly caps: readonly HostCapability[]
 }
 
-function hasCaps(principal: SurfacePrincipal): principal is HostSurfacePrincipal {
+export function hasCaps(principal: SurfacePrincipal): principal is HostSurfacePrincipal {
   return Array.isArray((principal as Partial<HostSurfacePrincipal>).caps)
 }
 
@@ -82,10 +83,12 @@ export interface DaemonBindingPorts {
 const LANE_REF = /^host:([^/]+)\/lane:([^/]+)$/
 
 /** `host:<self>/lane:<laneId>` for either of this machine's ids, or a bare lane id. */
-function laneIdOf(ref: string, selfIds: readonly string[]): string | null {
+export function laneIdOf(ref: string, selfIds: readonly string[]): string | null {
   const match = LANE_REF.exec(ref)
   if (!match) return ref
-  return selfIds.includes(match[1]!) ? match[2]! : null
+  return selfIds.includes(match[1]!) || (selfIds.length === 0 && match[1] === 'local')
+    ? match[2]!
+    : null
 }
 
 /** The ref this machine writes for its own lane: under the enrolled id when there is one. */
@@ -103,7 +106,7 @@ export function laneFacts(
     sessionId: ports.lanes.sessionFor(lane.laneId),
     title: lane.title ?? '',
     cwd: lane.cwd,
-    busy: lane.activity === 'working',
+    busy: lane.activity === 'working' || lane.activity === 'needs-input',
     controller: controller ? { clientId: controller.clientId, label: controller.label } : null,
   }
 }
@@ -133,6 +136,10 @@ export function daemonLaneBinding(
     deferred: {
       async apply(sessionId, items: readonly LaneDeferred[]) {
         for (const item of items) {
+          if (item.action) {
+            await item.action()
+            continue
+          }
           const rpc = deferredRpcCommand(item)
           if (!rpc) return { ok: false, message: `This machine cannot apply ${item.kind} yet.` }
           const result = await ports.command(sessionId, rpc)
@@ -142,5 +149,47 @@ export function daemonLaneBinding(
         return { ok: true }
       },
     },
+  }
+}
+
+/** Non-RPC owner actions run only after this lane’s own run settles, never on a replacement session. */
+export function afterLaneSettles(
+  item: LaneDeferred,
+  laneId: string,
+  sessionId: string,
+  lanes: DaemonLanes,
+  action: () => Promise<OpHandlerResult>,
+): OpHandlerResult {
+  return {
+    text: `Scheduled ${item.kind} for ${laneId} after this run.`,
+    undo: false,
+    deferred: [
+      {
+        ...item,
+        action: async () => {
+          if (lanes.sessionFor(laneId) !== sessionId)
+            throw new Error('The lane session changed before settle.')
+          return action()
+        },
+      },
+    ],
+  }
+}
+
+export function recordCreator(db: DatabaseSync, ports: Pick<DaemonBindingPorts, 'selfIds'>) {
+  return (id: string, p: OpPrincipal) => {
+    if (p.kind === 'surface') return
+    const lane = p.kind === 'agent' ? p.laneRef : p.lane
+    const parent = lane ? laneIdOf(lane, ports.selfIds()) : null
+    const depth = parent
+      ? Number(
+          db.prepare("SELECT value FROM lane_prefs WHERE lane_id=? AND key='lineage'").get(parent)
+            ?.value ?? 0,
+        )
+      : 0
+    const creator = p.kind === 'machine' ? p.machineId : (lane ?? p.kind)
+    db.prepare(
+      "INSERT OR REPLACE INTO lane_prefs(lane_id,key,value) VALUES (?,'created_by',?),(?,'lineage',?)",
+    ).run(id, creator, id, String(1 + Math.max(depth, p.kind === 'agent' ? p.lineage : 0)))
   }
 }

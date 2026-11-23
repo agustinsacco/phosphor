@@ -76,7 +76,7 @@ export function createJobStore(db: DatabaseSync, ports: JobStorePorts) {
     )
   }
   const port: OpsJobPort = {
-    async start({ creator, op: name, run }) {
+    async start({ creator, op: name, run, completed }) {
       const jobId = ports.newId()
       const at = ports.now()
       db.prepare(`DELETE FROM agent_jobs WHERE state != 'running' AND updated_at < ?`).run(
@@ -89,11 +89,21 @@ export function createJobStore(db: DatabaseSync, ports: JobStorePorts) {
       controllers.add(controller)
       run(controller.signal)
         .then(
-          (out) =>
-            finish(jobId, 'done', {
-              text: out.text,
-              ...(out.data !== undefined ? { data: out.data } : {}),
-            }),
+          (out) => {
+            if (controller.signal.aborted) return
+            db.exec('BEGIN IMMEDIATE')
+            try {
+              completed?.(out)
+              finish(jobId, 'done', {
+                text: out.text,
+                ...(out.data !== undefined ? { data: out.data } : {}),
+              })
+              db.exec('COMMIT')
+            } catch (error) {
+              db.exec('ROLLBACK')
+              throw error
+            }
+          },
           (error: unknown) =>
             finish(jobId, 'failed', {
               text: error instanceof Error ? error.message : String(error),

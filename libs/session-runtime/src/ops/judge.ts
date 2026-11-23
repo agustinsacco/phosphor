@@ -71,13 +71,12 @@ const CONVERSATION_OPS: ReadonlySet<string> = new Set([
   'mcp.lane',
 ])
 
-/** Allowed on another lane while its turn runs: harmless marks, and stop (which asks). */
+/** Allowed on another lane while its turn runs: harmless marks. */
 const BUSY_EXEMPT: ReadonlySet<string> = new Set([
   'lane.rename',
   'lane.pin',
   'lane.marker',
   'lane.markRead',
-  'lane.stop',
 ])
 
 const CONTEXT_FILE_NAMES: Readonly<Record<string, string>> = {

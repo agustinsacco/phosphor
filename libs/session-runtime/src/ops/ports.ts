@@ -100,6 +100,7 @@ export interface OpsJobPort {
     readonly creator: string
     readonly op: string
     readonly run: (signal: AbortSignal) => Promise<OpHandlerResult>
+    readonly completed?: (result: OpHandlerResult) => void
   }): Promise<OpsJobData>
 }
 
@@ -141,6 +142,10 @@ export interface OpsDispatcherDeps {
   undo: OpsUndoPort
   /** Absent: `job` ops run inline. */
   jobs?: OpsJobPort
+  /** Additional long-running ops on this owner only. */
+  background?(request: OpsRunRequest, self: boolean): boolean
+  /** Resolve a destructive wildcard to the exact ids being authorized. */
+  archiveIds?(): Promise<string[]>
   /** Absent: `--host` takes Host ids as given and refuses `all`. */
   hosts?: OpsHostResolver
   log: RuntimeLog

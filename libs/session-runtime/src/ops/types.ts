@@ -75,7 +75,7 @@ export interface LaneFacts {
 }
 
 /** Work the owner applies to a lane after the op answers (next request, after the run, reload). */
-export type LaneDeferred =
+export type LaneDeferred = (
   | { readonly kind: 'model'; readonly provider: string; readonly modelId: string }
   | { readonly kind: 'thinking'; readonly level: string }
   | { readonly kind: 'autoCompaction' | 'autoRetry'; readonly enabled: boolean }
@@ -84,6 +84,7 @@ export type LaneDeferred =
   | { readonly kind: 'stop' }
   | { readonly kind: 'archive' }
   | { readonly kind: 'compact'; readonly instructions?: string }
+) & { readonly action?: () => Promise<OpHandlerResult> }
 
 export type DeferredOutcome =
   { readonly ok: true } | { readonly ok: false; readonly message: string }
@@ -101,6 +102,8 @@ export interface OpHandlerResult {
   readonly text: string
   readonly data?: unknown
   /** The state an inverse must still match for Undo. */
+  readonly undo?: false
+  readonly fingerprint?: string
   readonly before?: unknown
   readonly effects?: readonly LaneEffect[]
   readonly deferred?: readonly LaneDeferred[]

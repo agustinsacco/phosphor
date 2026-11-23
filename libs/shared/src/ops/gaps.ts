@@ -90,9 +90,11 @@ export const OP_GAPS: Readonly<
       OP_CATALOG.filter((op) => !desktop.has(op.name)).map((op) => [op.name, moveNotice]),
     ),
   ),
-  daemon: Object.freeze(
-    Object.fromEntries(
+  daemon: Object.freeze({
+    'lane.move':
+      "Moving a lane between machines runs from the Phosphor app: open the lane's menu and choose Move to…",
+    ...Object.fromEntries(
       daemon.map((name) => [name, `${name} is not available through the Phosphor service.`]),
     ),
-  ),
+  }),
 })

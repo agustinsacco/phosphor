@@ -54,6 +54,7 @@ const DECISIONS: readonly AuditDecision[] = [
 
 /** The op that reverses an audited change, run as the user by Undo. */
 export interface UndoRecord {
+  readonly fingerprint?: string
   readonly inverse: { readonly op: string; readonly args: Readonly<Record<string, unknown>> }
   /** The change's own args, kept only when redaction keeps every byte of them. */
   readonly forward?: Readonly<Record<string, unknown>>
@@ -77,6 +78,7 @@ export interface AuditLog extends AuditStore {
   append(row: Omit<AgentOpRow, 'id'> & AuditExtras): Promise<string>
   get(id: string): AuditEntry | null
   /** Link a row to the change that undid it; false when it is unknown or already undone. */
+  complete?(id: string, op: string, text: string, record: UndoRecord | null): void
   markUndone(id: string, undoneBy: string): boolean
   /** Apply retention now; returns the rows removed. */
   prune(): number
@@ -263,6 +265,11 @@ export function createAuditLog(db: DatabaseSync, options: AuditLogOptions = {}):
     get(id) {
       const row = db.prepare('SELECT * FROM agent_ops WHERE id = ?').get(id) as Row | undefined
       return row ? entryFrom(row) : null
+    },
+    complete(id, op, text, record) {
+      db.prepare(
+        'UPDATE agent_ops SET result=?, undo=? WHERE id=? AND op=? AND undone_by IS NULL',
+      ).run(text.slice(0, 200), storableUndo(op, record), id, op)
     },
     markUndone(id, undoneBy) {
       const done = db

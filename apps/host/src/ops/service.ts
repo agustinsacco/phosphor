@@ -10,6 +10,10 @@ import { AGENT_OPS_SCHEMA, createAuditLog } from '@phosphor/session-runtime/ops/
 import { confirmPort, createConfirmStore } from '@phosphor/session-runtime/ops/confirm'
 import { createOpsDispatcher } from '@phosphor/session-runtime/ops/dispatcher'
 import { createJobStore } from '@phosphor/session-runtime/ops/jobs'
+import { archiveSelection } from './handlers/archives'
+import { laneJob } from './handlers/lanes'
+import { laneUndoCurrent } from './handlers/lane-undo'
+import { recordCreator } from './binding'
 import { argsSummary } from '@phosphor/session-runtime/ops/redact'
 import { createUndo } from '@phosphor/session-runtime/ops/undo'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
@@ -35,7 +39,7 @@ import { daemonMetaHandlers } from './handlers/meta'
 import { createPolicyFile } from './policy-file'
 import { createHostResolver } from './remote'
 
-export interface OpsServicePorts extends Omit<DaemonHandlerDeps, 'log'> {
+export interface OpsServicePorts extends Omit<DaemonHandlerDeps, 'log' | 'recordCreator'> {
   /** The Host state folder: `state.sqlite` and `agent-policy.json`. */
   readonly stateDirectory: string
   readonly uid: number | undefined
@@ -174,8 +178,10 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     db,
     now,
   )
+  const domain = { ...ports, recordCreator: recordCreator(db, ports) }
+  const inverseRequests = new WeakSet<object>()
   const handlers = {
-    ...domainHandlers(ports),
+    ...domainHandlers(domain),
     ...daemonMetaHandlers({
       machine: ports.machine ?? hostname(),
       audit,
@@ -213,7 +219,8 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     surfaceAdmits,
     confirms: confirmPort(confirms, changed),
     redact: argsSummary,
-    // No daemon op records an inverse yet, so a stored one never counts as current.
+    background: (r, self) => !inverseRequests.has(r) && laneJob(r.op, self),
+    archiveIds: () => archiveSelection(domain),
     undo: { run: (principal, id) => undo(principal, id) },
     jobs: jobs.port,
     ...(ports.directory
@@ -224,8 +231,11 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   })
   const undo = createUndo({
     audit,
-    isCurrent: async () => false,
-    run: (principal, request) => dispatcher.run(principal, request),
+    isCurrent: async (entry) => laneUndoCurrent(domain, entry),
+    run: (principal, request) => {
+      inverseRequests.add(request)
+      return dispatcher.run(principal, request)
+    },
   })
   return {
     dispatcher,
@@ -251,6 +261,7 @@ export interface RunOpsPorts extends Pick<
   | 'uid'
   | 'store'
   | 'lanes'
+  | 'management'
   | 'shellEnvironment'
   | 'enrolledId'
   | 'remote'

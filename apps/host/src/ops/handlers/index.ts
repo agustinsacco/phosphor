@@ -4,6 +4,7 @@ import type { HostStore } from '../../lanes/store'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { Reach } from '@phosphor/session-runtime/ops/reach'
+import type { LaneHandlerPorts } from './lane-ports'
 import { archiveHandlers } from './archives'
 import { artifactHandlers } from './artifacts'
 import { configHandlers } from './config'
@@ -21,7 +22,7 @@ import { settingsHandlers } from './settings'
 import { skillHandlers } from './skills'
 
 /** What the daemon's domain handlers wrap: its existing services, never copies of them. */
-export interface DaemonHandlerDeps {
+export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly store: HostStore
   /** The lane service `ops.run` sits beside: commands, calls and topics. */
   readonly lanes: LaneService
@@ -60,10 +61,6 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
  * empty stubs; P1, P2, P4b and D9 add theirs.
  */
 const PENDING = {
-  'H1 lanes.ts':
-    'lane.list lane.search lane.read lane.create lane.resume lane.stop lane.archive lane.delete lane.move lane.export lane.markRead',
-  'H1 archives.ts': 'archive.list archive.restore archive.purge',
-  'H1 artifacts.ts': 'artifact.list artifact.read',
   'H2 settings.ts':
     'settings.read settings.set directives.set instructions.read instructions.edit claude.accounts claude.routing claude.reorder account.move',
   'H2 mcp.ts': 'mcp.list mcp.check mcp.add mcp.update mcp.enable mcp.disable mcp.remove',

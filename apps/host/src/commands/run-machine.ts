@@ -228,7 +228,20 @@ function createMachineCommands(
     log: log.write,
   })
   parts.commands = commands
-  return { features, commands, terminals }
+  const management = {
+    archives: administration.archives,
+    deleteLane: administration.deleteLane,
+    stopLane: binding.stopLane,
+    resumeLane: binding.resumeLane,
+    admitsResume(id: string) {
+      const pauses = parts.services?.pauses
+      const op = { type: 'lane.resume' } as const
+      if (pauses?.admits(op) === false) return false
+      pauses?.continued(id, op)
+      return true
+    },
+  }
+  return { features, commands, terminals, management }
 }
 
 /** The machine services beside the lane service, with the pause over the started lanes. */
@@ -283,6 +296,7 @@ export async function startRunMachine(
   parts.services = startServices(context, ports, machine, log, started)
   const {
     features: administrationFeatures,
+    management,
     commands,
     terminals,
   } = createMachineCommands(context, parts, ports, machine, log, started)
@@ -320,7 +334,7 @@ export async function startRunMachine(
     lanesTopic: live.lanesTopic,
     controllerPresence: createRunControllerPresence(ports.store, live),
   }
-  await bindRunOps(context, parts, ports, { ...started, machine, log, lanes })
+  await bindRunOps(context, parts, ports, { ...started, machine, log, lanes, management })
   started.routines.start()
   return { lanes, accounts: started.accounts }
 }
@@ -330,7 +344,12 @@ async function bindRunOps(
   context: RunContext,
   parts: RunParts,
   ports: RunMachinePorts,
-  started: StartedRuntime & { machine: Omit<HostMachine, 'log'>; log: HostLog; lanes: LaneService },
+  started: StartedRuntime & {
+    machine: Omit<HostMachine, 'log'>
+    log: HostLog
+    lanes: LaneService
+    management: ReturnType<typeof createMachineCommands>['management']
+  },
 ) {
   const { ops } = ports
   if (!ops) return
@@ -342,6 +361,7 @@ async function bindRunOps(
     uid: context.uid,
     store: ports.store,
     lanes: started.lanes,
+    management: started.management,
     live,
     command: (sessionId, rpc) => runtime.command(sessionId, rpc),
     shellEnvironment: started.machine.shellEnvironment ?? null,

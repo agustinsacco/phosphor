@@ -2,16 +2,21 @@ import { expect, it } from 'vitest'
 import { OP_CATALOG, OP_GAPS } from './index'
 
 it('keeps only the reviewed Phosphor service gaps', () => {
-  const expected = `lane.move brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane
+  const expected =
+    `lane.move brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane
  git.branches git.worktrees git.diff git.fetch git.pull git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge
  worktree.add worktree.remove worktree.prune worktree.restore worktree.recreate files.search maintenance.scan maintenance.run`
-    .trim()
-    .split(/\s+/)
+      .trim()
+      .split(/\s+/)
   expect(Object.keys(OP_GAPS.daemon).sort()).toEqual(expected.sort())
   expect(
-    Object.entries(OP_GAPS.daemon).every(([op, reason]) => op === 'lane.move' || reason?.includes('Phosphor service')),
+    Object.entries(OP_GAPS.daemon).every(
+      ([op, reason]) => op === 'lane.move' || reason?.includes('Phosphor service'),
+    ),
   ).toBe(true)
-  expect(OP_GAPS.daemon['lane.move']).toBe("Moving a lane between machines runs from the Phosphor app: open the lane's menu and choose Move to…")
+  expect(OP_GAPS.daemon['lane.move']).toBe(
+    "Moving a lane between machines runs from the Phosphor app: open the lane's menu and choose Move to…",
+  )
   expect(OP_CATALOG.map((op) => op.name)).toEqual(expect.arrayContaining(expected))
 })
 it('declares every owner-goal operation without a service gap', () => {

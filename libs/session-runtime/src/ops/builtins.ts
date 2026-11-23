@@ -64,7 +64,14 @@ export function confirmItems(
     ? a.ids.filter((id): id is string => typeof id === 'string')
     : a.all === true
       ? ['all']
-      : [a.ref, a.lane, a.key, a.id, a.name, a.path]
+      : [
+          typeof a.ref === 'string' ? (j.lane?.ref ?? a.ref) : a.ref,
+          a.lane,
+          a.key,
+          a.id,
+          a.name,
+          a.path,
+        ]
           .filter((v): v is string => typeof v === 'string')
           .slice(0, 1)
   const label = (id: string) => {

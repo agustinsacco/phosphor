@@ -232,22 +232,42 @@ function withToast(j: Judged, effects: readonly LaneEffect[], text: string): rea
   return [...effects, { kind: 'notify', message, level: 'info' }]
 }
 
+function inverse(env: PipelineEnv, j: Judged, out: OpHandlerResult) {
+  if (out.undo === false || out.deferred?.some((i) => i.action)) return null
+  const record = undoRecordFor(j.spec, j.args, out.before, (op) => env.specs.get(op))
+  return record && out.fingerprint ? { ...record, fingerprint: out.fingerprint } : record
+}
+function completed(env: PipelineEnv, j: Judged, id: string | undefined, out: OpHandlerResult) {
+  if (id) env.binding.audit.complete?.(id, j.spec.name, out.text, inverse(env, j, out))
+}
+
 async function finish(
   env: PipelineEnv,
   j: Judged,
   decision: AuditDecision,
   out: OpHandlerResult,
+  started?: { auditId?: string },
 ): Promise<OpOutcome> {
   const plan = reloadPlan(env, j, out)
   const text = clipBytes(plan.note ? `${out.text}\n${plan.note}` : out.text, OPS_LIMITS.resultBytes)
-  const record =
-    j.governed === 'surface'
-      ? null
-      : undoRecordFor(j.spec, j.args, out.before, (op) => env.specs.get(op))
-  const auditId = await audit(env, j, decision, text, record)
+  const record = j.governed === 'surface' ? null : inverse(env, j, out)
+  const auditId = started ? started.auditId : await audit(env, j, decision, text, record)
   const undo =
     auditId !== undefined && record !== null && env.binding.audit.get(auditId)?.undo === true
-  await placeDeferred(env, j, plan.items).catch((error: unknown) => {
+  const items = plan.items.map((item) => {
+    const action = item.action
+    return !action
+      ? item
+      : {
+          ...item,
+          action: async () => {
+            const result = await action()
+            completed(env, j, auditId, result)
+            return result
+          },
+        }
+  })
+  await placeDeferred(env, j, items).catch((error: unknown) => {
     env.deps.log('ops', 'deferred work failed', { op: j.spec.name, error: String(error) })
   })
   return {
@@ -283,15 +303,18 @@ async function perform(
     ...(j.request.page !== undefined ? { page: j.request.page } : {}),
   })
   try {
-    if (j.spec.job && env.deps.jobs) {
+    if ((j.spec.job || env.deps.background?.(j.request, j.self)) && env.deps.jobs) {
+      const auditId = await audit(env, j, decision, 'Started.')
+      if (LANE_CREATING_OPS.has(j.spec.name) && j.governed !== 'surface') env.limits.laneCreated()
       const job = await env.deps.jobs.start({
         creator: j.key,
         op: j.spec.name,
         run: (s) => handler(j.args, ctx(s)),
+        completed: (out) => completed(env, j, auditId, out),
       })
       const summary = j.spec.summary.replace(/\.$/, '')
       const text = `Started: ${summary}. Check it with: phosphor job status ${job.jobId}`
-      return await finish(env, j, decision, { text, data: job })
+      return await finish(env, j, decision, { text, data: job, undo: false }, { auditId })
     }
     const out = await handler(j.args, ctx(signal))
     if (LANE_CREATING_OPS.has(j.spec.name) && j.governed !== 'surface') env.limits.laneCreated()
@@ -353,11 +376,22 @@ async function execute(
       : null
   const target = resolveTarget(env.binding, principal, args, extras.facts, discovered)
   if ('code' in target) return denied(target.code, target.text)
-  const j = judgeOp(env.binding, { principal, request, spec, target, policy })
+  let j = judgeOp(env.binding, { principal, request, spec, target, policy })
   const refusal = refuseOp(env.binding, env.deps, env.limits, j)
   if (refusal) return refuse(env, j, refusal)
   const verdict = policyVerdict(policyCheck(j))
   if (verdict.kind === 'deny') return refuse(env, j, verdict)
+  if (j.spec.name === 'archive.purge' && j.args.all === true && env.deps.archiveIds) {
+    try {
+      const { all: _all, ...rest } = j.args
+      j = { ...j, args: { ...rest, ids: await env.deps.archiveIds() } }
+    } catch (error) {
+      return denied(
+        error instanceof OpRefusal ? error.code : 'unavailable',
+        error instanceof Error ? error.message : 'Inventory unavailable.',
+      )
+    }
+  }
   if (verdict.kind === 'ask') {
     const pending = await ask(env, j)
     if (pending) return pending
