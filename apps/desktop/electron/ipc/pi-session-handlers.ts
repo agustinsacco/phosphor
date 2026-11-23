@@ -2,6 +2,7 @@ import { delimiter } from 'node:path'
 import { handle } from './handle'
 import { remoteLanes } from './hosts-handlers'
 import { isRemoteHandle } from '@phosphor/host-client/remote-lanes'
+import { activeDesktopOps } from '../ops/lifecycle'
 import { desktopSessions } from '../pi/session-runtime'
 import { cachedPiHealth } from '../pi/health'
 import { piAgentDir } from '../pi/pi-paths'
@@ -48,11 +49,13 @@ export function registerPiSessionHandlers(): void {
       ? remoteLanes().command(event.sender.id, sessionId, command)
       : desktopSessions.command(sessionId, command),
   )
-  handle('pi:extensionUiResponse', (event, sessionId: string, response: ExtensionUIResponse) =>
-    isRemoteHandle(sessionId)
-      ? remoteLanes().respond(event.sender.id, sessionId, response)
-      : desktopSessions.respond(sessionId, response),
-  )
+  handle('pi:extensionUiResponse', (event, sessionId: string, response: ExtensionUIResponse) => {
+    if (isRemoteHandle(sessionId))
+      return remoteLanes().respond(event.sender.id, sessionId, response)
+    if (activeDesktopOps()?.surfaceAnswered(sessionId, response, 'surface') === 'forbidden')
+      throw new Error('This confirmation cannot be answered by this sender.')
+    return desktopSessions.respond(sessionId, response)
+  })
   handle('pi:disposeSession', (event, sessionId: string) =>
     isRemoteHandle(sessionId)
       ? remoteLanes().dispose(event.sender.id, sessionId)

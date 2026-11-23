@@ -14,6 +14,7 @@ vi.mock('@phosphor/session-runtime/pi/session-startup', async (original) => {
   const actual = await original<typeof StartupModule>()
   return { ...actual, createSessionStartup: vi.fn(actual.createSessionStartup) }
 })
+vi.mock('../prefs/backend', () => ({ prefs: () => ({ get: () => undefined }) }))
 vi.mock('../registry', () => ({ registry: { create: vi.fn(), dispose: vi.fn() } }))
 vi.mock('../maintenance/history', () => ({
   decideSession: vi.fn(),
@@ -108,7 +109,11 @@ it('adds the local agent tool, skill and marker without changing the other spawn
         prefs: DIRECTIVES,
         machine: { kind: 'desktop', signedIn: true },
       }),
-      extensions: ['/resources/pi-ext/artifacts.ts', '/resources/pi-ext/lane-reload.ts', '/resources/pi-ext/phosphor.ts'],
+      extensions: [
+        '/resources/pi-ext/artifacts.ts',
+        '/resources/pi-ext/lane-reload.ts',
+        '/resources/pi-ext/phosphor.ts',
+      ],
       skills: ['/resources/skills/phosphor'],
       env: {
         PHOSPHOR_OPS: 'v1',

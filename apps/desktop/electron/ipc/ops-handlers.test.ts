@@ -28,10 +28,15 @@ beforeEach(async () => {
 })
 
 it('dispatches only the local surface, deriving authority from the sender', async () => {
-  const request = {op:'whoami', args:{}}
-  expect(await invoke('ops:run',{kind:'local'},request)).toMatchObject({status:'ok'})
-  expect(state.run).toHaveBeenCalledWith({kind:'surface',clientId:'1',label:'This Mac',via:'owner'}, request)
-  expect(await invoke('ops:run',{kind:'remote',hostId:'host'},request)).toMatchObject({code:'unsupported'})
+  const request = { op: 'whoami', args: {} }
+  expect(await invoke('ops:run', { kind: 'local' }, request)).toMatchObject({ status: 'ok' })
+  expect(state.run).toHaveBeenCalledWith(
+    { kind: 'surface', clientId: '1', label: 'This Mac', via: 'owner' },
+    request,
+  )
+  expect(await invoke('ops:run', { kind: 'remote', hostId: 'host' }, request)).toMatchObject({
+    code: 'unsupported',
+  })
   expect(state.run).toHaveBeenCalledTimes(1)
 })
 

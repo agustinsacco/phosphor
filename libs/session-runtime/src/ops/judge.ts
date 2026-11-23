@@ -97,6 +97,7 @@ export function resolveTarget(
   principal: OpPrincipal,
   args: OpArgs,
   facts: OpFacts | undefined,
+  discovered?: LaneFacts | null,
 ): { readonly self: boolean; readonly lane?: LaneFacts } | Refusal {
   const ref =
     typeof args.ref === 'string' ? args.ref : typeof args.lane === 'string' ? args.lane : undefined
@@ -106,7 +107,7 @@ export function resolveTarget(
     return own ? { self: true, lane: withFacts(own) } : { self: true }
   }
   if (ref === undefined) return { self: false }
-  const lane = binding.lanes.resolve(ref)
+  const lane = binding.lanes.resolve(ref) ?? discovered
   if (!lane) return { code: 'bad-request', text: `No lane ${ref} on this machine.` }
   const self =
     principal.kind === 'agent' &&

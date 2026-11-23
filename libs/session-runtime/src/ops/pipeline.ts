@@ -267,6 +267,7 @@ async function perform(
   if (!handler) return denied('unsupported', `${j.spec.name} is not available on this machine.`)
   const ctx = (s: AbortSignal): OpRunContext => ({
     principal: j.principal,
+    reason: j.request.reason,
     signal: s,
     log: env.deps.log,
     ...(j.lane ? { lane: j.lane } : {}),
@@ -320,8 +321,22 @@ async function execute(
   if (invalid) return denied('bad-request', `${spec.name}: ${invalid}`)
   const { policy } = await env.binding.policy.read()
   if (extras.hosts) return executeRouted(env, { principal, request, spec, policy }, extras.hosts)
-  const target = resolveTarget(env.binding, principal, request.args, extras.facts)
-  if ('code' in target) return denied(target.code, target.text)
+  // A stopped Desktop lane has no registry entry; discover it through the owner's scanner.
+  const ref = request.args.ref ?? request.args.lane
+  const discovered =
+    typeof ref === 'string' &&
+    env.binding.lanes.lookup &&
+    !env.binding.gaps[request.op] &&
+    !env.binding.lanes.resolve(ref)
+      ? await env.binding.lanes.lookup(ref)
+      : null
+  const target = resolveTarget(env.binding, principal, request.args, extras.facts, discovered)
+  if ('code' in target) {
+    const gap = env.binding.gaps[request.op]
+    return gap && spec.tier !== 'never'
+      ? denied('unsupported', gap)
+      : denied(target.code, target.text)
+  }
   const j = judgeOp(env.binding, { principal, request, spec, target, policy })
   const refusal = refuseOp(env.binding, env.deps, env.limits, j)
   if (refusal) return refuse(env, j, refusal)

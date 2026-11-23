@@ -90,6 +90,7 @@ export type DeferredOutcome =
 
 export interface OpHandlerContext {
   readonly principal: OpPrincipal
+  readonly reason?: string
   readonly signal: AbortSignal
   /** The lane the op is about, when it names one (or is the asking lane's own op). */
   readonly lane?: LaneFacts
@@ -123,6 +124,7 @@ export interface AuditStore {
   append(row: Omit<AgentOpRow, 'id'>): Promise<string>
   list(query: {
     readonly laneRef?: string
+    readonly beforeId?: string
     readonly before?: number
     readonly limit: number
   }): Promise<readonly AgentOpRow[]>
@@ -140,13 +142,14 @@ export interface OpsBinding {
   readonly machineId: string | null
   readonly handlers: Readonly<Record<string, OpHandler>>
   /** Ops this owner answers `unsupported`, with the sentence it says. */
-  readonly gaps: Readonly<Record<string, string>>
+  readonly gaps: Readonly<Partial<Record<string, string>>>
   /** The `ready` flags this owner serves; an op whose flag is absent is a gap. */
   readonly flags: ReadonlySet<ReadyOpFlag>
   readonly policy: PolicyStore
   readonly audit: AuditLog
   readonly lanes: {
     resolve(ref: string): LaneFacts | null
+    lookup?(ref: string): Promise<LaneFacts | null>
     createdBy(laneRef: string): { readonly lineage: number } | null
   }
   readonly deferred: {

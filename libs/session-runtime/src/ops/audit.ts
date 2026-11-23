@@ -208,6 +208,10 @@ function listRows(db: DatabaseSync, query: Parameters<AuditStore['list']>[0]): A
     where.push('lane_ref = ?')
     params.push(query.laneRef)
   }
+  if (query.beforeId !== undefined) {
+    where.push('(at, rowid) < (SELECT at, rowid FROM agent_ops WHERE id = ?)')
+    params.push(query.beforeId)
+  }
   if (query.before !== undefined) {
     where.push('at < ?')
     params.push(query.before)
