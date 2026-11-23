@@ -83,20 +83,23 @@ it('refuses Undo after a later write to that field; unrelated changes do not blo
   expect(await settingsAreCurrent(f.deps)(entry)).toBe(false)
 })
 
-it('never retargets private MCP fields to a different URL and never signs in or out', async () => {
+it('leaves OAuth sign-out and retargeting to the surface, but can edit metadata in place',async()=>{
   const f = await fixture()
-  const file = join(f.agentDir, 'mcp.json')
-  await writeFile(
-    file,
-    '{"mcpServers":{"sample":{"url":"https://example.test","headers":{"X-Fixture":"private-value"}}}}',
-  )
-  const request = { scope: 'global', name: 'sample', config: { url: 'https://other.test' } }
-  await expect(f.run('mcp.update', request)).rejects.toThrow(/private/)
-  expect(await readFile(file, 'utf8')).not.toContain('other.test')
-  await f.run('mcp.add', { ...request, name: 'new' })
-  await f.run('mcp.update', { ...request, name: 'new', config: { url: 'https://changed.test' } })
-  expect(await readFile(file, 'utf8')).toContain('changed.test')
-  await f.run('mcp.disable', { scope: 'global', name: 'new' })
-  await f.run('mcp.remove', { scope: 'global', name: 'new' })
-  expect(JSON.stringify(await f.run('mcp.list', {}))).not.toContain('private-value')
+  const file=join(f.agentDir,'mcp.json')
+  const url='https://example.test'
+  await writeFile(file,JSON.stringify({mcpServers:{sample:{url,oauth:{clientId:'fixture'},headers:{'X-Fixture':'private-value'}}}}))
+  const target={scope:'global',name:'sample'}
+  const refusal={code:'forbidden',message:'Remove or retarget this connector in Settings → Connectors; Phosphor signs it out there.'}
+  await expect(f.run('mcp.update',{...target,config:{url:'https://other.test'}})).rejects.toMatchObject(refusal)
+  await expect(f.run('mcp.remove',target)).rejects.toMatchObject(refusal)
+  await f.run('mcp.update',{...target,config:{url,description:'Reviewed description'}})
+  await f.run('mcp.disable',target)
+  await f.run('mcp.enable',target)
+  expect(await readFile(file,'utf8')).toContain('private-value')
+  expect(JSON.stringify(await f.run('mcp.list',{}))).not.toContain('private-value')
+  expect(await readFile(file,'utf8')).toContain('Reviewed description')
+  expect(await readFile(file,'utf8')).not.toContain('other.test')
+  await f.run('mcp.add',{scope:'global',name:'command',config:{command:'fixture'}})
+  await f.run('mcp.remove',{scope:'global',name:'command'})
+  expect(await readFile(file,'utf8')).not.toContain('command')
 })
