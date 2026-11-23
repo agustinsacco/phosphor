@@ -78,12 +78,9 @@ it('serves Host file downloads and previews in the browser, which only cancels i
     expect(IPC_WEB[channel]).toEqual({ kind: 'remote-supported' })
   expect(IPC_WEB['hosts:fileDownloadCancel']).toEqual({ kind: 'browser-local' })
 })
-it("serves agent ops through the Host and keeps This Mac's runtime and the reach switch in Desktop", () => {
+it("serves agent ops through the Host and the reach switch through control; only This Mac's runtime stays in Desktop", () => {
+  expect(IPC_WEB['control:setMachineReach']).toEqual({ kind: 'remote-supported' })
   expect(IPC_WEB['ops:run']).toEqual({ kind: 'remote-supported' })
-  for (const channel of [
-    'app:localMachine',
-    'app:localMachineAction',
-    'control:setMachineReach',
-  ] as const)
+  for (const channel of ['app:localMachine', 'app:localMachineAction'] as const)
     expect(IPC_WEB[channel].kind).toBe('unsupported')
 })

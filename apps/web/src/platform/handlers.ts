@@ -226,13 +226,8 @@ export interface BrowserHandlerPorts {
   broadcastLogout: () => void
   machinesChanged: () => void
 }
-export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandlers {
-  const { control, hosts, lanes, resources, prefs, drafts } = ports
-  const marks = laneMarks(hosts.connection)
-  const read = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
-    resources.read(channel, args) as Promise<IpcInvokeMap[C]['result']>
-  const routine = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
-    resources.routine(channel, args) as Promise<IpcInvokeMap[C]['result']>
+function directoryHandlers(ports: BrowserHandlerPorts) {
+  const { control, hosts } = ports
   async function directoryMutation<T>(request: Promise<T>): Promise<T> {
     const result = await request
     await hosts.refresh().catch(() => {})
@@ -240,14 +235,28 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     return result
   }
   return {
-    'account:get': control.view,
-    'account:signIn': control.signIn,
-    'account:signOut': () => signOut(control, ports.broadcastLogout),
     'control:machines': hosts.refresh,
     'control:lookupEnrollment': control.lookup,
     'control:approveEnrollment': (code, label) => directoryMutation(control.approve(code, label)),
     'control:renameMachine': (id, label) => directoryMutation(control.rename(id, label)),
     'control:removeMachine': (id) => directoryMutation(control.remove(id)),
+    'control:setMachineReach': (id, enabled) =>
+      directoryMutation(control.setMachineReach(id, enabled)),
+  } satisfies Partial<BrowserHandlers>
+}
+
+export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandlers {
+  const { control, hosts, lanes, resources, prefs, drafts } = ports
+  const marks = laneMarks(hosts.connection)
+  const read = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
+    resources.read(channel, args) as Promise<IpcInvokeMap[C]['result']>
+  const routine = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
+    resources.routine(channel, args) as Promise<IpcInvokeMap[C]['result']>
+  return {
+    'account:get': control.view,
+    'account:signIn': control.signIn,
+    'account:signOut': () => signOut(control, ports.broadcastLogout),
+    ...directoryHandlers(ports),
     ...machineHandlers(resources.machines, hosts.connection),
     ...opsHandlers(),
     ...folderHandlers(resources.folders),

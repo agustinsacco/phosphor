@@ -9,6 +9,9 @@ import {
   parseEnrollmentLookupResponse,
   parseEnrollmentApproveResponse,
   machineRoute,
+  machineReachRoute,
+  parseMachineReachRequest,
+  parseMachineReachResponse,
   type Parsed,
   type MachinesResponse,
 } from '@phosphor/shared/control-api'
@@ -61,6 +64,32 @@ function grantFailure(error: unknown): Error {
           ? error.code
           : 'offline',
   )
+}
+
+async function responseText(response: Response): Promise<string> {
+  if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
+    throw new ControlFailure('unavailable')
+  const reader = response.body?.getReader()
+  if (!reader) throw new ControlFailure('unavailable')
+  let text = '',
+    bytes = 0
+  const decoder = new TextDecoder('utf-8', { fatal: true })
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      bytes += chunk.value.byteLength
+      if (bytes > 128 * 1024) {
+        await reader.cancel()
+        throw new ControlFailure('unavailable')
+      }
+      text += decoder.decode(chunk.value, { stream: true })
+    }
+    text += decoder.decode()
+  } finally {
+    reader.releaseLock()
+  }
+  return text
 }
 
 /** Cookie credentials never leave fetch. Only CSRF and short-lived grants enter memory. */
@@ -136,28 +165,11 @@ export function createBrowserControl(ports: ControlPorts) {
         throw new ControlFailure(code)
       }
       if (response.status === 204 && method === 'DELETE') return {}
-      if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
-        throw new ControlFailure('unavailable')
-      const reader = response.body?.getReader()
-      if (!reader) throw new ControlFailure('unavailable')
-      let text = '',
-        bytes = 0
-      const decoder = new TextDecoder('utf-8', { fatal: true })
-      try {
-        while (true) {
-          const chunk = await reader.read()
-          if (chunk.done) break
-          bytes += chunk.value.byteLength
-          if (bytes > 128 * 1024) {
-            await reader.cancel()
-            throw new ControlFailure('unavailable')
-          }
-          text += decoder.decode(chunk.value, { stream: true })
-        }
-        text += decoder.decode()
-      } finally {
-        reader.releaseLock()
+      if (response.status === 404 && path.endsWith('/reach')) {
+        await response.body?.cancel().catch(() => undefined)
+        throw new ControlFailure('not-found')
       }
+      const text = await responseText(response)
       if (epoch !== generation || stopped) throw new ControlFailure('signed-out')
       const data: unknown = JSON.parse(text)
       if (!response.ok)
@@ -308,6 +320,12 @@ export function createBrowserControl(ports: ControlPorts) {
       result(() => {
         if (!isUuid(id)) throw new ControlFailure('bad-request')
         return parsed(machineRoute(id), parseEnrollmentApproveResponse, 'PATCH', { label })
+      }),
+    setMachineReach: (id: string, enabled: boolean) =>
+      result(() => {
+        const input = parseMachineReachRequest({ enabled })
+        if (!isUuid(id) || !input.ok) throw new ControlFailure('bad-request')
+        return parsed(machineReachRoute(id), parseMachineReachResponse, 'PATCH', input.value)
       }),
     remove: (id: string) =>
       result(async () => {

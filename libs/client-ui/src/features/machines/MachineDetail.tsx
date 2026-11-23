@@ -13,6 +13,7 @@ import { MachineFilesButton } from './MachineFilesButton'
 import { useHostOverview, type MachineOverview } from './machineOverview'
 import { HOST_SERVICE_STATUS, relativeTime } from './machinePresentation'
 import { Card, CheckRow } from './MachineUi'
+import { MachineReach } from './MachineReach'
 import { MachineTerminal } from './MachineTerminal'
 import { OnThisMachine } from './OnThisMachine'
 import { MachineProviders } from './MachineProviders'
@@ -114,8 +115,8 @@ export function MachineDetail({
           <MachineFacts facts={overview.facts} />
         </div>
       </div>
+      {overview.machine && <MachineReach key={overview.machine.id} machine={overview.machine} />}
       {overview.connected && <MachineTerminal hostId={id} label={label} />}
-
       {onRemove && (
         <section
           aria-label="Remove machine"

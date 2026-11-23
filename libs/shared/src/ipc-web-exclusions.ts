@@ -54,12 +54,8 @@ const localRuntime = {
   reason: "This Mac's runtime and its move to the Phosphor service belong to Desktop.",
 } as const
 
-/** This Mac's runtime card and the per-machine reach switch: Desktop only for now. */
+/** This Mac's runtime card belongs to Desktop. */
 export const LOCAL_MACHINE_WEB = {
   'app:localMachine': localRuntime,
   'app:localMachineAction': localRuntime,
-  'control:setMachineReach': {
-    kind: 'unsupported',
-    reason: 'The machine reach switch is on the Machines page in Desktop.',
-  },
 } as const

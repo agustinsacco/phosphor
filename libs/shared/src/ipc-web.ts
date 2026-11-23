@@ -284,6 +284,7 @@ export const IPC_WEB = {
   'control:approveEnrollment': remote,
   'control:renameMachine': remote,
   'control:removeMachine': remote,
+  'control:setMachineReach': remote,
   'account:get': remote,
   'account:signIn': remote,
   'account:cancelSignIn': unsupported('This native service requires Desktop.'),
