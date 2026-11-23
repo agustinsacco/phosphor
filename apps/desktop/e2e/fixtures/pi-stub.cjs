@@ -427,6 +427,7 @@ function sessionEntries() {
     .map((line) => JSON.parse(line))
     .filter((entry) => entry.type !== 'session')
 }
+let activeModel = MODEL
 let queueHold = false
 let finishNativeSubagent
 let finishParallelAgents
@@ -434,6 +435,18 @@ function handle(cmd) {
   if (process.env.PHOSPHOR_E2E_COMMAND_LOG) {
     fs.appendFileSync(process.env.PHOSPHOR_E2E_COMMAND_LOG, JSON.stringify(cmd) + '\n')
   }
+  if (
+    process.env.PHOSPHOR_E2E_OPS === '1' &&
+    require('./pi-stub-ops.cjs').handle(cmd, {
+      out,
+      persist,
+      models: CATALOGUE,
+      selectModel: (m) => {
+        activeModel = m
+      },
+    })
+  )
+    return
   switch (cmd.type) {
     case 'get_state':
       out({
@@ -442,7 +455,7 @@ function handle(cmd) {
         command: 'get_state',
         success: true,
         data: {
-          model: MODEL,
+          model: activeModel,
           thinkingLevel: 'off',
           isStreaming: agentStreaming,
           isCompacting: compacting,
