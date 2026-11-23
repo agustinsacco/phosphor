@@ -491,6 +491,8 @@ describe('runCli control commands', () => {
         supervisor: 'launchd',
         // The owner socket's starter; only a Host with the local-mode marker calls it.
         startLocalSocket: expect.any(Function),
+        // Run's ops slot, shared with the socket; empty until run binds the dispatcher.
+        ops: {},
       },
     ])
     expect(targets).toEqual([])
