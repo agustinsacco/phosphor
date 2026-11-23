@@ -56,6 +56,25 @@ describe('OpChannel', () => {
     }
   })
 
+  it('never hands a lane Brain credentials or Brain test hooks, inherited or passed', () => {
+    const keys = [
+      'PHOSPHOR_BRAIN_ENDPOINT',
+      'PHOSPHOR_BRAIN_TOKEN',
+      'PHOSPHOR_BRAIN_EMBEDDING_MODEL_DIR',
+      'PHOSPHOR_BRAIN_TEST_EMBEDDINGS',
+    ]
+    for (const key of keys) vi.stubEnv(key, 'parent')
+    try {
+      const own = Object.fromEntries(keys.map((key) => [key, 'own']))
+      for (const env of [opChildEnv({ A: '1' }, true), opChildEnv({ A: '1', ...own }, false)]) {
+        for (const key of keys) expect(env).not.toHaveProperty(key)
+        expect(env.A).toBe('1')
+      }
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('consumes only the reserved editor title in a marker session', () => {
     const { ops } = channel()
     expect(ops.consume(editor(envelope, 'Edit notes'))).toBe(false)
