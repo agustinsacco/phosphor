@@ -2,7 +2,8 @@ import { app, BrowserWindow, shell, dialog, protocol } from 'electron'
 import { hasPendingRoutineWork } from './routines'
 import { configureShutdownApproval, shutdownApproval } from './shutdown-approval'
 import { routinesKeepRunning } from './routines/background'
-import { dirname, join } from 'node:path'
+import { adoptLegacyUserData } from './adopt-user-data'
+import { join } from 'node:path'
 import { existsSync, renameSync } from 'node:fs'
 import { registerIpcHandlers } from './ipc'
 import { registry } from './registry'
@@ -45,15 +46,13 @@ app.setName('Phosphor')
 // by rename (same volume, atomic), only when the new one does not exist yet.
 // Must run before ANYTHING resolves 'userData'; electron/store.ts constructs
 // its store lazily for exactly this kind of pre-ready adjustment.
-try {
-  const newUserData = app.getPath('userData')
-  const legacyUserData = join(dirname(newUserData), 'pidex')
-  if (!existsSync(newUserData) && existsSync(legacyUserData)) {
-    renameSync(legacyUserData, newUserData)
-  }
-} catch {
-  // A failed migration means first-run defaults, not a broken launch.
-}
+adoptLegacyUserData({
+  userData: () => app.getPath('userData'),
+  isPackaged: app.isPackaged,
+  testUserData: process.env.PHOSPHOR_TEST_USER_DATA,
+  exists: existsSync,
+  rename: renameSync,
+})
 // Inset artwork on macOS (the dock applies no margin of its own, and the
 // full-bleed icon.png rendered larger than every neighbouring icon); linux
 // window/taskbar slots want the full-bleed tile.
