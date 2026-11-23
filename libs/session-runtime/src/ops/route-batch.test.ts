@@ -50,14 +50,14 @@ function remoteOf(answers: Record<string, (r: OpsRunRequest) => Promise<OpsRunRe
   return {
     sent,
     remote: {
-      run: async (hostId: string, request: OpsRunRequest) => {
+      run: async (hostId: string, request: OpsRunRequest): Promise<OpsRunResult> => {
         sent.push({ hostId, request })
         const answer = answers[hostId]
         if (!answer) return { status: 'denied', code: 'unavailable', text: 'unavailable (offline)' }
         return answer(request)
       },
     },
-  } as const
+  }
 }
 
 const purge = (hosts: readonly string[] | 'all') => ({
