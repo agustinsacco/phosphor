@@ -101,8 +101,11 @@ it('serves a search and its numbered flag through the same owner-scoped Brain po
 })
 const surface = { kind: 'surface', clientId: 'view', via: 'owner', label: 'This Mac' } as const
 it('reads a departed lane’s redacted audit by its original ref, including equal-time pages', async () => {
-  const time = vi.spyOn(Date, 'now').mockReturnValue(200000)
+  const at = Date.now()
+  const time = vi.spyOn(Date, 'now').mockReturnValue(at)
   try {
+    owner.close()
+    owner = openDesktopOps(dir)
     await tool(['notify', 'private text'])
     await tool(['whoami'])
     forget()
@@ -113,7 +116,7 @@ it('reads a departed lane’s redacted audit by its original ref, including equa
         page,
       })
     const first = await list()
-    expect(first).toMatchObject({ status: 'ok', data: [{ op: 'whoami', at: 200000 }] })
+    expect(first).toMatchObject({ status: 'ok', data: [{ op: 'whoami', at }] })
     if (first.status !== 'ok' || !first.next) throw new Error('expected another page')
     const second = await list(first.next)
     expect(second).toMatchObject({

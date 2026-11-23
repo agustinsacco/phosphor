@@ -37,7 +37,7 @@ export type OpsConfirmResult = Extract<OpsRunResult, { status: 'confirm' }>
 
 /** What an asked op leaves pending until the user answers. */
 export interface PendingConfirm {
-  /** `principalKey` of the asker; only it may read the status or redeem it. */
+  /** Authenticated asker; only it may read the status or redeem it. */
   readonly principal: OpPrincipal
   /** The asking lane's pi session, whose dialog the confirmation binds to; null for CLI and machine asks. */
   readonly sessionId: string | null
@@ -72,7 +72,7 @@ export interface OpsConfirmPort {
     pending: PendingConfirm,
   ): Promise<OpsConfirmResult | Extract<OpsRunResult, { status: 'denied' }>>
   consume(attempt: ConfirmAttempt): Promise<ConfirmRedemption>
-  /** Null unless `creator` created it. */
+  /** Null unless this principal created it. */
   status(confirmId: string, principal: OpPrincipal): Promise<ConfirmInfo | null>
   surfaceAnswered(
     sessionId: string,

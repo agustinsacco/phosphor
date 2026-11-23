@@ -321,22 +321,16 @@ async function execute(
   if (invalid) return denied('bad-request', `${spec.name}: ${invalid}`)
   const { policy } = await env.binding.policy.read()
   if (extras.hosts) return executeRouted(env, { principal, request, spec, policy }, extras.hosts)
-  // A stopped Desktop lane has no registry entry; discover it through the owner's scanner.
-  const ref = request.args.ref ?? request.args.lane
+  // An audit filter names a historical ref, not an execution target. A gap has no target
+  // to discover; let the usual kill/never/gap checks decide without probing disk.
+  const args = request.op === 'audit.list' || env.binding.gaps[spec.name] ? {} : request.args
+  const ref = args.ref ?? args.lane
   const discovered =
-    typeof ref === 'string' &&
-    env.binding.lanes.lookup &&
-    !env.binding.gaps[request.op] &&
-    !env.binding.lanes.resolve(ref)
+    typeof ref === 'string' && env.binding.lanes.lookup && !env.binding.lanes.resolve(ref)
       ? await env.binding.lanes.lookup(ref)
       : null
-  const target = resolveTarget(env.binding, principal, request.args, extras.facts, discovered)
-  if ('code' in target) {
-    const gap = env.binding.gaps[request.op]
-    return gap && spec.tier !== 'never'
-      ? denied('unsupported', gap)
-      : denied(target.code, target.text)
-  }
+  const target = resolveTarget(env.binding, principal, args, extras.facts, discovered)
+  if ('code' in target) return denied(target.code, target.text)
   const j = judgeOp(env.binding, { principal, request, spec, target, policy })
   const refusal = refuseOp(env.binding, env.deps, env.limits, j)
   if (refusal) return refuse(env, j, refusal)

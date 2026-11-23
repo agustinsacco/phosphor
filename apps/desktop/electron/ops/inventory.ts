@@ -43,7 +43,8 @@ async function settings(section = 'agent', cwd?: string) {
   if (section === 'providers') return providers()
   if (section === 'resources') return packages(cwd)
   if (section === 'connectors') return connectors(cwd)
-  if (section === 'instructions') return readGlobalInstructions(piAgentDir(), { followLinks: true })
+  if (section === 'instructions')
+    return readGlobalInstructions(piAgentDir(), { followLinks: false })
   const prefs = (await import('../store')).getPrefs()
   if (section === 'headroom') return prefs.headroom
   if (section === 'advanced')
@@ -66,7 +67,11 @@ export const inventoryHandlers = {
   ),
   'machine.models': op(async (_a, c) => pageRows(await models(), c)),
   'machine.providers': op(async () => dataResult(await providers())),
-  'machine.commands': op(async (_a,c)=>{const result=await (await import('../pi/catalogue')).piCommands(c.lane?.cwd);if(result.error)throw new Error(result.error);return pageRows(result.commands,c)}),
+  'machine.commands': op(async (_a, c) => {
+    const result = await (await import('../pi/catalogue')).piCommands(c.lane?.cwd)
+    if (result.error) throw new Error(result.error)
+    return pageRows(result.commands, c)
+  }),
   'machine.usage': op(async () =>
     dataResult(await (await import('../pi/codex-usage')).fetchCodexUsage(false)),
   ),
