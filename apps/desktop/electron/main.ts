@@ -1,31 +1,16 @@
-import { app, BrowserWindow, shell, powerMonitor, dialog, protocol } from 'electron'
-import {
-  startRoutines,
-  stopRoutines,
-  wakeRoutines,
-  routineScheduler,
-  hasPendingRoutineWork,
-} from './routines'
+import { app, BrowserWindow, shell, dialog, protocol } from 'electron'
+import { hasPendingRoutineWork } from './routines'
 import { configureShutdownApproval, shutdownApproval } from './shutdown-approval'
-import { installRoutineBackground, routinesKeepRunning } from './routines/background'
+import { routinesKeepRunning } from './routines/background'
 import { dirname, join } from 'node:path'
 import { existsSync, renameSync } from 'node:fs'
 import { registerIpcHandlers } from './ipc'
-import { startArtifactSync } from './artifacts/artifact-sync'
-import { recordAppLaunch } from './feedback/feedback-service'
-import { maintenanceScheduler } from './maintenance/runtime'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { disposeMcpConnections } from './pi/mcp-inspection'
 import { disposePackageJobs } from './pi/packages'
 import { preparePiConfig } from './pi/session-launch'
-import { cancelAllLogins } from './pi/login-flow'
-import { cancelAllClaudeLogins } from './pi/claude-login'
-import { unwatchAll } from './pi/session-watcher'
-import { unwatchAllWorkspaces } from './fs/workspace-watcher'
-import { settleAccount } from './account'
 import { configureLinuxKeyring } from './account/keyring'
-import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import {
   applyThemeSource,
   applyZoom,
@@ -41,7 +26,7 @@ import { fileScheme, isFrameEscape, registerFileProtocol } from './fs/file-proto
 import { externalUrl, isAppNavigation } from './external-links'
 import { installPermissionPolicy } from './voice/permissions'
 import { devRendererUrl } from './dev-renderer-url'
-import { disposeBrain } from './brain/runtime'
+import { startServices, stopServices } from './startup'
 
 const rendererUrl = devRendererUrl(process.env, app.isPackaged)
 const isDev = rendererUrl !== undefined
@@ -249,29 +234,7 @@ if (!singleInstance) {
     // Settings → Writing → Check spelling. Chromium's default is on.
     applySpellcheck(getWritingPrefs().spellcheck)
     registerIpcHandlers()
-    // Before anything can start a session (routines do, at launch): indexes
-    // each session's artifacts as its turns end, then catches up with every
-    // session file on disk once per launch.
-    startArtifactSync()
-    // One count per app start, and the only thing gating the feedback nudge —
-    // it waits for real use rather than interrupting a fresh install.
-    recordAppLaunch()
-    createWindow()
-    installRoutineBackground(
-      () => {
-        const window = BrowserWindow.getAllWindows()[0] ?? createWindow()
-        window.show()
-        window.focus()
-      },
-      () => routineScheduler().pauseAll(),
-    )
-    startRoutines()
-    powerMonitor.on('resume', wakeRoutines)
-    // No-op unless packaged: dev and E2E must never poll GitHub.
-    startUpdateChecks()
-    // Reclaims dead lanes on a timer. Unref'd, warms up before its first
-    // sweep, and deletes nothing unless the user turned that on.
-    maintenanceScheduler.start()
+    startServices({ createWindow })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -337,32 +300,9 @@ function beginQuit(): void {
   if (quitting) return
   shutdownApproval.beginTeardown()
   quitting = true
-  // Clean shutdown: SIGTERM to every pi child, kill all PTYs, close all
-  // filesystem watchers so no chokidar handles or debounce timers outlive us.
-  stopUpdateChecks()
-  // Before killAll: a login flow polls its own pty on a timer, and killing the
-  // pty out from under it would leave that timer running against a dead id.
-  cancelAllLogins()
-  cancelAllClaudeLogins()
-  // Stop sign-ins, but drain native probes that may be saving rotated credentials.
-  const mcpConnections = disposeMcpConnections()
-  // Package jobs own separate trees too; stop admission before teardown.
-  const packageJobs = disposePackageJobs()
-  ptyManager.killAll()
-  // Stop admission and persist interrupted routine outcomes before disposing
-  // unrelated sessions. Routine cancellation owns its nested process tree.
-  void Promise.allSettled([stopRoutines(), disposeBrain()]).finally(() => {
-    void Promise.allSettled([
-      registry.disposeAll(),
-      settleAccount(),
-      unwatchAll(),
-      unwatchAllWorkspaces(),
-      packageJobs,
-      mcpConnections,
-    ]).finally(() => {
-      quitComplete = true
-      app.quit()
-    })
+  void stopServices().finally(() => {
+    quitComplete = true
+    app.quit()
   })
 }
 
