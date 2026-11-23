@@ -103,9 +103,6 @@ test('break-glass restores original data and stays in-app across restart until e
   await restoreAndRetry(migration)
 })
 
-// A fresh attempt plans new lane IDs, but the Host keeps the first import's IDs; verify fails G1.
-test.fixme('explicit Retry after break-glass finishes the second migration', async ({
-  migration,
-}) => {
+test('explicit Retry after break-glass finishes the second migration', async ({ migration }) => {
   await committed(await restoreAndRetry(migration))
 })
