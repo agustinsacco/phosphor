@@ -3,12 +3,14 @@ import type { LaneService } from '../../lanes/service'
 import type { HostStore } from '../../lanes/store'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import type { Reach } from '@phosphor/session-runtime/ops/reach'
 import { archiveHandlers } from './archives'
 import { artifactHandlers } from './artifacts'
 import { configHandlers } from './config'
 import { fileHandlers } from './files'
 import { folderHandlers } from './folders'
 import { gitHandlers } from './git'
+import { hostsHandlers } from './hosts'
 import { laneSelfHandlers } from './lane-self'
 import { laneHandlers } from './lanes'
 import { machineHandlers } from './machine'
@@ -25,6 +27,8 @@ export interface DaemonHandlerDeps {
   readonly lanes: LaneService
   /** The login-shell capture on a local-mode daemon; null on a headless Host. */
   readonly shellEnvironment: HostShellEnvironment | null
+  /** Control's machine directory (X3 reach); absent: this machine reaches no other. */
+  readonly directory?: Reach['directory']
   readonly log: RuntimeLog
 }
 
@@ -45,6 +49,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
     ...machineHandlers(deps),
     ...fileHandlers(deps),
     ...gitHandlers(deps),
+    ...hostsHandlers(deps),
   }
 }
 
@@ -52,7 +57,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
  * Catalog ops the daemon serves once their package lands, by package and
  * handler file. Until then the dispatcher answers them `unsupported`, and a
  * `ready` flag whose ops are pending is not announced. H1–H4's files exist as
- * empty stubs; P1, P2, P4b, D9 and X4 add theirs.
+ * empty stubs; P1, P2, P4b and D9 add theirs.
  */
 const PENDING = {
   'H1 lanes.ts':
@@ -81,7 +86,6 @@ const PENDING = {
   'P2 sandboxes.ts': 'sandbox.list sandbox.create sandbox.rename sandbox.delete',
   'P4b artifact-remove.ts': 'artifact.remove',
   'D9 brain.ts': 'brain.search brain.flag',
-  'X4 hosts.ts': 'hosts.list',
 } as const
 
 export interface PendingHandler {

@@ -38,7 +38,8 @@ export interface MachineReachPorts extends ReachControlPorts {
 type Failure = Extract<ReachResult, { ok: false }>
 const refused = (code: Failure['code'], message: string): Failure => ({ ok: false, code, message })
 
-const DIRECTORY_REFUSALS: Record<ReachUnavailable, Failure> = {
+/** Why no other machine is reachable at all, as `--host` and `hosts.list` say it. */
+export const DIRECTORY_REFUSALS: Readonly<Record<ReachUnavailable, Failure>> = {
   'signed-out': refused(
     'forbidden',
     'This machine is not enrolled, so it cannot reach other machines.',

@@ -23,6 +23,10 @@ function options(spec?: CatalogSpec): string {
   return `Options: ${spec?.routable === false ? '' : '--host H|a,b|all, '}--page <cursor>, --reason <text>, --json`
 }
 
+/** What `--host` accepts; `all` never includes the asking machine. */
+const HOST_OPTION =
+  '--host takes a machine name, an ID prefix of 8 or more hex characters, a,b, or all: every other machine, never this one.'
+
 function note(spec: CatalogSpec): string {
   if (spec.tier === 'destructive') return ' Asks the user first.'
   if (typeof spec.tier === 'function' && spec.tier({}, { self: false }) === 'destructive')
@@ -54,6 +58,7 @@ export function renderHelp(
     return [
       opUsage(),
       options(),
+      HOST_OPTION,
       `Domains: ${[...domains].join(', ')}`,
       `Commands: ${singles.join(', ')}`,
       `Aliases: ${aliases.join(', ')}`,

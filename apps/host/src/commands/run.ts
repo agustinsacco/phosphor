@@ -117,7 +117,12 @@ function runOps(context: RunContext, parts: RunParts, initial: EnrolledControl |
     trace: context.trace,
   })
   parts.reach = reach
-  return { slot: context.ops ?? {}, enrolled, remote: reachRemote(reach) }
+  return {
+    slot: context.ops ?? {},
+    enrolled,
+    remote: reachRemote(reach),
+    directory: (options?: { readonly fresh?: boolean }) => reach.directory(options),
+  }
 }
 
 /**

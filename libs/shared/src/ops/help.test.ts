@@ -8,6 +8,7 @@ it('builds top-level help from the supplied catalog, including unavailable domai
   )
   expect(renderHelp(subset)).toBe(`Usage: phosphor <domain> <verb> [arguments] [options]
 Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json
+--host takes a machine name, an ID prefix of 8 or more hex characters, a,b, or all: every other machine, never this one.
 Domains: policy, lane, provider
 Commands: help
 Aliases: lanes

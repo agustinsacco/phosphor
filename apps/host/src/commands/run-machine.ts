@@ -37,6 +37,7 @@ import type { RunConfig } from './run-state'
 import type { RunParts } from './run-teardown'
 import { createRunServices } from './run-services'
 import type { OpsAdapterPorts } from '../ops/adapter'
+import type { Reach } from '@phosphor/session-runtime/ops/reach'
 import type { OpsBinding } from '@phosphor/session-runtime/ops/types'
 import { startRunOps } from '../ops/service'
 import type { HostOpsLanePorts } from '../session/contributions/ops'
@@ -58,6 +59,7 @@ export interface RunMachinePorts {
     slot: OpsAdapterPorts
     enrolled: { current: EnrolledControl | null }
     remote: NonNullable<OpsBinding['remote']>
+    directory: Reach['directory']
   }
 }
 
@@ -345,6 +347,7 @@ async function bindRunOps(
     shellEnvironment: started.machine.shellEnvironment ?? null,
     enrolledId: () => ops.enrolled.current?.identity.hostId ?? null,
     remote: ops.remote,
+    directory: ops.directory,
     unattended: started.opsLanes.unattended,
     log: started.log.write,
     now: context.now,

@@ -33,6 +33,7 @@ import {
 import { domainHandlers, type DaemonHandlerDeps } from './handlers'
 import { daemonMetaHandlers } from './handlers/meta'
 import { createPolicyFile } from './policy-file'
+import { createHostResolver } from './remote'
 
 export interface OpsServicePorts extends Omit<DaemonHandlerDeps, 'log'> {
   /** The Host state folder: `state.sqlite` and `agent-policy.json`. */
@@ -215,6 +216,9 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     // No daemon op records an inverse yet, so a stored one never counts as current.
     undo: { run: (principal, id) => undo(principal, id) },
     jobs: jobs.port,
+    ...(ports.directory
+      ? { hosts: createHostResolver({ directory: ports.directory, selfIds: ports.selfIds }) }
+      : {}),
     log,
     now,
   })
@@ -250,6 +254,7 @@ export interface RunOpsPorts extends Pick<
   | 'shellEnvironment'
   | 'enrolledId'
   | 'remote'
+  | 'directory'
   | 'log'
   | 'now'
 > {
