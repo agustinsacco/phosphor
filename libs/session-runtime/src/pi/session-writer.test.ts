@@ -3,15 +3,6 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { appendBranchJump, appendLabel, forkSessionAt } from './session-writer'
-import { readSessionTree } from './session-tree'
-import { parseSessionFile } from './session-scanner'
-
-/**
- * The writer appends to (and copies) pi's OWN session files — a malformed
- * entry or a clobbered byte corrupts the user's real history. Every test
- * therefore round-trips the result through the real readers (session-tree,
- * session-scanner) AND re-checks the raw file is still LF-terminated JSONL.
- */
 
 const HEADER = {
   type: 'session',
@@ -100,14 +91,6 @@ describe('session writer', () => {
       expect(label.targetId).toBe('aaaa0001')
       expect(label.label).toBe('checkpoint')
       expectIsoTimestamp(label.timestamp)
-
-      // Round-trip: the real tree reader sees the label and the new leaf.
-      const tree = await readSessionTree(sessionPath)
-      expect(tree.leafId).toBe(label.id)
-      const node = tree.entries.find((e) => e.id === label.id)!
-      expect(node).toMatchObject({ type: 'label', targetId: 'aaaa0001', label: 'checkpoint' })
-      // ...and the scanner still parses the whole file.
-      expect(await parseSessionFile(sessionPath, 1)).toMatchObject({ sessionId: 'sess-uuid-1' })
     })
 
     it('omits the label key entirely when label is undefined', async () => {
@@ -115,9 +98,6 @@ describe('session writer', () => {
       const entry = (await parsedLines(sessionPath)).at(-1)!
       expect(entry.targetId).toBe('aaaa0002')
       expect('label' in entry).toBe(false)
-
-      const node = (await readSessionTree(sessionPath)).entries.at(-1)!
-      expect(node.label).toBeUndefined()
     })
 
     it('parents each new label onto the previous one (the leaf moves)', async () => {
@@ -134,7 +114,6 @@ describe('session writer', () => {
       await appendLabel(bare, 'aaaa0001', 'orphan')
       const entry = (await parsedLines(bare)).at(-1)!
       expect(entry.parentId).toBeNull()
-      expect((await readSessionTree(bare)).leafId).toBe(entry.id)
     })
 
     it('skips unparseable trailing lines when resolving the leaf', async () => {
@@ -164,15 +143,6 @@ describe('session writer', () => {
       expect(jump.fromId).toBe(LEAF_ID)
       expect(typeof jump.summary).toBe('string')
       expectIsoTimestamp(jump.timestamp)
-
-      // Round-trip: the leaf is now the jump entry, hanging off the target.
-      const tree = await readSessionTree(sessionPath)
-      expect(tree.leafId).toBe(jump.id)
-      const leaf = tree.entries.find((e) => e.id === jump.id)!
-      expect(leaf.parentId).toBe('aaaa0001')
-      // The scanner now counts a second child under aaaa0001 → a branch.
-      const meta = await parseSessionFile(sessionPath, 1)
-      expect(meta!.branchCount).toBe(1)
     })
 
     it('is a no-op when the target is already the leaf', async () => {
@@ -185,8 +155,6 @@ describe('session writer', () => {
       const jump = (await parsedLines(sessionPath)).at(-1)!
       expect(jump.type).toBe('branch_summary')
       expect(jump.parentId).toBe('ffffffff')
-      // The file remains readable even with the orphaned parent.
-      expect((await readSessionTree(sessionPath)).leafId).toBe(jump.id)
     })
 
     it('rejects when the session file is missing', async () => {
@@ -228,17 +196,6 @@ describe('session writer', () => {
 
       // The source is untouched.
       expect(await readFile(sessionPath, 'utf8')).toBe(SESSION_CONTENT)
-
-      // Round-trip: tree adopts the new identity, scanner keeps name + lineage.
-      const tree = await readSessionTree(newPath)
-      expect(tree.sessionId).toBe(header.id)
-      expect(tree.leafId).toBe(jump.id)
-      const meta = await parseSessionFile(newPath, 1)
-      expect(meta).toMatchObject({
-        sessionId: header.id,
-        parentSession: sessionPath,
-        name: 'The Build Session',
-      })
     })
 
     it('skips the jump when forking at the current leaf', async () => {

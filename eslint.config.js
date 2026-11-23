@@ -190,6 +190,23 @@ export default tseslint.config(
     rules: { 'phosphor/form-factor-in-layout': 'error' },
   },
   {
+    files: ['apps/desktop/electron/**/*.ts'],
+    ignores: ['**/*.test.ts', 'apps/desktop/electron/pi/session-mutation.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@phosphor/session-runtime/pi/session-writer',
+              message: 'Use session-mutation to hold the Desktop owner path lock.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // The Host runs under plain Node: no Electron, no native Desktop modules,
     // and the libraries only through their package subpaths. boundary.test.ts
     // also checks that each subpath is exported.

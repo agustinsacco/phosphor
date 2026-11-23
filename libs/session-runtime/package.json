@@ -403,6 +403,10 @@
     "./lane-archive/storage": {
       "types": "./src/lane-archive/storage.ts",
       "default": "./src/lane-archive/storage.ts"
+    },
+    "./pi/session-writer": {
+      "types": "./src/pi/session-writer.ts",
+      "default": "./src/pi/session-writer.ts"
     }
   },
   "nx": {

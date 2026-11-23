@@ -3,7 +3,11 @@ import { existsSync, mkdirSync, realpathSync, symlinkSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import { appendBranchJump, appendLabel, forkSessionAt } from './session-writer'
+import {
+  appendBranchJump,
+  appendLabel,
+  forkSessionAt,
+} from '@phosphor/session-runtime/pi/session-writer'
 import { vi } from 'vitest'
 import { readFileSync, readdirSync, rmSync } from 'node:fs'
 import { withOfflineSessionMutation, withSessionForkSource } from './session-mutation'

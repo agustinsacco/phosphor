@@ -1,3 +1,4 @@
+import * as writer from '@phosphor/session-runtime/pi/session-writer'
 import { access } from 'node:fs/promises'
 import { registry } from '../registry'
 import {
@@ -65,4 +66,17 @@ export function withSessionForkSource<T>(path: string, fork: () => Promise<T>): 
     await assertExists(path)
     return fork()
   })
+}
+
+// Only this Desktop module may call the byte writers: never bypass admission.
+export function appendLabel(path: string, targetId: string, label: string | undefined) {
+  return withOfflineSessionMutation(path, () => writer.appendLabel(path, targetId, label))
+}
+
+export function appendBranchJump(path: string, targetId: string) {
+  return withOfflineSessionMutation(path, () => writer.appendBranchJump(path, targetId))
+}
+
+export function forkSessionAt(path: string, targetId: string) {
+  return withSessionForkSource(path, () => writer.forkSessionAt(path, targetId))
 }

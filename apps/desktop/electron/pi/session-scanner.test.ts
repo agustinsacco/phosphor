@@ -11,7 +11,11 @@ import {
   sessionDirNameForCwd,
   workspaceStats,
 } from './session-scanner'
-import { appendBranchJump, appendLabel, forkSessionAt } from './session-writer'
+import {
+  appendBranchJump,
+  appendLabel,
+  forkSessionAt,
+} from '@phosphor/session-runtime/pi/session-writer'
 import { readFile } from 'node:fs/promises'
 
 const HEADER = {
@@ -144,6 +148,14 @@ describe('session scanner', () => {
 
   it('appends labels and branch jumps in the documented format', async () => {
     await appendLabel(sessionPath, 'aaaa0001', 'checkpoint')
+    const labeled = await readSessionTree(sessionPath)
+    expect(labeled.entries.at(-1)).toMatchObject({
+      id: labeled.leafId,
+      type: 'label',
+      targetId: 'aaaa0001',
+      label: 'checkpoint',
+    })
+    expect(await parseSessionFile(sessionPath, 1)).toMatchObject({ sessionId: 'sess-uuid-1' })
     await appendBranchJump(sessionPath, 'aaaa0001')
     const raw = await readFile(sessionPath, 'utf8')
     const lines = raw
@@ -159,6 +171,8 @@ describe('session scanner', () => {
     // Tree leaf resolution should now land on the jump entry.
     const tree = await readSessionTree(sessionPath)
     expect(tree.leafId).toBe(jump.id)
+    expect(tree.entries.at(-1)?.parentId).toBe('aaaa0001')
+    expect((await parseSessionFile(sessionPath, 1))?.branchCount).toBe(1)
   })
 
   it('forkSessionAt copies the file with a new identity and jumps the leaf', async () => {
@@ -175,6 +189,24 @@ describe('session scanner', () => {
     const jump = lines.at(-1)!
     expect(jump.type).toBe('branch_summary')
     expect(jump.parentId).toBe('aaaa0001')
+    expect(await readSessionTree(newPath)).toMatchObject({ sessionId: header.id, leafId: jump.id })
+    expect(await parseSessionFile(newPath, 1)).toMatchObject({
+      sessionId: header.id,
+      name: 'The Build Session',
+      parentSession: sessionPath,
+    })
+  })
+
+  it('round-trips a label on a bare session and a jump to an orphan target', async () => {
+    const bare = join(dir, 'bare.jsonl')
+    await writeFile(bare, line(HEADER))
+    await appendLabel(bare, 'aaaa0001', undefined)
+    const labeled = await readSessionTree(bare)
+    expect(labeled.entries.at(-1)?.label).toBeUndefined()
+    expect(labeled.leafId).toBe(labeled.entries.at(-1)?.id)
+    await appendBranchJump(bare, 'ffffffff')
+    const jumped = await readSessionTree(bare)
+    expect(jumped.entries.at(-1)).toMatchObject({ id: jumped.leafId, parentId: 'ffffffff' })
   })
 
   it('reports the workspace folder when the recorded cwd is gone', async () => {
