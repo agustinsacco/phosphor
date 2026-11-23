@@ -83,6 +83,8 @@ it('joins working and needs-input lanes to exact session files, waiting when the
           : { lanes: [], next: 'before-id' },
   }))
   service.ownerChanged(connection)
+  service.lanesSnapshot()
+  service.ownerChanged(connection)
   expect(service.busy('/other')).toBe(true)
   await vi.waitFor(() => expect(service.busy('/other')).toBe(false))
   expect(service.busy('/a')).toBe(true)

@@ -165,7 +165,11 @@ function admitLocalMachine(
         manager.changed()
       },
       log: tappedLog,
-      traffic: (hostId, ...frame) => trafficLog.frame(hostId, ...frame),
+      traffic: (hostId, direction, frame, bytes) => {
+        if (direction === 'in' && frame.type === 'lanes' && frame.id === 'lanes')
+          desktopBrainApp.lanesSnapshot()
+        trafficLog.frame(hostId, direction, frame, bytes)
+      },
       onAttention: (hostId, event) => attention.receive(hostId, event),
       onRoutinesChanged: (hostId) => broadcast('routines:changed', { machine: `host:${hostId}` }),
     })

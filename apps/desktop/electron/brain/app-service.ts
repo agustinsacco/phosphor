@@ -19,6 +19,7 @@ interface OwnerConnection {
 interface Owner {
   link: OwnerConnection
   token: string
+  receivedLanes?: boolean
   registered?: boolean
   dirty: boolean
   syncing: boolean
@@ -68,6 +69,12 @@ export class BrainAppService {
     this.brainChanged()
   }
 
+  /** The host client retains its cursor during reconnect. Only a fresh lanes frame makes the projection usable. */
+  lanesSnapshot() {
+    if (this.owner) this.owner.receivedLanes = true
+    this.topic = undefined
+  }
+
   ownerChanged(link?: OwnerConnection) {
     if (this.closed) return
     const view = link?.snapshot()
@@ -82,13 +89,13 @@ export class BrainAppService {
       this.topic = undefined
       this.owner = { link, token: view.connectionToken, dirty: false, syncing: false }
     }
-    const key = view.cursor && `${view.cursor.epoch}:${view.cursor.seq}`
-    if (!key) this.topic = undefined
-    else if (this.topic?.key !== key) {
-      const busy = view.lanes.filter(
-        (l) => l.activity === 'working' || l.activity === 'needs-input',
-      )
-      this.topic = { key, ids: new Set(busy.map((l) => l.laneId)) }
+    if (this.owner?.receivedLanes && view.cursor) {
+      const ids = view.lanes
+        .filter((l) => l.activity === 'working' || l.activity === 'needs-input')
+        .map((l) => l.laneId)
+      // Unrelated topic traffic must not starve a waiting extraction by discarding its index join.
+      const key = JSON.stringify(ids.sort())
+      if (this.topic?.key !== key) this.topic = { key, ids: new Set(ids) }
     }
     if (fresh) this.brainChanged()
   }
