@@ -281,10 +281,8 @@ export function createHostConnection(ports: {
         socket?.close(4400, 'Unexpected renewal')
         return
       }
-      if (renewalTimeout) {
-        clearTimeout(renewalTimeout)
-        timers.delete(renewalTimeout)
-      }
+      clearTimeout(renewalTimeout)
+      timers.delete(renewalTimeout)
       renewalTimeout = undefined
       if (f.capabilities) update({ capabilities: [...f.capabilities] })
       renew(f.grantExpiresAt)
