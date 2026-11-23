@@ -3,12 +3,17 @@ import { mkdirSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ATTACHMENT_LIMITS } from '@phosphor/shared/host-protocol-attachments'
-import { HOST_LIMITS, type HostFrame, type LaneOp } from '@phosphor/shared/host-protocol'
+import {
+  HOST_LIMITS,
+  type FrameSocket,
+  type HostFrame,
+  type LaneOp,
+} from '@phosphor/shared/host-protocol'
 import { TERMINAL_LIMITS } from '@phosphor/shared/host-protocol-terminals'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import { createAttachments } from '../features/attachments'
 import { createCommandsFixture, type CommandsFixture } from '../lanes/__fixtures__/commands.fixture'
-import { createLaneCommands } from '../lanes/commands'
+import { createLaneCommands, type LaneCommandPorts } from '../lanes/commands'
 import type { LaneService } from '../lanes/service'
 import { createTerminals } from '../terminals/service'
 import { createLaneAdapter } from './lanes'
@@ -34,9 +39,8 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-/** One lane, its Host services and one connection of `kind` on the shared lane adapter. */
-async function host(kind: Kind) {
-  const f: CommandsFixture = await createCommandsFixture()
+/** The lane's real terminal, attachment and command services; receipts go through `deliver`. */
+function hostServices(f: CommandsFixture, deliver: LaneCommandPorts['deliver']): LaneService {
   const pty = { write: vi.fn(), resize: vi.fn(), kill: vi.fn(), onData: vi.fn(), onExit: vi.fn() }
   const terminals = createTerminals({
     native: { spawn: () => pty },
@@ -60,40 +64,50 @@ async function host(kind: Kind) {
       f.cleanup()
     },
   })
-  // Receipts reach the connection through the adapter, as in production, which frees its slots.
-  let adapter: ReturnType<typeof createLaneAdapter> | undefined
-  const commands = createLaneCommands({
-    ...f.ports,
-    terminals,
-    attachments,
-    deliver: (clientId, receipt, connectionId) => {
-      f.ports.deliver(clientId, receipt, connectionId)
-      adapter?.deliver(clientId, receipt, connectionId)
-    },
-  })
-  const service = {
+  return {
     terminals,
     epoch: 'e',
     capabilities: CAPS,
-    commands,
+    commands: createLaneCommands({ ...f.ports, terminals, attachments, deliver }),
     calls: { call: vi.fn(), capabilityFor: () => null },
     streams: {},
     lanesTopic: {},
     controllerPresence: () => {},
   } as unknown as LaneService
+}
+
+/** A socket that records the frames sent to it; `drop` closes it from the client side. */
+function fakeSocket() {
   const frames: HostFrame[] = []
   const closers: (() => void)[] = []
   let open = true
-  const socket = {
-    send: (text: string) => frames.push(JSON.parse(text) as HostFrame),
+  const socket: FrameSocket = {
+    send: (text) => void frames.push(JSON.parse(text) as HostFrame),
     close: () => {
       open = false
     },
     onMessage: () => {},
-    onClose: (cb: () => void) => closers.push(cb),
+    onClose: (cb) => void closers.push(() => cb(1000, '')),
     isOpen: () => open,
     bufferedBytes: () => 0,
   }
+  const drop = () => {
+    open = false
+    for (const cb of closers) cb()
+  }
+  return { socket, frames, drop }
+}
+
+/** One lane, its Host services and one connection of `kind` on the shared lane adapter. */
+async function host(kind: Kind) {
+  const f: CommandsFixture = await createCommandsFixture()
+  // Receipts reach the connection through the adapter, as in production, which frees its slots.
+  let adapter: ReturnType<typeof createLaneAdapter> | undefined
+  const service = hostServices(f, (clientId, receipt, connectionId) => {
+    f.ports.deliver(clientId, receipt, connectionId)
+    adapter?.deliver(clientId, receipt, connectionId)
+  })
+  const { socket, frames, drop } = fakeSocket()
   const client = { id: f.one.id, label: f.one.label }
   adapter = createLaneAdapter(service)
   const handler = adapter.handler({
@@ -105,35 +119,26 @@ async function host(kind: Kind) {
   })
   const laneId = f.lane.laneId
   const fence = () => f.store.getLane(laneId)?.control.fence ?? 1
-  return {
-    f,
-    laneId,
-    frames,
-    /** Sends a lane command at the current fence and waits until it is not pending. */
-    async command(op: LaneOp | Record<string, unknown>) {
-      const requestId = randomUUID()
-      const frame = { type: 'command', requestId, laneId, fence: fence(), op } as const
-      handler.handle(frame as never, CAPS)
-      await vi.waitFor(() => expect(f.last(requestId)?.status ?? 'pending').not.toBe('pending'))
-      return f.last(requestId)
-    },
-    /** Sends a lane command and returns at once, for answers that are still owed. */
-    submit(op: LaneOp) {
-      const requestId = randomUUID()
-      handler.handle({ type: 'command', requestId, laneId, fence: fence(), op } as never, CAPS)
-      return requestId
-    },
-    input(terminalId: string, seq: number, data: string) {
-      handler.handle({ type: 'terminal.input', terminalId, seq, data } as never, CAPS)
-      const ack = frames.at(-1)
-      return ack?.type === 'terminal.ack' && ack.accepted
-    },
-    /** The connection closes, as when Desktop quits or its socket drops. */
-    disconnect() {
-      open = false
-      for (const cb of closers) cb()
-    },
+  /** Sends a command and returns its id at once, for answers that are still owed. */
+  const submit = (op: LaneOp | Record<string, unknown>, lane = true) => {
+    const requestId = randomUUID()
+    const target = lane ? { laneId, fence: fence() } : {}
+    handler.handle({ type: 'command', requestId, ...target, op } as never, CAPS)
+    return requestId
   }
+  /** Sends a command (with no lane: a machine one) and waits until it is not pending. */
+  const command = async (op: LaneOp | Record<string, unknown>, lane = true) => {
+    const requestId = submit(op, lane)
+    await vi.waitFor(() => expect(f.last(requestId)?.status ?? 'pending').not.toBe('pending'))
+    return f.last(requestId)
+  }
+  const input = (terminalId: string, seq: number, data: string) => {
+    handler.handle({ type: 'terminal.input', terminalId, seq, data } as never, CAPS)
+    const ack = frames.at(-1)
+    return ack?.type === 'terminal.ack' && ack.accepted
+  }
+  /** The connection closes, as when Desktop quits or its socket drops. */
+  return { f, submit, command, input, disconnect: drop }
 }
 
 const create = { type: 'terminal.create', cols: 80, rows: 24 } as const
@@ -158,6 +163,25 @@ describe('terminal per-lane cap', () => {
     expect(statuses.slice(0, TERMINAL_LIMITS.perHost).every((s) => s === 'done')).toBe(true)
     // The frozen terminal.list parser reads at most 32 rows, so the per-Host cap stays.
     expect(statuses.at(-1)).toBe('unknown')
+  })
+})
+
+describe('machine shells, which share the per-lane cap as one scope', () => {
+  const openMachineShells = async (h: Awaited<ReturnType<typeof host>>) => {
+    const statuses: string[] = []
+    for (let i = 0; i <= TERMINAL_LIMITS.perLane; i++)
+      statuses.push((await h.command(create, false))?.status ?? 'none')
+    return statuses
+  }
+
+  it.each(GRANTS)('a %s connection keeps the cap of eight', async (kind) => {
+    const statuses = await openMachineShells(await host(kind))
+    expect(statuses.slice(0, -1).every((s) => s === 'done')).toBe(true)
+    expect(statuses.at(-1)).toBe('unknown')
+  })
+
+  it('the owner opens a ninth', async () => {
+    expect((await openMachineShells(await host('owner'))).every((s) => s === 'done')).toBe(true)
   })
 })
 

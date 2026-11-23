@@ -163,6 +163,44 @@ describe('answer and dispatch', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('given a signal, waits past the deadline with no timer and expires when it aborts', async () => {
+    const state = createCommandState()
+    const p = ports()
+    const queue = queueFor(state, laneId)
+    const identity = { laneId, requestId: 'r', opType: 'bash' }
+    const owner = new AbortController()
+    const late = deferred<string>()
+    let settled: unknown
+    void answer(state, p, identity, queue, late.promise, owner.signal).then((a) => {
+      settled = a
+    })
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(10 * HOST_LIMITS.commandAnswerMs)
+    expect(settled).toBeUndefined()
+    owner.abort()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settled).toEqual({ answered: false, reason: 'deadline' })
+    late.release('late')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(queue.outstanding).toBe(0)
+    // An already aborted signal expires at once; an answer first is kept.
+    expect(
+      await answer(state, p, identity, queueFor(state, laneId), deferred().promise, owner.signal),
+    ).toEqual({ answered: false, reason: 'deadline' })
+    const live = new AbortController()
+    const quick = answer(
+      state,
+      p,
+      identity,
+      queueFor(state, laneId),
+      Promise.resolve(1),
+      live.signal,
+    )
+    expect(await quick).toEqual({ answered: true, value: 1 })
+    live.abort()
+    expect(await quick).toEqual({ answered: true, value: 1 })
+  })
+
   it('answers values, maps rejections and synchronous throws to transport, and clears its timer', async () => {
     const state = createCommandState()
     const p = ports()
