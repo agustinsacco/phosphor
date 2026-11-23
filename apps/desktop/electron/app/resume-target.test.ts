@@ -71,3 +71,15 @@ it('returns none for first run or all missing locations', async () => {
     ),
   ).toEqual({ kind: 'none' })
 })
+
+it('lands on home in daemon mode: This Mac keeps no in-app session or folder to resume', async () => {
+  const saved = {
+    lastSessionPath: '/w/s.jsonl',
+    lastWorkspacePath: '/w',
+    recentWorkspaces: [{ path: '/w', name: 'w', lastOpenedAt: 1 }],
+  }
+  const exists = vi.fn(async () => true)
+  expect(await resolveResumeTarget(saved, exists, 'daemon')).toEqual({ kind: 'none' })
+  expect(exists).not.toHaveBeenCalled()
+  expect(await resolveResumeTarget(saved, exists)).toMatchObject({ kind: 'session' })
+})
