@@ -37,9 +37,14 @@ export function bindSameMachine(next: SameMachineBinding | null): void {
   binding = next
 }
 
+/** The local slot even before it is ready. Never resolves another machine. */
+export function localSlotConnection(): SameMachineConnection | undefined {
+  return binding?.connection()
+}
+
 /** Undefined while no local slot exists or its connection is not ready. */
 export function sameMachine(): SameMachineView | undefined {
-  const connection = binding?.connection()
+  const connection = localSlotConnection()
   if (!binding || !connection) return undefined
   const view = connection.snapshot()
   if (view.state !== 'ready') return undefined

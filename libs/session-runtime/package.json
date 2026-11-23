@@ -492,6 +492,10 @@
       "types": "./src/fs-safety.ts",
       "default": "./src/fs-safety.ts"
     },
+    "./host-install/start-service": {
+      "types": "./src/host-install/start-service.ts",
+      "default": "./src/host-install/start-service.ts"
+    },
     "./host-install/launcher": {
       "types": "./src/host-install/launcher.ts",
       "default": "./src/host-install/launcher.ts"

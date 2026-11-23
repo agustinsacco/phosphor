@@ -1,3 +1,4 @@
+import { notifyLocalMachineChanged } from '../ipc/local-machine-handlers'
 import { app } from 'electron'
 import { desktopBrainApp } from '../brain/app-service'
 import { broadcast } from '../broadcast'
@@ -31,9 +32,11 @@ export function admitLocalMachine(
         enroll.changed()
         bindSameMachine(hostId ? { hostId, connection: () => manager.connection(hostId) } : null)
         desktopBrainApp.ownerChanged(sameMachine()?.connection)
+        notifyLocalMachineChanged()
       },
       changed: () => {
         desktopBrainApp.ownerChanged(sameMachine()?.connection)
+        notifyLocalMachineChanged()
         manager.changed()
         enroll.changed()
       },

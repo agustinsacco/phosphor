@@ -40,7 +40,7 @@ export function bindOpsHosts(connection: ((hostId: string) => OpsConnection | un
 const isWrite = (op: string) => OP_CATALOG.find((spec) => spec.name === op)?.tier !== 'read'
 
 /** One op on a connected machine. The machine derives the surface principal from the connection. */
-async function runOnHost(hostId: string, raw: unknown): Promise<OpsRunResult> {
+export async function runOnHost(hostId: string, raw: unknown): Promise<OpsRunResult> {
   const request = parseOpsRunRequest(raw)
   if (!request || request.actor) return BAD_REQUEST
   const connection = hostConnection?.(hostId)

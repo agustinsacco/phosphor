@@ -110,10 +110,13 @@ it('refuses service.update when the gate says daemon but its service cannot be r
   expect(handlers.bindLocalMachineGate).toBeTypeOf('function')
   handlers.bindLocalMachineGate({
     status: () => ({ mode: 'daemon', migration: 'committed' }),
-    retry: vi.fn(), consent: vi.fn(), onStatus: () => () => {},
+    retry: vi.fn(),
+    consent: vi.fn(),
+    onStatus: () => () => {},
   })
   expect(await invoke('app:localMachineAction', 'update-service')).toEqual({
-    ok: false, message: "This Mac's Phosphor service isn't ready yet. Try again in a moment.",
+    ok: false,
+    message: "This Mac's Phosphor service isn't ready yet. Try again in a moment.",
   })
   expect(state.run).not.toHaveBeenCalled()
   handlers.bindLocalMachineGate(null)
