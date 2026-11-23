@@ -83,3 +83,14 @@ it('lands on home in daemon mode: This Mac keeps no in-app session or folder to 
   expect(exists).not.toHaveBeenCalled()
   expect(await resolveResumeTarget(saved, exists)).toMatchObject({ kind: 'session' })
 })
+
+it('resumes only the migrated service lane without probing a path', async () => {
+  const saved = {
+    recentWorkspaces: [], lastLocal: { laneId: 'lane' },
+    localRuntime: { mode: 'daemon' as const, machineId: 'mac', migrationId: 'migration', at: '' },
+  }
+  const exists = vi.fn(async () => false)
+  expect(await resolveResumeTarget(saved, exists, 'daemon')).toEqual({kind:'lane', hostId:'mac', laneId:'lane'})
+  expect(await resolveResumeTarget(saved, exists)).toEqual({kind:'none'})
+  expect(exists).not.toHaveBeenCalled()
+})
