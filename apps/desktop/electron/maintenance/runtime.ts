@@ -10,7 +10,8 @@ import { MaintenanceScheduler } from './scheduler'
 import { sweep } from './sweep'
 import { routineProtectedPaths } from '../routines'
 
-export const SWEEP_SERVICE_DOWN = "This Mac's Phosphor service isn't connected, so nothing was swept."
+export const SWEEP_SERVICE_DOWN =
+  "This Mac's Phosphor service isn't connected, so nothing was swept."
 
 /**
  * The folders a sweep covers and the lanes running in them. In-app: the
@@ -44,8 +45,7 @@ function protectedPaths(): string[] {
 
 async function runSweep(repoPath: string, act: boolean): Promise<MaintenanceReport> {
   const facts = workspaceFacts()
-  if (!facts)
-    return { ...initializeReport(repoPath, Date.now(), 0), errors: [SWEEP_SERVICE_DOWN] }
+  if (!facts) return { ...initializeReport(repoPath, Date.now(), 0), errors: [SWEEP_SERVICE_DOWN] }
   const prefs = getPrefs().maintenance
   return sweep({
     repoPath,

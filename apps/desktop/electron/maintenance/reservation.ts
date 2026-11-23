@@ -50,7 +50,7 @@ export async function reserveWorkspace<T>(
     return await withWorkspaceLease([path], (lease) => run(() => lease.held()))
   } catch (error) {
     if (error instanceof WorkspaceLeaseRefused && error.refusal === 'live-lane')
-      throw new Error(live)
+      throw new Error(live, { cause: error })
     throw error
   }
 }
