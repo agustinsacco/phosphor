@@ -110,3 +110,16 @@ it('attaches the changed field’s reason and clears it after a user pick', asyn
   await act(async () => el.querySelector('button')!.click())
   expect(el.textContent).not.toContain('Need vision')
 })
+
+it('keeps the observed reason when returning to the same live lane', async () => {
+  setup()
+  function Hint() {
+    const hints = useAgentHints(sid)
+    return <span>{hints.model}</span>
+  }
+  await act(async () => root.render(<Hint />))
+  await emit()
+  await act(async () => root.render(null))
+  await act(async () => root.render(<Hint />))
+  expect(el.textContent).toContain('Need vision')
+})
