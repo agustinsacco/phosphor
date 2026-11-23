@@ -299,8 +299,41 @@ function selectsLocalKey(selector: ResourceSelector, args: readonly unknown[]): 
   return localKey(own, optional)
 }
 
-function isMachineChannel(channel: IpcInvokeChannel): channel is MachineChannel {
+export function isMachineChannel(channel: IpcInvokeChannel): channel is MachineChannel {
   return IPC_SCOPE[channel] === 'machine'
+}
+
+function rewriteKey(value: unknown, rewrite: (key: string) => string): unknown {
+  return typeof value === 'string' ? rewrite(value) : value
+}
+
+/**
+ * A copy of `args` with every selected string key passed through `rewrite`.
+ * Options objects and key arrays are copied, never mutated; positions the
+ * policy does not select are passed through untouched.
+ */
+export function rewriteResourceArgs(
+  channel: MachineChannel,
+  args: readonly unknown[],
+  rewrite: (key: string) => string,
+): unknown[] {
+  const next = [...args]
+  const policy: 'none' | 'routed-pi' | readonly ResourceSelector[] = MACHINE_RESOURCE_ARGS[channel]
+  if (policy === 'none' || policy === 'routed-pi') return next
+  for (const selector of policy) {
+    const value = next[selector.arg]
+    if (selector.each) {
+      if (Array.isArray(value)) next[selector.arg] = value.map((key) => rewriteKey(key, rewrite))
+    } else if (selector.field === undefined) {
+      next[selector.arg] = rewriteKey(value, rewrite)
+    } else if (isOptionsObject(value) && Object.hasOwn(value, selector.field)) {
+      next[selector.arg] = {
+        ...value,
+        [selector.field]: rewriteKey(value[selector.field], rewrite),
+      }
+    }
+  }
+  return next
 }
 
 /**
