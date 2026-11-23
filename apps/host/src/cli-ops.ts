@@ -26,7 +26,7 @@ export const catalogTopic = (word?: string) =>
 const denied = (
   code: Extract<OpsRunResult, { status: 'denied' }>['code'],
   text: string,
-): OpsRunResult => ({ status: 'denied', code, text })
+): Extract<OpsRunResult, { status: 'denied' }> => ({ status: 'denied', code, text })
 const expired = () => denied('confirm-expired', 'Approval timed out. No change was submitted.')
 const envelope = (argv: readonly string[]): OpRequestEnvelope => ({
   v: 1,

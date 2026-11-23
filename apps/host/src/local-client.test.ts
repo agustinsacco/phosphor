@@ -19,6 +19,9 @@ beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'l1-'))
   context = {
     home,
+    hostname: 'test',
+    nodeVersion: process.versions.node,
+    defaultResourceRoot: join(home, 'resources'),
     uid: process.getuid?.(),
     platform: 'linux',
     env: {
@@ -27,7 +30,7 @@ beforeEach(async () => {
       XDG_CONFIG_HOME: join(home, 'config'),
       PI_SESSION_ID: 's1',
     },
-  } as CliContext
+  }
 })
 afterEach(async () => {
   try {
