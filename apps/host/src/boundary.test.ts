@@ -69,6 +69,8 @@ describe('Host import boundary', () => {
         }
         const library = Object.keys(LIBRARIES).find((name) => specifier!.startsWith(`${name}/`))
         if (library) {
+          // Tests share a library's fixtures as they share the Host's own; production never does.
+          if (support && specifier!.includes('/__fixtures__/')) continue
           expect(LIBRARIES[library], where).toContain(`./${specifier!.slice(library.length + 1)}`)
           continue
         }

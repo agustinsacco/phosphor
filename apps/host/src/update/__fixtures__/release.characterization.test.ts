@@ -9,7 +9,8 @@ import {
   verifyReleaseArtifact,
   verifyReleaseManifest,
 } from '@phosphor/session-runtime/host-install/verify'
-import { bundle, fixture, tar } from './release'
+import { bundle, fixture } from './release'
+import { tar } from '@phosphor/session-runtime/host-install/__fixtures__/tar'
 
 const fixtures: ReturnType<typeof fixture>[] = []
 afterEach(() => {

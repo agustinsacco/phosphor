@@ -8,7 +8,8 @@ import {
 } from '@phosphor/session-runtime/host-install/archive'
 const extractRelease = (bytes: Buffer, folder: string, maxBytes?: number) =>
   extractTar(decompressRelease(bytes, maxBytes), folder, maxBytes)
-import { fixture, tar } from './__fixtures__/release'
+import { fixture } from './__fixtures__/release'
+import { tar } from '@phosphor/session-runtime/host-install/__fixtures__/tar'
 const fixtures: ReturnType<typeof fixture>[] = []
 function folder() {
   const f = fixture()
