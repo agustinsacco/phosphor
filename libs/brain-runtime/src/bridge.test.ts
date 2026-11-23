@@ -172,3 +172,32 @@ it('a wall-clock step back does not hold the flag window shut', async () => {
     await bridge.close()
   }
 })
+
+it('keeps the tenth flag but not an eleventh just inside the rolling minute', async () => {
+  let now = 123_000
+  const clock = vi.spyOn(performance, 'now').mockImplementation(() => now)
+  const bridge = await createBrainBridge(async () => ({ status: 'filed', message: 'Filed.' }))
+  const flag = () =>
+    request(bridge.endpoint, {
+      version: 5,
+      token: bridge.token,
+      method: 'flag',
+      params: {
+        memoryId: 'harbor',
+        sessionId: 'lane',
+        title: 'Harbor',
+        problem: 'wrong',
+        reason: 'Checked.',
+      },
+    })
+  try {
+    for (let n = 0; n < 10; n++) expect(await flag()).toMatchObject({ data: { status: 'filed' } })
+    now += 59_999
+    expect(await flag()).toMatchObject({ data: { status: 'limit' } })
+    now++
+    expect(await flag()).toMatchObject({ data: { status: 'filed' } })
+  } finally {
+    clock.mockRestore()
+    await bridge.close()
+  }
+})
