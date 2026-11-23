@@ -12,7 +12,6 @@ it('redeems an audited op without holding the control queue its inverse must use
   const db = new (loadSqlite().DatabaseSync)(':memory:')
   try {
     db.exec(AGENT_OPS_SCHEMA)
-    const audit = createAuditLog(db)
     const events = new EventEmitter()
     const started = once(events, 'started')
     const order: string[] = []
@@ -36,6 +35,7 @@ it('redeems an audited op without holding the control queue its inverse must use
         },
       },
     })
+    const audit = createAuditLog(db, { now: () => h.clock.now })
     const undo = createUndo({
       audit,
       isCurrent: async () => true,
@@ -47,6 +47,7 @@ it('redeems an audited op without holding the control queue its inverse must use
     )
     const on = await dispatcher.run(agent(), { op: 'swarm.on', args: {}, reason: 'delegate' })
     if (on.status !== 'ok' || !on.auditId) throw new Error('Expected audited op')
+    expect(audit.get(on.auditId)?.undo).toBe(true)
     const inverse = dispatcher.run(surface(), { op: 'audit.undo', args: { auditId: on.auditId } })
     await started
     const ordinary = dispatcher.run(surface(), { op: 'notify', args: { text: 'done' } })
