@@ -1,5 +1,5 @@
 import { lstat, mkdir, realpath } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { dirname } from 'node:path'
 import { resolveCatalogBundle } from '@phosphor/session-runtime/skills/catalog'
 import {
   installSkillBundle,
@@ -87,7 +87,6 @@ function editSkill(deps: DaemonHandlerDeps) {
       path: file,
       expected,
       content: a.content,
-      laneId: '',
     })
     return { text: `Edited ${a.name}. ${NO_CONTENT_UNDO}` }
   })
@@ -168,7 +167,7 @@ export function skillHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, 
       const { root } = await destination(deps, a, ctx)
       await bundleDirectory(root, a.name)
       await trashEntry(ports(deps).context, root, a.name)
-      return { text: `Moved ${basename(a.name)} to Trash.` }
+      return { text: `Moved ${a.name} to Trash.` }
     }),
   }
 }

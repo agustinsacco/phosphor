@@ -281,8 +281,8 @@ it('lists repositories in config order, not the order they were first added', ()
 })
 
 it('serializes overlapping adds from catalog and legacy callers, past a refusal', async () => {
- const add=(path:string)=>service.execute({type:'host.repositories.add',path},()=>true)
- const results=await Promise.all([add('Projects'),add('original'),add('.hidden')])
- expect(results).toMatchObject([{ok:true},{ok:false,code:'conflict'},{ok:true}])
- expect(store.listRepositories().map(r=>r.name)).toEqual(['original','Projects','.hidden'])
+  const add = (path: string) => service.execute({ type: 'host.repositories.add', path }, () => true)
+  const results = await Promise.all([add('Projects'), add('original'), add('.hidden')])
+  expect(results).toMatchObject([{ ok: true }, { ok: false, code: 'conflict' }, { ok: true }])
+  expect(store.listRepositories().map((r) => r.name)).toEqual(['original', 'Projects', '.hidden'])
 })

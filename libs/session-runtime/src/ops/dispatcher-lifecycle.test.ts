@@ -343,3 +343,17 @@ it('holds an account restart until settled and refuses, rather than dropping it,
     { sessionId: 's1', items: [{ kind: 'account', accountId: 'a' }] },
   ])
 })
+
+it('a self skill edit schedules one reload for the asking lane only and records no sensitive inverse', async () => {
+  const h = createHarness()
+  const reply = await h.tool({
+    op: 'skill.edit',
+    args: { scope: 'user', name: 'demo', content: 'changed' },
+  })
+  expect(reply).toMatchObject({ status: 'ok', terminate: true })
+  await h.dispatcher.settled('s1', { terminatedBy: 'phosphor' })
+  expect(h.calls.applied).toEqual([
+    { sessionId: 's1', items: [{ kind: 'reload', what: 'skill.edit done' }] },
+  ])
+  expect(h.calls.audit.at(-1)).toMatchObject({ op: 'skill.edit', undo: false })
+})
