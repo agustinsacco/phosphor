@@ -572,6 +572,14 @@
       "types": "./src/owner-lock/link-lock.ts",
       "default": "./src/owner-lock/link-lock.ts"
     },
+    "./owner-lock/owner-lock": {
+      "types": "./src/owner-lock/owner-lock.ts",
+      "default": "./src/owner-lock/owner-lock.ts"
+    },
+    "./owner-lock/process-start": {
+      "types": "./src/owner-lock/process-start.ts",
+      "default": "./src/owner-lock/process-start.ts"
+    },
     "./ops/confirm": {
       "types": "./src/ops/confirm.ts",
       "default": "./src/ops/confirm.ts"

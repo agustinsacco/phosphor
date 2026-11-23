@@ -82,6 +82,17 @@ describe('R7: one owner per pi agent folder', () => {
     expect((await stat(agentDir)).mode & 0o777).toBe(0o755)
   })
 
+  it('never writes a record its own reader would refuse, so it cannot be reclaimed while live', async () => {
+    const ports = { ...portsFor(100), processStart: async () => 'x'.repeat(257) }
+    const lock = await acquireOwnerLock(agentDir, 'daemon', ports, { program: 'p'.repeat(300) })
+    expect(lock.record).toMatchObject({ processStart: null, program: 'p'.repeat(256) })
+    expect(await readOwnerLock(agentDir)).toEqual(lock.record)
+    await expect(acquireOwnerLock(agentDir, 'desktop', portsFor(200))).rejects.toBeInstanceOf(
+      OwnerLockBusy,
+    )
+    await lock.release()
+  })
+
   it('two live holders cannot both acquire, whichever role asks', async () => {
     const first = await acquireOwnerLock(agentDir, 'desktop', portsFor(100))
     const before = await readFile(lockPath, 'utf8')
