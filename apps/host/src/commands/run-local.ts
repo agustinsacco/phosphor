@@ -17,6 +17,7 @@ import { hostStateDirectory } from '../lanes/state-dir'
 import type { LaneService } from '../lanes/service'
 import type { HostStore } from '../lanes/store'
 import type { LaneAdapter } from '../api/lanes'
+import type { AppServices } from '../session/app-services'
 import { runLogin } from './login'
 import type { RunContext } from './run'
 import type { RunParts } from './run-teardown'
@@ -59,6 +60,7 @@ export interface LocalSocketLanes {
 
 /** The owner socket as run drives it. */
 export interface LocalSocket {
+  readonly appServices?: AppServices
   stop(): Promise<void>
   /**
    * Starts serving lanes, ops and the machine guard beside the owner calls.

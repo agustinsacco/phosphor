@@ -25,6 +25,7 @@ import type { RunContext } from '../commands/run'
 import type { LocalDaemon, LocalSocket, StartLocalSocket } from '../commands/run-local'
 import { hostStateDirectory } from '../lanes/state-dir'
 import type { OpsAdapterPorts } from '../ops/adapter'
+import { createAppServices, type AppServices } from '../session/app-services'
 import { HOST_VERSION } from '../version'
 import { createOwnerAdapter, OwnerCallRefused, type OwnerHandlers } from './adapter'
 import { localStatus } from './status'
@@ -73,6 +74,7 @@ function daemonHandlers(
   context: RunContext,
   daemon: LocalDaemon,
   machineId: string,
+  appServices: AppServices,
 ): OwnerHandlers {
   const agentDir = piAgentDir(context.env, context.home)
   const statusPorts = {
@@ -80,6 +82,7 @@ function daemonHandlers(
     hostVersion: HOST_VERSION,
     daemon,
     features: runServiceFeatures,
+    appServices: appServices.status,
     ownerLock: () => readOwnerLock(agentDir, context.uid),
   }
   return {
@@ -153,10 +156,26 @@ export function createLocalSocketStarter(
   context: RunContext,
   options: LocalSocketOptions = {},
 ): StartLocalSocket {
+  const appServices = createAppServices(hostStateDirectory(context.env, context.home), context.uid)
+  return ownerSocket(
+    context,
+    { ...options, handlers: { ...appServices.handlers, ...options.handlers } },
+    appServices,
+  )
+}
+
+function ownerSocket(
+  context: RunContext,
+  options: LocalSocketOptions,
+  appServices: AppServices,
+): StartLocalSocket {
   return async (daemon): Promise<LocalSocket> => {
     const uid = context.uid
     const { identity, key } = await readLocalIdentity(dirname(resolve(context.configPath)), uid)
-    const handlers = { ...daemonHandlers(context, daemon, identity.machineId), ...options.handlers }
+    const handlers = {
+      ...daemonHandlers(context, daemon, identity.machineId, appServices),
+      ...options.handlers,
+    }
     const configDirectory = dirname(resolve(context.configPath))
     const now = context.now ?? Date.now
     const startedAt = now()
@@ -200,6 +219,7 @@ export function createLocalSocketStarter(
       throw error
     }
     return {
+      appServices,
       connections: server.connections,
       serveLanes: (lanes) =>
         server.serveLanes({

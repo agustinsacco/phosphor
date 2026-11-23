@@ -16,6 +16,7 @@ import { createHostLog, hostLogDirectory } from '../machine/log'
 import type { HostClaudeAccounts } from '../providers/accounts'
 import { createHostRoutines, routineOwnership } from '../routines/service'
 import { createHostRuntime, type HostMachine } from '../session/runtime'
+import type { AppServices } from '../session/app-services'
 import { inspectHost } from './doctor'
 import type { RunContext } from './run'
 import {
@@ -31,6 +32,7 @@ import { createRunServices } from './run-services'
 
 /** What the machine needs from the rest of run: state it opened, and the control link's ports. */
 export interface RunMachinePorts {
+  appServices?: AppServices
   epoch: string
   config: RunConfig
   stateDirectory: string
@@ -54,7 +56,7 @@ async function startRuntime(
   await trash.sweep().catch(() => {})
   const accounts = createRunAccounts(context, ports.stateDirectory, machine.env)
   const runtime = createHostRuntime(
-    { ...machine, log },
+    { ...machine, log, appServices: ports.appServices },
     {
       claudeAccounts: accounts,
       ...hostLivePolicy(config.path, config.config),
@@ -191,7 +193,7 @@ export async function startRunMachine(
   const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
   parts.log = log
   const started = await startRuntime(context, parts, ports, machine, log)
-  parts.services = createRunServices(machine.shellEnvironment)
+  parts.services = createRunServices(machine.shellEnvironment, ports.appServices)
   const { live, runtime, routines } = started
   const {
     features: administrationFeatures,

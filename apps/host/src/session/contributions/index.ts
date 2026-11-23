@@ -11,6 +11,7 @@ import { createOpsContribution } from './ops'
 export function hostSpawnContributions(
   shell: HostShellEnvironment | undefined,
   log: HostLog,
+  brain?: Parameters<typeof createBrainContribution>[0],
 ): readonly SpawnContribution[] {
   shell?.bindLog(log)
   return [
@@ -18,6 +19,6 @@ export function hostSpawnContributions(
     createOpsContribution(),
     createDirectivesContribution(),
     createHeadroomContribution(),
-    createBrainContribution(),
+    brain ? createBrainContribution(brain) : null,
   ].filter((contribution) => contribution !== null)
 }

@@ -10,6 +10,7 @@ export interface LocalStatusPorts {
   machineId: string
   hostVersion: string
   daemon: Pick<LocalDaemon, 'standby' | 'link'>
+  appServices?(): NonNullable<LocalStatus['appServices']>
   features(): readonly HostReleaseFeature[]
   /** The machine's owner lock record, or null when nobody holds it. */
   ownerLock(): Promise<Pick<OwnerLockRecord, 'owner' | 'pid'> | null>
@@ -50,5 +51,11 @@ export async function localStatus(
     pid: lock?.pid ?? null,
     standby: ports.daemon.standby(),
   }
-  return { ...base, features: ports.features(), ...enrollment(link?.state()), ownerLock }
+  return {
+    ...base,
+    ...(ports.appServices ? { appServices: ports.appServices() } : {}),
+    features: ports.features(),
+    ...enrollment(link?.state()),
+    ownerLock,
+  }
 }

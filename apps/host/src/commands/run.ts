@@ -116,7 +116,15 @@ async function startRun(
   const webPush: StartWebPush = start.initial
     ? runWebPush(context, start.initial)
     : async () => undefined
-  const ports = { epoch, config, stateDirectory, store, sink, webPush }
+  const ports = {
+    epoch,
+    config,
+    stateDirectory,
+    store,
+    sink,
+    webPush,
+    appServices: socket?.appServices,
+  }
   const machine = await startRunMachine(context, parts, ports, signal)
   signal.throwIfAborted()
   const laneAdapter = shareLanes(context, parts, sink, machine.lanes, socket)
