@@ -830,6 +830,14 @@ Defrag leaves your saved launch folder alone. The Brain folder joins the recent 
 the Brain group stays in the sidebar after a restart. Opening the Brain lane yourself records
 the folder like any other lane.
 
+The Brain lane runs in Desktop on This Mac in both modes. After This Mac moves to the
+[Phosphor service](local-service.md), it is the one lane Desktop still starts itself: the
+registry admits only `<real userData>/brain/Brain` by real path (`isDesktopBrainLane` in
+`apps/desktop/electron/brain/lane-folder.ts`; a sibling, a nested folder or a symlink in its
+place is refused). It stays Desktop-private there: it is not in the sidebar or the service's
+lane list, it writes no recent folder, launch folder or session marker, and migration never
+plans it. Quitting Desktop asks first while its turn runs, and stops it.
+
 Its rules are `AGENTS.md` in that folder, which pi loads like any project's. Phosphor writes the
 default when the file is missing, when a lane starts there and before each Defrag turn, and
 never overwrites it, so deleting the file restores the default. Before every request the

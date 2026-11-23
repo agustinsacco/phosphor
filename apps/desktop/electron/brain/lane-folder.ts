@@ -66,6 +66,20 @@ export function isBrainLaneFolder(cwd: string, folder: string): boolean {
   return (real(cwd) ?? resolve(cwd)) === folder
 }
 
+/**
+ * Whether `cwd` is exactly this Desktop's Brain lane folder, `<real userData>/brain/Brain`, by real
+ * path; a symlink in its place fails closed. It is Desktop-private, so it is the one in-app lane
+ * daemon mode starts (registry.ts) and the one folder migration never plans.
+ */
+export function isDesktopBrainLane(
+  cwd: string,
+  userData: string,
+  realpath: (path: string) => string | null = real,
+): boolean {
+  const root = realpath(userData)
+  return root !== null && realpath(cwd) === join(root, 'brain', 'Brain')
+}
+
 const rulesPath = (folder: string): string => join(folder, 'AGENTS.md')
 
 /** The folder, and the default rules when AGENTS.md is missing; the owner's rules stay as they are. */

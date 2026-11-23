@@ -12,6 +12,7 @@ import { generateSessionTitle } from '../pi/session-title'
 import { MIN_PI_VERSION, type CreateSessionOptions } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
 import { log } from '../debug-log'
+import { localRuntimeMode } from '../local-machine/mode'
 
 /** pi subprocess lifecycle: health, session create/dispose, RPC passthrough. */
 export function registerPiSessionHandlers(): void {
@@ -57,8 +58,9 @@ export function registerPiSessionHandlers(): void {
       ? remoteLanes().dispose(event.sender.id, sessionId)
       : desktopSessions.dispose(sessionId),
   )
+  // In daemon mode the only in-app lane is Desktop's private Brain lane, never a window's lane.
   handle('pi:listLiveSessions', (event) => [
-    ...desktopSessions.list(),
+    ...(localRuntimeMode() === 'daemon' ? [] : desktopSessions.list()),
     ...remoteLanes().list(event.sender.id),
   ])
 

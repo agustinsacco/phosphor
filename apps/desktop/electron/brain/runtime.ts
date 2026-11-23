@@ -65,7 +65,10 @@ const agentLane = (folder: string) =>
     create: (options, execution) => spawnSession(options, undefined, execution),
     client: (sessionId) => registry.get(sessionId)?.client,
     command: (sessionId, command) => desktopSessions.command(sessionId, command),
-    changed: (workspacePath) => broadcast('sessions:changed', { workspacePath }),
+    // In daemon mode no window lists the in-app Brain lane's folder.
+    changed: (workspacePath) => {
+      if (localRuntimeMode() !== 'daemon') broadcast('sessions:changed', { workspacePath })
+    },
   })
 
 async function construct(): Promise<BrainService> {

@@ -22,6 +22,7 @@ import {
 import { getPrefs, recordWorkspace, realPathOrNull } from '../store'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import { log } from '../debug-log'
+import { localRuntimeMode } from '../local-machine/mode'
 import { createLaneReload } from '@phosphor/session-runtime/pi/lane-reload'
 import { createLaneConfigFingerprint } from '@phosphor/session-runtime/pi/lane-config'
 import { mcpConfigPaths, mcpDirs } from '@phosphor/session-runtime/pi/mcp-config'
@@ -49,7 +50,11 @@ const spawn = createSessionStartup({
     paused: isRoutineSession,
   },
   accounts: { remember: rememberSpawnAccount, forget: forgetSpawnAccount, hold: holdAccount },
-  recordWorkspace,
+  // In daemon mode the service owns This Mac's recents; the one in-app lane, Desktop's private
+  // Brain lane, must leave Desktop's legacy prefs untouched (the migration tripwire reads them).
+  recordWorkspace: (...args) => {
+    if (localRuntimeMode() !== 'daemon') recordWorkspace(...args)
+  },
   laneReload,
   contributions: desktopSpawnContributions(),
   stubContributions: [
@@ -93,7 +98,8 @@ export const desktopSessions = {
   ) => {
     // Record intent before queueing behind a sweep. A resumed conversation is unfinished.
     recordWorkspaceIntent(options.workspacePath)
-    if (options.sessionPath) decideSession(options.sessionPath, false)
+    if (options.sessionPath && localRuntimeMode() !== 'daemon')
+      decideSession(options.sessionPath, false)
     return withWorkspace(options.workspacePath, async () => {
       await access(options.workspacePath)
       return service.create(options, target, execution)

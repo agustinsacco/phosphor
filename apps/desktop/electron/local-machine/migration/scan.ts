@@ -10,11 +10,13 @@ import type {
   PlanSessionFact,
 } from './plan-facts'
 import { scanRoutines } from './scan-routines'
+import { isDesktopBrainLane } from '../../brain/lane-folder'
 
 /**
  * Step 3's input: what Desktop's sidebar shows today, computed in main the
  * way the renderer computes it (`useKnownWorkspaces`, `useWorktreeDiscovery`,
- * `useLocalSidebarGroups`). The recents, realpathed and de-duplicated, then
+ * `useLocalSidebarGroups`). The recents (never Desktop's private Brain lane,
+ * which stays in-app), realpathed and de-duplicated, then
  * each sandbox; per folder its sessions, its live git worktrees and the
  * retained checkouts of removed ones; rewound predecessors and lanes a
  * routine owns are scanned but not visible. Every disk read is a port.
@@ -65,7 +67,10 @@ export function scanFolders(ports: ScanPorts): FolderScan {
   }
   const insideSandboxes = (path: string) => path.startsWith(`${ports.sandboxBase}/`)
   for (const recent of ports.prefs.recentWorkspaces)
-    if (!isWorktreeFolder(recent.path)) {
+    if (
+      !isWorktreeFolder(recent.path) &&
+      !isDesktopBrainLane(recent.path, ports.userData, ports.realpath)
+    ) {
       const real = ports.realpath(recent.path) ?? recent.path
       add(recent.path, recent.name, insideSandboxes(real))
     }
