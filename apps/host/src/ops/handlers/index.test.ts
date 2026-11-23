@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { OP_CATALOG, OP_GAPS } from '@phosphor/shared/ops-catalog'
 import { builtinHandlers } from '@phosphor/session-runtime/ops/builtins'
 import { daemonMetaHandlers } from './meta'
@@ -59,9 +59,9 @@ it('lists a pending op once, never also served or a gap, and only for a catalog 
   }
 })
 
-it('has a stub file for every H1–H4 pending op, which serves nothing yet', () => {
+it('leaves no H1–H4 op pending', () => {
   const owned = Object.values(PENDING_HANDLERS).filter((p) => /^H[1-4]$/.test(p.package))
-  expect(new Set(owned.map((p) => p.package))).toEqual(new Set(['H4']))
+  expect(owned).toEqual([])
   for (const { file } of owned) expect(existsSync(join(import.meta.dirname, file)), file).toBe(true)
 })
 
@@ -88,4 +88,47 @@ it('serves machine.doctor through the login-shell refresh', async () => {
 
 it('leaves cross-machine skill sharing to the app, not machine grants', () => {
   expect(OP_GAPS.daemon['skill.share']).toContain('share skills from the Phosphor app')
+})
+
+it('serves service.update as an asked background job that wraps the service updater', async () => {
+  const ctx = { principal: { kind: 'local', clientId: 'cli' } } as never
+  await expect(domainHandlers(deps)['service.update']!({}, ctx)).rejects.toMatchObject({
+    code: 'unavailable',
+  })
+  const steps = {
+    stage: async () => ({ kind: 'current' as const }),
+    apply: async () => ({ ok: true as const }),
+  }
+  const pauses = { begin: async () => 'paused' as const, cancel: () => {} }
+  const handlers = domainHandlers({ ...deps, serviceUpdate: { steps, pauses } })
+  expect(await handlers['service.update']!({}, ctx)).toMatchObject({ data: { outcome: 'current' } })
+  const spec = OP_CATALOG.find((s) => s.name === 'service.update')!
+  expect(spec).toMatchObject({ tier: 'destructive', job: true })
+})
+
+it('reports the machine’s lanes, version and pause, and its inventory through the lane service', async () => {
+  const ctx = { principal: { kind: 'local', clientId: 'cli' } } as never
+  const call = vi.fn(async (method: string) => ({ ok: true, data: { method } }))
+  const summaries: Record<string, { activity: string }> = {
+    a: { activity: 'working' },
+    b: { activity: 'idle' },
+    c: { activity: 'stopped' },
+  }
+  const handlers = domainHandlers({
+    ...deps,
+    store: { listLanes: () => [{ laneId: 'a' }, { laneId: 'b' }, { laneId: 'c' }] },
+    lanes: { calls: { call } },
+    laneRuntime: { summaryFor: (id: string) => summaries[id] ?? null },
+    pauseState: () => ({ kind: 'none' }),
+  } as unknown as DaemonHandlerDeps)
+  expect((await handlers['machine.status']!({}, ctx)).data).toMatchObject({
+    lanes: { total: 3, live: 2, working: 1 },
+    pause: { kind: 'none' },
+  })
+  await handlers['machine.usage']!({}, ctx)
+  await handlers['machine.models']!({}, ctx)
+  expect(call.mock.calls).toEqual([
+    ['machine.claudeUsage', {}],
+    ['machine.models', {}],
+  ])
 })
