@@ -12,6 +12,21 @@ import type { RunParts } from './run-teardown'
 
 export type RunConfig = Extract<Awaited<ReturnType<typeof loadHostConfig>>, { ok: true }>
 
+/** The config as run reads it; one that is not usable is a config failure. */
+export async function loadRunConfig(context: RunContext, signal?: AbortSignal): Promise<RunConfig> {
+  const config = await (context.loadConfig ?? loadHostConfig)(context.configPath, context.uid)
+  signal?.throwIfAborted()
+  if (!config.ok) throw new IdentityFailure('Config is not usable. Run phosphor setup to check it.')
+  return config
+}
+
+/** Makes the store's folders the config's repositories. */
+export function syncRunRepositories(context: RunContext, store: HostStore, config: RunConfig) {
+  store.syncRepositories(config.config.repositories, (count) =>
+    context.log?.('host', 'lanes.repositories_unavailable', { count }),
+  )
+}
+
 /**
  * Loads the config, then opens the lane store, syncs its repositories,
  * reconciles it with pi's sessions and opens attachments, in that order.
@@ -24,9 +39,7 @@ export async function openRunState(
   signal: AbortSignal,
 ): Promise<{ config: RunConfig; stateDirectory: string; store: HostStore }> {
   signal.throwIfAborted()
-  const config = await (context.loadConfig ?? loadHostConfig)(context.configPath, context.uid)
-  signal.throwIfAborted()
-  if (!config.ok) throw new IdentityFailure('Config is not usable. Run phosphor setup to check it.')
+  const config = await loadRunConfig(context, signal)
   const stateDirectory = hostStateDirectory(context.env, context.home)
   let store: HostStore
   try {
@@ -39,9 +52,7 @@ export async function openRunState(
     })
     parts.store = store
     signal.throwIfAborted()
-    store.syncRepositories(config.config.repositories, (count) =>
-      context.log?.('host', 'lanes.repositories_unavailable', { count }),
-    )
+    syncRunRepositories(context, store, config)
     signal.throwIfAborted()
     const counts = await (context.reconcile ?? reconcile)(
       store,

@@ -22,6 +22,7 @@ import type { LaneAdapter } from '../api/lanes'
 import type { AppServices } from '../session/app-services'
 import { runLogin } from './login'
 import type { RunContext } from './run'
+import { loadRunConfig, syncRunRepositories, type RunConfig } from './run-state'
 import type { RunParts } from './run-teardown'
 
 /** How often a daemon whose owner lock a live Desktop holds tries again. */
@@ -224,18 +225,27 @@ export function createLocalDaemon(
   return {
     daemon,
     enroll: enrollInProcess(context),
-    /** Starts the socket seam, then holds start-up until this daemon owns the machine's lanes. */
+    /**
+     * Starts the socket seam, then holds start-up until this daemon owns the
+     * machine's lanes. A migration commits during standby, so leaving it
+     * re-reads the config and the store's folders before the lanes start.
+     */
     async own(
       parts: RunParts,
       store: HostStore,
+      config: RunConfig,
       signal: AbortSignal,
-    ): Promise<LocalSocket | undefined> {
+    ): Promise<{ socket: LocalSocket | undefined; config: RunConfig }> {
       const socket = await context.startLocalSocket?.(daemon, store)
       if (socket) releaseFirst(parts, () => socket.stop())
+      const waited = owning.standby()
       const lock = await acquireWhenOwning(context, owning, ports, signal)
       releaseFirst(parts, () => lock.release())
       owning.log('owner.acquired')
-      return socket
+      if (!waited) return { socket, config }
+      const reloaded = await loadRunConfig(context, signal)
+      syncRunRepositories(context, store, reloaded)
+      return { socket, config: reloaded }
     },
     attach(started: ControlLink) {
       link = started

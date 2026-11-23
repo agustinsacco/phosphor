@@ -108,7 +108,8 @@ async function startRun(
   start: RunStart,
   signal: AbortSignal,
 ): Promise<ControlLink> {
-  const { config, stateDirectory, store } = await openRunState(context, parts, sink, signal)
+  const opened = await openRunState(context, parts, sink, signal)
+  const { stateDirectory, store } = opened
   signal.throwIfAborted()
   const local = start.mode
     ? createLocalDaemon(context, start.mode, {
@@ -116,7 +117,8 @@ async function startRun(
           parts.socketLanes && !parts.runtimeDrain ? parts.runtime?.leases : undefined,
       })
     : undefined
-  const socket = await local?.own(parts, store, signal)
+  const owned = await local?.own(parts, store, opened.config, signal)
+  const { socket, config } = owned ?? { socket: undefined, config: opened.config }
   signal.throwIfAborted()
   const epoch = randomBytes(8).toString('hex')
   // Web Push needs the identity run started with; a later enrollment gets it on the next start.
