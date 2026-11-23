@@ -5,7 +5,7 @@
   "sourceRoot": "apps/host/src",
   "projectType": "application",
   "tags": ["scope:host"],
-  "implicitDependencies": ["runtime", "shared", "pi-extensions"],
+  "implicitDependencies": ["runtime", "shared", "host-client", "pi-extensions"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",
