@@ -152,3 +152,27 @@ it('checks control again only once the Host snapshot read after taking it has la
   expect(invoke).toHaveBeenCalledWith('hosts:takeControl', MOCK_HOST_ID, mockRemoteInfo.laneId)
   expect(accepted).toHaveBeenCalledOnce()
 })
+
+it.each(['empty', 'self', 'other'])(
+  'after service lane creation claims only an empty lane (%s)',
+  async (held) => {
+    const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+    host.local = true
+    host.lanes[0]!.control.controller =
+      held === 'empty' ? null : { label: 'Phone', connected: true, self: held === 'self' }
+    const start = startRemoteChat(MOCK_HOST_ID, input, 'Hi', [], accepted)
+    if (held === 'other') {
+      await expect(start).rejects.toThrow('Controlled by Phone')
+      expect(pi).not.toHaveBeenCalled()
+    } else {
+      await start
+      expect(pi).toHaveBeenCalledOnce()
+    }
+    const takes = invoke.mock.calls.filter(([channel]) => channel === 'hosts:takeControl')
+    expect(takes).toEqual(
+      held === 'empty'
+        ? [['hosts:takeControl', MOCK_HOST_ID, mockRemoteInfo.laneId, { ifUnheld: true }]]
+        : [],
+    )
+  },
+)

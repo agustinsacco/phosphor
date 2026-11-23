@@ -88,3 +88,20 @@ it('viewer empty list failure shows the fixed message without an automatic retry
   expect(container.textContent).not.toContain('Retry')
   expect(invoke).toHaveBeenCalledTimes(1)
 })
+
+it('only claims an empty service lane when the user explicitly opens a shell', async () => {
+  const hosts = structuredClone(mockRemoteHosts)
+  const host = hosts[MOCK_HOST_ID]!
+  host.local = true
+  host.capabilities.push('terminal')
+  host.lanes[0]!.control.controller = null
+  useRemoteLanesStore.setState({ hosts })
+  await render()
+  expect(invoke).not.toHaveBeenCalled()
+  await act(async () => {
+    await useTerminalStore
+      .getState()
+      .createTab(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath)
+  })
+  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['hosts:takeControl', 'pty:create'])
+})
