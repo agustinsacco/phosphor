@@ -139,3 +139,18 @@ describe('JsonlDecoder and a 300 KiB op request', () => {
     expect((JSON.parse(lines[0]!) as { prefill: string }).prefill).toBe(prefill)
   })
 })
+
+it.each([false, true])(
+  'takes the Headroom socket only from spawn inputs (inheritEnv=%s)',
+  (inherit) => {
+    vi.stubEnv('PHOSPHOR_HEADROOM_SOCKET', 'parent')
+    try {
+      expect(opChildEnv({}, inherit)).not.toHaveProperty('PHOSPHOR_HEADROOM_SOCKET')
+      expect(
+        opChildEnv({ PHOSPHOR_HEADROOM_SOCKET: 'owned' }, inherit).PHOSPHOR_HEADROOM_SOCKET,
+      ).toBe('owned')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  },
+)
