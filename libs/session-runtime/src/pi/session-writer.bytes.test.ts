@@ -36,3 +36,35 @@ it('preserves exact label, jump and fork bytes, including LF framing', async () 
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+it('forks before the first entry as a header-only file, as pi’s own fork writes it', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'phosphor-writer-bytes-'))
+  const path = join(dir, 'source.jsonl')
+  const timestamp = '2026-08-01T10:00:00.000Z'
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(timestamp))
+  try {
+    const source =
+      '{"type":"session","version":3,"id":"src","timestamp":"2026-07-01T00:00:00.000Z","cwd":"/w"}\n' +
+      '{"type":"message","id":"first","parentId":null}\n'
+    await writeFile(path, source)
+    const fork = await forkSessionAt(path, null)
+    // pi's `newSession({ parentSession })`: the same keys, in the same order.
+    const piHeader = {
+      type: 'session',
+      version: 3,
+      id: '00000000-0000-4000-8000-000000000001',
+      timestamp,
+      cwd: '/w',
+      parentSession: path,
+    }
+    expect(await readFile(fork, 'utf8')).toBe(JSON.stringify(piHeader) + '\n')
+    expect(fork).toBe(
+      join(dir, '2026-08-01T10-00-00-000Z_00000000-0000-4000-8000-000000000001.jsonl'),
+    )
+    expect(await readFile(path, 'utf8')).toBe(source)
+  } finally {
+    vi.useRealTimers()
+    await rm(dir, { recursive: true, force: true })
+  }
+})
