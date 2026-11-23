@@ -225,7 +225,7 @@ function laneService(capabilities: readonly HostCapability[]) {
     capabilities,
     commands: {
       capabilityFor: gate.capabilityFor,
-      submit: async (_client, frame) => {
+      submit: async (_client: unknown, frame: { op: { type: string } }) => {
         submitted.push(frame.op.type)
       },
       status: () => {},
@@ -305,11 +305,11 @@ describe('the socket with lanes', () => {
     cli.close()
   })
 
-  it('serves the owner through the shared adapter, so a receipt reaches it with no TCP listener', async () => {
+  it('serves the owner through the shared adapter, so a receipt reaches it with no TCP listener, until the lanes stop', async () => {
     const server = await start([join(await root(), 'run', 'phosphor.sock')])
     const { service, submitted } = laneService(['sessions.read', 'sessions.control'])
     const adapter = createLaneAdapter(service)
-    server.serveLanes({ ...service, links: hostLinks(), handler: adapter.handler })
+    const served = server.serveLanes({ ...service, links: hostLinks(), handler: adapter.handler })
     const desktop = await connect(server.path, 'owner')
     const requestId = randomUUID()
     desktop.send({
@@ -326,6 +326,12 @@ describe('the socket with lanes', () => {
       ).toBeDefined(),
     )
     expect(adapter.isConnected(ownerClient.id)).toBe(true)
-    desktop.close()
+    // Teardown stops the lanes before their store closes: the adapter forgets the client at once.
+    await served.stop()
+    expect(adapter.isConnected(ownerClient.id)).toBe(false)
+    await vi.waitFor(() => expect(desktop.closed()).toEqual({ code: 1001 }))
+    const after = await connect(server.path, 'owner')
+    expect(after.frames[0]).toMatchObject({ capabilities: [] })
+    after.close()
   })
 })

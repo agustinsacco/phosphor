@@ -7,10 +7,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HOST_SIDECARS } from '@phosphor/shared/host-local'
 import { helloProofMessage } from '@phosphor/shared/host-protocol'
 import type * as Runtime from '../session/runtime'
-import { socketHello } from '../api/__fixtures__/local-client'
-import { writeLocalIdentity } from '../owner/__fixtures__/local-identity'
+import { socketHello, socketStream } from '../api/__fixtures__/local-client'
+import { localCredential, writeLocalIdentity } from '../owner/__fixtures__/local-identity'
 import { createLocalSocketStarter } from '../owner/socket'
 import { runHost } from './run'
+import type { LocalDaemon } from './run-local'
 import { localRunMachine } from './__fixtures__/run-local'
 
 const hooks = vi.hoisted(() => ({
@@ -31,6 +32,38 @@ async function socketPath() {
   const folder = await mkdtemp(join(tmpdir(), 'd3-'))
   folders.push(folder)
   return join(folder, 'run', 'phosphor.sock')
+}
+
+type Identity = Awaited<ReturnType<typeof writeLocalIdentity>>
+
+/** Desktop on the socket: a fresh nonce, a signed owner credential, then ready. */
+async function ownerConnection(path: string, local: Identity, now: () => number) {
+  const { body } = await socketHello(path)
+  const stream = socketStream(path)
+  await stream.opened
+  const nonce = (body as { nonce: string }).nonce
+  const grant = localCredential(
+    {
+      kind: 'owner',
+      machineId: local.machineId,
+      client: local.ownerClient,
+      nonce,
+      iat: Math.floor(now() / 1000),
+    },
+    local.owner.privateKey,
+  )
+  stream.send({ type: 'auth', grant, challenge: 'c'.repeat(64) })
+  await vi.waitFor(() => expect(stream.frames[0]).toMatchObject({ type: 'ready' }))
+  return stream
+}
+
+/** The result frame for call `id`, once it arrives. */
+async function result(stream: ReturnType<typeof socketStream>, id: string) {
+  await vi.waitFor(
+    () => expect(stream.frames.some((f) => f.type === 'result' && f.id === id)).toBe(true),
+    { timeout: 5000 },
+  )
+  return stream.frames.find((f) => f.type === 'result' && f.id === id)
 }
 
 describe('run with the local-mode marker serves the owner socket', () => {
@@ -85,6 +118,103 @@ describe('run with the local-mode marker serves the owner socket', () => {
       expect(host.beats).toEqual([])
       await host.target()?.drain('SIGTERM')
       expect(await run).toBe(0)
+      expect(existsSync(path)).toBe(false)
+    } finally {
+      await host.cleanup()
+    }
+  }, 30_000)
+
+  it('in standby serves owner calls only, then the lanes once the migration commit leaves standby', async () => {
+    const host = await localRunMachine({
+      enrolled: false,
+      marker: true,
+      standby: true,
+      heartbeat: 'accepted',
+    })
+    try {
+      hooks.machine = host.machine
+      const local = await writeLocalIdentity(
+        dirname(host.control.configPath),
+        host.control.context.uid,
+      )
+      const path = await socketPath()
+      const context = host.context()
+      // The socket checks iat against run's clock, which the control fixture fakes.
+      const clock = context.now ?? Date.now
+      let daemon: LocalDaemon | undefined
+      const starter = createLocalSocketStarter(context, { candidates: [path] })
+      const run = runHost({
+        ...context,
+        startLocalSocket: (started, store) => {
+          daemon = started
+          return starter(started, store)
+        },
+      })
+      await vi.waitFor(() => expect(existsSync(path)).toBe(true), { timeout: 10_000 })
+      const desktop = await ownerConnection(path, local, clock)
+      expect(desktop.frames[0]).toMatchObject({ ownerLocal: true, capabilities: [] })
+      desktop.send({ type: 'call', id: 'status', method: 'machine.local' })
+      desktop.send({
+        type: 'call',
+        id: 'enroll',
+        method: 'machine.enroll',
+        params: { action: 'begin' },
+      })
+      expect(await result(desktop, 'status')).toMatchObject({
+        ok: true,
+        data: {
+          machineId: local.machineId,
+          mode: 'local',
+          ownerLock: { held: false, standby: true },
+        },
+      })
+      expect(await result(desktop, 'enroll')).toMatchObject({
+        ok: false,
+        error: { code: 'forbidden' },
+      })
+      desktop.send({ type: 'subscribe', id: 'lanes', topic: 'lanes' })
+      await vi.waitFor(() =>
+        expect(desktop.frames).toContainEqual({
+          type: 'subscribe-failed',
+          id: 'lanes',
+          code: 'forbidden',
+        }),
+      )
+
+      await daemon?.leaveStandby()
+      await vi.waitFor(() => expect(desktop.closed()).toEqual({ code: 1001 }), { timeout: 10_000 })
+      const again = await ownerConnection(path, local, clock)
+      expect(again.frames[0]).toMatchObject({
+        ownerLocal: true,
+        capabilities: expect.arrayContaining(['sessions.read', 'sessions.control']),
+      })
+      again.send({ type: 'call', id: 'status', method: 'machine.local' })
+      expect(await result(again, 'status')).toMatchObject({
+        data: { ownerLock: { held: true, holder: 'daemon', pid: process.pid, standby: false } },
+      })
+      again.close()
+      await host.target()?.drain('SIGTERM')
+      expect(await run).toBe(0)
+      expect(existsSync(join(host.state, HOST_SIDECARS.localRun))).toBe(false)
+    } finally {
+      await host.cleanup()
+    }
+  }, 30_000)
+
+  it('exits 78 when the marker exists but the local identity does not', async () => {
+    const host = await localRunMachine({ enrolled: false, marker: true, heartbeat: 'accepted' })
+    try {
+      hooks.machine = host.machine
+      const path = await socketPath()
+      const context = host.context()
+      const run = runHost({
+        ...context,
+        startLocalSocket: createLocalSocketStarter(context, { candidates: [path] }),
+      })
+      expect(await run).toBe(78)
+      expect(host.control.output).toEqual([
+        'The local service identity is not usable. Run phosphor setup --local again.',
+      ])
       expect(existsSync(path)).toBe(false)
     } finally {
       await host.cleanup()
