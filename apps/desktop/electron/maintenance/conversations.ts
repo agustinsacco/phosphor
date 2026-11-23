@@ -7,7 +7,7 @@ import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { piSessionsRoot, sessionDirForCwd } from '../pi/pi-paths'
 import { listSessions } from '../pi/session-scanner'
-import { registry } from '../registry'
+import { workspaceHasLiveLane } from './reservation'
 import { getPrefs } from '../store'
 import { decideSession, history, sessionDecision, withWorkspace } from './history'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
@@ -73,10 +73,7 @@ export async function setCompleted(path: string, completed: boolean): Promise<vo
   const cwd = await sessionCwd(path)
   if (!cwd) throw new Error('Invalid session cwd.')
   await withWorkspace(cwd, async () => {
-    if (
-      completed &&
-      registry.list().some((s) => sessionPathKey(s.workspacePath) === sessionPathKey(cwd))
-    )
+    if (completed && workspaceHasLiveLane(cwd))
       throw new Error('Suspend all sessions in this worktree before finishing the conversation.')
     await stat(path)
     decideSession(path, completed)
