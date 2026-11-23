@@ -15,11 +15,24 @@ type ReadyView = Pick<
   | 'prStatus'
   | 'webPushKey'
   | 'prTracking'
+  | 'ops'
+  | 'ownerLocal'
+  | 'laneEditing'
+  | 'laneContext'
+  | 'laneReload'
+  | 'sandboxes'
+  | 'folderDirectives'
+  | 'configFiles'
+  | 'pagedLanes'
   | 'capabilities'
 >
 
-/** Project only the verified handshake's reviewed connection metadata. */
-export function readyView(frame: Extract<HostFrame, { type: 'ready' }>): ReadyView {
+/**
+ * Project only the verified handshake's reviewed connection metadata. `local`:
+ * the connection is this machine's own socket, the only place `ownerLocal` means
+ * anything; a Host over the tailnet never gets it, whatever its frame says.
+ */
+export function readyView(frame: Extract<HostFrame, { type: 'ready' }>, local = false): ReadyView {
   return {
     state: 'ready',
     lastError: undefined,
@@ -34,6 +47,15 @@ export function readyView(frame: Extract<HostFrame, { type: 'ready' }>): ReadyVi
     // Set even when absent, so a reconnect to an older Host forgets the key.
     webPushKey: frame.webPushKey,
     prTracking: frame.prTracking === true,
+    ops: frame.ops === true,
+    laneEditing: frame.laneEditing === true,
+    laneContext: frame.laneContext === true,
+    laneReload: frame.laneReload === true,
+    sandboxes: frame.sandboxes === true,
+    folderDirectives: frame.folderDirectives === true,
+    configFiles: frame.configFiles === true,
+    pagedLanes: frame.pagedLanes === true,
+    ...(local ? { ownerLocal: frame.ownerLocal === true } : {}),
     capabilities: [...frame.capabilities],
   }
 }

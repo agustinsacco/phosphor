@@ -115,6 +115,14 @@
     "./grant-cache": {
       "types": "./src/grant-cache.ts",
       "default": "./src/grant-cache.ts"
+    },
+    "./ops": {
+      "types": "./src/ops.ts",
+      "default": "./src/ops.ts"
+    },
+    "./owner": {
+      "types": "./src/owner.ts",
+      "default": "./src/owner.ts"
     }
   },
   "dependencies": {

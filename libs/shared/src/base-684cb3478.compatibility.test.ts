@@ -7,7 +7,7 @@ import { parseHeartbeatRequest, parseHeartbeatResponse, parseMachineView } from 
 import { parseGrantPayload, type GrantPayload } from './host-grant'
 import { parseLaneSummary } from './host-protocol/host-lanes'
 import { parseReadyFrame } from './host-protocol/host-ready'
-import { parseCommandFrame } from './host-protocol/client-commands'
+import { parseCallFrame, parseCommandFrame } from './host-protocol/client-commands'
 import { HOST_FRAMES, CLIENT_FRAMES } from '../test/__fixtures__/protocol-freeze'
 import * as base from './__fixtures__/base-684cb3478/host-ready'
 import * as baseLanes from './__fixtures__/base-684cb3478/host-lanes'
@@ -107,6 +107,16 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
       reason: 'command',
       reply: { kind: 'receipt', requestId: frame.requestId, code: 'unsupported' },
     })
+  })
+
+  it('admits an ops.run call to its method table, which has no ops.run (unsupported)', () => {
+    const frame = {
+      ...CLIENT_FRAMES.call.state,
+      method: 'ops.run',
+      params: { op: 'help', args: {} },
+    }
+    expect(parseCallFrame(frame)).toStrictEqual({ ok: true, frame })
+    expect(baseCommands.parseCallFrame(frame)).toStrictEqual({ ok: true, frame })
   })
 
   it('reads a machine grant as a user grant with no caps', () => {
