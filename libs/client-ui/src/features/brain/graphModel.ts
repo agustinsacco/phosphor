@@ -60,9 +60,7 @@ export function graphModel(graph: BrainGraph): GraphModel {
         target: link.objectId,
         count: 1,
         predicates: [link.predicate],
-        sentences: [
-          brainLinkSentence(link, label.get(link.subjectId)!, label.get(link.objectId)!),
-        ],
+        sentences: [brainLinkSentence(link, label.get(link.subjectId)!, label.get(link.objectId)!)],
       })),
   }
 }

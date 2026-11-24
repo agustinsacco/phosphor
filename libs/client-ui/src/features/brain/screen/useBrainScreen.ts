@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import type { BrainEntity, BrainStatus } from '@shared/brain'
+import type { BrainMemoryDetail, BrainStatus } from '@shared/brain'
 import type { BrainRecall } from '@shared/brain-recall'
 import { ipcErrorText } from '@shared/errors'
 import { brainToast } from '../useBrain'
@@ -28,6 +28,12 @@ export function answerOverlay(recall: BrainRecall): MapOverlay {
     ...[...links.values()].flatMap((link) => [link.subjectId, link.objectId]),
   ])
   return { links: [...links.values()], entities: recall.entities.filter((e) => ids.has(e.id)) }
+}
+
+/** A memory lights its own links and the people and things it names. */
+export function memoryOverlay(detail: BrainMemoryDetail): MapOverlay {
+  const named = new Set(detail.memory.entityIds)
+  return { links: detail.memory.links, entities: detail.entities.filter((e) => named.has(e.id)) }
 }
 
 /** Where an answer's map starts: what the question named, else the first trail's seed. */
@@ -70,13 +76,7 @@ export function useBrainScreen(status: BrainStatus) {
   }
   const memoryActions: MemoryActions = {
     onEntity: (id, label) => step({ to: { id, label }, link: null }),
-    onMap: (detail) =>
-      setLight({
-        links: detail.memory.links,
-        entities: detail.entities.filter((e: BrainEntity) =>
-          detail.memory.entityIds.includes(e.id),
-        ),
-      }),
+    onMap: (detail) => setLight(memoryOverlay(detail)),
     onOpenRead: (jobId) => setRecord({ jobId, title: 'this read' }),
   }
   /** Search lands on a person or thing, or on the first one a memory names, lit. */

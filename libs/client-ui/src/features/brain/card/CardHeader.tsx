@@ -28,6 +28,68 @@ export function cardLine(view: BrainEntityView): string {
     .join(' · ')
 }
 
+/** "This is you" on the owner; "This is me" on any other person. */
+function OwnerMark({
+  view,
+  owner,
+  saving,
+  onOwner,
+}: {
+  view: BrainEntityView
+  owner: boolean
+  saving: boolean
+  onOwner: (entityId: string | null) => void
+}): React.JSX.Element | null {
+  if (owner)
+    return (
+      <span className="bg-accent-soft text-text rounded-md px-1.5 py-0.5 text-xs">This is you</span>
+    )
+  if (view.entity.kind !== 'person') return null
+  return (
+    <Button
+      size="xs"
+      disabled={saving}
+      tooltip="The map starts from you"
+      onClick={() => onOwner(view.entity.id)}
+    >
+      This is me
+    </Button>
+  )
+}
+
+/** Pick another person or thing, then see the routes to it or merge into it. */
+function CardToolPane({
+  tool,
+  view,
+  onVisit,
+  onLight,
+}: {
+  tool: CardTool
+  view: BrainEntityView
+  onVisit: (visit: BrainVisit) => void
+  onLight: (overlay: MapOverlay) => void
+}): React.JSX.Element {
+  const { entity } = view
+  const [target, setTarget] = useState<BrainVisit | null>(null)
+  return (
+    <section
+      aria-label={TOOL_LABEL[tool]}
+      className="border-border bg-bg-secondary space-y-2 rounded-md border p-2"
+    >
+      <p className="text-sm font-medium">
+        {tool === 'route' ? `How ${entity.label} connects to…` : `Merge ${entity.label} into…`}
+      </p>
+      <BrainSearch entitiesOnly exclude={entity.id} onSelect={setTarget} />
+      {target && tool === 'merge' && (
+        <MergeEntity key={target.id} sourceId={entity.id} target={target} onVisit={onVisit} />
+      )}
+      {target && tool === 'route' && (
+        <CardRoutes key={target.id} from={entity.id} to={target.id} onLight={onLight} />
+      )}
+    </section>
+  )
+}
+
 /** Name, kind, whether it is you, what it is, and the edits: merge, split, names, description. */
 export function CardHeader({
   view,
@@ -49,7 +111,6 @@ export function CardHeader({
 }): React.JSX.Element {
   const { entity } = view
   const [tool, setTool] = useState<CardTool | null>(null)
-  const [target, setTarget] = useState<BrainVisit | null>(null)
   const [edit, setEdit] = useState<EntityEdit | null>(null)
   const menu = [
     ...profileMenu(view, setEdit, onWhole),
@@ -62,22 +123,7 @@ export function CardHeader({
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="min-w-0 text-xl font-semibold [overflow-wrap:anywhere]">{entity.label}</h2>
         <Tag>{ENTITY_WORDS[entity.kind]}</Tag>
-        {owner ? (
-          <span className="bg-accent-soft text-text rounded-md px-1.5 py-0.5 text-xs">
-            This is you
-          </span>
-        ) : (
-          entity.kind === 'person' && (
-            <Button
-              size="xs"
-              disabled={saving}
-              tooltip="The map starts from you"
-              onClick={() => onOwner(entity.id)}
-            >
-              This is me
-            </Button>
-          )
-        )}
+        <OwnerMark view={view} owner={owner} saving={saving} onOwner={onOwner} />
         <span className="ml-auto flex flex-wrap gap-1.5">
           <Button
             size="xs"
@@ -114,23 +160,7 @@ export function CardHeader({
         )}
       </p>
       <p className="text-text-tertiary text-sm">{cardLine(view)}</p>
-      {tool && (
-        <section
-          aria-label={TOOL_LABEL[tool]}
-          className="border-border bg-bg-secondary space-y-2 rounded-md border p-2"
-        >
-          <p className="text-sm font-medium">
-            {tool === 'route' ? `How ${entity.label} connects to…` : `Merge ${entity.label} into…`}
-          </p>
-          <BrainSearch entitiesOnly exclude={entity.id} onSelect={setTarget} />
-          {target && tool === 'merge' && (
-            <MergeEntity key={target.id} sourceId={entity.id} target={target} onVisit={onVisit} />
-          )}
-          {target && tool === 'route' && (
-            <CardRoutes key={target.id} from={entity.id} to={target.id} onLight={onLight} />
-          )}
-        </section>
-      )}
+      {tool && <CardToolPane tool={tool} view={view} onVisit={onVisit} onLight={onLight} />}
       {edit && <EntityEditDialog edit={edit} view={view} onClose={() => setEdit(null)} />}
     </header>
   )

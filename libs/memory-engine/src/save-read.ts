@@ -113,6 +113,14 @@ function touchedIds(ctx: Context, entities: Set<number>, memories: Set<number>):
   return { entityIds: ids('entities', entities), memoryIds: ids('memories', memories) }
 }
 const plural = (count: number) => `${count} ${count === 1 ? 'memory' : 'memories'}`
+type Counts = Omit<SavedRead, 'state' | 'operationId' | 'touched'>
+
+/** A read with nothing to save ends empty and keeps no proposal. */
+function emptyRead(ctx: Context, jobId: string, counts: Counts): SavedRead {
+  updateJob(ctx, jobId, { state: 'empty', memories: 0, finishedAt: ctx.now() })
+  run(ctx, 'DELETE FROM proposals WHERE job_id=?', jobId)
+  return { ...counts, state: 'empty', operationId: null, touched: { entityIds: [], memoryIds: [] } }
+}
 
 export function saveRead(ctx: Context, raw: Proposal): SavedRead {
   validateProposal(ctx, raw)
@@ -122,7 +130,7 @@ export function saveRead(ctx: Context, raw: Proposal): SavedRead {
     if (current.state !== 'running') throw new Error('Only a read in progress can be saved.')
     if (value.computedRevision !== knowledgeRevision(ctx)) throw new Error(BRAIN_READ_STALE)
     const chosen = plan(value, ctx.now())
-    const base = {
+    const base: Counts = {
       memories: chosen.memories.length,
       confirmed: chosen.confirmations.length,
       temporary: chosen.temporary,
@@ -131,16 +139,8 @@ export function saveRead(ctx: Context, raw: Proposal): SavedRead {
       groups: 0,
       replaced: 0,
     }
-    if (!chosen.memories.length && !chosen.confirmations.length && !value.groups.length) {
-      updateJob(ctx, value.jobId, { state: 'empty', memories: 0, finishedAt: ctx.now() })
-      run(ctx, 'DELETE FROM proposals WHERE job_id=?', value.jobId)
-      return {
-        ...base,
-        state: 'empty',
-        operationId: null,
-        touched: { entityIds: [], memoryIds: [] },
-      }
-    }
+    if (!chosen.memories.length && !chosen.confirmations.length && !value.groups.length)
+      return emptyRead(ctx, value.jobId, base)
     const replaced = current.replaces
       ? laneMemories(ctx, current.sessionId, value.jobId).replaceable
       : []

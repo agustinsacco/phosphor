@@ -83,29 +83,46 @@ export function AskBar({
         </Button>
       </div>
       {(busy || error || told) && (
-        <p role="status" className="flex flex-wrap items-center gap-2 pt-1 text-sm">
-          {busy === 'ask' && <span className="text-text-tertiary">Asking Brain…</span>}
-          {busy === 'tell' && <span className="text-text-tertiary">Sending to Brain Agent…</span>}
-          {error && <span className="text-danger">{error}</span>}
-          {told && (
-            <>
-              <span className="text-text-secondary">Sent to Brain Agent.</span>
-              <Button
-                size="xs"
-                disabled={!told.sessionPath}
-                onClick={() => {
-                  if (told.sessionPath)
-                    openBrainSource(told.sessionPath).catch((cause: unknown) =>
-                      setError(ipcErrorText(cause)),
-                    )
-                }}
-              >
-                Open Brain lane
-              </Button>
-            </>
-          )}
-        </p>
+        <AskStatus busy={busy} error={error} told={told} onError={setError} />
       )}
     </form>
+  )
+}
+
+/** Asking, sending, the error, or the sent instruction with a way to its lane. */
+function AskStatus({
+  busy,
+  error,
+  told,
+  onError,
+}: {
+  busy: 'ask' | 'tell' | null
+  error: string
+  told: { sessionPath: string | null } | null
+  onError: (error: string) => void
+}): React.JSX.Element {
+  return (
+    <p role="status" className="flex flex-wrap items-center gap-2 pt-1 text-sm">
+      {busy === 'ask' && <span className="text-text-tertiary">Asking Brain…</span>}
+      {busy === 'tell' && <span className="text-text-tertiary">Sending to Brain Agent…</span>}
+      {error && <span className="text-danger">{error}</span>}
+      {told && (
+        <>
+          <span className="text-text-secondary">Sent to Brain Agent.</span>
+          <Button
+            size="xs"
+            disabled={!told.sessionPath}
+            onClick={() => {
+              if (told.sessionPath)
+                openBrainSource(told.sessionPath).catch((cause: unknown) =>
+                  onError(ipcErrorText(cause)),
+                )
+            }}
+          >
+            Open Brain lane
+          </Button>
+        </>
+      )}
+    </p>
   )
 }

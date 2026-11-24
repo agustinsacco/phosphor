@@ -115,22 +115,8 @@ function MapDrawing({
   const [hover, setHover] = useState<string | null>(null)
   const at = new Map(layout.nodes.map((node) => [node.id, node]))
   const centre = layout.nodes.find((node) => node.ring === 0)
-  const litIds = useMemo(
-    () => new Set([...trail, ...(overlay?.links ?? [])].map((link) => link.id)),
-    [trail, overlay],
-  )
-  const litEntities = new Set(overlay?.entities.map((e) => e.id))
-  const lit = (edge: SentenceEdge): boolean => edge.links.some((link) => litIds.has(link.id))
-  const touchesCentre = (edge: SentenceEdge): boolean =>
-    !!centre && (edge.from === centre.id || edge.to === centre.id)
-  const labels = placeEdgeLabels(
-    layout.edges
-      .filter((edge) => touchesCentre(edge) && !lit(edge))
-      .map((edge) => ({ key: edge.key, text: edge.words, ...ends(edge, at) })),
-    layout.nodes,
-    width,
-    height,
-  )
+  const { litIds, litEntities, lit } = useMapLight(trail, overlay)
+  const labels = centreLabels(layout, at, centre, lit, { width, height })
   const sentences = layout.edges.filter((edge) => lit(edge) || edge.key === hover)
   const step = (edge: SentenceEdge): void => {
     const toId = centre && edge.to === centre.id ? edge.from : edge.to
@@ -181,7 +167,57 @@ function MapDrawing({
           />
         ))}
       </svg>
-      {sentences.map((edge) => {
+      <EdgeSentences edges={sentences} at={at} width={width} height={height} />
+    </>
+  )
+}
+
+/** What the walk and the overlay light: their links, the lines along them, and their people. */
+function useMapLight(trail: BrainLink[], overlay: MapOverlay | null) {
+  const litIds = useMemo(
+    () => new Set([...trail, ...(overlay?.links ?? [])].map((link) => link.id)),
+    [trail, overlay],
+  )
+  const litEntities = new Set(overlay?.entities.map((e) => e.id))
+  const lit = (edge: SentenceEdge): boolean => edge.links.some((link) => litIds.has(link.id))
+  return { litIds, litEntities, lit }
+}
+
+/** Short words on the unlit lines that touch the centre, placed so they do not overlap. */
+function centreLabels(
+  layout: { nodes: MapNode[]; edges: SentenceEdge[] },
+  at: Map<string, MapNode>,
+  centre: MapNode | undefined,
+  lit: (edge: SentenceEdge) => boolean,
+  size: { width: number; height: number },
+): ReturnType<typeof placeEdgeLabels> {
+  const touchesCentre = (edge: SentenceEdge): boolean =>
+    !!centre && (edge.from === centre.id || edge.to === centre.id)
+  return placeEdgeLabels(
+    layout.edges
+      .filter((edge) => touchesCentre(edge) && !lit(edge))
+      .map((edge) => ({ key: edge.key, text: edge.words, ...ends(edge, at) })),
+    layout.nodes,
+    size.width,
+    size.height,
+  )
+}
+
+/** The full sentence of each lit or hovered line, at its middle and inside the map. */
+function EdgeSentences({
+  edges,
+  at,
+  width,
+  height,
+}: {
+  edges: SentenceEdge[]
+  at: Map<string, MapNode>
+  width: number
+  height: number
+}): React.JSX.Element {
+  return (
+    <>
+      {edges.map((edge) => {
         const { x1, y1, x2, y2 } = ends(edge, at)
         return (
           <p
