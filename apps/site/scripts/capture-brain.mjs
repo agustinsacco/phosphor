@@ -1,6 +1,6 @@
 /* global window */
 import { expect } from '@playwright/test'
-import { source, root, shot, settings, closeSettings } from './capture-harness.mjs'
+import { source, root, shot, settings } from './capture-harness.mjs'
 
 export async function captureBrain(page) {
   await page.evaluate(async (root) => {
@@ -9,82 +9,69 @@ export async function captureBrain(page) {
     )
     installBrainDemo()
   }, root)
-  await captureSetup(page)
-  await captureKnowledge(page)
-  await page.getByRole('tab', { name: 'Lanes', exact: true }).click()
-  await page
-    .getByRole('region', { name: 'Brain lanes', exact: true })
-    .getByRole('button', { name: /Harbor pilot planning/ })
-    .click()
-  const waiting = page.getByRole('article', { name: 'Waiting read', exact: true })
-  await expect(waiting).toContainText('Waits for Defrag')
-  await expect(waiting).toContainText('Rina Okafor owns Harbor Ledger migrations.')
-  await expect(page.getByRole('button', { name: 'Defrag', exact: true })).toBeEnabled()
-  await expect(page.getByRole('heading', { level: 1, name: /^Brain / })).toContainText('1 waiting')
-  await shot(page, 'brain-review')
-  await page.getByRole('button', { name: 'See how it was read', exact: true }).click()
-  await page.getByRole('article', { name: 'Read detail', exact: true }).waitFor()
-  await shot(page, 'brain-extraction')
-  await page.getByRole('button', { name: 'Back to waiting read', exact: true }).click()
-  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-  const search = page.getByRole('combobox', { name: 'Search people, things, memories' })
-  await search.fill('Rina Okafor owns')
-  await page.getByRole('option', { name: /Rina Okafor owns Harbor Ledger migrations/ }).waitFor()
-  await search.press('Enter')
-  await expect(page.getByRole('region', { name: 'Profile', exact: true })).toContainText(
-    'Keep this responsibility explicit in the rollout checklist.',
-  )
-  await shot(page, 'brain-memory')
-  await captureQueue(page)
-  await closeSettings(page)
-}
-
-async function captureSetup(page) {
   await settings(page, 'brain')
-  await expect(page.getByText('Gemma Terms of Use', { exact: true })).toBeVisible()
-  await shot(page, 'brain-setup', page.getByRole('dialog', { name: 'Settings', exact: true }))
-  await page.getByRole('switch', { name: 'Brain', exact: true }).click()
-  await expect(
-    page.getByText('EmbeddingGemma is ready. Search runs on this computer.'),
-  ).toBeVisible({ timeout: 12000 })
-  await shot(page, 'brain-ready', page.getByRole('dialog', { name: 'Settings', exact: true }))
-  await page.getByRole('button', { name: 'Open Brain', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await expect(dialog).toContainText('Keeps your settings and embedding model.')
+  await shot(page, 'brain-setup', dialog)
+  await dialog.getByRole('switch', { name: 'Brain', exact: true }).click()
+  await expect(dialog.getByRole('status')).toContainText('Search runs on this computer.', {
+    timeout: 12000,
+  })
+  await shot(page, 'brain-ready', dialog)
+  await dialog.getByRole('button', { name: 'Open Brain', exact: true }).click()
+  const shell = page
+    .locator('.page-shell')
+    .filter({ has: page.getByRole('region', { name: 'Map', exact: true }) })
+  const handover = /Tom Lee took over Harbor ledger from Rina Okafor/
+  await expect(shell.getByRole('button', { name: /^Rina Okafor,.*centre/ })).toBeVisible()
+  await shell
+    .locator('[data-edge]')
+    .filter({ has: page.locator('title', { hasText: handover }) })
+    .focus()
+  await expect(shell.locator('[data-edge-words]').first()).toBeVisible()
+  await shot(page, 'brain-graph', shell)
+  await shell.getByRole('region', { name: 'Now' }).getByRole('button', { name: handover }).click()
+  await expect(shell.getByRole('region', { name: 'Before' })).toContainText('until')
+  await expect(shell.getByRole('region', { name: 'Together' })).toContainText('Northwind')
+  await shell.locator('[data-ended="true"]').focus()
+  await shot(page, 'brain-memory', shell)
+  await captureChanges(page)
+  await shell.getByRole('button', { name: 'Back', exact: true }).click()
+  await captureQueue(page, shell)
 }
 
-async function captureKnowledge(page) {
-  const search = page.getByRole('combobox', { name: 'Search people, things, memories' })
-  await search.fill('Harbor Ledger')
-  await page.getByRole('option', { name: /^Harbor Ledger \d+ memories$/ }).waitFor()
-  await search.press('Enter')
-  await page.getByRole('button', { name: 'Full map', exact: true }).click()
-  await page.getByRole('region', { name: 'Graph explorer' }).waitFor()
-  await page.getByRole('button', { name: '2D', exact: true }).click()
-  await page.getByRole('button', { name: 'Fit the graph', exact: true }).click()
-  await page.waitForTimeout(1200)
-  await shot(page, 'brain-graph')
-  await page.getByRole('button', { name: 'Back to profile', exact: true }).click()
+async function captureChanges(page) {
+  const changes = page.getByRole('region', { name: 'What changed' })
+  await expect(changes.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled()
+  await expect(changes.getByRole('button', { name: 'Undo run' })).toBeEnabled()
+  await shot(page, 'brain-changes', changes)
+  await changes.getByRole('button', { name: 'How Harbor handover was read' }).click()
+  const record = page.getByRole('dialog', { name: 'How Harbor handover was read' })
+  await expect(record.getByRole('region', { name: 'Read result' })).toContainText('2 kept')
+  await shot(page, 'brain-extraction', record)
+  await record.getByRole('button', { name: 'Close', exact: true }).click()
 }
 
-async function captureQueue(page) {
+async function captureQueue(page, shell) {
   await page.evaluate(async (source) => {
-    await window.phosphor.invoke('brain:queue', {
-      sessionId: 'harbor-pilot-checkpoint',
-      sessionPath: '/demo/Harbor/checkpoint.jsonl',
-      title: 'Harbor rollout checkpoint',
-      scope: '/demo/Harbor',
-      branch: null,
-      model: 'demo/harbor-model',
-    })
+    for (const title of ['Harbor rollout', 'Ledger checkpoint']) {
+      await window.phosphor.invoke('brain:queue', {
+        sessionPath: `/demo/Harbor/${title}.jsonl`,
+        title,
+        scope: '/demo/Harbor',
+        branch: null,
+        model: null,
+      })
+    }
     const { useBrain } = await import(`${source}features/brain/useBrain.ts`)
     await useBrain.getState().refresh()
   }, source)
-  await page.getByRole('tab', { name: 'Lanes', exact: true }).click()
-  await page
-    .getByRole('region', { name: 'Brain lanes', exact: true })
-    .getByRole('button', { name: /Harbor rollout checkpoint/ })
-    .click()
-  await expect(page.getByRole('region', { name: 'Lane detail', exact: true })).toContainText(
-    'Harbor rollout checkpoint',
-  )
-  await shot(page, 'brain-queue')
+  await expect(page.getByRole('status', { name: 'Brain status' })).toContainText('1 queued')
+  await shot(page, 'brain-queue', shell)
+  await page.evaluate(async (source) => {
+    const status = await window.phosphor.invoke('brain:status')
+    for (const job of status.jobs) await window.phosphor.invoke('brain:cancel', job.id)
+    const { useBrain } = await import(`${source}features/brain/useBrain.ts`)
+    await useBrain.getState().refresh()
+  }, source)
 }

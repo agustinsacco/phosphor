@@ -1,53 +1,54 @@
 {
-  "provenance": "Invented Harbor pilot: all people, source quotes, dates and relationships are fictional. Read-only explorer fixture plus in-memory queue/review simulation; no database, inference or model download.",
+  "provenance": "A fictional Harbor handover. Read-only graph and journal snapshots, with an in-memory queue. No database, download or provider call.",
+  "ownerId": "rina",
   "entities": [
-    {
-      "id": "harbor",
-      "label": "Harbor",
-      "kind": "organization",
-      "description": "Customer for the Ledger billing pilot",
-      "aliases": []
-    },
-    {
-      "id": "ledger",
-      "label": "Harbor Ledger",
-      "kind": "project",
-      "description": "Billing pilot; rollout decision on 6 November 2026",
-      "aliases": ["Ledger"]
-    },
     {
       "id": "rina",
       "label": "Rina Okafor",
       "kind": "person",
-      "description": "Owns Ledger migrations for the Harbor pilot",
+      "description": "Led Ledger billing before the handover",
       "aliases": []
     },
     {
       "id": "tom",
       "label": "Tom Lee",
       "kind": "person",
-      "description": "Support lead for the Ledger pilot",
+      "description": "Ledger billing lead",
       "aliases": []
     },
     {
-      "id": "platform",
-      "label": "Harbor Platform",
-      "kind": "team",
-      "description": "Maintains the migration service",
+      "id": "ledger",
+      "label": "Ledger",
+      "kind": "project",
+      "description": "Billing project for Harbor",
       "aliases": []
     },
     {
-      "id": "migrations",
-      "label": "Ledger migrations",
-      "kind": "component",
-      "description": "Applies versioned billing schema changes",
+      "id": "kestrel",
+      "label": "Kestrel",
+      "kind": "project",
+      "description": "Payments rollout",
       "aliases": []
     },
     {
-      "id": "runbook",
-      "label": "Rollback runbook",
-      "kind": "document",
-      "description": "Recovery checklist for the Ledger pilot",
+      "id": "mara",
+      "label": "Mara Voss",
+      "kind": "person",
+      "description": "Works with Rina on Kestrel",
+      "aliases": []
+    },
+    {
+      "id": "harbor",
+      "label": "Harbor",
+      "kind": "organization",
+      "description": "Customer of Ledger",
+      "aliases": []
+    },
+    {
+      "id": "northwind",
+      "label": "Northwind",
+      "kind": "organization",
+      "description": "Considering a billing pilot",
       "aliases": []
     }
   ],
@@ -55,471 +56,422 @@
     {
       "memory": {
         "id": "memory-0",
-        "jobId": null,
-        "summary": "Harbor Ledger is built for Harbor.",
+        "jobId": "handover",
+        "summary": "Tom Lee took over Harbor ledger from Rina Okafor.",
         "type": "decision",
         "kind": "reported",
         "state": "active",
-        "entityIds": ["ledger", "harbor"],
+        "entityIds": ["tom", "rina", "ledger"],
         "links": [
           {
             "id": "link-0",
-            "subjectId": "ledger",
-            "objectId": "harbor",
-            "predicate": "for_customer",
-            "memoryId": "memory-0"
+            "subjectId": "tom",
+            "objectId": "rina",
+            "predicate": "took_over_from",
+            "memoryId": "memory-0",
+            "label": "took over Harbor ledger from",
+            "validFrom": 1788220800000,
+            "validTo": null,
+            "statedBy": "agent"
           }
         ],
         "scope": "/demo/Harbor",
         "branch": null,
-        "validFrom": 1793880000000,
+        "validFrom": null,
         "validTo": null,
         "recordedAt": 1793966400000,
         "observedAt": 1793880000000,
         "origin": {
-          "sessionId": "harbor-lane",
-          "title": "Harbor pilot planning"
-        }
+          "sessionId": "harbor-handover",
+          "title": "Harbor handover"
+        },
+        "importance": 2,
+        "saidBy": "you",
+        "lanes": 1
       },
       "quotes": [
         {
-          "before": "For the November pilot: ",
-          "quote": "Harbor Ledger is built for Harbor.",
-          "after": " Keep this responsibility explicit in the rollout checklist.",
-          "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+          "before": "",
+          "quote": "Tom Lee took over Harbor ledger from Rina Okafor.",
+          "after": "",
+          "label": "You · Harbor handover"
         }
       ],
       "linkQuotes": {
         "link-0": [
           {
-            "before": "For the November pilot: ",
-            "quote": "Harbor Ledger is built for Harbor.",
-            "after": " Keep this responsibility explicit in the rollout checklist.",
-            "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+            "before": "",
+            "quote": "Tom Lee took over Harbor ledger from Rina Okafor.",
+            "after": "",
+            "label": "You · Harbor handover"
           }
         ]
       },
-      "entities": [
-        {
-          "id": "harbor",
-          "label": "Harbor",
-          "kind": "organization",
-          "description": "Customer for the Ledger billing pilot",
-          "aliases": []
-        },
-        {
-          "id": "ledger",
-          "label": "Harbor Ledger",
-          "kind": "project",
-          "description": "Billing pilot; rollout decision on 6 November 2026",
-          "aliases": ["Ledger"]
-        }
-      ],
       "history": [],
       "related": [],
-      "sourcePath": null
+      "sourcePath": null,
+      "use": {
+        "recalled": 0,
+        "lastRecalledAt": null,
+        "flagged": 0
+      }
     },
     {
       "memory": {
         "id": "memory-1",
-        "jobId": null,
-        "summary": "Rina Okafor owns Harbor Ledger migrations.",
-        "type": "fact",
-        "kind": "reported",
-        "state": "active",
-        "entityIds": ["rina", "ledger"],
-        "links": [
-          {
-            "id": "link-1",
-            "subjectId": "rina",
-            "objectId": "ledger",
-            "predicate": "owns",
-            "memoryId": "memory-1"
-          }
-        ],
-        "scope": "/demo/Harbor",
-        "branch": null,
-        "validFrom": 1793880000000,
-        "validTo": null,
-        "recordedAt": 1793966400000,
-        "observedAt": 1793880000000,
-        "origin": {
-          "sessionId": "harbor-lane",
-          "title": "Harbor pilot planning"
-        }
-      },
-      "quotes": [
-        {
-          "before": "For the November pilot: ",
-          "quote": "Rina Okafor owns Harbor Ledger migrations.",
-          "after": " Keep this responsibility explicit in the rollout checklist.",
-          "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
-        }
-      ],
-      "linkQuotes": {
-        "link-1": [
-          {
-            "before": "For the November pilot: ",
-            "quote": "Rina Okafor owns Harbor Ledger migrations.",
-            "after": " Keep this responsibility explicit in the rollout checklist.",
-            "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
-          }
-        ]
-      },
-      "entities": [
-        {
-          "id": "ledger",
-          "label": "Harbor Ledger",
-          "kind": "project",
-          "description": "Billing pilot; rollout decision on 6 November 2026",
-          "aliases": ["Ledger"]
-        },
-        {
-          "id": "rina",
-          "label": "Rina Okafor",
-          "kind": "person",
-          "description": "Owns Ledger migrations for the Harbor pilot",
-          "aliases": []
-        }
-      ],
-      "history": [],
-      "related": [],
-      "sourcePath": null
-    },
-    {
-      "memory": {
-        "id": "memory-2",
-        "jobId": null,
-        "summary": "Tom Lee supports Harbor Ledger.",
+        "jobId": "handover",
+        "summary": "Tom Lee leads Ledger.",
         "type": "fact",
         "kind": "reported",
         "state": "active",
         "entityIds": ["tom", "ledger"],
         "links": [
           {
-            "id": "link-2",
+            "id": "link-1",
             "subjectId": "tom",
             "objectId": "ledger",
-            "predicate": "works_on",
-            "memoryId": "memory-2"
+            "predicate": "leads",
+            "memoryId": "memory-1",
+            "label": "leads",
+            "validFrom": 1788220800000,
+            "validTo": null,
+            "statedBy": "reader"
           }
         ],
         "scope": "/demo/Harbor",
         "branch": null,
-        "validFrom": 1793880000000,
+        "validFrom": null,
         "validTo": null,
         "recordedAt": 1793966400000,
         "observedAt": 1793880000000,
         "origin": {
-          "sessionId": "harbor-lane",
-          "title": "Harbor pilot planning"
-        }
+          "sessionId": "harbor-handover",
+          "title": "Harbor handover"
+        },
+        "importance": 1,
+        "saidBy": "you",
+        "lanes": 1
       },
       "quotes": [
         {
-          "before": "For the November pilot: ",
-          "quote": "Tom Lee supports Harbor Ledger.",
-          "after": " Keep this responsibility explicit in the rollout checklist.",
-          "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+          "before": "",
+          "quote": "Tom Lee leads Ledger.",
+          "after": "",
+          "label": "You · Harbor handover"
+        }
+      ],
+      "linkQuotes": {
+        "link-1": [
+          {
+            "before": "",
+            "quote": "Tom Lee leads Ledger.",
+            "after": "",
+            "label": "You · Harbor handover"
+          }
+        ]
+      },
+      "history": [],
+      "related": [],
+      "sourcePath": null,
+      "use": {
+        "recalled": 0,
+        "lastRecalledAt": null,
+        "flagged": 0
+      }
+    },
+    {
+      "memory": {
+        "id": "memory-2",
+        "jobId": null,
+        "summary": "Tom Lee worked on Kestrel until August.",
+        "type": "fact",
+        "kind": "reported",
+        "state": "active",
+        "entityIds": ["tom", "kestrel"],
+        "links": [
+          {
+            "id": "link-2",
+            "subjectId": "tom",
+            "objectId": "kestrel",
+            "predicate": "works_on",
+            "memoryId": "memory-2",
+            "label": "worked on",
+            "validFrom": null,
+            "validTo": 1786752000000,
+            "statedBy": "reader"
+          }
+        ],
+        "scope": "/demo/Harbor",
+        "branch": null,
+        "validFrom": null,
+        "validTo": null,
+        "recordedAt": 1793966400000,
+        "observedAt": 1793880000000,
+        "origin": {
+          "sessionId": "harbor-planning",
+          "title": "Harbor planning"
+        },
+        "importance": 1,
+        "saidBy": "you",
+        "lanes": 1
+      },
+      "quotes": [
+        {
+          "before": "",
+          "quote": "Tom Lee worked on Kestrel until August.",
+          "after": "",
+          "label": "You · Harbor planning"
         }
       ],
       "linkQuotes": {
         "link-2": [
           {
-            "before": "For the November pilot: ",
-            "quote": "Tom Lee supports Harbor Ledger.",
-            "after": " Keep this responsibility explicit in the rollout checklist.",
-            "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+            "before": "",
+            "quote": "Tom Lee worked on Kestrel until August.",
+            "after": "",
+            "label": "You · Harbor planning"
           }
         ]
       },
-      "entities": [
-        {
-          "id": "ledger",
-          "label": "Harbor Ledger",
-          "kind": "project",
-          "description": "Billing pilot; rollout decision on 6 November 2026",
-          "aliases": ["Ledger"]
-        },
-        {
-          "id": "tom",
-          "label": "Tom Lee",
-          "kind": "person",
-          "description": "Support lead for the Ledger pilot",
-          "aliases": []
-        }
-      ],
       "history": [],
       "related": [],
-      "sourcePath": null
+      "sourcePath": null,
+      "use": {
+        "recalled": 0,
+        "lastRecalledAt": null,
+        "flagged": 0
+      }
     },
     {
       "memory": {
         "id": "memory-3",
         "jobId": null,
-        "summary": "Harbor Platform owns Ledger migrations.",
+        "summary": "Rina Okafor works with Mara Voss on Kestrel.",
         "type": "fact",
         "kind": "reported",
         "state": "active",
-        "entityIds": ["platform", "migrations"],
+        "entityIds": ["rina", "mara", "kestrel"],
         "links": [
           {
             "id": "link-3",
-            "subjectId": "platform",
-            "objectId": "migrations",
-            "predicate": "owns",
-            "memoryId": "memory-3"
+            "subjectId": "rina",
+            "objectId": "mara",
+            "predicate": "works_with",
+            "memoryId": "memory-3",
+            "label": "works with",
+            "validFrom": null,
+            "validTo": null,
+            "statedBy": "reader"
           }
         ],
         "scope": "/demo/Harbor",
         "branch": null,
-        "validFrom": 1793880000000,
+        "validFrom": null,
         "validTo": null,
         "recordedAt": 1793966400000,
         "observedAt": 1793880000000,
         "origin": {
-          "sessionId": "harbor-lane",
-          "title": "Harbor pilot planning"
-        }
+          "sessionId": "harbor-planning",
+          "title": "Harbor planning"
+        },
+        "importance": 1,
+        "saidBy": "you",
+        "lanes": 1
       },
       "quotes": [
         {
-          "before": "For the November pilot: ",
-          "quote": "Harbor Platform owns Ledger migrations.",
-          "after": " Keep this responsibility explicit in the rollout checklist.",
-          "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+          "before": "",
+          "quote": "Rina Okafor works with Mara Voss on Kestrel.",
+          "after": "",
+          "label": "You · Harbor planning"
         }
       ],
       "linkQuotes": {
         "link-3": [
           {
-            "before": "For the November pilot: ",
-            "quote": "Harbor Platform owns Ledger migrations.",
-            "after": " Keep this responsibility explicit in the rollout checklist.",
-            "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+            "before": "",
+            "quote": "Rina Okafor works with Mara Voss on Kestrel.",
+            "after": "",
+            "label": "You · Harbor planning"
           }
         ]
       },
-      "entities": [
-        {
-          "id": "platform",
-          "label": "Harbor Platform",
-          "kind": "team",
-          "description": "Maintains the migration service",
-          "aliases": []
-        },
-        {
-          "id": "migrations",
-          "label": "Ledger migrations",
-          "kind": "component",
-          "description": "Applies versioned billing schema changes",
-          "aliases": []
-        }
-      ],
       "history": [],
       "related": [],
-      "sourcePath": null
+      "sourcePath": null,
+      "use": {
+        "recalled": 0,
+        "lastRecalledAt": null,
+        "flagged": 0
+      }
     },
     {
       "memory": {
         "id": "memory-4",
         "jobId": null,
-        "summary": "Harbor Ledger uses Ledger migrations for schema upgrades.",
-        "type": "procedure",
+        "summary": "Ledger is built for Harbor.",
+        "type": "fact",
         "kind": "reported",
         "state": "active",
-        "entityIds": ["ledger", "migrations"],
+        "entityIds": ["ledger", "harbor"],
         "links": [
           {
             "id": "link-4",
             "subjectId": "ledger",
-            "objectId": "migrations",
-            "predicate": "uses",
-            "memoryId": "memory-4"
+            "objectId": "harbor",
+            "predicate": "for_customer",
+            "memoryId": "memory-4",
+            "label": "is built for",
+            "validFrom": null,
+            "validTo": null,
+            "statedBy": "reader"
           }
         ],
         "scope": "/demo/Harbor",
         "branch": null,
-        "validFrom": 1793880000000,
+        "validFrom": null,
         "validTo": null,
         "recordedAt": 1793966400000,
         "observedAt": 1793880000000,
         "origin": {
-          "sessionId": "harbor-lane",
-          "title": "Harbor pilot planning"
-        }
+          "sessionId": "harbor-planning",
+          "title": "Harbor planning"
+        },
+        "importance": 1,
+        "saidBy": "you",
+        "lanes": 1
       },
       "quotes": [
         {
-          "before": "For the November pilot: ",
-          "quote": "Harbor Ledger uses Ledger migrations for schema upgrades.",
-          "after": " Keep this responsibility explicit in the rollout checklist.",
-          "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+          "before": "",
+          "quote": "Ledger is built for Harbor.",
+          "after": "",
+          "label": "You · Harbor planning"
         }
       ],
       "linkQuotes": {
         "link-4": [
           {
-            "before": "For the November pilot: ",
-            "quote": "Harbor Ledger uses Ledger migrations for schema upgrades.",
-            "after": " Keep this responsibility explicit in the rollout checklist.",
-            "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+            "before": "",
+            "quote": "Ledger is built for Harbor.",
+            "after": "",
+            "label": "You · Harbor planning"
           }
         ]
       },
-      "entities": [
-        {
-          "id": "ledger",
-          "label": "Harbor Ledger",
-          "kind": "project",
-          "description": "Billing pilot; rollout decision on 6 November 2026",
-          "aliases": ["Ledger"]
-        },
-        {
-          "id": "migrations",
-          "label": "Ledger migrations",
-          "kind": "component",
-          "description": "Applies versioned billing schema changes",
-          "aliases": []
-        }
-      ],
       "history": [],
       "related": [],
-      "sourcePath": null
+      "sourcePath": null,
+      "use": {
+        "recalled": 0,
+        "lastRecalledAt": null,
+        "flagged": 0
+      }
     },
     {
       "memory": {
         "id": "memory-5",
         "jobId": null,
-        "summary": "The Rollback runbook documents Harbor Ledger recovery.",
-        "type": "procedure",
+        "summary": "Tom Lee and Northwind discussed the billing pilot.",
+        "type": "fact",
         "kind": "reported",
         "state": "active",
-        "entityIds": ["runbook", "ledger"],
-        "links": [
-          {
-            "id": "link-5",
-            "subjectId": "runbook",
-            "objectId": "ledger",
-            "predicate": "documents",
-            "memoryId": "memory-5"
-          }
-        ],
+        "entityIds": ["tom", "northwind"],
+        "links": [],
         "scope": "/demo/Harbor",
         "branch": null,
-        "validFrom": 1793880000000,
+        "validFrom": null,
         "validTo": null,
         "recordedAt": 1793966400000,
         "observedAt": 1793880000000,
         "origin": {
-          "sessionId": "harbor-lane",
-          "title": "Harbor pilot planning"
-        }
+          "sessionId": "harbor-planning",
+          "title": "Harbor planning"
+        },
+        "importance": 1,
+        "saidBy": "you",
+        "lanes": 1
       },
       "quotes": [
         {
-          "before": "For the November pilot: ",
-          "quote": "The Rollback runbook documents Harbor Ledger recovery.",
-          "after": " Keep this responsibility explicit in the rollout checklist.",
-          "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+          "before": "",
+          "quote": "Tom Lee and Northwind discussed the billing pilot.",
+          "after": "",
+          "label": "You · Harbor planning"
         }
       ],
-      "linkQuotes": {
-        "link-5": [
-          {
-            "before": "For the November pilot: ",
-            "quote": "The Rollback runbook documents Harbor Ledger recovery.",
-            "after": " Keep this responsibility explicit in the rollout checklist.",
-            "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
-          }
-        ]
-      },
-      "entities": [
-        {
-          "id": "ledger",
-          "label": "Harbor Ledger",
-          "kind": "project",
-          "description": "Billing pilot; rollout decision on 6 November 2026",
-          "aliases": ["Ledger"]
-        },
-        {
-          "id": "runbook",
-          "label": "Rollback runbook",
-          "kind": "document",
-          "description": "Recovery checklist for the Ledger pilot",
-          "aliases": []
-        }
-      ],
+      "linkQuotes": {},
       "history": [],
       "related": [],
-      "sourcePath": null
+      "sourcePath": null,
+      "use": {
+        "recalled": 0,
+        "lastRecalledAt": null,
+        "flagged": 0
+      }
     },
     {
       "memory": {
         "id": "memory-6",
         "jobId": null,
-        "summary": "Rina Okafor is a member of Harbor Platform.",
+        "summary": "Rina Okafor moved to Kestrel in September.",
         "type": "fact",
         "kind": "reported",
         "state": "active",
-        "entityIds": ["rina", "platform"],
+        "entityIds": ["rina", "kestrel"],
         "links": [
           {
             "id": "link-6",
             "subjectId": "rina",
-            "objectId": "platform",
-            "predicate": "member_of",
-            "memoryId": "memory-6"
+            "objectId": "kestrel",
+            "predicate": "works_on",
+            "memoryId": "memory-6",
+            "label": "moved to",
+            "validFrom": 1788220800000,
+            "validTo": null,
+            "statedBy": "reader"
           }
         ],
         "scope": "/demo/Harbor",
         "branch": null,
-        "validFrom": 1793880000000,
+        "validFrom": null,
         "validTo": null,
         "recordedAt": 1793966400000,
         "observedAt": 1793880000000,
         "origin": {
-          "sessionId": "harbor-lane",
-          "title": "Harbor pilot planning"
-        }
+          "sessionId": "harbor-planning",
+          "title": "Harbor planning"
+        },
+        "importance": 1,
+        "saidBy": "you",
+        "lanes": 1
       },
       "quotes": [
         {
-          "before": "For the November pilot: ",
-          "quote": "Rina Okafor is a member of Harbor Platform.",
-          "after": " Keep this responsibility explicit in the rollout checklist.",
-          "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+          "before": "",
+          "quote": "Rina Okafor moved to Kestrel in September.",
+          "after": "",
+          "label": "You · Harbor planning"
         }
       ],
       "linkQuotes": {
         "link-6": [
           {
-            "before": "For the November pilot: ",
-            "quote": "Rina Okafor is a member of Harbor Platform.",
-            "after": " Keep this responsibility explicit in the rollout checklist.",
-            "label": "You \u00b7 Harbor pilot planning \u00b7 5 Nov 2026"
+            "before": "",
+            "quote": "Rina Okafor moved to Kestrel in September.",
+            "after": "",
+            "label": "You · Harbor planning"
           }
         ]
       },
-      "entities": [
-        {
-          "id": "rina",
-          "label": "Rina Okafor",
-          "kind": "person",
-          "description": "Owns Ledger migrations for the Harbor pilot",
-          "aliases": []
-        },
-        {
-          "id": "platform",
-          "label": "Harbor Platform",
-          "kind": "team",
-          "description": "Maintains the migration service",
-          "aliases": []
-        }
-      ],
       "history": [],
       "related": [],
-      "sourcePath": null
+      "sourcePath": null,
+      "use": {
+        "recalled": 0,
+        "lastRecalledAt": null,
+        "flagged": 0
+      }
     }
   ]
 }

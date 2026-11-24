@@ -56,22 +56,16 @@ The optional raw importer expects separately captured `models-picker.png` and
   and Files/Changes panes; the terminal honestly
   shows the browser harness's echo-only shell. The artifact is Markdown rendered
   by the real artifact viewer, not a composited document.
-- `brain-demo.json`: seven entities, seven memories, one Harbor pilot-planning
-  world dated 5–6 November 2026. Rina owns Ledger migrations; Tom supports Ledger;
-  Harbor Platform owns the migration component; the runbook documents recovery.
-  Every directed edge cites a matching memory and source quote. Counts, entity
-  pages, search, neighbourhoods and memory evidence all use that same dataset.
-- `brain-backend.mjs`: capture-only adapter over the existing `MockExplorer` and
-  mock Brain queue/model lifecycle. Setup uses the real switch and download-state
-  UI, but the download is simulated and no model is installed. Review proposes
-  enriching existing assertions with the pilot source, with identity confirmation
-  left unresolved. No approval, database write, actual extraction, embedding or
-  model call occurs. This is a staged read-only exploration/review demonstration,
-  not an implementation or end-to-end test of Brain persistence.
-- `brain-recall`: real chat/tool rendering of a fictional `brain_search` call and
-  briefing consistent with the Rina memory. The visible answer discloses that no
-  embedding search or live model answer happened. It illustrates prior notes as
-  background data, not instructions or fresh proof.
+- `brain-demo.json`: seven people and things and seven memories from the fictional Harbor
+  handover and planning lanes. Tom took over billing from Rina. His Kestrel link ended in
+  August. He and Northwind appear in a memory without a stated relationship.
+- `brain-backend.mjs`: the v8 mock explorer walks these memories and answers Ask. The saved
+  handover and Brain Agent’s later link are staged journal entries backed by the same notes.
+  Setup and the queue use the mock lifecycle. No model is downloaded, no provider is called
+  and the capture does not test persistence or Undo.
+- `brain-graph` starts with Rina’s card. `brain-memory` follows the sentence to Tom.
+  `brain-changes` shows the saved read and the reason for the link. `brain-extraction` opens
+  its read record. `brain-recall` shows the Ask answer and its lit trail, not a chat reply.
 - `subagents-demo.json`: fictional four-workstream delegation and parent guidance.
   The UI can show simulated activity; no workers are launched. The old
   `remote-hosts.json` is retained only as an unused historical editorial fixture.

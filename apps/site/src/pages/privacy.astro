@@ -84,26 +84,26 @@ const sections: [string, string][] = [
   <section id="brain">
     <h2>Brain knowledge</h2>
     <p>
-      Brain is optional, off by default and Desktop-only. The knowledge graph, proposals, evidence
-      and embeddings stay in local app storage. The local embedding model is downloaded when you
-      enable Brain.
+      Brain is off by default. Turn it on in Settings → Brain on Desktop. The graph, evidence and
+      search index stay on this machine. Brain never syncs to Hosts or other Desktops and does not
+      run in the web app.
     </p>
     <p>
-      For a lane you explicitly queue, reading sends scrubbed user and assistant text to the reader
-      model in tool-less calls. It can consume tokens and quota. Scrubbing is not a guarantee that
-      every sensitive detail is removed. With recall on, kept knowledge can become context in later
-      provider requests.
+      When you queue a lane, the reader receives scrubbed user and assistant text. Scrubbing can
+      miss sensitive details. Personal claims never become memories, but the source transcript is
+      not erased. With recall on, saved memories can enter a later lane’s provider context.
     </p>
     <p>
-      Defrag runs only when you click it. Defrag sends what waits, including memories, names and
-      scrubbed excerpts, to the Brain lane's model. Brain Agent may read the connectors that lane
-      has to check facts. Lane agents can flag a memory for Brain Agent to check during Defrag.
+      Brain Agent checks new knowledge after reads settle or when you press Defrag. These checks
+      send what waits, including memories, names and scrubbed excerpts, to the Brain lane’s model.
+      Brain Agent can use that lane’s connectors to check facts, read-only. Turn off automatic
+      checks in Settings to run them only on request.
     </p>
     <p>
-      Review before saving is on by default. Forget removes an individual memory and unused
-      evidence; Reset Brain knowledge removes the graph and extraction records while keeping
-      settings and the model. Turning Brain off keeps existing knowledge. It does not sync to Hosts
-      or other computers. <a href="/guides/brain/#privacy">Retention and controls</a>.
+      Turning Brain off keeps local knowledge. Forget permanently removes one memory. Reset Brain
+      knowledge clears the graph and read records but keeps settings and the downloaded model. <a
+        href="/guides/brain/#privacy">Retention and controls</a
+      >.
     </p>
   </section>
   <section id="remote">
