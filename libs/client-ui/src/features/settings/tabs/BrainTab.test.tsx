@@ -68,24 +68,28 @@ it('saves exactly once per toggle and shows enabled rows immediately', async () 
     ['brain:setPrefs', { ...DEFAULT_BRAIN_PREFS, enabled: true }],
   ])
   expect(container.textContent).toContain('Recall in lanes')
-  expect(container.textContent).toContain('Review before saving')
+  expect(container.textContent).toContain('Brain Agent checks new knowledge on its own')
+  expect(container.textContent).not.toContain('Review before saving')
   expect(container.textContent).toContain('Open Brain')
   await click('Recall in lanes')
   expect(invoke).toHaveBeenLastCalledWith('brain:setPrefs', {
     enabled: true,
     recall: false,
-    review: true,
+    agentAuto: true,
     model: null,
     neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
-  await click('Review before saving')
+  await click('Brain Agent checks new knowledge on its own')
   expect(invoke).toHaveBeenLastCalledWith('brain:setPrefs', {
     enabled: true,
     recall: false,
-    review: false,
+    agentAuto: false,
     model: null,
     neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
+  expect(
+    [...container.querySelectorAll('[role=switch]')].map((s) => s.getAttribute('aria-label')),
+  ).not.toContain('Review before saving')
 })
 
 it('sends lane flags to the Brain Inbox, not to a Tidy tab that no longer exists', async () => {
@@ -168,6 +172,7 @@ it('requires explicit reset confirmation, keeps the model/settings copy, and cal
   const request = usePromptStore.getState().requests[0]!
   expect(request.message).toContain('memories, entities, jobs and extraction records')
   expect(request.message).toContain('Keeps settings and the embedding model')
+  expect(request.message).not.toContain('review')
   expect(invoke.mock.calls.some(([channel]) => channel === 'brain:reset')).toBe(false)
   await act(async () => usePromptStore.getState().dismiss(request, 'RESET'))
   expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:reset')).toHaveLength(1)
