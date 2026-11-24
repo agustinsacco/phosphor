@@ -107,6 +107,28 @@ export function clearSubject(ctx: Context, type: 'entity' | 'memory', id: string
       id,
     )
 }
+/** A merge keeps the open group questions that name its source, asking about the survivor. */
+export function repointGroups(ctx: Context, source: string, target: string): void {
+  for (const row of all<{ id: string; detail: string }>(
+    ctx,
+    `SELECT id,detail FROM tidy_suggestions WHERE kind='group' AND state='open' AND
+    EXISTS(SELECT 1 FROM json_each(detail,'$.memberIds') WHERE value=?)`,
+    source,
+  )) {
+    const detail = JSON.parse(row.detail) as Extract<BrainTidySuggestionExtra, { kind: 'group' }>
+    const memberIds = [...new Set(detail.memberIds.map((id) => (id === source ? target : id)))]
+    const [first = target, second = first] = memberIds
+    run(
+      ctx,
+      'UPDATE tidy_suggestions SET first_id=?,second_id=?,detail=?,updated_at=? WHERE id=?',
+      first,
+      second,
+      JSON.stringify({ ...detail, memberIds }),
+      ctx.now(),
+      row.id,
+    )
+  }
+}
 export function subjectExists(ctx: Context, row: SuggestionRow): boolean {
   const table = row.subject_type === 'entity' ? 'entities' : 'memories'
   return (
