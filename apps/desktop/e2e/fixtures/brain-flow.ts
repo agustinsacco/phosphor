@@ -52,6 +52,25 @@ export async function awaitSaved(page: Page, lane: BrainLane): Promise<void> {
     .toBe('saved')
 }
 
+/**
+ * A saved read is followed by background upkeep that may move the revision. Wait until it has
+ * held still for a second, so the page has reloaded at the revision an action checks.
+ */
+export async function awaitSettled(page: Page): Promise<void> {
+  let last = -1
+  await expect
+    .poll(
+      async () => {
+        const now = (await status(page)).revision
+        const still = now === last
+        last = now
+        return still
+      },
+      { intervals: [1_000], timeout: READ_TIMEOUT },
+    )
+    .toBe(true)
+}
+
 export async function awaitFailed(page: Page, lane: BrainLane): Promise<void> {
   await expect
     .poll(async () => (await status(page)).jobs.find((j) => j.sessionPath === lane.source)?.state, {

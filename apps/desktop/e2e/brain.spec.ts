@@ -14,6 +14,7 @@ import {
   READ_TIMEOUT,
   awaitFailed,
   awaitSaved,
+  awaitSettled,
   brainNav,
   card,
   cardTitle,
@@ -292,6 +293,7 @@ async function rereadHarbor(page: Page, lane: BrainLane, earlier: string): Promi
 
 /** Undo of a saved read rejects it with nothing of its own, and the lane offers Read again. */
 async function undoSavedRead(page: Page, lane: BrainLane): Promise<void> {
+  await awaitSettled(page)
   const read = (await changes(page)).items.find((i) => i.kind === 'read')!
   const row = whatChanged(page).getByRole('listitem').filter({ hasText: read.summary }).first()
   await row.getByRole('button', { name: 'Undo', exact: true }).click()
