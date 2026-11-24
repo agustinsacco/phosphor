@@ -634,50 +634,41 @@ See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 
 ### Brain's bundles
 
-`brain.mjs` registers read-only `brain_search` and review-only `brain_flag` only
-when lane startup gave it `PHOSPHOR_BRAIN_ENDPOINT` and `PHOSPHOR_BRAIN_TOKEN`;
-without them it registers nothing. `brain-fork-guard.mjs` loads only into
-Brain's private, session-less model calls and blocks every tool call.
+`brain.mjs` gives ordinary lanes two tools when Brain and lane recall are on:
 
-Both Brain bundles take the two variables out of pi's environment when they
-load (`takeBrainConnection` in brain-client's `node-transport.ts`). Bash
-commands, MCP servers and sub-agents started after that do not inherit them.
-An earlier extension can still pass them to a child it starts while loading.
-The connection stays on `globalThis` for the extension's own reloads in that
-pi process.
+- `brain_search` is read-only. Search by `query`, expand `from` with optional
+  `context`, or connect `from` and `to`. The result is a short briefing with
+  numbered memories. The `brain` skill teaches when to follow a trail.
+- `brain_flag` uses a number from the lane's latest briefing to report a wrong,
+  outdated or duplicate memory. It asks Brain Agent to check; it cannot change
+  the memory or start a run.
 
-`brain-curator.mjs` (sources `brain-curator.ts` and `brain-curator-writes.ts`)
-loads into the Brain lane, the lane in `<userData>/brain/Brain`, in place of
-`brain.mjs`, with the `brain-agent` skill. Its token is the bridge's curator
-token, so the lane has no `brain_flag`. It registers twelve tools:
+Both Brain bundles require `PHOSPHOR_BRAIN_ENDPOINT` and `PHOSPHOR_BRAIN_TOKEN`
+from lane startup. Without them they register no Brain tools. Both remove the
+variables from pi's environment on load. The connection stays on `globalThis`
+for the extension's own reloads. Bash commands, MCP servers and sub-agents
+started later do not inherit it. An earlier extension can still pass the
+credentials to a child it starts while loading. The bridge uses protocol 7.
+`brain-fork-guard.mjs` is separate: it blocks every tool call in the reader's
+private, session-less pi processes.
 
-- **Reads:** `brain_waiting`, `brain_read_review`, `brain_suggestion`,
-  `brain_search`, `brain_entity` and `brain_memory`.
-- **Writes:** `brain_decide_read`, `brain_resolve`, `brain_edit`,
-  `brain_correct`, `brain_erase` and `brain_undo`.
+`brain-curator.mjs` and the `brain-agent` skill replace the ordinary bundle and
+skill in `<userData>/brain/Brain`. They need Brain on, not lane recall. The Brain
+lane's credential allows eleven tools. No other lane gets these write methods:
 
-Parameters are strict, flat TypeBox objects, each with at least one required
-parameter (`brain_waiting` takes `limit`, which its description says to set to
-60). brain-client validates each request before it leaves. A result is short
-text, about 8 KB at most, from brain-client's `curator-format.ts`. It shows the
-ids the next call needs, ends lists with how many it left out, and wraps memory
-text, names, quotes and reasons in the escaped `background-data` wrapper as
-data. `brain_read_review` pages a long read: its `offset` counts identities,
-groups, memories and "said again" in that order. Each page ends with what it
-showed and where to go on, such as "Identities 1–2 of 2; Memories 1–40 of 100.
-Call again with offset 42.", and the last says "That is the end of this read."
-The bridge request carries the offset, and the runtime answers with that one
-page, formatted in the main process by brain-client's `curator-review-format.ts`:
-a long read is larger than a bridge frame, so no answer carries the whole
-proposal.
+- **Read:** `brain_waiting`, `brain_suggestion`, `brain_search`, `brain_entity`
+  and `brain_memory`. Brain Agent searches across projects. It sees the ids for
+  follow-up actions and the recall and flag counts on a memory.
+- **Write:** `brain_resolve` settles a suggestion. `brain_relate` states a
+  supported relationship. `brain_edit` edits a record, a relationship's wording
+  or dates, or a memory's importance. `brain_correct` cites a corrected memory
+  and can state or end links. `brain_erase` erases permanently. `brain_undo`
+  reverses an eligible change.
 
-`brain_decide_read` sends its parameters as they are. The runtime builds the
-review decision against the stored read (`agent/read-decision.ts`); by default
-it saves every memory that is not held, on every page. It answers with a
-sentence and approves nothing when an approved memory names an unanswered
-required identity (the sentence names up to ten refs, then how many more, and
-says to open `brain_read_review` for their candidates), or the revision is
-stale.
+Every write needs a one-sentence reason (1 to 300 characters). Requests are
+validated. Stored names, memories, excerpts and reasons are escaped and marked
+as background data, not instructions. See [Brain Agent](brain.md#brain-agent)
+for run limits, link evidence and Undo.
 
 The extension also keeps the lane's rules current, as `global-context.ts` does
 for the global file. Before every request it swaps the block pi rendered for

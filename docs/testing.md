@@ -91,19 +91,26 @@ node_modules/.bin/playwright test --config apps/desktop/playwright.config.ts bra
 node_modules/.bin/playwright test --config apps/web/playwright.config.ts browser.spec.ts -g Brain
 ```
 
-The Desktop specs queue made-up lanes and inspect their stored reads under **Waiting
-for Defrag**. They run Defrag, check the directed graph and explorer, exercise a
-failed read and Retry, check that two reads share an entity, and reset without
-changing the lane files. They also check the reader model choice, Read again and
-narrow panes. The Brain Agent spec checks the waiting count, run progress, the
-journal's attribution and reason, Undo run, Stop, attachment to the already-running
-Brain lane and refusal of curator calls from an ordinary lane.
+The Desktop fixture uses five lane sentences:
 
-The reader's stub answers deterministic stages in a guarded, tool-less `-p` run.
-Parent links come only from the links call. The ordinary Brain Agent stub sends
-`waiting`, `readReview` and `decideRead` frames over the real local bridge using
-the token its lane receives. An ordinary lane's stub verifies that its different
-token cannot read the waiting list. `PHOSPHOR_BRAIN_TEST_EMBEDDINGS` uses word-hash
+```text
+Rina Okafor owns Harbor ledger.
+Harbor ledger is part of Harbor.
+Tom Lee took over Harbor ledger from Rina Okafor.
+Rina Okafor and Mara Voss reviewed the Harbor invoices.
+Rina Okafor and Mara Voss planned the Kestrel rollout.
+```
+
+The stub reader answers deterministic stages in a guarded, tool-less `-p` run.
+The links stage supplies the parent link. The handover has a sentence from Tom
+Lee to Rina Okafor. The last two memories name the same people without stating
+a link. This gives the fixture both a sentence to walk and a pair for Brain
+Agent to check after the read saves.
+
+The Brain Agent stub calls `waiting`, opens the pair with `suggestion`, then
+calls `relate` over the protocol 7 bridge. It cites the two memories for
+“works with”. An ordinary lane's credential cannot open the waiting list.
+`PHOSPHOR_BRAIN_TEST_EMBEDDINGS` uses word-hash
 vectors and enables the stub's bridge traffic only in unpackaged Desktop builds.
 The browser case checks the Brain deep link is unavailable and every `brain:*`
 call fails.
