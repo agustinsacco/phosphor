@@ -141,11 +141,27 @@ export async function rehearseAfterCommit(ctx, migrationId, expected) {
     lanes?.length === expected.lanes && archives?.length === expected.archives,
   )
 
-  const running = (lanes ?? []).filter((lane) => lane.activity !== 'stopped')
-  report.stopped = { running: running.length, stoppedByCli: 0 }
+  // A person restoring has lanes running: start the newest, then stop them all as they would.
+  const newest = (lanes ?? []).toSorted((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0]
+  const resumed = newest ? phosphor(ctx, ['lane', 'resume', newest.laneId]).result : null
+  const running = (list(ctx, ['lane', 'list'], 'lanes', refusals) ?? []).filter(
+    (lane) => lane.activity !== 'stopped',
+  )
+  report.stopped = {
+    resumed: resumed?.status ?? null,
+    running: running.length,
+    stoppedByCli: 0,
+  }
   for (const lane of running)
     if (phosphor(ctx, ['lane', 'stop', lane.laneId]).result?.status === 'ok')
       report.stopped.stoppedByCli++
+  let still = running.length
+  for (let i = 0; i < 40 && still > 0; i++) {
+    await sleep(500)
+    const now = list(ctx, ['lane', 'list'], 'lanes', refusals)
+    still = now ? now.filter((lane) => lane.activity !== 'stopped').length : still
+  }
+  check('phosphor CLI starts and stops lanes', running.length > 0 && still === 0)
 
   const exitsBefore = ctx.daemon.exits.length
   report.restore = await launch(ctx, ['--restore-in-app-runtime'], 10000)
