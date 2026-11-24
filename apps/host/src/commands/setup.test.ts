@@ -161,6 +161,26 @@ describe('setup detection', () => {
     expect((await runSetup(context)).exitCode).toBe(0)
     expect((await saved()).pi).toEqual({ executable: join(dir, 'cli.js'), node })
   })
+  it("puts node's real folder on pi's PATH for a shell launcher that runs pi with node", async () => {
+    // pi's managed install: a /bin/sh launcher execs a release whose shebang is `env node`.
+    const release = join(dir, 'release', 'pi')
+    await mkdir(dirname(release), { mode: 0o700 })
+    await writeFile(release, '#!/usr/bin/env node\n', { mode: 0o700 })
+    await executable('pi', `exec ${release} "$@"`)
+    const nodes = join(dir, 'versions', 'node')
+    await executable('node', 'echo 1.2.0', nodes)
+    // Found only through a per-shell link, as fnm puts it on a login shell's PATH.
+    const shell = join(dir, 'multishell')
+    await mkdir(shell, { mode: 0o700 })
+    await symlink(nodes, join(shell, 'bin'))
+    context.env = { ...context.env, PATH: `${bin}:${join(shell, 'bin')}` }
+    const report = await runSetup(context)
+    expect(report.checks.filter((c) => c.status === 'fail')).toEqual([])
+    expect(report.exitCode).toBe(0)
+    const config = await saved()
+    expect(config.pi).toEqual({ executable: join(bin, 'pi') })
+    expect(config.environment?.path).toEqual([nodes])
+  })
   it('pins a shell wrapper on PATH without node, even when --node is given', async () => {
     context.node = '/missing/node'
     expect((await runSetup(context)).exitCode).toBe(0)
