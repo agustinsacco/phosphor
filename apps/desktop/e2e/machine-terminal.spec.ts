@@ -26,11 +26,12 @@ test('the Terminal tab opens a home shell, keeps it across tabs, and ends it on 
     await page.keyboard.type('printf \'shell_%s\\n\' "$PHOSPHOR_KEEP"')
     await page.keyboard.press('Enter')
     await expect(pane.locator('.xterm-rows')).toContainText('shell_preserved')
-    // Closing the tab is what ends the shell: the next one starts clean.
+    // Closing the tab is what ends the shell: the pane is left without one,
+    // and the next shell starts clean.
     const tab = pane.locator('div.group', { hasText: 'Terminal 1' })
     await tab.hover()
     await tab.getByRole('button', { name: 'Close Terminal 1', exact: true }).click()
-    await expect(pane.locator('.xterm-rows')).not.toContainText('shell_preserved')
+    await expect(pane.locator('.xterm-rows')).toHaveCount(0)
     await pane.getByRole('button', { name: 'New terminal', exact: true }).click()
     await pane.locator('.xterm-helper-textarea').focus()
     await page.keyboard.type('printf \'shell_%s\\n\' "${PHOSPHOR_KEEP:-gone}"')
