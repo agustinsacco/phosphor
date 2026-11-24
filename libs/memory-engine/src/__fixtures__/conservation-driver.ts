@@ -52,12 +52,12 @@ export class EngineBase {
   private leaf = 0
   private vectors = 0
   constructor() {
-    let counter = 0,
-      db: DatabaseSync | undefined
+    let counter = 0
+    const opened: DatabaseSync[] = []
     class Database extends DatabaseSync {
       constructor(path: string, options?: { timeout?: number }) {
         super(path, options ?? {})
-        db = this
+        opened.push(this)
       }
     }
     this.store = openBrainStore({
@@ -66,7 +66,7 @@ export class EngineBase {
       now: () => this.clock.time,
       id: () => `id-${String(++counter).padStart(6, '0')}`,
     })
-    this.db = db!
+    this.db = opened[0]!
   }
   close(): void {
     this.store.close()
