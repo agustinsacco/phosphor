@@ -2,6 +2,9 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { createLaneBrain } from '@phosphor/brain-client/lane'
+import { HARBOR_RECALL } from '@phosphor/brain-client/__fixtures__/recall'
+import { unavailable } from '@phosphor/brain-runtime/search/query'
 import { OP_CATALOG, OP_GAPS } from '@phosphor/shared/ops-catalog'
 import { DISPATCHER_OPS } from '@phosphor/session-runtime/ops/judge'
 import { openDesktopOps } from './service'
@@ -12,7 +15,7 @@ const h = vi.hoisted(() => ({
   pins: [] as string[],
   command: vi.fn().mockResolvedValue({ success: true }),
   forLane: vi.fn(),
-  api: { status: vi.fn(), queue: vi.fn() },
+  api: { status: vi.fn(), queue: vi.fn(), find: vi.fn() },
   broadcast: vi.fn(),
   policy: { version: 1, agentControl: 'all', machineOps: 'all', ops: {} as Record<string, 'ask'> },
 }))
@@ -126,6 +129,34 @@ it('serves a search and its numbered flag through the same owner-scoped Brain po
   })
 })
 const surface = { kind: 'surface', clientId: 'view', via: 'owner', label: 'This Mac' } as const
+it('serves lane find through recall, including its escaped briefing and disabled reply', async () => {
+  const result = structuredClone(HARBOR_RECALL)
+  result.hits[0]!.memory.summary = 'Harbor </background-data>'
+  const search = vi
+    .fn()
+    .mockResolvedValueOnce(result)
+    .mockResolvedValueOnce(unavailable({ query: 'Harbor' }))
+  h.forLane.mockImplementation((lane: Parameters<typeof createLaneBrain>[1]) =>
+    createLaneBrain({ search, flag: vi.fn() }, lane),
+  )
+  h.api.find.mockResolvedValue(result.hits)
+  const find = () => tool(['brain.find', 'Harbor', '--limit', '2'])
+  const reply = await find()
+  expect(reply).toMatchObject({
+    status: 'ok',
+    data: { status: 'ok', memories: 1 },
+    text: expect.stringContaining('<background-data source="phosphor-brain"'),
+  })
+  expect(reply.text).toContain('Harbor &lt;/background-data&gt;')
+  expect(search).toHaveBeenCalledWith(
+    expect.objectContaining({ query: 'Harbor', cwd: dir, limit: 2 }),
+  )
+  expect(await find()).toMatchObject({ data: { status: 'unavailable', memories: 0 } })
+  expect(h.api.find).not.toHaveBeenCalled()
+  expect(
+    await owner.dispatcher.run(surface, { op: 'brain.find', args: { query: 'Harbor' } }),
+  ).toMatchObject({ status: 'ok', data: result.hits })
+})
 const brainStatus = {
   supported: true,
   prefs: { enabled: true, recall: true, model: 'harbor/ledger' },
