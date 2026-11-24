@@ -144,10 +144,10 @@ its lane.
   and `]` to go forward. “Appear together, not explained yet” lists names and how many memories
   they share. **Connects to…** traces a route to another name. Below are the memories, with
   their source and dates. Open one to inspect its evidence or to Forget it.
-- **Ask** (Enter) recalls answer memories and lights their trails on the map. **Tell Brain
-  Agent** (⌘Enter) sends an instruction as an ordinary message to its lane. For example, ask
-  “Who owns Ledger?” or tell Brain Agent “Rina Okafor no longer leads Ledger.” You choose which
-  action to take. Asking does not change the graph.
+- **Ask** (Enter) recalls answer memories and lights their trails, and the links they state, on
+  the map. **Tell Brain Agent** (⌘Enter) sends an instruction as an ordinary message to its
+  lane. For example, ask “Who owns Ledger?” or tell Brain Agent “Rina Okafor no longer leads
+  Ledger.” You choose which action to take. Asking does not change the graph.
 - **What changed** lists saved reads, automatic folds and Brain Agent changes, newest first.
   See who made a change, when and, for Brain Agent, why. Undo an eligible change or undo a
   finished run. Open a saved read here to see **how it was read**: its claims and outcomes,
@@ -275,7 +275,8 @@ their own Undo.
    the parent and state `part_of` links. Otherwise dismiss the suggestion.
 3. **Unlinked pairs.** Look among the newest 2,000 current, unexpired memories for two names
    that appear together at least twice. Skip hubs and pairs already explained, even by an ended
-   relationship. Rank by shared count and specificity. Up to 40 pairs wait at once. Brain
+   relationship. Rank by shared count and specificity. Up to 40 pairs wait at once. Brain looks
+   as soon as a read's new memories are swept, and again at the end of a full pass. Brain
    Agent reads the shared memories; if no lasting relationship is stated it can dismiss the
    pair. Brain remembers that answer.
 4. **Repeats and disagreements.** Fold supported repeats. Keep a disagreement as disputed
@@ -333,9 +334,10 @@ in either version.
   per lane session and fifty across Brain. The same lane cannot flag the same memory twice.
   The bridge limits all lanes together to ten flag requests per minute.
 - The journal keeps the newest 200 changes, changes in the latest run and erasures younger than
-  an hour. Brain keeps the newest 20 runs. A change outside retention or one that later changes
-  depend on cannot be undone. Undoing a keep reopens the question. Undoing a fold or merge
-  remembers the pair so the next sweep does not just repeat it.
+  an hour. Brain keeps the newest 20 runs and every automatic run the daily limit still counts.
+  A change outside retention or one that later changes depend on cannot be undone. Undoing a
+  keep reopens the question. Undoing a fold or merge remembers the pair so the next sweep does
+  not just repeat it.
 - Forget and `brain_erase` are permanent. Brain Agent can erase at most 25 memories in a
   rolling hour. The journal cannot restore forgotten text. Erasing a memory does not edit the
   original lane or the scrubbed source in a retained read record. Each lane normally keeps
