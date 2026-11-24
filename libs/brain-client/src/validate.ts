@@ -143,6 +143,14 @@ export function isBrainRecall(v: unknown): v is BrainSearchResult {
       (v.entity === null || entity(v.entity)) &&
       list(v.alternatives, entity) &&
       list(v.current, relationLine) &&
+      list(
+        v.currentMore,
+        (g) =>
+          record(g) &&
+          member(g.predicate, BRAIN_PREDICATES) &&
+          member(g.direction, ['in', 'out']) &&
+          number(g.more),
+      ) &&
       list(v.ended, relationLine) &&
       list(v.together, (t) => record(t) && entity(t.entity) && number(t.shared)) &&
       number(v.togetherMore)

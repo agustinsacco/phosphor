@@ -1,3 +1,4 @@
+import { BRAIN_PREDICATE_LABELS } from '@phosphor/shared/brain-links'
 import type { BrainExpansion, BrainRelationLine } from '@phosphor/shared/brain-recall'
 import { named, sentence, type Parts, type Ref } from './format-render'
 export function expandParts(r: BrainExpansion): Parts {
@@ -17,6 +18,9 @@ export function expandParts(r: BrainExpansion): Parts {
     header: (ref) => [
       ...(e ? [`About: ${named(e)}.${e.description ? ' ' + e.description : ''}`] : []),
       ...relations('Now:', r.current, ref),
+      ...r.currentMore.map(
+        (g) => `+${g.more} more ${BRAIN_PREDICATE_LABELS[g.predicate][g.direction].toLowerCase()}`,
+      ),
       ...relations('Before:', r.ended, ref),
       ...(r.together.length
         ? [

@@ -66,6 +66,8 @@ export interface BrainExpansion {
   alternatives: BrainEntity[]
   /** Relationships on the map now, then ended ones with their dates. */
   current: BrainRelationLine[]
+  /** Current neighbours omitted by each predicate and direction page. */
+  currentMore: { predicate: BrainLink['predicate']; direction: 'out' | 'in'; more: number }[]
   ended: BrainRelationLine[]
   /** Entities named in the same memories with no link saying how they relate. */
   together: { entity: BrainEntity; shared: number }[]

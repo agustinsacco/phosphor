@@ -118,7 +118,8 @@ function shortest(graph: Navigation, from: string, to: string) {
 export function routes(ctx: Context, fromId: string, toId: string, now: number): BrainRoutes {
   const from = entity(ctx, fromId) ?? null,
     to = entity(ctx, toId) ?? null
-  const paths = from && to ? shortest(new Navigation(ctx, now), fromId, toId) : []
+  const paths =
+    from && to && from.id !== to.id ? shortest(new Navigation(ctx, now), fromId, toId) : []
   const ids = paths
     .flat()
     .flatMap((s) =>

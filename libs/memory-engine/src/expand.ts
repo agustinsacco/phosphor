@@ -7,6 +7,10 @@ import { RECALL_TUNING } from './recall-tuning'
 import type { Context } from './database'
 import type { BrainSearch } from './types'
 
+function otherBranch(branch: string | null, lane: string | null) {
+  return Number(branch !== null && branch !== lane)
+}
+
 export function expand(
   ctx: Context,
   input: Parameters<BrainSearch['expand']>[0],
@@ -21,6 +25,7 @@ export function expand(
     alternatives: [],
     current: [],
     ended: [],
+    currentMore: [],
     together: [],
     togetherMore: 0,
     hits: [],
@@ -51,13 +56,18 @@ export function expand(
     .sort((a, b) => (order.get(a.other.id) ?? Infinity) - (order.get(b.other.id) ?? Infinity))
   const hits = memoryCards(ctx, ranked.memories)
     .filter((m) => m.entityIds.includes(entityId))
-    .slice(0, Math.max(0, Math.min(20, input.limit)))
     .map((memory, i) => ({
       memory,
-      score: 1 / (1 + i),
+      score: (memory.scope === input.scope ? tuning.scope : 1) / (tuning.rrf + i + 1),
       reasons: ['linked' as const],
       trail: ranked.trails.get(memory.id) ?? null,
     }))
+    .sort(
+      (a, b) =>
+        otherBranch(a.memory.branch, input.branch) - otherBranch(b.memory.branch, input.branch) ||
+        b.score - a.score,
+    )
+    .slice(0, Math.max(0, Math.min(20, input.limit)))
   const entities = referencedEntities(ctx, [
     ...hits.map((h) => h.memory),
     { entityIds: [...focus] },
@@ -67,6 +77,13 @@ export function expand(
     status: 'ok',
     entity: self,
     current,
+    currentMore: view.groups
+      .filter((g) => g.total > g.items.length)
+      .map((g) => ({
+        predicate: g.predicate,
+        direction: g.direction,
+        more: g.total - g.items.length,
+      })),
     ended: view.ended.map(line),
     together: view.together,
     togetherMore: view.togetherMore,

@@ -36,13 +36,19 @@ function line({ memory: m, trail }: Entry, ref: number, cwd: string | undefined,
     `- [${ref}] ${clip(m.summary, 1200)}`,
     trail,
     m.type,
-    ended ? `ended ${day(m.validTo!)}` : 'still true',
+    ended
+      ? `ended ${day(m.validTo!)}`
+      : m.state === 'disputed'
+        ? 'disputed'
+        : m.validFrom !== null && m.validFrom > now
+          ? `planned from ${since}`
+          : 'still true',
     m.saidBy === 'you' ? 'you said it' : 'an agent said it',
     { observed: 'seen', reported: 'told', inferred: 'guessed' }[m.kind],
     `${m.lanes} ${m.lanes === 1 ? 'lane' : 'lanes'}`,
     m.importance === 2 ? 'important' : '',
     `${basename(m.scope)}${local}${m.branch ? `, branch ${m.branch}` : ''}`,
-    `${at}${since && since !== at ? `, since ${since}` : ''}${!ended && m.validTo !== null ? `, until ${day(m.validTo)}` : ''}`,
+    `${at}${since && m.validFrom! <= now && since !== at ? `, since ${since}` : ''}${!ended && m.validTo !== null ? `, until ${day(m.validTo)}` : ''}`,
   ]
   return escape(fields.filter(Boolean).join(' · ').replace(/\s+/gu, ' '))
 }

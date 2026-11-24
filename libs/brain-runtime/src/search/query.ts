@@ -14,6 +14,7 @@ export function emptyExpansion(): BrainExpansion {
     alternatives: [],
     current: [],
     ended: [],
+    currentMore: [],
     together: [],
     togetherMore: 0,
     hits: [],

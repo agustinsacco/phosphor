@@ -235,6 +235,7 @@ personalized PageRank (PPR). The walk follows both mentions (memory to entity) a
 relations (entity to entity), in both directions. A memory can match through a mention alone.
 A mention of a rare name weighs more than a mention of a name on almost every memory. This
 inverse document frequency (IDF) discount keeps hubs from drowning out a specific question.
+Expanding a name boosts memories from the lane's project and lists other branches last. Each current relationship group reports any neighbours left off its page. Expansions and routes distinguish disputed, planned, current and ended memories.
 Large hubs are not expanded unless in focus. Structural links weigh more than other links.
 
 The walk admits at most 300 entities, 600 relation edges and 4,000 memory nodes. At each
