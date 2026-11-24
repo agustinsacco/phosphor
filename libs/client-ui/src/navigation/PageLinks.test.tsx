@@ -32,7 +32,7 @@ it('puts Archive below Machines and enabled Brain after Archive', async () => {
         neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
         enabled: true,
         recall: true,
-        review: true,
+        agentAuto: true,
         model: null,
       },
     },
@@ -59,7 +59,7 @@ it('hides Brain while off and reacts to enabling without hiding other pages', as
           neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
           enabled: true,
           recall: true,
-          review: true,
+          agentAuto: true,
           model: null,
         },
       },
@@ -76,7 +76,7 @@ it('does not load or offer local Brain on a browser platform', async () => {
         neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
         enabled: true,
         recall: true,
-        review: true,
+        agentAuto: true,
         model: null,
       },
     },
@@ -92,14 +92,14 @@ it('does not load or offer local Brain on a browser platform', async () => {
   expect(window.phosphor.invoke).not.toHaveBeenCalled()
 })
 
-it('counts waiting reads at the right edge and removes the count live at zero', async () => {
+it('counts what waits for Brain Agent at the right edge and removes the count live at zero', async () => {
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   const status = {
     ...mockBrainStatus(),
     prefs: {
       enabled: true,
       recall: true,
-      review: true,
+      agentAuto: true,
       model: null,
       neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
     },
@@ -109,7 +109,7 @@ it('counts waiting reads at the right edge and removes the count live at zero', 
       mockBrainJob({ id: 'running', state: 'running' }),
     ],
   }
-  status.agent.waiting.reads = 2
+  status.agent.waiting.unlinked = 2
   useBrain.setState({ status })
   await act(async () => root.render(<PageLinks onPage={onPage} />))
   const count = container.querySelector('[aria-label="2 waiting"]')!
@@ -120,14 +120,14 @@ it('counts waiting reads at the right edge and removes the count live at zero', 
       status: {
         ...status,
         jobs: [],
-        agent: { ...status.agent, waiting: { ...status.agent.waiting, reads: 0 } },
+        agent: { ...status.agent, waiting: { ...status.agent.waiting, unlinked: 0 } },
       },
     }),
   )
   expect(container.querySelector('[aria-label$="waiting"]')).toBeNull()
 })
 
-it('counts one waiting read', async () => {
+it('counts one waiting unlinked pair', async () => {
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   useBrain.setState({
     status: {
@@ -136,13 +136,13 @@ it('counts one waiting read', async () => {
         neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
         enabled: true,
         recall: true,
-        review: true,
+        agentAuto: true,
         model: null,
       },
       jobs: [mockBrainJob()],
       agent: {
         ...mockBrainStatus().agent,
-        waiting: { reads: 1, entities: 0, repeats: 0, conflicts: 0, flags: 0 },
+        waiting: { entities: 0, groups: 0, unlinked: 1, repeats: 0, conflicts: 0, flags: 0 },
       },
     },
   })
@@ -150,7 +150,7 @@ it('counts one waiting read', async () => {
   expect(container.querySelector('[aria-label="1 waiting"]')).not.toBeNull()
 })
 
-it('counts the whole Defrag queue, not just reads', async () => {
+it('counts the whole Defrag queue, not the read queue', async () => {
   const { mockBrainJob } = await import('@/features/brain/mockBrainData')
   const base = mockBrainStatus()
   useBrain.setState({
@@ -160,21 +160,20 @@ it('counts the whole Defrag queue, not just reads', async () => {
         neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
         enabled: true,
         recall: true,
-        review: true,
+        agentAuto: true,
         model: null,
       },
       jobs: [
         mockBrainJob(),
-        mockBrainJob({ id: 'refreshing', state: 'refreshing' }),
+        mockBrainJob({ id: 'failed', state: 'failed' }),
         mockBrainJob({ id: 'queued', state: 'queued' }),
       ],
       agent: {
         ...base.agent,
-        waiting: { reads: 2, entities: 1, repeats: 1, conflicts: 0, flags: 1 },
+        waiting: { entities: 1, groups: 1, unlinked: 1, repeats: 1, conflicts: 0, flags: 1 },
       },
     },
   })
   await act(async () => root.render(<PageLinks onPage={onPage} />))
-  // A review Brain is refreshing still waits for Defrag.
   expect(container.querySelector('[aria-label="5 waiting"]')?.textContent).toBe('5')
 })
