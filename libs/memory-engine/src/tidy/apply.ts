@@ -10,6 +10,7 @@ import { actionRefusal } from './action-guards'
 import { openSuggestion, type SuggestionRow } from './suggestions'
 import { removableNames, removeNameChange } from './entity-edits'
 import { fold } from '../text'
+import { groupChange } from '../agent/group'
 
 export function apply(
   ctx: Context,
@@ -81,6 +82,7 @@ function applyAction(
     bumpKnowledgeRevision(ctx)
     return operation
   }
+  if (action.kind === 'group' && note) return groupChange(ctx, row, note)
   if (action.kind === 'keep' && note) return keepChange(ctx, row, note)
   if (action.kind === 'forget') {
     removeMemory(ctx, row.first_id)
@@ -116,6 +118,12 @@ function keepChange(ctx: Context, row: SuggestionRow, note: JournalNote): string
 }
 function keepSummary(ctx: Context, row: SuggestionRow): string {
   if (row.kind === 'flagged') return 'Kept the flagged memory'
+  if (row.kind === 'group') return 'Kept these apart from the group a read suggested'
+  if (row.kind === 'unlinked') {
+    const label = (id: string) =>
+      one<{ label: string }>(ctx, 'SELECT label FROM entities WHERE id=?', id)!.label
+    return `No lasting link: ${label(row.first_id)} and ${label(row.second_id!)}`
+  }
   if (row.subject_type === 'memory') return 'Kept both memories'
   const label = (id: string) =>
     one<{ label: string }>(ctx, 'SELECT label FROM entities WHERE id=?', id)!.label

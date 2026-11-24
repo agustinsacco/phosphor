@@ -5,7 +5,11 @@ import { nextNumber } from './prefs'
 import { memoryNumber } from './knowledge'
 import { scrubExcerpt } from './secrets'
 import { encodeVector } from './vectors'
+import { carryRelations } from './carry'
+import { BRAIN_SYMMETRIC_PREDICATES } from '@phosphor/shared/brain-links'
 import type { Citation, EvidenceExcerpt, Proposal, ProposalMemory } from './types'
+
+const SYMMETRIC = new Set<string>(BRAIN_SYMMETRIC_PREDICATES)
 
 export interface CommitContext {
   ctx: Context
@@ -73,7 +77,12 @@ export function insertCitations(
     memory,
   )
 }
-function observed(item: ProposalMemory, evidence: EvidenceExcerpt[], fallback: number): number {
+/** When the claim was last said: its newest quote, or `fallback` without one. */
+export function observedAt(
+  item: ProposalMemory,
+  evidence: EvidenceExcerpt[],
+  fallback: number,
+): number {
   return (
     Math.max(
       0,
@@ -94,7 +103,7 @@ function insertRow(
   const now = ctx.now()
   run(
     ctx,
-    `INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,recorded_at,state,origin_session,origin_title,job_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,importance,recorded_at,state,origin_session,origin_title,job_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     n,
     id,
     scrubExcerpt(item.summary),
@@ -104,7 +113,8 @@ function insertRow(
     item.branch ? proposal.branch : null,
     item.validFrom,
     item.validTo,
-    observed(item, proposal.evidence, now),
+    observedAt(item, proposal.evidence, now),
+    item.importance ?? 1,
     now,
     'active',
     proposal.origin.sessionId,
@@ -128,16 +138,22 @@ export function addLinks(commit: CommitContext, memory: number, item: ProposalMe
     run(ctx, 'INSERT OR IGNORE INTO mentions VALUES (?,?)', memory, n)
   }
   for (const link of item.links) {
-    const subject = entityNumber(ctx, resolve(link.subject))
-    const object = entityNumber(ctx, resolve(link.object))
+    let subject = entityNumber(ctx, resolve(link.subject))
+    let object = entityNumber(ctx, resolve(link.object))
     if (subject === object) continue
+    // A symmetric link is stored once, from the lower record.
+    if (SYMMETRIC.has(link.predicate) && object < subject) [subject, object] = [object, subject]
     run(
       ctx,
-      'INSERT OR IGNORE INTO relations(memory,subject,predicate,object,live,observed_at) SELECT ?,?,?,?,1,observed_at FROM memories WHERE n=?',
+      `INSERT OR IGNORE INTO relations(memory,subject,predicate,object,live,observed_at,label,valid_from,valid_to,stated_by)
+      SELECT ?,?,?,?,1,observed_at,?,?,?,'reader' FROM memories WHERE n=?`,
       memory,
       subject,
       link.predicate,
       object,
+      scrubExcerpt(link.label ?? ''),
+      link.validFrom ?? null,
+      link.validTo ?? null,
       memory,
     )
     const relation = one<{ n: number }>(
@@ -220,6 +236,7 @@ export function applyMemory(
     if (item.action === 'conflict')
       run(ctx, "UPDATE memories SET state='disputed' WHERE n IN (?,?)", current.n, target)
     else {
+      carryRelations(ctx, target, current.n, item.validFrom ?? ctx.now())
       reactivatePartners(ctx, target)
       run(
         ctx,

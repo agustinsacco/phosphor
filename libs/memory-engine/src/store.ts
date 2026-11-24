@@ -4,18 +4,20 @@ import { tidyStore } from './tidy/store'
 import { agentStore } from './agent/store'
 import { randomUUID } from 'node:crypto'
 import type { BrainSnapshot } from '@phosphor/shared/brain'
-import { all, type Context } from './database'
+import { all, transaction, type Context } from './database'
 import { extraction, saveExtraction, pruneExtractions } from './extractions'
 import * as jobs from './jobs'
-import { history, laneContext, laneMemories } from './history'
+import { laneContext, laneMemories, laneRead } from './history'
 import * as candidates from './candidates'
 import * as explorer from './explorer'
 import * as graph from './graph'
 import { memory } from './knowledge'
 import { forget } from './merge'
-import { prefs, revision, knowledgeRevision, setPrefs } from './prefs'
-import { proposal, propose, storedProposal } from './proposals'
-import { review } from './review'
+import { bumpRevision, prefs, revision, knowledgeRevision, setPrefs } from './prefs'
+import { storedProposal } from './proposals'
+import { saveRead } from './save-read'
+import { owner, setOwnerEntity } from './save-identities'
+import { recordRecall } from './use'
 import { initialize, reset } from './schema'
 import type { BrainStore, OpenStoreOptions } from './types'
 
@@ -38,6 +40,7 @@ function snapshot(ctx: Context): BrainSnapshot {
       "SELECT session_id AS sessionId FROM jobs WHERE state IN ('done','empty','rejected') GROUP BY session_id ORDER BY MAX(queued_at) DESC LIMIT 5000",
     ).map((row) => row.sessionId),
     counts: { memories: Number(meta.memories), entities: Number(meta.entities) },
+    ownerId: owner(ctx),
   }
 }
 export function openBrainStore(options: OpenStoreOptions): BrainStore {
@@ -62,7 +65,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     knowledgeRevision: () => knowledgeRevision(ctx),
     enqueue: (value, state) => jobs.enqueue(ctx, value, state),
     job: (id) => jobs.job(ctx, id),
-    history: (limit) => history(ctx, limit),
+    laneRead: (sessionId) => laneRead(ctx, sessionId),
     laneContext: (sessionId) => laneContext(ctx, sessionId),
     laneMemories: (sessionId, exceptJobId) => laneMemories(ctx, sessionId, exceptJobId),
     updateJob: (id, patch) => jobs.updateJob(ctx, id, patch),
@@ -77,13 +80,14 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     entityCards: (ids) => candidates.entityCards(ctx, ids),
     memoryMatches: (probes, limit) => candidates.memoryMatches(ctx, probes, limit),
     memoryCards: (ids) => candidates.memoryCards(ctx, ids),
-    propose: (value) => propose(ctx, value),
-    proposal: (id) => proposal(ctx, id),
+    saveRead: (value) => {
+      const saved = saveRead(ctx, value)
+      afterChange(ctx, saved.touched)
+      return saved
+    },
     storedProposal: (id) => storedProposal(ctx, id),
-    review: (id, decision, expected) => afterChange(ctx, review(ctx, id, decision, expected)),
     overview: (limit) => graph.overview(ctx, limit),
     neighbourhood: (id, hops, limit) => graph.neighbourhood(ctx, id, hops, limit),
-    path: (from, to) => graph.path(ctx, from, to),
     entity: (id) => explorer.entity(ctx, id),
     connections: (id, predicate, direction, cursor) =>
       explorer.connections(ctx, id, predicate, direction, cursor),
@@ -95,6 +99,13 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
       return operation
     },
     forget: (id) => forget(ctx, id),
+    owner: () => owner(ctx),
+    setOwner: (id) =>
+      transaction(ctx, () => {
+        setOwnerEntity(ctx, id)
+        bumpRevision(ctx)
+      }),
+    recordRecall: (ids, at) => recordRecall(ctx, ids, at),
     reset: () => reset(ctx),
     close: () => ctx.db.close(),
   }

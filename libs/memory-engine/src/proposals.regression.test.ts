@@ -9,7 +9,7 @@ describe('Brain graph regressions', () => {
     const nodes = store.overview(300).nodes
     const ids = nodes.map((node) => store.entityMemories(node.id, {}, null).memories).flat()
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
-    const next = extraction(job.id, { computedRevision: store.revision() })
+    const next = extraction(job.id, { computedRevision: store.knowledgeRevision() })
     next.entities = next.entities.map((entity) => ({
       ...entity,
       decision: 'reuse',
@@ -20,12 +20,8 @@ describe('Brain graph regressions', () => {
       action: 'enrich',
       target: ids.find((old) => old.summary === memory.summary)!.id,
     }))
-    store.propose(next)
-    store.review(
-      job.id,
-      { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
-      store.revision(),
-    )
+    store.updateJob(job.id, { state: 'running' })
+    store.saveRead(next)
     for (const id of new Set(ids.map((memory) => memory.id))) {
       expect(store.memory(id).memory.links).toHaveLength(1)
       expect(store.memory(id).quotes).toHaveLength(1)
@@ -39,7 +35,7 @@ describe('Brain graph regressions', () => {
     const tom = store.overview(300).nodes.find((node) => node.label === 'Tom Lee')!
     const old = store.entityMemories(tom.id, {}, null).memories[0]!
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
-    const next = extraction(job.id, { computedRevision: store.revision() })
+    const next = extraction(job.id, { computedRevision: store.knowledgeRevision() })
     next.entities = next.entities.filter((entity) => entity.ref !== 'tom')
     next.entityVectors = next.entityVectors.slice(0, 2)
     next.memories = [
@@ -51,12 +47,8 @@ describe('Brain graph regressions', () => {
       },
     ]
     next.memoryVectors = next.memoryVectors.slice(0, 1)
-    store.propose(next)
-    store.review(
-      job.id,
-      { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
-      store.revision(),
-    )
+    store.updateJob(job.id, { state: 'running' })
+    store.saveRead(next)
     expect(store.memory(old.id).memory.state).toBe('superseded')
     expect(store.entity(tom.id).entity.label).toBe('Tom Lee')
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])

@@ -7,16 +7,20 @@ import {
   type BrainTidySummary,
   type BrainTidyFlag,
   type BrainTidyFlagResult,
+  type BrainTidySuggestionExtra,
 } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision } from '../prefs'
 import { checkRevision } from './journal'
 import { flagKey } from './flag-keys'
+import { recordFlag } from '../use'
 
 /**
  * A possible repeat only Brain Agent sees. It stays out of the page and waiting count.
  */
 export const UNCHECKED = 'unchecked'
+/** Every kind the waiting count and Brain Agent's queue show, as an SQL list. */
+export const COUNTED = BRAIN_TIDY_KINDS.map((k) => `'${k}'`).join(',')
 export interface SuggestionRow {
   id: string
   kind: BrainTidyKind | typeof UNCHECKED
@@ -33,6 +37,8 @@ export interface SuggestionRow {
   problem: BrainTidyFlag['problem'] | null
   session_id: string | null
   title: string | null
+  /** JSON `BrainTidySuggestionExtra`: a read's guess or group, or an unlinked pair's memories. */
+  detail: string | null
   created_at: number
   updated_at: number
 }
@@ -138,7 +144,7 @@ export function suggestion(
   if (
     row.kind === UNCHECKED ||
     !BRAIN_TIDY_KINDS.includes(row.kind) ||
-    !['sweep', 'check', 'flag'].includes(row.source) ||
+    !['sweep', 'check', 'flag', 'read'].includes(row.source) ||
     (row.problem !== null && !['wrong', 'outdated', 'duplicate'].includes(row.problem))
   )
     return null
@@ -169,6 +175,7 @@ export function suggestion(
     flag: row.problem
       ? { problem: row.problem, sessionId: row.session_id!, title: row.title ?? '' }
       : null,
+    detail: row.detail ? (JSON.parse(row.detail) as BrainTidySuggestionExtra) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -181,7 +188,7 @@ export function summary(ctx: Context): BrainTidySummary {
     ),
     newestAutomaticFoldAt: one<{ newest: number | null }>(
       ctx,
-      'SELECT MAX(created_at) AS newest FROM tidy_operations WHERE automatic=1',
+      "SELECT MAX(created_at) AS newest FROM tidy_operations WHERE automatic=1 AND kind='fold'",
     )!.newest,
   }
 }
@@ -261,6 +268,7 @@ export function flag(ctx: Context, input: BrainTidyFlag): BrainTidyFlagResult {
       now,
       now,
     )
+    recordFlag(ctx, input.memoryId)
     bumpRevision(ctx)
     return { status: 'filed', suggestionId: id }
   })

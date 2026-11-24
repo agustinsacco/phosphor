@@ -9,7 +9,7 @@ it.each(['supersede', 'resolve_open', 'enrich', 'conflict'] as const)(
     const [target] = approve(store)
     const old = store.memory(target!).memory
     const job = store.enqueue(lane({ sessionId: 'second' }), 'queued')
-    const p = extraction(job.id, { computedRevision: store.revision() })
+    const p = extraction(job.id, { computedRevision: store.knowledgeRevision() })
     const claim: ProposalMemory = {
       ...p.memories[0]!,
       entities: old.entityIds,
@@ -21,6 +21,7 @@ it.each(['supersede', 'resolve_open', 'enrich', 'conflict'] as const)(
       subject: old.entityIds[0]!,
       predicate: 'uses' as const,
       object: old.entityIds[1]!,
+      label: 'uses',
       citation: claim.citations[0]!,
     }
     p.entities = []
@@ -30,12 +31,8 @@ it.each(['supersede', 'resolve_open', 'enrich', 'conflict'] as const)(
       { ...claim, summary: 'Another supported assertion.', action, links: [link] },
     ]
     p.memoryVectors = [vector(), vector()]
-    store.propose(p)
-    store.review(
-      job.id,
-      { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
-      p.computedRevision,
-    )
+    store.updateJob(job.id, { state: 'running' })
+    store.saveRead(p)
     expect(store.snapshot().counts.memories).toBe(3)
     expect(store.memory(target!).memory.state).toBe('superseded')
     expect(store.memory(target!).memory.links).toEqual(old.links)
@@ -56,7 +53,7 @@ it('skips a confirmation whose target was retired earlier in the approval', () =
   const [target] = approve(store)
   const before = store.memory(target!)
   const job = store.enqueue(lane({ sessionId: 'second' }), 'queued')
-  const p = extraction(job.id, { computedRevision: store.revision() })
+  const p = extraction(job.id, { computedRevision: store.knowledgeRevision() })
   p.memories = [{ ...p.memories[0]!, action: 'supersede', target: target! }]
   p.memoryVectors = [vector()]
   p.evidence[1]!.entryId = 'new-evidence'
@@ -68,12 +65,8 @@ it('skips a confirmation whose target was retired earlier in the approval', () =
       vector: vector(),
     },
   ]
-  store.propose(p)
-  store.review(
-    job.id,
-    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
-    p.computedRevision,
-  )
+  store.updateJob(job.id, { state: 'running' })
+  store.saveRead(p)
   expect(store.memory(target!).quotes).toEqual(before.quotes)
   expect(store.memory(target!).memory.observedAt).toBe(before.memory.observedAt)
 })

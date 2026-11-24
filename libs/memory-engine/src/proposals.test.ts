@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, vector } from './test-support'
+import { approve, extraction, fixture, running, vector } from './test-support'
 
-describe('Brain v4 proposals', () => {
+describe('Brain saved reads', () => {
   it('does not auto-confirm high cosine with different endpoints or negation', () => {
     const { store } = fixture()
     approve(store)
-    const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
-    const data = extraction(job.id, { computedRevision: store.revision() })
+    const job = running(store, { leafId: 'next' })
+    const data = extraction(job, { computedRevision: store.knowledgeRevision() })
     data.memories[0]!.summary = 'Rina does not own Harbor.'
     data.memoryVectors = [vector(1), vector(1)]
-    expect(store.propose(data)).toMatchObject({ memories: 2, confirmations: 0 })
-    expect(store.proposal(job.id).memories[0]?.summary).toBe('Rina does not own Harbor.')
+    expect(store.saveRead(data)).toMatchObject({ memories: 2, confirmed: 0 })
+    expect(store.snapshot().counts.memories).toBe(4)
   })
   it('surfaces same-link, shared-entity and changed-owner candidates', () => {
     const { store } = fixture()
@@ -62,29 +62,18 @@ describe('Brain v4 proposals', () => {
         .map((match) => match.id),
     ).toContain(owned.id)
   })
-  it('replaces proposals and both vector kinds without old rows', () => {
-    const { store, db } = fixture()
-    const job = store.enqueue(lane(), 'queued')
-    store.propose(extraction(job.id))
-    const next = extraction(job.id)
-    next.memories = next.memories.slice(1)
-    next.memoryVectors = [vector()]
-    store.propose(next)
-    expect(store.proposal(job.id).memories[0]?.summary).toContain('Tom Lee')
-    expect(db.prepare('SELECT COUNT(*) AS n FROM proposal_vectors').get()).toEqual({ n: 4 })
-    expect(store.storedProposal(job.id)?.memoryVectors[0]).toEqual(vector())
-  })
   it('validates vector counts, refs, targets and link evidence before writing', () => {
     const { store } = fixture()
-    const job = store.enqueue(lane(), 'queued')
-    const data = extraction(job.id)
+    const job = running(store)
+    const data = extraction(job)
     data.memoryVectors = []
-    expect(() => store.propose(data)).toThrow('vector count')
+    expect(() => store.saveRead(data)).toThrow('vector count')
     data.memoryVectors = [new Float32Array(3), vector()]
-    expect(() => store.propose(data)).toThrow('768 finite')
+    expect(() => store.saveRead(data)).toThrow('768 finite')
     data.memoryVectors = [vector(), vector()]
     data.memories[0]!.links[0]!.subject = 'absent'
-    expect(() => store.propose(data)).toThrow('entity not found')
-    expect(store.job(job.id)?.state).toBe('queued')
+    expect(() => store.saveRead(data)).toThrow('entity not found')
+    expect(store.job(job)?.state).toBe('running')
+    expect(store.snapshot().counts.memories).toBe(0)
   })
 })

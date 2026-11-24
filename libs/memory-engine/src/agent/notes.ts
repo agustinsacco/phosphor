@@ -43,6 +43,9 @@ export function pruneOperations(ctx: Context): void {
     ctx.now() - 3_600_000,
   )
 }
-/** Row images can be removed by Forget; keep is reversible without images, erase never is. */
-export const undoableSql = `(o.undone_at IS NULL AND o.kind!='erase' AND
+/**
+ * Row images can be removed by Forget; keep is reversible without images; erase never is, nor a
+ * read rejected before v8, which had no saved memories to bring back.
+ */
+export const undoableSql = `(o.undone_at IS NULL AND o.kind NOT IN ('erase','reject') AND
   (o.kind='keep' OR EXISTS(SELECT 1 FROM tidy_operation_rows r WHERE r.operation_id=o.id)))`

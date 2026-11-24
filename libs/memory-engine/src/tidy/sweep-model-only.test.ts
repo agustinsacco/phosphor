@@ -18,18 +18,24 @@ function pair(similarity: number, shared = 2, patch = '') {
   return result
 }
 const pending = (store: ReturnType<typeof fixture>['store']) =>
-  store
-    .waitingSuggestions(40, 40)
-    .items.map((p) => (p.kind !== 'read' ? p.subjects.map((s) => s.id) : []))
+  store.waitingSuggestions(40, 40).items.map((p) => p.subjects.map((s) => s.id))
 
 it('queues a cross-lane disagreement only for Brain Agent, never on the page', () => {
   const { store } = pair(0.65)
   const page = store.suggestions(null, null, 20)
   expect(page.items).toEqual([])
-  expect(page.counts).toEqual({ same_entity: 0, same_memory: 0, conflict: 0, flagged: 0 })
+  expect(page.counts).toEqual({
+    same_entity: 0,
+    group: 0,
+    unlinked: 0,
+    same_memory: 0,
+    conflict: 0,
+    flagged: 0,
+  })
   expect(store.waitingCounts()).toEqual({
-    reads: 0,
     entities: 0,
+    groups: 0,
+    unlinked: 0,
     repeats: 0,
     conflicts: 0,
     flags: 0,
@@ -59,12 +65,8 @@ it('checks every visible suggestion before any hidden pair', () => {
   db.prepare(
     "INSERT INTO tidy_suggestions(id,pair_key,kind,source,state,subject_type,first_id,second_id,reason,created_at,updated_at) VALUES ('visible','memory:visible','same_memory','sweep','open','memory','memory-1','memory-2','These two sentences say nearly the same thing.',?,?)",
   ).run(Date.now() + 1000, Date.now() + 1000)
-  expect(
-    store.waitingSuggestions(1, 40).items.map((p) => (p.kind !== 'read' ? p.suggestionId : '')),
-  ).toEqual(['visible'])
-  expect(
-    store.waitingSuggestions(2, 40).items.map((p) => (p.kind !== 'read' ? p.suggestionId : '')),
-  ).toHaveLength(2)
+  expect(store.waitingSuggestions(1, 40).items.map((p) => p.suggestionId)).toEqual(['visible'])
+  expect(store.waitingSuggestions(2, 40).items.map((p) => p.suggestionId)).toHaveLength(2)
 })
 
 it('bounds the pairs one sweep queues and counts the rest as cut short', () => {

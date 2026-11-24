@@ -18,11 +18,8 @@ function change(store: BrainStore, kind: Kind, first = 'memory-1', second = 'mem
   store.sweep({ entityIds: [], memoryIds: [first, second] })
   const pair = store
     .waitingSuggestions(50, 0)
-    .items.find(
-      (s) =>
-        s.kind !== 'read' && [first, second].every((id) => s.subjects.some((v) => v.id === id)),
-    )
-  if (!pair || pair.kind === 'read') throw new Error('Expected a waiting memory pair')
+    .items.find((s) => [first, second].every((id) => s.subjects.some((v) => v.id === id)))
+  if (!pair) throw new Error('Expected a waiting memory pair')
   return store.resolve(
     pair.suggestionId,
     kind === 'fold'
@@ -51,6 +48,7 @@ function enrich(
               subject: 'rina-1',
               predicate: event === 'support' ? 'member_of' : 'works_on',
               object: 'rina-3',
+              label: event === 'support' ? 'is a member of' : 'works on',
               citation: { evidence: 0, quote: 'Independent Ledger support' },
             },
           ],
@@ -169,11 +167,12 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
       if (later === 'merge') store.merge('rina-1', 'rina-3', store.revision())
       else change(store, later, target, 'memory-3')
       const before = dump(db)
+      // A replace carries memory-1's link to memory-2; a later replace carries it on again.
       const refuse =
         kind === 'merge' ||
         kind === 'fold' ||
         (kind === 'dispute' && later === 'replace') ||
-        (kind === 'replace' && later === 'merge')
+        (kind === 'replace' && (later === 'merge' || later === 'replace'))
       if (refuse) {
         expect(() => store.tidyUndo(operation, store.revision())).toThrow(
           'cannot be cleanly undone',
@@ -231,11 +230,12 @@ it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
       lane({ sessionId, replaces: old.id, leafId: 'replacement-leaf' }),
       'queued',
     )
-    store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
-    store.review(
-      next.id,
-      { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
-      store.knowledgeRevision(),
+    store.updateJob(next.id, { state: 'running' })
+    store.saveRead(
+      extraction(next.id, {
+        computedRevision: store.knowledgeRevision(),
+        origin: { sessionId, title: 'Harbor planning' },
+      }),
     )
     expect(() => store.memory(target)).toThrow('not found')
     if (kind === 'merge') store.tidyUndo(operation, store.revision())

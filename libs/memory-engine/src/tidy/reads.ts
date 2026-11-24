@@ -10,7 +10,7 @@ import { all, one, type Context } from '../database'
 import { entity } from '../explorer'
 import { memory } from '../knowledge'
 import { revision } from '../prefs'
-import { closeMissing, suggestion, type SuggestionRow } from './suggestions'
+import { closeMissing, COUNTED, suggestion, type SuggestionRow } from './suggestions'
 import { allowedActions } from './action-guards'
 import { publicCoverage } from './sweep'
 
@@ -41,7 +41,7 @@ export function page(
   }
   const rows = all<SuggestionRow>(
     ctx,
-    `SELECT * FROM tidy_suggestions WHERE state='open' AND ${kind ? 'kind=?' : "kind IN ('same_entity','same_memory','conflict','flagged')"} AND (created_at<? OR (created_at=? AND id<?)) ORDER BY created_at DESC,id DESC LIMIT ?`,
+    `SELECT * FROM tidy_suggestions WHERE state='open' AND ${kind ? 'kind=?' : `kind IN (${COUNTED})`} AND (created_at<? OR (created_at=? AND id<?)) ORDER BY created_at DESC,id DESC LIMIT ?`,
     ...(kind ? [kind] : []),
     time,
     time,
@@ -49,7 +49,10 @@ export function page(
     limit + 1,
   )
   closeMissing(ctx, rows)
-  const counts = { same_entity: 0, same_memory: 0, conflict: 0, flagged: 0 }
+  const counts = Object.fromEntries(BRAIN_TIDY_KINDS.map((k) => [k, 0])) as Record<
+    BrainTidyKind,
+    number
+  >
   for (const row of all<{ kind: BrainTidyKind; count: number }>(
     ctx,
     "SELECT kind,COUNT(*) AS count FROM tidy_suggestions WHERE state='open' GROUP BY kind",
@@ -97,8 +100,10 @@ export function changes(ctx: Context, limit: number): BrainTidyChanges {
   const rows = all<BrainTidyOperation>(
     ctx,
     `SELECT o.id,o.kind,o.summary,o.created_at AS createdAt,o.undone_at AS undoneAt,o.suggestion_id AS suggestionId,
-      CASE WHEN a.operation_id IS NOT NULL THEN 'agent' WHEN o.automatic=1 THEN 'automatic' ELSE 'you' END AS who,
-      a.reason,a.run_id AS runId,a.job_id AS jobId,${undoableSql} AS undoable
+      CASE WHEN o.kind='read' THEN 'automatic' WHEN a.operation_id IS NOT NULL THEN 'agent'
+        WHEN o.automatic=1 THEN 'automatic' ELSE 'you' END AS who,
+      a.reason,a.run_id AS runId,CASE WHEN o.kind='read' THEN o.first_id ELSE a.job_id END AS jobId,
+      ${undoableSql} AS undoable
       FROM tidy_operations o LEFT JOIN agent_notes a ON a.operation_id=o.id AND a.role='made'
       ORDER BY o.created_at DESC,o.id DESC LIMIT ?`,
     limit,

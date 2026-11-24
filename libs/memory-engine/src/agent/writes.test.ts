@@ -11,7 +11,6 @@ describe('Brain Agent writes and journal', () => {
     seed(db, 2)
     store.sweep({ entityIds: ['rina-1', 'rina-2'], memoryIds: [] })
     const pair = store.waitingSuggestions(50, 40).items[0]!
-    if (pair.kind === 'read') throw new Error('Expected a pair')
     const op = store.resolve(pair.suggestionId, { kind: 'keep' }, note)
     expect(store.tidyChanges(50).items[0]).toMatchObject({
       id: op,
@@ -47,7 +46,7 @@ describe('Brain Agent writes and journal', () => {
       },
       vector(),
       note,
-    )
+    ).operationId
     expect(store.memory('memory-1').memory.state).toBe('superseded')
     const fresh = db
       .prepare("SELECT id FROM memories WHERE id NOT IN ('memory-1','memory-2')")

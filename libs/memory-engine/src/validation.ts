@@ -1,10 +1,18 @@
-import { BRAIN_PREDICATES } from '@phosphor/shared/brain'
+import { BRAIN_LINK_LABEL_MAX, BRAIN_PREDICATES } from '@phosphor/shared/brain-links'
 import type { Context } from './database'
 import { job } from './jobs'
 import { entity } from './entities'
 import { memoryCard } from './knowledge'
 import { encodeVector } from './vectors'
 import type { Citation, Proposal } from './types'
+
+const date = (value: unknown): boolean =>
+  value === undefined || value === null || (typeof value === 'number' && Number.isFinite(value))
+/** Dates are numbers or absent, and a period never ends before it starts. */
+function checkPeriod(from: number | null | undefined, to: number | null | undefined): void {
+  if (!date(from) || !date(to) || (from != null && to != null && to < from))
+    throw new Error('Brain dates are invalid.')
+}
 
 export function validateProposal(ctx: Context, value: Proposal): void {
   if (!job(ctx, value.jobId)) throw new Error('Brain job not found.')
@@ -42,7 +50,22 @@ export function validateProposal(ctx: Context, value: Proposal): void {
       checkEntity(link.object)
       citation(link.citation)
       if (!BRAIN_PREDICATES.includes(link.predicate)) throw new Error('Brain predicate is invalid.')
+      if (
+        typeof (link.label ?? '') !== 'string' ||
+        (link.label ?? '').length > BRAIN_LINK_LABEL_MAX
+      )
+        throw new Error('Brain link wording is too long.')
+      checkPeriod(link.validFrom, link.validTo)
     }
+    checkPeriod(item.validFrom, item.validTo)
+    if (item.importance !== undefined && ![0, 1, 2].includes(item.importance))
+      throw new Error('Brain importance is invalid.')
+    if (
+      item.hold !== undefined &&
+      item.hold !== null &&
+      !['temporary', 'personal'].includes(item.hold)
+    )
+      throw new Error('Brain hold is invalid.')
     item.citations.forEach(citation)
     if ((item.action === 'add') !== (item.target === null))
       throw new Error('Brain action target is invalid.')

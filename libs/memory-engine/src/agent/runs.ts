@@ -1,4 +1,8 @@
-import type { BrainAgentRun } from '@phosphor/shared/brain-agent'
+import {
+  BRAIN_AUTO_RUN_LIMIT_REFUSAL,
+  BRAIN_AUTO_RUNS_PER_DAY,
+  type BrainAgentRun,
+} from '@phosphor/shared/brain-agent'
 import { all, one, run, transaction, type Context } from '../database'
 import { revision } from '../prefs'
 import { scrubExcerpt } from '../secrets'
@@ -29,10 +33,27 @@ export function latestRun(ctx: Context): BrainAgentRun | null {
   )
   return row ? readRun(ctx, row.id) : null
 }
-export function createRun(ctx: Context): BrainAgentRun {
+/** An automatic run past BRAIN_AUTO_RUNS_PER_DAY in the last 24 hours is refused; Defrag never is. */
+export function createRun(ctx: Context, automatic: boolean): BrainAgentRun {
   return transaction(ctx, () => {
-    const id = ctx.id()
-    run(ctx, "INSERT INTO agent_runs(id,state,queued_at) VALUES (?,'queued',?)", id, ctx.now())
+    const id = ctx.id(),
+      now = ctx.now()
+    if (
+      automatic &&
+      one<{ n: number }>(
+        ctx,
+        'SELECT COUNT(*) AS n FROM agent_runs WHERE automatic=1 AND queued_at>?',
+        now - 86_400_000,
+      )!.n >= BRAIN_AUTO_RUNS_PER_DAY
+    )
+      throw new Error(BRAIN_AUTO_RUN_LIMIT_REFUSAL)
+    run(
+      ctx,
+      "INSERT INTO agent_runs(id,state,queued_at,automatic) VALUES (?,'queued',?,?)",
+      id,
+      now,
+      automatic ? 1 : 0,
+    )
     run(
       ctx,
       'DELETE FROM agent_runs WHERE id NOT IN (SELECT id FROM agent_runs ORDER BY queued_at DESC,rowid DESC LIMIT 20)',
