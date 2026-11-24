@@ -136,3 +136,35 @@ it('answers stale, not invalid, when a target left Brain after the reader compar
   expect(() => store.saveRead(data)).toThrow(BRAIN_READ_STALE)
   expect(store.job(jobId)?.state).toBe('running')
 })
+it('ends a temporary claim that starts later 14 days after its start, and each link after its own', () => {
+  const { store, db } = fixture()
+  const [claim] = extraction('unused').memories
+  const start = 10 + 30 * DAY,
+    linkStart = 10 + 35 * DAY
+  const owns = claim!.links[0]!
+  save(store, {
+    memories: [
+      {
+        ...claim!,
+        hold: 'temporary',
+        validFrom: start,
+        links: [
+          { ...owns, validFrom: linkStart },
+          { ...owns, predicate: 'works_on', label: 'works on' },
+        ],
+      },
+    ],
+    memoryVectors: [vector()],
+  })
+  const span = BRAIN_TEMPORARY_DAYS * DAY
+  expect(db.prepare('SELECT valid_to FROM memories').get()).toEqual({ valid_to: start + span })
+  expect(
+    db
+      .prepare('SELECT predicate,valid_to FROM relations ORDER BY n')
+      .all()
+      .map((r) => [r.predicate, r.valid_to]),
+  ).toEqual([
+    ['owns', linkStart + span],
+    ['works_on', start + span],
+  ])
+})
