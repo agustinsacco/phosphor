@@ -86,7 +86,7 @@ async function directBrainFailures(page: Page): Promise<string[]> {
             neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
             enabled: true,
             recall: true,
-            review: true,
+            agentAuto: true,
             model: null,
           }),
         () => window.phosphor.invoke('brain:download'),
@@ -110,7 +110,10 @@ async function directBrainFailures(page: Page): Promise<string[]> {
             0,
           ),
         () => window.phosphor.invoke('brain:cancel', 'synthetic-job'),
-        () => window.phosphor.invoke('brain:proposal', 'synthetic-job'),
+        () => window.phosphor.invoke('brain:ask', 'Who owns Harbor?'),
+        () => window.phosphor.invoke('brain:tell', 'Tom Lee left the team.'),
+        () => window.phosphor.invoke('brain:laneRead', 'synthetic-session'),
+        () => window.phosphor.invoke('brain:setOwner', 'synthetic-entity'),
         () => window.phosphor.invoke('brain:find', 'Harbor', 12),
         () => window.phosphor.invoke('brain:retry', 'synthetic-job'),
         () => window.phosphor.invoke('brain:reset'),
@@ -512,6 +515,6 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       .getByRole('button', { name: 'Brain' }),
   ).toHaveCount(0)
   const failures = await directBrainFailures(page)
-  expect(failures).toHaveLength(28)
+  expect(failures).toHaveLength(31)
   for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
 })
