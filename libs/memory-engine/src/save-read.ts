@@ -22,7 +22,7 @@ import { removeMemory } from './merge'
 import { bumpKnowledgeRevision, knowledgeRevision } from './prefs'
 import { scrubProposal } from './proposal-text'
 import { BRAIN_READ_STALE } from './read-stale'
-import { identityResolver, openGroup } from './save-identities'
+import { identityResolver, openGroup, pendingGuesses } from './save-identities'
 import { journal } from './tidy/journal'
 import type { Selection } from './tidy/rows'
 import { validateProposal } from './validation'
@@ -64,7 +64,10 @@ function plan(value: Proposal, now: number): Plan {
   }
   return result
 }
-/** What the read can change, so undo restores it: targets, repeats, replaced memories. */
+/**
+ * What the read can change, so undo restores it: targets, repeats, replaced memories, and the
+ * pending guess records its unsure identities reuse.
+ */
 function readSelection(ctx: Context, value: Proposal, chosen: Plan, replaced: string[]): Selection {
   const ids = [
     ...chosen.memories.flatMap(({ item }) => (item.target ? [item.target] : [])),
@@ -85,6 +88,7 @@ function readSelection(ctx: Context, value: Proposal, chosen: Plan, replaced: st
     memories.push(row.source, row.target)
   const refs = [
     ...value.entities.flatMap((e) => [...e.candidates, ...(e.entityId ? [e.entityId] : [])]),
+    ...pendingGuesses(ctx, value),
     ...[...value.memories, ...value.confirmations.map((c) => c.claim)].flatMap((m) => [
       ...m.entities,
       ...m.links.flatMap((l) => [l.subject, l.object]),

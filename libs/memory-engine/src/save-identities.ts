@@ -66,6 +66,14 @@ function reuse(ctx: Context, item: ProposalEntity, id: string, vector?: Float32A
   }
   return id
 }
+/** The guess records the read's unsure identities will reuse, so its undo can restore them. */
+export function pendingGuesses(ctx: Context, value: Proposal): string[] {
+  return value.entities.flatMap((item) => {
+    if (item.decision !== 'uncertain') return []
+    const id = pendingGuess(ctx, item)
+    return id ? [id] : []
+  })
+}
 /** An open guess from an earlier read: same name and kind, against the same best candidate. */
 function pendingGuess(ctx: Context, item: ProposalEntity): string | undefined {
   const best = item.candidates[0]
