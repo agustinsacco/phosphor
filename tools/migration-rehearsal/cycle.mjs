@@ -126,7 +126,14 @@ export async function rehearseAfterCommit(ctx, migrationId, expected) {
   const refusals = []
   const lanes = list(ctx, ['lane', 'list'], 'lanes', refusals)
   const archives = list(ctx, ['archive', 'list'], 'entries', refusals)
-  report.service = { lanes: lanes?.length ?? null, archives: archives?.length ?? null, refusals }
+  // The sidebar folds a lane another lane was rewound from (visibleHostLanes), unless pinned.
+  const folded = new Set((lanes ?? []).flatMap((l) => (l.rewoundFrom ? [l.rewoundFrom] : [])))
+  report.service = {
+    lanes: lanes?.length ?? null,
+    shown: lanes ? lanes.filter((l) => l.pinned || !folded.has(l.laneId)).length : null,
+    archives: archives?.length ?? null,
+    refusals,
+  }
   check('phosphor CLI lists lanes and archives', lanes !== null && archives !== null)
   // The service's own folder scan must not find lanes the move left behind.
   check(
