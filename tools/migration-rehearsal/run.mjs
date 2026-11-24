@@ -17,6 +17,7 @@ import {
   supervise,
   supportsMigration,
 } from './fixture.mjs'
+import { realPiSetup } from './real-pi.mjs'
 import { readRecord, journalReport, readReport } from './report.mjs'
 
 // Each run consumes exactly one successful prepare. A copied journal would be stale evidence.
@@ -112,6 +113,14 @@ async function run(layout, full) {
       )
       return 1
     }
+    // Desktop's setup with this Mac's own pi, before the stub pi stands in for it below.
+    const realPi = realPiSetup(root, host)
+    if (realPi.status !== 'pass') {
+      console.log(
+        JSON.stringify({ ...journalReport(null, null, start), reason: 'real-pi', realPi }),
+      )
+      return 1
+    }
     const id = await seedDaemon(roots)
     const sessionsBefore = full ? await transcripts(roots.agent) : null
     // Private evidence for a failed run; deleted with the rest of scratch.
@@ -148,14 +157,16 @@ async function run(layout, full) {
     const first = launchDesktop()
     const report = await waitJournal(join(roots.userData, 'daemon-migration'), start, children)
     if (!full || !report.complete) {
-      console.log(JSON.stringify(report))
+      console.log(JSON.stringify({ ...report, realPi }))
       return report.complete ? 0 : 1
     }
     await first.quit()
     const journal = await readRecord(join(roots.userData, 'daemon-migration', 'journal.json'))
     const ctx = { roots, profile, env, host, daemon, desktop: launchDesktop, sessionsBefore }
     const after = await rehearseAfterCommit(ctx, journal.migrationId, report.expected)
-    console.log(JSON.stringify({ ...report, afterCommit: after, elapsedMs: Date.now() - start }))
+    console.log(
+      JSON.stringify({ ...report, realPi, afterCommit: after, elapsedMs: Date.now() - start }),
+    )
     return after.complete ? 0 : 1
   } finally {
     stop()
