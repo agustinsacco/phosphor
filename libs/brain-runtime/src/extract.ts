@@ -170,6 +170,7 @@ async function prepareProposal(context: ExtractionContext, folded: FoldedJob): P
     context.job.replaces
       ? store.laneMemories(context.job.sessionId, context.job.id).replaceable
       : [],
+    (options.now ?? Date.now)(),
   )
   progress('reconcile', 1, 1)
   recordClaims(context.record, folded)

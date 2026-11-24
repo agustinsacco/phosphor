@@ -69,7 +69,7 @@ The reader's calls use private, session-less pi processes with no tools or conne
    becomes the centre of the map.
 3. **Compare with existing memories.** New claims can add a memory, confirm it with a quote,
    add supported links, replace it, dispute it or answer an open question. Similarity finds
-   candidates; it does not decide truth. A claim also carries importance: low for background,
+   candidates; it does not decide truth. An ended memory is not a candidate: a later restatement can save as a current memory. A claim also carries importance: low for background,
    normal by default, high for things like a key decision, commitment, owner or risk.
 4. **Embed and save.** Brain saves against the knowledge revision used for comparison. If it
    changes, the reader compares again from its saved work and reuses calls with matching
@@ -77,6 +77,7 @@ The reader's calls use private, session-less pi processes with no tools or conne
    against the wrong revision. An index refresh failure does not roll back a saved read.
 
 **Temporary** claims use their stated end or, if none, 14 days from when the claim was observed.
+A near start alone is not evidence of temporary status. Within a read, held claims stay separate from lasting claims.
 Their links inherit that end unless they have one of their own. A temporary claim cannot
 supersede, resolve or put a lasting memory in dispute. It saves separately instead. **Personal**
 claims, such as someone's health, pay or performance, never become memories or confirmations.

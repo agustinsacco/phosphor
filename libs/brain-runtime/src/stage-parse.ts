@@ -176,6 +176,10 @@ function claim(
     () => id,
     outcomes,
   )
+  const validFrom = date(c.validFrom),
+    validTo = date(c.validTo)
+  if (validFrom !== null && validTo !== null && validTo < validFrom)
+    throw new Error('Claim ends before it starts')
   if (typeof c.branch !== 'boolean') throw new Error('branch must be boolean')
   return {
     ref: id,
@@ -185,8 +189,8 @@ function claim(
     mentions: [...mentions],
     links,
     quotes,
-    validFrom: date(c.validFrom),
-    validTo: date(c.validTo),
+    validFrom,
+    validTo,
     branch: c.branch,
     importance: importance(c.importance),
     // An unknown hold is no hold: the parse backstop may still mark the claim.
