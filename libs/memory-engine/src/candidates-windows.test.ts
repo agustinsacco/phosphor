@@ -20,14 +20,15 @@ it(
       const channels: Record<string, number> = {}
       for (const match of result.flat())
         channels[match.channel] = (channels[match.channel] ?? 0) + 1
-      expect(channels).toEqual({ entity: 300, link: 10, replaced: 7 })
+      expect(channels).toEqual({ entity: 300, link: 10, replaced: 8 })
       expect(result[1]!.slice(0, 2)).toEqual([
         { id: 'memory-807', channel: 'entity', similarity: 0.0905449116630476 },
         { id: 'memory-8807', channel: 'entity', similarity: 0.08996814810228204 },
       ])
-      // Recorded on the code before the bound: every id, channel, similarity and order.
+      // Recorded on the code before the bound, then again on the same code when the benchmark
+      // fixture gained people and person links: every id, channel, similarity and order.
       expect(createHash('sha256').update(JSON.stringify(result)).digest('hex')).toBe(
-        '831fdb58a8b2f846fdea612ade89ce1d4f923bc48e2ed7a48904dd57b4149453',
+        'd9f5d580466ad81f058286cfe4165f8d7d7840ca5e40339e4ee4264ca70b43d2',
       )
     } finally {
       store.close()

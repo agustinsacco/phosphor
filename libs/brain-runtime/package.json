@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent/auto-run": {
+      "types": "./src/agent/auto-run.ts",
+      "default": "./src/agent/auto-run.ts"
+    },
     "./agent/curator": {
       "types": "./src/agent/curator.ts",
       "default": "./src/agent/curator.ts"
@@ -143,6 +147,10 @@
     "./search/in-process": {
       "types": "./src/search/in-process.ts",
       "default": "./src/search/in-process.ts"
+    },
+    "./search/query": {
+      "types": "./src/search/query.ts",
+      "default": "./src/search/query.ts"
     },
     "./search/search-client": {
       "types": "./src/search/search-client.ts",

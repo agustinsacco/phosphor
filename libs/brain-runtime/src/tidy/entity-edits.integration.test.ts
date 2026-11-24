@@ -24,7 +24,8 @@ it('describes, removes a name and splits through the API, each undoable from its
   const found = await s.service.api.find('Ledger contractor', 5)
   expect(found.entities.map((e) => e.label)).toContain('Ledger contractor')
   const changes = await s.service.api.tidyChanges(10)
-  expect(changes.items.map((item) => item.kind)).toEqual(['split', 'describe', 'fold'])
+  // The read that saved the fixture's knowledge is a change too, the oldest one.
+  expect(changes.items.map((item) => item.kind)).toEqual(['split', 'describe', 'fold', 'read'])
   const undone = await s.service.api.tidyUndo(split.operationId!, split.revision)
   expect(undone.counts.entities).toBe(status.counts.entities)
   await expect(s.service.api.removeName(entity.id, entity.label, undone.revision)).rejects.toThrow(
