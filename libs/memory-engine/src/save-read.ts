@@ -39,8 +39,8 @@ interface Plan {
 /**
  * Personal claims never save. A temporary claim ends 14 days after it starts (when it was said,
  * or its later start) unless it says when. Its links end with it unless they say when, or 14
- * days after their own later start, so nothing ends before it starts. It never replaces a
- * lasting memory.
+ * days after their own later start, so nothing ends before it starts. It never changes a
+ * lasting memory: whatever the comparison answered, it saves separately.
  */
 function plan(value: Proposal, now: number): Plan {
   const result: Plan = { memories: [], confirmations: [], temporary: 0, personal: 0 }
@@ -54,7 +54,7 @@ function plan(value: Proposal, now: number): Plan {
     const validTo = item.validTo ?? end(item.validFrom)
     const linkEnd = (from: number | null | undefined) =>
       item.validTo === null ? end(item.validFrom, from) : Math.max(item.validTo, from ?? 0)
-    const demote = item.action !== 'add' && item.action !== 'enrich'
+    const demote = item.action !== 'add'
     result.memories.push({
       index,
       item: {

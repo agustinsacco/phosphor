@@ -79,9 +79,9 @@ The reader's calls use private, session-less pi processes with no tools or conne
 **Temporary** claims use their stated end or, if none, 14 days from when the claim was observed
 or from its stated start, whichever is later. Their links inherit that end unless they have one
 of their own; a link that starts later ends 14 days after its own start. Nothing ends before it
-starts. A temporary claim cannot
-supersede, resolve or put a lasting memory in dispute. It saves separately instead. **Personal**
-claims, such as someone's health, pay or performance, never become memories or confirmations.
+starts. A temporary claim cannot supersede, enrich, resolve or put a lasting memory in
+dispute. It saves separately instead. **Personal** claims, such as someone's health, pay or
+performance, never become memories or confirmations.
 They count as left out in the read record. That is not a promise to remove them from the source
 transcript or the record of what the reader saw.
 
