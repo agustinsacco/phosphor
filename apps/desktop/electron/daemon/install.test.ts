@@ -200,6 +200,19 @@ describe('attemptDaemonInstall', () => {
     })
     expect(existsSync(m.roots.lib)).toBe(false)
   })
+  it('reports the check a setup failed on first, then its notes', async () => {
+    // This Mac's first setup said only "Add a folder later…" while its pi check had failed.
+    const m = machine()
+    const checks = [
+      { id: 'node', status: 'pass', summary: 'node 22' },
+      { id: 'pi', status: 'fail', summary: 'pi --version failed: env: node: No such file' },
+    ]
+    m.mirror.publish({ files: { 'bin/phosphor': fakeSetup(69, ['Add a folder later.'], checks) } })
+    expect(await attemptDaemonInstall(m.ports, signal())).toEqual({
+      state: 'failed',
+      detail: 'pi: pi --version failed: env: node: No such file Add a folder later.',
+    })
+  })
   it('reports a failed setup with its notes', async () => {
     const m = machine()
     m.mirror.publish({ files: { 'bin/phosphor': fakeSetup(69, ['pi is missing.']) } })

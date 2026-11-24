@@ -13,8 +13,12 @@ import { DAEMON_RELEASE_KEY_ENV, DAEMON_ROOT_ENV, daemonRoots, type DaemonRoots 
 export const MACHINE_ID = '00000000-0000-4000-8000-0000000000aa'
 
 /** A fake Host program: records its argv and env under its HOME, answers like `setup --local --json`. */
-export const fakeSetup = (exitCode = 0, notes: string[] = []): string =>
-  `#!/bin/sh\nprintf '%s\\n' "$@" > "$HOME/setup-args"\nenv > "$HOME/setup-env"\necho '${JSON.stringify({ exitCode, notes, ...(exitCode === 0 && { machineId: MACHINE_ID }) })}'\nexit ${exitCode}\n`
+export const fakeSetup = (
+  exitCode = 0,
+  notes: string[] = [],
+  checks: { id: string; status: string; summary: string }[] = [],
+): string =>
+  `#!/bin/sh\nprintf '%s\\n' "$@" > "$HOME/setup-args"\nenv > "$HOME/setup-env"\necho '${JSON.stringify({ exitCode, notes, checks, ...(exitCode === 0 && { machineId: MACHINE_ID }) })}'\nexit ${exitCode}\n`
 
 /** A scratch machine: release folder, roots from the dev hook, and ports with a fake keychain. */
 export function scratchMachine() {
