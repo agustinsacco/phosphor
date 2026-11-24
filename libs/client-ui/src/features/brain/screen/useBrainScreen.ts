@@ -16,10 +16,15 @@ export interface AskAnswerState {
   recall: BrainRecall
 }
 
-/** Everything an answer's trails light: their links, and the people and things on them. */
+/**
+ * Everything an answer lights: each trail's links, the links its memories state, and the
+ * people and things on them.
+ */
 export function answerOverlay(recall: BrainRecall): MapOverlay {
   const links = new Map(
-    recall.hits.flatMap((hit) => hit.trail?.links ?? []).map((link) => [link.id, link]),
+    recall.hits
+      .flatMap((hit) => [...(hit.trail?.links ?? []), ...hit.memory.links])
+      .map((link) => [link.id, link]),
   )
   const ids = new Set([
     ...recall.hits.flatMap((hit) =>
