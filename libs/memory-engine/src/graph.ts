@@ -2,7 +2,7 @@ import { BRAIN_PREDICATES, type BrainGraph, type BrainLink } from '@phosphor/sha
 import { all, one, type Context } from './database'
 import { entity, survivingEntityId } from './entities'
 import { LINK, ENDS, endedLinks } from './relation-reads'
-import { newerLink, sideIndex } from './relation-pairs'
+import { INSTANT, newerLink, sideIndex } from './relation-pairs'
 
 /**
  * Per predicate and direction, the newest link to each of at most `perPredicate` neighbours,
@@ -16,51 +16,66 @@ export function edges(ctx: Context, id: string, perPredicate = 8, now = ctx.now(
     id,
   )
   if (!row) throw new Error('Brain entity not found.')
-  const { n, connections } = row
-  if (connections <= 200) return ordinaryEdges(ctx, n, perPredicate, now)
+  return edgesAt(ctx, row, perPredicate, now)
+}
+/** PPR already has the numeric endpoint and degree. Its edges must also have an unexpired host. */
+export function edgesAt(
+  ctx: Context,
+  { n, connections }: { n: number; connections: number },
+  perPredicate: number,
+  now: number,
+  unexpired = false,
+): BrainLink[] {
+  const host = (alias: string) =>
+    unexpired
+      ? `AND NOT EXISTS (SELECT 1 FROM memories h WHERE h.n=${alias}.memory AND h.valid_to<=(SELECT now FROM instant))`
+      : ''
+
+  if (connections <= 200) return ordinaryEdges(ctx, n, perPredicate, now, host('r'))
   // A hub reads each range newest first and skips a link when a newer one joins the same pair.
   return BRAIN_PREDICATES.flatMap((predicate) =>
     (['subject', 'object'] as const).flatMap((own) => {
       const other = own === 'subject' ? 'object' : 'subject'
       return all<BrainLink>(
         ctx,
-        `SELECT ${LINK} FROM relations r INDEXED BY ${sideIndex(own)} JOIN entities e ON e.n=r.${other} ${ENDS} WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>?) AND r.predicate=? AND ${newerLink(own, other)} IS NULL ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
-        n,
+        `WITH ${INSTANT} SELECT ${LINK} FROM relations r INDEXED BY ${sideIndex(own)} JOIN entities e ON e.n=r.${other} ${ENDS} WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>(SELECT now FROM instant)) AND r.predicate=? ${host('r')} AND ${newerLink(own, other, host('x'))} IS NULL ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
         now,
+        n,
         predicate,
         connections,
-        now,
-        now,
         perPredicate,
       )
     }),
   )
 }
 /** Low-degree nodes need two indexed reads, not one for every predicate and direction. */
-function ordinaryEdges(ctx: Context, n: number, perPredicate: number, now: number): BrainLink[] {
+function ordinaryEdges(
+  ctx: Context,
+  n: number,
+  perPredicate: number,
+  now: number,
+  host: string,
+): BrainLink[] {
   const directions = (['subject', 'object'] as const).map((own) => {
     const other = own === 'subject' ? 'object' : 'subject'
-    const groups = new Map<string, Map<string, BrainLink>>()
+    const groups = new Map<string, BrainLink[]>()
     for (const link of all<BrainLink>(
       ctx,
-      `WITH candidates AS (SELECT r.n,ROW_NUMBER() OVER (PARTITION BY r.predicate,r.${other}
-        ORDER BY r.observed_at DESC,r.n DESC) AS seq FROM relations r WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>?))
+      `WITH ${INSTANT}, candidates AS (SELECT r.n,ROW_NUMBER() OVER (PARTITION BY r.predicate,r.${other}
+        ORDER BY r.observed_at DESC,r.n DESC) AS seq FROM relations r WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>(SELECT now FROM instant)) ${host})
         SELECT ${LINK} FROM candidates c CROSS JOIN relations r ON r.n=c.n ${ENDS} WHERE c.seq=1
         ORDER BY r.observed_at DESC,r.n DESC`,
-      n,
       now,
+      n,
     )) {
-      // Newest first, so the first link to a neighbour is its newest.
-      const neighbours = groups.get(link.predicate) ?? new Map<string, BrainLink>()
-      const neighbour = own === 'subject' ? link.objectId : link.subjectId
-      if (neighbours.size < perPredicate && !neighbours.has(neighbour))
-        neighbours.set(neighbour, link)
+      const neighbours = groups.get(link.predicate) ?? []
+      if (neighbours.length < perPredicate) neighbours.push(link)
       groups.set(link.predicate, neighbours)
     }
     return groups
   })
   return BRAIN_PREDICATES.flatMap((predicate) =>
-    directions.flatMap((groups) => [...(groups.get(predicate)?.values() ?? [])]),
+    directions.flatMap((groups) => groups.get(predicate) ?? []),
   )
 }
 /**

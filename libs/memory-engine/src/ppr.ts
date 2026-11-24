@@ -1,7 +1,7 @@
 import { BRAIN_STRUCTURAL_PREDICATES, type BrainLink } from '@phosphor/shared/brain'
 import type { BrainTrail } from '@phosphor/shared/brain-recall'
 import { all, one, type Context } from './database'
-import { edges } from './graph'
+import { edgesAt } from './graph'
 import { RECALL_TUNING, type RecallTuning } from './recall-tuning'
 
 const STRUCTURAL = new Set<string>(BRAIN_STRUCTURAL_PREDICATES)
@@ -118,7 +118,7 @@ class LocalGraph {
       if (depth === 0 && this.memories.has(id)) this.pending.add(id)
     }
     if (depth === 2 || this.relations.size >= 600) return
-    for (const link of edges(this.ctx, e.id, 8, this.now)) this.relation(e, link)
+    for (const link of edgesAt(this.ctx, e, 8, this.now, true)) this.relation(e, link)
   }
   private relation(e: EntityNode, link: BrainLink) {
     if (this.relations.has(link.id) || this.relations.size >= 600) return

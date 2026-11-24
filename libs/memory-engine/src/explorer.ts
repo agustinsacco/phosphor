@@ -20,7 +20,7 @@ import {
   referencedEntities,
 } from './entities'
 import { memoryCards } from './knowledge'
-import { newerLink, pairProbe, sideIndex } from './relation-pairs'
+import { INSTANT, newerLink, pairProbe, sideIndex } from './relation-pairs'
 
 const PAGE_SIZE = 40
 function cursor(value: number[]): string {
@@ -82,24 +82,20 @@ function connectionPage(
     } & BrainLink
   >(
     ctx,
-    `SELECT r.n,r.observed_at,e.id AS neighbour,${LINK},
+    `WITH ${INSTANT} SELECT r.n,r.observed_at,e.id AS neighbour,${LINK},
       ${supports} AS supports
       FROM relations r INDEXED BY ${sideIndex(own)}
       JOIN entities e ON e.n=r.${other} JOIN entities s ON s.n=r.subject
       JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory
-      WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>?) AND r.predicate=? ${key ? 'AND (r.observed_at,r.n)<(?,?)' : ''}
+      WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>(SELECT now FROM instant)) AND r.predicate=? ${key ? 'AND (r.observed_at,r.n)<(?,?)' : ''}
       AND ${newer} IS NULL
       ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
+    now,
     self.connections,
-    now,
-    now,
     self.n,
-    now,
     predicate,
     ...(key ?? []),
     self.connections,
-    now,
-    now,
     limit + 1,
   )
   const selected = rows.slice(0, limit)
