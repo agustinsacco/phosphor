@@ -82,3 +82,23 @@ it('offers only pairs the swept memories name; the full pass finds the rest', ()
   expect(unlinked(db)).toMatchObject([{ first_id: 'rina-1', second_id: 'rina-2' }])
   expect(pass(store)).toBe(1)
 })
+it('clears an open pair once a link explains it, freeing its slot without a keep', () => {
+  const { store, db } = fixture()
+  seed(db, 2)
+  db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
+  expect(pass(store)).toBe(1)
+  store.relate(
+    {
+      subjectId: 'rina-1',
+      predicate: 'works_with',
+      objectId: 'rina-2',
+      label: 'works closely with',
+      since: null,
+      until: null,
+      memoryIds: ['memory-1'],
+    },
+    note,
+  )
+  expect(store.waitingCounts().unlinked).toBe(0)
+  expect(unlinked(db).map((row) => row.state)).toEqual(['cleared'])
+})
