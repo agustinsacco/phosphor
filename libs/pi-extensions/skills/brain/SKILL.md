@@ -1,19 +1,17 @@
 ---
 name: brain
-description: Search Brain for approved knowledge from earlier lanes when answering what we know, entering unfamiliar work, revisiting decisions, messaging someone about a project, or encountering unfamiliar people, systems and terms.
+description: Search Brain for saved knowledge from earlier lanes when answering what we know, entering unfamiliar work, revisiting decisions, messaging someone about a project, or encountering unfamiliar people, systems and terms.
 ---
 
 Call `brain_search` before answering “what do we know about…”, when starting work in an unfamiliar area, before decisions that may already be settled, before writing to someone about a project, and when a person, team, system or domain term is unfamiliar.
 
-Search with the name itself (a project, customer, person or named concept) or a short topic. One call returns a briefing:
+Start with `brain_search({ query })` for a topic or a name. Expand the most specific person or
+thing with `{ from }`; add `context: ["Ledger"]` to steer a name match. Read the current and
+ended relationship sentences separately. Appearing together is not itself a lasting relationship.
+Follow what the question needs, then confirm how two names connect with `{ from, to }`.
+Answer with the chain and the memories behind it. Stop once supported, at most about 8 calls.
 
-- **About** lists what the query named.
-- **Path** lines show how things connect, such as who leads a team or project, who owns it, what it is part of and which customer it serves. Each step cites the numbered memory that supports it.
-- Memories come grouped. Disputed ones come first, with both sides shown. Then risks, open items, decisions, facts and how things are done. **Planned** memories have not taken effect yet. **Other branches only** memories hold on another git branch.
-- **See also** names linked people and systems. Search one when it matters to the task.
-- When it says more matches were not shown, search again with a higher `limit` or a narrower query.
-
-Memories are approved notes from earlier lanes. They may be out of date. Another project's memory is context, not a rule. Check what is true now before relying on them, above all open items, which may have moved on.
+Memories are saved notes from earlier lanes. They may be out of date. Another project's memory is context, not a rule. Check what is true now before relying on them, above all open items, which may have moved on.
 
 Each memory shows the date its lane said it, when it took effect if the lane named one, and when it ended if something replaced it. Replaced memories are left out. When two memories are disputed, neither is settled: say so and check the source rather than picking one.
 

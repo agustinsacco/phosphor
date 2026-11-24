@@ -30,6 +30,10 @@ export const BRAIN_POSSIBLE_REPEATS_PER_RUN = 40
 export const BRAIN_RELATE_PER_RUN = 60
 /** At most this many automatic Brain Agent runs start in any rolling 24 hours. */
 export const BRAIN_AUTO_RUNS_PER_DAY = 6
+/** The engine's refusal past the relate cap, matched by message as the erase refusal is. */
+export const BRAIN_RELATE_LIMIT_REFUSAL = `Brain Agent can state at most ${BRAIN_RELATE_PER_RUN} links a run, or 20 an hour outside a run. Try again later; nothing changed.`
+/** The engine's refusal when automatic runs reach their daily cap. */
+export const BRAIN_AUTO_RUN_LIMIT_REFUSAL = `Brain Agent already checked on its own ${BRAIN_AUTO_RUNS_PER_DAY} times in the last 24 hours. Run Defrag to check now.`
 
 /** What Defrag decides, counted the way the page header shows it. */
 export interface BrainWaitingCounts {

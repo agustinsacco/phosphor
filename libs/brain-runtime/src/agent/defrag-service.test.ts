@@ -26,14 +26,14 @@ async function directory(): Promise<string> {
 async function setup(withHost = true) {
   const store = new FakeAgentStore()
   store.prefs.enabled = true
-  store.counts = { reads: 0, entities: 1, repeats: 0, conflicts: 0, flags: 1 }
+  store.counts = { groups: 0, unlinked: 0, entities: 1, repeats: 0, conflicts: 0, flags: 1 }
   const search = new FakeBrainSearch()
   const turn = vi.fn<BrainAgentHost['turn']>(async () => finished)
   const options = {
     ...recallOptions(store),
     directory: await directory(),
     openSearch: () => search,
-    ...(withHost ? { agent: { folder: '/made-up/brain/Brain', turn } } : {}),
+    ...(withHost ? { agent: { tell: vi.fn(), folder: '/made-up/brain/Brain', turn } } : {}),
   }
   const service = await createBrainService(options)
   cleanups.push(() => service.dispose())
@@ -47,7 +47,7 @@ it('reports an unfinished run from the last app run as interrupted, at startup',
   const options = {
     ...recallOptions(store),
     directory: await directory(),
-    agent: { folder: '/b', turn: vi.fn() },
+    agent: { tell: vi.fn(), folder: '/b', turn: vi.fn() },
   }
   const service = await createBrainService(options)
   cleanups.push(() => service.dispose())
@@ -62,7 +62,7 @@ it('status carries the waiting counts, the latest run and the Brain folder', asy
   const s = await setup()
   const status = await s.service.api.status()
   expect(status.agent).toEqual({
-    waiting: { reads: 0, entities: 1, repeats: 0, conflicts: 0, flags: 1 },
+    waiting: { groups: 0, unlinked: 0, entities: 1, repeats: 0, conflicts: 0, flags: 1 },
     run: null,
     folder: '/made-up/brain/Brain',
   })

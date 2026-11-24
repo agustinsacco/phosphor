@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { approveRead, realService } from '../tidy/__fixtures__/real-service'
+import { savedRead, realService } from '../tidy/__fixtures__/real-service'
 
 /** Deterministic made-up embeddings: each text lands at its own angle. */
 const embed = async (texts: string[]) =>
@@ -19,7 +19,7 @@ it.each(['Harbor', 'Ledger policy', 'Rina', 'weekly invoices'])(
     try {
       const s = await realService()
       s.options.embeddings.embed = embed
-      await approveRead(s.store, s.service, s.options, [
+      await savedRead(s.store, s.service, s.options, [
         'Harbor keeps Ledger policy for refunds.',
         'Rina leads Ledger.',
         'Harbor bills weekly invoices.',
@@ -30,6 +30,7 @@ it.each(['Harbor', 'Ledger policy', 'Rina', 'weekly invoices'])(
       for (const limit of [3, 8, 20]) {
         const agent = await s.service.agent('search', { query, limit })
         const found = await s.service.api.find(query, limit)
+        if (agent.mode !== 'search') throw new Error('Expected query results')
         expect(agent.hits.length).toBeGreaterThan(1)
         expect(found.memories.map((m) => m.id)).toEqual(agent.hits.map((hit) => hit.memory.id))
       }

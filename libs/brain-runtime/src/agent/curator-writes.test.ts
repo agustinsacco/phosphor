@@ -1,11 +1,7 @@
-import { unlink } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BRAIN_ERASE_LIMIT_REFUSAL } from '@phosphor/shared/brain-agent'
-import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
-import { curatorFixture, nameLane, seedReview } from '../__fixtures__/curator'
-import { DELETED_LANE_REFRESH_REFUSAL } from '../lane-read-rules'
+import { BRAIN_RELATE_LIMIT_REFUSAL, BRAIN_ERASE_LIMIT_REFUSAL } from '@phosphor/shared/brain-agent'
+import { curatorFixture } from '../__fixtures__/curator'
 import { BRAIN_OFF } from './curator-context'
-import { READ_CHANGED } from './curator-writes'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -13,135 +9,30 @@ afterEach(async () => {
 })
 const signal = new AbortController().signal
 const reason = 'Both records name the same Slack user.'
-/** Brain Agent's approval: the read's one memory by default, its identity answered. */
-const approval = { approve: true, identities: [{ ref: 'e1', answer: 'rina' }] }
-/** The decision Brain builds from it against the stored read. */
-const approved = {
-  memories: [0],
-  identities: { e1: 'rina' },
-  groups: [],
-  descriptions: [],
-  confirmations: [],
-}
 async function setup() {
   const s = await curatorFixture()
   cleanups.push(s.cleanup)
   return s
 }
 
-describe('decideRead', () => {
-  it('rejects without a refresh, whatever the revision, journaled with the run and reason', async () => {
-    const s = await setup()
-    const job = seedReview(s.store, 'ledger', s.lane)
-    s.store.rev += 3
-    s.inRun('run-4')
-    const result = await s.curator.decideRead(
-      { jobId: job.id, revision: 0, approve: false, reason },
-      signal,
-    )
-    expect(result).toEqual({
-      status: 'done',
-      message: 'Rejected. Undo puts the read back to waiting.',
-      operationId: 'op-1',
-    })
-    expect(s.store.calls).toEqual([
-      { method: 'decideRead', args: [job.id, null, 0], note: { runId: 'run-4', reason } },
-    ])
-    expect(s.queue.abortRefresh).toHaveBeenCalledWith(job.id)
-    expect(s.queue.refreshInline).not.toHaveBeenCalled()
-    expect(s.search.refreshes).toBe(1)
-    expect(s.changed).toHaveBeenCalled()
-    expect(s.queue.kick).toHaveBeenCalled()
-  })
-
-  it('approves the current revision, outside a run with no run id', async () => {
-    const s = await setup()
-    const job = seedReview(s.store, 'ledger', s.lane)
-    const result = await s.curator.decideRead(
-      { jobId: job.id, revision: s.store.knowledgeRevision(), ...approval, reason },
-      signal,
-    )
-    expect(result).toMatchObject({ status: 'done', operationId: 'op-1' })
-    expect(s.store.calls[0]).toMatchObject({
-      args: [job.id, approved, 0],
-      note: { runId: null, reason },
-    })
-  })
-
-  it('says changed for an older revision, and for a review the engine finds changed', async () => {
-    const s = await setup()
-    const job = seedReview(s.store, 'ledger', s.lane)
-    expect(
-      await s.curator.decideRead({ jobId: job.id, revision: 7, ...approval, reason }, signal),
-    ).toEqual({ status: 'changed', message: READ_CHANGED, operationId: null })
-    s.store.refusal = new Error(BRAIN_REVIEW_CHANGED)
-    expect(
-      await s.curator.decideRead({ jobId: job.id, revision: 0, ...approval, reason }, signal),
-    ).toMatchObject({ status: 'changed' })
-    expect(s.store.calls).toEqual([])
-  })
-
-  it('refuses to approve a never-read lane, fresh or stale, with the existing sentences', async () => {
-    const s = await setup()
-    const job = seedReview(s.store, 'ledger', s.lane)
-    s.store.prefs.neverRead = { ...s.store.prefs.neverRead, sessionIds: ['ledger'] }
-    expect(
-      await s.curator.decideRead({ jobId: job.id, revision: 0, ...approval, reason }, signal),
-    ).toEqual({
-      status: 'refused',
-      message: 'Brain is set not to read this lane.',
-      operationId: null,
-    })
-    s.store.rev++
-    expect(
-      await s.curator.decideRead({ jobId: job.id, revision: 0, ...approval, reason }, signal),
-    ).toMatchObject({
-      status: 'refused',
-      message: expect.stringContaining('set to never be read'),
-    })
-    // Rejecting it is how it leaves.
-    expect(
-      (await s.curator.decideRead({ jobId: job.id, revision: 0, approve: false, reason }, signal))
-        .status,
-    ).toBe('done')
-  })
-
-  it('checks the lane as it is now before approving a fresh read: renamed, then deleted', async () => {
-    const s = await setup()
-    const job = seedReview(s.store, 'ledger', s.lane)
-    const decide = () =>
-      s.curator.decideRead({ jobId: job.id, revision: 0, ...approval, reason }, signal)
-    // Renaming a lane changes no knowledge, so the read stays fresh.
-    await nameLane(s.lane, 'Harbor 1:1')
-    expect(await decide()).toEqual({
-      status: 'refused',
-      message: 'Brain never reads this lane because its title matches a rule in Settings › Brain.',
-      operationId: null,
-    })
-    await unlink(s.lane)
-    expect(await decide()).toEqual({
-      status: 'refused',
-      message: DELETED_LANE_REFRESH_REFUSAL,
-      operationId: null,
-    })
-    expect(s.store.calls).toEqual([])
-    expect(s.queue.refreshInline).not.toHaveBeenCalled()
-  })
-
-  it('refuses a read that is not waiting', async () => {
-    const s = await setup()
-    for (const choice of [{ approve: false }, approval])
-      expect(
-        await s.curator.decideRead({ jobId: 'gone', revision: 0, ...choice, reason }, signal),
-      ).toEqual({
-        status: 'refused',
-        message: 'This read is not waiting for a decision.',
-        operationId: null,
-      })
-  })
-})
-
 describe('other writes', () => {
+  it('relate journals its run and reports the engine cap without changes', async () => {
+    const s = await setup()
+    s.inRun('run-4')
+    const input = {
+      subjectId: 'rina',
+      objectId: 'harbor',
+      predicate: 'owns' as const,
+      label: 'owns',
+      memoryIds: ['ownership'],
+      reason,
+    }
+    expect((await s.curator.relate(input, signal)).status).toBe('done')
+    expect(s.store.calls[0]?.note).toEqual({ runId: 'run-4', reason })
+    s.store.refusal = new Error(BRAIN_RELATE_LIMIT_REFUSAL)
+    expect((await s.curator.relate(input, signal)).status).toBe('limit')
+    expect(s.store.calls).toHaveLength(1)
+  })
   it('resolve, edit and undo journal their reason and return what undoes them', async () => {
     const s = await setup()
     expect(
@@ -271,7 +162,17 @@ describe('other writes', () => {
     const off = { status: 'refused', message: BRAIN_OFF, operationId: null }
     expect(await s.curator.erase({ memoryId: 'm', reason }, signal)).toEqual(off)
     expect(
-      await s.curator.decideRead({ jobId: 'j', revision: 0, approve: false, reason }, signal),
+      await s.curator.relate(
+        {
+          subjectId: 'rina',
+          objectId: 'harbor',
+          predicate: 'owns',
+          label: 'owns',
+          memoryIds: ['ownership'],
+          reason,
+        },
+        signal,
+      ),
     ).toEqual(off)
     expect(await s.curator.undo({ operationId: 'op', reason }, signal)).toEqual(off)
     expect(s.store.calls).toHaveLength(1)

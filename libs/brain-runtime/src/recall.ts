@@ -1,9 +1,6 @@
-import type {
-  BrainAgentMethod,
-  BrainQuery,
-  BrainRecall,
-  BrainAgentMap,
-} from '@phosphor/shared/brain'
+import type { BrainAgentMethod, BrainAgentMap } from '@phosphor/shared/brain'
+import type { BrainQuery, BrainSearchResult } from '@phosphor/shared/brain-recall'
+import { searchQuery, unavailable } from './search/query'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
 import type { BrainServiceOptions, BrainRecallLaunch, BrainSearchPort } from './types'
@@ -12,40 +9,27 @@ import { createBrainBridge, type BridgeRole } from './bridge'
 import { fileBrainFlag, flagResponse, type BrainFlagPort } from './tidy/flag'
 import type { CuratorApi } from './agent/curator-context'
 
-const unavailable = (): BrainRecall => ({
-  status: 'unavailable',
-  hits: [],
-  entities: [],
-  focus: [],
-  paths: [],
-  branch: null,
-  more: 0,
-  degradation: [],
-})
+type RecallStore = Pick<BrainStore, 'memory' | 'snapshot' | 'recordRecall'>
 
 /** A lane's search: ranked for the lane's project and branch, while lane recall is on. */
 function laneSearch(
   options: BrainServiceOptions,
   search: BrainSearchPort,
   enabled: () => boolean,
-): (input: BrainQuery) => Promise<BrainRecall> {
+  store: RecallStore,
+): (input: BrainQuery) => Promise<BrainSearchResult> {
   return async (input) => {
-    if (!enabled()) return unavailable()
+    if (!enabled()) return unavailable(input)
     const params = validateBrainRequest('search', input)
     const project = params.cwd ? await projectContext(params.cwd) : { scope: null, branch: null }
-    const vector = await options.embeddings
-      .embed([params.query], 'query')
-      .then((rows) => (rows[0] ? new Float32Array(rows[0]) : null))
-      .catch(() => null)
-    if (!enabled()) return unavailable()
-    return search.recall({
-      query: params.query,
-      vector,
-      scope: project.scope,
-      branch: project.branch,
-      now: (options.now ?? Date.now)(),
-      limit: params.limit ?? 8,
-    })
+    const result = await searchQuery(params, options, search, project, enabled)
+    if (!enabled()) return unavailable(input)
+    const ids =
+      result.mode === 'route'
+        ? result.memories.map((m) => m.id)
+        : result.hits.map((h) => h.memory.id)
+    if (ids.length) store.recordRecall([...new Set(ids)], (options.now ?? Date.now)())
+    return result
   }
 }
 
@@ -65,7 +49,7 @@ async function callCurator(
 
 /** The local bridge's two callers: any lane (recall and flags) and the Brain lane (curator). */
 export function createRecall(
-  store: BrainStore,
+  store: RecallStore,
   options: BrainServiceOptions,
   search: BrainSearchPort,
   accepting: () => boolean = () => true,
@@ -76,7 +60,7 @@ export function createRecall(
   let disposed = false
   const brainOn = (): boolean => !disposed && accepting() && store.snapshot().prefs.enabled
   const enabled = (): boolean => brainOn() && store.snapshot().prefs.recall
-  const recall = laneSearch(options, search, enabled)
+  const recall = laneSearch(options, search, enabled, store)
   /** Search and flag as any lane asks them; the curator's methods for the Brain lane. */
   async function agent<M extends BrainAgentMethod>(
     method: M,

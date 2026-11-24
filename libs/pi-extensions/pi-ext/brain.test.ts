@@ -74,10 +74,10 @@ it('sends cwd and session identity and returns the formatted briefing without ev
   )
   expect(search.content[0]).toMatchObject({
     type: 'text',
-    text: expect.stringContaining('Path: Rina Okafor owns Harbor [1]'),
+    text: expect.stringContaining('via Harbor, owned by Rina Okafor'),
   })
   expect(search.details).toEqual({ status: 'ok', memories: 1 })
-  expect(tools[0]!.description).toMatch(/person, team, system or ticket/)
+  expect(tools[0]!.description).toMatch(/from and to/)
 })
 
 it('surfaces transport failures instead of inventing a no-match', async () => {
