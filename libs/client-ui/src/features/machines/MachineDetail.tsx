@@ -118,7 +118,7 @@ function MachineNotice({ overview }: { overview: MachineOverview }): React.JSX.E
 
 /** Readiness and providers, plus why the machine is not ready or not set up yet. */
 function OverviewPanel({ overview }: { overview: MachineOverview }): React.JSX.Element {
-  const { id, label, check, note } = overview
+  const { id, check, note } = overview
   const stamp = [
     overview.reported,
     check.at ? `checked ${relativeTime(new Date(check.at).toISOString(), Date.now())}` : null,
