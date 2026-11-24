@@ -103,7 +103,8 @@ function turnPatch(turn: BrainAgentTurn): BrainRunPatch {
 
 function saveRun(context: DefragContext, id: string, patch: BrainRunPatch) {
   try {
-    context.store.updateRun(id, patch)
+    const run = context.store.updateRun(id, patch)
+    if (patch.finishedAt !== undefined) context.runEnded?.(run)
   } catch (error) {
     context.options.log?.('Brain Defrag run could not be saved', { error: plainRefusal(error) })
   }
@@ -147,8 +148,6 @@ export function createDefrag(context: DefragContext): Defrag {
       )
     } finally {
       turnRun = null
-      const run = !disposed && store.latestRun()
-      if (run && run.id === runId) context.runEnded?.(run)
     }
   }
 

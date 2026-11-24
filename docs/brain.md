@@ -275,13 +275,13 @@ while its turn runs, and stops it.
 
 ### When it checks
 
-A saved read arms **one** automatic check, not a repeating timer. Another save restarts the
+A nonempty saved read arms **one** automatic check, not a repeating timer. Another save restarts the
 60-second delay. Brain waits until there are no queued or running reads and no queued or active
 run. A busy lane waiting to be read and a failed read do not block it. Something must be
 waiting, and its signature (count plus newest creation time) must differ from the signature
-at the end of the last automatic run. Leftover items, startup and a lane flag do not start
+at the end of the last run (including manual Defrag). Leftover items, startup and a lane flag do not start
 runs on their own. A failed automatic run delays another attempt by 10 minutes, doubling on
-consecutive failures up to six hours. At most six automatic runs start per rolling 24 hours.
+consecutive failures up to six hours. A stopped run does not reset that count. The backoff and signature reset when Brain restarts. The limit of six automatic starts per rolling 24 hours persists across restarts.
 
 **Defrag** runs the same check on request while something waits, even with automatic checks off.
 It shares the reader's worker. First a bounded local pass folds exact repeats and looks for

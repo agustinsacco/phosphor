@@ -76,11 +76,14 @@ export function createAutoRun(ctx: {
     },
     changed,
     runEnded(run) {
-      if (!run.automatic || disposed) return
+      if (disposed) return
       lastSignature = store.waitingSignature()
-      cooldown =
-        run.state === 'failed' ? now() + Math.min(6 * 3600000, 600000 * 2 ** failures++) : 0
-      if (run.state !== 'failed') failures = 0
+      if (run.automatic && run.state === 'failed')
+        cooldown = now() + Math.min(6 * 3600000, 600000 * 2 ** failures++)
+      if (run.automatic && run.state === 'done') {
+        failures = 0
+        cooldown = 0
+      }
       changed()
     },
     dispose() {

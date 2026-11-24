@@ -39,8 +39,8 @@ export async function extractJob(
     progress('prepare', 0, 1)
     const stored = store.storedProposal(job.id)
     if (stored && stored.computedRevision === store.knowledgeRevision()) {
-      saveLegacy(job, store, stored, options.now ?? Date.now)
-      await afterReadSaved(job, options, search)
+      const saved = saveLegacy(job, store, stored, options.now ?? Date.now)
+      await afterReadSaved(saved.state, job, options, search)
       return
     }
     const { lane, entries } = await prepareRead(job, store, checked)
@@ -110,8 +110,9 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
     // must start from source claims, never from a previous revision's guesses.
     const job = structuredClone(folded)
     const proposal = await prepareProposal(context, job)
+    let saved
     try {
-      saveWithRecord(
+      saved = saveWithRecord(
         context.store,
         context.record,
         proposal,
@@ -130,7 +131,7 @@ async function finishExtraction(context: ExtractionContext, folded: FoldedJob): 
       if (isBrainReadStale(error)) continue
       throw error
     }
-    await afterReadSaved(context.job, context.options, context.search)
+    await afterReadSaved(saved.state, context.job, context.options, context.search)
     return
   }
   throw new Error('Brain kept changing while this lane was read. Retry it.')

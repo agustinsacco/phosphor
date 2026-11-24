@@ -3,7 +3,7 @@ import {
   type BrainExtractionOutcome,
   type BrainJob,
 } from '@phosphor/shared/brain'
-import type { BrainStore, Proposal, ProposalMemory } from '@phosphor/memory-engine/types'
+import type { BrainStore, Proposal, ProposalMemory, SavedRead } from '@phosphor/memory-engine/types'
 import type { BrainServiceOptions, BrainSearchPort } from './types'
 import { ExtractionRecord } from './extraction-record'
 
@@ -89,7 +89,12 @@ export function saveLegacy(
   return saveWithRecord(store, record, proposal, outcomes, now())
 }
 
-export async function afterReadSaved(job: BrainJob, options: ReadOptions, search: BrainSearchPort) {
+export async function afterReadSaved(
+  state: SavedRead['state'],
+  job: BrainJob,
+  options: ReadOptions,
+  search: BrainSearchPort,
+) {
   try {
     await search.refresh()
   } catch (error) {
@@ -98,5 +103,5 @@ export async function afterReadSaved(job: BrainJob, options: ReadOptions, search
       error: error instanceof Error ? error.message : String(error),
     })
   }
-  options.onReadSaved?.()
+  if (state === 'done') options.onReadSaved?.()
 }
