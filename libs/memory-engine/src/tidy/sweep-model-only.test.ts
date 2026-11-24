@@ -9,7 +9,11 @@ function pair(similarity: number, shared = 2, patch = '') {
   const result = fixture()
   seed(result.db, 2)
   result.db.exec('UPDATE mentions SET entity=1')
-  if (shared > 1) result.db.exec('INSERT INTO mentions VALUES (1,2),(2,2)')
+  // A link explains the two people named together, so no unlinked pair joins the queue.
+  if (shared > 1)
+    result.db.exec(
+      "INSERT INTO mentions VALUES (1,2),(2,2); INSERT INTO relations(memory,subject,predicate,object,live,observed_at) VALUES (1,1,'works_with',2,1,1)",
+    )
   if (patch) result.db.exec(patch)
   const update = result.db.prepare('UPDATE memory_vectors SET vector=? WHERE memory=?')
   update.run(encodeVector(vector(1, 0)), 1)

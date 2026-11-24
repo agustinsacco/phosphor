@@ -137,8 +137,10 @@ export function sweep(
       result.operationIds.push(...found.operations)
     }
     result.folded = result.operationIds.length
-    // A finished pass also offers the pairs named together that no link explains.
-    if (input === 'all' && c.phase === 'done') result.unlinked = sweepLinks(ctx)
+    // A finished pass, or new memories, also offer pairs named together that no link explains,
+    // so a saved read's pair waits before the automatic check decides whether to start.
+    if (input === 'all' ? c.phase === 'done' : memories.length > 0)
+      result.unlinked = sweepLinks(ctx)
     if (result.suggestions || result.unlinked) bumpRevision(ctx)
     if (input === 'all') save(ctx, c)
     result.coverage = publicCoverage(ctx, c)
