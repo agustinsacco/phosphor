@@ -8,10 +8,14 @@ import {
   entityNumber,
   recountEntities,
 } from './entities'
+import { BRAIN_SYMMETRIC_PREDICATES } from '@phosphor/shared/brain-links'
+import { mergeRelationInto, type RelationRow } from './carry'
 import { reactivatePartners } from './commit'
 import { memoryNumber } from './knowledge'
 import { bumpKnowledgeRevision } from './prefs'
 import { pruneExtractions } from './extractions'
+
+const SYMMETRIC = new Set<string>(BRAIN_SYMMETRIC_PREDICATES)
 
 export function mergeRows(ctx: Context, sourceId: string, targetId: string): void {
   if (sourceId === targetId) throw new Error('Choose two different Brain entities.')
@@ -100,47 +104,39 @@ export function removeMemory(ctx: Context, id: string): void {
   recountEntities(ctx, touched)
 }
 
+/**
+ * Links follow the merged record. One that already exists on its memory absorbs the moved one's
+ * wording, start and support; one that would join the record to itself goes, on purpose (F25).
+ */
 function repointRelations(
   ctx: Context,
   source: number,
   target: number,
   touched: Set<number>,
 ): void {
-  const relations = all<{
-    n: number
-    memory: number
-    subject: number
-    predicate: string
-    object: number
-    observed_at: number
-  }>(
+  const relations = all<RelationRow>(
     ctx,
     'SELECT * FROM relations WHERE subject=? UNION SELECT * FROM relations WHERE object=?',
     source,
     source,
   )
   for (const row of relations) {
-    const subject = row.subject === source ? target : row.subject
-    const object = row.object === source ? target : row.object
+    let subject = row.subject === source ? target : row.subject
+    let object = row.object === source ? target : row.object
     touched.add(subject)
     touched.add(object)
+    if (SYMMETRIC.has(row.predicate) && object < subject) [subject, object] = [object, subject]
     if (subject !== object) {
       const duplicate = one<{ n: number }>(
         ctx,
-        'SELECT n FROM relations WHERE memory=? AND subject=? AND predicate=? AND object=?',
+        'SELECT n FROM relations WHERE memory=? AND subject=? AND predicate=? AND object=? AND n!=?',
         row.memory,
         subject,
         row.predicate,
         object,
+        row.n,
       )
-      if (duplicate)
-        run(
-          ctx,
-          `INSERT OR IGNORE INTO relation_support SELECT ?,s.evidence,s.quote FROM relation_support s JOIN evidence e ON e.n=s.evidence WHERE s.relation=? AND NOT EXISTS(SELECT 1 FROM relation_support t JOIN evidence te ON te.n=t.evidence WHERE t.relation=? AND t.quote=s.quote AND te.entry_id=e.entry_id)`,
-          duplicate.n,
-          row.n,
-          duplicate.n,
-        )
+      if (duplicate) mergeRelationInto(ctx, row, duplicate.n)
       else {
         run(ctx, 'UPDATE relations SET subject=?,object=? WHERE n=?', subject, object, row.n)
         continue

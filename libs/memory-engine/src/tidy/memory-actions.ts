@@ -1,7 +1,7 @@
 import { foldGuard, disputeGuard, replaceGuard } from './action-guards'
 import { all, one, run, type Context } from '../database'
 import { reactivatePartners } from '../commit'
-import { carryRelations } from '../carry'
+import { carryRelations, copySupport, mergeRelationInto, relationsOf } from '../carry'
 import { adjustCount, cleanOrphans, recountEntities } from '../entities'
 
 export function foldMemories(ctx: Context, source: number, target: number): void {
@@ -53,40 +53,25 @@ export function foldMemories(ctx: Context, source: number, target: number): void
   cleanOrphans(ctx, new Set(), evidence)
   recountEntities(ctx, entities)
 }
+/** Every link moves with its wording, dates, speaker and support; the same link said twice merges. */
 function transferLinks(ctx: Context, source: number, target: number): void {
-  for (const row of all<{
-    n: number
-    subject: number
-    predicate: string
-    object: number
-    live: number
-    observed_at: number
-  }>(ctx, 'SELECT * FROM relations WHERE memory=?', source)) {
+  const existing = relationsOf(ctx, target)
+  for (const r of relationsOf(ctx, source)) {
+    const same = existing.find(
+      (x) => x.subject === r.subject && x.predicate === r.predicate && x.object === r.object,
+    )
+    if (same) {
+      mergeRelationInto(ctx, r, same.n)
+      continue
+    }
     run(
       ctx,
-      'INSERT OR IGNORE INTO relations(memory,subject,predicate,object,live,observed_at) VALUES (?,?,?,?,?,?)',
+      `INSERT INTO relations(memory,subject,predicate,object,live,observed_at,label,valid_from,valid_to,stated_by)
+      SELECT ?,subject,predicate,object,live,observed_at,label,valid_from,valid_to,stated_by FROM relations WHERE n=?`,
       target,
-      row.subject,
-      row.predicate,
-      row.object,
-      row.live,
-      row.observed_at,
+      r.n,
     )
-    const to = one<{ n: number }>(
-      ctx,
-      'SELECT n FROM relations WHERE memory=? AND subject=? AND predicate=? AND object=?',
-      target,
-      row.subject,
-      row.predicate,
-      row.object,
-    )!.n
-    run(
-      ctx,
-      `INSERT OR IGNORE INTO relation_support SELECT ?,s.evidence,s.quote FROM relation_support s JOIN evidence e ON e.n=s.evidence WHERE s.relation=? AND NOT EXISTS(SELECT 1 FROM relation_support t JOIN evidence te ON te.n=t.evidence WHERE t.relation=? AND t.quote=s.quote AND te.entry_id=e.entry_id)`,
-      to,
-      row.n,
-      to,
-    )
+    copySupport(ctx, r.n, one<{ n: number }>(ctx, 'SELECT last_insert_rowid() AS n')!.n)
   }
 }
 export function conflictMemories(

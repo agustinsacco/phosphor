@@ -40,7 +40,7 @@ export const ENTITY_KINDS: Record<string, BrainEntityKind> = {
 export const NOTE = { runId: null, reason: 'The property test checks this change.' }
 /** Refusals an engine may answer; anything else (a constraint, a missing row) fails the test. */
 const ALLOWED =
-  /no longer current|cannot be folded|Resolve the history|already disputed|Later changes|no longer available|already undone|Choose two different|already linked|already queued|Only finished|does not apply|no longer active|link this way|can't be undone|can't be brought back|at most/iu
+  /no longer current|cannot be folded|Resolve the history|already disputed|Later changes|no longer available|already undone|Choose two different|already linked|already queued|Only finished|does not apply|no longer active|link this way|already says|can't be undone|can't be brought back|at most/iu
 
 export const day = (at: number): string => new Date(at).toISOString().slice(0, 10)
 

@@ -16,7 +16,7 @@ import {
   type ConservationDriver,
   type Outcome,
 } from './__fixtures__/conservation-driver'
-import { V7Driver } from './__fixtures__/conservation-driver-v7'
+import { V8Driver } from './__fixtures__/conservation-driver-v8'
 import * as model from './__fixtures__/conservation-model'
 import type { ClaimSpec, LinkSpec, Model } from './__fixtures__/conservation-model'
 
@@ -28,13 +28,14 @@ interface Driver extends ConservationDriver {
   setup(groups: { lane: string; claims: ClaimSpec[]; create: string[] }[]): string[][]
   close(): void
 }
-const DETAIL = false
+/** Links compare with their wording, dates, speaker and liveness. */
+const DETAIL = true
 const open: Driver[] = []
 afterEach(() => {
   for (const driver of open.splice(0)) driver.close()
 })
 function makeDriver(): Driver {
-  const driver = new V7Driver()
+  const driver = new V8Driver()
   open.push(driver)
   return driver
 }
@@ -227,8 +228,11 @@ const correct: Step = (run) => {
   const old = pick(run.rng, model.current(run.state))
   if (!old) return null
   const extra = run.rng() < 0.5 ? linkBetween(run, old.mentions) : null
+  // Brain Agent always words the links it states.
   const links =
-    extra && !old.relations.some((r) => model.triple(r) === model.triple(extra)) ? [extra] : []
+    extra && !old.relations.some((r) => model.triple(r) === model.triple(extra))
+      ? [{ ...extra, label: extra.label || 'works closely with' }]
+      : []
   const end = run.rng() < 0.4 ? pick(run.rng, old.relations) : undefined
   const ends = end ? [model.triple(end)] : []
   const now = run.driver.clock.time
