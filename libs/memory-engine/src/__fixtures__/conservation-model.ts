@@ -4,6 +4,7 @@
  */
 import {
   BRAIN_SINGLE_VALUED_PREDICATES,
+  BRAIN_SYMMETRIC_PREDICATES,
   type BrainPredicate,
   type BrainStatedBy,
 } from '@phosphor/shared/brain-links'
@@ -45,15 +46,24 @@ export interface ModelMemory {
 }
 export interface Model {
   memories: ModelMemory[]
+  /** Names in the order their records were created: a symmetric link's subject comes first. */
+  order: string[]
   /** Evidence rows inserted so far, so relate can pick a memory's oldest citation. */
   evidence: number
 }
 
 const SINGLE = new Set<string>(BRAIN_SINGLE_VALUED_PREDICATES)
+const SYMMETRIC = new Set<string>(BRAIN_SYMMETRIC_PREDICATES)
 const add = <T>(list: T[], value: T): void => {
   if (!list.includes(value)) list.push(value)
 }
 export const triple = (r: Pick<LinkSpec, 's' | 'p' | 'o'>): string => `${r.s}|${r.p}|${r.o}`
+/** A symmetric link as the engine stores it: the older record is the subject. */
+export function normalize<T extends Pick<LinkSpec, 's' | 'p' | 'o'>>(model: Model, link: T): T {
+  return SYMMETRIC.has(link.p) && model.order.indexOf(link.o) < model.order.indexOf(link.s)
+    ? { ...link, s: link.o, o: link.s }
+    : link
+}
 export function memoryOf(model: Model, id: string): ModelMemory {
   const found = model.memories.find((m) => m.id === id)
   if (!found) throw new Error(`Model memory ${id} not found.`)
@@ -121,9 +131,10 @@ export function carry(
       for (const s of r.sessions) add(same.sessions, s)
       continue
     }
+    // A symmetric link has no direction, so another pair sharing one end never contradicts it.
     const contradicted =
       ends.has(triple(r)) ||
-      stated.some((x) => x.p === r.p && x.o === r.o && x.s !== r.s) ||
+      (!SYMMETRIC.has(r.p) && stated.some((x) => x.p === r.p && x.o === r.o && x.s !== r.s)) ||
       (SINGLE.has(r.p) && stated.some((x) => x.s === r.s && x.p === r.p && x.o !== r.o))
     to.relations.push({
       ...r,
@@ -187,7 +198,11 @@ export function merge(model: Model, source: string, target: string): void {
     m.mentions = [...new Set(m.mentions.map((n) => (n === source ? target : n)))]
     const kept = m.relations.filter((r) => r.s !== source && r.o !== source)
     for (const r of m.relations.filter((x) => x.s === source || x.o === source)) {
-      const moved = { ...r, s: r.s === source ? target : r.s, o: r.o === source ? target : r.o }
+      const moved = normalize(model, {
+        ...r,
+        s: r.s === source ? target : r.s,
+        o: r.o === source ? target : r.o,
+      })
       if (moved.s === moved.o) continue
       const same = kept.find((x) => triple(x) === triple(moved))
       if (same) {
