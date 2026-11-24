@@ -86,8 +86,9 @@ They count as left out in the read record. That is not a promise to remove them 
 transcript or the record of what the reader saw.
 
 A saved read is one change, for example “Read Harbor planning: 9 memories”. An empty read has
-no change to undo. Undo removes what the read added and restores what it replaced, including
-its links. It refuses if later work depends on the change or a later read of the lane exists.
+no change to undo. So does a read with only group questions when none opens (already asked,
+or fewer than two members). Undo removes what the read added and restores what it replaced,
+including its links. It refuses if later work depends on the change or a later read of the lane exists.
 The job stays in history as not saved (`rejected`, zero memories), with its extraction record.
 It does not run again on restart. Use the lane menu to **Read again**.
 

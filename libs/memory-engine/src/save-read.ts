@@ -4,7 +4,7 @@
  * as guesses, group questions wait for Brain Agent, and Read again replaces the lane's earlier
  * unshared memories.
  */
-import { BRAIN_TEMPORARY_DAYS } from '@phosphor/shared/brain'
+import { BRAIN_TEMPORARY_DAYS, type BrainJob } from '@phosphor/shared/brain'
 import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from './database'
 import { cleanOrphans, recountEntities } from './entities'
@@ -155,49 +155,16 @@ export function saveRead(ctx: Context, raw: Proposal): SavedRead {
       groups: 0,
       replaced: 0,
     }
-    if (!chosen.memories.length && !chosen.confirmations.length && !value.groups.length)
-      return emptyRead(ctx, value.jobId, base)
-    const replaced = current.replaces
-      ? laneMemories(ctx, current.sessionId, value.jobId).replaceable
-      : []
-    const selection = readSelection(ctx, value, chosen, replaced)
-    const counts = { ...base }
-    const touched = new Set<number>(),
-      touchedMemories = new Set<number>()
-    const operationId = journal(
-      ctx,
-      {
-        kind: 'read',
-        automatic: true,
-        subjects: { type: 'memory', first: value.jobId, second: value.jobId },
-        selection,
-        summary: `Read ${current.title || 'Untitled lane'}: ${plural(chosen.memories.length)}`,
-      },
-      () => {
-        const entityMax = maxNumber(ctx, 'entities'),
-          memoryMax = maxNumber(ctx, 'memories')
-        const identities = identityResolver(ctx, value)
-        const commit: CommitContext = {
-          ctx,
-          proposal: value,
-          resolve: identities.resolve,
-          evidence: new Map(),
-          touched,
-          touchedMemories,
-        }
-        counts.groups = applyRead(commit, chosen, value.jobId)
-        for (const id of replaced)
-          if (one(ctx, 'SELECT 1 FROM memories WHERE id=?', id)) {
-            removeMemory(ctx, id, { keepHistory: true })
-            counts.replaced++
-          }
-        cleanOrphans(ctx, touched)
-        recountEntities(ctx, touched)
-        counts.guesses = identities.guesses()
-        selection.entities.push(...newNumbers(ctx, 'entities', entityMax))
-        selection.memories.push(...newNumbers(ctx, 'memories', memoryMax))
-      },
-    )
+    const groupsOnly = !chosen.memories.length && !chosen.confirmations.length
+    if (groupsOnly && !value.groups.length) return emptyRead(ctx, value.jobId, base)
+    // A read that only asks group questions is empty when none of them opens.
+    if (groupsOnly) run(ctx, 'SAVEPOINT groups_only')
+    const saved = journalRead(ctx, value, chosen, current, base)
+    if (groupsOnly) {
+      if (!saved.counts.groups) run(ctx, 'ROLLBACK TO groups_only')
+      run(ctx, 'RELEASE groups_only')
+      if (!saved.counts.groups) return emptyRead(ctx, value.jobId, base)
+    }
     updateJob(ctx, value.jobId, {
       state: 'done',
       memories: chosen.memories.length,
@@ -206,12 +173,63 @@ export function saveRead(ctx: Context, raw: Proposal): SavedRead {
     run(ctx, 'DELETE FROM proposals WHERE job_id=?', value.jobId)
     bumpKnowledgeRevision(ctx)
     return {
-      ...counts,
+      ...saved.counts,
       state: 'done',
-      operationId,
-      touched: touchedIds(ctx, touched, touchedMemories),
+      operationId: saved.operationId,
+      touched: saved.touched,
     }
   })
+}
+/** The read's one journal operation: what it saves, the guesses and groups it opens, Read again. */
+function journalRead(
+  ctx: Context,
+  value: Proposal,
+  chosen: Plan,
+  current: BrainJob,
+  base: Counts,
+): { counts: Counts; operationId: string; touched: BrainTidyTouched } {
+  const replaced = current.replaces
+    ? laneMemories(ctx, current.sessionId, value.jobId).replaceable
+    : []
+  const selection = readSelection(ctx, value, chosen, replaced)
+  const counts = { ...base }
+  const touched = new Set<number>(),
+    touchedMemories = new Set<number>()
+  const operationId = journal(
+    ctx,
+    {
+      kind: 'read',
+      automatic: true,
+      subjects: { type: 'memory', first: value.jobId, second: value.jobId },
+      selection,
+      summary: `Read ${current.title || 'Untitled lane'}: ${plural(chosen.memories.length)}`,
+    },
+    () => {
+      const entityMax = maxNumber(ctx, 'entities'),
+        memoryMax = maxNumber(ctx, 'memories')
+      const identities = identityResolver(ctx, value)
+      const commit: CommitContext = {
+        ctx,
+        proposal: value,
+        resolve: identities.resolve,
+        evidence: new Map(),
+        touched,
+        touchedMemories,
+      }
+      counts.groups = applyRead(commit, chosen, value.jobId)
+      for (const id of replaced)
+        if (one(ctx, 'SELECT 1 FROM memories WHERE id=?', id)) {
+          removeMemory(ctx, id, { keepHistory: true })
+          counts.replaced++
+        }
+      cleanOrphans(ctx, touched)
+      recountEntities(ctx, touched)
+      counts.guesses = identities.guesses()
+      selection.entities.push(...newNumbers(ctx, 'entities', entityMax))
+      selection.memories.push(...newNumbers(ctx, 'memories', memoryMax))
+    },
+  )
+  return { counts, operationId, touched: touchedIds(ctx, touched, touchedMemories) }
 }
 /** Memories, repeats and group questions. Returns how many group questions opened. */
 function applyRead(commit: CommitContext, chosen: Plan, jobId: string): number {
