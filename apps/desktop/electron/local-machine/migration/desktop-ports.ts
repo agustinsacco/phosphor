@@ -24,7 +24,7 @@ import {
 import { prefs } from '../../prefs/backend'
 import { routinesFileName } from '../../routines'
 import { sandboxBase } from '../../sandbox-service'
-import { getPrefs } from '../../store'
+import { getClaudeAccountPrefs, getPrefs } from '../../store'
 import { e2eDaemonHook } from '../e2e-daemon'
 import { decideLocalRuntimeMode, type LocalDaemonAccess } from '../mode'
 import { localDaemonLocation } from '../transport'
@@ -103,6 +103,11 @@ function crashHook(
   }
 }
 
+/** Claude accounts are their own pref, which getPrefs() never returns: the plan needs both. */
+function migrationPrefs() {
+  return { ...getPrefs(), claudeAccounts: getClaudeAccountPrefs() }
+}
+
 function legacyKeys(): boolean {
   const p = getPrefs()
   return p.recentWorkspaces.length > 0 || p.pinnedSessions.length > 0 || !!p.lastSessionPath
@@ -160,7 +165,7 @@ export function desktopGatePorts(postCommit: PostCommitSteps): GatePorts {
           machineId,
           userData,
           backupDir,
-          prefs: getPrefs(),
+          prefs: migrationPrefs(),
           sandboxBase: sandboxBase(),
           sandboxes: () => listSandboxFolders(sandboxBase()),
           realpath,
@@ -177,7 +182,7 @@ export function desktopGatePorts(postCommit: PostCommitSteps): GatePorts {
         ...fileVerifyPorts,
         readTranscript: readSavedTranscript,
         exists: existsSync,
-        accounts: () => getPrefs().claudeAccounts?.accounts.length ?? 0,
+        accounts: () => getClaudeAccountPrefs().accounts.length,
       },
       desktop: { agentDir: piAgentDir(), sessionsRoot: piSessionsRoot() },
       postCommit,
