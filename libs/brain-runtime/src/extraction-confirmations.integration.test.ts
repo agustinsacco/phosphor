@@ -31,19 +31,15 @@ function reuseFirst(input: ModelCallInput): string {
 
 /**
  * Brain holds "Rina Okafor owns Harbor billing." from the Harbor lane. A Kestrel planning lane says
- * the same thing later, and the model holds it as personal. Review is off for that second read.
+ * the same thing later. Only a non-personal confirmation adds evidence.
  */
-async function secondRead(hold: 'personal' | null) {
+async function secondRead(hold: 'personal' | 'temporary' | null) {
   const s = await pipelineSetup()
   cleanups.push(s.cleanup)
   const { store } = fixture()
   const first = store.enqueue({ ...HARBOR_JOB, sessionPath: s.file }, 'queued')
+  store.updateJob(first.id, { state: 'running' })
   await extractJob(first, new AbortController().signal, store, s.options, s.search)
-  store.review(
-    first.id,
-    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-    store.proposal(first.id).revision,
-  )
   const rina = store.overview(300).nodes.find((node) => node.label === 'Rina Okafor')!.id
   const target = store.entityMemories(rina, {}, null).memories[0]!
   const before = store.memory(target.id)
@@ -73,25 +69,29 @@ async function secondRead(hold: 'personal' | null) {
         : reuseFirst(input),
     usage: { tokens: 1, cost: 0 },
   }))
-  store.setPrefs({ ...store.snapshot().prefs, enabled: true, review: false })
+  store.setPrefs({ ...store.snapshot().prefs, enabled: true })
   const second = store.enqueue(
     { ...HARBOR_JOB, sessionId: 'kestrel-lane', sessionPath: file, title: 'Kestrel planning' },
     'queued',
   )
+  store.updateJob(second.id, { state: 'running' })
   await extractJob(second, new AbortController().signal, store, s.options, s.search)
   return { store, second, target: target.id, before }
 }
 
-it('with review off, a held confirmation adds no evidence to the memory it repeats', async () => {
+it('a personal confirmation adds no evidence to the memory it repeats', async () => {
   const { store, second, target, before } = await secondRead('personal')
   expect(store.storedProposal(second.id)).toBeUndefined()
-  expect(store.job(second.id)!.state).toBe('done')
+  expect(store.job(second.id)!.state).toBe('empty')
   expect(store.memory(target).quotes).toEqual(before.quotes)
   expect(store.memory(target).memory.observedAt).toBe(before.memory.observedAt)
 })
 
-it('with review off, a confirmation that is not held still adds its evidence', async () => {
-  const { store, second, target, before } = await secondRead(null)
-  expect(store.job(second.id)!.state).toBe('done')
-  expect(store.memory(target).quotes).toHaveLength(before.quotes.length + 1)
-})
+it.each(['temporary', null] as const)(
+  'a non-personal confirmation (%s) adds its evidence',
+  async (hold) => {
+    const { store, second, target, before } = await secondRead(hold)
+    expect(store.job(second.id)!.state).toBe('done')
+    expect(store.memory(target).quotes).toHaveLength(before.quotes.length + 1)
+  },
+)

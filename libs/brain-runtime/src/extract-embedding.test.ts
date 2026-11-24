@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises'
 import { afterEach, expect, it } from 'vitest'
-import { fixture } from '@phosphor/memory-engine/test-support'
 import { pipelineSetup, answerFor } from './__fixtures__/pipeline'
 import { extractJob } from './extract'
 import { EMBEDDING_MAX_TEXTS } from './embedding/model-manifest'
@@ -8,7 +7,7 @@ import { EMBEDDING_MAX_TEXTS } from './embedding/model-manifest'
 it('batches 257 entity cards while enforcing the per-part claim limit', async () => {
   const s = await pipelineSetup()
   afterEach(s.cleanup)
-  const { store } = fixture()
+  const { store, job } = s
   const statements = Array.from({ length: 257 }, (_, i) => `Harbor module ${i + 1} is ready.`)
   await writeFile(
     s.file,
@@ -52,12 +51,11 @@ it('batches 257 entity cards while enforcing the per-part claim limit', async ()
         : answerFor(input),
     usage: { tokens: 1, cost: 0 },
   }))
-  const job = store.enqueue(s.job, 'queued')
   await expect(
     extractJob(job, new AbortController().signal, store, s.options, s.search),
   ).resolves.toBeUndefined()
-  expect(store.job(job.id)?.state).toBe('review')
-  const proposal = store.storedProposal(job.id)!
+  expect(store.job(job.id)?.state).toBe('done')
+  const proposal = store.saved.get(job.id)!
   expect(proposal.memories.map((m) => m.summary)).toEqual(statements.slice(0, 25))
   expect(proposal.memoryVectors).toHaveLength(25)
   expect(proposal.entities).toHaveLength(257)

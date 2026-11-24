@@ -68,30 +68,28 @@ async function run(options: { hold: unknown; identity?: 'new' | 'uncertain' }) {
 
 it("keeps the model's hold on a claim through to the proposal, and ignores an unknown one", async () => {
   const held = await run({ hold: 'personal' })
-  expect(held.store.saved.get(held.job.id)!.memories.map((m) => m.hold)).toEqual([
-    null,
-    'personal',
-  ])
+  expect(held.store.saved.get(held.job.id)!.memories.map((m) => m.hold)).toEqual([null, 'personal'])
   const unknown = await run({ hold: 'secret' })
-  expect(unknown.store.saved.get(unknown.job.id)!.memories.map((m) => m.hold)).toEqual([
-    null,
-    null,
-  ])
+  expect(unknown.store.saved.get(unknown.job.id)!.memories.map((m) => m.hold)).toEqual([null, null])
 })
 
 it.each([
   ['temporary', 2, 'kept', 'Saved until 2026-11-20'],
   ['personal', 1, 'dropped', 'About a person: never saved'],
 ] as const)('records the automatic %s decision', async (hold, memories, status, reason) => {
-  const s = await run({hold})
-  expect(s.job).toMatchObject({state: 'done', memories})
-  expect(s.store.extraction(s.job.id).outcomes).toContainEqual(expect.objectContaining({candidate: 'w1:c2', status, reason}))
+  const s = await run({ hold })
+  expect(s.job).toMatchObject({ state: 'done', memories })
+  expect(s.store.extraction(s.job.id).outcomes).toContainEqual(
+    expect.objectContaining({ candidate: 'w1:c2', status, reason }),
+  )
 })
 
 it('saves a required identity with a guess for Brain Agent', async () => {
-  const s = await run({hold: null, identity: 'uncertain'})
+  const s = await run({ hold: null, identity: 'uncertain' })
   expect(s.job.state).toBe('done')
-  expect(s.store.saved.get(s.job.id)?.entities).toContainEqual(expect.objectContaining({required: true, decision: 'uncertain', candidates: ['stored-rina']}))
+  expect(s.store.saved.get(s.job.id)?.entities).toContainEqual(
+    expect.objectContaining({ required: true, decision: 'uncertain', candidates: ['stored-rina'] }),
+  )
 })
 
 it('marks a claim the backstop finds temporary or personal when the model did not', () => {

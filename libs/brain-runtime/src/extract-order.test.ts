@@ -49,7 +49,7 @@ async function ingest(order: string[]) {
       'queued',
     )
     await extractJob(job, new AbortController().signal, s.store, s.options, s.search)
-    const p = s.store.storedProposal(job.id)!
+    const p = s.store.saved.get(job.id)!
     const label = (ref: string) =>
       p.entities.find((e) => e.ref === ref)?.label ?? s.store.cards.find((e) => e.id === ref)!.label
     proposals.push({
@@ -74,17 +74,6 @@ async function ingest(order: string[]) {
         })
       for (const k of e.keys) keys.set(k.value, id)
     }
-    s.store.review(
-      job.id,
-      {
-        descriptions: [],
-        confirmations: [],
-        memories: p.memories.map((_m, i) => i),
-        identities: {},
-        groups: [],
-      },
-      s.store.revision(),
-    )
   }
   return proposals.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
 }

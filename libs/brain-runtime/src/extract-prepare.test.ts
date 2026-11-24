@@ -12,7 +12,7 @@ it('freezes the advanced leaf at prepare, completes, and retry still reads that 
   store.setPrefs({
     neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
     enabled: true,
-    review: false,
+    agentAuto: false,
     recall: true,
     model: null,
   })

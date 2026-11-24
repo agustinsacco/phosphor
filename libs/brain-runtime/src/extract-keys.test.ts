@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { approve, extraction, fixture } from '@phosphor/memory-engine/test-support'
 import { pipelineSetup, answerFor } from './__fixtures__/pipeline'
 import { extractJob } from './extract'
@@ -58,8 +58,10 @@ it.each([false, true])(
       usage: { tokens: 1, cost: 0 },
     }))
     const job = store.enqueue({ ...s.job, sessionId: 'other-lane' }, 'queued')
+    const save = vi.spyOn(store, 'saveRead')
+    store.updateJob(job.id, { state: 'running' })
     await extractJob(job, new AbortController().signal, store, s.options, s.search)
-    const identity = store.storedProposal(job.id)!.entities[0]!
+    const identity = save.mock.calls[0]![0].entities[0]!
     expect(identity.entityId).toBe(stated ? oldRina : null)
     expect(identity.keys).toEqual(stated ? [{ namespace: 'staff', value: 'RINA 27' }] : [])
     if (stated) expect(identity).toMatchObject({ decision: 'reuse', auto: true })
