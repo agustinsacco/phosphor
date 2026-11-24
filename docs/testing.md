@@ -114,6 +114,7 @@ calls `relate` over the protocol 7 bridge. It cites the two memories for
 “works with”. An ordinary lane's credential cannot open the waiting list.
 `PHOSPHOR_BRAIN_TEST_EMBEDDINGS` uses word-hash
 vectors and enables the stub's bridge traffic only in unpackaged Desktop builds.
+The Desktop case also sends a Tell and checks its message in the Brain lane.
 The browser case checks the Brain deep link is unavailable and every `brain:*`
 call fails.
 

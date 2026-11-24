@@ -65,6 +65,7 @@ test('Brain Agent settles an unlinked pair on its own after a saved read, and it
     expect((await changes(page)).items.find((i) => i.id === relate.id)?.undoneAt).not.toBeNull()
     // The read itself stays saved: only the run's changes were undone.
     expect((await status(page)).counts.memories).toBe(seed.harbor.facts.length)
+    await tellBrainAgent(page)
   } finally {
     await shutdown(h)
   }
@@ -134,6 +135,15 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
     await shutdown(h)
   }
 })
+
+async function tellBrainAgent(page: Page) {
+  const message = 'Check the Ledger handover with Rina Okafor.'
+  const bar = page.getByRole('form', { name: 'Ask Brain' })
+  await bar.getByRole('textbox').fill(message)
+  await bar.getByRole('button', { name: 'Tell Brain Agent', exact: true }).click()
+  await bar.getByRole('button', { name: 'Open Brain lane', exact: true }).click()
+  await expect(page.getByRole('main').getByText(message, { exact: true })).toBeVisible()
+}
 
 async function launches(file: string, include: (cwd: string) => boolean) {
   const rows = (await readFile(file, 'utf8'))
