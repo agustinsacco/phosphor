@@ -92,9 +92,7 @@ export function useRemoteLaneActions({
     entry?.phosphorId,
     runner.busy,
   )
-  const menu = useEditingMenu(hostId, lane, () => setDialog('tree'), runner.act)
-  // Before a first message there is no saved conversation: the Host refuses tree and clone.
-  const editing = state.stopBlocked ? {} : menu
+  const editing = useEditingMenu(hostId, lane, !state.stopBlocked, setDialog, runner.act)
   const access = remoteLaneAccess(state)
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({

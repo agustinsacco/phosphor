@@ -22,20 +22,24 @@ export function HostTreeDialog({
   )
 }
 
-/** A missing handler omits the menu action on previous Hosts. No implicit control change. */
+/**
+ * A missing handler omits the menu action on previous Hosts. No implicit control change.
+ * Before a first message (`saved` false) the Host refuses both, so neither is offered.
+ */
 export function useEditingMenu(
   hostId: string,
   lane: HostLaneView,
-  tree: () => void,
+  saved: boolean,
+  open: (dialog: 'tree') => void,
   act: (work: () => Promise<unknown>) => Promise<boolean>,
 ) {
   const editing = useLaneEditing(hostId)
   const caps = useMachineCaps(hostId)
   const { navigate } = useNavigation()
   const controller = lane.control.controller
-  if (!editing) return {}
+  if (!editing || !saved) return {}
   return {
-    tree: caps.granted('sessions.read') ? tree : undefined,
+    tree: caps.granted('sessions.read') ? () => open('tree') : undefined,
     clone:
       caps.granted('sessions.control') && (!controller?.connected || controller.self)
         ? () =>
