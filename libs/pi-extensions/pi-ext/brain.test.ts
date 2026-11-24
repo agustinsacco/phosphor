@@ -160,7 +160,8 @@ it('sends a flag with its reason in the request envelope, where the owner audits
 })
 
 it('returns move guidance for a mixed search instead of an unavailable briefing', async () => {
-  const { tool } = setup()
+  const { tool, send } = setup()
+  send.mockResolvedValue(noOwnerReply(null))
   const params = { query: 'Harbor', from: 'Ledger' }
   const result = await tool.execute('one', params, undefined, undefined, {})
   expect(result.content).toEqual([
