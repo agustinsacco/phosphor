@@ -159,4 +159,14 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
     expect(parseMachineView(view)).toMatchObject({ value: { machineReach: true } })
     expect(baseMachines.parseMachineView(view)).toStrictEqual(parseMachineView(BASE_MACHINE))
   })
+
+  it('lists as many machines as the shipped parser reads, and no more', () => {
+    const list = (count: number) => ({
+      serverTime: '2026-01-01T00:00:00.000Z',
+      machines: Array.from({ length: count }, () => BASE_MACHINE),
+    })
+    // 684cb3478 shipped maxHostsPerAccount 20 and read five times that.
+    expect(baseMachines.parseMachinesResponse(list(100)).ok).toBe(true)
+    expect(baseMachines.parseMachinesResponse(list(101)).ok).toBe(false)
+  })
 })
