@@ -1,4 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, chmodSync } from 'node:fs'
+import { EventEmitter } from 'node:events'
+import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -102,24 +104,36 @@ it('keeps only recall preferences after the registering connection closes, inclu
     data: { status: 'unavailable' },
   })
 })
-it('uses the owner lane and its last briefing, and checks the private socket on each call', async () => {
-  const h = harness(),
-    folder = dir(),
-    endpoint = join(folder, 'rpc.sock')
-  const requests: { method: string; params: unknown; token: string }[] = []
+async function brainSocket(endpoint: string) {
+  const requests: {
+    method: string
+    params: { memoryId?: string; sessionId: string }
+    token: string
+  }[] = []
+  const kept = new Set<string>()
   const server = createServer((socket) => {
     socket.once('data', (chunk: Buffer) => {
       const frame = JSON.parse(chunk.toString()) as (typeof requests)[number]
       requests.push(frame)
+      const key = JSON.stringify([frame.params.sessionId, frame.params.memoryId])
+      const status = kept.has(key) ? 'already_flagged' : 'filed'
+      if (frame.method === 'flag') kept.add(key)
       socket.end(
         JSON.stringify({
           ok: true,
-          data: frame.method === 'search' ? HARBOR_RECALL : { status: 'filed', message: 'Filed.' },
+          data: frame.method === 'search' ? HARBOR_RECALL : { status, message: status },
         }) + '\n',
       )
     })
   })
   await new Promise<void>((ok, fail) => server.once('error', fail).listen(endpoint, ok))
+  return { requests, server }
+}
+it('uses the owner lane and its last briefing, and checks the private socket on each call', async () => {
+  const h = harness(),
+    folder = dir(),
+    endpoint = join(folder, 'rpc.sock')
+  const { requests, server } = await brainSocket(endpoint)
   const owner = h.connection('one')
   try {
     await h.register(owner, endpoint)
@@ -130,14 +144,14 @@ it('uses the owner lane and its last briefing, and checks the private socket on 
     expect(requests[0]).toMatchObject({
       method: 'search',
       token,
-      params: { cwd: '/repo', sessionId: 'session' },
+      params: { cwd: '/repo', sessionId: 'harbor-pi' },
     })
     expect(
       await h.handlers['brain.flag']({ ref: 1, problem: 'wrong', reason: 'Verified.' }, context),
     ).toMatchObject({ data: { status: 'filed' } })
     expect(requests[1]?.params).toMatchObject({
       title: 'Owner',
-      sessionId: 'session',
+      sessionId: 'harbor-pi',
       memoryId: HARBOR_RECALL.hits[0]!.memory.id,
     })
     chmodSync(folder, 0o755)
@@ -153,4 +167,45 @@ it('uses the owner lane and its last briefing, and checks the private socket on 
     owner.close?.()
     await new Promise<void>((ok) => server.close(() => ok()))
   }
+})
+
+it('refuses a repeat flag after a restart of the same pi lane', async ({ onTestFinished }) => {
+  const h = harness(),
+    endpoint = join(dir(), 'rpc.sock')
+  const { server } = await brainSocket(endpoint)
+  onTestFinished(() => new Promise<void>((ok) => server.close(() => ok())))
+  const owner = h.connection('one')
+  onTestFinished(() => owner.close?.())
+  await h.register(owner, endpoint)
+  const contribution = createBrainContribution({ appServices: h.services, resourceRoot: '/res' })
+  async function flagAndStop(handle: string) {
+    const client = Object.assign(new EventEmitter(), {
+      piSessionId: undefined as string | undefined,
+    })
+    const live = { sessionId: handle, client, workspacePath: '/repo' } as unknown as LiveSession
+    contribution.attach!(live, { execution: {}, options: { workspacePath: '/repo' }, log: vi.fn() })
+    client.piSessionId = 'harbor-pi'
+    const ctx: OpHandlerContext = {
+      ...context,
+      lane: { ...context.lane!, sessionId: handle },
+      principal: {
+        kind: 'agent',
+        laneRef: 'ref',
+        sessionId: handle,
+        unattended: false,
+        lineage: 0,
+      },
+    }
+    expect(await h.handlers['brain.search']({ query: 'Harbor' }, ctx)).toMatchObject({
+      data: { memories: 1 },
+    })
+    const reply = await h.handlers['brain.flag'](
+      { ref: 1, problem: 'wrong', reason: 'Harbor changed.' },
+      ctx,
+    )
+    client.emit('exit')
+    return reply
+  }
+  expect(await flagAndStop('first')).toMatchObject({ data: { status: 'filed' } })
+  expect(await flagAndStop('second')).toMatchObject({ data: { status: 'already_flagged' } })
 })

@@ -42,12 +42,10 @@ vi.mock('../debug-log', () => ({ log: vi.fn() }))
 let dir: string
 let owner: ReturnType<typeof openDesktopOps>
 let forget: () => void
-beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'desktop-ops-'))
-  owner = openDesktopOps(dir)
-  forget = rememberOpLane(
+function rememberLane(sessionId: string) {
+  return rememberOpLane(
     {
-      sessionId: 'mine',
+      sessionId,
       workspacePath: dir,
       client: {
         piSessionId: 'disk-id',
@@ -58,6 +56,11 @@ beforeEach(async () => {
     'My lane',
     true,
   )
+}
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), 'desktop-ops-'))
+  owner = openDesktopOps(dir)
+  forget = rememberLane('mine')
   h.policy.ops = {}
   h.pins = []
 })
@@ -67,8 +70,8 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
   vi.clearAllMocks()
 })
-const tool = (argv: string[]) =>
-  owner.dispatcher.runFromTool('mine', {
+const tool = (argv: string[], handle = 'mine') =>
+  owner.dispatcher.runFromTool(handle, {
     v: 1,
     id: 'test',
     argv,
@@ -123,10 +126,35 @@ it('serves a search and its numbered flag through the same owner-scoped Brain po
     await send('brain.flag', { ref: 1, problem: 'wrong', reason: 'correction' }),
   ).toMatchObject({ status: 'ok', text: 'Flagged' })
   expect(h.forLane).toHaveBeenCalledExactlyOnceWith({
-    sessionId: 'mine',
+    sessionId: 'disk-id',
     title: 'My lane',
     cwd: dir,
   })
+})
+it('refuses a repeat flag after a restart of the same pi lane', async () => {
+  const kept = new Set<string>()
+  h.forLane.mockImplementation((lane: Parameters<typeof createLaneBrain>[1]) =>
+    createLaneBrain(
+      {
+        search: async () => HARBOR_RECALL,
+        flag: async ({ sessionId, memoryId }) => {
+          const key = JSON.stringify([sessionId, memoryId])
+          const status = kept.has(key) ? 'already_flagged' : 'filed'
+          kept.add(key)
+          return { status, message: status }
+        },
+      },
+      lane,
+    ),
+  )
+  const flag = async (handle: string) => {
+    expect(await tool(['brain.search', 'Harbor'], handle)).toMatchObject({ data: { memories: 1 } })
+    return tool(['brain.flag', '1', 'wrong', 'Harbor changed.'], handle)
+  }
+  expect(await flag('mine')).toMatchObject({ data: { status: 'filed' } })
+  forget()
+  forget = rememberLane('restarted')
+  expect(await flag('restarted')).toMatchObject({ data: { status: 'already_flagged' } })
 })
 const surface = { kind: 'surface', clientId: 'view', via: 'owner', label: 'This Mac' } as const
 it('serves lane find through recall, including its escaped briefing and disabled reply', async () => {
