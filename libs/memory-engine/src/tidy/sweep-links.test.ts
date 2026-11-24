@@ -102,3 +102,43 @@ it('clears an open pair once a link explains it, freeing its slot without a keep
   expect(store.waitingCounts().unlinked).toBe(0)
   expect(unlinked(db).map((row) => row.state)).toEqual(['cleared'])
 })
+it('keeps at most 40 pairs waiting and offers the next once one is answered', () => {
+  const { store, db } = fixture()
+  seed(db, 84)
+  // Records 2k+1 and 2k+2 share memories 2k+1 and 2k+2: 42 pairs.
+  const pairs = db.prepare('INSERT INTO mentions VALUES (?,?)')
+  for (let k = 0; k < 42; k++) {
+    pairs.run(2 * k + 1, 2 * k + 2)
+    pairs.run(2 * k + 2, 2 * k + 1)
+  }
+  expect(pass(store)).toBe(40)
+  expect(store.waitingCounts().unlinked).toBe(40)
+  expect(pass(store)).toBe(0)
+  const id = String(
+    db.prepare("SELECT id FROM tidy_suggestions WHERE kind='unlinked' LIMIT 1").get()!.id,
+  )
+  store.resolve(id, { kind: 'keep' }, note)
+  expect(pass(store)).toBe(1)
+  expect(store.waitingCounts().unlinked).toBe(40)
+})
+it('offers no pair with a hub: Rina 1 links to 201 others', () => {
+  const { store, db } = fixture()
+  seed(db, 203)
+  db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
+  const link = db.prepare(
+    "INSERT INTO relations(memory,subject,predicate,object,live,observed_at) VALUES (?,1,'works_with',?,1,1)",
+  )
+  for (let n = 3; n <= 203; n++) link.run(n, n)
+  expect(pass(store)).toBe(0)
+  db.exec('DELETE FROM relations WHERE object=203')
+  expect(pass(store)).toBe(1)
+})
+it('counts an ended relationship as explaining the pair', () => {
+  const { store, db } = fixture()
+  seed(db, 2)
+  db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
+  db.exec(
+    "INSERT INTO relations(memory,subject,predicate,object,live,observed_at,valid_to) VALUES (1,1,'reports_to',2,1,1,2)",
+  )
+  expect(pass(store)).toBe(0)
+})
