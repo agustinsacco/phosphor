@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, vector } from '@phosphor/memory-engine/test-support'
+import { approve, extraction, fixture, save, vector } from '@phosphor/memory-engine/test-support'
 import type { BrainStore, ProposalMemory } from '@phosphor/memory-engine/types'
 import { FakeBrainSearch } from '../__fixtures__/fake-store'
 import type { StageAsk } from '../stage-types'
@@ -121,6 +121,28 @@ it('ranks memories that only share a person by similarity to the claim, not by r
   expect(offered[0]![0]).toBe(ids.get(closest))
 })
 
+it('saves a restatement beside its expired memory instead of confirming it', async () => {
+  const { store, db } = fixture()
+  const summary = 'Rina Okafor owns Harbor billing.'
+  const { rina, ids } = hub(store, [{ summary, observedAt: 1, vector: vector(1) }])
+  db.prepare('UPDATE memories SET valid_to=2 WHERE id=?').run(ids.get(summary)!)
+  const job = claim(summary, [rina])
+  const { ask, offered } = offeredIds()
+  const confirmations = await reconcile(job, [], store, new FakeBrainSearch(), [vector(1)], ask)
+  expect(offered).toEqual([])
+  const result = save(store, {
+    entities: [],
+    entityVectors: [],
+    memories: job.claims.map((c) => c.memory),
+    memoryVectors: job.claims.map(() => vector(1)),
+    confirmations,
+  })
+  expect(result).toMatchObject({ state: 'done', confirmed: 0, memories: 1 })
+  expect(store.entityMemories(rina, {}, null).memories.map((m) => m.validTo)).toEqual(
+    expect.arrayContaining([2, null]),
+  )
+})
+
 /** Rina's weekly preference, then a later read that replaced it with a daily one. */
 function replacedPreference(store: BrainStore): { rina: string; weekly: string } {
   const weeklySummary = 'Rina Okafor wants weekly status updates.'
@@ -184,7 +206,10 @@ function repeatsWhenOffered(id: string): { ask: StageAsk; offered: OfferedCandid
 it('offers a close replaced memory as replaced earlier and drops a claim that repeats it', async () => {
   const { store } = fixture()
   const { rina, weekly } = replacedPreference(store)
-  expect(store.memory(weekly).memory.state).toBe('superseded')
+  expect(store.memory(weekly).memory).toMatchObject({
+    state: 'superseded',
+    validTo: expect.any(Number),
+  })
   const { ask, offered } = repeatsWhenOffered(weekly)
   const job = claim('Rina Okafor asks for weekly status updates.', [rina])
   await reconcile(job, [], store, new FakeBrainSearch(), [vector(1, 0.25)], ask)
