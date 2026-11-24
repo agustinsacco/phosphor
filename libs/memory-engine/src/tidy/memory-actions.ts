@@ -1,6 +1,7 @@
 import { foldGuard, disputeGuard, replaceGuard } from './action-guards'
 import { all, one, run, type Context } from '../database'
 import { reactivatePartners } from '../commit'
+import { carryRelations } from '../carry'
 import { adjustCount, cleanOrphans, recountEntities } from '../entities'
 
 export function foldMemories(ctx: Context, source: number, target: number): void {
@@ -97,6 +98,12 @@ export function conflictMemories(
   const refusal = (replace ? replaceGuard : disputeGuard)(ctx, first, second)
   if (refusal) throw new Error(refusal)
   if (replace) {
+    const start = one<{ valid_from: number | null }>(
+      ctx,
+      'SELECT valid_from FROM memories WHERE n=?',
+      first,
+    )!.valid_from
+    carryRelations(ctx, second, first, start ?? ctx.now())
     reactivatePartners(ctx, second)
     run(
       ctx,

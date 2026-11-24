@@ -169,11 +169,12 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
       if (later === 'merge') store.merge('rina-1', 'rina-3', store.revision())
       else change(store, later, target, 'memory-3')
       const before = dump(db)
+      // A replace carries memory-1's link to memory-2; a later replace carries it on again.
       const refuse =
         kind === 'merge' ||
         kind === 'fold' ||
         (kind === 'dispute' && later === 'replace') ||
-        (kind === 'replace' && later === 'merge')
+        (kind === 'replace' && (later === 'merge' || later === 'replace'))
       if (refuse) {
         expect(() => store.tidyUndo(operation, store.revision())).toThrow(
           'cannot be cleanly undone',
