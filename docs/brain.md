@@ -316,7 +316,7 @@ holds the link, marked as stated by Brain Agent. It refuses an existing current 
 same kind in the same direction. The limit is 60 new links per run, or 20 per rolling hour
 outside a run. `brain_edit` can change a relationship's wording or dates and a memory's
 importance, as well as merge, split, describe or remove an alias. `brain_correct` supersedes a
-memory with a sourced sentence and quote. Its optional `links` state new relationships;
+memory with a sourced sentence and quote, keeping its importance and its start and end. Its optional `links` state new relationships;
 `ends` names old link ids to end. The result says what carried and what ended. These changes
 have Undo. See [the tool list](extensions.md#brains-bundles).
 
