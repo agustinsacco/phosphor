@@ -5,7 +5,7 @@
  * Registers the artifact tool family. Tool results keep chat output short
  * (confirmation text) while the full payload rides in `details`, which Phosphor
  * consumes from tool_execution_end events and from session history on resume
- * (toolResult messages persist in the JSONL; nested writes, `artifact-nested.ts`).
+ * (toolResult messages persist in the JSONL; scripted writes, `artifact-write.ts`).
  *
  * `details` is NEVER sent to the model — pi-ai's `convertToolResult` reads
  * only `content`, `toolCallId` and `isError`. So the token cost of an
@@ -49,18 +49,7 @@ import {
   readBlob,
   type ArtifactRef,
 } from './artifact-store'
-import { saveNestedArtifactWrites } from './artifact-nested'
-
-interface ArtifactDetails {
-  id: string
-  title: string
-  type: string
-  language?: string
-  content: string
-  version: number
-  /** Set by `artifact_create({ from })`: the ref the content was copied from. */
-  derivedFrom?: string
-}
+import { createArtifactCommit, type ArtifactDetails, type ToolResultLike } from './artifact-write'
 
 /**
  * What a read of ANOTHER session's artifact records. Deliberately without
@@ -73,11 +62,6 @@ interface ForeignReadDetails {
   ref: string
   foreign: true
   version: number
-}
-
-interface ToolResultLike {
-  content: Array<{ type: 'text'; text: string }>
-  details: ArtifactDetails
 }
 
 interface BranchEntry {
@@ -461,11 +445,8 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
     return mustGet(target.local)
   }
 
-  /** Store the next version of a record and return the tool result for it. */
-  const commit = (record: ArtifactDetails, text: string): ToolResultLike => {
-    artifacts.set(record.id, record)
-    return { content: [{ type: 'text', text }], details: record }
-  }
+  /** Store the next version; `artifact-write.ts` keeps a script's write for the file. */
+  const commit = createArtifactCommit(pi, artifacts)
 
   /**
    * Rebuild state from the branch (on start, tree navigation, compaction) so
@@ -590,7 +571,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       ),
     }),
     async execute(
-      _toolCallId: string,
+      toolCallId: string,
       params: {
         id?: string
         title: string
@@ -643,6 +624,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
           'It is now visible in the artifact panel. ' +
           `Link to it in your reply as [${params.title}](artifact://${id}). ` +
           'Use artifact_edit to revise it.',
+        toolCallId,
       )
     },
   })
@@ -666,7 +648,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       ),
     }),
     async execute(
-      _toolCallId: string,
+      toolCallId: string,
       params: { id: string; old_string: string; new_string: string; replace_all?: boolean },
     ): Promise<ToolResultLike> {
       const previous = writable(params.id)
@@ -683,6 +665,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
         `Edited ${previous.id} → v${version}: ${replacements} replacement` +
           `${replacements === 1 ? '' : 's'}, ${previous.content.length} → ${content.length} chars ` +
           `(${delta >= 0 ? '+' : ''}${delta}). Replaced "${editExcerpt(params.old_string)}".`,
+        toolCallId,
       )
     },
   })
@@ -701,7 +684,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       title: Type.Optional(Type.String({ description: 'New title (optional)' })),
     }),
     async execute(
-      _toolCallId: string,
+      toolCallId: string,
       params: { id: string; content: string; title?: string },
     ): Promise<ToolResultLike> {
       const previous = writable(params.id)
@@ -717,6 +700,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
           version,
         },
         `Updated ${previous.id} to v${version} (${params.content.length} chars).`,
+        toolCallId,
       )
     },
   })
@@ -884,7 +868,6 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
 
   for (const event of ['session_start', 'session_tree', 'session_compact'])
     pi.on(event, (_event, ctx) => rebuild(ctx))
-  saveNestedArtifactWrites(pi)
 
   pi.on('context', (event) => {
     if (!compactionNote) return undefined

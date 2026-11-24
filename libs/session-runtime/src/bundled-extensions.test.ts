@@ -20,7 +20,7 @@ describe('bundledExtensions', () => {
       'message-ledger.ts',
       'swarm.ts',
       'lane-prs.ts',
-      'artifact-nested.ts',
+      'artifact-write.ts',
       'artifact-store.ts',
       'subagent-snapshot.ts',
       'status-keys.ts',

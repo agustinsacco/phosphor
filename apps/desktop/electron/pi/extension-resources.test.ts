@@ -31,8 +31,8 @@ const library = join(root, 'libs/pi-extensions')
 // pi-subagents children load, and the agent-control stubs no spawn loads yet.
 // Python helpers remain source-only as before.
 const shippedFiles = [
-  'artifact-nested.ts',
   'artifact-store.ts',
+  'artifact-write.ts',
   'artifacts.ts',
   'context-breakdown.ts',
   'context-budget.ts',

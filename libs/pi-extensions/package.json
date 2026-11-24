@@ -16,9 +16,9 @@
       "types": "./pi-ext/subagent-snapshot.ts",
       "default": "./pi-ext/subagent-snapshot.ts"
     },
-    "./artifact-nested": {
-      "types": "./pi-ext/artifact-nested.ts",
-      "default": "./pi-ext/artifact-nested.ts"
+    "./artifact-write": {
+      "types": "./pi-ext/artifact-write.ts",
+      "default": "./pi-ext/artifact-write.ts"
     },
     "./artifact-store": {
       "types": "./pi-ext/artifact-store.ts",

@@ -63,6 +63,33 @@ describe('indexSessionFile', () => {
   const append = (lines: string[]): void =>
     appendFileSync(file, lines.map((l) => `${l}\n`).join(''))
 
+  it('counts a scripted write once, seen as an entry and as a tool result', async () => {
+    write([
+      header(),
+      entry('message', '1', null, { message: { role: 'user', content: 'chart it' } }),
+      // The same call, persisted twice: a model-issued result and the entry the
+      // extension appends. One version, not two.
+      artifactResult('2', '1', 'artifact_create', v(1, 'one'), { toolCallId: 'call_9/1' }),
+      entry('custom', '3', '2', {
+        customType: 'phosphor-saved-artifact',
+        data: { ...v(1, 'one'), toolCallId: 'call_9/1' },
+      }),
+      // A script's write has no tool result of its own: the entry names its call.
+      entry('custom', '4', '3', {
+        customType: 'phosphor-saved-artifact',
+        data: { ...v(2, 'two'), toolCallId: 'call_9/2' },
+      }),
+    ])
+    const index = (await indexSessionFile(root, file, null))!
+    expect(index.artifacts.guide!.versions.map((x) => [x.version, x.toolCallId])).toEqual([
+      [1, 'call_9/1'],
+      [2, 'call_9/2'],
+    ])
+    expect(
+      readFileSync(blobFile(root, currentVersion(index.artifacts.guide!)!.sha256), 'utf8'),
+    ).toBe('two')
+  })
+
   it('keeps artifacts written before a compaction: the case that emptied the pane', async () => {
     write([
       header(),

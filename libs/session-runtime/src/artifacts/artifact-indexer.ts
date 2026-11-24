@@ -140,6 +140,13 @@ export function scanLine(state: ScanState, line: string): void {
   if (candidate) state.candidates.push(candidate)
 }
 
+/** The call a saved entry came from, when it names one. */
+function savedCallIdOf(saved: boolean, details: Record<string, unknown>): string | undefined {
+  if (!saved) return undefined
+  const value = details.toolCallId
+  return typeof value === 'string' && value && value.length <= MAX_ID_LENGTH ? value : undefined
+}
+
 export function extractCandidate(
   parsed: Record<string, unknown> | undefined,
   id: string,
@@ -167,6 +174,12 @@ export function extractCandidate(
   if (typeof slug !== 'string' || !slug || slug.length > MAX_ID_LENGTH) return
   if (typeof details?.content !== 'string' || typeof details.version !== 'number') return
   const timestamp = parsed?.timestamp
+  // A saved entry names the call that wrote it, so one write seen twice (its own tool
+  // result plus the entry the extension appended) still indexes as a single version.
+  const callId =
+    typeof message.toolCallId === 'string' && message.toolCallId
+      ? message.toolCallId
+      : (savedCallIdOf(saved, details) ?? `entry:${id}`)
   return {
     slug,
     title: typeof details.title === 'string' ? details.title : undefined,
@@ -175,10 +188,7 @@ export function extractCandidate(
     version: details.version,
     content: details.content,
     // A tool call id is unique per call; the entry id stands in if one is ever missing.
-    toolCallId:
-      typeof message.toolCallId === 'string' && message.toolCallId
-        ? message.toolCallId
-        : `entry:${id}`,
+    toolCallId: callId,
     entryId: id,
     createdAt:
       typeof timestamp === 'string'
