@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react'
-import type { LocalMachineAction, LocalMachineStatus } from '@phosphor/shared/ipc'
+import type {
+  LocalMachineAction,
+  LocalMachineStatus,
+  LocalServiceInstall,
+} from '@phosphor/shared/ipc'
 import { Button, SectionTitle } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
 import { useServiceAction, laneCount } from '@/features/updates/useServiceAction'
@@ -17,6 +21,28 @@ const notice = {
   limits: 'This Mac’s lanes exceed what the service can move safely.',
   'state-folder': 'The service’s state folder must be private and owned by this user.',
   'dev-build': 'This data belongs to the Phosphor service. Run dev with PHOSPHOR_TEST_USER_DATA.',
+}
+
+/** The background install while in-app: what it is doing, or why it cannot finish. */
+function installLine(install: LocalServiceInstall | undefined): string | null {
+  const version = install?.version ? ` ${install.version}` : ''
+  switch (install?.state) {
+    case 'checking':
+      return 'Checking for the Phosphor service…'
+    case 'installing':
+      return install.step === 'setup'
+        ? `Setting up the Phosphor service${version}…`
+        : `Downloading the Phosphor service${version}…`
+    case 'installed':
+      return `Phosphor service${version} is installed. This Mac moves its lanes to it the next time Phosphor starts.`
+    case 'failed':
+      return `Couldn’t set up the Phosphor service: ${(install.detail ?? 'unknown error').replace(/\.$/, '')}. Phosphor tries again later.`
+    case 'waiting':
+    case 'blocked':
+      return install.detail ?? null
+    default:
+      return null
+  }
 }
 
 function migrationRow(status: LocalMachineStatus, button: Click) {
@@ -63,7 +89,10 @@ function migrationRow(status: LocalMachineStatus, button: Click) {
       return status.notice ? (
         <p>{notice[status.notice]}</p>
       ) : status.mode === 'in-app' ? (
-        <p>This Mac runs its lanes in Desktop.</p>
+        <>
+          <p>This Mac runs its lanes in Desktop.</p>
+          {installLine(status.install) && <p role="status">{installLine(status.install)}</p>}
+        </>
       ) : null
   }
 }

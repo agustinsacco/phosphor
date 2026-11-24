@@ -133,6 +133,19 @@ export interface LocalMachineStatus {
    * that belongs to the service).
    */
   notice?: 'no-bundle' | 'limits' | 'other-daemon' | 'state-folder' | 'dev-build'
+  /**
+   * While in-app: the Phosphor service install Desktop runs in the background, so a setup that
+   * cannot finish says why. `detail` is the installer's own text; `version` the release.
+   */
+  install?: LocalServiceInstall
+}
+
+export interface LocalServiceInstall {
+  state: 'checking' | 'installing' | 'waiting' | 'blocked' | 'failed' | 'installed'
+  /** While installing: downloading the release, or running its setup. */
+  step?: 'download' | 'setup'
+  version?: string
+  detail?: string
 }
 
 /** A button on This Mac's runtime card; main decides what is legal now. */

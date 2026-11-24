@@ -47,6 +47,7 @@ export type {
   LocalRuntimeMode,
   LocalMachineStatus,
   LocalMachineAction,
+  LocalServiceInstall,
 } from './ipc/views'
 export type { OpsChangedEvent } from './ipc/ops'
 export type { PhosphorApi, PhosphorPlatform } from './ipc/api'

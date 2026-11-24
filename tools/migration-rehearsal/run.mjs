@@ -17,6 +17,7 @@ import {
   supervise,
   supportsMigration,
 } from './fixture.mjs'
+import { realPiSetup } from './real-pi.mjs'
 import { readRecord, journalReport, readReport } from './report.mjs'
 
 // Each run consumes exactly one successful prepare. A copied journal would be stale evidence.
@@ -85,6 +86,14 @@ async function waitJournal(dir, start, children) {
   return readReport(dir, start)
 }
 
+/** The Host's features, then Desktop's setup with this Mac's own pi, before the stub stands in. */
+function preflight(profile, host, env, root) {
+  if (!supportsMigration(profile, host, env))
+    return { refused: { reason: 'host-features-missing' } }
+  const realPi = realPiSetup(root, host)
+  return realPi.status === 'pass' ? realPi : { refused: { reason: 'real-pi', realPi } }
+}
+
 async function run(layout, full) {
   const { root, roots } = layout,
     sources = await ready(root, roots)
@@ -106,10 +115,9 @@ async function run(layout, full) {
   process.once('exit', stop)
   try {
     await mkdir(roots.home, { mode: 0o700 })
-    if (!supportsMigration(profile, host, env)) {
-      console.log(
-        JSON.stringify({ ...journalReport(null, null, start), reason: 'host-features-missing' }),
-      )
+    const realPi = preflight(profile, host, env, root)
+    if (realPi.refused) {
+      console.log(JSON.stringify({ ...journalReport(null, null, start), ...realPi.refused }))
       return 1
     }
     const id = await seedDaemon(roots)
@@ -148,14 +156,16 @@ async function run(layout, full) {
     const first = launchDesktop()
     const report = await waitJournal(join(roots.userData, 'daemon-migration'), start, children)
     if (!full || !report.complete) {
-      console.log(JSON.stringify(report))
+      console.log(JSON.stringify({ ...report, realPi }))
       return report.complete ? 0 : 1
     }
     await first.quit()
     const journal = await readRecord(join(roots.userData, 'daemon-migration', 'journal.json'))
     const ctx = { roots, profile, env, host, daemon, desktop: launchDesktop, sessionsBefore }
     const after = await rehearseAfterCommit(ctx, journal.migrationId, report.expected)
-    console.log(JSON.stringify({ ...report, afterCommit: after, elapsedMs: Date.now() - start }))
+    console.log(
+      JSON.stringify({ ...report, realPi, afterCommit: after, elapsedMs: Date.now() - start }),
+    )
     return after.complete ? 0 : 1
   } finally {
     stop()
