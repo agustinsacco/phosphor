@@ -113,6 +113,7 @@ function sessionFact(
   meta: SessionMeta,
   dir: ScannedDir,
   visible: boolean,
+  routine: boolean,
 ): PlanSessionFact {
   return {
     path: meta.path,
@@ -129,6 +130,7 @@ function sessionFact(
     size: ports.size(meta.path),
     cwdMissing: !ports.exists(meta.cwd || dir.dir),
     visible,
+    routine,
   }
 }
 
@@ -152,12 +154,13 @@ export async function scanSessions(
   for (const { meta, dir } of listed) {
     if (seen.has(meta.path)) continue
     seen.add(meta.path)
+    const routine = routineLanes.has(meta.path)
     const visible =
-      !routineLanes.has(meta.path) &&
+      !routine &&
       visibleLane(meta.path, ports.prefs.rewoundSessions, present, {
         pinned: pinned.has(meta.path),
       })
-    sessions.push(sessionFact(ports, meta, dir, visible))
+    sessions.push(sessionFact(ports, meta, dir, visible, routine))
   }
   return sessions.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
 }

@@ -51,6 +51,8 @@ export interface PlanSessionFact {
   readonly cwdMissing: boolean
   /** The sidebar shows it: not a folded rewind predecessor, not a routine's lane. */
   readonly visible: boolean
+  /** A routine run's lane: the service hides it by the routine, not by a lane. */
+  readonly routine: boolean
 }
 
 export interface PlanArchiveFact {

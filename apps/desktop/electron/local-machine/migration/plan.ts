@@ -77,11 +77,15 @@ export const sectionHash = (section: MigrationSection): string => sha256Hex(cano
 
 export const planHash = (plan: MigrationPlan): string => sha256Hex(canonicalJson(plan))
 
-/** The lanes that migrate: what the sidebar shows, in a folder that migrates. */
+/**
+ * The lanes that migrate: every session in a folder that migrates except a routine's. A folded
+ * rewind predecessor moves too, so the import can link it and the service folds it as the
+ * sidebar did; left behind, the service's folder scan would find it again and show it.
+ */
 function plannedLanes(facts: PlanFacts): PlanSessionFact[] {
   const folders = new Set(facts.folders.map((f) => f.path))
   return facts.sessions
-    .filter((s) => s.visible && folders.has(s.rootPath))
+    .filter((s) => !s.routine && folders.has(s.rootPath))
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
 }
 

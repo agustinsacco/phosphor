@@ -28,6 +28,7 @@ export function session(n: number, over: Partial<PlanSessionFact> = {}): PlanSes
     size: 1000 * n,
     cwdMissing: false,
     visible: true,
+    routine: false,
     ...over,
   }
 }

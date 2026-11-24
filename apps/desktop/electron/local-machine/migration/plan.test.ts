@@ -25,17 +25,17 @@ describe('buildPlan', () => {
     expect(planHash(other)).not.toBe(planHash(a))
   })
 
-  it('maps every lane the sidebar shows, including a removed worktree and a sandbox, and nothing else', () => {
+  it('maps every lane in a moving folder, including a removed worktree, a sandbox and a folded rewind', () => {
     const facts = planFacts()
     const plan = buildPlan(facts)
     const items = plan.sections.lanes!.items
     expect(items.map((i) => i.sessionFile)).toEqual(
-      [1, 2, 3, 4].map((n) => facts.sessions[n - 1]!.path).sort(),
+      [1, 2, 3, 4, 5].map((n) => facts.sessions[n - 1]!.path).sort(),
     )
     const gone = items.find((i) => i.cwd.endsWith('/gone'))!
     expect(gone).toMatchObject({ worktree: true, rootPath: REPO })
     expect(items.find((i) => i.rootPath === SANDBOX)).toBeDefined()
-    expect(plan.expected.lanes).toBe(4)
+    expect(plan.expected.lanes).toBe(5)
     for (const item of items) {
       expect(isUuid(item.laneId)).toBe(true)
       expect(plan.laneIds[item.sessionFile]).toBe(item.laneId)
