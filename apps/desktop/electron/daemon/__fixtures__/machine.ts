@@ -59,12 +59,18 @@ export function scratchMachine() {
     }
     symlinkSync(`versions/${version}`, join(roots.lib, 'current'))
   }
+  /** What a finished `setup` leaves: the service's config file. */
+  const setUp = () => {
+    mkdirSync(roots.configDir, { recursive: true, mode: 0o700 })
+    writeFileSync(join(roots.configDir, 'config.json'), '{}\n', { mode: 0o600 })
+  }
   return {
     root,
     mirror,
     roots,
     ports,
     installed,
+    setUp,
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   }
 }

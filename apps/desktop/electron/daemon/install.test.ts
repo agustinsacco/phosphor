@@ -6,6 +6,7 @@ import {
   rmSync,
   writeFileSync,
   mkdirSync,
+  symlinkSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -96,9 +97,10 @@ describe('attemptDaemonInstall', () => {
     expect(env).toContain(`XDG_STATE_HOME=${m.roots.home}/.local/state\n`)
     expect(env).not.toContain('ELECTRON')
   })
-  it('adopts a release install with the features by running setup only', async () => {
+  it('adopts a release install that was set up, with the features, by running setup only', async () => {
     const m = machine()
     m.installed('1.2.0', ['local-mode', 'owner-socket'])
+    m.setUp()
     m.mirror.publish()
     for (const name of readdirSync(m.mirror.assets).filter((n) => n.endsWith('.tar.gz')))
       rmSync(join(m.mirror.assets, name))
@@ -108,9 +110,10 @@ describe('attemptDaemonInstall', () => {
     })
     expect(setupArgs(m.roots.home)).toContain('--standby')
   })
-  it('asks for an update when the installed release lacks the features', async () => {
+  it('asks for an update when the installed release that was set up lacks the features', async () => {
     const m = machine()
     m.installed('1.0.0', [])
+    m.setUp()
     m.mirror.publish()
     expect(await attemptDaemonInstall(m.ports, signal())).toMatchObject({
       state: 'blocked',
@@ -118,6 +121,36 @@ describe('attemptDaemonInstall', () => {
       installed: '1.0.0',
     })
     expect(existsSync(join(m.roots.home, 'setup-args'))).toBe(false)
+  })
+  it('installs a newer release over one that was never set up, then sets that one up', async () => {
+    // A first setup that failed leaves the release and no service: retrying it would fail again.
+    const m = machine()
+    m.installed('1.2.0', ['local-mode', 'owner-socket'])
+    writeFileSync(join(m.roots.lib, 'versions/1.2.0/bin/phosphor'), fakeSetup(69, ['old']))
+    m.mirror.publish({ files: { 'bin/phosphor': fakeSetup() } })
+    expect(await attemptDaemonInstall(m.ports, signal())).toMatchObject({
+      state: 'installed',
+      version: '1.2.3',
+    })
+    expect(readlinkSync(join(m.roots.lib, 'current'))).toBe('versions/1.2.3')
+    expect(readdirSync(join(m.roots.lib, 'versions')).sort()).toEqual(['1.2.0', '1.2.3'])
+    expect(readdirSync(m.roots.lib).filter((name) => name.startsWith('.'))).toEqual([])
+  })
+  it('finishes a newer release an earlier attempt unpacked but never made current', async () => {
+    const m = machine()
+    m.installed('1.2.0', ['local-mode', 'owner-socket'])
+    m.mirror.publish({ files: { 'bin/phosphor': fakeSetup() } })
+    await attemptDaemonInstall(m.ports, signal())
+    // Stopped after unpacking 1.2.3 and before switching `current`; its download is gone too.
+    rmSync(join(m.roots.lib, 'current'))
+    symlinkSync('versions/1.2.0', join(m.roots.lib, 'current'))
+    for (const name of readdirSync(m.mirror.assets).filter((n) => n.endsWith('.tar.gz')))
+      rmSync(join(m.mirror.assets, name))
+    expect(await attemptDaemonInstall(m.ports, signal())).toMatchObject({
+      state: 'installed',
+      version: '1.2.3',
+    })
+    expect(readlinkSync(join(m.roots.lib, 'current'))).toBe('versions/1.2.3')
   })
   it('never adopts a source Host, and leaves its service file alone', async () => {
     const m = machine()
