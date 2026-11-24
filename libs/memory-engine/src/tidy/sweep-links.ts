@@ -97,10 +97,29 @@ function explained(ctx: Context, a: number, b: number): boolean {
   )
 }
 /**
+ * An open pair a link now explains (a read, `relate` or a group stated it) is answered: it frees
+ * its slot, and keeping it would journal "No lasting link" for two linked records.
+ */
+export function clearExplainedPairs(ctx: Context): void {
+  for (const row of all<{ id: string; a: number; b: number }>(
+    ctx,
+    `SELECT s.id,a.n AS a,b.n AS b FROM tidy_suggestions s JOIN entities a ON a.id=s.first_id
+    JOIN entities b ON b.id=s.second_id WHERE s.state='open' AND s.kind='unlinked'`,
+  ))
+    if (explained(ctx, row.a, row.b))
+      run(
+        ctx,
+        "UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE id=?",
+        ctx.now(),
+        row.id,
+      )
+}
+/**
  * Offers the best unexplained pairs until UNLINKED_OPEN wait, from the whole window or only those
  * the touched memories name. Returns how many it offered.
  */
 export function sweepLinks(ctx: Context, touched?: number[]): number {
+  clearExplainedPairs(ctx)
   const open = one<{ n: number }>(
     ctx,
     "SELECT COUNT(*) AS n FROM tidy_suggestions WHERE state='open' AND kind='unlinked'",

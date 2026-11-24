@@ -7,8 +7,12 @@ import type { BrainTidyKind } from '@phosphor/shared/brain-tidy'
 import { all, one, run, type Context } from '../database'
 import { COUNTED, suggestion, type SuggestionRow } from '../tidy/suggestions'
 import { scrubExcerpt } from '../secrets'
+import { clearExplainedPairs } from '../tidy/sweep-links'
 
-/** Counts and the agent's queue agree, including suggestions whose subjects disappeared. */
+/**
+ * Counts and the agent's queue agree, including suggestions whose subjects disappeared and
+ * unlinked pairs a link now explains.
+ */
 function closeMissing(ctx: Context): void {
   run(
     ctx,
@@ -19,6 +23,7 @@ function closeMissing(ctx: Context): void {
       (second_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM memories WHERE id=second_id)))))`,
     ctx.now(),
   )
+  clearExplainedPairs(ctx)
 }
 const COUNT_KEY: Record<BrainTidyKind, keyof BrainWaitingCounts> = {
   same_entity: 'entities',

@@ -302,8 +302,9 @@ their own Undo.
    that appear together at least twice. Skip hubs and pairs already explained, even by an ended
    relationship. Rank by shared count and specificity. Up to 40 pairs wait at once. When a
    read's new memories are swept, Brain looks only at the pairs those memories name. The end of
-   a full pass looks at every pair. Brain Agent reads the shared memories; if no lasting relationship is stated it can dismiss the
-   pair. Brain remembers that answer.
+   a full pass looks at every pair. A waiting pair that a link later explains is cleared and
+   frees its place. Brain Agent reads the shared memories; if no lasting relationship is
+   stated it can dismiss the pair. Brain remembers that answer.
 4. **Repeats and disagreements.** Fold supported repeats. Keep a disagreement as disputed
    unless there is evidence for a replacement. Similar wording alone is not enough.
 5. **Flags**, then possible repeats. `brain_flag({ ref, problem, reason })` files a question,
