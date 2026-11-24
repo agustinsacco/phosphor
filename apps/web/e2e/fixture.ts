@@ -52,7 +52,7 @@ export async function browserFixture(production = false) {
     const sid = randomUUID(),
       hostId = randomUUID()
     const clients = new Map<string, { owner: string; revoked: boolean }>()
-    const tokens = new Map<string, string>()
+    const webSessions = new Map<string, { owner: string; clientId: string }>()
     const codes = new Map<string, { challenge: string; owner: string }>()
     const state = {
       owner: owners[0]!,
@@ -195,7 +195,6 @@ export async function browserFixture(production = false) {
       fetch: async (input, init) => {
         const url = new URL(String(input))
         if (url.origin !== origin) throw new Error('Nonlocal Auth refused')
-        if (url.pathname === '/auth/v1/logout') return new Response(null, { status: 204 })
         if (url.pathname !== '/auth/v1/token' || url.searchParams.get('grant_type') !== 'pkce')
           throw new Error('Unexpected Auth request')
         const body = JSON.parse(String(init?.body)) as { auth_code: string; code_verifier: string }
@@ -207,41 +206,39 @@ export async function browserFixture(production = false) {
         )
           return new Response(null, { status: 401 })
         const access = `e30.${Buffer.from(JSON.stringify({ sub: code.owner, session_id: sid, aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.c2ln`
-        tokens.set(access, code.owner)
+        const user_name = code.owner === owners[0] ? 'fixture-owner' : 'fixture-other'
         return Response.json({
           access_token: access,
-          refresh_token: randomBytes(32).toString('base64url'),
-          expires_in: 3600,
-          user: { id: code.owner },
+          user: { id: code.owner, user_metadata: { user_name } },
         })
       },
       supabase: {
-        async getUser(token) {
-          const id = tokens.get(token)
-          if (!id) throw new ControlFailure('unauthenticated')
-          return {
-            id,
-            user_metadata: { user_name: id === owners[0] ? 'fixture-owner' : 'fixture-other' },
-          }
-        },
+        // The app origin is cookie-only; no bearer reaches Auth.
+        getUser: async () => Promise.reject(new ControlFailure('unauthenticated')),
         async rpc(name, args) {
           if (name === 'control_nonce_claim') return claimNonce(args)
           switch (name) {
             case 'control_account':
-              return { enabled: true, maxHosts: 20 }
-            case 'control_client_register': {
-              const id = randomUUID()
-              clients.set(id, { owner: String(args.p_user), revoked: false })
-              return { outcome: 'registered', client: { id, label: 'Synthetic browser' } }
+              return { enabled: true, maxHosts: 100 }
+            case 'control_web_session_create': {
+              const clientId = randomUUID()
+              clients.set(clientId, { owner: String(args.p_user), revoked: false })
+              webSessions.set(String(args.p_handle_hash), { owner: String(args.p_user), clientId })
+              return { outcome: 'created', clientId }
             }
-            case 'control_web_client_status': {
-              const client = clients.get(String(args.p_client))
-              return {
-                outcome:
-                  client && client.owner === args.p_user && !client.revoked
-                    ? 'active'
-                    : 'not-found',
-              }
+            case 'control_web_session_use': {
+              const session = webSessions.get(String(args.p_handle_hash))
+              if (!session || clients.get(session.clientId)?.revoked !== false)
+                return { outcome: 'not-found' }
+              const login = session.owner === owners[0] ? 'fixture-owner' : 'fixture-other'
+              const { owner: userId, clientId } = session
+              return { outcome: 'active', userId, login, clientId, sid, renewed: false }
+            }
+            case 'control_web_session_end': {
+              const session = webSessions.get(String(args.p_handle_hash))
+              webSessions.delete(String(args.p_handle_hash))
+              if (session) clients.get(session.clientId)!.revoked = true
+              return { outcome: session ? 'ended' : 'not-found' }
             }
             case 'control_client_revoke': {
               const client = clients.get(String(args.p_client))
