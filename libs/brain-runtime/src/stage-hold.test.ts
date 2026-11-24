@@ -129,3 +129,9 @@ it.each([
 ])('never marks technical performance personal, even in a claim naming a person: %s', (text) => {
   expect(hold(text)).toBeNull()
 })
+
+it('keeps a lasting handover with a near start date', () => {
+  expect(
+    hold('Tom Lee takes over Ledger billing on 2027-01-05.', true, [Date.UTC(2027, 0, 5), null]),
+  ).toBeNull()
+})

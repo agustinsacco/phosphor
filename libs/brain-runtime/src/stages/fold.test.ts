@@ -30,6 +30,9 @@ it('folds equal claims and links across overlapping windows with merged evidence
       })),
     },
   }))
+  Object.assign(parts[1]!.extraction.claims[0]!, { hold: 'personal' })
+  expect(foldParts(parts, 'harbor').claims[0]?.memory.hold).toBeNull()
+  Object.assign(parts[1]!.extraction.claims[0]!, { hold: null })
   const job = foldParts(parts, 'harbor')
   expect(job.entities).toHaveLength(2)
   expect(job.claims).toHaveLength(1)
