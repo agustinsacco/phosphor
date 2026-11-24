@@ -1,4 +1,3 @@
-import { decideRead } from './__fixtures__/decide-read'
 import { appendFile, rename } from 'node:fs/promises'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createBrainService } from './service'
@@ -20,7 +19,7 @@ async function setup(ready = true) {
   const service = await createBrainService(s.options)
   cleanups.push(() => service.dispose())
   const id = (await service.api.queue({ sessionPath: s.file, title: 'Harbor' })).jobs[0]!.id
-  if (ready) await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+  if (ready) await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('done'))
   s.runner.mockClear()
   return {
     ...s,
@@ -31,48 +30,15 @@ async function setup(ready = true) {
   }
 }
 
-it('refreshes an archived lane review from saved steps without extract or links calls', async () => {
-  const s = await setup()
-  await s.archive()
-  s.store.rev++
-  // Brain Agent opens the stale review, which refreshes it.
-  await s.service.agent('readReview', { jobId: s.id })
-  expect(s.store.job(s.id)?.state).toBe('review')
-  expect(s.store.storedProposal(s.id)?.computedRevision).toBe(1)
-  expect(s.runner.mock.calls.filter(([call]) => ['extract', 'links'].includes(call.stage))).toEqual(
-    [],
-  )
-  expect(s.runner).not.toHaveBeenCalled()
-})
-
-it('checks the current never-read title in an archived transcript, not the old job title', async () => {
-  const s = await setup()
-  await appendFile(s.file, '\n' + JSON.stringify({ type: 'session_info', name: 'Tom 1:1' }))
-  await s.archive()
-  s.store.rev++
-  await s.service.api.setPrefs(s.store.prefs)
-  await expect(s.service.api.proposal(s.id)).resolves.toMatchObject({ revision: 0 })
-  await expect(
-    decideRead(
-      s.service,
-      s.id,
-      { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-      0,
-    ),
-  ).rejects.toThrow('this lane is set to never be read')
-  expect(s.store.job(s.id)?.state).toBe('review')
-  expect(s.runner).not.toHaveBeenCalled()
-})
-
 it('reads a job queued before its lane was archived', async () => {
   const s = await setup(false)
   expect(s.store.job(s.id)?.state).toBe('queued')
   await s.archive()
   s.ready()
   await s.service.api.setPrefs(s.store.prefs)
-  await vi.waitFor(() => expect(s.store.job(s.id)?.state).toBe('review'))
+  await vi.waitFor(() => expect(s.store.job(s.id)?.state).toBe('done'))
   expect(s.runner.mock.calls.filter(([call]) => call.stage === 'extract')).toHaveLength(1)
-  expect(s.store.proposal(s.id).memories).toHaveLength(1)
+  expect(s.store.saved.get(s.id)!.memories).toHaveLength(1)
 })
 
 it('prepares a new read of an archived lane and refuses its current excluded title', async () => {

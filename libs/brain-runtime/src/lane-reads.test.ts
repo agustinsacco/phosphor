@@ -1,7 +1,6 @@
 import { appendFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { Proposal } from '@phosphor/memory-engine/types'
 import { createBrainService } from './service'
 import { pipelineSetup } from './__fixtures__/pipeline'
 import { readLaneEntries } from './transcript'
@@ -44,24 +43,6 @@ async function settle(): Promise<void> {
   await Promise.allSettled(reads.mock.results.map((result) => result.value))
 }
 
-function staleReview(sessionId: string, jobId: string): Proposal {
-  return {
-    jobId,
-    origin: { sessionId, title: 'Tom sync' },
-    scope: '/projects/harbor',
-    branch: null,
-    computedRevision: 0,
-    entities: [],
-    memories: [],
-    groups: [],
-    confirmations: [],
-    evidence: [],
-    held: 0,
-    memoryVectors: [],
-    entityVectors: [],
-  }
-}
-
 it('reads a waiting lane once when queued, and never on 20 s of timer kicks', async () => {
   const s = await setup({ busy: true, fakeTimers: true })
   const queued = await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
@@ -73,84 +54,11 @@ it('reads a waiting lane once when queued, and never on 20 s of timer kicks', as
   expect(readsOf(s.file)).toBe(1)
 })
 
-it('remembers six blocked stale reviews: one read each, then only a changed file is read again', async () => {
-  const s = await setup({ busy: true, fakeTimers: true })
-  s.store.prefs.neverRead = { titles: ['1:1'], sessionIds: [] }
-  const lanes = [1, 2, 3, 4, 5, 6].map((week) => ({
-    path: join(s.directory, `tom-${week}.jsonl`),
-    sessionId: `tom-lane-${week}`,
-    name: `Tom Lee 1:1 week ${week}`,
-  }))
-  for (const lane of lanes) {
-    await writeFile(
-      lane.path,
-      [
-        { type: 'session', id: lane.sessionId, cwd: s.directory },
-        { type: 'session_info', id: `name-${lane.sessionId}`, name: lane.name },
-      ]
-        .map((entry) => JSON.stringify(entry))
-        .join('\n'),
-    )
-    const job = s.store.enqueue(
-      { ...s.job, sessionId: lane.sessionId, sessionPath: lane.path, title: 'Tom sync' },
-      'queued',
-    )
-    s.store.updateJob(job.id, { state: 'review' })
-    s.store.proposals.set(job.id, staleReview(lane.sessionId, job.id))
-  }
-  s.store.rev = 1
-  // A waiting read of another lane keeps the queue's 2 s timer running.
-  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })
-  const review = () => s.store.jobs.filter((job) => job.sessionId.startsWith('tom-lane-'))
-  const perLane = () => lanes.map((lane) => readsOf(lane.path))
-
-  for (let i = 0; i < 10; i++) await timerKick()
-  await settle()
-  expect(perLane()).toEqual([1, 1, 1, 1, 1, 1])
-  expect(review().map((job) => job.state)).toEqual(Array(6).fill('review'))
-
-  s.options.onChange.mockClear()
-  await timerKick()
-  await timerKick()
-  await settle()
-  expect(perLane()).toEqual([1, 1, 1, 1, 1, 1])
-  expect(s.options.onChange).not.toHaveBeenCalled()
-
-  await appendFile(lanes[2]!.path, '\n' + JSON.stringify({ type: 'custom', id: 'note' }))
-  await timerKick()
-  await timerKick()
-  await settle()
-  expect(perLane()).toEqual([1, 1, 2, 1, 1, 1])
-
-  s.store.rev = 2
-  await s.service.api.setPrefs({
-    ...s.store.prefs,
-    neverRead: { titles: ['Tom Lee 1:1'], sessionIds: [] },
-  })
-  await timerKick()
-  await settle()
-  expect(perLane()).toEqual([1, 1, 2, 1, 1, 1])
-  expect(review().map((job) => job.state)).toEqual(Array(6).fill('review'))
-  expect(readsOf(s.file)).toBe(1)
-})
-
 it('reads a lane once to start its read, after Queue checks it once', async () => {
   const s = await setup()
   const id = (await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })).jobs[0]!.id
-  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('done'))
   expect(readsOf(s.file)).toBe(2)
-})
-
-it('reads a stale review lane at most twice when Brain Agent opens and refreshes it', async () => {
-  const s = await setup()
-  const id = (await s.service.api.queue({ sessionPath: s.file, title: 'Harbor' })).jobs[0]!.id
-  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
-  reads.mockClear()
-  s.store.rev++
-  await s.service.agent('readReview', { jobId: id })
-  expect(s.store.job(id)?.state).toBe('review')
-  expect(s.store.storedProposal(id)?.computedRevision).toBe(1)
-  expect(readsOf(s.file)).toBeLessThanOrEqual(2)
 })
 
 it('re-checks unchanged waiting lanes from their remembered titles when the rules change', async () => {
@@ -192,6 +100,6 @@ it('hands the start check’s read to the run when the lane changed while it wai
   await appendFile(s.file, '\n' + JSON.stringify({ type: 'session_info', name: 'Harbor sync' }))
   vi.mocked(s.options.lanes.busy).mockReturnValue(false)
   await s.service.api.setPrefs(s.store.prefs)
-  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('review'))
+  await vi.waitFor(() => expect(s.store.job(id)?.state).toBe('done'))
   expect(readsOf(s.file)).toBe(2)
 })

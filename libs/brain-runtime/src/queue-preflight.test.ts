@@ -1,3 +1,5 @@
+import { DeletedLaneError } from './transcript'
+import { extraction } from '@phosphor/memory-engine/test-support'
 import type { BrainJob } from '@phosphor/shared/brain'
 import { afterEach, expect, it, vi } from 'vitest'
 import { ExtractionQueue } from './queue'
@@ -34,32 +36,19 @@ it('an idle kick does not admit a job added during an empty asynchronous eligibi
   expect(s.run).not.toHaveBeenCalled()
   expect(s.store.job(job.id)?.state).toBe('queued')
 })
-it('a failed eligibility read cannot overwrite a review rejected while the file read was pending', async () => {
-  let fail!: (error: Error) => void
-  const s = setup(
-    () =>
-      new Promise((_resolve, reject) => {
-        fail = reject
-      }),
+it('fails a stale legacy read when its lane was deleted and lets it be dismissed', async () => {
+  const s = setup(async (job) => {
+    throw new DeletedLaneError(job.sessionPath)
+  })
+  const job = s.store.enqueue(HARBOR_JOB, 'queued')
+  s.store.proposals.set(job.id, extraction(job.id, { computedRevision: -1 }))
+  s.queue.kick()
+  await vi.waitFor(() =>
+    expect(s.store.job(job.id)).toMatchObject({
+      state: 'failed',
+      error: "This lane was deleted, so Brain can't finish reading it.",
+    }),
   )
-  const job = s.store.enqueue(HARBOR_JOB, 'queued')
-  s.store.updateJob(job.id, { state: 'refreshing' })
-  s.queue.kick()
-  s.store.updateJob(job.id, { state: 'rejected' })
-  fail(new Error('Lane deleted'))
-  await flush()
-  expect(s.store.job(job.id)?.state).toBe('rejected')
-  expect(s.run).not.toHaveBeenCalled()
-})
-
-it('does not treat a review without a stored proposal as an eligible stale read', async () => {
-  const refusal = vi.fn(async () => 'Brain is set not to read this lane.')
-  const s = setup(refusal)
-  const job = s.store.enqueue(HARBOR_JOB, 'queued')
-  s.store.updateJob(job.id, { state: 'review' })
-  s.queue.kick()
-  await flush()
-  expect(s.store.job(job.id)?.state).toBe('review')
-  expect(refusal).not.toHaveBeenCalled()
-  expect(s.run).not.toHaveBeenCalled()
+  s.queue.cancel(job.id)
+  expect(s.store.job(job.id)).toBeUndefined()
 })

@@ -16,7 +16,6 @@ import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
 import { laneInfo } from './lane'
 import type { LaneFiles } from './lane-files'
-import { currentTitle } from './lane-read-rules'
 import type { TidyMaintenance } from './tidy/maintenance'
 import { BRAIN_OWN_LANE_REFUSAL, isBrainOwnLane } from './agent/own-lane'
 import type { Defrag } from './agent/defrag'
@@ -36,7 +35,10 @@ interface ApiContext {
 function checkPrefs(prefs: BrainPrefs): void {
   if (
     !prefs ||
-    ['enabled', 'recall', 'review'].some((k) => typeof prefs[k as keyof BrainPrefs] !== 'boolean')
+    Object.keys(prefs).sort().join() !== 'agentAuto,enabled,model,neverRead,recall' ||
+    ['enabled', 'recall', 'agentAuto'].some(
+      (k) => typeof prefs[k as keyof BrainPrefs] !== 'boolean',
+    )
   )
     throw new Error('Invalid Brain preferences.')
   checkBrainReaderModel(prefs.model)
@@ -84,31 +86,18 @@ async function enqueue(
 async function reread(id: string, context: ApiContext): Promise<void> {
   const { store } = context
   const previous = store.job(id)
-  if (previous?.state !== 'done') throw new Error('Only finished Brain reads can be read again.')
+  if (!previous || !['done', 'empty', 'rejected'].includes(previous.state))
+    throw new Error('Only finished Brain reads can be read again.')
   if (
     store
       .snapshot()
       .jobs.some(
         (j) =>
-          j.sessionId === previous.sessionId &&
-          ['waiting', 'queued', 'running', 'review'].includes(j.state),
+          j.sessionId === previous.sessionId && ['waiting', 'queued', 'running'].includes(j.state),
       )
   )
     throw new Error('This lane is already queued.')
   await enqueue(previous, context, id)
-}
-/**
- * The review as stored, even when Brain changed since or while Brain Agent refreshes it: viewing
- * never starts a refresh. Only its never-read note follows the lane's current name.
- */
-async function storedReview(id: string, { store, files, changed }: ApiContext) {
-  const job = store.job(id)
-  if (job && store.storedProposal(id)) {
-    // An unreadable lane keeps its stored name.
-    const current = await currentTitle(store, files, job).catch(() => null)
-    if (current?.retitled) changed()
-  }
-  return store.proposal(id)
 }
 export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
@@ -123,7 +112,13 @@ export function createApi(context: ApiContext): BrainApi {
 
   return {
     status: async () => status(),
-    history: async (limit) => store.history(limit),
+    laneRead: async (id) => store.laneRead(id),
+    setOwner: (id) => mutate(() => store.setOwner(id)),
+    tell: async (message) => {
+      if (!store.snapshot().prefs.enabled) throw new Error('Turn on Brain to message Brain Agent.')
+      if (!options.agent) throw new Error('Brain Agent runs on Desktop.')
+      return options.agent.tell(message)
+    },
     reread: async (id) => {
       await reread(id, context)
       changed()
@@ -146,7 +141,6 @@ export function createApi(context: ApiContext): BrainApi {
       return status()
     },
     extraction: async (id) => extractionView(store, id),
-    proposal: (id) => storedReview(id, context),
     reset: async () => {
       await queue.pause()
       try {
@@ -214,7 +208,7 @@ function readApi({
 }: ApiContext): Pick<
   BrainApi,
   | 'entities'
-  | 'recent'
+  | 'ask'
   | 'find'
   | 'overview'
   | 'neighbourhood'
@@ -226,7 +220,17 @@ function readApi({
 > {
   return {
     entities: (kind, offset, limit, sort) => search.entities(kind, offset, limit, sort),
-    recent: (limit) => search.recent(limit),
+    ask: async (query) => {
+      const rows = await options.embeddings.embed([query], 'query').catch(() => [])
+      return search.recall({
+        query,
+        vector: rows[0] ? new Float32Array(rows[0]) : null,
+        scope: null,
+        branch: null,
+        limit: 8,
+        now: (options.now ?? Date.now)(),
+      })
+    },
     find: async (query, limit) => {
       const rows = await options.embeddings.embed([query], 'query').catch(() => [])
       return search.find(
@@ -242,7 +246,7 @@ function readApi({
       store.connections(id, predicate, direction, cursor),
     entityMemories: async (id, filter, cursor) => store.entityMemories(id, filter, cursor),
     memory: async (id) => store.memory(id),
-    path: async (from, to) => store.path(from, to),
+    path: async (from, to) => search.routes(from, to, (options.now ?? Date.now)()),
   }
 }
 

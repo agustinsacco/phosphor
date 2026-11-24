@@ -1,15 +1,16 @@
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
-import { approveRead, realService } from './__fixtures__/real-service'
+import { savedRead, realService } from './__fixtures__/real-service'
 
 it('approves and sweeps, then merges and undoes with a real store, never calling a model', async () => {
   const s = await realService()
-  const status = await approveRead(s.store, s.service, s.options)
+  const status = await savedRead(s.store, s.service, s.options)
   expect(status.counts).toEqual({ memories: 4, entities: 2 })
   expect(status.tidy).toMatchObject({ automaticFolds: 1 })
   expect(status.agent.waiting).toEqual({
-    reads: 0,
+    groups: 0,
+    unlinked: 0,
     entities: 1,
     repeats: 6,
     conflicts: 0,
@@ -17,10 +18,15 @@ it('approves and sweeps, then merges and undoes with a real store, never calling
   })
   expect(status.agent.run).toBeNull()
   const changes = await s.service.api.tidyChanges(50)
-  expect(changes.items).toMatchObject([{ kind: 'fold', who: 'automatic', undoable: true }])
+  expect(changes.items).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ kind: 'fold', who: 'automatic', undoable: true }),
+      expect.objectContaining({ kind: 'read' }),
+    ]),
+  )
   const before = await s.service.agent('waiting', { limit: 50 })
   const same = before.items.find((item) => item.kind === 'same_entity')
-  if (!same || same.kind === 'read') throw new Error('Expected a waiting identity pair')
+  if (!same) throw new Error('Expected a waiting identity pair')
   const survivor = same.subjects.find((subject) => subject.label === 'Rina')!
   const merged = await s.service.agent('resolve', {
     suggestionId: same.suggestionId,
@@ -36,13 +42,14 @@ it('approves and sweeps, then merges and undoes with a real store, never calling
 
 it('files lane flags through the agent entry and refuses a second, a sixth and a forgotten memory', async () => {
   const s = await realService()
-  await approveRead(
+  await savedRead(
     s.store,
     s.service,
     s.options,
     Array.from({ length: 6 }, (_, i) => `Harbor keeps Ledger policy ${i}.`),
   )
   const recall = await s.service.agent('search', { query: 'Harbor', limit: 20 })
+  if (recall.mode !== 'search') throw new Error('Expected search hits')
   expect(recall.hits).toHaveLength(6)
   const ids = recall.hits.map((hit) => hit.memory.id)
   const flag = (memoryId: string) =>
@@ -61,7 +68,6 @@ it('files lane flags through the agent entry and refuses a second, a sixth and a
   const flags = waiting.items.filter((item) => item.kind === 'flagged')
   expect(flags).toHaveLength(5)
   const flagged = flags[0]!
-  if (flagged.kind === 'read') throw new Error('Expected a flag')
   expect(
     (await s.service.agent('suggestion', { suggestionId: flagged.suggestionId }))?.suggestion.flag,
   ).toMatchObject({ sessionId: 'kestrel-lane', title: 'Kestrel review' })
@@ -85,7 +91,7 @@ function tidyText(path: string): string {
 
 it('Forget removes a suggested memory and its before-images from every Tidy table', async () => {
   const s = await realService()
-  await approveRead(s.store, s.service, s.options)
+  await savedRead(s.store, s.service, s.options)
   const path = join(s.directory, 'brain.sqlite')
   const sentence = 'Rina leads Ledger.'
   const memory = (await s.service.api.find(sentence, 20)).memories.find(
@@ -96,16 +102,14 @@ it('Forget removes a suggested memory and its before-images from every Tidy tabl
   expect(
     s.store
       .waitingSuggestions(50, 0)
-      .items.some(
-        (item) => item.kind !== 'read' && item.subjects.some((subject) => subject.id === memory.id),
-      ),
+      .items.some((item) => item.subjects.some((subject) => subject.id === memory.id)),
   ).toBe(true)
   expect((await s.service.api.tidyChanges(50)).items[0]?.kind).toBe('fold')
   await s.service.api.forget(memory.id)
   expect(tidyText(path)).not.toContain(sentence)
   expect(
-    (await s.service.agent('waiting', { limit: 50 })).items.every(
-      (item) => item.kind === 'read' || item.subjects.every((subject) => subject.id !== memory.id),
+    (await s.service.agent('waiting', { limit: 50 })).items.every((item) =>
+      item.subjects.every((subject) => subject.id !== memory.id),
     ),
   ).toBe(true)
   await expect(

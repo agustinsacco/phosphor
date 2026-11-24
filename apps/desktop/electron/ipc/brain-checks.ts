@@ -33,8 +33,8 @@ export function checkPrefs(value: unknown): BrainPrefs {
   if (
     !prefs ||
     typeof prefs !== 'object' ||
-    Object.keys(prefs).sort().join() !== 'enabled,model,neverRead,recall,review' ||
-    (['enabled', 'recall', 'review'] as const).some((key) => typeof prefs[key] !== 'boolean')
+    Object.keys(prefs).sort().join() !== 'agentAuto,enabled,model,neverRead,recall' ||
+    (['enabled', 'recall', 'agentAuto'] as const).some((key) => typeof prefs[key] !== 'boolean')
   )
     fail('Invalid Brain settings.')
   checkBrainReaderModel(prefs.model)

@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest'
-import { approveRead, realService } from './__fixtures__/real-service'
+import { savedRead, realService } from './__fixtures__/real-service'
 
 it('describes, removes a name and splits through the API, each undoable from its operation', async () => {
   const s = await realService()
-  const status = await approveRead(s.store, s.service, s.options)
+  const status = await savedRead(s.store, s.service, s.options)
   const entity = s.store.overview(300).nodes.find((node) => node.memories > 1)!
   await expect(
     s.service.api.describe(entity.id, 'Harbor billing lead', status.revision + 1),

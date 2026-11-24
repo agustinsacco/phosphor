@@ -26,7 +26,7 @@ it.each(['Rina 1-1 prep', 'Harbor ONE ON ONE'])(
     expect(s.runner).not.toHaveBeenCalled()
   },
 )
-it('refuses Queue and Read again for an excluded lane without affecting a pending review', async () => {
+it('refuses Queue and Read again for an excluded lane without affecting a finished read', async () => {
   const s = await setup()
   const old = s.store.enqueue(
     {
@@ -48,7 +48,7 @@ it('refuses Queue and Read again for an excluded lane without affecting a pendin
   await expect(s.service.api.reread(old.id)).rejects.toThrow('Brain is set not to read this lane.')
   expect(s.runner).not.toHaveBeenCalled()
 })
-it('cancels waiting and queued jobs when an id or title becomes excluded, but preserves reviews', async () => {
+it('cancels waiting and queued jobs when an id or title becomes excluded, but preserves finished reads', async () => {
   const s = await setup()
   vi.spyOn(s.options.embeddings, 'status').mockReturnValue({
     ...s.options.embeddings.status(),
@@ -68,8 +68,8 @@ it('cancels waiting and queued jobs when an id or title becomes excluded, but pr
     neverRead: { ...s.store.prefs.neverRead, titles: ['Ledger'] },
   })
   await vi.waitFor(() => expect(s.store.job(waiting.id)).toBeUndefined())
-  s.store.jobs.push({ ...waiting, id: 'pending', state: 'review' })
+  s.store.jobs.push({ ...waiting, id: 'pending', state: 'done' })
   await s.service.api.neverRead(waiting.sessionId, true)
-  expect(s.store.job('pending')?.state).toBe('review')
+  expect(s.store.job('pending')?.state).toBe('done')
   expect(s.runner).not.toHaveBeenCalled()
 })
