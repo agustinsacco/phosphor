@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createBrowserControl } from './control'
+import { createBrowserControl, takeSignInError } from './control'
 import { WEB_CSRF_HEADER, WEB_AUTH_ROUTES } from '@phosphor/shared/web-auth'
 
 const user = '11111111-1111-4111-8111-111111111111'
@@ -47,11 +47,11 @@ describe('browser cookie control', () => {
     expect(options?.headers).not.toHaveProperty('Authorization')
     expect(control.session()).toBeNull()
   })
-  it.each([401, 403])('drops current authority even for a non-JSON HTTP %s', async (status) => {
+  it('drops current authority even for a non-JSON HTTP 401', async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(json(session))
-      .mockResolvedValueOnce(new Response('denied', { status }))
+      .mockResolvedValueOnce(new Response('denied', { status: 401 }))
     const { control, invalidate } = setup(fetch)
     await control.refresh()
     const before = invalidate.mock.calls.length
@@ -59,6 +59,66 @@ describe('browser cookie control', () => {
     expect(result.ok).toBe(false)
     expect(control.session()).toBeNull()
     expect(invalidate.mock.calls.length).toBeGreaterThan(before)
+  })
+  it.each([
+    ['a refused write', () => json({ error: { code: 'forbidden', message: 'CSRF' } }, 403)],
+    ['a challenge page', () => new Response('<html>challenge</html>', { status: 403 })],
+  ])('fails only the request for %s and stays signed in', async (_name, reply) => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(json(session))
+      .mockResolvedValueOnce(reply())
+    const { control, invalidate } = setup(fetch)
+    await control.refresh()
+    const before = invalidate.mock.calls.length
+    expect(await control.approve('BCDFGHJK', 'laptop')).toMatchObject({
+      ok: false,
+      error: { code: 'forbidden' },
+    })
+    expect(control.session()).toEqual(session)
+    expect(control.view().account.status).toBe('signed-in')
+    expect(invalidate.mock.calls.length).toBe(before)
+  })
+  it('signs out when the session check itself is refused (account disabled)', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(json(session))
+      .mockResolvedValueOnce(json({ error: { code: 'forbidden', message: 'Disabled' } }, 403))
+    const { control } = setup(fetch)
+    await control.refresh()
+    await control.refresh()
+    expect(control.session()).toBeNull()
+    expect(control.view()).toEqual({
+      account: { status: 'signed-out', error: 'Access refused. Sign in again.' },
+    })
+  })
+  it('reports a launch outage as unreachable, not signed out, and recovers on the next check', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response('<html>502</html>', { status: 502 }))
+      .mockResolvedValueOnce(json(session))
+    const { control, invalidate } = setup(fetch)
+    await expect(control.refresh()).rejects.toThrow('unavailable')
+    expect(control.view()).toEqual({ account: { status: 'signed-out', notice: 'unreachable' } })
+    expect(invalidate).not.toHaveBeenCalled()
+    await control.refresh()
+    expect(control.view().account.status).toBe('signed-in')
+  })
+  it('lets the server decide after another tab signs out, and follows a later sign-in', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(json(session))
+      .mockResolvedValueOnce(json({}, 401))
+      .mockResolvedValueOnce(json(session))
+    const { control } = setup(fetch)
+    await control.refresh()
+    control.invalidate()
+    expect(control.session()).toBeNull()
+    await control.refresh()
+    expect(control.view()).toEqual({ account: { status: 'signed-out' } })
+    await control.refresh()
+    expect(control.view().account.status).toBe('signed-in')
+    expect(fetch).toHaveBeenCalledTimes(3)
   })
   it('does not confuse service outage with cookie expiry', async () => {
     const fetch = vi
@@ -80,7 +140,11 @@ describe('browser cookie control', () => {
       const { control } = setup(fetch)
       await control.refresh()
       expect(await control.signOut()).toMatchObject({
-        account: { status: 'signed-out', error: expect.stringMatching(/pending|not confirmed/) },
+        account: {
+          status: 'signed-out',
+          error: expect.stringMatching(/pending|not confirmed/),
+          notice: 'sign-out-unconfirmed',
+        },
       })
       await control.refresh()
       expect(fetch).toHaveBeenCalledTimes(2)
@@ -170,26 +234,71 @@ it('refuses oversized control writes before fetch', async () => {
 })
 
 it.each(['pending', 'offline'] as const)(
-  'preserves unconfirmed cleanup after %s logout followed by retry/401',
+  'completes a %s logout when the retry finds the session already gone',
   async (outcome) => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(json(session))
     if (outcome === 'pending')
       fetch.mockResolvedValueOnce(json({ signedOut: true, remoteCleanup: 'pending' }))
     else fetch.mockRejectedValueOnce(new TypeError('offline'))
-    fetch.mockResolvedValueOnce(json({}, 401))
-    const { control } = setup(fetch)
+    fetch.mockResolvedValueOnce(json({}, 401)).mockResolvedValueOnce(json(session))
+    const { control, invalidate } = setup(fetch)
     await control.refresh()
     await control.signOut()
-    const view = await control.signOut()
-    expect(view).toMatchObject({
-      account: {
-        status: 'signed-out',
-        error: expect.stringMatching(/cleanup.*(pending|not confirmed)|revocation.*not confirmed/i),
-      },
-    })
+    const before = invalidate.mock.calls.length
+    expect(await control.signOut()).toEqual({ account: { status: 'signed-out' } })
+    expect(invalidate.mock.calls.length).toBe(before)
     expect(control.session()).toBeNull()
+    // The sign-out is finished, so a later sign-in in another tab is noticed.
+    await control.refresh()
+    expect(control.view().account.status).toBe('signed-in')
   },
 )
+
+it('reads a failed sign-in from the address once, keeps the rest, and never shows the raw code', () => {
+  const replaceState = vi.fn()
+  const page = {
+    location: { href: 'https://app.example/pages/lanes?signin-error=too-many-requests&a=1#top' },
+    history: { state: { idx: 2 }, replaceState },
+  } as unknown as Pick<Window, 'location' | 'history'>
+  expect(takeSignInError(page)).toBe('Too many sign-in attempts. Wait a minute and try again.')
+  expect(replaceState).toHaveBeenCalledWith({ idx: 2 }, '', '/pages/lanes?a=1#top')
+  for (const [code, text] of [
+    ['forbidden', /refused/i],
+    ['unavailable', /reach/i],
+    ['something-new', /^Sign-in failed\. Try again\.$/],
+  ] as const) {
+    page.location.href = `https://app.example/?signin-error=${code}`
+    expect(takeSignInError(page)).toMatch(text)
+    expect(takeSignInError(page)).not.toContain(code)
+  }
+  page.location.href = 'https://app.example/?a=1'
+  replaceState.mockClear()
+  expect(takeSignInError(page)).toBeUndefined()
+  expect(replaceState).not.toHaveBeenCalled()
+})
+
+it('keeps a failed sign-in message on the signed-out screen until the next sign-in', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => json({}, 401))
+  const changed = vi.fn()
+  const control = createBrowserControl({
+    fetch,
+    changed,
+    invalidate: vi.fn(),
+    navigate: vi.fn(),
+    signInError: 'Sign-in failed. Try again.',
+  })
+  disposals.push(control.dispose)
+  expect(control.view()).toEqual({
+    account: { status: 'signed-out', error: 'Sign-in failed. Try again.' },
+  })
+  await control.refresh()
+  expect(control.view()).toEqual({
+    account: { status: 'signed-out', error: 'Sign-in failed. Try again.' },
+  })
+  control.signIn()
+  await control.refresh()
+  expect(control.view()).toEqual({ account: { status: 'signed-out' } })
+})
 
 it('cannot publish a late successful logout into a new owner generation', async () => {
   let release!: (response: Response) => void
@@ -231,7 +340,7 @@ it('removes the cleanup warning only after a server-confirmed complete retry', a
 })
 
 it.each([
-  ['account-disabled', () => json({ error: { code: 'forbidden', message: 'Disabled' } }, 403)],
+  ['forbidden', () => json({ error: { code: 'forbidden', message: 'Refused' } }, 403)],
   ['grant-refused', () => json({ error: { code: 'not-found', message: 'Refused' } }, 404)],
   ['grant-refused', () => json({ error: { code: 'gone', message: 'Gone' } }, 410)],
   ['unavailable', () => json({ error: { code: 'unavailable', message: 'Down' } }, 503)],
