@@ -39,3 +39,31 @@ it.skipIf(process.platform !== 'darwin')(
     }
   },
 )
+
+it.skipIf(process.platform !== 'darwin')(
+  'lets fenced processes signal each other, never a process outside the fence',
+  () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'r0-'))
+    try {
+      const layout = checkedLayout(scratch),
+        { root, roots } = layout
+      mkdirSync(roots.home)
+      const profile = fence(root, roots, { agent: roots.agent, userData: roots.userData })
+      // Desktop and the service stop the pi they spawned; the test runner stays out of reach.
+      const script = `const { spawn } = require('node:child_process')
+      const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10000)'])
+      child.on('spawn', () => {
+        try { process.kill(process.ppid, 0); process.exit(2) } catch (e) { if (e.code !== 'EPERM') process.exit(3) }
+        try { process.kill(child.pid, 'SIGKILL') } catch { process.exit(4) }
+      })`
+      const result = spawnSync(
+        '/usr/bin/sandbox-exec',
+        [...profile, process.execPath, '-e', script],
+        { cwd: roots.home, env: fixtureEnv(layout), stdio: 'ignore', timeout: 15000 },
+      )
+      expect(result.status).toBe(0)
+    } finally {
+      rmSync(scratch, { recursive: true })
+    }
+  },
+)
