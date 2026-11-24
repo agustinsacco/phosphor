@@ -118,7 +118,11 @@ interface CorrectionTarget {
   epistemic: string
   scope: string
   branch: string | null
+  importance: number
+  valid_from: number | null
+  valid_to: number | null
 }
+/** The correction keeps what the old memory said about weight and time: importance and period. */
 function insertCorrectedMemory(
   ctx: Context,
   old: CorrectionTarget,
@@ -131,7 +135,7 @@ function insertCorrectedMemory(
   const n = nextNumber(ctx, 'memories')
   run(
     ctx,
-    'INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,recorded_at,state,origin_session,origin_title,job_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,recorded_at,state,origin_session,origin_title,job_id,importance) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     n,
     ctx.id(),
     summary,
@@ -139,14 +143,15 @@ function insertCorrectedMemory(
     old.epistemic,
     old.scope,
     old.branch,
-    null,
-    null,
+    old.valid_from,
+    old.valid_to,
     now,
     now,
     'active',
     null,
     null,
     null,
+    old.importance,
   )
   run(ctx, 'INSERT INTO mentions SELECT ?,entity FROM mentions WHERE memory=?', n, old.n)
   run(

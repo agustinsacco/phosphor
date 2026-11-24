@@ -1,12 +1,12 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, vector } from './test-support'
+import { saveAndListMemories, extraction, fixture, lane, vector } from './test-support'
 import type { ProposalMemory } from './types'
 
 it.each(['supersede', 'resolve_open', 'enrich', 'conflict'] as const)(
   'supersede followed by %s never mutates a retired target or double-decrements counts',
   (action) => {
     const { store, db } = fixture()
-    const [target] = approve(store)
+    const [target] = saveAndListMemories(store)
     const old = store.memory(target!).memory
     const job = store.enqueue(lane({ sessionId: 'second' }), 'queued')
     const p = extraction(job.id, { computedRevision: store.knowledgeRevision() })
@@ -50,7 +50,7 @@ it.each(['supersede', 'resolve_open', 'enrich', 'conflict'] as const)(
 
 it('skips a confirmation whose target was retired earlier in the approval', () => {
   const { store } = fixture()
-  const [target] = approve(store)
+  const [target] = saveAndListMemories(store)
   const before = store.memory(target!)
   const job = store.enqueue(lane({ sessionId: 'second' }), 'queued')
   const p = extraction(job.id, { computedRevision: store.knowledgeRevision() })

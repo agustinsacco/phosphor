@@ -152,11 +152,8 @@ function journalGuards(
   before: Rows,
   memories: number[],
 ): Guards | null {
-  if (READS.has(input.kind))
-    return {
-      memories,
-      covers: (table) => table === 'jobs',
-    }
+  // A read's referenced memories join the after-capture; it guards no unchanged rows.
+  if (READS.has(input.kind)) return { memories, covers: () => false }
   if (input.kind === 'fold') return foldGuards(memories)
   if (input.kind !== 'merge') return null
   const [source, survivor] = [input.subjects.first, input.subjects.second].map(
@@ -310,7 +307,7 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     run(ctx, 'UPDATE tidy_operations SET undone_at=? WHERE id=?', ctx.now(), id)
     run(ctx, 'DELETE FROM tidy_operation_rows WHERE operation_id=?', id)
     run(ctx, 'DELETE FROM tidy_operation_memories WHERE operation_id=?', id)
-    if (op.kind === 'reject' || op.kind === 'keep') bumpRevision(ctx)
+    if (op.kind === 'keep') bumpRevision(ctx)
     else bumpKnowledgeRevision(ctx)
     return selection
   })

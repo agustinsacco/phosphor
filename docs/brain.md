@@ -76,17 +76,20 @@ The reader's calls use private, session-less pi processes with no tools or conne
    inputs. After three stale attempts the job fails with a Retry, rather than saving guesses
    against the wrong revision. An index refresh failure does not roll back a saved read.
 
-**Temporary** claims use their stated end or, if none, 14 days from observation or the stated start, whichever is later.
-A near start alone is not evidence of temporary status. Within a read, held claims stay separate from lasting claims.
-Their links inherit that end unless they have one of their own. A temporary claim cannot
-supersede, resolve or put a lasting memory in dispute. It saves separately instead. **Personal**
-claims, such as someone's health, pay or performance, never become memories or confirmations.
+**Temporary** claims use their stated end or, if none, 14 days from when the claim was observed
+or from its stated start, whichever is later. A near start alone does not make a claim
+temporary. Their links inherit that end unless they have one of their own; a link that starts
+later ends 14 days after its own start. Nothing ends before it starts. Within a read, held
+claims stay separate from lasting ones. A temporary claim cannot supersede, enrich, resolve or
+put a lasting memory in dispute. It saves separately instead. **Personal** claims, such as
+someone's health, pay or performance, never become memories or confirmations.
 They count as left out in the read record. That is not a promise to remove them from the source
 transcript or the record of what the reader saw.
 
 A saved read is one change, for example “Read Harbor planning: 9 memories”. An empty read has
-no change to undo. Undo removes what the read added and restores what it replaced, including
-its links. It refuses if later work depends on the change or a later read of the lane exists.
+no change to undo. So does a read with only group questions when none opens (already asked,
+or fewer than two members). Undo removes what the read added and restores what it replaced,
+including its links. It refuses if later work depends on the change or a later read of the lane exists.
 The job stays in history as not saved (`rejected`, zero memories), with its extraction record.
 It does not run again on restart. Use the lane menu to **Read again**.
 
@@ -117,13 +120,14 @@ it does not need to rewrite a row as the date passes.
 | Supersede, answer an open question or replace a disputed memory | Carry each link to the surviving memory, including its wording, dates, speaker, mentions and quotes. End a contradicted link rather than delete it.                                                          |
 | Correct                                                         | Insert the correction's stated links, explicitly end any named old links, then apply the same carry rule.                                                                                                    |
 | Fold repeated memories                                          | Keep the survivor's sentence and unite mentions, quotes and links. Matching triples share their support; missing wording or a missing start can come from the other copy. The surviving end and speaker win. |
-| Merge people or things                                          | Point mentions and links to the survivor. Unite duplicate links and their evidence. A link that now points to itself goes away on purpose.                                                                   |
+| Merge people or things                                          | Point mentions and links to the survivor. Unite duplicate links and their evidence. A link that now points to itself goes away on purpose. An open group question asks about the survivor instead.           |
 | Split a record                                                  | Move the endpoints with the memories chosen for the split. Other memories keep their links.                                                                                                                  |
 | Read again                                                      | Replace only the lane's own unshared memories and their reader links. A quote or link supported by another lane protects the memory. So does any link stated by Brain Agent or you. The whole memory stays.  |
 
 For a replacement, a different subject with the same predicate and object contradicts the old
 link. For example, the newer memory states a different owner of Ledger. For `reports_to`, a new
-object for the same subject also contradicts the old link. Brain uses the new memory's start,
+object for the same subject also contradicts the old link. `works_with` has no direction, so
+another pair that shares one end never contradicts it. Brain uses the new memory's start,
 or now, to end a contradicted link without an end. Forget and erasure deliberately remove
 knowledge. A clean Undo restores the changed rows and their evidence, not just the sentence.
 
@@ -301,8 +305,9 @@ their own Undo.
    that appear together at least twice. Skip hubs and pairs already explained, even by an ended
    relationship. Rank by shared count and specificity. Up to 40 pairs wait at once. When a
    read's new memories are swept, Brain looks only at the pairs those memories name. The end of
-   a full pass looks at every pair. Brain Agent reads the shared memories; if no lasting relationship is stated it can dismiss the
-   pair. Brain remembers that answer.
+   a full pass looks at every pair. A waiting pair that a link later explains is cleared and
+   frees its place. Brain Agent reads the shared memories; if no lasting relationship is
+   stated it can dismiss the pair. Brain remembers that answer.
 4. **Repeats and disagreements.** Fold supported repeats. Keep a disagreement as disputed
    unless there is evidence for a replacement. Similar wording alone is not enough.
 5. **Flags**, then possible repeats. `brain_flag({ ref, problem, reason })` files a question,
@@ -317,7 +322,7 @@ holds the link, marked as stated by Brain Agent. It refuses an existing current 
 same kind in the same direction. The limit is 60 new links per run, or 20 per rolling hour
 outside a run. `brain_edit` can change a relationship's wording or dates and a memory's
 importance, as well as merge, split, describe or remove an alias. `brain_correct` supersedes a
-memory with a sourced sentence and quote. Its optional `links` state new relationships;
+memory with a sourced sentence and quote, keeping its importance and its start and end. Its optional `links` state new relationships;
 `ends` names old link ids to end. The result says what carried and what ended. These changes
 have Undo. See [the tool list](extensions.md#brains-bundles).
 
@@ -363,7 +368,9 @@ in either version.
   keep reopens the question. Undoing a fold or merge remembers the pair so the next sweep does
   not just repeat it.
 - Forget and `brain_erase` are permanent. Brain Agent can erase at most 25 memories in a
-  rolling hour. The journal cannot restore forgotten text. Erasing a memory does not edit the
+  rolling hour. The journal cannot restore forgotten text. Read again is not a Forget: it keeps
+  earlier undo records, so an earlier change that touched a replaced memory undoes completely
+  once the Read again is undone, and is refused while it stands. Erasing a memory does not edit the
   original lane or the scrubbed source in a retained read record. Each lane normally keeps
   its newest 20 finished reads. A record without its job survives only while referenced by a
   memory and for at most 30 days after the read finishes.

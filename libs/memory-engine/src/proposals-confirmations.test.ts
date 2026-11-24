@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, running, vector } from './test-support'
+import { saveAndListMemories, extraction, fixture, running, vector } from './test-support'
 
 function setup() {
   const { store, db } = fixture()
-  const [target] = approve(store)
+  const [target] = saveAndListMemories(store)
   const job = running(store, { sessionId: 'second' })
   const p = extraction(job, {
     computedRevision: store.knowledgeRevision(),

@@ -1,11 +1,11 @@
 import { expect, it } from 'vitest'
-import { approve, fixture } from './test-support'
+import { saveAndListMemories, fixture } from './test-support'
 import { entities } from './browse'
 import type { Context } from './database'
 
 function setup() {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const ctx: Context = { db, now: () => 1000, id: () => 'made-up' }
   return { store, db, ctx }
 }

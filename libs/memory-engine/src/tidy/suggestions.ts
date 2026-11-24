@@ -11,12 +11,11 @@ import {
 } from '@phosphor/shared/brain-tidy'
 import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision } from '../prefs'
-import { checkRevision } from './journal'
 import { flagKey } from './flag-keys'
 import { recordFlag } from '../use'
 
 /**
- * A possible repeat only Brain Agent sees. It stays out of the page and waiting count.
+ * A possible repeat only Brain Agent sees. It stays out of the waiting count.
  */
 export const UNCHECKED = 'unchecked'
 /** Every kind the waiting count and Brain Agent's queue show, as an SQL list. */
@@ -107,6 +106,28 @@ export function clearSubject(ctx: Context, type: 'entity' | 'memory', id: string
       id,
     )
 }
+/** A merge keeps the open group questions that name its source, asking about the survivor. */
+export function repointGroups(ctx: Context, source: string, target: string): void {
+  for (const row of all<{ id: string; detail: string }>(
+    ctx,
+    `SELECT id,detail FROM tidy_suggestions WHERE kind='group' AND state='open' AND
+    EXISTS(SELECT 1 FROM json_each(detail,'$.memberIds') WHERE value=?)`,
+    source,
+  )) {
+    const detail = JSON.parse(row.detail) as Extract<BrainTidySuggestionExtra, { kind: 'group' }>
+    const memberIds = [...new Set(detail.memberIds.map((id) => (id === source ? target : id)))]
+    const [first = target, second = first] = memberIds
+    run(
+      ctx,
+      'UPDATE tidy_suggestions SET first_id=?,second_id=?,detail=?,updated_at=? WHERE id=?',
+      first,
+      second,
+      JSON.stringify({ ...detail, memberIds }),
+      ctx.now(),
+      row.id,
+    )
+  }
+}
 export function subjectExists(ctx: Context, row: SuggestionRow): boolean {
   const table = row.subject_type === 'entity' ? 'entities' : 'memories'
   return (
@@ -114,7 +135,7 @@ export function subjectExists(ctx: Context, row: SuggestionRow): boolean {
     (!row.second_id || !!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, row.second_id))
   )
 }
-/** Reads clean only their bounded page; writes invalidate removed subjects through their indexes. */
+/** A detail read clears its own row; writes invalidate removed subjects through their indexes. */
 export function closeMissing(ctx: Context, rows: SuggestionRow[]): void {
   for (const row of rows)
     if (!subjectExists(ctx, row)) {
@@ -127,20 +148,15 @@ export function closeMissing(ctx: Context, rows: SuggestionRow[]): void {
       row.state = 'cleared'
     }
 }
-export function suggestion(
-  ctx: Context,
-  row: SuggestionRow,
-  curator = false,
-): BrainTidySuggestion | null {
-  const clean = (text: string) => (curator ? scrubExcerpt(text) : text)
-  if (curator)
-    row = {
-      ...row,
-      kind: row.kind === UNCHECKED ? 'same_memory' : row.kind,
-      reason: clean(row.reason),
-      verdict_reason: row.verdict_reason && clean(row.verdict_reason),
-      title: row.title && clean(row.title),
-    }
+/** A suggestion as Brain Agent sees it: scrubbed text, a possible repeat as a repeat. */
+export function suggestion(ctx: Context, raw: SuggestionRow): BrainTidySuggestion | null {
+  const row: SuggestionRow = {
+    ...raw,
+    kind: raw.kind === UNCHECKED ? 'same_memory' : raw.kind,
+    reason: scrubExcerpt(raw.reason),
+    verdict_reason: raw.verdict_reason && scrubExcerpt(raw.verdict_reason),
+    title: raw.title && scrubExcerpt(raw.title),
+  }
   if (
     row.kind === UNCHECKED ||
     !BRAIN_TIDY_KINDS.includes(row.kind) ||
@@ -160,7 +176,7 @@ export function suggestion(
       .map((id) => ({
         type: row.subject_type,
         id,
-        label: clean(
+        label: scrubExcerpt(
           one<{ label: string }>(ctx, `SELECT ${column} AS label FROM ${table} WHERE id=?`, id)
             ?.label ?? 'Removed',
         ),
@@ -192,22 +208,13 @@ export function summary(ctx: Context): BrainTidySummary {
     )!.newest,
   }
 }
-export function dismiss(ctx: Context, id: string, expected: number): void {
-  transaction(ctx, () => {
-    checkRevision(ctx, expected)
-    openSuggestion(ctx, id)
-    run(ctx, "UPDATE tidy_suggestions SET state='dismissed',updated_at=? WHERE id=?", ctx.now(), id)
-    bumpRevision(ctx)
-  })
-}
-export function openSuggestion(ctx: Context, id: string, curator = false): SuggestionRow {
+export function openSuggestion(ctx: Context, id: string): SuggestionRow {
   const row = one<SuggestionRow>(
     ctx,
     "SELECT * FROM tidy_suggestions WHERE id=? AND state='open'",
     id,
   )
-  if (!row || !suggestion(ctx, row, curator))
-    throw new Error('This Tidy suggestion is no longer available.')
+  if (!row || !suggestion(ctx, row)) throw new Error('This Tidy suggestion is no longer available.')
   return row
 }
 export function flag(ctx: Context, input: BrainTidyFlag): BrainTidyFlagResult {

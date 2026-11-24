@@ -1,8 +1,11 @@
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { openBrainStore } from './store'
-import { approve, extraction, fixture, lane, running } from './test-support'
+import { saveAndListMemories, extraction, fixture, lane, running, save } from './test-support'
+import { seed } from './tidy/test-support'
 import type { BrainStore } from './types'
+
+const note = { runId: null, reason: 'The property test found this order.' }
 
 /** Saves the chosen memories of the default read for a running job. */
 function saveSome(store: BrainStore, jobId: string, indexes: number[]) {
@@ -43,7 +46,7 @@ it.each([{ selected: [0] }])(
   'a saved read %j replaces all unshared lane memories, with correct counters',
   ({ selected }) => {
     const { store, db } = fixture()
-    const ids = approve(store)
+    const ids = saveAndListMemories(store)
     const old = store.memory(ids[0]!).memory.jobId!
     // A changed leaf lets old code reach the approval assertion.
     const job = running(store, { leafId: 'new', replaces: old })
@@ -65,7 +68,7 @@ it.each(['citation', 'relation'] as const)(
   'keeps an independently supported %s memory unchanged but counts it in history',
   (support) => {
     const { store, db } = fixture()
-    const ids = approve(store)
+    const ids = saveAndListMemories(store)
     const old = store.memory(ids[0]!).memory.jobId!
     const n = db.prepare('SELECT n FROM memories WHERE id=?').get(ids[0]!)!.n
     db.exec(
@@ -96,7 +99,7 @@ it.each(['citation', 'relation'] as const)(
 )
 it('rolls back new saves, old removal, counters and job finalization together on a deletion failure', () => {
   const { store, db } = fixture()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   const old = store.memory(ids[0]!).memory.jobId!
   const job = running(store, { leafId: 'new', replaces: old })
   const before = store.snapshot()
@@ -112,7 +115,7 @@ it('rolls back new saves, old removal, counters and job finalization together on
 })
 it('replaces all lane provenance, including memories whose old job is gone, but never null provenance', () => {
   const { store, db } = fixture()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   const first = store.memory(ids[0]!).memory.jobId!
   const last = store.enqueue(lane({ leafId: 'later' }), 'queued')
   store.updateJob(last.id, { state: 'done' })
@@ -129,7 +132,7 @@ it.each(['empty', 'failed', 'cancelled'] as const)(
   '%s rereads leave earlier knowledge and finished history intact',
   (state) => {
     const { store } = fixture()
-    const ids = approve(store)
+    const ids = saveAndListMemories(store)
     const old = store.memory(ids[0]!).memory.jobId!
     const job = running(store, { leafId: 'new', replaces: old })
     if (state === 'cancelled') store.removeJob(job)
@@ -177,4 +180,38 @@ it('replaces a lane with one revision bump and no extra pruning per removed memo
   } finally {
     store.close()
   }
+})
+it('Read again keeps earlier undo records: a merge undone after the read is undone restores fully', () => {
+  const { store, db } = fixture()
+  seed(db, 1)
+  const first = save(store)
+  const rina = (
+    db.prepare("SELECT id FROM entities WHERE label='Rina Okafor' AND id<>'rina-1'").get() as {
+      id: string
+    }
+  ).id
+  const merge = store.agentEdit({ kind: 'merge', sourceId: rina, targetId: 'rina-1' }, note)
+  const job = running(store, { replaces: first.jobId, leafId: 'leaf-again' })
+  const data = extraction(job, { computedRevision: store.knowledgeRevision() })
+  const again = store.saveRead({
+    ...data,
+    memories: [data.memories[1]!],
+    memoryVectors: [data.memoryVectors[1]!],
+  })
+  expect(again.replaced).toBe(2)
+  store.agentUndo(again.operationId!, note)
+  const owner = () =>
+    db
+      .prepare(
+        "SELECT e.id FROM relations r JOIN entities e ON e.n=r.subject WHERE r.predicate='owns'",
+      )
+      .all()
+  let refused = false
+  try {
+    store.agentUndo(merge, note)
+  } catch {
+    refused = true
+  }
+  if (!refused) expect(owner()).toEqual([{ id: rina }])
+  else expect(owner()).toEqual([{ id: 'rina-1' }])
 })

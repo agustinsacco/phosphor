@@ -106,8 +106,10 @@ it('derives the speaker and distinct lane count from lane citations, not correct
 })
 it('expands current sentences, history, co-mentions and ranked memories', () => {
   const { search, db } = setup()
+  // The ended link sits on a current memory; its dead copy on memory 4 stands for the row a
+  // supersede left behind, and must not list the sentence twice.
   db.exec(
-    `UPDATE relations SET label='relies on'; INSERT INTO relations(memory,subject,predicate,object,live,observed_at,valid_to,label) VALUES (1,1,'uses',4,0,1,2,'used to rely on')`,
+    `UPDATE relations SET label='relies on'; INSERT INTO relations(memory,subject,predicate,object,live,observed_at,valid_to,label) VALUES (1,1,'uses',4,1,1,2,'used to rely on'),(4,1,'uses',4,0,1,2,'used to rely on')`,
   )
   db.close()
   const expansion = search.expand({

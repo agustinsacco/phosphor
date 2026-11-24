@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture } from '../test-support'
+import { saveAndListMemories, extraction, fixture } from '../test-support'
 import { pairKey } from './suggestions'
 
 type Db = ReturnType<typeof fixture>['db']
@@ -26,7 +26,7 @@ function conflict(db: Db, first: string, second: string): string {
 
 it('replace carries the older memory links the newer one does not contradict', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const older = memoryId(db, 'Rina Okafor owns the Harbor billing service.')
   const newer = memoryId(db, 'Tom Lee maintains the Harbor invoice archive.')
   const operation = store.resolve(
@@ -50,7 +50,7 @@ it('replace carries the older memory links the newer one does not contradict', (
 it('replace ends a link the newer memory contradicts at the newer memory start', () => {
   const { store, db } = fixture()
   const base = extraction('unused')
-  approve(store, {
+  saveAndListMemories(store, {
     memories: [
       base.memories[0]!,
       {

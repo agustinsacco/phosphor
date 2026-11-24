@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, vector } from '../test-support'
+import { saveAndListMemories, extraction, fixture, lane, vector } from '../test-support'
 import type { BrainStore, Proposal } from '../types'
 import { dump, seed } from './test-support'
 
@@ -60,7 +60,7 @@ function enrich(
     reason: '',
     citations: [{ evidence: 0, quote: 'Independent Ledger support' }],
   }
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [],
     entityVectors: [],
     memories: [memory],
@@ -217,7 +217,7 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
 }
 
 it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
-  '%s undo after Read again cannot restore the replaced lane memory',
+  '%s undo after Read again is refused while the replaced lane memory is gone',
   (kind) => {
     const { store, db } = setup()
     const target = kind === 'merge' ? 'memory-1' : 'memory-2'
@@ -238,11 +238,8 @@ it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
       }),
     )
     expect(() => store.memory(target)).toThrow('not found')
-    if (kind === 'merge') store.tidyUndo(operation, store.revision())
-    else
-      expect(() => store.tidyUndo(operation, store.revision())).toThrow(
-        /forgotten|no longer available/,
-      )
+    // Read again keeps the earlier record, so the change cannot half-undo around the gap.
+    expect(() => store.tidyUndo(operation, store.revision())).toThrow('Later changes')
     expect(() => store.memory(target)).toThrow('not found')
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
   },
@@ -264,7 +261,7 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
   it(`${kind} undo stays clean after a later approval that touches none of its records`, () => {
     const { store, db } = setup()
     const operation = change(store, kind)
-    approve(store, { origin: { sessionId: 'kestrel-lane', title: 'Kestrel' } })
+    saveAndListMemories(store, { origin: { sessionId: 'kestrel-lane', title: 'Kestrel' } })
     const learned = store.snapshot().counts.memories
     store.tidyUndo(operation, store.revision())
     expect(store.snapshot().counts.memories).toBe(

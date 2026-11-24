@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { entities } from './browse'
 import type { Context } from './database'
-import { approve, extraction, fixture, vector } from './test-support'
+import { saveAndListMemories, extraction, fixture, vector } from './test-support'
 
 /**
  * Tom Lee takes over Harbor: Rina Okafor's only memory is superseded, and her ownership travels
@@ -9,14 +9,14 @@ import { approve, extraction, fixture, vector } from './test-support'
  */
 function handover() {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const nodes = store.overview(300).nodes
   const id = (label: string) => nodes.find((node) => node.label === label)!.id
   const [rina, tom, harbor] = [id('Rina Okafor'), id('Tom Lee'), id('Harbor')]
   const old = store.entityMemories(rina, {}, null).memories[0]!
   const data = extraction('handover')
   const citation = { evidence: 0, quote: 'Rina owns Harbor.' }
-  approve(store, {
+  saveAndListMemories(store, {
     jobId: 'handover',
     origin: { sessionId: 'ledger-lane', title: 'Ledger planning' },
     entities: [],

@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest'
-import { fixture, lane, save } from './test-support'
+import { extraction, fixture, lane, save } from './test-support'
+import { seed } from './tidy/test-support'
+import type { ProposalEntity } from './types'
 
 const note = { runId: null, reason: 'These claims came from a test conversation.' }
 
@@ -46,4 +48,42 @@ it('a saved read closes the read questions it opened when it is undone', () => {
   store.agentUndo(saved.operationId!, note)
   expect(store.waitingCounts().groups).toBe(0)
   expect(() => store.enqueue(lane({ leafId: 'leaf-again' }), 'queued')).not.toThrow()
+})
+it('undoing a read that reused a pending guess restores the guess record (names, keys, description, vector)', () => {
+  const { store, db } = fixture()
+  seed(db, 1)
+  const unsure = (patch: Partial<ProposalEntity>) =>
+    extraction('unused').entities.map((item) =>
+      item.ref === 'rina'
+        ? {
+            ...item,
+            decision: 'uncertain' as const,
+            entityId: null,
+            candidates: ['rina-1'],
+            ...patch,
+          }
+        : item,
+    )
+  save(store, { entities: unsure({}) })
+  const guess = db
+    .prepare("SELECT n FROM entities WHERE label='Rina Okafor' AND id<>'rina-1'")
+    .get() as { n: number }
+  const image = () => ({
+    entity: db.prepare('SELECT label,description FROM entities WHERE n=?').all(guess.n),
+    names: db.prepare('SELECT name FROM entity_names WHERE entity=? ORDER BY name').all(guess.n),
+    keys: db.prepare('SELECT namespace,value FROM entity_keys WHERE entity=?').all(guess.n),
+    vector: db.prepare('SELECT vector FROM entity_vectors WHERE entity=?').all(guess.n),
+  })
+  const before = image()
+  const second = save(store, {
+    origin: { sessionId: 'ledger-lane', title: 'Ledger' },
+    entities: unsure({
+      aliases: ['R. Okafor'],
+      keys: [{ namespace: 'github', value: 'rokafor' }],
+      description: 'Ledger billing lead.',
+    }),
+  })
+  expect(image()).not.toEqual(before)
+  store.agentUndo(second.operationId!, note)
+  expect(image()).toEqual(before)
 })

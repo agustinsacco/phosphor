@@ -6,11 +6,12 @@ export const LINK = `CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id 
   r.label,r.valid_from AS validFrom,r.valid_to AS validTo,r.stated_by AS statedBy`
 export const ENDS =
   'JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory'
+/** Links that ended on current memories; a superseded memory's dead copy is not history twice. */
 export function endedLinks(ctx: Context, id: string, now: number): BrainLink[] {
   const n = entityNumber(ctx, id)
   return all(
     ctx,
-    `SELECT ${LINK} FROM relations r ${ENDS} WHERE (r.subject=? OR r.object=?) AND r.valid_to<=? ORDER BY r.valid_to DESC,r.n DESC LIMIT 20`,
+    `SELECT ${LINK} FROM relations r ${ENDS} WHERE r.live=1 AND (r.subject=? OR r.object=?) AND r.valid_to<=? ORDER BY r.valid_to DESC,r.n DESC LIMIT 20`,
     n,
     n,
     now,

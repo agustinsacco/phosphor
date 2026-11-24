@@ -128,7 +128,7 @@ export class EngineBase {
       throw error
     }
   }
-  /** A pair suggestion of `kind`, open, so a curator action can settle it. */
+  /** A pair suggestion of `kind`, open, so a Brain Agent action can settle it. */
   openPair(kind: 'same_memory' | 'conflict', first: string, second: string): string {
     const key = pairKey('memory', first, second)
     this.db.prepare('DELETE FROM tidy_suggestions WHERE pair_key=?').run(key)

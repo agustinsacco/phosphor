@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, save, vector } from '@phosphor/memory-engine/test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  save,
+  vector,
+} from '@phosphor/memory-engine/test-support'
 import type { BrainStore, ProposalMemory } from '@phosphor/memory-engine/types'
 import { FakeBrainSearch } from '../__fixtures__/fake-store'
 import type { StageAsk } from '../stage-types'
@@ -14,7 +20,7 @@ interface Stored {
 /** One person, Rina Okafor, named by every stored memory. Returns her id and the memory ids by summary. */
 function hub(store: BrainStore, memories: Stored[]): { rina: string; ids: Map<string, string> } {
   const base = extraction('')
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [base.entities[1]!],
     memories: memories.map((m, i) => ({
       ...base.memories[0]!,
@@ -151,7 +157,7 @@ function replacedPreference(store: BrainStore): { rina: string; weekly: string }
   ])
   const weekly = ids.get(weeklySummary)!
   const base = extraction('')
-  approve(store, {
+  saveAndListMemories(store, {
     jobId: 'leaf-2',
     entities: [],
     entityVectors: [],
@@ -297,7 +303,7 @@ it('regression: a shared link counts only with the same predicate, so uses links
     (topic) => `Harbor uses Ledger for ${topic}.`,
   )
   const summaries = [paraphrase, ...uses]
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [harbor, ledger],
     entityVectors: [vector(0, 0, 1), vector(0, 0, 1)],
     memories: summaries.map((summary, i) => ({
@@ -357,7 +363,7 @@ it('regression: five earlier uses claims of the same read cannot push out a clos
   const harbor = base.entities[0]!
   const ledger = { ...harbor, ref: 'ledger', label: 'Ledger', aliases: [] }
   const paraphrase = 'Harbor cannot start without Ledger.'
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [harbor, ledger],
     entityVectors: [vector(0, 0, 1), vector(0, 0, 1)],
     memories: [

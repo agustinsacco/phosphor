@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, searchFixture, vector } from './test-support'
+import { saveAndListMemories, extraction, searchFixture, vector } from './test-support'
 import type { ProposalEntity, ProposalMemory } from './types'
 
 const identity = (ref: string): ProposalEntity => ({
@@ -35,7 +35,7 @@ it('recalls memories within two structural hops with memory ids, keeps planned a
   }))
   memories[1]!.validFrom = Date.now() + 86_400_000
   memories[2]!.branch = true
-  approve(store, {
+  saveAndListMemories(store, {
     entities: refs.map(identity),
     entityVectors: refs.map(() => vector()),
     memories,
@@ -44,7 +44,7 @@ it('recalls memories within two structural hops with memory ids, keeps planned a
   const nodes = store.overview(300).nodes
   const kestrel = nodes.find((node) => node.label === 'Kestrel')!
   const old = store.entityMemories(kestrel.id, {}, null).memories[0]!
-  approve(store, {
+  saveAndListMemories(store, {
     jobId: 'conflict',
     entities: [],
     entityVectors: [],
@@ -102,7 +102,7 @@ it('does not expand through a non-focus hub above 200 connections and bounds nei
       },
     ],
   }))
-  approve(store, {
+  saveAndListMemories(store, {
     entities: refs.map(identity),
     entityVectors: refs.map(() => vector()),
     memories,

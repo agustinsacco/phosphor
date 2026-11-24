@@ -24,18 +24,9 @@ function pair(similarity: number, shared = 2, patch = '') {
 const pending = (store: ReturnType<typeof fixture>['store']) =>
   store.waitingSuggestions(40, 40).items.map((p) => p.subjects.map((s) => s.id))
 
-it('queues a cross-lane disagreement only for Brain Agent, never on the page', () => {
+it('queues a cross-lane disagreement only as a possible repeat for Brain Agent', () => {
   const { store } = pair(0.65)
-  const page = store.suggestions(null, null, 20)
-  expect(page.items).toEqual([])
-  expect(page.counts).toEqual({
-    same_entity: 0,
-    group: 0,
-    unlinked: 0,
-    same_memory: 0,
-    conflict: 0,
-    flagged: 0,
-  })
+  expect(store.suggestions(null).items).toEqual([])
   expect(store.waitingCounts()).toEqual({
     entities: 0,
     groups: 0,
@@ -60,7 +51,7 @@ it.each([
 
 it('queues a looser paraphrase in the same lane for Brain Agent', () => {
   const { store } = pair(0.8, 2, "UPDATE memories SET origin_session='lane-1',type='open'")
-  expect(store.suggestions(null, null, 20).items).toEqual([])
+  expect(store.suggestions(null).items).toEqual([])
   expect(pending(store)).toEqual([['memory-1', 'memory-2']])
 })
 

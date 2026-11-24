@@ -140,7 +140,7 @@ export interface BrainRelate extends BrainAgentReason, BrainLinkInput {
 export interface BrainResolve extends BrainAgentReason {
   suggestionId: string
   /** Erasing goes through `erase`, so the hourly cap holds. */
-  action: Exclude<BrainTidyAction, { kind: 'forget' }>
+  action: BrainTidyAction
 }
 export type BrainAgentEdit =
   | { kind: 'merge'; sourceId: string; targetId: string }

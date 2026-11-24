@@ -13,9 +13,4 @@ it('does not scan and close the entire suggestion backlog inside one sweep chunk
   expect(
     Number(db.prepare("SELECT COUNT(*) AS n FROM tidy_suggestions WHERE state='cleared'").get()!.n),
   ).toBeLessThanOrEqual(128)
-  const page = store.suggestions('flagged', null, 20)
-  expect(page.items).toEqual([])
-  expect(
-    Number(db.prepare("SELECT COUNT(*) AS n FROM tidy_suggestions WHERE state='cleared'").get()!.n),
-  ).toBeLessThanOrEqual(149)
 })

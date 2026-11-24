@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, vector } from '@phosphor/memory-engine/test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  vector,
+} from '@phosphor/memory-engine/test-support'
 import { FakeBrainSearch } from '../__fixtures__/fake-store'
 import type { StageAsk } from '../stage-types'
 import { reconcile } from './reconcile'
@@ -15,7 +20,7 @@ it.each([
   'allows only the highest-priority action on one target: %s, %s',
   async (first, second) => {
     const { store } = fixture()
-    const [target] = approve(store, {
+    const [target] = saveAndListMemories(store, {
       memories: [{ ...extraction('').memories[0]!, type: 'open' }],
       memoryVectors: [vector()],
     })
@@ -84,7 +89,7 @@ it.each([
 
 it('keeps the evidence of every confirmation of one target, since confirming changes no state', async () => {
   const { store } = fixture()
-  const [target] = approve(store)
+  const [target] = saveAndListMemories(store)
   const old = store.memory(target!).memory
   const base = extraction('').memories[0]!
   const claims = ['Paraphrase one', 'Paraphrase two'].map((quote, i) => ({

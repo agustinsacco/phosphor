@@ -29,9 +29,6 @@ describe('Brain Agent writes and journal', () => {
       allowed: expect.arrayContaining(['fold', 'dispute', 'replace', 'keep']),
     })
     expect(store.waitingSuggestions(50, 1).items[0]).toMatchObject({ kind: 'possible_repeat' })
-    expect(() => store.resolve(pair.suggestionId, { kind: 'forget' }, note)).toThrow(
-      'Use brain_erase',
-    )
   })
   it('corrects a memory with a sourced quote, preserving mentions, and undoes exactly', () => {
     const { store, db } = fixture()

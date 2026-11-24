@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { approve, extraction, fixture, lane } from './test-support'
+import { saveAndListMemories, extraction, fixture, lane } from './test-support'
 
 describe('Brain graph regressions', () => {
   it('lets a re-ingested lane enrich a saved memory with a supported link without duplicating citations', () => {
     const { store } = fixture()
     const initial = extraction('first')
-    approve(store, { memories: initial.memories.map((memory) => ({ ...memory, links: [] })) })
+    saveAndListMemories(store, {
+      memories: initial.memories.map((memory) => ({ ...memory, links: [] })),
+    })
     const nodes = store.overview(300).nodes
     const ids = nodes.map((node) => store.entityMemories(node.id, {}, null).memories).flat()
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
@@ -31,7 +33,7 @@ describe('Brain graph regressions', () => {
 
   it('keeps an entity that only a superseded memory still names', () => {
     const { store, db } = fixture()
-    approve(store)
+    saveAndListMemories(store)
     const tom = store.overview(300).nodes.find((node) => node.label === 'Tom Lee')!
     const old = store.entityMemories(tom.id, {}, null).memories[0]!
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')

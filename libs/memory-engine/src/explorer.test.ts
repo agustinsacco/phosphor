@@ -1,6 +1,6 @@
 import { routes } from './routes'
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, vector } from './test-support'
+import { saveAndListMemories, extraction, fixture, vector } from './test-support'
 import type { ProposalEntity } from './types'
 
 function node(ref: string): ProposalEntity {
@@ -36,7 +36,7 @@ it('groups both directions, pages connections and memories without duplicates ',
       },
     ],
   }))
-  approve(store, {
+  saveAndListMemories(store, {
     entities: refs.map(node),
     entityVectors: refs.map(() => vector()),
     memories,
@@ -86,14 +86,14 @@ it('groups both directions, pages connections and memories without duplicates ',
 })
 it('merge repoints mentions, keys, names and duplicate support, removes self-links and audits labels', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const nodes = store.overview(300).nodes
   const source = nodes.find((item) => item.label === 'Rina Okafor')!
   const target = nodes.find((item) => item.label === 'Tom Lee')!
   const harbor = nodes.find((item) => item.label === 'Harbor')!
   const old = store.entityMemories(source.id, {}, null).memories[0]!
   const data = extraction('extra')
-  approve(store, {
+  saveAndListMemories(store, {
     jobId: 'extra',
     entities: [],
     entityVectors: [],

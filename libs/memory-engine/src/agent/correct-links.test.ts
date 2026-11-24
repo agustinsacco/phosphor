@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, fixture } from '../test-support'
+import { saveAndListMemories, fixture } from '../test-support'
 
 const note = { runId: null, reason: 'The ticket names a different owner.' }
 interface LinkRow {
@@ -45,7 +45,7 @@ function corrected(db: ReturnType<typeof fixture>['db'], oldId: string) {
 
 it('a correction carries the old memory links to the corrected memory, and undo restores them', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const old = ownerMemory(db)
   const before = links(db, old)
   const result = store.correct(
@@ -74,7 +74,7 @@ it('a correction carries the old memory links to the corrected memory, and undo 
 
 it('a corrected link naming a new owner ends the old link instead of carrying it as current', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const old = ownerMemory(db)
   const result = store.correct(
     {
@@ -122,7 +122,7 @@ it('a corrected link naming a new owner ends the old link instead of carrying it
 
 it('a link the correction ends is kept as history with an end date', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const old = ownerMemory(db)
   const relation = String(
     db

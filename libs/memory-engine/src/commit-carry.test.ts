@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture } from './test-support'
+import { saveAndListMemories, extraction, fixture } from './test-support'
 
 type Db = ReturnType<typeof fixture>['db']
 function links(db: Db, memoryId: string) {
@@ -27,7 +27,7 @@ function supersede(
 ): string {
   const base = extraction('unused')
   const memory = base.memories[0]!
-  approve(store, {
+  saveAndListMemories(store, {
     jobId: 'leaf-2',
     origin: { sessionId: 'ledger-lane', title: 'Ledger billing' },
     entities: [],
@@ -56,7 +56,7 @@ function supersede(
 
 it('a read that supersedes a memory carries its links the new memory does not contradict', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const old = memoryId(db, 'Rina Okafor owns the Harbor billing service.')
   const next = supersede(store, db, old, [
     { subject: 'Tom Lee', predicate: 'works_on', object: 'Harbor' },
@@ -83,7 +83,7 @@ it('a read that supersedes a memory carries its links the new memory does not co
 
 it('a read naming a new owner ends the old owner link at the new memory start', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const old = memoryId(db, 'Rina Okafor owns the Harbor billing service.')
   const next = supersede(store, db, old, [
     { subject: 'Tom Lee', predicate: 'owns', object: 'Harbor' },

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { setImmediate } from 'node:timers/promises'
 import { expect, it } from 'vitest'
 import { buildBenchmark, clusteredVector } from './benchmark-fixture'
-import { approve, searchFixture, vector } from './test-support'
+import { saveAndListMemories, searchFixture, vector } from './test-support'
 
 function loadingFixture() {
   const fixture = searchFixture()
@@ -27,14 +27,14 @@ it('yields during initial load and coalesces concurrent refreshes into one promi
 
 it('keeps the complete previous index while an incremental refresh loads and catches a revision change', async () => {
   const { store, search } = searchFixture()
-  approve(store)
+  saveAndListMemories(store)
   await search.refresh()
   const before = search.nearestMemories([vector()], 20)
-  approve(store, { jobId: 'second' })
+  saveAndListMemories(store, { jobId: 'second' })
   const loading = search.refresh()
   expect(search.ready()).toBe(true)
   expect(search.nearestMemories([vector()], 20)).toEqual(before)
-  approve(store, { jobId: 'third' })
+  saveAndListMemories(store, { jobId: 'third' })
   expect(search.refresh()).toBe(loading)
   await loading
   expect(search.nearestMemories([vector()], 20)[0]).toHaveLength(6)
@@ -46,7 +46,7 @@ it('abandons a generation that resets between chunks and loads only the replacem
   await setImmediate()
   expect(search.ready()).toBe(false)
   store.reset()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   await loading
   expect(search.ready()).toBe(true)
   expect(
@@ -70,11 +70,11 @@ it('stops loading on close without accessing the closed database or becoming rea
 
 it('includes every commit whose refresh joined a load already in progress', async () => {
   const { store, search } = searchFixture()
-  approve(store)
+  saveAndListMemories(store)
   await search.refresh()
   let latest = Promise.resolve()
   for (let i = 0; i < 8; i++) {
-    approve(store, { jobId: `join-${i}` })
+    saveAndListMemories(store, { jobId: `join-${i}` })
     latest = search.refresh()
     await setImmediate()
   }

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { openBrainStore } from './store'
-import { approve, extraction, vector } from './test-support'
+import { saveAndListMemories, extraction, vector } from './test-support'
 import type { ProposalEntity, ProposalMemory } from './types'
 
 const component = (ref: string): ProposalEntity => ({
@@ -44,7 +44,7 @@ it('prepares each statement once per connection, so a graph read is not one prep
         },
       ],
     }))
-    approve(store, {
+    saveAndListMemories(store, {
       entities: ['Harbor', ...leaves].map(component),
       entityVectors: [vector(), ...leaves.map(() => vector())],
       memories,

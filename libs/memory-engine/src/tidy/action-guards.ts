@@ -64,21 +64,19 @@ export function replaceGuard(ctx: Context, first: number, second: number): strin
 }
 export const memoryActionGuards = { fold: foldGuard, dispute: disputeGuard, replace: replaceGuard }
 
+/** Why Brain Agent cannot settle this suggestion this way; null when it can. */
 export function actionRefusal(
   ctx: Context,
   row: SuggestionRow,
   kind: BrainTidyAction['kind'],
-  curator = false,
 ): string | null {
   if (row.state !== 'open') return 'This Tidy suggestion is no longer available.'
   if (!subjectExists(ctx, row)) return 'A subject of this suggestion is no longer available.'
   const mismatch = 'This action does not apply to this Tidy suggestion.'
-  if (curator && kind === 'keep') return null
+  if (kind === 'keep') return null
   // A group question is answered by grouping or keeping apart; an unlinked pair by `relate`.
-  if (row.kind === 'group') return curator && kind === 'group' ? null : mismatch
-  if (row.kind === 'unlinked' || kind === 'group') return mismatch
-  if (curator && kind === 'forget') return 'Use brain_erase to erase a memory.'
-  if (kind === 'keep' || kind === 'forget') return row.kind === 'flagged' ? null : mismatch
+  if (row.kind === 'group') return kind === 'group' ? null : mismatch
+  if (row.kind === 'unlinked' || row.kind === 'flagged' || kind === 'group') return mismatch
   if (!row.second_id || row.first_id === row.second_id) return mismatch
   if (kind === 'merge') return row.subject_type === 'entity' ? null : mismatch
   if (kind === 'unname')
@@ -95,7 +93,6 @@ export function actionRefusal(
 export function allowedActions(
   ctx: Context,
   row: SuggestionRow,
-  curator = false,
 ): Pick<BrainTidySuggestionDetail, 'allowed' | 'foldRefusal'> {
   const kinds: BrainTidyAction['kind'][] = [
     'group',
@@ -104,10 +101,9 @@ export function allowedActions(
     'fold',
     'dispute',
     'replace',
-    'forget',
     'keep',
   ]
-  const allowed = kinds.filter((kind) => actionRefusal(ctx, row, kind, curator) === null)
+  const allowed = kinds.filter((kind) => actionRefusal(ctx, row, kind) === null)
   let refusal: 'applicability' | 'history' | null = null
   if (
     row.state === 'open' &&

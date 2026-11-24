@@ -34,7 +34,7 @@ export function coverage(ctx: Context): Cursor {
     : { ...emptyBrainTidyCoverage(), entityMax: 0, memoryMax: 0 }
 }
 /**
- * What the page shows: no cursor internals. A finished pass reports today's counts, because every
+ * Coverage as a sweep reports it: no cursor internals. A finished pass reports today's counts, because every
  * memory saved since is swept as it lands (or by maintenance right after); a pass in progress
  * reports the totals it set out to check.
  */

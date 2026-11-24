@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, vector } from '@phosphor/memory-engine/test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  lane,
+  vector,
+} from '@phosphor/memory-engine/test-support'
 import type { ProposalEntity } from '@phosphor/memory-engine/types'
 import { FakeBrainSearch } from '../__fixtures__/fake-store'
 import { trackAsk } from '../__fixtures__/stage-ask'
@@ -9,7 +15,10 @@ import type { FoldedJob } from './fold'
 async function confirmationFixture() {
   const { store } = fixture()
   const sample = extraction('')
-  const [target] = approve(store, { memories: [sample.memories[0]!], memoryVectors: [vector()] })
+  const [target] = saveAndListMemories(store, {
+    memories: [sample.memories[0]!],
+    memoryVectors: [vector()],
+  })
   const before = store.memory(target!)
   const identities: ProposalEntity[] = sample.entities
     .map((e) => ({

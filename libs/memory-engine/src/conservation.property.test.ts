@@ -54,7 +54,6 @@ type Random = () => number
 const pick = <T>(rng: Random, list: readonly T[]): T | undefined =>
   list.length ? list[Math.floor(rng() * list.length)] : undefined
 const LABELS = ['', 'runs', 'took over billing from', 'answers to', 'is building', 'belongs to']
-const LINKABLE = BRAIN_PREDICATES.filter((p) => p !== 'works_with')
 
 const link = (s: string, p: BrainPredicate, o: string, label = ''): LinkSpec => ({
   s,
@@ -146,14 +145,14 @@ function linkBetween(run: Run, names: string[]): LinkSpec | null {
   for (let tries = 0; tries < 8; tries++) {
     const s = pick(rng, names),
       o = pick(rng, names),
-      p = pick(rng, LINKABLE)!
+      p = pick(rng, BRAIN_PREDICATES)!
     if (!s || !o || s === o) continue
     const rule = BRAIN_LINK_RULES[p]
     if (!rule.subject.includes(ENTITY_KINDS[s]!) || !rule.object.includes(ENTITY_KINDS[o]!))
       continue
     const vf = rng() < 0.5 ? null : now - Math.ceil(rng() * 30) * DAY
     const vt = rng() < 0.7 ? null : (vf ?? now - 10 * DAY) + Math.ceil(rng() * 30) * DAY
-    return { s, p, o, label: pick(rng, LABELS)!, vf, vt }
+    return model.normalize(run.state, { s, p, o, label: pick(rng, LABELS)!, vf, vt })
   }
   return null
 }
@@ -187,7 +186,8 @@ const save =
     const lane = reread
       ? pick(run.rng, [...run.lanes])
       : pick(run.rng, ['harbor-lane', 'ledger-lane', 'kestrel-lane'])!
-    if (!lane) return null
+    // Once every record has left Brain there is no name left to claim anything about.
+    if (!lane || !model.names(run.state).some((n) => n in ENTITY_KINDS)) return null
     const target = run.rng() < 0.35 ? (pick(run.rng, currentIds(run)) ?? null) : null
     const claims = [claimSpec(run, target)]
     if (run.rng() < 0.25) claims.push(claimSpec(run, null))
@@ -329,7 +329,7 @@ function step(run: Run): void {
 
 function start(seed: number): Run {
   const driver = makeDriver()
-  const state: Model = { memories: [], evidence: 0 }
+  const state: Model = { memories: [], evidence: 0, order: SETUP.flatMap((g) => g.create) }
   const ids = driver.setup(SETUP)
   SETUP.forEach((group, i) =>
     model.saveRead(
