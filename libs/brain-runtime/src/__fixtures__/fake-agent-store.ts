@@ -12,7 +12,14 @@ export interface AgentCall {
 /** FakeBrainStore with Defrag runs in memory and Brain Agent writes recorded, not applied. */
 export class FakeAgentStore extends FakeBrainStore {
   runs: BrainAgentRun[] = []
-  counts: BrainWaitingCounts = { reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 }
+  counts: BrainWaitingCounts = {
+    groups: 0,
+    unlinked: 0,
+    entities: 0,
+    repeats: 0,
+    conflicts: 0,
+    flags: 0,
+  }
   calls: AgentCall[] = []
   /** Thrown by the next write, as an engine refusal would be. */
   refusal: Error | null = null
@@ -22,7 +29,8 @@ export class FakeAgentStore extends FakeBrainStore {
   private operations = 0
 
   override waitingCounts = () => ({ ...this.counts })
-  override createRun = (): BrainAgentRun => {
+  override waitingSignature = () => JSON.stringify(this.counts)
+  override createRun = (automatic = false): BrainAgentRun => {
     const run: BrainAgentRun = {
       id: `run-${++this.runIds}`,
       state: 'queued',
@@ -36,6 +44,7 @@ export class FakeAgentStore extends FakeBrainStore {
       error: null,
       sessionPath: null,
       rulesChanged: false,
+      automatic,
     }
     this.runs.push(run)
     return { ...run }
@@ -72,22 +81,15 @@ export class FakeAgentStore extends FakeBrainStore {
     this.rev++
     return `op-${++this.operations}`
   }
-  override decideRead = (
-    jobId: string,
-    decision: Parameters<BrainStore['decideRead']>[1],
-    revision: number,
-    note: Note,
-  ) => {
-    const operationId = this.write('decideRead', [jobId, decision, revision], note)
-    this.updateJob(jobId, { state: decision ? 'done' : 'rejected' })
-    this.proposals.delete(jobId)
-    return { operationId, touched: { entityIds: [], memoryIds: [] } }
-  }
+  override relate = (input: unknown, note: Note) => this.write('relate', [input], note)
   override resolve = (id: string, action: unknown, note: Note) =>
     this.write('resolve', [id, action], note)
   override agentEdit = (edit: unknown, note: Note) => this.write('agentEdit', [edit], note)
-  override correct = (input: unknown, vector: Float32Array | null, note: Note) =>
-    this.write('correct', [input, vector], note)
+  override correct = (input: unknown, vector: Float32Array | null, note: Note) => ({
+    operationId: this.write('correct', [input, vector], note),
+    carried: [],
+    ended: [],
+  })
   override erase = (memoryId: string, note: Note) => this.write('erase', [memoryId], note)
   override agentUndo = (operationId: string, note: Note): void => {
     this.write('agentUndo', [operationId], note)

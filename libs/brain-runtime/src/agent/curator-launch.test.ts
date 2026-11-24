@@ -20,7 +20,7 @@ async function setup(withCurator = true) {
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const store = new FakeAgentStore()
   store.prefs.enabled = true
-  store.counts = { reads: 0, entities: 2, repeats: 0, conflicts: 0, flags: 1 }
+  store.counts = { groups: 0, unlinked: 0, entities: 2, repeats: 0, conflicts: 0, flags: 1 }
   const service = await createBrainService({
     ...recallOptions(store),
     directory,

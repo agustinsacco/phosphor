@@ -1,4 +1,5 @@
-import type { BrainQuery, BrainRecall, BrainAgentMap } from '@phosphor/shared/brain'
+import type { BrainAgentMap } from '@phosphor/shared/brain'
+import type { BrainQuery, BrainSearchResult } from '@phosphor/shared/brain-recall'
 import type { BrainTransport } from './port'
 import { isBrainRecall, isBrainFlagResponse, validateBrainRequest } from './validate'
 
@@ -17,7 +18,7 @@ export class BrainClientError extends Error {
   }
 }
 export interface BrainClient {
-  search(query: BrainQuery, signal?: AbortSignal): Promise<BrainRecall>
+  search(query: BrainQuery, signal?: AbortSignal): Promise<BrainSearchResult>
   flag(
     input: BrainAgentMap['flag']['request'],
     signal?: AbortSignal,

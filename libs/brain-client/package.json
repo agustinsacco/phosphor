@@ -7,7 +7,6 @@
     "./client": "./src/client.ts",
     "./curator-client": "./src/curator-client.ts",
     "./curator-format": "./src/curator-format.ts",
-    "./curator-review-format": "./src/curator-review-format.ts",
     "./node-transport": "./src/node-transport.ts",
     "./validate": "./src/validate.ts",
     "./validate-curator": "./src/validate-curator.ts"

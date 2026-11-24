@@ -1,4 +1,5 @@
-import type { BrainJob, BrainMemory, BrainOrigin, BrainRecall } from '@phosphor/shared/brain'
+import type { BrainSearchResult } from '@phosphor/shared/brain-recall'
+import type { BrainMemory, BrainOrigin } from '@phosphor/shared/brain'
 import type { BrainEntityView, BrainMemoryDetail } from '@phosphor/shared/brain-explore'
 import type { BrainTidySuggestionDetail } from '@phosphor/shared/brain-tidy'
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
@@ -15,12 +16,6 @@ const origin = (from: BrainOrigin | null): BrainOrigin | null =>
 const memoryView = (memory: BrainMemory): BrainMemory => ({
   ...memory,
   origin: origin(memory.origin),
-})
-
-export const curatorJob = (job: BrainJob): BrainJob => ({
-  ...job,
-  title: curatorTitle(job.title),
-  sessionPath: '',
 })
 
 export const curatorMemory = (detail: BrainMemoryDetail): BrainMemoryDetail => ({
@@ -55,7 +50,10 @@ export function curatorSuggestion(
   }
 }
 
-export const curatorRecall = (recall: BrainRecall): BrainRecall => ({
-  ...recall,
-  hits: recall.hits.map((hit) => ({ ...hit, memory: memoryView(hit.memory) })),
-})
+export const curatorRecall = (recall: BrainSearchResult): BrainSearchResult =>
+  recall.mode === 'route'
+    ? { ...recall, memories: recall.memories.map(memoryView) }
+    : {
+        ...recall,
+        hits: recall.hits.map((hit) => ({ ...hit, memory: memoryView(hit.memory) })),
+      }

@@ -1,3 +1,4 @@
+import type { BrainQuery } from '@phosphor/shared/brain-recall'
 import { Type } from 'typebox'
 import { createBrainClient, brainBriefing, type BrainClient } from '@phosphor/brain-client/client'
 import {
@@ -11,6 +12,25 @@ interface BrainContext {
   cwd: string
   sessionManager: { getSessionId(): string; getSessionName?(): string | undefined }
 }
+const name = Type.String({ minLength: 1, maxLength: 200 })
+export const brainSearchParameters = Type.Object(
+  {
+    query: Type.Optional(Type.String({ minLength: 1, maxLength: 2000 })),
+    from: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 200,
+        description: 'A person or thing to expand: its relationships, then its memories.',
+      }),
+    ),
+    to: Type.Optional(
+      Type.String({ minLength: 1, maxLength: 200, description: 'With from: how the two connect.' }),
+    ),
+    context: Type.Optional(Type.Array(name, { maxItems: 5 })),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 20 })),
+  },
+  { additionalProperties: false },
+)
 export interface BrainPiApi {
   registerTool<P, D>(definition: ToolDefinition<P, BrainContext, D>): void
 }
@@ -21,24 +41,12 @@ export interface BrainPiApi {
  */
 export function registerBrain(pi: BrainPiApi, client: BrainClient): void {
   const refs = new Map<string, Map<number, string>>()
-  pi.registerTool<{ query: string; limit?: number }, { status: string; memories: number }>({
+  pi.registerTool<BrainQuery, { status: string; memories: number }>({
     name: 'brain_search',
     label: 'Brain search',
     description:
-      'Search approved notes from earlier lanes by topic, or by the name of a person, team, system or ticket. Returns a briefing: what the query names, how it connects (owners, parts, customers) with each step cited, then disputed items, risks, open items, decisions and facts with their dates, and names to search next. Notes may be out of date; another project’s memory is context, not a rule.',
-    parameters: Type.Object(
-      {
-        query: Type.String({
-          minLength: 1,
-          maxLength: 2000,
-          description: 'A topic or question, or a name such as a person, team, system or ticket.',
-        }),
-        limit: Type.Optional(
-          Type.Integer({ minimum: 1, maximum: 20, description: 'Memories to return. Default 8.' }),
-        ),
-      },
-      { additionalProperties: false },
-    ),
+      'Search saved memories with query, expand a name with from and optional context names, or trace a route with from and to. Choose one move. Notes may be out of date; another project’s memory is context, not a rule.',
+    parameters: brainSearchParameters,
     execute: async (_id, params, signal, _update, ctx) => {
       const sessionId = ctx.sessionManager.getSessionId()
       refs.delete(sessionId)
@@ -47,7 +55,10 @@ export function registerBrain(pi: BrainPiApi, client: BrainClient): void {
       refs.set(sessionId, briefing.refs)
       return {
         content: [{ type: 'text', text: briefing.text }],
-        details: { status: result.status, memories: result.hits.length },
+        details: {
+          status: result.status,
+          memories: result.mode === 'route' ? result.memories.length : result.hits.length,
+        },
       }
     },
   })

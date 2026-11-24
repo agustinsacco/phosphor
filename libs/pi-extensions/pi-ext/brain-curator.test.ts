@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrainCuratorClient } from '@phosphor/brain-client/curator-client'
-import type { BrainAgentWrite } from '@phosphor/shared/brain-agent'
+import { BRAIN_CURATOR_METHODS, type BrainAgentWrite } from '@phosphor/shared/brain-agent'
 import {
   OWNERSHIP_DETAIL,
   RINA_SUGGESTION,
@@ -18,11 +18,8 @@ import type { ToolDefinition } from './pi-api'
 
 type Tool = ToolDefinition<Record<string, unknown>, unknown, { status: string }>
 const DONE: BrainAgentWrite = { status: 'done', message: 'Saved.', operationId: 'op-7' }
-/** Brain formats a read's page itself; the tool shows it as it comes. */
-const PAGE = { text: 'Read job-ledger · "Ledger invoices" · revision 41.' }
 const RESULTS: Record<string, unknown> = {
   waiting: WAITING,
-  readReview: PAGE,
   suggestion: RINA_SUGGESTION,
   search: HARBOR_RECALL,
   entity: RINA_VIEW,
@@ -59,7 +56,7 @@ describe('the bridge connection', () => {
     vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', 'kestrel-curator-token')
     const pi = { registerTool: vi.fn(), on: vi.fn() }
     brainCuratorExtension(pi)
-    expect(pi.registerTool).toHaveBeenCalledTimes(12)
+    expect(pi.registerTool).toHaveBeenCalledTimes(11)
     const child = spawnSync(
       'sh',
       ['-c', 'printf "%s|%s" "$PHOSPHOR_BRAIN_TOKEN" "$PHOSPHOR_BRAIN_ENDPOINT"'],
@@ -71,20 +68,22 @@ describe('the bridge connection', () => {
     const { default: reloaded } = await import('./brain-curator')
     const again = { registerTool: vi.fn(), on: vi.fn() }
     reloaded(again)
-    expect(again.registerTool).toHaveBeenCalledTimes(12)
+    expect(again.registerTool).toHaveBeenCalledTimes(11)
   })
 })
 
 describe('brain-curator tools', () => {
-  it('registers Brain Agent’s twelve tools and never brain_flag', () => {
+  it('registers Brain Agent’s eleven tools and never brain_flag', () => {
+    expect([...setup().tools.keys()].sort()).toEqual(
+      BRAIN_CURATOR_METHODS.map((m) => 'brain_' + m).sort(),
+    )
     expect([...setup().tools.keys()]).toEqual([
       'brain_waiting',
-      'brain_read_review',
       'brain_suggestion',
       'brain_search',
       'brain_entity',
       'brain_memory',
-      'brain_decide_read',
+      'brain_relate',
       'brain_resolve',
       'brain_edit',
       'brain_correct',
@@ -107,7 +106,7 @@ describe('brain-curator tools', () => {
     const optionalOnly = tools.filter(
       (tool) => !(tool.parameters as { required?: string[] }).required?.length,
     )
-    expect(optionalOnly.map((tool) => tool.name)).toEqual([])
+    expect(optionalOnly.map((tool) => tool.name)).toEqual(['brain_search'])
     expect(tools.find((tool) => tool.name === 'brain_waiting')!.description).toContain('60')
   })
 
@@ -120,10 +119,7 @@ describe('brain-curator tools', () => {
 
   it('formats each read result with the ids the next call needs', async () => {
     const { call, run } = setup()
-    expect((await run('brain_waiting', { limit: 60 })).text).toContain(
-      '- job-ledger · Ledger invoices',
-    )
-    expect((await run('brain_read_review', { jobId: 'job-ledger' })).text).toContain('revision 41')
+    expect((await run('brain_waiting', { limit: 60 })).text).toContain('- sugg-rina · Rina Okafor')
     expect((await run('brain_suggestion', { suggestionId: 'sugg-rina' })).text).toContain(
       'Allowed: merge, keep, unname.',
     )
@@ -132,7 +128,6 @@ describe('brain-curator tools', () => {
     expect((await run('brain_memory', { memoryId: 'ownership' })).text).toContain('Quotes:')
     expect(call.mock.calls.map(([method, params]) => [method, params])).toEqual([
       ['waiting', { limit: 60 }],
-      ['readReview', { jobId: 'job-ledger' }],
       ['suggestion', { suggestionId: 'sugg-rina' }],
       ['search', { query: 'Harbor' }],
       ['entity', { entityId: 'rina' }],
@@ -142,84 +137,14 @@ describe('brain-curator tools', () => {
 
   it('lets a client refusal reach the model as the tool’s error', async () => {
     const { call, run } = setup()
-    call.mockRejectedValueOnce(new Error('Brain jobId needs 1 to 200 characters.'))
-    await expect(run('brain_read_review', { jobId: '' })).rejects.toThrow(
-      'Brain jobId needs 1 to 200 characters.',
+    call.mockRejectedValueOnce(new Error('Brain memoryId needs 1 to 200 characters.'))
+    await expect(run('brain_memory', { memoryId: '' })).rejects.toThrow(
+      'Brain memoryId needs 1 to 200 characters.',
     )
   })
 })
 
-describe('brain_read_review', () => {
-  it('asks Brain for the page at the offset and shows it as it comes', async () => {
-    const { call, run } = setup()
-    expect(await run('brain_read_review', { jobId: 'job-ledger', offset: 40 })).toEqual({
-      text: PAGE.text,
-      status: 'ok',
-    })
-    expect(call.mock.calls).toEqual([
-      ['readReview', { jobId: 'job-ledger', offset: 40 }, undefined],
-    ])
-  })
-
-  it('tells brain_decide_read the default approves every memory not held, on every page', () => {
-    const tools = setup().tools
-    expect(tools.get('brain_decide_read')!.description).toMatch(/not held, on every page/)
-    expect(tools.get('brain_read_review')!.parameters).toMatchObject({
-      properties: { offset: { type: 'integer', minimum: 0 } },
-      required: ['jobId'],
-    })
-  })
-})
-
-describe('brain_decide_read', () => {
-  it('rejects without reading the review', async () => {
-    const { call, run } = setup()
-    const result = await run('brain_decide_read', {
-      jobId: 'job-ledger',
-      revision: 40,
-      approve: false,
-      reason: 'Only status updates.',
-    })
-    expect(call.mock.calls).toEqual([
-      [
-        'decideRead',
-        { jobId: 'job-ledger', revision: 40, approve: false, reason: 'Only status updates.' },
-        undefined,
-      ],
-    ])
-    expect(result).toEqual({
-      text: 'Done. Saved. To reverse it: brain_undo { operationId: "op-7" }.',
-      status: 'done',
-    })
-  })
-
-  it('sends an approval as Brain Agent gave it, and Brain decides it against the stored read', async () => {
-    const approval = {
-      jobId: 'job-ledger',
-      revision: 41,
-      approve: true,
-      memories: [0, 1],
-      identities: [{ ref: 'e1', answer: 'rina' }],
-      groups: [0],
-      descriptions: ['e1'],
-      confirmations: [2],
-      reason: 'Durable procedure.',
-    }
-    const refusal: BrainAgentWrite = {
-      status: 'refused',
-      message: 'Not approved: answer e3 first.',
-      operationId: null,
-    }
-    const { call, run } = setup({ ...RESULTS, decideRead: refusal })
-    expect(await run('brain_decide_read', approval)).toEqual({
-      text: 'Refused, nothing changed: Not approved: answer e3 first.',
-      status: 'refused',
-    })
-    expect(call.mock.calls).toEqual([['decideRead', approval, undefined]])
-  })
-})
-
-describe('write tools', () => {
+describe('curator writes', () => {
   it('turns flat resolve parameters into the action and names a missing field', async () => {
     const { call, run } = setup()
     await run('brain_resolve', {

@@ -3,11 +3,12 @@
  * reason that the journal keeps and the owner reads; every result says how to undo it.
  */
 import { Type } from 'typebox'
-import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@phosphor/shared/brain'
+import { BRAIN_ENTITY_KINDS, BRAIN_PREDICATES, type BrainEntityKind } from '@phosphor/shared/brain'
 import type {
   BrainAgentEdit,
   BrainAgentWrite,
-  BrainDecideRead,
+  BrainRelate,
+  BrainCorrect,
   BrainResolve,
 } from '@phosphor/shared/brain-agent'
 import type { BrainCuratorClient } from '@phosphor/brain-client/curator-client'
@@ -30,8 +31,6 @@ const reason = Type.String({
 })
 const object = (properties: Parameters<typeof Type.Object>[0]) =>
   Type.Object(properties, { additionalProperties: false })
-const indexes = (description: string) =>
-  Type.Optional(Type.Array(Type.Integer({ minimum: 0 }), { maxItems: 400, description }))
 const literals = <T extends string>(values: readonly T[], description: string) =>
   Type.Union(
     values.map((value) => Type.Literal(value)),
@@ -87,6 +86,11 @@ export function resolveAction(p: ResolveParams): BrainResolve['action'] | string
 }
 
 type EditParams = {
+  relationId?: string
+  since?: string | null
+  until?: string | null
+  importance?: 'low' | 'normal' | 'high'
+  memoryId?: string
   kind: BrainAgentEdit['kind']
   sourceId?: string
   targetId?: string
@@ -104,6 +108,14 @@ export function editOf(p: EditParams): BrainAgentEdit | string {
     return p.sourceId && p.targetId
       ? { kind: 'merge', sourceId: p.sourceId, targetId: p.targetId }
       : 'merge needs sourceId (merged away) and targetId (kept).'
+  if (p.kind === 'importance')
+    return p.memoryId && p.importance
+      ? { kind: p.kind, memoryId: p.memoryId, importance: p.importance }
+      : 'importance needs memoryId and importance.'
+  if (p.kind === 'relation')
+    return p.relationId
+      ? { kind: p.kind, relationId: p.relationId, label: p.label, since: p.since, until: p.until }
+      : 'relation needs relationId.'
   if (!p.entityId) return `${p.kind} needs entityId.`
   if (p.kind === 'describe')
     return p.description
@@ -125,15 +137,18 @@ export function editOf(p: EditParams): BrainAgentEdit | string {
 }
 
 export function registerCuratorWrites(pi: CuratorPiApi, client: BrainCuratorClient): void {
-  registerDecide(pi, client)
+  registerRelate(pi, client)
   registerWrite<ResolveParams>(
     pi,
     'brain_resolve',
     'Brain: resolve a suggestion',
-    'Resolve a suggestion from brain_suggestion with one of its allowed actions. merge (people and things) and fold (repeats) keep survivorId; replace keeps newerId as current; dispute keeps both memories as disputed; keep leaves both as they are and closes it; unname removes a shared name (name) from one record (entityId). To erase a memory use brain_erase.',
+    'Resolve a suggestion from brain_suggestion with one of its allowed actions. merge (people and things) and fold (repeats) keep survivorId; replace keeps newerId as current; dispute keeps both memories as disputed; keep leaves both as they are and closes it; group confirms the proposed parent; unname removes a shared name (name) from one record (entityId). To erase a memory use brain_erase.',
     object({
       suggestionId: curatorId('The suggestion id.'),
-      action: literals(['merge', 'fold', 'replace', 'dispute', 'keep', 'unname'], 'What to do.'),
+      action: literals(
+        ['merge', 'fold', 'replace', 'dispute', 'keep', 'group', 'unname'],
+        'What to do.',
+      ),
       survivorId: Type.Optional(curatorId('merge or fold: the record to keep.')),
       newerId: Type.Optional(curatorId('replace: the newer memory, which stays current.')),
       entityId: Type.Optional(curatorId('unname: the record that loses the name.')),
@@ -156,65 +171,52 @@ export function registerCuratorWrites(pi: CuratorPiApi, client: BrainCuratorClie
   registerFixes(pi, client)
 }
 
-function registerDecide(pi: CuratorPiApi, client: BrainCuratorClient): void {
-  registerWrite<BrainDecideRead>(
+const date = Type.Optional(
+  Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()]),
+)
+const link = {
+  subjectId: curatorId('Subject entity id.'),
+  predicate: literals(BRAIN_PREDICATES, 'Relationship category.'),
+  objectId: curatorId('Object entity id.'),
+  label: Type.String({
+    minLength: 1,
+    maxLength: 80,
+    description: 'Wording read from subject to object.',
+  }),
+  since: date,
+  until: date,
+}
+function registerRelate(pi: CuratorPiApi, client: BrainCuratorClient) {
+  registerWrite<BrainRelate>(
     pi,
-    'brain_decide_read',
-    'Brain: decide a read',
-    'Approve or reject a read from brain_read_review, at the revision you read. Reject (approve: false) a read of a lane Brain never reads, or one with nothing worth keeping. Approving saves every memory that is not held, on every page of a long read, unless you list memories; read every page first, and answer required identity questions. Brain changes when you approve, so other reads may refresh before you open them.',
+    'brain_relate',
+    'Brain: state a relationship',
+    'State a lasting relationship only when shared memories show it. Cite one to eight memories; otherwise keep the pair apart.',
     object({
-      jobId: curatorId('The read id.'),
-      revision: Type.Integer({ minimum: 0, description: 'The revision brain_read_review showed.' }),
-      approve: Type.Boolean({ description: 'true saves the read; false rejects all of it.' }),
-      memories: indexes(
-        'Memory indexes to save, from any page. Default: every memory that is not held, on every page.',
-      ),
-      identities: Type.Optional(
-        Type.Array(
-          object({
-            ref: Type.String({
-              minLength: 1,
-              maxLength: 64,
-              description: 'Identity ref, such as e1.',
-            }),
-            answer: Type.String({
-              minLength: 1,
-              maxLength: 200,
-              description: 'An existing entity id, or "new".',
-            }),
-          }),
-          {
-            maxItems: 400,
-            description: 'Answers to identity questions. Unanswered ones keep Brain’s decision.',
-          },
-        ),
-      ),
-      groups: indexes('Group question indexes you confirm.'),
-      descriptions: Type.Optional(
-        Type.Array(Type.String({ minLength: 1, maxLength: 64 }), {
-          maxItems: 400,
-          description:
-            'Identity refs whose description from this read should replace the stored one.',
-        }),
-      ),
-      confirmations: indexes(
-        'Held "said again" indexes to save. The others save with any approval.',
-      ),
+      ...link,
+      memoryIds: Type.Array(curatorId('Citing memory id.'), { minItems: 1, maxItems: 8 }),
+      suggestionId: Type.Optional(curatorId('Unlinked pair to settle.')),
       reason,
     }),
-    // Brain builds the decision from the stored read, which can be larger than a bridge frame.
-    async (params, signal) => client.call('decideRead', params, signal),
+    async (p, signal) => client.call('relate', p, signal),
   )
 }
-
 function registerEdit(pi: CuratorPiApi, client: BrainCuratorClient): void {
   registerWrite<EditParams>(
     pi,
     'brain_edit',
     'Brain: edit a person or thing',
-    'Edit people and things directly. merge folds sourceId into targetId. describe sets a short description (≤160 characters) that tells it apart. split moves memoryIds off entityId into a new record named label of kind entityKind. removeName removes one name from entityId.',
+    'Edit people and things directly. merge folds sourceId into targetId. describe sets a short description (≤160 characters) that tells it apart. split moves memoryIds off entityId into a new record named label of kind entityKind. removeName removes one name from entityId. relation edits wording and dates; importance changes a memory’s priority.',
     object({
-      kind: literals(['merge', 'describe', 'split', 'removeName'], 'The edit.'),
+      kind: literals(
+        ['merge', 'describe', 'split', 'removeName', 'relation', 'importance'],
+        'The edit.',
+      ),
+      relationId: Type.Optional(curatorId('Relationship to edit.')),
+      since: date,
+      until: date,
+      memoryId: Type.Optional(curatorId('Memory whose importance changes.')),
+      importance: Type.Optional(literals(['low', 'normal', 'high'], 'New importance.')),
       sourceId: Type.Optional(curatorId('merge: the record merged away.')),
       targetId: Type.Optional(curatorId('merge: the record kept.')),
       entityId: Type.Optional(curatorId('describe, split, removeName: the record.')),
@@ -223,7 +225,11 @@ function registerEdit(pi: CuratorPiApi, client: BrainCuratorClient): void {
         Type.Array(curatorId('A memory id.'), { minItems: 1, maxItems: 200 }),
       ),
       label: Type.Optional(
-        Type.String({ minLength: 1, maxLength: 80, description: 'split: the new record’s name.' }),
+        Type.String({
+          minLength: 1,
+          maxLength: 80,
+          description: 'For split: the new name. For relation: the new wording.',
+        }),
       ),
       entityKind: Type.Optional(literals(BRAIN_ENTITY_KINDS, 'split: the new record’s kind.')),
       name: Type.Optional(
@@ -241,19 +247,15 @@ function registerEdit(pi: CuratorPiApi, client: BrainCuratorClient): void {
 }
 
 function registerFixes(pi: CuratorPiApi, client: BrainCuratorClient): void {
-  registerWrite<{
-    memoryId: string
-    summary: string
-    source: string
-    quote: string
-    reason: string
-  }>(
+  registerWrite<BrainCorrect>(
     pi,
     'brain_correct',
     'Brain: correct a memory',
-    'Replace a memory with a corrected one when a source (Linear, Notion, Slack, GitHub) states the new truth. summary is the corrected self-contained sentence; quote is the exact words from the source; source names it, such as "Linear KES-12" or "Slack #ledger". Undo restores the old memory.',
+    'Replace a memory with a corrected one when a source (Linear, Notion, Slack, GitHub) states the new truth. summary is the corrected self-contained sentence; quote is the exact words from the source; source names it, such as "Linear KES-12" or "Slack #ledger". Include the links the correction states, and relation ids it ends. Undo restores the old memory.',
     object({
       memoryId: curatorId('The memory to correct.'),
+      links: Type.Optional(Type.Array(object(link), { maxItems: 200 })),
+      ends: Type.Optional(Type.Array(curatorId('Relation to end.'), { maxItems: 200 })),
       summary: Type.String({ minLength: 1, maxLength: 1200 }),
       source: Type.String({ minLength: 1, maxLength: 120 }),
       quote: Type.String({ minLength: 1, maxLength: 600 }),

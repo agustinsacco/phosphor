@@ -1,4 +1,6 @@
-import type { BrainRecall } from '@phosphor/shared/brain'
+import { emptyExpansion, emptyRoutes } from '../search/query'
+import type { BrainRecall } from '@phosphor/shared/brain-recall'
+import type { BrainEntitySummary } from '@phosphor/shared/brain-explore'
 import type { SearchInput } from '@phosphor/memory-engine/types'
 import type { BrainSearchPort } from '../types'
 
@@ -9,11 +11,11 @@ export class FakeBrainSearch implements BrainSearchPort {
   refreshes = 0
   closed = false
   result: BrainRecall = {
+    mode: 'search',
     status: 'no_match',
     hits: [],
     entities: [],
     focus: [],
-    paths: [],
     branch: null,
     more: 0,
     degradation: [],
@@ -31,8 +33,14 @@ export class FakeBrainSearch implements BrainSearchPort {
   async entities() {
     return { items: [], more: false, kinds: [], counts: {}, total: 0 }
   }
-  async recent() {
-    return { items: [] }
+  async resolve(names: string[]): Promise<BrainEntitySummary[][]> {
+    return names.map(() => [])
+  }
+  async expand() {
+    return emptyExpansion()
+  }
+  async routes() {
+    return emptyRoutes()
   }
   async find() {
     return { entities: [], memories: [], referenced: [], degradation: [] }
