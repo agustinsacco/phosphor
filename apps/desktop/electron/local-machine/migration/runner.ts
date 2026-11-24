@@ -199,6 +199,11 @@ async function prepare(run: Run): Promise<void> {
   await step(run, 'verify', () => verify(run, plan, archives))
 }
 
+function errorSummary(error: unknown): string {
+  const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  return text.slice(0, 500)
+}
+
 function failureOf(error: unknown, step: MigrationStep): MigrationFailure {
   if (error instanceof StepFailed || error instanceof BackupFailed)
     return { step, code: error.code }
@@ -211,7 +216,12 @@ async function abortRun(run: Run, error: unknown): Promise<RunOutcome> {
   const { ports } = run
   const pending = run.journal.steps.find((s) => s.status === 'pending')?.step ?? 'preflight'
   const failure = failureOf(error, pending)
-  ports.log('migration.aborted', { step: failure.step, code: failure.code })
+  ports.log('migration.aborted', {
+    step: failure.step,
+    code: failure.code,
+    // The journal keeps the code only; the local log says what an unexpected error was.
+    ...(failure.code === 'internal' ? { error: errorSummary(error) } : {}),
+  })
   await ports.owner
     .call('owner.migrate.abort', { migrationId: run.journal.migrationId })
     .catch(() => ports.log('migration.abort-unanswered'))
