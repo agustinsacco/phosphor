@@ -1,6 +1,3 @@
-import { CONTROL_LIMITS } from '@phosphor/shared/control-api'
-import { ControlFailure } from './http'
-
 /** Oldest entries are evicted. Expiration is lazy, so memory never grows with uptime. */
 export class BoundedCache<T> {
   private readonly entries = new Map<string, { value: T; expires: number }>()
@@ -29,39 +26,9 @@ export class BoundedCache<T> {
   }
 }
 /**
- * withinSkew accepts both ends of its window, so one signed request stays valid for
- * twice the skew inclusive. A record must outlive that whole span plus a margin, or a
- * request first seen at the early edge is accepted again at the late edge.
- */
-const NONCE_TTL_MS = 2 * CONTROL_LIMITS.signatureSkewSec * 1000 + 1000
-export class NonceCache {
-  private readonly entries = new Map<string, number>()
-  constructor(
-    private readonly clock: () => number,
-    private readonly capacity = 100_000,
-  ) {
-    if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Error('Invalid cache capacity')
-  }
-  accept(identity: string, nonce: string): boolean {
-    const now = this.clock()
-    // A constant TTL keeps insertion order equal to expiry order, so the sweep stops
-    // at the first live entry. If the wall clock steps back, an expired entry can
-    // wait behind a live one: that delays reusing its slot, never admits a replay.
-    for (const [key, expires] of this.entries) {
-      if (expires > now) break
-      this.entries.delete(key)
-    }
-    const key = `${identity}:${nonce}`
-    if (this.entries.has(key)) return false
-    if (this.entries.size >= this.capacity) throw new ControlFailure('too-many-requests')
-    this.entries.set(key, now + NONCE_TTL_MS)
-    return true
-  }
-}
-/**
  * The control plane's rate-limit purposes: a key's purpose is its prefix before the
- * first colon. Each purpose holds its own keys, so saturating one never refuses
- * another, and together they hold at most 110,000.
+ * first colon. Each purpose holds its own keys, so a flood of one never evicts
+ * another's, and together they hold at most 100,000.
  */
 export const RATE_PURPOSE_CAPACITIES = Object.freeze({
   'enrollment-create': 10_000,
@@ -74,10 +41,11 @@ export const RATE_PURPOSE_CAPACITIES = Object.freeze({
   'client-register': 10_000,
   'usage-ping': 10_000,
   'usage-download': 10_000,
-  'admin-read': 10_000,
 })
 /**
- * Sliding windows in one map of at most `capacity` keys. Given a table of purpose
+ * Sliding windows in one map of at most `capacity` keys. A full map never refuses a
+ * new key: it drops expired windows, then the oldest key, so a flood of fresh keys
+ * only weakens the limit and never locks anyone out. Given a table of purpose
  * capacities instead, each declared purpose gets its own such limiter and a key of an
  * undeclared purpose is refused.
  */
@@ -135,7 +103,10 @@ export class RateLimiter {
       for (const [candidate, value] of this.entries) {
         if (value.expires <= now) this.entries.delete(candidate)
       }
-      if (this.entries.size >= this.capacity) return false
+      if (this.entries.size >= this.capacity) {
+        const oldest = this.entries.keys().next().value
+        if (oldest !== undefined) this.entries.delete(oldest)
+      }
     }
     state.push(now)
     this.entries.set(key, { times: state, expires: now + windowMs })

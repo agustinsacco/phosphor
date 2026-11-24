@@ -11,7 +11,7 @@ import { WebSocket } from 'ws'
 import { createApp, type AppDeps } from '../../control/src/app'
 import { parseConfig } from '../../control/src/config'
 import { ControlFailure } from '../../control/src/http'
-import { NonceCache, RateLimiter, RATE_PURPOSE_CAPACITIES } from '../../control/src/limits'
+import { RateLimiter, RATE_PURPOSE_CAPACITIES } from '../../control/src/limits'
 import { formatKeyFingerprint, type MachineView } from '@phosphor/shared/control-api'
 import { HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
 import {
@@ -177,6 +177,14 @@ export async function browserFixture(production = false) {
       CONTROL_WEB_SESSION_KEYS: `fixture=${randomBytes(32).toString('base64url')}`,
       CONTROL_GRANT_KEYS: `fixture=${randomBytes(32).toString('base64url')}`,
     })
+    // Remembers every claimed nonce, as control_nonce_claim does, so a replay is refused.
+    const claimedNonces = new Set<string>()
+    const claimNonce = (args: Record<string, unknown>) => {
+      const pair = JSON.stringify([args.p_identity, args.p_nonce])
+      if (claimedNonces.has(pair)) return { outcome: 'replayed' }
+      claimedNonces.add(pair)
+      return { outcome: 'claimed' }
+    }
     const deps: AppDeps = {
       config,
       clock: Date.now,
@@ -184,7 +192,6 @@ export async function browserFixture(production = false) {
       log: () => {},
       version: 'browser-fixture',
       limits: new RateLimiter(Date.now, RATE_PURPOSE_CAPACITIES),
-      nonces: { key: new NonceCache(Date.now), host: new NonceCache(Date.now) },
       fetch: async (input, init) => {
         const url = new URL(String(input))
         if (url.origin !== origin) throw new Error('Nonlocal Auth refused')
@@ -218,6 +225,7 @@ export async function browserFixture(production = false) {
           }
         },
         async rpc(name, args) {
+          if (name === 'control_nonce_claim') return claimNonce(args)
           switch (name) {
             case 'control_account':
               return { enabled: true, maxHosts: 20 }

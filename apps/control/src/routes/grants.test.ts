@@ -35,6 +35,7 @@ function setup() {
       client: { id: clientId, label: 'Desktop' },
     },
     control_host_key: { outcome: 'active', publicKey: hostKey.publicKey },
+    control_nonce_claim: { outcome: 'claimed' },
     control_host_heartbeat: { outcome: 'accepted' },
     control_host_revocations: {
       epoch: 2,

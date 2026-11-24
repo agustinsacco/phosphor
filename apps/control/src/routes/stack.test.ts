@@ -16,7 +16,7 @@ import { listenForCallback } from '../../../desktop/electron/account/loopback'
 import { createApp } from '../app'
 import { parseConfig } from '../config'
 import { createSupabase } from '../supabase'
-import { RateLimiter, NonceCache } from '../limits'
+import { RateLimiter } from '../limits'
 import { signingKey } from '../test-support'
 import { parsed, record } from './shared'
 
@@ -64,7 +64,6 @@ describe.runIf(url && secret)('control API against the isolated Supabase stack',
         log: () => {},
         supabase,
         limits: new RateLimiter(Date.now),
-        nonces: { key: new NonceCache(Date.now), host: new NonceCache(Date.now) },
         version: 'stack-test',
       })
     const server = serve({ fetch: app().fetch, port: 0, hostname: '127.0.0.1' })
