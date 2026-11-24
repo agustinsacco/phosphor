@@ -1,7 +1,10 @@
+import { LINK, endedLinks } from './relation-reads'
+import { togetherNames } from './together'
 import {
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
   type BrainConnection,
+  type BrainLink,
   type BrainMemoryType,
   type BrainConnectionPage,
   type BrainEntityView,
@@ -17,7 +20,7 @@ import {
   referencedEntities,
 } from './entities'
 import { memoryCards } from './knowledge'
-import { newerLink, pairProbe, sideIndex } from './relation-pairs'
+import { INSTANT, newerLink, pairProbe, sideIndex } from './relation-pairs'
 
 const PAGE_SIZE = 40
 function cursor(value: number[]): string {
@@ -52,6 +55,7 @@ function connectionPage(
   direction: 'out' | 'in',
   after: string | null,
   limit: number,
+  now = ctx.now(),
 ): BrainConnectionPage {
   id = survivingEntityId(ctx, id)
   const own = direction === 'out' ? 'subject' : 'object'
@@ -69,24 +73,24 @@ function connectionPage(
     other,
     (from, pair) => `SELECT COUNT(*) FROM ${from} WHERE ${pair}`,
   )
-  const rows = all<{
-    n: number
-    observed_at: number
-    neighbour: string
-    memoryId: string
-    subjectId: string
-    objectId: string
-    supports: number
-  }>(
+  const rows = all<
+    {
+      n: number
+      observed_at: number
+      neighbour: string
+      supports: number
+    } & BrainLink
+  >(
     ctx,
-    `SELECT r.n,r.observed_at,e.id AS neighbour,m.id AS memoryId,s.id AS subjectId,o.id AS objectId,
+    `WITH ${INSTANT} SELECT r.n,r.observed_at,e.id AS neighbour,${LINK},
       ${supports} AS supports
       FROM relations r INDEXED BY ${sideIndex(own)}
       JOIN entities e ON e.n=r.${other} JOIN entities s ON s.n=r.subject
       JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory
-      WHERE r.${own}=? AND r.live=1 AND r.predicate=? ${key ? 'AND (r.observed_at,r.n)<(?,?)' : ''}
+      WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>(SELECT now FROM instant)) AND r.predicate=? ${key ? 'AND (r.observed_at,r.n)<(?,?)' : ''}
       AND ${newer} IS NULL
       ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
+    now,
     self.connections,
     self.n,
     predicate,
@@ -95,17 +99,13 @@ function connectionPage(
     limit + 1,
   )
   const selected = rows.slice(0, limit)
-  const items: BrainConnection[] = selected.map((row) => ({
-    entity: entitySummary(ctx, row.neighbour)!,
-    link: {
-      id: String(row.n),
-      subjectId: row.subjectId,
-      objectId: row.objectId,
-      predicate,
-      memoryId: row.memoryId,
-    },
-    supports: row.supports,
-  }))
+  const items: BrainConnection[] = selected.map(
+    ({ n: _n, observed_at: _at, neighbour, supports, ...link }) => ({
+      entity: entitySummary(ctx, neighbour)!,
+      link,
+      supports,
+    }),
+  )
   const last = selected.at(-1)
   return { items, next: rows.length > limit && last ? cursor([last.observed_at, last.n]) : null }
 }
@@ -170,7 +170,7 @@ function currentMemories(
       .map(({ newest: _newest, ...lane }) => lane),
   }
 }
-export function entity(ctx: Context, id: string): BrainEntityView {
+export function entity(ctx: Context, id: string, now = ctx.now()): BrainEntityView {
   id = survivingEntityId(ctx, id)
   const n = entityNumber(ctx, id)
   const groups = BRAIN_PREDICATES.flatMap((predicate) =>
@@ -179,8 +179,9 @@ export function entity(ctx: Context, id: string): BrainEntityView {
       const other = direction === 'out' ? 'object' : 'subject'
       const total = one<{ total: number }>(
         ctx,
-        `SELECT COUNT(DISTINCT ${other}) AS total FROM relations WHERE ${column}=? AND live=1 AND predicate=?`,
+        `SELECT COUNT(DISTINCT ${other}) AS total FROM relations WHERE ${column}=? AND live=1 AND (valid_to IS NULL OR valid_to>?) AND predicate=?`,
         n,
+        now,
         predicate,
       )!.total
       return total
@@ -189,7 +190,7 @@ export function entity(ctx: Context, id: string): BrainEntityView {
               predicate,
               direction,
               total,
-              ...connectionPage(ctx, id, predicate, direction, null, 8),
+              ...connectionPage(ctx, id, predicate, direction, null, 8, now),
             },
           ]
         : []
@@ -204,6 +205,12 @@ export function entity(ctx: Context, id: string): BrainEntityView {
       connections: groups.reduce((sum, group) => sum + group.total, 0),
     },
     groups,
+    ended: endedLinks(ctx, id, now).map((link) => ({
+      link,
+      entity: entitySummary(ctx, link.subjectId === id ? link.objectId : link.subjectId)!,
+      supports: 1,
+    })),
+    ...togetherNames(ctx, n, now),
     ...current,
     merged: all<{ label: string }>(
       ctx,

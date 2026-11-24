@@ -86,28 +86,7 @@ it.skipIf(process.env.BRAIN_BENCH !== '1')(
       const responsiveness = await measureLoad(search)
       const loaded = performance.now()
       const timings = measureQueries(search)
-      const job = store.enqueue(lane(), 'queued')
-      const data = extraction(job.id, { computedRevision: store.revision() })
-      data.memories = Array.from({ length: 20 }, (_, i) => ({
-        ...data.memories[0]!,
-        summary: `Harbor review fact ${i}.`,
-      }))
-      data.memoryVectors = data.memories.map(() => vector())
-      store.propose(data)
-      const at = performance.now()
-      store.review(
-        job.id,
-        {
-          descriptions: [],
-          confirmations: [],
-          memories: data.memories.map((_, i) => i),
-          identities: {},
-          groups: [],
-        },
-        store.revision(),
-      )
-      const reviewMs = performance.now() - at
-      console.log(
+      process.stdout.write(
         JSON.stringify({
           entities,
           memories: count,
@@ -116,10 +95,24 @@ it.skipIf(process.env.BRAIN_BENCH !== '1')(
           ...timings,
           ...responsiveness,
           loadAverage: loadavg(),
-          review20Ms: reviewMs,
           rssMiB: process.memoryUsage().rss / 1024 ** 2,
-        }),
+        }) + '\n',
       )
+      if (process.env.BRAIN_BENCH_P50_MS)
+        expect(timings.recallP50Ms).toBeLessThanOrEqual(Number(process.env.BRAIN_BENCH_P50_MS))
+      if (process.env.BRAIN_BENCH_P95_MS)
+        expect(timings.recallP95Ms).toBeLessThanOrEqual(Number(process.env.BRAIN_BENCH_P95_MS))
+      const job = store.enqueue(lane(), 'queued')
+      store.updateJob(job.id, { state: 'running' })
+      const data = extraction(job.id, { computedRevision: store.knowledgeRevision() })
+      data.memories = Array.from({ length: 20 }, (_, i) => ({
+        ...data.memories[0]!,
+        summary: `Harbor fact ${i}.`,
+      }))
+      data.memoryVectors = data.memories.map(() => vector())
+      const at = performance.now()
+      store.saveRead(data)
+      process.stdout.write(JSON.stringify({ save20Ms: performance.now() - at }) + '\n')
       expect(store.snapshot().counts.memories).toBe(count + 20)
     } finally {
       search.close()

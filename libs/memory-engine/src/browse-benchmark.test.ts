@@ -4,8 +4,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { buildBenchmark } from './benchmark-fixture'
 import { openBrainStore } from './store'
-import { entities, recent } from './browse'
-import { lane } from './test-support'
+import { entities } from './browse'
 import type { Context } from './database'
 
 it.skipIf(process.env.BRAIN_BROWSE_BENCH !== '1')(
@@ -21,15 +20,6 @@ it.skipIf(process.env.BRAIN_BROWSE_BENCH !== '1')(
       const start = performance.now()
       buildBenchmark(db, entityCount, count)
       db.exec(`UPDATE entities SET kind='event' WHERE n=${entityCount}`)
-      for (let i = 0; i < 20; i++) {
-        const job = store.enqueue(lane({ sessionId: `ledger-read-${i}` }), 'queued')
-        store.updateJob(job.id, { state: 'done', finishedAt: 1000 + i })
-        db.prepare('UPDATE memories SET job_id=? WHERE n>? AND n<=?').run(
-          job.id,
-          i * 50,
-          (i + 1) * 50,
-        )
-      }
       const built = performance.now()
       const timings = JSON.stringify({
         entities: entityCount,
@@ -46,14 +36,12 @@ it.skipIf(process.env.BRAIN_BROWSE_BENCH !== '1')(
         kindsMs: measure(path, (ctx) =>
           ctx.db.prepare('SELECT DISTINCT kind FROM entities WHERE memories>0').all(),
         ),
-        recentMs: measure(path, (ctx) => recent(ctx, 10)),
       })
       // Keep measured evidence even when a runner hides successful-test console output.
       writeFileSync(join(process.cwd(), '.brain-browse-benchmark.json'), timings + '\n')
       console.log(timings)
       const ctx: Context = { db, now: Date.now, id: () => 'synthetic' }
       expect(entities(ctx, 'event', 0, 20, 'connected').items).toHaveLength(1)
-      expect(recent(ctx, 10).items).toHaveLength(10)
     } finally {
       db.close()
       store.close()

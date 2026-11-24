@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryCard, memoryCards } from './knowledge'
-import { approve, extraction, fixture, lane } from './test-support'
+import { approve, extraction, fixture } from './test-support'
 
 describe('Brain memory details, dates and deletion', () => {
   it('returns link quotes, origin path and observed dates independently of approval time', () => {
@@ -15,16 +15,10 @@ describe('Brain memory details, dates and deletion', () => {
   })
   it('forgets rows, FTS, scoped orphan entities and evidence, retaining shared evidence', () => {
     const { store, db } = fixture()
-    const job = store.enqueue(lane(), 'queued')
-    const data = extraction(job.id)
+    const data = extraction('harbor')
     data.memories[1]!.citations = [{ evidence: 0, quote: 'Rina owns Harbor.' }]
     data.memories[1]!.links = []
-    store.propose(data)
-    store.review(
-      job.id,
-      { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
-      0,
-    )
+    approve(store, { memories: data.memories })
     const tom = store.overview(300).nodes.find((item) => item.label === 'Tom Lee')!
     const id = store.entityMemories(tom.id, {}, null).memories[0]!.id
     store.forget(id)

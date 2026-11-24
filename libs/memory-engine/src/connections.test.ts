@@ -60,6 +60,7 @@ it('pages distinct neighbours with a stable cursor when their support interleave
     summary: `Kestrel part ${ref} round ${round}.`,
     links: [
       {
+        label: '',
         subject: refs[0]!,
         predicate: 'part_of' as const,
         object: ref,
