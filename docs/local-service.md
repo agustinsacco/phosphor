@@ -4,7 +4,7 @@ Packaged Desktop automatically moves This Mac’s lanes to the service **once**,
 
 ## Installation and launch
 
-Desktop checks for a compatible service release at startup and periodically. It pairs using `setup --local --standby`, without enrolling the machine. The public owner key goes to the service; the private key on disk requires protected storage. Desktop leaves a foreign launcher alone. Standby exposes the [owner socket](remote-protocol.md#the-local-socket) but runs no lanes, scheduler, heartbeat or TCP API.
+Desktop checks for a compatible service release at startup and periodically. It pairs using `setup --local --standby`, without enrolling the machine. The public owner key goes to the service; the private key on disk requires protected storage. Desktop leaves a foreign launcher alone. If an installed release was never set up (no config and no launcher), Desktop installs a newer release over it before trying setup again, so a fixed release reaches a Mac whose first setup failed. A release that was set up updates only through `phosphor update`. While in-app, **Settings → Advanced** shows the install (checking, downloading, setting up, installed, or the failed check and its reason), and `phosphor.log` records each change as `service install`. Standby exposes the [owner socket](remote-protocol.md#the-local-socket) but runs no lanes, scheduler, heartbeat or TCP API.
 
 `local-machine/launch.ts` decides the runtime once, after IPC registration and before pi configuration, windows or sessions. An unpackaged build needs both `PHOSPHOR_TEST_USER_DATA` and `PHOSPHOR_MIGRATE=1` to migrate. Dev over data already committed to the service cannot start in-app lanes if it cannot reach the service.
 

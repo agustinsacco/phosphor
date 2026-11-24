@@ -218,7 +218,9 @@ on PATH (fnm's multishell folder under `/run/user` is gone at logout), and a
 config must outlive the shell that wrote it. The same applies to a found node and
 to the Claude and git folders below. A Node script needs `--node FILE`, or node
 beside the found pi, or node on PATH, in that order.
-A direct executable needs no node. Without guided installation, missing pi
+A direct executable needs no node. A shell launcher may still run pi with
+`env node` (pi's managed install does): setup adds the folder of node on the
+caller's PATH to `environment.path`, as for Claude and git. Without guided installation, missing pi
 exits 69 with its npm install command. Claude and git are redetected on every run. Their directories absent from the
 Host's built PATH are merged into `environment.path`, without duplicates or
 dropping user-added folders, including without `--replace`. Missing Claude is fine; missing git
