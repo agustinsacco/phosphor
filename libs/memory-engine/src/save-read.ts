@@ -127,12 +127,14 @@ function emptyRead(ctx: Context, jobId: string, counts: Counts): SavedRead {
 }
 
 export function saveRead(ctx: Context, raw: Proposal): SavedRead {
-  validateProposal(ctx, raw)
-  const value = scrubProposal(raw)
   return transaction(ctx, () => {
-    const current = job(ctx, value.jobId)!
+    const current = job(ctx, raw.jobId)
+    if (!current) throw new Error('Brain job not found.')
     if (current.state !== 'running') throw new Error('Only a read in progress can be saved.')
-    if (value.computedRevision !== knowledgeRevision(ctx)) throw new Error(BRAIN_READ_STALE)
+    // Before validation: a target that moved since the reader compared means compare again.
+    if (raw.computedRevision !== knowledgeRevision(ctx)) throw new Error(BRAIN_READ_STALE)
+    validateProposal(ctx, raw)
+    const value = scrubProposal(raw)
     const chosen = plan(value, ctx.now())
     const base: Counts = {
       memories: chosen.memories.length,
