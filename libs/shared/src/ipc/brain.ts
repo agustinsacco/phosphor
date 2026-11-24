@@ -4,22 +4,20 @@ import type {
   BrainEntityView,
   BrainEntityKind,
   BrainEntityPage,
-  BrainRecentMemories,
   BrainExtractionView,
   BrainFindResult,
   BrainGraph,
-  BrainHistory,
+  BrainJob,
   BrainLaneRef,
   BrainMemoryDetail,
   BrainMemoryFilter,
   BrainMemoryPage,
-  BrainPaths,
   BrainPredicate,
   BrainPrefs,
-  BrainProposalView,
   BrainStatus,
   BrainUndoRunResult,
 } from '../brain'
+import type { BrainRecall, BrainRoutes } from '../brain-recall'
 
 /** UI commands. Authority comes from the Desktop handler, never this DTO. */
 export interface BrainInvokeMap {
@@ -40,8 +38,18 @@ export interface BrainInvokeMap {
     ]
     result: BrainEntityPage
   }
-  'brain:recent': { args: [limit: number]; result: BrainRecentMemories }
-  'brain:history': { args: [limit: number]; result: BrainHistory }
+  /** Recall with no project: up to 8 hits with their trails, for the Brain page's Ask bar. */
+  'brain:ask': { args: [question: string]; result: BrainRecall }
+  /** Sends an ordinary message to Brain Agent in the Brain lane, owned by no run. */
+  'brain:tell': { args: [message: string]; result: { sessionPath: string | null } }
+  /** The lane's newest finished read and what Read again would replace; null if never read. */
+  'brain:laneRead': {
+    args: [sessionId: string]
+    result: { job: BrainJob; memories: number; replaceable: number } | null
+  }
+  /** Says which entity is you, so the map centres on it; null forgets it. */
+  'brain:setOwner': { args: [entityId: string | null]; result: BrainStatus }
+  /** Reads the lane again from the start; its earlier unshared memories are replaced on save. */
   'brain:reread': { args: [jobId: string]; result: BrainStatus }
   'brain:neverRead': { args: [sessionId: string, never: boolean]; result: BrainStatus }
   'brain:status': { args: []; result: BrainStatus }
@@ -56,7 +64,6 @@ export interface BrainInvokeMap {
   /** Requeues a failed job under the same id; finished steps are reused. */
   'brain:retry': { args: [jobId: string]; result: BrainStatus }
   'brain:extraction': { args: [jobId: string]; result: BrainExtractionView }
-  'brain:proposal': { args: [jobId: string]; result: BrainProposalView }
   /** Deletes all knowledge, jobs and records. Keeps settings and the embedding model. */
   'brain:reset': { args: []; result: BrainStatus }
   /** Folds `sourceId` into `targetId`: names, links and memories move; the source is deleted. */
@@ -108,8 +115,8 @@ export interface BrainInvokeMap {
     result: BrainMemoryPage
   }
   'brain:memory': { args: [memoryId: string]; result: BrainMemoryDetail }
-  /** Up to three shortest supported routes, at most four hops. */
-  'brain:path': { args: [fromId: string, toId: string]; result: BrainPaths }
+  /** Up to three routes, at most four steps, through links or memories naming both. */
+  'brain:path': { args: [fromId: string, toId: string]; result: BrainRoutes }
   /** Deletes one memory and any evidence no other memory cites. */
   'brain:forget': { args: [memoryId: string]; result: BrainStatus }
 }

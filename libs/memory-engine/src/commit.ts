@@ -94,7 +94,7 @@ function insertRow(
   const now = ctx.now()
   run(
     ctx,
-    `INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,recorded_at,state,origin_session,origin_title,job_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     n,
     id,
     scrubExcerpt(item.summary),

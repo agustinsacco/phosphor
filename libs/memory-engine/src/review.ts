@@ -1,10 +1,5 @@
 import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import type { BrainReviewDecision } from '@phosphor/shared/brain'
-import {
-  BRAIN_DECISION_REFUSALS,
-  BRAIN_REVIEW_CHANGED,
-  brainRequiredAnswerRefusal,
-} from '@phosphor/shared/brain-review'
 import { all, run, transaction, type Context } from './database'
 import {
   addNames,
@@ -25,6 +20,17 @@ import { removeMemory } from './merge'
 import { bumpKnowledgeRevision, knowledgeRevision } from './prefs'
 import { readProposal } from './proposals'
 import type { Proposal, ProposalMemory } from './types'
+
+/** The removed brain-review contract's wording, kept here until saveRead replaces this file. */
+export const BRAIN_REVIEW_CHANGED = 'Brain changed while you were reviewing. Reopen the review.'
+const BRAIN_DECISION_REFUSALS = {
+  index: 'Brain proposal index is invalid.',
+  identity: 'Brain identity override is invalid.',
+  description: 'Brain description choice is invalid.',
+  confirmation: 'Brain confirmation choice is invalid.',
+} as const
+const brainRequiredAnswerRefusal = (label: string): string =>
+  `Say whether “${label}” is someone Brain already knows or someone new before approving.`
 
 function validateDecision(ctx: Context, value: Proposal, decision: BrainReviewDecision): void {
   for (const [indexes, length] of [

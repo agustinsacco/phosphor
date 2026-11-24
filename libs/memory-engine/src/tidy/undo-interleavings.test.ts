@@ -9,7 +9,7 @@ function setup() {
   seed(result.db, 5)
   result.db.exec(`INSERT INTO mentions VALUES (1,2),(2,1),(3,1),(4,1),(5,1);
     UPDATE memories SET observed_at=100;
-    INSERT INTO relations VALUES (1,1,1,'member_of',3,1,100);
+    INSERT INTO relations(n,memory,subject,predicate,object,live,observed_at) VALUES (1,1,1,'member_of',3,1,100);
     INSERT INTO relation_support VALUES (1,1,'Original Ledger support');`)
   return result
 }

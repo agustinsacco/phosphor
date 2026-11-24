@@ -110,7 +110,7 @@ it('uses the v5 indexes for the unfiltered browse, finished reads and per-job me
       "SELECT id FROM memories WHERE job_id='harbor' AND state IN ('active','disputed') ORDER BY recorded_at DESC,n DESC LIMIT 10",
     ),
   ).toContain('memories_job')
-  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
+  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
 })
 
 it('walks the connection index for common and rare kinds, and finds kinds in one pass', () => {

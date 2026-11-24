@@ -71,7 +71,7 @@ it('journals deduplicated relations and their support, including self-links remo
   const { store, db } = fixture()
   seed(db, 3)
   db.exec(`INSERT INTO mentions VALUES (1,2),(1,3);
-    INSERT INTO relations VALUES (1,1,1,'member_of',3,1,1),(2,1,2,'member_of',3,1,1),(3,1,1,'member_of',2,1,1);
+    INSERT INTO relations(n,memory,subject,predicate,object,live,observed_at) VALUES (1,1,1,'member_of',3,1,1),(2,1,2,'member_of',3,1,1),(3,1,1,'member_of',2,1,1);
     INSERT INTO relation_support VALUES (1,1,'Ledger'),(2,2,'Ledger'),(3,3,'Ledger');
     UPDATE entities SET memories=(SELECT COUNT(*) FROM mentions WHERE entity=entities.n),connections=(SELECT COUNT(*) FROM relations WHERE subject=entities.n)+(SELECT COUNT(*) FROM relations WHERE object=entities.n);`)
   const before = dump(db)

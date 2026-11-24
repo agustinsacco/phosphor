@@ -6,22 +6,24 @@ import { prefs, setPrefs } from './prefs'
 export function initialize(ctx: Context): void {
   ctx.db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL')
   const version = one<{ user_version: number }>(ctx, 'PRAGMA user_version')!.user_version
-  if (version > 7) throw new Error('This Brain database requires a newer application.')
-  if (version === 4 || version === 5) {
+  if (version > 8) throw new Error('This Brain database requires a newer application.')
+  if (version >= 4 && version <= 7) {
+    // One transaction from 4 or 5 to 6, 7 and 8: an interrupted upgrade leaves the file as it was.
     transaction(ctx, () => {
       if (version === 4) {
         ctx.db.exec('ALTER TABLE jobs ADD COLUMN replaces TEXT')
         ctx.db.exec('CREATE INDEX memories_origin ON memories(origin_session)')
         ctx.db.exec('CREATE INDEX jobs_finished ON jobs(state, finished_at DESC)')
       }
-      ctx.db.exec(tidySchema)
-      ctx.db.exec(readMetadataSchema)
+      if (version <= 5) ctx.db.exec(tidySchema)
+      if (version <= 6) ctx.db.exec(readMetadataSchema)
+      // v7 files from before Brain Agent lack its tables, and v8 alters agent_runs.
+      ctx.db.exec(agentSchema)
+      ctx.db.exec(v8Schema)
+      // Stored prefs are rewritten with known keys only: review goes, agentAuto comes in on.
+      if (one(ctx, "SELECT 1 FROM meta WHERE key='prefs'")) setPrefs(ctx, prefs(ctx))
     })
-  } else if (version === 6) {
-    transaction(ctx, () => ctx.db.exec(readMetadataSchema))
-  } else if (version !== 7) reset(ctx)
-  // No version bump: these side tables remain compatible with older v7 applications.
-  ctx.db.exec(agentSchema)
+  } else if (version !== 8) reset(ctx)
 }
 export function reset(ctx: Context): void {
   const hasMeta = one(ctx, "SELECT 1 FROM sqlite_master WHERE name='meta'")
@@ -43,6 +45,7 @@ export function reset(ctx: Context): void {
       ctx.db.exec(tidySchema)
       ctx.db.exec(readMetadataSchema)
       ctx.db.exec(agentSchema)
+      ctx.db.exec(v8Schema)
       for (const [key, value] of Object.entries({
         revision: '0',
         generation: ctx.id(),
@@ -53,7 +56,7 @@ export function reset(ctx: Context): void {
       })) {
         run(ctx, 'INSERT INTO meta VALUES (?,?)', key, value)
       }
-      setPrefs(ctx, { ...(previous ?? prefs(ctx)), review: true })
+      setPrefs(ctx, previous ?? prefs(ctx))
     })
   } finally {
     ctx.db.exec('PRAGMA foreign_keys = ON')
@@ -141,4 +144,25 @@ const readMetadataSchema = `
 ALTER TABLE jobs ADD COLUMN from_leaf TEXT;
 ALTER TABLE jobs ADD COLUMN run_started_at INTEGER;
 PRAGMA user_version = 7;
+`
+
+/**
+ * Links become sentences with dates and a speaker, memories gain importance and use counters,
+ * suggestions gain a payload, runs say whether they started on their own, and reads no longer
+ * wait for review: those jobs go back to the queue with their parts and proposals.
+ */
+const v8Schema = `
+ALTER TABLE relations ADD COLUMN label TEXT NOT NULL DEFAULT '';
+ALTER TABLE relations ADD COLUMN valid_from INTEGER;
+ALTER TABLE relations ADD COLUMN valid_to INTEGER;
+ALTER TABLE relations ADD COLUMN stated_by TEXT NOT NULL DEFAULT 'reader'
+  CHECK(stated_by IN ('reader','agent','owner'));
+ALTER TABLE memories ADD COLUMN importance INTEGER NOT NULL DEFAULT 1 CHECK(importance IN (0,1,2));
+CREATE TABLE memory_use(memory INTEGER PRIMARY KEY REFERENCES memories(n) ON DELETE CASCADE,
+  recalled INTEGER NOT NULL DEFAULT 0, last_recalled INTEGER, flagged INTEGER NOT NULL DEFAULT 0);
+ALTER TABLE tidy_suggestions ADD COLUMN detail TEXT;
+ALTER TABLE agent_runs ADD COLUMN automatic INTEGER NOT NULL DEFAULT 0;
+UPDATE jobs SET state='queued', run_started_at=NULL, error=NULL, progress=NULL
+  WHERE state IN ('review','refreshing');
+PRAGMA user_version = 8;
 `

@@ -1,15 +1,13 @@
 import type {
   BrainAgentEdit,
   BrainAgentRun,
+  BrainLinkInput,
+  BrainRelate,
   BrainWaitingCounts,
   BrainWaitingItem,
 } from '@phosphor/shared/brain-agent'
-import type { BrainReviewDecision } from '@phosphor/shared/brain-review'
-import type {
-  BrainTidyAction,
-  BrainTidySuggestionDetail,
-  BrainTidyTouched,
-} from '@phosphor/shared/brain-tidy'
+import type { BrainLink } from '@phosphor/shared/brain-links'
+import type { BrainTidyAction, BrainTidySuggestionDetail } from '@phosphor/shared/brain-tidy'
 
 /** Brain Agent's mark on a journaled change: the Defrag run it belongs to, and why. */
 export interface BrainChangeNote {
@@ -23,7 +21,21 @@ export interface BrainCorrection {
   /** Where the quote comes from: "Linear KES-12", "Slack #ledger". */
   source: string
   quote: string
+  /** Links the corrected sentence states, stored on the corrected memory before the carry. */
+  links?: BrainLinkInput[]
+  /** Relation ids of the old memory the correction ends rather than carries. */
+  ends?: string[]
 }
+/** What a correction did to the old memory's links. */
+export interface CorrectResult {
+  operationId: string
+  /** Links now on the corrected memory, carried from the old one or stated by the correction. */
+  carried: BrainLink[]
+  /** The old memory's links the correction ended, by `ends` or by contradiction. */
+  ended: BrainLink[]
+}
+/** A link Brain Agent states; its reason travels in the change note. */
+export type RelateInput = Omit<BrainRelate, 'reason'>
 export type BrainRunPatch = Partial<
   Pick<
     BrainAgentRun,
@@ -38,11 +50,14 @@ export type BrainRunPatch = Partial<
  * still applies when it runs.
  */
 export interface BrainAgentStore {
-  /** The header count: reads in review or refreshing, and open suggestions by kind. */
+  /** The header count: open suggestions by kind. */
   waitingCounts(): BrainWaitingCounts
+  /** `${count}:${newest createdAt}` over the open counted suggestions, so an automatic run can
+   * tell whether anything new waits since the last one ended. */
+  waitingSignature(): string
   /**
-   * Open suggestions oldest first: same entity, same memory, conflicts, flags, then at most
-   * `possibleRepeats` unchecked pairs (`possible_repeat`, never counted).
+   * Open suggestions oldest first: same entity, groups, unlinked pairs, same memory, conflicts,
+   * flags, then at most `possibleRepeats` unchecked pairs (`possible_repeat`, never counted).
    */
   waitingSuggestions(
     limit: number,
@@ -51,20 +66,22 @@ export interface BrainAgentStore {
   /** One suggestion with its allowed actions, unchecked pairs included. */
   agentSuggestion(id: string): BrainTidySuggestionDetail | null
   /**
-   * Approve (`decision`) or reject (null) a read, as `review` does, journaled and undoable: undo
-   * puts the read back in review with its proposal. `revision` is the proposal's computed revision.
+   * Merge, fold, dispute, replace, unname, group or keep. `keep` is journaled; undo reopens it.
+   * `group` states the group suggestion's `part_of` links, creating its parent if needed.
    */
-  decideRead(
-    jobId: string,
-    decision: BrainReviewDecision | null,
-    revision: number,
-    note: BrainChangeNote,
-  ): { operationId: string; touched: BrainTidyTouched }
-  /** Merge, fold, dispute, replace, unname or keep. `keep` is journaled; undo reopens it. */
   resolve(suggestionId: string, action: BrainTidyAction, note: BrainChangeNote): string
+  /**
+   * States a link on the newest cited memory naming both ends, as Brain Agent. Settles
+   * `suggestionId` when given. Refused past BRAIN_RELATE_PER_RUN in a run.
+   */
+  relate(input: RelateInput, note: BrainChangeNote): string
+  /** Merge, describe, split, removeName, a relation's wording and dates, or a memory's importance. */
   agentEdit(edit: BrainAgentEdit, note: BrainChangeNote): string
-  /** Replaces the memory with a corrected one citing the quote; `vector` embeds `summary`. */
-  correct(input: BrainCorrection, vector: Float32Array | null, note: BrainChangeNote): string
+  /**
+   * Replaces the memory with a corrected one citing the quote; `vector` embeds `summary`. The old
+   * memory's links carry over unless `ends` names them or a corrected link contradicts them.
+   */
+  correct(input: BrainCorrection, vector: Float32Array | null, note: BrainChangeNote): CorrectResult
   /**
    * Final: forgets the memory and journals only the reason. Refused, changing nothing, past
    * BRAIN_ERASE_LIMIT Brain Agent erasures in the last hour.
@@ -72,7 +89,8 @@ export interface BrainAgentStore {
   erase(memoryId: string, note: BrainChangeNote): string
   /** Undoes any journaled change and records who undid it and why. */
   agentUndo(operationId: string, note: BrainChangeNote): void
-  createRun(): BrainAgentRun
+  /** A queued run; `automatic` marks one the automatic check started. */
+  createRun(automatic?: boolean): BrainAgentRun
   updateRun(id: string, patch: BrainRunPatch): BrainAgentRun
   latestRun(): BrainAgentRun | null
   /** At startup: a queued or running run ends as failed with `message`. */

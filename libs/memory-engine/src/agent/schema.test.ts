@@ -5,7 +5,6 @@ import { fixture } from '../test-support'
 describe('Brain Agent additive schema', () => {
   it('opens an existing v8 twice without changing its version', () => {
     const { store, db } = fixture()
-    db.exec('DROP TABLE IF EXISTS agent_notes; DROP TABLE IF EXISTS agent_runs')
     const ctx = { db, now: Date.now, id: () => 'generation' }
     initialize(ctx)
     initialize(ctx)

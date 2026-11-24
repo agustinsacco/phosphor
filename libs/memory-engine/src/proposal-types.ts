@@ -6,7 +6,6 @@ import type {
   BrainMemoryType,
   BrainOrigin,
   BrainPredicate,
-  BrainProposedMemory,
   BrainSourceSegment,
 } from '@phosphor/shared/brain'
 
@@ -49,9 +48,11 @@ export interface ProposalEntity {
   candidates: string[]
   reason: string
   auto: boolean
-  /** Uncertain, with exactly one existing entity of its kind under one of its names: approval
-   * waits until the owner says which. Absent in proposals stored before it existed. */
+  /** Uncertain, with exactly one existing entity of its kind under one of its names. Saved as a
+   * new record with a guess for Brain Agent, like any uncertain one. Absent in older proposals. */
   required?: boolean
+  /** The reader marked this entity as the person the lane's user is. Absent in older proposals. */
+  owner?: true
 }
 /** Subject and object are job refs or existing entity ids. */
 export interface ProposalLink {
@@ -59,6 +60,12 @@ export interface ProposalLink {
   predicate: BrainPredicate
   object: string
   citation: Citation
+  /** The reader's wording, read subject to object, at most 80 characters. Readers of proposals
+   * stored before v8 fill ''. */
+  label: string
+  /** When the relationship started and ended, if the lane said. Absent in older proposals. */
+  validFrom?: number | null
+  validTo?: number | null
 }
 export interface ProposalMemory {
   summary: string
@@ -75,8 +82,11 @@ export interface ProposalMemory {
   action: 'add' | 'enrich' | 'supersede' | 'conflict' | 'resolve_open'
   target: string | null
   reason: string
-  /** Saved only when the owner ticks it, never with review off. Absent in older proposals. */
-  hold?: BrainProposedMemory['hold']
+  /** `temporary` saves with an end BRAIN_TEMPORARY_DAYS after it was said, unless it has one;
+   * `personal` is never saved. Absent in older proposals. */
+  hold?: 'temporary' | 'personal' | null
+  /** 0 low, 1 normal, 2 high, as the reader judged it. Absent in older proposals: 1. */
+  importance?: 0 | 1 | 2
 }
 /** "Are these part of one parent?" Members are job refs or existing entity ids. */
 export interface ProposalGroup {
@@ -84,13 +94,14 @@ export interface ProposalGroup {
   parent: { label: string; kind: BrainEntityKind; entityId: string | null }
   members: string[]
 }
-/** Everything one job proposes, with vectors, ready for review. */
+/** Everything one read found, with vectors, ready to save. */
 export interface Proposal {
   jobId: string
   origin: BrainOrigin
   scope: string
   branch: string | null
-  /** Store revision the candidates and reconciliation were computed against. */
+  /** Knowledge revision the candidates and reconciliation were computed against. `saveRead`
+   * refuses with BRAIN_READ_STALE when it moved. */
   computedRevision: number
   entities: ProposalEntity[]
   memories: ProposalMemory[]

@@ -23,10 +23,13 @@ export interface BrainTidyStore {
     target: { label: string; kind: BrainEntityKind },
     revision: number,
   ): string
-  /** One bounded chunk per call. 'all' resumes the saved cursor; a finished pass starts anew. */
+  /**
+   * One bounded chunk per call. 'all' resumes the saved cursor; a finished pass starts anew, and
+   * also offers `unlinked` pairs.
+   */
   sweep(touched: BrainTidyTouched | 'all'): BrainTidySweep
   /**
-   * Touched memories a merge, undo or approval left unswept (beyond the first 128), once each.
+   * Touched memories a merge, undo or saved read left unswept (beyond the first 128), once each.
    * The caller sweeps them in bounded batches; they have no fingerprints until then.
    */
   takeTidyMaintenance(): string[]

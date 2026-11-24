@@ -50,7 +50,7 @@ export interface BrainServiceOptions {
   curator?: { extension: string; skill: string }
   /** Runs Brain Agent's turns in the Brain lane. Absent where no Brain lane can run. */
   agent?: BrainAgentHost
-  /** Called whenever status changes (queue, download, review), so the UI can refresh. */
+  /** Called whenever status changes (queue, download, saved reads), so the UI can refresh. */
   onChange?: () => void
   log?: (message: string, data?: Record<string, unknown>) => void
   now?: () => number
@@ -84,6 +84,11 @@ export interface BrainAgentHost {
    * interrupting it. Aborting `signal` stops the turn (or the wait) and resolves `stopped`.
    */
   turn(message: string, signal: AbortSignal, hooks: BrainAgentTurnHooks): Promise<BrainAgentTurn>
+  /**
+   * Sends `message` as an ordinary prompt in the Brain lane, owned by no run: opens the lane,
+   * waits for a turn already running there to settle, and resolves once pi accepts the prompt.
+   */
+  tell(message: string): Promise<{ sessionPath: string | null }>
 }
 
 /** What session startup adds to a lane when Brain and recall are on. */

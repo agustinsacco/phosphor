@@ -22,7 +22,10 @@ export interface BrainEntitySummary extends BrainEntity {
 /** A bounded piece of the graph: an overview of hubs, or one entity's neighbourhood. */
 export interface BrainGraph {
   nodes: BrainEntitySummary[]
+  /** Links on the map now. */
   links: BrainLink[]
+  /** The centre's ended links, drawn as history; empty for the overview. */
+  ended: BrainLink[]
   /** The selected entity, or null for the overview. */
   centerId: string | null
   truncated: boolean
@@ -55,7 +58,13 @@ export interface BrainEntityView {
   sources: (BrainOrigin & { memories: number })[]
   /** Newest observation among its current memories. */
   lastLearnedAt: number | null
+  /** Current relations only. */
   groups: BrainConnectionGroup[]
+  /** Ended relations, newest end first, at most 20. */
+  ended: BrainConnection[]
+  /** Entities named in its memories with no link saying how they relate, at most 12. */
+  together: { entity: BrainEntitySummary; shared: number }[]
+  togetherMore: number
   memoryCounts: Record<BrainMemoryType, number>
   /** Labels of entities merged into this one. */
   merged: string[]
@@ -84,6 +93,8 @@ export interface BrainMemoryDetail {
   related: { kind: 'conflicts' | 'resolves' | 'supersedes'; memory: BrainMemory }[]
   /** The lane file, when it still exists, so "Open in lane" can jump there. */
   sourcePath: string | null
+  /** How often lanes recalled it and flagged it. Shown, never used to rank. */
+  use: { recalled: number; lastRecalledAt: number | null; flagged: number }
 }
 /** Typeahead: entities first, then memories. */
 export interface BrainFindResult {
@@ -93,13 +104,6 @@ export interface BrainFindResult {
   referenced: BrainEntity[]
   degradation: string[]
 }
-/** Up to three shortest supported routes between two entities. */
-export interface BrainPaths {
-  paths: BrainLink[][]
-  entities: BrainEntity[]
-  memories: BrainMemory[]
-}
-
 /**
  * Browse order. `connected` is v5's connection rank; `recent` is the newest observation among an
  * entity's current memories (none last); `name` is the label without case, then id.
@@ -114,15 +118,4 @@ export interface BrainEntityPage {
   counts: Partial<Record<BrainEntityKind, number>>
   /** Entities matching the kind filter. */
   total: number
-}
-export interface BrainRecentMemory {
-  id: string
-  summary: string
-  type: BrainMemoryType
-  originTitle: string | null
-  learnedAt: number
-}
-/** Current memories from at most the 20 newest finished reads, newest read first. */
-export interface BrainRecentMemories {
-  items: BrainRecentMemory[]
 }

@@ -29,7 +29,7 @@ it('automatically folds exact repeats, restores every source row, and remembers 
 it('only suggests near repeats, leaves two supporting memories alone, and never folds branches', () => {
   const { store, db } = shared()
   db.exec(
-    "UPDATE memories SET summary='Rina is responsible for Ledger.' WHERE n=2; INSERT INTO mentions VALUES (1,2),(2,2); INSERT INTO relations VALUES (1,1,1,'member_of',2,1,1),(2,2,1,'member_of',2,1,2);",
+    "UPDATE memories SET summary='Rina is responsible for Ledger.' WHERE n=2; INSERT INTO mentions VALUES (1,2),(2,2); INSERT INTO relations(n,memory,subject,predicate,object,live,observed_at) VALUES (1,1,1,'member_of',2,1,1),(2,2,1,'member_of',2,1,2);",
   )
   const result = store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
   expect(result.folded).toBe(0)
@@ -46,7 +46,7 @@ it('only suggests near repeats, leaves two supporting memories alone, and never 
 it('fold transfers supported links and deduplicates copied quotes by entry identity', () => {
   const { store, db } = shared()
   db.exec(
-    "INSERT INTO mentions VALUES (1,2),(2,2); INSERT INTO relations VALUES (1,1,1,'member_of',2,1,1),(2,2,1,'member_of',2,1,2); INSERT INTO relation_support VALUES (1,1,'Rina leads Ledger.'),(2,2,'Rina leads Ledger.'); UPDATE evidence SET entry_id='entry-1' WHERE n=2; UPDATE entities SET memories=2,connections=1;",
+    "INSERT INTO mentions VALUES (1,2),(2,2); INSERT INTO relations(n,memory,subject,predicate,object,live,observed_at) VALUES (1,1,1,'member_of',2,1,1),(2,2,1,'member_of',2,1,2); INSERT INTO relation_support VALUES (1,1,'Rina leads Ledger.'),(2,2,'Rina leads Ledger.'); UPDATE evidence SET entry_id='entry-1' WHERE n=2; UPDATE entities SET memories=2,connections=1;",
   )
   const before = dump(db)
   const result = store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
