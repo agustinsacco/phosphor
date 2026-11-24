@@ -3,6 +3,7 @@ import {
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
   BRAIN_LINK_RULES,
+  BRAIN_LINK_LABEL_MAX,
   type BrainEntityKind,
   type BrainExtractionOutcome,
   BRAIN_STRUCTURAL_PREDICATES,
@@ -65,6 +66,17 @@ function date(value: unknown): number | null {
     throw new Error(`Invalid date: ${raw}`)
   return parsed
 }
+function linkDate(value: unknown): number | null {
+  if (value == null) return null
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new Error('Expected a YYYY-MM-DD date')
+  return date(value)
+}
+function importance(value: unknown): 0 | 1 | 2 {
+  if (value === undefined) return 1
+  if (value === 0 || value === 1 || value === 2) return value
+  throw new Error('Importance must be 0, 1 or 2')
+}
 function entity(value: unknown): StageEntity {
   const e = object(value)
   const label = text(e.label)
@@ -110,7 +122,26 @@ export function parseLink(
   const rule = BRAIN_LINK_RULES[predicate]
   if (!rule.subject.includes(kinds.get(subject)!) || !rule.object.includes(kinds.get(target)!))
     throw new Error(`Invalid endpoint kinds for ${predicate}`)
-  return { subject, object: target, predicate, ...verifiedQuote(l, window, within) }
+  const label = l.label === undefined ? '' : l.label
+  if (
+    typeof label !== 'string' ||
+    label.length > BRAIN_LINK_LABEL_MAX ||
+    scrubExcerpt(label) !== label
+  )
+    throw new Error('Invalid relationship label')
+  const validFrom = linkDate(l.since),
+    validTo = linkDate(l.until)
+  if (validFrom !== null && validTo !== null && validTo < validFrom)
+    throw new Error('Relationship ends before it starts')
+  return {
+    subject,
+    object: target,
+    predicate,
+    label,
+    validFrom,
+    validTo,
+    ...verifiedQuote(l, window, within),
+  }
 }
 
 function claim(
@@ -157,6 +188,7 @@ function claim(
     validFrom: date(c.validFrom),
     validTo: date(c.validTo),
     branch: c.branch,
+    importance: importance(c.importance),
     // An unknown hold is no hold: the parse backstop may still mark the claim.
     hold: c.hold === 'temporary' || c.hold === 'personal' ? c.hold : null,
   }

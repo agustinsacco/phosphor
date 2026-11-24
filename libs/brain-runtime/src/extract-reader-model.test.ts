@@ -15,7 +15,7 @@ async function setup(model: string | null, thinking: string) {
     neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
     enabled: true,
     recall: true,
-    review: true,
+    agentAuto: true,
     model,
   })
   await writeFile(
@@ -46,7 +46,13 @@ async function setup(model: string | null, thinking: string) {
     runModelCall: (input: Parameters<typeof runModelCall>[0]) => runModelCall(input, transport),
   }
   const run = () =>
-    extractJob(store.job(job.id)!, new AbortController().signal, store, options, s.search)
+    extractJob(
+      store.updateJob(job.id, { state: 'running' }),
+      new AbortController().signal,
+      store,
+      options,
+      s.search,
+    )
   return { ...s, store, job, transport, launch, run }
 }
 

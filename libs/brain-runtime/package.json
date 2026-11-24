@@ -52,6 +52,10 @@
       "types": "./src/api.ts",
       "default": "./src/api.ts"
     },
+    "./auto-run-stub": {
+      "types": "./src/auto-run-stub.ts",
+      "default": "./src/auto-run-stub.ts"
+    },
     "./bridge": {
       "types": "./src/bridge.ts",
       "default": "./src/bridge.ts"
@@ -107,6 +111,10 @@
     "./extraction-record": {
       "types": "./src/extraction-record.ts",
       "default": "./src/extraction-record.ts"
+    },
+    "./extraction-save": {
+      "types": "./src/extraction-save.ts",
+      "default": "./src/extraction-save.ts"
     },
     "./extraction-view": {
       "types": "./src/extraction-view.ts",
@@ -167,10 +175,6 @@
     "./source-checkpoint": {
       "types": "./src/source-checkpoint.ts",
       "default": "./src/source-checkpoint.ts"
-    },
-    "./stale-review": {
-      "types": "./src/stale-review.ts",
-      "default": "./src/stale-review.ts"
     },
     "./stage-call": {
       "types": "./src/stage-call.ts",

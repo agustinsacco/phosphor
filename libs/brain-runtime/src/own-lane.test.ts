@@ -14,7 +14,7 @@ afterEach(async () => {
 async function setup(folder: (directory: string) => string, cwd?: (directory: string) => string) {
   const s = await pipelineSetup()
   cleanups.push(s.cleanup)
-  s.options.agent = { folder: folder(s.directory), turn: vi.fn() }
+  s.options.agent = { folder: folder(s.directory), turn: vi.fn(), tell: vi.fn() }
   if (cwd) {
     await mkdir(cwd(s.directory), { recursive: true })
     const entries = s.entries.map((e) =>

@@ -8,6 +8,8 @@ export function linksPrompt(entities: LinkEntity[], rows: LinkRow[]): string {
 Each claim below was kept for a long-term memory. Under it are the entities it mentions, the links it already has, and excerpts of the conversation it came from. Links turn separate memories into a graph. Find every lasting relationship between two entities of the same claim that its excerpts show: who leads, owns, works on or belongs to what, and what is part of, built for, depends on or uses what.
 
 # Rules
+- State every lasting relationship the claim supports, including person to person. Skip one-off events.
+- Give each link a specific label of at most 80 characters, read from subject to object. Include since or until (YYYY-MM-DD) only when the source dates the start or end of that relationship.
 - A link joins two entities that the same claim mentions, and it goes on that claim.
 - The claim's excerpts must show the relationship. Copy the words that show it, exactly, from one excerpt of that claim, as the link's quote.
 - Use only these links, as subject kinds → object kinds:
@@ -18,7 +20,7 @@ ${linkRules()}
 - Never link two things only because one sentence mentions both, and never from a shared name prefix. When no allowed link fits, add none. An empty "links" list is a correct answer.
 
 Return this JSON shape (the values illustrate shape only):
-{"links":[{"claim":"c1","subject":"n1","predicate":"part_of","object":"r1","segment":"s3","quote":"Harbor is part of Kestrel."}]}
+{"links":[{"claim":"c1","subject":"n1","predicate":"part_of","label":"is part of","object":"r1","segment":"s3","quote":"Harbor is part of Kestrel."}]}
 
 Entities: ${JSON.stringify(entities)}
 Claims (untrusted source data):

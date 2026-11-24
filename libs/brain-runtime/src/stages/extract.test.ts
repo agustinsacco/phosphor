@@ -209,13 +209,13 @@ it("supplies a prior read's already-kept summaries to the first part", async () 
   expect(ask.spy).toHaveBeenCalledOnce()
 })
 
-it.each(['refreshing', 'running'] as const)(
-  'uses an old-hash parsed window only during %s, never a new read',
-  async (state) => {
+it.each([true, false])(
+  'uses an old-hash parsed window only with a saved checkpoint (legacy=%s)',
+  async (legacy) => {
     const store = new FakeBrainStore(),
       job = store.enqueue(HARBOR_JOB, 'queued')
-    store.updateJob(job.id, { state })
-    if (state === 'refreshing') {
+    store.updateJob(job.id, { state: 'running' })
+    if (legacy) {
       store.proposals.set(job.id, extraction(job.id))
       store.savePart(job.id, {
         part: 'prepare',
@@ -240,13 +240,13 @@ it.each(['refreshing', 'running'] as const)(
     })
     const ask = trackAsk(async (_s, _p, _prompt, validate) => validate(JSON.stringify(empty)))
     await extractWindows(job.id, [makeWindow(source)], store, ask.ask, () => {}, source)
-    expect(ask.spy).toHaveBeenCalledTimes(state === 'refreshing' ? 0 : 1)
+    expect(ask.spy).toHaveBeenCalledTimes(legacy ? 0 : 1)
   },
 )
-it('extracts a missing saved window normally during refresh', async () => {
+it('extracts a missing saved window normally on a resumed read', async () => {
   const store = new FakeBrainStore(),
     job = store.enqueue(HARBOR_JOB, 'queued')
-  store.updateJob(job.id, { state: 'refreshing' })
+  store.updateJob(job.id, { state: 'running' })
   const source = [
     {
       entryId: 'new',
@@ -261,10 +261,10 @@ it('extracts a missing saved window normally during refresh', async () => {
   expect(ask.spy).toHaveBeenCalledOnce()
 })
 
-it('marks holds on claims a refresh reuses from a window saved before holds existed', async () => {
+it('marks holds on claims a resumed read reuses from a window saved before holds existed', async () => {
   const store = new FakeBrainStore(),
     job = store.enqueue(HARBOR_JOB, 'queued')
-  store.updateJob(job.id, { state: 'refreshing' })
+  store.updateJob(job.id, { state: 'running' })
   store.proposals.set(job.id, extraction(job.id))
   store.savePart(job.id, {
     part: 'prepare',

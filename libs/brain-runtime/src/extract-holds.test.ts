@@ -36,10 +36,9 @@ function answer(hold: unknown) {
   })
   return value
 }
-async function run(options: { review: boolean; hold: unknown; identity?: 'new' | 'uncertain' }) {
+async function run(options: { hold: unknown; identity?: 'new' | 'uncertain' }) {
   const s = await pipelineSetup()
   cleanups.push(s.cleanup)
-  s.store.prefs.review = options.review
   if (options.identity === 'uncertain') {
     s.store.cards = [
       {
@@ -68,39 +67,29 @@ async function run(options: { review: boolean; hold: unknown; identity?: 'new' |
 }
 
 it("keeps the model's hold on a claim through to the proposal, and ignores an unknown one", async () => {
-  const held = await run({ review: true, hold: 'personal' })
-  expect(held.store.storedProposal(held.job.id)!.memories.map((m) => m.hold)).toEqual([
-    null,
-    'personal',
-  ])
-  const unknown = await run({ review: true, hold: 'secret' })
-  expect(unknown.store.storedProposal(unknown.job.id)!.memories.map((m) => m.hold)).toEqual([
-    null,
-    null,
-  ])
+  const held = await run({ hold: 'personal' })
+  expect(held.store.saved.get(held.job.id)!.memories.map((m) => m.hold)).toEqual([null, 'personal'])
+  const unknown = await run({ hold: 'secret' })
+  expect(unknown.store.saved.get(unknown.job.id)!.memories.map((m) => m.hold)).toEqual([null, null])
 })
 
-it('never saves a held claim with review off', async () => {
-  const s = await run({ review: false, hold: 'temporary' })
-  expect(s.store.reviews).toEqual([
-    {
-      id: s.job.id,
-      decision: { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-    },
-  ])
-  expect(s.store.job(s.job.id)!.state).toBe('done')
+it.each([
+  ['temporary', 2, 'kept', 'Saved until 2026-11-20'],
+  ['personal', 1, 'dropped', 'About a person: never saved'],
+] as const)('records the automatic %s decision', async (hold, memories, status, reason) => {
+  const s = await run({ hold })
+  expect(s.job).toMatchObject({ state: 'done', memories })
+  expect(s.store.extraction(s.job.id).outcomes).toContainEqual(
+    expect.objectContaining({ candidate: 'w1:c2', status, reason }),
+  )
 })
 
-it('keeps a read with a required identity in review even with review off', async () => {
-  const s = await run({ review: false, hold: null, identity: 'uncertain' })
-  expect(s.store.reviews).toEqual([])
-  expect(s.store.job(s.job.id)!.state).toBe('review')
-  const entities = s.store.storedProposal(s.job.id)!.entities
-  expect(entities.find((e) => e.label === 'Rina Okafor')).toMatchObject({
-    decision: 'uncertain',
-    required: true,
-  })
-  expect(entities.find((e) => e.label === 'Tom Lee')).toMatchObject({ required: false })
+it('saves a required identity with a guess for Brain Agent', async () => {
+  const s = await run({ hold: null, identity: 'uncertain' })
+  expect(s.job.state).toBe('done')
+  expect(s.store.saved.get(s.job.id)?.entities).toContainEqual(
+    expect.objectContaining({ required: true, decision: 'uncertain', candidates: ['stored-rina'] }),
+  )
 })
 
 it('marks a claim the backstop finds temporary or personal when the model did not', () => {

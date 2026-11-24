@@ -12,7 +12,13 @@ function harness(pending: string[][]) {
         if (touched === 'all') throw new Error('Maintenance never runs a whole-Brain pass.')
         batches.push(touched.memoryIds.length)
         events.push('sweep')
-        return { coverage: emptyBrainTidyCoverage(), suggestions: 0, folded: 0, operationIds: [] }
+        return {
+          coverage: emptyBrainTidyCoverage(),
+          suggestions: 0,
+          unlinked: 0,
+          folded: 0,
+          operationIds: [],
+        }
       },
     },
     search: {

@@ -31,6 +31,7 @@ it.each([
           subject: l.subjectId,
           predicate: l.predicate,
           object: l.objectId,
+          label: '',
           citation: base.citations[0]!,
         })),
       },

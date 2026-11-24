@@ -33,6 +33,9 @@ const old = (summary: string): MemoryCard => ({
   validFrom: null,
   validTo: null,
   recordedAt: 0,
+  lanes: 1,
+  saidBy: 'you',
+  importance: 1,
   observedAt: 0,
   origin: null,
 })
@@ -78,12 +81,23 @@ it('same sentence with different endpoints reaches reconciliation instead of con
       subject: 'person-2',
       predicate: 'owns',
       object: 'project',
+      label: '',
       citation: { evidence: 0, quote: 'owner' },
     },
   ]
   const card = old(m.summary)
   card.links = [
-    { id: 'r', subjectId: 'person-1', predicate: 'owns', objectId: 'project', memoryId: 'old' },
+    {
+      id: 'r',
+      label: '',
+      validFrom: null,
+      validTo: null,
+      statedBy: 'reader',
+      subjectId: 'person-1',
+      predicate: 'owns',
+      objectId: 'project',
+      memoryId: 'old',
+    },
   ]
   store.oldMemories = [card]
   search.memoryNeighbours = [[{ id: 'old', score: 1 }]]
