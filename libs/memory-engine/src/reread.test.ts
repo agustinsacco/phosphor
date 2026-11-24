@@ -1,8 +1,11 @@
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { openBrainStore } from './store'
-import { approve, extraction, fixture, lane, running } from './test-support'
+import { approve, extraction, fixture, lane, running, save } from './test-support'
+import { seed } from './tidy/test-support'
 import type { BrainStore } from './types'
+
+const note = { runId: null, reason: 'The property test found this order.' }
 
 /** Saves the chosen memories of the default read for a running job. */
 function saveSome(store: BrainStore, jobId: string, indexes: number[]) {
@@ -173,4 +176,38 @@ it('replaces a lane with one revision bump and no extra pruning per removed memo
   } finally {
     store.close()
   }
+})
+it('Read again keeps earlier undo records: a merge undone after the read is undone restores fully', () => {
+  const { store, db } = fixture()
+  seed(db, 1)
+  const first = save(store)
+  const rina = (
+    db.prepare("SELECT id FROM entities WHERE label='Rina Okafor' AND id<>'rina-1'").get() as {
+      id: string
+    }
+  ).id
+  const merge = store.agentEdit({ kind: 'merge', sourceId: rina, targetId: 'rina-1' }, note)
+  const job = running(store, { replaces: first.jobId, leafId: 'leaf-again' })
+  const data = extraction(job, { computedRevision: store.knowledgeRevision() })
+  const again = store.saveRead({
+    ...data,
+    memories: [data.memories[1]!],
+    memoryVectors: [data.memoryVectors[1]!],
+  })
+  expect(again.replaced).toBe(2)
+  store.agentUndo(again.operationId!, note)
+  const owner = () =>
+    db
+      .prepare(
+        "SELECT e.id FROM relations r JOIN entities e ON e.n=r.subject WHERE r.predicate='owns'",
+      )
+      .all()
+  let refused = false
+  try {
+    store.agentUndo(merge, note)
+  } catch {
+    refused = true
+  }
+  if (!refused) expect(owner()).toEqual([{ id: rina }])
+  else expect(owner()).toEqual([{ id: 'rina-1' }])
 })
