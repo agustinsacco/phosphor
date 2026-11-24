@@ -209,3 +209,38 @@ it('ends a read empty when its only group question does not open, journaling not
   expect(db.prepare('SELECT COUNT(*) AS n FROM tidy_operations').get()).toEqual({ n: 0 })
   expect(db.prepare('SELECT COUNT(*) AS n FROM entities').get()).toEqual({ n: 0 })
 })
+it.each(['conflict', 'resolve_open'] as const)(
+  'saves a temporary claim answered as %s beside the lasting memory, linking neither',
+  (action) => {
+    const { store, db } = fixture()
+    const [target] = saveAndListMemories(store)
+    const data = extraction('unused')
+    save(store, {
+      origin: { sessionId: 'ledger-lane', title: 'Ledger' },
+      memories: [{ ...data.memories[0]!, hold: 'temporary', action, target: target! }],
+      memoryVectors: [vector()],
+    })
+    expect(store.memory(target!).memory.state).toBe('active')
+    expect(db.prepare('SELECT COUNT(*) AS n FROM memory_links').get()).toEqual({ n: 0 })
+    expect(
+      db.prepare('SELECT COUNT(*) AS n FROM memories WHERE valid_to IS NOT NULL').get(),
+    ).toEqual({ n: 1 })
+  },
+)
+it('quotes a temporary confirmation on the lasting memory without giving it an end', () => {
+  const { store } = fixture()
+  const [target] = saveAndListMemories(store)
+  const data = extraction('unused')
+  const saved = save(store, {
+    origin: { sessionId: 'ledger-lane', title: 'Ledger' },
+    memories: [],
+    memoryVectors: [],
+    confirmations: [
+      { memoryId: target!, claim: { ...data.memories[0]!, hold: 'temporary' }, vector: vector() },
+    ],
+  })
+  expect(saved).toMatchObject({ state: 'done', confirmed: 1, temporary: 0 })
+  const card = store.memory(target!)
+  expect(card.memory).toMatchObject({ state: 'active', validTo: null })
+  expect(card.quotes).toHaveLength(2)
+})

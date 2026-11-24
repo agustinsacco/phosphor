@@ -148,3 +148,33 @@ it('split keeps a moved works_with link with the lower entity number as subject'
     { s: 'Rina Okafor', o: 'Tom Lee (Kestrel)', validTo: null, state: 'active' },
   ])
 })
+it('merge turns a moved works_with link round when the survivor has the higher number', () => {
+  const { store, db, ids } = people()
+  save(
+    store,
+    read({
+      memories: [worksWith('Tom Lee works with Mara Voss.', ids['Tom Lee']!, ids['Mara Voss']!)],
+    }),
+  )
+  store.agentEdit({ kind: 'merge', sourceId: ids['Tom Lee']!, targetId: ids['Rina Okafor']! }, note)
+  expect(links(db)).toEqual([{ s: 'Mara Voss', o: 'Rina Okafor', validTo: null, state: 'active' }])
+})
+it('relate stores works_with with the lower number as subject and refuses the mirror', () => {
+  const { store, db, ids } = people()
+  const host = (db.prepare('SELECT id FROM memories').get() as { id: string }).id
+  const link = (subjectId: string, objectId: string) => ({
+    subjectId,
+    predicate: 'works_with' as const,
+    objectId,
+    label: 'works closely with',
+    since: null,
+    until: null,
+    memoryIds: [host],
+  })
+  store.relate(link(ids['Rina Okafor']!, ids['Tom Lee']!), note)
+  expect(links(db)).toEqual([{ s: 'Tom Lee', o: 'Rina Okafor', validTo: null, state: 'active' }])
+  expect(() => store.relate(link(ids['Tom Lee']!, ids['Rina Okafor']!), note)).toThrow(
+    'already linked',
+  )
+  expect(links(db)).toHaveLength(1)
+})
