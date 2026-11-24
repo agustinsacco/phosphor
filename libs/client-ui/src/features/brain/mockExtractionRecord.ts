@@ -24,7 +24,7 @@ export function mockExtractionRecord(
         part: 1,
         entryIds: ['s1'],
         inputHash: 'demo-hash',
-        answer: JSON.stringify({ claims: ['Harbor Ledger is built for Harbor.'] }),
+        answer: JSON.stringify({ claims: ['Ledger is built for Harbor.'] }),
         trace: mockCallTrace(38_000),
         error: null,
       },
@@ -41,7 +41,7 @@ export function mockExtractionRecord(
               predicate: 'for_customer',
               object: 'harbor',
               segment: 's1',
-              quote: 'Harbor Ledger is built for Harbor.',
+              quote: 'Ledger is built for Harbor.',
             },
           ],
         }),
@@ -56,7 +56,7 @@ export function mockExtractionRecord(
     outcomes: [
       {
         candidate: 'w1:c1',
-        summary: 'Harbor Ledger is built for Harbor.',
+        summary: 'Ledger is built for Harbor.',
         status: 'kept',
         proposalIndex: 0,
       },

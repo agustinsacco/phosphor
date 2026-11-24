@@ -1,31 +1,36 @@
-import { brainLaneNeverRead } from '@shared/brain'
-import type { BrainStatus, BrainJob } from '@shared/brain'
-import type { BrainWaitingCounts } from '@shared/brain-agent'
+import type { BrainStatus } from '@shared/brain'
+import type { BrainAgentRun, BrainWaitingCounts } from '@shared/brain-agent'
 import type { MockTidy } from './tidy/mockTidy'
 
 export const MOCK_BRAIN_FOLDER = '/demo/brain/Brain'
 export const MOCK_BRAIN_SESSION = `${MOCK_BRAIN_FOLDER}/brain-agent.jsonl`
+/** Desktop waits 60 quiet seconds after a saved read; the mock's clock may be shorter. */
+export const MOCK_AUTO_RUN_MS = 60_000
 
-/** Clock-driven ordinary Brain lane, with no provider or external side effects. */
+/**
+ * Clock-driven ordinary Brain lane, with no provider or external side effects. Defrag starts a
+ * run; once reads settle after a saved read, a run also starts on its own while anything waits.
+ */
 export class MockBrainAgent {
   private next = 0
   private readsAhead = new Set<string>()
   private steps: (() => void)[] = []
+  /** When the last read saved, until an automatic run takes it. */
+  private savedAt: number | null = null
   constructor(
     private state: BrainStatus,
     private tidy: MockTidy,
     private now: () => number,
-    private decide: (job: BrainJob) => () => void,
+    private autoRunMs = MOCK_AUTO_RUN_MS,
   ) {
     state.agent.folder = MOCK_BRAIN_FOLDER
   }
 
   waiting(): BrainWaitingCounts {
-    const counts = this.tidy.agent.waitingCounts()
-    return {
-      reads: this.state.jobs.filter((j) => ['review', 'refreshing'].includes(j.state)).length,
-      ...counts,
-    }
+    return this.tidy.agent.waitingCounts()
+  }
+  readSaved(): void {
+    this.savedAt = this.now()
   }
   canRead(id: string): boolean {
     return this.state.agent.run?.state !== 'queued' || this.readsAhead.has(id)
@@ -33,7 +38,19 @@ export class MockBrainAgent {
   active(): boolean {
     return this.state.agent.run?.state === 'running'
   }
+  private busy(): boolean {
+    return !!this.state.agent.run && ['queued', 'running'].includes(this.state.agent.run.state)
+  }
+  /** Edge-triggered: one attempt per saved read, after reads settle, while something waits. */
+  private autoStart(): void {
+    if (this.savedAt === null || !this.state.prefs.agentAuto || this.busy()) return
+    if (this.state.jobs.some((j) => ['queued', 'running'].includes(j.state))) return
+    if (this.now() - this.savedAt < this.autoRunMs) return
+    this.savedAt = null
+    if (Object.values(this.waiting()).some(Boolean)) this.queueRun(true)
+  }
   tick(): void {
+    this.autoStart()
     const run = this.state.agent.run
     if (!run || !['queued', 'running'].includes(run.state)) return
     if (run.state === 'queued') {
@@ -44,36 +61,10 @@ export class MockBrainAgent {
         )
       )
         return
-      const jobs = this.state.jobs.filter((j) => ['review', 'refreshing'].includes(j.state))
       const suggestions = this.tidy.agent.waitingIds()
-      this.steps = [
-        ...jobs.map((job) => () => {
-          const before = structuredClone(job)
-          let undoRead: (() => void) | undefined
-          const never = brainLaneNeverRead(this.state.prefs.neverRead, job)
-          this.tidy.agent.change(
-            run.id,
-            never ? 'reject' : 'approve',
-            `${never ? 'Rejected' : 'Approved'} ${job.title}`,
-            never
-              ? 'Brain never reads this lane.'
-              : 'The lasting memories have evidence in this read.',
-            () => {
-              undoRead = this.decide(job)
-            },
-            job.id,
-            () => {
-              undoRead?.()
-              if (!this.state.jobs.some((read) => read.id === before.id))
-                this.state.jobs.push(before)
-            },
-          )
-        }),
-        ...suggestions.map(
-          (id, index) => () =>
-            this.tidy.agent.resolve(run.id, id, index === suggestions.length - 1),
-        ),
-      ]
+      this.steps = suggestions.map(
+        (id, index) => () => this.tidy.agent.resolve(run.id, id, index === suggestions.length - 1),
+      )
       run.state = 'running'
       run.startedAt = this.now()
       run.total = this.steps.length
@@ -92,6 +83,27 @@ export class MockBrainAgent {
       run.state = 'done'
       run.finishedAt = this.now()
     }
+  }
+  private queueRun(automatic: boolean): void {
+    // Any run takes the saved reads before it: the automatic one waits for the next.
+    this.savedAt = null
+    this.readsAhead = new Set(this.state.jobs.map((job) => job.id))
+    const run: BrainAgentRun = {
+      id: crypto.randomUUID(),
+      state: 'queued',
+      total: 0,
+      decided: 0,
+      erased: 0,
+      undoable: 0,
+      queuedAt: this.now(),
+      startedAt: null,
+      finishedAt: null,
+      sessionPath: null,
+      error: null,
+      rulesChanged: false,
+      automatic,
+    }
+    this.state.agent.run = run
   }
   call(channel: string, args: unknown[]): BrainStatus {
     if (channel === 'brain:undoRun') {
@@ -120,25 +132,10 @@ export class MockBrainAgent {
       return this.state
     }
     if (!this.state.prefs.enabled) throw new Error('Turn Brain on first.')
-    if (this.state.agent.run && ['queued', 'running'].includes(this.state.agent.run.state))
-      throw new Error('Defrag is already queued or running.')
+    if (this.busy()) throw new Error('Defrag is already queued or running.')
     if (!Object.values(this.waiting()).some(Boolean))
       throw new Error('Nothing is waiting for Defrag.')
-    this.readsAhead = new Set(this.state.jobs.map((job) => job.id))
-    this.state.agent.run = {
-      id: crypto.randomUUID(),
-      state: 'queued',
-      total: 0,
-      decided: 0,
-      erased: 0,
-      undoable: 0,
-      queuedAt: this.now(),
-      startedAt: null,
-      finishedAt: null,
-      sessionPath: null,
-      error: null,
-      rulesChanged: false,
-    }
+    this.queueRun(false)
     return this.state
   }
 }
