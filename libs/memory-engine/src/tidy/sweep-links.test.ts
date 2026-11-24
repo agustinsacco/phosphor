@@ -21,7 +21,7 @@ function unlinked(db: DatabaseSync) {
       "SELECT first_id,second_id,state,reason,detail FROM tidy_suggestions WHERE kind='unlinked'",
     )
     .all()
-    .map((row) => ({ ...row, detail: JSON.parse(String(row.detail)) }))
+    .map((row) => ({ ...row, state: String(row.state), detail: JSON.parse(String(row.detail)) }))
 }
 
 it('offers people named together in two memories with no link, once, and never again after keep', () => {
