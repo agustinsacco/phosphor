@@ -7,7 +7,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { mediaDirectory, recordPath } from './build-films.mjs'
-import { manifest, root } from './sync-assets.mjs'
+import { manifest, platesDirectory, root } from './sync-assets.mjs'
 
 const slate = 'Product demo · fictional data'
 const filmDirectory = (film) => join(root, 'films', film.id)
@@ -51,6 +51,11 @@ for (const film of manifest.films) {
       assert.ok(source.includes(`window.__timelines['${scene.id}']`), `${scene.id} registers`)
       if (source.includes('assets/shots/')) assert.ok(source.includes(slate), `${scene.id} slate`)
     }
+  })
+
+  test(`${film.id}: every listed capture is available to render`, () => {
+    for (const plate of film.plates)
+      assert.ok(existsSync(join(platesDirectory(), `${plate}.png`)), `missing capture: ${plate}`)
   })
 
   test(`${film.id}: uses exactly the captures films.json lists, and nothing remote`, () => {
