@@ -372,12 +372,13 @@ describe('browser Web Push through the adapter', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
-  it('keeps them when startup fails offline and the page disposes the adapter', async () => {
+  it('keeps them when startup is offline and the page disposes the adapter', async () => {
     const { registration, subscription } = await configured()
     const bridge = adapter(async () => {
       throw new TypeError('Failed to fetch')
     })
-    await expect(bridge.start()).rejects.toThrow()
+    await bridge.start()
+    await vi.advanceTimersByTimeAsync(1_000)
     bridge.dispose()
     await vi.advanceTimersByTimeAsync(1_000)
     expect(subscription.unsubscribe).not.toHaveBeenCalled()

@@ -8,6 +8,11 @@ export const WEB_AUTH_ROUTES = {
   clients: '/api/v1/clients',
 } as const
 export const WEB_CSRF_HEADER = 'x-phosphor-csrf'
+/**
+ * A failed sign-in redirects to `/?signin-error=<ControlErrorCode>` instead of
+ * showing JSON; the app reads it once and removes it from the address.
+ */
+export const WEB_SIGNIN_ERROR_PARAM = 'signin-error'
 export interface WebSessionResponse {
   user: { id: string; login: string | null }
   clientId: string

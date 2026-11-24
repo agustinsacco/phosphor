@@ -1,5 +1,4 @@
 import { parseWebClientsResponse } from '@phosphor/shared/web-auth'
-import { effectiveAuthorization } from '../web/effective-token'
 import type { Hono } from 'hono'
 import {
   CONTROL_ROUTES,
@@ -15,19 +14,6 @@ import type { AppDeps } from '../app'
 import type { TraceEvents } from '../events'
 import { ControlFailure, type Env } from '../http'
 import { body, outcome, parsed, record } from './shared'
-
-/** Called only after userGuard verified this exact access token. */
-function sessionId(authorization: string | undefined): string {
-  try {
-    const part = authorization?.slice(7).split('.')[1]
-    if (!part) throw new Error('missing payload')
-    const payload = record(JSON.parse(Buffer.from(part, 'base64url').toString('utf8')))
-    if (isUuid(payload.session_id)) return payload.session_id
-  } catch {
-    // No token bytes or claims in the failure.
-  }
-  throw new ControlFailure('unauthenticated')
-}
 
 export function grants(
   app: Hono<Env>,
@@ -46,11 +32,9 @@ export function grants(
     )
   })
   app.post(CONTROL_ROUTES.clients, guard, async (c) => {
-    if (c.get('webClientId')) throw new ControlFailure('forbidden')
+    if (c.get('web')) throw new ControlFailure('forbidden')
     const input = parsed(parseClientRegisterRequest(body(c)), 'bad-request')
     const userId = c.get('user').userId
-    if (!deps.limits.consume('client-register:' + userId, 10, 3_600_000))
-      throw new ControlFailure('too-many-requests')
     const value = record(
       await deps.supabase.rpc('control_client_register', {
         p_user: userId,
@@ -58,7 +42,6 @@ export function grants(
         p_kind: 'desktop',
       }),
     )
-    if (value.outcome === 'too-many-requests') throw new ControlFailure('too-many-requests')
     outcome(value, 'registered')
     const result = parsed(parseClientRegisterResponse(value))
     events.emit(c, 'client.registered', { userId, clientId: result.client.id })
@@ -82,12 +65,9 @@ export function grants(
     const keys = deps.config.grantKeys
     if (!keys) throw new ControlFailure('unavailable')
     const input = parsed(parseGrantIssueRequest(body(c)), 'bad-request')
-    if (c.get('webClientId') && input.clientId !== c.get('webClientId'))
-      throw new ControlFailure('forbidden')
-    const sid = sessionId(effectiveAuthorization(c))
-    const userId = c.get('user').userId
-    if (!deps.limits.consume('grant-issue:' + userId, 120, 60_000))
-      throw new ControlFailure('too-many-requests')
+    const web = c.get('web')
+    if (web && input.clientId !== web.clientId) throw new ControlFailure('forbidden')
+    const { userId, sid } = c.get('user')
     const value = record(
       await deps.supabase.rpc('control_grant_issue', {
         p_user: userId,

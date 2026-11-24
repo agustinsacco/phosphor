@@ -100,7 +100,7 @@ describe('public inventory', () => {
       ['downAfterSec', 90],
       ['heartbeatMinSec', 10],
       ['signatureSkewSec', 60],
-      ['maxHostsPerAccount', 20],
+      ['maxHostsPerAccount', 100],
       ['maxLanes', 10_000],
     ])
     expect(Object.keys(api.CONTROL_ROUTES)).toEqual([

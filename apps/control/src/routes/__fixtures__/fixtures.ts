@@ -48,7 +48,15 @@ export function setup() {
     control_host_key: { outcome: 'active', publicKey: key.publicKey },
     control_host_revocations: { epoch: 1, ownerId: userId, revoked: { sessions: [], clients: [] } },
   }
-  vi.mocked(deps.supabase.rpc).mockImplementation(async (name) => results[name])
+  // Remembers every claimed nonce, as control_nonce_claim does, so a replay is refused.
+  const claimed = new Set<string>()
+  vi.mocked(deps.supabase.rpc).mockImplementation(async (name, args) => {
+    if (name !== 'control_nonce_claim') return results[name]
+    const pair = JSON.stringify([args.p_identity, args.p_nonce])
+    if (claimed.has(pair)) return { outcome: 'replayed' }
+    claimed.add(pair)
+    return { outcome: 'claimed' }
+  })
   const app = createApp(deps)
   const call = (
     path: string,
@@ -72,6 +80,10 @@ export function setup() {
     results,
     app,
     call,
+    /** How many nonce claims reached the database. */
+    claims: () =>
+      vi.mocked(deps.supabase.rpc).mock.calls.filter(([name]) => name === 'control_nonce_claim')
+        .length,
     advance: (ms: number) => {
       now += ms
     },

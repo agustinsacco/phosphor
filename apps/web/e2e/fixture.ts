@@ -11,7 +11,7 @@ import { WebSocket } from 'ws'
 import { createApp, type AppDeps } from '../../control/src/app'
 import { parseConfig } from '../../control/src/config'
 import { ControlFailure } from '../../control/src/http'
-import { NonceCache, RateLimiter, RATE_PURPOSE_CAPACITIES } from '../../control/src/limits'
+import { RateLimiter, RATE_PURPOSE_CAPACITIES } from '../../control/src/limits'
 import { formatKeyFingerprint, type MachineView } from '@phosphor/shared/control-api'
 import { HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
 import {
@@ -36,6 +36,34 @@ const createRoot = async () => mkdtemp(join(await realpath(tmpdir()), 'phosphor-
 /** The production stack runs no Host, so it seeds no lanes. */
 const UNSEEDED = { laneId: '', secondLaneId: '', repository: '' }
 
+type Clients = Map<string, { owner: string; revoked: boolean }>
+type WebSessions = Map<string, { owner: string; clientId: string }>
+/** Browser sessions as the control_web_session_* RPCs keep them, keyed by handle hash. */
+function webSessionRpc(
+  db: { clients: Clients; sessions: WebSessions; owner: string; sid: string },
+  name: string,
+  args: Record<string, unknown>,
+) {
+  const hash = String(args.p_handle_hash)
+  const session = db.sessions.get(hash)
+  if (name === 'control_web_session_create') {
+    const clientId = randomUUID()
+    db.clients.set(clientId, { owner: String(args.p_user), revoked: false })
+    db.sessions.set(hash, { owner: String(args.p_user), clientId })
+    return { outcome: 'created', clientId }
+  }
+  if (!session || db.clients.get(session.clientId)?.revoked !== false)
+    return { outcome: 'not-found' }
+  if (name === 'control_web_session_end') {
+    db.sessions.delete(hash)
+    db.clients.get(session.clientId)!.revoked = true
+    return { outcome: 'ended' }
+  }
+  const login = session.owner === db.owner ? 'fixture-owner' : 'fixture-other'
+  const { owner: userId, clientId } = session
+  return { outcome: 'active', userId, login, clientId, sid: db.sid, renewed: false }
+}
+
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
 export async function browserFixture(production = false) {
   const root = await createRoot()
@@ -51,8 +79,8 @@ export async function browserFixture(production = false) {
     const owners = [randomUUID(), randomUUID()]
     const sid = randomUUID(),
       hostId = randomUUID()
-    const clients = new Map<string, { owner: string; revoked: boolean }>()
-    const tokens = new Map<string, string>()
+    const clients: Clients = new Map()
+    const sessions: WebSessions = new Map()
     const codes = new Map<string, { challenge: string; owner: string }>()
     const state = {
       owner: owners[0]!,
@@ -177,6 +205,14 @@ export async function browserFixture(production = false) {
       CONTROL_WEB_SESSION_KEYS: `fixture=${randomBytes(32).toString('base64url')}`,
       CONTROL_GRANT_KEYS: `fixture=${randomBytes(32).toString('base64url')}`,
     })
+    // Remembers every claimed nonce, as control_nonce_claim does, so a replay is refused.
+    const claimedNonces = new Set<string>()
+    const claimNonce = (args: Record<string, unknown>) => {
+      const pair = JSON.stringify([args.p_identity, args.p_nonce])
+      if (claimedNonces.has(pair)) return { outcome: 'replayed' }
+      claimedNonces.add(pair)
+      return { outcome: 'claimed' }
+    }
     const deps: AppDeps = {
       config,
       clock: Date.now,
@@ -184,11 +220,9 @@ export async function browserFixture(production = false) {
       log: () => {},
       version: 'browser-fixture',
       limits: new RateLimiter(Date.now, RATE_PURPOSE_CAPACITIES),
-      nonces: { key: new NonceCache(Date.now), host: new NonceCache(Date.now) },
       fetch: async (input, init) => {
         const url = new URL(String(input))
         if (url.origin !== origin) throw new Error('Nonlocal Auth refused')
-        if (url.pathname === '/auth/v1/logout') return new Response(null, { status: 204 })
         if (url.pathname !== '/auth/v1/token' || url.searchParams.get('grant_type') !== 'pkce')
           throw new Error('Unexpected Auth request')
         const body = JSON.parse(String(init?.body)) as { auth_code: string; code_verifier: string }
@@ -200,41 +234,22 @@ export async function browserFixture(production = false) {
         )
           return new Response(null, { status: 401 })
         const access = `e30.${Buffer.from(JSON.stringify({ sub: code.owner, session_id: sid, aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.c2ln`
-        tokens.set(access, code.owner)
+        const user_name = code.owner === owners[0] ? 'fixture-owner' : 'fixture-other'
         return Response.json({
           access_token: access,
-          refresh_token: randomBytes(32).toString('base64url'),
-          expires_in: 3600,
-          user: { id: code.owner },
+          user: { id: code.owner, user_metadata: { user_name } },
         })
       },
       supabase: {
-        async getUser(token) {
-          const id = tokens.get(token)
-          if (!id) throw new ControlFailure('unauthenticated')
-          return {
-            id,
-            user_metadata: { user_name: id === owners[0] ? 'fixture-owner' : 'fixture-other' },
-          }
-        },
+        // The app origin is cookie-only; no bearer reaches Auth.
+        getUser: async () => Promise.reject(new ControlFailure('unauthenticated')),
         async rpc(name, args) {
+          if (name === 'control_nonce_claim') return claimNonce(args)
+          if (name.startsWith('control_web_session_'))
+            return webSessionRpc({ clients, sessions, owner: owners[0]!, sid }, name, args)
           switch (name) {
             case 'control_account':
-              return { enabled: true, maxHosts: 20 }
-            case 'control_client_register': {
-              const id = randomUUID()
-              clients.set(id, { owner: String(args.p_user), revoked: false })
-              return { outcome: 'registered', client: { id, label: 'Synthetic browser' } }
-            }
-            case 'control_web_client_status': {
-              const client = clients.get(String(args.p_client))
-              return {
-                outcome:
-                  client && client.owner === args.p_user && !client.revoked
-                    ? 'active'
-                    : 'not-found',
-              }
-            }
+              return { enabled: true, maxHosts: 100 }
             case 'control_client_revoke': {
               const client = clients.get(String(args.p_client))
               if (!client || client.owner !== args.p_user) return { outcome: 'not-found' }

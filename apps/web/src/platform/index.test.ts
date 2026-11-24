@@ -103,13 +103,84 @@ it('subscribes and cleans browser lifecycle and invalidation, broadcasting only 
   disposals.push(adapter.dispose)
   await adapter.start()
   invalidate()
-  expect(await adapter.api.invoke('hosts:snapshot')).toEqual({})
+  // The tab then asks Control again; its 401 confirms the sign-out.
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+  await vi.waitFor(() => expect(adapter.api.invoke('hosts:snapshot')).resolves.toEqual({}))
   await adapter.api.invoke('account:signOut')
   expect(publish).toHaveBeenCalledWith()
   adapter.dispose()
   expect(off).toHaveBeenCalledTimes(2)
   expect(close).toHaveBeenCalledOnce()
   await expect(adapter.api.invoke('account:get')).rejects.toThrow('disposed')
+})
+it('broadcasts sign-out only once it settles, and a receiving tab asks Control again', async () => {
+  let receive!: () => void
+  let settle: ((response: Response) => void) | undefined
+  let signedIn = false
+  const publish = vi.fn()
+  const json = (data: unknown) =>
+    new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })
+  const fetch = vi.fn<typeof globalThis.fetch>(async (path) => {
+    if (path === '/api/auth/signout')
+      return new Promise<Response>((resolve) => {
+        settle = resolve
+      })
+    if (path !== '/api/auth/session')
+      return json({ machines: [], serverTime: new Date().toISOString() })
+    if (!signedIn) return new Response('', { status: 401 })
+    return json({
+      user: { id: '11111111-1111-4111-8111-111111111111', login: 'fixture' },
+      clientId: '22222222-2222-4222-8222-222222222222',
+      csrfToken: 'a'.repeat(43),
+    })
+  })
+  const adapter = createBrowserApi({
+    fetch,
+    storage: null,
+    lifecycle: { subscribe: () => () => {} },
+    invalidation: {
+      subscribe: (cb) => {
+        receive = cb
+        return () => {}
+      },
+      close: () => {},
+      publish,
+    },
+  })
+  disposals.push(adapter.dispose)
+  await adapter.start()
+  const sessionChecks = () => fetch.mock.calls.filter(([path]) => path === '/api/auth/session')
+  expect(sessionChecks()).toHaveLength(1)
+  // Another tab signed out, then signed in again: this tab follows the server.
+  signedIn = true
+  receive()
+  await vi.waitFor(() =>
+    expect(adapter.api.invoke('account:get')).resolves.toMatchObject({
+      account: { status: 'signed-in' },
+    }),
+  )
+  const signOut = adapter.api.invoke('account:signOut')
+  await vi.waitFor(() => expect(settle).toBeTypeOf('function'))
+  expect(publish).not.toHaveBeenCalled()
+  settle?.(json({ signedOut: true, remoteCleanup: 'complete' }))
+  await signOut
+  expect(publish).toHaveBeenCalledOnce()
+})
+it('starts during an outage instead of failing, and says the check is retrying', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => {
+    throw new TypeError('Failed to fetch')
+  })
+  const adapter = createBrowserApi({
+    fetch,
+    storage: null,
+    invalidation: null,
+    lifecycle: { subscribe: () => () => {} },
+  })
+  disposals.push(adapter.dispose)
+  await expect(adapter.start()).resolves.toBeUndefined()
+  expect(await adapter.api.invoke('account:get')).toEqual({
+    account: { status: 'signed-out', notice: 'unreachable' },
+  })
 })
 it('bundles the production adapter without Node, Desktop, runtime or test dependencies', async () => {
   const result = await build({

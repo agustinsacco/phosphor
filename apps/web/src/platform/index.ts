@@ -43,6 +43,8 @@ export interface BrowserApiOptions {
   socket?: (url: string) => Promise<FrameSocket>
   identity?: IdentityCrypto
   platform?: PhosphorApi['platform']
+  /** A failed sign-in's message from the address (`takeSignInError`). */
+  signInError?: string
 }
 function browserLifecycle(): BrowserLifecycle {
   return {
@@ -185,6 +187,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
   let offLifecycle = () => {},
     offInvalidation = () => {}
   const control = createBrowserControl({
+    signInError: options.signInError,
     fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
     navigate: options.navigate ?? ((path) => location.assign(path)),
     changed: (view) => {
@@ -194,7 +197,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     invalidate: (owner) => {
       laneMoves.abort()
       fileBytes.clear()
-      // Disposing (closing, a start that failed offline) is no sign-out: push scopes stay.
+      // Disposing (closing the page) is no sign-out: push scopes stay.
       if (!stopped) push.accountChanged(owner)
       terminals.clear()
       lanes.clear()
@@ -339,12 +342,19 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
           hosts.wake()
           refreshQuietly()
         })
-        offInvalidation = invalidation?.subscribe(control.invalidate) ?? (() => {})
+        // Another tab signed out: drop local state, then let Control say who is signed in.
+        offInvalidation =
+          invalidation?.subscribe(() => {
+            control.invalidate()
+            refreshQuietly()
+          }) ?? (() => {})
         push.start()
         poll = setInterval(refreshQuietly, DIRECTORY_POLL_MS)
         clock = setInterval(hosts.reconcile, 5000)
       }
-      await refresh()
+      // Only an outage rejects here. It is no sign-out: the sign-in screen says the check is
+      // retrying, and the poll and resume events retry it.
+      await refresh().catch(() => {})
     },
     dispose() {
       if (stopped) return

@@ -65,7 +65,6 @@ routeContracts(routes)
 
 it('enforces create limit before bad signature and nonce consumption', async () => {
   const s = setup()
-  const nonce = vi.spyOn(s.deps.nonces.key, 'accept')
   s.results.control_enrollment_create = routes[0].answer
   for (let i = 0; i < 10; i++)
     expect(
@@ -90,7 +89,7 @@ it('enforces create limit before bad signature and nonce consumption', async () 
   )
   req.headers.set(HOST_HEADERS.signature, randomBytes(64).toString('base64url'))
   expect((await s.app.request(req)).status).toBe(429)
-  expect(nonce).toHaveBeenCalledTimes(10)
+  expect(s.claims()).toBe(10)
   s.advance(3_600_000)
   expect(
     (await s.call(R.enrollments, 'POST', { ...routes[0].value, publicKey: s.key.publicKey }, 'key'))
@@ -101,9 +100,9 @@ it('limits polls by parsed enrollment id before verification', async () => {
   const s = setup()
   s.results.control_enrollment_poll = { outcome: 'pending' }
   expect((await s.call(R.enrollmentPoll, 'POST', { enrollmentId: userId }, 'key')).status).toBe(200)
-  const nonce = vi.spyOn(s.deps.nonces.key, 'accept')
+  const claims = s.claims()
   expect((await s.call(R.enrollmentPoll, 'POST', { enrollmentId: userId }, 'key')).status).toBe(429)
-  expect(nonce).not.toHaveBeenCalled()
+  expect(s.claims()).toBe(claims)
   expect((await s.call(R.enrollmentPoll, 'POST', { enrollmentId: 'invalid' }, 'key')).status).toBe(
     400,
   )
@@ -128,13 +127,13 @@ it('limits polls per address before parsing, the per-enrollment key and verifica
   const fresh = () => ({ enrollmentId: randomUUID() })
   for (let i = 0; i < 60; i++)
     expect((await s.call(R.enrollmentPoll, 'POST', fresh(), 'key')).status).toBe(200)
-  const nonce = vi.spyOn(s.deps.nonces.key, 'accept')
+  const claims = s.claims()
   const before = s.deps.limits.size
   expect((await s.call(R.enrollmentPoll, 'POST', fresh(), 'key')).status).toBe(429)
   const req = s.key.request('POST', R.enrollmentPoll, fresh(), s.deps.clock())
   req.headers.set(HOST_HEADERS.signature, randomBytes(64).toString('base64url'))
   expect((await s.app.request(req)).status).toBe(429)
-  expect(nonce).not.toHaveBeenCalled()
+  expect(s.claims()).toBe(claims)
   expect(s.deps.limits.size).toBe(before)
   s.advance(60_000)
   expect((await s.call(R.enrollmentPoll, 'POST', fresh(), 'key')).status).toBe(200)

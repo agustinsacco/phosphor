@@ -31,7 +31,8 @@ export const CONTROL_LIMITS = {
   heartbeatMinSec: 10,
   /** How far a signed request's timestamp may drift from the server's clock. */
   signatureSkewSec: 60,
-  maxHostsPerAccount: 20,
+  /** What every shipped client can list (its machines parser allows 100). */
+  maxHostsPerAccount: 100,
   maxLanes: 10_000,
 } as const
 

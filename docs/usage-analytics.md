@@ -93,8 +93,7 @@ order, and any failure answers 404, the same as an unknown route:
 1. The request is on the app origin with a browser session cookie. The native
    API, bearer tokens and the site origin never reach the route.
 2. The ordinary user guard passes, including account suspension.
-3. `admin-read:<user>` allows 60 reads a minute (429 past that).
-4. `control_admin_check(user, ADMIN_GITHUB_ID)` returns exactly `true`.
+3. `control_admin_check(user, ADMIN_GITHUB_ID)` returns exactly `true`.
 
 The server then calls `control_admin_stats()`. It returns the result through
 `parseAdminStats`, which drops any field it doesn't list, and logs `admin.read`

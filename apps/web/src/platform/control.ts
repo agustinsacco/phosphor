@@ -1,4 +1,4 @@
-import type { AccountView } from '@phosphor/shared/account'
+import type { AccountStatusView, AccountView } from '@phosphor/shared/account'
 import {
   CONTROL_ROUTES,
   CONTROL_LIMITS,
@@ -16,6 +16,7 @@ import type { ControlResult, DesktopControlErrorCode } from '@phosphor/shared/ip
 import {
   WEB_AUTH_ROUTES,
   WEB_CSRF_HEADER,
+  WEB_SIGNIN_ERROR_PARAM,
   type WebSessionResponse,
 } from '@phosphor/shared/web-auth'
 
@@ -28,6 +29,8 @@ export interface ControlPorts {
    * signed-in Control user's id, or null when the account is signed out or unknown.
    */
   invalidate: (owner: string | null) => void
+  /** A failed sign-in's message, shown while signed out until the next sign-in or session. */
+  signInError?: string
 }
 class ControlFailure extends Error {
   constructor(readonly code: DesktopControlErrorCode) {
@@ -53,40 +56,75 @@ function session(value: unknown): WebSessionResponse {
 /** Transport receives only sanitized refusal codes, never HTTP bodies or credentials. */
 function grantFailure(error: unknown): Error {
   return new Error(
-    error instanceof ControlFailure && error.code === 'forbidden'
-      ? 'account-disabled'
-      : error instanceof ControlFailure && ['not-found', 'gone'].includes(error.code)
-        ? 'grant-refused'
-        : error instanceof ControlFailure
-          ? error.code
-          : 'offline',
+    error instanceof ControlFailure && ['not-found', 'gone'].includes(error.code)
+      ? 'grant-refused'
+      : error instanceof ControlFailure
+        ? error.code
+        : 'offline',
   )
 }
+
+function signInErrorText(code: string): string {
+  switch (code) {
+    case 'too-many-requests':
+      return 'Too many sign-in attempts. Wait a minute and try again.'
+    case 'forbidden':
+      return 'Sign-in was refused. This account may be disabled.'
+    case 'unavailable':
+      return 'Can’t reach Phosphor right now. Try again shortly.'
+    default:
+      return 'Sign-in failed. Try again.'
+  }
+}
+/** Reads a failed sign-in's code from the address once and removes it, keeping the rest. */
+export function takeSignInError(page: Pick<Window, 'location' | 'history'>): string | undefined {
+  const url = new URL(page.location.href)
+  const code = url.searchParams.get(WEB_SIGNIN_ERROR_PARAM)
+  if (code === null) return undefined
+  url.searchParams.delete(WEB_SIGNIN_ERROR_PARAM)
+  page.history.replaceState(page.history.state, '', url.pathname + url.search + url.hash)
+  return signInErrorText(code)
+}
+
+/** The signed-out screen after an explicit sign-out; unless confirmed, it offers a retry. */
+const logoutView = (cleanup: 'complete' | 'pending' | 'unconfirmed'): AccountStatusView =>
+  cleanup === 'complete'
+    ? { status: 'signed-out' }
+    : {
+        status: 'signed-out',
+        error:
+          cleanup === 'pending'
+            ? 'Signed out here. Remote cleanup is pending; existing Host grants may remain valid briefly.'
+            : 'Disconnected here. Cookie sign-out and remote revocation were not confirmed. Retry sign out.',
+        notice: 'sign-out-unconfirmed',
+      }
 
 /** Cookie credentials never leave fetch. Only CSRF and short-lived grants enter memory. */
 export function createBrowserControl(ports: ControlPorts) {
   let current: WebSessionResponse | null = null
-  let view: AccountView = { account: { status: 'signed-out' } }
+  let signInError = ports.signInError
+  const signedOut = (): Extract<AccountStatusView, { status: 'signed-out' }> => ({
+    status: 'signed-out',
+    ...(signInError ? { error: signInError } : {}),
+  })
+  let view: AccountView = { account: signedOut() }
   let generation = 0,
     sessionRequest = 0,
     stopped = false,
+    // An explicit sign-out owns the session until its cleanup is confirmed: no refresh restores it.
     logoutPending = false
   let logoutCleanup: 'complete' | 'pending' | 'unconfirmed' | undefined
-  const cleanupWarning = () =>
-    logoutCleanup === 'pending'
-      ? 'Signed out here. Remote cleanup is pending; existing Host grants may remain valid briefly.'
-      : 'Disconnected here. Cookie sign-out and remote revocation were not confirmed. Retry sign out.'
   const requests = new Set<AbortController>()
   const configurationHosts = new Set<string>()
   const publish = () => ports.changed(structuredClone(view))
-  function invalidate(error?: string, owner: string | null = null) {
+  function invalidate(owner: string | null = null, account: AccountStatusView = signedOut()) {
     generation++
     current = null
     configurationHosts.clear()
     for (const request of requests) request.abort()
     requests.clear()
     ports.invalidate(owner)
-    view = { account: { status: 'signed-out', ...(error ? { error } : {}) } }
+    view = { account }
     publish()
   }
   async function json(
@@ -122,19 +160,13 @@ export function createBrowserControl(ports: ControlPorts) {
         ...(bodyText === undefined ? {} : { body: bodyText }),
       })
       if (epoch !== generation || stopped) throw new ControlFailure('signed-out')
-      // Check auth before parsing: an HTML/error response must still revoke local access.
-      if (response.status === 401 || response.status === 403) {
-        const code = response.status === 401 ? 'signed-out' : 'forbidden'
-        // A missing cookie on logout retry says nothing about remote cleanup.
-        invalidate(
-          logoutPending && logoutCleanup !== 'complete'
-            ? cleanupWarning()
-            : code === 'forbidden'
-              ? 'Access refused. Sign in again.'
-              : undefined,
-        )
-        throw new ControlFailure(code)
+      // Status before body, so an HTML page counts too. Only 401 ends the session; 403 refuses
+      // this request alone (CSRF, client id, a challenge page). A sign-out reads 401 itself.
+      if (response.status === 401) {
+        if (!logoutPending) invalidate()
+        throw new ControlFailure('signed-out')
       }
+      if (response.status === 403) throw new ControlFailure('forbidden')
       if (response.status === 204 && method === 'DELETE') return {}
       if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
         throw new ControlFailure('unavailable')
@@ -183,7 +215,7 @@ export function createBrowserControl(ports: ControlPorts) {
     return result.value
   }
   async function result<T extends object>(fn: () => Promise<T>): Promise<ControlResult<T>> {
-    if (!current || logoutPending)
+    if (!current)
       return { ok: false, error: { code: 'signed-out', message: 'Sign in to continue.' } }
     try {
       return { ok: true, ...(await fn()) }
@@ -208,13 +240,15 @@ export function createBrowserControl(ports: ControlPorts) {
       try {
         const next = session(await json(WEB_AUTH_ROUTES.session))
         if (epoch !== generation || sequence !== sessionRequest || logoutPending || stopped) return
+        signInError = undefined
+        logoutCleanup = undefined
         if (
           !current ||
           current.user.id !== next.user.id ||
           current.clientId !== next.clientId ||
           current.csrfToken !== next.csrfToken
         ) {
-          invalidate(undefined, next.user.id)
+          invalidate(next.user.id)
         }
         current = next
         view = {
@@ -228,8 +262,16 @@ export function createBrowserControl(ports: ControlPorts) {
         publish()
       } catch (error) {
         if (epoch !== generation || sequence !== sessionRequest || stopped) return
-        // A service outage is not evidence that the cookie was revoked.
-        if (error instanceof ControlFailure && error.code === 'signed-out') return
+        const code = error instanceof ControlFailure ? error.code : 'offline'
+        if (code === 'signed-out') return
+        // The session check is the one route whose 403 is about the account: it is disabled.
+        if (code === 'forbidden')
+          return invalidate(null, { status: 'signed-out', error: 'Access refused. Sign in again.' })
+        // An outage is no sign-out: keep a known session; without one, say the check retries.
+        if (!current) {
+          view = { account: { ...signedOut(), notice: 'unreachable' } }
+          publish()
+        }
         throw error
       }
     },
@@ -237,6 +279,7 @@ export function createBrowserControl(ports: ControlPorts) {
       if (stopped) throw new Error('Browser adapter disposed.')
       logoutPending = false
       logoutCleanup = undefined
+      signInError = undefined
       invalidate()
       view = { account: { status: 'signing-in' } }
       publish()
@@ -249,8 +292,9 @@ export function createBrowserControl(ports: ControlPorts) {
       const csrf = current?.csrfToken
       logoutPending = true
       sessionRequest++
-      invalidate(cleanupWarning())
+      invalidate(null, logoutView(logoutCleanup))
       const epoch = generation
+      let outcome = logoutCleanup
       try {
         // If the first request failed, retry may recover the cookie-bound CSRF without restoring UI access.
         const token = csrf ?? session(await json(WEB_AUTH_ROUTES.session)).csrfToken
@@ -264,30 +308,22 @@ export function createBrowserControl(ports: ControlPorts) {
           !['complete', 'pending'].includes(String(data.remoteCleanup))
         )
           throw new ControlFailure('unavailable')
-        if (epoch !== generation || stopped) return structuredClone(view)
-        logoutCleanup = data.remoteCleanup as 'complete' | 'pending'
-        view = {
-          account: {
-            status: 'signed-out',
-            ...(logoutCleanup === 'pending' ? { error: cleanupWarning() } : {}),
-          },
-        }
-      } catch {
-        if (epoch !== generation || stopped) return structuredClone(view)
-        view = {
-          account: {
-            status: 'signed-out',
-            error: cleanupWarning(),
-          },
-        }
+        outcome = data.remoteCleanup as 'complete' | 'pending'
+      } catch (error) {
+        // A session that is already gone is a finished sign-out.
+        if (error instanceof ControlFailure && error.code === 'signed-out') outcome = 'complete'
       }
+      if (epoch !== generation || stopped) return structuredClone(view)
+      logoutCleanup = outcome
+      logoutPending = logoutCleanup !== 'complete'
+      view = { account: logoutView(logoutCleanup) }
       publish()
       return structuredClone(view)
     },
+    /** Another tab signed out: drop this tab's session; the caller then asks Control again. */
     invalidate: () => {
-      logoutPending = true
       sessionRequest++
-      invalidate('Disconnected in another tab. Sign in again.')
+      invalidate()
     },
     machines: () =>
       result<MachinesResponse>(() => parsed(CONTROL_ROUTES.machines, parseMachinesResponse)),
@@ -318,11 +354,11 @@ export function createBrowserControl(ports: ControlPorts) {
     /** Per-Host configure opt-in, memory only: set by settings access, cleared with the owner. */
     configure(hostId: string, enabled = true) {
       if (!enabled) return void configurationHosts.delete(hostId)
-      if (!current || logoutPending || stopped) throw new Error('signed-out')
+      if (!current || stopped) throw new Error('signed-out')
       configurationHosts.add(hostId)
     },
     async grant(hostId: string) {
-      if (!current || logoutPending) throw new Error('signed-out')
+      if (!current) throw new Error('signed-out')
       try {
         return await parsed(CONTROL_ROUTES.grants, parseGrantIssueResponse, 'POST', {
           hostId,

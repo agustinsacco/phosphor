@@ -17,7 +17,7 @@ import {
   type RequestLog,
 } from './http'
 import { createUserAuth } from './auth/user'
-import type { NonceCache, RateLimiter } from './limits'
+import type { RateLimiter } from './limits'
 import type { Supabase } from './supabase'
 import { serveStatic } from './static'
 import { health } from './routes/health'
@@ -37,7 +37,6 @@ export interface AppDeps {
   log: (entry: RequestLog | EventLog) => void
   supabase: Supabase
   limits: RateLimiter
-  nonces: { key: NonceCache; host: NonceCache }
   version: string
 }
 const routeMethods: Record<string, readonly string[]> = {
@@ -124,7 +123,7 @@ export function createApp(deps: AppDeps) {
   app.get('/healthz', (c) => c.json({ ok: true }))
   app.get(CONTROL_ROUTES.health, (c) => c.json(health(deps.config.configured, deps.version)))
   const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
-  const browser = browserAuth(deps, auth)
+  const browser = browserAuth(deps)
   if (browser) {
     app.use('/api/*', browser.adapter)
     browser.routes(app)

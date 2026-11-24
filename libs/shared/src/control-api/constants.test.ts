@@ -48,7 +48,7 @@ describe('control wire constants', () => {
       downAfterSec: 90,
       heartbeatMinSec: 10,
       signatureSkewSec: 60,
-      maxHostsPerAccount: 20,
+      maxHostsPerAccount: 100,
       maxLanes: 10_000,
     })
     expect(CONTROL_LIMITS.downAfterSec).toBe(3 * CONTROL_LIMITS.heartbeatSec)

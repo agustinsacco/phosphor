@@ -56,7 +56,8 @@ begin
     perform * from dblink_get_result('b') as t(o text);
     insert into race select 'refresh-kept', n::text from dblink('setup', $f$select count(*)
       from public.remote_grant_sessions where sid = '00000000-0000-4000-a000-000000000010'$f$) as t(n bigint);
-    -- Race 2: two issues for new sessions when the owner holds 99 in the window (010, 011, 97).
+    -- Race 2: two issues for new sessions when the owner holds 99 in the window (010, 011, 97):
+    -- the second must see the first's commit, count 100, and reset rather than overflow.
     perform dblink_exec('setup', $f$insert into public.remote_grant_sessions(sid, owner_id)
       select ('00000000-0000-4000-a000-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-a000-000000000001'
       from generate_series(100, 196) i$f$);
@@ -96,7 +97,7 @@ select is((select value from race where name = 'refresh-kept'), '1',
   'a session refreshed during cleanup is kept');
 select is((select value from race where name = 'cap-first'), 'issued', 'the 100th session is admitted');
 select is((select value from race where name = 'cap-waits') || ' ' || (select value from race where name = 'cap-second'),
-  'true too-many-requests', 'a concurrent 101st session waits for the account lock and is refused');
-select is((select value from race where name = 'cap-count'), '100', 'the owner holds exactly 100 sessions');
+  'true issued', 'a concurrent 101st session waits for the account lock, then retires the earlier grants');
+select is((select value from race where name = 'cap-count'), '1', 'only the 101st session stays tracked');
 select * from finish();
 rollback;
