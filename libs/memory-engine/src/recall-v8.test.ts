@@ -56,3 +56,11 @@ it('resolves ambiguous names without discarding the alternatives', () => {
   const {search,db}=setup(); db.close()
   expect(search.resolve?.(['tom','l','missing'])?.map(rows=>rows.map(e=>e.id))).toEqual([['t','r'],['l'],[]])
 })
+it('picks the Tom Lee sharing current memories with Ledger over the more-mentioned namesake', () => {
+  const {search,db}=setup()
+  db.exec(`UPDATE entities SET label='Tom Lee' WHERE n=4;
+    INSERT INTO entity_names(entity,name,folded) VALUES (3,'Tom Lee','tom lee'),(4,'Tom Lee','tom lee');
+    INSERT INTO mentions VALUES (4,4);`)
+  db.close()
+  expect(search.resolve?.(['Tom Lee','Ledger'])?.[0]?.map(e=>e.id)).toEqual(['r','t'])
+})
