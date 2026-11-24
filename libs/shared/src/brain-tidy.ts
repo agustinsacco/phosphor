@@ -63,7 +63,6 @@ export type BrainTidyAction =
   | { kind: 'fold'; survivorId: string }
   | { kind: 'dispute' }
   | { kind: 'replace'; newerId: string }
-  | { kind: 'forget' }
   | { kind: 'keep' }
   /** States the group's `part_of` links, creating the parent if it does not exist. */
   | { kind: 'group' }
@@ -171,7 +170,7 @@ export function checkBrainTidyAction(value: unknown): BrainTidyAction {
     if (Object.keys(row).length === 3 && bounded(row.entityId) && bounded(row.name))
       return value as BrainTidyAction
   } else if (
-    ['dispute', 'forget', 'keep', 'group'].includes(String(row.kind)) &&
+    ['dispute', 'keep', 'group'].includes(String(row.kind)) &&
     Object.keys(row).length === 1
   )
     return value as BrainTidyAction

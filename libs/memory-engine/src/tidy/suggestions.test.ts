@@ -2,6 +2,8 @@ import { expect, it } from 'vitest'
 import { fixture } from '../test-support'
 import { seed } from './test-support'
 
+const note = { runId: null, reason: 'The memories show the answer.' }
+
 it('returns typed flag statuses without revisions for refusals, remembering each lane forever', () => {
   const { store, db } = fixture()
   seed(db, 8)
@@ -25,7 +27,7 @@ it('returns typed flag statuses without revisions for refusals, remembering each
     suggestionId: first.suggestionId,
   })
   expect(store.revision()).toBe(revision)
-  store.applySuggestion(first.suggestionId!, { kind: 'keep' }, store.revision())
+  store.resolve(first.suggestionId!, { kind: 'keep' }, note)
   expect(flag('memory-1')).toEqual({ status: 'already_flagged', suggestionId: first.suggestionId })
   expect(flag('memory-1', 'ledger').status).toBe('filed')
   for (let n = 2; n <= 6; n++) expect(flag(`memory-${n}`).status).toBe('filed')
@@ -38,15 +40,11 @@ it('accepted merges dismiss their pair on undo; missing subjects close and unkno
   const { store, db } = fixture()
   seed(db, 2)
   store.sweep('all')
-  const suggestion = store.suggestions('same_entity', null, 20).items[0]!
-  const operation = store.applySuggestion(
-    suggestion.id,
-    { kind: 'merge', survivorId: 'rina-1' },
-    store.revision(),
-  )!
+  const suggestion = store.suggestions('same_entity').items[0]!
+  const operation = store.resolve(suggestion.id, { kind: 'merge', survivorId: 'rina-1' }, note)!
   store.tidyUndo(operation, store.revision())
   store.sweep({ entityIds: ['rina-1', 'rina-2'], memoryIds: [] })
-  expect(store.suggestions('same_entity', null, 20).items).toEqual([])
+  expect(store.suggestions('same_entity').items).toEqual([])
   const flag = store.flag({
     memoryId: 'memory-1',
     sessionId: 'harbor',
@@ -55,10 +53,10 @@ it('accepted merges dismiss their pair on undo; missing subjects close and unkno
     problem: 'outdated',
   })
   db.prepare("UPDATE tidy_suggestions SET kind='future_kind' WHERE id=?").run(flag.suggestionId)
-  expect(store.suggestions('flagged', null, 20).items).toEqual([])
+  expect(store.suggestions('flagged').items).toEqual([])
   db.prepare("UPDATE tidy_suggestions SET kind='flagged' WHERE id=?").run(flag.suggestionId)
   db.exec('DELETE FROM memory_words WHERE rowid=1; DELETE FROM memories WHERE n=1')
-  expect(store.suggestions(null, null, 20).items).toEqual([])
+  expect(store.suggestions(null).items).toEqual([])
   expect(
     db.prepare('SELECT state FROM tidy_suggestions WHERE id=?').get(flag.suggestionId),
   ).toEqual({ state: 'cleared' })
@@ -123,12 +121,12 @@ it('reads open and settled suggestions with only surviving subjects, or null aft
   const { store, db } = fixture()
   seed(db, 2)
   store.sweep('all')
-  const id = store.suggestions('same_entity', null, 20).items[0]!.id
-  expect(store.suggestion(id)).toMatchObject({ suggestion: { state: 'open' } })
-  expect(store.suggestion(id)?.subjects).toHaveLength(2)
-  store.applySuggestion(id, { kind: 'merge', survivorId: 'rina-1' }, store.revision())
-  expect(store.suggestion(id)).toMatchObject({ suggestion: { state: 'applied' } })
-  expect(store.suggestion(id)?.subjects).toHaveLength(1)
+  const id = store.suggestions('same_entity').items[0]!.id
+  expect(store.agentSuggestion(id)).toMatchObject({ suggestion: { state: 'open' } })
+  expect(store.agentSuggestion(id)?.subjects).toHaveLength(2)
+  store.resolve(id, { kind: 'merge', survivorId: 'rina-1' }, note)
+  expect(store.agentSuggestion(id)).toMatchObject({ suggestion: { state: 'applied' } })
+  expect(store.agentSuggestion(id)?.subjects).toHaveLength(1)
   const flag = store.flag({
     memoryId: 'memory-1',
     sessionId: 'harbor',
@@ -136,15 +134,15 @@ it('reads open and settled suggestions with only surviving subjects, or null aft
     problem: 'wrong',
     reason: 'Verified correction.',
   })
-  store.dismissSuggestion(flag.suggestionId!, store.revision())
-  expect(store.suggestion(flag.suggestionId!)).toMatchObject({
+  store.resolve(flag.suggestionId!, { kind: 'keep' }, note)
+  expect(store.agentSuggestion(flag.suggestionId!)).toMatchObject({
     suggestion: { state: 'dismissed' },
   })
   store.forget('memory-1')
-  expect(store.suggestion(flag.suggestionId!)).toBeNull()
+  expect(store.agentSuggestion(flag.suggestionId!)).toBeNull()
   store.reset()
-  expect(store.suggestion(id)).toBeNull()
-  expect(store.suggestion('missing')).toBeNull()
+  expect(store.agentSuggestion(id)).toBeNull()
+  expect(store.agentSuggestion('missing')).toBeNull()
 })
 
 it('caps open flags at fifty even when every caller claims a different lane', () => {
@@ -162,17 +160,7 @@ it('caps open flags at fifty even when every caller claims a different lane', ()
   const revision = store.revision()
   expect(flag(51).status).toBe('limit')
   expect(store.revision()).toBe(revision)
-  expect(store.suggestions('flagged', null, 50).items).toHaveLength(50)
-  store.dismissSuggestion(store.suggestions('flagged', null, 50).items[0]!.id, revision)
+  expect(store.suggestions('flagged').items).toHaveLength(50)
+  store.resolve(store.suggestions('flagged').items[0]!.id, { kind: 'keep' }, note)
   expect(flag(51).status).toBe('filed')
-})
-
-it('pages suggestions without repeats', () => {
-  const { store, db } = fixture()
-  seed(db, 4)
-  store.sweep('all')
-  const page = store.suggestions('same_entity', null, 1)
-  expect(page.items).toHaveLength(1)
-  expect(page.next).not.toBeNull()
-  expect(store.suggestions('same_entity', page.next, 1).items[0]?.id).not.toBe(page.items[0]?.id)
 })

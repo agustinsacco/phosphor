@@ -2,6 +2,8 @@ import { expect, it } from 'vitest'
 import { fixture } from '../test-support'
 import { seed, dump, seedHistoricalVerdict } from './test-support'
 
+const note = { runId: null, reason: 'The memories show the answer.' }
+
 function shared(count = 2) {
   const result = fixture()
   seed(result.db, count, true)
@@ -24,7 +26,7 @@ it('automatically folds exact repeats, restores every source row, and remembers 
   store.sweep('all')
   expect(store.sweep('all').folded).toBe(0)
   expect(store.snapshot().counts.memories).toBe(2)
-  expect(store.suggestions('same_memory', null, 20).items).toEqual([])
+  expect(store.suggestions('same_memory').items).toEqual([])
 })
 it('only suggests near repeats, leaves two supporting memories alone, and never folds branches', () => {
   const { store, db } = shared()
@@ -33,12 +35,12 @@ it('only suggests near repeats, leaves two supporting memories alone, and never 
   )
   const result = store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
   expect(result.folded).toBe(0)
-  expect(store.suggestions('same_memory', null, 20).items).toHaveLength(1)
+  expect(store.suggestions('same_memory').items).toHaveLength(1)
   expect(db.prepare('SELECT COUNT(*) AS n FROM relations').get()).toEqual({ n: 2 })
-  const item = store.suggestions('same_memory', null, 20).items[0]!
-  store.dismissSuggestion(item.id, store.revision())
+  const item = store.suggestions('same_memory').items[0]!
+  store.resolve(item.id, { kind: 'keep' }, note)
   store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
-  expect(store.suggestions('same_memory', null, 20).items).toEqual([])
+  expect(store.suggestions('same_memory').items).toEqual([])
   db.exec("UPDATE memories SET summary='Rina leads Ledger.',branch='kestrel' WHERE n=2")
   expect(store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] }).folded).toBe(0)
   expect(store.snapshot().counts.memories).toBe(2)
@@ -63,38 +65,31 @@ it.each(['dispute', 'replace'] as const)('journals and undoes the %s action', (k
   )
   store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
   // "no longer" makes the near pair a possible disagreement, not a repeat.
-  const suggestion = store.suggestions('conflict', null, 20).items[0]!
+  const suggestion = store.suggestions('conflict').items[0]!
   expect(suggestion.reason).toBe('These may disagree.')
   seedHistoricalVerdict(db, suggestion.id, {
     kind: 'conflict',
     reason: 'These statements disagree.',
   })
   const before = dump(db)
-  const op = store.applySuggestion(
+  const op = store.resolve(
     suggestion.id,
     kind === 'dispute' ? { kind } : { kind, newerId: 'memory-2' },
-    store.revision(),
+    note,
   )!
   expect(store.memory('memory-1').memory.state).toBe(kind === 'dispute' ? 'disputed' : 'superseded')
   store.tidyUndo(op, store.revision())
   expect(dump(db)).toEqual(before)
-  expect(store.suggestions(null, null, 20).items).toEqual([])
+  expect(store.suggestions(null).items).toEqual([])
 })
-it('rejects folding different validity periods and a stale apply without modifying rows', () => {
+it('rejects folding different validity periods without modifying rows', () => {
   const { store, db } = shared()
   db.exec('UPDATE memories SET valid_from=30 WHERE n=2')
   store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
-  const suggestion = store.suggestions('same_memory', null, 20).items[0]!
+  const suggestion = store.suggestions('same_memory').items[0]!
   const before = dump(db)
   expect(() =>
-    store.applySuggestion(suggestion.id, { kind: 'fold', survivorId: 'memory-1' }, 0),
-  ).toThrow('Brain changed')
-  expect(() =>
-    store.applySuggestion(
-      suggestion.id,
-      { kind: 'fold', survivorId: 'memory-1' },
-      store.revision(),
-    ),
+    store.resolve(suggestion.id, { kind: 'fold', survivorId: 'memory-1' }, note),
   ).toThrow('validity dates')
   expect(dump(db)).toEqual(before)
 })
@@ -106,5 +101,5 @@ it('can suggest near repeats among disputed memories but never folds disputed ex
   )
   const result = store.sweep({ entityIds: [], memoryIds: ['memory-1', 'memory-2'] })
   expect(result.folded).toBe(0)
-  expect(store.suggestions('same_memory', null, 20).items).toHaveLength(1)
+  expect(store.suggestions('same_memory').items).toHaveLength(1)
 })

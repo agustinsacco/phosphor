@@ -93,7 +93,7 @@ export function waitingSuggestions(
     `SELECT COUNT(*) AS n FROM tidy_suggestions WHERE state='open' AND kind IN (${COUNTED})`,
   )!.n
   const items = [...visible, ...unchecked].slice(0, limit).flatMap((row): BrainWaitingItem[] => {
-    const item = suggestion(ctx, row, true)
+    const item = suggestion(ctx, row)
     if (!item) return []
     return [
       {

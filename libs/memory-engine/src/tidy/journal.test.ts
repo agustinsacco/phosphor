@@ -7,7 +7,7 @@ it('raises four Rina records, merges them one by one, and undoes to identical so
   seed(db)
   const before = dump(db)
   store.sweep('all')
-  expect(store.suggestions('same_entity', null, 50).items.length).toBeGreaterThanOrEqual(3)
+  expect(store.suggestions('same_entity').items.length).toBeGreaterThanOrEqual(3)
   const operations = [2, 3, 4].map((n) => store.merge(`rina-${n}`, 'rina-1', store.revision()))
   expect(store.snapshot().counts.entities).toBe(1)
   for (const id of operations.reverse()) store.tidyUndo(id, store.revision())
@@ -18,9 +18,7 @@ it('raises four Rina records, merges them one by one, and undoes to identical so
   store.sweep('all')
   store.sweep('all')
   expect(
-    store
-      .suggestions('same_entity', null, 50)
-      .items.some((s) => s.subjects.some((v) => v.id === 'rina-1')),
+    store.suggestions('same_entity').items.some((s) => s.subjects.some((v) => v.id === 'rina-1')),
   ).toBe(false)
 })
 it('undo leaves newly learned survivor facts in place and refuses a stale revision', () => {

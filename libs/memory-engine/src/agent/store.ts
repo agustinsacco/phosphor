@@ -56,7 +56,7 @@ export function agentStore(ctx: Context): BrainAgentStore {
   return {
     waitingCounts: () => waitingCounts(ctx),
     waitingSuggestions: (limit, possibleRepeats) => waitingSuggestions(ctx, limit, possibleRepeats),
-    agentSuggestion: (id) => detail(ctx, id, true),
+    agentSuggestion: (id) => detail(ctx, id),
     waitingSignature: () => waitingSignature(ctx),
     relate: (value, note) => {
       const operation = relate(ctx, value, cleanNote(note))
@@ -64,8 +64,7 @@ export function agentStore(ctx: Context): BrainAgentStore {
       return operation
     },
     resolve: (id, action, note) => {
-      if (action.kind === 'forget') throw new Error('Use brain_erase to erase a memory.')
-      const operation = apply(ctx, id, action, revision(ctx), cleanNote(note))!
+      const operation = apply(ctx, id, action, cleanNote(note))
       if (action.kind === 'group') afterMemoryChange(ctx, operation)
       else afterOperation(ctx, operation)
       return operation
