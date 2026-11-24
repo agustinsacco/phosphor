@@ -62,3 +62,14 @@ it('offers no pair whose kinds no link allows, and none through an ended memory'
   db.exec("UPDATE entities SET kind='concept'")
   expect(pass(store)).toBe(0)
 })
+it('offers a pair as soon as the memories that name it are swept, before any full pass', () => {
+  const { store, db } = fixture()
+  seed(db, 2)
+  db.exec('INSERT INTO mentions VALUES (1,2),(2,1)')
+  const memoryIds = db
+    .prepare('SELECT id FROM memories ORDER BY n')
+    .all()
+    .map((row) => String(row.id))
+  expect(store.sweep({ entityIds: [], memoryIds }).unlinked).toBe(1)
+  expect(store.waitingCounts().unlinked).toBe(1)
+})
