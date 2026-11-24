@@ -111,14 +111,22 @@ plain sign-in; configuring accounts still needs `machine.configure`.
 
 ## Machine shells
 
-The Machine page of a connected Host has a Terminal card, in Desktop and the PWA.
-It opens the Host account's login shell in its home folder, outside any lane
+A connected machine's page has a **Terminal** tab beside Overview and Settings,
+in Desktop and the PWA, and it draws the same `TerminalPane` a lane uses: the
+same tab strip, "+", rename, close, spawn error and retry. It opens the Host
+account's login shell in its home folder, outside any lane
 (`hosts:machineShell`). It needs `terminal` and `sessions.control` and a Host
-whose `ready` frame carries `machineShell`; an older Host shows "Update the Host
-on NAME to open a terminal here." One shell is shared: opening it attaches to a
-running machine shell before starting a new one, so every device with control
-sees and types into the same shell, with the same sequencing, limits and replay
-as lane shells. Hide detaches and leaves it running; closing the window or tab
-does the same. End shell kills it. It ends with the Host process and is never
-restored. Desktop's This computer card opens the local login shell in the local
-account's home through the existing PTY manager, also without a lane.
+whose `ready` frame carries `machineShell`; otherwise the tab says what is in
+the way ("Update the Host on NAME to open a terminal here.") and opens nothing.
+
+Opening the tab opens the shell. One shell is shared: `hosts:machineShell`
+attaches to a running machine shell before starting a new one, so every device
+with control sees and types into the same shell, with the same sequencing,
+limits and replay as lane shells, and "+" answers with the shell that is
+already there. Leaving the tab — or the page, or the window — leaves it running
+and reattaches on return; closing its tab is what kills it. It ends with the
+Host process and is never restored. Desktop's This Mac tab opens the local
+login shell in the local account's home through the existing PTY manager, also
+without a lane. Machine shells sit in the terminal store beside lane shells,
+under a machine key, and the two never share a pane; the machine page's pane
+drops the lane panes' ↗ and ✕, which would otherwise act on some other lane's layout.

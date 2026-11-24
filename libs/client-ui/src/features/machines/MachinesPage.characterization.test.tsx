@@ -114,7 +114,7 @@ const region = (name: string): HTMLElement | null =>
 const okChecks = (scope: ParentNode | null | undefined, attribute: string): string[] =>
   [...(scope?.querySelectorAll(`[${attribute}]`) ?? [])].map((e) => e.getAttribute('data-ok')!)
 
-it("This Mac's row reads its checks, and its detail shows readiness, providers and a terminal", async () => {
+it("This Mac's row reads its checks, and its detail shows readiness, providers and a Terminal tab", async () => {
   await render()
   const row = container.querySelector<HTMLElement>('[data-testid=local-machine-row]')
   expect(row?.textContent).toContain('This Mac')
@@ -131,7 +131,15 @@ it("This Mac's row reads its checks, and its detail shows readiness, providers a
   expect(providers?.textContent).toContain('Not signed in')
   await click(providers?.querySelector('button'))
   expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'accounts', machine: 'local' })
-  expect(region('Terminal')).not.toBeNull()
+  // The shell is a view of the machine now, not a card at the bottom of the overview.
+  const views = container.querySelector('[aria-label="Machine views"]')!
+  expect(button('Terminal', views)).toBeTruthy()
+  expect(container.querySelector('[data-testid=machine-terminal]')).toBeNull()
+  await click(button('Terminal', views))
+  expect(container.querySelector('[data-testid=machine-terminal]')).not.toBeNull()
+  expect(region('Readiness')).toBeNull()
+  await click(button('Overview', views))
+  expect(okChecks(region('Readiness'), 'data-check')).toEqual(['true', 'true', 'true'])
   expect(button('Remove machine')).toBeUndefined()
   expect(container.querySelector('[aria-label="Machine views"]')).not.toBeNull()
 })

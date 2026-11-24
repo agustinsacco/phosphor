@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { useTerminalStore } from '@/stores/terminal'
+import { useTerminalStore, laneTarget, machineTarget, terminalOwner } from '@/stores/terminal'
 import { TerminalPane } from './TerminalPane'
 
 vi.mock('@/lib/monaco', () => ({}))
@@ -25,7 +25,7 @@ beforeEach(() => {
     },
   })
   useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts) })
-  useTerminalStore.setState({ bySession: {}, pendingPaste: null })
+  useTerminalStore.setState({ byOwner: {}, pendingPaste: null })
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -38,10 +38,7 @@ afterEach(() => {
 const render = async () => {
   await act(async () => {
     root.render(
-      <TerminalPane
-        sessionId={mockRemoteInfo.sessionId}
-        workspacePath={mockRemoteInfo.workspacePath}
-      />,
+      <TerminalPane target={laneTarget(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath)} />,
     )
   })
 }
@@ -55,14 +52,14 @@ it('viewer shows the read-only hint, never auto-creates, and disables input on v
   await act(async () => {
     await useTerminalStore
       .getState()
-      .createTab(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath)
+      .createTab(laneTarget(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath))
   })
   await act(async () => {
     await useTerminalStore
       .getState()
-      .createTab(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath)
+      .createTab(laneTarget(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath))
   })
-  expect(useTerminalStore.getState().bySession[mockRemoteInfo.sessionId]?.tabs).toHaveLength(1)
+  expect(useTerminalStore.getState().byOwner[mockRemoteInfo.sessionId]?.tabs).toHaveLength(1)
   expect(container.querySelector('[data-readonly="true"]')).not.toBeNull()
 })
 it('missing capability retains the unavailable state without starting a local shell', async () => {
@@ -81,10 +78,28 @@ it('viewer empty list failure shows the fixed message without an automatic retry
   await act(async () => {
     await useTerminalStore
       .getState()
-      .createTab(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath)
+      .createTab(laneTarget(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath))
   })
   expect(container.textContent).toContain('Read-only: no terminals available.')
   expect(container.textContent).toContain('Read-only. Take control to send messages.')
   expect(container.textContent).not.toContain('Retry')
   expect(invoke).toHaveBeenCalledTimes(1)
+})
+
+it('a machine target spawns over hosts:machineShell and keeps its shell out of lane panes', async () => {
+  const machine = machineTarget(MOCK_HOST_ID, null)
+  await act(async () => {
+    root.render(<TerminalPane target={machine} />)
+  })
+  expect(invoke).toHaveBeenCalledWith('hosts:machineShell', MOCK_HOST_ID, 80, 24)
+  expect(useTerminalStore.getState().byOwner[terminalOwner(machine)]?.tabs).toHaveLength(1)
+  expect(container.querySelectorAll('[data-readonly]')).toHaveLength(1)
+  // One store now holds a machine shell and a lane. The lane pane shows its own
+  // shells only: an attached machine shell has no business in a lane's scrollback.
+  await act(async () => {
+    root.render(
+      <TerminalPane target={laneTarget(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath)} />,
+    )
+  })
+  expect(container.querySelectorAll('[data-readonly]')).toHaveLength(0)
 })

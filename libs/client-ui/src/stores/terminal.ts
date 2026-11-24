@@ -17,12 +17,46 @@ export interface TerminalTab {
 }
 
 /**
- * Terminals for ONE session, mirroring how artifacts are scoped: each chat
+ * Where a terminal pane's shells come from. A lane owns its shells in its own
+ * directory; a machine owns one shared shell in the account's home folder,
+ * outside any lane. Both are stored under `terminalOwner(target)`.
+ *
+ * `refusal` is the machine's, not the store's: only the Machines pages know the
+ * machine's label and whether this device may open its shell.
+ */
+export type TerminalTarget =
+  | { kind: 'lane'; sessionId: string; workspacePath: string }
+  | { kind: 'machine'; hostId: string; refusal: string | null }
+
+/** A lane's target. */
+export function laneTarget(sessionId: string, workspacePath: string): TerminalTarget {
+  return { kind: 'lane', sessionId, workspacePath }
+}
+
+/** A machine's shared shell. */
+export function machineTarget(hostId: string, refusal: string | null): TerminalTarget {
+  return { kind: 'machine', hostId, refusal }
+}
+
+/** Machine shells share the store with lane shells, under a key no session id takes. */
+const MACHINE_OWNER_PREFIX = 'machine:'
+
+export function terminalOwner(target: TerminalTarget): string {
+  return target.kind === 'lane' ? target.sessionId : MACHINE_OWNER_PREFIX + target.hostId
+}
+
+/** Whether a store key belongs to a machine rather than to a lane. */
+export function isMachineOwner(owner: string): boolean {
+  return owner.startsWith(MACHINE_OWNER_PREFIX)
+}
+
+/**
+ * Terminals for ONE owner, mirroring how artifacts are scoped: each chat
  * session owns its shells (spawned in the session's cwd, which for worktree
  * sessions is the worktree). Switching sessions swaps which set is shown
  * without killing the PTYs; disposing the session kills them.
  */
-interface SessionTerminals {
+interface OwnerTerminals {
   tabs: TerminalTab[]
   activeId: string | null
   /**
@@ -35,71 +69,85 @@ interface SessionTerminals {
 }
 
 /**
- * Slice helpers over `bySession`. The empty value is shared and frozen, so
+ * Slice helpers over `byOwner`. The empty value is shared and frozen, so
  * selectors don't allocate a new object per render.
  */
-const terminals = keyedSlice<SessionTerminals>({
+const terminals = keyedSlice<OwnerTerminals>({
   tabs: [],
   activeId: null,
   error: null,
 })
 
 interface TerminalState {
-  /** Phosphor session id → that session's terminal tabs. */
-  bySession: Record<string, SessionTerminals>
+  /** Owner key (a lane session id, or a machine's key) → that owner's tabs. */
+  byOwner: Record<string, OwnerTerminals>
   /** Text waiting to be pasted into the active terminal once it exists. */
   pendingPaste: { ptyId: string; text: string; execute: boolean } | null
 
-  createTab: (sessionId: string, cwd: string) => Promise<string | null>
-  closeTab: (sessionId: string, ptyId: string) => Promise<void>
-  renameTab: (sessionId: string, ptyId: string, title: string) => void
-  setActive: (sessionId: string, ptyId: string) => void
+  createTab: (target: TerminalTarget) => Promise<string | null>
+  closeTab: (owner: string, ptyId: string) => Promise<void>
+  renameTab: (owner: string, ptyId: string, title: string) => void
+  setActive: (owner: string, ptyId: string) => void
   /** ptyIds are globally unique, so exit/status updates locate their owner. */
   markExited: (ptyId: string) => void
   applyStatus: (statuses: Record<string, boolean>) => void
   /** Dismiss a spawn error so the pane can go back to trying. */
-  clearError: (sessionId: string) => void
+  clearError: (owner: string) => void
   /** Kill every PTY belonging to a disposed session and drop its state. */
   removeSession: (sessionId: string) => Promise<void>
   queuePaste: (ptyId: string, text: string, execute: boolean) => void
   consumePaste: (ptyId: string) => TerminalState['pendingPaste']
 }
 
-/** Terminals for a session; stable empty value avoids per-render allocation. */
-export function sessionTerminals(state: TerminalState, sessionId: string): SessionTerminals {
-  return terminals.read(state.bySession, sessionId)
+/** Terminals for an owner; stable empty value avoids per-render allocation. */
+export function ownerTerminals(state: TerminalState, owner: string): OwnerTerminals {
+  return terminals.read(state.byOwner, owner)
 }
 
-/** Apply a patch to one session's terminal slice. */
-function patchSession(
+/** Apply a patch to one owner's terminal slice. */
+function patchOwner(
   state: TerminalState,
-  sessionId: string,
-  update: (current: SessionTerminals) => SessionTerminals,
-): Pick<TerminalState, 'bySession'> {
-  return { bySession: terminals.patch(state.bySession, sessionId, update) }
+  owner: string,
+  update: (current: OwnerTerminals) => OwnerTerminals,
+): Pick<TerminalState, 'byOwner'> {
+  return { byOwner: terminals.patch(state.byOwner, owner, update) }
+}
+
+/**
+ * The one place a new shell is born. A lane shell spawns in the lane's own
+ * directory and names its session, so main can attribute this shell's process
+ * tree (builds, tests, dev servers) to it in the resource monitor; a machine
+ * shell is the Host account's login shell in its home, opened by the Host.
+ */
+function spawnShell(target: TerminalTarget): Promise<string> {
+  return target.kind === 'lane'
+    ? window.phosphor
+        .invoke('pty:create', target.workspacePath, 80, 24, target.sessionId)
+        .then(({ ptyId }) => ptyId)
+    : window.phosphor.invoke('hosts:machineShell', target.hostId, 80, 24).then(({ ptyId }) => ptyId)
 }
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
-  bySession: {},
+  byOwner: {},
   pendingPaste: null,
 
-  createTab: async (sessionId, cwd) => {
-    // Pass the owning session so main can attribute this shell's process
-    // tree (builds, tests, dev servers) to it in the resource monitor.
+  createTab: async (target) => {
+    const owner = terminalOwner(target)
     let ptyId: string
     try {
-      ;({ ptyId } = await window.phosphor.invoke('pty:create', cwd, 80, 24, sessionId))
+      ptyId = await spawnShell(target)
     } catch (error) {
       // Resolve with null rather than rejecting: every caller is a UI action
       // ("+", first open, run-in-terminal) whose only sane response is to show
       // the message, and an unhandled rejection here is exactly how this used
       // to become a permanent "Starting shell…".
-      set((s) => patchSession(s, sessionId, (t) => ({ ...t, error: ipcErrorText(error) })))
+      set((s) => patchOwner(s, owner, (t) => ({ ...t, error: ipcErrorText(error) })))
       return null
     }
     set((s) =>
-      patchSession(s, sessionId, (t) => ({
+      patchOwner(s, owner, (t) => ({
         error: null,
+        // A shared shell answers with its own id: a re-attach, not a second tab.
         tabs: t.tabs.some((tab) => tab.ptyId === ptyId)
           ? t.tabs
           : [
@@ -112,13 +160,13 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     return ptyId
   },
 
-  clearError: (sessionId) =>
-    set((s) => patchSession(s, sessionId, (t) => (t.error === null ? t : { ...t, error: null }))),
+  clearError: (owner) =>
+    set((s) => patchOwner(s, owner, (t) => (t.error === null ? t : { ...t, error: null }))),
 
-  closeTab: async (sessionId, ptyId) => {
+  closeTab: async (owner, ptyId) => {
     await window.phosphor.invoke('pty:kill', ptyId)
     set((s) =>
-      patchSession(s, sessionId, (t) => {
+      patchOwner(s, owner, (t) => {
         const tabs = t.tabs.filter((tab) => tab.ptyId !== ptyId)
         return {
           ...t,
@@ -129,22 +177,21 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     )
   },
 
-  renameTab: (sessionId, ptyId, title) =>
+  renameTab: (owner, ptyId, title) =>
     set((s) =>
-      patchSession(s, sessionId, (t) => ({
+      patchOwner(s, owner, (t) => ({
         ...t,
         tabs: t.tabs.map((tab) => (tab.ptyId === ptyId ? { ...tab, title } : tab)),
       })),
     ),
 
-  setActive: (sessionId, ptyId) =>
-    set((s) => patchSession(s, sessionId, (t) => ({ ...t, activeId: ptyId }))),
+  setActive: (owner, ptyId) => set((s) => patchOwner(s, owner, (t) => ({ ...t, activeId: ptyId }))),
 
   markExited: (ptyId) =>
     set((s) => ({
-      bySession: Object.fromEntries(
-        Object.entries(s.bySession).map(([sessionId, t]) => [
-          sessionId,
+      byOwner: Object.fromEntries(
+        Object.entries(s.byOwner).map(([owner, t]) => [
+          owner,
           t.tabs.some((tab) => tab.ptyId === ptyId)
             ? {
                 ...t,
@@ -159,9 +206,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   applyStatus: (statuses) =>
     set((s) => ({
-      bySession: Object.fromEntries(
-        Object.entries(s.bySession).map(([sessionId, t]) => [
-          sessionId,
+      byOwner: Object.fromEntries(
+        Object.entries(s.byOwner).map(([owner, t]) => [
+          owner,
           t.tabs.some((tab) => statuses[tab.ptyId] !== undefined)
             ? {
                 ...t,
@@ -177,9 +224,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     })),
 
   removeSession: async (sessionId) => {
-    const tabs = get().bySession[sessionId]?.tabs ?? []
+    const tabs = get().byOwner[sessionId]?.tabs ?? []
     await Promise.allSettled(tabs.map((tab) => window.phosphor.invoke('pty:kill', tab.ptyId)))
-    set((s) => ({ bySession: drop(s.bySession, sessionId) }))
+    set((s) => ({ byOwner: drop(s.byOwner, sessionId) }))
   },
 
   queuePaste: (ptyId, text, execute) => set({ pendingPaste: { ptyId, text, execute } }),
@@ -191,24 +238,25 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   },
 }))
 
-// First-open and chat actions share one in-flight spawn per session.
+// First-open and chat actions share one in-flight spawn per owner.
 const openingTabs = new Map<string, Promise<string | null>>()
 
-export function ensureTerminalTab(sessionId: string, cwd: string): Promise<string | null> {
-  const pending = openingTabs.get(sessionId)
+export function ensureTerminalTab(target: TerminalTarget): Promise<string | null> {
+  const owner = terminalOwner(target)
+  const pending = openingTabs.get(owner)
   if (pending) return pending
   const store = useTerminalStore.getState()
-  const current = sessionTerminals(store, sessionId)
+  const current = ownerTerminals(store, owner)
   const active = current.tabs.find((tab) => tab.ptyId === current.activeId)
   if (active && !active.exited && !active.running) return Promise.resolve(active.ptyId)
-  const opening = store.createTab(sessionId, cwd).finally(() => openingTabs.delete(sessionId))
-  openingTabs.set(sessionId, opening)
+  const opening = store.createTab(target).finally(() => openingTabs.delete(owner))
+  openingTabs.set(owner, opening)
   return opening
 }
 
 /** Count of terminals with a running foreground process, for badges. */
-export function runningCount(state: TerminalState, sessionId: string): number {
-  return sessionTerminals(state, sessionId).tabs.filter((t) => t.running && !t.exited).length
+export function runningCount(state: TerminalState, owner: string): number {
+  return ownerTerminals(state, owner).tabs.filter((t) => t.running && !t.exited).length
 }
 
 /**
@@ -232,7 +280,7 @@ export async function runInTerminal(
   if (!sessionId) return
   const cwd = sessions.live[sessionId]?.workspacePath || workspacePath
   useLayoutStore.getState().setRightPane('terminal', sessionId)
-  const ptyId = await ensureTerminalTab(sessionId, cwd)
+  const ptyId = await ensureTerminalTab(laneTarget(sessionId, cwd))
   if (ptyId === null) return // The pane displays the spawn error.
   // A fence's closing newline is formatting, not permission to run it.
   useTerminalStore.getState().queuePaste(ptyId, command.replace(/[\r\n]+$/, ''), !!options.execute)
@@ -260,4 +308,20 @@ export function useTerminalRefusal(sessionId: string): string | undefined {
 export function terminalAccess(sessionId: string): 'control' | 'viewer' | 'unavailable' {
   if (terminalRefusal(sessionId)) return 'unavailable'
   return canControlSession(sessionId) ? 'control' : 'viewer'
+}
+
+/** Why this device cannot open shells for this target, or undefined when it can. */
+export function targetRefusal(target: TerminalTarget): string | undefined {
+  return target.kind === 'machine'
+    ? (target.refusal ?? undefined)
+    : terminalRefusal(target.sessionId)
+}
+
+/**
+ * Whether the pane may type. A machine shell has no viewer role: this device
+ * either holds `terminal` and `sessions.control` on that Host or is refused.
+ */
+export function targetAccess(target: TerminalTarget): 'control' | 'viewer' | 'unavailable' {
+  if (targetRefusal(target)) return 'unavailable'
+  return target.kind === 'lane' ? terminalAccess(target.sessionId) : 'control'
 }

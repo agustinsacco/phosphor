@@ -3,10 +3,14 @@ import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   useTerminalStore,
-  sessionTerminals,
+  ownerTerminals,
   ensureTerminalTab,
+  isMachineOwner,
+  targetAccess,
+  targetRefusal,
   terminalAccess,
-  terminalRefusal,
+  terminalOwner,
+  type TerminalTarget,
 } from '@/stores/terminal'
 import { PaneIconButton, PaneShell, PaneTitle } from '@/components/PaneShell'
 import { TerminalView } from './TerminalView'
@@ -15,62 +19,66 @@ import { useSessionsStore } from '@/stores/sessions'
 import { CloseIcon } from '@/components/icons'
 
 /**
- * Terminal pane: tab strip in the shell title, "+" as a pane action.
+ * The terminal pane, shared by lanes and by a machine's own shell: a tab strip
+ * in the shell title, "+" as a pane action.
  *
- * Terminals are scoped per session (tabs shown belong to `sessionId`), but
- * every session's TerminalViews stay mounted (hidden) so switching sessions
- * keeps each shell's scrollback — the same idiom the tab strip already uses
- * for its own inactive tabs.
+ * Tabs are scoped to one owner (`target`), but every owner's TerminalViews stay
+ * mounted (hidden) so switching owners keeps each shell's scrollback — the same
+ * idiom the tab strip already uses for its own inactive tabs. Lane tabs and
+ * machine tabs never mix: a lane pane keeps the lane shells, the machine page
+ * keeps the machine shells.
  */
 export const TerminalPane = memo(function TerminalPane({
-  sessionId,
-  workspacePath,
+  target,
 }: {
-  sessionId: string
-  workspacePath: string
+  target: TerminalTarget
 }): React.JSX.Element {
   useRemoteLanesStore((s) => s.hosts)
   useSessionsStore((s) => s.live)
-  const access = terminalAccess(sessionId)
-  const bySession = useTerminalStore((s) => s.bySession)
-  const tabs = useTerminalStore((s) => sessionTerminals(s, sessionId).tabs)
-  const activeId = useTerminalStore((s) => sessionTerminals(s, sessionId).activeId)
-  const error = useTerminalStore((s) => sessionTerminals(s, sessionId).error)
+  const owner = terminalOwner(target)
+  const machine = target.kind === 'machine'
+  const access = targetAccess(target)
+  const refusal = targetRefusal(target)
+  const byOwner = useTerminalStore((s) => s.byOwner)
+  const tabs = useTerminalStore((s) => ownerTerminals(s, owner).tabs)
+  const activeId = useTerminalStore((s) => ownerTerminals(s, owner).activeId)
+  const error = useTerminalStore((s) => ownerTerminals(s, owner).error)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
-  // First open per session: spawn a shell automatically.
+  // First open per owner: spawn a shell automatically.
   //
   // createTab is async, so a plain `tabs.length === 0` guard is not enough:
   // StrictMode double-invokes this effect and both passes observe the empty
   // list before the first spawn resolves, producing two shells. A synchronous
-  // ref latch (per session) makes the check race-free.
+  // ref latch (per owner) makes the check race-free.
   //
   // The latch is RELEASED when the spawn fails. Latching unconditionally is
   // how this pane used to wedge on "Starting shell…" forever: a rejected
   // pty:create left no tab, no error, and no way to ask again.
   const spawnRequested = useRef(new Set<string>())
   useEffect(() => {
-    if (access !== 'control' || spawnRequested.current.has(sessionId)) return
-    const current = sessionTerminals(useTerminalStore.getState(), sessionId)
+    if (access !== 'control' || spawnRequested.current.has(owner)) return
+    const current = ownerTerminals(useTerminalStore.getState(), owner)
     if (current.tabs.length > 0 || current.error !== null) return
-    spawnRequested.current.add(sessionId)
-    void ensureTerminalTab(sessionId, workspacePath).then((ptyId) => {
-      if (ptyId === null) spawnRequested.current.delete(sessionId)
+    spawnRequested.current.add(owner)
+    void ensureTerminalTab(target).then((ptyId) => {
+      if (ptyId === null) spawnRequested.current.delete(owner)
     })
-  }, [sessionId, workspacePath, error, access])
+  }, [owner, target, error, access])
 
   // Clearing the error re-arms the first-open effect above (it lists `error`
   // as a dep). With tabs already open that effect is a no-op, so a failed "+"
   // has to ask again directly.
   const retry = (): void => {
-    spawnRequested.current.delete(sessionId)
-    useTerminalStore.getState().clearError(sessionId)
-    if (tabs.length > 0) void useTerminalStore.getState().createTab(sessionId, workspacePath)
+    spawnRequested.current.delete(owner)
+    useTerminalStore.getState().clearError(owner)
+    if (tabs.length > 0) void useTerminalStore.getState().createTab(target)
   }
 
   return (
     <PaneShell
+      layoutControls={!machine}
       title={
         <>
           <PaneTitle label="Terminal" />
@@ -86,7 +94,7 @@ export const TerminalPane = memo(function TerminalPane({
                     : 'text-text-tertiary hover:text-text',
                   tab.exited && 'opacity-60',
                 )}
-                onClick={() => useTerminalStore.getState().setActive(sessionId, tab.ptyId)}
+                onClick={() => useTerminalStore.getState().setActive(owner, tab.ptyId)}
                 onDoubleClick={() => {
                   setRenaming(tab.ptyId)
                   setRenameValue(tab.title)
@@ -105,9 +113,7 @@ export const TerminalPane = memo(function TerminalPane({
                     onChange={(e) => setRenameValue(e.target.value)}
                     onBlur={() => {
                       if (renameValue.trim())
-                        useTerminalStore
-                          .getState()
-                          .renameTab(sessionId, tab.ptyId, renameValue.trim())
+                        useTerminalStore.getState().renameTab(owner, tab.ptyId, renameValue.trim())
                       setRenaming(null)
                     }}
                     onKeyDown={(e) => {
@@ -124,7 +130,7 @@ export const TerminalPane = memo(function TerminalPane({
                   aria-label={`Close ${tab.title}`}
                   onClick={(e) => {
                     e.stopPropagation()
-                    void useTerminalStore.getState().closeTab(sessionId, tab.ptyId)
+                    void useTerminalStore.getState().closeTab(owner, tab.ptyId)
                   }}
                   className="text-text-tertiary hover:text-text hidden group-hover:block"
                 >
@@ -139,7 +145,7 @@ export const TerminalPane = memo(function TerminalPane({
         access !== 'unavailable' && (
           <PaneIconButton
             title={access === 'viewer' ? 'View terminal' : 'New terminal'}
-            onClick={() => void useTerminalStore.getState().createTab(sessionId, workspacePath)}
+            onClick={() => void useTerminalStore.getState().createTab(target)}
           >
             <svg
               width="13"
@@ -156,21 +162,21 @@ export const TerminalPane = memo(function TerminalPane({
       }
     >
       <div className="terminal-surface min-h-0 flex-1 p-1.5">
-        {Object.entries(bySession).flatMap(([owner, terminals]) =>
-          terminals.tabs.map((tab) => (
-            <TerminalView
-              key={tab.ptyId}
-              ptyId={tab.ptyId}
-              readOnly={terminalAccess(owner) !== 'control'}
-              visible={owner === sessionId && tab.ptyId === activeId}
-            />
-          )),
-        )}
+        {Object.entries(byOwner)
+          .filter(([tabOwner]) => isMachineOwner(tabOwner) === machine)
+          .flatMap(([tabOwner, terminals]) =>
+            terminals.tabs.map((tab) => (
+              <TerminalView
+                key={tab.ptyId}
+                ptyId={tab.ptyId}
+                readOnly={terminalAccess(tabOwner) !== 'control'}
+                visible={tabOwner === owner && tab.ptyId === activeId}
+              />
+            )),
+          )}
         {access !== 'control' && (
           <div className="text-text-tertiary px-2 py-1 text-sm">
-            {access === 'unavailable'
-              ? terminalRefusal(sessionId)
-              : 'Read-only. Take control to send messages.'}
+            {access === 'unavailable' ? refusal : 'Read-only. Take control to send messages.'}
           </div>
         )}
         {access === 'control' && tabs.length === 0 && error === null && (

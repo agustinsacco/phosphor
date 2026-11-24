@@ -9,7 +9,7 @@ import { SwarmBadge } from '@/features/chat/composer/SwarmSwitch'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useLayoutStore, sessionPanes } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
-import { runningCount, sessionTerminals, useTerminalStore } from '@/stores/terminal'
+import { runningCount, ownerTerminals, useTerminalStore } from '@/stores/terminal'
 import {
   ArtifactsIcon,
   ChangesIcon,
@@ -264,7 +264,7 @@ function TerminalButton({
   sessionId: string
   active: boolean
 }): React.JSX.Element {
-  const tabCount = useTerminalStore((s) => sessionTerminals(s, sessionId).tabs.length)
+  const tabCount = useTerminalStore((s) => ownerTerminals(s, sessionId).tabs.length)
   const running = useTerminalStore((s) => runningCount(s, sessionId))
 
   return (

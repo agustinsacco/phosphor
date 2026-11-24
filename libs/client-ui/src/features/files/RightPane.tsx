@@ -4,9 +4,10 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import clsx from 'clsx'
 import { useLayoutStore, sessionPanes, type RightPane as RightPaneId } from '@/stores/layout'
+import { laneTarget, type TerminalTarget } from '@/stores/terminal'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { FilesPane } from './FilesPane'
 import { useLaneFilesSource } from './filesSource'
@@ -34,6 +35,11 @@ export const RightPane = memo(function RightPane({
   const side = useLayoutStore((s) => sessionPanes(s, sessionId).side)
   const expanded = useLayoutStore((s) => sessionPanes(s, sessionId).expanded)
   const files = useLaneFilesSource(sessionId, workspacePath)
+  // Stable identity: TerminalPane is memoised and its first-open effect keys on the target.
+  const terminalTarget = useMemo(
+    () => laneTarget(sessionId, workspacePath),
+    [sessionId, workspacePath],
+  )
   if (!rightPane) return null
   return (
     // Gutter + rounded card so the pane reads as a panel resting on the app
@@ -68,11 +74,14 @@ export const RightPane = memo(function RightPane({
         {remote && rightPane !== 'files' && rightPane !== 'changes' && (
           // Same card and headers as This Mac. Terminal, Artifacts and Subagents bring their own
           // header; the fixed refusals add the machine chip.
-          <RemotePaneBody pane={rightPane} sessionId={sessionId} workspacePath={workspacePath} />
+          <RemotePaneBody
+            pane={rightPane}
+            sessionId={sessionId}
+            workspacePath={workspacePath}
+            terminalTarget={terminalTarget}
+          />
         )}
-        {!remote && rightPane === 'terminal' && (
-          <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
-        )}
+        {!remote && rightPane === 'terminal' && <TerminalPane target={terminalTarget} />}
         {!remote && rightPane === 'artifacts' && (
           <ArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
         )}
@@ -86,10 +95,12 @@ function RemotePaneBody({
   pane,
   sessionId,
   workspacePath,
+  terminalTarget,
 }: {
   pane: Exclude<NonNullable<RightPaneId>, 'files' | 'changes'>
   sessionId: string
   workspacePath: string
+  terminalTarget: TerminalTarget
 }): React.JSX.Element {
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
   const host = useRemoteLanesStore((s) =>
@@ -101,8 +112,7 @@ function RemotePaneBody({
   const refusal = hostFeatureRefusal(host, pane === 'terminal' ? 'terminal' : 'artifacts.read')
   if (!refusal && pane === 'artifacts')
     return <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
-  if (!refusal && pane === 'terminal')
-    return <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
+  if (!refusal && pane === 'terminal') return <TerminalPane target={terminalTarget} />
   const label = SCREENS[pane].title
   return (
     <PaneShell
