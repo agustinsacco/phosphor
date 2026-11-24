@@ -30,15 +30,21 @@ async function setup() {
 }
 it('prints how many members the expansion page left out', async () => {
   const lane = await setup()
-  expect((await lane.search({ from: 'Harbor' })).text).toContain('+3 more members')
+  expect(await lane.search({ from: 'Harbor' })).toMatchObject({
+    text: expect.stringContaining('+3 more members'),
+  })
 })
 it('boosts the lane project before applying the expansion limit', async () => {
   const lane = await setup()
-  expect((await lane.search({ from: 'Harbor', limit: 1 })).text).toContain('[1] Harbor fact 2.')
+  expect(await lane.search({ from: 'Harbor', limit: 1 })).toMatchObject({
+    text: expect.stringContaining('[1] Harbor fact 2.'),
+  })
 })
 it('explains a route whose names resolve to one record', async () => {
   const lane = await setup()
   const result = await lane.search({ from: 'Harbor', to: 'Ledger' })
-  expect(result.text).toMatch(/same record/i)
-  expect(result.data.status).toBe('no_match')
+  expect(result).toMatchObject({
+    text: expect.stringMatching(/same record/i),
+    data: { status: 'no_match' },
+  })
 })

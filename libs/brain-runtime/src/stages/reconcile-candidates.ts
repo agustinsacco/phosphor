@@ -153,7 +153,11 @@ export async function candidateRows(
       .memoryCards([
         ...new Set([...matches.flat().map((m) => m.id), ...semantic.flat().map((m) => m.id)]),
       ])
-      .filter((m) => !excluded.includes(m.id) && (m.validTo === null || m.validTo > now))
+      .filter(
+        (m) =>
+          !excluded.includes(m.id) &&
+          (m.state === 'superseded' || m.validTo === null || m.validTo > now),
+      )
       .map((m) => [m.id, card(m)]),
   )
   return job.claims.map((claim, index): Row => {

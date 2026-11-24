@@ -33,7 +33,6 @@ function ownerBusyLane(own: (signal: AbortSignal) => Promise<void> = async () =>
 }
 
 it('a change the owner asks for while Defrag waits for their turn belongs to no run', async () => {
-  let curator: Awaited<ReturnType<typeof curatorClient>>
   const describe = async (entityId: string, description: string, reason: string) => {
     const result = await curator.call('edit', {
       edit: { kind: 'describe', entityId, description },
@@ -50,7 +49,7 @@ it('a change the owner asks for while Defrag waits for their turn belongs to no 
     curator: { extension: '/made-up/brain-curator.mjs', skill: '/made-up/brain-agent' },
     agent: lane.host,
   })
-  curator = await curatorClient(s.service)
+  const curator = await curatorClient(s.service)
   await savedRead(s.store, s.service, s.options)
   const [first, , third] = s.store.laneMemories('harbor-read').ids
   ids.rina = s.store.memory(first!).entities[0]!.id

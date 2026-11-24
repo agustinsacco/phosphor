@@ -11,14 +11,15 @@ export interface AutoRun {
   runEnded(run: BrainAgentRun): void
   dispose(): void
 }
-export function createAutoRun(ctx: {
+interface AutoRunContext {
   store: Pick<BrainStore, 'snapshot' | 'latestRun' | 'waitingCounts' | 'waitingSignature'>
   queue: Pick<ExtractionQueue, 'accepting'>
   defrag: Pick<Defrag, 'start'>
   options: Pick<BrainServiceOptions, 'agent' | 'now' | 'log'>
   delayMs?: number
   timers?: { set(run: () => void, ms: number): unknown; clear(handle: unknown): void }
-}): AutoRun {
+}
+export function createAutoRun(ctx: AutoRunContext): AutoRun {
   const { store, options } = ctx
   const now = options.now ?? Date.now
   const timers = ctx.timers ?? {

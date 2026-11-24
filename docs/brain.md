@@ -69,7 +69,7 @@ The reader's calls use private, session-less pi processes with no tools or conne
    becomes the centre of the map.
 3. **Compare with existing memories.** New claims can add a memory, confirm it with a quote,
    add supported links, replace it, dispute it or answer an open question. Similarity finds
-   candidates; it does not decide truth. An ended memory is not a candidate: a later restatement can save as a current memory. A claim also carries importance: low for background,
+   candidates; it does not decide truth. A later restatement of an expired memory can save as a current memory. Replaced memories are offered only to detect repeats, never to confirm or enrich. A claim also carries importance: low for background,
    normal by default, high for things like a key decision, commitment, owner or risk.
 4. **Embed and save.** Brain saves against the knowledge revision used for comparison. If it
    changes, the reader compares again from its saved work and reuses calls with matching
