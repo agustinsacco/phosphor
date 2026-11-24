@@ -1,11 +1,12 @@
 import { UnderlinedTab } from '@/components/UnderlinedTabs'
 import clsx from 'clsx'
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import type { MachineView } from '@shared/control-api'
 import { CopyButton } from '@/components/CopyButton'
 import { Button } from '@/components/form'
 import { Spinner } from '@/components/icons'
 import { TooltipSummary } from '@/components/Tooltip'
+import { usePlatform } from '@/platform/Platform'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { CopyCommand, Troubleshooting } from './MachineControls'
 import { MachineDetailHeader } from './MachineDetailHeader'
@@ -13,9 +14,12 @@ import { useHostOverview, type MachineOverview } from './machineOverview'
 import { HOST_SERVICE_STATUS, relativeTime } from './machinePresentation'
 import { Card, CheckRow } from './MachineUi'
 import { MachineReach } from './MachineReach'
-import { MachineTerminal } from './MachineTerminal'
+import { MachineTerminalTab } from './MachineTerminalTab'
 import { OnThisMachine } from './OnThisMachine'
 import { MachineProviders } from './MachineProviders'
+
+/** The machine's own views. Settings is a jump to Settings, not a view drawn here. */
+type MachinePanel = 'overview' | 'terminal'
 
 /** One detail for any machine, This Mac or a Host. What a machine lacks is not drawn. */
 export function MachineDetail({
@@ -26,45 +30,105 @@ export function MachineDetail({
   /** Offered for an enrolled Host. */
   onRemove?: () => void
 }): React.JSX.Element {
-  const { id, label, check, note } = overview
+  const [panel, setPanel] = useState<MachinePanel>('overview')
+  // A machine that cannot offer a shell (disconnected, or a device without the
+  // capability) has no Terminal tab, so it can never be the shown panel.
+  const showTerminal = usePlatform().terminal && overview.connected && panel === 'terminal'
+  return (
+    <div data-testid="machine-detail" className="space-y-4">
+      <MachineDetailHeader overview={overview} />
+      <MachineViews
+        overview={overview}
+        panel={showTerminal ? 'terminal' : 'overview'}
+        onPanel={setPanel}
+      />
+      {showTerminal ? (
+        <MachineTerminalTab hostId={overview.id} label={overview.label} />
+      ) : (
+        <OverviewPanel overview={overview} />
+      )}
+
+      {onRemove && (
+        <section
+          aria-label="Remove machine"
+          className="border-border flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3"
+        >
+          <p className="text-text-secondary min-w-0 flex-1 text-base">
+            Remove this machine from your account. Lanes, routines and files stay on the machine and
+            return when you add it again.
+          </p>
+          <Button size="sm" variant="danger" onClick={onRemove}>
+            Remove machine
+          </Button>
+        </section>
+      )}
+    </div>
+  )
+}
+
+/** A Host's detail, read from its directory entry and live connection. */
+export function HostMachineDetail({
+  machine,
+  now,
+  offset,
+  ...rest
+}: {
+  machine: MachineView
+  now: number
+  offset: number
+  onRemove: () => void
+}): React.JSX.Element {
+  return <MachineDetail overview={useHostOverview(machine, now, offset)} {...rest} />
+}
+
+/** Why the machine is not usable yet, with the one command that fixes it. */
+function MachineNotice({ overview }: { overview: MachineOverview }): React.JSX.Element | null {
+  const { label, notice } = overview
+  if (notice === 'setup')
+    return (
+      <section
+        aria-label="Finish setup"
+        className="border-border bg-bg-secondary space-y-3 rounded-lg border p-4"
+      >
+        <div className="flex items-center gap-2">
+          <Spinner className="text-text-tertiary" />
+          <h2 className="text-lg font-semibold">Waiting for {label} to finish setup</h2>
+        </div>
+        <p className="text-text-secondary text-base">
+          This page updates on its own once {label} checks in. If setup stopped, run it again on{' '}
+          {label}; it resumes where it left off.
+        </p>
+        <CopyCommand command="phosphor setup" />
+        <Troubleshooting />
+      </section>
+    )
+  if (notice === 'offline')
+    return (
+      <section
+        aria-label="Offline"
+        className="border-border space-y-3 rounded-lg border p-4 text-base"
+      >
+        <p className="text-text-secondary">
+          Offline for more than a day. Check the service on {label}.
+        </p>
+        <CopyCommand command={HOST_SERVICE_STATUS} />
+      </section>
+    )
+  return null
+}
+
+/** Readiness and providers, plus why the machine is not ready or not set up yet. */
+function OverviewPanel({ overview }: { overview: MachineOverview }): React.JSX.Element {
+  const { id, check, note } = overview
   const stamp = [
     overview.reported,
     check.at ? `checked ${relativeTime(new Date(check.at).toISOString(), Date.now())}` : null,
   ]
     .filter(Boolean)
-    .join(' · ')
+    .join(' \u00b7 ')
   return (
-    <div data-testid="machine-detail" className="space-y-4">
-      <MachineDetailHeader overview={overview} />
-      <MachineViews overview={overview} />
-      {overview.notice === 'setup' && (
-        <section
-          aria-label="Finish setup"
-          className="border-border bg-bg-secondary space-y-3 rounded-lg border p-4"
-        >
-          <div className="flex items-center gap-2">
-            <Spinner className="text-text-tertiary" />
-            <h2 className="text-lg font-semibold">Waiting for {label} to finish setup</h2>
-          </div>
-          <p className="text-text-secondary text-base">
-            This page updates on its own once {label} checks in. If setup stopped, run it again on{' '}
-            {label}; it resumes where it left off.
-          </p>
-          <CopyCommand command="phosphor setup" />
-          <Troubleshooting />
-        </section>
-      )}
-      {overview.notice === 'offline' && (
-        <section
-          aria-label="Offline"
-          className="border-border space-y-3 rounded-lg border p-4 text-base"
-        >
-          <p className="text-text-secondary">
-            Offline for more than a day. Check the service on {label}.
-          </p>
-          <CopyCommand command={HOST_SERVICE_STATUS} />
-        </section>
-      )}
+    <>
+      {overview.notice && <MachineNotice overview={overview} />}
 
       {/* Two stacks, not a row-by-row grid: a tall Readiness card leaves no hole beside it. */}
       <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -115,48 +179,41 @@ export function MachineDetail({
         </div>
       </div>
       {overview.machine && <MachineReach key={overview.machine.id} machine={overview.machine} />}
-      {overview.connected && <MachineTerminal hostId={id} label={label} />}
-      {onRemove && (
-        <section
-          aria-label="Remove machine"
-          className="border-border flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3"
-        >
-          <p className="text-text-secondary min-w-0 flex-1 text-base">
-            Remove this machine from your account. Lanes, routines and files stay on the machine and
-            return when you add it again.
-          </p>
-          <Button size="sm" variant="danger" onClick={onRemove}>
-            Remove machine
-          </Button>
-        </section>
-      )}
-    </div>
+    </>
   )
 }
 
 /** A Host's detail, read from its directory entry and live connection. */
-export function HostMachineDetail({
-  machine,
-  now,
-  offset,
-  ...rest
+/** The same views for every machine: this Overview, its shell, and its Settings. */
+function MachineViews({
+  overview,
+  panel,
+  onPanel,
 }: {
-  machine: MachineView
-  now: number
-  offset: number
-  onRemove: () => void
+  overview: MachineOverview
+  panel: MachinePanel
+  onPanel: (panel: MachinePanel) => void
 }): React.JSX.Element {
-  return <MachineDetail overview={useHostOverview(machine, now, offset)} {...rest} />
-}
-
-/** The same views for every machine: this Overview and its Settings. */
-function MachineViews({ overview }: { overview: MachineOverview }): React.JSX.Element {
   const openSettings = useOpenSettings()
+  const terminal = usePlatform().terminal && overview.connected
   return (
     <nav aria-label="Machine views" className="border-border flex gap-5 border-b">
-      <UnderlinedTab tooltip="Machine readiness and diagnostics" aria-current="page">
+      <UnderlinedTab
+        tooltip="Machine readiness and diagnostics"
+        aria-current={panel === 'overview' ? 'page' : undefined}
+        onClick={() => onPanel('overview')}
+      >
         Overview
       </UnderlinedTab>
+      {terminal && (
+        <UnderlinedTab
+          tooltip={`A shell on ${overview.label} in its home folder, outside any lane`}
+          aria-current={panel === 'terminal' ? 'page' : undefined}
+          onClick={() => onPanel('terminal')}
+        >
+          Terminal
+        </UnderlinedTab>
+      )}
       <UnderlinedTab
         tooltip={`Configure ${overview.label} in Settings`}
         aria-label="Machine settings"

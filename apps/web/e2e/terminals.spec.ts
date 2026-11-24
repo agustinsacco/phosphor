@@ -21,8 +21,13 @@ for (const width of [400, 1440]) {
     ).toBeVisible()
     await page.goto(`${stack.origin}/pages/machines`)
     await page.getByRole('button', { name: /Synthetic Host/ }).click()
-    const terminal = page.getByRole('region', { name: 'Terminal', exact: true })
+    // The machine's shell is a view of its own, and the refusal is shown there.
+    await page
+      .getByRole('navigation', { name: 'Machine views' })
+      .getByRole('button', { name: 'Terminal', exact: true })
+      .click()
+    const terminal = page.getByTestId('machine-terminal')
     await expect(terminal).toContainText('This device may not open terminals on Synthetic Host.')
-    await expect(terminal.getByRole('button', { name: 'Open terminal' })).toHaveCount(0)
+    await expect(terminal.getByRole('button', { name: 'New terminal' })).toHaveCount(0)
   })
 }

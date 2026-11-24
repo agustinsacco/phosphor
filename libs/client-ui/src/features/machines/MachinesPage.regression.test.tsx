@@ -323,11 +323,13 @@ it("C9c: without configuration access, a Host's Details neither read nor show it
   expect(fact('Host version')).toBeDefined()
 })
 
-it("C3: This Mac's Machine views are Overview and Settings, as a Host's are", async () => {
+it("C3: This Mac's Machine views are Overview, Terminal and Settings, as a Host's are", async () => {
   await openThisMac()
   const views = container.querySelector('[aria-label="Machine views"]')
   expect([...(views?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual([
     'Overview',
+    // The machine's own shell is a view here, not a card at the bottom of the overview.
+    'Terminal',
     'Settings',
   ])
 })
