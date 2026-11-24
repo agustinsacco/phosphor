@@ -115,7 +115,11 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
     // Recall answers over the lane's op channel; curator verbs are not ops an agent may run.
     await send(page, opPrompt(['brain.search', 'Harbor']))
     await expect(
-      page.getByRole('main').getByText(/No approved Brain memories matched\./),
+      page
+        .getByRole('main')
+        .getByRole('listitem')
+        .filter({ hasText: 'Rina Okafor owns Harbor ledger.' })
+        .first(),
     ).toBeVisible()
     await send(page, opPrompt(['brain.review']))
     await expect(page.getByText('brain.review is not available to agents.')).toBeVisible()

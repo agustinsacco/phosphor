@@ -333,12 +333,15 @@ function finishAgent(turn, text, error = false) {
   turn.out({ type: 'agent_settled', aborted: false })
 }
 function handleAgentPrompt(message, out, persist) {
-  if (!isBrainLane() || !(message.startsWith('Defrag.') || message.includes('BRAIN_STUB_HOLD')))
-    return false
+  if (!isBrainLane()) return false
   const turn = { out, persist, timer: null }
   agentTurn = turn
   persist({ role: 'user', content: message })
   out({ type: 'agent_start' })
+  if (!message.startsWith('Defrag.') && !message.includes('BRAIN_STUB_HOLD')) {
+    finishAgent(turn, 'Instruction received.')
+    return true
+  }
   const hold = process.env.PHOSPHOR_STUB_BRAIN_HOLD
   const marker = message + (hold && fs.existsSync(hold) ? fs.readFileSync(hold, 'utf8') : '')
   if (marker.includes('BRAIN_STUB_HOLD')) return true

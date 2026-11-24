@@ -126,7 +126,7 @@ export async function readAgain(page: Page, lane: BrainLane, confirm: boolean): 
   await laneRow(page, lane).click({ button: 'right' })
   await page.getByText('Read again for Brain…', { exact: true }).click()
   const dialog = page.getByRole('dialog', { name: `Read “${lane.title}” again?` })
-  await expect(dialog).toContainText('memories from the earlier read stay until the new result')
+  await expect(dialog).toContainText('unshared current memories stay until the new result')
   await dialog.getByRole('button', { name: confirm ? 'Read again' : 'Cancel', exact: true }).click()
   await expect(dialog).toHaveCount(0)
 }
