@@ -6,6 +6,7 @@ import { checkDescendants, checkedLayout, flags, inside, main } from './assert-s
 import { manifestChanges, snapshot } from './manifest.mjs'
 
 import { cloneFile } from './clone.mjs'
+import { relocate } from './relocate.mjs'
 
 const json = (path, data) =>
   writeFile(path, JSON.stringify(data) + '\n', { flag: 'wx', mode: 0o600 })
@@ -19,7 +20,7 @@ async function sourceRoot(input) {
   return path
 }
 
-export async function prepare(input, user, agent) {
+export async function prepare(input, user, agent, recorded) {
   const { root, roots } = checkedLayout(input)
   if ((await readdir(root)).length !== 0) throw new Error('Scratch must be empty')
   const sources = { userData: await sourceRoot(user), agent: await sourceRoot(agent) }
@@ -52,22 +53,34 @@ export async function prepare(input, user, agent) {
     JSON.stringify(before.excluded) !== JSON.stringify(after.excluded)
   )
     throw new Error('Source changed')
+  const relocated = await relocate(root, roots, recorded ?? sources)
   await json(join(root, 'prepared.json'), { version: 1, sources })
   return {
     clones,
     plainCopyFallbacks: copies,
     excluded: before.excluded.length,
     accountStandIns: before.standIns.length,
+    relocated,
   }
 }
 
 if (main(import.meta.url)) {
   try {
     process.umask(0o077)
-    const args = flags('scratch', 'source-user-data', 'source-agent-dir')
+    const args = flags(
+      'scratch',
+      'source-user-data',
+      'source-agent-dir',
+      'recorded-user-data',
+      'recorded-agent-dir',
+    )
+    const recorded = args['recorded-user-data']
+      ? { userData: args['recorded-user-data'], agent: args['recorded-agent-dir'] }
+      : undefined
+    if (recorded && !recorded.agent) throw new Error('Name both recorded roots')
     console.log(
       JSON.stringify(
-        await prepare(args.scratch, args['source-user-data'], args['source-agent-dir']),
+        await prepare(args.scratch, args['source-user-data'], args['source-agent-dir'], recorded),
       ),
     )
   } catch {

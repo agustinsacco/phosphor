@@ -121,7 +121,14 @@ async function run(layout) {
       startChild(
         profile,
         electron,
-        ['--use-mock-keychain', `--user-data-dir=${roots.userData}`, desktop],
+        // Chromium's own sandbox cannot start inside Seatbelt; sandbox-exec stays the fence.
+        [
+          '--no-sandbox',
+          '--disable-gpu',
+          '--use-mock-keychain',
+          `--user-data-dir=${roots.userData}`,
+          desktop,
+        ],
         env,
       ),
     )
