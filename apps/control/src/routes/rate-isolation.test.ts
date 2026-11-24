@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest'
 import { CONTROL_ROUTES as R } from '@phosphor/shared/control-api'
 import { createApp } from '../app'
 import { parseConfig } from '../config'
-import { dependencies, signingKey } from '../test-support'
+import { dependencies, signingKey, userId } from '../test-support'
 
 /** Keys each rate-limit purpose may hold; test-support wires the production limiter. */
 const purposeCapacity = 10_000
@@ -61,6 +61,7 @@ function setup() {
       JSON.stringify({
         exp: deps.clock() / 1000 + 600,
         aud: 'authenticated',
+        sub: userId,
         session_id: randomUUID(),
       }),
     ).toString('base64url')}.c2ln`

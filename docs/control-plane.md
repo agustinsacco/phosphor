@@ -148,7 +148,8 @@ Rate limits are sliding windows held per purpose, the key prefix before the
 first colon. Each of the eight purposes (`enrollment-create`, `enrollment-poll-ip`,
 `enrollment-poll`, `enrollment-failure`, `user-verify`, `host-auth`,
 `usage-ping`, `usage-download`) has its own 10,000-key cap, 80,000 keys in all.
-No limit is per user: they pace anonymous or failing traffic by address. The two usage purposes never answer 429:
+None caps what a signed-in user does: they pace anonymous traffic by address,
+and failed enrollment-code guesses per user. The two usage purposes never answer 429:
 an over-limit request is answered normally and not counted.
 A full purpose never refuses a new key: it sweeps its expired windows, then
 evicts its oldest key. A flood of fresh keys only weakens the limit and never
