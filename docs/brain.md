@@ -122,7 +122,8 @@ it does not need to rewrite a row as the date passes.
 
 For a replacement, a different subject with the same predicate and object contradicts the old
 link. For example, the newer memory states a different owner of Ledger. For `reports_to`, a new
-object for the same subject also contradicts the old link. Brain uses the new memory's start,
+object for the same subject also contradicts the old link. `works_with` has no direction, so
+another pair that shares one end never contradicts it. Brain uses the new memory's start,
 or now, to end a contradicted link without an end. Forget and erasure deliberately remove
 knowledge. A clean Undo restores the changed rows and their evidence, not just the sentence.
 

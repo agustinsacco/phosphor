@@ -4,6 +4,7 @@
  */
 import {
   BRAIN_SINGLE_VALUED_PREDICATES,
+  BRAIN_SYMMETRIC_PREDICATES,
   type BrainLink,
   type BrainPredicate,
   type BrainStatedBy,
@@ -25,6 +26,7 @@ export interface RelationRow {
 }
 const COLUMNS = 'n,memory,subject,predicate,object,label,valid_from,valid_to,stated_by'
 const SINGLE = new Set<string>(BRAIN_SINGLE_VALUED_PREDICATES)
+const SYMMETRIC = new Set<string>(BRAIN_SYMMETRIC_PREDICATES)
 
 export function relationsOf(ctx: Context, memory: number): RelationRow[] {
   return all<RelationRow>(ctx, `SELECT ${COLUMNS} FROM relations WHERE memory=? ORDER BY n`, memory)
@@ -81,13 +83,14 @@ export function copyRelation(
 }
 /**
  * The surviving memory states the same predicate and object with another subject (a new owner),
- * or, for a single-valued predicate, the same subject and predicate with another object.
+ * or, for a single-valued predicate, the same subject and predicate with another object. A
+ * symmetric link has no direction, so another pair sharing one end never contradicts it.
  */
 export function contradicted(r: RelationRow, stated: RelationRow[]): boolean {
   return stated.some(
     (x) =>
       x.predicate === r.predicate &&
-      ((x.object === r.object && x.subject !== r.subject) ||
+      ((!SYMMETRIC.has(r.predicate) && x.object === r.object && x.subject !== r.subject) ||
         (SINGLE.has(r.predicate) && x.subject === r.subject && x.object !== r.object)),
   )
 }

@@ -186,7 +186,8 @@ const save =
     const lane = reread
       ? pick(run.rng, [...run.lanes])
       : pick(run.rng, ['harbor-lane', 'ledger-lane', 'kestrel-lane'])!
-    if (!lane) return null
+    // Once every record has left Brain there is no name left to claim anything about.
+    if (!lane || !model.names(run.state).some((n) => n in ENTITY_KINDS)) return null
     const target = run.rng() < 0.35 ? (pick(run.rng, currentIds(run)) ?? null) : null
     const claims = [claimSpec(run, target)]
     if (run.rng() < 0.25) claims.push(claimSpec(run, null))
