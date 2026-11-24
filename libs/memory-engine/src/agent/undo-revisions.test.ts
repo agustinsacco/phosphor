@@ -63,7 +63,7 @@ it.each(['approve', 'correct', 'describe'] as const)(
         },
         null,
         note,
-      )
+      ).operationId
     else
       operation = store.agentEdit(
         { kind: 'describe', entityId: 'rina-1', description: 'Ledger API lead' },

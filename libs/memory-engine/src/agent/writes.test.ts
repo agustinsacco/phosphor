@@ -47,7 +47,7 @@ describe('Brain Agent writes and journal', () => {
       },
       vector(),
       note,
-    )
+    ).operationId
     expect(store.memory('memory-1').memory.state).toBe('superseded')
     const fresh = db
       .prepare("SELECT id FROM memories WHERE id NOT IN ('memory-1','memory-2')")

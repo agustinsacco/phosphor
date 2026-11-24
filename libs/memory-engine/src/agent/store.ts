@@ -68,9 +68,9 @@ export function agentStore(ctx: Context): BrainAgentStore {
       return operation
     },
     correct: (value, vector, note) => {
-      const operation = correct(ctx, value, vector, note)
-      afterMemoryChange(ctx, operation)
-      return operation
+      const result = correct(ctx, value, vector, note)
+      afterMemoryChange(ctx, result.operationId)
+      return result
     },
     erase: (id, note) => erase(ctx, id, note),
     agentUndo: (id, note) => afterUndo(ctx, undo(ctx, id, revision(ctx), note)),
