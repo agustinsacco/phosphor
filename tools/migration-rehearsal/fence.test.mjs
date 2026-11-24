@@ -20,7 +20,9 @@ it.skipIf(process.platform !== 'darwin')(
       mkdirSync(roots.home)
       mkdirSync(dirname(roots.socket), { recursive: true })
       const profile = fence(root, roots, { agent: outside, userData: outside })
+      // git, which the service checks before serving lanes, opens /dev/null for writing.
       const script = `const fs=require('node:fs'),net=require('node:net');
+      fs.writeFileSync('/dev/null','x');
       for(const attempt of [()=>fs.readFileSync(process.argv[1]),()=>fs.writeFileSync(process.argv[1],'modified')]){
         try{attempt();process.exit(2)}catch(e){if(e.code!=='EPERM' && e.code!=='EACCES')throw e}
       }
