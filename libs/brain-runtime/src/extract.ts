@@ -228,7 +228,7 @@ function recordClaims(record: ExtractionRecord, job: FoldedJob): void {
       candidate: c.ref,
       summary: c.memory.summary,
       status: 'dropped' as const,
-      reason: 'Run failed before proposal',
+      reason: 'Read failed before saving',
     })),
   ])
 }

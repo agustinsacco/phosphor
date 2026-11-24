@@ -21,6 +21,9 @@ const member = (v: unknown, values: readonly string[]): boolean =>
 const hasStrings = (v: Record<string, unknown>, keys: string[]): boolean =>
   keys.every((key) => typeof v[key] === 'string')
 
+export const SEARCH_GUIDANCE =
+  'Choose one search move: query, from with optional context, or from and to.'
+
 /** Search, flag, or one of Brain Agent's curator methods (validate-curator.ts). */
 export function validateBrainRequest<M extends BrainAgentMethod>(
   method: M,
@@ -29,7 +32,8 @@ export function validateBrainRequest<M extends BrainAgentMethod>(
   if (method === 'flag') return validateFlag(input) as BrainAgentMap[M]['request']
   if (isBrainCuratorMethod(method))
     return validateCuratorRequest(method, input) as BrainAgentMap[M]['request']
-  if (method !== 'search' || !record(input)) throw new Error('Invalid Brain request.')
+  if (method !== 'search') throw new Error('Invalid Brain request.')
+  if (!record(input)) throw new Error(SEARCH_GUIDANCE)
   const text = (x: unknown, max: number) =>
     typeof x === 'string' && !!x.trim() && x.length <= max && !x.includes('\0')
   const mode =
@@ -61,7 +65,7 @@ export function validateBrainRequest<M extends BrainAgentMethod>(
         input.cwd.length > 16384 ||
         input.cwd.includes('\0')))
   )
-    throw new Error('Invalid Brain request.')
+    throw new Error(SEARCH_GUIDANCE)
   return input as unknown as BrainAgentMap[M]['request']
 }
 

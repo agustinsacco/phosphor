@@ -23,7 +23,7 @@ const yieldTurn = (): Promise<void> => new Promise((resolve) => setImmediate(res
 
 /**
  * Sweeps what a merge, undo or saved read deferred, 128 memories per batch, yielding between
- * batches. A failure or a stop leaves the rest without fingerprints, so "Tidy now" covers them.
+ * batches. A failure or a stop leaves the rest without fingerprints, so Defrag covers them.
  */
 export function createTidyMaintenance(context: TidyMaintenanceContext): TidyMaintenance {
   const { store, search, notify, log } = context

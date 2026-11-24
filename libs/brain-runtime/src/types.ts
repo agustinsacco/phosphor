@@ -108,9 +108,8 @@ export interface BrainService {
   /** Allocate once per live lane; discard the port (and its briefing refs) when that lane ends. */
   forLane(lane: Pick<LaneFacts, 'cwd' | 'title'> & { readonly sessionId: string }): BrainOpsPort
   /**
-   * What the private bridge serves: recall and flags for a Host lane (lane ops enter through
-   * forLane instead); Brain Agent's curator methods for the Brain lane. `signal` aborts when the
-   * asker hangs up.
+   * Host lane bridge entry. Only search and flag are available. Brain Agent's methods require
+   * its separate curator connection. `signal` aborts when the asker hangs up.
    */
   agent<M extends BrainAgentMethod>(
     method: M,

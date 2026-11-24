@@ -22,5 +22,5 @@ verified facts in this lane show it is wrong or out of date, or two recalled mem
 same thing. `ref` is the bracket number in the latest `brain_search` briefing in this lane;
 search again if the number is no longer known. Choose `wrong`, `outdated` or `duplicate` and
 explain the evidence in 1–300 characters. Never flag a guess, an agent preference, or something
-merely unhelpful. A flag only asks the owner to review: it does not change Brain knowledge.
+merely unhelpful. A flag only asks Brain Agent to check the memory: it does not change Brain knowledge.
 Brain accepts at most five open flags per lane and never stacks flags for the same memory.

@@ -25,7 +25,9 @@ function heldOutcome(
   const citations = [...memory.citations, ...memory.links.map((l) => l.citation)]
   const observed =
     Math.max(0, ...citations.map((c) => proposal.evidence[c.evidence]!.observedAt)) || now
-  const until = memory.validTo ?? observed + BRAIN_TEMPORARY_DAYS * 86400000
+  const until =
+    memory.validTo ??
+    Math.max(observed, memory.validFrom ?? observed) + BRAIN_TEMPORARY_DAYS * 86400000
   return { status: 'kept', reason: `Saved until ${new Date(until).toISOString().slice(0, 10)}` }
 }
 

@@ -76,7 +76,7 @@ The reader's calls use private, session-less pi processes with no tools or conne
    inputs. After three stale attempts the job fails with a Retry, rather than saving guesses
    against the wrong revision. An index refresh failure does not roll back a saved read.
 
-**Temporary** claims use their stated end or, if none, 14 days from when the claim was observed.
+**Temporary** claims use their stated end or, if none, 14 days from observation or the stated start, whichever is later.
 A near start alone is not evidence of temporary status. Within a read, held claims stay separate from lasting claims.
 Their links inherit that end unless they have one of their own. A temporary claim cannot
 supersede, resolve or put a lasting memory in dispute. It saves separately instead. **Personal**
@@ -197,7 +197,7 @@ Memories:
 
 **Connect:** `brain_search({ from: "Tom Lee", to: "Northwind" })` returns up to three short
 routes of up to four steps. A step quotes the link's sentence or says only that a memory names
-both ends. For example, a route through Ledger reads:
+both ends. Two names for the same record need no route; Brain says so. For example, a route through Ledger reads:
 
 ```text
 Routes from Tom Lee to Northwind:

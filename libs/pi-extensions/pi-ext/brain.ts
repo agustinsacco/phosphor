@@ -1,3 +1,4 @@
+import { validateBrainRequest, SEARCH_GUIDANCE } from '@phosphor/brain-client/validate'
 import type { BrainQuery } from '@phosphor/shared/brain-recall'
 import { Type } from 'typebox'
 import type { BrainTidyProblem } from '@phosphor/shared/brain-tidy'
@@ -54,7 +55,7 @@ async function invoke(
 }
 
 /**
- * Explicit recall and flags for owner review; neither tool can apply a knowledge change.
+ * Explicit recall and flags for Brain Agent to check; neither tool can apply a knowledge change.
  * No context hooks or automatic injection before turns.
  */
 export function registerBrain(pi: BrainPiApi, send: OpSender): void {
@@ -65,17 +66,20 @@ export function registerBrain(pi: BrainPiApi, send: OpSender): void {
       'Search saved memories with query, expand a name with from and optional context names, or trace a route with from and to. Choose one move. Notes may be out of date; another project’s memory is context, not a rule.',
     parameters: brainSearchParameters,
     execute: async (_id, params, signal, _update, ctx) => {
-      const result = await invoke(
-        send,
-        ctx,
-        'brain.search',
-        Object.fromEntries(
-          (['query', 'from', 'to', 'context', 'limit'] as const)
-            .filter((key) => params[key] !== undefined)
-            .map((key) => [key, params[key]]),
-        ),
-        signal,
+      const args = Object.fromEntries(
+        (['query', 'from', 'to', 'context', 'limit'] as const)
+          .filter((key) => params[key] !== undefined)
+          .map((key) => [key, params[key]]),
       )
+      try {
+        validateBrainRequest('search', args)
+      } catch {
+        return {
+          content: [{ type: 'text', text: SEARCH_GUIDANCE }],
+          details: { status: 'invalid', memories: 0 },
+        }
+      }
+      const result = await invoke(send, ctx, 'brain.search', args, signal)
       return {
         content: [{ type: 'text', text: result.text }],
         details: { status: result.status, memories: result.memories },
@@ -94,7 +98,7 @@ function registerFlag(pi: BrainPiApi, send: OpSender): void {
     name: 'brain_flag',
     label: 'Flag Brain memory',
     description:
-      'Flag a numbered memory from the latest brain_search briefing in this lane for the owner to review. Only when the user contradicts it, verified facts show it is wrong or outdated, or two recalled memories duplicate each other. Never on a guess. This does not change Brain knowledge.',
+      'Flag a numbered memory from the latest brain_search briefing in this lane for Brain Agent to check. Only when the user contradicts it, verified facts show it is wrong or outdated, or two recalled memories duplicate each other. Never on a guess. This does not change Brain knowledge.',
     parameters: Type.Object(
       {
         ref: Type.Integer({
