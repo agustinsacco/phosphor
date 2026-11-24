@@ -40,7 +40,7 @@ export function setPrefs(ctx: Context, value: BrainPrefs): BrainPrefs {
 export function revision(ctx: Context): number {
   return Number(one<{ value: string }>(ctx, "SELECT value FROM meta WHERE key='revision'")!.value)
 }
-/** Only stored knowledge changes invalidate lane reviews; Tidy bookkeeping uses revision alone.
+/** Only stored knowledge changes make a read compare again; Tidy bookkeeping uses revision alone.
  * Seed lazily from the old counter so proposals made before this upgrade retain their meaning. */
 export function knowledgeRevision(ctx: Context): number {
   const stored = one<{ value: string }>(

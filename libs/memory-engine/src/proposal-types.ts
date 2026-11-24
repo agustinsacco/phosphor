@@ -121,11 +121,6 @@ export interface Proposal {
   /** One per entity, in order: label, kind and description. */
   entityVectors: Float32Array[]
 }
-export interface ProposalResult {
-  memories: number
-  confirmations: number
-  identities: number
-}
 
 /** An existing entity as a resolver or reconciler sees it. */
 export interface EntityCard extends BrainEntity {

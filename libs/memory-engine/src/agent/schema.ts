@@ -1,4 +1,4 @@
-/** Additive side tables: older v7 applications can still open the same Brain. */
+/** Brain Agent's side tables: change notes and runs. */
 export const agentSchema = `
 CREATE TABLE IF NOT EXISTS agent_notes(operation_id TEXT NOT NULL REFERENCES tidy_operations(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK(role IN ('made','undid')), run_id TEXT, reason TEXT NOT NULL,

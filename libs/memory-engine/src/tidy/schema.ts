@@ -34,7 +34,7 @@ CREATE TABLE tidy_sweep(singleton INTEGER PRIMARY KEY CHECK(singleton=1), phase 
   total_entities INTEGER NOT NULL, total_memories INTEGER NOT NULL, entity_max INTEGER NOT NULL,
   memory_max INTEGER NOT NULL, limited_checks INTEGER NOT NULL, started_at INTEGER, finished_at INTEGER);
 INSERT INTO tidy_sweep VALUES(1,'entities',0,0,0,0,0,0,0,0,NULL,NULL);
--- Unused legacy checkpoint, retained for rollback compatibility.
+-- Unused legacy checkpoint; every Brain still has it, so the schemas stay equal.
 CREATE TABLE tidy_run(singleton INTEGER PRIMARY KEY CHECK(singleton=1), state TEXT NOT NULL,
   done INTEGER NOT NULL, total INTEGER NOT NULL, found INTEGER NOT NULL, error TEXT, model TEXT,
   started_at INTEGER, finished_at INTEGER, folded INTEGER NOT NULL DEFAULT 0, message TEXT);

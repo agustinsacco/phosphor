@@ -7,7 +7,7 @@ interface Pending {
   generation: string
   ids: Set<string>
 }
-/** In memory only: if the app closes first, the missing fingerprints bring them into "Tidy now". */
+/** In memory only: if the app closes first, the missing fingerprints bring them into the next maintenance pass. */
 const PENDING = new WeakMap<Context, Pending>()
 
 function generation(ctx: Context): string {

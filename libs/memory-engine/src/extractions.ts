@@ -71,7 +71,7 @@ export function extraction(
     memories: all(ctx, 'SELECT id, summary FROM memories WHERE job_id=?', jobId),
   }
 }
-/** Preserve the candidate-to-memory link even when only a subset was approved. */
+/** Links a read's claim to the memory it saved as, so the read record can name it. */
 export function linkOutcome(
   ctx: Context,
   jobId: string,
