@@ -148,3 +148,21 @@ it('does not let an Abort now acknowledgement hide a failed update after the pau
     "The update didn't finish. The Phosphor service is still on 1.2.3.",
   )
 })
+
+it('says in-app why the Phosphor service is not set up yet, and what happens next', async () => {
+  const inApp: LocalMachineStatus = { mode: 'in-app', migration: 'not-needed' }
+  current = {
+    ...inApp,
+    install: { state: 'failed', detail: 'pi: pi --version failed: env: node: No such file' },
+  }
+  await show()
+  expect(el.textContent).toContain('This Mac runs its lanes in Desktop.')
+  expect(el.textContent).toContain('Couldn’t set up the Phosphor service')
+  expect(el.textContent).toContain('pi: pi --version failed: env: node: No such file')
+  push({ ...inApp, install: { state: 'installing', step: 'download', version: '0.2.93' } })
+  expect(el.textContent).toContain('Downloading the Phosphor service 0.2.93')
+  push({ ...inApp, install: { state: 'installed', version: '0.2.93' } })
+  expect(el.textContent).toContain(
+    'Phosphor service 0.2.93 is installed. This Mac moves its lanes to it the next time Phosphor starts.',
+  )
+})

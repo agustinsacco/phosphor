@@ -174,6 +174,12 @@ export interface BaselineLocalMachineStatus {
   serviceVersion?: string
   pause?: ServicePauseState
   notice?: 'no-bundle' | 'limits' | 'other-daemon' | 'state-folder' | 'dev-build'
+  install?: {
+    state: 'checking' | 'installing' | 'waiting' | 'blocked' | 'failed' | 'installed'
+    step?: 'download' | 'setup'
+    version?: string
+    detail?: string
+  }
 }
 
 export type BaselineLocalMachineAction =
