@@ -53,8 +53,9 @@ npm run format --prefix apps/site
 - `/guides/daily-work/`: lane/worktree workflow, Files/Changes, models/context,
   multi-PR inspection, Slack links, notifications, snapshot moves, Brain,
   subagents, artifacts, history, routines, skills and machine-scoped settings.
-- `/guides/brain/`: Desktop opt-in/model download, explicit queueing, proposal
-  review, graph/evidence inspection, recall, provider costs and retention.
+- `/guides/brain/`: Desktop opt-in/model download, explicit queueing, saved
+  reads with Undo, sentence walks, Brain Agent checks, recall, provider costs
+  and retention.
 - `/guides/machines/`: private Tailscale setup, enrollment/readiness, provider
   configuration, explicit lane control, browser/PWA limits and snapshot moves.
 - `/guides/swarm/`: authorization, inherited branch decisions, bounded delegation,
@@ -119,7 +120,8 @@ The control server owns MIME/range serving, independently tested there.
 
 Keep Desktop, Host and browser capabilities distinct. Brain is Desktop-only and
 off by default; local embeddings/storage do not make provider extraction offline.
-Review defaults on but can be disabled. Nothing syncs Brain between machines.
+Reads save when they finish; every saved read and Brain Agent change has Undo.
+Nothing syncs Brain between machines.
 The PWA has no local lanes, native editor, split panes or scripted HTML preview.
 
 PR actions draft rather than send; GitHub stays read-only. Track/Hide is local-live
