@@ -16,15 +16,19 @@ export interface StageEntity {
   aliases: string[]
   description: string
   keys: EntityKey[]
-  /** The person who is the user, as the conversation names them. At most one per part; it never
-   * reaches identity or a proposal. */
+  /** The person who is the user, as the conversation names them. At most one per part. */
   user?: true
+  /** Trusted mark carried from folded parts into the proposal. */
+  owner?: true
 }
 export interface StageQuote {
   segment: string
   quote: string
 }
 export interface StageLink {
+  label?: string
+  validFrom?: number | null
+  validTo?: number | null
   subject: string
   predicate: BrainPredicate
   object: string
@@ -42,7 +46,8 @@ export interface StageClaim {
   validFrom: number | null
   validTo: number | null
   branch: boolean
-  /** Saved only when the owner ticks it. Absent in parts checkpointed before holds existed. */
+  importance?: 0 | 1 | 2
+  /** Absent in parts checkpointed before holds existed. */
   hold?: ClaimHold | null
 }
 export interface StageParent {

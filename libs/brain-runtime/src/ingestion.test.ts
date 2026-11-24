@@ -132,7 +132,7 @@ it('pins the incremental context-only prompt block without changing the extracti
 
 it('asks for a hold instead of a guess when a claim might be personal or temporary', () => {
   const prompt = extractPrompt(makeWindow([]), [])
-  expect(prompt).toContain('"branch":false,"hold":null,"quotes"')
+  expect(prompt).toContain('"branch":false,"importance":1,"hold":null,"quotes"')
   expect(prompt).toContain(
     'When unsure whether a remark about a named person is personal, keep the claim with "hold":"personal".',
   )

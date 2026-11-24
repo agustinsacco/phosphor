@@ -2,10 +2,7 @@ import type { BrainEntityKind } from '@phosphor/shared/brain'
 import type { StageClaim } from './stage-types'
 import type { TranscriptWindow } from './windows'
 
-/**
- * Deterministic backstops for review holds. They only ever mark a claim (unticked in review,
- * never saved with review off); they never drop one.
- */
+/** Deterministic backstops: personal claims are not saved, temporary claims expire. */
 export type ClaimHold = 'temporary' | 'personal'
 
 const DAY = 86_400_000

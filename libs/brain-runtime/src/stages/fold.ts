@@ -67,6 +67,7 @@ export function mergeEntity(target: StageEntity, source: StageEntity): void {
       [...target.keys, ...source.keys].map((k) => [`${k.namespace}:${k.value}`, k]),
     ).values(),
   ]
+  if (source.owner || source.user) target.owner = true
   target.description ||= source.description
 }
 export function sameEntity(a: StageEntity, b: StageEntity): boolean {
@@ -111,7 +112,11 @@ export function foldParts(parts: ExtractedPart[], sessionId: string): FoldedJob 
           status: 'folded',
           reason: `Same full name/alias as ${target.ref}, without contradictory keys`,
         })
-      } else job.entities.push(withoutUser(structuredClone(entity)))
+      } else
+        job.entities.push({
+          ...withoutUser(structuredClone(entity)),
+          ...(entity.user ? { owner: true } : {}),
+        })
     }
     appendClaims(job, part, sessionId, kinds)
     job.parents.push(...part.extraction.parents)
@@ -166,13 +171,14 @@ function appendClaims(
     }
     return { evidence, quote: scrubExcerpt(q.quote) }
   }
-  // A refresh reuses parts saved by an earlier extractor, so the hold backstop runs here too. It
+  // A resumed read can reuse parts saved by an earlier extractor, so the hold backstop runs here too. It
   // only raises a hold, so the model's own hold stays.
   for (const c of part.extraction.claims.map((claim) => holdClaim(claim, kinds, part.window)))
     job.claims.push({
       ref: c.ref,
       memory: {
         summary: scrubExcerpt(c.text),
+        importance: c.importance ?? 1,
         type: c.type,
         kind: c.epistemic,
         entities: c.mentions,
@@ -180,6 +186,9 @@ function appendClaims(
           subject: l.subject,
           predicate: l.predicate,
           object: l.object,
+          label: l.label ?? '',
+          validFrom: l.validFrom ?? null,
+          validTo: l.validTo ?? null,
           citation: citation(l),
         })),
         citations: c.quotes.map(citation),

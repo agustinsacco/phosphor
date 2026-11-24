@@ -34,6 +34,11 @@ it('folds equal claims and links across overlapping windows with merged evidence
   expect(job.entities).toHaveLength(2)
   expect(job.claims).toHaveLength(1)
   expect(job.claims[0]!.memory.citations).toHaveLength(1)
+  // Older checkpointed parts have neither a label nor an importance.
+  expect(job.claims[0]?.memory).toMatchObject({
+    importance: 1,
+    links: expect.arrayContaining([expect.objectContaining({ label: '' })]),
+  })
   expect(job.evidence).toHaveLength(1)
   expect(job.outcomes.some((o) => o.candidate === 'w2:c1' && o.status === 'folded')).toBe(true)
 })

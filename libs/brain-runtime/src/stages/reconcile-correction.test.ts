@@ -33,6 +33,9 @@ const weekly: MemoryCard = {
   validFrom: null,
   validTo: null,
   recordedAt: 0,
+  lanes: 1,
+  saidBy: 'you',
+  importance: 1,
   observedAt: 0,
   origin: null,
 }

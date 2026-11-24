@@ -67,7 +67,7 @@ it('a stored Tom Lee never reuses a new-lane Tom Lee on name alone', async () =>
   expect(ask.spy).toHaveBeenCalledOnce()
   expect(result.entities[0]).toMatchObject({ decision: 'new', entityId: null, auto: false })
 })
-it('Call 2 may reuse across kinds, and uncertainty reaches review for stored candidates', async () => {
+it('Call 2 may reuse across kinds, and uncertainty is preserved for stored candidates', async () => {
   for (const action of ['reuse', 'uncertain'] as const) {
     const store = new FakeBrainStore(),
       search = new FakeBrainSearch(),

@@ -26,6 +26,7 @@ it('holds claims above 300 explicitly, prioritizing structural links then decisi
       subject: 'harbor',
       predicate: 'part_of',
       object: 'kestrel',
+      label: '',
       citation: { evidence: 0, quote: 'Harbor is part of Kestrel' },
     },
   ]

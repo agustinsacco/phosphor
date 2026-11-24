@@ -99,7 +99,7 @@ it("rewrites only a leading, capitalised 'The user'", () => {
   ])
 })
 
-it('never lets the user flag reach identity or a proposal', async () => {
+it('carries the trusted user flag into the saved owner mark', async () => {
   const s = await pipelineSetup()
   cleanups.push(s.cleanup)
   const marked = structuredClone(RAW_EXTRACTION)
@@ -111,8 +111,8 @@ it('never lets the user flag reach identity or a proposal', async () => {
   await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
   const identityPrompt = s.runner.mock.calls.find(([input]) => input.stage === 'identity')
   expect(identityPrompt?.[0].prompt).not.toContain('"user"')
-  const stored = s.store.storedProposal(s.job.id)!
+  const stored = s.store.saved.get(s.job.id)!
   expect(stored.entities.map((e) => e.label)).toContain('Rina Okafor')
   expect(stored.entities.some((e) => 'user' in e)).toBe(false)
-  expect(s.store.proposal(s.job.id).identities.some((e) => 'user' in e)).toBe(false)
+  expect(stored.entities.find((e) => e.label === 'Rina Okafor')?.owner).toBe(true)
 })

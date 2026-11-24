@@ -257,6 +257,11 @@ it('refuses any other action on a replaced memory, and repeats_replaced on a cur
   })
 })
 
+function entityIdByLabel(store: ReturnType<typeof fixture>['store']) {
+  const nodes = store.overview(300).nodes
+  return (label: string) => nodes.find((n) => n.label === label)!.id
+}
+
 it('regression: a shared link counts only with the same predicate, so uses links cannot crowd out a close depends_on paraphrase', async () => {
   const { store } = fixture()
   const base = extraction('')
@@ -280,6 +285,7 @@ it('regression: a shared link counts only with the same predicate, so uses links
               subject: 'harbor',
               predicate: 'uses' as const,
               object: 'ledger',
+              label: '',
               citation: { evidence: i, quote: summary },
             },
           ]
@@ -297,8 +303,7 @@ it('regression: a shared link counts only with the same predicate, so uses links
     // The paraphrase is close to the claim; the uses memories are not.
     memoryVectors: summaries.map((_, i) => (i ? vector(0, 1, i) : vector(1, 0.1))),
   })
-  const nodes = store.overview(300).nodes
-  const id = (label: string) => nodes.find((n) => n.label === label)!.id
+  const id = entityIdByLabel(store)
   const ids = new Map(
     store.entityMemories(id('Harbor'), {}, null).memories.map((m) => [m.summary, m.id] as const),
   )
@@ -310,6 +315,7 @@ it('regression: a shared link counts only with the same predicate, so uses links
       subject: id('Harbor'),
       predicate: 'depends_on',
       object: id('Ledger'),
+      label: '',
       citation: { evidence: 0, quote: 'Harbor needs Ledger running before it starts.' },
     },
   ]
@@ -334,13 +340,13 @@ it('regression: five earlier uses claims of the same read cannot push out a clos
     ],
     memoryVectors: [vector(1, 0.1)],
   })
-  const nodes = store.overview(300).nodes
-  const id = (label: string) => nodes.find((n) => n.label === label)!.id
+  const id = entityIdByLabel(store)
   const stored = store.entityMemories(id('Harbor'), {}, null).memories[0]!.id
   const link = (predicate: 'uses' | 'depends_on', quote: string) => ({
     subject: id('Harbor'),
     predicate,
     object: id('Ledger'),
+    label: '',
     citation: { evidence: 0, quote },
   })
   const summaries = [

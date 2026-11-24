@@ -28,12 +28,49 @@ it('never verifies a quote across, or containing, an elision marker', () => {
   })
 })
 
-it.each([{label: 'x'.repeat(81)}, {predicate: 'unknown'}, {since: '2026-02-30'}, {until: 'not a date'}])('rejects invalid sentence link metadata: %j', (bad) => {
+it.each([
+  { label: 'x'.repeat(81) },
+  { predicate: 'unknown' },
+  { since: '2026-02-30' },
+  { until: 'not a date' },
+])('rejects invalid sentence link metadata: %j', (bad) => {
   const quote = 'Rina Okafor owns Harbor billing.'
-  const window = makeWindow([{entryId: 'u', role: 'user', label: 'You', observedAt: 1, text: quote}])
+  const window = makeWindow([
+    { entryId: 'u', role: 'user', label: 'You', observedAt: 1, text: quote },
+  ])
   const raw = structuredClone(RAW_EXTRACTION)
   Object.assign(raw.claims[0]!.links[0]!, bad)
   const parsed = parseStageExtraction(JSON.stringify(raw), window)
   expect(parsed.claims[0]!.links).toEqual([])
-  expect(parsed.outcomes).toContainEqual(expect.objectContaining({status: 'dropped'}))
+  expect(parsed.outcomes).toContainEqual(expect.objectContaining({ status: 'dropped' }))
+})
+
+it('keeps the wording, dates and importance of a dated person-to-person relationship', () => {
+  const raw = structuredClone(RAW_EXTRACTION)
+  raw.entities[1] = { ...raw.entities[1]!, kind: 'person', label: 'Tom Lee' }
+  const sentence = 'Rina Okafor took over Ledger billing from Tom Lee.'
+  Object.assign(raw.claims[0]!, {
+    importance: 2,
+    text: sentence,
+    quotes: [{ segment: 's1', quote: sentence }],
+  })
+  Object.assign(raw.claims[0]!.links[0]!, {
+    predicate: 'took_over_from',
+    label: 'took over Ledger billing from',
+    quote: sentence,
+    since: '2026-09-01',
+    until: '2026-10-01',
+  })
+  const parsed = parseStageExtraction(JSON.stringify(raw), makeWindow([segment(sentence)]))
+  expect(parsed.claims[0]).toMatchObject({
+    importance: 2,
+    links: [
+      {
+        predicate: 'took_over_from',
+        label: 'took over Ledger billing from',
+        validFrom: Date.UTC(2026, 8, 1),
+        validTo: Date.UTC(2026, 9, 1),
+      },
+    ],
+  })
 })
