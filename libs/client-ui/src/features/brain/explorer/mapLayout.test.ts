@@ -122,3 +122,20 @@ it('draws nothing for an unknown centre or an empty box', () => {
     layoutMap({ centerId: 'harbor', ...neighbours(2), hops: 1, width: 0, height: 300 }).nodes,
   ).toEqual([])
 })
+
+it('never puts two neighbours on one line through the centre, so a link between them misses it', () => {
+  const { nodes, links } = neighbours(2)
+  const layout = layoutMap({
+    centerId: 'harbor',
+    nodes,
+    links: [...links, { id: 'between', subjectId: 'n0', objectId: 'n1', predicate: 'uses' }],
+    hops: 1,
+    width: 520,
+    height: 360,
+  })
+  const [centre, a, b] = ['harbor', 'n0', 'n1'].map((id) => layout.nodes.find((n) => n.id === id)!)
+  // Distance from the centre to the line through the two neighbours.
+  const cross = (b!.x - a!.x) * (centre!.y - a!.y) - (b!.y - a!.y) * (centre!.x - a!.x)
+  const distance = Math.abs(cross) / Math.hypot(b!.x - a!.x, b!.y - a!.y)
+  expect(distance).toBeGreaterThan(centre!.r * 2)
+})
