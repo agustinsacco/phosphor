@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { openBrainStore } from '../store'
-import { approve, extraction, fixture } from '../test-support'
+import { saveAndListMemories, extraction, fixture } from '../test-support'
 import { hub, spread } from './test-support'
 
 /** Counts per-memory sweeps: each one reads its memory row through this statement exactly once. */
@@ -63,7 +63,7 @@ it('an approval that adds 200 memories sweeps at most 128 of them inside the mut
     links: [],
   }))
   const swept = countSweeps(db)
-  approve(store, { memories, memoryVectors: memories.map((_, i) => spread(i)) })
+  saveAndListMemories(store, { memories, memoryVectors: memories.map((_, i) => spread(i)) })
   expect(store.snapshot().counts.memories).toBe(200)
   expect(swept()).toBe(128)
   expect(store.takeTidyMaintenance()).toHaveLength(72)
@@ -91,7 +91,7 @@ it('drops deferred ids from before a reset', () => {
   expect(store.takeTidyMaintenance()).toEqual([])
 })
 
-it('a restart before the batches loses nothing that "Tidy now" does not recover', () => {
+it('a restart before the batches loses nothing that the maintenance pass does not recover', () => {
   const dir = mkdtempSync(join(tmpdir(), 'brain-maintenance-'))
   const path = join(dir, 'brain.sqlite')
   try {

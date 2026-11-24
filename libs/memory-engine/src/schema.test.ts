@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
 import { openBrainStore } from './store'
-import { approve, fixture } from './test-support'
+import { saveAndListMemories, fixture } from './test-support'
 
 describe('Brain v4 SQLite schema and preferences', () => {
   it.each([0, 1, 2, 3])(
@@ -57,7 +57,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
       agentAuto: false,
       model: null,
     })
-    approve(store)
+    saveAndListMemories(store)
     const generation = store.snapshot().generation
     store.reset()
     expect(store.snapshot()).toMatchObject({
@@ -87,7 +87,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
       old.exec("INSERT INTO memory_fts VALUES ('old','discard'); PRAGMA user_version=3;")
       old.close()
       const store = openBrainStore({ path, Database: Defensive })
-      approve(store)
+      saveAndListMemories(store)
       expect(store.snapshot().counts.memories).toBeGreaterThan(0)
       store.reset()
       expect(store.snapshot().counts).toMatchObject({ memories: 0, entities: 0 })

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, vector } from '../test-support'
+import { saveAndListMemories, extraction, fixture, lane, vector } from '../test-support'
 import type { BrainStore, Proposal } from '../types'
 import { dump, seed } from './test-support'
 
@@ -60,7 +60,7 @@ function enrich(
     reason: '',
     citations: [{ evidence: 0, quote: 'Independent Ledger support' }],
   }
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [],
     entityVectors: [],
     memories: [memory],
@@ -261,7 +261,7 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
   it(`${kind} undo stays clean after a later approval that touches none of its records`, () => {
     const { store, db } = setup()
     const operation = change(store, kind)
-    approve(store, { origin: { sessionId: 'kestrel-lane', title: 'Kestrel' } })
+    saveAndListMemories(store, { origin: { sessionId: 'kestrel-lane', title: 'Kestrel' } })
     const learned = store.snapshot().counts.memories
     store.tidyUndo(operation, store.revision())
     expect(store.snapshot().counts.memories).toBe(

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, fixture, vector } from '../test-support'
+import { saveAndListMemories, fixture, vector } from '../test-support'
 import { seed, dump } from './test-support'
 
 it('raises four Rina records, merges them one by one, and undoes to identical source/index rows', () => {
@@ -27,7 +27,7 @@ it('undo leaves newly learned survivor facts in place and refuses a stale revisi
   const { store, db } = fixture()
   seed(db, 2)
   const op = store.merge('rina-2', 'rina-1', store.revision())
-  const ids = approve(store, {
+  const ids = saveAndListMemories(store, {
     entities: [],
     memories: [
       {

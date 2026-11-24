@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { openBrainStore } from './store'
-import { approve, extraction, fixture, lane, running, save } from './test-support'
+import { saveAndListMemories, extraction, fixture, lane, running, save } from './test-support'
 import { seed } from './tidy/test-support'
 import type { BrainStore } from './types'
 
@@ -46,7 +46,7 @@ it.each([{ selected: [0] }])(
   'a saved read %j replaces all unshared lane memories, with correct counters',
   ({ selected }) => {
     const { store, db } = fixture()
-    const ids = approve(store)
+    const ids = saveAndListMemories(store)
     const old = store.memory(ids[0]!).memory.jobId!
     // A changed leaf lets old code reach the approval assertion.
     const job = running(store, { leafId: 'new', replaces: old })
@@ -68,7 +68,7 @@ it.each(['citation', 'relation'] as const)(
   'keeps an independently supported %s memory unchanged but counts it in history',
   (support) => {
     const { store, db } = fixture()
-    const ids = approve(store)
+    const ids = saveAndListMemories(store)
     const old = store.memory(ids[0]!).memory.jobId!
     const n = db.prepare('SELECT n FROM memories WHERE id=?').get(ids[0]!)!.n
     db.exec(
@@ -95,7 +95,7 @@ it.each(['citation', 'relation'] as const)(
 )
 it('rolls back new saves, old removal, counters and job finalization together on a deletion failure', () => {
   const { store, db } = fixture()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   const old = store.memory(ids[0]!).memory.jobId!
   const job = running(store, { leafId: 'new', replaces: old })
   const before = store.snapshot()
@@ -111,7 +111,7 @@ it('rolls back new saves, old removal, counters and job finalization together on
 })
 it('replaces all lane provenance, including memories whose old job is gone, but never null provenance', () => {
   const { store, db } = fixture()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   const first = store.memory(ids[0]!).memory.jobId!
   const last = store.enqueue(lane({ leafId: 'later' }), 'queued')
   store.updateJob(last.id, { state: 'done' })
@@ -128,7 +128,7 @@ it.each(['empty', 'failed', 'cancelled'] as const)(
   '%s rereads leave earlier knowledge and finished history intact',
   (state) => {
     const { store } = fixture()
-    const ids = approve(store)
+    const ids = saveAndListMemories(store)
     const old = store.memory(ids[0]!).memory.jobId!
     const job = running(store, { leafId: 'new', replaces: old })
     if (state === 'cancelled') store.removeJob(job)

@@ -1,11 +1,11 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, vector } from '../test-support'
+import { saveAndListMemories, extraction, fixture, vector } from '../test-support'
 import { dump } from './test-support'
 
 /** Harbor, Rina Okafor (also "Rina") and Tom Lee, from one approved read. */
 function brain() {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const nodes = store.overview(300).nodes
   const id = (label: string) => nodes.find((node) => node.label === label)!.id
   return { store, db, harbor: id('Harbor'), rina: id('Rina Okafor'), tom: id('Tom Lee') }
@@ -79,7 +79,7 @@ function twoToms() {
       : [],
     citations: [citation],
   })
-  approve(result.store, {
+  saveAndListMemories(result.store, {
     jobId: 'vendor',
     origin: { sessionId: 'northwind-lane', title: 'Northwind renewal' },
     entities: [],

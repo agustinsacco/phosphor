@@ -151,7 +151,7 @@ export function save(
   return { ...store.saveRead(data), jobId }
 }
 /** Saves a read and returns the ids of every memory the overview reaches. */
-export function approve(store: BrainStore, input: Partial<Proposal> = {}): string[] {
+export function saveAndListMemories(store: BrainStore, input: Partial<Proposal> = {}): string[] {
   save(store, input)
   return store
     .overview(300)

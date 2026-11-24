@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { approve, extraction, fixture, vector } from '../test-support'
+import { saveAndListMemories, extraction, fixture, vector } from '../test-support'
 
 function repeated() {
   const data = extraction('invented')
@@ -8,7 +8,7 @@ function repeated() {
 }
 it('sweeps exact repeats only after approval commits, with an automatic undo operation', () => {
   const { store } = fixture()
-  approve(store, repeated())
+  saveAndListMemories(store, repeated())
   expect(store.snapshot().counts.memories).toBe(1)
   expect(store.tidySummary().automaticFolds).toBe(1)
   expect(store.tidyChanges(20).items[0]).toMatchObject({ kind: 'fold', who: 'automatic' })
@@ -26,7 +26,7 @@ it('never reports a saved approval as failed when its post-commit sweep fails, a
     return prepare(sql)
   }
   try {
-    expect(() => approve(store, repeated())).not.toThrow()
+    expect(() => saveAndListMemories(store, repeated())).not.toThrow()
     expect(store.snapshot().counts.memories).toBe(2)
     expect(warning).toHaveBeenCalled()
     store.sweep('all')
@@ -42,9 +42,9 @@ it('entity merges sweep changed mention sets, which can expose an exact memory r
   const data = repeated()
   data.memories = [data.memories[0]!]
   data.memoryVectors = [vector()]
-  approve(store, data)
+  saveAndListMemories(store, data)
   data.computedRevision = store.revision()
-  approve(store, { ...data, origin: { sessionId: 'ledger', title: 'Ledger' } })
+  saveAndListMemories(store, { ...data, origin: { sessionId: 'ledger', title: 'Ledger' } })
   const people = store.overview(20).nodes.filter((e) => e.kind === 'person')
   const projects = store.overview(20).nodes.filter((e) => e.kind === 'component')
   store.merge(people[1]!.id, people[0]!.id, store.revision())

@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { emptyBrainTidyCoverage } from '@phosphor/shared/brain-tidy'
-import { approve, extraction, fixture, vector } from '../test-support'
+import { saveAndListMemories, extraction, fixture, vector } from '../test-support'
 import { encodeVector } from '../vectors'
 import { seed, seedHistoricalVerdict } from './test-support'
 
@@ -83,12 +83,12 @@ it('keeps the model reason on the suggestion a fold applies', () => {
 
 it('shows only public coverage fields, with current totals once a pass is done', () => {
   const { store } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   while (store.sweep('all').coverage.phase !== 'done');
   const coverage = store.suggestions(null, null, 20).coverage
   expect(Object.keys(coverage).sort()).toEqual(Object.keys(emptyBrainTidyCoverage()).sort())
   const data = extraction('later')
-  approve(store, {
+  saveAndListMemories(store, {
     jobId: 'later',
     memories: [{ ...data.memories[0]!, summary: 'Rina archives Harbor invoices weekly.' }],
     memoryVectors: [vector(0, 0, 1)],

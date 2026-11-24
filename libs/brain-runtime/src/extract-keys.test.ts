@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import { afterEach, expect, it, vi } from 'vitest'
-import { approve, extraction, fixture } from '@phosphor/memory-engine/test-support'
+import { saveAndListMemories, extraction, fixture } from '@phosphor/memory-engine/test-support'
 import { pipelineSetup, answerFor } from './__fixtures__/pipeline'
 import { extractJob } from './extract'
 
@@ -12,7 +12,7 @@ it.each([false, true])(
     const { store } = fixture()
     const seed = extraction('')
     seed.entities.find((e) => e.ref === 'rina')!.keys = [{ namespace: 'staff', value: 'RINA 27' }]
-    approve(store, { entities: seed.entities })
+    saveAndListMemories(store, { entities: seed.entities })
     const oldRina = store.overview(300).nodes.find((e) => e.label === 'Rina Okafor')!.id
     const source = `The build is green.${stated ? ' Staff key: rina\n  27.' : ''}`
     await writeFile(

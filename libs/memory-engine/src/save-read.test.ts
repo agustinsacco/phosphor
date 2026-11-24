@@ -1,7 +1,15 @@
 import { expect, it } from 'vitest'
 import { BRAIN_TEMPORARY_DAYS } from '@phosphor/shared/brain'
 import { BRAIN_READ_STALE } from './read-stale'
-import { approve, extraction, fixture, lane, running, save, vector } from './test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  lane,
+  running,
+  save,
+  vector,
+} from './test-support'
 import { seed } from './tidy/test-support'
 
 const DAY = 86_400_000
@@ -32,7 +40,7 @@ it('saves a temporary claim with an end 14 days after it was said, its links end
 })
 it('keeps a temporary claim from replacing a lasting memory: it saves beside it', () => {
   const { store } = fixture()
-  const [target] = approve(store)
+  const [target] = saveAndListMemories(store)
   const data = extraction('unused')
   const saved = save(store, {
     origin: { sessionId: 'ledger-lane', title: 'Ledger' },
@@ -59,7 +67,7 @@ it('never saves a personal claim or repeat, and counts them', () => {
 it('refuses a stale read and one not in progress, changing nothing', () => {
   const { store } = fixture()
   const jobId = running(store)
-  approve(store, { origin: { sessionId: 'ledger-lane', title: 'Ledger' } })
+  saveAndListMemories(store, { origin: { sessionId: 'ledger-lane', title: 'Ledger' } })
   expect(() => store.saveRead(extraction(jobId, { computedRevision: 0 }))).toThrow(BRAIN_READ_STALE)
   expect(store.job(jobId)?.state).toBe('running')
   const queued = store.enqueue(lane({ sessionId: 'kestrel-lane' }), 'queued')
@@ -124,7 +132,7 @@ it('Read again keeps a memory whose link Brain Agent stated (F9)', () => {
 })
 it('answers stale, not invalid, when a target left Brain after the reader compared', () => {
   const { store } = fixture()
-  const [target] = approve(store)
+  const [target] = saveAndListMemories(store)
   const jobId = running(store, { sessionId: 'ledger-lane', leafId: 'leaf-stale' })
   const computedRevision = store.knowledgeRevision()
   store.erase(target!, { runId: null, reason: 'A test conversation made this up.' })
@@ -170,7 +178,7 @@ it('ends a temporary claim that starts later 14 days after its start, and each l
 })
 it('saves a temporary claim answered as enrich separately, leaving the lasting memory untouched', () => {
   const { store, db } = fixture()
-  const [target] = approve(store)
+  const [target] = saveAndListMemories(store)
   const before = store.memory(target!)
   const data = extraction('unused')
   const saved = save(store, {

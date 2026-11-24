@@ -1,9 +1,17 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, running, save, vector } from './test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  lane,
+  running,
+  save,
+  vector,
+} from './test-support'
 
 it("returns the lane's newest finished read and counts its surviving memories", () => {
   const { store } = fixture()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   const old = store.memory(ids[0]!).memory.jobId!
   store.forget(ids[0]!)
   expect(store.laneRead('harbor-lane')).toMatchObject({
@@ -28,7 +36,7 @@ it('retains completed step inputs and removes proposal vectors with their propos
 })
 it('reads the lane memories through the origin index', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const statements: string[] = []
   const prepare = db.prepare.bind(db)
   db.prepare = (sql) => {

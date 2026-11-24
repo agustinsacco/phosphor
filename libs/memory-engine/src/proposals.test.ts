@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { approve, extraction, fixture, running, vector } from './test-support'
+import { saveAndListMemories, extraction, fixture, running, vector } from './test-support'
 
 describe('Brain saved reads', () => {
   it('does not auto-confirm high cosine with different endpoints or negation', () => {
     const { store } = fixture()
-    approve(store)
+    saveAndListMemories(store)
     const job = running(store, { leafId: 'next' })
     const data = extraction(job, { computedRevision: store.knowledgeRevision() })
     data.memories[0]!.summary = 'Rina does not own Harbor.'
@@ -14,7 +14,7 @@ describe('Brain saved reads', () => {
   })
   it('surfaces same-link, shared-entity and changed-owner candidates', () => {
     const { store } = fixture()
-    approve(store)
+    saveAndListMemories(store)
     const nodes = store.overview(300).nodes
     const harbor = nodes.find((item) => item.label === 'Harbor')!.id
     const tom = nodes.find((item) => item.label === 'Tom Lee')!.id
@@ -43,7 +43,7 @@ describe('Brain saved reads', () => {
         5,
       ),
     ).toEqual([[]])
-    approve(store)
+    saveAndListMemories(store)
     const harbor = store.overview(300).nodes.find((item) => item.label === 'Harbor')!.id
     const owned = store
       .entityMemories(harbor, {}, null)

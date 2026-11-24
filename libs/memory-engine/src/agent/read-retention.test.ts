@@ -1,12 +1,20 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, running, save, vector } from '../test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  lane,
+  running,
+  save,
+  vector,
+} from '../test-support'
 import { dump } from '../tidy/test-support'
 
 const note = { runId: null, reason: 'The lane supports these claims.' }
 
 it('undoes Read again, restoring the replaced memories and their entities and quotes', () => {
   const { store, db } = fixture()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   const previous = store.laneRead('harbor-lane')!.job.id
   const jobId = running(store, { replaces: previous, leafId: 'leaf-2' })
   const data = extraction(jobId, { computedRevision: store.knowledgeRevision() })
