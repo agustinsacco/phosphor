@@ -233,12 +233,12 @@ it('tells Brain Agent with ⌘Enter, never asking, and offers its lane', async (
   const input = region('Ask Brain')!.querySelector('textarea, input') as HTMLTextAreaElement
   await act(async () => {
     const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')!.set!
-    setter.call(input, 'Kevin left the team')
+    setter.call(input, 'Tom Lee left the team')
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
   await press('Enter', input, { metaKey: true })
   await settle()
-  expect(called('brain:tell')).toEqual([['Kevin left the team']])
+  expect(called('brain:tell')).toEqual([['Tom Lee left the team']])
   expect(called('brain:ask')).toEqual([])
   expect(button('Open Brain lane')).toBeDefined()
 })

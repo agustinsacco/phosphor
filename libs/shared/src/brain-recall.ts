@@ -42,7 +42,7 @@ export interface BrainRecall {
   hits: BrainHit[]
   /** Every entity the hits, focus and trails reference, so tools can print names. */
   entities: BrainEntity[]
-  /** Entity ids the query named, or sits inside: "NRS" names every NRS project. */
+  /** Entity ids the query named, or sits inside: "Harbor" names every Harbor project. */
   focus: string[]
   /** Strong matches the limit left out, counted up to 50. */
   more: number

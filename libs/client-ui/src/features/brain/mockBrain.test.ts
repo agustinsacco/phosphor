@@ -147,9 +147,9 @@ it('answers Ask with hits whose trails start at what the question names', async 
 
 it('tells Brain Agent through its lane, says who you are, and bounds both', async () => {
   const off = createMockBrain(() => MOCK_SAID_AT)
-  await expect(off('brain:tell', ['Kevin left the team'])).rejects.toThrow('Turn Brain on first.')
+  await expect(off('brain:tell', ['Tom Lee left the team'])).rejects.toThrow('Turn Brain on first.')
   const { call } = await enabled()
-  expect(await call('brain:tell', ['Kevin left the team'])).toEqual({
+  expect(await call('brain:tell', ['Tom Lee left the team'])).toEqual({
     sessionPath: '/demo/brain/Brain/brain-agent.jsonl',
   })
   expect(await call('brain:setOwner', ['tom'])).toMatchObject({ ownerId: 'tom' })

@@ -94,7 +94,7 @@ it('dispatches the Brain queue, Defrag and Explorer channels', async () => {
   expect((await window.phosphor.invoke('brain:extraction', id)).memories).toHaveLength(2)
   const answer = await window.phosphor.invoke('brain:ask', 'Who does Tom Lee report to?')
   expect(answer.hits.map((hit) => hit.memory.summary)).toContain('Tom Lee reports to Mara Voss.')
-  expect(await window.phosphor.invoke('brain:tell', 'Kevin left the team')).toHaveProperty(
+  expect(await window.phosphor.invoke('brain:tell', 'Tom Lee left the team')).toHaveProperty(
     'sessionPath',
   )
   await window.phosphor.invoke('brain:defrag')
