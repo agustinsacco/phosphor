@@ -12,6 +12,7 @@ import {
 import { all, one, run, transaction, type Context } from '../database'
 import { bumpRevision } from '../prefs'
 import { flagKey } from './flag-keys'
+import { findSurvivingEntityId } from '../entities'
 import { recordFlag } from '../use'
 
 /**
@@ -100,35 +101,24 @@ export function clearSubject(ctx: Context, type: 'entity' | 'memory', id: string
   for (const column of ['first_id', 'second_id'])
     run(
       ctx,
-      `UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE subject_type=? AND ${column}=? AND state='open'`,
+      `UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE subject_type=? AND ${column}=? AND state='open' AND kind<>'group'`,
       ctx.now(),
       type,
       id,
     )
 }
-/** A merge keeps the open group questions that name its source, asking about the survivor. */
-export function repointGroups(ctx: Context, source: string, target: string): void {
-  for (const row of all<{ id: string; detail: string }>(
-    ctx,
-    `SELECT id,detail FROM tidy_suggestions WHERE kind='group' AND state='open' AND
-    EXISTS(SELECT 1 FROM json_each(detail,'$.memberIds') WHERE value=?)`,
-    source,
-  )) {
-    const detail = JSON.parse(row.detail) as Extract<BrainTidySuggestionExtra, { kind: 'group' }>
-    const memberIds = [...new Set(detail.memberIds.map((id) => (id === source ? target : id)))]
-    const [first = target, second = first] = memberIds
-    run(
-      ctx,
-      'UPDATE tidy_suggestions SET first_id=?,second_id=?,detail=?,updated_at=? WHERE id=?',
-      first,
-      second,
-      JSON.stringify({ ...detail, memberIds }),
-      ctx.now(),
-      row.id,
-    )
-  }
+/**
+ * A group question keeps the ids its read named; each resolves through merges when it is read or
+ * settled, so undoing a merge needs nothing from the question.
+ */
+export function groupMembers(ctx: Context, ids: string[]): string[] {
+  return [...new Set(ids.flatMap((id) => findSurvivingEntityId(ctx, id) ?? []))]
 }
 export function subjectExists(ctx: Context, row: SuggestionRow): boolean {
+  if (row.kind === 'group')
+    return [row.first_id, row.second_id ?? row.first_id].every(
+      (id) => findSurvivingEntityId(ctx, id) !== null,
+    )
   const table = row.subject_type === 'entity' ? 'entities' : 'memories'
   return (
     !!one(ctx, `SELECT 1 FROM ${table} WHERE id=?`, row.first_id) &&
@@ -171,16 +161,17 @@ export function suggestion(ctx: Context, raw: SuggestionRow): BrainTidySuggestio
     kind: row.kind,
     source: row.source,
     state: row.state,
-    subjects: [row.first_id, row.second_id]
-      .filter((id): id is string => id !== null)
-      .map((id) => ({
-        type: row.subject_type,
-        id,
-        label: scrubExcerpt(
-          one<{ label: string }>(ctx, `SELECT ${column} AS label FROM ${table} WHERE id=?`, id)
-            ?.label ?? 'Removed',
-        ),
-      })),
+    subjects: (row.kind === 'group'
+      ? groupMembers(ctx, [row.first_id, row.second_id ?? row.first_id])
+      : [row.first_id, row.second_id].filter((id): id is string => id !== null)
+    ).map((id) => ({
+      type: row.subject_type,
+      id,
+      label: scrubExcerpt(
+        one<{ label: string }>(ctx, `SELECT ${column} AS label FROM ${table} WHERE id=?`, id)
+          ?.label ?? 'Removed',
+      ),
+    })),
     reason: row.reason,
     verdict: row.verdict
       ? row.verdict === 'replaces'
@@ -191,10 +182,16 @@ export function suggestion(ctx: Context, raw: SuggestionRow): BrainTidySuggestio
     flag: row.problem
       ? { problem: row.problem, sessionId: row.session_id!, title: row.title ?? '' }
       : null,
-    detail: row.detail ? (JSON.parse(row.detail) as BrainTidySuggestionExtra) : null,
+    detail: row.detail ? suggestionDetail(ctx, row.detail) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+function suggestionDetail(ctx: Context, json: string): BrainTidySuggestionExtra {
+  const detail = JSON.parse(json) as BrainTidySuggestionExtra
+  return detail.kind === 'group'
+    ? { ...detail, memberIds: groupMembers(ctx, detail.memberIds) }
+    : detail
 }
 export function summary(ctx: Context): BrainTidySummary {
   return {

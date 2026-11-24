@@ -46,6 +46,14 @@ export function survivingEntityId(ctx: Context, id: string): string {
   }
   throw new Error('Brain entity not found.')
 }
+/** `survivingEntityId`, or null once the record and every survivor of it left Brain. */
+export function findSurvivingEntityId(ctx: Context, id: string): string | null {
+  try {
+    return survivingEntityId(ctx, id)
+  } catch {
+    return null
+  }
+}
 export function referencedEntities(
   ctx: Context,
   memories: { entityIds: string[] }[],

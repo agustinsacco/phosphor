@@ -5,23 +5,32 @@ import {
 } from '@phosphor/shared/brain-agent'
 import type { BrainTidyKind } from '@phosphor/shared/brain-tidy'
 import { all, one, run, type Context } from '../database'
-import { COUNTED, suggestion, type SuggestionRow } from '../tidy/suggestions'
+import {
+  COUNTED,
+  closeMissing as closeMissingRows,
+  suggestion,
+  type SuggestionRow,
+} from '../tidy/suggestions'
 import { scrubExcerpt } from '../secrets'
 import { clearExplainedPairs } from '../tidy/sweep-links'
 
 /**
  * Counts and the agent's queue agree, including suggestions whose subjects disappeared and
- * unlinked pairs a link now explains.
+ * unlinked pairs a link now explains. A group question's members resolve through merges.
  */
 function closeMissing(ctx: Context): void {
   run(
     ctx,
-    `UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE state='open' AND
+    `UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE state='open' AND kind<>'group' AND
     ((subject_type='entity' AND (NOT EXISTS(SELECT 1 FROM entities WHERE id=first_id) OR
       (second_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM entities WHERE id=second_id)))) OR
     (subject_type='memory' AND (NOT EXISTS(SELECT 1 FROM memories WHERE id=first_id) OR
       (second_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM memories WHERE id=second_id)))))`,
     ctx.now(),
+  )
+  closeMissingRows(
+    ctx,
+    all<SuggestionRow>(ctx, "SELECT * FROM tidy_suggestions WHERE state='open' AND kind='group'"),
   )
   clearExplainedPairs(ctx)
 }

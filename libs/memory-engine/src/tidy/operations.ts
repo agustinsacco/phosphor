@@ -1,6 +1,6 @@
 import type { JournalNote } from '../agent/notes'
 import { settleFoldSuggestions } from './fold-ancestry'
-import { clearSubject, repointGroups } from './suggestions'
+import { clearSubject } from './suggestions'
 import { all, one, transaction, type Context } from '../database'
 import { entityNumber } from '../entities'
 import { memoryNumber } from '../knowledge'
@@ -51,7 +51,6 @@ export function mergeChange(
     },
     () => mergeRows(ctx, source, target),
   )
-  repointGroups(ctx, source, target)
   clearSubject(ctx, 'entity', source)
   fingerprintMemories(ctx, memories)
   bumpKnowledgeRevision(ctx)
