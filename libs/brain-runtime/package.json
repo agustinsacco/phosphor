@@ -36,25 +36,13 @@
       "types": "./src/agent/own-lane.ts",
       "default": "./src/agent/own-lane.ts"
     },
-    "./agent/read-decision": {
-      "types": "./src/agent/read-decision.ts",
-      "default": "./src/agent/read-decision.ts"
-    },
     "./agent/refusal": {
       "types": "./src/agent/refusal.ts",
       "default": "./src/agent/refusal.ts"
     },
-    "./agent/review-refresh": {
-      "types": "./src/agent/review-refresh.ts",
-      "default": "./src/agent/review-refresh.ts"
-    },
     "./api": {
       "types": "./src/api.ts",
       "default": "./src/api.ts"
-    },
-    "./auto-run-stub": {
-      "types": "./src/auto-run-stub.ts",
-      "default": "./src/auto-run-stub.ts"
     },
     "./bridge": {
       "types": "./src/bridge.ts",

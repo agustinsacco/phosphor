@@ -27,6 +27,9 @@ function detail(
       observedAt: 1,
       validFrom: null,
       validTo: null,
+      importance: 1,
+      saidBy: 'agent',
+      lanes: 1,
     },
     quotes: [],
     linkQuotes: {},
@@ -34,6 +37,7 @@ function detail(
     history: [],
     related: [],
     sourcePath: null,
+    use: { recalled: 0, lastRecalledAt: null, flagged: 0 },
   }
 }
 const flag: BrainTidyFlag = {

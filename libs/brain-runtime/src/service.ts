@@ -3,8 +3,7 @@ import { join } from 'node:path'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { BrainService, BrainServiceOptions, BrainSearchPort } from './types'
 import { ExtractionQueue } from './queue'
-// TODO(WP7): import from './agent/auto-run' after WP4 merges and delete the stub.
-import { createAutoRun, type AutoRun } from './auto-run-stub'
+import { createAutoRun, type AutoRun } from './agent/auto-run'
 import type { BrainAgentRun } from '@phosphor/shared/brain-agent'
 import type { ReadOptions } from './extraction-save'
 import { extractJob } from './extract'
@@ -115,7 +114,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     options,
     queue,
     changed,
-    onRunEnded: (run: BrainAgentRun) => autoRun.runEnded(run),
+    runEnded: (run: BrainAgentRun) => autoRun.runEnded(run),
   }
   const defrag = createDefrag(defragContext)
   const autoRun: AutoRun = createAutoRun({ store, queue, defrag, options })
