@@ -180,7 +180,21 @@ async function installRelease(
 interface SetupReport {
   exitCode?: unknown
   notes?: unknown
+  checks?: unknown
   machineId?: unknown
+}
+
+/** The failed checks' `id: summary`, then the notes: the reason first, the hints after. */
+function setupFailure(report: SetupReport): string[] {
+  const checks = Array.isArray(report.checks) ? (report.checks as unknown[]) : []
+  const failed = checks.flatMap((c) => {
+    const check = c && typeof c === 'object' ? (c as Record<string, unknown>) : {}
+    return check.status === 'fail' && typeof check.summary === 'string'
+      ? [`${typeof check.id === 'string' ? check.id : 'check'}: ${check.summary}`]
+      : []
+  })
+  const notes = Array.isArray(report.notes) ? report.notes.filter((n) => typeof n === 'string') : []
+  return [...failed, ...notes]
 }
 
 function setupReport(stdout: string): SetupReport {
@@ -212,9 +226,10 @@ async function runSetup(
   const run = ports.run ?? defaultRun
   const { code, stdout } = await run(program, args, { env, timeoutMs: SETUP_TIMEOUT_MS, signal })
   const report = setupReport(stdout)
-  const notes = Array.isArray(report.notes) ? report.notes.filter((n) => typeof n === 'string') : []
-  if (code !== 0 || report.exitCode !== 0 || !isUuid(report.machineId))
-    return { state: 'failed', detail: notes.join(' ') || `Service setup exited with ${code}.` }
+  if (code !== 0 || report.exitCode !== 0 || !isUuid(report.machineId)) {
+    const detail = setupFailure(report).join(' ')
+    return { state: 'failed', detail: detail || `Service setup exited with ${code}.` }
+  }
   let launcher: 'created' | 'ours' | 'foreign' | 'unsafe'
   try {
     launcher = ensureLauncher(roots.home, ports.uid ?? process.getuid?.())
