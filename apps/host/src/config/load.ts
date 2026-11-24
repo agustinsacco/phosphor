@@ -1,7 +1,7 @@
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
-import { hostConfigDirectory } from '@phosphor/shared/host-local'
+import { HOST_CONFIG_FILE, hostConfigDirectory } from '@phosphor/shared/host-local'
 import { validateHostConfig, type ConfigError, type HostConfigV1 } from './schema'
 
 export const CONFIG_MAX_BYTES = 64 * 1024
@@ -11,7 +11,7 @@ export const CONFIG_MAX_BYTES = 64 * 1024
  * alike. There is deliberately no environment variable naming the file.
  */
 export function defaultConfigPath(env: NodeJS.ProcessEnv, home: string): string {
-  return join(hostConfigDirectory(env, home), 'config.json')
+  return join(hostConfigDirectory(env, home), HOST_CONFIG_FILE)
 }
 
 export type ConfigLoad =

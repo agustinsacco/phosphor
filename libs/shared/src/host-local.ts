@@ -215,6 +215,9 @@ function xdgBase(value: string | undefined, home: string, fallback: string): str
   return value?.startsWith('/') ? value : joinPosix(home, fallback)
 }
 
+/** The Host's config file in its config folder: a finished `setup` writes it. */
+export const HOST_CONFIG_FILE = 'config.json'
+
 /**
  * `${XDG_CONFIG_HOME:-~/.config}/phosphor-host`, on Linux and macOS alike: the
  * folder of `config.json` and the sidecars beside it (`local-identity.json`).

@@ -3,6 +3,8 @@ import { lstatSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync } fr
 import { join } from 'node:path'
 import type { HostReleaseArtifactV2, HostReleaseManifestV2 } from '@phosphor/shared/host-release'
 import { isUuid } from '@phosphor/shared/control-api'
+import { HOST_CONFIG_FILE } from '@phosphor/shared/host-local'
+import { isNewerVersion } from '@phosphor/shared/version'
 import { errorText } from '@phosphor/shared/errors'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { stageRelease } from '@phosphor/session-runtime/host-install/fetch'
@@ -125,7 +127,18 @@ const exists = (path: string) => {
   }
 }
 
-/** Download, verify, probe and publish a first release; `current` appears last. */
+/**
+ * No config and no launcher: no `setup` finished, so nothing runs this release and nothing
+ * else depends on its version. A configured service updates only through `phosphor update`.
+ */
+const neverSetUp = (roots: DaemonRoots) =>
+  !exists(join(roots.configDir, HOST_CONFIG_FILE)) && !exists(roots.serviceFile)
+
+/**
+ * Download, verify, probe and publish a release; `current` moves last. Over an install that
+ * was never set up, a newer release replaces `current`, reusing a verified copy an earlier
+ * attempt unpacked; the older version stays in `versions/`.
+ */
 async function installRelease(
   ports: DaemonInstallPorts,
   release: HostReleaseManifestV2,
@@ -138,15 +151,22 @@ async function installRelease(
   let stage: string | undefined
   try {
     const destination = join(roots.lib, 'versions', release.version)
-    if (exists(join(roots.lib, 'current'))) throw new Error('The service install changed; retry.')
-    if (exists(destination)) throw new Error(`Existing version: ${destination}.`)
-    stage = mkdtempSync(join(roots.lib, '.staging-'))
-    const source = { ...roots.release, platform: roots.platform }
-    await stageRelease(source, stage, release.version, artifact, signal)
-    requireLocalRelease(release, await probeStagedBundle(stage, signal), roots.target)
+    const replacing = exists(join(roots.lib, 'current'))
+    // Checked again under the lock: a setup may have finished since the inspection.
+    if (replacing && !neverSetUp(roots)) throw new Error('The service install changed; retry.')
+    if (exists(destination)) {
+      if (!replacing) throw new Error(`Existing version: ${destination}.`)
+      requireLocalRelease(release, await probeStagedBundle(destination, signal), roots.target)
+    } else {
+      stage = mkdtempSync(join(roots.lib, '.staging-'))
+      const source = { ...roots.release, platform: roots.platform }
+      await stageRelease(source, stage, release.version, artifact, signal)
+      requireLocalRelease(release, await probeStagedBundle(stage, signal), roots.target)
+      signal.throwIfAborted()
+      renameSync(stage, destination)
+      stage = undefined
+    }
     signal.throwIfAborted()
-    renameSync(stage, destination)
-    stage = undefined
     const link = join(roots.lib, `.current-${process.pid}`)
     rmSync(link, { force: true })
     symlinkSync(`versions/${release.version}`, link)
@@ -239,7 +259,11 @@ export async function attemptDaemonInstall(
       )
     if (existing.kind === 'unrecognised') return blocked('unrecognised-install', existing.detail)
     let version = release.version
-    if (existing.kind === 'release') {
+    const replace =
+      existing.kind === 'release' &&
+      neverSetUp(roots) &&
+      isNewerVersion(release.version, existing.version)
+    if (existing.kind === 'release' && !replace) {
       if (!hasLocalFeatures(existing.features))
         return blocked(
           'needs-update',
