@@ -217,7 +217,7 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
 }
 
 it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
-  '%s undo after Read again cannot restore the replaced lane memory',
+  '%s undo after Read again is refused while the replaced lane memory is gone',
   (kind) => {
     const { store, db } = setup()
     const target = kind === 'merge' ? 'memory-1' : 'memory-2'
@@ -238,11 +238,8 @@ it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
       }),
     )
     expect(() => store.memory(target)).toThrow('not found')
-    if (kind === 'merge') store.tidyUndo(operation, store.revision())
-    else
-      expect(() => store.tidyUndo(operation, store.revision())).toThrow(
-        /forgotten|no longer available/,
-      )
+    // Read again keeps the earlier record, so the change cannot half-undo around the gap.
+    expect(() => store.tidyUndo(operation, store.revision())).toThrow('Later changes')
     expect(() => store.memory(target)).toThrow('not found')
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
   },

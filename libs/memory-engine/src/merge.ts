@@ -77,11 +77,17 @@ export function forget(ctx: Context, id: string): void {
 }
 /**
  * The caller owns the transaction, the revision bump and the extraction prune, so replacing a
- * read is atomic and does that global work once, not once per memory.
+ * read is atomic and does that global work once, not once per memory. Forget and erasure also
+ * erase the memory from earlier undo records. Read again keeps them (`keepHistory`): its own
+ * undo brings the memory back, and an earlier change must then still undo completely.
  */
-export function removeMemory(ctx: Context, id: string): void {
+export function removeMemory(
+  ctx: Context,
+  id: string,
+  options: { keepHistory?: boolean } = {},
+): void {
   const n = memoryNumber(ctx, id)
-  eraseTidyMemory(ctx, id, n)
+  if (!options.keepHistory) eraseTidyMemory(ctx, id, n)
   const state = one<{ state: string }>(ctx, 'SELECT state FROM memories WHERE n=?', n)!.state
   const touched = new Set(
     all<{ entity: number }>(ctx, 'SELECT entity FROM mentions WHERE memory=?', n).map(

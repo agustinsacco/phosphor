@@ -178,7 +178,7 @@ export function saveRead(ctx: Context, raw: Proposal): SavedRead {
         counts.groups = applyRead(commit, chosen, value.jobId)
         for (const id of replaced)
           if (one(ctx, 'SELECT 1 FROM memories WHERE id=?', id)) {
-            removeMemory(ctx, id)
+            removeMemory(ctx, id, { keepHistory: true })
             counts.replaced++
           }
         cleanOrphans(ctx, touched)

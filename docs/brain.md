@@ -361,7 +361,9 @@ in either version.
   keep reopens the question. Undoing a fold or merge remembers the pair so the next sweep does
   not just repeat it.
 - Forget and `brain_erase` are permanent. Brain Agent can erase at most 25 memories in a
-  rolling hour. The journal cannot restore forgotten text. Erasing a memory does not edit the
+  rolling hour. The journal cannot restore forgotten text. Read again is not a Forget: it keeps
+  earlier undo records, so an earlier change that touched a replaced memory undoes completely
+  once the Read again is undone, and is refused while it stands. Erasing a memory does not edit the
   original lane or the scrubbed source in a retained read record. Each lane normally keeps
   its newest 20 finished reads. A record without its job survives only while referenced by a
   memory and for at most 30 days after the read finishes.
