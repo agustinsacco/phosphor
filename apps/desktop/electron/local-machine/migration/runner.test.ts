@@ -146,6 +146,22 @@ describe('runMigration', () => {
     expect(w.localRuntime).not.toHaveBeenCalled()
   })
 
+  it('an unexpected error aborts as internal and logs what it was, not only the code', async () => {
+    const w = world()
+    const scan = () => Promise.reject(new TypeError('cannot read the archive list'))
+    const outcome = await runMigration(
+      { ...w.ports, scan },
+      { previous: null, machineId: MACHINE_ID },
+    )
+    expect(outcome).toMatchObject({ kind: 'aborted', code: 'internal' })
+    expect(w.journal()).toMatchObject({ failure: { step: 'plan', code: 'internal' } })
+    expect(w.log).toHaveBeenCalledWith('migration.aborted', {
+      step: 'plan',
+      code: 'internal',
+      error: 'TypeError: cannot read the archive list',
+    })
+  })
+
   it('the 120 s budget aborts before the commit point', async () => {
     const w = world()
     const slow: RunnerPorts = {
