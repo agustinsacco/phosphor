@@ -157,6 +157,17 @@ describe('scanPlanFacts', () => {
     )
   })
 
+  it('moves a rewound predecessor as a lane, so the service links and folds it as Desktop did', async () => {
+    // Left behind, the service's folder scan found it again with no link and showed it.
+    const facts = await scanPlanFacts(ports({ routinesCopy: routinesCopy() }))
+    const predecessor = facts.sessions.find((s) => s.sessionId === ID(5))!
+    const successor = facts.sessions.find((s) => s.sessionId === ID(1))!
+    const plan = buildPlan(facts)
+    expect(plan.laneIds[predecessor.path]).toBeDefined()
+    expect(plan.sections.marks!.rewound).toEqual({ [predecessor.path]: successor.path })
+    expect(plan.expected.lanes).toBe(plan.sections.lanes!.items.length)
+  })
+
   it('copies the routines with every workspace realpathed, and leaves the backup copy alone', async () => {
     const copy = routinesCopy()
     const facts = await scanPlanFacts(ports({ routinesCopy: copy }))
