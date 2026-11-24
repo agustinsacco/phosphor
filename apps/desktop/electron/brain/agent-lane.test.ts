@@ -12,7 +12,7 @@ import {
 } from './agent-lane'
 import { BRAIN_AGENT_RULES } from './lane-folder'
 
-const MESSAGE = 'Defrag. 2 waiting: 1 read, 1 flag. Start with brain_waiting.'
+const MESSAGE = 'Defrag. 2 waiting: 1 group, 1 flag. Start with brain_waiting.'
 
 /**
  * A pi process as the Brain lane sees it: get_state answers, prompts start a turn, a turn's
@@ -420,5 +420,22 @@ describe('a Defrag turn in the Brain lane', () => {
       await turnEndingWith({ role: 'assistant', content: [], stopReason: 'aborted' }),
     ).toMatchObject({ outcome: 'stopped', error: null })
     expect(await turnEndingWith()).toMatchObject({ outcome: 'failed', error: null })
+  })
+})
+
+it('sends tell as an ordinary owner prompt once the lane settles, returning at acceptance', async () => {
+  const { agent, deps } = host()
+  lane.busy = true
+  onPrompt = () => {
+    lane.busy = true
+  }
+  const result = agent.tell('Tom Lee leads Ledger.')
+  await vi.waitFor(() => expect(lane.listenerCount('event')).toBe(1))
+  expect(commands(deps)).toEqual([])
+  lane.send({ type: 'agent_settled', aborted: false } as PiEvent)
+  await expect(result).resolves.toEqual({ sessionPath: '/sessions/brain/new.jsonl' })
+  expect(deps.command).toHaveBeenCalledWith('brain-1', {
+    type: 'prompt',
+    message: 'Tom Lee leads Ledger.',
   })
 })

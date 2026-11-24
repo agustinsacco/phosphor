@@ -68,7 +68,9 @@ it('upgrades only the exact v7 rules', async () => {
   for (const suffix of ['', '\n']) {
     await writeFile(join(root, 'AGENTS.md'), BRAIN_AGENT_RULES_V7 + suffix)
     await ensureBrainLane(root)
-    expect(await readBrainRules(root)).toBe(suffix ? BRAIN_AGENT_RULES_V7 + suffix : BRAIN_AGENT_RULES)
+    expect(await readBrainRules(root)).toBe(
+      suffix ? BRAIN_AGENT_RULES_V7 + suffix : BRAIN_AGENT_RULES,
+    )
   }
   expect(BRAIN_AGENT_RULES).toContain('## Links')
 })
