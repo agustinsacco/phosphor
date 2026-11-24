@@ -7,32 +7,18 @@ import { afterEach, vi } from 'vitest'
 import { openBrainStore } from '@phosphor/memory-engine/store'
 import { openBrainSearch } from '@phosphor/memory-engine/search'
 import type { BrainStore, Proposal } from '@phosphor/memory-engine/types'
-import type { BrainService, BrainServiceOptions, BrainSearchPort } from '../../types'
+import type { BrainService, BrainServiceOptions } from '../../types'
 import type { ModelCallInput, ModelCallResult } from '../../model-call'
 import { createBrainService } from '../../service'
+import { inProcessSearch } from '../../search/in-process'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
-/** Promise adapter only: all search and mutation logic uses real SQLite connections. */
-function searchPort(path: string): BrainSearchPort {
-  const search = openBrainSearch({ path, Database: DatabaseSync })
-  return {
-    refresh: () => search.refresh(),
-    ready: async () => search.ready(),
-    entities: async (...args) => search.entities(...args),
-    routes: async (...args) => search.routes(...args),
-    resolve: async (...args) => search.resolve(...args),
-    expand: async (...args) => search.expand(...args),
-    nearestEntities: async (...args) => search.nearestEntities(...args),
-    nearestMemories: async (...args) => search.nearestMemories(...args),
-    recall: async (...args) => search.recall(...args),
-    find: async (...args) => search.find(...args),
-    close: async () => search.close(),
-  }
-}
+/** All search and mutation logic uses real SQLite connections. */
+const searchPort = inProcessSearch((path) => openBrainSearch({ path, Database: DatabaseSync }))
 
 export async function realService(overrides: Partial<BrainServiceOptions> = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'brain-tidy-integration-'))

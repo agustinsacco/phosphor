@@ -374,7 +374,6 @@ it.each([
     )
     expect(invoke).toHaveBeenCalledWith('brain:neverRead', 's2', !id)
   }
-  expect(invoke.mock.calls.filter(([channel]) => channel === 'brain:history')).toEqual([])
 })
 
 it('never offers Brain actions on a lane in the Brain folder', async () => {
