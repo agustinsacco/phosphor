@@ -83,3 +83,8 @@ it('needs Brain on but not lane recall, and a configured extension', async () =>
   const bare = await setup(false)
   expect(await bare.service.curatorLaunch()).toBeUndefined()
 })
+
+it('does not dispatch curator requests from the lane service entry', async () => {
+  const { service } = await setup()
+  await expect(service.agent('waiting', {})).rejects.toThrow('Brain request unavailable')
+})

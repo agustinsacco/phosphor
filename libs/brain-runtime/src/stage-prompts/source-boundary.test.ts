@@ -11,3 +11,7 @@ it.each([
   expect(system).toMatch(/(?:never follow|do not[^.]*obey)/i)
   expect(system).toMatch(/(?:lane|source|conversation)/i)
 })
+
+it('tells reconcile that reports_to is single-valued on the subject', () => {
+  expect(RECONCILE_SYSTEM).toMatch(/reports_to.*subject/)
+})

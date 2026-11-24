@@ -11,7 +11,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup()
 })
 /** The fixture lane says "Rina Okafor owns Harbor billing. Tom Lee reviews schema changes." */
-function answer(hold: unknown) {
+function answer(hold: unknown, validFrom?: string) {
   const value = structuredClone(RAW_EXTRACTION) as unknown as {
     entities: unknown[]
     claims: Record<string, unknown>[]
@@ -29,6 +29,7 @@ function answer(hold: unknown) {
     ref: 'c2',
     text: 'Tom Lee reviews schema changes.',
     type: 'fact',
+    validFrom: validFrom ?? null,
     mentions: ['n3'],
     links: [],
     quotes: [{ segment: 's1', quote: 'Tom Lee reviews schema changes.' }],
@@ -36,7 +37,7 @@ function answer(hold: unknown) {
   })
   return value
 }
-async function run(options: { hold: unknown; identity?: 'new' | 'uncertain' }) {
+async function run(options: { hold: unknown; validFrom?: string; identity?: 'new' | 'uncertain' }) {
   const s = await pipelineSetup()
   cleanups.push(s.cleanup)
   if (options.identity === 'uncertain') {
@@ -56,7 +57,7 @@ async function run(options: { hold: unknown; identity?: 'new' | 'uncertain' }) {
   s.runner.mockImplementation(async (input: ModelCallInput) => ({
     text:
       input.stage === 'extract'
-        ? JSON.stringify(answer(options.hold))
+        ? JSON.stringify(answer(options.hold, options.validFrom))
         : input.stage === 'identity' && options.identity === 'uncertain'
           ? answerFor(input).replaceAll('"new"', '"uncertain"')
           : answerFor(input),
@@ -120,4 +121,11 @@ it('marks a claim the backstop finds temporary or personal when the model did no
     window,
   )
   expect(parsed.claims.map((c) => c.hold)).toEqual(['personal', 'temporary'])
+})
+
+it('records the derived temporary end relative to a future start', async () => {
+  const s = await run({ hold: 'temporary', validFrom: '2027-01-05' })
+  expect(s.store.extraction(s.job.id).outcomes).toContainEqual(
+    expect.objectContaining({ candidate: 'w1:c2', reason: 'Saved until 2027-01-19' }),
+  )
 })

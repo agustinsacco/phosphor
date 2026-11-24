@@ -118,3 +118,9 @@ it.each([
 ])('rejects malformed flag responses %j', async (response) => {
   await expect(setup(response).client.flag(flag)).rejects.toMatchObject({ code: 'malformed' })
 })
+
+it('explains the three moves when a search mixes modes', async () => {
+  await expect(setup().client.search({ query: 'Harbor', from: 'Ledger' })).rejects.toThrow(
+    /query.*from.*optional context.*from and to/i,
+  )
+})
