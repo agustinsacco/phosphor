@@ -27,3 +27,13 @@ it('never verifies a quote across, or containing, an elision marker', () => {
     quote: 'tail',
   })
 })
+
+it.each([{label: 'x'.repeat(81)}, {predicate: 'unknown'}, {since: '2026-02-30'}, {until: 'not a date'}])('rejects invalid sentence link metadata: %j', (bad) => {
+  const quote = 'Rina Okafor owns Harbor billing.'
+  const window = makeWindow([{entryId: 'u', role: 'user', label: 'You', observedAt: 1, text: quote}])
+  const raw = structuredClone(RAW_EXTRACTION)
+  Object.assign(raw.claims[0]!.links[0]!, bad)
+  const parsed = parseStageExtraction(JSON.stringify(raw), window)
+  expect(parsed.claims[0]!.links).toEqual([])
+  expect(parsed.outcomes).toContainEqual(expect.objectContaining({status: 'dropped'}))
+})

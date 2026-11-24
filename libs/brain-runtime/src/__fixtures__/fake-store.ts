@@ -1,7 +1,7 @@
 const unfaked = (): never => {
   throw new Error('Not faked')
 }
-import { BRAIN_REVIEW_CHANGED } from '@phosphor/shared/brain-review'
+import { BRAIN_READ_STALE } from '@phosphor/memory-engine/read-stale'
 import { emptyBrainTidySummary, emptyBrainTidyCoverage } from '@phosphor/shared/brain-tidy'
 import {
   DEFAULT_BRAIN_PREFS,
@@ -190,6 +190,23 @@ export class FakeBrainStore implements BrainStore {
   memoryCards(ids: string[]): MemoryCard[] {
     return this.oldMemories.filter((c) => ids.includes(c.id))
   }
+  saved = new Map<string, Proposal>()
+  saveRead(proposal: Proposal): ReturnType<BrainStore['saveRead']> {
+    if (proposal.computedRevision !== this.knowledgeRevision()) throw new Error(BRAIN_READ_STALE)
+    const memories = proposal.memories.filter((m) => m.hold !== 'personal').length
+    const confirmed = proposal.confirmations.filter((c) => c.claim.hold !== 'personal').length
+    const groups = proposal.groups.length
+    const state = memories || confirmed || groups ? 'done' : 'empty'
+    this.saved.set(proposal.jobId, proposal)
+    this.updateJob(proposal.jobId, { state, memories })
+    this.proposals.delete(proposal.jobId)
+    this.rev++
+    const claims = [...proposal.memories, ...proposal.confirmations.map((c) => c.claim)]
+    return {state, memories, confirmed, groups, guesses: proposal.entities.filter((e) => e.decision === 'uncertain' && e.candidates.length).length,
+      personal: claims.filter((m) => m.hold === 'personal').length,
+      temporary: claims.filter((m) => m.hold === 'temporary').length,
+      operationId: state === 'done' ? 'saved-read' : null, replaced: 0, touched: {entityIds: [], memoryIds: []}}
+  }
   propose(proposal: Proposal) {
     this.proposals.set(proposal.jobId, proposal)
     this.updateJob(proposal.jobId, {
@@ -248,7 +265,7 @@ export class FakeBrainStore implements BrainStore {
   }
   review(id: string, decision: BrainReviewDecision | null, revision: number): void {
     if (decision !== null && revision !== this.knowledgeRevision())
-      throw new Error(BRAIN_REVIEW_CHANGED)
+      throw new Error(BRAIN_READ_STALE)
     this.reviews.push({ id, decision })
     this.updateJob(id, {
       state: decision ? 'done' : 'rejected',
