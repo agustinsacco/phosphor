@@ -3,7 +3,8 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ContextMenuHost } from '@/components/ContextMenu'
-import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { useChatStore } from '@/stores/chat'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -181,4 +182,35 @@ it('offers Lane marker… on a Host lane only while markers are on', async () =>
   } finally {
     act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
   }
+})
+
+it('adds a tree and clone only when the connected machine announces lane editing', () => {
+  render({ ...host(true), ops: true, laneEditing: true })
+  expect(menuRows()).toEqual(
+    expect.arrayContaining([
+      ['Session tree…', false],
+      ['Clone', false],
+    ]),
+  )
+})
+
+it('offers no tree or clone before the lane has a first message: the Host would refuse both', () => {
+  const id = mockRemoteInfo.sessionId
+  const items = (list: unknown[]) =>
+    act(() =>
+      useChatStore.setState({
+        sessions: { [id]: { items: list } },
+      } as unknown as Partial<ReturnType<typeof useChatStore.getState>>),
+    )
+  useSessionsStore.setState({ live: { [id]: { ...mockRemoteInfo, phosphorId: id } } })
+  items([])
+  render({ ...host(true), ops: true, laneEditing: true })
+  const labels = () => menuRows().map(([label]) => label)
+  expect(labels()).not.toContain('Clone')
+  expect(labels()).not.toContain('Session tree…')
+  act(() => root.unmount())
+  root = createRoot(container)
+  items([{ id: 'u', kind: 'user', text: 'hi' }])
+  render({ ...host(true), ops: true, laneEditing: true })
+  expect(labels()).toEqual(expect.arrayContaining(['Clone', 'Session tree…']))
 })

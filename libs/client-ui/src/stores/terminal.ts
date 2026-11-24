@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { drop, keyedSlice } from './keyedSlice'
 import { useLayoutStore } from './layout'
 import { useSessionsStore } from './sessions'
-import { useRemoteLanesStore, canControlSession } from './remoteLanes'
+import { ensureSessionControl, laneControlPolicy } from '@/platform/serviceLaneControl'
+import { useRemoteLanesStore, canControlSession, sessionHostLane } from './remoteLanes'
 import { hostFeatureRefusal } from './hostRefusals'
 import { ipcErrorText } from '@shared/errors'
 import type { HostsSnapshot } from '@shared/ipc'
@@ -119,12 +120,14 @@ function patchOwner(
  * tree (builds, tests, dev servers) to it in the resource monitor; a machine
  * shell is the Host account's login shell in its home, opened by the Host.
  */
-function spawnShell(target: TerminalTarget): Promise<string> {
-  return target.kind === 'lane'
-    ? window.phosphor
-        .invoke('pty:create', target.workspacePath, 80, 24, target.sessionId)
-        .then(({ ptyId }) => ptyId)
-    : window.phosphor.invoke('hosts:machineShell', target.hostId, 80, 24).then(({ ptyId }) => ptyId)
+async function spawnShell(target: TerminalTarget): Promise<string> {
+  if (target.kind === 'machine')
+    return (await window.phosphor.invoke('hosts:machineShell', target.hostId, 80, 24)).ptyId
+  // Viewers can attach read-only. Claim only on an explicit new shell, not the pane's mount.
+  if (terminalAccess(target.sessionId) === 'claimable') await ensureSessionControl(target.sessionId)
+  return (
+    await window.phosphor.invoke('pty:create', target.workspacePath, 80, 24, target.sessionId)
+  ).ptyId
 }
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
@@ -305,9 +308,13 @@ export function useTerminalRefusal(sessionId: string): string | undefined {
 }
 
 /** Remote terminals use the same tabs, but never inherit local input authority. */
-export function terminalAccess(sessionId: string): 'control' | 'viewer' | 'unavailable' {
+export function terminalAccess(
+  sessionId: string,
+): 'control' | 'claimable' | 'viewer' | 'unavailable' {
   if (terminalRefusal(sessionId)) return 'unavailable'
-  return canControlSession(sessionId) ? 'control' : 'viewer'
+  if (!canControlSession(sessionId)) return 'viewer'
+  const remote = sessionHostLane(sessionId)
+  return laneControlPolicy(remote?.host?.local, remote?.lane).auto ? 'claimable' : 'control'
 }
 
 /** Why this device cannot open shells for this target, or undefined when it can. */
@@ -321,7 +328,9 @@ export function targetRefusal(target: TerminalTarget): string | undefined {
  * Whether the pane may type. A machine shell has no viewer role: this device
  * either holds `terminal` and `sessions.control` on that Host or is refused.
  */
-export function targetAccess(target: TerminalTarget): 'control' | 'viewer' | 'unavailable' {
+export function targetAccess(
+  target: TerminalTarget,
+): 'control' | 'claimable' | 'viewer' | 'unavailable' {
   if (targetRefusal(target)) return 'unavailable'
   return target.kind === 'lane' ? terminalAccess(target.sessionId) : 'control'
 }

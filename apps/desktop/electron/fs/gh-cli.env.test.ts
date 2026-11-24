@@ -20,7 +20,7 @@ vi.mock('node:child_process', () => ({
   },
 }))
 
-vi.mock('../pi/shell-env', () => ({
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   piProcessEnv: (extra?: Record<string, string>) =>
     Promise.resolve({ PATH: '/opt/homebrew/bin:/usr/bin', ...extra }),
 }))

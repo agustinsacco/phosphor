@@ -5,7 +5,7 @@ import {
   dirtyCount,
   git,
 } from '@phosphor/session-runtime/git/git-exec'
-import { parseWorktreeList } from './git-worktrees'
+import { parseWorktreeList } from '@phosphor/session-runtime/git/worktree-metadata'
 
 /**
  * Staying in sync with the remote: fetch, fast-forward pull, refreshing a

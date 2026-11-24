@@ -13,6 +13,8 @@ Everything here is **hard-gated on `app.isPackaged`**. Dev runs, the browser
 harness and the Playwright suite never reach the network for an update check,
 and `electron-updater` is imported lazily so an unpackaged run does not load it.
 
+Desktop and This Mac’s lane service update independently. [This Mac’s service](local-service.md) owns release gating, staged service updates and migration recovery.
+
 ## Three paths, chosen once at startup
 
 `resolveUpdatePath()` in [apps/desktop/electron/updates/updater.ts](../apps/desktop/electron/updates/updater.ts)

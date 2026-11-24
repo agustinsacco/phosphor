@@ -30,22 +30,23 @@ async function setup(withCurator = true) {
   return { store, service }
 }
 
-it('hands the Brain lane its own token, extension and skill; any lane keeps recall', async () => {
+it('hands the Brain lane its own token, extension and skill; any lane keeps tokenless recall', async () => {
   const s = await setup()
   const lane = await s.service.recallLaunch()
   const brain = await s.service.curatorLaunch()
   expect(brain).toMatchObject({
     extensions: [curator.extension],
     skills: [curator.skill],
-    env: { PHOSPHOR_BRAIN_ENDPOINT: lane?.env.PHOSPHOR_BRAIN_ENDPOINT },
+    connection: { endpoint: expect.any(String), token: expect.any(String) },
   })
-  expect(brain!.env.PHOSPHOR_BRAIN_TOKEN).not.toBe(lane!.env.PHOSPHOR_BRAIN_TOKEN)
+  // Every other lane reaches Brain over its op channel, so recall carries no endpoint or token.
+  expect(lane).not.toHaveProperty('connection')
   expect(lane?.extensions).toEqual(['/brain.mjs'])
 
   const client = createBrainCuratorClient(
     createNodeBrainTransport({
-      endpoint: brain!.env.PHOSPHOR_BRAIN_ENDPOINT!,
-      token: brain!.env.PHOSPHOR_BRAIN_TOKEN!,
+      endpoint: brain!.connection.endpoint,
+      token: brain!.connection.token,
     }),
   )
   const waiting = await client.call('waiting', {})
@@ -54,18 +55,11 @@ it('hands the Brain lane its own token, extension and skill; any lane keeps reca
     code: 'remote',
     message: 'No memory',
   })
-  // The lane token cannot reach a curator method; the curator token cannot flag.
-  const laneTransport = createNodeBrainTransport({
-    endpoint: lane!.env.PHOSPHOR_BRAIN_ENDPOINT!,
-    token: lane!.env.PHOSPHOR_BRAIN_TOKEN!,
-  })
-  await expect(laneTransport.request('waiting', {})).rejects.toMatchObject({
-    message: 'Brain request unavailable',
-  })
+  // The curator token cannot flag (bridge-curator.test.ts pins the lane token's limits).
   const flagging = createBrainClient(
     createNodeBrainTransport({
-      endpoint: brain!.env.PHOSPHOR_BRAIN_ENDPOINT!,
-      token: brain!.env.PHOSPHOR_BRAIN_TOKEN!,
+      endpoint: brain!.connection.endpoint,
+      token: brain!.connection.token,
     }),
   )
   await expect(

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.tools.json",
+  "compilerOptions": {
+    "checkJs": true,
+    "noImplicitAny": false,
+    "useUnknownInCatchVariables": false
+  },
+  "include": ["*.mjs"]
+}

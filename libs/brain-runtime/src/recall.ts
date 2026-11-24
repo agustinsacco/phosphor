@@ -6,8 +6,16 @@ import type {
 } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
-import type { BrainServiceOptions, BrainRecallLaunch, BrainSearchPort } from './types'
+import type {
+  BrainCuratorLaunch,
+  BrainRecallLaunch,
+  BrainSearchPort,
+  BrainService,
+  BrainServiceOptions,
+} from './types'
 import { projectContext } from './lane'
+import { createLaneBrain } from '@phosphor/brain-client/lane'
+import { brainFlagLimit } from './tidy/flag-limit'
 import { createBrainBridge, type BridgeRole } from './bridge'
 import { fileBrainFlag, flagResponse, type BrainFlagPort } from './tidy/flag'
 import type { CuratorApi } from './agent/curator-context'
@@ -63,6 +71,39 @@ async function callCurator(
   return call(params, signal)
 }
 
+/** Every lane but the Brain lane reaches Brain through its op channel, so it gets no token. */
+async function recallLaunch(
+  options: BrainServiceOptions,
+  enabled: () => boolean,
+): Promise<BrainRecallLaunch | undefined> {
+  try {
+    if (!enabled()) return undefined
+    return { extensions: [options.recall.extension], skills: [options.recall.skill] }
+  } catch (error) {
+    options.log?.('Brain recall unavailable', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+    return undefined
+  }
+}
+
+/** A lane's op port; its flags share the service-wide window with the private bridge. */
+function laneBrain(
+  agent: <M extends 'search' | 'flag'>(
+    method: M,
+    input: BrainAgentMap[M]['request'],
+  ) => Promise<BrainAgentMap[M]['result']>,
+  lane: Parameters<BrainService['forLane']>[0],
+) {
+  return createLaneBrain(
+    {
+      search: (query) => agent('search', query),
+      flag: async (params) => brainFlagLimit() ?? (await agent('flag', params)),
+    },
+    lane,
+  )
+}
+
 /** The local bridge's two callers: any lane (recall and flags) and the Brain lane (curator). */
 export function createRecall(
   store: BrainStore,
@@ -102,39 +143,31 @@ export function createRecall(
     )
     return bridge
   }
-  async function launch(
-    allowed: () => boolean,
-    resources: { extension: string; skill: string } | undefined,
-    role: BridgeRole,
-  ): Promise<BrainRecallLaunch | undefined> {
+  /** Brain Agent's tools need Brain on, not lane recall. */
+  async function curatorLaunch(): Promise<BrainCuratorLaunch | undefined> {
+    const resources = curator && options.curator
     try {
-      if (!allowed() || !resources) return undefined
+      if (!brainOn() || !resources) return undefined
       const connection = await connect()
-      if (!allowed()) return undefined
+      if (!brainOn()) return undefined
       return {
-        env: {
-          PHOSPHOR_BRAIN_ENDPOINT: connection.endpoint,
-          PHOSPHOR_BRAIN_TOKEN: role === 'curator' ? connection.curatorToken : connection.token,
-        },
+        connection: { endpoint: connection.endpoint, token: connection.curatorToken },
         extensions: [resources.extension],
         skills: [resources.skill],
       }
     } catch (error) {
       bridge = undefined
-      options.log?.(
-        role === 'curator' ? 'Brain Agent tools unavailable' : 'Brain recall unavailable',
-        {
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-      )
+      options.log?.('Brain Agent tools unavailable', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
       return undefined
     }
   }
   return {
     agent,
-    recallLaunch: () => launch(enabled, options.recall, 'lane'),
-    /** Brain Agent's tools need Brain on, not lane recall. */
-    curatorLaunch: () => launch(brainOn, curator && options.curator, 'curator'),
+    forLane: (lane: Parameters<BrainService['forLane']>[0]) => laneBrain(agent, lane),
+    recallLaunch: () => recallLaunch(options, enabled),
+    curatorLaunch,
     async dispose() {
       disposed = true
       await bridge?.then((b) => b.close()).catch(() => undefined)

@@ -105,7 +105,7 @@ const dependencies = {
     'brain-runtime',
     'memory-engine',
   ],
-  host: ['runtime', 'shared', 'pi-extensions'],
+  host: ['runtime', 'shared', 'host-client', 'pi-extensions'],
   control: ['shared', 'desktop'],
   runtime: ['shared', 'host-client', 'pi-extensions'],
   'host-client': ['shared'],

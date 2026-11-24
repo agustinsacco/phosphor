@@ -5,7 +5,7 @@ import type { ThinkingLevel } from '@phosphor/shared/rpc'
 import { ALL_THINKING_LEVELS } from '@phosphor/shared/thinking'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { pointer, type ConfigError } from '../config/schema'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { confineRemovedToRoots, confineToRoots } from '../machine/repositories'
 
 /**

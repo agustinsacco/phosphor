@@ -5,7 +5,9 @@ import { browserCrypto } from './crypto'
 
 const hostId = '11111111-1111-4111-8111-111111111111'
 const endpoint = 'https://fixture.tail.ts.net:47615'
-async function setup(sendReady = true) {
+type Ports = Parameters<typeof createHostConnection>[0]
+type SetupOptions = { ports?: Pick<Ports, 'lanes' | 'local'>; frame?: Record<string, unknown> }
+async function setup(sendReady = true, options: SetupOptions = {}) {
   let resolve!: (valid: boolean) => void
   let message!: (text: string) => void
   let closed!: (code: number, reason: string) => void
@@ -48,6 +50,7 @@ async function setup(sendReady = true) {
     clearGrant,
     random: () => 1,
     changed: () => {},
+    ...options.ports,
   })
   for (let i = 0; i < 5; i++) await Promise.resolve()
   const ready = JSON.stringify({
@@ -65,6 +68,7 @@ async function setup(sendReady = true) {
     grantExpiresAt: new Date(Date.now() + 300000).toISOString(),
     client: { id: hostId, label: 'Test' },
     capabilities: [],
+    ...options.frame,
   })
   if (sendReady) message(ready)
   return {
@@ -74,6 +78,7 @@ async function setup(sendReady = true) {
     ready,
     grant,
     clearGrant,
+    socket,
     closeTransport: () => socket.close(4400, 'Bad frame'),
     closeEvent: (code: number) => {
       open = false
@@ -162,4 +167,42 @@ it('failed asynchronous proof closes the connection without subscriptions', asyn
   await Promise.resolve()
   expect(t.connection.snapshot().state).toBe('wrong-machine')
   expect(t.sent.map((f) => f.type)).toEqual(['auth'])
+})
+
+it('closes an established connection on an unknown Host frame type', async () => {
+  const t = await setup()
+  try {
+    t.resolve(true)
+    await Promise.resolve()
+    expect(t.connection.snapshot().state).toBe('ready')
+    const close = vi.spyOn(t.socket, 'close')
+    t.message(JSON.stringify({ type: 'future-frame' }))
+    expect(close).toHaveBeenCalledWith(4400, 'Bad frame')
+  } finally {
+    t.connection.close()
+  }
+})
+it('skips the automatic lanes subscription for a connection that only runs ops', async () => {
+  const t = await setup(true, { ports: { lanes: false }, frame: { ops: true } })
+  try {
+    t.resolve(true)
+    await Promise.resolve()
+    expect(t.connection.snapshot()).toMatchObject({ state: 'ready', ops: true })
+    expect(t.sent.map((f) => f.type)).toEqual(['auth'])
+  } finally {
+    t.connection.close()
+  }
+})
+it.each([
+  [undefined, undefined],
+  [true, true],
+] as const)('projects ownerLocal only on a local connection (local %s)', async (local, owner) => {
+  const t = await setup(true, { ports: { local }, frame: { ownerLocal: true } })
+  try {
+    t.resolve(true)
+    await Promise.resolve()
+    expect(t.connection.snapshot().ownerLocal).toBe(owner)
+  } finally {
+    t.connection.close()
+  }
 })

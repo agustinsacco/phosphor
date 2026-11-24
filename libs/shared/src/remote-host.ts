@@ -22,11 +22,20 @@ export const BASH_UNCONFIRMED =
   'the Host could not confirm this command in time. It may still be running there; its output reaches the transcript when the lane reloads.'
 
 /** Keep the legacy grant array consumable by old Hosts. New authority is opt-in. */
-export const LEGACY_HOST_CAPABILITIES = HOST_CAPABILITIES.filter(
-  (cap) => cap !== 'machine.configure',
-)
+export const LEGACY_HOST_CAPABILITIES = Object.freeze([
+  'sessions.read',
+  'sessions.control',
+  'workspaces.read',
+  'workspaces.write',
+  'artifacts.read',
+  'skills.read',
+  'terminal',
+  'routines',
+] as const satisfies readonly HostCapability[])
 
 export type HostCapability = (typeof HOST_CAPABILITIES)[number]
+/** A capability a user grant can carry. */
+export type LegacyHostCapability = (typeof LEGACY_HOST_CAPABILITIES)[number]
 
 /**
  * A Host lane's client-side key, `host:<hostId>/lane:<laneId>`: its live

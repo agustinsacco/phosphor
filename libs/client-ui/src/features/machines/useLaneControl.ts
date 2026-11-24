@@ -1,3 +1,8 @@
+import {
+  laneControlPolicy,
+  runLaneAction,
+  ServiceLaneControlRefused,
+} from '@/platform/serviceLaneControl'
 import { useState } from 'react'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { useChatStore } from '@/stores/chat'
@@ -26,6 +31,7 @@ export interface LaneControl {
   /** The Host is ready and offers control at all. */
   enabled: boolean
   /** This device is the lane's controller. */
+  transfer: boolean
   controlling: boolean
   /** Why this window may not act on the lane now (`laneControlHint`), or undefined. */
   hint: string | undefined
@@ -46,7 +52,7 @@ export function laneControlHint({ host, lane }: SessionHostLane): string | undef
   return remoteControlHint(
     host?.state === 'ready',
     !!host?.capabilities.includes('sessions.control'),
-    lane?.control.controller?.self === true,
+    laneControlPolicy(host?.local, lane).actionable,
   )
 }
 
@@ -71,11 +77,15 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
   async function act(channel: LaneControlChannel): Promise<boolean> {
     setBusy(true)
     try {
-      await window.phosphor.invoke(channel, hostId, laneId)
+      await runLaneAction(channel, hostId, laneId)
       setError(null)
       return true
-    } catch {
-      setError('The Host could not confirm this. Check the lane before retrying.')
+    } catch (error) {
+      setError(
+        error instanceof ServiceLaneControlRefused
+          ? error.message
+          : 'The Host could not confirm this. Check the lane before retrying.',
+      )
       return false
     } finally {
       setBusy(false)
@@ -95,6 +105,7 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
           : 'No controller',
     enabled,
     controlling,
+    transfer: laneControlPolicy(host?.local, lane).transfer,
     hint: laneControlHint(remote),
     activity: lane?.activity,
     stopped,

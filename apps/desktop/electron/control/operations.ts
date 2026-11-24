@@ -2,6 +2,9 @@ import {
   CONTROL_ROUTES,
   isUuid,
   machineRoute,
+  machineReachRoute,
+  parseMachineReachRequest,
+  parseMachineReachResponse,
   parseMachineRenameRequest,
   parseEnrollmentApproveRequest,
   parseEnrollmentApproveResponse,
@@ -135,6 +138,12 @@ export function createControlOperations(ports: OperationPorts) {
       const parsed = parseMachineRenameRequest({ label })
       return isUuid(id) && parsed.ok
         ? call(machineRoute(id), 'PATCH', parseEnrollmentApproveResponse, parsed.value)
+        : Promise.resolve(controlFailure('bad-request'))
+    },
+    setMachineReach(id: unknown, enabled: unknown) {
+      const parsed = parseMachineReachRequest({ enabled })
+      return isUuid(id) && parsed.ok
+        ? call(machineReachRoute(id), 'PATCH', parseMachineReachResponse, parsed.value)
         : Promise.resolve(controlFailure('bad-request'))
     },
     removeMachine(id: unknown) {

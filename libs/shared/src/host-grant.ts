@@ -56,6 +56,14 @@ export interface GrantPayload {
   readonly exp: number
   /** 16 hex, unique per grant. Never log grants or their nonces. */
   readonly jti: string
+  /**
+   * Signed by control: requested with a machine key, not a sign-in. Such a grant
+   * has no caps and no `configure`, so an older Host that drops these two keys
+   * reads it as a grant that admits nothing.
+   */
+  readonly origin?: 'machine'
+  /** The calling machine's enrolled Host id. Present exactly when `origin` is. */
+  readonly machine?: string
 }
 
 /** What the Host knows about itself when it checks a grant's claims. */
@@ -66,6 +74,8 @@ export interface GrantExpectations {
   readonly epoch: number
   readonly revokedSessions: ReadonlySet<string>
   readonly revokedClients: ReadonlySet<string>
+  /** Admit machine-origin grants. Default false: the Host must opt in. */
+  readonly machineOrigin?: boolean
 }
 
 export type GrantClaimFailure =
@@ -78,6 +88,17 @@ export type GrantClaimFailure =
   | 'lifetime'
   | 'revoked-session'
   | 'revoked-client'
+  | 'machine-origin'
+
+/** Who a verified grant speaks for. */
+export type GrantPrincipal =
+  | { readonly kind: 'user'; readonly clientId: string; readonly label: string }
+  | {
+      readonly kind: 'machine'
+      readonly machineId: string
+      readonly clientId: string
+      readonly label: string
+    }
 
 /** Public keys the control plane publishes at `GET /api/v1/grant-keys`. */
 export interface GrantKeySet {
@@ -133,6 +154,12 @@ export function grantUtf8(s: string): Uint8Array {
   }
   return new Uint8Array(bytes)
 }
+/** Strict UTF-8 decoding without platform globals; throws on invalid bytes. */
+export function grantUtf8Decode(bytes: Uint8Array): string {
+  return decodeURIComponent(
+    Array.from(bytes, (b) => '%' + b.toString(16).padStart(2, '0')).join(''),
+  )
+}
 function record(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v)
 }
@@ -177,6 +204,12 @@ export function parseGrantPayload(v: unknown): Parsed<GrantPayload> {
   // toISOString is used by the wire adapter, so keep seconds in its representable range.
   if (v.iat > 253402300799 || v.exp > 253402300799) return fail('time')
   if (typeof v.jti !== 'string' || !/^[0-9a-f]{16}$/.test(v.jti)) return fail('jti')
+  const machine = v.origin === 'machine' && isUuid(v.machine) ? v.machine : null
+  if (
+    (v.origin !== undefined || v.machine !== undefined) &&
+    (machine === null || caps.length > 0 || v.configure !== undefined)
+  )
+    return fail('machine')
   return {
     ok: true,
     value: {
@@ -193,6 +226,7 @@ export function parseGrantPayload(v: unknown): Parsed<GrantPayload> {
       iat: v.iat,
       exp: v.exp,
       jti: v.jti,
+      ...(machine !== null ? { origin: 'machine' as const, machine } : {}),
     },
   }
 }
@@ -220,10 +254,7 @@ export function splitGrant(
     signature = decodeBase64url(parts[1])
   if (!bytes || !signature || signature.length !== 64) return fail('encoding')
   try {
-    const decoded = decodeURIComponent(
-      Array.from(bytes, (b) => '%' + b.toString(16).padStart(2, '0')).join(''),
-    )
-    const value: unknown = JSON.parse(decoded)
+    const value: unknown = JSON.parse(grantUtf8Decode(bytes))
     const payload = parseGrantPayload(value)
     return payload.ok
       ? { ok: true, value: { payload: payload.value, payloadBytes: bytes, signature } }
@@ -253,7 +284,22 @@ export function checkGrantClaims(
   if (nowSec >= p.exp + skewSec) return 'expired'
   if (expect.revokedSessions.has(p.sid)) return 'revoked-session'
   if (expect.revokedClients.has(p.client.id)) return 'revoked-client'
+  if (p.origin === 'machine' && expect.machineOrigin !== true) return 'machine-origin'
   return null
+}
+export function grantPrincipal(p: GrantPayload): GrantPrincipal {
+  return p.origin === 'machine' && p.machine !== undefined
+    ? { kind: 'machine', machineId: p.machine, clientId: p.client.id, label: p.client.label }
+    : { kind: 'user', clientId: p.client.id, label: p.client.label }
+}
+/** Same owner, client, origin and machine: what a renewal may not change. */
+export function sameGrantIdentity(a: GrantPayload, b: GrantPayload): boolean {
+  return (
+    a.sub === b.sub &&
+    a.client.id === b.client.id &&
+    a.origin === b.origin &&
+    a.machine === b.machine
+  )
 }
 export function parseGrantKeySet(v: unknown): Parsed<GrantKeySet> {
   if (!record(v) || !Array.isArray(v.keys) || v.keys.length > 8) return fail('keys')

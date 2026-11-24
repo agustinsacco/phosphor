@@ -94,7 +94,7 @@ export function changed(state: LiveState, laneId: string) {
   }
 }
 
-/** Lanes whose PR signals changed: an attached lane publishes as usual, the rest in one delta. */
+/** Lanes whose PR signals or service pause changed: an attached lane publishes as usual, the rest in one delta. */
 export function republish(state: LiveState, laneIds: readonly string[]) {
   const detached: LaneSummary[] = []
   for (const laneId of laneIds) {

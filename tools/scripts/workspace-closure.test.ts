@@ -169,8 +169,15 @@ describe('workspace installation closure', () => {
       expect(path.startsWith('..')).toBe(false)
       expect(path).not.toMatch(/apps[\\/]desktop|node_modules[\\/](electron|node-pty)([\\/]|$)/)
     }
+    // ws requires its optional native helpers inside try/catch and falls back
+    // to plain JS; the Host and Desktop bundles stub exactly these two.
+    const wsOptional = new Set(['bufferutil', 'utf-8-validate'])
     for (const output of Object.values(result.metafile.outputs)) {
-      expect(output.imports.filter((entry) => entry.external && !isBuiltin(entry.path))).toEqual([])
+      expect(
+        output.imports.filter(
+          (entry) => entry.external && !isBuiltin(entry.path) && !wsOptional.has(entry.path),
+        ),
+      ).toEqual([])
     }
   })
 

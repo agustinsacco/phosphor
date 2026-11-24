@@ -1,6 +1,7 @@
 import { basename } from 'node:path'
 import type { LiveSessionInfo } from '@phosphor/shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@phosphor/shared/rpc'
+import { reloadLaneNow } from '@phosphor/session-runtime/pi/lane-reload'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { commandRefusal, mayRunExtensionCommand } from './command-policy'
 import { exportSessionHtml } from './html-export'
@@ -59,7 +60,10 @@ async function start(
   // pi's stderr may hold a secret, so each line leaves the Host redacted.
   const delivery: Delivery = (push) =>
     deliver(push.kind === 'stderr' ? { ...push, text: state.machine.log.hide(push.text) } : push)
-  const session = await service.create(options, delivery)
+  const create = () => service.create(options, delivery)
+  const session = state.options.leases
+    ? await state.options.leases.withUse(options.workspacePath, 'live-lane', create)
+    : await create()
   if (!state.started.has(delivery)) throw new Error('the session is already running')
   return session
 }
@@ -87,6 +91,7 @@ export function createRuntimeOperations(
   state: RuntimeState,
   service: RuntimeService,
   deleteLane: RuntimeDeletion,
+  ownerDeleteLane = deleteLane,
 ) {
   const { roots, machineContext, life, registry, options, timings } = state
   return {
@@ -99,10 +104,15 @@ export function createRuntimeOperations(
     },
     /** Internal runner only: still uses the shared service and path-lock domain. */
     async startRoutine(request: unknown, deliver: Delivery, execution: SessionExecution) {
-      return service.create(await parse(state, request), deliver, {
-        ...execution,
-        unattended: true,
-      })
+      const parsed = await parse(state, request)
+      const create = () =>
+        service.create(parsed, deliver, {
+          ...execution,
+          unattended: true,
+        })
+      return options.leases
+        ? options.leases.withUse(parsed.workspacePath, 'routine', create)
+        : create()
     },
     routineClient(id: string) {
       if (!options.routines?.owns(id)) throw new Error('not a routine session')
@@ -124,6 +134,15 @@ export function createRuntimeOperations(
     /** The session as one HTML document, exported to a Host-owned file that is then removed. */
     exportHtml: (id: string, maxBytes: number) =>
       exportSessionHtml((sid, request) => service.command(sid, request), id, maxBytes),
+    /** Inspect or reconnect a connector inside a live lane, under the service's admission. */
+    mcpControl: (id: string, name: string, operation: 'inspect' | 'reconnect') =>
+      service.mcpControl(id, name, operation),
+    /** Reload a settled lane's pi now (`lane.reload`); never throws. */
+    async reloadNow(id: string) {
+      const session = registry.get(id)
+      if (!session?.client.alive) return 'failed' as const
+      return reloadLaneNow(id, session.client, state.machine.log.write)
+    },
     /** Send a controller's answer without treating it as an RPC command. */
     extensionUiResponse(id: string, response: ExtensionUIResponse): void {
       life.assertReady()
@@ -139,10 +158,10 @@ export function createRuntimeOperations(
       await stopSession(session, registry, timings)
     },
     /** Delete a stopped session's file. A running session is refused. */
-    async remove(request: unknown): Promise<void> {
+    async remove(request: unknown, owner = false): Promise<void> {
       const { sessionPath } = await parse(state, request, true)
       assertFilesKnown(state)
-      await deleteLane(sessionPath)
+      await (owner ? ownerDeleteLane : deleteLane)(sessionPath)
     },
   }
 }

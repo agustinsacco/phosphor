@@ -20,6 +20,7 @@ import {
 } from '@/components/icons'
 import { SessionMenu } from '@/features/chat/SessionMenu'
 import { requestChatFind } from '@/features/chat/useChatFind'
+import { ServiceLaneBranchControl } from '@/features/worktrees/ServiceLaneBranchControl'
 import { BranchControl } from '@/features/worktrees/BranchControl'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -81,7 +82,11 @@ export function TopBar({
       {activeSessionId ? (
         <>
           {!remote && <WorkspaceChip workspacePath={workspacePath} compact />}
-          {!remote && <BranchControl workspacePath={workspacePath} />}
+          {remote ? (
+            <ServiceLaneBranchControl sessionId={activeSessionId} />
+          ) : (
+            <BranchControl workspacePath={workspacePath} />
+          )}
           <SessionLaneLocation sessionId={activeSessionId} />
           <MachineChip sessionId={activeSessionId} />
           <ActiveSessionControls sessionId={activeSessionId} />

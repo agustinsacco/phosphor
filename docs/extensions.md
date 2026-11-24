@@ -294,7 +294,22 @@ asar. The builder copies the same non-test TypeScript inventory, including
 `context-budget.ts`, `context-files.ts`, `global-context.ts`, `message-ledger.ts`, `swarm.ts`, `lane-prs.ts` (the `/phosphor-prs` command Track and Hide send, [lanes.md](lanes.md#which-prs-belong-to-a-lane)) and `subagent-children.ts` imported by `context-breakdown.ts`
 (the last is also what pi-subagents children load, [chat.md](chat.md#sub-agents)),
 `artifact-nested.ts`, `artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
+It also ships the optional `phosphor.ts` tool and `skills/phosphor/`, not in
+those six and never in the sub-agent child extension set. The tool registers
+only with `PHOSPHOR_OPS=v1`. `op-channel.ts` sends raw argv in a
+`phosphor-op/v1` editor request; the title is not a security boundary. The
+owner derives the principal from the lane process and verifies confirmations;
+the tool cannot approve its own request. `lane-controls.ts` applies an owner's
+effects to that session. `directives.ts` and `live-context.ts` refresh a lane's directives and its
+discovered repository instruction files on the next request, without rewriting
+the session's base prompt. The [op channel](agent-control.md#the-op-channel) is shared by in-app and service lanes.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
+
+A feature that adds spawn-time inputs (env, `-e`, `--skill`) does it through
+`SessionStartupRuntime.contributions` (`libs/session-runtime/src/pi/spawn-contributions.ts`),
+one file per feature in each owner's `contributions/` folder
+(`apps/desktop/electron/pi/contributions/`, `apps/host/src/session/contributions/`).
+Ops and Brain contribute lane resources separately; a lane can have recall without the general-purpose agent tool.
 
 | File                   | Why it must run inside pi                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------- |
@@ -581,7 +596,9 @@ transcript keeps pi's own sections, so a file turned back on is sent again from
 the next request with no restart. The starting state arrives in
 `PHOSPHOR_CONTEXT_FILES` and changes as the host-only `/phosphor-context-files`
 command (`claude=off agents=on`), which pi runs at once, mid-turn included,
-with no model. Files are matched by name in every directory pi searched except
+with no model. The lane control exposes the effective off list and which kinds the
+user turned off. An agent cannot turn those kinds back on. Session entries from
+before attribution count as user choices. Files are matched by name in every directory pi searched except
 its agent directory, whose file always stays (`AGENTS.override.md` counts as
 AGENTS.md). The parser expects pi's rendering verbatim; an unknown shape is sent
 unchanged. In a linked worktree the filter also drops, whatever the toggles,
@@ -597,10 +614,17 @@ reports such a file with `excludedBy: 'main-checkout'` and `included: false`.
 Before that filter, `global-context.ts` keeps the agent directory's file current.
 pi reads it once per session start or reload, so on every request the extension
 stats the candidates in pi's order, re-reads the first one when its size or mtime
-changed, and replaces, adds or removes the global block to match. Repository
-blocks stay as pi rendered them, the session file keeps the text the lane started
-with, and a lane started with `--no-context-files` gains nothing. The context
-breakdown measures the swapped prompt.
+changed, and replaces, adds or removes the global block to match. `live-context.ts`
+also refreshes the repository instruction files pi already rendered. Edits and
+removals take effect on the next model request; new paths need reload or resume.
+Repository symlinks keep pi’s snapshot. A lane started with `--no-context-files`
+gains nothing. The context breakdown measures the refreshed prompt.
+
+`directives.ts` registers `/phosphor-directives <base64 UTF-8 | ->` on the parent
+lane. It replaces the spawn’s `--append-system-prompt` addendum for each request,
+without changing the session prompt. `-` removes the directives. When the
+addendum is not Phosphor’s (for example `APPEND_SYSTEM.md`), the extension uses
+a separate `phosphor_directives` section and preserves the user’s text.
 
 `context-breakdown.ts` exists because pi reports context usage as one number,
 and the composed system prompt and active tool schemas are not reachable from
@@ -635,16 +659,17 @@ See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 ### Brain's bundles
 
 `brain.mjs` registers read-only `brain_search` and review-only `brain_flag` only
-when lane startup gave it `PHOSPHOR_BRAIN_ENDPOINT` and `PHOSPHOR_BRAIN_TOKEN`;
-without them it registers nothing. `brain-fork-guard.mjs` loads only into
+on an op-channel lane (`PHOSPHOR_OPS=v1`); both send `brain.search` and
+`brain.flag` service ops, and Brain socket variables in the environment cannot
+enable them. Elsewhere it registers nothing. `brain-fork-guard.mjs` loads only into
 Brain's private, session-less model calls and blocks every tool call.
 
-Both Brain bundles take the two variables out of pi's environment when they
-load (`takeBrainConnection` in brain-client's `node-transport.ts`). Bash
-commands, MCP servers and sub-agents started after that do not inherit them.
-An earlier extension can still pass them to a child it starts while loading.
-The connection stays on `globalThis` for the extension's own reloads in that
-pi process.
+`brain-curator.mjs` takes `PHOSPHOR_BRAIN_ENDPOINT` and `PHOSPHOR_BRAIN_TOKEN`
+out of pi's environment when it loads (`takeBrainConnection` in brain-client's
+`node-transport.ts`). Bash commands, MCP servers and sub-agents started after
+that do not inherit them. An earlier extension can still pass them to a child
+it starts while loading. The connection stays on `globalThis` for the
+extension's own reloads in that pi process.
 
 `brain-curator.mjs` (sources `brain-curator.ts` and `brain-curator-writes.ts`)
 loads into the Brain lane, the lane in `<userData>/brain/Brain`, in place of
@@ -697,14 +722,14 @@ in `stores/extensionUi.ts`. Seven keys are load-bearing, and the key strings are
 **case-sensitive literals on both sides**; nothing fails to compile when they
 disagree.
 
-| Key                          | Emitter                                          | Consumer                                                                                                                   |
-| ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `phosphor-swarm`             | `libs/pi-extensions/pi-ext/swarm.ts`             | Composer pill (four looks), outline and lane-title badge; versioned native authorization state, never activity             |
-| `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes, the composer's per-lane MCP tool counts       |
-| `phosphor-reload`            | `libs/pi-extensions/pi-ext/lane-reload.ts`       | `libs/session-runtime/src/pi/lane-reload.ts` (main), JSON `{ token, outcome }`; hidden from the status strip               |
-| `phosphor-headroom`          | `libs/pi-extensions/pi-ext/headroom.ts`          | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                                    |
-| `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5               | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `libs/shared/src/claude-limits.ts` → account routing in main |
-| `claude-subagents`           | `@saccolabs/pi-claude-cli` ≥ 0.4.13              | `chat/subagentStatus.ts` → the status strip's agent chip, for sessions recorded before 0.9.0 (see below)                   |
+| Key                          | Emitter                                          | Consumer                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `phosphor-swarm`             | `libs/pi-extensions/pi-ext/swarm.ts`             | Composer pill (four looks), outline and lane-title badge; versioned authorization state, never activity; optional agent source and reason |
+| `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes, the composer's per-lane MCP tool counts                      |
+| `phosphor-reload`            | `libs/pi-extensions/pi-ext/lane-reload.ts`       | `libs/session-runtime/src/pi/lane-reload.ts` (main), JSON `{ token, outcome }`; hidden from the status strip                              |
+| `phosphor-headroom`          | `libs/pi-extensions/pi-ext/headroom.ts`          | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                                                   |
+| `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5               | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `libs/shared/src/claude-limits.ts` → account routing in main                |
+| `claude-subagents`           | `@saccolabs/pi-claude-cli` ≥ 0.4.13              | `chat/subagentStatus.ts` → the status strip's agent chip, for sessions recorded before 0.9.0 (see below)                                  |
 
 | `mcp-inspection` | Native pi MCP `[inspection-v1]` | `libs/session-runtime/src/pi/mcp-lane.ts`: versioned `{requestId, operation, server}` replies; hidden from the status strip |
 
@@ -714,13 +739,14 @@ emitting side in that repo's `docs/ARCHITECTURE.md`. Rules for all of them: the
 payload is JSON in a string, every parser returns `null` rather than throwing,
 and a missing key means "render nothing", never an empty section. A structured
 key must also be listed in `STRUCTURED_STATUS_KEYS`
-(`features/extension-ui/ExtensionUiHosts.tsx`) or the status strip prints its
+(`features/extension-ui/StatusStrip.tsx`) or the status strip prints its
 JSON as prose. Status pushes must never be able to break a turn, so emitters
 swallow their own errors.
 
 **Widgets are the same bus with the same rule.** `setWidget` carries lines for
 the composer slot, and a key carrying a machine payload must be in
-`STRUCTURED_WIDGET_KEYS` (same file) or the slot prints it. Two are
+`STRUCTURED_WIDGET_KEYS` (`features/extension-ui/ExtensionUiHosts.tsx`) or the
+slot prints it. Two are
 load-bearing today, both from `pi-subagents` in RPC mode:
 
 | Key                | Payload                                                                        | Consumer                                                     |

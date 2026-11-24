@@ -25,13 +25,28 @@ export interface ArtifactLanePorts {
 /** pi names session files `<timestamp>_<session id>.jsonl`; the store keys on that id. */
 const PI_SESSION_FILE = /_([0-9A-Za-z-]{8,128})\.jsonl$/
 
+/** The artifact store's key for a session file, or null for a name pi did not write. */
+export const artifactSessionId = (sessionFile: string): string | null =>
+  PI_SESSION_FILE.exec(sessionFile)?.[1] ?? null
+
 /**
  * The index this file was last saved under, to resume from. A wrong guess only
  * costs a full scan: the indexer resumes only an index of this very file.
  */
 function savedIndex(root: string, sessionFile: string): SessionArtifactIndex | null {
-  const id = PI_SESSION_FILE.exec(sessionFile)?.[1]
+  const id = artifactSessionId(sessionFile)
   return id ? readIndex(root, id) : null
+}
+
+// Wire calls and the owner library share the same index writer. A slower scan
+// must not overwrite a newer projection of the same growing transcript.
+const scans = new Map<string, Promise<SessionArtifactIndex | null>>()
+
+async function scan(root: string, file: string) {
+  const previous = savedIndex(root, file)
+  const saved = await indexSessionFile(root, file, previous, ARTIFACT_LIMITS.sessionBytes)
+  if (saved && saved !== previous) await writeIndex(root, saved)
+  return saved
 }
 
 export async function indexArtifacts(
@@ -42,15 +57,16 @@ export async function indexArtifacts(
   const lane = store.getLane(laneId)
   if (!lane || lane.removedAt !== null) throw new FeatureFailure('unknown-lane')
   if (!lane.sessionFile) return null
-  const previous = savedIndex(root, lane.sessionFile)
-  const saved = await indexSessionFile(
-    root,
-    lane.sessionFile,
-    previous,
-    ARTIFACT_LIMITS.sessionBytes,
-  )
-  if (saved && saved !== previous) await writeIndex(root, saved)
-  return saved
+  const key = `${root}\0${lane.sessionFile}`
+  const pending = scans.get(key)
+  if (pending) return pending
+  const started = scan(root, lane.sessionFile)
+  scans.set(key, started)
+  try {
+    return await started
+  } finally {
+    scans.delete(key)
+  }
 }
 
 /**
@@ -58,9 +74,9 @@ export async function indexArtifacts(
  * first scan is past the cap, its file unreadable) is left out and logged, so
  * it never blanks every other lane on this Host.
  */
-async function indexForList(
+export async function indexForList(
   root: string,
-  ports: ArtifactLanePorts,
+  ports: Pick<ArtifactLanePorts, 'store' | 'skipped'>,
   laneId: string,
 ): Promise<SessionArtifactIndex | null> {
   try {
@@ -70,6 +86,28 @@ async function indexForList(
     const tooLarge = error instanceof Error && error.message === 'session-too-large'
     ports.skipped?.(laneId, tooLarge ? 'too-large' : 'internal')
     return null
+  }
+}
+
+/** One stored artifact as a listed row: its versions on the session's branch, oldest first. */
+export function artifactMeta(
+  laneId: string,
+  a: SessionArtifactIndex['artifacts'][string],
+): ArtifactMeta | null {
+  const versions = a.versions.filter((v) => v.onBranch).sort((a, b) => a.version - b.version)
+  if (!versions.length) return null
+  return {
+    laneId,
+    slug: a.slug,
+    title: a.title,
+    type: a.type,
+    ...(a.language ? { language: a.language } : {}),
+    versions: versions.map((v) => ({
+      version: v.version,
+      title: v.title,
+      createdAt: Date.parse(v.createdAt) || 0,
+      bytes: v.bytes,
+    })),
   }
 }
 
@@ -94,21 +132,8 @@ export async function listArtifacts(
       : await indexForList(root, ports, laneId)
     if (!saved) continue
     for (const a of Object.values(saved.artifacts)) {
-      const versions = a.versions.filter((v) => v.onBranch).sort((a, b) => a.version - b.version)
-      if (!versions.length) continue
-      const item: ArtifactMeta = {
-        laneId,
-        slug: a.slug,
-        title: a.title,
-        type: a.type,
-        ...(a.language ? { language: a.language } : {}),
-        versions: versions.map((v) => ({
-          version: v.version,
-          title: v.title,
-          createdAt: Date.parse(v.createdAt) || 0,
-          bytes: v.bytes,
-        })),
-      }
+      const item = artifactMeta(laneId, a)
+      if (!item) continue
       metadataBytes += utf8Length(JSON.stringify(item))
       if (metadataBytes > ARTIFACT_LIMITS.metadataBytes) throw new FeatureFailure('too-large')
       items.push(item)

@@ -84,3 +84,9 @@ it('gives each machine exactly one headline and tone', () => {
   const old = { ...addressed, lastSeenAt: new Date(now - 3 * 3600_000).toISOString() }
   expect(headline(old, { state: 'down' })).toEqual(['off', 'Offline'])
 })
+
+it('a pending local identity is a wait for the local service, not an offline Host', () => {
+  expect(
+    machineHeadline(MACHINE, { state: 'connecting', lastError: 'waiting-local-service' }, now),
+  ).toMatchObject({ tone: 'pending', label: expect.stringMatching(/waiting for this .*service/i) })
+})

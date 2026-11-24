@@ -46,11 +46,11 @@ function splitHeader(text: string): { header: string; rest: string } | null {
 }
 
 /** The transcript directory pi derives from a cwd, unresolved. */
-function transcriptDirFor(cwd: string): string {
+function transcriptDirFor(cwd: string, root: string): string {
   // Deliberately NOT `sessionDirForCwd`: that resolves symlinks, and the cwd
   // being moved away from no longer exists, so there is nothing to resolve.
   // Both sides are compared as the literal strings pi itself mangled.
-  return join(piSessionsRoot(), sessionDirNameForCwd(cwd))
+  return join(root, sessionDirNameForCwd(cwd))
 }
 
 /**
@@ -87,6 +87,7 @@ export async function repointSessionCwd(
   sessionPath: string,
   from: string,
   to: string,
+  root = piSessionsRoot(),
 ): Promise<boolean> {
   if (from === to) return false
 
@@ -112,12 +113,12 @@ export async function repointSessionCwd(
   header.cwd = to
   // Prefix-anchored with a separator guard (`isWithinFolder`), so the parent of
   // a session under `--…-games--` is never rewritten by a rename of `games-2`.
-  const oldParentDir = transcriptDirFor(from)
+  const oldParentDir = transcriptDirFor(from, root)
   if (header.parentSession && isWithinFolder(header.parentSession, oldParentDir)) {
     header.parentSession = rebaseWithinFolder(
       header.parentSession,
       oldParentDir,
-      transcriptDirFor(to),
+      transcriptDirFor(to, root),
     )
   }
 

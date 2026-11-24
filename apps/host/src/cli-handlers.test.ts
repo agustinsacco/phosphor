@@ -112,7 +112,7 @@ describe('report handlers', () => {
     const json = io()
     await handleVersion({ name: 'version', options: { json: true } }, json.io, context)
     expect(json.out.stdout).toBe(
-      '{"hostVersion":"0.0.0-dev.source","protocolVersion":1,"sourceSha":null,"node":"22.22.3"}\n',
+      '{"hostVersion":"0.0.0-dev.source","protocolVersion":1,"sourceSha":null,"node":"22.22.3","features":["ops","machine-grants","headroom","app-services","service-pause","local-mode","owner-socket","owner-lock","migrate-v1"]}\n',
     )
   })
 

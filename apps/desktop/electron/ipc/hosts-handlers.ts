@@ -18,17 +18,17 @@ import { createConfigureHosts } from '../hosts/configure-hosts'
 import { createGrants } from '../hosts/grants'
 import { createHostConnection } from '../hosts/connection'
 import { createHostManager } from '../hosts/manager'
+import { bindOpsHosts } from './ops-handlers'
 import { e2eHostEndpoint, openHostSocket } from '../hosts/socket'
 import { controlClient, onMachinesChanged } from './control-handlers'
 import { handle, setRemoteReadRouter } from './handle'
 import {
   createArtifactHost,
   remoteSessionArtifacts,
-  remoteArtifactListings,
   remoteArtifactRead,
   type ArtifactHost,
 } from '@phosphor/host-client/artifacts'
-import { artifactLibrary } from '../artifacts/artifact-sync'
+import { libraryListing } from './artifact-listing'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
 import { routeRemoteRead } from '@phosphor/host-client/read-features'
 import {
@@ -49,8 +49,12 @@ import { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals
 import { createRemoteRoutines } from '@phosphor/host-client/routines'
 import { readHostReceipt } from '@phosphor/host-client/attention'
 import { createHostAttention } from '../hosts/attention'
+import { sameMachine } from '../local-machine/same-machine'
+import { admitLocalMachine } from '../local-machine/admit'
 import { trafficLog } from '../hosts/traffic-log'
 import { tappedLog } from '../hosts/traffic-tap'
+import { desktopDirectory } from '../hosts/dedupe'
+import { localRuntimeMode } from '../local-machine/mode'
 
 let routines: ReturnType<typeof createRemoteRoutines> | undefined
 export const remoteRoutineMachines = () => routines?.machines() ?? []
@@ -121,6 +125,29 @@ function registerLaneReadHandlers(): void {
   )
 }
 
+/** Lane actions on any Host's lane, named by Host and lane id. */
+function registerLaneActionHandlers(): void {
+  handle('hosts:stopLane', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.stop'),
+  )
+  handle('hosts:resumeLane', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.resume'),
+  )
+  handle('hosts:takeControl', (_event, hostId, laneId, options) => {
+    if (options === undefined) return remoteLanes().action(hostId, laneId, 'control.take')
+    // Older remote Hosts discard unknown take options: never send a conditional take there.
+    if (options?.ifUnheld !== true || sameMachine()?.hostId !== hostId)
+      throw new Error(REMOTE_UNAVAILABLE)
+    return remoteLanes().action(hostId, laneId, { type: 'control.take', ifUnheld: true })
+  })
+  handle('hosts:releaseControl', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'control.release'),
+  )
+  handle('hosts:markRead', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.markRead'),
+  )
+}
+
 export function registerHostsHandlers(): void {
   const testEndpoint = e2eHostEndpoint(process.env, app.isPackaged)
   const control = controlClient()
@@ -143,6 +170,7 @@ export function registerHostsHandlers(): void {
     present: (id) => manager.present(id),
   })
   const manager = createHostManager({
+    directory: desktopDirectory,
     testEndpoint,
     user: accountUserId,
     clientId: clients.current,
@@ -173,6 +201,7 @@ export function registerHostsHandlers(): void {
       }),
   })
   registerManagementHandlers(manager.connection)
+  bindOpsHosts(manager.connection)
   const { github, catalogues } = registerHostReadHandlers(manager.connection)
   remote = createRemoteLanes({
     connection: manager.connection,
@@ -195,7 +224,7 @@ export function registerHostsHandlers(): void {
     unrefTimer: (timer) => timer.unref(),
     lane: (windowId, sessionId, workspace) =>
       remoteLanes().terminalLane(windowId, sessionId, workspace),
-    clientId: clients.current,
+    clientId: manager.clientId,
     emit: (windowId, channel, value) => {
       const sender = BrowserWindow.getAllWindows().find(
         (w) => w.webContents.id === windowId,
@@ -210,6 +239,23 @@ export function registerHostsHandlers(): void {
     label: manager.label,
   })
   setRemoteReadRouter((windowId, channel, args) => {
+    const daemon = localRuntimeMode() === 'daemon'
+    if (daemon && channel === 'routines:list' && args[0] === undefined)
+      return {
+        result: Promise.resolve({
+          routines: [],
+          runs: [],
+          machines: remoteRoutineMachines(),
+          background: false,
+          error: null,
+        }),
+      }
+    if (
+      daemon &&
+      channel === 'artifacts:read' &&
+      (typeof args[0] !== 'string' || !args[0].startsWith('host:'))
+    )
+      throw new Error(REMOTE_UNAVAILABLE)
     const terminal = terminals.route(windowId, channel, args)
     if (terminal) return terminal
     const routed = routines?.route(channel, args) ?? github(channel, args)
@@ -229,18 +275,7 @@ export function registerHostsHandlers(): void {
     if (channel === 'artifacts:read' && typeof key === 'string' && key.startsWith('host:'))
       return { result: remoteArtifactRead(key, artifactHosts()) }
     if (channel === 'artifacts:list') {
-      if (
-        !Array.isArray(key) ||
-        key.length > 2000 ||
-        key.some((p) => typeof p !== 'string' || p.startsWith('host:') || p.startsWith('remote-'))
-      )
-        throw new Error(REMOTE_UNAVAILABLE)
-      return {
-        result: Promise.all([
-          artifactLibrary.list(key),
-          remoteArtifactListings(artifactHosts()).catch(() => []),
-        ]).then(([local, remote]) => [...local, ...remote]),
-      }
+      return libraryListing(key, artifactHosts(), daemon)
     }
     return (
       routeRemoteWrite(channel, args, (key) => remoteLanes().readLane(windowId, key)) ??
@@ -298,6 +333,7 @@ export function registerHostsHandlers(): void {
       destroyed: () => sender.isDestroyed(),
     }
   }
+  admitLocalMachine(manager, attention, controlClient)
   app.once('will-quit', () => {
     off()
     terminals?.clear()
@@ -311,21 +347,7 @@ export function registerHostsHandlers(): void {
   handle('hosts:createLane', (event, hostId, input) =>
     remoteLanes().create(window(event), hostId, input),
   )
-  handle('hosts:stopLane', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'lane.stop'),
-  )
-  handle('hosts:resumeLane', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'lane.resume'),
-  )
-  handle('hosts:takeControl', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'control.take'),
-  )
-  handle('hosts:releaseControl', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'control.release'),
-  )
-  handle('hosts:markRead', (_event, hostId, laneId) =>
-    remoteLanes().action(hostId, laneId, 'lane.markRead'),
-  )
+  registerLaneActionHandlers()
   registerLaneReadHandlers()
   handle('hosts:setFocusedLane', (event, target) => {
     window(event)

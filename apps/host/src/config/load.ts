@@ -1,6 +1,7 @@
 import { readFile, realpath, stat } from 'node:fs/promises'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
+import { hostConfigDirectory } from '@phosphor/shared/host-local'
 import { validateHostConfig, type ConfigError, type HostConfigV1 } from './schema'
 
 export const CONFIG_MAX_BYTES = 64 * 1024
@@ -10,10 +11,7 @@ export const CONFIG_MAX_BYTES = 64 * 1024
  * alike. There is deliberately no environment variable naming the file.
  */
 export function defaultConfigPath(env: NodeJS.ProcessEnv, home: string): string {
-  // The XDG spec says a relative XDG_CONFIG_HOME is invalid and is ignored.
-  const xdg = env.XDG_CONFIG_HOME
-  const base = xdg && isAbsolute(xdg) ? xdg : join(home, '.config')
-  return join(base, 'phosphor-host', 'config.json')
+  return join(hostConfigDirectory(env, home), 'config.json')
 }
 
 export type ConfigLoad =

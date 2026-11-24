@@ -12,10 +12,9 @@ import {
   workspaceStats,
 } from '../pi/session-scanner'
 import { deleteLane } from '../pi/delete-lane'
-import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
-import { withOfflineSessionMutation, withSessionForkSource } from '../pi/session-mutation'
-import { claudeSessionIdFor } from '../pi/claude-session-map'
-import { forkClaudeLedgerForClone } from '../pi/claude-ledger'
+import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-mutation'
+import { claudeSessionIdFor } from '@phosphor/session-runtime/claude/session-map'
+import { forkClaudeLedgerForClone } from '@phosphor/session-runtime/claude/ledger'
 
 /** On-disk session discovery, tree reading and history rewrites. */
 export function registerSessionsHandlers(): void {
@@ -49,20 +48,14 @@ export function registerSessionsHandlers(): void {
   handle('sessions:readTranscript', (_event, path) => readSavedTranscript(path))
 
   // The lock is taken synchronously, before any await, so call order is lock order.
-  handle('sessions:appendLabel', async (_event, sessionFilePath, targetId, label) => {
-    await withOfflineSessionMutation(sessionFilePath, () =>
-      appendLabel(sessionFilePath, targetId, label),
-    )
-  })
-
-  handle('sessions:jump', async (_event, sessionFilePath, targetId) => {
-    await withOfflineSessionMutation(sessionFilePath, () =>
-      appendBranchJump(sessionFilePath, targetId),
-    )
-  })
-
+  handle('sessions:appendLabel', (_event, sessionFilePath, targetId, label) =>
+    appendLabel(sessionFilePath, targetId, label),
+  )
+  handle('sessions:jump', (_event, sessionFilePath, targetId) =>
+    appendBranchJump(sessionFilePath, targetId),
+  )
   handle('sessions:forkAt', (_event, sessionFilePath, targetId) =>
-    withSessionForkSource(sessionFilePath, () => forkSessionAt(sessionFilePath, targetId)),
+    forkSessionAt(sessionFilePath, targetId),
   )
 
   handle('sessions:claudeSessionId', (_event, piSessionId: string) =>

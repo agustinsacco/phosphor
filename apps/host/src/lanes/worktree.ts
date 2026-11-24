@@ -33,6 +33,9 @@ export interface LaneFolder {
   branch: string | null
   undo(): Promise<void>
 }
+export const laneWorktreePath = (root: string, branch: string) =>
+  join(root, '.phosphor', 'worktrees', branch.replaceAll('/', '-'))
+
 export async function prepareLaneFolder(input: {
   root: string
   worktree: { readonly branch: string; readonly fresh?: true } | null
@@ -61,7 +64,7 @@ export async function prepareLaneFolder(input: {
   let worktreeCreated = false
   let madeBranch = false
   let baseCommit = ''
-  const path = join(root, '.phosphor', 'worktrees', slug)
+  const path = laneWorktreePath(root, branch)
   const logUndoFailure = (error: unknown) => {
     const code =
       typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined

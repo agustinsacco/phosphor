@@ -9,7 +9,7 @@ import {
 } from 'node:fs'
 import type { AgentMessage } from '@phosphor/shared/rpc'
 import { parseSessionEntries, sessionContext } from '@phosphor/session-runtime/pi/session-context'
-import { errnoIs, isInside } from '../../fs-safety'
+import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
 import { PI_MESSAGES_MAX } from '../pi-results'
 import type { TranscriptCache } from './cache'
 

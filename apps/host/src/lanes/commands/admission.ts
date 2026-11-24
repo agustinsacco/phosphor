@@ -19,7 +19,7 @@ export interface LaneAdmission {
   fence: number | undefined
 }
 export type AdmissionPorts = ReceiptPorts &
-  Pick<LaneCommandPorts, 'publish' | 'sessionFor' | 'openDialogs' | 'refusal'> & {
+  Pick<LaneCommandPorts, 'publish' | 'sessionFor' | 'openDialogs' | 'refusal' | 'pauses'> & {
     store: Pick<HostStore, 'getLane' | 'admit'>
     attachments?: Pick<HostAttachments, 'abort'>
   }
@@ -41,6 +41,18 @@ export function republishControl(
   }
   if (publish(state, ports, laneId, { kind: 'control', control }, queue)) return NOT_MATCHED
   controlFailure(state, ports, job)
+  return handled()
+}
+
+/**
+ * A service pause refuses new work with `busy` before any lane, fence or
+ * machine family is looked at: prompts, steers, follow-ups, lane creation and
+ * resume, and routine runs. A receipt carries no message, so `busy` is all a
+ * client learns; aborts and dialog replies still pass.
+ */
+export function pauseRefusal(state: CommandState, ports: AdmissionPorts, job: Job): Routed {
+  if (ports.pauses?.admits(job.frame.op) !== false) return NOT_MATCHED
+  rejected(state, ports, job, 'busy', true)
   return handled()
 }
 
@@ -135,5 +147,6 @@ export function admitLane(
   }
   const fenced = admitFence(state, ports, job, queue, lane)
   if (!fenced.admitted) return null
+  ports.pauses?.continued(laneId, op)
   return { laneId, lane, sessionId, piCommand, fence: fenced.fence }
 }

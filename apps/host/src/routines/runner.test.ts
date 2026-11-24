@@ -115,6 +115,7 @@ async function start() {
   const runtime = {
     withAuthorization: <T>(_allowed: () => boolean, run: () => Promise<T>) => run(),
     mutateStoppedSession: <T>(_path: string, change: () => Promise<T>) => change(),
+    withSessionFile: <T>(_path: string, read: () => Promise<T>) => read(),
     replaceRoots: vi.fn<HostRuntime['replaceRoots']>(),
     life: createLifecycle(vi.fn()),
     drain: vi.fn<HostRuntime['drain']>(),
@@ -134,6 +135,11 @@ async function start() {
     stopRoutine: vi.fn<HostRuntime['stopRoutine']>().mockImplementation(async () => {
       expect(isRoutineSession(sessionId)).toBe(true)
     }),
+    liveLanes: () => 0,
+    refreshDirectives: vi.fn(async () => 0),
+    abortTurns: vi.fn<HostRuntime['abortTurns']>(async () => []),
+    mcpControl: vi.fn<HostRuntime['mcpControl']>(),
+    reloadNow: vi.fn<HostRuntime['reloadNow']>(),
   } satisfies HostRuntime
   const admittedRoot = vi.fn((path: string) => path)
   const progress = vi.fn()

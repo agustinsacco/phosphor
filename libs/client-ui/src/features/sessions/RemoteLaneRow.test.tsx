@@ -426,3 +426,38 @@ it('leaves an unnamed Host lane’s routine draft unnamed, as This Mac does, not
     instructions: 'Fix the flaky test',
   })
 })
+
+it('keeps the local Host row menu without offering Release control', () => {
+  useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.local = true
+  render()
+  menu()
+  expect(button('Stop')).toBeTruthy()
+  expect(document.body.textContent).not.toContain('Release control')
+})
+
+it('claims an empty service lane only when Stop is invoked, then stops through the Host', async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.local = true
+  host.lanes[0]!.control.controller = null
+  render()
+  menu()
+  expect(invoke).not.toHaveBeenCalled()
+  expect(button('Stop').disabled).toBe(false)
+  await act(async () => button('Stop').click())
+  expect(invoke.mock.calls).toEqual([
+    ['hosts:takeControl', MOCK_HOST_ID, mockRemoteInfo.laneId, { ifUnheld: true }],
+    ['hosts:stopLane', MOCK_HOST_ID, mockRemoteInfo.laneId],
+  ])
+})
+
+it('surfaces the conditional take refusal and does not send Stop', async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.local = true
+  host.lanes[0]!.control.controller = null
+  invoke.mockRejectedValue(new Error('This Mac: controlled by Phone'))
+  render()
+  menu()
+  await act(async () => button('Stop').click())
+  expect(useRemoteLanesStore.getState().error).toBe('This Mac: controlled by Phone')
+  expect(invoke).toHaveBeenCalledTimes(1)
+})

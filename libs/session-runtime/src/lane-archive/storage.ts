@@ -150,6 +150,25 @@ export class LaneArchiveStorage {
     await this.save(record)
     return record
   }
+  /**
+   * Keep a record another runtime wrote (This Mac's migration), as it is: its
+   * transcript is already parked. An id that holds a different lane is refused.
+   */
+  async adopt(record: ArchiveRecord) {
+    this.validate(record)
+    const existing = await this.get(record.id).catch((error: unknown) => {
+      if (missing(error)) return null
+      throw error
+    })
+    if (existing) {
+      if (existing.cwd !== record.cwd || existing.transcript !== record.transcript)
+        throw new Error('This archive ID already belongs to a different lane.')
+      return existing
+    }
+    await assertArchiveDirectory(record, this.sessionsRoot, true)
+    await this.save(record)
+    return record
+  }
   async archive(id: string) {
     const record = await this.get(id)
     if (record.state !== 'archiving' && record.state !== 'archived')

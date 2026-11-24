@@ -21,6 +21,10 @@ export interface ArtifactMeta {
 const uuid = (v: unknown): v is string =>
   typeof v === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
+/** A listed row's id: a lane id, or the pi session id (uuidv7 since pi 1.5) of a deleted conversation. */
+const listedId = (v: unknown): v is string =>
+  typeof v === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
 const text = (v: unknown, max: number): v is string =>
   typeof v === 'string' && v.length <= max && !v.includes('\0')
 const slug = (v: unknown): v is string => text(v, 200) && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v)
@@ -64,7 +68,7 @@ export function parseArtifactList(v: unknown): ArtifactMeta[] | null {
     if (
       !machineRecord(a) ||
       !keys(a, ['laneId', 'slug', 'title', 'type', 'language', 'versions']) ||
-      !uuid(a.laneId) ||
+      !listedId(a.laneId) ||
       !slug(a.slug) ||
       !text(a.title, 1000) ||
       !text(a.type, 32) ||

@@ -101,7 +101,8 @@ describe('terminal operations', () => {
       cols: 90,
       rows: 30,
       name: 'xterm-256color',
-      env: { HOST_ONLY: 'yes', TERM: 'xterm-256color' },
+      // The service's pid, so an updater typed here hands off before the restart.
+      env: { HOST_ONLY: 'yes', TERM: 'xterm-256color', PHOSPHOR_HOST_PID: String(process.pid) },
     })
     const entry = f.entry()
     await execute(f.state, f.lane.laneId, {

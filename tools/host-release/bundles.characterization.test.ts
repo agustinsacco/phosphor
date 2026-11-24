@@ -27,7 +27,7 @@ const nodeVersion = (
     version: string
   }
 ).version
-const manifestName = 'phosphor-host-1.2.3.manifest.json'
+const manifestName = 'phosphor-host-1.2.3.manifest.v2.json'
 const bundleName = `phosphor-host-1.2.3-${target}.tar.gz`
 const releaseEnv = (extra: NodeJS.ProcessEnv = {}) => ({
   ...process.env,
@@ -51,7 +51,7 @@ function runModule(source: string) {
 }
 function stageArtifacts(folder: string, bundle?: string) {
   mkdirSync(folder)
-  for (const each of ['linux-x64', 'linux-arm64', 'darwin-arm64'])
+  for (const each of ['linux-x64', 'linux-arm64', 'darwin-arm64', 'darwin-x64'])
     writeFileSync(join(folder, `phosphor-host-1.2.3-${each}.tar.gz`), 'other target artifact')
   if (bundle) cpSync(bundle, join(folder, bundleName))
 }

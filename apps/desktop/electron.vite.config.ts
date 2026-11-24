@@ -52,6 +52,9 @@ export default defineConfig({
       },
     },
     build: {
+      // ws's optional native helpers stay requires inside its own try/catch: Vite's
+      // empty stub for a missing peer would leave `bufferutil.mask` undefined.
+      commonjsOptions: { ignore: ['bufferutil', 'utf-8-validate'] },
       lib: {
         entry: {
           main: 'electron/main.ts',

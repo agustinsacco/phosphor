@@ -27,6 +27,7 @@ export function publishHeartbeat(state: HeartbeatState, status: HeartbeatRequest
       readiness: state.readiness,
       lanes: { running: 0, waiting: 0 },
       endpoint: ports.endpoint?.() ?? null,
+      ...(ports.machineGrants ? { machineGrants: ports.machineGrants() } : {}),
     })
     if (!parsed.ok) throw new IdentityFailure('Invalid heartbeat metadata.')
     await ports.seq.write(seq)

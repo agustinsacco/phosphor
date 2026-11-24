@@ -1,8 +1,15 @@
-import { mkdir, lstat, rmdir, unlink, type link } from 'node:fs/promises'
 import type { Stats } from 'node:fs'
-import { setTimeout } from 'node:timers/promises'
+import type { link } from 'node:fs/promises'
 import { isIsoTime } from '@phosphor/shared/control-api'
-import { errnoIs } from '../fs-safety'
+import {
+  acquireRecoveryGate as acquireLinkLockGate,
+  reclaimLinkLock,
+  releaseLinkLock,
+  snapshotLinkLock,
+  type LinkLock,
+  type LinkLockRefusal,
+  type LinkLockSnapshot,
+} from '@phosphor/session-runtime/owner-lock/link-lock'
 import { readIdentityFileSnapshot } from './identity'
 
 export interface LockPorts {
@@ -34,6 +41,9 @@ export interface LockState {
   ports: LockPorts
 }
 
+type IdentityLockRecord = NonNullable<ReturnType<typeof parseLock>>
+export type LockSnapshot = LinkLockSnapshot<IdentityLockRecord>
+
 export function lockBusy({ name }: LockState, pid?: number, message?: string): LockBusy {
   return new LockBusy(
     pid,
@@ -42,6 +52,49 @@ export function lockBusy({ name }: LockState, pid?: number, message?: string): L
       : (message?.replaceAll('login or logout', 'run').replaceAll('.lock', name) ??
           `Another phosphor run is running${pid === undefined ? '.' : ` (pid ${pid}).`}`),
   )
+}
+
+function refuseIdentityLock(state: LockState, refusal: LinkLockRefusal<IdentityLockRecord>) {
+  switch (refusal.kind) {
+    case 'held':
+      return lockBusy(state, refusal.holder.pid)
+    case 'contended':
+      return lockBusy(state)
+    case 'gate-stuck':
+      return lockBusy(
+        state,
+        undefined,
+        'A crashed phosphor login or logout left identity/.lock-recovery. If none is running, remove it and retry.',
+      )
+    case 'directory':
+      return lockBusy(
+        state,
+        undefined,
+        'Remove the directory identity/.lock, then retry phosphor login or logout.',
+      )
+  }
+}
+
+/** The identity lock as the shared link-lock core sees it. Reads `state` at each call. */
+export function identityLinkLock(state: LockState): LinkLock<IdentityLockRecord> {
+  return {
+    get path() {
+      return state.path
+    },
+    get gatePath() {
+      return state.gatePath
+    },
+    get token() {
+      return state.token
+    },
+    get ports() {
+      return state.ports
+    },
+    read: () => readIdentityFileSnapshot(state.directory, state.uid, state.name),
+    parse: parseLock,
+    isLive: (holder) => state.ports.isAlive(holder.pid),
+    refuse: (refusal) => refuseIdentityLock(state, refusal),
+  }
 }
 
 export function parseLock(text: string): { pid: number; token: string } | null {
@@ -68,93 +121,18 @@ export function parseLock(text: string): { pid: number; token: string } | null {
   return null
 }
 
-// Only the process whose mkdir created the gate ever removes it. A gate is held
-// for milliseconds, so one left behind means a crash inside it: the user removes
-// it. Clearing it automatically on age could remove a live gate (review r2).
-export async function acquireRecoveryGate(state: LockState): Promise<void> {
-  const { gatePath, ports } = state
-  for (let attempt = 0; attempt <= 20; attempt++) {
-    try {
-      await mkdir(gatePath, { mode: 0o700 })
-      return
-    } catch (error) {
-      if (!(error instanceof Error && errnoIs(error, 'EEXIST'))) throw error
-    }
-    if (attempt === 20) break
-    await (ports.wait ?? ((ms) => setTimeout(ms)))(50)
-  }
-  let info
-  try {
-    info = await lstat(gatePath)
-  } catch (error) {
-    if (error instanceof Error && errnoIs(error, 'ENOENT')) throw lockBusy(state)
-    throw error
-  }
-  if ((ports.now ?? Date.now)() - info.mtimeMs > 30_000)
-    throw lockBusy(
-      state,
-      undefined,
-      'A crashed phosphor login or logout left identity/.lock-recovery. If none is running, remove it and retry.',
-    )
-  throw lockBusy(state)
+export function acquireRecoveryGate(state: LockState): Promise<void> {
+  return acquireLinkLockGate(identityLinkLock(state))
 }
 
-export interface LockSnapshot {
-  info: Stats
-  lock: ReturnType<typeof parseLock>
+export function snapshotLock(state: LockState): Promise<LockSnapshot | null> {
+  return snapshotLinkLock(identityLinkLock(state))
 }
 
-export async function snapshotLock(state: LockState): Promise<LockSnapshot | null> {
-  const { path, directory, uid, name, ports } = state
-  try {
-    let info = await (ports.lstat ?? lstat)(path)
-    if (info.isDirectory())
-      throw lockBusy(
-        state,
-        undefined,
-        'Remove the directory identity/.lock, then retry phosphor login or logout.',
-      )
-    let lock = null
-    try {
-      const read = await readIdentityFileSnapshot(directory, uid, name)
-      lock = parseLock(read.text)
-      if (lock) info = read.info
-    } catch {
-      /* Invalid locks are recoverable. */
-    }
-    return { info, lock }
-  } catch (error) {
-    if (error instanceof Error && errnoIs(error, 'ENOENT')) return null
-    throw error
-  }
+export function reclaimLock(state: LockState, stale: LockSnapshot | null): Promise<void> {
+  return reclaimLinkLock(identityLinkLock(state), stale)
 }
 
-export async function reclaimLock(state: LockState, stale: LockSnapshot | null): Promise<void> {
-  await acquireRecoveryGate(state)
-  try {
-    const current = await snapshotLock(state)
-    // The inode also identifies unreadable or invalid locks. A replacement is never reclaimed.
-    if (
-      current &&
-      stale &&
-      current.info.dev === stale.info.dev &&
-      current.info.ino === stale.info.ino &&
-      current.lock?.token === stale.lock?.token &&
-      (!current.lock || !state.ports.isAlive(current.lock.pid))
-    )
-      await unlink(state.path)
-  } finally {
-    await rmdir(state.gatePath)
-  }
-}
-
-export async function releaseIdentityLock(state: LockState): Promise<void> {
-  await acquireRecoveryGate(state)
-  try {
-    const current = await snapshotLock(state)
-    if (current?.lock?.token !== state.token) return
-    await unlink(state.path)
-  } finally {
-    await rmdir(state.gatePath)
-  }
+export function releaseIdentityLock(state: LockState): Promise<void> {
+  return releaseLinkLock(identityLinkLock(state))
 }

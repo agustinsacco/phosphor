@@ -91,6 +91,21 @@ describe('pi extension package boundary', () => {
     }
   })
 
+  it('keeps the phosphor tool and its transport out of the child import graph', async () => {
+    const result = await build({ ...options(source), entryPoints: ['subagent-children.ts'] })
+    const inputs = Object.keys(result.metafile!.inputs)
+    expect(inputs).toEqual(
+      expect.arrayContaining([
+        'context-budget.ts',
+        'context-files.ts',
+        'tool-name-guard.ts',
+        'worktree-paths.ts',
+      ]),
+    )
+    expect(inputs).not.toContain('phosphor.ts')
+    expect(inputs).not.toContain('op-channel.ts')
+  })
+
   it.each(['swarm', 'lane-reload', 'subagent-snapshot', 'status-keys'])(
     'bundles %s and its transitive closure for the browser without Node',
     async (entry) => {

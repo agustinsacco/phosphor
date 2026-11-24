@@ -1,3 +1,4 @@
+import { serviceScope, localServiceId } from '@/stores/localServiceScope'
 import { usePlatform } from '@/platform/Platform'
 import { localMachineLabel } from '@/lib/localMachine'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
@@ -32,7 +33,7 @@ import {
   useRoutinesStore,
   type EditorDraft,
 } from '@/stores/routines'
-import { useSessionsStore } from '@/stores/sessions'
+import { openRun } from './openRun'
 import { ActivityAccordion } from './ActivityAccordion'
 import { RoutineDetail, routineTone, scheduleLabel } from './RoutineDetail'
 import { RoutineEditor } from './RoutineEditor'
@@ -55,7 +56,8 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const remote = useRoutinesStore((s) => s.remote)
   const filter = useRemoteLanesStore((s) => s.filter)
   const override = useMachinePagesStore((s) => s.routinesMachine)
-  const machine = routineScope(pageMachine(filter, override))
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  const machine = routineScope(serviceScope(pageMachine(filter, override), hosts))
   const inScope = (id: string): boolean => machine === 'all' || id === machine
   const hostRuns = Object.entries(remote).flatMap(([id, r]) => (inScope(id) ? r.runs : []))
   const snapshot = localSnapshot
@@ -73,7 +75,6 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
         runs: [...(inScope('local') ? localSnapshot.runs : []), ...hostRuns],
       }
     : null
-  const hosts = useRemoteLanesStore((s) => s.hosts)
   const hostId = hostIdOfPath(machine)
   const refusal = hostId ? hostFeatureRefusal(hosts[hostId], 'routines') : undefined
   const unavailable = !!refusal
@@ -87,7 +88,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
         ? `${localMachineLabel()}: ${localError}`
         : null
   const draft = useRoutinesStore((s) => s.draft)
-  const draftMachine = machine === 'all' ? 'local' : machine
+  const draftMachine = machine === 'all' ? routineScope(serviceScope('local', hosts)) : machine
   const newDraftKey = newRoutineDraftKey(draftMachine)
   const unsaved = useRoutinesStore((s) => !!s.editorDrafts[newDraftKey])
   const [selected, setSelected] = useState<string | null>(null)
@@ -225,37 +226,6 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
       return rank(a) - rank(b) || a.name.localeCompare(b.name)
     })
 
-  /**
-   * Hand this run's lane back to its workspace, then open it.
-   *
-   * Opening is the promotion: there is no read-only transcript view in
-   * Phosphor — reopening a session file spawns a real pi process — so a lane
-   * you have opened is one you own, and it has to be reachable from the
-   * sidebar rather than only from this page.
-   */
-  const openRun = async (run: RoutineRun): Promise<void> => {
-    if (run.id.startsWith('host:')) throw new Error('Output not available from this machine yet')
-    const store = useSessionsStore.getState()
-    if (run.sessionPath) await window.phosphor.invoke('routines:promoteRun', run.id)
-    const live = (await window.phosphor.invoke('pi:listLiveSessions')).find(
-      (s) => s.sessionId === run.sessionId,
-    )
-    if (live) {
-      await store.adoptSession(live.sessionId, live.workspacePath, run.sessionPath ?? undefined)
-      store.activate(live.sessionId)
-    } else if (run.sessionPath && run.workspacePath) {
-      // A live view may have watched this routine finish and be disposed.
-      if (run.sessionId && store.live[run.sessionId]) await store.disposeSession(run.sessionId)
-      const sessionId = await store.createSession(run.workspacePath, {
-        sessionPath: run.sessionPath,
-      })
-      store.activate(sessionId)
-    } else
-      throw new Error(
-        'No transcript is available yet. The run may have stopped before pi saved its first message.',
-      )
-  }
-
   return (
     <PageShell
       title={
@@ -346,7 +316,9 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 onChange={setMachine}
                 choices={[
                   { value: 'all', label: 'All machines' },
-                  ...(platform.localLanes ? [{ value: 'local', label: localMachineLabel() }] : []),
+                  ...(platform.localLanes && !localServiceId(hosts)
+                    ? [{ value: 'local', label: localMachineLabel() }]
+                    : []),
                   ...machines.map((m) => ({ value: m.id, label: m.label })),
                 ]}
               >
@@ -516,7 +488,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
               </div>
             )}
             <footer className="border-border text-text-tertiary mt-8 border-t pt-3 text-sm">
-              {machine.startsWith('host:') ? (
+              {machine.startsWith('host:') || localServiceId(hosts) ? (
                 <p>
                   Routines run on the Host while it is running and awake. Desktop can be closed.
                 </p>

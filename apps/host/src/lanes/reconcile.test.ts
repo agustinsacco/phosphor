@@ -89,6 +89,12 @@ it('reconciles new files, preserves UUIDs across open, and marks vanished files 
   expect((await scan()).added).toBe(1)
   expect(store.sessionLane(file)?.laneId).toBe(id)
 })
+it('does not discover an unknown deleted checkout in the headless scan', async () => {
+  const cwd = join(repository, '.phosphor', 'worktrees', 'missing')
+  const file = session(cwd)
+  expect((await scan()).added).toBe(0)
+  expect(store.sessionLane(file)).toBeNull()
+})
 it('scans known worktree cwd as well as active repositories', async () => {
   const cwd = join(root, 'worktree')
   mkdirSync(cwd)
@@ -332,4 +338,53 @@ it('does not count a concurrently admitted live row against the cached addition 
   } finally {
     lookupSpy.mockRestore()
   }
+})
+
+it('discovers retained owner worktrees once, including a sandbox reached through a link', async () => {
+  const alias = join(root, 'linked-sandbox')
+  symlinkSync(repository, alias)
+  const [repo] = store.syncRepositories([alias, repository])
+  const gone = join(repository, '.phosphor', 'worktrees', 'gone')
+  const file = session(gone)
+  const scratch = session(repository)
+  session(join(root, 'other', '.phosphor', 'worktrees', 'unlisted'))
+  const owner = { roots: [alias], routinePaths: new Set<string>() }
+  expect(await reconcile(store, join(root, 'sessions'), undefined, undefined, owner)).toEqual({
+    repositories: 1,
+    lanes: 2,
+    added: 2,
+    removed: 0,
+  })
+  expect(store.sessionLane(file)).toMatchObject({ repositoryId: repo!.id, cwd: gone })
+  expect(store.sessionLane(scratch)).toMatchObject({ repositoryId: repo!.id, cwd: repository })
+})
+
+it('owner discovery skips routine lanes and a recorded predecessor only while its successor is present', async () => {
+  const routine = session(),
+    old = session(),
+    next = session()
+  const input = { repositoryId, cwd: repository }
+  const predecessor = store.ensureLane({ ...input, sessionFile: old })
+  const successor = store.ensureLane({ ...input, sessionFile: next })
+  store.markRemoved(predecessor.laneId)
+  const { DatabaseSync } = await loadSqlite()
+  const db = new DatabaseSync(join(root, 'state', 'state.sqlite'))
+  try {
+    db.prepare("INSERT INTO lane_prefs VALUES (?,'rewound_from',?)").run(
+      successor.laneId,
+      predecessor.laneId,
+    )
+  } finally {
+    db.close()
+  }
+  const ownerScan = () =>
+    reconcile(store, join(root, 'sessions'), undefined, undefined, {
+      roots: [repository],
+      routinePaths: new Set([routine]),
+    })
+  expect((await ownerScan()).added).toBe(0)
+  expect(store.listLanes().map((l) => l.sessionFile)).toEqual([next])
+  unlinkSync(next)
+  expect((await ownerScan()).added).toBe(1)
+  expect(store.listLanes().map((l) => l.laneId)).toEqual([predecessor.laneId])
 })

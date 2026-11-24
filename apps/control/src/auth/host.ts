@@ -20,6 +20,11 @@ export interface HostAuthDeps {
   claimNonce: (identity: string, nonce: string) => Promise<boolean>
   hostKey: (hostId: string) => Promise<string | 'gone'>
 }
+/**
+ * The per-IP budget a Host-signed request spends before its signature is checked.
+ * Machine routes use their own, so a fan-out cannot starve heartbeats.
+ */
+export type HostAuthPurpose = 'host-auth' | 'machine-auth'
 export async function authenticateHost(
   request: Request,
   body: Uint8Array,
@@ -27,6 +32,7 @@ export async function authenticateHost(
   mode: 'key' | 'host',
   ip: string,
   target = new URL(request.url).pathname + new URL(request.url).search,
+  purpose: HostAuthPurpose = 'host-auth',
 ) {
   const key = request.headers.get(HOST_HEADERS.key)
   const host = request.headers.get(HOST_HEADERS.host)
@@ -51,7 +57,7 @@ export async function authenticateHost(
     throw new ControlFailure('unauthenticated')
   const identity = mode === 'key' ? key : host
   if (identity === null) throw new ControlFailure('unauthenticated')
-  if (mode === 'host' && !deps.limits.consume('host-auth:' + ip, 120, 60_000))
+  if (mode === 'host' && !deps.limits.consume(purpose + ':' + ip, 120, 60_000))
     throw new ControlFailure('too-many-requests')
   const publicKey = mode === 'key' ? key : await deps.hostKey(identity)
   if (publicKey === 'gone') throw new ControlFailure('gone')

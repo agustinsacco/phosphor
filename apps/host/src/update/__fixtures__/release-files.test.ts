@@ -12,7 +12,10 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { verifyReleaseArtifact, verifyReleaseManifest } from '../verify'
+import {
+  verifyReleaseArtifact,
+  verifyReleaseManifest,
+} from '@phosphor/session-runtime/host-install/verify'
 import {
   createReleaseMirror,
   installCurrent,

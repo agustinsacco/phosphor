@@ -318,3 +318,31 @@ it("links a Host's Accounts to its Claude Code page under Extensions", async () 
   expect(selected).toEqual(['Extensions', 'Claude Code'])
   expect(container.textContent).toContain('work@bee1.example')
 })
+
+it('offers only reviewed settings JSON when the Host announces config files', async () => {
+  const hosts = mixedRemoteHosts()
+  Object.assign(hosts[machine.id]!, { ops: true, configFiles: true })
+  useRemoteLanesStore.setState({ hosts })
+  useSettingsUiStore.setState({ folder: null })
+  await render('agent')
+  expect(button('Edit reviewed JSON')).toBeDefined()
+  expect(container.textContent).not.toContain('models.json')
+})
+
+it('sends This Mac folder switches to its registered service scope, not in-app settings', async () => {
+  const hosts = mixedRemoteHosts(),
+    h = hosts[machine.id]!,
+    project = h.repositories[0]!.id
+  Object.assign(h, { local: true, ops: true, folderDirectives: true })
+  useRemoteLanesStore.setState({ hosts })
+  useSettingsUiStore.setState({ folder: project })
+  await showHostSettings(root, 'local', 'agent')
+  await act(async () => toggle('Lane charter'))
+  expect(invoke).toHaveBeenCalledWith(
+    'ops:run',
+    { kind: 'remote', hostId: machine.id },
+    { op: 'directives.set', args: { project, key: 'laneCharter', on: false } },
+  )
+  expect(invoke.mock.calls.some(([c]) => c === 'app:setAgentDirectives')).toBe(false)
+  useSettingsUiStore.setState({ folder: null })
+})

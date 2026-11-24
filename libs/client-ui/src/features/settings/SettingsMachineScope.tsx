@@ -1,3 +1,4 @@
+import { localServiceId, serviceScope, orderedHostIds } from '@/stores/localServiceScope'
 import { useMemo } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { localMachineLabel } from '@/lib/localMachine'
@@ -50,10 +51,15 @@ function useSettingsMachineChoices(): SettingsMachineChoice[] {
   const machines = useMachinesStore((s) => s.machines)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   return useMemo(() => {
-    const label = (id: string): string => machines.find((m) => m.id === id)?.label ?? id
-    const hostIds = [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
+    const local = localServiceId(hosts)
+    const label = (id: string): string =>
+      id === local ? localMachineLabel() : (machines.find((m) => m.id === id)?.label ?? id)
+    const hostIds = orderedHostIds(
+      machines.map((m) => m.id),
+      hosts,
+    )
     return [
-      ...(localLanes ? [{ id: 'local', label: localMachineLabel() }] : []),
+      ...(localLanes && !local ? [{ id: 'local', label: localMachineLabel() }] : []),
       ...(machineSettings ? hostIds.map((id) => ({ id, label: label(id) })) : []),
     ]
   }, [localLanes, machineSettings, machines, hosts])
@@ -69,10 +75,11 @@ export function useSettingsMachine(fallback?: string): {
   machine: SettingsMachineChoice | null
 } {
   const choices = useSettingsMachineChoices()
+  const hosts = useRemoteLanesStore((s) => s.hosts)
   const chosen = useSettingsUiStore((s) => s.machine)
   const host = useSettingsHost()
   const find = (id: string | null | undefined): SettingsMachineChoice | undefined =>
-    id ? choices.find((choice) => choice.id === id) : undefined
+    id ? choices.find((choice) => choice.id === serviceScope(id, hosts)) : undefined
   const machine =
     find(chosen) ?? find(host) ?? find('local') ?? find(fallback) ?? choices[0] ?? null
   return { choices, machine }

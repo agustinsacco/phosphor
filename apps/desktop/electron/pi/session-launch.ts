@@ -11,7 +11,7 @@ import { prefs } from '../prefs/backend'
 import type { RawPrefs } from '../prefs-migrations'
 import { migrateRetiredDirectives } from './retired-directives'
 
-const resourceRoot = () =>
+export const resourceRoot = () =>
   app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '../../libs/pi-extensions')
 
 /** Installed before any pi probe/session; user edits and deletion survive updates. */

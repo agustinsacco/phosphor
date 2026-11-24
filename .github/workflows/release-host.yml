@@ -1,7 +1,7 @@
 name: Host Release
 
-# Publishes a signed Host release: three bundles (linux-x64, linux-arm64,
-# darwin-arm64), a manifest signed with HOST_RELEASE_SIGNING_KEY, and the
+# Publishes a signed Host release: four bundles (linux-x64, linux-arm64,
+# darwin-arm64, darwin-x64), two manifests signed with HOST_RELEASE_SIGNING_KEY, and the
 # installer generated from HOST_RELEASE_KEYS. Each version is its own
 # `host-v<version>` release; the rolling `host-latest` release carries the
 # unversioned manifest and installer that `install.sh` and `phosphor update`
@@ -103,6 +103,7 @@ jobs:
           # macos-14 is retired on 2026-11-02. node-pty takes its deployment target
           # from the bundled Node's headers, not the runner, so older macOS still runs it.
           - { target: darwin-arm64, runner: macos-15 }
+          - { target: darwin-x64, runner: macos-15-intel }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -219,31 +220,32 @@ jobs:
           pattern: host-native-*
           path: native-artifacts
 
-      - name: Build the three bundles
+      - name: Build the four bundles
         env:
           HOST_RELEASE_VERSION: ${{ needs.plan.outputs.version }}
         run: |
           set -euo pipefail
           node tools/host-release/installer.mjs --require
-          for target in linux-x64 linux-arm64 darwin-arm64; do
+          for target in linux-x64 linux-arm64 darwin-arm64 darwin-x64; do
             node tools/host-release/build-bundle.mjs --target "$target" --out dist --cache "$RUNNER_TEMP/node-cache" --native "native-artifacts/host-native-$target"
           done
 
-      - name: Sign the manifest
+      - name: Sign both manifests
         env:
           HOST_RELEASE_VERSION: ${{ needs.plan.outputs.version }}
           HOST_RELEASE_SIGNING_KEY: ${{ secrets.HOST_RELEASE_SIGNING_KEY }}
         run: node tools/host-release/manifest.mjs --out dist
 
-      - name: Verify the signature against the pinned keys
+      - name: Verify the signatures against the pinned keys
         env:
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
           set -euo pipefail
           node tools/host-release/installer.mjs --allowed-signers > "$RUNNER_TEMP/allowed_signers"
-          ssh-keygen -Y verify -f "$RUNNER_TEMP/allowed_signers" -I phosphor-release \
-            -n phosphor-host-release -s "dist/phosphor-host-$VERSION.manifest.json.sig" \
-            < "dist/phosphor-host-$VERSION.manifest.json"
+          for manifest in "dist/phosphor-host-$VERSION.manifest"{,.v2}.json; do
+            ssh-keygen -Y verify -f "$RUNNER_TEMP/allowed_signers" -I phosphor-release \
+              -n phosphor-host-release -s "$manifest.sig" < "$manifest"
+          done
           grep -q '^phosphor-release namespaces="phosphor-host-release" ssh-ed25519 ' dist/install.sh
 
       - name: Publish host-v${{ needs.plan.outputs.version }} and host-latest
@@ -256,8 +258,9 @@ jobs:
           set -euo pipefail
           cd dist
           assets=(phosphor-host-"$VERSION"-*.tar.gz "phosphor-host-$VERSION.manifest.json" \
-            "phosphor-host-$VERSION.manifest.json.sig" install.sh)
-          [[ ${#assets[@]} -eq 6 ]]
+            "phosphor-host-$VERSION.manifest.json.sig" "phosphor-host-$VERSION.manifest.v2.json" \
+            "phosphor-host-$VERSION.manifest.v2.json.sig" install.sh)
+          [[ ${#assets[@]} -eq 9 ]]
           if [[ "$RESUME" != true ]]; then
             gh release create "host-v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
               --latest=false --title "Phosphor Host $VERSION" \
@@ -281,10 +284,14 @@ jobs:
           done
           cp "phosphor-host-$VERSION.manifest.json" phosphor-host.manifest.json
           cp "phosphor-host-$VERSION.manifest.json.sig" phosphor-host.manifest.json.sig
+          cp "phosphor-host-$VERSION.manifest.v2.json" phosphor-host.manifest.v2.json
+          cp "phosphor-host-$VERSION.manifest.v2.json.sig" phosphor-host.manifest.v2.json.sig
           if ! gh release view host-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create host-latest --repo "$GITHUB_REPOSITORY" --target "$SHA" \
               --latest=false --title "Phosphor Host (latest)" \
               --notes "Rolling pointer to the newest signed Phosphor Host release."
           fi
           gh release upload host-latest --repo "$GITHUB_REPOSITORY" --clobber \
-            phosphor-host.manifest.json phosphor-host.manifest.json.sig install.sh
+            phosphor-host.manifest.json phosphor-host.manifest.json.sig \
+            phosphor-host.manifest.v2.json phosphor-host.manifest.v2.json.sig
+          gh release upload host-latest --repo "$GITHUB_REPOSITORY" --clobber install.sh

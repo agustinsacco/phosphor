@@ -9,7 +9,7 @@
  * the provider's prefix cache cannot break — the reason this design was
  * chosen over routing model traffic through the proxy.
  *
- * Inert by default: it does nothing unless `PHOSPHOR_HEADROOM_URL` is set
+ * Inert by default: it uses `PHOSPHOR_HEADROOM_SOCKET` on the daemon, or `PHOSPHOR_HEADROOM_URL`
  * (Phosphor sets it per session spawn when the supervisor in
  * electron/headroom/proxy.ts believes the managed proxy is healthy), and
  * it fails open — any proxy failure disables it for the session and the
@@ -40,6 +40,8 @@
  * its results reach this hook like any other provider's. Older providers ran
  * the CLI's built-ins inside the CLI, where this hook never saw them.
  */
+
+import { request } from 'node:http'
 
 // Loose structural types: the real ones live in @earendil-works/pi-coding-agent,
 // which is provided by pi at load time (not a Phosphor dependency).
@@ -152,6 +154,11 @@ interface CompressResponse {
   tokens_saved?: number
 }
 
+type HeadroomFetch = (
+  url: string,
+  init: RequestInit,
+) => Promise<Pick<Response, 'ok' | 'status' | 'json'>>
+
 /**
  * The `tool_result` handler, with the HTTP boundary injected for tests.
  * One instance per session; state is the health verdict, the failure count
@@ -159,7 +166,7 @@ interface CompressResponse {
  */
 export function createHeadroomHandler(deps: {
   baseUrl: string
-  fetchImpl: typeof fetch
+  fetchImpl: HeadroomFetch
 }): (rawEvent: unknown, rawCtx: unknown) => Promise<Record<string, unknown> | undefined> {
   const baseUrl = deps.baseUrl.replace(/\/+$/, '')
   let enabled = true
@@ -262,8 +269,44 @@ export function createHeadroomHandler(deps: {
   }
 }
 
+/** No redirects or TCP fallback: the daemon lane talks only to its own Unix socket. */
+function socketFetch(socketPath: string): HeadroomFetch {
+  return (input, init) =>
+    new Promise((resolve, reject) => {
+      const req = request(
+        {
+          socketPath,
+          path: new URL(input).pathname,
+          method: init?.method,
+          headers: { 'content-type': 'application/json' },
+          signal: init?.signal ?? undefined,
+          agent: false,
+        },
+        (res) => {
+          const status = res.statusCode ?? 503
+          const chunks: Buffer[] = []
+          res.on('data', (chunk: Buffer) => chunks.push(chunk))
+          res.on('error', reject)
+          res.on('end', () =>
+            resolve({
+              ok: status >= 200 && status < 300,
+              status,
+              json: async () => JSON.parse(Buffer.concat(chunks).toString()),
+            }),
+          )
+        },
+      )
+      req.on('error', reject)
+      req.end(init?.body)
+    })
+}
+
 export default function headroomExtension(pi: PiExtensionApi): void {
-  const baseUrl = process.env.PHOSPHOR_HEADROOM_URL
+  const socket = process.env.PHOSPHOR_HEADROOM_SOCKET
+  const baseUrl = socket ? 'http://localhost' : process.env.PHOSPHOR_HEADROOM_URL
   if (!baseUrl) return
-  pi.on('tool_result', createHeadroomHandler({ baseUrl, fetchImpl: fetch }))
+  pi.on(
+    'tool_result',
+    createHeadroomHandler({ baseUrl, fetchImpl: socket ? socketFetch(socket) : fetch }),
+  )
 }

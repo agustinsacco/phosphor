@@ -1,7 +1,18 @@
+import { HARBOR_RECALL } from '../../brain-client/src/__fixtures__/recall'
+import { FakeBrainStore, FakeBrainSearch } from './__fixtures__/fake-store'
+import { recallOptions } from './__fixtures__/options'
+import { createRecall } from './recall'
+import { parseOwnerParams } from '@phosphor/shared/host-protocol-owner'
 import { createConnection } from 'node:net'
 import { expect, it, vi } from 'vitest'
 import { BRAIN_PROTOCOL } from '@phosphor/shared/brain'
-import { createBrainBridge } from './bridge'
+import { createBrainBridge as openBridge, type BridgeInvoke } from './bridge'
+import { createBrainFlagLimit } from './tidy/flag-limit'
+
+vi.mock('./lane', () => ({ projectContext: async (cwd: string) => ({ scope: cwd, branch: null }) }))
+
+const createBrainBridge = (invoke: BridgeInvoke) =>
+  openBridge(invoke, { flagLimit: createBrainFlagLimit() })
 
 function request(endpoint: string, input: unknown): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -34,6 +45,13 @@ it('accepts only versioned, authenticated requests with validated fields', async
     params: { query: 'Harbor' },
   }
   try {
+    const registration = bridge.registration(true)
+    expect(parseOwnerParams('app.service.register', registration)).toEqual({
+      service: 'brain',
+      endpoint: bridge.endpoint,
+      token: bridge.token,
+      recall: true,
+    })
     expect(await request(bridge.endpoint, input)).toMatchObject({ ok: true })
     expect(invoke).toHaveBeenCalledWith(
       'search',
@@ -181,5 +199,71 @@ it('a wall-clock step back does not hold the flag window shut', async () => {
     clock.mockRestore()
     steady.mockRestore()
     await bridge.close()
+  }
+})
+
+it('keeps the tenth flag but not an eleventh just inside the rolling minute', async () => {
+  let now = 123_000
+  const clock = vi.spyOn(performance, 'now').mockImplementation(() => now)
+  const bridge = await createBrainBridge(async () => ({ status: 'filed', message: 'Filed.' }))
+  const flag = () =>
+    request(bridge.endpoint, {
+      version: BRAIN_PROTOCOL,
+      token: bridge.token,
+      method: 'flag',
+      params: {
+        memoryId: 'harbor',
+        sessionId: 'lane',
+        title: 'Harbor',
+        problem: 'wrong',
+        reason: 'Checked.',
+      },
+    })
+  try {
+    for (let n = 0; n < 10; n++) expect(await flag()).toMatchObject({ data: { status: 'filed' } })
+    now += 59_999
+    expect(await flag()).toMatchObject({ data: { status: 'limit' } })
+    now++
+    expect(await flag()).toMatchObject({ data: { status: 'filed' } })
+  } finally {
+    clock.mockRestore()
+    await bridge.close()
+  }
+})
+
+it('charges channel and private bridge flags to the same service-wide window', async () => {
+  const bridge = await openBridge(async () => ({ status: 'filed', message: 'Filed.' }))
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch()
+  store.prefs.enabled = true
+  search.result = HARBOR_RECALL
+  const recall = createRecall(store, recallOptions(store), search, undefined, store)
+  const lane = recall.forLane({ cwd: '/fixture/harbor', title: 'Harbor', sessionId: 'lane' })
+  const params = {
+    memoryId: 'ownership',
+    title: 'Harbor',
+    sessionId: 'lane',
+    problem: 'wrong',
+    reason: 'Verified.',
+  }
+  const flag = () =>
+    request(bridge.endpoint, {
+      version: BRAIN_PROTOCOL,
+      token: bridge.token,
+      method: 'flag',
+      params,
+    })
+  try {
+    for (let n = 0; n < 9; n++) expect(await flag()).toMatchObject({ data: { status: 'filed' } })
+    await lane.search({ query: 'Harbor' })
+    // A valid flag reaching the engine costs a request even if the memory was just removed.
+    expect(await lane.flag({ ...params, ref: 1 })).toMatchObject({
+      data: { status: 'unavailable' },
+    })
+    expect(await flag()).toMatchObject({ data: { status: 'limit' } })
+    expect(await lane.flag({ ...params, ref: 1 })).toMatchObject({ data: { status: 'limit' } })
+  } finally {
+    await bridge.close()
+    await recall.dispose()
   }
 })

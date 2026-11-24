@@ -2,7 +2,7 @@ import { realpath, stat } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, sep } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
 import { fail, info, pass, warn, type Check } from '../checks'
-import { errnoIs, isInside } from '../fs-safety'
+import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
 import { probe, type ProbeEnvironment } from './probe'
 
 /**

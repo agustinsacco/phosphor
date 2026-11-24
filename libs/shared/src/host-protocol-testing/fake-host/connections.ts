@@ -6,6 +6,7 @@ import {
 } from '../../host-protocol'
 import { authenticate, authorized } from './auth'
 import { call } from './calls'
+import { isOpsFrame, ops } from './ops'
 import { command } from './commands'
 import { send } from './delivery'
 import { prune, rejected } from './receipts'
@@ -71,6 +72,7 @@ export function dispatch(state: FakeHostState, c: Connection, f: ClientFrame) {
   else if (!c.grant) c.socket.close(4401, 'Auth required')
   else if (f.type === 'ping') send(state, c, { type: 'pong', at: f.at })
   else if (f.type === 'unsubscribe') unsubscribe(c, f.id)
+  else if ((f.type === 'call' || f.type === 'command') && isOpsFrame(f)) ops(state, c, f)
   else if (f.type === 'command') command(state, c, f, authorized(state, c, 'sessions.control'))
   else if (f.type === 'receipt-status') receiptStatus(state, c, f.requestId)
   else if (f.type === 'subscribe') subscribe(state, c, f)

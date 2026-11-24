@@ -79,6 +79,8 @@ export async function launch(
     userDataDir?: string
     /** Override the run-wide agent dir; see `privateAgentDir`. */
     agentDir?: string
+    args?: string[]
+    beforeWindow?: (app: ElectronApplication) => Promise<void>
     env?: Record<string, string>
   } = {},
 ): Promise<Harness> {
@@ -86,7 +88,7 @@ export async function launch(
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
 
   const app = await electron.launch({
-    ...desktopElectronLaunchOptions([repoRoot]),
+    ...desktopElectronLaunchOptions([repoRoot, ...(options.args ?? [])]),
     env: {
       ...devServerEnvStripped(),
       NODE_ENV: 'production',
@@ -98,6 +100,7 @@ export async function launch(
     },
   })
   configureTestTeardown(app)
+  await options.beforeWindow?.(app)
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
   // After the window: main registers its own handlers before it opens one.

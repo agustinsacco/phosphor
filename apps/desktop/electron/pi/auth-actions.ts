@@ -4,7 +4,7 @@ import { externalUrl } from '../external-links'
 import { ptyManager } from '../pty/pty-manager'
 import { checkPiHealth } from './health'
 import { LOGIN_TERMINAL_ARGS, signInCwd, startLogin } from './login-flow'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 
 /** Scraped provider URLs follow the same policy as every other external link. */
 function openAuthPage(url: string): void {

@@ -79,6 +79,7 @@ describe('standalone extension registration', () => {
         expect(registered.commands).toEqual([
           'phosphor-context-budget',
           'phosphor-prs',
+          'phosphor-directives',
           'phosphor-context-files',
           'phosphor-swarm',
         ])
@@ -86,6 +87,18 @@ describe('standalone extension registration', () => {
       if (file === 'lane-reload.ts') expect(registered.commands).toEqual(['phosphor-reload'])
     },
   )
+
+  it('stages the parent-only phosphor tool with its shipped siblings, gated by the marker', async () => {
+    expect(BUNDLED_EXTENSION_FILES).not.toContain('phosphor.ts')
+    vi.stubEnv('PHOSPHOR_OPS', '')
+    expect((await registerCopied('phosphor.ts')).tools).toEqual([])
+    vi.stubEnv('PHOSPHOR_OPS', 'v1')
+    expect(await registerCopied('phosphor.ts')).toEqual({
+      events: [],
+      commands: [],
+      tools: ['phosphor'],
+    })
+  })
 
   it('registers the optional gate from one copied file without siblings', async () => {
     expect(await registerCopied('optional/permission-gate.ts', true)).toEqual({

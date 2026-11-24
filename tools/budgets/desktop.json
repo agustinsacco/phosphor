@@ -51,12 +51,10 @@
     "electron/hosts/remote-lanes.test.ts::%3Canonymous%3E[1]": 113,
     "electron/ipc/hosts-handlers.ts::registerHostsHandlers[1]": 228,
     "electron/ipc/routines-handlers.ts::registerRoutinesHandlers[1]": 84,
-    "electron/main.ts::file": 425,
     "electron/main.ts::createWindow[1]": 87,
     "electron/routines/runner.ts::executeRoutine[1]": 187,
     "electron/hosts/traffic-log.ts::createTrafficLog[1]": 219,
-    "electron/hosts/traffic-log.ts::createTrafficLog[1]/inbound[1]": 87,
-    "electron/pi/session-tree.test.ts::describe[1]/it[6]": 82
+    "electron/hosts/traffic-log.ts::createTrafficLog[1]/inbound[1]": 87
   },
   "exemptions": [],
   "renames": {}

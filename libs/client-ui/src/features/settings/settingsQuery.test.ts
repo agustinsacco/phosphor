@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { DESKTOP_PLATFORM } from '@/platform/Platform'
+import { DESKTOP_PLATFORM, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import {
   EXTENSION_TABS,
   SETTINGS_INDEX,
@@ -255,4 +255,22 @@ describe('SETTINGS_INDEX against the section sources', () => {
     )
     expect(new Set(keys).size).toBe(keys.length)
   })
+})
+
+it('lands service actions on one persistent This Mac section, never a transient or remote row', () => {
+  const service = (
+    query: string,
+    platform = DESKTOP_PLATFORM,
+    machine: 'local' | 'host' = 'local',
+    slot = false,
+  ) =>
+    searchSettings(query, ALL, platformIndex(platform, machine, false, slot)).flatMap((group) =>
+      group.entries.map((e) => e.title),
+    )
+  for (const term of ['update Phosphor service', 'export diagnostics', 'quit service lanes']) {
+    expect(service(term)).toContain('Phosphor service')
+    expect(service(term, DESKTOP_PLATFORM, 'host', true)).toContain('Phosphor service')
+    expect(service(term, DESKTOP_PLATFORM, 'host')).not.toContain('Phosphor service')
+    expect(service(term, WIDE_BROWSER_PLATFORM, 'host', true)).not.toContain('Phosphor service')
+  }
 })

@@ -24,7 +24,7 @@ export interface MachineRuntime {
   platform?: string
   /** A Host's config file; This Mac's settings have no single one. */
   configPath?: string
-  update: MachineUpdate
+  update?: MachineUpdate
 }
 
 /** One machine's Advanced blocks. A block renders only when its data is present. */

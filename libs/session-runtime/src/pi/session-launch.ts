@@ -20,6 +20,8 @@ export async function prepareSessionLaunch(
   const executable = await runtime.resolveExecutable()
   // Account/provider overlays must never mutate a cached environment from the adapter.
   const env = { ...(await runtime.readEnvironment(executable)) }
+  // Desktop copies process.env here. A daemon socket comes only from a later Host contribution.
+  delete env.PHOSPHOR_HEADROOM_SOCKET
   const extensions = bundledExtensions(runtime.resourceRoot())
   return { ...executable, env, extensions }
 }

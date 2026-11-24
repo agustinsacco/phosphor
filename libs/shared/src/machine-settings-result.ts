@@ -1,3 +1,4 @@
+import { isContextFilePrefs } from './context-files'
 import { machineRecord, parseMachineClaude, parseMachineProviders } from './host-protocol-machine'
 import { isUuid } from './control-api'
 import {
@@ -232,6 +233,7 @@ function parseAgent(value: Record<string, unknown>, base: MachineSettings): Mach
       ...(a.defaultThinkingLevel
         ? { defaultThinkingLevel: a.defaultThinkingLevel as ThinkingLevel }
         : {}),
+      ...(isContextFilePrefs(a.contextFiles) ? { contextFiles: a.contextFiles } : {}),
       contextBudget: a.contextBudget,
       autoNameLanes: a.autoNameLanes,
       ...(a.namingLive === true ? { namingLive: true } : {}),

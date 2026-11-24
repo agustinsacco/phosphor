@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { exec } = vi.hoisted(() => ({ exec: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFile: exec }))
-vi.mock('../pi/shell-env', () => ({
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   piProcessEnv: async (extra: Record<string, string>) => ({ PATH: '/bin', ...extra }),
 }))
 

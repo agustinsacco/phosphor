@@ -47,11 +47,15 @@ export async function sweepComposerDrafts(deps: DraftServiceDeps): Promise<Draft
     k.slice('home:'.length),
   )
   const alive = new Set(
-    (await Promise.all(folders.map(async (f) => ((await deps.pathExists(f)) ? f : null)))).filter(
-      (f): f is string => f !== null,
-    ),
+    (
+      await Promise.all(
+        folders
+          .filter((f) => !f.startsWith('host:'))
+          .map(async (f) => ((await deps.pathExists(f)) ? f : null)),
+      )
+    ).filter((f): f is string => f !== null),
   )
-  const swept = sweepDrafts(drafts, (path) => alive.has(path))
+  const swept = sweepDrafts(drafts, (path) => path.startsWith('host:') || alive.has(path))
   deps.setDrafts(swept.drafts)
   const orphans = orphanBlobIds(swept.drafts, await deps.listBlobs())
   await deps.deleteBlobs([...swept.dropped, ...orphans])

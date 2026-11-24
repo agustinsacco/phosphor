@@ -4,6 +4,8 @@ import type {
   HostAttention,
   IpcInvokeChannel,
   IpcInvokeMap,
+  LocalMachineStatus,
+  OpsChangedEvent,
   PhosphorApi,
 } from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
@@ -87,6 +89,10 @@ const api: PhosphorApi = {
   onMachinesChanged: (listener) => subscribe<[]>('control:machinesChanged', listener),
 
   onVoiceStatus: (listener) => subscribe<[VoiceStatus]>('voice:statusChanged', listener),
+
+  onOpsChanged: (listener) => subscribe<[OpsChangedEvent]>('ops:changed', listener),
+  onLocalMachineChanged: (listener) =>
+    subscribe<[LocalMachineStatus]>('app:localMachineChanged', listener),
 
   onPtyStatus: (listener) => subscribe<[Record<string, boolean>]>('pty:status', listener),
 

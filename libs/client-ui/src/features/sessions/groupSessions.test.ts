@@ -27,6 +27,35 @@ const meta = (overrides: Partial<SessionMeta> = {}): SessionMeta => ({
 const notPinned = (): boolean => false
 const notLive = (): boolean => false
 
+it('shows the retained worktree and sandbox, not routine, replaced or unlisted lanes', () => {
+  const root = '/repo'
+  const gone = '/repo/.phosphor/worktrees/gone'
+  const box = '/sandboxes/box'
+  const files = (cwd: string, ...names: string[]) => names.map((path) => meta({ cwd, path }))
+  const groups = groupSessionsByProject(
+    [root, gone, box],
+    {
+      [root]: files(root, 'old', 'new', 'routine'),
+      [gone]: files(gone, 'kept'),
+      [box]: files(box, 'scratch'),
+      '/other': files('/other', 'unlisted'),
+    },
+    {},
+    (m) => m.path === 'routine',
+    notLive,
+    root,
+    {},
+    { [gone]: root },
+    { old: 'new' },
+  )
+  expect(
+    groups.map((group) => [group.workspacePath, group.metas.map((m) => m.path).sort()]),
+  ).toEqual([
+    [root, ['kept', 'new']],
+    [box, ['scratch']],
+  ])
+})
+
 describe('hidden sessions', () => {
   it('drops a routine lane but keeps the project group alive', () => {
     const disk = {

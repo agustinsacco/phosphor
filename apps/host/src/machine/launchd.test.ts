@@ -15,8 +15,8 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { HOST_AGENT } from '@phosphor/shared/host-local'
 import {
-  HOST_AGENT,
   launchAgentPlist,
   launchctlMissing,
   launchdExit,

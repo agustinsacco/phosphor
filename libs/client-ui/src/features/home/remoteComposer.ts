@@ -34,7 +34,10 @@ export function openRemoteComposer(hostId: string, repositoryId?: string): void 
 
 useMachinesStore.subscribe((state, previous) => {
   const target = useRemoteComposer.getState().target
-  if (!state.remoteEnabled) {
+  if (
+    !state.remoteEnabled &&
+    !(target && useRemoteLanesStore.getState().hosts[target.hostId]?.local)
+  ) {
     useRemoteComposer.setState({ target: null, repositories: {} })
     return
   }

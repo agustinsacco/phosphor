@@ -234,6 +234,8 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
     expect(names.filter((name) => name !== '__CF_USER_TEXT_ENCODING')).toEqual(
       [
         ...environment.names,
+        'PHOSPHOR_DIRECTIVES_BASE',
+        'PHOSPHOR_HOST_PID',
         'PI_CLAUDE_CLI_CONTEXT',
         'PI_CLAUDE_CLI_KEEPALIVE_MS',
         'PI_SUBAGENT_CACHE_RETENTION',

@@ -17,7 +17,7 @@ import type {
 
 export type CreateOp = Extract<LaneOp, { type: 'lane.create' }>
 export type CreatePorts = ReceiptPorts &
-  Pick<LaneCommandPorts, 'store' | 'sessions' | 'publish' | 'summaryFor'>
+  Pick<LaneCommandPorts, 'store' | 'sessions' | 'publish' | 'summaryFor' | 'leases'>
 /** What the creation work settled to. The receipt path maps it once it is answered. */
 export type CreationResult =
   | { kind: 'created'; lane: StoredLane }

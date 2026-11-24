@@ -1,8 +1,8 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { basename } from 'node:path'
-import { listSandboxFolders, openSandboxFolder } from '../sandbox'
+import { listSandboxFolders, openSandboxFolder } from '@phosphor/session-runtime/sandboxes/folders'
 import { deleteSandbox, renameSandbox, sandboxBase } from '../sandbox-service'
-import { pathExists } from '../sandbox-transcripts'
+import { pathExists } from '@phosphor/session-runtime/sandboxes/transcripts'
 import { registry } from '../registry'
 import { syncContextBudget } from '@phosphor/session-runtime/pi/context-budget'
 import { withBudgetCompaction } from '../pi/context-budget'
@@ -28,6 +28,7 @@ import {
   sweepComposerDrafts,
 } from '../app/draft-service'
 import { resolveResumeTarget } from '../app/resume-target'
+import { localRuntimeMode } from '../local-machine/mode'
 import { showNativeNotice } from '../app/native-notice'
 import {
   getPrefs,
@@ -171,7 +172,7 @@ function registerContextHandlers(): void {
 }
 
 function registerRuntimeHandlers(): void {
-  handle('app:resumeTarget', () => resolveResumeTarget(getPrefs(), pathExists))
+  handle('app:resumeTarget', () => resolveResumeTarget(getPrefs(), pathExists, localRuntimeMode()))
   handle('app:userInfo', () => ({
     username: userInfo().username,
     // Only the profile NAME, never credentials — used to build the right

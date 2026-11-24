@@ -1,3 +1,4 @@
+import { orderedHostIds } from '@/stores/localServiceScope'
 import { RemoteHostLanes } from './RemoteHostLanes'
 import { MachineLabelLine, machineStateText } from './MachineSwitcher'
 import { WorkspaceGroupSkeletons } from './SidebarPrimitives'
@@ -18,14 +19,18 @@ export function RemoteLanes(): React.JSX.Element | null {
   const now = useMachinesStore((s) => s.nowMs + s.clockOffsetMs)
   const error = useRemoteLanesStore((s) => s.error)
   const loading = useRemoteLanesStore((s) => s.snapshotStatus === 'loading')
-  if (!enabled || filter === 'local') return null
+  if (filter === 'local') return null
   const ids =
     filter === 'all'
-      ? [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
+      ? orderedHostIds(
+          machines.map((m) => m.id),
+          hosts,
+        )
       : [filter]
   return (
     <>
       {ids
+        .filter((id) => enabled || hosts[id]?.local)
         .filter((id) => !hosts[id] || hosts[id]?.state === 'no-address' || canReadHost(hosts[id]!))
         .map((id) => (
           <section key={id} aria-label={machineLabel(id)}>

@@ -830,6 +830,14 @@ Defrag leaves your saved launch folder alone. The Brain folder joins the recent 
 the Brain group stays in the sidebar after a restart. Opening the Brain lane yourself records
 the folder like any other lane.
 
+The Brain lane runs in Desktop on This Mac in both modes. After This Mac moves to the
+[Phosphor service](local-service.md), it is the one lane Desktop still starts itself: the
+registry admits only `<real userData>/brain/Brain` by real path (`isDesktopBrainLane` in
+`apps/desktop/electron/brain/lane-folder.ts`; a sibling, a nested folder or a symlink in its
+place is refused). It stays Desktop-private there: it is not in the sidebar or the service's
+lane list, it writes no recent folder, launch folder or session marker, and migration never
+plans it. Quitting Desktop asks first while its turn runs, and stops it.
+
 Its rules are `AGENTS.md` in that folder, which pi loads like any project's. Phosphor writes the
 default when the file is missing, when a lane starts there and before each Defrag turn, and
 never overwrites it, so deleting the file restores the default. Before every request the
@@ -984,28 +992,43 @@ forget.
 
 With recall on, **brain_flag** takes `{ ref, problem, reason }`: a memory's bracket number from
 the latest search briefing in that lane, `wrong`, `outdated` or `duplicate`, and 1–300 characters
-of evidence. The extension retains only that briefing's displayed number-to-id map per session.
+of evidence. The owner retains only the displayed number-to-id map for that live lane.
 Unknown numbers require another search. The server accepts active or disputed memories, one
 open flag per memory, at most five open flags per lane session and at most fifty open flags in
-the whole Brain; the same lane cannot flag the same memory twice. The local bridge accepts ten
-flag requests a minute from all lanes together, so a lane cannot dodge the limits by claiming
-another lane's id. It records the claimed lane id and title as data. Reasons are untrusted,
-bounded data, never instructions. A flag waits for Defrag, where Brain Agent checks it against
-sources; it is not a knowledge change. The skill asks agents to flag only user contradictions,
-verified wrong or outdated facts, or duplicate recalled memories, never a guess, an agent
-preference or mere irrelevance.
+the whole Brain; the same lane cannot flag the same memory twice. Brain accepts ten flag
+requests a minute from all lanes together. The owner supplies the session id and title, never
+the tool, and Brain records them as data. Reasons are untrusted, bounded data, never
+instructions. A flag waits for Defrag, where Brain Agent checks it against sources; it is not a
+knowledge change. The skill asks agents to flag only user contradictions, verified wrong or
+outdated facts, or duplicate recalled memories, never a guess, an agent preference or mere
+irrelevance.
 
 ## Recall
 
-When Brain and recall are on, lane startup (`SessionStartupRuntime.recall`) adds
-`PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN`, `-e brain-ext/brain.mjs` and
-`--skill skills/brain`. The endpoint is a local socket; the token is random per app run. The
-Brain lane gets the same variables with Brain Agent's own token, `-e brain-ext/brain-curator.mjs`
-and `--skill skills/brain-agent` instead. Recall never blocks a lane: any failure starts it
-without Brain. Both extensions remove the two variables from pi's environment on load and keep
-the connection for their own reloads. Bash commands, MCP servers and sub-agents started
-thereafter do not inherit the credentials. Search stays read-only; flags only ask Brain Agent
-to check. Every tool uses the version 6 local bridge.
+When Brain and recall are on, lane startup contributes `-e brain-ext/brain.mjs` and
+`--skill skills/brain`, not a Brain socket address or token. On an op-channel lane
+(`PHOSPHOR_OPS=v1`), `brain_search` and `brain_flag` use the `brain.search` and
+`brain.flag` service ops. The owner supplies the workspace and lane identity. If no
+Brain service answers, the tool reports “Brain is unavailable right now.” This is
+not a no-match result or a request for user input. Search stays read-only; flags
+only ask Brain Agent to check. Recall never blocks a lane: any failure starts it without Brain.
+
+The Brain lane instead gets `PHOSPHOR_BRAIN_ENDPOINT`, `PHOSPHOR_BRAIN_TOKEN` (Brain Agent's
+curator token), `-e brain-ext/brain-curator.mjs` and `--skill skills/brain-agent`, the only
+Brain credentials any lane gets. The endpoint is Desktop's private local socket; the token is
+random per app run. Spawn `env` never carries them: every pi child's env loses all Brain
+variables, inherited or passed, and only the typed `PiSpawnOptions.brainConnection` adds the
+two back. Only Desktop's Brain contribution sets it, for the exact Brain lane folder; it is not
+argv and is never logged. `brain-curator.mjs` removes the two variables from pi's environment on load
+and keeps the connection for its own reloads, so bash commands, MCP servers and sub-agents
+started thereafter do not inherit them. Every curator tool uses the version 6 local bridge.
+
+Desktop registers Brain with the local Phosphor service on its attested owner connection, updates registration when recall changes, and registers again on reconnect. Extraction waits for a fresh lane activity projection, not cached idle status.
+It keeps the private socket address and capability only until that connection closes or a
+new registration replaces it. The daemon checks the socket's owner and its private parent
+folder before each request. Only the recall preference survives in `app-services.json`, so
+new lanes can still load the recall skill with Desktop closed and answer “unavailable”.
+The service never opens Brain's database or puts the capability in a lane environment.
 
 `brain_search(query, limit?)` returns 8 memories by default, up to 20:
 

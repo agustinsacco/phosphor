@@ -1,3 +1,4 @@
+import type { ContextFilePrefs } from './context-files'
 import type { AgentDirectivePrefs, ClaudeRoutingMode, ClaudeUsageSnapshot } from './models'
 import type { GlobalInstructions } from './global-instructions'
 import type { ThinkingLevel } from './rpc'
@@ -33,6 +34,7 @@ export interface MachineAgentDefaults extends MachineAgentBehavior {
   defaultProvider?: string
   defaultModel?: string
   defaultThinkingLevel?: ThinkingLevel
+  contextFiles?: ContextFilePrefs
   contextBudget: string
   autoNameLanes: boolean
   /**

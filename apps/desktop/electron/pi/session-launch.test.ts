@@ -24,7 +24,7 @@ vi.mock('./health', async () => {
   h.resetHealth.mockImplementation(cache.invalidate)
   return { cachedPiHealth: () => cache.get().catch((health: PiHealth) => health) }
 })
-vi.mock('./shell-env', () => ({ piProcessEnv: h.environment }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.environment }))
 vi.mock('@phosphor/session-runtime/pi/provider-detect', () => ({
   claudeProviderSpawnEnv: h.provider,
 }))
@@ -108,4 +108,17 @@ it.each([
   expect(h.app.getAppPath).not.toHaveBeenCalled()
   expect((await prepare()).stub).toBe(false)
   expect(h.health).toHaveBeenCalledTimes(2)
+})
+
+it('a Desktop launched from a daemon lane cannot borrow its parent relay socket', async () => {
+  vi.stubEnv('PHOSPHOR_HEADROOM_SOCKET', 'parent')
+  // Desktop's piProcessEnv also copies the parent environment into the launch inputs.
+  const inherited = {
+    PATH: '/bin',
+    PI_CLAUDE_CLI_CONTEXT: 'pi',
+    PHOSPHOR_HEADROOM_SOCKET: 'parent',
+  }
+  h.environment.mockResolvedValueOnce(inherited)
+  const launch = await prepare()
+  expect(launch.env).not.toHaveProperty('PHOSPHOR_HEADROOM_SOCKET')
 })

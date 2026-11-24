@@ -1,3 +1,4 @@
+import { resumeServiceLane } from './resumeServiceLane'
 import { AppOverlays } from './AppOverlays'
 import { GlobalScreen } from '@/navigation/screens'
 import { useNavigation } from '@/navigation/Navigation'
@@ -138,6 +139,9 @@ export function App(): React.JSX.Element {
 
         const target = await window.phosphor.invoke('app:resumeTarget')
         if (cancelled || target.kind === 'none') return
+        // Main answers `lane` only once This Mac's lanes run on the Phosphor service.
+        if (target.kind === 'lane')
+          return void resumeServiceLane(target.hostId, target.laneId, () => cancelled)
 
         useWorkspacesStore.getState().openWorkspace(target.workspacePath)
         if (target.kind === 'session' && !cancelled) {

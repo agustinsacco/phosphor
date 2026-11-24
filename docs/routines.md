@@ -118,7 +118,7 @@ instructions and configuration, not stored account credentials or run history.
   recorded, not just the snapshot's recent window; the sidebar hides exactly
   those paths. A routines subsystem that failed to start returns an empty
   index and hides nothing.
-- **Opening a lane from history promotes it.** There is no read-only
+- **In-app, opening a lane from history promotes it.** There is no read-only
   transcript view — reopening a session file spawns a real pi process — so
   opening one hands it back to its workspace: it leaves the lane index, gains
   an ordinary sidebar row, and the routine will not use it again. The
@@ -126,6 +126,7 @@ instructions and configuration, not stored account credentials or run history.
   task can surprise you with. Promotion is one-way and never deletes history.
   A lane promoted while its run is still executing stays owned by the routine
   until that run ends; it is visible so you can watch it.
+- **On the service**, routine history offers Open or Continue only when the output already belongs to a lane. Viewing history does not promote a saved transcript. Agent-created routines start paused and untrusted; enabling or running a routine does not grant trust. Asked agent ops in an unattended run are denied instead of opening a dialog.
 - `Finished · unverified` means the agent returned a written outcome, **not**
   that its report, tests, or external deliveries were independently verified.
   Empty outcomes and provider errors fail. On Desktop and Host, top-level tool
@@ -232,8 +233,7 @@ The Host daemon owns its own scheduler and SQLite database at
 `<state>/routines/state.sqlite`. The Host footer states that routines run while
 the Host is running and awake; Desktop can be closed. The scheduler belongs to
 the Host daemon, not a Desktop window or connection.
-Desktop's local scheduler, notifications, background setting and database do not
-change. The Routines page lists this computer and every connected machine that
+In-app mode keeps Desktop's scheduler and database; after migration the service schedules This Mac’s routines. The Routines page lists this computer and every connected machine that
 announces `routines`, with a machine tag and filter. In All machines, local rows
 load first; an unavailable machine has its own status and never hides local rows.
 Definitions with their recent activity, and each routine's history, are fetched independently and refreshed on Host

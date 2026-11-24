@@ -1,23 +1,26 @@
 import { CONTROL_TRACE_HEADERS, isControlTrace } from '@phosphor/shared/control-api'
 import type { Socket } from 'node:net'
-import type { Duplex } from 'node:stream'
 import { randomBytes, type KeyObject } from 'node:crypto'
 import { createServer, type IncomingMessage } from 'node:http'
-import { WebSocket, WebSocketServer } from 'ws'
 import {
   HOST_API_PORT,
   HOST_API_ROUTES,
   HOST_LIMITS,
   HOST_PROTOCOL_VERSION,
-  type FrameSocket,
 } from '@phosphor/shared/host-protocol'
 import type { HostHello } from '@phosphor/shared/remote-host'
 import type { Authority } from './authority'
-import { createKeyset } from './keyset'
+import { createKeyset, type Keyset } from './keyset'
 import { createConnection, hostProof, type ApiLog, type ConnectionPorts } from './connection'
+import { createGrantAuth } from './grant-auth'
 import type { LaneService } from '../lanes/service'
-import { createLaneAdapter } from './lanes'
+import { createLaneAdapter, type LaneAdapter } from './lanes'
 import { admitsBrowserOrigin, resolveWebOrigin } from './browser-origin'
+import { createWsUpgrade, rejectTransport } from './ws-upgrade'
+import { createAdapterChain } from './adapter'
+import { createMachineAdapter } from './machine-adapter'
+import { createOwnerAdapter, type OwnerHandlers } from '../owner/adapter'
+import { createOpsAdapter, type OpsAdapterPorts } from '../ops/adapter'
 
 export const API_LIMITS = {
   connections: 64,
@@ -54,17 +57,62 @@ export function requestStatus(
   return 0
 }
 
-/** A client holds at most `connectionsPerClient` sockets at once. */
+type ClientConnection = { clientId(): string | undefined }
+
+/** A client holds at most `connectionsPerClient` sockets at once, across this listener and the local socket. */
 function admits(
-  connections: Iterable<ReturnType<typeof createConnection>>,
+  connections: Iterable<ClientConnection>,
   clientId: string,
-  limits: ConnectionPorts['limits'],
+  options: Pick<ApiOptions, 'connectionLimits' | 'peers'>,
 ) {
-  const held = [...connections].filter((c) => c.clientId() === clientId).length
-  return held < (limits?.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient)
+  const held = [...connections, ...(options.peers?.() ?? [])].filter(
+    (c) => c.clientId() === clientId,
+  ).length
+  return held < (options.connectionLimits?.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient)
 }
 
-export function startApi(options: {
+/** Receipts and presence through the run's lane adapter, and this listener's connections. */
+function apiDelivery(
+  adapter: LaneAdapter | undefined,
+  connections: () => Iterable<ClientConnection>,
+) {
+  return {
+    deliver: adapter?.deliver ?? (() => {}),
+    isConnected: adapter?.isConnected ?? (() => false),
+    connections,
+  }
+}
+
+/** A TCP connection's authenticator: control-signed grants for this Host. */
+function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
+  return createGrantAuth({
+    authority: options.authority,
+    keyset,
+    origin: options.origin,
+    hello,
+    key: options.key,
+    webPushKey: options.lanes?.webPushKey,
+    readyFlags: options.ops?.readyFlags,
+  })
+}
+
+/**
+ * Owner methods, then the machine guard, then `ops.run`; the lane adapter comes
+ * last. The guard answers only machine grants, so it sits ahead of `ops.run`
+ * to refuse surface-only ops before the dispatcher sees them.
+ */
+export function hostLinks(ops?: OpsAdapterPorts, owner?: OwnerHandlers) {
+  return [createOwnerAdapter(owner), createMachineAdapter(), createOpsAdapter(ops)]
+}
+
+function connectionAdapters(options: ApiOptions) {
+  const adapter =
+    options.laneAdapter ??
+    (options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined)
+  return { adapter, handler: createAdapterChain(hostLinks(options.ops), adapter?.handler) }
+}
+
+interface ApiOptions {
   authority: Authority
   origin: string
   webOrigin?: string | null
@@ -72,6 +120,12 @@ export function startApi(options: {
   hostVersion: string
   runtimeEpoch?: string
   lanes?: LaneService
+  /** The run's one lane adapter, shared with the local socket; built here when absent. */
+  laneAdapter?: LaneAdapter
+  /** The local socket's connections, for per-client admission across both listeners. */
+  peers?: () => Iterable<ClientConnection>
+  /** Unbound until the Host serves ops; `ops.run` then reaches the lane adapter as before. */
+  ops?: OpsAdapterPorts
   key: KeyObject
   port?: number
   fetch?: typeof fetch
@@ -79,7 +133,9 @@ export function startApi(options: {
   ports?: Pick<ConnectionPorts, 'onReady' | 'onClose'>
   connectionLimits?: ConnectionPorts['limits']
   limits?: Partial<Record<keyof typeof API_LIMITS, number>>
-}) {
+}
+
+export function startApi(options: ApiOptions) {
   const webOrigin = resolveWebOrigin(options.origin, options.webOrigin)
   const limits = { ...API_LIMITS, ...options.limits }
   for (const name of [
@@ -96,19 +152,6 @@ export function startApi(options: {
   ] as const)
     if (!Number.isSafeInteger(limits[name]) || limits[name] < 1 || limits[name] > API_LIMITS[name])
       throw new Error('Invalid API limit')
-  let rejecting = 0
-  const closing = new WeakSet<WebSocket>()
-  function closeSocket(ws: WebSocket, code: number) {
-    if (closing.has(ws)) return
-    closing.add(ws)
-    ws.close(code)
-    terminateAfterGrace(ws)
-  }
-  function terminateAfterGrace(ws: WebSocket) {
-    const timer = setTimeout(() => ws.terminate(), limits.closeGraceMs)
-    timer.unref()
-    ws.once('close', () => clearTimeout(timer))
-  }
   const port = options.port ?? HOST_API_PORT
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid API port')
   const runtimeEpoch =
@@ -118,7 +161,7 @@ export function startApi(options: {
     (options.lanes && options.lanes.epoch !== runtimeEpoch)
   )
     throw new Error('Invalid runtime epoch')
-  const adapter = options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined
+  const { adapter, handler } = connectionAdapters(options)
   const hello: HostHello = {
     hostId: options.hostId,
     hostVersion: options.hostVersion,
@@ -128,13 +171,6 @@ export function startApi(options: {
   }
   const keyset = createKeyset(options.origin, options.fetch)
   const raw = new Set<Socket>()
-  function reject(transport: Duplex, status = 429) {
-    transport.write(
-      `HTTP/1.1 ${status} ${status === 429 ? 'Too Many Requests' : 'Rejected'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
-      () => transport.destroy(),
-    )
-  }
-  const connections = new Map<WebSocket, ReturnType<typeof createConnection>>()
   let stopped = false
   let binding = false
   let listening = false
@@ -200,96 +236,31 @@ export function startApi(options: {
   server.on('connection', (socket) => {
     socket.on('error', () => {})
     if (raw.size >= limits.rawSockets) {
-      reject(socket)
+      rejectTransport(socket)
       return
     }
     raw.add(socket)
     socket.on('close', () => raw.delete(socket))
   })
-  const wss = new WebSocketServer({
-    noServer: true,
-    maxPayload: HOST_LIMITS.inboundFrameBytes,
-    perMessageDeflate: false,
-    autoPong: false,
-  })
-  wss.on('error', () => {})
-  server.on('upgrade', (request, transport, head) => {
-    const status =
-      requestStatus(request, port, webOrigin) || (request.url !== HOST_API_ROUTES.stream ? 404 : 0)
-    if (status || stopped || !options.authority.snapshot()) {
-      reject(transport, status || 503)
-      return
-    }
-    if (wss.clients.size >= limits.connections && rejecting >= limits.rejecting) {
-      reject(transport)
-      return
-    }
-    wss.handleUpgrade(request, transport, head, (ws) => {
-      ws.on('error', () => {
-        if (!closing.has(ws)) {
-          closing.add(ws)
-          terminateAfterGrace(ws)
-        }
-      })
-      if (wss.clients.size > limits.connections) {
-        rejecting++
-        ws.once('close', () => {
-          rejecting--
-        })
-        closeSocket(ws, 4429)
-        return
-      }
-      const socket: FrameSocket = {
-        send: (text) => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(text)
-        },
-        close: (code) => closeSocket(ws, code),
-        onMessage: (cb) =>
-          ws.on('message', (data, binary) => {
-            if (binary) {
-              connection.rejectFrame()
-              return
-            }
-            cb(data.toString())
-          }),
-        onClose: (cb) => ws.on('close', (code) => cb(code, '')),
-        isOpen: () => ws.readyState === WebSocket.OPEN,
-        bufferedBytes: () => ws.bufferedAmount,
-      }
-      function controlFrame(data?: Buffer) {
-        if (ws.readyState !== WebSocket.OPEN) return
-        if (
-          socket.bufferedBytes() + (data?.length ?? 0) >
-          (options.connectionLimits?.sendQueueBytes ?? HOST_LIMITS.sendQueueBytes)
-        ) {
-          closeSocket(ws, 4429)
-          return
-        }
-        if (data) ws.pong(data)
-        else ws.ping()
-      }
-      ws.on('ping', (data) => controlFrame(data))
-      const connection = createConnection({
+  const upgrades = createWsUpgrade({
+    status: (request) =>
+      requestStatus(request, port, webOrigin) || (request.url !== HOST_API_ROUTES.stream ? 404 : 0),
+    accepting: () => !stopped && !!options.authority.snapshot(),
+    limits,
+    sendQueueBytes: options.connectionLimits?.sendQueueBytes ?? HOST_LIMITS.sendQueueBytes,
+    connect: (socket, ping) =>
+      createConnection({
         ...options.ports,
-        handler: adapter?.handler,
+        handler,
         socket,
-        ping: () => controlFrame(),
+        ping,
         limits: options.connectionLimits,
-        authority: options.authority,
-        keyset,
-        origin: options.origin,
-        hello,
-        key: options.key,
-        webPushKey: options.lanes?.webPushKey,
+        authenticate: grantAuth(options, keyset, hello),
         log: options.log,
-        admit: (clientId) => admits(connections.values(), clientId, options.connectionLimits),
-      })
-      connections.set(ws, connection)
-      ws.on('close', () => {
-        connections.delete(ws)
-      })
-    })
+        admit: (clientId): boolean => admits(upgrades.connections(), clientId, options),
+      }),
   })
+  server.on('upgrade', upgrades.upgrade)
   server.on('error', () => {
     binding = false
     options.log?.('api.unavailable', { port })
@@ -315,16 +286,13 @@ export function startApi(options: {
   const unsubscribe = options.authority.onChange(listen)
   listen()
   return {
-    deliver: adapter?.deliver ?? (() => {}),
-    isConnected: adapter?.isConnected ?? (() => false),
+    ...apiDelivery(adapter, upgrades.connections),
     async stop() {
       stopped = true
       unsubscribe()
       clearTimeout(retry)
       keyset.stop()
-      for (const connection of connections.values()) connection.close(1001)
-      for (const ws of wss.clients) closeSocket(ws, 1001)
-      await new Promise<void>((resolve) => wss.close(() => resolve()))
+      await upgrades.close(1001)
       for (const socket of raw) socket.destroy()
       await new Promise<void>((resolve) => server.close(() => resolve()))
     },

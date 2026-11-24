@@ -2,15 +2,17 @@ import { delimiter } from 'node:path'
 import { handle } from './handle'
 import { remoteLanes } from './hosts-handlers'
 import { isRemoteHandle } from '@phosphor/host-client/remote-lanes'
+import { activeDesktopOps } from '../ops/lifecycle'
 import { desktopSessions } from '../pi/session-runtime'
 import { cachedPiHealth } from '../pi/health'
 import { piAgentDir } from '../pi/pi-paths'
-import { piProcessEnv } from '../pi/shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { piStubPath } from '../pi/stub'
 import { generateSessionTitle } from '../pi/session-title'
 import { MIN_PI_VERSION, type CreateSessionOptions } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
 import { log } from '../debug-log'
+import { localRuntimeMode } from '../local-machine/mode'
 
 /** pi subprocess lifecycle: health, session create/dispose, RPC passthrough. */
 export function registerPiSessionHandlers(): void {
@@ -44,18 +46,21 @@ export function registerPiSessionHandlers(): void {
       ? remoteLanes().command(event.sender.id, sessionId, command)
       : desktopSessions.command(sessionId, command),
   )
-  handle('pi:extensionUiResponse', (event, sessionId: string, response: ExtensionUIResponse) =>
-    isRemoteHandle(sessionId)
-      ? remoteLanes().respond(event.sender.id, sessionId, response)
-      : desktopSessions.respond(sessionId, response),
-  )
+  handle('pi:extensionUiResponse', (event, sessionId: string, response: ExtensionUIResponse) => {
+    if (isRemoteHandle(sessionId))
+      return remoteLanes().respond(event.sender.id, sessionId, response)
+    if (activeDesktopOps()?.surfaceAnswered(sessionId, response, 'surface') === 'forbidden')
+      throw new Error('This confirmation cannot be answered by this sender.')
+    return desktopSessions.respond(sessionId, response)
+  })
   handle('pi:disposeSession', (event, sessionId: string) =>
     isRemoteHandle(sessionId)
       ? remoteLanes().dispose(event.sender.id, sessionId)
       : desktopSessions.dispose(sessionId),
   )
+  // In daemon mode the only in-app lane is Desktop's private Brain lane, never a window's lane.
   handle('pi:listLiveSessions', (event) => [
-    ...desktopSessions.list(),
+    ...(localRuntimeMode() === 'daemon' ? [] : desktopSessions.list()),
     ...remoteLanes().list(event.sender.id),
   ])
 

@@ -1,4 +1,4 @@
-import { createDrain } from './lifecycle'
+import { createDrain, endTurn, within } from './lifecycle'
 import { createRuntimeOperations } from './runtime-operations'
 import { createRuntimeState, type HostMachine, type RuntimeOptions } from './runtime-state'
 import { wireRuntimeDeletion, wireRuntimeService, wireRuntimeStartup } from './runtime-wiring'
@@ -16,6 +16,9 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
   const spawn = wireRuntimeStartup(state)
   const service = wireRuntimeService(state, spawn)
   const deleteLane = wireRuntimeDeletion(state)
+  const ownerDeleteLane = options.ownerTrashTranscript
+    ? wireRuntimeDeletion(state, options.ownerTrashTranscript)
+    : deleteLane
   const drain = createDrain({
     life: state.life,
     registry: state.registry,
@@ -31,9 +34,37 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     resourceRoot: machine.resourceRoot,
   })
   return {
-    ...createRuntimeOperations(state, service, deleteLane),
+    ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
+    ...(options.leases ? { leases: options.leases } : {}),
     life: state.life,
+    /** Lanes with a live pi process. */
+    liveLanes: () => state.registry.list().length,
+    async refreshDirectives(project?: string) {
+      const updates = state.registry.list().flatMap(({ sessionId }) => {
+        const s = state.registry.get(sessionId)
+        return s?.client.alive && s.refreshDirectives
+          ? [s.refreshDirectives(s.client.request.bind(s.client), project)]
+          : []
+      })
+      // An unresponsive pi must not hold the settings op. A late push is still ordered
+      // on that process and recomposes from current preferences, never from stale args.
+      const results = await within(Promise.allSettled(updates), Date.now() + 5000)
+      if (!results) return updates.length
+      return results.filter((r) => r.status === 'rejected' || !r.value).length
+    },
     drain,
+    /** The drain's abort-and-save step, with no stop: a service pause's Abort now. */
+    async abortTurns(): Promise<string[]> {
+      const sessions = state.registry
+        .list()
+        .flatMap((info) => state.registry.get(info.sessionId) ?? [])
+      const ends = await Promise.all(
+        sessions.map((session) =>
+          endTurn(session.client, state.timings.abortMs).catch(() => 'unfinished' as const),
+        ),
+      )
+      return sessions.flatMap((session, i) => (ends[i] === 'idle' ? [] : [session.sessionId]))
+    },
     async mutateStoppedSession<T>(path: string, change: () => Promise<T>): Promise<T> {
       state.paths.cancelSessionOpens(path)
       return state.paths.withSessionPath(path, async () => {
@@ -41,6 +72,10 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
           throw new Error('Stop the lane before changing its saved files.')
         return change()
       })
+    },
+    /** Reads a transcript, live or not, inside its path lock: a fork's source (P1). */
+    withSessionFile<T>(path: string, read: () => Promise<T>): Promise<T> {
+      return state.paths.withSessionPath(path, read)
     },
   }
 }

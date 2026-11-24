@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { isUuid } from '@phosphor/shared/control-api'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
-import { errnoIs } from '../../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import type { ScanState } from '../reconcile'
 import { LaneCapacityReached, type HostStore } from '../store'
 
@@ -62,6 +62,7 @@ async function admitSession(
   cwd: string,
   repositoryId: string,
 ): Promise<void> {
+  if (state.visible && !state.visible(file, repositoryId)) return
   const existing = store.sessionLane(file)
   if (existing?.removedAt === null) return
   if (state.liveLanes >= store.limits.lanesPerHost) {
@@ -76,7 +77,10 @@ async function admitSession(
     }
     let storedCwd = cwd
     if (existing) {
-      if (existing.repositoryId !== repositoryId || (await realpath(existing.cwd)) !== cwd) {
+      if (
+        existing.repositoryId !== repositoryId ||
+        (existing.cwd !== cwd && (await realpath(existing.cwd)) !== cwd)
+      ) {
         state.skipped++
         return
       }

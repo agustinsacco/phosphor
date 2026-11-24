@@ -5,13 +5,14 @@ import type { ClientFrameParse } from './frames'
 import type { LaneOp } from './operations'
 import { frameId, integer, member, record, text } from './primitives'
 
-/** Routine, provider login and repository ops never carry a lane id or fence. */
+/** Routine, provider login, repository and agent ops never carry a lane id or fence. */
 function laneless(op: LaneOp): boolean {
   return (
     op.type.startsWith('archive.') ||
     op.type.startsWith('routine.') ||
     op.type === 'provider.login' ||
     op.type === 'machine.task' ||
+    op.type === 'ops.run' ||
     op.type.startsWith('host.repositories.')
   )
 }

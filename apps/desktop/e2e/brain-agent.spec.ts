@@ -60,14 +60,18 @@ test('Brain Agent decides a waiting read, records its reason and undoes the run'
   }
 })
 
-test('Brain lane attaches to its running turn once, Stop ends Defrag, and other lanes cannot curate', async () => {
+test('Brain lane attaches to its running turn once, Stop ends Defrag, and other lanes recall without Brain credentials', async () => {
   const seed = await seedBrainLanes()
   await writeFile(seed.hold, 'BRAIN_STUB_HOLD\n')
   const h = await launch({
     workspace: seed.workspace,
     agentDir: seed.agent,
     userDataDir: seed.profile,
-    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1', PHOSPHOR_PI_STUB: seed.wrapper },
+    env: {
+      PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1',
+      PHOSPHOR_PI_STUB: seed.wrapper,
+      PHOSPHOR_E2E_OPS: '1',
+    },
   })
   const { page } = h
   try {
@@ -97,14 +101,21 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
     await expect(waitingRow(page, seed.harbor)).toBeVisible()
     await page.getByRole('button', { name: 'Close page', exact: true }).click()
     await page.getByTestId('session-row').filter({ hasText: seed.ledger.title }).first().click()
-    await send(page, 'BRAIN_STUB_CURATOR_PROBE')
-    await expect(page.getByText('Curator methods refused.', { exact: true })).toBeVisible()
+    // Recall answers over the lane's op channel; curator verbs are not ops an agent may run.
+    await send(page, opPrompt(['brain.search', 'Harbor']))
+    await expect(
+      page.getByRole('main').getByText(/No approved Brain memories matched\./),
+    ).toBeVisible()
+    await send(page, opPrompt(['brain.review']))
+    await expect(page.getByText('brain.review is not available to agents.')).toBeVisible()
+    await send(page, opPrompt(['brain.decideRead']))
+    await expect(page.getByText(/^Unknown operation\./)).toBeVisible()
     await expect
       .poll(() => launches(seed.audit, (cwd) => cwd.endsWith('/brain/Brain')))
       .toHaveLength(1)
     const ordinary = await launches(seed.audit, (cwd) => cwd === seed.workspace)
     expect(ordinary).toHaveLength(1)
-    expect(ordinary[0]).toMatchObject({ hasToken: true, curator: false })
+    expect(ordinary[0]).toMatchObject({ hasToken: false, curator: false })
     expect((await launches(seed.audit, (cwd) => cwd.endsWith('/brain/Brain')))[0]).toMatchObject({
       hasToken: true,
       curator: true,
@@ -124,6 +135,8 @@ async function launches(file: string, include: (cwd: string) => boolean) {
     )
   return rows.filter((row) => include(row.cwd))
 }
+const opPrompt = (args: string[]) =>
+  `Test op: ${JSON.stringify({ args, reason: 'Check what this lane may reach' })}`
 async function send(page: Page, message: string) {
   await page.getByRole('textbox', { name: 'Chat message', exact: true }).fill(message)
   await page.getByRole('button', { name: 'Send message', exact: true }).click()

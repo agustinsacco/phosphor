@@ -106,7 +106,7 @@ export async function branchLanded(
 interface DeletionPorts {
   store: HostStore
   stop(laneId: string, allowed: () => boolean): Promise<void>
-  remove(request: unknown): Promise<void>
+  remove(request: unknown, owner?: boolean): Promise<void>
   forget(laneId: string): void
   /** The Host's read-only gh, for the merged-PR proof. Without it only git proves a merge. */
   github?: GhRunner
@@ -117,6 +117,7 @@ export function createLaneDeletion(options: DeletionPorts) {
   return async (
     op: DeleteLaneOp,
     allowed: () => boolean,
+    owner = false,
   ): Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }> => {
     const lane = options.store.getLane(op.laneId)
     if (!lane || lane.removedAt !== null) return { ok: false, code: 'unknown-lane' }
@@ -154,7 +155,7 @@ export function createLaneDeletion(options: DeletionPorts) {
           },
         ))
       )
-        await options.remove({ repository: lane.cwd, sessionPath: file })
+        await options.remove({ repository: lane.cwd, sessionPath: file }, owner)
       if (!allowed()) return { ok: false, code: 'forbidden' }
       if (
         op.removeWorktree &&

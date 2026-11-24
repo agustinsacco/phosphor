@@ -1,50 +1,26 @@
-import { spawnSync } from 'node:child_process'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { BrainClient } from '@phosphor/brain-client/client'
-import { HARBOR_RECALL } from '../../brain-client/src/__fixtures__/recall'
+import {
+  noOwnerReply,
+  OP_MARKER_ENV,
+  OP_MARKER_VALUE,
+  OP_TITLE,
+  parseOpChannelRequest,
+  type OpReplyEnvelope,
+} from '@phosphor/shared/ops'
 import brainExtension, { registerBrain } from './brain'
 import type { ToolDefinition } from './pi-api'
 
-interface Context {
-  cwd: string
-  sessionManager: { getSessionId(): string }
-}
-interface Params {
-  query: string
-  limit?: number
-}
-afterEach(() => {
-  vi.unstubAllEnvs()
-  delete (globalThis as Record<symbol, unknown>)[Symbol.for('phosphor/brain-connection/v1')]
-})
+afterEach(() => vi.unstubAllEnvs())
 
-it('leaves no token or endpoint for a bash child of the lane, and survives a reload', async () => {
-  vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', '/tmp/harbor-brain.sock')
-  vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', 'harbor-lane-token')
-  const pi = { registerTool: vi.fn(), on: vi.fn() }
-  brainExtension(pi)
-  expect(pi.registerTool).toHaveBeenCalledTimes(2)
-  const child = spawnSync(
-    'sh',
-    ['-c', 'printf "%s|%s" "$PHOSPHOR_BRAIN_TOKEN" "$PHOSPHOR_BRAIN_ENDPOINT"'],
-    { encoding: 'utf8' },
-  )
-  expect(child.stdout).toBe('|')
-  // pi reloads an extension by evaluating its module again, in the same process.
-  vi.resetModules()
-  const { default: reloaded } = await import('./brain')
-  const again = { registerTool: vi.fn(), on: vi.fn() }
-  reloaded(again)
-  expect(again.registerTool).toHaveBeenCalledTimes(2)
-})
-
-it('is inert without connection env and installs two explicit tools with no turn hooks', () => {
-  vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', '')
-  vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', '')
+it('only installs the two explicit tools on a marker lane; stale bridge env cannot enable them', () => {
+  vi.stubEnv(OP_MARKER_ENV, '')
+  vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', 'ignored')
+  vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', 'ignored')
   const pi = { registerTool: vi.fn(), on: vi.fn() }
   brainExtension(pi)
   expect(pi.registerTool).not.toHaveBeenCalled()
-  registerBrain(pi, { search: vi.fn(), flag: vi.fn() })
+  vi.stubEnv(OP_MARKER_ENV, OP_MARKER_VALUE)
+  brainExtension(pi)
   expect(pi.registerTool.mock.calls.map(([tool]) => tool.name)).toEqual([
     'brain_search',
     'brain_flag',
@@ -52,50 +28,118 @@ it('is inert without connection env and installs two explicit tools with no turn
   expect(pi.on).not.toHaveBeenCalled()
 })
 
-it('sends cwd and session identity and returns the formatted briefing without evidence', async () => {
-  const tools: ToolDefinition<Params, Context, unknown>[] = []
-  const client: BrainClient = { search: vi.fn(async () => HARBOR_RECALL), flag: vi.fn() }
-  registerBrain(
-    { registerTool: (tool) => tools.push(tool as ToolDefinition<Params, Context, unknown>) },
-    client,
-  )
-  const ctx = { cwd: '/projects/harbor', sessionManager: { getSessionId: () => 'harbor-lane' } }
+function setup() {
+  const tools: ToolDefinition<{ query: string; limit?: number }, unknown, unknown>[] = []
+  const send = vi.fn<Parameters<typeof registerBrain>[1]>()
+  registerBrain({ registerTool: (tool) => tools.push(tool as (typeof tools)[number]) }, send)
+  return { tool: tools[0]!, send }
+}
+it('sends only query and limit and returns the owner-formatted briefing', async () => {
+  const { tool, send } = setup()
+  const text = 'Path: Rina Okafor owns Harbor [1]'
+  const data = { status: 'ok', memories: 1 }
+  send.mockResolvedValue({ v: 1, id: '1', status: 'ok', applies: 'now', text, data })
+  const ctx = { cwd: '/spoofed', sessionId: 'spoofed' }
   const signal = new AbortController().signal
-  const search = await tools[0]!.execute(
-    'one',
-    { query: 'Who owns Harbor?', limit: 2 },
-    signal,
-    undefined,
-    ctx,
-  )
-  expect(client.search).toHaveBeenCalledWith(
-    { query: 'Who owns Harbor?', limit: 2, sessionId: 'harbor-lane', cwd: '/projects/harbor' },
-    signal,
-  )
-  expect(search.content[0]).toMatchObject({
-    type: 'text',
-    text: expect.stringContaining('Path: Rina Okafor owns Harbor [1]'),
+  const params = { query: 'Harbor', limit: 2, ...ctx }
+  expect(await tool.execute('one', params, signal, undefined, ctx)).toEqual({
+    content: [{ type: 'text', text }],
+    details: data,
   })
-  expect(search.details).toEqual({ status: 'ok', memories: 1 })
-  expect(tools[0]!.description).toMatch(/person, team, system or ticket/)
+  expect(send).toHaveBeenCalledWith(
+    ctx,
+    { op: 'brain.search', args: { query: 'Harbor', limit: 2 } },
+    { signal, deadlineMs: 10_000 },
+  )
+  expect(tool.description).toMatch(/person, team, system or ticket/)
 })
 
-it('surfaces transport failures instead of inventing a no-match', async () => {
-  const tools: ToolDefinition<Params, Context, unknown>[] = []
-  const client: BrainClient = {
-    flag: vi.fn(),
-    search: vi.fn(async () => {
-      throw new Error('Brain unavailable')
-    }),
+it('reports a missing service, failed transport or unexpected confirmation as unavailable, not a no-match', async () => {
+  const { tool, send } = setup()
+  const responses: OpReplyEnvelope[] = [
+    noOwnerReply(null),
+    { v: 1, id: '2', status: 'denied', code: 'unavailable', text: 'Not connected.' },
+    {
+      v: 1,
+      id: '3',
+      status: 'confirm',
+      confirmId: 'never',
+      digest: 'never',
+      title: 'never',
+      message: 'never',
+      timeoutMs: 1,
+    },
+  ]
+  for (const response of responses) send.mockResolvedValueOnce(response)
+  send.mockRejectedValueOnce(new Error('Disconnected'))
+  for (let i = 0; i < responses.length + 1; i++) {
+    expect(await tool.execute('one', { query: 'Harbor' }, undefined, undefined, {})).toEqual({
+      content: [{ type: 'text', text: 'Brain is unavailable right now.' }],
+      details: { status: 'unavailable', memories: 0 },
+    })
   }
-  registerBrain(
-    { registerTool: (tool) => tools.push(tool as ToolDefinition<Params, Context, unknown>) },
-    client,
+})
+
+it('uses the lane editor sender for recall when loaded with no injected transport', async () => {
+  vi.stubEnv(OP_MARKER_ENV, OP_MARKER_VALUE)
+  const tools = new Map<string, ToolDefinition<{ query: string }, unknown, unknown>>()
+  brainExtension({
+    registerTool: (tool) =>
+      tools.set(tool.name, tool as ToolDefinition<{ query: string }, unknown, unknown>),
+  })
+  const data = { status: 'ok', memories: 1 }
+  const editor = vi.fn(async (_title: string, prefill: string) => {
+    const request = parseOpChannelRequest(prefill)
+    return JSON.stringify({
+      v: 1,
+      id: request?.id,
+      status: 'ok',
+      applies: 'now',
+      text: 'A recalled note',
+      data,
+    })
+  })
+  const result = await tools
+    .get('brain_search')!
+    .execute('search', { query: 'Harbor' }, undefined, undefined, { ui: { editor } })
+  expect(result).toEqual({ content: [{ type: 'text', text: 'A recalled note' }], details: data })
+  const [title, prefill] = editor.mock.calls[0]!
+  expect(title).toBe(OP_TITLE)
+  expect(parseOpChannelRequest(prefill)).toMatchObject({
+    op: 'brain.search',
+    input: { query: 'Harbor' },
+    deadlineMs: 10_000,
+  })
+})
+
+it('sends a flag with its reason in the request envelope, where the owner audits it', async () => {
+  const tools: ToolDefinition<Record<string, unknown>, unknown, unknown>[] = []
+  const send = vi.fn<Parameters<typeof registerBrain>[1]>()
+  registerBrain({ registerTool: (tool) => tools.push(tool as (typeof tools)[number]) }, send)
+  const flag = tools.find((tool) => tool.name === 'brain_flag')!
+  send.mockResolvedValue({
+    v: 1,
+    id: '1',
+    status: 'ok',
+    applies: 'now',
+    text: 'Flagged',
+    data: { status: 'ok' },
+  })
+  const signal = new AbortController().signal
+  await flag.execute(
+    'f',
+    { ref: 2, problem: 'outdated', reason: 'Owner left' },
+    signal,
+    undefined,
+    {},
   )
-  await expect(
-    tools[0]!.execute('one', { query: 'Harbor' }, undefined, undefined, {
-      cwd: '/projects/harbor',
-      sessionManager: { getSessionId: () => 'lane' },
-    }),
-  ).rejects.toThrow('Brain unavailable')
+  expect(send).toHaveBeenCalledWith(
+    {},
+    {
+      op: 'brain.flag',
+      args: { ref: 2, problem: 'outdated', reason: 'Owner left' },
+      reason: 'Owner left',
+    },
+    { signal, deadlineMs: 10_000 },
+  )
 })

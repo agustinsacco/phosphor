@@ -1,3 +1,4 @@
+import { renderHelp } from '@phosphor/shared/ops-cli'
 import { EXIT } from './checks'
 import { launchdExit } from './machine/launchd'
 import { createHostLog, hostLogDirectory } from './machine/log'
@@ -34,8 +35,12 @@ Set up a Host: phosphor setup. Re-run it to resume or finish setup.
                                     expose the loopback API on your tailnet, never Funnel
   update [--version X.Y.Z] [--check] [--json]
   update --rollback [--json]        select the previous installed release offline
+  update --stage [--json]           download and check the latest release, select nothing
+  update --apply X.Y.Z [--json]     select a staged release and restart the service
   uninstall [--purge --yes] [--json] remove the program and service; keep data by default
   version [--json]                  print the Host's version
+
+${renderHelp()}
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,
 70 internal error, 75 control unavailable, code expired or concurrent setup, 77 machine removed,

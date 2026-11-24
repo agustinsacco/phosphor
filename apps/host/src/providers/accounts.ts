@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { lstatSync } from 'node:fs'
 import { join } from 'node:path'
+import { claudeAccountRoot } from './account-root'
 import { createClaudeAccounts } from '@phosphor/session-runtime/claude/accounts'
 import { selectAccount, claudeAccountEnv } from '@phosphor/session-runtime/claude/routing'
 import { createAccountReservations } from './account-reservations'
@@ -13,8 +14,9 @@ export function createHostClaudeAccounts(options: {
   home: string
   env: Record<string, string>
   readOnly?: boolean
+  uid?: number
 }) {
-  const root = join(options.directory, 'claude-accounts')
+  const root = claudeAccountRoot(options.directory, options.uid ?? process.getuid?.())
   const authorization = new AsyncLocalStorage<() => boolean>()
   const { read, write } = createAccountMetadata({
     root,
@@ -60,8 +62,12 @@ export function readHostClaudeEnvironment(options: {
   directory: string
   home: string
   env: Record<string, string>
+  uid?: number
 }): Record<string, string> {
-  const path = join(options.directory, 'claude-accounts', 'accounts.json')
+  const path = join(
+    claudeAccountRoot(options.directory, options.uid ?? process.getuid?.()),
+    'accounts.json',
+  )
   try {
     lstatSync(path)
   } catch (error) {

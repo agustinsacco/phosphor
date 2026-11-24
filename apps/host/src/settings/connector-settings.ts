@@ -1,5 +1,10 @@
+import { guardedEntry, AGENT_CONNECTOR_FIELDS } from './agent-connectors'
 import { join } from 'node:path'
-import type { MachineSettings, MachineSettingsChange } from '@phosphor/shared/machine-settings'
+import {
+  parseSettingsPatch,
+  type MachineSettings,
+  type MachineSettingsChange,
+} from '@phosphor/shared/machine-settings'
 import { machineRecord } from '@phosphor/shared/host-protocol-machine'
 import { mcpNamespace, mcpUsesOAuth } from '@phosphor/shared/mcp'
 import { readMcpConfigs, serverProblem } from '@phosphor/session-runtime/pi/mcp-config'
@@ -57,10 +62,18 @@ function updateServers(
   servers: Record<string, unknown>,
   change: ConnectorChange,
   before: MachineSettings,
-  cwd?: string,
+  cwd: string | undefined,
+  mode: 'settings' | 'replace' | 'guard',
 ) {
+  const guarded =
+    mode === 'settings'
+      ? undefined
+      : guardedEntry(servers[change.name], change, before, mode === 'replace')
   if (change.type === 'mcp.upsert') {
-    if (Object.keys(servers).length >= 128 || (before.connectors?.servers.length ?? 0) >= 128)
+    if (
+      mode !== 'replace' &&
+      (Object.keys(servers).length >= 128 || (before.connectors?.servers.length ?? 0) >= 128)
+    )
       throw new SettingsFailure(
         'bad-request',
         'This settings page supports at most 128 connectors per scope.',
@@ -77,13 +90,13 @@ function updateServers(
       (change.config.url && change.config.command)
     )
       throw new SettingsFailure('bad-request', 'Invalid MCP server configuration.')
-    if (Object.hasOwn(servers, change.name))
+    if (mode !== 'replace' && Object.hasOwn(servers, change.name))
       throw new SettingsFailure(
         'bad-request',
         'This connector already exists. Remove it explicitly before replacing its configuration.',
       )
     Object.defineProperty(servers, change.name, {
-      value: change.config,
+      value: guarded ?? change.config,
       enumerable: true,
       writable: true,
       configurable: true,
@@ -112,6 +125,7 @@ export async function changeConnectorSettings(
   cwd: string | undefined,
   revision: string,
   commitAllowed: () => boolean,
+  mode: 'settings' | 'guard' | 'replace' = 'settings',
 ) {
   if (before.connectors?.legacy)
     throw new SettingsFailure(
@@ -129,7 +143,7 @@ export async function changeConnectorSettings(
       Object.create(null),
       machineRecord(file.raw.mcpServers) ? file.raw.mcpServers : {},
     )
-    updateServers(servers, change, before, cwd)
+    updateServers(servers, change, before, cwd, mode)
     state.invalidateConnectors()
     await saveSettingsFile(
       path,
@@ -139,4 +153,44 @@ export async function changeConnectorSettings(
       HOST_FILE_POLICY,
     )
   })
+}
+
+/** Internal ops entry only. Resolve scope and validate against the same Host patch grammar as the UI. */
+export async function changeAgentConnector(
+  state: SettingsContext,
+  before: MachineSettings,
+  change: unknown,
+  replace: boolean,
+  authorized: () => boolean,
+) {
+  const input = parseSettingsPatch({
+    section: 'connectors',
+    repositoryId: before.repositoryId,
+    revision: before.revision,
+    change,
+  })
+  if (
+    !input ||
+    !(
+      input.change.type === 'mcp.remove' ||
+      input.change.type === 'mcp.upsert' ||
+      input.change.type === 'mcp.enabled'
+    )
+  )
+    throw new SettingsFailure('bad-request', 'Invalid connector configuration.')
+  if (
+    input.change.type === 'mcp.upsert' &&
+    Object.keys(input.change.config).some((k) => !AGENT_CONNECTOR_FIELDS.has(k))
+  )
+    throw new SettingsFailure('forbidden', 'Only Settings can edit private connector fields.')
+  const cwd = state.workspace(before.repositoryId)
+  await changeConnectorSettings(
+    state,
+    input.change,
+    before,
+    cwd,
+    before.revision,
+    () => authorized() && state.workspace(before.repositoryId) === cwd,
+    replace ? 'replace' : 'guard',
+  )
 }

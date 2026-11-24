@@ -35,7 +35,7 @@ export function MachineRuntimeRows({ runtime }: { runtime: MachineRuntime }): Re
   const titles = RUNTIME_TITLES[runtime.product]
   return (
     <>
-      <MachineUpdateRow title={titles.update} update={runtime.update} />
+      {runtime.update && <MachineUpdateRow title={titles.update} update={runtime.update} />}
       <Row title={titles.version} description={runtime.platform && platformName(runtime.platform)}>
         <code className="font-mono text-sm">{runtime.version}</code>
       </Row>

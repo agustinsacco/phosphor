@@ -61,8 +61,7 @@ export function ComposerInput({
   const live = swarm && 'sessionId' in swarm ? swarm : null
   const draft = swarm && 'enabled' in swarm ? swarm : null
   const liveSwarm = useSwarm(live?.sessionId ?? '')
-  const enabled = live ? (liveSwarm?.enabled ?? false) : (draft?.enabled ?? false)
-  const pending = !!live && swarmLook(liveSwarm) === 'pending'
+  const enabled = (live ? liveSwarm : draft)?.enabled ?? false
   const workspaceFiles = useMemo(
     () => (workspacePath ? workspaceFileSource(workspacePath) : null),
     [workspacePath],
@@ -97,9 +96,10 @@ export function ComposerInput({
           onClose={slash.close}
         />
       )}
-      {!slash.visible && mention.open && mention.matches.length > 0 && (
+      {!slash.visible && mention.open && (
         <FileMentionMenu
-          files={mention.matches}
+          files={mention.files}
+          lanes={mention.lanes}
           activeIndex={mention.activeIndex}
           onHover={mention.setActiveIndex}
           onPick={mention.pick}
@@ -115,7 +115,7 @@ export function ComposerInput({
           'bg-surface relative rounded-xl border shadow-sm transition-colors',
           attachments.dragging
             ? 'border-accent ring-accent/25 ring-2'
-            : pending
+            : live && swarmLook(liveSwarm) === 'pending'
               ? 'border-accent/60 border-dashed'
               : enabled
                 ? 'border-accent ring-accent/10 ring-1'

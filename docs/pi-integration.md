@@ -58,12 +58,15 @@ Node subprocess test exercises this complete path without Electron, using a
 fake pi, not a real provider.
 
 [Brain](brain.md) adds one optional startup hook to this service. It gets the
-lane's resolved workspace path. While recall is on, a new lane gets Brain's
-env, recall extension and skill. The Brain lane (`<userData>/brain/Brain`,
-compared by real path) instead gets Brain Agent's curator token, the
-`brain-curator` extension and the `brain-agent` skill whenever Brain is on, and
-its default `AGENTS.md` if the file is missing. A failure there starts the lane
-without them. Desktop's session policy also marks that folder
+lane's resolved workspace path. While recall is on, a new lane gets the recall
+extension and skill, not bridge credentials: the tools ask the owner through
+the [op channel](agent-control.md#the-op-channel). The Brain lane
+(`<userData>/brain/Brain`, compared by real path) instead gets Brain Agent's
+curator token and the private bridge's endpoint (the only Brain env a lane
+gets, through the typed `PiSpawnOptions.brainConnection` that `opChildEnv` adds
+after it withholds every Brain variable from `env`), the `brain-curator` extension and the `brain-agent` skill whenever Brain
+is on, and its default `AGENTS.md` if the file is missing. A failure there
+starts the lane without them. Desktop's session policy also marks that folder
 (`SessionPolicyRuntime.brainLane`), so its fixed block replaces the lane
 charter. Brain Agent's Defrag turns open the lane with `spawnSession`, as the
 owner would, and send the message through the service's `command`
@@ -71,7 +74,8 @@ owner would, and send the message through the service's `command`
 (`SessionExecution`): the Brain folder joins the recents, so its sidebar group
 lasts across restarts, but `lastWorkspacePath`, the folder Phosphor reopens at
 launch, stays the owner's. The owner opening the lane from the sidebar records
-it like any lane. Brain's model calls are not sessions: they are
+it like any lane. In daemon mode it is the one in-app lane (`registry.ts`), and it
+records neither, nor a session marker. Brain's model calls are not sessions: they are
 session-less, tool-less `pi -p` runs through `print-mode.ts`, with the prompt on
 stdin, and Brain reads the lane's file itself.
 
@@ -205,7 +209,8 @@ migration, and rewrites only the disposable header cwd to isolate project resour
   shows a LIVE session's title prefers the chat store's `meta.sessionName` over
   the scanned `meta.name`, and a new session shows a placeholder sidebar row
   (`PendingSessionRow`) until the scan finds its file.
-- The tree view's labels, branch jumps and forks (`sessions:appendLabel`, `sessions:jump`,
+- On the service, `apps/host/src/lanes/editing.ts` uses the shared writer through `mutateStoppedSession` (label/jump) and `withSessionFile` (fork/clone/rewind). It does not send pi a fork or clone RPC.
+- In-app, the tree view's labels, branch jumps and forks (`sessions:appendLabel`, `sessions:jump`,
   `sessions:forkAt`) write pi's files from main, through
   `apps/desktop/electron/pi/session-mutation.ts` and inside the same path lock as resume
   and deletion. Edits and admissions of one transcript therefore run in call order.

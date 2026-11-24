@@ -196,6 +196,18 @@ describe('runCli report commands', () => {
       protocolVersion: 1,
       sourceSha: null,
       node: '22.22.3',
+      // Headroom (D8) and the service pause (D4) are built. Local mode and the owner socket stay unannounced.
+      features: [
+        'ops',
+        'machine-grants',
+        'headroom',
+        'app-services',
+        'service-pause',
+        'local-mode',
+        'owner-socket',
+        'owner-lock',
+        'migrate-v1',
+      ],
     })
     expect(names()).toEqual([])
   })
@@ -488,6 +500,10 @@ describe('runCli control commands', () => {
         signal: expect.any(AbortSignal),
         print: expect.any(Function),
         supervisor: 'launchd',
+        // The owner socket's starter; only a Host with the local-mode marker calls it.
+        startLocalSocket: expect.any(Function),
+        // Run's ops slot, shared with the socket; empty until run binds the dispatcher.
+        ops: {},
       },
     ])
     expect(targets).toEqual([])

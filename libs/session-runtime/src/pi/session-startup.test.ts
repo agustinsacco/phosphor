@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { brainContribution } from './contributions/brain'
 import { sessionFixture } from './__fixtures__/session-runtime'
 import { RATE_LIMIT_STATUS_KEY } from '@shared/claude-limits'
 
@@ -123,44 +124,65 @@ describe('portable startup', () => {
 
   it('adds Brain recall to a lane, and starts the lane without it when recall fails', async () => {
     const h = sessionFixture()
-    h.runtime.recall = vi.fn(async () => ({
-      env: { PHOSPHOR_BRAIN_TOKEN: 't' },
+    const legacyResources = {
+      env: { PHOSPHOR_BRAIN_ENDPOINT: 'ignored', PHOSPHOR_BRAIN_TOKEN: 'ignored' },
+      brainConnection: { endpoint: '/ignored.sock', token: 'ignored' },
       extensions: ['/res/brain.mjs'],
       skills: ['/res/skills/brain'],
-    }))
+    }
+    h.runtime.contributions = [brainContribution(async () => legacyResources)]
     await h.spawn({ workspacePath: '/repo' }, h.sink)
+    expect(h.clients[0]!.options.env).not.toHaveProperty('PHOSPHOR_BRAIN_TOKEN')
+    expect(h.clients[0]!.options.env).not.toHaveProperty('PHOSPHOR_BRAIN_ENDPOINT')
+    expect(h.clients[0]!.options.brainConnection).toBeUndefined()
     expect(h.clients[0]!.options).toMatchObject({
-      env: { PHOSPHOR_BRAIN_TOKEN: 't' },
       extensions: ['/res/brain.mjs'],
       skills: ['/res/skills/brain'],
     })
-    h.runtime.recall = vi.fn(async () => Promise.reject(new Error('worker down')))
+    h.runtime.contributions = [
+      brainContribution(async () => {
+        throw new Error('worker down')
+      }),
+    ]
     await h.spawn({ workspacePath: '/repo' }, h.sink)
     expect(h.clients[1]!.options.skills).toBeUndefined()
-    expect(h.runtime.log).toHaveBeenCalledWith('brain', 'recall unavailable', {
+    expect(h.runtime.log).toHaveBeenCalledWith('pi', 'spawn contribution unavailable', {
+      contribution: 'brain',
       error: 'Error: worker down',
     })
+    await h.registry.disposeAll()
+  })
+
+  it("hands a contribution's typed Brain connection to the spawn, never into its env", async () => {
+    const h = sessionFixture()
+    const brainConnection = { endpoint: '/tmp/ph-brain-x/rpc.sock', token: 'curator' }
+    h.runtime.contributions = [{ name: 'brain', spawn: () => ({ brainConnection }) }]
+    await h.spawn({ workspacePath: '/brain/Brain' }, h.sink)
+    expect(h.clients[0]!.options.brainConnection).toEqual(brainConnection)
+    expect(h.clients[0]!.options.env).not.toHaveProperty('PHOSPHOR_BRAIN_TOKEN')
     await h.registry.disposeAll()
   })
 
   it('asks recall for the resolved workspace, so the Brain lane can get its own tools', async () => {
     const h = sessionFixture()
     vi.mocked(h.runtime.resolveWorkspace).mockReturnValue('/real/brain/Brain')
-    h.runtime.recall = vi.fn(async () => undefined)
+    const lookup = vi.fn(async () => undefined)
+    h.runtime.contributions = [brainContribution(lookup)]
     await h.spawn({ workspacePath: '/alias/Brain' }, h.sink)
-    expect(h.runtime.recall).toHaveBeenCalledWith('/real/brain/Brain')
+    expect(lookup).toHaveBeenCalledWith('/real/brain/Brain')
     await h.registry.disposeAll()
   })
 
   it('gives the pi stub recall only when the Desktop test runtime opts in', async () => {
     const h = sessionFixture()
     vi.mocked(h.runtime.launch).mockResolvedValue({ stub: true, env: {}, extensions: [] } as never)
-    h.runtime.recall = vi.fn(async () => ({ env: {}, extensions: ['/x'], skills: [] }))
+    const lookup = vi.fn(async () => ({ extensions: ['/x'], skills: [] }))
+    h.runtime.contributions = [brainContribution(lookup)]
     await h.spawn({ workspacePath: '/repo' }, h.sink)
-    expect(h.runtime.recall).not.toHaveBeenCalled()
-    h.runtime.stubRecall = () => true
+    expect(lookup).not.toHaveBeenCalled()
+    h.runtime.stubContributions = [brainContribution(lookup)]
     await h.spawn({ workspacePath: '/brain/Brain' }, h.sink)
-    expect(h.runtime.recall).toHaveBeenCalledWith('/brain/Brain')
+    expect(lookup).toHaveBeenCalledWith('/brain/Brain')
     expect(h.clients[1]!.options.extensions).toContain('/x')
     await h.registry.disposeAll()
   })

@@ -40,7 +40,7 @@ export function makeManifest(out) {
   const version = process.env.HOST_RELEASE_VERSION
   if (!version || !contract.HOST_RELEASE_VERSION_PATTERN.test(version))
     throw new Error('Invalid HOST_RELEASE_VERSION')
-  const artifacts = contract.HOST_RELEASE_TARGETS.map((target) => {
+  const artifacts = contract.HOST_RELEASE_TARGETS_V2.map((target) => {
     const file = `phosphor-host-${version}-${target}.tar.gz`
     const path = join(out, file)
     const stat = lstatSync(path)
@@ -49,8 +49,7 @@ export function makeManifest(out) {
     const bytes = readFileSync(path)
     return { target, file, bytes: bytes.length, sha256: sha256(bytes) }
   })
-  const manifest = {
-    schema: 1,
+  const shared = {
     version,
     protocols: [contract.HOST_PROTOCOL_VERSION],
     node: pin.version,
@@ -58,15 +57,25 @@ export function makeManifest(out) {
       cwd: root,
       encoding: 'utf8',
     }).trim(),
-    artifacts,
   }
+  const manifest = {
+    schema: 1,
+    ...shared,
+    artifacts: artifacts.filter(({ target }) => contract.HOST_RELEASE_TARGETS.includes(target)),
+  }
+  const v2 = { schema: 2, ...shared, features: contract.HOST_RELEASE_FEATURES, artifacts }
+  if (!contract.parseHostReleaseManifestV2(v2)) throw new Error('Invalid v2 release metadata')
   if (!contract.parseHostReleaseManifest(manifest)) throw new Error('Invalid release metadata')
+  const path = join(out, `phosphor-host-${version}.manifest.json`)
+  writeSignedManifest(path, manifest)
+  writeSignedManifest(join(out, contract.hostReleaseManifestV2Name(version)), v2)
+  return path
+}
+function writeSignedManifest(path, manifest) {
   const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`)
   const signature = signManifest(bytes)
-  const path = join(out, `phosphor-host-${version}.manifest.json`)
   writeFileSync(path, bytes)
   writeFileSync(`${path}.sig`, signature)
-  return path
 }
 if (isEntryPoint(import.meta.url)) {
   const { values } = parseArgs({ options: { out: { type: 'string' } } })

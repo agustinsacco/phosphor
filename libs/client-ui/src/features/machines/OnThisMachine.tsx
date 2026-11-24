@@ -79,16 +79,17 @@ function useHostResources(hostId: string, refresh: number): MachineResources | n
   return {
     machine: hostId,
     ready,
-    lanes: host.capabilities.includes('sessions.read')
-      ? {
-          count: host.lanes.length,
-          rows: host.lanes
-            .slice(0, LANES_SHOWN)
-            .map((lane) => (
-              <RemoteLaneRow key={lane.laneId} lane={lane} hostId={hostId} ready={ready} />
-            )),
-        }
-      : null,
+    lanes:
+      (ready || !host.local) && host.capabilities.includes('sessions.read')
+        ? {
+            count: host.lanes.length,
+            rows: host.lanes
+              .slice(0, LANES_SHOWN)
+              .map((lane) => (
+                <RemoteLaneRow key={lane.laneId} lane={lane} hostId={hostId} ready={ready} />
+              )),
+          }
+        : null,
     tiles: grantedCounts(hostId, host.capabilities),
     counts,
   }

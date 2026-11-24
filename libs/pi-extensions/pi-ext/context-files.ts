@@ -49,7 +49,7 @@ export type ContextFileKind = 'claude' | 'agents'
 
 export const CONTEXT_FILES_ENV = 'PHOSPHOR_CONTEXT_FILES'
 export const CONTEXT_FILES_COMMAND = 'phosphor-context-files'
-/** The session entry a toggle leaves behind; `data` is `{ off: ContextFileKind[] }`. */
+/** Effective opt-outs, plus userOff when only a subset was turned off by the user. */
 export const CONTEXT_FILES_ENTRY = 'phosphor-context-files'
 
 /** Which toggle a discovered file belongs to, by its file name. */
@@ -239,18 +239,59 @@ export function contextFilesIn(
   return files
 }
 
-/** The lane's last toggle on this branch, or null when it never toggled. */
-export function savedContextFiles(branch: readonly unknown[]): Set<ContextFileKind> | null {
+interface FileSelection {
+  off: Set<ContextFileKind>
+  userOff: Set<ContextFileKind>
+}
+
+function savedSelection(branch: readonly unknown[]): FileSelection | null {
   for (let i = branch.length - 1; i >= 0; i--) {
     const entry = branch[i] as { type?: unknown; customType?: unknown; data?: unknown } | null
     if (entry?.type !== 'custom' || entry.customType !== CONTEXT_FILES_ENTRY) continue
-    const saved = (entry.data as { off?: unknown } | null)?.off
-    if (!Array.isArray(saved)) return null
-    return new Set(
-      saved.filter((kind): kind is ContextFileKind => kind === 'claude' || kind === 'agents'),
+    const data = entry.data as { off?: unknown; userOff?: unknown } | null
+    if (!Array.isArray(data?.off)) return null
+    const off = new Set(
+      data.off.filter((k): k is ContextFileKind => k === 'claude' || k === 'agents'),
     )
+    const userOff = data.userOff
+    // Old entries came only from the user's command.
+    return {
+      off,
+      userOff: Array.isArray(userOff)
+        ? new Set([...off].filter((k) => userOff.includes(k)))
+        : new Set(off),
+    }
   }
   return null
+}
+
+export function savedContextFiles(branch: readonly unknown[]): Set<ContextFileKind> | null {
+  return savedSelection(branch)?.off ?? null
+}
+
+export function createContextFilesLaneControl(deps: {
+  selection(): FileSelection
+  commit(next: FileSelection, ctx: unknown): void
+}) {
+  function setArgs(args: string, ctx: unknown) {
+    const { off, userOff } = deps.selection()
+    const next = applyContextFileArgs(off, args)
+    for (const kind of userOff) {
+      if (!next.has(kind)) throw new Error(`The user turned ${kind} files off for this lane.`)
+    }
+    deps.commit({ off: next, userOff }, ctx)
+  }
+  return {
+    facts() {
+      const { off, userOff } = deps.selection()
+      return { off: [...off], userOff: [...userOff] }
+    },
+    setArgs,
+    agentSet(next: boolean, _reason: string, ctx: unknown) {
+      const value = next ? 'on' : 'off'
+      setArgs(`claude=${value} agents=${value}`, ctx)
+    },
+  }
 }
 
 interface ContextFilesApi {
@@ -275,7 +316,7 @@ export default function contextFiles(
   env: NodeJS.ProcessEnv = process.env,
   agentDir: string = globalAgentDir(),
   detect: (cwd: string) => string | null = detectMainRepo,
-): { off: () => ReadonlySet<ContextFileKind>; worktree: () => WorktreeInfo | null } {
+) {
   let off = new Set<ContextFileKind>()
   /** Resolved once per cwd; a session does not move between trees. */
   const mainRepoByCwd = new Map<string, string | null>()
@@ -292,17 +333,30 @@ export default function contextFiles(
   } catch {
     // A malformed value from the environment sends every file, as pi would.
   }
+  let userOff = new Set(off)
   const share = (): void => {
     if (off.size > 0) env[CONTEXT_FILES_ENV] = [...off].map((kind) => `${kind}=off`).join(' ')
     else delete env[CONTEXT_FILES_ENV]
   }
+  const commit = (next: FileSelection, ctx: unknown) => {
+    const data = {
+      off: [...next.off],
+      ...(next.userOff.size === next.off.size ? {} : { userOff: [...next.userOff] }),
+    }
+    pi.appendEntry?.(CONTEXT_FILES_ENTRY, data)
+    off = next.off
+    userOff = next.userOff
+    share()
+    onChange(ctx)
+  }
+  const control = createContextFilesLaneControl({ selection: () => ({ off, userOff }), commit })
   pi.registerCommand?.(CONTEXT_FILES_COMMAND, {
     description: 'Host control: include or leave out CLAUDE.md / AGENTS.md without running a model',
     async handler(args, ctx) {
-      off = applyContextFileArgs(off, args)
-      share()
-      pi.appendEntry?.(CONTEXT_FILES_ENTRY, { off: [...off] })
-      onChange(ctx)
+      commit(
+        { off: applyContextFileArgs(off, args), userOff: applyContextFileArgs(userOff, args) },
+        ctx,
+      )
     },
   })
   // Registered before the breakdown's own session_start handler, which
@@ -311,9 +365,10 @@ export default function contextFiles(
     locate(ctx)
     const manager = (ctx as { sessionManager?: { getBranch?: () => unknown[] } } | undefined)
       ?.sessionManager
-    const saved = savedContextFiles(manager?.getBranch?.() ?? [])
+    const saved = savedSelection(manager?.getBranch?.() ?? [])
     if (saved) {
-      off = saved
+      off = saved.off
+      userOff = saved.userOff
       share()
     }
   })
@@ -326,5 +381,5 @@ export default function contextFiles(
     }
     return { messages }
   })
-  return { off: () => off, worktree: () => worktree }
+  return { off: (): ReadonlySet<ContextFileKind> => off, worktree: () => worktree, control }
 }

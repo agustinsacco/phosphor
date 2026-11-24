@@ -274,6 +274,18 @@ describe('runCli argument contract', () => {
       protocolVersion: 1,
       sourceSha: null,
       node: '22.22.3',
+      // Headroom (D8) and the service pause (D4) are built. Local mode and the owner socket stay unannounced.
+      features: [
+        'ops',
+        'machine-grants',
+        'headroom',
+        'app-services',
+        'service-pause',
+        'local-mode',
+        'owner-socket',
+        'owner-lock',
+        'migrate-v1',
+      ],
     })
   })
 

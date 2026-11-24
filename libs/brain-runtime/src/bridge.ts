@@ -7,10 +7,14 @@ import {
   BRAIN_PROTOCOL,
   type BrainAgentMethod,
   type BrainAgentResponse,
+  type BrainFlagResponse,
 } from '@phosphor/shared/brain'
 import { BRAIN_CURATOR_METHODS, BRAIN_LANE_METHODS } from '@phosphor/shared/brain-agent'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
 import { plainRefusal } from './agent/refusal'
+import { chooseLocalSocket } from '@phosphor/shared/host-local'
+import type { AppServiceRegistration } from '@phosphor/shared/host-protocol-owner'
+import { brainFlagLimit } from './tidy/flag-limit'
 
 const MAX_BYTES = 512 * 1024
 /** Which token asked: any lane's, or the Brain lane's curator token. */
@@ -38,6 +42,8 @@ export interface BrainBridgeOptions {
   idleMs?: number
   /** After a curator request authenticates: reading or deciding a review may refresh it first. */
   curatorIdleMs?: number
+  /** Shared by both ingress paths in the Brain service process; tests inject their own. */
+  flagLimit?: () => BrainFlagResponse | undefined
 }
 
 /**
@@ -52,20 +58,10 @@ export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBrid
   const idle = { lane: options.idleMs ?? 15_000, curator: options.curatorIdleMs ?? 15 * 60_000 }
   const endpoint = join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
-  const flagTimes: number[] = []
+  const limit = options.flagLimit ?? brainFlagLimit
   const limitedInvoke: BridgeInvoke = async (method, params, signal, role) => {
-    if (method === 'flag') {
-      // Monotonic, so a wall-clock step cannot hold the window shut.
-      const now = performance.now()
-      while (flagTimes.length && flagTimes[0]! <= now - 60_000) flagTimes.shift()
-      if (flagTimes.length >= 10)
-        return {
-          status: 'limit',
-          message:
-            'Brain accepts ten flag requests per minute. Try again shortly; Brain knowledge has not changed.',
-        }
-      flagTimes.push(now)
-    }
+    const refusal = method === 'flag' && limit()
+    if (refusal) return refusal
     return invoke(method, params, signal, role)
   }
   const server = createServer((socket) => {
@@ -78,6 +74,7 @@ export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBrid
     accept(socket, { lane: token, curator: curatorToken }, limitedInvoke, idle)
   })
   try {
+    if (!chooseLocalSocket([endpoint])) throw new Error('Brain socket path is too long.')
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
       server.listen(endpoint, () => {
@@ -94,6 +91,12 @@ export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBrid
   return {
     endpoint,
     token,
+    registration: (recall: boolean): AppServiceRegistration => ({
+      service: 'brain',
+      endpoint,
+      token,
+      recall,
+    }),
     curatorToken,
     async close() {
       for (const socket of sockets) socket.destroy()

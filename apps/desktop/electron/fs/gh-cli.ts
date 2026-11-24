@@ -5,7 +5,7 @@ import {
   ghPrForBranch as queryBranch,
   ghPrsForRepo as queryRepo,
 } from '@phosphor/session-runtime/git/github'
-import { piProcessEnv } from '../pi/shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { createGithubReader } from '@phosphor/session-runtime/git/github-reader'
 import { runGithubCommand, type GithubCommand } from '@phosphor/session-runtime/git/github-command'
 import { GithubGate } from '@phosphor/session-runtime/git/github-gate'

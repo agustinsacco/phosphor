@@ -1,5 +1,5 @@
 import { cachedPiHealth } from './health'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { piStubPath } from './stub'
 
 /** Stub environments intentionally differ between sessions, titles and shell-aware jobs. */

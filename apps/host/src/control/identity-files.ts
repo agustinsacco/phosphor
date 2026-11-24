@@ -2,7 +2,7 @@ import { constants, type Stats } from 'node:fs'
 import { lstat, mkdir, open, opendir, unlink } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
-import { errnoIs, isOwnerPrivate } from '../fs-safety'
+import { errnoIs, isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
 import { IdentityFailure, isHostKeyFile, unsafeIdentity } from './identity-records'
 import type { IdentityLocation } from './identity-types'
 

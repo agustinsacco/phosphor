@@ -427,3 +427,60 @@ it('opens the shared Settings on the selected Host instead of an in-page copy', 
   expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: MACHINE.id })
   expect(container.querySelector('[data-testid="machine-detail"]')).not.toBeNull()
 })
+
+const reachSwitch = () =>
+  container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Machine reach"]')
+const openReach = (flags: Partial<typeof MACHINE>) => {
+  useMachinesStore.setState({
+    machines: [{ ...MACHINE, ...flags }],
+    view: { kind: 'machine', id: MACHINE.id },
+  })
+  return render()
+}
+it('uses one switch for both directions and displays only confirmed changes', async () => {
+  await openReach({ machineReach: true, machineGrants: true })
+  expect(container.textContent).toContain('on by default')
+  expect(reachSwitch()?.getAttribute('aria-checked')).toBe('true')
+  invoke.mockResolvedValueOnce({ ok: false, error: { code: 'offline' } })
+  await act(async () => reachSwitch()?.click())
+  expect(reachSwitch()?.getAttribute('aria-checked')).toBe('true')
+  invoke.mockResolvedValueOnce({ ok: true, machineReach: false })
+  await act(async () => reachSwitch()?.click())
+  expect(invoke).toHaveBeenCalledWith('control:setMachineReach', MACHINE.id, false)
+  expect(reachSwitch()?.getAttribute('aria-checked')).toBe('false')
+})
+it('hides the reach switch when control no longer serves PATCH', async () => {
+  await openReach({ machineReach: true, machineGrants: true })
+  invoke.mockResolvedValueOnce({ ok: false, error: { code: 'not-found' } })
+  await act(async () => reachSwitch()?.click())
+  expect(reachSwitch()).toBeNull()
+  expect(container.textContent).toContain('Other machines are unavailable')
+})
+it.each([
+  [{}, 'Other machines are unavailable'],
+  [{ machineGrants: false, machineReach: true }, 'Update this Host'],
+])('hides the reach switch for an older control or Host (%j)', async (flags, message) => {
+  await openReach(flags)
+  expect(reachSwitch()).toBeNull()
+  expect(container.textContent).toContain(message)
+})
+it('asks to update a connected Host that did not advertise ops', async () => {
+  useRemoteLanesStore.setState({
+    hosts: {
+      [MACHINE.id]: {
+        connectionToken: 'fixture',
+        state: 'ready',
+        capabilities: [],
+        lanes: [],
+        repositories: [],
+      },
+    },
+  })
+  try {
+    await openReach({ machineReach: true, machineGrants: true })
+    expect(reachSwitch()).toBeNull()
+    expect(container.textContent).toContain('Update this Host')
+  } finally {
+    act(() => useRemoteLanesStore.setState({ hosts: {} }))
+  }
+})

@@ -34,12 +34,21 @@ describe('bundledExtensions', () => {
       'brain-curator.ts',
       'brain-curator-writes.ts',
     ])
+    // Agent-control stubs ship in pi-ext, but no spawn loads them yet.
+    const unloaded = new Set([
+      'phosphor.ts',
+      'op-channel.ts',
+      'lane-controls.ts',
+      'directives.ts',
+      'live-context.ts',
+    ])
     const files = readdirSync(join(root, 'libs/pi-extensions/pi-ext')).filter(
       (name) =>
         name.endsWith('.ts') &&
         !name.endsWith('.test.ts') &&
         !imported.has(name) &&
-        !optional.has(name),
+        !optional.has(name) &&
+        !unloaded.has(name),
     )
     expect([...BUNDLED_EXTENSION_FILES].sort()).toEqual(files.sort())
     expect(BUNDLED_EXTENSION_FILES).toHaveLength(6)

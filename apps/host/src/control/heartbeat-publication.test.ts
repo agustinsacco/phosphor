@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import type { HeartbeatState } from './heartbeat'
+import { createAuthority } from '../api/authority'
 import { drainHeartbeat, PUBLICATION_WAIT_MS, publishHeartbeat } from './heartbeat-publication'
 
 function fixture() {
@@ -161,4 +162,15 @@ it('waits for disk publication only until the one-second bound after the beat de
   await first
   expect(ended).toBe(true)
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('reports machineGrants from its port at publication time, and leaves it out without one', async () => {
+  const state = fixture()
+  expect(await publishHeartbeat(state, 'running')).not.toHaveProperty('machineGrants')
+  const authority = createAuthority()
+  state.ports.machineGrants = () => authority.machineGrants()
+  // Nothing has bound a dispatcher: the Host says it takes no machine grants.
+  expect(await publishHeartbeat(state, 'running')).toMatchObject({ machineGrants: false })
+  authority.setMachineOps(true)
+  expect(await publishHeartbeat(state, 'stopping')).toMatchObject({ machineGrants: true })
 })

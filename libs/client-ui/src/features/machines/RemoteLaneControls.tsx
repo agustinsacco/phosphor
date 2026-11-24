@@ -35,7 +35,7 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
     <div className="text-text-secondary flex flex-wrap items-center gap-2 px-6 py-2 text-sm">
       <MachineChip sessionId={sessionId} />
       <span>{control.status}</span>
-      {!control.controlling && (
+      {control.transfer && !control.controlling && (
         <Button
           size="xs"
           disabled={!control.enabled || busy}
@@ -44,7 +44,7 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
           Take control
         </Button>
       )}
-      {control.controlling && (
+      {control.transfer && control.controlling && (
         <Button size="xs" disabled={busy} onClick={() => void act('hosts:releaseControl')}>
           Release control
         </Button>
@@ -74,8 +74,10 @@ export function ReadOnlyLaneBar({ sessionId }: { sessionId: string }): React.JSX
   const control = useLaneControl(sessionId)
   return (
     <div className="compact-observer">
-      <p role="status">Read-only. Take control to send messages.</p>
-      {control && (
+      <p role="status">
+        {control && !control.transfer ? 'Read-only.' : 'Read-only. Take control to send messages.'}
+      </p>
+      {control?.transfer && (
         <Button
           variant="primary"
           disabled={!control.enabled || control.busy}

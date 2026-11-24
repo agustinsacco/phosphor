@@ -29,6 +29,20 @@ export const CONTEXT_FILE_LABELS: Record<ContextFileKind, string> = {
 /** Read by the extension when pi starts. */
 export const CONTEXT_FILES_ENV = 'PHOSPHOR_CONTEXT_FILES'
 
+/** Strict Host policy: both switches, no unreviewed keys. */
+export function isContextFilePrefs(value: unknown): value is ContextFilePrefs {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === CONTEXT_FILE_KINDS.length &&
+    CONTEXT_FILE_KINDS.every(
+      (kind) =>
+        Object.hasOwn(value, kind) && typeof (value as Record<string, unknown>)[kind] === 'boolean',
+    )
+  )
+}
+
 /** User-editable JSON in, two booleans out. Anything but `false` means included. */
 export function normalizeContextFilePrefs(raw: unknown): ContextFilePrefs {
   const value = raw && typeof raw === 'object' ? (raw as Partial<ContextFilePrefs>) : {}

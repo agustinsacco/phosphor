@@ -4,7 +4,11 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createHeadroomSupervisor, proxyUrl, type HeadroomSupervisor } from './proxy'
+import {
+  createHeadroomSupervisor,
+  type HeadroomSupervisor,
+} from '@phosphor/session-runtime/headroom/supervisor'
+import { proxyUrl } from '@phosphor/session-runtime/headroom/proxy-process'
 import { createHeadroomHandler } from '../../../../libs/pi-extensions/pi-ext/headroom'
 import { parseSessionFile } from '../pi/session-scanner'
 

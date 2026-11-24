@@ -6,7 +6,7 @@ import { parseRepositoryOp } from '@phosphor/shared/host-protocol-repositories'
 import { parseRoutineOp, routineRequiresControl } from '@phosphor/shared/host-protocol-routines'
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import type { HostCapability } from '@phosphor/shared/remote-host'
-import { admitLane, republishControl } from './commands/admission'
+import { admitLane, pauseRefusal, republishControl } from './commands/admission'
 import { executeAccountMove } from './commands/accounts'
 import { executeCreate } from './commands/create'
 import { executeLaneFeature } from './commands/features'
@@ -81,6 +81,8 @@ function execute(
   if (!holds(caps)) return rejected(state, ports, job, 'forbidden', true)
   if (op.type.startsWith('files.') && !ports.writes?.capabilityFor(op.type))
     return rejected(state, ports, job, 'forbidden', true)
+  const paused = pauseRefusal(state, ports, job)
+  if (paused.handled) return paused.execution
   const archive = executeArchive(state, ports, job, queue, allowed)
   if (archive.handled) return archive.execution
   const repository = executeRepository(state, ports, job, queue, allowed)

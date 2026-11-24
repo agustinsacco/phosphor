@@ -15,7 +15,7 @@ export type LanePorts = ReceiptPorts &
   > & {
     store: Pick<
       HostStore,
-      'takeControl' | 'releaseControl' | 'markRead' | 'setLaneMarks' | 'getLane'
+      'admit' | 'takeControl' | 'releaseControl' | 'markRead' | 'setLaneMarks' | 'getLane'
     >
     attachments?: Pick<HostAttachments, 'abort'>
   }
@@ -84,8 +84,21 @@ export function takeControl(
   laneId: string,
 ): void {
   const { client, frame } = job
+  const controller = { clientId: client.id, label: client.label }
+  const admission =
+    frame.op.type === 'control.take' && frame.op.ifUnheld
+      ? ports.store.admit(laneId, controller, 'if-unheld')
+      : { admitted: true as const, control: ports.store.takeControl(laneId, controller) }
+  const { control } = admission
+  if (!admission.admitted)
+    return terminal(
+      state,
+      ports,
+      job,
+      { requestId: frame.requestId, status: 'rejected', code: admission.code, control },
+      true,
+    )
   ports.attachments?.abort(laneId)
-  const control = ports.store.takeControl(laneId, { clientId: client.id, label: client.label })
   publish(state, ports, laneId, { kind: 'control', control }, queue)
   terminal(
     state,
@@ -173,7 +186,8 @@ export function deleteLane(
   const remove =
     op.type === 'lane.archive'
       ? ports.archives && ((allowed: () => boolean) => ports.archives!.execute(op, allowed))
-      : ports.deleteLane && ((allowed: () => boolean) => ports.deleteLane!(op, allowed))
+      : ports.deleteLane &&
+        ((allowed: () => boolean) => ports.deleteLane!(op, allowed, job.client.owner === true))
   if (!remove) return rejected(state, ports, job, 'unsupported', true)
   const deletable = deletionAllowed(ports, job, input.admitted, input.allowed)
   const completion = dispatch(state, ports, job, queue, () => remove(deletable)).then((result) => {

@@ -47,8 +47,9 @@ export async function resolveSkills(
   context: FeatureContext,
   ports: MachinePorts,
   laneId?: string,
+  admittedProject?: string,
 ): Promise<LocatedSkill[]> {
-  const cwd = await laneCwd(context, laneId)
+  const cwd = admittedProject ?? (await laneCwd(context, laneId))
   const inspection = await featureInspection(context, ports)
   if (!inspection.pi) throw new FeatureFailure('internal')
   const commands = await queryMachine(inspection.pi, cwd, 'get_commands')
@@ -63,7 +64,7 @@ export async function resolveSkills(
     if (!machineRecord(source) || typeof source.path !== 'string' || !isAbsolute(source.path))
       throw new FeatureFailure('internal')
     if (source.scope !== 'user' && source.scope !== 'project') throw new FeatureFailure('internal')
-    if (source.scope === 'project' && !laneId) continue
+    if (source.scope === 'project' && !laneId && !admittedProject) continue
     if (source.scope === 'project' && !within(cwd, await realpath(source.path)))
       throw new FeatureFailure('bad-request')
     const parsed = parseMachineSkills([

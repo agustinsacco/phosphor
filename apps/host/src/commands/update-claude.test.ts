@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { EMPTY_RESOURCES } from '@phosphor/session-runtime/pi/package-resources'
 import { fakeMachine, type FakeMachine } from '../__fixtures__/machine'
-import { updateClaudeProvider } from './update'
+import { updateClaudeProvider } from './update-claude'
 
 let machine: FakeMachine
 beforeEach(() => {

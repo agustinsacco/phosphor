@@ -11,6 +11,7 @@ import {
 } from '@phosphor/shared/host-protocol-terminals'
 import type { HostFeature } from '../features/feature'
 import { laneRoot } from '../features/files'
+import { HOST_PID_ENV } from '../update/host-pid'
 import { createEntry, type Entry, type TerminalState } from './service-state'
 import { persist, alive, kill, reap, close } from './lifecycle'
 import { emit, output } from './output'
@@ -35,12 +36,16 @@ function exited(state: TerminalState, entry: Entry, exitCode: number) {
     close(state)
   }
 }
-/** A lane shell, or with laneId '' a machine shell, which shares the lane limits as one scope. */
+/**
+ * A lane shell, or with laneId '' a machine shell, which shares the lane limits as one scope.
+ * The owner has no per-lane cap; the per-Host cap holds for everyone (api/owner-exemptions.ts).
+ */
 function createTerminal(
   state: TerminalState,
   laneId: string,
   op: Extract<TerminalOp, { type: 'terminal.create' }>,
   cwd: string,
+  ownerExempt = false,
 ) {
   const { options, entries } = state
   // laneRoot awaits I/O: recheck limits after it, before any spawn.
@@ -48,7 +53,8 @@ function createTerminal(
   if (laneId !== '' && !alive(state, laneId)) throw new Error('unknown-lane')
   if (
     entries.size >= L.perHost ||
-    [...entries.values()].filter((e) => !e.login && e.laneId === laneId).length >= L.perLane
+    (!ownerExempt &&
+      [...entries.values()].filter((e) => !e.login && e.laneId === laneId).length >= L.perLane)
   )
     throw new Error('too-many-requests')
   const shell = (options.shell ?? (() => userInfo().shell || '/bin/sh'))()
@@ -64,7 +70,8 @@ function createTerminal(
       cols: op.cols,
       rows: op.rows,
       name: 'xterm-256color',
-      env: { ...options.env, TERM: 'xterm-256color' },
+      // An updater typed here hands off before the service restart ends this shell.
+      env: { ...options.env, TERM: 'xterm-256color', [HOST_PID_ENV]: String(process.pid) },
     })
     entry.pty.onData((data) => output(state, entry, data))
     entry.pty.onExit(({ exitCode }) => exited(state, entry, exitCode))
@@ -80,17 +87,19 @@ function createTerminal(
 export function createMachineShell(
   state: TerminalState,
   op: Extract<TerminalOp, { type: 'terminal.create' }>,
+  ownerExempt = false,
 ) {
   if (state.closed) throw new Error('unavailable')
   const home = (state.options.home ?? (() => userInfo().homedir))()
   if (!isAbsolute(home) || home.includes('\0')) throw new Error('unavailable')
-  return createTerminal(state, '', op, home)
+  return createTerminal(state, '', op, home, ownerExempt)
 }
 export async function execute(
   state: TerminalState,
   laneId: string,
   input: TerminalOp,
   authorized: () => boolean = () => true,
+  ownerExempt = false,
 ): Promise<unknown> {
   const { options, entries } = state
   if (!authorized()) throw new TerminalForbidden('forbidden')
@@ -101,7 +110,7 @@ export async function execute(
   const cwd = await laneRoot(options.context, laneId)
   if (!authorized()) throw new TerminalForbidden('forbidden')
   if (state.closed) throw new Error('unavailable')
-  if (op.type === 'terminal.create') return createTerminal(state, laneId, op, cwd)
+  if (op.type === 'terminal.create') return createTerminal(state, laneId, op, cwd, ownerExempt)
   const entry = entries.get(op.terminalId)
   if (!entry || entry.laneId !== laneId) throw new Error('bad-request')
   if (op.type === 'terminal.resize') {
@@ -120,6 +129,7 @@ export function input(
   clientId: string,
   raw: TerminalInput,
   configuration = false,
+  ownerExempt = false,
 ): boolean {
   const { entries, options, now } = state
   if (state.closed) return false
@@ -148,7 +158,7 @@ export function input(
     entry.bytes = 0
   }
   const bytes = Buffer.byteLength(frame.data)
-  if (entry.bytes + bytes > L.inputBytesPerSecond) return false
+  if (!ownerExempt && entry.bytes + bytes > L.inputBytesPerSecond) return false
   // Consume before write, including uncertain writes. No retries or replay.
   entry.inputSeq = frame.seq
   entry.bytes += bytes

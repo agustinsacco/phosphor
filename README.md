@@ -556,7 +556,8 @@ copies.
 
 ```
 apps/desktop/electron/            main process — owns every side effect
-  main.ts            app lifecycle, window creation, quit teardown
+  main.ts            app lifecycle, window creation, quit approval
+  startup.ts         services started after ready and stopped on quit, in order
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
   ipc/               handlers by channel-prefix family

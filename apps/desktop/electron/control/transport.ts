@@ -87,6 +87,10 @@ async function transport<T extends object>(
       await response.body?.cancel().catch(() => undefined)
       return controlFailure('signed-out')
     }
+    if (response.status === 404 && path.endsWith('/reach')) {
+      await response.body?.cancel().catch(() => undefined)
+      return controlFailure('not-found')
+    }
     const content = await readResponse(response)
     if (!content.ok) return controlFailure('internal')
     const { value, size } = content

@@ -10,7 +10,9 @@ import { cancelAllLogins, cancelLogin, loginInFlight, startLogin } from './login
 vi.mock('node:fs', () => ({ mkdirSync: vi.fn() }))
 vi.mock('electron', () => ({ app: { getPath: () => '/test/user-data' } }))
 vi.mock('./health', () => ({ checkPiHealth: vi.fn() }))
-vi.mock('./shell-env', () => ({ piProcessEnv: async () => ({ PATH: '/test/bin' }) }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: async () => ({ PATH: '/test/bin' }),
+}))
 vi.mock('./auth-status', () => ({ checkProviderAuth: vi.fn() }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 vi.mock('../pty/pty-manager', () => ({

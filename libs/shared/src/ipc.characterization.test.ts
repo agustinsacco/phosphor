@@ -34,9 +34,11 @@ import type {
   BaselineWritingInvokeMap,
 } from './ipc/services.test'
 import type { BaselineBrainInvokeMap } from './ipc/brain.test'
+import type { BaselineOpsInvokeMap } from './ipc/ops.test'
 type BaselineInvokeMap = BaselineBrainInvokeMap &
   BaselineHostsInvokeMap &
   BaselineAppInvokeMap &
+  BaselineOpsInvokeMap &
   BaselinePiInvokeMap &
   BaselineClaudeInvokeMap &
   BaselineAccountInvokeMap &
@@ -187,6 +189,8 @@ const baselineScope = {
   'app:setModelPicks': 'app',
   'app:setLastSession': 'app',
   'app:resumeTarget': 'machine',
+  'app:localMachine': 'app',
+  'app:localMachineAction': 'app',
   'app:setFontPrefs': 'app',
   'app:setWorktreePrefs': 'app',
   'app:setAgentDirectives': 'app',
@@ -268,6 +272,7 @@ const baselineScope = {
   'control:approveEnrollment': 'app',
   'control:renameMachine': 'app',
   'control:removeMachine': 'app',
+  'control:setMachineReach': 'app',
   'account:get': 'app',
   'account:signIn': 'app',
   'account:cancelSignIn': 'app',
@@ -394,6 +399,8 @@ const baselineScope = {
   'hosts:archives': 'app',
   'hosts:restoreArchive': 'app',
   'hosts:purgeArchive': 'app',
+  // Agent control: one catalog op on This Mac or a Host.
+  'ops:run': 'machine',
 } as const
 it('freezes every IPC_SCOPE classification', () => {
   expect(IPC_SCOPE).toEqual(baselineScope)

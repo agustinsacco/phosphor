@@ -1,3 +1,5 @@
+import { ensureSessionControl } from '@/platform/serviceLaneControl'
+import { ipcErrorText } from '@shared/errors'
 import type { ToastReceipt } from '@/features/sessions/laneReceipt'
 import type { PrNotice } from '@/features/notifications/prNotice'
 import { create } from 'zustand'
@@ -254,20 +256,9 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
 
   resolveDialog: (dialog, response) => {
     set((s) => ({ dialogs: s.dialogs.filter((d) => d !== dialog) }))
-    const payload = response.cancelled
-      ? { type: 'extension_ui_response' as const, id: dialog.request.id, cancelled: true as const }
-      : response.confirmed !== undefined
-        ? {
-            type: 'extension_ui_response' as const,
-            id: dialog.request.id,
-            confirmed: response.confirmed,
-          }
-        : {
-            type: 'extension_ui_response' as const,
-            id: dialog.request.id,
-            value: response.value ?? '',
-          }
-    void window.phosphor.invoke('pi:extensionUiResponse', dialog.sessionId, payload)
+    void answerDialog(dialog, response).catch((error: unknown) =>
+      get().pushToast(ipcErrorText(error), 'error'),
+    )
   },
 
   pushToast: (message, kind = 'info') => get().notify({ message, kind }),
@@ -358,3 +349,25 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
     })
   },
 }))
+
+async function answerDialog(
+  dialog: PendingDialog,
+  response: Parameters<ExtensionUiState['resolveDialog']>[1],
+) {
+  const claim = ensureSessionControl(dialog.sessionId)
+  if (claim) await claim
+  const payload = response.cancelled
+    ? { type: 'extension_ui_response' as const, id: dialog.request.id, cancelled: true as const }
+    : response.confirmed !== undefined
+      ? {
+          type: 'extension_ui_response' as const,
+          id: dialog.request.id,
+          confirmed: response.confirmed,
+        }
+      : {
+          type: 'extension_ui_response' as const,
+          id: dialog.request.id,
+          value: response.value ?? '',
+        }
+  await window.phosphor.invoke('pi:extensionUiResponse', dialog.sessionId, payload)
+}

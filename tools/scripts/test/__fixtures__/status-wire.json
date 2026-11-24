@@ -30,7 +30,7 @@
       "key": "claude-subagents",
       "producer": null,
       "externalCompatibility": "@saccolabs/pi-claude-cli >= 0.4.13; legacy sessions before 0.9.0",
-      "consumer": "apps/desktop/src/features/extension-ui/ExtensionUiHosts.tsx"
+      "consumer": "apps/desktop/src/features/extension-ui/StatusStrip.tsx"
     },
     {
       "key": "mcp-inspection",

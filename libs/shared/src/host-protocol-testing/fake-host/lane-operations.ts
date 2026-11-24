@@ -66,6 +66,8 @@ export function admitController(
   f: Command,
   l: Lane,
 ): Refusal | null {
+  if (f.op.type === 'control.take' && f.op.ifUnheld && l.summary.control.controller)
+    return { code: 'not-controller', lane: l }
   if (f.op.type === 'control.take' || f.op.type === 'lane.markRead' || f.op.type === 'lane.marks')
     return null
   if (f.fence !== l.summary.control.fence) return { code: 'stale-fence', lane: l }

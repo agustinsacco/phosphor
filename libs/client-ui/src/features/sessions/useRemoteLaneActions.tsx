@@ -1,18 +1,19 @@
+import { runLaneAction, ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
+import { HostTreeDialog, useEditingMenu } from '@/features/chat/HostTreeDialog'
+import { useHostTraits } from '@/platform/machineTraits'
 import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
 import type { ContextMenuItem } from '@/components/ContextMenu'
-import { piCall, piCallOk } from '@/lib/rpc'
 import { remoteLaneMarker } from './remoteLaneView'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
 import { useMachineCaps } from '@/stores/machineCaps'
 import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
-import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { makeRoutine } from '@/stores/routines'
 import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { lanePrMenuEntries, openLanePr, useRemoteLanePrs } from './lanePrMenu'
 import type { LanePr } from './lanePrs'
@@ -23,12 +24,18 @@ import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from '.
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
 import { openLaneMove } from './sidebarActions'
-import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { useSessionOrderActions } from './SessionList'
+import {
+  remoteLaneDebugSource,
+  renameLane,
+  routineFromLane,
+  sessionCost,
+  usedMarkers,
+} from './remoteLaneSessionHelpers'
 
 const ACTION_FAILED = 'The Host could not confirm this. Check the lane before retrying.'
-type LaneDialog = 'delete' | 'marker' | null
+type LaneDialog = 'delete' | 'marker' | 'tree' | null
 type HostLaneChannel =
   | 'hosts:takeControl'
   | 'hosts:releaseControl'
@@ -85,6 +92,7 @@ export function useRemoteLaneActions({
     entry?.phosphorId,
     runner.busy,
   )
+  const editing = useEditingMenu(hostId, lane, !state.stopBlocked, setDialog, runner.act)
   const access = remoteLaneAccess(state)
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
@@ -104,7 +112,6 @@ export function useRemoteLaneActions({
     onMarked: () => onDone?.(),
   })
 
-  /** Names the lane through its live session; resolves false when the Host refused. */
   const saveName = async (name: string): Promise<boolean> =>
     access.controlled && access.running && !!name.trim() && !state.busy
       ? runner.act(async () => renameLane(await session(), name.trim()))
@@ -122,7 +129,8 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] => laneActions(hostLaneContext(state), handlers, orderActions),
+    items: (): ContextMenuItem[] =>
+      laneActions(hostLaneContext(state), { ...handlers, ...editing }, orderActions),
     dialogs,
     title,
     busy: state.busy,
@@ -143,6 +151,7 @@ function useLaneActionState(
   sessionId: string | undefined,
   running: boolean,
 ) {
+  const { sameMachine } = useHostTraits(hostId)
   const caps = useMachineCaps(hostId)
   const key = remoteLaneResourceKey(hostId, lane.laneId)
   const deletingInBulk = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, key))
@@ -155,6 +164,7 @@ function useLaneActionState(
   const state: RemoteLaneActionState = {
     lane,
     caps,
+    sameMachine,
     ready,
     busy: running || deletingInBulk,
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
@@ -186,9 +196,10 @@ function useLaneActionRunner(onDone: (() => void) | undefined) {
       setError(null)
       onDone?.()
       return true
-    } catch {
-      setError(ACTION_FAILED)
-      useRemoteLanesStore.setState({ error: ACTION_FAILED })
+    } catch (error) {
+      const message = error instanceof ServiceLaneControlRefused ? error.message : ACTION_FAILED
+      setError(message)
+      useRemoteLanesStore.setState({ error: message })
       return false
     } finally {
       setBusy(false)
@@ -234,7 +245,7 @@ function laneHandlers({
   onMarked: () => void
 }): LaneActionHandlers {
   const send = (channel: HostLaneChannel) => () =>
-    void act(() => window.phosphor.invoke(channel, hostId, lane.laneId))
+    void act(() => runLaneAction(channel, hostId, lane.laneId))
   // setRemoteLaneMarks reports its own failure, including the "update the Host" case.
   const mark = (change: Parameters<typeof setRemoteLaneMarks>[2]) =>
     void setRemoteLaneMarks(hostId, lane.laneId, change).then((ok) => {
@@ -265,7 +276,7 @@ function laneHandlers({
     moveTo: () =>
       void act(async () => {
         if (lane.activity !== 'stopped' && lane.activity !== 'failed')
-          await window.phosphor.invoke('hosts:stopLane', hostId, lane.laneId)
+          await runLaneAction('hosts:stopLane', hostId, lane.laneId)
         openLaneMove({ machine: hostId, laneId: lane.laneId }, title, {
           pinned: lane.pinned === true,
           marker: remoteLaneMarker(lane, useLanePrefsStore.getState().lanes.markers),
@@ -302,6 +313,8 @@ function RemoteLaneDialogs({
   const hostLanes = useRemoteLanesStore((s) =>
     dialog === 'marker' ? s.hosts[hostId]?.lanes : undefined,
   )
+  if (dialog === 'tree')
+    return <HostTreeDialog hostId={hostId} laneId={lane.laneId} title={title} onClose={onClose} />
   if (dialog === 'delete')
     return (
       <RemoteLaneDeleteDialog
@@ -330,66 +343,4 @@ function RemoteLaneDialogs({
       />
     )
   return null
-}
-
-/**
- * Markers other lanes on this Host chose, in any folder, for the picker to dim:
- * This Mac dims every lane's choice on the machine too. Explicit choices only,
- * as on This Mac: derived markers collide by design.
- */
-function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView): Set<string> {
-  return new Set(
-    lanes.flatMap((other) => (other.laneId !== lane.laneId && other.marker ? [other.marker] : [])),
-  )
-}
-
-async function renameLane(sessionId: string, name: string): Promise<void> {
-  if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) throw new Error()
-  useChatStore.getState().patchMeta(sessionId, { sessionName: name })
-}
-
-/**
- * "Make routine…" on a Host lane: This Mac's draft (the lane's own name, blank
- * when it has none, and its first prompt), opened on the lane's Host and
- * folder. The lane's session is open by now, so its transcript holds the first prompt.
- */
-function routineFromLane(hostId: string, lane: HostLaneView, sessionId: string) {
-  const chat = useChatStore.getState().sessions[sessionId]
-  const first = chat?.items.find((i) => i.kind === 'user')
-  const name = chat?.meta?.sessionName?.trim() || lane.title || ''
-  makeRoutine('', name, first?.kind === 'user' ? first.text : '', {
-    hostId,
-    repositoryId: lane.repositoryId,
-  })
-}
-
-async function sessionCost(sessionId: string): Promise<number> {
-  const stats = await piCall(sessionId, { type: 'get_session_stats' })
-  if (!stats) throw new Error()
-  return stats.cost
-}
-
-/**
- * A Host lane's debug block: pi's id and model from its open session (else the
- * Host summary's model) and where it runs. Never a Host path: the lane's folder
- * and session file stay on the Host.
- */
-function remoteLaneDebugSource(
-  hostId: string,
-  lane: HostLaneView,
-  sessionId: string | undefined,
-): SessionDebugSource {
-  const meta = sessionId ? useChatStore.getState().sessions[sessionId]?.meta : null
-  const model = meta?.model ?? lane.model
-  return {
-    sessionId: meta?.sessionId,
-    provider: model?.provider,
-    model: model?.id,
-    context: [
-      ['machine', machineLabel(hostId)],
-      ['host', hostId],
-      ['lane', lane.laneId],
-      ['branch', lane.branch ?? 'none'],
-    ],
-  }
 }

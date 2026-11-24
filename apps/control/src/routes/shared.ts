@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import type { Parsed, ControlErrorCode } from '@phosphor/shared/control-api'
 import { ControlFailure, rawTarget, type Env } from '../http'
-import { authenticateHost, type HostAuthDeps } from '../auth/host'
+import { authenticateHost, type HostAuthDeps, type HostAuthPurpose } from '../auth/host'
 
 export function parsed<T>(result: Parsed<T>, code: ControlErrorCode = 'unavailable'): T {
   if (!result.ok) throw new ControlFailure(code)
@@ -37,7 +37,12 @@ export function outcome(value: Record<string, unknown>, success: string): void {
       throw new ControlFailure('unavailable')
   }
 }
-export async function host(c: Context<Env>, deps: HostAuthDeps, mode: 'key' | 'host') {
+export async function host(
+  c: Context<Env>,
+  deps: HostAuthDeps,
+  mode: 'key' | 'host',
+  purpose?: HostAuthPurpose,
+) {
   const identity = await authenticateHost(
     c.req.raw,
     c.get('rawBody'),
@@ -45,6 +50,7 @@ export async function host(c: Context<Env>, deps: HostAuthDeps, mode: 'key' | 'h
     mode,
     c.get('ip'),
     rawTarget(c.req.raw, c.env),
+    purpose,
   )
   if (mode === 'host') c.set('actor', `host:${identity}`)
   return identity

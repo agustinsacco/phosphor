@@ -1,4 +1,5 @@
 import type { BrainAgentMap, BrainAgentMethod, BrainInvokeMap } from '@phosphor/shared/brain'
+import type { BrainOpsPort, LaneFacts } from '@phosphor/session-runtime/ops/types'
 import type { BrainSearch, BrainStore } from '@phosphor/memory-engine/types'
 import type { runModelCall } from './model-call'
 import type { BrainEmbeddings } from './embedding/embedding-port'
@@ -88,16 +89,23 @@ export interface BrainAgentHost {
 
 /** What session startup adds to a lane when Brain and recall are on. */
 export interface BrainRecallLaunch {
-  env: Record<string, string>
   extensions: string[]
   skills: string[]
 }
 
+/** The Brain lane's launch, the only one with a connection: the private bridge and curator token. */
+export interface BrainCuratorLaunch extends BrainRecallLaunch {
+  connection: { endpoint: string; token: string }
+}
+
 export interface BrainService {
   api: BrainApi
+  /** Allocate once per live lane; discard the port (and its briefing refs) when that lane ends. */
+  forLane(lane: Pick<LaneFacts, 'cwd' | 'title'> & { readonly sessionId: string }): BrainOpsPort
   /**
-   * What the local bridge serves: recall and flags for any lane; Brain Agent's curator methods
-   * for the Brain lane. `signal` aborts when the asker hangs up.
+   * What the private bridge serves: recall and flags for a Host lane (lane ops enter through
+   * forLane instead); Brain Agent's curator methods for the Brain lane. `signal` aborts when the
+   * asker hangs up.
    */
   agent<M extends BrainAgentMethod>(
     method: M,
@@ -110,6 +118,6 @@ export interface BrainService {
    * The Brain lane's launch: the curator token, the brain-curator extension and the brain-agent
    * skill. Undefined when Brain is off or no curator extension is configured. Never throws.
    */
-  curatorLaunch(): Promise<BrainRecallLaunch | undefined>
+  curatorLaunch(): Promise<BrainCuratorLaunch | undefined>
   dispose(): Promise<void>
 }

@@ -45,8 +45,12 @@ vi.mock('../pi/mcp-cli', () => ({
   logoutMcpServer: state.logout,
 }))
 vi.mock('../pi/health', () => ({ checkPiHealth: state.health }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: state.env }))
-vi.mock('../pi/stub', () => ({ piStubPath: state.stub }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: state.env }))
+vi.mock('../pi/stub', () => ({
+  piStubPath: state.stub,
+  stubOpsEnabled: () => false,
+  stubBrainEnabled: () => false,
+}))
 vi.mock('../broadcast', () => ({ broadcast: state.broadcast }))
 vi.mock('../pi/catalogue', () => ({ invalidatePiCommands: state.invalidate }))
 

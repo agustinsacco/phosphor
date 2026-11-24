@@ -1,10 +1,12 @@
+import { readLocalMode } from '../config/sidecar'
+import { runLocalServiceInstall } from './setup-local-service'
 import { mkdir } from 'node:fs/promises'
 import { userInfo } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { traceCommand, controlResult, prepareControl, withCommandLock } from '../control/command'
 import { IdentityFailure } from '../control/identity'
+import { HOST_AGENT, HOST_UNIT } from '@phosphor/shared/host-local'
 import {
-  HOST_UNIT,
   serviceRunner,
   serviceUnit,
   writeServiceUnit,
@@ -12,7 +14,6 @@ import {
   type ServiceRunner,
 } from '../machine/systemd'
 import {
-  HOST_AGENT,
   launchAgentPlist,
   launchctlMissing,
   launchdStatusLines,
@@ -23,7 +24,7 @@ import {
 import { hostLogDirectory } from '../machine/log'
 import { renderStatus, runStatus, type StatusReport } from './status'
 import type { RunContext } from './run'
-import { serviceProgram } from '../update/layout'
+import { serviceProgram } from '@phosphor/session-runtime/host-install/layout'
 
 export type ServiceAction = 'install' | 'status' | 'restart' | 'logs' | 'uninstall'
 export function isServiceAction(value: unknown): value is ServiceAction {
@@ -38,6 +39,8 @@ export function isServiceAction(value: unknown): value is ServiceAction {
 export interface ServiceContext extends RunContext {
   home: string
   service?: {
+    localLabel?: string
+    linger?: boolean
     runner?: ServiceRunner
     node?: string
     bundle?: string
@@ -64,16 +67,9 @@ async function runServiceCommand(
   }
   const runner =
     context.service?.runner ?? serviceRunner(context.env, context.print, context.signal)
-  const invoke: ServiceRunner = async (program, args, stream) => {
-    context.log?.('service', 'exec', { program, args, trace: context.trace })
-    const result = await runner(program, args, stream)
-    context.log?.('service', 'exec.finished', {
-      program,
-      exitCode: result.code,
-      trace: context.trace,
-    })
-    return result
-  }
+  const invoke = tracedRunner(context, runner)
+  if (action === 'install' && readLocalMode(dirname(resolve(context.configPath)), context.uid))
+    return runLocalServiceInstall(context, invoke)
   if (context.platform === 'darwin') return runLaunchdService(context, action, follow, invoke)
   const call = (args: readonly string[]) => invoke('systemctl', ['--user', ...args])
   const unit = join(
@@ -322,4 +318,17 @@ export function runService(
   return traceCommand(context, `service.${action}`, (traced) =>
     runServiceCommand({ ...context, ...traced }, action, follow),
   )
+}
+
+function tracedRunner(context: ServiceContext, runner: ServiceRunner): ServiceRunner {
+  return async (program, args, stream) => {
+    context.log?.('service', 'exec', { program, args, trace: context.trace })
+    const result = await runner(program, args, stream)
+    context.log?.('service', 'exec.finished', {
+      program,
+      exitCode: result.code,
+      trace: context.trace,
+    })
+    return result
+  }
 }

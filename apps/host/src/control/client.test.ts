@@ -314,3 +314,32 @@ it('logs error codes and network classes, but never peer messages or a malformed
   )
   expect(JSON.stringify(log.mock.calls)).not.toContain(secret)
 })
+
+describe('machine reach on the heartbeat', () => {
+  it('signs machineGrants into the beat and returns control’s machineReach', async () => {
+    const bodies: string[] = []
+    const client = createControlClient('https://example.com', {
+      fetch: async (_url, init) => {
+        bodies.push(typeof init?.body === 'string' ? init.body : '')
+        return json({ accepted: true, nextInSec: 30, machineReach: false })
+      },
+    })
+    const beat = {
+      seq: 1,
+      state: 'running' as const,
+      hostVersion: '1.0.0',
+      uptimeSec: 0,
+      readiness: { pi: 'ok', claude: 'ok', tailscale: 'ok' } as const,
+      lanes: { running: 0, waiting: 0 },
+      endpoint: null,
+    }
+    await expect(
+      client.heartbeat(hostId, key, { ...beat, machineGrants: false }),
+    ).resolves.toMatchObject({ machineReach: false })
+    await client.heartbeat(hostId, key, beat)
+    expect(bodies.map((body) => JSON.parse(body) as unknown)).toEqual([
+      { ...beat, machineGrants: false },
+      beat,
+    ])
+  })
+})

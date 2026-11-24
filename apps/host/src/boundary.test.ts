@@ -9,6 +9,10 @@ const exported = (library: string) =>
 const LIBRARIES: Record<string, string[]> = {
   '@phosphor/shared': exported('libs/shared'),
   '@phosphor/session-runtime': exported('libs/session-runtime'),
+  // Brain's lane-scoped briefing and private socket client, not its engine or store.
+  '@phosphor/brain-client': exported('libs/brain-client'),
+  // Browser-safe: the reach pool speaks the Host protocol as a client.
+  '@phosphor/host-client': exported('libs/host-client'),
   // This subpath is a pure wire-literal module.
   '@phosphor/pi-extensions': ['./status-keys'],
 }
@@ -67,6 +71,8 @@ describe('Host import boundary', () => {
         }
         const library = Object.keys(LIBRARIES).find((name) => specifier!.startsWith(`${name}/`))
         if (library) {
+          // Tests share a library's fixtures as they share the Host's own; production never does.
+          if (support && specifier!.includes('/__fixtures__/')) continue
           expect(LIBRARIES[library], where).toContain(`./${specifier!.slice(library.length + 1)}`)
           continue
         }

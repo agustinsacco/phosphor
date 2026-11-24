@@ -12,53 +12,20 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 
 | Surface         | Missing capability                                                                                                                                                                                    |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, rules/MCP toggles inside a Host lane, worktree Merge into main                                                                                    |
+| Chat and lanes  | Writable Host composer rules/MCP popover; worktree Merge into main                                                                                                                                    |
 | Files           | Content search, Quick Look, external imports, per-file Revert in Changes, Host file-list truncation flags; in a browser, files over 100 MB to download or 50 MB to preview, and drag moves on a phone |
-| Skills          | Catalogue install, upload, discovery and in-place edits                                                                                                                                               |
-| Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync                                                    |
-| Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                                                                                  |
-| Portability     | Larger lane transfers, submodule/LFS support, primitive copy/sync and sharing Desktop's local runtime                                                                                                 |
+| Skills          | Upload and discovery UI; editing beyond user skill source                                                                                                                                             |
+| Settings        | Unrestricted raw file editors, project/non-npm package mutation and cross-machine settings sync                                                                                                       |
+| Routine history | Opening output that has no existing Host lane; full execution diagnostics                                                                                                                             |
+| Portability     | Larger lane transfers, submodule/LFS support, primitive copy/sync                                                                                                                                     |
 
-## Share this computer
+## Service follow-ups
 
-**Problem.** A person should be able to continue a Mac's lanes from another
-surface without installing a second runtime that competes with Desktop.
+[This Mac’s service](local-service.md) owns the implemented runtime and its release gate. These extensions are not part of migration:
 
-**Decided.** Sharing will be an option on every Phosphor install
-with a UI. A headless Host will always be shared. Sharing will not turn local
-use into a sign-in requirement.
-
-**Design and dependencies.** `libs/session-runtime` already shares session
-admission, ownership and deletion. It does not yet supply the whole machine.
-Sharing needs a common machine engine: package jobs and provider logins
-(`electron/pi/` and `electron/claude/`), artifact library/protocol adapters,
-`electron/routines/`, skills, `electron/pty/`, and `electron/fs/`. These paths
-are under `apps/desktop/`. Electron dialogs, notification delivery, preview
-schemes and secure storage will remain platform adapters, not Host dependencies.
-
-The authenticated HTTP/WSS API needs to be a library mounted by both
-`apps/host` and Desktop main over that engine. Desktop will enroll the Mac with
-its own identity and expose the same listener on its Tailscale address, using
-private HTTPS/WSS transport, not a public relay. Enrollment, grants and
-controller fences are prerequisites, not permission to tunnel raw IPC.
-The Mac's identity private key will live in the OS keychain, not the control
-plane or Desktop's account refresh-token vault.
-
-**Lifetime and revocation.** Sharing will serve only while Desktop runs and the
-Mac is awake. The Host's macOS user service is the always-on path, not a way
-to work while asleep. Turning sharing off must stop accepting remote access and
-close streams; reenrollment and identity revocation need explicit UI semantics.
-It must not delete lanes or interrupt local work just to remove remote access.
-
-**Open questions.** Choose toggle placement and whether off retains enrollment.
-Define engine adoption between Desktop and a separate `phosphor run`, startup
-failure UI, and keychain access for the user-service path. The shared service's
-path locks are process-local: a machine-wide ownership protocol is still needed
-so Desktop and `phosphor run` cannot both write the same session file.
-
-**Risks.** Mounting a listener before extraction creates two implementations.
-Electron's node-pty ABI cannot be copied into a Node Host. Sleep, Desktop quit,
-locked keychains and two runtimes can each break sharing unless diagnosed.
+- **Paged lane projection.** Merge inventory pages into the sidebar and lift the legacy 64-folder / 1,000-lane ceiling. Paging a catalog query is not paging the subscribed lane topic.
+- **Routine `allowOps`.** A reviewed, per-routine authorization for unattended ops that otherwise ask. Today those requests are refused, not pre-approved by routine trust.
+- **`owner.print`.** A fixed-purpose owner call for Brain’s model runs. Today Desktop owns those ephemeral print processes; registering Brain recall does not give the service general-purpose print access.
 
 ## Cross-machine primitive copy and sync
 
@@ -208,7 +175,7 @@ fields, so the page hides them.
 ## Host package updates and version checks
 
 **Problem.** A Host's Extensions section installs, updates and removes one
-package at a time as reviewed tasks, but it has no **Update all** and no
+package at a time as reviewed tasks, but the Settings UI has no **Update all** or
 registry version check (`caps.updateAll` and `caps.versionCheck` are false in
 `useHostPackages.ts`). Update is offered on every installed package, because
 the client cannot tell whether a newer version exists.

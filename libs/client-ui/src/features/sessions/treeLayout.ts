@@ -49,6 +49,16 @@ interface TreeLayout {
   maxX: number
 }
 
+function visibleAncestor(id: string | null, entries: Map<string, SessionTreeEntry>): string | null {
+  while (id) {
+    const entry = entries.get(id)
+    if (!entry) return null
+    if (entry.type !== 'label' && entry.type !== 'session_info') return id
+    id = entry.parentId
+  }
+  return null
+}
+
 export function buildTreeLayout(tree: SessionTree): TreeLayout {
   const byId = new Map<string, SessionTreeEntry>()
   const children = new Map<string, SessionTreeEntry[]>()
@@ -64,10 +74,11 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
   for (const entry of tree.entries) {
     // Labels and session_info are metadata, not tree branches worth showing.
     if (entry.type === 'label' || entry.type === 'session_info') continue
-    if (entry.parentId && byId.has(entry.parentId)) {
-      const list = children.get(entry.parentId) ?? []
+    const parentId = visibleAncestor(entry.parentId, byId)
+    if (parentId) {
+      const list = children.get(parentId) ?? []
       list.push(entry)
-      children.set(entry.parentId, list)
+      children.set(parentId, list)
     } else {
       roots.push(entry)
     }
@@ -76,17 +87,7 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
   // Active path: leaf → root. The leaf may be a metadata entry; walk from the
   // last non-metadata entry instead.
   const activePath = new Set<string>()
-  let leafId = tree.leafId
-  while (leafId) {
-    const entry = byId.get(leafId)
-    if (!entry) break
-    if (entry.type === 'label' || entry.type === 'session_info') {
-      leafId = entry.parentId
-      continue
-    }
-    break
-  }
-  const effectiveLeaf = leafId
+  const effectiveLeaf = visibleAncestor(tree.leafId, byId)
   let cursor = effectiveLeaf
   while (cursor) {
     activePath.add(cursor)

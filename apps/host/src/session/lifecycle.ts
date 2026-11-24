@@ -3,7 +3,7 @@ import type { PiEvent } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import type { SessionRegistry } from '@phosphor/session-runtime/pi/session-registry'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 
 export type HostState = 'booting' | 'validating' | 'ready' | 'draining' | 'stopped' | 'failed'
 
@@ -263,7 +263,7 @@ export function createDrain(host: {
 }
 
 /** The promise's value, or undefined if it rejects or `until` passes first. */
-async function within<T>(promise: Promise<T>, until: number): Promise<T | undefined> {
+export async function within<T>(promise: Promise<T>, until: number): Promise<T | undefined> {
   let timer: NodeJS.Timeout | undefined
   const late = new Promise<undefined>((resolve) => {
     timer = setTimeout(() => resolve(undefined), Math.max(0, until - Date.now()))

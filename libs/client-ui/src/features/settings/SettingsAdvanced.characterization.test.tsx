@@ -90,3 +90,23 @@ it("shows the Host's paths, PATH and environment names, never values or raw edit
   expect(text).not.toContain('settings.json')
   expect(text).not.toContain('Edit…')
 })
+
+it('replaces the legacy terminal update only on the local service slot', async () => {
+  const hosts = mixedRemoteHosts()
+  hosts[machine.id]!.local = true
+  useRemoteLanesStore.setState({ hosts })
+  Object.defineProperty(window, 'phosphor', {
+    configurable: true,
+    value: { invoke, onLocalMachineChanged: () => () => {} },
+  })
+  invoke.mockImplementation(async (channel, id, section) =>
+    channel === 'app:localMachine'
+      ? { mode: 'daemon', migration: 'committed', service: 'ready' }
+      : channel === 'hosts:settingsRead'
+        ? mockSettingsRead(id, section)
+        : undefined,
+  )
+  await showHostSettings(root, machine.id, 'advanced')
+  expect(container.textContent).not.toContain('Pause and update')
+  expect(container.textContent).toContain('Update Phosphor service')
+})

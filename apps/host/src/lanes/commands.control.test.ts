@@ -394,3 +394,22 @@ describe('lane command guards and operations', () => {
     },
   )
 })
+
+it('only the first conditional take claims the lane, even when two clients race', async () => {
+  const op = { type: 'control.take', ifUnheld: true } as const
+  const a = f.frame(op),
+    b = f.frame(op)
+  await Promise.all([f.service.submit(f.one, a), f.service.submit(f.two, b)])
+  const control = f.store.getLane(f.lane.laneId)!.control
+  expect(control).toMatchObject({ fence: 2, controller: { clientId: f.one.id } })
+  expect(f.last(a.requestId)).toMatchObject({ status: 'done', fence: 2 })
+  expect(f.last(b.requestId)).toMatchObject({ status: 'rejected', code: 'not-controller', control })
+  const held = f.frame(op)
+  await f.service.submit(f.one, held)
+  expect(f.last(held.requestId)).toMatchObject({
+    status: 'rejected',
+    code: 'not-controller',
+    control,
+  })
+  expect(f.store.getLane(f.lane.laneId)!.control).toEqual(control)
+})

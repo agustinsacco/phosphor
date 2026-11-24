@@ -6,19 +6,16 @@ import { parseSessionEntries } from '@phosphor/session-runtime/pi/session-contex
 import { normalizePrefix } from '@shared/branchName'
 import { errorText } from '@shared/errors'
 import type { WorktreeInfo, WorktreeRecovery, WorktreeRecreateSource } from '@shared/models'
-import {
-  addWorktree,
-  listWorktrees,
-  normalizeRealPath,
-  startPoint,
-  worktreeRootFor,
-} from '../fs/git-worktrees'
+import { normalizeRealPath } from '@phosphor/session-runtime/git/worktree-metadata'
+import { addWorktree, listWorktrees, startPoint, worktreeRootFor } from '../fs/git-worktrees'
 import { sessionDirForCwd } from '../pi/pi-paths'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { notifyWorkspaceSessions } from '../pi/session-watcher'
-import { registry } from '../registry'
 import { getPrefs } from '../store'
 import { history, withWorkspace } from './history'
+import { reserveWorkspace } from './reservation'
+
+const RUNNING = 'A session is already running in this checkout.'
 
 /**
  * Bringing back a conversation whose checkout is gone, when there is no saved
@@ -215,28 +212,35 @@ export async function recreateWorktree(
   source: WorktreeRecreateSource,
 ): Promise<void> {
   if (source !== 'branch' && source !== 'fresh') throw new Error('Unknown checkout source.')
-  await withWorkspace(path, async () => {
-    if (existsSync(path)) throw new Error('This checkout already exists.')
-    if (registry.list().some((s) => sessionPathKey(s.workspacePath) === sessionPathKey(path)))
-      throw new Error('A session is already running in this checkout.')
-    const plan = await recreatePlan(path, savedRecord(path)?.branch)
-    if (source === 'branch' && !plan.branch)
-      throw new Error('No single matching branch is available any more.')
-    // `git worktree add` refuses a path that is missing but still registered.
-    // The folder is gone (checked above), so this drops only Git's bookkeeping.
-    if (plan.stale) await git(plan.repoPath, ['worktree', 'remove', '--force', plan.stale.path])
-    await addWorktree(
-      plan.repoPath,
-      plan.name,
-      source === 'branch'
-        ? { kind: 'existing', branch: plan.branch!.name }
-        : {
-            kind: 'new',
-            base: plan.fresh.base,
-            branch: plan.fresh.branch,
-            noTrack: plan.fromRemote,
-          },
-    )
-    notifyWorkspaceSessions(path)
-  })
+  await withWorkspace(path, () =>
+    reserveWorkspace(path, RUNNING, (free) => recreate(path, source, free)),
+  )
+}
+
+async function recreate(
+  path: string,
+  source: WorktreeRecreateSource,
+  free: () => boolean,
+): Promise<void> {
+  if (existsSync(path)) throw new Error('This checkout already exists.')
+  if (!free()) throw new Error(RUNNING)
+  const plan = await recreatePlan(path, savedRecord(path)?.branch)
+  if (source === 'branch' && !plan.branch)
+    throw new Error('No single matching branch is available any more.')
+  // `git worktree add` refuses a path that is missing but still registered.
+  // The folder is gone (checked above), so this drops only Git's bookkeeping.
+  if (plan.stale) await git(plan.repoPath, ['worktree', 'remove', '--force', plan.stale.path])
+  await addWorktree(
+    plan.repoPath,
+    plan.name,
+    source === 'branch'
+      ? { kind: 'existing', branch: plan.branch!.name }
+      : {
+          kind: 'new',
+          base: plan.fresh.base,
+          branch: plan.fresh.branch,
+          noTrack: plan.fromRemote,
+        },
+  )
+  notifyWorkspaceSessions(path)
 }

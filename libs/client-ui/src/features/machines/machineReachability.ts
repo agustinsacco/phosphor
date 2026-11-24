@@ -1,3 +1,4 @@
+import { localMachineLabel } from '@/lib/localMachine'
 import { machineStatus, CONTROL_LIMITS, type MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
 import { relativeTime } from './machinePresentation'
@@ -23,6 +24,10 @@ export function machineReachability(
   now: number,
   lastError?: string,
 ): Reachability {
+  if (connection === 'connecting' && lastError === 'waiting-local-service') {
+    const wait = `Waiting for ${localMachineLabel().replace(/^This /, 'this ')}’s service`
+    return { ok: false, short: wait, detail: `${wait} to identify itself.` }
+  }
   const label = machine.label
   if (connection === 'ready')
     return { ok: true, short: 'Reachable', detail: `${label} is reachable.` }
@@ -108,6 +113,8 @@ export function machineHeadline(
   now: number,
 ): Headline {
   const reach = machineReachability(machine, connection?.state, now, connection?.lastError)
+  if (connection?.state === 'connecting' && connection.lastError === 'waiting-local-service')
+    return { ...reach, tone: 'pending', label: reach.short }
   if (reach.ok) return { ...reach, tone: 'ok', label: 'Connected' }
   if (!machine.lastSeenAt) return { ...reach, tone: 'pending', label: 'Waiting for setup' }
   if (machineStatus(machine, now) === 'down') {

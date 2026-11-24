@@ -2,6 +2,7 @@ import type { LaneReceipt } from '../lane-receipt'
 import type { HostCapability } from '../remote-host'
 import type { RepositorySummary, LaneSummary, StreamCursor } from '../host-protocol'
 import type { ControlErrorCode } from '../control-api'
+import type { ServicePauseState } from '../host-protocol-owner'
 
 export type DesktopControlErrorCode = ControlErrorCode | 'signed-out' | 'offline'
 
@@ -14,6 +15,7 @@ export interface SessionTreeEntry {
   parentId: string | null
   type: string
   timestamp: string
+  messageTimestamp?: number
   role?: string
   preview?: string
   toolName?: string
@@ -76,6 +78,23 @@ export interface HostConnectionView {
   pushRegistration?: 'registered' | 'failed'
   /** Host reads a lane's file again after Track or Hide, so its summary shows the write. */
   prTracking?: boolean
+  /** This Mac's own daemon over its local socket, not a Host reached over the tailnet. */
+  local?: true
+  /** The enrolled Host id when `local` and enrolled; grants and `machine` principals use it. */
+  enrolledHostId?: string
+  /** Host serves agent-control catalog ops (`ops.run`). */
+  ops?: boolean
+  /** Only on a `local` connection: the daemon admitted this client as its owner. */
+  ownerLocal?: boolean
+  /** Host serves lane tree, label, jump, fork, clone and rewind as ops. */
+  laneEditing?: boolean
+  laneContext?: boolean
+  laneReload?: boolean
+  sandboxes?: boolean
+  folderDirectives?: boolean
+  configFiles?: boolean
+  /** Host pages its folder and lane lists past the single-frame caps. */
+  pagedLanes?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]
@@ -84,6 +103,48 @@ export interface HostConnectionView {
 }
 
 export type HostsSnapshot = Record<string, HostConnectionView>
+
+/** Who runs This Mac's lanes: Desktop itself, or the local Phosphor service (daemon). */
+export type LocalRuntimeMode = 'in-app' | 'daemon'
+
+/** This Mac's runtime, its one-time move to the Phosphor service and that service's health. */
+export interface LocalMachineStatus {
+  mode: LocalRuntimeMode
+  migration:
+    | 'not-needed'
+    | 'waiting'
+    | 'running'
+    | 'failed'
+    | 'committed'
+    | 'repairing'
+    | 'reverted'
+    | 'consent-needed'
+  /** The migration step running or last run. */
+  step?: string
+  failure?: { step: string; code: string }
+  service?: 'ready' | 'connecting' | 'down' | 'attestation-failed'
+  serviceVersion?: string
+  pause?: ServicePauseState
+  /**
+   * Why This Mac stays in-app: `no-bundle` (no service build for this Mac),
+   * `limits` (a preflight that cannot page), `other-daemon` (a service Desktop
+   * did not set up), `state-folder` (the service's state folder is not a
+   * private folder of this user), `dev-build` (an unpackaged build over data
+   * that belongs to the service).
+   */
+  notice?: 'no-bundle' | 'limits' | 'other-daemon' | 'state-folder' | 'dev-build'
+}
+
+/** A button on This Mac's runtime card; main decides what is legal now. */
+export type LocalMachineAction =
+  | 'retry-migration'
+  | 'consent-migration'
+  | 'restart-to-finish'
+  | 'start-service'
+  | 'update-service'
+  | 'update-abort-now'
+  | 'update-cancel'
+  | 'export-diagnostics'
 
 /**
  * One line of Desktop's remote traffic log (`hosts:traffic`): what crossed the

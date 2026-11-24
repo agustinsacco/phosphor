@@ -49,7 +49,7 @@ vi.mock('../pi/catalogue', () => ({
   invalidateCatalogueModels: state.invalidateModels,
   invalidatePiCommands: state.invalidateCommands,
 }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: state.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: state.env }))
 vi.mock('../pty/pty-manager', () => ({ ptyManager: { create: state.create } }))
 
 async function invoke<C extends IpcInvokeChannel>(

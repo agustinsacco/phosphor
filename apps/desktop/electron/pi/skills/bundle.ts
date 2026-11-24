@@ -2,7 +2,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { piAgentDir } from '../pi-paths'
-import { writeZipStore, type ZipEntry } from '../zip'
+import { writeZipStore, type ZipEntry } from '@phosphor/session-runtime/skills/zip'
 import type { SkillFileEntry, SkillProvenance } from '@shared/skills'
 import {
   isSkippedSkillFolder,
@@ -12,9 +12,7 @@ import {
 
 export { LEGACY_SKILL_SIDECAR, SKILL_SIDECAR }
 
-export const MAX_BUNDLE_FILES = 500
-export const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
-export const MAX_ARCHIVE_BYTES = 60 * 1024 * 1024
+import { MAX_BUNDLE_FILES, MAX_TEXT_FILE_BYTES } from '@phosphor/session-runtime/skills/limits'
 
 /**
  * Dirs the last resolution produced. Every read/write/delete checks its

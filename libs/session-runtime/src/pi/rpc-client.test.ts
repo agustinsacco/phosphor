@@ -61,6 +61,7 @@ describe('headless PiRpcClient', () => {
       })
     })
     expect((await instance.request({ type: 'get_state' })).success).toBe(true)
+    expect(instance.piSessionId).toBe('fake-session')
     expect(instance.sessionFile).toBe('/fake/session.jsonl')
     expect((await instance.request({ type: 'prompt', message: 'hello' })).success).toBe(true)
     await ended
@@ -163,4 +164,45 @@ describe('headless PiRpcClient', () => {
     })
     expect(args.join(' ')).toContain('-e /res/brain.mjs --skill /res/skills/brain')
   })
+})
+
+// Exercise stdout routing, including requests that do not open a modal.
+it('tracks every extension UI record before forwarding it unchanged', async () => {
+  const records = [
+    { method: 'input', title: 'Name' },
+    { method: 'select', title: 'Pick', options: ['One'] },
+    { method: 'confirm', title: 'Continue?', message: 'Question' },
+    { method: 'editor', title: 'Edit', prefill: 'draft' },
+    { method: 'notify', message: 'Done' },
+    { method: 'setStatus', statusKey: 'progress', statusText: 'Done' },
+    { method: 'setWidget', widgetKey: 'progress', widgetLines: ['Done'] },
+    { method: 'setTitle', title: 'Done' },
+    { method: 'set_editor_text', text: 'draft' },
+    { method: 'future-method' },
+  ].map((fields, i) => ({ type: 'extension_ui_request', id: `ui-${i}`, ...fields }))
+  const jsonl = records.map((record) => JSON.stringify(record)).join('\n') + '\n'
+  const instance = new PiRpcClient(
+    {
+      cwd: import.meta.dirname,
+      binaryPath: process.execPath,
+      inheritEnv: false,
+      prefixArgs: [
+        '-e',
+        'process.stdout.write(process.argv[1]); process.stdin.resume()',
+        '--',
+        jsonl,
+      ],
+    },
+    { log: vi.fn(), isClosing: () => false },
+  )
+  clients.push(instance)
+  const dialog = vi.spyOn(instance.activity, 'dialog')
+  const forwarded = vi.fn()
+  instance.on('extension-ui', forwarded)
+  instance.spawn()
+  await vi.waitFor(() => expect(forwarded).toHaveBeenCalledTimes(records.length))
+  expect(dialog.mock.calls).toEqual(records.map((record) => [record]))
+  expect(forwarded.mock.calls).toEqual(dialog.mock.calls)
+  for (const [i, order] of dialog.mock.invocationCallOrder.entries())
+    expect(order).toBeLessThan(forwarded.mock.invocationCallOrder[i]!)
 })

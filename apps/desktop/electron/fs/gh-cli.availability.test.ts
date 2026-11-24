@@ -2,7 +2,9 @@ import { beforeEach, expect, it, vi } from 'vitest'
 
 const { execute } = vi.hoisted(() => ({ execute: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFile: execute }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: async () => ({ PATH: '/tools' }) }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: async () => ({ PATH: '/tools' }),
+}))
 
 beforeEach(() => {
   vi.resetModules()

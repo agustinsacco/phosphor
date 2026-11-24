@@ -1,5 +1,5 @@
 import { PiRpcClient } from './desktop-rpc-client'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { log } from '../debug-log'
 import type { Model, ModelCost, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
 

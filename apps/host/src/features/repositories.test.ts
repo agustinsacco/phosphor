@@ -279,3 +279,68 @@ it('lists repositories in config order, not the order they were first added', ()
   expect(store.syncRepositories([b, a]).map((r) => r.name)).toEqual(['Projects', 'original'])
   expect(store.listRepositories().map((r) => r.name)).toEqual(['Projects', 'original'])
 })
+
+it('serializes overlapping adds from catalog and legacy callers, past a refusal', async () => {
+  const add = (path: string) => service.execute({ type: 'host.repositories.add', path }, () => true)
+  const results = await Promise.all([add('Projects'), add('original'), add('.hidden')])
+  expect(results).toMatchObject([{ ok: true }, { ok: false, code: 'conflict' }, { ok: true }])
+  expect(store.listRepositories().map((r) => r.name)).toEqual(['original', 'Projects', '.hidden'])
+})
+
+it.each([false, true])(
+  'keeps sandbox roots after a legacy folder add (local=%s)',
+  async (local) => {
+    const sandbox = join(home, 'sandbox')
+    await mkdir(sandbox)
+    const { writeOwnerFolders, readOwnerFolders } = await import('../config/folders-file')
+    const original = join(home, 'original')
+    writeOwnerFolders(home, process.getuid?.(), {
+      version: 1,
+      items: [
+        ...(local ? [{ path: original, name: 'original', order: 0 }] : []),
+        { path: sandbox, name: 'sandbox', order: 1, sandbox: true },
+      ],
+    })
+    store.syncRepositories([original, sandbox])
+    const folders = createRepositories({
+      local,
+      home,
+      configPath,
+      uid: process.getuid?.(),
+      store,
+      live: () => false,
+      changed,
+    })
+    expect(
+      await folders.execute({ type: 'host.repositories.add', path: 'Projects' }, () => true),
+    ).toMatchObject({ ok: true })
+    expect(
+      store
+        .listRepositories()
+        .map((v) => v.path)
+        .sort(),
+    ).toEqual([original, sandbox, join(home, 'Projects')].sort())
+    if (local)
+      expect(readOwnerFolders(home, process.getuid?.())?.items.map((i) => i.path)).toContain(
+        join(home, 'Projects'),
+      )
+  },
+)
+
+it('runs other folder-record writers in the same queue as folder changes', async () => {
+  const order: string[] = []
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const first = service.serialize(async () => {
+    await held
+    order.push('sandbox')
+  })
+  const add = service
+    .execute({ type: 'host.repositories.add', path: 'Projects' }, () => true)
+    .then(() => order.push('add'))
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  expect(order).toEqual([])
+  release()
+  await Promise.all([first, add])
+  expect(order).toEqual(['sandbox', 'add'])
+})

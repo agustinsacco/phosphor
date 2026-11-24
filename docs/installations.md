@@ -105,3 +105,11 @@ from an Electron package check. Any future Node native owner requires an explici
 separate install/rebuild domain. See [desktop-build.md](desktop-build.md) for
 resource, native and release contracts. Rollback restores manifests and locks
 together, then performs fresh domain-local installs, never reuses stale binaries.
+
+### Local service launcher
+
+Desktop pairs the service by its absolute release path, not by searching the shell's PATH.
+The local installer creates the `~/.local/bin/phosphor` symlink only if absent. A foreign
+launcher stays in place; no shell profile is changed. Before selecting a release for local
+use, both its signed v2 manifest and its staged `version --json` must report `local-mode`
+and `owner-socket` at the same version.

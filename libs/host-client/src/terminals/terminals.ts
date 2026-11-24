@@ -23,7 +23,7 @@ import { REMOTE_UNAVAILABLE } from '../lane-ops'
 export function createRemoteTerminals(ports: {
   connection?: (hostId: string) => Connection | undefined
   lane: (windowId: number, sessionId: string, workspace: string) => TerminalLane
-  clientId: () => string | null
+  clientId: (hostId: string) => string | null
   inputDropped?: () => void
   /** Desktop main: an attach timeout must not keep the process alive. */
   unrefTimer?: (timer: ReturnType<typeof setTimeout>) => void
@@ -56,7 +56,7 @@ export function createRemoteTerminals(ports: {
       view.capabilities.includes('sessions.control') &&
       (lane.machine ||
         view.lanes.find((l) => l.laneId === lane.laneId)?.control.controller?.clientId ===
-          ports.clientId())
+          ports.clientId(lane.hostId))
     )
   }
   function owned(windowId: number, id: string) {

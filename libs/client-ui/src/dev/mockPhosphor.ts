@@ -29,6 +29,9 @@ import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockLocalRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockHostConnectionInvoke } from './mockHostConnectionInvoke'
+import { OPS_MOCK, mockOpsInvoke, mockOpsSnapshot, onMockOpsChanged } from './mock/ops'
+import { LOCAL_MACHINE_MOCK, mockLocalMachineInvoke } from './mock/localMachine'
+import { REACH_MOCK, mockReachFlags, mockReachInvoke } from './mock/reach'
 import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
 import type {
   ConnectorAuthPush,
@@ -372,7 +375,11 @@ function harnessMachines(): MachineView[] {
   if (harnessAdded) machines.push(harnessAdded)
   return machines
     .filter((machine) => !harnessRemoved.has(machine.id))
-    .map((machine) => ({ ...machine, label: harnessLabels.get(machine.id) ?? machine.label }))
+    .map((machine) => ({
+      ...machine,
+      ...mockReachFlags(machine.id),
+      label: harnessLabels.get(machine.id) ?? machine.label,
+    }))
 }
 let mockClaudeLoginTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -975,6 +982,14 @@ export function installMockPhosphor(): void {
         return mockSessionMaintenance(channel, args, MOCK_DISK_SESSIONS)
       if (INSTRUCTIONS_MOCK.has(channel))
         return Promise.resolve().then(() => mockInstructionsInvoke(channel, args) as never)
+      if (OPS_MOCK.has(channel)) return mockOpsInvoke(args) as never
+      if (LOCAL_MACHINE_MOCK.has(channel)) return mockLocalMachineInvoke(channel) as never
+      if (REACH_MOCK.has(channel))
+        return mockReachInvoke(
+          args,
+          mockAccountView().account.status === 'signed-in',
+          harnessMachines,
+        ) as never
       switch (channel) {
         case 'pi:health':
           return Promise.resolve({
@@ -1498,8 +1513,8 @@ export function installMockPhosphor(): void {
         case 'hosts:snapshot':
           return localStorage.getItem('mock:remoteLanes') === '1'
             ? localStorage.getItem('mock:remoteMixed') === '1'
-              ? mixedRemoteHosts()
-              : mockRemoteSnapshot()
+              ? mockOpsSnapshot(mixedRemoteHosts())
+              : mockOpsSnapshot(mockRemoteSnapshot())
             : {}
         case 'hosts:removeRepository':
         case 'hosts:orderRepositories':
@@ -2483,6 +2498,8 @@ export function installMockPhosphor(): void {
     onHostOpenLane: () => () => undefined,
     onFileDownloadProgress: () => () => undefined,
     onMachinesChanged: () => () => undefined,
+    onOpsChanged: onMockOpsChanged,
+    onLocalMachineChanged: () => () => undefined,
 
     onVoiceStatus: (listener) => {
       mockVoiceListeners.add(listener)

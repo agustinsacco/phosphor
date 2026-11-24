@@ -110,3 +110,14 @@ it('does not list or delete blobs when saving swept preferences fails', async ()
   expect(deps.listBlobs).not.toHaveBeenCalled()
   expect(deps.deleteBlobs).not.toHaveBeenCalled()
 })
+
+it('keeps Host start and lane drafts and their referenced images without a filesystem probe', async () => {
+  const home = draft('home:host:mac/machine', 'kept-home')
+  const lane = draft('["remote","mac","session","lane"]', 'kept-lane')
+  const drafts = { [home.key]: home, [lane.key]: lane }
+  deps.getDrafts.mockReturnValue(drafts)
+  deps.listBlobs.mockResolvedValue(['kept-home', 'kept-lane'])
+  expect(await sweepComposerDrafts(deps)).toEqual(drafts)
+  expect(deps.pathExists).not.toHaveBeenCalled()
+  expect(deps.deleteBlobs).toHaveBeenCalledWith([])
+})

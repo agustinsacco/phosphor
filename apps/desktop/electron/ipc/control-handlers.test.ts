@@ -6,12 +6,13 @@ const state = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
 }))
 vi.mock('electron', () => ({
-  app: { isPackaged: true, once: () => undefined },
+  app: { isPackaged: true, getVersion: () => '1.0.0', once: () => undefined },
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
       state.handlers.set(channel, handler),
   },
 }))
+vi.mock('../hosts/traffic-tap', () => ({ tappedLog: vi.fn() }))
 vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 vi.mock('../account', () => ({
   accountAccessToken: async () => state.token,
@@ -36,8 +37,10 @@ const invoke = (channel: string, ...args: unknown[]) => {
   return handler({}, ...args)
 }
 it('registers the channels and rejects malformed renderer inputs before a request', async () => {
-  expect(state.handlers.size).toBe(5)
+  expect(state.handlers.size).toBe(6)
   for (const [channel, args] of [
+    ['control:setMachineReach', ['../bad', true]],
+    ['control:setMachineReach', ['11111111-1111-4111-8111-111111111111', 1]],
     ['control:lookupEnrollment', [7]],
     ['control:renameMachine', ['../bad', 'x']],
     ['control:renameMachine', ['11111111-1111-4111-8111-111111111111', '']],
@@ -52,6 +55,7 @@ it('registers the channels and rejects malformed renderer inputs before a reques
 it('returns signed-out for every channel without a token and sends no request', async () => {
   state.token = null
   for (const [channel, args] of [
+    ['control:setMachineReach', ['11111111-1111-4111-8111-111111111111', true]],
     ['control:machines', []],
     ['control:lookupEnrollment', ['BCDFGHJK']],
     ['control:approveEnrollment', ['BCDFGHJK', 'bee1']],
@@ -60,4 +64,39 @@ it('returns signed-out for every channel without a token and sends no request', 
   ] satisfies [string, unknown[]][])
     expect(await invoke(channel, ...args)).toMatchObject({ error: { code: 'signed-out' } })
   expect(fetchImpl).not.toHaveBeenCalled()
+})
+it.each([200, 404])('PATCHes the enrolled machine reach route (HTTP %s)', async (status) => {
+  const id = '11111111-1111-4111-8111-111111111111'
+  fetchImpl
+    .mockResolvedValueOnce(
+      Response.json({ account: { login: 'octo' }, enabled: true, maxHosts: 20 }),
+    )
+    .mockResolvedValueOnce(
+      status === 200 ? Response.json({ machineReach: false }) : new Response(null, { status }),
+    )
+  expect(await invoke('control:setMachineReach', id, false)).toMatchObject(
+    status === 200
+      ? { ok: true, machineReach: false }
+      : { ok: false, error: { code: 'not-found' } },
+  )
+  const [url, options] = fetchImpl.mock.calls[1]!
+  expect(url.pathname).toBe(`/api/v1/machines/${id}/reach`)
+  expect(options).toMatchObject({ method: 'PATCH', body: '{"enabled":false}' })
+})
+
+it('drops only the local alias from the renderer directory, leaving the raw control reply intact', async () => {
+  const { desktopDirectory } = await import('../hosts/dedupe')
+  const { controlClient } = await import('./control-handlers')
+  const { MACHINE } =
+    await import('../../../../libs/client-ui/src/features/machines/__fixtures__/control')
+  const other = { ...MACHINE, id: '22222222-2222-4222-8222-222222222222' }
+  const list = { ok: true as const, machines: [MACHINE, other], serverTime: MACHINE.enrolledAt }
+  vi.spyOn(controlClient(), 'machines').mockResolvedValue(list)
+  desktopDirectory.set(MACHINE.id)
+  try {
+    expect(await invoke('control:machines')).toEqual({ ...list, machines: [other] })
+    expect(list.machines).toHaveLength(2)
+  } finally {
+    desktopDirectory.set(null)
+  }
 })

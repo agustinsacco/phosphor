@@ -20,9 +20,16 @@ export function allowedSigners(keys = contract.HOST_RELEASE_KEYS) {
 /** Embed the sole pinned key source into the distributed POSIX installer. */
 export function generateInstaller(path, keys = contract.HOST_RELEASE_KEYS) {
   const template = readFileSync(new URL('install.sh.in', import.meta.url), 'utf8')
-  writeFileSync(path, template.replace('@ALLOWED_SIGNERS@', allowedSigners(keys)), {
-    mode: 0o755,
-  })
+  const parser = readFileSync(new URL('manifest.awk', import.meta.url), 'utf8').trimEnd()
+  writeFileSync(
+    path,
+    template
+      .replace('@ALLOWED_SIGNERS@', allowedSigners(keys))
+      .replace('@MANIFEST_AWK@', () => parser),
+    {
+      mode: 0o755,
+    },
+  )
 }
 // The release workflow refuses to publish when no key is pinned, and verifies the
 // signed manifest against exactly these lines before publishing.

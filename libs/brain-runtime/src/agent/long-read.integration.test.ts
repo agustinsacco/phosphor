@@ -2,11 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createBrainCuratorClient } from '@phosphor/brain-client/curator-client'
-import {
-  BRAIN_ENDPOINT_ENV,
-  BRAIN_TOKEN_ENV,
-  createNodeBrainTransport,
-} from '@phosphor/brain-client/node-transport'
+import { createNodeBrainTransport } from '@phosphor/brain-client/node-transport'
 import type { BrainStore, Proposal } from '@phosphor/memory-engine/types'
 import type { BrainService, BrainServiceOptions } from '../types'
 import { realService } from '../tidy/__fixtures__/real-service'
@@ -118,10 +114,7 @@ async function proposeLongRead(store: BrainStore, options: BrainServiceOptions, 
 
 async function curatorClient(service: BrainService) {
   const launch = (await service.curatorLaunch())!
-  const connection = {
-    endpoint: launch.env[BRAIN_ENDPOINT_ENV]!,
-    token: launch.env[BRAIN_TOKEN_ENV]!,
-  }
+  const connection = launch.connection
   const transport = createNodeBrainTransport(connection, { timeoutMs: 60_000 })
   return { client: createBrainCuratorClient(transport), transport }
 }

@@ -1,9 +1,10 @@
+import { useLaneEditing, visibleHostLanes } from '@/features/chat/hostLaneEditing'
 import { useState } from 'react'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { Button } from '@/components/form'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { useMachineCaps } from '@/stores/machineCaps'
-import { machineLabel } from '@/stores/remoteLanes'
+import { machineLabel, useRemoteLanesStore, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { compareLanesByCreation, groupRemoteLanes } from './groupRemoteLanes'
 import { RemoteLaneList } from './RemoteLaneList'
 import { RemoteRepositoryGroup, useRemoteLaneOrder } from './RemoteRepositoryGroup'
@@ -26,10 +27,13 @@ export function RemoteHostLanes({
   density?: LaneGroupDensity
 }): React.JSX.Element {
   const ready = useMachineCaps(hostId).ready
+  const visible = useLaneEditing(hostId) ? visibleHostLanes(lanes) : lanes
   const pinned = useRemoteLaneOrder(
     hostId,
     lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation),
   )
+  const local = useRemoteLanesStore((s) => s.hosts[hostId]?.local)
+  if (local && !ready) return <p role="status">{REMOTE_NOT_READY}</p>
   if (ready && !repositories.length && !lanes.length) return <NoFolders hostId={hostId} />
   return (
     <>
@@ -38,7 +42,7 @@ export function RemoteHostLanes({
       )}
       {groupRemoteLanes(
         repositories,
-        lanes.filter((lane) => !lane.pinned),
+        visible.filter((lane) => !lane.pinned),
       ).map((group) => (
         <RemoteRepositoryGroup
           key={group.repositoryId}

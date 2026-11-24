@@ -6,7 +6,7 @@ import { dispatch, publish } from './queue'
 import { receiptMessage, rejected, terminal, type ReceiptPorts } from './receipts'
 import type { CommandState, Execution, Job, LaneCommandPorts, LaneQueue } from './state'
 
-export type RpcPorts = ReceiptPorts & Pick<LaneCommandPorts, 'runtime' | 'publish'>
+export type RpcPorts = ReceiptPorts & Pick<LaneCommandPorts, 'runtime' | 'publish' | 'dialogGuard'>
 type DialogResponse = Extract<LaneOp, { type: 'extension_ui_response' }>['response']
 /** A live lane's pi session and the fence the op was admitted at. */
 type PiTarget = { laneId: string; sessionId: string; fence: number | undefined }
@@ -31,6 +31,10 @@ export function executeRpc(
   if (op.type !== 'extension_ui_response') return NOT_MATCHED
   if (sessionId === null) {
     rejected(state, ports, job, 'lane-stopped', true)
+    return handled()
+  }
+  if ((ports.dialogGuard?.(laneId, op.response, job.client) ?? 'relay') === 'forbidden') {
+    rejected(state, ports, job, 'forbidden', true)
     return handled()
   }
   return handled(answerDialog(state, ports, job, queue, { laneId, sessionId, fence }, op.response))

@@ -9,7 +9,7 @@
  * Before every model request (`context_with_system`) this re-reads the file pi
  * would pick from the agent directory and swaps the global block for it:
  * replaced when it changed, added when the file appeared, removed when it went
- * away. Repository files are left exactly as pi rendered them. Request-local,
+ * away. Discovered repo files are refreshed too. Request-local,
  * like the context-file filter: a turn already streaming finishes with what it
  * was sent, and the session file keeps the text the lane started with.
  *
@@ -17,9 +17,16 @@
  * sees the swapped block.
  */
 
-import { readFileSync, statSync } from 'node:fs'
+import {
+  contextReader,
+  renderContextBlock,
+  repoContextReader,
+  type ContextFile,
+} from './live-context'
+import type { WorktreeInfo } from './main-checkout'
 import { join } from 'node:path'
 import {
+  type ContextBlock,
   globalAgentDir,
   isGlobalContextPath,
   parseProjectContext,
@@ -35,18 +42,7 @@ export const GLOBAL_CONTEXT_NAMES = [
   'CLAUDE.MD',
 ] as const
 
-export interface GlobalContextFile {
-  path: string
-  content: string
-}
-
-/** pi strips a leading BOM before rendering. */
-const stripBom = (text: string): string => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)
-
-/** pi's block for one context file, byte for byte. */
-export function renderContextBlock(file: GlobalContextFile): string {
-  return `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`
-}
+type Refresh = (block: ContextBlock) => string | null
 
 /**
  * Where a swapped block goes: the global file first, as pi orders it; a lane
@@ -61,9 +57,10 @@ export type ContextPlacement = 'first' | 'last'
  */
 export function swapGlobalContext(
   section: string | undefined,
-  file: GlobalContextFile | null,
+  file: ContextFile | null,
   agentDir: string,
   placement: ContextPlacement = 'first',
+  refresh: Refresh = (block) => block.text,
 ): string | null | undefined {
   if (section === undefined)
     return file ? renderProjectContext([renderContextBlock(file)]) : section
@@ -71,7 +68,7 @@ export function swapGlobalContext(
   if (!blocks) return section
   const project = blocks.filter((block) => !isGlobalContextPath(block.path, agentDir))
   const own = file ? [renderContextBlock(file)] : []
-  const others = project.map((block) => block.text)
+  const others = project.map(refresh).filter((text): text is string => text !== null)
   const texts = placement === 'first' ? [...own, ...others] : [...others, ...own]
   if (texts.length === blocks.length && texts.every((text, i) => text === blocks[i]!.text))
     return section
@@ -107,9 +104,10 @@ function withContextSection(
  */
 export function applyGlobalContext(
   messages: unknown[],
-  file: GlobalContextFile | null,
+  file: ContextFile | null,
   agentDir: string,
   placement: ContextPlacement = 'first',
+  refresh: Refresh = (block) => block.text,
 ): boolean {
   let changed = false
   let leading = true
@@ -120,7 +118,7 @@ export function applyGlobalContext(
     leading = false
     const current = m.sections?.project_context
     if (current === null || (current === undefined && !isLeading)) continue
-    const next = swapGlobalContext(current, file, agentDir, placement)
+    const next = swapGlobalContext(current, file, agentDir, placement, refresh)
     if (next === current) continue
     changed = true
     if (current === undefined) m.sections = withContextSection(m.sections ?? {}, next!)
@@ -135,21 +133,12 @@ export function applyGlobalContext(
  * The global file as pi would load it now, cached by path, size and mtime so
  * a request only stats the candidates.
  */
-export function globalContextReader(agentDir: string): () => GlobalContextFile | null {
-  let cached: { key: string; file: GlobalContextFile } | undefined
+export function globalContextReader(agentDir: string): () => ContextFile | null {
+  const read = contextReader(true)
   return () => {
     for (const name of GLOBAL_CONTEXT_NAMES) {
-      const path = join(agentDir, name)
-      try {
-        const stat = statSync(path)
-        if (!stat.isFile()) continue
-        const key = `${path}\0${stat.size}\0${stat.mtimeMs}`
-        if (cached?.key !== key)
-          cached = { key, file: { path, content: stripBom(readFileSync(path, 'utf8')) } }
-        return cached.file
-      } catch {
-        // Missing or unreadable: pi moves on to the next name too.
-      }
+      const file = read(join(agentDir, name))
+      if (file) return file
     }
     return null
   }
@@ -158,8 +147,9 @@ export function globalContextReader(agentDir: string): () => GlobalContextFile |
 /** The prompt pi reports with its global block brought up to date, for measuring. */
 export function liveSystemPrompt(
   prompt: string,
-  file: GlobalContextFile | null,
+  file: ContextFile | null,
   agentDir: string,
+  refresh: Refresh = (block) => block.text,
 ): string {
   const start = prompt.indexOf('<project_context>\n')
   const end = start < 0 ? -1 : prompt.indexOf('\n</project_context>', start)
@@ -168,7 +158,7 @@ export function liveSystemPrompt(
     return added ? `${prompt}\n\n${added}` : prompt
   }
   const section = prompt.slice(start, end + '\n</project_context>'.length)
-  const next = swapGlobalContext(section, file, agentDir)
+  const next = swapGlobalContext(section, file, agentDir, 'first', refresh)
   return `${prompt.slice(0, start)}${next ?? ''}${prompt.slice(start + section.length)}`
 }
 
@@ -186,18 +176,33 @@ export default function globalContext(
   pi: GlobalContextApi,
   agentDir: string = globalAgentDir(),
   argv: readonly string[] = process.argv,
-): { prompt: (systemPrompt: string) => string } {
+  worktree: () => WorktreeInfo | null = () => null,
+): { prompt: (systemPrompt: string, cwd?: string) => string } {
   const read = globalContextReader(agentDir)
+  const repo = repoContextReader()
+  const refresh =
+    (cwd?: string): Refresh =>
+    (block) =>
+      repo(block, cwd, worktree())
   const disabled = contextFilesDisabled(argv)
-  pi.on('context_with_system', (event) => {
+  pi.on('context_with_system', (event, ctx) => {
     if (disabled) return undefined
     const messages = (event as { messages?: unknown[] }).messages
-    if (!Array.isArray(messages) || !applyGlobalContext(messages, read(), agentDir))
+    if (
+      !Array.isArray(messages) ||
+      !applyGlobalContext(
+        messages,
+        read(),
+        agentDir,
+        'first',
+        refresh((ctx as { cwd?: string } | undefined)?.cwd),
+      )
+    )
       return undefined
     return { messages }
   })
   return {
-    prompt: (systemPrompt) =>
-      disabled ? systemPrompt : liveSystemPrompt(systemPrompt, read(), agentDir),
+    prompt: (systemPrompt, cwd) =>
+      disabled ? systemPrompt : liveSystemPrompt(systemPrompt, read(), agentDir, refresh(cwd)),
   }
 }

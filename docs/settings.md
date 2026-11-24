@@ -265,10 +265,10 @@ own [global instructions](chat.md#global-instructions) in the same editor as Thi
 Mac's, read and saved through the `instructions` settings section. Its four directive
 switches and **What gets sent** preview are This Mac's, with the Host's label,
 platform and repository names in the machine block, as its lanes receive them; they save on change, like the rest of the page, as Host
-config (`agentDirectives`), which each lane start reads, so a save needs no restart
-and running lanes keep the prompt they started with. There are no per-folder Host
-directives. A Host without the section asks to be updated. Source URLs and non-allowlisted
+config. On a Host with `ops` and `folderDirectives`, a registered folder can override machine directives. The `directives.set` op pushes changes to live lanes in scope for their next request. A Host without the section asks to be updated. Source URLs and non-allowlisted
 package sources are hidden and read-only, not offered as guessed mutations.
+
+On a machine with `configFiles` and the required configuration access, the raw settings editor exposes only reviewed agent behavior fields. The skill editor can save user skill source there; it does not retain old content for Undo. For approvals and audit see [Agent control](agent-control.md#policy-and-confirmations); for Desktop’s Advanced service card see [This Mac’s service](local-service.md#using-the-service).
 
 ## How a settings section is built
 

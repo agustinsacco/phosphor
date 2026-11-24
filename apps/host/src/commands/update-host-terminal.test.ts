@@ -191,8 +191,17 @@ it('runs a button update with the installed release and only the updater variabl
       XDG_RUNTIME_DIR: '/run/user/1000',
     },
   })
-  // macOS has no handoff, so its restart would end the updater before its health check.
-  expect(hostUpdateProgram(f.home, env, 'darwin', node, bundle)).toBeNull()
+  // macOS hands off to a one-shot launchd job, found through the service pid it passes on.
+  expect(hostUpdateProgram(f.home, env, 'darwin', node, bundle, 4242)).toEqual({
+    node: join(version, 'node/bin/node'),
+    bundle: join(version, 'lib/phosphor.mjs'),
+    env: {
+      PHOSPHOR_HOST_RELEASE_URL: 'https://mirror.example/host',
+      XDG_STATE_HOME: '/state',
+      PHOSPHOR_HOST_PID: '4242',
+    },
+  })
+  expect(hostUpdateProgram(f.home, env, 'win32', node, bundle)).toBeNull()
   expect(hostUpdateProgram(f.home, env, 'linux', '/usr/bin/node', '/src/phosphor.mjs')).toBeNull()
 })
 

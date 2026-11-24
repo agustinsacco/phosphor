@@ -1,3 +1,5 @@
+import { useHostTraits } from '@/platform/machineTraits'
+import { useWorktreesStore } from '@/stores/worktrees'
 import { useEffect, useRef, useState } from 'react'
 import { useRemoteModel } from '@/features/machines/useRemoteModel'
 import type { PendingAttachment } from '@/features/chat/attachments'
@@ -18,6 +20,8 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   const repositoryId = repository?.id ?? ''
   // Only a Host that says git does not track the folder gets no worktree request;
   // an older or unsure Host is asked for one, and runs the lane in place if it must.
+  const { sameMachine } = useHostTraits(hostId)
+  const preferWorktree = useWorktreesStore((s) => s.preferWorktree)
   const canBranch = repository?.git !== false
   const selection = useRemoteModel(hostId)
   const draft = useDraftsStore((s) => s.drafts[draftKey])
@@ -44,7 +48,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
       draftKey,
       text: text.trim(),
       attachments,
-      branch: canBranch,
+      branch: canBranch && (!sameMachine || preferWorktree),
       swarm,
       input: {
         repositoryId,
@@ -60,12 +64,14 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   return {
     host,
     repositoryId,
+    repository,
     selection,
     text,
     attachments,
     swarm,
     busy,
     canBranch,
+    isolate: sameMachine && canBranch && repositoryId ? preferWorktree : undefined,
     warning,
     setWarning,
     ready,

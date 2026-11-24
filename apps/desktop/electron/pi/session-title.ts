@@ -14,6 +14,7 @@ import { claudeAccountEnv, primaryAccount } from '../claude/accounts'
 import { usesClaudeCliProvider } from '@phosphor/session-runtime/pi/provider-detect'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { log } from '../debug-log'
+import { assertInAppRuntime } from '../local-machine/mode'
 
 // Preserve the original per-app-launch learning across all IPC registrations.
 const titleMemory = createTitleMemory()
@@ -87,6 +88,7 @@ export async function generateSessionTitle(
   message: string,
   existingNames: string[],
 ): Promise<string | null> {
+  assertInAppRuntime('name a lane with pi')
   const request = await prepare(workspacePath, message, existingNames)
   if (!request) return null
   const started = Date.now()

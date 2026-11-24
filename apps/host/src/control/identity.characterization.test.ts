@@ -5,7 +5,7 @@ import { generateKeyPairSync, KeyObject } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { errnoCode } from '../fs-safety'
+import { errnoCode } from '@phosphor/session-runtime/fs-safety'
 import {
   checkIdentityDirectory,
   createIdentityStore,

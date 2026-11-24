@@ -2,7 +2,7 @@ import { lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from '
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { healthWriter, readRunHealth } from './health'
-import { checkedFolder, readBounded } from './files'
+import { checkedFolder, readBounded } from '@phosphor/session-runtime/host-install/files'
 import { fixture } from './__fixtures__/release'
 const fixtures: ReturnType<typeof fixture>[] = []
 function setup() {

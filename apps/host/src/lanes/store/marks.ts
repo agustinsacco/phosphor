@@ -1,3 +1,4 @@
+import { isUuid } from '@phosphor/shared/control-api'
 import type { DatabaseSync } from 'node:sqlite'
 import {
   LANE_MARKER_MAX_UNITS,
@@ -28,12 +29,16 @@ CREATE TABLE IF NOT EXISTS lane_marks (
 `
 
 /** Every lane read: the lane row with its marks, if any. */
-export const LANE_SELECT =
-  'SELECT lanes.*,lane_marks.pinned AS mark_pinned,lane_marks.marker AS mark_marker FROM lanes LEFT JOIN lane_marks USING(lane_id)'
+export const LANE_SELECT = `SELECT lanes.*,lane_marks.pinned AS mark_pinned,lane_marks.marker AS mark_marker, p.value AS rewound_from
+   FROM lanes LEFT JOIN lane_marks USING(lane_id)
+   LEFT JOIN (SELECT lane_id,value FROM lane_prefs WHERE key='rewound_from') p USING(lane_id)`
 
 /** A pin only when set; a marker only when chosen. An invalid stored mark is dropped. */
-export function marksFromRow(row: Row): Pick<StoredLane, 'pinned' | 'marker'> {
+export function marksFromRow(row: Row): Pick<StoredLane, 'pinned' | 'marker' | 'rewoundFrom'> {
   return {
+    ...(isUuid(row.rewound_from) && row.rewound_from !== row.lane_id
+      ? { rewoundFrom: row.rewound_from }
+      : {}),
     ...(Number(row.mark_pinned) === 1 ? { pinned: true as const } : {}),
     ...(isLaneMarker(row.mark_marker) ? { marker: row.mark_marker } : {}),
   }

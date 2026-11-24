@@ -1,3 +1,4 @@
+import { WorkspaceLeased, type WorkspaceLeases } from '../owner/lease'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { realpath, stat } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -25,6 +26,7 @@ import {
 } from './archive-attachments'
 
 type Options = {
+  leases?: WorkspaceLeases
   directory: string
   sessionsRoot: string
   store: HostStore
@@ -87,13 +89,18 @@ export class HostArchives {
           record.transcript ?? `archive:${record.id}`,
           async () => {
             requireAllowed(allowed)
-            if (op.type === 'archive.restore') await this.restore(record, allowed)
-            else await this.purge(record, op.removeWorktree, allowed)
+            if (op.type === 'archive.restore') {
+              const restore = () => this.restore(record, allowed)
+              if (this.options.leases)
+                await this.options.leases.withUse(record.cwd, 'archive', restore)
+              else await restore()
+            } else await this.purge(record, op.removeWorktree, allowed)
           },
         )
       }
       return { ok: true }
-    } catch {
+    } catch (error) {
+      if (error instanceof WorkspaceLeased) return { ok: false, code: 'busy' }
       return { ok: false, code: allowed() ? 'bad-request' : 'forbidden' }
     } finally {
       this.inventory.invalidate()

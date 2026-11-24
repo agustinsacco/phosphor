@@ -170,7 +170,7 @@ describe('eslint policy', () => {
 describe('oxlint promise policy', () => {
   const owned = [
     'apps/desktop/electron/preload.ts',
-    'apps/desktop/electron/pi/session-writer.test.ts',
+    'apps/desktop/electron/pi/session-mutation.test.ts',
     'apps/desktop/test/main/preload.freeze.test.ts',
     'libs/host-client/src/connection.ts',
     'libs/shared/src/errors.ts',

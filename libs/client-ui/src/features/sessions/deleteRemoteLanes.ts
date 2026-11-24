@@ -1,3 +1,4 @@
+import { laneControlPolicy, ensureServiceLaneControl } from '@/platform/serviceLaneControl'
 import { archiveRemoteLane } from './archiveRemoteLane'
 import type { HostLaneView } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
@@ -9,7 +10,7 @@ export function canDeleteRemoteLane(hostId: string, lane: HostLaneView): boolean
   const host = useRemoteLanesStore.getState().hosts[hostId]
   return (
     machineCaps(host).can('sessions.control', 'workspaces.write') &&
-    lane.control.controller?.self === true
+    laneControlPolicy(host?.local, lane).actionable
   )
 }
 export function canArchiveRemoteLane(hostId: string, lane: HostLaneView): boolean {
@@ -37,6 +38,7 @@ async function removeLane(
     !host?.lanes.some(
       (other) => other.laneId !== laneId && other.cwd === lane.cwd && !completed.has(other.laneId),
     )
+  if (!options.archive) await ensureServiceLaneControl(hostId, laneId)
   const result = options.archive
     ? (await archiveRemoteLane(hostId, laneId), { branchKept: false })
     : await window.phosphor.invoke('hosts:deleteLane', hostId, laneId, {

@@ -43,7 +43,8 @@ changes.
 Paths under `tests/` are pi-claude-cli's; the rest are Phosphor's.
 
 Both providers receive identical [machine-awareness text](chat.md#agent-directives)
-from the shared directive stack. Host identity, repository summaries and service
+from the shared directive stack. Live directive overrides and repository instruction
+file edits apply in pi before either provider receives the next request. Host identity, repository summaries and service
 warnings do not depend on the selected provider; [Host machine awareness](host.md#machine-awareness)
 owns their content.
 

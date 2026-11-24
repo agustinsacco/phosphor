@@ -29,6 +29,13 @@ export const CLI_PARSE_CONFIG = {
     provider: { type: 'string' },
     'claude-model': { type: 'string' },
     model: { type: 'string' },
+    'owner-id': { type: 'string' },
+    'owner-key': { type: 'string' },
+    'owner-label': { type: 'string' },
+    standby: { type: 'boolean' },
+    linger: { type: 'boolean' },
+    stage: { type: 'boolean' },
+    apply: { type: 'string' },
     help: { type: 'boolean', short: 'h' },
   },
 } as const
@@ -36,7 +43,20 @@ export const CLI_PARSE_CONFIG = {
 /** The options each command takes; `providers login` takes only --config. */
 const COMMAND_OPTIONS = {
   'internal-install-path': [],
-  setup: ['config', 'json', 'repository', 'pi', 'node', 'replace'],
+  setup: [
+    'config',
+    'json',
+    'repository',
+    'pi',
+    'node',
+    'replace',
+    'local',
+    'owner-id',
+    'owner-key',
+    'owner-label',
+    'linger',
+    'standby',
+  ],
   doctor: ['config', 'json'],
   run: ['config', 'supervisor'],
   service: ['config', 'follow'],
@@ -56,7 +76,7 @@ const COMMAND_OPTIONS = {
     'claude-model',
   ],
   version: ['json'],
-  update: ['version', 'check', 'rollback', 'json'],
+  update: ['version', 'check', 'rollback', 'json', 'stage', 'apply'],
   uninstall: ['purge', 'yes', 'json'],
 } as const satisfies Record<string, readonly (keyof typeof CLI_PARSE_CONFIG.options)[]>
 
@@ -120,7 +140,7 @@ export function readCliRequest(argv: readonly string[], terminal: boolean | unde
     : { kind: 'command', command }
 }
 
-function isCommandName(value: string): value is CommandName {
+export function isCommandName(value: string): value is CommandName {
   return Object.hasOwn(COMMAND_OPTIONS, value)
 }
 
@@ -185,7 +205,7 @@ function validatedCommand(
       const repositories = options.repository ?? []
       if (repositories.includes('') || options.pi === '' || options.node === '')
         return '--repository, --pi and --node need a path'
-      return { name: 'setup', repositories, options }
+      return localSetupProblem(options) ?? { name: 'setup', repositories, options }
     }
     case 'run':
       return {
@@ -218,10 +238,30 @@ function acceptCommand(options: CliOptions): ValidatedCommand | string {
   return { name: 'accept', repository, lane, options }
 }
 
-function updateProblem({ version, check, rollback }: CliOptions): string | undefined {
+function updateProblem({ version, check, rollback, stage, apply }: CliOptions): string | undefined {
   if (version !== undefined && !HOST_RELEASE_VERSION_PATTERN.test(version))
     return 'invalid update options'
   if (rollback && (version !== undefined || check)) return 'invalid update options'
+  if (stage || apply !== undefined) {
+    if (apply !== undefined && !HOST_RELEASE_VERSION_PATTERN.test(apply))
+      return 'invalid update options'
+    if (stage === (apply !== undefined) || rollback || check || version !== undefined)
+      return 'invalid update options'
+  }
+  return undefined
+}
+
+const OWNER_OPTIONS = ['owner-id', 'owner-key', 'owner-label', 'linger', 'standby'] as const
+
+/** Local setup is additive: never rewrite existing config or adopt a folder. */
+function localSetupProblem(options: CliOptions): string | undefined {
+  const owner = OWNER_OPTIONS.filter((name) => options[name] !== undefined)
+  if (!options.local)
+    return owner.length > 0 ? `setup does not take --${owner[0]} without --local` : undefined
+  if (!options['owner-id'] || !options['owner-key'] || !options['owner-label'])
+    return 'setup --local needs --owner-id, --owner-key and --owner-label'
+  if (options.repository || options.replace)
+    return 'setup --local does not take --repository or --replace'
   return undefined
 }
 

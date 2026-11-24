@@ -43,6 +43,20 @@ describe('Host config v1', () => {
       })
     expect(validateHostConfig(minimal).ok).toBe(true)
   })
+  it('accepts exactly the two context file switches', () => {
+    const prefs = { claude: true, agents: false }
+    expect(validateHostConfig({ ...minimal, contextFiles: prefs }).ok).toBe(true)
+    for (const contextFiles of [
+      null,
+      [],
+      { agents: true },
+      { ...prefs, claude: 1 },
+      { ...prefs, extra: true },
+    ])
+      expect(errorsOf({ ...minimal, contextFiles })).toContainEqual(
+        expect.objectContaining({ pointer: '/contextFiles' }),
+      )
+  })
   it('reports every problem at once, each at its JSON pointer', () => {
     const errors = errorsOf({
       version: 2,

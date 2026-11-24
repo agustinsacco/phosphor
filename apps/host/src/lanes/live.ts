@@ -56,6 +56,7 @@ export function createLiveLanes(options: LiveOptions) {
     push: push.bind(null, state),
     publish: publish.bind(null, state),
     summaryFor: summaryFor.bind(null, state),
+    republish: (laneIds: readonly string[]) => republish(state, laneIds),
     firstPrompt(laneId: string, message: string) {
       const live = state.attached.get(laneId)
       if (!live || live.firstPrompt) return

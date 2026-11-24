@@ -1,7 +1,7 @@
 import { lstat, realpath, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 
 /**
  * Unlink a transcript only when it is one of pi's: a regular `.jsonl`, not a

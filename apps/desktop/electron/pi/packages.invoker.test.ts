@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('node:child_process', () => ({ spawn: h.spawn, execFile: vi.fn() }))
 vi.mock('./health', () => ({ cachedPiHealth: h.health }))
-vi.mock('./shell-env', () => ({ piProcessEnv: h.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.env }))
 vi.mock('./stub', () => ({ piStubPath: () => '/implicit-stub.cjs' }))
 vi.mock('./print-mode', () => ({
   killProcessTree: vi.fn(),

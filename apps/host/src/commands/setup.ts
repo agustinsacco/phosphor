@@ -31,6 +31,7 @@ export interface SetupContext extends DoctorContext {
   node?: string
   replace?: boolean
   /** Config-only SSH compatibility must not invoke Tailscale. */
+  localPort?: number
   tailscaleHints?: boolean
 }
 
@@ -82,6 +83,10 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
     },
   )
   const old = exists ? await loadHostConfig(file, context.uid) : null
+  if (old && context.localPort !== undefined)
+    return old.ok
+      ? { ...report, changed: false }
+      : stop(EXIT.config, 'The existing config is not usable.')
   if (old && !context.replace) {
     if (!old.ok) {
       report.notes.push(
@@ -100,7 +105,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
     : (kept?.repositories ?? [])
   // An existing config's folder list, even an empty one, is the user's choice: rerunning setup
   // inside a checkout must never add it. Only a first setup (or --replace) adopts the cwd.
-  if (repositories.length === 0 && (!kept || context.replace)) {
+  if (context.localPort === undefined && repositories.length === 0 && (!kept || context.replace)) {
     const top = git
       ? await probe(git, ['-C', context.cwd, 'rev-parse', '--show-toplevel'], {
           ...discovery,
@@ -111,10 +116,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       repositories = [resolve(top.stdout.trim())]
     }
   }
-  if (repositories.length === 0)
-    report.notes.push(
-      'Add a folder later with the Desktop folder picker or phosphor setup --repository PATH.',
-    )
+  if (!repositories.length) report.notes.push(noRepositories)
   const repositoryShape = validateHostConfig({
     version: 1,
     pi: { executable: '/unused' },
@@ -136,19 +138,12 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       return stop(EXIT.usage, `${path} is /, the home directory, or contains the home directory`)
     }
   }
-  const keptPi =
-    !context.replace && kept && (await stat(kept.pi.executable).catch(() => null))?.isFile()
-      ? kept.pi.executable
-      : undefined
-  const executable = context.pi
-    ? resolve(context.cwd, context.pi)
-    : (keptPi ?? (await stable(await which('pi', discovery.env.PATH))))
-  if (!executable) {
+  const executable = await detectPi(context, kept, discovery.env.PATH)
+  if (!executable)
     return stop(
       EXIT.unavailable,
       'install pi first: npm install -g @earendil-works/pi-coding-agent',
     )
-  }
   const realPi = await realpath(executable).catch(() => executable)
   const script = await isNodeScript(realPi)
   const node = script
@@ -180,8 +175,16 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
     version: 1,
     ...keptOnReplace(kept),
     pi,
+    ...(context.localPort !== undefined && { api: { port: context.localPort } }),
     repositories: [...new Set(repositories)],
-    environment: { ...(kept?.environment?.pass ? { pass: kept.environment.pass } : {}), path },
+    environment: {
+      ...(context.localPort !== undefined
+        ? { pass: ['SSH_AUTH_SOCK'] }
+        : kept?.environment?.pass
+          ? { pass: kept.environment.pass }
+          : {}),
+      path,
+    },
   }
   const validated = validateHostConfig(config)
   if (!validated.ok) {
@@ -281,6 +284,19 @@ async function stable(found: string | null): Promise<string | null> {
   if (!found) return null
   const folder = await realpath(dirname(found)).catch(() => dirname(found))
   return join(folder, basename(found))
+}
+
+const noRepositories =
+  'Add a folder later with the Desktop folder picker or phosphor setup --repository PATH.'
+
+async function detectPi(context: SetupContext, kept: HostConfigV1 | undefined, path: string) {
+  const keptPi =
+    !context.replace && kept && (await stat(kept.pi.executable).catch(() => null))?.isFile()
+      ? kept.pi.executable
+      : undefined
+  return context.pi
+    ? resolve(context.cwd, context.pi)
+    : (keptPi ?? (await stable(await which('pi', path))))
 }
 
 function summarize(report: SetupReport, config: HostConfigV1): void {

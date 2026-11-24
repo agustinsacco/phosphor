@@ -1,3 +1,4 @@
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { useFindTarget } from '@/components/search/findTargets'
@@ -39,7 +40,7 @@ export function SettingsSurface({
   const sections = useMemo(() => visibleSections(platform, kind), [platform, kind])
   const listed = useMemo(() => [...sections, ...extensionTabs], [sections, extensionTabs])
   const available = useMemo(() => new Set(listed.map((t) => t.id)), [listed])
-  const index = useMemo(() => platformIndex(platform, kind), [platform, kind])
+  const index = useSettingsIndex(platform, kind, machine?.id)
   const search = useSettingsSearch(available, index)
   const { query, listing, counts } = search
   const effectiveTab = resolveTab(tab, listed)
@@ -147,4 +148,25 @@ function useSearchShortcut(
       focusSearch()
     }
   }
+}
+
+function useSettingsIndex(
+  platform: Parameters<typeof platformIndex>[0],
+  kind: Parameters<typeof platformIndex>[1],
+  id?: string,
+) {
+  const localService = useRemoteLanesStore((s) => id !== undefined && s.hosts[id]?.local === true)
+  const configFiles = useRemoteLanesStore((s) => {
+    const h = id ? s.hosts[id] : undefined
+    return (
+      h?.state === 'ready' &&
+      h.ops === true &&
+      h.configFiles === true &&
+      h.capabilities.includes('sessions.control')
+    )
+  })
+  return useMemo(
+    () => platformIndex(platform, kind, configFiles, localService),
+    [platform, kind, configFiles, localService],
+  )
 }

@@ -1,26 +1,7 @@
-import { createRepositories } from '../features/repositories'
-import { transcriptTrash } from '../lanes/delete'
-import type { HostClaudeAccounts } from '../providers/accounts'
-import {
-  createRunAccounts,
-  createRunAdministration,
-  createRunControllerPresence,
-  createRunTerminals,
-  runReadiness,
-  startRunWebPush,
-} from './run-administration'
-import { realpathSync } from 'node:fs'
-import { createAttachments, type HostAttachments } from '../features/attachments'
-import type { HostTerminals } from '../terminals/service'
-import type { HostWebPush } from '../push/web-push'
+import { reconcileRunFolders } from '../lanes/reconcile/run'
+import type { TrashRunner } from '../lanes/delete-target'
+import { randomBytes } from 'node:crypto'
 import { createAuthority } from '../api/authority'
-import { startApi } from '../api/server'
-import { randomBytes, randomInt } from 'node:crypto'
-import { parseHeartbeatResponse } from '@phosphor/shared/control-api'
-import { healthWriter } from '../update/health'
-import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
-import { constants } from 'node:os'
-import { setTimeout } from 'node:timers/promises'
 import {
   controlResult,
   traceCommand,
@@ -28,63 +9,53 @@ import {
   withCommandLock,
   type ControlContext,
 } from '../control/command'
-import {
-  REMOVED,
-  createHeartbeat,
-  createSequenceStore,
-  type HeartbeatPorts,
-} from '../control/heartbeat'
-import { identityDirectory, IdentityFailure } from '../control/identity'
+import type { HeartbeatPorts } from '../control/heartbeat'
+import { identityDirectory } from '../control/identity'
 import { acquireIdentityLock } from '../control/lock'
-import { loadHostConfig } from '../config/load'
+import type { loadHostConfig } from '../config/load'
 import type { readinessPorts } from '../machine/readiness'
-import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
+import type { Drainable } from '../shutdown'
 import {
   launchdExit,
   permanentServiceReason,
   prepareLaunchdRun,
   type LaunchdRunPorts,
 } from '../machine/launchd'
-import { HOST_VERSION } from '../version'
-import { hostStateDirectory, StateFailure } from '../lanes/state-dir'
-import { openStore, type HostStore } from '../lanes/store'
-import { reconcile } from '../lanes/reconcile'
-import { inspectHost } from './doctor'
-import { createHostLog, hostLogDirectory } from '../machine/log'
-import { createHostRuntime, type HostRuntime } from '../session/runtime'
-import { hostLivePolicy } from '../config/live-policy'
-import { createHostLiveLanes } from '../lanes/live-host'
-import { createLaneNamer, hostLaneNaming } from '../lanes/naming'
-import { createRuntimeLanes } from '../lanes/runtime-host'
-import { createLaneCommands } from '../lanes/commands'
-import { createLaneCalls } from '../lanes/calls'
+import { StateFailure } from '../lanes/state-dir'
+import type { reconcile } from '../lanes/reconcile'
+import type { LocalModeFile } from '@phosphor/shared/host-local'
+import { EXIT } from '../checks'
+import type { ControlLink } from '../control/link'
+import {
+  createReceiptSink,
+  createRunLink,
+  runWebPush,
+  type EnrolledControl,
+  type ReceiptSink,
+  type StartWebPush,
+} from './run-control'
+import {
+  createLocalDaemon,
+  runLocalMode,
+  type LocalSocket,
+  type StartLocalSocket,
+} from './run-local'
+import { createLaneAdapter, type LaneAdapter } from '../api/lanes'
+import type { OpsAdapterPorts } from '../ops/adapter'
+import { createMachineReach, reachRemote } from '../reach'
 import type { LaneService } from '../lanes/service'
-import type { Receipt } from '@phosphor/shared/host-protocol'
-import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
-import { join } from 'node:path'
-import { createHostRoutines, routineOwnership, type HostRoutines } from '../routines/service'
+import { startRunMachine } from './run-machine'
+import { openRunState } from './run-state'
+import { createRunTeardown, type RunParts } from './run-teardown'
 
-/**
- * Shutdown exits as soon as the attached drain ends. A drain that ended before
- * the run lock was released let a Ctrl-C exit inside the release, leaving
- * identity/.run-lock-recovery behind, and every later run refused to start.
- * The drain therefore also waits for the release, for at most this long.
- */
-export const RELEASE_WAIT_MS = 3000
-
-/** Runs `step` so a synchronous throw becomes a rejection and cannot skip the steps after it. */
-const attempt = async (step: () => unknown): Promise<unknown> => step()
-/** Waits for every promise to settle, then returns the first failure in list order. */
-async function firstFailure(pending: unknown[]): Promise<PromiseRejectedResult | undefined> {
-  const results = await Promise.allSettled(pending)
-  return results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-}
+export { RELEASE_WAIT_MS } from './run-teardown'
 
 export interface RunContext extends ControlContext {
   env: NodeJS.ProcessEnv
   home: string
   nodeVersion: string
   defaultResourceRoot: string
+  trashRunner?: TrashRunner
   supervisor?: 'launchd'
   afterRunLock?: () => void
   stderrIdentity?: LaunchdRunPorts['stderrIdentity']
@@ -94,388 +65,195 @@ export interface RunContext extends ControlContext {
   }
   loadConfig?: typeof loadHostConfig
   reconcile?: typeof reconcile
+  /** Local mode only: starts the owner socket (D3). */
+  startLocalSocket?: StartLocalSocket
+  /** Run's ops slot, shared with the owner socket; run fills it once the dispatcher is bound. */
+  ops?: OpsAdapterPorts
 }
+
+/** What run starts with: the identity it found and, in local mode, the marker. */
+interface RunStart {
+  initial: EnrolledControl | null
+  mode: LocalModeFile | null
+  directory: string
+}
+
+/**
+ * One lane adapter for both listeners (V-D2.R3): receipts and presence reach a
+ * client on either, and the socket serves the lanes once they exist.
+ */
+function shareLanes(
+  context: RunContext,
+  parts: RunParts,
+  sink: ReceiptSink,
+  lanes: LaneService | undefined,
+  socket: LocalSocket | undefined,
+): LaneAdapter | undefined {
+  if (!lanes) return undefined
+  const adapter = createLaneAdapter(lanes, {
+    log: (event, fields) => context.log?.('host', event, fields),
+  })
+  sink.deliver = adapter.deliver
+  sink.isConnected = adapter.isConnected
+  parts.socketLanes = socket?.serveLanes?.({
+    service: lanes,
+    adapter,
+    peers: () => parts.api?.connections() ?? [],
+    pauses: parts.services?.pauses ?? undefined,
+  })
+  return adapter
+}
+
+/** Agent control's run ports: the shared slot, the identity control connects, and machine reach (X3). */
+function runOps(context: RunContext, parts: RunParts, initial: EnrolledControl | null) {
+  const enrolled = { current: initial }
+  const reach = createMachineReach({
+    control: () => {
+      const control = enrolled.current
+      return control
+        ? { url: control.url, hostId: control.identity.hostId, key: control.key }
+        : null
+    },
+    fetch: context.fetch,
+    log: context.log,
+    trace: context.trace,
+  })
+  parts.reach = reach
+  return {
+    slot: context.ops ?? {},
+    enrolled,
+    remote: reachRemote(reach),
+    directory: (options?: { readonly fresh?: boolean }) => reach.directory(options),
+  }
+}
+
+/**
+ * Opens state; in local mode starts the socket seam and waits until the daemon
+ * owns the machine's lanes; then starts the machine and builds the control link.
+ */
+async function startRun(
+  context: RunContext,
+  parts: RunParts,
+  sink: ReceiptSink,
+  start: RunStart,
+  signal: AbortSignal,
+): Promise<ControlLink> {
+  const opened = await openRunState(context, parts, sink, signal, !!start.mode)
+  const { stateDirectory, store } = opened
+  signal.throwIfAborted()
+  const local = start.mode
+    ? createLocalDaemon(context, start.mode, {
+        leases: () =>
+          parts.socketLanes && !parts.runtimeDrain ? parts.runtime?.leases : undefined,
+        liveLanes: () => parts.runtime?.liveLanes() ?? 0,
+      })
+    : undefined
+  parts.restartInStandby = local?.restartRequested
+  const owned = await local?.own(parts, store, opened.config, signal)
+  const { socket, config } = owned ?? { socket: undefined, config: opened.config }
+  signal.throwIfAborted()
+  if (local) await reconcileRunFolders(context, store, config, true, signal)
+  const epoch = randomBytes(8).toString('hex')
+  // Web Push needs the identity run started with; a later enrollment gets it on the next start.
+  const webPush: StartWebPush = start.initial
+    ? runWebPush(context, start.initial)
+    : async () => undefined
+  const ops = runOps(context, parts, start.initial)
+  const ports = {
+    epoch,
+    config,
+    stateDirectory,
+    store,
+    sink,
+    webPush,
+    appServices: socket?.appServices,
+    headroom: socket?.headroom,
+    local: !!local,
+    ops,
+  }
+  const machine = await startRunMachine(context, parts, ports, signal)
+  signal.throwIfAborted()
+  const laneAdapter = shareLanes(context, parts, sink, machine.lanes, socket)
+  const link = createRunLink(context, parts, sink, {
+    ...machine,
+    laneAdapter,
+    peers: () => socket?.connections?.() ?? [],
+    initial: start.initial,
+    local: local !== undefined,
+    enroll: local?.enroll,
+    directory: start.directory,
+    config,
+    epoch,
+    stateDirectory,
+    ops,
+  })
+  local?.attach(link)
+  return link
+}
+
+/**
+ * Prepares control, takes the run lock, attaches the drain, opens state,
+ * starts the machine, then the API and the heartbeat, and tears down in order.
+ * Without the local-mode marker, unenrolled exits 69 before the run lock and a
+ * removed Host's heartbeat exits 77. With it, run starts unenrolled and a 410
+ * stops only the TCP API.
+ */
+/** Run's exit: the link's, or 75 after a drain once a release asks to restart in standby. */
+async function untilRestart(link: ControlLink, restart: Promise<void> | undefined) {
+  if (!restart) return link.run()
+  const RESTART = Symbol('restart')
+  const first = await Promise.race([link.run(), restart.then(() => RESTART)])
+  if (typeof first === 'number') return first
+  await link.drain()
+  return EXIT.tempfail
+}
+
 async function runHostCommand(context: RunContext): Promise<number> {
-  let api: ReturnType<typeof startApi> | undefined
-  let routines: HostRoutines | undefined
-  let routinesStop: Promise<void> | undefined
-  let nameLane: ReturnType<typeof createLaneNamer> | undefined
-  let claudeAccounts: HostClaudeAccounts | undefined
-  let activeLog: ReturnType<typeof createHostLog> | undefined
-  let runtime: HostRuntime | undefined
-  let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
-  let live: ReturnType<typeof createHostLiveLanes>['live'] | undefined
-  let commands: ReturnType<typeof createLaneCommands> | undefined
-  let terminals: HostTerminals | undefined
-  let webPush: HostWebPush | undefined
-  let lanes: LaneService | undefined
-  // The store opens before the API; defer receipt delivery and presence until it starts.
-  const sink: {
-    deliver(clientId: string, receipt: Receipt, connectionId?: string): void
-    isConnected(clientId: string): boolean
-  } = { deliver: () => {}, isConnected: () => false }
-  let launchApi: (() => void) | undefined
-  const authority = createAuthority(context.now ?? Date.now)
-  let attachments: HostAttachments | undefined
-  let store: HostStore | undefined
-  let release: (() => Promise<void>) | undefined
-  let detach: (() => void) | undefined
-  let later: ShutdownSignal | undefined
-  let drains = 0
+  const parts: RunParts = {}
+  const teardown = createRunTeardown(parts)
+  const sink = createReceiptSink()
   const initAbort = new AbortController()
   let initialization: Promise<void> | undefined
-  let loop: ReturnType<typeof createHeartbeat> | undefined
-  let startupExit = 70
-  let released: () => void = () => {}
-  const unlocked = new Promise<void>((resolve) => {
-    released = resolve
-  })
-  // Set before `unlocked` resolves, so a signal's drain fails with it too.
-  let teardownFailure: PromiseRejectedResult | undefined
-  const closeAndRelease = async () => {
-    // The stops start together, and nothing closes until all of them have settled.
-    const failures = [
-      await firstFailure([
-        attempt(() => nameLane?.cancel()),
-        attempt(() => api?.stop()),
-        attempt(() => (routinesStop ??= routines?.stop())),
-        attempt(() => (runtimeDrain ??= runtime?.drain('run finished'))),
-      ]),
-    ]
-    // Then one at a time, whatever failed: the store closes only after its last user.
-    for (const close of [
-      () => commands?.close(),
-      () => terminals?.close(),
-      () => webPush?.close(),
-      () => attachments?.close(),
-      () => routines?.close(),
-      () => live?.close(),
-      () => store?.close(),
-      () => release?.(),
-    ])
-      failures.push(await firstFailure([attempt(close)]))
-    teardownFailure = failures.find((result) => result !== undefined)
-    released()
-    if (teardownFailure) {
-      startupExit = 70
-      throw teardownFailure.reason
-    }
-  }
+  let link: ControlLink | undefined
+  let detach: (() => void) | undefined
   try {
     const prepared = await withCommandLock(context, () => prepareControl(context))
-    if (!prepared.loaded) {
+    const mode = runLocalMode(context)
+    if (!prepared.loaded && !mode) {
       context.print('Run phosphor setup first.')
       return 69
     }
-    const { identity, key } = prepared.loaded
     const directory = identityDirectory(context.configPath)
-    release = await acquireIdentityLock(directory, context.uid, context.lockPorts, '.run-lock')
+    parts.release = await acquireIdentityLock(
+      directory,
+      context.uid,
+      context.lockPorts,
+      '.run-lock',
+    )
     context.afterRunLock?.()
+    const { client, url, loaded } = prepared
+    const authority = createAuthority(context.now ?? Date.now)
+    const initial = loaded ? { ...loaded, client, url, directory, authority } : null
     // Start-up can await SQLite and disk scans. A signal must wait for cleanup
     // here too, not just once the heartbeat loop is running.
-    detach = context.attach?.({
-      drain: async (reason) => {
-        if (drains++ > 0 && (SHUTDOWN_SIGNALS as readonly string[]).includes(reason))
-          later = reason as ShutdownSignal
-        initAbort.abort()
-        // Settled from the start, so a failed stop is never unhandled, and it
-        // still waits for the release below before the drain rejects.
-        const stopping = firstFailure([
-          attempt(() => nameLane?.cancel()),
-          attempt(() => api?.stop()),
-          attempt(() => (routinesStop ??= routines?.stop())),
-          attempt(() => {
-            if (!runtime) return
-            if (!runtimeDrain) runtimeDrain = runtime.drain(reason)
-            else void runtime.drain(reason)
-            return runtimeDrain
-          }),
-        ])
-        let result: { state: 'stopped' | 'failed' }
-        if (loop) result = await loop.drain()
-        else {
-          await initialization?.catch(() => {})
-          result = { state: 'stopped' }
-        }
-        // Start-up may have created the runtime or routines since: wait for those too.
-        const drainingRuntime = runtimeDrain
-        const failure = (await stopping) ?? (await firstFailure([drainingRuntime, routinesStop]))
-        if (!failure && (await drainingRuntime)?.state === 'failed') result = { state: 'failed' }
-        await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
-        // A teardown step that failed after this drain's own stops fails the signal's exit too.
-        const failed = failure ?? teardownFailure
-        if (failed) throw failed.reason
-        return result
-      },
-      exitCode: (_reason, clean) =>
-        !clean ? 70 : later ? 128 + constants.signals[later] : (loop?.exitCode() ?? startupExit),
-      log: {
-        write: (...args) => activeLog?.write(...args),
-        hide: () => 'The Host could not finish.',
-      },
-    })
+    detach = context.attach?.(
+      teardown.drainTarget({
+        abort: () => initAbort.abort(),
+        loop: () => link,
+        initialization: () => initialization,
+      }),
+    )
     initialization = (async () => {
-      initAbort.signal.throwIfAborted()
-      const config = await (context.loadConfig ?? loadHostConfig)(context.configPath, context.uid)
-      initAbort.signal.throwIfAborted()
-      if (!config.ok)
-        throw new IdentityFailure('Config is not usable. Run phosphor setup to check it.')
-      const stateDirectory = hostStateDirectory(context.env, context.home)
-      try {
-        initAbort.signal.throwIfAborted()
-        store = await openStore(stateDirectory, context.uid, {
-          onLaneRemoved: (laneId) => attachments?.remove(laneId),
-          isConnected: (id) => sink.isConnected(id),
-          logCorruptReceipt: (count) => context.log?.('host', 'receipts.corrupt', { count }),
-          logCorruptLane: (count) => context.log?.('host', 'lanes.corrupt', { count }),
-        })
-        initAbort.signal.throwIfAborted()
-        store.syncRepositories(config.config.repositories, (count) =>
-          context.log?.('host', 'lanes.repositories_unavailable', { count }),
-        )
-        initAbort.signal.throwIfAborted()
-        const counts = await (context.reconcile ?? reconcile)(
-          store,
-          piSessionsRoot(context.env, context.home),
-          (skipped) => context.log?.('host', 'lanes.skipped', { skipped }),
-          initAbort.signal,
-        )
-        initAbort.signal.throwIfAborted()
-        context.log?.('host', 'lanes.reconciled', counts)
-        attachments = createAttachments({
-          log: (event) => context.log?.('host', event, {}),
-          directory: realpathSync(stateDirectory),
-          laneExists: (laneId) => store?.getLane(laneId)?.removedAt === null,
-          laneRetained: (laneId) => store?.archives.has(laneId) ?? false,
-          now: context.now,
-        })
-      } catch (error) {
-        if (error instanceof StateFailure || error === initAbort.signal.reason) throw error
-        throw new StateFailure(stateDirectory, 70, 'Could not reconcile lanes.')
-      }
-      initAbort.signal.throwIfAborted()
-      const epoch = randomBytes(8).toString('hex')
-      const inspection = await inspectHost(context)
-      initAbort.signal.throwIfAborted()
-      if (inspection.machine) {
-        const machine = inspection.machine
-        const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
-        activeLog = log
-        const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
-        await trash.sweep().catch(() => {})
-        claudeAccounts = createRunAccounts(context, stateDirectory, machine.env)
-        runtime = createHostRuntime(
-          { ...machine, log },
-          {
-            claudeAccounts,
-            ...hostLivePolicy(config.path, config.config),
-            dialogs: 'forward',
-            trashTranscript: trash.move,
-            routines: routineOwnership(async (id) => {
-              if (!routines) throw new Error('routine service unavailable')
-              await routines.cancelSession(id)
-            }),
-          },
-        )
-        runtime.life.to('validating')
-        seedArtifactSkill(
-          machine.resourceRoot,
-          context.env.PI_CODING_AGENT_DIR ?? join(context.home, '.pi', 'agent'),
-        )
-        runtime.life.to('ready')
-        const hosted = createHostLiveLanes({
-          epoch,
-          store,
-          runtime,
-          now: context.now ?? Date.now,
-          log: log.write,
-          sessionsRoot: piSessionsRoot(context.env, context.home),
-        })
-        live = hosted.live
-        const { unattached } = hosted
-        const activeTopic = live.lanesTopic
-        routines = createHostRoutines({
-          directory: hostStateDirectory(context.env, context.home),
-          uid: context.uid,
-          store,
-          runtime,
-          changed: () => activeTopic.routinesChanged(),
-          now: context.now,
-        })
-        nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, claudeAccounts))
-        const binding = createRuntimeLanes({
-          runtime,
-          store,
-          live,
-          log: log.write,
-          nameLane,
-        })
-        terminals = createRunTerminals(context, { epoch, store, log, env: machine.env })
-        const activeRuntime = runtime
-        const repositories = createRepositories({
-          home: context.home,
-          configPath: config.path,
-          uid: context.uid,
-          store,
-          live: (id) =>
-            store
-              ?.listLanes()
-              .some((l) => l.repositoryId === id && live?.sessionFor(l.laneId) !== null) ?? false,
-          changed: (roots) => {
-            activeRuntime.replaceRoots(roots)
-            activeTopic.repositoriesChanged()
-          },
-        })
-        const { features: administrationFeatures, ...administration } = createRunAdministration({
-          context,
-          configPath: config.path,
-          env: machine.env,
-          pi: machine.pi,
-          store,
-          runtime: activeRuntime,
-          accounts: claudeAccounts,
-          terminals,
-          attachments,
-          binding,
-          live,
-          repositories,
-          routines,
-          log: log.write,
-        })
-        commands = createLaneCommands({
-          ...administration,
-          repositories,
-          attachments,
-          terminals,
-          store,
-          ...binding,
-          runtime: binding,
-          routines,
-          sessionFor: live.sessionFor,
-          openDialogs: live.openDialogs,
-          summaryFor: live.summaryFor,
-          publish: live.publish,
-          deliver: (...args) => sink.deliver(...args),
-          now: context.now ?? Date.now,
-          log: log.write,
-        })
-        webPush = await startRunWebPush(context, {
-          identity,
-          controlUrl: prepared.url,
-          authority,
-          lanesTopic: live.lanesTopic,
-          receipt: (laneId) => calls.call('lane.receipt', { laneId }),
-          log: log.write,
-        })
-        const features = [...administrationFeatures(), ...(webPush ? [webPush.feature] : [])]
-        const calls = createLaneCalls({
-          features,
-          store,
-          live,
-          runtime,
-          unattached,
-          now: context.now ?? Date.now,
-          log: log.write,
-        })
-        lanes = {
-          terminals,
-          epoch,
-          capabilities: [
-            ...new Set([
-              'sessions.read' as const,
-              'sessions.control' as const,
-              'workspaces.write' as const,
-              ...features.map((feature) => feature.capability),
-            ]),
-          ],
-          commands,
-          calls,
-          webPushKey: webPush?.publicKey,
-          streams: live.streams,
-          lanesTopic: live.lanesTopic,
-          controllerPresence: createRunControllerPresence(store, live),
-        }
-        routines.start()
-      } else context.log?.('host', 'lanes.unavailable', { reason: 'machine-unusable' })
-      initAbort.signal.throwIfAborted()
-      launchApi = () => {
-        const options = {
-          runtimeEpoch: epoch,
-          lanes,
-          authority,
-          origin: prepared.url,
-          hostId: identity.hostId,
-          hostVersion: HOST_VERSION,
-          key,
-          port: config.config.api?.port,
-          webOrigin: config.config.api?.webOrigin,
-          fetch: context.fetch,
-          log: (event: string, fields: Record<string, unknown>) =>
-            context.log?.('host', event, fields),
-        }
-        api = startApi(options)
-        sink.deliver = api.deliver
-        sink.isConnected = api.isConnected
-      }
-      let endpoint: string | null = null
-      let routeState = ''
-      const accepted = healthWriter(
-        stateDirectory,
-        context.uid,
-        HOST_VERSION,
-        context.now ?? Date.now,
-      )
-      loop = createHeartbeat({
-        endpoint: () => endpoint,
-        onAccepted: authority.accept,
-        onRemoved: authority.remove,
-        now: context.now ?? Date.now,
-        wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
-        random: context.heartbeat?.random ?? (() => randomInt(3001) / 3000),
-        client: async (body, signal) => {
-          context.log?.('host', 'heartbeat', {
-            seq: body.seq,
-            state: body.state,
-            trace: context.trace,
-          })
-          const answer = await prepared.client.heartbeat(identity.hostId, key, body, signal)
-          if (body.state === 'running' && !signal.aborted && parseHeartbeatResponse(answer).ok)
-            accepted()
-          return answer
-        },
-        readiness:
-          context.heartbeat?.readiness ??
-          (() =>
-            runReadiness(config.config, context, claudeAccounts, (found) => {
-              endpoint = found.endpoint
-              if (routeState !== found.state) {
-                routeState = found.state
-                context.log?.('host', 'tailscale.endpoint', { state: found.state })
-              }
-            })),
-        seq: context.heartbeat?.seq ?? createSequenceStore(directory, context.uid, identity.hostId),
-        hostVersion: HOST_VERSION,
-        signal: context.signal,
-        log: (line) => {
-          const retry = /^retrying in ([0-9.]+)s$/.exec(line)
-          context.log?.('host', line === REMOVED ? 'removed' : retry ? 'retry' : 'state', {
-            state: line,
-            trace: context.trace,
-            ...(line === REMOVED ? { exitCode: 77 } : {}),
-            ...(retry ? { delayMs: Number(retry[1]) * 1000 } : {}),
-          })
-          context.print(line)
-        },
-      })
+      link = await startRun(context, parts, sink, { initial, mode, directory }, initAbort.signal)
     })()
     await initialization
     initAbort.signal.throwIfAborted()
-    launchApi?.()
-    if (!loop) throw new Error('Heartbeat was not initialized.')
-    return await loop.run()
+    if (!link) throw new Error('Control link was not initialized.')
+    link.start()
+    return await untilRestart(link, parts.restartInStandby)
   } catch (error) {
     if (error === initAbort.signal.reason && initAbort.signal.aborted) {
-      startupExit = 0
+      teardown.abortedCleanly()
       return 0
     }
     const result =
@@ -486,7 +264,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
     return result.exitCode
   } finally {
     detach?.()
-    await closeAndRelease()
+    await teardown.closeAndRelease()
   }
 }
 

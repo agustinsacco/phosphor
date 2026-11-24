@@ -1,3 +1,4 @@
+import { isContextFilePrefs } from './context-files'
 import { machineRecord } from './host-protocol-machine'
 import { MCP_SERVER_NAME } from './mcp'
 import { isValidContextBudgetValue } from './context-budget'
@@ -61,6 +62,7 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
       'defaultModel',
       'defaultThinkingLevel',
       'contextBudget',
+      'contextFiles',
       'autoNameLanes',
       'agentDirectives',
       ...AGENT_BEHAVIOR_KEYS,
@@ -74,21 +76,29 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
       ? validAgentBehaviorPatch(key, value)
       : value === null
         ? true
-        : key === 'contextBudget'
-          ? typeof value === 'string' && (value === '' || isValidContextBudgetValue(value))
-          : key === 'autoNameLanes'
-            ? typeof value === 'boolean'
-            : key === 'agentDirectives'
-              ? validDirectives(value)
-              : key === 'defaultThinkingLevel'
-                ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(
-                    String(value),
-                  )
-                : text(value, 200),
+        : key === 'contextFiles'
+          ? isContextFilePrefs(value)
+          : key === 'contextBudget'
+            ? typeof value === 'string' && (value === '' || isValidContextBudgetValue(value))
+            : key === 'autoNameLanes'
+              ? typeof value === 'boolean'
+              : key === 'agentDirectives'
+                ? validDirectives(value)
+                : key === 'defaultThinkingLevel'
+                  ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(
+                      String(value),
+                    )
+                  : text(value, 200),
   )
   return (
     valid &&
-    !(read.repositoryId && ('contextBudget' in p || 'autoNameLanes' in p || 'agentDirectives' in p))
+    !(
+      read.repositoryId &&
+      ('contextFiles' in p ||
+        'contextBudget' in p ||
+        'autoNameLanes' in p ||
+        'agentDirectives' in p)
+    )
   )
 }
 

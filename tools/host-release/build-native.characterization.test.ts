@@ -145,7 +145,7 @@ afterEach(() => {
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
 it('refuses an unsupported runner before probing Node or touching disk', () => {
-  force('darwin-x64')
+  force('win32-x64')
   expect(() => buildNative(out, node)).toThrow('Unsupported native target')
   expect(seen).toEqual([])
   expect(existsSync(out)).toBe(false)

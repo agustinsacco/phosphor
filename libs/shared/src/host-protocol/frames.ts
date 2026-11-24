@@ -95,6 +95,27 @@ export type HostFrame =
        * the lane's file again, so its summary's `pullRequests` carry the write.
        */
       readonly prTracking?: boolean
+      /** `ops.run` (call and command) is served. `READY_OP_FLAGS` lists these booleans. */
+      readonly ops?: boolean
+      /** This connection is the attested owner on the machine's Unix socket. */
+      readonly ownerLocal?: boolean
+      /** Catalog ops `lane.tree|label|jump|fork|clone|rewind`. */
+      readonly laneEditing?: boolean
+      /** Catalog ops `contextFiles.set`, `mcp.lane` and the new-lane default. */
+      readonly laneContext?: boolean
+      /** Catalog op `lane.reload`. */
+      readonly laneReload?: boolean
+      /** Catalog ops `sandbox.*`. */
+      readonly sandboxes?: boolean
+      /** Catalog op `directives.set --project`. */
+      readonly folderDirectives?: boolean
+      /** Catalog ops `config.*`, `skill.create|edit|delete` and the raw MCP file. */
+      readonly configFiles?: boolean
+      /**
+       * Catalog ops `folder.list` and `lane.list` page past the `lanes` topic's 64
+       * folders and 1000 lanes. The topic itself keeps those bounds for older clients.
+       */
+      readonly pagedLanes?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }

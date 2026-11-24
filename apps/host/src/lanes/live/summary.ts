@@ -54,9 +54,11 @@ export function summaryFor(state: LiveState, laneId: string): LaneSummary | null
   const live = state.attached.get(laneId)
   const sessionState = live?.projection.view().state
   const pullRequests = state.lanePrs?.signalsFor(laneId, stored.sessionFile)
+  const pause = state.options.pauseFor?.(laneId)
   const candidate: LaneSummary = {
     ...summary,
     ...(pullRequests ? { pullRequests } : {}),
+    ...(pause ? { pause } : {}),
     activity: live?.projection.activity() ?? summary.activity,
     title:
       title(sessionState?.sessionName) ??
