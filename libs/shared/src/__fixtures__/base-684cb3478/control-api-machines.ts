@@ -7,7 +7,7 @@
  * only, and a nullable field must be present: null and missing differ.
  */
 
-import { CONTROL_LIMITS } from '../../control-api/constants'
+import { CONTROL_LIMITS } from './control-limits'
 import {
   account,
   fail,
