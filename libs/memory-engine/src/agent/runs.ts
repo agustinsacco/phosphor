@@ -1,4 +1,8 @@
-import type { BrainAgentRun } from '@phosphor/shared/brain-agent'
+import {
+  BRAIN_AUTO_RUN_LIMIT_REFUSAL,
+  BRAIN_AUTO_RUNS_PER_DAY,
+  type BrainAgentRun,
+} from '@phosphor/shared/brain-agent'
 import { all, one, run, transaction, type Context } from '../database'
 import { revision } from '../prefs'
 import { scrubExcerpt } from '../secrets'
@@ -11,7 +15,7 @@ function readRun(ctx: Context, id: string): BrainAgentRun {
   const row = one<BrainAgentRun>(
     ctx,
     `SELECT id,state,total,queued_at AS queuedAt,started_at AS startedAt,
-    finished_at AS finishedAt,error,session_path AS sessionPath,rules_changed AS rulesChanged,automatic,
+    finished_at AS finishedAt,error,session_path AS sessionPath,rules_changed AS rulesChanged,
     (SELECT COUNT(*) FROM agent_notes a WHERE a.run_id=r.id AND a.role='made') AS decided,
     (SELECT COUNT(*) FROM agent_notes a JOIN tidy_operations o ON o.id=a.operation_id WHERE a.run_id=r.id AND a.role='made' AND o.kind='erase') AS erased,
     (SELECT COUNT(*) FROM agent_notes a JOIN tidy_operations o ON o.id=a.operation_id WHERE a.run_id=r.id AND a.role='made' AND ${undoableSql}) AS undoable
@@ -19,7 +23,7 @@ function readRun(ctx: Context, id: string): BrainAgentRun {
     id,
   )
   if (!row) throw new Error('Brain Agent run not found.')
-  return { ...row, rulesChanged: !!row.rulesChanged, automatic: !!row.automatic }
+  return { ...row, rulesChanged: !!row.rulesChanged }
 }
 /** Counters include made operations even after undo, never undid notes; undoable is current. */
 export function latestRun(ctx: Context): BrainAgentRun | null {
@@ -29,11 +33,20 @@ export function latestRun(ctx: Context): BrainAgentRun | null {
   )
   return row ? readRun(ctx, row.id) : null
 }
-/** A queued run; `automatic` marks one the automatic check started. */
+/** An automatic run past BRAIN_AUTO_RUNS_PER_DAY in the last 24 hours is refused; Defrag never is. */
 export function createRun(ctx: Context, automatic: boolean): BrainAgentRun {
   return transaction(ctx, () => {
     const id = ctx.id(),
       now = ctx.now()
+    if (
+      automatic &&
+      one<{ n: number }>(
+        ctx,
+        'SELECT COUNT(*) AS n FROM agent_runs WHERE automatic=1 AND queued_at>?',
+        now - 86_400_000,
+      )!.n >= BRAIN_AUTO_RUNS_PER_DAY
+    )
+      throw new Error(BRAIN_AUTO_RUN_LIMIT_REFUSAL)
     run(
       ctx,
       "INSERT INTO agent_runs(id,state,queued_at,automatic) VALUES (?,'queued',?,?)",
