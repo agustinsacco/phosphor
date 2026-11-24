@@ -97,7 +97,8 @@ function routineCounts(file) {
   try {
     const out = execFileSync(
       '/usr/bin/sqlite3',
-      ['-readonly', file, 'select count(*) from routines; select count(*) from runs;'],
+      // Read-only without -shm: Desktop has quit, so nothing writes the file now.
+      [`file:${file}?immutable=1`, 'select count(*) from routines; select count(*) from runs;'],
       { encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'ignore'] },
     )
     const [routines, runs] = out.trim().split('\n').map(Number)

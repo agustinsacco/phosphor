@@ -42,7 +42,7 @@ export function fence(root, roots, sources) {
     '/Volumes',
   ]
   let profile = `(version 1) (allow default)
-    (deny file-write*) (allow file-write* (subpath (param "ROOT")))
+    (deny file-write*) (allow file-write* (subpath (param "ROOT")) (literal "/dev/null"))
     (deny network*) (allow network-bind network-inbound network-outbound (literal (param "SOCKET")))
     (deny signal) (allow signal (target same-sandbox))
     (deny appleevent-send)
