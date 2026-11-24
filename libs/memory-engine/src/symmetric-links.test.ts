@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import { extraction, fixture, save, vector } from './test-support'
 import type { Proposal, ProposalEntity, ProposalMemory } from './types'
 
+const note = { runId: null, reason: 'The lane names two people called Tom Lee.' }
 const NAMES = { tom: 'Tom Lee', mara: 'Mara Voss', rina: 'Rina Okafor' }
 const person = (ref: keyof typeof NAMES): ProposalEntity => ({
   ...extraction('unused').entities[1]!,
@@ -113,5 +114,37 @@ it('never ends a works_with link because another person also works with one end'
   expect(links(db)).toEqual([
     { s: 'Mara Voss', o: 'Rina Okafor', validTo: null, state: 'active' },
     { s: 'Tom Lee', o: 'Rina Okafor', validTo: null, state: 'active' },
+  ])
+})
+it('split keeps a moved works_with link with the lower entity number as subject', () => {
+  const { store, db, ids } = people()
+  save(
+    store,
+    read({
+      memories: [
+        worksWith('Tom Lee works with Rina Okafor.', ids['Tom Lee']!, ids['Rina Okafor']!),
+      ],
+    }),
+  )
+  const host = db.prepare("SELECT id FROM memories WHERE summary LIKE 'Tom Lee works%'").get() as {
+    id: string
+  }
+  store.agentEdit(
+    {
+      kind: 'split',
+      entityId: ids['Tom Lee']!,
+      memoryIds: [host.id],
+      label: 'Tom Lee (Kestrel)',
+      entityKind: 'person',
+    },
+    note,
+  )
+  expect(
+    db
+      .prepare("SELECT subject<object AS ordered FROM relations WHERE predicate='works_with'")
+      .all(),
+  ).toEqual([{ ordered: 1 }])
+  expect(links(db)).toEqual([
+    { s: 'Rina Okafor', o: 'Tom Lee (Kestrel)', validTo: null, state: 'active' },
   ])
 })
