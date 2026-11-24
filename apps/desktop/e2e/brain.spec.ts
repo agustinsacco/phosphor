@@ -235,7 +235,8 @@ async function askLightsTrail(page: Page): Promise<void> {
   await input.press('Enter')
   const answer = page.getByRole('region', { name: 'Answer', exact: true })
   await expect(answer).toContainText('Tom Lee took over Harbor ledger from Rina Okafor.')
-  await expect(mapPane(page).locator('[data-edge][data-lit="true"]').first()).toBeVisible()
+  // Counted, not checked for a box: a vertical line's box is zero wide.
+  await expect(mapPane(page).locator('[data-edge][data-lit="true"]')).not.toHaveCount(0)
   await expect(answer).toContainText(/^.*via .+/)
   await answer.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(answer).toHaveCount(0)

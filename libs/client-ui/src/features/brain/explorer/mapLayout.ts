@@ -166,9 +166,11 @@ function placeRings(
   ]
   rings.forEach((ids, index) => {
     const radius = index === 0 ? inner : outer
+    // At least three slots: two neighbours opposite each other put a link between them
+    // straight through the centre, where it reads as the centre's own.
+    const slots = Math.max(ids.length, 3)
     ids.forEach((id, position) => {
-      const angle =
-        (position / ids.length) * 2 * Math.PI - Math.PI / 2 + (index ? Math.PI / ids.length : 0)
+      const angle = (position / slots) * 2 * Math.PI - Math.PI / 2 + (index ? Math.PI / slots : 0)
       const node = byId.get(id)!
       placed.push({
         ...node,
