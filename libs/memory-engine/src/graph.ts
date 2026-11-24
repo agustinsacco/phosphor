@@ -1,22 +1,14 @@
-import {
-  BRAIN_PREDICATES,
-  type BrainGraph,
-  type BrainLink,
-  type BrainPaths,
-} from '@phosphor/shared/brain'
+import { BRAIN_PREDICATES, type BrainGraph, type BrainLink } from '@phosphor/shared/brain'
 import { all, one, type Context } from './database'
-import { entity, survivingEntityId, referencedEntities } from './entities'
-import { memoryCards } from './knowledge'
+import { entity, survivingEntityId } from './entities'
+import { LINK, ENDS, endedLinks } from './relation-reads'
 import { newerLink, sideIndex } from './relation-pairs'
 
-const LINK = `CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id AS objectId,m.id AS memoryId`
-const ENDS =
-  'JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object JOIN memories m ON m.n=r.memory'
 /**
  * Per predicate and direction, the newest link to each of at most `perPredicate` neighbours,
  * newest first: one slot per neighbour, so a pair said many times never hides another.
  */
-export function edges(ctx: Context, id: string, perPredicate = 8): BrainLink[] {
+export function edges(ctx: Context, id: string, perPredicate = 8, now = ctx.now()): BrainLink[] {
   id = survivingEntityId(ctx, id)
   const row = one<{ n: number; connections: number }>(
     ctx,
@@ -25,30 +17,38 @@ export function edges(ctx: Context, id: string, perPredicate = 8): BrainLink[] {
   )
   if (!row) throw new Error('Brain entity not found.')
   const { n, connections } = row
-  if (connections <= 200) return ordinaryEdges(ctx, n, perPredicate)
+  if (connections <= 200) return ordinaryEdges(ctx, n, perPredicate, now)
   // A hub reads each range newest first and skips a link when a newer one joins the same pair.
   return BRAIN_PREDICATES.flatMap((predicate) =>
     (['subject', 'object'] as const).flatMap((own) => {
       const other = own === 'subject' ? 'object' : 'subject'
       return all<BrainLink>(
         ctx,
-        `SELECT ${LINK} FROM relations r INDEXED BY ${sideIndex(own)} JOIN entities e ON e.n=r.${other} ${ENDS} WHERE r.${own}=? AND r.live=1 AND r.predicate=? AND ${newerLink(own, other)} IS NULL ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
+        `SELECT ${LINK} FROM relations r INDEXED BY ${sideIndex(own)} JOIN entities e ON e.n=r.${other} ${ENDS} WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>?) AND r.predicate=? AND ${newerLink(own, other)} IS NULL ORDER BY r.observed_at DESC,r.n DESC LIMIT ?`,
         n,
+        now,
         predicate,
         connections,
+        now,
+        now,
         perPredicate,
       )
     }),
   )
 }
 /** Low-degree nodes need two indexed reads, not one for every predicate and direction. */
-function ordinaryEdges(ctx: Context, n: number, perPredicate: number): BrainLink[] {
+function ordinaryEdges(ctx: Context, n: number, perPredicate: number, now: number): BrainLink[] {
   const directions = (['subject', 'object'] as const).map((own) => {
+    const other = own === 'subject' ? 'object' : 'subject'
     const groups = new Map<string, Map<string, BrainLink>>()
     for (const link of all<BrainLink>(
       ctx,
-      `SELECT ${LINK} FROM relations r ${ENDS} WHERE r.${own}=? AND r.live=1 ORDER BY r.observed_at DESC,r.n DESC`,
+      `WITH candidates AS (SELECT r.n,ROW_NUMBER() OVER (PARTITION BY r.predicate,r.${other}
+        ORDER BY r.observed_at DESC,r.n DESC) AS seq FROM relations r WHERE r.${own}=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>?))
+        SELECT ${LINK} FROM candidates c CROSS JOIN relations r ON r.n=c.n ${ENDS} WHERE c.seq=1
+        ORDER BY r.observed_at DESC,r.n DESC`,
       n,
+      now,
     )) {
       // Newest first, so the first link to a neighbour is its newest.
       const neighbours = groups.get(link.predicate) ?? new Map<string, BrainLink>()
@@ -94,6 +94,11 @@ export function graph(
   return {
     nodes: ids.map((id) => entity(ctx, id)!).filter(Boolean),
     links: [...links.values()],
+    ended: centerId
+      ? endedLinks(ctx, centerId, ctx.now()).filter(
+          (l) => selected.has(l.subjectId) && selected.has(l.objectId),
+        )
+      : [],
     centerId,
     truncated: truncated || cut,
   }
@@ -135,48 +140,10 @@ export function neighbourhood(ctx: Context, id: string, hops: 1 | 2, limit: numb
     }
     frontier = next
   }
-  return graph(ctx, [...selected], id, truncated)
-}
-/** Layered bidirectional BFS, bounded before expansion; every route is backed by live evidence. */
-export function path(ctx: Context, from: string, to: string): BrainPaths {
-  from = survivingEntityId(ctx, from)
-  to = survivingEntityId(ctx, to)
-  type Route = { node: string; links: BrainLink[]; visited: Set<string> }
-  let left: Route[] = [{ node: from, links: [], visited: new Set([from]) }]
-  let right: Route[] = [{ node: to, links: [], visited: new Set([to]) }]
-  let budget = 2000
-  let found: BrainLink[][] = []
-  for (let depth = 0; depth <= 4 && budget > 0; depth++) {
-    const targets = new Map<string, Route[]>()
-    for (const route of right) targets.set(route.node, [...(targets.get(route.node) ?? []), route])
-    for (const route of left)
-      for (const other of targets.get(route.node) ?? []) {
-        if (route.node !== from && route.node !== to && entity(ctx, route.node)!.connections > 200)
-          continue
-        const common = [...route.visited].filter((id) => other.visited.has(id))
-        if (common.length === 1) found.push([...route.links, ...other.links.toReversed()])
-      }
-    if (found.length) break
-    const expandLeft = depth % 2 === 0
-    const next: Route[] = []
-    for (const route of expandLeft ? left : right) {
-      if (--budget < 0) break
-      if (route.node !== from && route.node !== to && entity(ctx, route.node)!.connections > 200)
-        continue
-      for (const link of edges(ctx, route.node)) {
-        const node = route.node === link.subjectId ? link.objectId : link.subjectId
-        if (route.visited.has(node) || next.length >= 2000) continue
-        next.push({
-          node,
-          links: [...route.links, link],
-          visited: new Set([...route.visited, node]),
-        })
-      }
-    }
-    if (expandLeft) left = next
-    else right = next
+  for (const link of endedLinks(ctx, id, ctx.now())) {
+    const other = link.subjectId === id ? link.objectId : link.subjectId
+    if (selected.size < cap) selected.add(other)
+    else if (!selected.has(other)) truncated = true
   }
-  found = found.slice(0, 3)
-  const memories = memoryCards(ctx, [...new Set(found.flat().map((link) => link.memoryId))])
-  return { paths: found, memories, entities: referencedEntities(ctx, memories) }
+  return graph(ctx, [...selected], id, truncated)
 }

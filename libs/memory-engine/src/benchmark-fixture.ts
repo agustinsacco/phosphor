@@ -30,7 +30,7 @@ export function buildBenchmark(db: DatabaseSync, entities: number, memories: num
 }
 function buildEntities(db: DatabaseSync, count: number): void {
   const insert = db.prepare(
-    "INSERT INTO entities(n,id,label,kind,description,created_at) VALUES (?,?,?,'project','',1)",
+    "INSERT INTO entities(n,id,label,kind,description,created_at) VALUES (?,?,?,?,'',1)",
   )
   const names = db.prepare('INSERT INTO entity_names(n,entity,name,folded) VALUES (?,?,?,?)')
   const words = db.prepare('INSERT INTO entity_words(rowid,text) VALUES (?,?)')
@@ -38,9 +38,10 @@ function buildEntities(db: DatabaseSync, count: number): void {
   const vector = db.prepare('INSERT INTO entity_vectors VALUES (?,?)')
   const bits = db.prepare('INSERT INTO entity_bits VALUES (?,?)')
   for (let n = 1; n <= count; n++) {
-    const label = `Ledger ${n}`
+    const person = n % 16 === 4 || n % 16 === 6
+    const label = person ? `Tom Lee ${n}` : `Ledger ${n}`
     const embedding = clusteredVector(n)
-    insert.run(n, `entity-${n}`, label)
+    insert.run(n, `entity-${n}`, label, person ? 'person' : 'project')
     names.run(n, n, label, label.toLowerCase())
     words.run(n, label)
     grams.run(n, label)
@@ -55,7 +56,7 @@ function buildMemories(db: DatabaseSync, entities: number, count: number): void 
   const words = db.prepare('INSERT INTO memory_words(rowid,summary) VALUES (?,?)')
   const mentions = db.prepare('INSERT OR IGNORE INTO mentions VALUES (?,?)')
   const relations = db.prepare(
-    "INSERT INTO relations(memory,subject,predicate,object,live,observed_at) VALUES (?,?,'part_of',?,1,?)",
+    'INSERT INTO relations(memory,subject,predicate,object,live,observed_at) VALUES (?,?,?,?,1,?)',
   )
   const vector = db.prepare('INSERT INTO memory_vectors VALUES (?,?)')
   const bits = db.prepare('INSERT INTO memory_bits VALUES (?,?)')
@@ -64,7 +65,14 @@ function buildMemories(db: DatabaseSync, entities: number, count: number): void 
   for (let n = 1; n <= count; n++) {
     const subject = (n % entities) + 1
     // Half the links point to one hub; the other half form small clusters.
-    const object = subject === 1 ? 2 : n % 2 ? 1 : Math.max(1, subject - (subject % 16))
+    const object =
+      subject % 16 === 6
+        ? subject - 2
+        : subject === 1
+          ? 2
+          : n % 2
+            ? 1
+            : Math.max(1, subject - (subject % 16))
     const summary = `Ledger ${subject} has synthetic fact ${n}.`
     const embedding = clusteredVector(n)
     insert.run(n, `memory-${n}`, summary, n)
@@ -74,7 +82,13 @@ function buildMemories(db: DatabaseSync, entities: number, count: number): void 
     if (subject !== object) {
       mentions.run(n, object)
       mentioned[object]!++
-      relations.run(n, subject, object, n)
+      relations.run(
+        n,
+        subject,
+        subject % 16 === 6 ? 'reports_to' : subject % 16 === 4 ? 'works_on' : 'part_of',
+        object,
+        n,
+      )
       degree[subject]!++
       degree[object]!++
     }

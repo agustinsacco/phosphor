@@ -12,7 +12,7 @@ export function pairProbe(
   other: Side,
   query: (from: string, pair: string) => string,
 ): string {
-  const pair = `x.${other}=r.${other} AND x.live=1 AND x.predicate=r.predicate AND x.${own}=r.${own}`
+  const pair = `x.${other}=r.${other} AND x.live=1 AND (x.valid_to IS NULL OR x.valid_to>?) AND x.predicate=r.predicate AND x.${own}=r.${own}`
   const through = (side: Side) => query(`relations x INDEXED BY ${sideIndex(side)}`, pair)
   return `CASE WHEN e.connections<=? THEN (${through(other)}) ELSE (${through(own)}) END`
 }

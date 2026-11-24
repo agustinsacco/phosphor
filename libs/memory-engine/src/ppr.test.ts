@@ -15,16 +15,17 @@ const identity = (ref: string): ProposalEntity => ({
   reason: '',
   auto: false,
 })
-it('recalls three structural hops with memory ids, keeps planned and other-branch facts and both disputed sides', () => {
+it('recalls memories within two structural hops with memory ids, keeps planned and other-branch facts and both disputed sides', () => {
   const { store, search } = searchFixture()
   const base = extraction('chain')
   const refs = ['Kestrel', 'Harbor project', 'Ledger customer', 'Rina team']
   const memories: ProposalMemory[] = refs.slice(1).map((ref, i) => ({
     ...base.memories[0]!,
-    summary: `${refs[i]} is part of ${ref}.`,
+    summary: `Supported relationship ${i}.`,
     entities: [refs[i]!, ref],
     links: [
       {
+        label: '',
         subject: refs[i]!,
         predicate: 'part_of',
         object: ref,
@@ -67,9 +68,10 @@ it('recalls three structural hops with memory ids, keeps planned and other-branc
     branch: 'other',
     now: Date.now(),
   })
-  expect(result.paths.some((path) => path.length === 3)).toBe(true)
+  const paths = result.hits.flatMap((h) => (h.trail ? [h.trail.links] : []))
+  expect(paths.some((path) => path.length === 2)).toBe(true)
   expect(
-    result.paths
+    paths
       .flat()
       .every((link) =>
         store.memory(link.memoryId).memory.links.some((candidate) => candidate.id === link.id),
@@ -92,6 +94,7 @@ it('does not expand through a non-focus hub above 200 connections and bounds nei
     entities: [subject!, object!],
     links: [
       {
+        label: '',
         subject: subject!,
         object: object!,
         predicate: 'part_of',
@@ -116,12 +119,12 @@ it('does not expand through a non-focus hub above 200 connections and bounds nei
     branch: null,
     now: Date.now(),
   })
-  expect(result.paths.every((path) => path.length <= 1)).toBe(true)
+  expect(result.hits.every((h) => (h.trail?.links.length ?? 0) <= 1)).toBe(true)
   expect(result.hits.every((hit) => hit.memory.summary === 'Supported connection 0.')).toBe(true)
   const hub = node('Ledger hub')
   expect(store.neighbourhood(hub.id, 2, 9999).nodes.length).toBeLessThanOrEqual(300)
   const a = node(leaves[0]!)
   const b = node(leaves[1]!)
-  expect(store.path(a.id, b.id).paths).toEqual([])
+  expect(search.routes(a.id, b.id, Date.now()).routes).toEqual([])
   expect(store.entity(kestrel.id).entity.connections).toBe(1)
 })

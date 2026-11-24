@@ -15,7 +15,7 @@ export function named(items: BrainEntity[], query: string): BrainEntity[] {
     ),
   )
 }
-export function entitySeeds(ctx: Context, query: string, limit: number): string[] {
+export function matchedSeeds(ctx: Context, query: string, limit: number) {
   const probes = [
     ...new Set([query, ...tokens(query).filter((word) => !STOPWORDS.has(word))]),
   ].slice(0, 33)
@@ -39,7 +39,13 @@ export function entitySeeds(ctx: Context, query: string, limit: number): string[
   )
     .flat()
     .sort((a, b) => priority[a.channel] - priority[b.channel])
-  return [...new Set(matches.map((item) => item.entityId))].slice(0, 200)
+  return {
+    candidates: [...new Set(matches.map((item) => item.entityId))].slice(0, 200),
+    keys: matches.filter((m) => m.channel === 'key').map((m) => m.entityId),
+  }
+}
+export function entitySeeds(ctx: Context, query: string, limit: number): string[] {
+  return matchedSeeds(ctx, query, limit).candidates
 }
 export function lexicalIds(ctx: Context, query: string, limit = 50): string[] {
   return wordRows(ctx, 'memory_words', query, limit).flatMap((row) => {

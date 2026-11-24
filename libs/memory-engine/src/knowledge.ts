@@ -1,5 +1,6 @@
 import type { BrainLink, BrainMemory, BrainMemoryDetail, BrainQuote } from '@phosphor/shared/brain'
 import { all, one, type Context } from './database'
+import { LINK } from './relation-reads'
 import { referencedEntities } from './entities'
 import type { EvidenceExcerpt } from './types'
 
@@ -23,7 +24,10 @@ export function memoryCards(ctx: Context, ids: string[]): BrainMemory[] {
   const cards = new Map(
     all<MemoryRow>(
       ctx,
-      `SELECT m.id,m.job_id AS jobId,m.summary,m.type,m.epistemic AS kind,m.state,m.scope,m.branch,m.valid_from AS validFrom,m.valid_to AS validTo,m.observed_at AS observedAt,m.recorded_at AS recordedAt,m.origin_session AS originSession,m.origin_title AS originTitle FROM json_each(?) j JOIN memories m ON m.id=j.value`,
+      `SELECT m.id,m.job_id AS jobId,m.summary,m.type,m.epistemic AS kind,m.state,m.scope,m.branch,m.valid_from AS validFrom,m.valid_to AS validTo,m.observed_at AS observedAt,m.recorded_at AS recordedAt,m.origin_session AS originSession,m.origin_title AS originTitle,m.importance,
+        CASE WHEN MAX(e.session_id IS NOT NULL AND e.role='user') THEN 'you' ELSE 'agent' END AS saidBy,
+        COUNT(DISTINCT e.session_id) AS lanes FROM json_each(?) j CROSS JOIN memories m ON m.id=j.value
+        LEFT JOIN citations c ON c.memory=m.n LEFT JOIN evidence e ON e.n=c.evidence GROUP BY m.n`,
       selected,
     ).map(({ originSession, originTitle, ...row }) => [
       row.id,
@@ -44,7 +48,7 @@ export function memoryCards(ctx: Context, ids: string[]): BrainMemory[] {
     cards.get(row.memoryId)!.entityIds.push(row.entityId)
   for (const link of all<BrainLink>(
     ctx,
-    `SELECT CAST(r.n AS TEXT) AS id,s.id AS subjectId,r.predicate,o.id AS objectId,m.id AS memoryId FROM json_each(?) j JOIN memories m ON m.id=j.value JOIN relations r ON r.memory=m.n JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object ORDER BY r.memory,r.subject,r.predicate,r.object`,
+    `SELECT ${LINK} FROM json_each(?) j JOIN memories m ON m.id=j.value JOIN relations r ON r.memory=m.n JOIN entities s ON s.n=r.subject JOIN entities o ON o.n=r.object ORDER BY r.memory,r.subject,r.predicate,r.object`,
     selected,
   ))
     cards.get(link.memoryId)!.links.push(link)
@@ -91,6 +95,11 @@ export function memory(ctx: Context, id: string): BrainMemoryDetail {
     : undefined
   return {
     memory: card,
+    use: one<BrainMemoryDetail['use']>(
+      ctx,
+      'SELECT recalled,last_recalled AS lastRecalledAt,flagged FROM memory_use WHERE memory=?',
+      n,
+    ) ?? { recalled: 0, lastRecalledAt: null, flagged: 0 },
     quotes: quotes(
       ctx,
       'SELECT c.quote,e.text,e.label FROM citations c JOIN evidence e ON e.n=c.evidence WHERE c.memory=?',

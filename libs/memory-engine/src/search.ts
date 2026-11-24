@@ -1,4 +1,9 @@
-import { entities, recent } from './browse'
+import { expand } from './expand'
+import { routes } from './routes'
+import { resolve } from './resolve'
+import { RECALL_TUNING } from './recall-tuning'
+export { RECALL_TUNING, rank } from './recall'
+import { entities } from './browse'
 import { randomUUID } from 'node:crypto'
 import type { BrainFindResult } from '@phosphor/shared/brain'
 import { all, type Context } from './database'
@@ -19,17 +24,18 @@ function find(
   limit: number,
   nearest: Nearest,
   degradation: string[],
+  tuning: typeof RECALL_TUNING,
 ): BrainFindResult {
   const cap = Math.min(50, Math.max(0, limit))
   if (!query.trim() || !cap) return { entities: [], memories: [], referenced: [], degradation }
   const input = { query, vector, limit: cap, scope: null, branch: null, now: ctx.now() }
-  const memories = rank(ctx, input, nearest)
+  const memories = rank(ctx, input, nearest, tuning)
     .hits.slice(0, cap)
     .map((hit) => hit.memory)
   const entityIds = [
     ...new Set([
       ...entitySeeds(ctx, query, cap),
-      ...nearest.entities.filter((item) => item.score >= 0.35).map((item) => item.id),
+      ...nearest.entities.filter((item) => item.score >= tuning.minCosine).map((item) => item.id),
     ]),
   ].slice(0, cap)
   return {
@@ -114,12 +120,30 @@ class SearchIndexes {
     this.ctx.db.close()
   }
 }
-export function openBrainSearch(options: Pick<OpenStoreOptions, 'path' | 'Database'>): BrainSearch {
+/** One WAL snapshot per move, including its nearest-vector reads. Avoid taking the read lock
+ * anew for each indexed probe, and never mix pre- and post-save rows in a trail. */
+function readSnapshot<T>(ctx: Context, read: () => T): T {
+  ctx.db.exec('BEGIN')
+  try {
+    const result = read()
+    ctx.db.exec('COMMIT')
+    return result
+  } catch (error) {
+    ctx.db.exec('ROLLBACK')
+    throw error
+  }
+}
+export function openBrainSearch(
+  options: Pick<OpenStoreOptions, 'path' | 'Database'> & { tuning?: Partial<typeof RECALL_TUNING> },
+): BrainSearch {
   const ctx: Context = {
     db: new options.Database(options.path, { readOnly: true, timeout: 2000 }),
     now: Date.now,
     id: randomUUID,
   }
+  // Random vector and edge reads can use the OS page cache without copying each SQLite page.
+  ctx.db.exec('PRAGMA mmap_size=536870912')
+  const tuning = { ...RECALL_TUNING, ...options.tuning }
   const indexes = new SearchIndexes(ctx)
   const degradation = () =>
     indexes.loaded ? [] : ['Semantic index loading; words and names only.']
@@ -131,14 +155,27 @@ export function openBrainSearch(options: Pick<OpenStoreOptions, 'path' | 'Databa
     refresh: () => indexes.refresh(),
     ready: () => indexes.loaded,
     entities: (kind, offset, limit, sort) => entities(ctx, kind, offset, limit, sort),
-    recent: (limit) => recent(ctx, limit),
+    expand: (input) => readSnapshot(ctx, () => expand(ctx, input, tuning)),
+    resolve: (names) => readSnapshot(ctx, () => resolve(ctx, names)),
+    routes: (from, to, now) => readSnapshot(ctx, () => routes(ctx, from, to, now)),
     nearestEntities: (vectors, k) =>
       vectors.map((vector) => (indexes.loaded ? indexes.entities.nearest(vector, k) : [])),
     nearestMemories: (vectors, k) =>
       vectors.map((vector) => (indexes.loaded ? indexes.memories.nearest(vector, k) : [])),
-    recall: (input) => recall(ctx, input, nearest(input.vector), degradation()),
+    recall: (input) =>
+      readSnapshot(ctx, () => recall(ctx, input, nearest(input.vector), degradation(), tuning)),
     find: (query, vector, limit) =>
-      find(ctx, query, indexes.loaded ? vector : null, limit, nearest(vector), degradation()),
+      readSnapshot(ctx, () =>
+        find(
+          ctx,
+          query,
+          indexes.loaded ? vector : null,
+          limit,
+          nearest(vector),
+          degradation(),
+          tuning,
+        ),
+      ),
     close: () => indexes.close(),
   }
 }

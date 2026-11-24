@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { BRAIN_ENTITY_KINDS } from '@phosphor/shared/brain'
 import { fixture } from './test-support'
-import { recentEntities } from './browse-recent'
+import { recentEntities } from './browse'
 import type { Context } from './database'
 
 /** The sort's definition, which reads every listed entity's mentions; used here as the oracle. */
