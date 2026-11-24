@@ -432,17 +432,18 @@ any hosted work, never another product's project or org/prod AWS account
 `559050243724`. The known hosted ledger maps to canonical repository SQL as
 follows; a different timestamp does not mean a schema is missing:
 
-| Canonical repository migration           | Hosted version   | Hosted name           |
-| ---------------------------------------- | ---------------- | --------------------- |
-| `20261005235137_remote_directory.sql`    | `20261005235137` | `remote_directory`    |
-| `20261012144607_control_enrollment.sql`  | `20261012144607` | `control_enrollment`  |
-| `20261013120000_control_grants.sql`      | `20261013185415` | `control_grants`      |
-| `20261014120000_control_web_clients.sql` | `20261018182658` | `control_web_clients` |
+| Canonical repository migration            | Hosted version   | Hosted name            |
+| ----------------------------------------- | ---------------- | ---------------------- |
+| `20261005235137_remote_directory.sql`     | `20261005235137` | `remote_directory`     |
+| `20261012144607_control_enrollment.sql`   | `20261012144607` | `control_enrollment`   |
+| `20261013120000_control_grants.sql`       | `20261013185415` | `control_grants`       |
+| `20261014120000_control_web_clients.sql`  | `20261018182658` | `control_web_clients`  |
+| `20261027120000_usage_admin.sql`          | `20261123232720` | `usage_admin`          |
+| `20261124120000_control_durable_auth.sql` | `20261124032707` | `control_durable_auth` |
 
-The Web migration is already applied to that target from the exact checked-in
-SQL. Its two functions were verified as security invokers with EXECUTE denied
-to anon/authenticated and allowed to service_role. No user/credential data was
-seeded. Recheck the actual state before each activation; this mapping is not a
+The Web migrations are applied to that target from the exact checked-in SQL,
+the durable-auth one through the Management API's migration endpoint, before
+the server that needs it deployed. No user/credential data was seeded. Recheck the actual state before each activation; this mapping is not a
 license to run a blind `db push`, replay schemas under repository timestamps or
 rewrite the hosted ledger. Do not edit applied SQL to make retries succeed.
 
@@ -465,17 +466,19 @@ select p.oid::regprocedure as function_name,
        pg_get_functiondef(p.oid) as definition
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
-  and p.proname in ('control_web_client_status', 'control_web_clients_list')
+  and (p.proname like 'control\_web\_%' or p.proname = 'control_nonce_claim')
 order by p.oid::regprocedure::text;
 ```
 
-Expect exactly `control_web_client_status(uuid,uuid)` and
-`control_web_clients_list(uuid)`, `security_definer=false`, empty fixed
-`search_path`, false anon/authenticated/public EXECUTE and true service_role
-EXECUTE. Compare the definitions (allowing PostgreSQL's formatting) with
-`supabase/migrations/20261014120000_control_web_clients.sql`: owner/kind/revocation
-and enabled-account checks for status, bounded owner-only listing, no credential
-storage. Inspect ledger statements through the authorized surface if content
+Expect exactly `control_nonce_claim(text,text,integer)`,
+`control_web_clients_list(uuid)`, `control_web_session_create(uuid,text,uuid,text)`,
+`control_web_session_end(text)` and `control_web_session_use(text)`, with
+`security_definer=false`, empty fixed `search_path`, false
+anon/authenticated/public EXECUTE and true service_role EXECUTE. Compare the
+definitions (allowing PostgreSQL's formatting) with
+`supabase/migrations/20261124120000_control_durable_auth.sql` and
+`20261014120000_control_web_clients.sql`: session, client, account and Auth
+session checks on use, bounded owner-only listing, only a handle hash stored. Inspect ledger statements through the authorized surface if content
 reconciliation is needed; do not infer equivalence from a name alone. Stop on
 missing/extra functions, unexpected privileges or content/ledger mismatch and
 obtain an explicit migration/reconciliation decision. If provisioning a genuinely
