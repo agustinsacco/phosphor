@@ -15,6 +15,7 @@ import type { ActionResult } from './migration/gate-actions'
 import { migrationPermit } from './migration/journal'
 import type { PostCommitSteps } from './migration/post-commit'
 import { writeServiceRecord } from './migration/service-record'
+import { installView, logInstallChanges } from './install-status'
 
 /**
  * This Mac's launch gate in Desktop main (D1 §3.6-3.7): called once after
@@ -29,6 +30,7 @@ const BEFORE_GATE: LocalMachineStatus = { mode: 'in-app', migration: 'not-needed
 
 let gate: LaunchGate | null = null
 let install: DaemonInstall | null = null
+let installing: LocalMachineStatus['install']
 const listeners = new Set<(status: LocalMachineStatus) => void>()
 
 export interface LaunchGateOptions {
@@ -39,9 +41,7 @@ export interface LaunchGateOptions {
 /** Decides This Mac's runtime mode; resolves once it is decided. Never rejects. */
 export async function runLaunchGate(options: LaunchGateOptions = {}): Promise<LocalRuntimeMode> {
   gate ??= createLaunchGate(desktopGatePorts(options.postCommit ?? {}))
-  gate.onStatus((status) => {
-    for (const listener of [...listeners]) listener(status)
-  })
+  gate.onStatus(notify)
   let mode: LocalRuntimeMode
   try {
     mode = await gate.run()
@@ -54,8 +54,15 @@ export async function runLaunchGate(options: LaunchGateOptions = {}): Promise<Lo
   return mode
 }
 
+/** The gate's status; while in-app, with the background service install's progress. */
 export function launchGateStatus(): LocalMachineStatus {
-  return gate?.status() ?? BEFORE_GATE
+  const status = gate?.status() ?? BEFORE_GATE
+  return status.mode === 'in-app' && installing ? { ...status, install: installing } : status
+}
+
+function notify(): void {
+  const status = launchGateStatus()
+  for (const listener of [...listeners]) listener(status)
 }
 
 export function onLaunchGateStatus(listener: (status: LocalMachineStatus) => void): () => void {
@@ -101,6 +108,11 @@ function startServiceInstall(): void {
     baseEnv,
   })
   const permitted = migrationPermit({ isPackaged: app.isPackaged, env: process.env }).allowed
+  install.subscribe(logInstallChanges((event, data) => log('local-machine', event, data)))
+  install.subscribe((status) => {
+    installing = installView(status)
+    notify()
+  })
   install.subscribe((status) => {
     if (status.state !== 'installed' || !permitted) return
     writeServiceRecord(userData, status, new Date().toISOString())
