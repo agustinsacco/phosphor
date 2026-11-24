@@ -230,6 +230,11 @@ owner connection, again when recall changes and on reconnect. Only the recall pr
 survives in `app-services.json`, so new lanes can load the recall skill with Desktop closed and
 answer “unavailable”. The service never opens Brain's database.
 
+In in-app Desktop, the lane’s `phosphor` tool can also call catalog ops under the local
+agent-control policy. `brain.status` shows indexing progress without model names or usage.
+`brain.queue` can queue a read of a named local lane, not just the asking lane. The usual read
+exclusions still apply. Its reply gives the same limited status.
+
 ### Why a memory comes back
 
 Ask returns up to eight answer memories with no project preference. The page’s memory search
@@ -359,7 +364,8 @@ in either version.
   claims per part and 300 per job. The reader can miss a connection or make a wrong guess.
   Neither a short trail nor a high ranking proves a claim. Routes are bounded and skip hubs as
   intermediate steps; no route found does not prove two people have nothing in common.
-- Ordinary lanes can search and flag, not edit. Only one flag can be open per memory, five
+- Ordinary lanes cannot edit memories. In-app Desktop also lets them inspect indexing status and
+  queue local reads under [agent control](agent-control.md). Only one flag can be open per memory, five
   per lane session and fifty across Brain. The same lane cannot flag the same memory twice.
   Brain limits all lanes together to ten flag requests per minute.
 - The journal keeps the newest 200 changes, changes in the latest run and erasures younger than
