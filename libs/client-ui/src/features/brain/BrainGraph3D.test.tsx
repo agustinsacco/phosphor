@@ -180,6 +180,7 @@ it('passes the mentioned nodes, val and aggregated edges to the lazy library wit
     memoryId: 'db',
     count: 1,
     predicates: ['uses'],
+    sentences: ['Harbor uses PostgreSQL'],
   })
   const width = setting<(link: GraphLink) => number>('linkWidth')
   expect(width(data().links[0]!)).toBeGreaterThan(0)

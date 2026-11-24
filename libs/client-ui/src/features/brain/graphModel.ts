@@ -1,4 +1,10 @@
-import type { BrainEntityKind, BrainGraph, BrainMemory, BrainPredicate } from '@shared/brain'
+import {
+  brainLinkSentence,
+  type BrainEntityKind,
+  type BrainGraph,
+  type BrainMemory,
+  type BrainPredicate,
+} from '@shared/brain'
 
 export interface GraphNode {
   id: string
@@ -19,6 +25,8 @@ export interface GraphLink {
   target: string | GraphNode
   count: number
   predicates: BrainPredicate[]
+  /** The link as a sentence, subject to object, said when the edge is hovered. */
+  sentences: string[]
 }
 export interface GraphModel {
   nodes: GraphNode[]
@@ -30,6 +38,7 @@ export function memoryEntityIds(memories: BrainMemory[]): Set<string> {
 /** A bounded server projection. Keep direction and support ids, including parallel edges. */
 export function graphModel(graph: BrainGraph): GraphModel {
   const known = new Set(graph.nodes.map((node) => node.id))
+  const label = new Map(graph.nodes.map((node) => [node.id, node.label]))
   return {
     nodes: graph.nodes.map((entity) => ({
       id: entity.id,
@@ -51,6 +60,9 @@ export function graphModel(graph: BrainGraph): GraphModel {
         target: link.objectId,
         count: 1,
         predicates: [link.predicate],
+        sentences: [
+          brainLinkSentence(link, label.get(link.subjectId)!, label.get(link.objectId)!),
+        ],
       })),
   }
 }
