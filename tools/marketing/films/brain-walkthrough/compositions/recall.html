@@ -13,13 +13,11 @@
       <p class="step">4 of 4 · Explore</p>
       <div class="copy">
         <h2 id="recall-title" class="title clip" data-start="0.2" data-duration="5.4">
-          <span class="in">New lanes can <em>search</em> it</span>
+          <span class="in"><em>Ask</em> about the handover</span>
         </h2>
         <div class="subs">
           <p id="recall-sub" class="sub clip" data-start="0.8" data-duration="4.8">
-            <span class="in"
-              >A read-only tool. Restart open lanes; nothing syncs to Hosts or the browser.</span
-            >
+            <span class="in">Brain shows the memories and lights their trail on the map.</span>
           </p>
         </div>
       </div>
@@ -28,11 +26,11 @@
     <div class="win" data-layout-allow-overflow>
       <div id="recall-pan" class="pan">
         <div id="recall-cam" class="cam">
-          <img class="plate" src="assets/shots/brain-recall.png" alt="" />
+          <img class="plate capture" src="assets/shots/brain-recall.png" alt="" />
           <div
             id="recall-ring"
             class="ring"
-            style="left: 576px; top: 213px; width: 172px; height: 25px"
+            style="left: 943px; top: 148px; width: 376px; height: 65px"
           ></div>
         </div>
       </div>
@@ -41,9 +39,9 @@
   <script>
     ;(() => {
       const tl = gsap.timeline({ paused: true })
-      const cam = PX.camera(tl, '#recall-cam')
+      const cam = PX.camera(tl, '#recall-cam', { w: 1344, h: 956 })
       PX.whipIn(tl, '#recall-pan')
-      cam.cut([540, 44, 780, 520]).move([556, 196, 744, 350], 0.6, 1.4)
+      cam.cut([352, 32, 989, 534]).move([911, 40, 431, 270], 0.6, 1.4)
       PX.ring(tl, '#recall-ring', 2.1)
       PX.title(tl, '#recall-title .in', 0.3)
       PX.line(tl, '#recall-sub .in', 0.9)

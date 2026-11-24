@@ -20,7 +20,7 @@
             <span class="in">Desktop only. Read the model terms before you turn it on.</span>
           </p>
           <p id="enable-sub2" class="sub clip" data-start="4.6" data-duration="3.4">
-            <span class="in">It downloads EmbeddingGemma, so search runs on this computer.</span>
+            <span class="in">Search uses an embedding model on this computer.</span>
           </p>
         </div>
       </div>
@@ -34,12 +34,12 @@
           <div
             id="enable-terms"
             class="ring"
-            style="left: 496px; top: 129px; width: 128px; height: 22px"
+            style="left: 575px; top: 128px; width: 129px; height: 22px"
           ></div>
           <div
-            id="enable-ready"
+            id="enable-local"
             class="ring"
-            style="left: 229px; top: 407px; width: 340px; height: 26px"
+            style="left: 232px; top: 126px; width: 473px; height: 24px"
           ></div>
           <img id="enable-cursor" class="cursor" src="assets/cursor.svg" alt="" />
         </div>
@@ -52,16 +52,16 @@
       const DIALOG = { w: 880, h: 780 }
       const cam = PX.camera(tl, '#enable-cam', DIALOG)
       const cursor = PX.cursor(tl, '#enable-cursor')
-      cam.cut([228, 0, 632, 540])
+      cam.cut([224, 0, 644, 532])
       PX.ring(tl, '#enable-terms', 1.6, 4)
       cursor.cut([560, 430]).move([830, 118], 3.4, 1).press(4.6)
       PX.swap(tl, '#enable-on', 4.6)
-      cam.move([228, 330, 640, 160], 5.5, 1.3, 1.3)
-      PX.ring(tl, '#enable-ready', 6.3, 7.9)
+      cam.move([224, 64, 636, 264], 5.5, 1.3, 1.3)
+      PX.ring(tl, '#enable-local', 6.3, 7.9)
       PX.line(tl, '#enable-title .in', undefined, 8)
       PX.line(tl, '#enable-sub .in', 0.6, 4.4)
       PX.line(tl, '#enable-sub2 .in', 4.7, 8)
-      PX.draw(tl, '#enable-fill', 0, 8, 0, 1)
+      PX.draw(tl, '#enable-fill', 0, 8, 0, 0.65)
       window.__timelines['enable'] = tl
     })()
   </script>

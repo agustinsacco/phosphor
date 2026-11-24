@@ -41,7 +41,8 @@ the subject.
 
 ## Weakest shots, and what would fix them
 
-- **Push-ins are soft.** Captures are 1600×1000 at 1×, and the camera goes to 1.5×. Captures
+- **Push-ins are soft.** Captures are at 1×. The What changed panel in particular is a 384×225
+  crop, shown at 2× to keep the read and Undo legible. Captures
   taken at device scale 2 (same layout, so the rectangles hold) would make every push-in sharp
   with no change to the films.
 - **`enable` (brain-walkthrough, 0-4.6 s).** The settings dialog is mostly empty until the

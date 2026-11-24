@@ -9,7 +9,7 @@ export const films = [
       'Start with a lane: choose a repository and model, and keep independent tasks on separate worktrees.',
       'Inspect tool calls, changed files and versioned artifacts instead of relying on a final message.',
       'Use the PR inspector to check evidence. Hand-off buttons draft a message; you decide whether to send it.',
-      'Opt into Brain on Desktop to keep decisions from selected lanes. Reach your own Hosts from Desktop or the PWA.',
+      'Opt into Brain on Desktop to follow relationships across selected lanes. Reach your own Hosts from Desktop or the PWA.',
     ],
   },
   {
@@ -19,10 +19,10 @@ export const films = [
       'Read a lane, walk a relationship and see what Brain Agent changed. Silent walkthrough of Desktop’s opt-in knowledge graph.',
     guide: '/guides/brain/',
     steps: [
-      'Open Settings → Brain, read the model terms, enable it and wait for the local embedding model.',
-      'Queue a local lane from its menu. Its read saves at once. Open What changed to see how it was read or undo the save.',
-      'Start with your card. Follow a sentence to the other end. Ask a question to light its trail on the map.',
-      'Brain Agent checks links and repeats after reads settle. Inspect its reasons in What changed, or click Defrag to run a check yourself.',
+      'On Desktop, read the terms in Settings → Brain and enable local search. Brain Agent checks new knowledge up to six times a day; turn off automatic checks to use Defrag only.',
+      'Queue a local lane from its menu. Extraction calls the lane’s provider. A read saves when it finishes.',
+      'Open What changed to see each saved read and Brain Agent change. Inspect how a lane was read or undo an eligible change.',
+      'Follow the handover sentence from Rina Okafor to Tom Lee. His card separates Now from Before. Ask about the handover to see the memories and their trail.',
     ],
   },
   {

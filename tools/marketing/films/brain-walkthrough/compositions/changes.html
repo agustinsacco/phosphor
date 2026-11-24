@@ -1,0 +1,63 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+    }
+  </style>
+  <div id="root" data-composition-id="changes" data-width="1280" data-height="720">
+    <div class="col">
+      <div class="rail">
+        <i class="done"></i><i class="done"></i><i><b id="changes-fill"></b></i><i></i>
+      </div>
+      <p class="step">3 of 4 · Changes</p>
+      <div class="copy">
+        <h2 id="changes-title" class="title clip" data-start="0.2" data-duration="7.8">
+          <span class="in">See <em>What changed</em></span>
+        </h2>
+        <div class="subs">
+          <p id="changes-sub" class="sub clip" data-start="0.8" data-duration="3.3">
+            <span class="in">Each saved read and Brain Agent change appears here.</span>
+          </p>
+          <p id="changes-sub2" class="sub clip" data-start="4.3" data-duration="3.7">
+            <span class="in">Inspect a read or undo an eligible change.</span>
+          </p>
+        </div>
+      </div>
+      <p class="slate" data-layout-ignore>Product demo · fictional data</p>
+    </div>
+    <div class="win" data-layout-allow-overflow>
+      <div id="changes-pan" class="pan">
+        <div id="changes-cam" class="cam">
+          <img class="plate capture" src="assets/shots/brain-changes.png" alt="" />
+          <div
+            id="changes-run"
+            class="ring"
+            style="left: 4px; top: 89px; width: 306px; height: 28px"
+          ></div>
+          <div
+            id="changes-undo"
+            class="ring"
+            style="left: 334px; top: 164px; width: 50px; height: 34px"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    ;(() => {
+      const tl = gsap.timeline({ paused: true })
+      const cam = PX.camera(tl, '#changes-cam', { w: 384, h: 225 })
+      PX.whipIn(tl, '#changes-pan')
+      cam.cut([0, 0, 384, 225], 0, 2)
+      PX.ring(tl, '#changes-run', 1.6, 3.8)
+      PX.ring(tl, '#changes-undo', 5.2, 7.6)
+      PX.whipOut(tl, '#changes-pan', 8)
+      PX.title(tl, '#changes-title .in', 0.3, 8)
+      PX.line(tl, '#changes-sub .in', 0.9, 4.1)
+      PX.line(tl, '#changes-sub2 .in', 4.4, 8)
+      PX.draw(tl, '#changes-fill', 0, 8, 0, 1)
+      window.__timelines['changes'] = tl
+    })()
+  </script>
+</template>

@@ -76,8 +76,9 @@ change the hashes in `media.json`; commit the media and the record together.
 
 ## Editing a film
 
-- Coordinates are capture pixels. `cam.cut([x, y, w, h])` frames that rectangle of the 1600×1000
-  capture; rings are positioned in the same space. A re-captured screen with a different layout
+- Coordinates are capture pixels. `cam.cut([x, y, w, h])` frames that rectangle of the original
+  capture; rings are positioned in the same space. Brain plates include settings dialogs, page
+  captures and a cropped What changed panel, each framed at its own dimensions. A re-captured screen with a different layout
   needs its rectangles revisited: open the PNG and read them off.
 - A line of copy holds about 0.5 s plus 0.3 s a word. `hyperframes check` reports one that does not.
 - A scene's slot in `index.html` and its `data-duration` in `films.json` must agree; the tests say

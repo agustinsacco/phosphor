@@ -164,6 +164,10 @@ body {
   height: 1000px;
   max-width: none;
 }
+.plate.capture {
+  width: auto;
+  height: auto;
+}
 .plate.dialog {
   width: 880px;
   height: 780px;
