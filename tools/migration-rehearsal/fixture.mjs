@@ -3,6 +3,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { createPublicKey, generateKeyPairSync, randomInt, randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { userInfo } from 'node:os'
+import { clearTimeout, setTimeout } from 'node:timers'
 import { dirname, join, resolve } from 'node:path'
 
 const project = resolve(import.meta.dirname, '../..')
@@ -43,7 +44,7 @@ export function fence(root, roots, sources) {
   let profile = `(version 1) (allow default)
     (deny file-write*) (allow file-write* (subpath (param "ROOT")))
     (deny network*) (allow network-bind network-inbound network-outbound (literal (param "SOCKET")))
-    (deny signal) (allow signal (target self))
+    (deny signal) (allow signal (target same-sandbox))
     (deny appleevent-send)
     (deny mach-lookup (global-name "com.apple.SecurityServer") (global-name-prefix "com.apple.securityd"))`
   for (const [i, path] of protectedDirs.entries()) {
@@ -136,31 +137,92 @@ export function supportsMigration(profile, host, env) {
   return Array.isArray(list) && features.every((f) => list.includes(f))
 }
 
-export function startChild(profile, program, args, env) {
+/**
+ * `output` is a scratch file descriptor for the child's stdout and stderr, private to the run.
+ * @param {number | 'ignore'} [output]
+ */
+export function startChild(profile, program, args, env, output = 'ignore') {
   const child = spawn(sandbox, [...profile, program, ...args], {
     cwd: env.HOME,
     env,
-    stdio: 'ignore',
+    stdio: ['ignore', output, output],
     detached: true,
   })
   let stopped = false
-  child.on('error', () => {
-    stopped = true
+  const exited = new Promise((resolve) => {
+    child.on('error', () => {
+      stopped = true
+      resolve(null)
+    })
+    child.on('exit', (code, signal) => {
+      stopped = true
+      resolve(code ?? signal)
+    })
   })
-  child.on('exit', () => {
-    stopped = true
-  })
+  const signal = (name) => {
+    if (!stopped && child.pid) {
+      try {
+        process.kill(-child.pid, name)
+      } catch (err) {
+        if (err.code !== 'ESRCH') throw err
+      }
+    }
+  }
   return {
     running: () => !stopped,
     pid: child.pid,
-    stop: () => {
-      if (!stopped && child.pid) {
-        try {
-          process.kill(-child.pid, 'SIGKILL')
-        } catch (err) {
-          if (err.code !== 'ESRCH') throw err
-        }
-      }
+    exited,
+    stop: () => signal('SIGKILL'),
+    /** As a person quits: SIGTERM, then SIGKILL after 15 s. */
+    async quit() {
+      signal('SIGTERM')
+      const timer = setTimeout(() => signal('SIGKILL'), 15000)
+      await exited
+      clearTimeout(timer)
     },
+  }
+}
+
+/** The LaunchAgent's `KeepAlive {SuccessfulExit: false}`: start again after a non-zero exit. */
+export function supervise(launch) {
+  let current = launch(),
+    stopping = false
+  const exits = []
+  const watch = (child) =>
+    child.exited.then((code) => {
+      exits.push(code)
+      if (stopping || code === 0) return
+      current = launch()
+      return watch(current)
+    })
+  // A failed restart is evidence too: the run sees the service down and reports it.
+  watch(current).catch(() => exits.push('restart-failed'))
+  return {
+    get pid() {
+      return current.pid
+    },
+    running: () => current.running(),
+    exits,
+    stop: () => {
+      stopping = true
+      current.stop()
+    },
+  }
+}
+
+/** One `phosphor` CLI command against the scratch service, inside the same fence. */
+export function cli(profile, host, env, args) {
+  try {
+    const out = execFileSync(sandbox, [...profile, process.execPath, host, ...args], {
+      cwd: env.HOME,
+      env,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      timeout: 60000,
+      maxBuffer: 16 * 1024 * 1024,
+    })
+    return { code: 0, out }
+  } catch (err) {
+    return { code: err.status ?? 1, out: err.stdout ?? '' }
   }
 }

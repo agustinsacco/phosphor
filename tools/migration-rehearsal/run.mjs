@@ -1,9 +1,12 @@
 import process from 'node:process'
 import console from 'node:console'
+import { openSync } from 'node:fs'
 import { access, lstat, mkdir, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { parseArgs } from 'node:util'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { checkedLayout, flags } from './assert-scratch.mjs'
+import { checkedLayout } from './assert-scratch.mjs'
+import { rehearseAfterCommit, transcripts } from './cycle.mjs'
 import {
   desktop,
   electron,
@@ -11,6 +14,7 @@ import {
   fixtureEnv,
   seedDaemon,
   startChild,
+  supervise,
   supportsMigration,
 } from './fixture.mjs'
 import { readRecord, journalReport, readReport } from './report.mjs'
@@ -81,7 +85,7 @@ async function waitJournal(dir, start, children) {
   return readReport(dir, start)
 }
 
-async function run(layout) {
+async function run(layout, full) {
   const { root, roots } = layout,
     sources = await ready(root, roots)
   const profile = fence(root, roots, sources),
@@ -109,16 +113,22 @@ async function run(layout) {
       return 1
     }
     const id = await seedDaemon(roots)
-    const daemon = startChild(
-      profile,
-      process.execPath,
-      [host, 'run', '--config', join(roots.config, 'config.json')],
-      env,
+    const sessionsBefore = full ? await transcripts(roots.agent) : null
+    // Private evidence for a failed run; deleted with the rest of scratch.
+    const serviceLog = openSync(join(root, 'service.log'), 'a', 0o600)
+    const daemon = supervise(() =>
+      startChild(
+        profile,
+        process.execPath,
+        [host, 'run', '--config', join(roots.config, 'config.json')],
+        env,
+        serviceLog,
+      ),
     )
     children.push(daemon)
     await waitDaemon(roots, id, daemon)
-    children.push(
-      startChild(
+    const launchDesktop = (extra = []) => {
+      const app = startChild(
         profile,
         electron,
         // Chromium's own sandbox cannot start inside Seatbelt; sandbox-exec stays the fence.
@@ -128,21 +138,37 @@ async function run(layout) {
           '--use-mock-keychain',
           `--user-data-dir=${roots.userData}`,
           desktop,
+          ...extra,
         ],
         env,
-      ),
-    )
+      )
+      children.push(app)
+      return app
+    }
+    const first = launchDesktop()
     const report = await waitJournal(join(roots.userData, 'daemon-migration'), start, children)
-    console.log(JSON.stringify(report))
-    return report.complete ? 0 : 1
+    if (!full || !report.complete) {
+      console.log(JSON.stringify(report))
+      return report.complete ? 0 : 1
+    }
+    await first.quit()
+    const journal = await readRecord(join(roots.userData, 'daemon-migration', 'journal.json'))
+    const ctx = { roots, profile, env, host, daemon, desktop: launchDesktop, sessionsBefore }
+    const after = await rehearseAfterCommit(ctx, journal.migrationId)
+    console.log(JSON.stringify({ ...report, afterCommit: after, elapsedMs: Date.now() - start }))
+    return after.complete ? 0 : 1
   } finally {
     stop()
   }
 }
 
-let layout
+let layout, full
 try {
-  layout = checkedLayout(flags('scratch').scratch)
+  const { values } = parseArgs({
+    options: { scratch: { type: 'string' }, full: { type: 'boolean' } },
+  })
+  full = values.full === true
+  layout = checkedLayout(values.scratch)
 } catch {
   console.error('Scratch assertion refused')
   process.exitCode = 99
@@ -150,7 +176,7 @@ try {
 if (layout) {
   process.umask(0o077)
   try {
-    process.exitCode = await run(layout)
+    process.exitCode = await run(layout, full)
   } catch {
     console.error(
       'Refused: invalid inputs, sandbox, build, daemon or journal. No successful rehearsal.',
