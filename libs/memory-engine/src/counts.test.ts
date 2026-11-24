@@ -3,7 +3,10 @@ import { entities } from './browse'
 import type { Context } from './database'
 import { approve, extraction, fixture, vector } from './test-support'
 
-/** Tom Lee takes over Harbor: Rina Okafor's only memory is superseded. */
+/**
+ * Tom Lee takes over Harbor: Rina Okafor's only memory is superseded, and her ownership travels
+ * to the handover memory as history, so that memory names her too.
+ */
 function handover() {
   const { store, db } = fixture()
   approve(store)
@@ -44,9 +47,10 @@ it('counts only current memories in the header, type counts and lanes alike', ()
       view.entity.memories,
     )
   }
-  expect(store.entity(rina).entity.memories).toBe(0)
-  expect(store.entity(rina).sources).toEqual([])
-  expect(store.entity(rina).lastLearnedAt).toBeNull()
+  expect(store.entity(rina).entity.memories).toBe(1)
+  expect(store.entity(rina).sources.map((s) => [s.title, s.memories])).toEqual([
+    ['Ledger planning', 1],
+  ])
   expect(store.entity(harbor).entity.memories).toBe(2)
   expect(
     store
@@ -64,7 +68,7 @@ it('browses and draws entities with the same current count', () => {
   const ctx: Context = { db, now: () => 1, id: () => 'made-up' }
   const page = entities(ctx, null, 0, 100, 'connected')
   expect(page.items.find((item) => item.entity.id === harbor)!.memories).toBe(2)
-  expect(page.items.some((item) => item.entity.id === rina)).toBe(false)
+  expect(page.items.find((item) => item.entity.id === rina)!.memories).toBe(1)
   expect(store.overview(300).nodes.find((node) => node.id === harbor)!.memories).toBe(2)
 })
 
@@ -73,8 +77,8 @@ it('corrects counts stored under the old definitions as Tidy visits each record'
   db.exec('UPDATE entities SET memories=memories+5,connections=connections+5')
   const stored = () => store.overview(300).nodes.find((node) => node.id === harbor)!
   expect(stored().memories).toBe(7)
-  expect(store.entity(harbor).entity).toMatchObject({ memories: 2, connections: 2 })
   while (store.sweep('all').coverage.phase === 'entities');
+  // Rina's ended ownership is history: it no longer counts as a connection of Harbor.
   expect(stored()).toMatchObject({ memories: 2, connections: 2 })
-  expect(store.entity(rina).entity.memories).toBe(0)
+  expect(store.entity(rina).entity.memories).toBe(1)
 })
