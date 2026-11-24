@@ -36,6 +36,34 @@ const createRoot = async () => mkdtemp(join(await realpath(tmpdir()), 'phosphor-
 /** The production stack runs no Host, so it seeds no lanes. */
 const UNSEEDED = { laneId: '', secondLaneId: '', repository: '' }
 
+type Clients = Map<string, { owner: string; revoked: boolean }>
+type WebSessions = Map<string, { owner: string; clientId: string }>
+/** Browser sessions as the control_web_session_* RPCs keep them, keyed by handle hash. */
+function webSessionRpc(
+  db: { clients: Clients; sessions: WebSessions; owner: string; sid: string },
+  name: string,
+  args: Record<string, unknown>,
+) {
+  const hash = String(args.p_handle_hash)
+  const session = db.sessions.get(hash)
+  if (name === 'control_web_session_create') {
+    const clientId = randomUUID()
+    db.clients.set(clientId, { owner: String(args.p_user), revoked: false })
+    db.sessions.set(hash, { owner: String(args.p_user), clientId })
+    return { outcome: 'created', clientId }
+  }
+  if (!session || db.clients.get(session.clientId)?.revoked !== false)
+    return { outcome: 'not-found' }
+  if (name === 'control_web_session_end') {
+    db.sessions.delete(hash)
+    db.clients.get(session.clientId)!.revoked = true
+    return { outcome: 'ended' }
+  }
+  const login = session.owner === db.owner ? 'fixture-owner' : 'fixture-other'
+  const { owner: userId, clientId } = session
+  return { outcome: 'active', userId, login, clientId, sid: db.sid, renewed: false }
+}
+
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
 export async function browserFixture(production = false) {
   const root = await createRoot()
@@ -51,8 +79,8 @@ export async function browserFixture(production = false) {
     const owners = [randomUUID(), randomUUID()]
     const sid = randomUUID(),
       hostId = randomUUID()
-    const clients = new Map<string, { owner: string; revoked: boolean }>()
-    const webSessions = new Map<string, { owner: string; clientId: string }>()
+    const clients: Clients = new Map()
+    const sessions: WebSessions = new Map()
     const codes = new Map<string, { challenge: string; owner: string }>()
     const state = {
       owner: owners[0]!,
@@ -217,29 +245,11 @@ export async function browserFixture(production = false) {
         getUser: async () => Promise.reject(new ControlFailure('unauthenticated')),
         async rpc(name, args) {
           if (name === 'control_nonce_claim') return claimNonce(args)
+          if (name.startsWith('control_web_session_'))
+            return webSessionRpc({ clients, sessions, owner: owners[0]!, sid }, name, args)
           switch (name) {
             case 'control_account':
               return { enabled: true, maxHosts: 100 }
-            case 'control_web_session_create': {
-              const clientId = randomUUID()
-              clients.set(clientId, { owner: String(args.p_user), revoked: false })
-              webSessions.set(String(args.p_handle_hash), { owner: String(args.p_user), clientId })
-              return { outcome: 'created', clientId }
-            }
-            case 'control_web_session_use': {
-              const session = webSessions.get(String(args.p_handle_hash))
-              if (!session || clients.get(session.clientId)?.revoked !== false)
-                return { outcome: 'not-found' }
-              const login = session.owner === owners[0] ? 'fixture-owner' : 'fixture-other'
-              const { owner: userId, clientId } = session
-              return { outcome: 'active', userId, login, clientId, sid, renewed: false }
-            }
-            case 'control_web_session_end': {
-              const session = webSessions.get(String(args.p_handle_hash))
-              webSessions.delete(String(args.p_handle_hash))
-              if (session) clients.get(session.clientId)!.revoked = true
-              return { outcome: session ? 'ended' : 'not-found' }
-            }
             case 'control_client_revoke': {
               const client = clients.get(String(args.p_client))
               if (!client || client.owner !== args.p_user) return { outcome: 'not-found' }

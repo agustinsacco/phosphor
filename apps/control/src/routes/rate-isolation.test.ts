@@ -4,6 +4,16 @@ import { CONTROL_ROUTES as R } from '@phosphor/shared/control-api'
 import { createApp } from '../app'
 import { parseConfig } from '../config'
 import { dependencies, signingKey, userId } from '../test-support'
+/** A token the verification cache has never seen, so each call verifies upstream. */
+const freshToken = (now: number) =>
+  `e30.${Buffer.from(
+    JSON.stringify({
+      exp: now / 1000 + 600,
+      aud: 'authenticated',
+      sub: userId,
+      session_id: randomUUID(),
+    }),
+  ).toString('base64url')}.c2ln`
 
 /** Keys each rate-limit purpose may hold; test-support wires the production limiter. */
 const purposeCapacity = 10_000
@@ -55,16 +65,6 @@ function setup() {
       headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify(value),
     })
-  /** A token the verification cache has never seen, so each call verifies upstream. */
-  const freshToken = () =>
-    `e30.${Buffer.from(
-      JSON.stringify({
-        exp: deps.clock() / 1000 + 600,
-        aud: 'authenticated',
-        sub: userId,
-        session_id: randomUUID(),
-      }),
-    ).toString('base64url')}.c2ln`
   return {
     deps,
     enroll: (ip: string) => from(ip, post(R.enrollments, {})),
@@ -72,7 +72,7 @@ function setup() {
       from(
         ip,
         new Request('http://localhost' + R.me, {
-          headers: { authorization: `Bearer ${freshToken()}` },
+          headers: { authorization: `Bearer ${freshToken(deps.clock())}` },
         }),
       ),
     issueGrant: (ip: string) =>
@@ -81,11 +81,18 @@ function setup() {
         post(
           R.grants,
           { hostId, clientId: client.id },
-          { authorization: `Bearer ${freshToken()}` },
+          { authorization: `Bearer ${freshToken(deps.clock())}` },
         ),
       ),
     registerClient: (ip: string) =>
-      from(ip, post(R.clients, { label: 'Desktop' }, { authorization: `Bearer ${freshToken()}` })),
+      from(
+        ip,
+        post(
+          R.clients,
+          { label: 'Desktop' },
+          { authorization: `Bearer ${freshToken(deps.clock())}` },
+        ),
+      ),
     hostSelf: (ip: string) =>
       from(ip, hostKey.request('GET', R.hostSelf, undefined, deps.clock(), hostId)),
   }

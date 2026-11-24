@@ -26,8 +26,10 @@ describe('bounded browser Supabase port', () => {
     const sid = '00000000-0000-4000-8000-000000000013'
     const access = (claims: object) =>
       `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.c2ln`
-    const answer = (user: object, claims = { sub: userId, aud: 'authenticated', session_id: sid }) =>
-      Response.json({ access_token: access(claims), refresh_token: 'discarded', user })
+    const answer = (
+      user: object,
+      claims = { sub: userId, aud: 'authenticated', session_id: sid },
+    ) => Response.json({ access_token: access(claims), refresh_token: 'discarded', user })
     const exchange = async (response: Response) => {
       const deps = dependencies()
       deps.fetch = vi.fn(async () => response)

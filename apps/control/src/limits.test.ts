@@ -175,7 +175,7 @@ it('bounds all eight control purposes together at 80,000 keys and admits fresh k
     'enrollment-failure': 10_000,
     'user-verify': 10_000,
     'host-auth': 10_000,
-        'usage-ping': 10_000,
+    'usage-ping': 10_000,
     'usage-download': 10_000,
   })
   const limit = new RateLimiter(() => 0, RATE_PURPOSE_CAPACITIES)

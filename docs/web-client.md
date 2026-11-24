@@ -765,7 +765,7 @@ rollout flag unset/false, marketing content on the app hostname is expected.
 6. **Close the real gates before declaring activation accepted.** Initiate GitHub
    OAuth from the app, not the marketing site; verify callback with its state
    query, signed-in session, one bound web client, staying signed in across a
-  Control restart, and sign-out. A real
+   Control restart, and sign-out. A real
    OAuth flow cannot be tested while the rollout is disabled; treat enabling as
    a guarded acceptance window, not completion. Verify enrolled Host discovery,
    HTTPS/WSS proof, explicit control/send and revocation. On a physical Pixel,

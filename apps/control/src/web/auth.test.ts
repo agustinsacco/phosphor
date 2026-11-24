@@ -129,7 +129,10 @@ describe('browser sign-in', () => {
     const g = fixture()
     g.disable()
     const t = await g.start()
-    failed(await g.app.request(t.callback.href, { headers: { cookie: t.transaction } }), 'forbidden')
+    failed(
+      await g.app.request(t.callback.href, { headers: { cookie: t.transaction } }),
+      'forbidden',
+    )
   })
   it('uses distinct insecure development cookie names only for explicit literal loopback', async () => {
     const f = fixture()

@@ -57,9 +57,50 @@ interface Row {
   sid: string
   used: number
 }
+/** Supabase's live state as the session RPCs see it; tests flip these. */
+interface Model {
+  rows: Map<string, Row>
+  live: { account: boolean; sid: boolean; up: boolean }
+  now: () => number
+}
+/** An in-memory model of the session RPCs (the SQL itself is covered by supabase/tests). */
+function sessionRpc({ rows, live, now }: Model, name: string, args: Record<string, unknown>) {
+  const hash = String(args.p_handle_hash)
+  const row = rows.get(hash)
+  switch (name) {
+    case 'control_account':
+      return { enabled: live.account, maxHosts: 100 }
+    case 'control_web_session_create':
+      if (!live.account) return { outcome: 'account-disabled' }
+      rows.set(hash, {
+        owner: String(args.p_user),
+        client: clientId,
+        sid: String(args.p_sid),
+        used: now(),
+      })
+      return { outcome: 'created', clientId }
+    case 'control_web_session_use': {
+      if (!row) return { outcome: 'not-found' }
+      if (now() - row.used > 90 * 24 * HOUR || !live.sid) {
+        rows.delete(hash)
+        return { outcome: 'not-found' }
+      }
+      if (!live.account) return { outcome: 'account-disabled' }
+      const renewed = now() - row.used > HOUR
+      if (renewed) row.used = now()
+      const { owner: userId, client, sid } = row
+      return { outcome: 'active', userId, login: 'tester', clientId: client, sid, renewed }
+    }
+    case 'control_web_session_end':
+      return { outcome: rows.delete(hash) ? 'ended' : 'not-found' }
+    case 'control_web_clients_list':
+      return { clients: [{ id: clientId, label: 'Web browser', kind: 'web', revokedAt: null }] }
+  }
+  return undefined
+}
 /**
- * A signed-in browser session against a real app, over an in-memory model of the session
- * RPCs (the SQL itself is covered by supabase/tests). `rpc` answers names it does not model.
+ * A signed-in browser session against a real app, over the session RPC model.
+ * `rpc` answers names the model does not cover.
  */
 export function fixture(rpc?: (name: string, args: Record<string, unknown>) => unknown) {
   const deps = dependencies()
@@ -67,16 +108,20 @@ export function fixture(rpc?: (name: string, args: Record<string, unknown>) => u
   deps.clock = () => now
   const env = webEnv()
   deps.config = parseConfig(env)
-  const rows = new Map<string, Row>()
-  const live = { account: true, sid: true }
-  let unavailable = false
+  const model: Model = {
+    rows: new Map(),
+    live: { account: true, sid: true, up: true },
+    now: deps.clock,
+  }
+  const { rows, live } = model
   const codes = new Set<string>()
   const access = `e30.${Buffer.from(JSON.stringify({ aud: 'authenticated', sub: userId, session_id: sid })).toString('base64url')}.c2ln`
   deps.fetch = vi.fn(async (_url, init?: RequestInit) => {
-    if (unavailable) throw new Error('secret upstream diagnostic')
+    if (!live.up) throw new Error('secret upstream diagnostic')
     // Like Supabase, an authorization code exchanges once.
     const code = String((JSON.parse(String(init?.body)) as { auth_code: string }).auth_code)
-    if (codes.has(code)) return Response.json({ error_code: 'flow_state_not_found' }, { status: 400 })
+    if (codes.has(code))
+      return Response.json({ error_code: 'flow_state_not_found' }, { status: 400 })
     codes.add(code)
     return Response.json({
       access_token: access,
@@ -86,33 +131,8 @@ export function fixture(rpc?: (name: string, args: Record<string, unknown>) => u
     })
   })
   deps.supabase.rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
-    if (unavailable) throw new ControlFailure('unavailable')
-    const hash = String(args.p_handle_hash)
-    const row = rows.get(hash)
-    switch (name) {
-      case 'control_account':
-        return { enabled: live.account, maxHosts: 100 }
-      case 'control_web_session_create':
-        if (!live.account) return { outcome: 'account-disabled' }
-        rows.set(hash, { owner: String(args.p_user), client: clientId, sid: String(args.p_sid), used: now })
-        return { outcome: 'created', clientId }
-      case 'control_web_session_use': {
-        if (!row) return { outcome: 'not-found' }
-        if (now - row.used > 90 * 24 * HOUR || !live.sid) {
-          rows.delete(hash)
-          return { outcome: 'not-found' }
-        }
-        if (!live.account) return { outcome: 'account-disabled' }
-        const renewed = now - row.used > HOUR
-        if (renewed) row.used = now
-        return { outcome: 'active', userId: row.owner, login: 'tester', clientId: row.client, sid: row.sid, renewed }
-      }
-      case 'control_web_session_end':
-        return { outcome: rows.delete(hash) ? 'ended' : 'not-found' }
-      case 'control_web_clients_list':
-        return { clients: [{ id: clientId, label: 'Web browser', kind: 'web', revokedAt: null }] }
-    }
-    return rpc ? rpc(name, args) : { outcome: 'not-found' }
+    if (!live.up) throw new ControlFailure('unavailable')
+    return sessionRpc(model, name, args) ?? (rpc ? rpc(name, args) : { outcome: 'not-found' })
   })
   const app = createApp(deps)
   return {
@@ -132,7 +152,7 @@ export function fixture(rpc?: (name: string, args: Record<string, unknown>) => u
       live.sid = false
     },
     outage: () => {
-      unavailable = true
+      live.up = false
     },
     sessions: rows,
   }

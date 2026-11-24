@@ -239,7 +239,11 @@ it('enforces the JWT size boundary before calling Auth', async () => {
   const parts = token(deps.clock() / 1000 + 100).split('.')
   const suffix = `.${parts[1]}.${parts[2]}`
   const exact = 'A'.repeat(4096 - suffix.length) + suffix
-  await expect(auth(`Bearer ${exact}`, '127.0.0.1')).resolves.toEqual({ userId, login: 'tester', sid: sessionId })
+  await expect(auth(`Bearer ${exact}`, '127.0.0.1')).resolves.toEqual({
+    userId,
+    login: 'tester',
+    sid: sessionId,
+  })
   await expect(auth(`Bearer A${exact}`, '127.0.0.1')).rejects.toMatchObject({
     code: 'unauthenticated',
   })
