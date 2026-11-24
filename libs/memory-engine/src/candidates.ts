@@ -292,6 +292,7 @@ export function memoryMatches(ctx: Context, probes: ClaimProbe[], limit: number)
   })
 }
 const CURRENT = new Set(['active', 'disputed'])
+/** Current links only; equality is subject, predicate and object, never the wording. */
 function linkMatches(ctx: Context, probe: ClaimProbe, limit: number): StoredMemory[] {
   const rows: StoredMemory[] = []
   for (const link of probe.links) {
@@ -301,8 +302,9 @@ function linkMatches(ctx: Context, probe: ClaimProbe, limit: number): StoredMemo
       rows.push(
         ...all<StoredMemory>(
           ctx,
-          `SELECT ${STORED} FROM relations r JOIN memories m ON m.n=r.memory ${VECTOR} WHERE r.subject=? AND r.live=1 AND r.predicate=? AND r.object=? ORDER BY r.observed_at DESC LIMIT ?`,
+          `SELECT ${STORED} FROM relations r JOIN memories m ON m.n=r.memory ${VECTOR} WHERE r.subject=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>?) AND r.predicate=? AND r.object=? ORDER BY r.observed_at DESC LIMIT ?`,
           subject,
+          ctx.now(),
           link.predicate,
           object,
           limit,
@@ -313,8 +315,9 @@ function linkMatches(ctx: Context, probe: ClaimProbe, limit: number): StoredMemo
       rows.push(
         ...all<StoredMemory>(
           ctx,
-          `SELECT ${STORED} FROM relations r JOIN memories m ON m.n=r.memory ${VECTOR} WHERE r.object=? AND r.live=1 AND r.predicate='owns' ORDER BY r.observed_at DESC LIMIT ?`,
+          `SELECT ${STORED} FROM relations r JOIN memories m ON m.n=r.memory ${VECTOR} WHERE r.object=? AND r.live=1 AND (r.valid_to IS NULL OR r.valid_to>?) AND r.predicate='owns' ORDER BY r.observed_at DESC LIMIT ?`,
           object,
+          ctx.now(),
           limit,
         ),
       )
