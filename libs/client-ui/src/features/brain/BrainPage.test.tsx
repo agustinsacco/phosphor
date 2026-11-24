@@ -309,6 +309,21 @@ it('lists a saved read in What changed with Undo, and opens how it was read', as
   expect(called('brain:tidyUndo')).toHaveLength(1)
 })
 
+it('reloads What changed after a refused undo, so the next click undoes', async () => {
+  await render()
+  const changes = region('What changed')!
+  const loads = called('brain:tidyChanges').length
+  const statuses = called('brain:status').length
+  failOnce.add('brain:tidyUndo')
+  await click('Undo', changes)
+  expect(changes.querySelector('[role="alert"]')?.textContent).toContain('unavailable')
+  expect(called('brain:tidyChanges').length).toBeGreaterThan(loads)
+  expect(called('brain:status').length).toBeGreaterThan(statuses)
+  await click('Undo', changes)
+  expect(called('brain:tidyUndo')).toHaveLength(2)
+  expect(changes.textContent).toContain('undone')
+})
+
 it('recovers a failed first load of the map with Retry', async () => {
   failOnce.add('brain:neighbourhood')
   await render()
