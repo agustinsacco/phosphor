@@ -32,9 +32,8 @@ export type Env = {
     }
   }
   Variables: {
-    effectiveAuthorization: string
-    webClientId: string
-    webCsrf: string
+    /** Set only when the web adapter admitted a browser session. */
+    web: { clientId: string; csrf: string }
     rawBody: Uint8Array
     actor: string
     requestId: string

@@ -37,7 +37,7 @@ export function admin(
     CONTROL_ROUTES.adminStats,
     async (c, next) => {
       // A browser session on the app origin, never a native bearer token.
-      if (!isWebHost(c, deps) || !c.get('webClientId')) throw new ControlFailure('not-found')
+      if (!isWebHost(c, deps) || !c.get('web')) throw new ControlFailure('not-found')
       await next()
     },
     guard,

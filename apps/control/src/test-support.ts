@@ -6,8 +6,10 @@ import { RATE_PURPOSE_CAPACITIES, RateLimiter, NonceCache } from './limits'
 import type { AppDeps } from './app'
 
 export const userId = '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00'
-export function token(exp: number, aud = 'authenticated') {
-  return `e30.${Buffer.from(JSON.stringify({ exp, aud })).toString('base64url')}.c2ln`
+export const sessionId = '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d01'
+export function token(exp: number, aud = 'authenticated', sid = sessionId) {
+  const claims = { exp, aud, sub: userId, session_id: sid }
+  return `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.c2ln`
 }
 export function signingKey() {
   const pair = generateKeyPairSync('ed25519')

@@ -45,7 +45,7 @@ function setup() {
   vi.mocked(deps.supabase.rpc).mockImplementation(async (name) => results[name])
   const app = createApp(deps)
   const token = (session: unknown = sid) =>
-    `e30.${Buffer.from(JSON.stringify({ exp: deps.clock() / 1000 + 600, aud: 'authenticated', session_id: session })).toString('base64url')}.c2ln`
+    `e30.${Buffer.from(JSON.stringify({ exp: deps.clock() / 1000 + 600, aud: 'authenticated', sub: userId, session_id: session })).toString('base64url')}.c2ln`
   const call = (path: string, body?: unknown, method = 'POST', session: unknown = sid) =>
     app.request(path, {
       method,
@@ -177,8 +177,6 @@ it('registers Desktop clients, revokes only through the owner RPC, and emits ide
   expect((await s.call(R.clients + '/bad', undefined, 'DELETE')).status).toBe(400)
   s.results.control_client_revoke = { outcome: 'not-found' }
   expect((await s.call(R.clients + '/' + s.clientId, undefined, 'DELETE')).status).toBe(404)
-  s.results.control_client_register = { outcome: 'too-many-requests' }
-  expect((await s.call(R.clients, { label: 'Desktop' })).status).toBe(429)
 })
 it('fails closed on malformed input, missing verified session id, upstream denial and unavailable keys', async () => {
   const s = setup()
@@ -218,9 +216,6 @@ it('fails closed on malformed input, missing verified session id, upstream denia
   if (!valid || typeof valid !== 'object') throw new Error('missing metadata')
   s.results.control_grant_issue = { outcome: 'not-found' }
   expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(404)
-  // The owner already holds the most sessions a heartbeat can revoke.
-  s.results.control_grant_issue = { outcome: 'too-many-requests' }
-  expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(429)
   for (const value of [
     null,
     { outcome: 'unexpected' },
@@ -238,7 +233,7 @@ it('fails closed on malformed input, missing verified session id, upstream denia
   expect((await s.app.request(R.grantKeys)).status).toBe(503)
   expect((await s.call(R.clients, { label: 'Desktop' })).status).toBe(200)
 })
-it('runs user verification and the suspension check before reading session claims', async () => {
+it('runs user verification and the suspension check before issuing', async () => {
   const s = setup()
   vi.mocked(s.deps.supabase.getUser).mockRejectedValueOnce(new Error('private auth failure'))
   expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(500)
@@ -247,23 +242,12 @@ it('runs user verification and the suspension check before reading session claim
   expect(s.deps.supabase.rpc).not.toHaveBeenCalledWith('control_grant_issue', expect.anything())
   expect(JSON.stringify(vi.mocked(s.deps.log).mock.calls)).not.toContain('private auth failure')
 })
-it('enforces exact per-user issue and registration limits', async () => {
+it('never caps how many grants or clients an owner asks for', async () => {
   const s = setup()
-  for (let i = 0; i < 120; i++)
+  for (let i = 0; i < 300; i++)
     expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(200)
-  expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(429)
-  // The limit is per user: another user (a fresh token, so no cached identity) still gets one.
-  vi.mocked(s.deps.supabase.getUser).mockResolvedValueOnce({
-    id: randomUUID(),
-    user_metadata: { user_name: 'other' },
-  })
-  expect(
-    (await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId }, 'POST', randomUUID()))
-      .status,
-  ).toBe(200)
-  for (let i = 0; i < 10; i++)
+  for (let i = 0; i < 30; i++)
     expect((await s.call(R.clients, { label: 'Desktop' })).status).toBe(200)
-  expect((await s.call(R.clients, { label: 'Desktop' })).status).toBe(429)
 })
 it('delivers bounded revocations on heartbeat and keeps accepted beats on revocation failures', async () => {
   const s = setup()

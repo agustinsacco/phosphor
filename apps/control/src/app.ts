@@ -124,7 +124,7 @@ export function createApp(deps: AppDeps) {
   app.get('/healthz', (c) => c.json({ ok: true }))
   app.get(CONTROL_ROUTES.health, (c) => c.json(health(deps.config.configured, deps.version)))
   const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
-  const browser = browserAuth(deps, auth)
+  const browser = browserAuth(deps)
   if (browser) {
     app.use('/api/*', browser.adapter)
     browser.routes(app)

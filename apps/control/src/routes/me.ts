@@ -1,4 +1,3 @@
-import { effectiveAuthorization } from '../web/effective-token'
 import type { Context, Handler } from 'hono'
 import { account, type createUserAuth } from '../auth/user'
 import type { TraceEvents } from '../events'
@@ -7,7 +6,7 @@ import type { Supabase } from '../supabase'
 import { outcome, record } from './shared'
 export function me(auth: ReturnType<typeof createUserAuth>, supabase: Supabase): Handler<Env> {
   return async (c) => {
-    const user = await auth(effectiveAuthorization(c), c.get('ip'))
+    const user = await auth(c)
     c.set('actor', `user:${user.userId}`)
     return c.json(await account(supabase, user))
   }
@@ -27,7 +26,7 @@ export function deleteMe(
   signedOut: (c: Context<Env>) => void,
 ): Handler<Env> {
   return async (c) => {
-    const user = await auth(effectiveAuthorization(c), c.get('ip'))
+    const user = await auth(c)
     c.set('actor', `user:${user.userId}`)
     outcome(
       record(await supabase.rpc('control_account_delete', { p_user_id: user.userId })),

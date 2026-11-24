@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { randomBytes } from 'node:crypto'
 import { createApp } from './app'
-import { dependencies, token, userId } from './test-support'
+import { dependencies, sessionId, token, userId } from './test-support'
 import { parseConfig } from './config'
 import { ControlFailure, type Env } from './http'
-import { createUserAuth, userGuard } from './auth/user'
+import { createBearerAuth, createUserAuth, userGuard } from './auth/user'
 import { RateLimiter } from './limits'
 
 const headers = { 'content-type': 'application/json' }
@@ -190,12 +190,12 @@ describe('User auth', () => {
     vi.mocked(deps.supabase.rpc).mockResolvedValueOnce({ enabled: true, maxHosts: 20 })
     const enabled = await guarded.request('/guarded', { headers: { authorization } })
     expect(enabled.status).toBe(200)
-    expect(await enabled.json()).toEqual({ userId, login: 'tester' })
+    expect(await enabled.json()).toEqual({ userId, login: 'tester', sid: sessionId })
     expect((await guarded.request('/guarded', { headers: { authorization } })).status).toBe(403)
   })
   it('bounds the success cache at 1000 identities', async () => {
     const deps = dependencies()
-    const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
+    const auth = createBearerAuth(deps.supabase, deps.clock, deps.limits)
     for (let i = 0; i <= 1000; i++)
       await auth(`Bearer ${token(deps.clock() / 1000 + 100 + i)}`, `ip:${i}`)
     await auth(`Bearer ${token(deps.clock() / 1000 + 100)}`, '127.0.0.1')
@@ -209,7 +209,7 @@ it('stores only token hashes and rejects tokens that expire during Auth validati
   const deps = dependencies()
   let now = deps.clock()
   deps.clock = () => now
-  const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
+  const auth = createBearerAuth(deps.supabase, deps.clock, deps.limits)
   const bearer = token(now / 1000 + 1)
   const set = vi.spyOn(BoundedCache.prototype, 'set')
   try {
@@ -235,18 +235,18 @@ it('stores only token hashes and rejects tokens that expire during Auth validati
 
 it('enforces the JWT size boundary before calling Auth', async () => {
   const deps = dependencies()
-  const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
+  const auth = createBearerAuth(deps.supabase, deps.clock, deps.limits)
   const parts = token(deps.clock() / 1000 + 100).split('.')
   const suffix = `.${parts[1]}.${parts[2]}`
   const exact = 'A'.repeat(4096 - suffix.length) + suffix
-  await expect(auth(`Bearer ${exact}`, '127.0.0.1')).resolves.toEqual({ userId, login: 'tester' })
+  await expect(auth(`Bearer ${exact}`, '127.0.0.1')).resolves.toEqual({ userId, login: 'tester', sid: sessionId })
   await expect(auth(`Bearer A${exact}`, '127.0.0.1')).rejects.toMatchObject({
     code: 'unauthenticated',
   })
   expect(deps.supabase.getUser).toHaveBeenCalledTimes(1)
 })
 
-it('limits user verification misses per IP, with cache hits and pre-check failures free', async () => {
+it('spends an address budget only on failed verifications, keyed by the authenticated edge IP', async () => {
   const deps = dependencies()
   let now = deps.clock()
   deps.clock = () => now
@@ -258,48 +258,33 @@ it('limits user verification misses per IP, with cache hits and pre-check failur
     SUPABASE_SECRET_KEY: randomBytes(32).toString('hex'),
   })
   const app = createApp(deps)
-  const call = (n: number, ip = '192.0.2.1') =>
+  const forged = new Set<string>()
+  vi.mocked(deps.supabase.getUser).mockImplementation(async (bearer) => {
+    if (forged.has(bearer)) throw new ControlFailure('unauthenticated')
+    return { id: userId, user_metadata: { user_name: 'tester' } }
+  })
+  const call = (n: number, ip = '192.0.2.1', edge = edgeSecret) =>
     app.request('/api/v1/me', {
       headers: {
         authorization: `Bearer ${token(deps.clock() / 1000 + 100 + n)}`,
         'cf-connecting-ip': ip,
-        'x-phosphor-edge': edgeSecret,
+        'x-phosphor-edge': edge,
       },
     })
-  for (let i = 0; i < 31; i++) {
-    expect(
-      (
-        await app.request('/api/v1/me', {
-          headers: {
-            authorization: 'Bearer garbage',
-            'cf-connecting-ip': '192.0.2.1',
-            'x-phosphor-edge': edgeSecret,
-          },
-        })
-      ).status,
-    ).toBe(401)
+  // Any number of real users behind one address verify freely.
+  for (let i = 0; i < 100; i++) expect((await call(i)).status).toBe(200)
+  for (let i = 0; i < 30; i++) {
+    forged.add(token(deps.clock() / 1000 + 1000 + i))
+    expect((await call(900 + i)).status).toBe(401)
   }
-  expect((await call(0)).status).toBe(200)
-  for (let i = 0; i < 31; i++) expect((await call(0)).status).toBe(200)
-  for (let i = 1; i < 30; i++) expect((await call(i)).status).toBe(200)
-  expect((await call(30)).status).toBe(429)
-  expect(deps.supabase.getUser).toHaveBeenCalledTimes(30)
-  expect((await call(30, '192.0.2.2')).status).toBe(200)
-  expect(deps.supabase.getUser).toHaveBeenCalledTimes(31)
+  expect((await call(1000)).status).toBe(429)
+  expect((await call(0)).status, 'a cached token costs nothing').toBe(200)
+  expect((await call(1000, '192.0.2.2')).status).toBe(200)
   now += 60_000
-  expect((await call(31)).status).toBe(200)
-  expect(deps.supabase.getUser).toHaveBeenCalledTimes(32)
-  // Without edge authentication different forwarded IPs share the socket bucket.
-  for (let i = 0; i < 31; i++) {
-    const response = await app.request('/api/v1/me', {
-      headers: {
-        authorization: `Bearer ${token(deps.clock() / 1000 + 200 + i)}`,
-        'cf-connecting-ip': `192.0.2.${i + 1}`,
-        ...(i % 2 ? { 'x-phosphor-edge': randomBytes(32).toString('base64url') } : {}),
-      },
-    })
-    expect(response.status).toBe(i < 30 ? 200 : 429)
-  }
+  expect((await call(1001)).status).toBe(200)
+  // Without edge authentication, a forwarded address is ignored for the socket's.
+  const spoofed = await call(2000, '192.0.2.9', randomBytes(32).toString('base64url'))
+  expect(spoofed.status).toBe(200)
   const logs = JSON.stringify(vi.mocked(deps.log).mock.calls)
   expect(logs).not.toContain('192.0.2.')
   expect(logs).not.toContain(edgeSecret)

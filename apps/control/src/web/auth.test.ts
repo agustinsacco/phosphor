@@ -1,9 +1,11 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { createApp } from '../app'
+import { ControlFailure } from '../http'
 import { parseConfig } from '../config'
 import { token, userId } from '../test-support'
 import {
+  HOUR,
   clientId,
   cookie,
   cookieName,
@@ -12,9 +14,18 @@ import {
   origin,
   otherId,
   sid,
+  transactionName,
 } from './test-fixture'
-describe('browser authentication boundary', () => {
-  it('binds PKCE to encrypted transaction; emits only safe session fields and secure cookies', async () => {
+
+const failed = (res: Response, code: string) => {
+  expect(res.status).toBe(303)
+  expect(res.headers.get('location')).toBe(`/?signin-error=${code}`)
+}
+const session = (f: ReturnType<typeof fixture>, value: string, app = f.app) =>
+  app.request(origin + '/api/auth/session', { headers: { cookie: value } })
+
+describe('browser sign-in', () => {
+  it('binds PKCE to a sealed transaction and keeps only a random handle in the cookie', async () => {
     const f = fixture(),
       login = await f.login()
     expect(login.started.location.searchParams.get('code_challenge_method')).toBe('s256')
@@ -28,58 +39,60 @@ describe('browser authentication boundary', () => {
       expect(res.headers.get('set-cookie')).toContain('Secure')
       expect(res.headers.get('set-cookie')).not.toContain('Domain=')
     }
+    expect(login.res.headers.get('set-cookie')).toContain(`Max-Age=${90 * 86_400}`)
     expect(login.view).toEqual({
       user: { id: userId, login: 'tester' },
       clientId,
       csrfToken: expect.stringMatching(/^[\w-]{43}$/),
     })
-    const exposed = JSON.stringify([login.view, vi.mocked(f.deps.log).mock.calls])
-    expect(exposed).not.toMatch(/refresh-secret|DISCARD-GITHUB|short-lived-code|access_token/)
-    expect(f.deps.supabase.rpc).toHaveBeenCalledWith('control_client_register', {
+    const handle = login.session.slice(cookieName.length + 1)
+    expect(handle).toMatch(/^[\w-]{43}$/)
+    const hash = createHash('sha256').update(handle).digest('hex')
+    expect(f.deps.supabase.rpc).toHaveBeenCalledWith('control_web_session_create', {
       p_user: userId,
-      p_label: 'Web browser',
-      p_kind: 'web',
+      p_login: 'tester',
+      p_sid: sid,
+      p_handle_hash: hash,
     })
+    // Neither the database nor the logs ever see the handle or a provider token.
+    const exposed = JSON.stringify([
+      login.view,
+      vi.mocked(f.deps.log).mock.calls,
+      vi.mocked(f.deps.supabase.rpc).mock.calls,
+    ])
+    expect(exposed).not.toContain(handle)
+    expect(exposed).not.toMatch(/refresh-secret|DISCARD-GITHUB|short-lived-code|e30\./)
   })
-  it('refuses tampered, expired, mismatched, duplicate and replayed transactions', async () => {
-    for (const mode of ['tampered', 'expired', 'state', 'duplicate', 'replay']) {
+  it('sends tampered, expired, mismatched and replayed sign-ins back to the app with a code', async () => {
+    for (const mode of ['tampered', 'expired', 'state', 'missing', 'replay']) {
       const f = fixture(),
         s = await f.start()
       let transaction = s.transaction
       if (mode === 'tampered') transaction += 'x'
-      if (mode === 'expired') for (let i = 0; i < 9; i++) f.advance()
+      if (mode === 'expired') f.advance(600_001)
       if (mode === 'state') s.callback.searchParams.set('state', 'a'.repeat(43))
-      if (mode === 'duplicate') s.callback.searchParams.append('code', 'second')
+      if (mode === 'missing') transaction = ''
       if (mode === 'replay')
-        expect(
-          (await f.app.request(s.callback.href, { headers: { cookie: transaction } })).status,
-        ).toBe(303)
+        await f.app.request(s.callback.href, { headers: { cookie: transaction } })
       const res = await f.app.request(s.callback.href, { headers: { cookie: transaction } })
-      expect(res.status, mode).toBe(401)
+      failed(res, 'unauthenticated')
       expect(await res.text()).not.toContain('short-lived-code')
+      expect(res.headers.get('set-cookie') ?? '').not.toMatch(new RegExp(`${cookieName}=[\\w-]`))
     }
   })
-  it('refuses unsafe return paths, cross-site start and wrong host/forwarded host', async () => {
+  it('refuses unsafe return paths, cross-site start and a wrong or forwarded host', async () => {
     const f = fixture()
-    for (const path of [
-      '//evil.test',
-      '/api/auth/session',
-      '/\\evil',
-      '/ok?token=secret',
-      '/%2f%2fevil',
-    ]) {
-      expect(
-        (await f.app.request(origin + '/api/auth/start?returnTo=' + encodeURIComponent(path)))
-          .status,
-      ).toBe(400)
-    }
-    expect(
-      (
-        await f.app.request(origin + '/api/auth/start', {
-          headers: { 'sec-fetch-site': 'same-site' },
-        })
-      ).status,
-    ).toBe(403)
+    for (const path of ['//evil.test', '/api/auth/session', '/\\evil', '/ok?token=x', '/%2f%2fe'])
+      failed(
+        await f.app.request(origin + '/api/auth/start?returnTo=' + encodeURIComponent(path)),
+        'bad-request',
+      )
+    failed(
+      await f.app.request(origin + '/api/auth/start', {
+        headers: { 'sec-fetch-site': 'same-site' },
+      }),
+      'forbidden',
+    )
     const wrong = await f.app.request('https://evil.test/api/auth/start', {
       headers: { 'x-forwarded-host': new URL(origin).host },
     })
@@ -89,281 +102,34 @@ describe('browser authentication boundary', () => {
       (await f.app.request(origin + '/api/auth/start', { headers: { host: 'evil.test' } })).status,
     ).toBe(404)
   })
-  it('requires both exact Origin and session CSRF for mutations, including sibling origins', async () => {
+  it('returns a signed-in browser home instead of starting or finishing another sign-in', async () => {
     const f = fixture(),
       l = await f.login()
-    for (const [requestOrigin, csrf] of [
-      [origin, 'wrong'],
-      ['https://phosphor.example.test', l.view.csrfToken],
-      ['https://evil.test', l.view.csrfToken],
-      ['', l.view.csrfToken],
-    ]) {
-      const res = await f.app.request(origin + '/api/auth/signout', {
-        method: 'POST',
-        headers: { ...mutationHeaders(l.sealed, csrf!), origin: requestOrigin! },
-        body: '{}',
-      })
-      expect(res.status).toBe(403)
-      expect(res.headers.get('set-cookie')).toBeNull()
-    }
-    expect(
-      (
-        await f.app.request(origin + '/api/v1/clients/' + clientId, {
-          method: 'DELETE',
-          headers: { cookie: l.sealed },
-        })
-      ).status,
-    ).toBe(403)
+    const again = await f.app.request(origin + '/api/auth/start?returnTo=/lanes', {
+      headers: { cookie: l.session },
+    })
+    expect(again.status).toBe(303)
+    expect(again.headers.get('location')).toBe('/lanes')
+    expect(again.headers.get('set-cookie')).toBeNull()
+    const s = await f.start()
+    const back = await f.app.request(s.callback.href, {
+      headers: { cookie: `${s.transaction}; ${l.session}` },
+    })
+    expect(back.headers.get('location')).toBe('/machines')
+    expect(cookie(back, transactionName)).toBe(`${transactionName}=`)
+    expect(f.sessions.size).toBe(1)
   })
-  it('keeps site bearer-only and rejects app bearer ambiguity', async () => {
+  it('sends an outage and a disabled account to the app without diagnostics', async () => {
     const f = fixture(),
-      l = await f.login()
-    expect(
-      (
-        await f.app.request('https://phosphor.example.test/api/v1/me', {
-          headers: { cookie: l.sealed },
-        })
-      ).status,
-    ).toBe(401)
-    expect(
-      (
-        await f.app.request('https://phosphor.example.test/api/v1/me', {
-          headers: {
-            cookie: l.sealed,
-            authorization: `Bearer ${token(f.deps.clock() / 1000 + 100)}`,
-          },
-        })
-      ).status,
-    ).toBe(200)
-    expect(
-      (
-        await f.app.request(origin + '/api/auth/session', {
-          headers: { cookie: l.sealed, authorization: 'Bearer anything' },
-        })
-      ).status,
-    ).toBe(400)
-  })
-  it('refuses invalid cookies and sanitizes unavailable upstream responses', async () => {
-    const f = fixture()
-    expect(
-      (
-        await f.app.request(origin + '/api/auth/session', {
-          headers: { cookie: cookieName + '=invalid' },
-        })
-      ).status,
-    ).toBe(401)
-    const start = await f.start()
+      s = await f.start()
     f.outage()
-    const res = await f.app.request(start.callback.href, { headers: { cookie: start.transaction } })
-    expect(res.status).toBe(503)
+    const res = await f.app.request(s.callback.href, { headers: { cookie: s.transaction } })
+    failed(res, 'unavailable')
     expect(await res.text()).not.toContain('secret')
-  })
-  it('rotates sealing keys and accepts a cookie in a second process without session memory', async () => {
-    const f = fixture(),
-      l = await f.login()
-    f.deps.config = parseConfig({
-      ...f.env,
-      CONTROL_WEB_SESSION_KEYS: `second=${randomBytes(32).toString('base64url')},${f.env.CONTROL_WEB_SESSION_KEYS}`,
-    })
-    const second = createApp(f.deps)
-    const res = await second.request(origin + '/api/auth/session', {
-      headers: { cookie: l.sealed },
-    })
-    expect(res.status).toBe(200)
-    expect(cookie(res, cookieName)).toContain('=second.')
-  })
-  it('coalesces refresh, checks verified user and session consistency, and retains session on transient failure', async () => {
-    const f = fixture(),
-      l = await f.login()
-    f.advance()
-    const results = await Promise.all(
-      Array.from({ length: 4 }, () =>
-        f.app.request(origin + '/api/auth/session', { headers: { cookie: l.sealed } }),
-      ),
-    )
-    expect(results.map((r) => r.status)).toEqual([200, 200, 200, 200])
-    expect(
-      vi.mocked(f.deps.fetch).mock.calls.filter(([url]) => String(url).includes('refresh_token')),
-    ).toHaveLength(1)
-    for (const change of ['user', 'sid']) {
-      const altered = fixture(),
-        login = await altered.login()
-      altered.advance()
-      if (change === 'user') altered.changeIdentity()
-      else altered.changeSid()
-      expect(
-        (
-          await altered.app.request(origin + '/api/auth/session', {
-            headers: { cookie: login.sealed },
-          })
-        ).status,
-      ).toBe(401)
-    }
-    const outage = fixture(),
-      login = await outage.login()
-    outage.advance()
-    outage.outage()
-    const res = await outage.app.request(origin + '/api/auth/session', {
-      headers: { cookie: login.sealed },
-    })
-    expect(res.status).toBe(503)
-    expect(res.headers.get('set-cookie')).toBeNull()
-  })
-  it('keeps the session when the browser misses a rotated cookie and replays the old one', async () => {
-    const f = fixture(),
-      l = await f.login()
-    const session = (sealed: string) =>
-      f.app.request(origin + '/api/auth/session', { headers: { cookie: sealed } })
-    f.advance()
-    // The rotated cookie is lost: an aborted fetch, a suspended PWA, or an older
-    // re-seal landing after it. The browser keeps the pre-rotation cookie.
-    const rotated = await session(l.sealed)
-    expect(rotated.status).toBe(200)
-    for (let i = 0; i < 3; i++) f.advance()
-    const stale = await session(l.sealed)
-    expect(stale.status).toBe(200)
-    expect(cookie(stale, cookieName)).not.toBe(l.sealed)
-    expect((await session(cookie(rotated, cookieName))).status).toBe(200)
-    const refreshed = vi
-      .mocked(f.deps.fetch)
-      .mock.calls.filter(([url]) => String(url).includes('refresh_token'))
-      .map(
-        ([, init]) => (JSON.parse(String(init?.body)) as { refresh_token: string }).refresh_token,
-      )
-    // Never hand Supabase a spent refresh token: reuse detection would revoke the session.
-    expect(new Set(refreshed).size).toBe(refreshed.length)
-  })
-  it('keeps an active session past a day, until its absolute lifetime', async () => {
-    const f = fixture(),
-      l = await f.login()
-    let sealed = l.sealed
-    for (let i = 0; i < 1235; i++) f.advance()
-    const day = await f.app.request(origin + '/api/auth/session', { headers: { cookie: sealed } })
-    expect(day.status).toBe(200)
-    sealed = cookie(day, cookieName)
-    expect(day.headers.get('set-cookie')).toMatch(/Max-Age=1\d{6};/)
-    for (let i = 0; i < 1235 * 13; i++) f.advance()
-    const res = await f.app.request(origin + '/api/auth/session', { headers: { cookie: sealed } })
-    expect(res.status).toBe(401)
-  })
-  it('refuses re-registration, client substitution and all API use after device revoke', async () => {
-    const f = fixture(),
-      l = await f.login()
-    expect(
-      (
-        await f.app.request(origin + '/api/v1/clients', {
-          method: 'POST',
-          headers: mutationHeaders(l.sealed, l.view.csrfToken),
-          body: '{"label":"bypass"}',
-        })
-      ).status,
-    ).toBe(403)
-    const issue = (id: string) =>
-      f.app.request(origin + '/api/v1/grants', {
-        method: 'POST',
-        headers: mutationHeaders(l.sealed, l.view.csrfToken),
-        body: JSON.stringify({ hostId: otherId, clientId: id }),
-      })
-    expect((await issue(otherId)).status).toBe(403)
-    expect((await issue(clientId)).status).toBe(404)
-    expect(f.deps.supabase.rpc).toHaveBeenCalledWith('control_grant_issue', {
-      p_user: userId,
-      p_host: otherId,
-      p_client: clientId,
-      p_sid: sid,
-    })
-    const keyset = await f.app.request(origin + '/api/v1/grant-keys', {
-      headers: { cookie: l.sealed },
-    })
-    expect(keyset.status).toBe(200)
-    expect(keyset.headers.get('set-cookie')).toBeNull()
-    expect(keyset.headers.get('cache-control')).toBe('public, max-age=300')
-    const clients = await f.app.request(origin + '/api/v1/clients', {
-      headers: { cookie: l.sealed },
-    })
-    expect(clients.status).toBe(200)
-    f.revoke()
-    for (const path of ['/api/auth/session', '/api/v1/me', '/api/v1/clients']) {
-      expect((await f.app.request(origin + path, { headers: { cookie: l.sealed } })).status).toBe(
-        401,
-      )
-      expect(
-        (await createApp(f.deps).request(origin + path, { headers: { cookie: l.sealed } })).status,
-      ).toBe(401)
-    }
-  })
-  it('clears locally, revokes only this device and Auth session, and refuses old cookies after restart', async () => {
-    const f = fixture(),
-      l = await f.login()
-    const res = await f.app.request(origin + '/api/auth/signout', {
-      method: 'POST',
-      headers: mutationHeaders(l.sealed, l.view.csrfToken),
-      body: '{}',
-    })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ signedOut: true, remoteCleanup: 'complete' })
-    expect(res.headers.get('set-cookie')).toContain('Max-Age=0')
-    expect(f.deps.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/logout?scope=local'),
-      expect.anything(),
-    )
-    expect(
-      (
-        await createApp(f.deps).request(origin + '/api/auth/session', {
-          headers: { cookie: l.sealed },
-        })
-      ).status,
-    ).toBe(401)
-  })
-  it('reports pending when remote cleanup is unavailable, without promising durable logout', async () => {
-    const f = fixture(),
-      l = await f.login()
-    f.outage()
-    const res = await f.app.request(origin + '/api/auth/signout', {
-      method: 'POST',
-      headers: mutationHeaders(l.sealed, l.view.csrfToken),
-      body: '{}',
-    })
-    expect(await res.json()).toEqual({ signedOut: true, remoteCleanup: 'pending' })
-    expect(res.headers.get('set-cookie')).toContain('Max-Age=0')
-    expect(
-      (
-        await createApp(f.deps).request(origin + '/api/auth/session', {
-          headers: { cookie: l.sealed },
-        })
-      ).status,
-    ).toBeGreaterThanOrEqual(500)
-  })
-  it('refuses a refreshed cookie delivered late after durable logout, in a new process', async () => {
-    const f = fixture(),
-      l = await f.login()
-    f.advance()
-    const refresh = await f.app.request(origin + '/api/auth/session', {
-      headers: { cookie: l.sealed },
-    })
-    expect(refresh.status).toBe(200)
-    const lateCookie = cookie(refresh, cookieName)
-    const logout = await f.app.request(origin + '/api/auth/signout', {
-      method: 'POST',
-      headers: mutationHeaders(l.sealed, l.view.csrfToken),
-      body: '{}',
-    })
-    expect(logout.status).toBe(200)
-    expect(
-      (
-        await createApp(f.deps).request(origin + '/api/auth/session', {
-          headers: { cookie: lateCookie },
-        })
-      ).status,
-    ).toBe(401)
-  })
-  it('expires the sealed session absolutely and clears invalid cookies for a new sign-in', async () => {
-    const f = fixture(),
-      l = await f.login()
-    for (let i = 0; i < 1235 * 14; i++) f.advance()
-    const res = await f.app.request(origin + '/api/auth/session', { headers: { cookie: l.sealed } })
-    expect(res.status).toBe(401)
-    expect(res.headers.get('set-cookie')).toContain('Max-Age=0')
+    const g = fixture()
+    g.disable()
+    const t = await g.start()
+    failed(await g.app.request(t.callback.href, { headers: { cookie: t.transaction } }), 'forbidden')
   })
   it('uses distinct insecure development cookie names only for explicit literal loopback', async () => {
     const f = fixture()
@@ -374,31 +140,154 @@ describe('browser authentication boundary', () => {
     expect(res.headers.get('set-cookie')).not.toContain('Secure')
     expect(res.headers.get('set-cookie')).toContain('HttpOnly')
   })
-  it('does not revive a client when logout wins a race with refresh', async () => {
+})
+
+describe('browser session', () => {
+  it('requires both exact Origin and the session CSRF token for mutations', async () => {
     const f = fixture(),
       l = await f.login()
-    f.advance()
-    let release!: () => void
-    f.delay(
-      new Promise<void>((resolve) => {
-        release = resolve
-      }),
-    )
-    const pending = f.app.request(origin + '/api/auth/session', { headers: { cookie: l.sealed } })
-    await vi.waitFor(() =>
-      expect(
-        vi.mocked(f.deps.fetch).mock.calls.some(([url]) => String(url).includes('refresh_token')),
-      ).toBe(true),
-    )
-    const logout = await f.app.request(origin + '/api/auth/signout', {
+    for (const [requestOrigin, csrf] of [
+      [origin, 'wrong'],
+      ['https://phosphor.example.test', l.view.csrfToken],
+      ['https://evil.test', l.view.csrfToken],
+      ['', l.view.csrfToken],
+    ]) {
+      const res = await f.app.request(origin + '/api/auth/signout', {
+        method: 'POST',
+        headers: { ...mutationHeaders(l.session, csrf!), origin: requestOrigin! },
+        body: '{}',
+      })
+      expect(res.status).toBe(403)
+      expect(res.headers.get('set-cookie')).toBeNull()
+    }
+    expect(f.sessions.size).toBe(1)
+  })
+  it('keeps the site bearer-only and refuses a bearer on the app', async () => {
+    const f = fixture(),
+      l = await f.login()
+    const site = (headers: Record<string, string>) =>
+      f.app.request('https://phosphor.example.test/api/v1/me', { headers })
+    expect((await site({ cookie: l.session })).status).toBe(401)
+    const bearer = `Bearer ${token(f.deps.clock() / 1000 + 100)}`
+    expect((await site({ cookie: l.session, authorization: bearer })).status).toBe(200)
+    expect(
+      (
+        await f.app.request(origin + '/api/auth/session', {
+          headers: { cookie: l.session, authorization: 'Bearer anything' },
+        })
+      ).status,
+    ).toBe(400)
+  })
+  it('clears an unknown or old-format cookie without asking the database about junk', async () => {
+    const f = fixture()
+    for (const value of ['first.c2VhbGVk', 'x'.repeat(43), 'invalid']) {
+      const res = await session(f, `${cookieName}=${value}`)
+      expect(res.status, value).toBe(401)
+      expect(res.headers.get('set-cookie')).toContain(`${cookieName}=; Path=/`)
+    }
+    expect(vi.mocked(f.deps.supabase.rpc).mock.calls.map(([name]) => name)).toEqual([
+      'control_web_session_use',
+    ])
+  })
+  it('survives restarts, replicas and a sealing-key rotation: nothing lives in memory', async () => {
+    const f = fixture(),
+      l = await f.login()
+    f.deps.config = parseConfig({
+      ...f.env,
+      CONTROL_WEB_SESSION_KEYS: `second=${randomBytes(32).toString('base64url')}`,
+    })
+    const res = await session(f, l.session, createApp(f.deps))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('set-cookie')).toBeNull()
+  })
+  it('slides: each hour of use renews the same handle for another 90 days', async () => {
+    const f = fixture(),
+      l = await f.login()
+    for (let day = 0; day < 200; day += 30) {
+      f.advance(30 * 24 * HOUR)
+      const res = await session(f, l.session)
+      expect(res.status).toBe(200)
+      expect(cookie(res, cookieName)).toBe(l.session)
+      expect(res.headers.get('set-cookie')).toContain(`Max-Age=${90 * 86_400}`)
+    }
+    f.advance(10 * 60_000)
+    expect((await session(f, l.session)).headers.get('set-cookie')).toBeNull()
+  })
+  it('ends after 90 idle days, a revoked device or an ended Supabase session', async () => {
+    for (const end of ['idle', 'revoked', 'supabase'] as const) {
+      const f = fixture(),
+        l = await f.login()
+      if (end === 'idle') f.advance(90 * 24 * HOUR + 1)
+      if (end === 'revoked') f.revoke()
+      if (end === 'supabase') f.endSupabaseSession()
+      for (const path of ['/api/auth/session', '/api/v1/me', '/api/v1/clients']) {
+        const res = await f.app.request(origin + path, { headers: { cookie: l.session } })
+        expect(res.status, `${end} ${path}`).toBe(401)
+      }
+    }
+  })
+  it('refuses a disabled account without forgetting the browser', async () => {
+    const f = fixture(),
+      l = await f.login()
+    f.disable()
+    const res = await session(f, l.session)
+    expect(res.status).toBe(403)
+    expect(res.headers.get('set-cookie')).toBeNull()
+  })
+  it('pins grants to this browser and its Supabase session, and refuses client registration', async () => {
+    const f = fixture(),
+      l = await f.login()
+    const post = (path: string, body: unknown) =>
+      f.app.request(origin + path, {
+        method: 'POST',
+        headers: mutationHeaders(l.session, l.view.csrfToken),
+        body: JSON.stringify(body),
+      })
+    expect((await post('/api/v1/clients', { label: 'bypass' })).status).toBe(403)
+    expect((await post('/api/v1/grants', { hostId: otherId, clientId: otherId })).status).toBe(403)
+    expect((await post('/api/v1/grants', { hostId: otherId, clientId })).status).toBe(404)
+    expect(f.deps.supabase.rpc).toHaveBeenCalledWith('control_grant_issue', {
+      p_user: userId,
+      p_host: otherId,
+      p_client: clientId,
+      p_sid: sid,
+    })
+    const keyset = await f.app.request(origin + '/api/v1/grant-keys', {
+      headers: { cookie: l.session },
+    })
+    expect(keyset.status).toBe(200)
+    expect(keyset.headers.get('set-cookie')).toBeNull()
+    expect(keyset.headers.get('cache-control')).toBe('public, max-age=300')
+  })
+  it('signs out for good: ends the session server-side and clears the cookie', async () => {
+    const f = fixture(),
+      l = await f.login()
+    const out = await f.app.request(origin + '/api/auth/signout', {
       method: 'POST',
-      headers: mutationHeaders(l.sealed, l.view.csrfToken),
+      headers: mutationHeaders(l.session, l.view.csrfToken),
       body: '{}',
     })
-    expect(logout.status).toBe(200)
-    release()
-    const late = await pending
-    expect(late.status).toBe(401)
-    expect(late.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect(out.status).toBe(200)
+    expect(await out.json()).toEqual({ signedOut: true, remoteCleanup: 'complete' })
+    expect(out.headers.get('set-cookie')).toContain(`${cookieName}=; Path=/`)
+    expect(f.sessions.size).toBe(0)
+    expect((await session(f, l.session, createApp(f.deps))).status).toBe(401)
+  })
+  it('keeps the session when sign-out cannot reach the database', async () => {
+    const f = fixture(),
+      l = await f.login()
+    const ended = vi.mocked(f.deps.supabase.rpc).getMockImplementation()!
+    vi.mocked(f.deps.supabase.rpc).mockImplementation(async (name, args) => {
+      if (name === 'control_web_session_end') throw new ControlFailure('unavailable')
+      return ended(name, args)
+    })
+    const out = await f.app.request(origin + '/api/auth/signout', {
+      method: 'POST',
+      headers: mutationHeaders(l.session, l.view.csrfToken),
+      body: '{}',
+    })
+    expect(out.status).toBe(503)
+    expect(out.headers.get('set-cookie')).toBeNull()
+    expect((await session(f, l.session)).status).toBe(200)
   })
 })
