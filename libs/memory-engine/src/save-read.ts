@@ -37,8 +37,10 @@ interface Plan {
   personal: number
 }
 /**
- * Personal claims never save. A temporary claim ends 14 days after it was said unless it says
- * when, its links end with it unless they say when, and it never replaces a lasting memory.
+ * Personal claims never save. A temporary claim ends 14 days after it starts (when it was said,
+ * or its later start) unless it says when. Its links end with it unless they say when, or 14
+ * days after their own later start, so nothing ends before it starts. It never replaces a
+ * lasting memory.
  */
 function plan(value: Proposal, now: number): Plan {
   const result: Plan = { memories: [], confirmations: [], temporary: 0, personal: 0 }
@@ -46,14 +48,22 @@ function plan(value: Proposal, now: number): Plan {
     if (item.hold === 'personal') return void result.personal++
     if (item.hold !== 'temporary') return void result.memories.push({ index, item })
     result.temporary++
-    const validTo = item.validTo ?? observedAt(item, value.evidence, now) + TEMPORARY_MS
+    const said = observedAt(item, value.evidence, now)
+    const end = (...starts: (number | null | undefined)[]) =>
+      Math.max(said, ...starts.map((start) => start ?? said)) + TEMPORARY_MS
+    const validTo = item.validTo ?? end(item.validFrom)
+    const linkEnd = (from: number | null | undefined) =>
+      item.validTo === null ? end(item.validFrom, from) : Math.max(item.validTo, from ?? 0)
     const demote = item.action !== 'add' && item.action !== 'enrich'
     result.memories.push({
       index,
       item: {
         ...item,
         validTo,
-        links: item.links.map((link) => ({ ...link, validTo: link.validTo ?? validTo })),
+        links: item.links.map((link) => ({
+          ...link,
+          validTo: link.validTo ?? linkEnd(link.validFrom),
+        })),
         ...(demote ? { action: 'add', target: null } : {}),
       },
     })
