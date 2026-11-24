@@ -621,9 +621,9 @@ Runtime configuration and key handling are described in
 
 Before an operator sets the repository variable to `true`, separately verify:
 
-- Verify the additive
-  `supabase/migrations/20261014120000_control_web_clients.sql` migration's content,
-  permissions and hosted ledger mapping using the
+- Verify the Web migrations'
+  (`20261014120000_control_web_clients.sql`, `20261124120000_control_durable_auth.sql`)
+  content, permissions and hosted ledger mapping using the
   [activation runbook](#repeatable-activation). Do not replay an already installed
   schema. The deployment workflow does not apply migrations.
 - Allowlist the app's `/api/auth/callback` URL including its state query in
@@ -764,7 +764,8 @@ rollout flag unset/false, marketing content on the app hostname is expected.
 
 6. **Close the real gates before declaring activation accepted.** Initiate GitHub
    OAuth from the app, not the marketing site; verify callback with its state
-   query, signed-in session, one bound web client, refresh and sign-out. A real
+   query, signed-in session, one bound web client, staying signed in across a
+  Control restart, and sign-out. A real
    OAuth flow cannot be tested while the rollout is disabled; treat enabling as
    a guarded acceptance window, not completion. Verify enrolled Host discovery,
    HTTPS/WSS proof, explicit control/send and revocation. On a physical Pixel,

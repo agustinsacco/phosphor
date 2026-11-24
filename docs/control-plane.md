@@ -172,9 +172,10 @@ an IPv6 address by its /64, so every address and spelling inside one /64 shares
 a bucket. An IPv4-mapped IPv6 address counts as its IPv4 address; a socket
 address that is not an IP shares one `unknown` bucket.
 servicelb SNAT hides peers, so all non-Cloudflare LAN and tailnet clients share
-that address bucket. Headers and comparison results are never logged. Rate limits
-and the other in-memory guards are process-local, and a restart resets them; only
-Host nonce claims are shared through Postgres.
+that address bucket. Headers and comparison results are never logged. Rate limits,
+the token cache and connection logging are process-local, and a restart resets
+them. Every security decision (browser sessions, Host nonces, revocations) is
+in Postgres, so any number of replicas and restarts are safe.
 
 ## Grants and revocation
 
