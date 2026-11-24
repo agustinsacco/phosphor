@@ -21,12 +21,13 @@ const run: BrainAgentRun = {
   error: null,
   sessionPath: null,
   rulesChanged: false,
+  automatic: false,
 }
 beforeEach(() => {
   useNotificationsStore.setState({ items: [], open: false })
   useExtensionUiStore.setState({ toasts: [] })
   useLayoutStore.setState({ page: null })
-  useBrainNavigation.setState({ request: 0, tab: null, target: null })
+  useBrainNavigation.setState({ request: 0, target: null })
 })
 const enabled = () => {
   const s = mockBrainStatus()
@@ -44,7 +45,7 @@ it('keeps startup and suggestion increases silent', () => {
   })
   expect(notices()).toEqual([])
 })
-it('announces the result in the single Brain notice, opening Lanes', async () => {
+it('announces the result in the single Brain notice, opening What changed', async () => {
   const observe = createTidyNotices(),
     status = enabled()
   observe({ ...status, agent: { ...status.agent, run } })
@@ -52,7 +53,7 @@ it('announces the result in the single Brain notice, opening Lanes', async () =>
   expect(notices()).toHaveLength(1)
   expect(notices()[0]!.message).toBe('Brain Agent decided 31 things and erased 2')
   await notices()[0]!.onOpen?.()
-  expect(useBrainNavigation.getState().target).toEqual({ tab: 'lanes', recent: false })
+  expect(useBrainNavigation.getState().target).toEqual({ changes: true })
 })
 it('stays quiet when Brain is open and clears its notice when Brain is off', () => {
   const observe = createTidyNotices(),

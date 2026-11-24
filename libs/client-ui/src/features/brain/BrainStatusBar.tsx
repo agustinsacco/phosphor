@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
+import type { BrainJob } from '@shared/brain'
 import type { BrainAgentRun } from '@shared/brain-agent'
 import { ipcErrorText } from '@shared/errors'
 import { Button } from '@/components/form'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
-import { TooltipButton } from '@/components/Tooltip'
 import { formatCount } from '@/lib/format'
 import { brainToast, mutateBrain, useBrain } from './useBrain'
 import { progressLine, agoWords, durationWords } from './jobProgress'
@@ -11,23 +11,23 @@ import { brainLaneTitle } from './laneTitle'
 import { agentResult } from './agentStatus'
 import { openBrainSource } from './openBrainSource'
 
-/** The shared read queue and its latest Defrag, without a second model-check surface. */
-export function BrainStatusStrip({ onLanes }: { onLanes: () => void }): React.JSX.Element | null {
+/**
+ * What Brain is doing: the read in progress and how many wait, reads that failed with Retry
+ * and Dismiss, and Brain Agent's run with Stop, Undo run and its lane.
+ */
+export function BrainStatusBar(): React.JSX.Element | null {
   const status = useBrain((s) => s.status)
   const jobs = status?.jobs ?? []
   const run = status?.agent.run
   const reading = jobs.find((job) => job.state === 'running')
-  const refreshing = jobs.find((job) => job.state === 'refreshing' && job.runStartedAt !== null)
   const queued = jobs.filter((job) => job.state === 'queued' || job.state === 'waiting').length
-  if (!reading && !refreshing && !queued && !run) return null
+  const failed = jobs.filter((job) => job.state === 'failed' || job.state === 'empty')
+  if (!reading && !queued && !failed.length && !run) return null
   return (
-    <div
-      role="status"
-      className="border-border bg-bg-secondary/60 text-text-secondary flex shrink-0 flex-col gap-1 border-b px-4 py-1.5 text-sm"
-    >
-      {(reading || refreshing || queued > 0) && (
+    <div role="status" aria-label="Brain status" className="brain-status-bar">
+      {(reading || queued > 0) && (
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {(reading || refreshing) && <PhosphorLoader size={14} decorative />}
+          {reading && <PhosphorLoader size={14} decorative />}
           <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
             {reading ? (
               <>
@@ -35,22 +35,50 @@ export function BrainStatusStrip({ onLanes }: { onLanes: () => void }): React.JS
                 {reading.progress && ` · ${progressLine(reading.progress)}`}
                 {queued > 0 && ` · ${queued} queued`}
               </>
-            ) : refreshing ? (
-              <>
-                Refreshing the review of{' '}
-                <b className="text-text font-medium">{brainLaneTitle(refreshing.title)}</b>
-                {queued > 0 && ` · ${queued} queued`}
-              </>
             ) : (
               `${formatCount(queued, 'lane')} queued`
             )}
           </span>
-          <TooltipButton className="text-accent hover:underline" onClick={onLanes}>
-            Lanes
-          </TooltipButton>
         </div>
       )}
+      {failed.map((job) => (
+        <FailedReadLine key={job.id} job={job} />
+      ))}
       {run && <AgentRunLine key={run.id} run={run} reading={reading?.title ?? null} />}
+    </div>
+  )
+}
+
+/** A read that failed or found nothing: why, and Retry or Dismiss. */
+function FailedReadLine({ job }: { job: BrainJob }): React.JSX.Element {
+  const saving = useBrain((s) => s.saving)
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+        <b className="text-text font-medium">{brainLaneTitle(job.title)}</b>
+        {' · '}
+        {job.state === 'empty' ? 'nothing worth keeping' : (job.error ?? 'the read failed')}
+      </span>
+      {job.state === 'failed' && (
+        <Button
+          size="xs"
+          disabled={saving}
+          onClick={() => {
+            void useBrain.getState().retry(job.id)
+          }}
+        >
+          Retry
+        </Button>
+      )}
+      <Button
+        size="xs"
+        disabled={saving}
+        onClick={() => {
+          void useBrain.getState().cancel(job.id)
+        }}
+      >
+        Dismiss
+      </Button>
     </div>
   )
 }
@@ -143,7 +171,7 @@ function runLine(run: BrainAgentRun, reading: string | null, now: number): strin
       : 'Defrag starts after the reads already queued'
   if (run.state === 'running') {
     const elapsed = now - (run.startedAt ?? now)
-    return `Brain Agent is defragging · ${run.decided} of ${run.total}${elapsed >= 60_000 ? ` · ${durationWords(elapsed)}` : ''}`
+    return `Brain Agent is ${run.automatic ? 'checking new knowledge' : 'defragging'} · ${run.decided} of ${run.total}${elapsed >= 60_000 ? ` · ${durationWords(elapsed)}` : ''}`
   }
   return [
     agentResult(run),

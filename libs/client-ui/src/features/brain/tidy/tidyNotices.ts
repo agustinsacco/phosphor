@@ -5,13 +5,14 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { brainIsVisible, openBrain } from '../brainNavigation'
 import { agentResult } from '../agentStatus'
 
-function notify(message: string, recent = false, kind: 'info' | 'error' = 'info'): void {
+/** Every Brain notice is about changes, so it opens What changed. */
+function notify(message: string, kind: 'info' | 'error' = 'info'): void {
   useExtensionUiStore.getState().notify({
     message,
     key: 'brain',
     kind,
     openLabel: 'Open Brain',
-    onOpen: () => openBrain({ tab: 'lanes', recent }),
+    onOpen: () => openBrain({ changes: true }),
   })
 }
 function clearBrainNotice(): void {
@@ -43,7 +44,7 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
       !['queued', 'running'].includes(run.state) &&
       (old?.id !== run.id || old.state === 'queued' || old.state === 'running')
     ) {
-      if (run.state === 'failed') notify(run.error ?? 'Defrag failed.', false, 'error')
+      if (run.state === 'failed') notify(run.error ?? 'Defrag failed.', 'error')
       else notify(`${agentResult(run)}${run.state === 'stopped' ? ' · stopped' : ''}`)
       return
     }
@@ -54,7 +55,6 @@ export function createTidyNotices(): (status: BrainStatus | null) => void {
     )
       notify(
         `Brain folded ${formatCount(status.tidy.automaticFolds - before.tidy.automaticFolds, 'exact repeat')}`,
-        true,
       )
   }
 }

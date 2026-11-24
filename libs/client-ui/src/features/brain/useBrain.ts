@@ -24,6 +24,8 @@ interface BrainState {
   retry: (id: string) => Promise<boolean>
   reset: () => Promise<boolean>
   forget: (id: string) => Promise<boolean>
+  /** Say which person is you, or that none is: the map starts there. */
+  setOwner: (entityId: string | null) => Promise<boolean>
 }
 
 function failed(error: unknown): void {
@@ -97,6 +99,7 @@ export const useBrain = create<BrainState>(() => ({
   retry: (id) => update(() => window.phosphor.invoke('brain:retry', id)),
   reset: () => update(() => window.phosphor.invoke('brain:reset'), 'Brain knowledge reset'),
   forget: (id) => update(() => window.phosphor.invoke('brain:forget', id), 'Memory forgotten'),
+  setOwner: (entityId) => update(() => window.phosphor.invoke('brain:setOwner', entityId)),
 }))
 
 export function brainInFlight(status: BrainStatus | null): boolean {
@@ -104,6 +107,6 @@ export function brainInFlight(status: BrainStatus | null): boolean {
     !!status &&
     ((status.agent.run && ['queued', 'running'].includes(status.agent.run.state)) ||
       ['downloading', 'verifying', 'testing'].includes(status.embedding.phase) ||
-      status.jobs.some((job) => ['waiting', 'queued', 'running', 'refreshing'].includes(job.state)))
+      status.jobs.some((job) => ['waiting', 'queued', 'running'].includes(job.state)))
   )
 }

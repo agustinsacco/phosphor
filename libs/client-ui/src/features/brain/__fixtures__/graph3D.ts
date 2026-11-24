@@ -98,8 +98,14 @@ export function installGraphEnvironment(): {
   return { resize: () => resize(), disconnect }
 }
 
-import type { BrainEntity, BrainGraph, BrainMemory } from '@shared/brain'
+import type { BrainEntity, BrainGraph, BrainLink, BrainMemory } from '@shared/brain'
 import { mockBrainData } from '../mockBrainData'
+/** A current relationship stated by the reader, for graph tests. */
+export function graphLink(
+  link: Pick<BrainLink, 'id' | 'subjectId' | 'objectId' | 'predicate' | 'memoryId'>,
+): BrainLink {
+  return { ...link, label: '', validFrom: null, validTo: null, statedBy: 'reader' }
+}
 export function graphFixture(): { entities: BrainEntity[]; memories: BrainMemory[] } {
   const entity = (id: string, label: string, kind: BrainEntity['kind']): BrainEntity => ({
     id,
@@ -118,7 +124,7 @@ export function graphFixture(): { entities: BrainEntity[]; memories: BrainMemory
     ...base,
     id,
     entityIds: [subjectId, objectId],
-    links: [{ id: `link-${id}`, memoryId: id, subjectId, objectId, predicate }],
+    links: [graphLink({ id: `link-${id}`, memoryId: id, subjectId, objectId, predicate })],
   })
   return {
     entities: [
@@ -148,5 +154,6 @@ export function boundedGraph(entities: BrainEntity[], memories: BrainMemory[]): 
       ).size,
     })),
     links: memories.flatMap((m) => m.links),
+    ended: [],
   }
 }

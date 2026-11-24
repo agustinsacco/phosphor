@@ -13,6 +13,7 @@ export function combineGraphs(graphs: BrainGraph[], priority: string[] = []): Br
     links: [...new Map(graphs.flatMap((g) => g.links).map((l) => [l.id, l])).values()].filter(
       (l) => ids.has(l.subjectId) && ids.has(l.objectId),
     ),
+    ended: [],
     centerId: null,
     truncated: nodes.size > 300 || graphs.some((g) => g.truncated),
   }
@@ -28,7 +29,16 @@ export async function includePath(
   const missing = ids.filter((id) => !graph.nodes.some((n) => n.id === id))
   const extra = await Promise.all(missing.map((id) => window.phosphor.invoke('brain:entity', id)))
   return combineGraphs(
-    [graph, { nodes: extra.map((v) => v.entity), links: path, centerId: null, truncated: false }],
+    [
+      graph,
+      {
+        nodes: extra.map((v) => v.entity),
+        links: path,
+        ended: [],
+        centerId: null,
+        truncated: false,
+      },
+    ],
     [...priority, ...ids],
   )
 }

@@ -5,7 +5,9 @@ import type { BrainTarget } from './brainNavigation'
 export function useBrainTargets(
   target: { value: BrainTarget; request: number } | null,
   actions: {
-    focusSearch: () => void
+    openSearch: () => void
+    showChanges: () => void
+    openRecord: (jobId: string) => void
   },
 ): void {
   const latest = useRef(actions)
@@ -15,7 +17,8 @@ export function useBrainTargets(
     if (!target || target.request === applied.current) return
     applied.current = target.request
     const { value } = target
-    const { focusSearch } = latest.current
-    if (value.tab === 'knowledge' && value.search) focusSearch()
+    if (value.search) latest.current.openSearch()
+    if (value.changes) latest.current.showChanges()
+    if (value.jobId) latest.current.openRecord(value.jobId)
   }, [target])
 }

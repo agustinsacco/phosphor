@@ -9,8 +9,9 @@ export function waitingCount(status: BrainStatus | null): number {
 export function waitingBreakdown(waiting: BrainWaitingCounts): string {
   const total = Object.values(waiting).reduce((sum, n) => sum + n, 0)
   return `${total} waiting: ${[
-    waiting.reads && formatCount(waiting.reads, 'read'),
     waiting.entities && formatCount(waiting.entities, 'person or thing', 'people and things'),
+    waiting.groups && formatCount(waiting.groups, 'group'),
+    waiting.unlinked && formatCount(waiting.unlinked, 'unlinked pair'),
     waiting.repeats && formatCount(waiting.repeats, 'repeat'),
     waiting.conflicts && formatCount(waiting.conflicts, 'disagreement'),
     waiting.flags && formatCount(waiting.flags, 'flag'),

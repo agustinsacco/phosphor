@@ -1,0 +1,113 @@
+/* The sentence map, its walk and the Ask bar. Colours come from the theme, light and dark. */
+.brain-map-line {
+  stroke: var(--px-border-strong);
+  stroke-width: 1.25;
+}
+.brain-map-line--lit {
+  stroke: var(--px-accent);
+  stroke-width: 2.25;
+}
+.brain-map-edge:focus-visible .brain-map-line {
+  stroke: var(--px-accent);
+  stroke-width: 2.25;
+}
+.brain-map-words {
+  fill: var(--px-text-tertiary);
+  font-size: 10px;
+  paint-order: stroke;
+  stroke: var(--px-bg);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.brain-map-caption {
+  fill: var(--px-text-secondary);
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: var(--px-bg);
+  stroke-width: 3px;
+}
+.brain-map-caption--centre {
+  fill: var(--px-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.brain-map-halo {
+  stroke: var(--px-text-secondary);
+  stroke-width: 1.5;
+}
+.brain-map-halo--lit {
+  stroke: var(--px-accent);
+}
+.brain-map-node:focus-visible circle {
+  stroke: var(--px-accent);
+}
+.brain-map-sentence {
+  position: absolute;
+  max-width: 220px;
+  transform: translate(-50%, -50%);
+  padding: 2px 6px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius-sm);
+  background: var(--px-surface-raised);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  color: var(--px-text);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+.brain-walk {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--px-border);
+  font-size: var(--text-sm);
+}
+.brain-walk li + li::before {
+  content: '→';
+  margin-right: 0.25rem;
+  color: var(--px-text-tertiary);
+}
+.brain-walk-step {
+  max-width: 100%;
+  padding: 1px 6px;
+  border-radius: var(--px-radius-sm);
+  color: var(--px-text-secondary);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.brain-walk-step:hover {
+  background: var(--px-bg-secondary);
+}
+.brain-walk-step--current {
+  background: var(--px-sidebar-active);
+  color: var(--px-text);
+}
+.brain-walk-step--ahead {
+  color: var(--px-text-tertiary);
+}
+.brain-ask {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--px-border);
+}
+.brain-ask-input {
+  flex: 1;
+  min-width: 0;
+  max-height: 8rem;
+  resize: none;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius);
+  background: var(--px-bg);
+  color: var(--px-text);
+  field-sizing: content;
+}
+.brain-ask-input:focus {
+  border-color: var(--px-accent);
+  outline: none;
+}
