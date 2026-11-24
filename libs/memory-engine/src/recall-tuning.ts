@@ -1,10 +1,14 @@
-/** Public measurement knobs, shared by query, expansion and Find. */
+/**
+ * Public measurement knobs, shared by query, expansion and Find. Set from the recall measurement:
+ * meaning leads, and naming a person or thing counts for less, because a hub named in dozens of
+ * memories says little about which one answers.
+ */
 export const RECALL_TUNING = {
-  semantic: 2,
+  semantic: 4,
   lexical: 1,
-  exact: 1,
-  linked: 1,
-  alpha: 0.15,
+  exact: 0.5,
+  linked: 0.5,
+  alpha: 0.3,
   iterations: 20,
   important: 1.1,
   unimportant: 0.9,

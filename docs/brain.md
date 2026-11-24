@@ -229,8 +229,9 @@ also count. A trail, when available, gives the shortest explanation found from a
 at most two relationship sentences and the final mention. A direct match need not have one.
 
 [`RECALL_TUNING`](../libs/memory-engine/src/recall-tuning.ts) holds the weights and restart
-settings. The defaults use 20 iterations, a 0.15 restart and fusion weights of 2:1:1:1 for
-meaning, words, exact and linked. High importance gets a small boost (1.1); low gets 0.9.
+settings. The defaults use 20 iterations, a 0.3 restart and fusion weights of 4 for meaning, 1
+for words and 0.5 each for exact names and the walk: naming a hub says little about which of its
+memories answers. High importance gets a small boost (1.1); low gets 0.9.
 Expired memories stay stored and can match a search as history, at half weight. They do not
 feed PPR or the search for unexplained pairs. Superseded memories do not rank. Without
 query vectors Brain can still search by words and names.
