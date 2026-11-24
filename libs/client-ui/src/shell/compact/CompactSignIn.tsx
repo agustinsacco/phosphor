@@ -13,14 +13,16 @@ export function CompactSignIn({
 }): React.JSX.Element {
   const [actionError, setActionError] = useState('')
   const [signingOut, setSigningOut] = useState(false)
-  const accountError = view?.account.status === 'signed-out' ? view.account.error : undefined
+  const signedOut = view?.account.status === 'signed-out' ? view.account : undefined
   const warning =
-    accountError || (error ? 'Could not check sign-in. Check your connection and try again.' : '')
+    signedOut?.error ||
+    (error ? 'Could not check sign-in. Check your connection and try again.' : '')
   return (
     <main className="compact-shell compact-sign-in">
       <h1>Phosphor</h1>
       <p>Your machines. Your lanes.</p>
       {!view && !error && <p role="status">Checking sign-in…</p>}
+      {signedOut?.notice === 'unreachable' && <p role="status">Can’t reach Phosphor. Retrying…</p>}
       <Button
         variant="primary"
         disabled={signingOut || view?.account.status === 'signing-in'}
@@ -35,7 +37,7 @@ export function CompactSignIn({
       </Button>
       {warning && <p role="alert">{warning}</p>}
       {actionError && <p role="alert">{actionError}</p>}
-      {(warning || actionError) && (
+      {signedOut?.notice === 'sign-out-unconfirmed' && (
         <Button
           disabled={signingOut}
           onClick={() => {

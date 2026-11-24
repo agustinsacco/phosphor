@@ -24,9 +24,15 @@ supported. There is no public Host tunnel or control-plane lane-content relay.
 `IPC_WEB` classifies every unchanged `PhosphorApi` invoke as supported remote,
 browser-local or explicitly unsupported. It is not an arbitrary IPC tunnel.
 Account loss clears adapter authority and UI drafts/prompts before another owner
-mounts. Sign-out warnings distinguish confirmed local logout, pending remote
-cleanup and unconfirmed network outcomes. A retry returning 401 does not prove
-remote cleanup completed or revoke previously issued grants immediately.
+mounts. Only a 401 signs the page out. A 403 fails that one request (a stale CSRF
+token or client id, a challenge page) and the page stays signed in; the session
+check is the exception, where 403 means the account is refused. Sign-out warnings
+distinguish confirmed logout, pending remote cleanup and unconfirmed network
+outcomes; only the last two offer Retry sign out, and a retry that finds the
+session already gone (401) completes it. Other tabs hear about a sign-out once it
+settles; each drops its state and asks Control again, so a later sign-in reaches
+them. A failed sign-in returns to `/?signin-error=<code>`: the sign-in screen shows
+a short message for the code and the parameter is removed from the address.
 
 ### Configuration access and lane deletion
 
@@ -539,9 +545,11 @@ choices and resets browser isolation.
 The production service worker caches anonymous shell/static resources only.
 API routes, OAuth callbacks, Host requests and non-GET requests bypass it.
 Navigation is network-first with an anonymous shell fallback; navigation responses
-are not cached. When account refresh is unreachable, the cached bootstrap shows
-an anonymous recovery message and Retry, not signed-in content or a claim that
-the account is signed out. Hashed asset caching is bounded. Updates do not force activation
+are not cached. When the session check is unreachable at launch, the page starts
+anyway and the sign-in screen says it can't reach Phosphor and is retrying (on the
+directory poll and on resume), not signed-in content or a claim that the account
+is signed out. If the shared shell itself cannot load, the bootstrap shows an
+anonymous recovery message and Retry. Hashed asset caching is bounded. Updates do not force activation
 or reload over an unsent draft. Offline shell availability is not offline Host
 access or successful authentication.
 
