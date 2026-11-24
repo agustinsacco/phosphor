@@ -277,7 +277,8 @@ export async function localDaemonFixture(options: LocalDaemonOptions = {}) {
     try {
       await daemon?.stop()
     } finally {
-      await rm(layout.root, { recursive: true, force: true })
+      // A pi child exiting just after the daemon still flushes Node's compile cache in here.
+      await rm(layout.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
     }
   }
   try {
