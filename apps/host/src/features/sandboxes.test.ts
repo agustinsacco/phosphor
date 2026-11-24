@@ -29,6 +29,8 @@ function config(changes: boolean) {
       repositories: [],
       allowRepositoryChanges: changes,
     }),
+    // The loader refuses a config others can write; CI runners use umask 002.
+    { mode: 0o600 },
   )
 }
 beforeEach(async () => {
