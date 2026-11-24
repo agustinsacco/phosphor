@@ -184,3 +184,20 @@ it('saves a temporary claim answered as enrich separately, leaving the lasting m
     { n: 1 },
   )
 })
+it('ends a read empty when its only group question does not open, journaling nothing', () => {
+  const { store, db } = fixture()
+  const saved = save(store, {
+    memories: [],
+    memoryVectors: [],
+    groups: [
+      {
+        parent: { label: 'Harbor group', kind: 'organization', entityId: null },
+        members: ['harbor', 'harbor'],
+      },
+    ],
+  })
+  expect(saved).toMatchObject({ state: 'empty', operationId: null, groups: 0 })
+  expect(store.job(saved.jobId)?.state).toBe('empty')
+  expect(db.prepare('SELECT COUNT(*) AS n FROM tidy_operations').get()).toEqual({ n: 0 })
+  expect(db.prepare('SELECT COUNT(*) AS n FROM entities').get()).toEqual({ n: 0 })
+})
