@@ -132,18 +132,20 @@ Remote execution now runs on enrolled Hosts you own, separately from Swarm.
 
 Brain is **off by default, Desktop-only and machine-local**. Enable it in
 Settings → Brain, read the model terms and download the local embedding model.
-Choose a lane to read. Its memories save when the read finishes. Open Brain to see
-who owns a project, follow a handover or ask what changed. The map shows relationships
-as sentences, with ended ones kept as history.
+Queue a lane or choose Read again from its menu. A finished read saves at once.
+Personal claims never become memories. Temporary claims end on their stated date
+or after 14 days. Start on your card and walk a sentence to the other person.
+Ended relationships stay as history. Ask lights the answer’s trail; Tell Brain Agent
+sends an instruction.
 
 ![Brain settings with local search ready, using fictional data](apps/site/src/assets/shots/brain-ready.webp)
 
 ![Brain’s local knowledge graph with fictional people and projects](apps/site/src/assets/shots/brain-graph.webp)
 
-Brain Agent checks uncertain identities, missing links and disagreements after reads
-settle. Turn automatic checks off in Settings or click **Defrag** to run one yourself.
-**What changed** shows saved reads and Brain Agent's reasons. Undo a save, a change or
-an eligible run. Forget and erasure are permanent.
+About a minute after reads settle, Brain Agent links people, checks groups and settles
+repeats. Automatic checks run at most six times a day. Turn them off in Settings or
+click **Defrag** to run a check yourself. **What changed** shows each saved read with
+Undo and “How it was read”. See why Brain Agent made a change and undo an eligible run. Forget and erasure are permanent.
 
 New or restarted local lanes can use `brain_search` to find a memory, expand a name or
 trace a route with sources. `brain_flag` asks Brain Agent to check a memory. **Local

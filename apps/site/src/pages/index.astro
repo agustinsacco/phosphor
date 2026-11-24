@@ -96,9 +96,8 @@ import { shot } from '../lib/content'
           </h2>
         </div>
         <p class="section-intro">
-          Choose which lanes Brain learns from. Review proposed memories and relationships, then
-          follow the evidence in a local knowledge graph. Later lanes can recall the decisions you
-          kept.
+          Queue a lane. Its decisions save when the read finishes. Start with your card and walk
+          sentences between people and projects. Ask a question to light its trail on the map.
         </p>
       </div>
       <Capture
@@ -109,27 +108,27 @@ import { shot } from '../lib/content'
       <div class="numbered-notes">
         <article>
           <span>01 / OPT IN</span><h3>Choose what enters.</h3><p>
-            Enable Brain in Settings and download the local embedding model. Queue selected lanes;
-            there is no silent sweep of your conversations.
+            Brain is off by default. Turn it on in Settings → Brain. Queue selected lanes; there is
+            no silent sweep of your conversations.
           </p>
         </article>
         <article>
-          <span>02 / REVIEW</span><h3>Check the connections.</h3><p>
-            Review identities, quotes and relationships before saving. Review is on by default.
-            Forget a memory or inspect how it was extracted.
+          <span>02 / FOLLOW</span><h3>Check the connections.</h3><p>
+            Brain Agent checks new connections after reads settle. What changed shows each saved
+            read, why Brain Agent made a change and what you can undo.
           </p>
         </article>
         <article>
           <span>03 / RECALL</span><h3>Bring context forward.</h3><p>
-            New local lanes can search kept knowledge. Disputes, dates and other-branch context stay
-            labelled; knowledge is not an instruction.
+            Agents can ask a question, explore a name in context or trace how two things connect. A
+            memory is earlier context, not an instruction.
           </p>
         </article>
       </div>
       <aside class="boundary-note">
         <strong>Local storage, not fully offline.</strong><p>
-          Extraction uses the lane’s provider model and can consume quota. Embeddings and knowledge
-          stay on this Desktop; Brain does not sync to Hosts or run in the browser.
+          Reading sends scrubbed lane text to the reader. Checks can send memories and excerpts to
+          the Brain lane’s model. Brain stays on this Desktop, not on Hosts or in the web app.
         </p>
       </aside>
       <div class="source-line">

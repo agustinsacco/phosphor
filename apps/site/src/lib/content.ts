@@ -17,7 +17,7 @@ import guideConnectors from '../assets/shots/guide-connectors.webp'
 
 import brainReady from '../assets/shots/brain-ready.webp'
 import brainGraph from '../assets/shots/brain-graph.webp'
-import brainReview from '../assets/shots/brain-review.webp'
+import brainChanges from '../assets/shots/brain-changes.webp'
 import brainRecall from '../assets/shots/brain-recall.webp'
 import lanePr from '../assets/shots/lane-pr.webp'
 import slackPill from '../assets/shots/slack-pill.webp'
@@ -47,7 +47,7 @@ export const piDoc = (page: string) => `https://pi.dev/docs/latest/${page}`
 const captures: Record<string, ImageMetadata> = {
   'brain-ready': brainReady,
   'brain-graph': brainGraph,
-  'brain-review': brainReview,
+  'brain-changes': brainChanges,
   'brain-recall': brainRecall,
   'lane-pr': lanePr,
   'slack-pill': slackPill,
@@ -211,7 +211,7 @@ export const guides = [
   {
     href: '/guides/brain/',
     title: 'Brain',
-    blurb: 'Opt into reviewed local knowledge and recall it in later lanes.',
+    blurb: 'Read a lane, walk its relationships and recall decisions in later work.',
   },
   {
     href: '/guides/machines/',
