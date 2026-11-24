@@ -62,6 +62,22 @@ export function machineCaps(host: HostCapsSource | undefined): MachineCaps {
   }
 }
 
+/**
+ * Why this device cannot open the machine's own shell (its account's home, outside any
+ * lane), or null when it can. Names the machine, because the Machine page shows it
+ * beside everything else that is specific to this one.
+ */
+export function machineShellRefusal(
+  host: Pick<HostConnectionView, 'state' | 'capabilities' | 'machineShell'> | undefined,
+  label: string,
+): string | null {
+  if (!host || host.state !== 'ready') return `Connect to ${label} to open a terminal.`
+  if (!host.capabilities.includes('terminal') || !host.capabilities.includes('sessions.control'))
+    return `This device may not open terminals on ${label}.`
+  if (!host.machineShell) return `Update the Host on ${label} to open a terminal here.`
+  return null
+}
+
 /** This Mac: always ready, everything granted. */
 export const LOCAL_MACHINE_CAPS: MachineCaps = Object.freeze({
   ready: true,

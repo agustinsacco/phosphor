@@ -4,8 +4,16 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { HostConnectionView } from '@shared/ipc'
 import { featureNotOffered, REMOTE_NOT_READY } from './hostRefusals'
-import { LOCAL_MACHINE_CAPS, machineCaps, useMachineCaps, type MachineCaps } from './machineCaps'
+import {
+  LOCAL_MACHINE_CAPS,
+  machineCaps,
+  machineShellRefusal,
+  useMachineCaps,
+  type MachineCaps,
+} from './machineCaps'
 import { useRemoteLanesStore } from './remoteLanes'
+
+type Host = Pick<HostConnectionView, 'state' | 'capabilities' | 'machineShell'>
 
 const host = (
   state: HostConnectionView['state'],
@@ -50,6 +58,24 @@ it('treats an unknown Host as not ready and granting nothing', () => {
   expect(unknown).toMatchObject({ ready: false, laneMarks: false, machineShell: false })
   expect(unknown.granted('sessions.read')).toBe(false)
   expect(unknown.refusal('sessions.read')).toBe(REMOTE_NOT_READY)
+})
+
+it('refuses a machine shell for the one thing that is in the way, naming the machine', () => {
+  const shell = (edit: Partial<Host> = {}): Host => ({
+    state: 'ready',
+    capabilities: ['terminal', 'sessions.control'],
+    machineShell: true,
+    ...edit,
+  })
+  expect(machineShellRefusal(shell(), 'bee')).toBeNull()
+  expect(machineShellRefusal(undefined, 'bee')).toBe('Connect to bee to open a terminal.')
+  expect(machineShellRefusal(shell({ state: 'connecting' }), 'bee')).toContain('Connect')
+  expect(machineShellRefusal(shell({ capabilities: ['terminal'] }), 'bee')).toBe(
+    'This device may not open terminals on bee.',
+  )
+  expect(machineShellRefusal(shell({ machineShell: undefined }), 'bee')).toBe(
+    'Update the Host on bee to open a terminal here.',
+  )
 })
 
 it('gives This Mac everything', () => {

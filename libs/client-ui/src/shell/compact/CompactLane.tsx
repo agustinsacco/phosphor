@@ -1,6 +1,6 @@
 import { useLayoutStore } from '@/stores/layout'
 import { TooltipButton } from '@/components/Tooltip'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
 import { WaitingPane } from '@/components/Waiting'
 import {
@@ -15,7 +15,7 @@ import { SessionMenu } from '@/features/chat/SessionMenu'
 import { LaneChangesPane } from '@/features/files/LaneChangesPane'
 import { SCREENS } from '@/navigation/screens'
 import { usePlatform } from '@/platform/Platform'
-import { useTerminalRefusal } from '@/stores/terminal'
+import { laneTarget, useTerminalRefusal } from '@/stores/terminal'
 import { COMPACT_LANE_PANES } from './CompactLaneHeader'
 import { useRemoteLaneSession } from '@/features/sessions/useRemoteLaneActions'
 import type { Location } from '@/navigation/location'
@@ -123,6 +123,10 @@ function LanePanes({
   // also carries the lane's controls; wider browsers keep tabs and Desktop's control row.
   const tabs = usePlatform().formFactor !== 'compact'
   const terminalRefusal = useTerminalRefusal(session.phosphorId)
+  const terminalTarget = useMemo(
+    () => laneTarget(session.phosphorId, session.workspacePath),
+    [session.phosphorId, session.workspacePath],
+  )
   return (
     <div className="flex h-full min-h-0 flex-col">
       {tabs && (
@@ -174,7 +178,7 @@ function LanePanes({
           ) : pane === 'subagents' ? (
             <SubagentPanel sessionId={session.phosphorId} />
           ) : pane === 'terminal' && !terminalRefusal ? (
-            <TerminalPane sessionId={session.phosphorId} workspacePath={session.workspacePath} />
+            <TerminalPane target={terminalTarget} />
           ) : pane === 'terminal' ? (
             <p className="p-4">{terminalRefusal}</p>
           ) : (

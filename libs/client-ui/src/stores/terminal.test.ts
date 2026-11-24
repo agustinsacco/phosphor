@@ -9,11 +9,16 @@ vi.stubGlobal('window', {
 // stub above must exist before the store module loads.
 const {
   useTerminalStore,
-  sessionTerminals,
+  ownerTerminals,
   runningCount,
   runInTerminal,
   ensureTerminalTab,
   terminalAccess,
+  laneTarget,
+  machineTarget,
+  terminalOwner,
+  targetAccess,
+  isMachineOwner,
 } = await import('./terminal')
 const { useRemoteLanesStore } = await import('./remoteLanes')
 const { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
@@ -23,7 +28,7 @@ const { useLayoutStore } = await import('./layout')
 let nextPty = 1
 
 beforeEach(() => {
-  useTerminalStore.setState({ bySession: {}, pendingPaste: null })
+  useTerminalStore.setState({ byOwner: {}, pendingPaste: null })
   useSessionsStore.setState({
     activeSessionId: 'session-a',
     live: { 'session-a': { phosphorId: 'session-a', workspacePath: '/repo/lane' } },
@@ -32,7 +37,8 @@ beforeEach(() => {
   nextPty = 1
   invoke.mockReset()
   invoke.mockImplementation((channel: string) => {
-    if (channel === 'pty:create') return Promise.resolve({ ptyId: `pty-${nextPty++}` })
+    if (channel === 'pty:create' || channel === 'hosts:machineShell')
+      return Promise.resolve({ ptyId: `pty-${nextPty++}` })
     return Promise.resolve(undefined)
   })
 })
@@ -40,27 +46,27 @@ beforeEach(() => {
 describe('terminal store (per-session)', () => {
   it('keys tabs by session id', async () => {
     const store = useTerminalStore.getState()
-    await store.createTab('session-a', '/repo')
-    await store.createTab('session-b', '/repo')
+    await store.createTab(laneTarget('session-a', '/repo'))
+    await store.createTab(laneTarget('session-b', '/repo'))
     const state = useTerminalStore.getState()
-    expect(sessionTerminals(state, 'session-a').tabs).toHaveLength(1)
-    expect(sessionTerminals(state, 'session-b').tabs).toHaveLength(1)
-    expect(sessionTerminals(state, 'session-c')).toBe(sessionTerminals(state, 'session-d'))
+    expect(ownerTerminals(state, 'session-a').tabs).toHaveLength(1)
+    expect(ownerTerminals(state, 'session-b').tabs).toHaveLength(1)
+    expect(ownerTerminals(state, 'session-c')).toBe(ownerTerminals(state, 'session-d'))
   })
 
   it('markExited finds the owning session by ptyId alone', async () => {
-    await useTerminalStore.getState().createTab('session-a', '/repo')
-    const ptyId = sessionTerminals(useTerminalStore.getState(), 'session-a').tabs[0]!.ptyId
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    const ptyId = ownerTerminals(useTerminalStore.getState(), 'session-a').tabs[0]!.ptyId
     useTerminalStore.getState().markExited(ptyId)
-    const tab = sessionTerminals(useTerminalStore.getState(), 'session-a').tabs[0]!
+    const tab = ownerTerminals(useTerminalStore.getState(), 'session-a').tabs[0]!
     expect(tab.exited).toBe(true)
     expect(tab.running).toBe(false)
   })
 
   it('applyStatus updates running flags and runningCount', async () => {
-    await useTerminalStore.getState().createTab('session-a', '/repo')
-    await useTerminalStore.getState().createTab('session-a', '/repo')
-    const tabs = sessionTerminals(useTerminalStore.getState(), 'session-a').tabs
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    const tabs = ownerTerminals(useTerminalStore.getState(), 'session-a').tabs
     useTerminalStore.getState().applyStatus({ [tabs[0]!.ptyId]: true })
     expect(runningCount(useTerminalStore.getState(), 'session-a')).toBe(1)
     useTerminalStore.getState().applyStatus({ [tabs[0]!.ptyId]: false })
@@ -68,21 +74,21 @@ describe('terminal store (per-session)', () => {
   })
 
   it('removeSession kills every pty and drops the slice', async () => {
-    await useTerminalStore.getState().createTab('session-a', '/repo')
-    await useTerminalStore.getState().createTab('session-a', '/repo')
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
     invoke.mockClear()
     await useTerminalStore.getState().removeSession('session-a')
     expect(invoke.mock.calls.filter(([c]) => c === 'pty:kill')).toHaveLength(2)
-    expect(useTerminalStore.getState().bySession['session-a']).toBeUndefined()
+    expect(useTerminalStore.getState().byOwner['session-a']).toBeUndefined()
   })
 
   it('closeTab moves activeId to the remaining tab', async () => {
     const store = useTerminalStore.getState()
-    await store.createTab('session-a', '/repo')
-    await store.createTab('session-a', '/repo')
-    const [first, second] = sessionTerminals(useTerminalStore.getState(), 'session-a').tabs
+    await store.createTab(laneTarget('session-a', '/repo'))
+    await store.createTab(laneTarget('session-a', '/repo'))
+    const [first, second] = ownerTerminals(useTerminalStore.getState(), 'session-a').tabs
     await useTerminalStore.getState().closeTab('session-a', second!.ptyId)
-    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').activeId).toBe(first!.ptyId)
+    expect(ownerTerminals(useTerminalStore.getState(), 'session-a').activeId).toBe(first!.ptyId)
   })
 })
 
@@ -90,7 +96,7 @@ describe('run in terminal', () => {
   it('spawns once in the lane cwd and targets that PTY without executing', async () => {
     await Promise.all([
       runInTerminal('/repo', 'echo hello\n'),
-      ensureTerminalTab('session-a', '/repo/lane'),
+      ensureTerminalTab(laneTarget('session-a', '/repo/lane')),
     ])
     expect(invoke.mock.calls.filter(([c]) => c === 'pty:create')).toHaveLength(1)
     expect(invoke).toHaveBeenCalledWith('pty:create', '/repo/lane', 80, 24, 'session-a')
@@ -124,7 +130,7 @@ describe('run in terminal', () => {
   })
 
   it.each(['exited', 'running'] as const)('does not paste into a %s tab', async (state) => {
-    await useTerminalStore.getState().createTab('session-a', '/repo/lane')
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo/lane'))
     if (state === 'exited') useTerminalStore.getState().markExited('pty-1')
     else useTerminalStore.getState().applyStatus({ 'pty-1': true })
     await runInTerminal('/repo', 'echo hello')
@@ -135,7 +141,7 @@ describe('run in terminal', () => {
     invoke.mockRejectedValueOnce(new Error('cannot start'))
     await runInTerminal('/repo', 'echo hello')
     expect(useTerminalStore.getState().pendingPaste).toBeNull()
-    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBe('cannot start')
+    expect(ownerTerminals(useTerminalStore.getState(), 'session-a').error).toBe('cannot start')
   })
 })
 
@@ -152,10 +158,10 @@ describe('terminal store — spawn failures', () => {
         : Promise.resolve(undefined),
     )
 
-    const ptyId = await useTerminalStore.getState().createTab('session-a', '/repo')
+    const ptyId = await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
 
     expect(ptyId).toBeNull()
-    const state = sessionTerminals(useTerminalStore.getState(), 'session-a')
+    const state = ownerTerminals(useTerminalStore.getState(), 'session-a')
     expect(state.tabs).toHaveLength(0)
     // Electron's "Error invoking remote method" wrapper is noise to a user.
     expect(state.error).toBe('posix_spawnp failed.')
@@ -165,32 +171,32 @@ describe('terminal store — spawn failures', () => {
     invoke.mockImplementation((channel: string) =>
       channel === 'pty:create' ? Promise.reject(new Error('boom')) : Promise.resolve(undefined),
     )
-    await useTerminalStore.getState().createTab('session-a', '/repo')
-    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBe('boom')
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    expect(ownerTerminals(useTerminalStore.getState(), 'session-a').error).toBe('boom')
 
     useTerminalStore.getState().clearError('session-a')
-    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBeNull()
+    expect(ownerTerminals(useTerminalStore.getState(), 'session-a').error).toBeNull()
   })
 
   it('a successful spawn clears a previous error', async () => {
     invoke.mockImplementationOnce(() => Promise.reject(new Error('boom')))
-    await useTerminalStore.getState().createTab('session-a', '/repo')
-    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBe('boom')
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    expect(ownerTerminals(useTerminalStore.getState(), 'session-a').error).toBe('boom')
 
     invoke.mockImplementation((channel: string) =>
       channel === 'pty:create' ? Promise.resolve({ ptyId: 'pty-ok' }) : Promise.resolve(undefined),
     )
-    await useTerminalStore.getState().createTab('session-a', '/repo')
-    const state = sessionTerminals(useTerminalStore.getState(), 'session-a')
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    const state = ownerTerminals(useTerminalStore.getState(), 'session-a')
     expect(state.error).toBeNull()
     expect(state.activeId).toBe('pty-ok')
   })
 
   it('closeTab keeps the error field (patches must not drop slice state)', async () => {
-    await useTerminalStore.getState().createTab('session-a', '/repo')
-    const ptyId = sessionTerminals(useTerminalStore.getState(), 'session-a').tabs[0]!.ptyId
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    const ptyId = ownerTerminals(useTerminalStore.getState(), 'session-a').tabs[0]!.ptyId
     await useTerminalStore.getState().closeTab('session-a', ptyId)
-    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBeNull()
+    expect(ownerTerminals(useTerminalStore.getState(), 'session-a').error).toBeNull()
   })
 })
 
@@ -229,5 +235,38 @@ describe('terminalAccess', () => {
   it('makes a lane on an unknown Host unavailable', () => {
     useRemoteLanesStore.setState({ hosts: {} })
     expect(terminalAccess(id)).toBe('unavailable')
+  })
+})
+
+describe('machine targets', () => {
+  const machine = machineTarget(MOCK_HOST_ID, null)
+
+  it('spawns over hosts:machineShell and keys the shell apart from every lane', async () => {
+    await useTerminalStore.getState().createTab(machine)
+    expect(invoke).toHaveBeenCalledWith('hosts:machineShell', MOCK_HOST_ID, 80, 24)
+    const state = useTerminalStore.getState()
+    expect(ownerTerminals(state, terminalOwner(machine)).tabs).toHaveLength(1)
+    expect(isMachineOwner(terminalOwner(machine))).toBe(true)
+    expect(isMachineOwner('session-a')).toBe(false)
+    // The machine's shell is not this lane's shell, and vice versa.
+    await useTerminalStore.getState().createTab(laneTarget('session-a', '/repo'))
+    expect(ownerTerminals(useTerminalStore.getState(), 'session-a').tabs).toHaveLength(1)
+  })
+
+  it('re-attaches to the shared shell instead of adding a second tab', async () => {
+    invoke.mockImplementation((channel: string) =>
+      channel === 'hosts:machineShell'
+        ? Promise.resolve({ ptyId: 'remote-pty-shared' })
+        : Promise.resolve({ ptyId: `pty-${nextPty++}` }),
+    )
+    await useTerminalStore.getState().createTab(machine)
+    await useTerminalStore.getState().createTab(machine)
+    expect(ownerTerminals(useTerminalStore.getState(), terminalOwner(machine)).tabs).toHaveLength(1)
+  })
+
+  it('refuses a machine shell this device may not open, and never asks the Host', () => {
+    const refused = machineTarget(MOCK_HOST_ID, 'Connect to bee to open a terminal.')
+    expect(targetAccess(refused)).toBe('unavailable')
+    expect(targetAccess(machine)).toBe('control')
   })
 })

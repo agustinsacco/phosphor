@@ -9,7 +9,7 @@
  * that trio, once.
  *
  * Stores keep their own exported accessors (`workspaceFiles`,
- * `sessionTerminals`, `sessionPanes`, `repoWorktrees`) as thin wrappers over
+ * `ownerTerminals`, `sessionPanes`, `repoWorktrees`) as thin wrappers over
  * `read` — those names are the store API, and AGENTS.md fact 6 is written in
  * terms of them.
  */

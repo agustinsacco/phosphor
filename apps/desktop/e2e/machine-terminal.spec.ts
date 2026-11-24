@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { accountControlFixture } from './fixtures/account-control'
 
-test('This computer opens a home shell without a lane and Hide preserves it', async () => {
+test('the Terminal tab opens a home shell, keeps it across tabs, and ends it on close', async () => {
   const h = await accountControlFixture()
   const { page } = h
   try {
@@ -9,23 +9,33 @@ test('This computer opens a home shell without a lane and Hide preserves it', as
     const home = await h.app.evaluate(() => process.env.HOME as string)
     await page.getByRole('button', { name: 'Machines', exact: true }).click()
     await page.getByTestId('local-machine-row').click()
-    const card = page.getByRole('region', { name: 'Terminal', exact: true })
-    await card.getByRole('button', { name: 'Open terminal', exact: true }).click()
-    const view = page.getByTestId('machine-terminal')
-    await expect(view.locator('.xterm-helper-textarea')).toBeAttached()
-    await view.locator('.xterm-helper-textarea').focus()
+    const views = page.getByRole('navigation', { name: 'Machine views' })
+    const pane = page.getByTestId('machine-terminal')
+    // The shell is a view of its own, and opening the view opens the shell.
+    await views.getByRole('button', { name: 'Terminal', exact: true }).click()
+    await expect(pane.locator('.xterm-helper-textarea')).toBeAttached()
+    await pane.locator('.xterm-helper-textarea').focus()
     await page.keyboard.type('PHOSPHOR_KEEP=preserved; printf \'cwd=%s\\n\' "$PWD"')
     await page.keyboard.press('Enter')
-    await expect(view.locator('.xterm-rows')).toContainText(`cwd=${home}`)
-    await card.getByRole('button', { name: 'Hide', exact: true }).click()
-    await expect(view).toHaveCount(0)
-    await card.getByRole('button', { name: 'Open terminal', exact: true }).click()
-    await view.locator('.xterm-helper-textarea').focus()
+    await expect(pane.locator('.xterm-rows')).toContainText(`cwd=${home}`)
+    // Overview is a different view, not a detach: the shell keeps running.
+    await views.getByRole('button', { name: 'Overview', exact: true }).click()
+    await expect(pane).toHaveCount(0)
+    await views.getByRole('button', { name: 'Terminal', exact: true }).click()
+    await pane.locator('.xterm-helper-textarea').focus()
     await page.keyboard.type('printf \'shell_%s\\n\' "$PHOSPHOR_KEEP"')
     await page.keyboard.press('Enter')
-    await expect(view.locator('.xterm-rows')).toContainText('shell_preserved')
-    await card.getByRole('button', { name: 'End shell', exact: true }).click()
-    await expect(view).toHaveCount(0)
+    await expect(pane.locator('.xterm-rows')).toContainText('shell_preserved')
+    // Closing the tab is what ends the shell: the next one starts clean.
+    const tab = pane.locator('div.group', { hasText: 'Terminal 1' })
+    await tab.hover()
+    await tab.getByRole('button', { name: 'Close Terminal 1', exact: true }).click()
+    await expect(pane.locator('.xterm-rows')).not.toContainText('shell_preserved')
+    await pane.getByRole('button', { name: 'New terminal', exact: true }).click()
+    await pane.locator('.xterm-helper-textarea').focus()
+    await page.keyboard.type('printf \'shell_%s\\n\' "${PHOSPHOR_KEEP:-gone}"')
+    await page.keyboard.press('Enter')
+    await expect(pane.locator('.xterm-rows')).toContainText('shell_gone')
   } finally {
     await h.close()
   }
