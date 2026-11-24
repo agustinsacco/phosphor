@@ -48,8 +48,10 @@ export const brainHandlers = {
   'brain.search': op(async (a, c) => briefing(await (await port(c)).search(a))),
   'brain.flag': op(async (a, c) => briefing(await (await port(c)).flag(a))),
   'brain.status': op(async (_a, c) => statusResult(await (await service()).api.status(), c)),
-  'brain.find': op<{ query: string; limit?: number }>(async ({ query, limit }) =>
-    dataResult(await (await service()).api.find(query, limit ?? 8)),
+  'brain.find': op<{ query: string; limit?: number }>(async (args, ctx) =>
+    ctx.principal.kind === 'agent'
+      ? briefing(await (await port(ctx)).search(args))
+      : dataResult(await (await service()).api.find(args.query, args.limit ?? 8)),
   ),
   'brain.queue': op(async (_a, c) =>
     statusResult(
