@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
 import { committed, test } from './fixtures/migration-app'
+import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { sidebarRows } from './fixtures/migration-sidebar'
 import {
   archiveName,
@@ -63,7 +64,7 @@ test('relaunch selects the re-keyed last lane and restores its unsent draft', as
   // The sidebar's row: This Mac's home lists the same lane until the resume opens it.
   await expect(
     page
-      .getByRole('region', { name: 'This Mac' })
+      .getByRole('region', { name: LOCAL_MACHINE_LABEL })
       .getByTestId('remote-session-row')
       .filter({ hasText: m.world.lanes.checkout.name }),
   ).toHaveAttribute('aria-current', 'page')
