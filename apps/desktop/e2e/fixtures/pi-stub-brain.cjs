@@ -73,9 +73,11 @@ function extract({ registry, segments }, fold) {
     /^\[(s\d+)\] (\w+) [^\n]*\n([\s\S]*?)(?=^\[s\d+\] |$(?![\s\S]))/gm,
   )) {
     if (!['user', 'assistant'].includes(segment[2])) continue
-    for (const { m, predicate, subjectKind, objectKind } of relationships(segment[3])) {
+    for (const { m, predicate, label, subjectKind, objectKind, handover } of relationships(
+      segment[3],
+    )) {
       const subject = entity(m[1].trim(), subjectKind),
-        object = entity(m[2].trim(), objectKind)
+        object = entity(m[handover ? 3 : 2].trim(), objectKind)
       const sentence = m[0].trim()
       const quote = { segment: segment[1], quote: sentence }
       claims.push({
@@ -83,8 +85,12 @@ function extract({ registry, segments }, fold) {
         text: sentence,
         type: 'fact',
         epistemic: 'reported',
-        mentions: [subject, object],
-        links: predicate === 'part_of' ? [] : [{ subject, predicate, object, ...quote }],
+        importance: 1,
+        mentions: [subject, object, ...(handover ? [entity(m[2], 'component')] : [])],
+        links:
+          !predicate || predicate === 'part_of'
+            ? []
+            : [{ subject, predicate, label, object, ...quote }],
         quotes: [quote],
         validFrom: null,
         validTo: null,
@@ -108,15 +114,32 @@ function relationships(text) {
     ...[...text.matchAll(/([A-Z][a-z]+(?: [A-Z][a-z]+)?) owns (?:the )?([^.\n]+)\./g)].map((m) => ({
       m,
       predicate: 'owns',
+      label: 'owns',
       subjectKind: 'person',
       objectKind: 'component',
     })),
     ...[...text.matchAll(/([^.!?\n]+?) is part of ([^.\n]+)\./g)].map((m) => ({
       m,
       predicate: 'part_of',
+      label: 'is part of',
       subjectKind: 'component',
       objectKind: 'project',
     })),
+    ...[
+      ...text.matchAll(
+        /([A-Z][a-z]+ [A-Z][a-z]+) took over ([^.\n]+?) from ([A-Z][a-z]+ [A-Z][a-z]+)\./g,
+      ),
+    ].map((m) => ({
+      m,
+      predicate: 'took_over_from',
+      label: `took over ${m[2]} from`,
+      subjectKind: 'person',
+      objectKind: 'person',
+      handover: true,
+    })),
+    ...[...text.matchAll(/([A-Z][a-z]+ [A-Z][a-z]+) and ([A-Z][a-z]+ [A-Z][a-z]+) [^.\n]+\./g)].map(
+      (m) => ({ m, subjectKind: 'person', objectKind: 'person' }),
+    ),
   ].sort((a, b) => a.m.index - b.m.index)
 }
 
@@ -127,14 +150,16 @@ function links({ entities, rows }, fold) {
   )) {
     const mentioned = entities.filter((e) => row[2].split(', ').includes(e.ref))
     for (const excerpt of row[4].matchAll(/^\[(s\d+)\] ([\s\S]*?)(?=^\[s\d+\] |$(?![\s\S]))/gm)) {
-      for (const { m, predicate } of relationships(excerpt[2])) {
+      for (const { m, predicate, label, handover } of relationships(excerpt[2])) {
+        if (!predicate) continue
         const subject = mentioned.find((e) => fold(e.label) === fold(m[1]))?.ref
-        const object = mentioned.find((e) => fold(e.label) === fold(m[2]))?.ref
+        const object = mentioned.find((e) => fold(e.label) === fold(m[handover ? 3 : 2]))?.ref
         if (!subject || !object || row[3].includes(`${subject} ${predicate} ${object}`)) continue
         links.push({
           claim: row[1],
           subject,
           predicate,
+          label,
           object,
           segment: excerpt[1],
           quote: m[0].trim(),
@@ -239,7 +264,7 @@ function bridge(method, params) {
     socket.on('connect', () =>
       socket.write(
         JSON.stringify({
-          version: 6,
+          version: 7,
           token: process.env.PHOSPHOR_BRAIN_TOKEN,
           method,
           params,
@@ -263,51 +288,32 @@ function bridge(method, params) {
     })
   })
 }
-/** Every page of a read, as Brain Agent opens it: each page says where to go on. */
-async function readPages(jobId) {
-  const pages = []
-  let offset
-  for (let page = 0; page < 100; page++) {
-    const review = await bridge('readReview', offset === undefined ? { jobId } : { jobId, offset })
-    if (!review.ok) throw new Error(review.error)
-    pages.push(review.data.text)
-    const next = /Call again with offset (\d+)\./.exec(review.data.text)
-    if (!next) return pages
-    offset = Number(next[1])
-  }
-  throw new Error('Brain stub read has too many pages')
-}
-/** Each uncertain identity a page asks about: the same-label candidate, or new. */
-function identityAnswers(text) {
-  return [
-    ...text.matchAll(/^- (\S+) · (.+?) \(\w+\) · uncertain\b.*? · candidates: (.*?) · /gm),
-  ].map(([, ref, label, candidates]) => ({
-    ref,
-    answer:
-      candidates
-        .split('; ')
-        .map((candidate) => /^(\S+) = (.+?) \(/.exec(candidate))
-        .find((match) => match?.[2] === label)?.[1] ?? 'new',
-  }))
-}
-async function approveFirstRead() {
+async function settlePairs() {
   const waiting = await bridge('waiting', { limit: 60 })
   if (!waiting.ok) throw new Error(waiting.error)
-  const read = waiting.data.items.find((item) => item.kind === 'read')
-  if (!read) return
-  const pages = await readPages(read.jobId)
-  const revision = Number(/ · revision (\d+)\./.exec(pages[0])[1])
-  const choices = pages[0].includes('Brain never reads this lane')
-    ? { approve: false }
-    : { approve: true, identities: pages.flatMap(identityAnswers) }
-  const result = await bridge('decideRead', {
-    jobId: read.jobId,
-    revision,
-    ...choices,
-    reason: 'The lasting memories have evidence in this read.',
-  })
-  if (!result.ok || result.data.status !== 'done')
-    throw new Error(result.error ?? result.data.message)
+  let changes = 0
+  for (const item of waiting.data.items.filter((item) => item.kind === 'unlinked')) {
+    const detail = await bridge('suggestion', { suggestionId: item.suggestionId })
+    if (!detail.ok) throw new Error(detail.error)
+    if (!detail.data) continue
+    const people = detail.data.subjects.filter(
+      (s) => s.type === 'entity' && s.value.entity.kind === 'person',
+    )
+    if (people.length !== 2) continue
+    const result = await bridge('relate', {
+      subjectId: people[0].value.entity.id,
+      objectId: people[1].value.entity.id,
+      predicate: 'works_with',
+      label: 'works with',
+      memoryIds: detail.data.suggestion.detail.memoryIds,
+      suggestionId: item.suggestionId,
+      reason: 'Both memories show them working together.',
+    })
+    if (!result.ok || result.data.status !== 'done')
+      throw new Error(result.error ?? result.data.message)
+    changes++
+  }
+  return `${changes} ${changes === 1 ? 'change' : 'changes'}.`
 }
 function finishAgent(turn, text, error = false) {
   if (agentTurn !== turn) return
@@ -348,11 +354,9 @@ function handleAgentPrompt(message, out, persist) {
             if (result.ok || result.error !== 'Brain request unavailable')
               throw new Error('Curator isolation failed')
           })
-        : approveFirstRead()
+        : settlePairs()
       work
-        .then(() =>
-          finishAgent(turn, probe ? 'Curator methods refused.' : 'Decided the waiting read.'),
-        )
+        .then((summary) => finishAgent(turn, probe ? 'Curator methods refused.' : summary))
         .catch((error) => finishAgent(turn, error.message, true))
     },
     probe ? 0 : 2500,
