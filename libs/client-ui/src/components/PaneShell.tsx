@@ -1,7 +1,7 @@
 import { usePlatform } from '@/platform/Platform'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
-import { useActivePanes, useLayoutStore } from '@/stores/layout'
+import { useActivePanes, useLayoutStore, type PaneSide } from '@/stores/layout'
 import { CloseIcon } from '@/components/icons'
 
 /**
@@ -18,6 +18,7 @@ export const PaneShell = memo(function PaneShell({
   title,
   actions,
   rootRef,
+  layoutControls = true,
   children,
 }: {
   title: React.ReactNode
@@ -25,9 +26,10 @@ export const PaneShell = memo(function PaneShell({
   actions?: React.ReactNode
   /** The whole pane, header included — what a pane registers as its ⌘F surface. */
   rootRef?: React.Ref<HTMLDivElement>
+  /** False where ↗ / ✕ would act on some other lane's layout, as on the machine page. */
+  layoutControls?: boolean
   children: React.ReactNode
 }): React.JSX.Element {
-  const compact = !usePlatform().splitPanes
   const { expanded, side } = useActivePanes()
 
   return (
@@ -36,55 +38,7 @@ export const PaneShell = memo(function PaneShell({
         <div className="flex min-w-0 flex-auto items-center gap-1.5">{title}</div>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {actions}
-          {/* Side swap is meaningless while the pane covers the whole region. */}
-          {!compact && !expanded && (
-            <PaneIconButton
-              title={side === 'right' ? 'Move pane to the left' : 'Move pane to the right'}
-              onClick={() => useLayoutStore.getState().togglePaneSide()}
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m16 4 4 4-4 4M20 8H7M8 20l-4-4 4-4M4 16h13" />
-              </svg>
-            </PaneIconButton>
-          )}
-          {!compact && (
-            <>
-              <PaneIconButton
-                title={expanded ? 'Exit fullscreen' : 'Fullscreen pane'}
-                onClick={() => useLayoutStore.getState().toggleRightExpanded()}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  {expanded ? (
-                    <path d="M10 14 3 21m0-6v6h6M14 10l7-7m-6 0h6v6" />
-                  ) : (
-                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                  )}
-                </svg>
-              </PaneIconButton>
-              <PaneIconButton
-                title="Close pane"
-                onClick={() => useLayoutStore.getState().setRightPane(null)}
-              >
-                <CloseIcon size={13} />
-              </PaneIconButton>
-            </>
-          )}
+          {layoutControls && <PaneLayoutControls expanded={expanded} side={side} />}
         </div>
       </div>
       {/*
@@ -98,6 +52,68 @@ export const PaneShell = memo(function PaneShell({
     </div>
   )
 })
+
+/**
+ * The lane pane's own layout controls. A phone has no panes to arrange, and a
+ * pane that covers the whole region has no side to swap to.
+ */
+function PaneLayoutControls({
+  expanded,
+  side,
+}: {
+  expanded: boolean
+  side: PaneSide
+}): React.JSX.Element | null {
+  if (!usePlatform().splitPanes) return null
+  return (
+    <>
+      {!expanded && (
+        <PaneIconButton
+          title={side === 'right' ? 'Move pane to the left' : 'Move pane to the right'}
+          onClick={() => useLayoutStore.getState().togglePaneSide()}
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m16 4 4 4-4 4M20 8H7M8 20l-4-4 4-4M4 16h13" />
+          </svg>
+        </PaneIconButton>
+      )}
+      <PaneIconButton
+        title={expanded ? 'Exit fullscreen' : 'Fullscreen pane'}
+        onClick={() => useLayoutStore.getState().toggleRightExpanded()}
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          {expanded ? (
+            <path d="M10 14 3 21m0-6v6h6M14 10l7-7m-6 0h6v6" />
+          ) : (
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+          )}
+        </svg>
+      </PaneIconButton>
+      <PaneIconButton
+        title="Close pane"
+        onClick={() => useLayoutStore.getState().setRightPane(null)}
+      >
+        <CloseIcon size={13} />
+      </PaneIconButton>
+    </>
+  )
+}
 
 /** Square icon button sized to match the shell header. */
 export function PaneIconButton({
