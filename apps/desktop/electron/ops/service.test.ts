@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   pins: [] as string[],
   command: vi.fn().mockResolvedValue({ success: true }),
   forLane: vi.fn(),
+  api: { status: vi.fn(), queue: vi.fn() },
   broadcast: vi.fn(),
   policy: { version: 1, agentControl: 'all', machineOps: 'all', ops: {} as Record<string, 'ask'> },
 }))
@@ -31,7 +32,9 @@ vi.mock('../store', () => ({
   },
 }))
 vi.mock('../pi/session-runtime', () => ({ desktopSessions: { command: h.command } }))
-vi.mock('../brain/runtime', () => ({ brainService: async () => ({ forLane: h.forLane }) }))
+vi.mock('../brain/runtime', () => ({
+  brainService: async () => ({ forLane: h.forLane, api: h.api }),
+}))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 let dir: string
 let owner: ReturnType<typeof openDesktopOps>
@@ -123,6 +126,30 @@ it('serves a search and its numbered flag through the same owner-scoped Brain po
   })
 })
 const surface = { kind: 'surface', clientId: 'view', via: 'owner', label: 'This Mac' } as const
+const brainStatus = {
+  supported: true,
+  prefs: { enabled: true, recall: true, model: 'harbor/ledger' },
+  counts: { memories: 1, entities: 2 },
+  embedding: { phase: 'ready', modelId: 'kestrel' },
+  jobs: [
+    { id: 'harbor', state: 'running', model: 'harbor/ledger', usage: { tokens: 777, cost: 33 } },
+  ],
+}
+it.each(['status', 'queue'] as const)(
+  'keeps reader and embedding details out of lane brain.%s',
+  async (op) => {
+    h.api[op].mockResolvedValue(brainStatus)
+    const args = op === 'queue' ? ['local/session:disk-id'] : []
+    const reply = await tool([`brain.${op}`, ...args])
+    expect(reply).toMatchObject({ status: 'ok', data: { jobs: [{ state: 'running' }] } })
+    expect(JSON.stringify(reply)).not.toMatch(/model|usage|tokens|cost|harbor\/ledger|kestrel|777/)
+    if (op === 'queue')
+      expect(h.api.queue).toHaveBeenCalledWith({
+        sessionPath: join(dir, 'mine.jsonl'),
+        title: 'My lane',
+      })
+  },
+)
 it('reads a departed lane’s redacted audit by its original ref, including equal-time pages', async () => {
   const at = Date.now()
   const time = vi.spyOn(Date, 'now').mockReturnValue(at)
