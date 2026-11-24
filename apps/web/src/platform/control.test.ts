@@ -246,7 +246,8 @@ it.each(['pending', 'offline'] as const)(
     await control.signOut()
     const before = invalidate.mock.calls.length
     expect(await control.signOut()).toEqual({ account: { status: 'signed-out' } })
-    expect(invalidate.mock.calls.length).toBe(before)
+    // The retry's own invalidation only: its 401 is the result, not a second sign-out.
+    expect(invalidate.mock.calls.length).toBe(before + 1)
     expect(control.session()).toBeNull()
     // The sign-out is finished, so a later sign-in in another tab is noticed.
     await control.refresh()

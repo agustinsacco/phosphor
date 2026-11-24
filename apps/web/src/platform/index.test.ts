@@ -103,7 +103,9 @@ it('subscribes and cleans browser lifecycle and invalidation, broadcasting only 
   disposals.push(adapter.dispose)
   await adapter.start()
   invalidate()
-  expect(await adapter.api.invoke('hosts:snapshot')).toEqual({})
+  // The tab then asks Control again; its 401 confirms the sign-out.
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+  await vi.waitFor(() => expect(adapter.api.invoke('hosts:snapshot')).resolves.toEqual({}))
   await adapter.api.invoke('account:signOut')
   expect(publish).toHaveBeenCalledWith()
   adapter.dispose()
