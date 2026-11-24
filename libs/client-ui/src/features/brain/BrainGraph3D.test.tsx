@@ -573,10 +573,12 @@ it('reads only the hovered edge support, retries an error and clears on hover ex
     const hoverEdge = setting<(link: GraphLink | null) => void>('onLinkHover')
     await act(async () => hoverEdge(data().links[0]!))
     expect(read).toHaveBeenCalledWith(data().links[0]!.memoryId)
-    expect(container.querySelector('[role="status"]')!.textContent).toContain('uses')
+    expect(container.querySelector('[role="status"]')!.textContent).toContain(
+      'Harbor uses PostgreSQL',
+    )
     expect(container.textContent).toContain('Support unavailable')
     await click('Retry')
-    expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
+    expect(container.textContent).toContain('Ledger is built for Harbor.')
     await act(async () => hoverEdge(null))
     expect(container.querySelector('[role="status"]')).toBeNull()
   } finally {
@@ -595,12 +597,12 @@ it('dims distant nodes after selection, labels direct links and clears through e
     ),
   )
   expect(nodeColor('rina')).toMatch(/,1\)$/)
-  expect(nodeColor('ledger')).toMatch(/,1\)$/)
+  expect(nodeColor('mara')).toMatch(/,1\)$/)
   expect(nodeColor('harbor')).toMatch(/,0.16\)$/)
-  const direct = data().links.find((l) => l.source === 'rina' || l.target === 'rina')!
+  const direct = data().links.find((l) => l.source === 'rina' && l.target === 'mara')!
   const label = setting<(link: GraphLink) => SpriteText>('linkThreeObject')(direct)
   expect(label.visible).toBe(true)
-  expect(label.text).toContain('owns')
+  expect(label.text).toContain('works with')
   setting<() => void>('onBackgroundClick')()
   expect(onClear).toHaveBeenCalledOnce()
   await act(async () =>
@@ -666,9 +668,9 @@ it('clears link support when the pointer exits the canvas even without a vendor 
     await render()
     enterCanvas()
     await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
-    expect(container.textContent).toContain('Harbor Ledger is built for Harbor.')
+    expect(container.textContent).toContain('Ledger is built for Harbor.')
     leaveCanvas()
-    expect(container.textContent).not.toContain('Harbor Ledger is built for Harbor.')
+    expect(container.textContent).not.toContain('Ledger is built for Harbor.')
   } finally {
     restore()
     fake.dispose()
@@ -684,7 +686,7 @@ it('ignores link support the scene reports while the pointer is outside the grap
     // The library raycasts from its default pointer position before any pointer reaches the canvas.
     await act(async () => setting<(link: GraphLink) => void>('onLinkHover')(data().links[0]!))
     expect(read).not.toHaveBeenCalled()
-    expect(container.textContent).not.toContain('Harbor Ledger is built for Harbor.')
+    expect(container.textContent).not.toContain('Ledger is built for Harbor.')
   } finally {
     restore()
     fake.dispose()
