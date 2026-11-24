@@ -15,7 +15,7 @@ function readRun(ctx: Context, id: string): BrainAgentRun {
   const row = one<BrainAgentRun>(
     ctx,
     `SELECT id,state,total,queued_at AS queuedAt,started_at AS startedAt,
-    finished_at AS finishedAt,error,session_path AS sessionPath,rules_changed AS rulesChanged,
+    finished_at AS finishedAt,error,session_path AS sessionPath,rules_changed AS rulesChanged,automatic,
     (SELECT COUNT(*) FROM agent_notes a WHERE a.run_id=r.id AND a.role='made') AS decided,
     (SELECT COUNT(*) FROM agent_notes a JOIN tidy_operations o ON o.id=a.operation_id WHERE a.run_id=r.id AND a.role='made' AND o.kind='erase') AS erased,
     (SELECT COUNT(*) FROM agent_notes a JOIN tidy_operations o ON o.id=a.operation_id WHERE a.run_id=r.id AND a.role='made' AND ${undoableSql}) AS undoable
@@ -23,7 +23,7 @@ function readRun(ctx: Context, id: string): BrainAgentRun {
     id,
   )
   if (!row) throw new Error('Brain Agent run not found.')
-  return { ...row, rulesChanged: !!row.rulesChanged }
+  return { ...row, rulesChanged: !!row.rulesChanged, automatic: !!row.automatic }
 }
 /** Counters include made operations even after undo, never undid notes; undoable is current. */
 export function latestRun(ctx: Context): BrainAgentRun | null {
@@ -33,7 +33,11 @@ export function latestRun(ctx: Context): BrainAgentRun | null {
   )
   return row ? readRun(ctx, row.id) : null
 }
-/** An automatic run past BRAIN_AUTO_RUNS_PER_DAY in the last 24 hours is refused; Defrag never is. */
+const DAY_MS = 86_400_000
+/**
+ * An automatic run past BRAIN_AUTO_RUNS_PER_DAY in the last 24 hours is refused; Defrag never is.
+ * Pruning keeps the newest 20 runs and every automatic run that limit still counts.
+ */
 export function createRun(ctx: Context, automatic: boolean): BrainAgentRun {
   return transaction(ctx, () => {
     const id = ctx.id(),
@@ -43,7 +47,7 @@ export function createRun(ctx: Context, automatic: boolean): BrainAgentRun {
       one<{ n: number }>(
         ctx,
         'SELECT COUNT(*) AS n FROM agent_runs WHERE automatic=1 AND queued_at>?',
-        now - 86_400_000,
+        now - DAY_MS,
       )!.n >= BRAIN_AUTO_RUNS_PER_DAY
     )
       throw new Error(BRAIN_AUTO_RUN_LIMIT_REFUSAL)
@@ -56,7 +60,9 @@ export function createRun(ctx: Context, automatic: boolean): BrainAgentRun {
     )
     run(
       ctx,
-      'DELETE FROM agent_runs WHERE id NOT IN (SELECT id FROM agent_runs ORDER BY queued_at DESC,rowid DESC LIMIT 20)',
+      `DELETE FROM agent_runs WHERE id NOT IN (SELECT id FROM agent_runs ORDER BY queued_at DESC,rowid DESC LIMIT 20)
+      AND NOT (automatic=1 AND queued_at>?)`,
+      now - DAY_MS,
     )
     pruneOperations(ctx)
     return readRun(ctx, id)
