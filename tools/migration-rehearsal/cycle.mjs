@@ -110,15 +110,8 @@ function routineCounts(file) {
 
 const configOf = (dir) => readRecord(join(dir, 'config.json'), 64 * 1024 * 1024)
 
-export async function rehearseAfterCommit(ctx, migrationId, expected) {
-  const { roots } = ctx
-  const migrationDir = join(roots.userData, 'daemon-migration')
-  const backupDir = join(migrationDir, `backup-${migrationId}`)
-  const sessionsBefore = ctx.sessionsBefore
-  const report = { checks: {} }
-  /** `ok` null: the copy cannot exercise it (say, no lane it can start). */
-  const check = (name, ok) => (report.checks[name] = ok === null ? 'skipped' : ok ? 'pass' : 'fail')
-
+/** Desktop on the service: the CLI's view must match the plan and the sidebar's old rows. */
+async function onService(ctx, report, check, expected) {
   report.onService = await launch(ctx, [], 20000)
   check(
     'second launch runs on the service',
@@ -141,10 +134,15 @@ export async function rehearseAfterCommit(ctx, migrationId, expected) {
     'service has exactly the moved lanes and archives',
     lanes?.length === expected.lanes && archives?.length === expected.archives,
   )
+  return { lanes: lanes ?? [], refusals }
+}
 
-  // A person restoring has lanes running: start the newest, then stop them all as they would.
-  // The copy has pi's settings but not its packages, so a Claude lane refuses to start here.
-  const newest = (lanes ?? [])
+/**
+ * A person restoring has lanes running: start the newest, then stop them all as they would.
+ * The copy has pi's settings but not its packages, so a Claude lane refuses to start here.
+ */
+async function stopLanes(ctx, report, check, { lanes, refusals }) {
+  const newest = lanes
     .filter((l) => l.model && !/claude/i.test(l.model.provider))
     .toSorted((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0]
   const resumed = newest ? phosphor(ctx, ['lane', 'resume', newest.laneId]).result : null
@@ -176,7 +174,10 @@ export async function rehearseAfterCommit(ctx, migrationId, expected) {
     still = now ? now.filter((lane) => lane.activity !== 'stopped').length : still
   }
   check('phosphor CLI starts and stops lanes', newest ? running.length > 0 && still === 0 : null)
+}
 
+/** The break-glass restore: exit 75 and a restart, then the backup's data exactly. */
+async function restore(ctx, report, check, { migrationDir, backupDir, saved }) {
   const exitsBefore = ctx.daemon.exits.length
   report.restore = await launch(ctx, ['--restore-in-app-runtime'], 10000)
   const journal = await readRecord(join(migrationDir, 'journal.json'))
@@ -185,22 +186,33 @@ export async function rehearseAfterCommit(ctx, migrationId, expected) {
   check('restore reverts and runs in-app', journal?.state === 'reverted')
   check('restore launch runs in-app', report.restore.mode === 'in-app' && report.restore.stayedUp)
   check('service released with exit 75 and restarted', report.restore.serviceExits.includes(75))
-
-  const saved = await configOf(backupDir)
-  const restored = restoredConfig(await configOf(roots.userData), saved)
+  const restored = restoredConfig(await configOf(ctx.roots.userData), saved)
   report.config = restored
   check('folders restored exactly', restored.folders)
   check('Claude accounts restored exactly', restored.accounts)
-  const routinesFile = join(roots.userData, 'routines.sqlite')
   report.routines = {
     backup: routineCounts(join(backupDir, 'routines.consistent.sqlite')),
-    restored: routineCounts(routinesFile),
+    restored: routineCounts(join(ctx.roots.userData, 'routines.sqlite')),
   }
   check(
     'routines and runs restored',
     !!report.routines.backup &&
       JSON.stringify(report.routines.backup) === JSON.stringify(report.routines.restored),
   )
+  return journal
+}
+
+export async function rehearseAfterCommit(ctx, migrationId, expected) {
+  const { roots } = ctx
+  const migrationDir = join(roots.userData, 'daemon-migration')
+  const backupDir = join(migrationDir, `backup-${migrationId}`)
+  const report = { checks: {} }
+  /** `ok` null: the copy cannot exercise it (say, no lane it can start). */
+  const check = (name, ok) => (report.checks[name] = ok === null ? 'skipped' : ok ? 'pass' : 'fail')
+
+  await stopLanes(ctx, report, check, await onService(ctx, report, check, expected))
+  const saved = await configOf(backupDir)
+  const journal = await restore(ctx, report, check, { migrationDir, backupDir, saved })
 
   report.inApp = await launch(ctx, [], 15000)
   const after = await readRecord(join(migrationDir, 'journal.json'))
@@ -208,7 +220,7 @@ export async function rehearseAfterCommit(ctx, migrationId, expected) {
   check('no automatic second move', JSON.stringify(after) === JSON.stringify(journal))
   const kept = restoredConfig(await configOf(roots.userData), saved)
   check('folders and accounts still there after relaunch', kept.folders && kept.accounts)
-  report.sessions = sessionsKept(sessionsBefore, await transcripts(roots.agent))
+  report.sessions = sessionsKept(ctx.sessionsBefore, await transcripts(roots.agent))
   check('every conversation kept', report.sessions.kept)
   report.complete = Object.values(report.checks).every((v) => v !== 'fail')
   return report
