@@ -86,6 +86,14 @@ async function waitJournal(dir, start, children) {
   return readReport(dir, start)
 }
 
+/** The Host's features, then Desktop's setup with this Mac's own pi, before the stub stands in. */
+function preflight(profile, host, env, root) {
+  if (!supportsMigration(profile, host, env))
+    return { refused: { reason: 'host-features-missing' } }
+  const realPi = realPiSetup(root, host)
+  return realPi.status === 'pass' ? realPi : { refused: { reason: 'real-pi', realPi } }
+}
+
 async function run(layout, full) {
   const { root, roots } = layout,
     sources = await ready(root, roots)
@@ -107,18 +115,9 @@ async function run(layout, full) {
   process.once('exit', stop)
   try {
     await mkdir(roots.home, { mode: 0o700 })
-    if (!supportsMigration(profile, host, env)) {
-      console.log(
-        JSON.stringify({ ...journalReport(null, null, start), reason: 'host-features-missing' }),
-      )
-      return 1
-    }
-    // Desktop's setup with this Mac's own pi, before the stub pi stands in for it below.
-    const realPi = realPiSetup(root, host)
-    if (realPi.status !== 'pass') {
-      console.log(
-        JSON.stringify({ ...journalReport(null, null, start), reason: 'real-pi', realPi }),
-      )
+    const realPi = preflight(profile, host, env, root)
+    if (realPi.refused) {
+      console.log(JSON.stringify({ ...journalReport(null, null, start), ...realPi.refused }))
       return 1
     }
     const id = await seedDaemon(roots)
