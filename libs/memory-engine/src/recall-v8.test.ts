@@ -128,3 +128,9 @@ it('expands current sentences, history, co-mentions and ranked memories', () => 
   })
   expect(expansion.hits.map((h) => h.memory.id).sort()).toEqual(['bridge', 'current'])
 })
+it('does not walk a relation hosted only by an expired memory', () => {
+  const {ask,db}=setup()
+  db.exec("UPDATE memories SET valid_to=2 WHERE id='bridge'; UPDATE entities SET memories=2 WHERE id='l'")
+  db.close()
+  expect(ask().hits.map(h=>h.memory.id)).not.toContain('leaf')
+})
