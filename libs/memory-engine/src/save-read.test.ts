@@ -168,3 +168,19 @@ it('ends a temporary claim that starts later 14 days after its start, and each l
     ['works_on', start + span],
   ])
 })
+it('saves a temporary claim answered as enrich separately, leaving the lasting memory untouched', () => {
+  const { store, db } = fixture()
+  const [target] = approve(store)
+  const before = store.memory(target!)
+  const data = extraction('unused')
+  const saved = save(store, {
+    origin: { sessionId: 'ledger-lane', title: 'Ledger' },
+    memories: [{ ...data.memories[0]!, hold: 'temporary', action: 'enrich', target: target! }],
+    memoryVectors: [vector()],
+  })
+  expect(saved).toMatchObject({ memories: 1, temporary: 1 })
+  expect(store.memory(target!).quotes).toEqual(before.quotes)
+  expect(db.prepare('SELECT COUNT(*) AS n FROM memories WHERE valid_to IS NOT NULL').get()).toEqual(
+    { n: 1 },
+  )
+})
