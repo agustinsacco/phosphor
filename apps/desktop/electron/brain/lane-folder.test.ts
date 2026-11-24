@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
   BRAIN_AGENT_RULES,
+  BRAIN_AGENT_RULES_V7,
   brainLaneFolder,
   ensureBrainLane,
   isBrainLaneFolder,
@@ -60,4 +61,14 @@ it('hands the Brain lane Brain Agent’s tools and its rules, and every other la
   expect(await readBrainRules(folder)).toBe(BRAIN_AGENT_RULES)
   expect(service.recallLaunch).toHaveBeenCalledTimes(1)
   expect(service.curatorLaunch).toHaveBeenCalledTimes(1)
+})
+
+it('upgrades only the exact v7 rules', async () => {
+  expect(BRAIN_AGENT_RULES_V7).toBeTypeOf('string')
+  for (const suffix of ['', '\n']) {
+    await writeFile(join(root, 'AGENTS.md'), BRAIN_AGENT_RULES_V7 + suffix)
+    await ensureBrainLane(root)
+    expect(await readBrainRules(root)).toBe(suffix ? BRAIN_AGENT_RULES_V7 + suffix : BRAIN_AGENT_RULES)
+  }
+  expect(BRAIN_AGENT_RULES).toContain('## Links')
 })
