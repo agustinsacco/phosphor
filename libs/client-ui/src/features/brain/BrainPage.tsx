@@ -12,8 +12,6 @@ import { openBrain, useBrainTab, type BrainTab } from './brainNavigation'
 import { waitingCount, waitingBreakdown, defragRefusal } from './agentStatus'
 import { BrainKnowledge } from './explorer/BrainKnowledge'
 import { useExplorer } from './explorer/useExplorer'
-import { BrainLanes } from './lanes/BrainLanes'
-import type { LaneSelection } from './lanes/laneGroups'
 import { BrainStatusStrip } from './BrainStatusStrip'
 import { useBrainTargets } from './useBrainTargets'
 import { pageKeyTarget } from './pageKeys'
@@ -99,10 +97,8 @@ function BrainContent(): React.JSX.Element {
   const status = useBrain((s) => s.status)!
   const { tab, setTab, target } = useBrainTab(status)
   const explorer = useExplorer()
-  const [lane, setLane] = useState<LaneSelection | null>(null)
   const [searchRequest, setSearchRequest] = useState(0)
   useBrainTargets(target, {
-    setLane,
     focusSearch: () => setSearchRequest((n) => n + 1),
   })
   return (
@@ -121,20 +117,7 @@ function BrainContent(): React.JSX.Element {
         <BrainKnowledge
           state={explorer}
           searchRequest={searchRequest}
-          onOpenRead={(jobId) => {
-            setLane({ type: 'job', id: jobId })
-            setTab('lanes')
-          }}
-        />
-      </Panel>
-      <Panel id="lanes" tab={tab}>
-        <BrainLanes
-          selected={lane}
-          onSelect={setLane}
-          onMemory={(id, label) => {
-            explorer.onVisit({ kind: 'memory', id, label })
-            setTab('knowledge')
-          }}
+          onOpenRead={() => setTab('knowledge')}
         />
       </Panel>
     </div>
@@ -177,7 +160,6 @@ function BrainTabs({
       onChange={setTab}
       tabs={[
         { value: 'knowledge', label: 'Knowledge' },
-        { value: 'lanes', label: 'Lanes' },
       ]}
     />
   )
