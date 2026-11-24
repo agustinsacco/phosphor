@@ -17,8 +17,9 @@ export async function watchBrainErrors(page: Page): Promise<() => Promise<void>>
   return async () => expect(await errors.jsonValue()).toEqual([])
 }
 
+/** How a saved read was read, opened from What changed: long text scrolls in capped boxes. */
 export async function expectBoundedReadText(page: Page): Promise<void> {
-  const detail = page.getByRole('article', { name: 'Read detail', exact: true })
+  const detail = page.getByRole('dialog', { name: /^How .+ was read$/ })
   await detail.getByText('Read the conversation · part 1', { exact: false }).click()
   await detail.getByText('Source lane at extraction', { exact: true }).click()
   await expect(detail.locator('pre')).toHaveCount(3)

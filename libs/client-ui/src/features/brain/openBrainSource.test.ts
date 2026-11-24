@@ -5,7 +5,7 @@ import {
   createFakePhosphor,
   installFakePhosphor,
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
-import { openBrainLane, openBrainSource } from './openBrainSource'
+import { openBrainSource } from './openBrainSource'
 import { useSessionsStore } from '@/stores/sessions'
 import { navigateToLane } from '@/stores/remoteLanes'
 import { openSidebarConversation } from '@/features/sessions/completionActions'
@@ -40,12 +40,6 @@ let restore: () => void
 let fake: ReturnType<typeof createFakePhosphor>
 const openDiskSession = vi.fn(async () => 'harbor-live')
 const refreshDisk = vi.fn(async () => {})
-const history = vi.fn(async (_limit: number) => ({
-  items: [
-    { job: { sessionId: 'harbor-lane', sessionPath: meta.path }, memories: 1, replaceable: 1 },
-  ],
-  more: false,
-}))
 beforeEach(() => {
   vi.clearAllMocks()
   fake = createFakePhosphor({
@@ -55,7 +49,6 @@ beforeEach(() => {
       entries: [],
       leafId: 'leaf',
     }),
-    'brain:history': history as never,
   })
   restore = installFakePhosphor(fake)
   vi.mocked(useSessionsStore.getState).mockReturnValue({
@@ -97,22 +90,4 @@ it('reports a deleted source instead of creating a different lane', async () => 
   } as unknown as ReturnType<typeof useSessionsStore.getState>)
   await expect(openBrainSource(meta.path)).rejects.toThrow('Source lane is no longer available')
   expect(openDiskSession).not.toHaveBeenCalled()
-})
-
-it('opens a lane by session id from sidebar metadata without asking Brain', async () => {
-  await openBrainLane('harbor-lane')
-  expect(history).not.toHaveBeenCalled()
-  expect(navigateToLane).toHaveBeenCalledWith({ sessionId: 'harbor-live' })
-})
-it('finds a lane the sidebar has not loaded through Brain reads, and says when it is gone', async () => {
-  vi.mocked(useSessionsStore.getState).mockReturnValue({
-    live: {},
-    disk: {},
-    openDiskSession,
-    refreshDisk,
-  } as unknown as ReturnType<typeof useSessionsStore.getState>)
-  await expect(openBrainLane('harbor-lane')).rejects.toThrow('Source lane is no longer available')
-  expect(history).toHaveBeenCalledWith(200)
-  expect(refreshDisk).toHaveBeenCalledWith(meta.cwd)
-  await expect(openBrainLane('kestrel-lane')).rejects.toThrow('Source lane is no longer available')
 })

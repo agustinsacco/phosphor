@@ -1,23 +1,17 @@
 import { useState } from 'react'
 import type { BrainStatus } from '@shared/brain'
 import { PageShell } from '@/components/PageShell'
-import { UnderlinedTabs } from '@/components/UnderlinedTabs'
 import { Button } from '@/components/form'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { usePlatform } from '@/platform/Platform'
 import { formatCount } from '@/lib/format'
 import { useBrain } from './useBrain'
 import { useBrainSync } from './useBrainSync'
-import { openBrain, useBrainTab, type BrainTab } from './brainNavigation'
+import { openBrain } from './brainNavigation'
 import { waitingCount, waitingBreakdown, defragRefusal } from './agentStatus'
-import { BrainKnowledge } from './explorer/BrainKnowledge'
-import { useExplorer } from './explorer/useExplorer'
-import { BrainLanes } from './lanes/BrainLanes'
-import type { LaneSelection } from './lanes/laneGroups'
-import { BrainStatusStrip } from './BrainStatusStrip'
-import { useBrainTargets } from './useBrainTargets'
-import { pageKeyTarget } from './pageKeys'
+import { BrainScreen } from './screen/BrainScreen'
 import './brain.css'
+import './map/map.css'
 
 export function BrainPage(): React.JSX.Element {
   useBrainSync()
@@ -36,12 +30,12 @@ export function BrainPage(): React.JSX.Element {
             {status && (
               <Button
                 size="sm"
-                tooltip={{ label: 'Go to anyone or anything', shortcut: ['/'] }}
+                tooltip={{ label: 'Search Brain', shortcut: ['/'] }}
                 className="text-text-tertiary flex items-center gap-2"
-                onClick={() => openBrain({ tab: 'knowledge', search: true })}
+                onClick={() => openBrain({ search: true })}
               >
                 <span aria-hidden="true">⌕</span>
-                <span className="brain-search-label">Go to anyone or anything</span>
+                <span className="brain-search-label">Search</span>
                 <kbd className="border-border rounded-sm border px-1 font-mono text-2xs">/</kbd>
               </Button>
             )}
@@ -89,97 +83,9 @@ export function BrainPage(): React.JSX.Element {
           )}
         </div>
       ) : (
-        <BrainContent key={status.generation} />
+        <BrainScreen key={status.generation} status={status} />
       )}
     </PageShell>
-  )
-}
-
-function BrainContent(): React.JSX.Element {
-  const status = useBrain((s) => s.status)!
-  const { tab, setTab, target } = useBrainTab(status)
-  const explorer = useExplorer()
-  const [lane, setLane] = useState<LaneSelection | null>(null)
-  const [searchRequest, setSearchRequest] = useState(0)
-  useBrainTargets(target, {
-    setLane,
-    focusSearch: () => setSearchRequest((n) => n + 1),
-  })
-  return (
-    <div
-      className="brain-page"
-      onKeyDown={(event) => {
-        if (!pageKeyTarget(event, '/')) return
-        event.preventDefault()
-        setTab('knowledge')
-        setSearchRequest((n) => n + 1)
-      }}
-    >
-      <BrainTabs tab={tab} setTab={setTab} />
-      <BrainStatusStrip onLanes={() => setTab('lanes')} />
-      <Panel id="knowledge" tab={tab}>
-        <BrainKnowledge
-          state={explorer}
-          searchRequest={searchRequest}
-          onOpenRead={(jobId) => {
-            setLane({ type: 'job', id: jobId })
-            setTab('lanes')
-          }}
-        />
-      </Panel>
-      <Panel id="lanes" tab={tab}>
-        <BrainLanes
-          selected={lane}
-          onSelect={setLane}
-          onMemory={(id, label) => {
-            explorer.onVisit({ kind: 'memory', id, label })
-            setTab('knowledge')
-          }}
-        />
-      </Panel>
-    </div>
-  )
-}
-
-function Panel({
-  id,
-  tab,
-  children,
-}: {
-  id: BrainTab
-  tab: BrainTab
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <div
-      id={`brain-panel-${id}`}
-      role="tabpanel"
-      aria-labelledby={`brain-tab-${id}`}
-      className={tab === id ? 'brain-panel' : 'hidden'}
-    >
-      {tab === id && children}
-    </div>
-  )
-}
-
-function BrainTabs({
-  tab,
-  setTab,
-}: {
-  tab: BrainTab
-  setTab: (tab: BrainTab) => void
-}): React.JSX.Element {
-  return (
-    <UnderlinedTabs
-      id="brain"
-      label="Brain views"
-      value={tab}
-      onChange={setTab}
-      tabs={[
-        { value: 'knowledge', label: 'Knowledge' },
-        { value: 'lanes', label: 'Lanes' },
-      ]}
-    />
   )
 }
 

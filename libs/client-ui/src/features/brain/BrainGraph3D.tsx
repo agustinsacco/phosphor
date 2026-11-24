@@ -146,7 +146,7 @@ function EdgeDetail({ edge }: { edge: GraphLink }): React.JSX.Element {
   const { data, error, retry } = useBrainResource(load)
   return (
     <div role="status" className="border-border bg-bg-secondary border-t p-3 text-sm">
-      <p>{edge.predicates.map((p) => p.replaceAll('_', ' ')).join(', ')}</p>
+      <p className="font-medium">{edge.sentences.join('; ')}</p>
       {data?.memory.summary || error || 'Loading supporting memory…'}
       {error && (
         <Button size="xs" onClick={retry}>

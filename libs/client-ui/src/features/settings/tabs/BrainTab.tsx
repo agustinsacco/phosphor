@@ -54,13 +54,13 @@ export function BrainTab(): React.JSX.Element {
             />
           </Row>
           <Row
-            title="Review before saving"
-            description="Reads wait for Defrag before saving. Turn this off to save them as soon as extraction finishes."
+            title="Brain Agent checks new knowledge on its own"
+            description="Reads save as soon as they finish. A minute after new knowledge settles, Brain Agent links people, groups what belongs together and settles repeats, at most 6 times a day. Every change is listed in What changed with Undo."
           >
             <Toggle
-              on={status.prefs.review}
+              on={status.prefs.agentAuto}
               disabled={saving}
-              onChange={(review) => save({ review })}
+              onChange={(agentAuto) => save({ agentAuto })}
             />
           </Row>
           <BrainReadingPrefs status={status} saving={saving} />
@@ -218,7 +218,7 @@ async function resetKnowledge(): Promise<void> {
   const answer = await promptText({
     title: 'Reset Brain knowledge?',
     message:
-      'Deletes all memories, entities, jobs and extraction records. Keeps settings and the embedding model; review is turned back on. This cannot be undone. Type RESET to confirm.',
+      'Deletes all memories, entities, jobs and extraction records. Keeps settings and the embedding model. This cannot be undone. Type RESET to confirm.',
     placeholder: 'RESET',
     submitLabel: 'Reset knowledge',
   })
@@ -229,7 +229,7 @@ function BrainReset({ saving }: { saving: boolean }): React.JSX.Element {
   return (
     <Row
       title="Reset Brain knowledge"
-      description="Deletes all memories, entities, jobs and extraction records. Keeps your settings and embedding model; review is turned back on."
+      description="Deletes all memories, entities, jobs and extraction records. Keeps your settings and embedding model."
     >
       <Button
         variant="danger"

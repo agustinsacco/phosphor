@@ -37,6 +37,19 @@ export function checkMockTidyArguments(channel: string, args: unknown[]): void {
     case 'brain:split':
       checkMockSplit(args)
       break
+    case 'brain:ask':
+    case 'brain:tell':
+      if (args.length !== 1 || typeof args[0] !== 'string') invalid()
+      text((args[0] as string).trim(), channel === 'brain:ask' ? 2000 : 8000)
+      break
+    case 'brain:laneRead':
+      if (args.length !== 1) invalid()
+      text(args[0], 200)
+      break
+    case 'brain:setOwner':
+      if (args.length !== 1) invalid()
+      if (args[0] !== null) text(args[0], 200)
+      break
   }
 }
 

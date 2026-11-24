@@ -2,6 +2,7 @@ import type { BrainStatus } from '@shared/brain'
 import type { BrainTidyOperation, BrainTidySuggestion } from '@shared/brain-tidy'
 import type { MockExplorer } from '../mockExplorer'
 import { MockAgentJournal } from './mockAgentJournal'
+import { decide } from './mockAgentDecisions'
 
 /** The mock curator's decisions over the same suggestions Knowledge edits use. */
 export class MockTidyAgent {
@@ -27,6 +28,8 @@ export class MockTidyAgent {
     const items = this.items().filter((item) => item.state === 'open')
     return {
       entities: items.filter((s) => s.kind === 'same_entity').length,
+      groups: items.filter((s) => s.kind === 'group').length,
+      unlinked: items.filter((s) => s.kind === 'unlinked').length,
       repeats: items.filter((s) => s.kind === 'same_memory').length,
       conflicts: items.filter((s) => s.kind === 'conflict').length,
       flags: items.filter((s) => s.kind === 'flagged').length,
@@ -46,30 +49,15 @@ export class MockTidyAgent {
   }
   resolve(runId: string, id: string, erase: boolean): void {
     const item = this.items().find((s) => s.id === id)!
-    const first = item.subjects[0]!
-    const kind =
-      erase && first.type === 'memory' ? 'erase' : item.kind === 'same_entity' ? 'merge' : 'keep'
-    const reason =
-      kind === 'erase'
-        ? 'This flag identifies an outdated memory.'
-        : kind === 'merge'
-          ? 'Both records describe the same project and evidence.'
-          : 'The evidence supports keeping these separate.'
-    const summary =
-      kind === 'erase'
-        ? `Erased a memory: ${reason}`
-        : kind === 'merge'
-          ? `Merged ${item.subjects[1]!.label} into ${first.label}`
-          : 'Kept both as they are'
+    const decision = decide(item, erase)
     this.change(
       runId,
-      kind,
-      summary,
-      reason,
+      decision.kind,
+      decision.summary,
+      decision.reason,
       () => {
         item.state = 'applied'
-        if (kind === 'erase') this.journal.erase(first.id)
-        if (kind === 'merge') this.explorer.merge(item.subjects[1]!.id, first.id)
+        decision.apply(this.explorer, this.journal)
       },
       null,
       () => {

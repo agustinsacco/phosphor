@@ -37,7 +37,7 @@ export function profileMenu(
       onClick: () => onEdit('removeName'),
     },
     { label: 'Edit description…', onClick: () => onEdit('describe') },
-    { label: 'Show on full map', onClick: onFullMap, separatorAbove: true },
+    { label: 'Show in the whole graph', onClick: onFullMap, separatorAbove: true },
   ]
 }
 

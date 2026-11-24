@@ -2,93 +2,235 @@ import { emptyBrainTidySummary } from '@shared/brain-tidy'
 import {
   BRAIN_EMBEDDING_MODEL,
   DEFAULT_BRAIN_PREFS,
-  type BrainStatus,
   type BrainEntity,
-  type BrainMemoryDetail,
   type BrainJob,
-  type BrainProposalView,
+  type BrainLink,
+  type BrainMemory,
+  type BrainMemoryDetail,
+  type BrainPredicate,
+  type BrainStatus,
 } from '@shared/brain'
 
+/** The day the invented notes were said, and the dates their relationships carry. */
+export const MOCK_SAID_AT = Date.UTC(2026, 10, 5)
+const day = (month: number, date: number): number => Date.UTC(2026, month - 1, date)
+
+/** You, in the invented Brain: the map centres here until something is selected. */
+export const MOCK_OWNER_ID = 'mara'
+
+interface LinkSpec {
+  s: string
+  p: BrainPredicate
+  o: string
+  label: string
+  from?: number
+  to?: number
+}
+interface MemorySpec {
+  summary: string
+  entities: string[]
+  links?: LinkSpec[]
+  type?: BrainMemory['type']
+  kind?: BrainMemory['kind']
+  importance?: BrainMemory['importance']
+  saidBy?: BrainMemory['saidBy']
+  lanes?: number
+  state?: BrainMemory['state']
+  validTo?: number
+  title?: string
+}
+
 /**
- * Invented Harbor notes: enough neighbours and memories to exercise bounded paging. New facts
- * go at the end, so the indexes tests and the mock review rely on never move.
+ * Invented Harbor and Ledger notes. People join people ("took over Ledger billing from"), one
+ * relationship has ended, two pairs are named together with no link, and Harbor has enough
+ * parts to page. New notes go at the end: tests address the early ones by index.
  */
+const SPECS: MemorySpec[] = [
+  {
+    summary: 'Ledger is built for Harbor.',
+    entities: ['ledger', 'harbor'],
+    links: [{ s: 'ledger', p: 'for_customer', o: 'harbor', label: 'is built for' }],
+    type: 'fact',
+    lanes: 3,
+  },
+  {
+    summary: 'Tom Lee took over Ledger billing from Rina Okafor in September.',
+    entities: ['tom', 'rina', 'ledger'],
+    links: [
+      {
+        s: 'tom',
+        p: 'took_over_from',
+        o: 'rina',
+        label: 'took over Ledger billing from',
+        from: day(9, 1),
+      },
+    ],
+    type: 'decision',
+    importance: 2,
+    saidBy: 'you',
+    lanes: 2,
+  },
+  {
+    summary: 'Tom Lee leads the Ledger team.',
+    entities: ['tom', 'ledger-team'],
+    links: [{ s: 'tom', p: 'leads', o: 'ledger-team', label: 'leads', from: day(9, 1) }],
+    kind: 'observed',
+  },
+  {
+    summary: 'Tom Lee reports to Mara Voss.',
+    entities: ['tom', 'mara'],
+    links: [{ s: 'tom', p: 'reports_to', o: 'mara', label: 'reports to' }],
+    saidBy: 'you',
+  },
+  {
+    summary: 'Rina Okafor led the Ledger team until the end of August.',
+    entities: ['rina', 'ledger-team'],
+    links: [{ s: 'rina', p: 'leads', o: 'ledger-team', label: 'led', to: day(8, 31) }],
+  },
+  {
+    summary: 'Rina Okafor works with Mara Voss on the Kestrel rollout.',
+    entities: ['rina', 'mara', 'kestrel'],
+    links: [{ s: 'rina', p: 'works_with', o: 'mara', label: 'works with' }],
+    lanes: 2,
+  },
+  {
+    summary: 'The Ledger team owns Ledger.',
+    entities: ['ledger-team', 'ledger'],
+    links: [{ s: 'ledger-team', p: 'owns', o: 'ledger', label: 'owns' }],
+    kind: 'observed',
+  },
+  {
+    summary: 'Mara Voss decided Ledger invoices close on the fifth working day.',
+    entities: ['mara', 'ledger'],
+    links: [{ s: 'mara', p: 'decided', o: 'ledger', label: 'set the invoice close date for' }],
+    type: 'decision',
+    importance: 2,
+    saidBy: 'you',
+  },
+  {
+    summary: 'Kestrel is built for Northwind.',
+    entities: ['kestrel', 'northwind'],
+    links: [{ s: 'kestrel', p: 'for_customer', o: 'northwind', label: 'is built for' }],
+  },
+  {
+    summary: 'Rina Okafor moved to Kestrel in September.',
+    entities: ['rina', 'kestrel'],
+    links: [{ s: 'rina', p: 'works_on', o: 'kestrel', label: 'moved to', from: day(9, 1) }],
+  },
+  {
+    summary: 'Tom Lee worked on Kestrel until mid-August.',
+    entities: ['tom', 'kestrel'],
+    links: [{ s: 'tom', p: 'works_on', o: 'kestrel', label: 'worked on', to: day(8, 15) }],
+    kind: 'inferred',
+    importance: 0,
+  },
+  {
+    summary: 'Tom Lee and Northwind discussed a Ledger pilot.',
+    entities: ['tom', 'northwind', 'ledger'],
+    type: 'open',
+  },
+  {
+    summary: 'Tom Lee joined the Northwind quarterly review.',
+    entities: ['tom', 'northwind'],
+    kind: 'observed',
+  },
+  {
+    summary: 'Harbor invoices close on the fifth working day.',
+    entities: ['harbor', 'ledger'],
+    type: 'procedure',
+  },
+  {
+    summary: 'Ledger invoices were sent weekly.',
+    entities: ['ledger'],
+    state: 'superseded',
+  },
+  {
+    summary: 'Ledger invoices go out monthly.',
+    entities: ['ledger', 'harbor'],
+    state: 'disputed',
+  },
+  {
+    summary: 'Ledger invoices go out every two weeks.',
+    entities: ['ledger', 'harbor'],
+    state: 'disputed',
+  },
+  {
+    summary: 'Northwind may delay the Kestrel launch to January.',
+    entities: ['northwind', 'kestrel'],
+    type: 'risk',
+    importance: 2,
+    validTo: day(12, 31),
+  },
+  {
+    summary: 'Rina Okafor and Harbor reviewed the migration receipts.',
+    entities: ['rina', 'harbor'],
+    kind: 'observed',
+  },
+  ...Array.from({ length: 25 }, (_, i): MemorySpec => ({
+    summary: `Harbor component ${i + 1} is part of Harbor.`,
+    entities: [`component-${i}`, 'harbor'],
+    links: [{ s: `component-${i}`, p: 'part_of', o: 'harbor', label: 'is part of' }],
+    importance: 0,
+  })),
+]
+
+function mockLink(spec: LinkSpec, memoryId: string, index: number): BrainLink {
+  return {
+    id: `link-${memoryId}-${index}`,
+    subjectId: spec.s,
+    predicate: spec.p,
+    objectId: spec.o,
+    memoryId,
+    label: spec.label,
+    validFrom: spec.from ?? null,
+    validTo: spec.to ?? null,
+    statedBy: 'reader',
+  }
+}
+
 export function mockBrainData(): { entities: BrainEntity[]; details: BrainMemoryDetail[] } {
   const entities = mockEntities()
-  const specs = [
-    {
-      subject: 'ledger',
-      object: 'harbor',
-      predicate: 'for_customer' as const,
-      summary: 'Harbor Ledger is built for Harbor.',
-    },
-    {
-      subject: 'rina',
-      object: 'ledger',
-      predicate: 'owns' as const,
-      summary: 'Rina Okafor owns Harbor Ledger migrations.',
-    },
-    {
-      subject: 'tom',
-      object: 'ledger',
-      predicate: 'works_on' as const,
-      summary: 'Tom Lee supports Harbor Ledger.',
-    },
-    ...entities
-      .filter((entity) => entity.kind === 'component')
-      .map((entity) => ({
-        subject: entity.id,
-        object: 'harbor',
-        predicate: 'part_of' as const,
-        summary: `${entity.label} is part of Harbor.`,
-      })),
-    {
-      subject: 'rina',
-      object: 'ledger-team',
-      predicate: 'leads' as const,
-      summary: 'Rina Okafor leads the Ledger team.',
-    },
-  ]
-  const details = specs.map((spec, index): BrainMemoryDetail => {
+  const details = SPECS.map((spec, index): BrainMemoryDetail => {
     const id = `memory-${index}`
-    const link = {
-      id: `link-${index}`,
-      subjectId: spec.subject,
-      objectId: spec.object,
-      predicate: spec.predicate,
-      memoryId: id,
-    }
-    const quotes = [{ before: '', quote: spec.summary, after: '', label: 'You · Harbor planning' }]
+    const links = (spec.links ?? []).map((link, at) => mockLink(link, id, at))
+    const title = spec.title ?? (index % 3 ? 'Ledger handover' : 'Harbor planning')
+    const quotes = [{ before: '', quote: spec.summary, after: '', label: `You · ${title}` }]
     return {
       memory: {
         id,
         jobId: null,
         summary: spec.summary,
-        type: index === 0 ? 'decision' : 'fact',
-        kind: 'reported',
-        state: index === 3 ? 'disputed' : index === 4 ? 'superseded' : 'active',
-        entityIds: [spec.subject, spec.object],
-        links: [link],
+        type: spec.type ?? 'fact',
+        kind: spec.kind ?? 'reported',
+        state: spec.state ?? 'active',
+        entityIds: spec.entities,
+        links,
         scope: '/demo/Harbor',
         branch: null,
         validFrom: null,
-        validTo: null,
-        recordedAt: 1793966400000,
-        observedAt: 1793880000000,
-        origin: { sessionId: 'harbor-lane', title: 'Harbor planning' },
+        validTo: spec.validTo ?? null,
+        recordedAt: MOCK_SAID_AT + 86_400_000,
+        observedAt: MOCK_SAID_AT - index * 3_600_000,
+        origin: {
+          sessionId: index % 3 ? 'ledger-lane' : 'harbor-lane',
+          title,
+        },
+        importance: spec.importance ?? 1,
+        saidBy: spec.saidBy ?? 'agent',
+        lanes: spec.lanes ?? 1,
       },
       quotes,
-      linkQuotes: { [link.id]: quotes },
-      entities: entities.filter((entity) => [spec.subject, spec.object].includes(entity.id)),
+      linkQuotes: Object.fromEntries(links.map((link) => [link.id, quotes])),
+      entities: entities.filter((entity) => spec.entities.includes(entity.id)),
       history: [],
       related: [],
       sourcePath: null,
+      use: { recalled: index % 4, lastRecalledAt: index % 4 ? MOCK_SAID_AT : null, flagged: 0 },
     }
   })
-  details[3]!.related = [{ kind: 'conflicts', memory: details[5]!.memory }]
-  details[5]!.memory.state = 'disputed'
-  details[5]!.related = [{ kind: 'conflicts', memory: details[3]!.memory }]
-  details[4]!.history = [details[6]!.memory]
+  details[7]!.history = [details[14]!.memory]
+  details[15]!.related = [{ kind: 'conflicts', memory: details[16]!.memory }]
+  details[16]!.related = [{ kind: 'conflicts', memory: details[15]!.memory }]
   return { entities, details }
 }
 
@@ -97,7 +239,7 @@ export function mockBrainStatus(): BrainStatus {
     supported: true,
     tidy: emptyBrainTidySummary(),
     agent: {
-      waiting: { reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 },
+      waiting: { entities: 0, groups: 0, unlinked: 0, repeats: 0, conflicts: 0, flags: 0 },
       run: null,
       folder: null,
     },
@@ -107,6 +249,7 @@ export function mockBrainStatus(): BrainStatus {
     counts: { memories: 0, entities: 0 },
     jobs: [],
     readSessionIds: [],
+    ownerId: MOCK_OWNER_ID,
     embedding: {
       phase: 'missing',
       receivedBytes: 0,
@@ -127,17 +270,14 @@ export function mockBrainJob(patch: Partial<BrainJob> = {}): BrainJob {
     scope: '/demo/Harbor',
     branch: null,
     model: 'demo/harbor-model',
-    state: 'review',
+    state: 'done',
     memories: 2,
     leafId: 'leaf-1',
     error: null,
     queuedAt: 1793966400000,
     startedAt: 1793966400000,
-    // Only a running or refreshing job has a current attempt.
-    runStartedAt:
-      patch.state === 'running' || patch.state === 'refreshing'
-        ? (patch.startedAt ?? 1793966400000)
-        : null,
+    // Only a running job has a current attempt.
+    runStartedAt: patch.state === 'running' ? (patch.startedAt ?? 1793966400000) : null,
     fromLeafId: null,
     finishedAt: 1793966448000,
     usage: null,
@@ -146,84 +286,8 @@ export function mockBrainJob(patch: Partial<BrainJob> = {}): BrainJob {
   }
 }
 
-export function mockBrainProposal(job = mockBrainJob(), revision = 0): BrainProposalView {
-  const sample = mockBrainData()
-  return {
-    job,
-    revision,
-    replacingMemories: 0,
-    identities: sample.entities.slice(0, 4).map((entity, index) => ({
-      ...entity,
-      ref: entity.id,
-      decision: index === 2 ? 'uncertain' : 'reuse',
-      entityId: index === 2 ? null : entity.id,
-      candidates: [entity],
-      reason:
-        index === 2
-          ? 'Same name; please confirm the project context.'
-          : 'Matches a known identifier.',
-      auto: index !== 2,
-      required: false,
-    })),
-    groups: [
-      {
-        index: 0,
-        parent: { label: 'Harbor', kind: 'organization', entityId: 'harbor' },
-        members: ['ledger'],
-        labels: ['Harbor Ledger', 'Harbor support', 'Harbor billing'],
-      },
-    ],
-    memories: sample.details.slice(0, 2).map(({ memory, quotes }, index) => ({
-      index,
-      hold: null,
-      summary: memory.summary,
-      type: memory.type,
-      kind: memory.kind,
-      entities: memory.entityIds,
-      links: memory.links.map((link) => ({
-        subject: link.subjectId,
-        object: link.objectId,
-        predicate: link.predicate,
-        quote: quotes[0]!.quote,
-      })),
-      branch: false,
-      validFrom: null,
-      validTo: null,
-      action: index ? 'enrich' : 'add',
-      target: index ? { id: memory.id, summary: memory.summary } : null,
-      reason: index ? 'Adds a supported ownership link.' : 'New assertion.',
-      quotes,
-    })),
-    confirmations: [
-      {
-        id: 'memory-2',
-        summary: sample.details[2]!.memory.summary,
-        claim: {
-          hold: null,
-          summary: sample.details[2]!.memory.summary,
-          type: 'fact',
-          kind: 'reported',
-          entities: ['tom', 'ledger'],
-          links: [
-            {
-              subject: 'tom',
-              object: 'ledger',
-              predicate: 'works_on',
-              quote: sample.details[2]!.quotes[0]!.quote,
-            },
-          ],
-          branch: false,
-          validFrom: null,
-          validTo: null,
-          action: 'add',
-          target: null,
-          reason: 'Same assertion and links',
-          quotes: sample.details[2]!.quotes,
-        },
-      },
-    ],
-    held: 2,
-  }
+function person(id: string, label: string, description: string): BrainEntity {
+  return { id, label, kind: 'person', aliases: [], description }
 }
 
 function mockEntities(): BrainEntity[] {
@@ -237,24 +301,34 @@ function mockEntities(): BrainEntity[] {
     },
     {
       id: 'ledger',
-      label: 'Harbor Ledger',
+      label: 'Ledger',
       kind: 'project',
-      aliases: ['Ledger'],
+      aliases: ['Ledger billing', 'Harbor Ledger'],
       description: 'Billing project for Harbor',
     },
+    person('rina', 'Rina Okafor', 'Ran Ledger billing, now on Kestrel'),
+    person('tom', 'Tom Lee', 'Ledger billing lead'),
+    person('mara', 'Mara Voss', 'Head of billing'),
     {
-      id: 'rina',
-      label: 'Rina Okafor',
-      kind: 'person',
+      id: 'ledger-team',
+      label: 'Ledger team',
+      kind: 'team',
       aliases: [],
-      description: 'Ledger migration owner',
+      description: 'Builds and runs Ledger',
     },
     {
-      id: 'tom',
-      label: 'Tom Lee',
-      kind: 'person',
+      id: 'kestrel',
+      label: 'Kestrel',
+      kind: 'project',
       aliases: [],
-      description: 'Ledger support lead',
+      description: 'Payments rewrite for Northwind',
+    },
+    {
+      id: 'northwind',
+      label: 'Northwind',
+      kind: 'organization',
+      aliases: [],
+      description: 'Customer of Kestrel',
     },
     ...Array.from({ length: 25 }, (_, i): BrainEntity => ({
       id: `component-${i}`,
@@ -263,12 +337,5 @@ function mockEntities(): BrainEntity[] {
       aliases: [],
       description: 'Ledger billing component',
     })),
-    {
-      id: 'ledger-team',
-      label: 'Ledger team',
-      kind: 'team',
-      aliases: [],
-      description: 'Builds and runs Harbor Ledger',
-    },
   ]
 }

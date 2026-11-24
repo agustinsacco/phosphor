@@ -138,6 +138,44 @@ it('queues knowledge from a lifted local worktree row and cancels an active job'
   expect(invoke).toHaveBeenCalledWith('brain:cancel', job.id)
 })
 
+it('offers Read again on a lane Brain read, confirms what it replaces, then reads it again', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const status = mockBrainStatus()
+  status.prefs.enabled = true
+  status.readSessionIds = ['s2']
+  useBrain.setState({ status })
+  const job = mockBrainJob({ id: 'read-2', sessionId: 's2', sessionPath: '/repo/s2.jsonl' })
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation((channel: string, ...args: unknown[]) =>
+    channel === 'brain:laneRead'
+      ? Promise.resolve({ job, memories: 5, replaceable: 3 })
+      : channel.startsWith('brain:')
+        ? Promise.resolve(status)
+        : normal(channel, ...args),
+  )
+  const rows = await menuFor('Lane 2')
+  expect(rows).toContain('Read again for Brain…')
+  await act(async () =>
+    [...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button')]
+      .find((b) => b.textContent === 'Read again for Brain…')!
+      .click(),
+  )
+  expect(invoke).toHaveBeenCalledWith('brain:laneRead', 's2')
+  const request = usePromptStore.getState().requests.at(-1)!
+  expect(request.message).toContain('The 3 memories from the earlier read')
+  expect(request.message).toContain('2 memories that another lane also supports are kept')
+  expect(invoke.mock.calls.some(([channel]) => channel === 'brain:reread')).toBe(false)
+  await act(async () => usePromptStore.getState().dismiss(request, 'read'))
+  expect(invoke).toHaveBeenCalledWith('brain:reread', 'read-2')
+})
+
+it('offers no Read again on a lane Brain never read', async () => {
+  const status = mockBrainStatus()
+  status.prefs.enabled = true
+  useBrain.setState({ status })
+  expect(await menuFor('Lane 2')).not.toContain('Read again for Brain…')
+})
+
 it('hides extraction from lane menus when Brain is off', async () => {
   expect((await menuFor('Lane 2')).some((label) => label.includes('knowledge extraction'))).toBe(
     false,
