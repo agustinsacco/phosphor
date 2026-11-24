@@ -276,9 +276,9 @@ their own Undo.
    the parent and state `part_of` links. Otherwise dismiss the suggestion.
 3. **Unlinked pairs.** Look among the newest 2,000 current, unexpired memories for two names
    that appear together at least twice. Skip hubs and pairs already explained, even by an ended
-   relationship. Rank by shared count and specificity. Up to 40 pairs wait at once. Brain looks
-   as soon as a read's new memories are swept, and again at the end of a full pass. Brain
-   Agent reads the shared memories; if no lasting relationship is stated it can dismiss the
+   relationship. Rank by shared count and specificity. Up to 40 pairs wait at once. When a
+   read's new memories are swept, Brain looks only at the pairs those memories name. The end of
+   a full pass looks at every pair. Brain Agent reads the shared memories; if no lasting relationship is stated it can dismiss the
    pair. Brain remembers that answer.
 4. **Repeats and disagreements.** Fold supported repeats. Keep a disagreement as disputed
    unless there is evidence for a replacement. Similar wording alone is not enough.

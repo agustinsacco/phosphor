@@ -79,6 +79,6 @@ it('offers only pairs the swept memories name; the full pass finds the rest', ()
   // 1 and 2 share memories 1 and 2; 3 and 4 share memories 3 and 4. Only memory 1 is swept.
   db.exec('INSERT INTO mentions VALUES (1,2),(2,1),(3,4),(4,3)')
   expect(store.sweep({ entityIds: [], memoryIds: ['memory-1'] }).unlinked).toBe(1)
-  expect(unlinked(db).map((row) => [row.first_id, row.second_id])).toEqual([['rina-1', 'rina-2']])
+  expect(unlinked(db)).toMatchObject([{ first_id: 'rina-1', second_id: 'rina-2' }])
   expect(pass(store)).toBe(1)
 })

@@ -43,32 +43,46 @@ function linkable(a: BrainEntityKind, b: BrainEntityKind): boolean {
     )
   })
 }
-/** Pairs in the newest window, newest memory first, hubs left out. */
-function pairs(ctx: Context): Map<string, Pair> {
+function eachPair(named: Named[], visit: (a: Named, b: Named, key: string) => void): void {
+  for (let i = 0; i < named.length; i++)
+    for (let j = i + 1; j < named.length; j++)
+      visit(named[i]!, named[j]!, `${named[i]!.entity}.${named[j]!.entity}`)
+}
+/**
+ * Pairs in the newest window, newest memory first, hubs left out. Given touched memories, only
+ * the pairs those memories name, so a saved read does not rescan the whole window.
+ */
+function pairs(ctx: Context, touched?: number[]): Map<string, Pair> {
+  const scoped = touched !== undefined
   const rows = all<Named>(
     ctx,
     `SELECT m.n AS memory,m.id AS memoryId,e.n AS entity,e.id AS entityId,e.kind,e.memories
     FROM (SELECT n,id,observed_at FROM memories WHERE state IN ('active','disputed')
       AND (valid_to IS NULL OR valid_to>?) ORDER BY observed_at DESC,n DESC LIMIT ?) m
     JOIN mentions a ON a.memory=m.n JOIN entities e ON e.n=a.entity
-    WHERE e.memories<=? AND e.connections<=? ORDER BY m.observed_at DESC,m.n DESC,e.n`,
+    WHERE e.memories<=? AND e.connections<=?${
+      scoped
+        ? ' AND e.n IN (SELECT entity FROM mentions WHERE memory IN (SELECT value FROM json_each(?)))'
+        : ''
+    } ORDER BY m.observed_at DESC,m.n DESC,e.n`,
     ctx.now(),
     WINDOW,
     HUB_MEMORIES,
     HUB_CONNECTIONS,
+    ...(scoped ? [JSON.stringify(touched)] : []),
   )
   const byMemory = new Map<number, Named[]>()
   for (const row of rows) byMemory.set(row.memory, [...(byMemory.get(row.memory) ?? []), row])
+  const named = new Set<string>()
+  for (const n of touched ?? []) eachPair(byMemory.get(n) ?? [], (_a, _b, key) => named.add(key))
   const found = new Map<string, Pair>()
-  for (const named of byMemory.values())
-    for (let i = 0; i < named.length; i++)
-      for (let j = i + 1; j < named.length; j++) {
-        const [a, b] = [named[i]!, named[j]!]
-        const key = `${a.entity}.${b.entity}`
-        const pair = found.get(key) ?? { a, b, memories: [] }
-        pair.memories.push(a.memoryId)
-        found.set(key, pair)
-      }
+  for (const list of byMemory.values())
+    eachPair(list, (a, b, key) => {
+      if (scoped && !named.has(key)) return
+      const pair = found.get(key) ?? { a, b, memories: [] }
+      pair.memories.push(a.memoryId)
+      found.set(key, pair)
+    })
   return found
 }
 function explained(ctx: Context, a: number, b: number): boolean {
@@ -82,8 +96,11 @@ function explained(ctx: Context, a: number, b: number): boolean {
     a,
   )
 }
-/** Offers the best unexplained pairs until UNLINKED_OPEN wait. Returns how many it offered. */
-export function sweepLinks(ctx: Context): number {
+/**
+ * Offers the best unexplained pairs until UNLINKED_OPEN wait, from the whole window or only those
+ * the touched memories name. Returns how many it offered.
+ */
+export function sweepLinks(ctx: Context, touched?: number[]): number {
   const open = one<{ n: number }>(
     ctx,
     "SELECT COUNT(*) AS n FROM tidy_suggestions WHERE state='open' AND kind='unlinked'",
@@ -94,7 +111,7 @@ export function sweepLinks(ctx: Context): number {
     Number(one<{ value: string }>(ctx, "SELECT value FROM meta WHERE key='memories'")?.value ?? 1),
   )
   const idf = (memories: number) => Math.log(1 + total / (1 + memories)) / Math.log(1 + total)
-  const ranked = [...pairs(ctx).values()]
+  const ranked = [...pairs(ctx, touched).values()]
     .filter((p) => p.memories.length >= 2 && linkable(p.a.kind, p.b.kind))
     .map((p) => ({ ...p, score: p.memories.length * idf(p.a.memories) * idf(p.b.memories) }))
     .sort((x, y) => y.score - x.score)
