@@ -302,3 +302,16 @@ test('Brain stub gets the parent link only from the small links call, including 
   const repaired = await call(LINKS_SYSTEM, repairPrompt(prompt, '{}', 'Expected links'))
   expect(repaired.message.content).toEqual(normal.message.content)
 })
+
+test('stub reader models a handover and leaves joint work for Brain Agent', async () => {
+  const text = ['Rina Okafor owns Harbor ledger.', 'Harbor ledger is part of Harbor.',
+    'Tom Lee took over Harbor ledger from Rina Okafor.', 'Rina Okafor and Mara Voss reviewed the Harbor invoices.',
+    'Rina Okafor and Mara Voss planned the Kestrel rollout.'].join('\n')
+  const result=await call(EXTRACTION_SYSTEM,extractPrompt(makeWindow([{entryId:'ledger',role:'user',label:'You',observedAt:0,text}]),[]))
+  const raw=JSON.parse(result.message.content[0].text)
+  expect(raw.claims).toHaveLength(5)
+  const id=(name:string)=>raw.entities.find((e:{label:string})=>e.label===name).ref
+  expect(raw.claims[2].links).toEqual([expect.objectContaining({subject:id('Tom Lee'),predicate:'took_over_from',label:'took over Harbor ledger from',object:id('Rina Okafor')})])
+  expect(raw.claims[2].mentions).toContain(id('Harbor ledger'))
+  for(const claim of raw.claims.slice(3)) expect(claim).toMatchObject({importance:1,links:[],mentions:[id('Rina Okafor'),id('Mara Voss')]})
+})
