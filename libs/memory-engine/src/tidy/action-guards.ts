@@ -74,6 +74,9 @@ export function actionRefusal(
   if (!subjectExists(ctx, row)) return 'A subject of this suggestion is no longer available.'
   const mismatch = 'This action does not apply to this Tidy suggestion.'
   if (curator && kind === 'keep') return null
+  // A group question is answered by grouping or keeping apart; an unlinked pair by `relate`.
+  if (row.kind === 'group') return curator && kind === 'group' ? null : mismatch
+  if (row.kind === 'unlinked' || kind === 'group') return mismatch
   if (curator && kind === 'forget') return 'Use brain_erase to erase a memory.'
   if (kind === 'keep' || kind === 'forget') return row.kind === 'flagged' ? null : mismatch
   if (!row.second_id || row.first_id === row.second_id) return mismatch
@@ -95,6 +98,7 @@ export function allowedActions(
   curator = false,
 ): Pick<BrainTidySuggestionDetail, 'allowed' | 'foldRefusal'> {
   const kinds: BrainTidyAction['kind'][] = [
+    'group',
     'merge',
     'unname',
     'fold',

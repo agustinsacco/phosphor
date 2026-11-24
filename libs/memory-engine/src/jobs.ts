@@ -65,7 +65,7 @@ function save(ctx: Context, value: BrainJob): void {
     value.runStartedAt,
   )
 }
-export const BRAIN_EXTRACTOR_VERSION = 6
+export const BRAIN_EXTRACTOR_VERSION = 7
 
 export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'): BrainJob {
   return transaction(ctx, () => {
@@ -73,15 +73,14 @@ export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'
     if (refusal) throw new Error(refusal)
     if (value.replaces) {
       const previous = job(ctx, value.replaces)
-      if (previous?.state !== 'done')
+      if (!previous || !['done', 'empty', 'rejected'].includes(previous.state))
         throw new Error('Only finished Brain reads can be read again.')
       if (previous.sessionId !== value.sessionId)
         throw new Error('This read belongs to a different lane.')
     }
     const unfinished = one(
       ctx,
-      `SELECT id FROM jobs WHERE session_id=? AND state IN
-      ('waiting','queued','running','refreshing','review')`,
+      "SELECT id FROM jobs WHERE session_id=? AND state IN ('waiting','queued','running')",
       value.sessionId,
     )
     if (unfinished) throw new Error('This lane is already queued.')
@@ -133,7 +132,7 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch, prune = tru
   const updated = { ...existing, ...patch }
   if (['done', 'empty', 'rejected'].includes(updated.state) && updated.finishedAt === null)
     updated.finishedAt = ctx.now()
-  if (updated.state !== 'running' && updated.state !== 'refreshing') updated.runStartedAt = null
+  if (updated.state !== 'running') updated.runStartedAt = null
   // Updating columns rather than REPLACE preserves proposal foreign keys.
   run(
     ctx,
@@ -169,9 +168,16 @@ function pruneFinishedReads(ctx: Context, sessionId: string): void {
 
 /**
  * After an undo removed what a read saved: the read stays in history, rejected with nothing
- * saved, its record kept, so the lane offers Read again. Its legacy proposal goes.
+ * saved, its record kept, so the lane offers Read again. Its legacy proposal and the questions
+ * it opened go.
  */
 export function unsaveRead(ctx: Context, id: string): void {
+  run(
+    ctx,
+    "UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE state='open' AND json_extract(detail,'$.jobId')=?",
+    ctx.now(),
+    id,
+  )
   if (!job(ctx, id)) return
   run(ctx, 'DELETE FROM proposals WHERE job_id=?', id)
   updateJob(ctx, id, { state: 'rejected', memories: 0, finishedAt: ctx.now() }, false)
@@ -181,13 +187,10 @@ export function removeJob(ctx: Context, id: string): void {
   pruneExtractions(ctx)
 }
 export function requeueInterrupted(ctx: Context): void {
-  transaction(ctx, () => {
-    run(
-      ctx,
-      "UPDATE jobs SET state='queued', run_started_at=NULL, finished_at=NULL, error=NULL WHERE state='running'",
-    )
-    run(ctx, "UPDATE jobs SET run_started_at=NULL, error=NULL WHERE state='refreshing'")
-  })
+  run(
+    ctx,
+    "UPDATE jobs SET state='queued', run_started_at=NULL, finished_at=NULL, error=NULL WHERE state='running'",
+  )
 }
 
 export function retry(ctx: Context, id: string): BrainJob {

@@ -39,6 +39,7 @@ it('prepares each statement once per connection, so a graph read is not one prep
           subject: leaf,
           predicate: 'part_of',
           object: 'Harbor',
+          label: 'is part of',
           citation: base.memories[0]!.citations[0]!,
         },
       ],

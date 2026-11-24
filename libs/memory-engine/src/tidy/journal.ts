@@ -69,13 +69,20 @@ const SUMMARIES: Record<BrainTidyOperation['kind'], string> = {
   keep: 'Kept both as they are',
   correct: 'Corrected a memory',
   erase: 'Erased a memory',
+  read: 'Saved a read',
+  relate: 'Linked two people or things',
+  relation: 'Changed a link',
+  importance: "Changed a memory's importance",
+  group: 'Grouped people or things under one parent',
 }
+/** Reads capture only their memories' neighbourhood, never a hub's every mention. */
+const READS = new Set(['approve', 'reject', 'read'])
 /** Operations that settle a pair; undoing one keeps the pair apart. */
 const PAIR_KINDS = new Set(['merge', 'fold', 'dispute', 'replace'])
 /** Caller owns the transaction. The latest run and recent erasures outlive the 200-row cap. */
 export function journal(ctx: Context, input: JournalInput, action: () => void): string {
   if (input.note) input.note = cleanNote(input.note)
-  const read = input.kind === 'approve' || input.kind === 'reject'
+  const read = READS.has(input.kind)
   const before = capture(ctx, input.selection, input.only, read)
   const references = affected(before, new Map(), input.selection)
   const memories = all<{ id: string; n: number }>(
@@ -131,7 +138,8 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     run(ctx, 'INSERT INTO tidy_operation_memories VALUES (?,?,?)', id, m.id, m.n)
   if (input.kind === 'fold') inheritFoldReferences(ctx, input.subjects.first, input.subjects.second)
   pruneOperations(ctx)
-  if (input.automatic)
+  // Only exact repeats folded on their own count toward the notice, never a saved read.
+  if (input.automatic && input.kind === 'fold')
     run(
       ctx,
       "INSERT INTO meta VALUES ('tidy_automatic_folds','1') ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1",
@@ -144,7 +152,7 @@ function journalGuards(
   before: Rows,
   memories: number[],
 ): Guards | null {
-  if (input.kind === 'approve' || input.kind === 'reject')
+  if (READS.has(input.kind))
     return {
       memories,
       covers: (table) => table === 'jobs',
@@ -256,15 +264,15 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     if (op.undone_at !== null) throw new Error('This Brain change was already undone.')
     if (op.kind === 'erase') throw new Error("Erasing can't be undone.")
     if (op.kind === 'reject') throw new Error(REJECTED_IN_V7)
-    if (['approve', 'reject'].includes(op.kind) && hasLaterRead(ctx, op.first_id))
-      throw new Error(LATER_CHANGES)
+    if (READS.has(op.kind) && hasLaterRead(ctx, op.first_id)) throw new Error(LATER_CHANGES)
     const deltas = undoRows(ctx, id)
     if (!deltas.length && op.kind !== 'keep')
       throw new Error(
         'This Brain change is no longer available to undo because a memory was forgotten.',
       )
     const selection = selectionOf(deltas)
-    if (op.kind === 'approve' || op.kind === 'correct') checkCreatedDependents(ctx, deltas)
+    if (['approve', 'read', 'correct', 'group'].includes(op.kind))
+      checkCreatedDependents(ctx, deltas)
     if (op.kind === 'keep') {
       const suggestion = one<{ state: string }>(
         ctx,

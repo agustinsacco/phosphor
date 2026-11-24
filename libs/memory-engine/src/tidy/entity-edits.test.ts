@@ -67,7 +67,15 @@ function twoToms() {
     summary,
     entities: [result.tom, result.harbor],
     links: links
-      ? [{ subject: result.tom, predicate: 'uses' as const, object: result.harbor, citation }]
+      ? [
+          {
+            subject: result.tom,
+            predicate: 'uses' as const,
+            object: result.harbor,
+            label: 'uses',
+            citation,
+          },
+        ]
       : [],
     citations: [citation],
   })

@@ -1,47 +1,28 @@
 import { expect, it } from 'vitest'
-import { extraction, fixture, lane } from '../test-support'
+import { extraction, fixture, running, save } from '../test-support'
 import { seed } from '../tidy/test-support'
 
 const note = { runId: null, reason: 'The source supports this decision.' }
-const decision = {
-  memories: [0, 1],
-  identities: {},
-  groups: [],
-  descriptions: [],
-  confirmations: [],
-}
 
-it.each(['reject', 'keep'] as const)('undo of %s leaves other waiting reads current', (kind) => {
+it('undo of keep leaves a read in progress current', () => {
   const { store, db } = fixture()
   seed(db, 2)
   store.sweep({ entityIds: ['rina-1', 'rina-2'], memoryIds: [] })
-  const harbor = store.enqueue(lane(), 'queued')
-  const ledger = store.enqueue(
-    lane({ sessionId: 'ledger-lane', title: 'Ledger planning' }),
-    'queued',
-  )
-  for (const job of [harbor, ledger])
-    store.propose(
-      extraction(job.id, {
-        computedRevision: store.knowledgeRevision(),
-        origin: { sessionId: job.sessionId, title: job.title },
-      }),
-    )
-  const revision = store.proposal(ledger.id).revision
+  const ledger = running(store, { sessionId: 'ledger-lane', title: 'Ledger planning' })
+  const revision = store.knowledgeRevision()
   const pair = store.waitingSuggestions(50, 0).items[0]!
-  if (pair.kind === 'read') throw new Error('Expected an entity pair')
-  const operation =
-    kind === 'reject'
-      ? store.decideRead(harbor.id, null, revision, note).operationId
-      : store.resolve(pair.suggestionId, { kind: 'keep' }, note)
+  const operation = store.resolve(pair.suggestionId, { kind: 'keep' }, note)
   expect(store.knowledgeRevision()).toBe(revision)
   const beforeUndo = store.revision()
   store.agentUndo(operation, note)
   expect(store.revision()).toBe(beforeUndo + 1)
   expect(store.knowledgeRevision()).toBe(revision)
-  expect(() => store.decideRead(ledger.id, decision, revision, note)).not.toThrow()
-  expect(store.job(ledger.id)?.state).toBe('done')
-  expect(store.job(harbor.id)?.state).toBe('review')
+  const data = extraction(ledger, {
+    computedRevision: revision,
+    origin: { sessionId: 'ledger-lane', title: 'Ledger planning' },
+  })
+  expect(() => store.saveRead(data)).not.toThrow()
+  expect(store.job(ledger)?.state).toBe('done')
 })
 
 it.each(['approve', 'correct', 'describe'] as const)(
@@ -49,10 +30,8 @@ it.each(['approve', 'correct', 'describe'] as const)(
   (kind) => {
     const { store, db } = fixture()
     seed(db, 2)
-    const job = store.enqueue(lane(), 'queued')
-    store.propose(extraction(job.id))
     let operation: string
-    if (kind === 'approve') operation = store.decideRead(job.id, decision, 0, note).operationId
+    if (kind === 'approve') operation = save(store).operationId!
     else if (kind === 'correct')
       operation = store.correct(
         {

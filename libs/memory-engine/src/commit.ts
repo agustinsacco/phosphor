@@ -77,7 +77,12 @@ export function insertCitations(
     memory,
   )
 }
-function observed(item: ProposalMemory, evidence: EvidenceExcerpt[], fallback: number): number {
+/** When the claim was last said: its newest quote, or `fallback` without one. */
+export function observedAt(
+  item: ProposalMemory,
+  evidence: EvidenceExcerpt[],
+  fallback: number,
+): number {
   return (
     Math.max(
       0,
@@ -98,7 +103,7 @@ function insertRow(
   const now = ctx.now()
   run(
     ctx,
-    `INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,recorded_at,state,origin_session,origin_title,job_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,importance,recorded_at,state,origin_session,origin_title,job_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     n,
     id,
     scrubExcerpt(item.summary),
@@ -108,7 +113,8 @@ function insertRow(
     item.branch ? proposal.branch : null,
     item.validFrom,
     item.validTo,
-    observed(item, proposal.evidence, now),
+    observedAt(item, proposal.evidence, now),
+    item.importance ?? 1,
     now,
     'active',
     proposal.origin.sessionId,

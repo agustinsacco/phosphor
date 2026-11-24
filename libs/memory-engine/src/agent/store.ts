@@ -7,11 +7,11 @@ import { detail } from '../tidy/reads'
 import { undo } from '../tidy/journal'
 import { mergeEntities } from '../tidy/operations'
 import { describeEntity, removeName, splitEntity } from '../tidy/entity-edits'
-import { decideRead } from './decide-read'
+import { editRelation, relate, setImportance } from './relate'
 import { correct } from './correct'
 import { erase } from './erase'
 import { cleanNote } from './notes'
-import { waitingCounts, waitingSuggestions } from './waiting'
+import { waitingCounts, waitingSignature, waitingSuggestions } from './waiting'
 import * as runs from './runs'
 import type { BrainAgentStore, BrainChangeNote } from './types'
 
@@ -34,6 +34,12 @@ function edit(ctx: Context, value: BrainAgentEdit, rawNote: BrainChangeNote): st
         expected,
         note,
       )
+    case 'relation':
+      return editRelation(ctx, value, note)
+    case 'importance':
+      return setImportance(ctx, value, note)
+    default:
+      throw new Error('Unknown Brain Agent edit.')
   }
 }
 function afterMemoryChange(ctx: Context, operation: string): void {
@@ -51,20 +57,24 @@ export function agentStore(ctx: Context): BrainAgentStore {
     waitingCounts: () => waitingCounts(ctx),
     waitingSuggestions: (limit, possibleRepeats) => waitingSuggestions(ctx, limit, possibleRepeats),
     agentSuggestion: (id) => detail(ctx, id, true),
-    decideRead: (id, decision, expected, note) => {
-      const result = decideRead(ctx, id, decision, expected, note)
-      afterChange(ctx, result.touched)
-      return result
+    waitingSignature: () => waitingSignature(ctx),
+    relate: (value, note) => {
+      const operation = relate(ctx, value, cleanNote(note))
+      afterMemoryChange(ctx, operation)
+      return operation
     },
     resolve: (id, action, note) => {
       if (action.kind === 'forget') throw new Error('Use brain_erase to erase a memory.')
       const operation = apply(ctx, id, action, revision(ctx), cleanNote(note))!
-      afterOperation(ctx, operation)
+      if (action.kind === 'group') afterMemoryChange(ctx, operation)
+      else afterOperation(ctx, operation)
       return operation
     },
     agentEdit: (value, note) => {
       const operation = edit(ctx, value, note)
-      afterOperation(ctx, operation)
+      if (value.kind === 'relation' || value.kind === 'importance')
+        afterMemoryChange(ctx, operation)
+      else afterOperation(ctx, operation)
       return operation
     },
     correct: (value, vector, note) => {
@@ -74,7 +84,7 @@ export function agentStore(ctx: Context): BrainAgentStore {
     },
     erase: (id, note) => erase(ctx, id, note),
     agentUndo: (id, note) => afterUndo(ctx, undo(ctx, id, revision(ctx), note)),
-    createRun: () => runs.createRun(ctx),
+    createRun: (automatic) => runs.createRun(ctx, automatic ?? false),
     updateRun: (id, patch) => runs.updateRun(ctx, id, patch),
     latestRun: () => runs.latestRun(ctx),
     interruptRuns: (message) => runs.interruptRuns(ctx, message),

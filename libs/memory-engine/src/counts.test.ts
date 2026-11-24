@@ -28,7 +28,7 @@ function handover() {
         action: 'supersede',
         target: old.id,
         entities: [tom, harbor],
-        links: [{ subject: tom, predicate: 'owns', object: harbor, citation }],
+        links: [{ subject: tom, predicate: 'owns', object: harbor, label: 'owns', citation }],
         citations: [citation],
       },
     ],

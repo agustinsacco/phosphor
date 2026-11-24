@@ -11,7 +11,7 @@ function readRun(ctx: Context, id: string): BrainAgentRun {
   const row = one<BrainAgentRun>(
     ctx,
     `SELECT id,state,total,queued_at AS queuedAt,started_at AS startedAt,
-    finished_at AS finishedAt,error,session_path AS sessionPath,rules_changed AS rulesChanged,
+    finished_at AS finishedAt,error,session_path AS sessionPath,rules_changed AS rulesChanged,automatic,
     (SELECT COUNT(*) FROM agent_notes a WHERE a.run_id=r.id AND a.role='made') AS decided,
     (SELECT COUNT(*) FROM agent_notes a JOIN tidy_operations o ON o.id=a.operation_id WHERE a.run_id=r.id AND a.role='made' AND o.kind='erase') AS erased,
     (SELECT COUNT(*) FROM agent_notes a JOIN tidy_operations o ON o.id=a.operation_id WHERE a.run_id=r.id AND a.role='made' AND ${undoableSql}) AS undoable
@@ -19,7 +19,7 @@ function readRun(ctx: Context, id: string): BrainAgentRun {
     id,
   )
   if (!row) throw new Error('Brain Agent run not found.')
-  return { ...row, rulesChanged: !!row.rulesChanged }
+  return { ...row, rulesChanged: !!row.rulesChanged, automatic: !!row.automatic }
 }
 /** Counters include made operations even after undo, never undid notes; undoable is current. */
 export function latestRun(ctx: Context): BrainAgentRun | null {
@@ -29,10 +29,18 @@ export function latestRun(ctx: Context): BrainAgentRun | null {
   )
   return row ? readRun(ctx, row.id) : null
 }
-export function createRun(ctx: Context): BrainAgentRun {
+/** A queued run; `automatic` marks one the automatic check started. */
+export function createRun(ctx: Context, automatic: boolean): BrainAgentRun {
   return transaction(ctx, () => {
-    const id = ctx.id()
-    run(ctx, "INSERT INTO agent_runs(id,state,queued_at) VALUES (?,'queued',?)", id, ctx.now())
+    const id = ctx.id(),
+      now = ctx.now()
+    run(
+      ctx,
+      "INSERT INTO agent_runs(id,state,queued_at,automatic) VALUES (?,'queued',?,?)",
+      id,
+      now,
+      automatic ? 1 : 0,
+    )
     run(
       ctx,
       'DELETE FROM agent_runs WHERE id NOT IN (SELECT id FROM agent_runs ORDER BY queued_at DESC,rowid DESC LIMIT 20)',

@@ -100,7 +100,7 @@ it('a corrected link naming a new owner ends the old link instead of carrying it
       subject: 'Rina Okafor',
       predicate: 'owns',
       object: 'Harbor',
-      label: '',
+      label: 'owns',
       validTo: next.recordedAt,
       statedBy: 'reader',
       live: 1,

@@ -11,6 +11,7 @@ import { recountEntities } from '../entities'
 import { sweepEntity } from './sweep-entities'
 import { memoryCandidateCache } from './memory-candidates'
 import { sweepBudget, sweepMemory } from './sweep-memories'
+import { sweepLinks } from './sweep-links'
 
 export const TIDY_CHUNK = 128
 /** Rows the closing pass reads per call while looking for memories without a fingerprint. */
@@ -89,7 +90,13 @@ export function sweep(
 ): BrainTidySweep {
   return transaction(ctx, () => {
     let c = coverage(ctx)
-    const result: BrainTidySweep = { coverage: c, suggestions: 0, folded: 0, operationIds: [] }
+    const result: BrainTidySweep = {
+      coverage: c,
+      suggestions: 0,
+      folded: 0,
+      unlinked: 0,
+      operationIds: [],
+    }
     const entities = input === 'all' ? [] : [...new Set(input.entityIds)]
     const memories =
       input === 'all'
@@ -130,7 +137,9 @@ export function sweep(
       result.operationIds.push(...found.operations)
     }
     result.folded = result.operationIds.length
-    if (result.suggestions) bumpRevision(ctx)
+    // A finished pass also offers the pairs named together that no link explains.
+    if (input === 'all' && c.phase === 'done') result.unlinked = sweepLinks(ctx)
+    if (result.suggestions || result.unlinked) bumpRevision(ctx)
     if (input === 'all') save(ctx, c)
     result.coverage = publicCoverage(ctx, c)
     return result

@@ -1,6 +1,18 @@
 import type { BrainExtractionRecord } from '@phosphor/shared/brain'
 import { expect, it } from 'vitest'
 import { extraction, fixture, lane, vector } from './test-support'
+import type { BrainStore, Proposal } from './types'
+
+/** Saves the chosen memories of a read, as the reader does once a read is finished. */
+function saveSome(store: BrainStore, data: Proposal, indexes: number[]) {
+  store.updateJob(data.jobId, { state: 'running' })
+  store.saveRead({
+    ...data,
+    computedRevision: store.knowledgeRevision(),
+    memories: indexes.map((i) => data.memories[i]!),
+    memoryVectors: indexes.map((i) => data.memoryVectors[i]!),
+  })
+}
 
 it('links approved outcomes to memories and retains records while the finished job exists, marking forgotten outcomes removed', () => {
   const { store } = fixture()
@@ -20,12 +32,7 @@ it('links approved outcomes to memories and retains records while the finished j
     finishedAt: 1001,
   }
   store.saveExtraction(record)
-  store.propose(extraction(job.id))
-  store.review(
-    job.id,
-    { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
-    0,
-  )
+  saveSome(store, extraction(job.id), [0, 1])
   const saved = store.extraction(job.id)
   expect(saved.outcomes[0]?.memoryId).toBe(
     saved.memories.find((item) => item.summary.includes('owns'))?.id,
@@ -42,27 +49,17 @@ it('links approved outcomes to memories and retains records while the finished j
 it('applies explicit confirmations without duplicate quotes and moves observedAt forward', () => {
   const { store } = fixture()
   const first = store.enqueue(lane(), 'queued')
-  store.propose(extraction(first.id))
-  store.review(
-    first.id,
-    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
-    0,
-  )
+  saveSome(store, extraction(first.id), [0])
   const id = store.entityMemories(store.overview(300).nodes[0]!.id, {}, null).memories[0]!.id
   const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
   const data = extraction(job.id, {
-    computedRevision: store.revision(),
+    computedRevision: store.knowledgeRevision(),
     memories: [],
     memoryVectors: [],
     confirmations: [{ memoryId: id, claim: extraction('').memories[0]!, vector: vector() }],
   })
   data.evidence[0]!.observedAt = 9000
-  store.propose(data)
-  store.review(
-    job.id,
-    { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
-    store.revision(),
-  )
+  saveSome(store, data, [])
   expect(store.memory(id).quotes).toHaveLength(1)
   expect(store.memory(id).memory.observedAt).toBe(9000)
 })
@@ -97,12 +94,7 @@ it('expires only orphaned referenced records at 30 days, and prunes unreferenced
     startedAt: 1,
     finishedAt: 2,
   })
-  store.propose(extraction(first.id))
-  store.review(
-    first.id,
-    { descriptions: [], confirmations: [], memories: [0], identities: {}, groups: [] },
-    0,
-  )
+  saveSome(store, extraction(first.id), [0])
   expect(() => store.extraction(first.id)).not.toThrow()
   // Orphan a referenced record without invoking prune until the next write.
   db.prepare('DELETE FROM jobs WHERE id=?').run(first.id)
@@ -125,12 +117,7 @@ it('expires only orphaned referenced records at 30 days, and prunes unreferenced
 it('prunes a displaced twenty-first read record even when its memories remain', () => {
   const { store } = fixture()
   const job = store.enqueue(lane(), 'queued')
-  store.propose(extraction(job.id))
-  store.review(
-    job.id,
-    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-    0,
-  )
+  saveSome(store, extraction(job.id), [0])
   store.saveExtraction({
     ...job,
     jobId: job.id,
