@@ -110,7 +110,7 @@ function routineCounts(file) {
 
 const configOf = (dir) => readRecord(join(dir, 'config.json'), 64 * 1024 * 1024)
 
-export async function rehearseAfterCommit(ctx, migrationId) {
+export async function rehearseAfterCommit(ctx, migrationId, expected) {
   const { roots } = ctx
   const migrationDir = join(roots.userData, 'daemon-migration')
   const backupDir = join(migrationDir, `backup-${migrationId}`)
@@ -128,6 +128,11 @@ export async function rehearseAfterCommit(ctx, migrationId) {
   const archives = list(ctx, ['archive', 'list'], 'entries', refusals)
   report.service = { lanes: lanes?.length ?? null, archives: archives?.length ?? null, refusals }
   check('phosphor CLI lists lanes and archives', lanes !== null && archives !== null)
+  // The service's own folder scan must not find lanes the move left behind.
+  check(
+    'service has exactly the moved lanes and archives',
+    lanes?.length === expected.lanes && archives?.length === expected.archives,
+  )
 
   const running = (lanes ?? []).filter((lane) => lane.activity !== 'stopped')
   report.stopped = { running: running.length, stoppedByCli: 0 }

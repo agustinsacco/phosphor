@@ -154,7 +154,7 @@ async function run(layout, full) {
     await first.quit()
     const journal = await readRecord(join(roots.userData, 'daemon-migration', 'journal.json'))
     const ctx = { roots, profile, env, host, daemon, desktop: launchDesktop, sessionsBefore }
-    const after = await rehearseAfterCommit(ctx, journal.migrationId)
+    const after = await rehearseAfterCommit(ctx, journal.migrationId, report.expected)
     console.log(JSON.stringify({ ...report, afterCommit: after, elapsedMs: Date.now() - start }))
     return after.complete ? 0 : 1
   } finally {
