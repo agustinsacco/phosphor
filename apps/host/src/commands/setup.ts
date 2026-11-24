@@ -165,7 +165,10 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       platform: context.platform,
     }).env.PATH?.split(':') ?? []
   const claude = await which('claude', discovery.env.PATH)
-  for (const binary of [await stable(claude), await stable(git)]) {
+  // A launcher that is not itself a Node script (pi's managed install is a /bin/sh one) may
+  // still run pi with the caller's `env node`: pin that node's real folder, as for claude.
+  const launcherNode = script ? null : await which('node', context.env.PATH ?? '')
+  for (const binary of [await stable(launcherNode), await stable(claude), await stable(git)]) {
     if (binary && !built.includes(dirname(binary)) && !path.includes(dirname(binary))) {
       path.push(dirname(binary))
     }
