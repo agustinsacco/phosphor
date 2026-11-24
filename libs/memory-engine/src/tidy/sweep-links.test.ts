@@ -73,3 +73,12 @@ it('offers a pair as soon as the memories that name it are swept, before any ful
   expect(store.sweep({ entityIds: [], memoryIds }).unlinked).toBe(1)
   expect(store.waitingCounts().unlinked).toBe(1)
 })
+it('offers only pairs the swept memories name; the full pass finds the rest', () => {
+  const { store, db } = fixture()
+  seed(db, 4)
+  // 1 and 2 share memories 1 and 2; 3 and 4 share memories 3 and 4. Only memory 1 is swept.
+  db.exec('INSERT INTO mentions VALUES (1,2),(2,1),(3,4),(4,3)')
+  expect(store.sweep({ entityIds: [], memoryIds: ['memory-1'] }).unlinked).toBe(1)
+  expect(unlinked(db).map((row) => [row.first_id, row.second_id])).toEqual([['rina-1', 'rina-2']])
+  expect(pass(store)).toBe(1)
+})
