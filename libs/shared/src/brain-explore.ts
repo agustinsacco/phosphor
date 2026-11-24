@@ -45,7 +45,7 @@ export interface BrainConnectionGroup {
   /** Distinct neighbours, not supporting rows. */
   total: number
   items: BrainConnection[]
-  /** Cursor for `brain:connections`, null when `items` is everything. */
+  /** Connection cursor, null when `items` is everything. */
   next: string | null
 }
 export interface BrainConnectionPage {

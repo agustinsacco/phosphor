@@ -1,19 +1,16 @@
 import type { BrainTidyChanges, BrainTidyMutation } from '../brain-tidy'
 import { expectTypeOf, it } from 'vitest'
 import type {
-  BrainConnectionPage,
   BrainEntityView,
   BrainExtractionView,
   BrainFindResult,
   BrainGraph,
   BrainEntityKind,
-  BrainEntityPage,
   BrainJob,
   BrainLaneRef,
   BrainMemoryDetail,
   BrainMemoryFilter,
   BrainMemoryPage,
-  BrainPredicate,
   BrainPrefs,
   BrainStatus,
   BrainUndoRunResult,
@@ -77,28 +74,10 @@ export interface BaselineBrainInvokeMap {
   /** Typeahead over entities and memories. */
   'brain:find': { args: [query: string, limit: number]; result: BrainFindResult }
   /** The best-connected entities, when nothing is selected. */
-  'brain:entities': {
-    args: [
-      kind: BrainEntityKind | null,
-      offset: number,
-      limit: number,
-      sort: 'connected' | 'recent' | 'name',
-    ]
-    result: BrainEntityPage
-  }
   'brain:overview': { args: []; result: BrainGraph }
   /** One entity's neighbourhood, one or two hops out. */
   'brain:neighbourhood': { args: [entityId: string, hops: 1 | 2]; result: BrainGraph }
   'brain:entity': { args: [entityId: string]; result: BrainEntityView }
-  'brain:connections': {
-    args: [
-      entityId: string,
-      predicate: BrainPredicate,
-      direction: 'out' | 'in',
-      cursor: string | null,
-    ]
-    result: BrainConnectionPage
-  }
   'brain:entityMemories': {
     args: [entityId: string, filter: BrainMemoryFilter, cursor: string | null]
     result: BrainMemoryPage

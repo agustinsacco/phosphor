@@ -33,7 +33,6 @@ const CHANNELS: IpcInvokeChannel[] = [
   'brain:entity',
   'brain:neighbourhood',
   'brain:entityMemories',
-  'brain:connections',
   'brain:memory',
   'brain:forget',
   'brain:find',

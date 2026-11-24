@@ -113,10 +113,10 @@ it('removes one of the other names, never the label, and shows a refusal in plac
   const names = [...dialog().querySelectorAll('[aria-label="Other names"] li')]
   expect(names.map((li) => li.firstChild?.textContent)).toEqual(['Harbor customer'])
   expect(button('Remove “Harbor”')).toBeUndefined()
-  refusal = 'That name belongs to a memory under review.'
+  refusal = 'That name already belongs to Ledger.'
   await click('Remove “Harbor customer”')
   expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
-    'That name belongs to a memory under review.',
+    'That name already belongs to Ledger.',
   )
   expect(onClose).not.toHaveBeenCalled()
   refusal = ''

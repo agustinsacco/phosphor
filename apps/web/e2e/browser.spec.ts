@@ -94,7 +94,6 @@ async function directBrainFailures(page: Page): Promise<string[]> {
         () => window.phosphor.invoke('brain:overview'),
         () => window.phosphor.invoke('brain:entity', 'synthetic-entity'),
         () => window.phosphor.invoke('brain:neighbourhood', 'synthetic-entity', 2),
-        () => window.phosphor.invoke('brain:connections', 'synthetic-entity', 'owns', 'out', null),
         () => window.phosphor.invoke('brain:entityMemories', 'synthetic-entity', {}, null),
         () => window.phosphor.invoke('brain:memory', 'synthetic-memory'),
         () => window.phosphor.invoke('brain:path', 'synthetic-from', 'synthetic-to'),

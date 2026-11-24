@@ -207,19 +207,9 @@ function readApi({
   search,
 }: ApiContext): Pick<
   BrainApi,
-  | 'entities'
-  | 'ask'
-  | 'find'
-  | 'overview'
-  | 'neighbourhood'
-  | 'entity'
-  | 'connections'
-  | 'entityMemories'
-  | 'memory'
-  | 'path'
+  'ask' | 'find' | 'overview' | 'neighbourhood' | 'entity' | 'entityMemories' | 'memory' | 'path'
 > {
   return {
-    entities: (kind, offset, limit, sort) => search.entities(kind, offset, limit, sort),
     ask: async (query) => {
       const rows = await options.embeddings.embed([query], 'query').catch(() => [])
       return search.recall({
@@ -242,8 +232,6 @@ function readApi({
     overview: async () => store.overview(300),
     neighbourhood: async (id, hops) => store.neighbourhood(id, hops, 300),
     entity: async (id) => store.entity(id),
-    connections: async (id, predicate, direction, cursor) =>
-      store.connections(id, predicate, direction, cursor),
     entityMemories: async (id, filter, cursor) => store.entityMemories(id, filter, cursor),
     memory: async (id) => store.memory(id),
     path: async (from, to) => search.routes(from, to, (options.now ?? Date.now)()),

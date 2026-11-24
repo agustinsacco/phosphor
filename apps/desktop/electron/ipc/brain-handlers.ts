@@ -1,11 +1,9 @@
 import {
-  BRAIN_ENTITY_KINDS,
   BRAIN_ASK_MAX,
   BRAIN_TELL_MAX,
   setBrainLaneNeverRead,
   DEFAULT_BRAIN_PREFS,
 } from '@phosphor/shared/brain'
-import { BRAIN_ENTITY_SORTS } from '@phosphor/shared/brain-explore'
 import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
 import {
@@ -15,11 +13,9 @@ import {
   checkPrefs,
   cursorOf,
   descriptionOf,
-  directionOf,
   hopsOf,
   id,
   limitOf,
-  predicateOf,
   revisionOf,
   text,
   messageOf,
@@ -31,15 +27,6 @@ export { checkLane, checkPrefs } from './brain-checks'
 export function registerBrainHandlers(service: () => Promise<BrainService>): void {
   const api = async (): Promise<BrainApi> => (await service()).api
   registerTidyHandlers(api)
-  handle('brain:entities', async (_event, kind, offset, limit, sort) => {
-    if (kind !== null && !BRAIN_ENTITY_KINDS.includes(kind))
-      throw new Error('Invalid Brain entity kind.')
-    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid Brain entity offset.')
-    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
-      throw new Error('Invalid Brain entity limit.')
-    if (!BRAIN_ENTITY_SORTS.includes(sort)) throw new Error('Invalid Brain entity sort.')
-    return (await api()).entities(kind, offset, limit, sort)
-  })
   handle('brain:ask', async (_event, question) =>
     (await api()).ask(messageOf(question, BRAIN_ASK_MAX)),
   )
@@ -88,14 +75,6 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
     (await api()).neighbourhood(id(entity), hopsOf(hops)),
   )
   handle('brain:entity', async (_event, entity) => (await api()).entity(id(entity)))
-  handle('brain:connections', async (_event, entity, predicate, direction, cursor) =>
-    (await api()).connections(
-      id(entity),
-      predicateOf(predicate),
-      directionOf(direction),
-      cursorOf(cursor),
-    ),
-  )
   handle('brain:entityMemories', async (_event, entity, filter, cursor) =>
     (await api()).entityMemories(id(entity), checkFilter(filter), cursorOf(cursor)),
   )

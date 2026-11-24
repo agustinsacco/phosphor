@@ -2,8 +2,6 @@ import type {
   BrainConnection,
   BrainConnectionGroup,
   BrainEntity,
-  BrainEntityKind,
-  BrainEntityPage,
   BrainEntitySummary,
   BrainEntityView,
   BrainGraph,
@@ -14,7 +12,6 @@ import type {
   BrainPredicate,
 } from '@shared/brain'
 import { BRAIN_MEMORY_TYPES, brainLinkEnded } from '@shared/brain'
-import { BRAIN_ENTITY_SORTS, type BrainEntitySort } from '@shared/brain-explore'
 import { mockBrainData } from './mockBrainData'
 
 const PAGE = 20
@@ -52,42 +49,6 @@ export class MockExplorer {
     )
     return { ...entity, memories: memories.length, connections: neighbours.size }
   }
-  browse(
-    kind: BrainEntityKind | null,
-    offset: number,
-    limit: number,
-    sort: BrainEntitySort,
-  ): BrainEntityPage {
-    if (!BRAIN_ENTITY_SORTS.includes(sort)) throw new Error('Invalid Brain entity sort.')
-    const all = this.entities.map((e) => this.summary(e)).filter((e) => e.memories > 0)
-    const learned = (id: string): number =>
-      Math.max(
-        0,
-        ...this.details
-          .filter((d) => d.memory.entityIds.includes(id) && d.memory.state !== 'superseded')
-          .map((d) => d.memory.observedAt),
-      )
-    const rows = all
-      .filter((e) => !kind || e.kind === kind)
-      .sort((a, b) =>
-        sort === 'name'
-          ? a.label.toLowerCase().localeCompare(b.label.toLowerCase()) || a.id.localeCompare(b.id)
-          : sort === 'recent'
-            ? learned(b.id) - learned(a.id)
-            : b.connections - a.connections,
-      )
-    const counts: BrainEntityPage['counts'] = {}
-    for (const e of all) counts[e.kind] = (counts[e.kind] ?? 0) + 1
-    return {
-      items: rows
-        .slice(offset, offset + limit)
-        .map((entity) => ({ entity, memories: entity.memories })),
-      more: rows.length > offset + limit,
-      kinds: [...new Set(all.map((e) => e.kind))],
-      counts,
-      total: rows.length,
-    }
-  }
   graph(centerId: string | null, hops: 1 | 2 = 1): BrainGraph {
     const links = this.liveLinks()
     let ids = new Set(centerId ? [centerId] : this.entities.map((e) => e.id))
@@ -120,7 +81,7 @@ export class MockExplorer {
       truncated: ids.size > 300,
     }
   }
-  connections(
+  private connections(
     id: string,
     predicate: BrainPredicate,
     direction: 'out' | 'in',

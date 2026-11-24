@@ -54,10 +54,6 @@ it('queues a lane, saves automatically, refreshes search and exposes bounded exp
   expect(s.search.refreshes).toBe(1)
   expect(await s.service.api.overview()).toMatchObject({ nodes: [], truncated: false })
   expect(await s.service.api.neighbourhood('harbor', 2)).toMatchObject({ centerId: 'harbor' })
-  expect(await s.service.api.connections('harbor', 'owns', 'in', null)).toEqual({
-    items: [],
-    next: null,
-  })
   expect(await s.service.api.entityMemories('harbor', {}, null)).toEqual({
     memories: [],
     entities: [],
