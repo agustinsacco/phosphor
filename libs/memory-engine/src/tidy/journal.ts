@@ -1,6 +1,6 @@
 import { cleanNote, saveNote, pruneOperations, type JournalNote } from '../agent/notes'
 import { checkCreatedDependents } from '../agent/undo-reads'
-import { hasLaterRead } from '../jobs'
+import { hasLaterRead, unsaveRead } from '../jobs'
 import {
   captureMemoryGuards,
   checkDependents,
@@ -36,6 +36,8 @@ import {
 } from './rows'
 
 const LATER_CHANGES = 'Later changes touch this Brain change; it cannot be cleanly undone.'
+const REJECTED_IN_V7 =
+  "This read was rejected in an older version and can't be brought back. Use Read again on the lane."
 export function checkRevision(ctx: Context, expected: number): void {
   if (expected !== revision(ctx)) throw new Error('Brain changed; refresh Tidy and try again.')
 }
@@ -162,7 +164,7 @@ function saveDelta(ctx: Context, id: string, before: Rows, after: Rows, guards: 
     for (const key of new Set([...old.keys(), ...next.keys()])) {
       const previous = old.get(key) ?? null,
         current = next.get(key) ?? null
-      const unchanged = hash(previous) === hash(current)
+      const unchanged = hash(table, previous) === hash(table, current)
       if (unchanged && !guards?.covers(table, current!)) continue
       run(
         ctx,
@@ -173,7 +175,7 @@ function saveDelta(ctx: Context, id: string, before: Rows, after: Rows, guards: 
         unchanged
           ? encodeGuard(table, current!)
           : encodeImage(table, previous ?? current!, previous),
-        hash(current),
+        hash(table, current),
       )
     }
   }
@@ -199,7 +201,7 @@ function undoRows(ctx: Context, id: string): Delta[] {
       throw new Error('This Brain change needs a newer application to undo.')
     const image = decodeImage(ctx, row.table_name, row.before_image)
     const current = currentRow(ctx, row.table_name, image.key)
-    if (hash(current) !== row.after_hash) throw new Error(LATER_CHANGES)
+    if (hash(row.table_name, current) !== row.after_hash) throw new Error(LATER_CHANGES)
     return { table: row.table_name, image, current }
   })
 }
@@ -253,6 +255,7 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     if (!op) throw new Error('This Brain change is no longer available to undo.')
     if (op.undone_at !== null) throw new Error('This Brain change was already undone.')
     if (op.kind === 'erase') throw new Error("Erasing can't be undone.")
+    if (op.kind === 'reject') throw new Error(REJECTED_IN_V7)
     if (['approve', 'reject'].includes(op.kind) && hasLaterRead(ctx, op.first_id))
       throw new Error(LATER_CHANGES)
     const deltas = undoRows(ctx, id)
@@ -287,6 +290,7 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
       throw new Error(LATER_CHANGES)
     }
     if (op.kind === 'fold') returnMovedFlags(ctx, id, op.second_id)
+    if (op.kind === 'approve') unsaveRead(ctx, op.first_id)
     restoreLinkedStates(ctx, selection.memories)
     rebuild(ctx, selection, names)
     fingerprintMemories(ctx, selection.memories)

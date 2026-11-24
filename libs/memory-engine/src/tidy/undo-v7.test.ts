@@ -66,18 +66,8 @@ function reader(): { db: DatabaseSync; close: () => void } {
   return { db, close: () => db.close() }
 }
 
-const UNDONE = [
-  'id-54',
-  'id-43',
-  'id-40',
-  'id-38',
-  'id-37',
-  'id-35',
-  'id-34',
-  'id-33',
-  'id-32',
-  'id-2',
-]
+/** Newest first. The unname (id-37) refuses as it did in v7: the erasure removed its record. */
+const UNDONE = ['id-54', 'id-43', 'id-40', 'id-38', 'id-35', 'id-34', 'id-33', 'id-32', 'id-2']
 
 it('undoes every v7 journal kind after the migration, newest first, back to its before-images', () => {
   const { store } = migrated()
@@ -94,6 +84,7 @@ it('undoes every v7 journal kind after the migration, newest first, back to its 
         )
     }
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    expect(() => store.tidyUndo('id-37', store.revision())).toThrow('Later changes')
   } finally {
     close()
   }
@@ -118,4 +109,22 @@ it('refuses to bring back a read rejected in v7, and says it cannot be undone', 
   )
   expect(store.tidyChanges(50).items.find((item) => item.id === 'id-58')!.undoable).toBe(false)
   expect(() => store.tidyUndo('id-49', store.revision())).toThrow("Erasing can't be undone.")
+})
+
+it('a v8 edit to a link a v7 change recorded refuses that undo as a later change', () => {
+  const { store } = migrated()
+  const { db, close } = reader()
+  try {
+    const row = db
+      .prepare(
+        `SELECT o.id AS operation,r.n FROM tidy_operation_rows t JOIN tidy_operations o ON o.id=t.operation_id
+        JOIN relations r ON r.n=json_extract(t.before_image,'$.key.n')
+        WHERE t.table_name='relations' AND o.kind NOT IN ('erase','reject') ORDER BY o.created_at DESC LIMIT 1`,
+      )
+      .get() as { operation: string; n: number }
+    db.prepare("UPDATE relations SET label='runs the export for' WHERE n=?").run(row.n)
+    expect(() => store.tidyUndo(row.operation, store.revision())).toThrow('Later changes')
+  } finally {
+    close()
+  }
 })

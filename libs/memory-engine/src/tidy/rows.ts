@@ -58,8 +58,23 @@ function json(row: Row | null): string {
       ),
   )
 }
-export function hash(row: Row | null): string | null {
-  return row === null ? null : createHash('sha256').update(json(row)).digest('hex')
+/**
+ * Columns added in v8 and the value every older row holds. A row still at these defaults hashes
+ * as it did under v7, so v7 after-hashes stay valid; an older image lacks them and decodes to them.
+ */
+export const ADDED_COLUMNS: Partial<Record<RowTable, Readonly<Row>>> = {
+  memories: { importance: 1 },
+  relations: { label: '', valid_from: null, valid_to: null, stated_by: 'reader' },
+}
+export function hash(table: RowTable, row: Row | null): string | null {
+  if (row === null) return null
+  const added = ADDED_COLUMNS[table]
+  const canonical = added
+    ? Object.fromEntries(
+        Object.entries(row).filter(([key, value]) => !(key in added) || added[key] !== value),
+      )
+    : row
+  return createHash('sha256').update(json(canonical)).digest('hex')
 }
 export function encodeImage(table: RowTable, key: Row, row: Row | null): string {
   return `{"version":1,"key":${json(keyOf(table, key))},"row":${json(row)}}`
@@ -82,11 +97,20 @@ export function decodeImage(ctx: Context, table: RowTable, text: string): Image 
   const image = value as { version?: unknown; key?: unknown; row?: unknown; guard?: unknown }
   if (image.version !== 1) return fail()
   if (image.guard !== undefined && (image.guard !== true || image.row !== null)) return fail()
-  const decode = (raw: unknown, expected: readonly string[]): Row => {
+  const added = ADDED_COLUMNS[table] ?? {}
+  const decode = (raw: unknown, expected: readonly string[], fill = false): Row => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fail()
     const entries = Object.entries(raw)
-    if (entries.length !== expected.length || entries.some(([k]) => !expected.includes(k)))
+    const keys = new Set(entries.map(([k]) => k))
+    // An image written before v8 lacks the added columns: they read as their defaults.
+    const missing = fill ? expected.filter((k) => !keys.has(k)) : []
+    if (missing.some((k) => !(k in added))) return fail()
+    if (
+      entries.length + missing.length !== expected.length ||
+      entries.some(([k]) => !expected.includes(k))
+    )
       return fail()
+    for (const k of missing) entries.push([k, added[k]])
     return Object.fromEntries(
       entries.map(([k, v]: [string, unknown]) => {
         if (v === null || typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)))
@@ -106,7 +130,7 @@ export function decodeImage(ctx: Context, table: RowTable, text: string): Image 
     )
   }
   const key = decode(image.key, rowKeys[table])
-  const row = image.row === null ? null : decode(image.row, columns(ctx, table))
+  const row = image.row === null ? null : decode(image.row, columns(ctx, table), true)
   if (row && rowKey(table, row) !== rowKey(table, key)) return fail()
   return image.guard ? { version: 1, key, row, guard: true } : { version: 1, key, row }
 }

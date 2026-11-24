@@ -167,6 +167,15 @@ function pruneFinishedReads(ctx: Context, sessionId: string): void {
   run(ctx, `DELETE FROM jobs WHERE id IN (${displaced})`, sessionId)
 }
 
+/**
+ * After an undo removed what a read saved: the read stays in history, rejected with nothing
+ * saved, its record kept, so the lane offers Read again. Its legacy proposal goes.
+ */
+export function unsaveRead(ctx: Context, id: string): void {
+  if (!job(ctx, id)) return
+  run(ctx, 'DELETE FROM proposals WHERE job_id=?', id)
+  updateJob(ctx, id, { state: 'rejected', memories: 0, finishedAt: ctx.now() }, false)
+}
 export function removeJob(ctx: Context, id: string): void {
   run(ctx, 'DELETE FROM jobs WHERE id=?', id)
   pruneExtractions(ctx)
