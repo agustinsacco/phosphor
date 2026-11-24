@@ -11,12 +11,13 @@ import {
 } from '@phosphor/shared/control-api'
 import type { MiddlewareHandler } from 'hono'
 import { ControlFailure, rawTarget, unsafeRawTarget, type Env } from '../http'
-import type { NonceCache, RateLimiter } from '../limits'
+import type { RateLimiter } from '../limits'
 
 export interface HostAuthDeps {
   clock: () => number
-  nonces: { key: NonceCache; host: NonceCache }
   limits: RateLimiter
+  /** Records a verified nonce for its identity; false when it was already claimed. */
+  claimNonce: (identity: string, nonce: string) => Promise<boolean>
   hostKey: (hostId: string) => Promise<string | 'gone'>
 }
 export async function authenticateHost(
@@ -77,7 +78,7 @@ export async function authenticateHost(
     )
   )
     throw new ControlFailure('unauthenticated')
-  if (!deps.nonces[mode].accept(identity, nonce)) throw new ControlFailure('unauthenticated')
+  if (!(await deps.claimNonce(identity, nonce))) throw new ControlFailure('unauthenticated')
   return identity
 }
 export function hostGuard(deps: HostAuthDeps, mode: 'key' | 'host'): MiddlewareHandler<Env> {

@@ -31,6 +31,7 @@ function setup() {
       client,
     },
     control_host_key: { outcome: 'active', publicKey: hostKey.publicKey },
+    control_nonce_claim: { outcome: 'claimed' },
     control_host_self: {
       outcome: 'active',
       hostId,
@@ -91,15 +92,16 @@ function setup() {
 /** The i-th of `purposeCapacity` distinct /64 networks. */
 const subnet = (i: number) => `2001:db8:${(i >> 8).toString(16)}:${(i & 255).toString(16)}`
 
-it('confines an unauthenticated enrollment flood from distinct /64s to enrollment creates', async () => {
+it('never refuses a fresh address during an enrollment flood from distinct /64s', async () => {
   const s = setup()
   // Each create spends its address's key before the request body is even parsed.
   for (let i = 0; i < purposeCapacity; i++)
     expect((await s.enroll(`${subnet(i)}::1`)).status).toBe(400)
-  // Same purpose: a new /64 is refused, and the live windows are kept rather than evicted.
-  expect((await s.enroll('2001:db8:ffff:0::1')).status).toBe(429)
-  for (let i = 1; i < 10; i++) expect((await s.enroll(`${subnet(0)}::1`)).status).toBe(400)
-  expect((await s.enroll(`${subnet(0)}::1`)).status).toBe(429)
+  // Same purpose: a full table admits a new /64 by evicting the oldest window.
+  expect((await s.enroll('2001:db8:ffff:0::1')).status).toBe(400)
+  // A held address still spends its own budget.
+  for (let i = 1; i < 10; i++) expect((await s.enroll(`${subnet(1)}::1`)).status).toBe(400)
+  expect((await s.enroll(`${subnet(1)}::1`)).status).toBe(429)
   // Other purposes keep their own capacity: new, uncached callers still get through.
   expect((await s.me('2001:db8:ffff:1::1')).status).toBe(200)
   expect((await s.issueGrant('2001:db8:ffff:2::1')).status).toBe(200)

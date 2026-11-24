@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { CONTROL_ROUTES as R } from '@phosphor/shared/control-api'
 import { token, userId } from '../test-support'
 import { cookieName, fixture, mutationHeaders, origin } from '../web/test-fixture'
-import { ADMIN_GITHUB_ID, ADMIN_READS_PER_MINUTE } from './admin'
+import { ADMIN_GITHUB_ID } from './admin'
 import { setup } from './__fixtures__/fixtures'
 
 const totals = { day: 1, week: 2, lastWeek: 3, month: 4, lastMonth: 5, new7d: 6, new30d: 7 }
@@ -84,13 +84,13 @@ describe('admin summary', () => {
     ).toBe(503)
   })
 
-  it('limits reads per user', async () => {
+  it('never rate-limits the owner, however often the summary is refreshed', async () => {
     const f = admin()
     const { session } = await f.login()
-    for (let i = 0; i < ADMIN_READS_PER_MINUTE; i++)
-      await f.app.request(origin + R.adminStats, { headers: { cookie: session } })
-    const res = await f.app.request(origin + R.adminStats, { headers: { cookie: session } })
-    expect(res.status).toBe(429)
+    for (let i = 0; i < 100; i++)
+      expect(
+        (await f.app.request(origin + R.adminStats, { headers: { cookie: session } })).status,
+      ).toBe(200)
   })
 
   it('names the same GitHub id as the database check constraint', () => {
