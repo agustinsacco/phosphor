@@ -23,3 +23,18 @@ it('counts automatic runs over a rolling 24 hours', () => {
   expect(() => store.createRun(true)).not.toThrow()
   expect(() => store.createRun(true)).toThrow(BRAIN_AUTO_RUN_LIMIT_REFUSAL)
 })
+it('reads back whether the automatic check or Defrag started a run', () => {
+  const { store } = fixture()
+  const automatic = store.createRun(true)
+  expect(automatic.automatic).toBe(true)
+  expect(store.updateRun(automatic.id, { state: 'running', startedAt: 1 }).automatic).toBe(true)
+  const manual = store.createRun()
+  expect(manual.automatic).toBe(false)
+  expect(store.latestRun()).toMatchObject({ id: manual.id, automatic: false })
+})
+it('keeps the automatic runs the daily limit counts when many Defrag runs follow', () => {
+  const { store } = fixture()
+  for (let i = 0; i < BRAIN_AUTO_RUNS_PER_DAY; i++) store.createRun(true)
+  for (let i = 0; i < 30; i++) store.createRun()
+  expect(() => store.createRun(true)).toThrow(BRAIN_AUTO_RUN_LIMIT_REFUSAL)
+})
