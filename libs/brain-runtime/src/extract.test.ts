@@ -121,7 +121,7 @@ it('keeps an outcome for each validated claim when a later stage fails', async (
     expect.objectContaining({
       candidate: 'w1:c1',
       status: 'dropped',
-      reason: 'Run failed before proposal',
+      reason: 'Read failed before saving',
     }),
   )
 })

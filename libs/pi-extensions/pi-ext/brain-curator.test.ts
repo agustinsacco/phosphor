@@ -107,6 +107,9 @@ describe('brain-curator tools', () => {
       (tool) => !(tool.parameters as { required?: string[] }).required?.length,
     )
     expect(optionalOnly.map((tool) => tool.name)).toEqual(['brain_search'])
+    expect(tools.find((tool) => tool.name === 'brain_suggestion')!.description).toMatch(
+      /group.*unlinked pair/,
+    )
     expect(tools.find((tool) => tool.name === 'brain_waiting')!.description).toContain('60')
   })
 

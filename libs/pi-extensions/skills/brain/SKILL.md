@@ -7,7 +7,7 @@ Call `brain_search` before answering “what do we know about…”, when starti
 
 Start with `brain_search({ query })` for a topic or a name. Expand the most specific person or
 thing with `{ from }`; add `context: ["Ledger"]` to steer a name match. Read the current and
-ended relationship sentences separately. Appearing together is not itself a lasting relationship.
+ended relationship sentences separately. A “+N more” line counts other relationships in that category. A planned memory is not yet in effect. Appearing together is not itself a lasting relationship.
 Follow what the question needs, then confirm how two names connect with `{ from, to }`.
 Answer with the chain and the memories behind it. Stop once supported, at most about 8 calls.
 
@@ -22,5 +22,5 @@ verified facts in this lane show it is wrong or out of date, or two recalled mem
 same thing. `ref` is the bracket number in the latest `brain_search` briefing in this lane;
 search again if the number is no longer known. Choose `wrong`, `outdated` or `duplicate` and
 explain the evidence in 1–300 characters. Never flag a guess, an agent preference, or something
-merely unhelpful. A flag only asks the owner to review: it does not change Brain knowledge.
+merely unhelpful. A flag only asks Brain Agent to check the memory: it does not change Brain knowledge.
 Brain accepts at most five open flags per lane and never stacks flags for the same memory.

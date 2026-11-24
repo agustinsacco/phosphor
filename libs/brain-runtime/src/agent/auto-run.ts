@@ -11,14 +11,15 @@ export interface AutoRun {
   runEnded(run: BrainAgentRun): void
   dispose(): void
 }
-export function createAutoRun(ctx: {
+interface AutoRunContext {
   store: Pick<BrainStore, 'snapshot' | 'latestRun' | 'waitingCounts' | 'waitingSignature'>
   queue: Pick<ExtractionQueue, 'accepting'>
   defrag: Pick<Defrag, 'start'>
   options: Pick<BrainServiceOptions, 'agent' | 'now' | 'log'>
   delayMs?: number
   timers?: { set(run: () => void, ms: number): unknown; clear(handle: unknown): void }
-}): AutoRun {
+}
+export function createAutoRun(ctx: AutoRunContext): AutoRun {
   const { store, options } = ctx
   const now = options.now ?? Date.now
   const timers = ctx.timers ?? {
@@ -76,11 +77,14 @@ export function createAutoRun(ctx: {
     },
     changed,
     runEnded(run) {
-      if (!run.automatic || disposed) return
+      if (disposed) return
       lastSignature = store.waitingSignature()
-      cooldown =
-        run.state === 'failed' ? now() + Math.min(6 * 3600000, 600000 * 2 ** failures++) : 0
-      if (run.state !== 'failed') failures = 0
+      if (run.automatic && run.state === 'failed')
+        cooldown = now() + Math.min(6 * 3600000, 600000 * 2 ** failures++)
+      if (run.automatic && run.state === 'done') {
+        failures = 0
+        cooldown = 0
+      }
       changed()
     },
     dispose() {

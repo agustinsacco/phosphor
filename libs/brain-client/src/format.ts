@@ -18,7 +18,9 @@ export function brainBriefing(
         result.status === 'unavailable'
           ? 'Brain is unavailable right now. This is not a no-match result.'
           : result.mode === 'route'
-            ? 'No matching route found.'
+            ? result.from && result.to?.id === result.from.id
+              ? 'Both names refer to the same record.'
+              : 'No matching route found.'
             : 'No Brain memories matched.',
       refs: new Map<number, string>(),
     }

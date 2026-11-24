@@ -59,6 +59,7 @@ it('expands a name with cited, escaped relationship sentences', () => {
     alternatives: [],
     current: [{ link, other: to!, supports: 1 }],
     ended: [],
+    currentMore: [],
     together: [],
     togetherMore: 0,
     hits: HARBOR_RECALL.hits,
@@ -121,6 +122,7 @@ it('keeps an orphaned sentence without its bracket when the cited memory cannot 
     alternatives: [],
     current: [{ link: far, other: to!, supports: 1 }],
     ended: [],
+    currentMore: [],
     together: [],
     togetherMore: 0,
     hits,
@@ -144,5 +146,41 @@ it('keeps an orphaned sentence without its bracket when the cited memory cannot 
     expect(refs.size).toBeGreaterThan(0)
     for (const [n, id] of refs)
       expect(text).toContain(`- [${n}] ${hits.find((h) => h.memory.id === id)!.memory.summary}`)
+  }
+})
+
+it('marks disputed and planned memories in both relationship briefings', () => {
+  const memories = [
+    { ...memory, state: 'disputed' as const },
+    { ...memory, id: 'planned', validFrom: Date.UTC(2027, 0, 1) },
+  ]
+  const expand = {
+    mode: 'expand' as const,
+    status: 'ok' as const,
+    entity: from!,
+    alternatives: [],
+    current: [],
+    ended: [],
+    currentMore: [],
+    together: [],
+    togetherMore: 0,
+    hits: memories.map((m) => ({ ...HARBOR_RECALL.hits[0]!, memory: m })),
+    entities: [],
+    degradation: [],
+  }
+  const route = {
+    mode: 'route' as const,
+    status: 'ok' as const,
+    from: from!,
+    to: to!,
+    routes: [],
+    memories,
+    entities: [],
+  }
+  for (const data of [expand, route]) {
+    const text = brainBriefing(data, undefined, 6000, Date.UTC(2026, 10, 1)).text
+    expect(text).toContain('· disputed ·')
+    expect(text).toContain('· planned from 2027-01-01 ·')
+    expect(text).not.toContain('still true')
   }
 })

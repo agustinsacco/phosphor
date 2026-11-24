@@ -74,3 +74,17 @@ it('keeps the wording, dates and importance of a dated person-to-person relation
     ],
   })
 })
+
+it('drops only the claim whose period ends before its start', () => {
+  const base = RAW_EXTRACTION.claims[0]!
+  const claims = [base, { ...base, ref: 'c2', validFrom: '2027-01-05', validTo: '2026-12-01' }]
+  const parsed = parseStageExtraction(JSON.stringify({ ...RAW_EXTRACTION, claims }), window)
+  expect(parsed.claims.map((c) => c.ref)).toEqual([base.ref])
+  expect(parsed.outcomes).toContainEqual(
+    expect.objectContaining({
+      candidate: 'c2',
+      status: 'dropped',
+      reason: expect.stringContaining('before'),
+    }),
+  )
+})

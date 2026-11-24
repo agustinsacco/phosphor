@@ -1,10 +1,11 @@
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
-import { savedRead, realService } from './__fixtures__/real-service'
+import { savedRead, realService, curatorClient } from './__fixtures__/real-service'
 
-it('approves and sweeps, then merges and undoes with a real store, never calling a model', async () => {
+it('saves and sweeps, then merges and undoes with a real store, never calling a model', async () => {
   const s = await realService()
+  const curator = await curatorClient(s.service)
   const status = await savedRead(s.store, s.service, s.options)
   expect(status.counts).toEqual({ memories: 4, entities: 2 })
   expect(status.tidy).toMatchObject({ automaticFolds: 1 })
@@ -24,11 +25,11 @@ it('approves and sweeps, then merges and undoes with a real store, never calling
       expect.objectContaining({ kind: 'read' }),
     ]),
   )
-  const before = await s.service.agent('waiting', { limit: 50 })
+  const before = await curator.call('waiting', { limit: 50 })
   const same = before.items.find((item) => item.kind === 'same_entity')
   if (!same) throw new Error('Expected a waiting identity pair')
   const survivor = same.subjects.find((subject) => subject.label === 'Rina')!
-  const merged = await s.service.agent('resolve', {
+  const merged = await curator.call('resolve', {
     suggestionId: same.suggestionId,
     action: { kind: 'merge', survivorId: survivor.id },
     reason: 'The Ledger records describe the same person.',
@@ -42,6 +43,7 @@ it('approves and sweeps, then merges and undoes with a real store, never calling
 
 it('files lane flags through the agent entry and refuses a second, a sixth and a forgotten memory', async () => {
   const s = await realService()
+  const curator = await curatorClient(s.service)
   await savedRead(
     s.store,
     s.service,
@@ -64,12 +66,12 @@ it('files lane flags through the agent entry and refuses a second, a sixth and a
   expect((await flag(ids[0]!)).status).toBe('already_flagged')
   for (const id of ids.slice(1, 5)) expect((await flag(id)).status).toBe('filed')
   expect((await flag(ids[5]!)).status).toBe('limit')
-  const waiting = await s.service.agent('waiting', { limit: 50 })
+  const waiting = await curator.call('waiting', { limit: 50 })
   const flags = waiting.items.filter((item) => item.kind === 'flagged')
   expect(flags).toHaveLength(5)
   const flagged = flags[0]!
   expect(
-    (await s.service.agent('suggestion', { suggestionId: flagged.suggestionId }))?.suggestion.flag,
+    (await curator.call('suggestion', { suggestionId: flagged.suggestionId }))?.suggestion.flag,
   ).toMatchObject({ sessionId: 'kestrel-lane', title: 'Kestrel review' })
   await s.service.api.forget(ids[0]!)
   expect((await flag(ids[0]!)).status).toBe('unavailable')
@@ -91,6 +93,7 @@ function tidyText(path: string): string {
 
 it('Forget removes a suggested memory and its before-images from every Tidy table', async () => {
   const s = await realService()
+  const curator = await curatorClient(s.service)
   await savedRead(s.store, s.service, s.options)
   const path = join(s.directory, 'brain.sqlite')
   const sentence = 'Rina leads Ledger.'
@@ -108,7 +111,7 @@ it('Forget removes a suggested memory and its before-images from every Tidy tabl
   await s.service.api.forget(memory.id)
   expect(tidyText(path)).not.toContain(sentence)
   expect(
-    (await s.service.agent('waiting', { limit: 50 })).items.every((item) =>
+    (await curator.call('waiting', { limit: 50 })).items.every((item) =>
       item.subjects.every((subject) => subject.id !== memory.id),
     ),
   ).toBe(true)

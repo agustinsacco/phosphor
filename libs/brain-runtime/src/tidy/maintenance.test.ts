@@ -84,7 +84,7 @@ it('stops between batches when Brain is disposed or reset', async () => {
   expect(reset.batches).toEqual([128, 3])
 })
 
-it('stops quietly on a failed sweep and leaves the rest to "Tidy now"', async () => {
+it('stops quietly on a failed sweep and leaves the rest to Defrag', async () => {
   const logged: string[] = []
   const maintenance = createTidyMaintenance({
     store: {

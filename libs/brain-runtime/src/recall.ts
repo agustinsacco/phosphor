@@ -109,8 +109,10 @@ export function createRecall(
     signal: AbortSignal = new AbortController().signal,
     role: BridgeRole = 'lane',
   ): Promise<BrainAgentMap[M]['result']> {
+    if (role === 'lane' && method !== 'search' && method !== 'flag')
+      throw new Error('Brain request unavailable')
     const params = validateBrainRequest(method, input)
-    if (role === 'curator' || (method !== 'search' && method !== 'flag'))
+    if (role === 'curator')
       return (await callCurator(curator, method, params, signal)) as BrainAgentMap[M]['result']
     const result =
       method === 'search'

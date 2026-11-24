@@ -88,7 +88,7 @@ export function registerCuratorReads(pi: CuratorPiApi, client: BrainCuratorClien
     pi,
     'brain_suggestion',
     'Brain: open a suggestion',
-    'Open one suggestion from brain_waiting (same person or thing, said twice, disagreement, flag or possible repeat): its people, things or memories with quotes, its reason and the actions allowed for brain_resolve.',
+    'Open one suggestion from brain_waiting (same person or thing, group, unlinked pair, said twice, disagreement, flag or possible repeat): its people, things or memories with quotes, its reason and the actions allowed for brain_resolve.',
     object({ suggestionId: curatorId('The suggestion id from brain_waiting.') }),
     async (params, signal) => formatSuggestion(await client.call('suggestion', params, signal)),
   )

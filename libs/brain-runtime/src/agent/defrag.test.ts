@@ -50,14 +50,16 @@ function setup(turn?: BrainAgentHost['turn']) {
     ),
   }
   const changed = vi.fn()
+  const runEnded = vi.fn()
   const defrag = createDefrag({
+    runEnded,
     store,
     search,
     options: { agent: host, now: () => 500 },
     queue,
     changed,
   })
-  return { store, search, queue, host, defrag, changed, runs }
+  return { store, search, queue, host, defrag, changed, runs, runEnded }
 }
 
 describe('defragMessage', () => {
@@ -239,6 +241,9 @@ describe('createDefrag', () => {
     await flush()
     await flush()
     expect(s.host.turn).not.toHaveBeenCalled()
+    expect(s.runEnded).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ state: 'stopped' }),
+    )
     expect(s.store.latestRun()?.state).toBe('stopped')
     await s.queue.dispose()
   })

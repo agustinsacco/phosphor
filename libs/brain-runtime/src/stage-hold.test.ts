@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { backstopHold, datesIn, strongerHold } from './stage-hold'
+import { backstopHold, strongerHold } from './stage-hold'
 
 const saidAt = Date.UTC(2026, 10, 18, 15) // 18 Nov 2026
 const hold = (
@@ -9,9 +9,6 @@ const hold = (
 ) => backstopHold({ text, namesPerson, saidAt, validFrom: valid[0], validTo: valid[1] })
 
 it.each([
-  'Rina Okafor will be away from Dec 1 to Dec 12.',
-  'Harbor freezes deploys on 2026-12-20.',
-  'The Ledger cutover happens on 5 January.',
   'As of now Harbor bills weekly.',
   'Harbor is currently migrating to Kestrel.',
   'Ledger still writes to the old bucket.',
@@ -20,11 +17,14 @@ it.each([
   'PR 412 adds retries to Harbor.',
   'HBR-27 tracks the Ledger migration.',
   '#88 blocks the Harbor release.',
-])('marks status, near-term dates and ticket subjects temporary: %s', (text) => {
+])('marks status and ticket subjects temporary: %s', (text) => {
   expect(hold(text, false)).toBe('temporary')
 })
 
 it.each([
+  'Rina Okafor will be away from Dec 1 to Dec 12.',
+  'Harbor freezes deploys on 2026-12-20.',
+  'The Ledger cutover happens on 5 January.',
   'Harbor uses a distillation step before export.',
   'Kestrel 2.1 drops the legacy webhook format.',
   'Kestrel-2 replaces the Ledger exporter.',
@@ -60,15 +60,6 @@ it('never marks personal without a named person, and ignores ordinary uses of th
   expect(hold('Tom Lee wants reviewers to leave comments in the doc.')).toBeNull()
   expect(hold('Rina Okafor owns Harbor query performance tuning.')).toBeNull()
   expect(hold('Tom Lee wants Harbor to move away from Ledger exports.')).toBeNull()
-})
-
-it('reads month-first, day-first and ISO dates, choosing the nearest year when none is given', () => {
-  expect(datesIn('Away from Dec 1 to 12th December 2026, back 2027-01-04.', saidAt)).toEqual([
-    Date.UTC(2026, 11, 1),
-    Date.UTC(2026, 11, 12),
-    Date.UTC(2027, 0, 4),
-  ])
-  expect(datesIn('Ships Jan 5.', saidAt)).toEqual([Date.UTC(2027, 0, 5)])
 })
 
 it('lets personal outrank temporary', () => {
@@ -128,4 +119,10 @@ it.each([
   'Mara Voss runs the database performance review for Ledger.',
 ])('never marks technical performance personal, even in a claim naming a person: %s', (text) => {
   expect(hold(text)).toBeNull()
+})
+
+it('keeps a lasting handover with a near start date', () => {
+  expect(
+    hold('Tom Lee takes over Ledger billing on 2027-01-05.', true, [Date.UTC(2027, 0, 5), null]),
+  ).toBeNull()
 })

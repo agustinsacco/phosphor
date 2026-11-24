@@ -69,14 +69,15 @@ The reader's calls use private, session-less pi processes with no tools or conne
    becomes the centre of the map.
 3. **Compare with existing memories.** New claims can add a memory, confirm it with a quote,
    add supported links, replace it, dispute it or answer an open question. Similarity finds
-   candidates; it does not decide truth. A claim also carries importance: low for background,
+   candidates; it does not decide truth. A later restatement of an expired memory can save as a current memory. Replaced memories are offered only to detect repeats, never to confirm or enrich. A claim also carries importance: low for background,
    normal by default, high for things like a key decision, commitment, owner or risk.
 4. **Embed and save.** Brain saves against the knowledge revision used for comparison. If it
    changes, the reader compares again from its saved work and reuses calls with matching
    inputs. After three stale attempts the job fails with a Retry, rather than saving guesses
    against the wrong revision. An index refresh failure does not roll back a saved read.
 
-**Temporary** claims use their stated end or, if none, 14 days from when the claim was observed.
+**Temporary** claims use their stated end or, if none, 14 days from observation or the stated start, whichever is later.
+A near start alone is not evidence of temporary status. Within a read, held claims stay separate from lasting claims.
 Their links inherit that end unless they have one of their own. A temporary claim cannot
 supersede, resolve or put a lasting memory in dispute. It saves separately instead. **Personal**
 claims, such as someone's health, pay or performance, never become memories or confirmations.
@@ -196,7 +197,7 @@ Memories:
 
 **Connect:** `brain_search({ from: "Tom Lee", to: "Northwind" })` returns up to three short
 routes of up to four steps. A step quotes the link's sentence or says only that a memory names
-both ends. For example, a route through Ledger reads:
+both ends. Two names for the same record need no route; Brain says so. For example, a route through Ledger reads:
 
 ```text
 Routes from Tom Lee to Northwind:
@@ -234,6 +235,7 @@ personalized PageRank (PPR). The walk follows both mentions (memory to entity) a
 relations (entity to entity), in both directions. A memory can match through a mention alone.
 A mention of a rare name weighs more than a mention of a name on almost every memory. This
 inverse document frequency (IDF) discount keeps hubs from drowning out a specific question.
+Expanding a name boosts memories from the lane's project and lists other branches last. Each current relationship group reports any neighbours left off its page. Expansions and routes distinguish disputed, planned, current and ended memories.
 Large hubs are not expanded unless in focus. Structural links weigh more than other links.
 
 The walk admits at most 300 entities, 600 relation edges and 4,000 memory nodes. At each
@@ -273,13 +275,13 @@ while its turn runs, and stops it.
 
 ### When it checks
 
-A saved read arms **one** automatic check, not a repeating timer. Another save restarts the
+A nonempty saved read arms **one** automatic check, not a repeating timer. Another save restarts the
 60-second delay. Brain waits until there are no queued or running reads and no queued or active
 run. A busy lane waiting to be read and a failed read do not block it. Something must be
 waiting, and its signature (count plus newest creation time) must differ from the signature
-at the end of the last automatic run. Leftover items, startup and a lane flag do not start
+at the end of the last run (including manual Defrag). Leftover items, startup and a lane flag do not start
 runs on their own. A failed automatic run delays another attempt by 10 minutes, doubling on
-consecutive failures up to six hours. At most six automatic runs start per rolling 24 hours.
+consecutive failures up to six hours. A stopped run does not reset that count. The backoff and signature reset when Brain restarts. The limit of six automatic starts per rolling 24 hours persists across restarts.
 
 **Defrag** runs the same check on request while something waits, even with automatic checks off.
 It shares the reader's worker. First a bounded local pass folds exact repeats and looks for

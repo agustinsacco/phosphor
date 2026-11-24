@@ -1,3 +1,5 @@
+import { createBrainCuratorClient } from '@phosphor/brain-client/curator-client'
+import { createNodeBrainTransport } from '@phosphor/brain-client/node-transport'
 import { DEFAULT_BRAIN_PREFS, type BrainStatus } from '@phosphor/shared/brain'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -59,12 +61,19 @@ export async function realService(overrides: Partial<BrainServiceOptions> = {}) 
       launch: async () => ({ binaryPath: '/not-a-provider', prefixArgs: [], env: {} }),
     },
     guardExtension: '/made-up/guard.mjs',
+    curator: { extension: '/brain-curator.mjs', skill: '/brain-agent' },
     recall: { extension: '/made-up/brain.mjs', skill: '/made-up/brain' },
     ...overrides,
   }
   const service = await createBrainService(options)
   cleanups.push(() => service.dispose())
   return { directory, store, service, options, call }
+}
+
+export async function curatorClient(service: BrainService) {
+  const launch = await service.curatorLaunch()
+  if (!launch) throw new Error('Expected a curator launch')
+  return createBrainCuratorClient(createNodeBrainTransport(launch.connection))
 }
 
 const SUMMARIES = [

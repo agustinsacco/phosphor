@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
-import type { BrainAgentHost, BrainAgentTurn, BrainService } from '../types'
-import { savedRead, realService } from '../tidy/__fixtures__/real-service'
+import type { BrainAgentHost, BrainAgentTurn } from '../types'
+import { savedRead, realService, curatorClient } from '../tidy/__fixtures__/real-service'
 const finished: BrainAgentTurn = {
   outcome: 'finished',
   error: null,
@@ -33,9 +33,8 @@ function ownerBusyLane(own: (signal: AbortSignal) => Promise<void> = async () =>
 }
 
 it('a change the owner asks for while Defrag waits for their turn belongs to no run', async () => {
-  const brain: { service?: BrainService } = {}
   const describe = async (entityId: string, description: string, reason: string) => {
-    const result = await brain.service!.agent('edit', {
+    const result = await curator.call('edit', {
       edit: { kind: 'describe', entityId, description },
       reason,
     })
@@ -50,7 +49,7 @@ it('a change the owner asks for while Defrag waits for their turn belongs to no 
     curator: { extension: '/made-up/brain-curator.mjs', skill: '/made-up/brain-agent' },
     agent: lane.host,
   })
-  brain.service = s.service
+  const curator = await curatorClient(s.service)
   await savedRead(s.store, s.service, s.options)
   const [first, , third] = s.store.laneMemories('harbor-read').ids
   ids.rina = s.store.memory(first!).entities[0]!.id

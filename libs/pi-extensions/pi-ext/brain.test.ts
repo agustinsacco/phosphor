@@ -131,6 +131,7 @@ it('sends a flag with its reason in the request envelope, where the owner audits
   const send = vi.fn<Parameters<typeof registerBrain>[1]>()
   registerBrain({ registerTool: (tool) => tools.push(tool as (typeof tools)[number]) }, send)
   const flag = tools.find((tool) => tool.name === 'brain_flag')!
+  expect(flag.description).toContain('Brain Agent')
   send.mockResolvedValue({
     v: 1,
     id: '1',
@@ -156,4 +157,14 @@ it('sends a flag with its reason in the request envelope, where the owner audits
     },
     { signal, deadlineMs: 10_000 },
   )
+})
+
+it('returns move guidance for a mixed search instead of an unavailable briefing', async () => {
+  const { tool, send } = setup()
+  send.mockResolvedValue(noOwnerReply(null))
+  const params = { query: 'Harbor', from: 'Ledger' }
+  const result = await tool.execute('one', params, undefined, undefined, {})
+  expect(result.content).toEqual([
+    { type: 'text', text: expect.stringMatching(/query.*from.*optional context.*from and to/i) },
+  ])
 })
