@@ -82,7 +82,8 @@ afterEach(() => {
 it('This Mac’s explorer offers search, list options, OS and clipboard actions', async () => {
   await render(localFilesSource('/lane'))
   expect(container.querySelector('button[aria-label^="Search in files"]')).not.toBeNull()
-  expect(button('Show hidden files')).not.toBeNull()
+  expect(button('Show dotfiles')).not.toBeNull()
+  expect(button('Hide Git-ignored files')).not.toBeNull()
   expect(await rowMenu()).toEqual([
     expect.stringMatching(/^(Reveal|Show|Open)/),
     'Copy path',
@@ -103,8 +104,8 @@ it('This Mac’s explorer offers search, list options, OS and clipboard actions'
 it('a machine without those features keeps create, rename, delete and moves in the tree', async () => {
   await render(laneSource())
   expect(container.querySelector('button[aria-label^="Search in files"]')).toBeNull()
-  expect(button('Show hidden files')).toBeNull()
-  expect(button('Respect .gitignore')).toBeNull()
+  expect(button('Show dotfiles')).toBeNull()
+  expect(button('Hide Git-ignored files')).toBeNull()
   expect(button('New file')).not.toBeNull()
   expect(container.textContent).toContain('Right-click for actions')
   expect(await rowMenu()).toEqual([

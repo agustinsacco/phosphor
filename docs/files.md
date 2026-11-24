@@ -1,7 +1,15 @@
 # Files and editor
 
-Local Files is a lazy workspace explorer beside Monaco editor tabs. Gitignore
-and hidden-file filters, git status dots and filesystem watching are always on.
+Local Files is a lazy workspace explorer beside Monaco editor tabs. Git-ignored
+entries appear dimmed and marked **ignored** by default; the branch icon
+(**Hide Git-ignored files**) hides them. The eye (**Show dotfiles**) controls
+dotfiles independently. `.git` stays hidden and `node_modules` starts collapsed.
+
+Symlink rows are marked and can be opened, including links out of the worktree.
+Children of an ignored symlink are marked ignored too. Broken and looping
+links stay visible but do not open. Linked folders load one level at a time;
+a level with more than 2,000 entries is not listed. Git status dots and
+filesystem watching remain active; linked folders use the directory poll.
 A 250 ms debounced watcher patches changed directory listings; agent tool results
 refresh every loaded listing immediately, and a two-second directory-mtime poll
 covers unavailable or missed watcher events. Reopening the pane re-reads its root,
@@ -11,7 +19,8 @@ leaving the conversation.
 
 Opening a file or switching editor tabs expands its ancestor folders, highlights
 its row and scrolls it into view without taking keyboard focus. Only that path
-is loaded, and hidden/gitignore filters still apply. Cmd/Ctrl+P opens the Files
+is loaded. Explorer filters still apply to the tree, but do not prevent opening
+a path from a chat link. Cmd/Ctrl+P opens the Files
 pane on the explorer tree, replacing the content-search panel if it was open.
 Content search keeps its results visible while stepping through matches; returning
 to the explorer reveals the active file. The finder also works from the editor,

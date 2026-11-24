@@ -3,6 +3,8 @@ export interface DirEntry {
   path: string
   relativePath: string
   isDirectory: boolean
+  isIgnored?: boolean
+  symlink?: 'resolved' | 'loop' | 'unavailable'
 }
 
 export interface FileContent {
