@@ -458,7 +458,7 @@ describe('responses', () => {
   })
 
   it('bounds the machine list', () => {
-    const many = new Array(CONTROL_LIMITS.maxHostsPerAccount * 5 + 1).fill(machine)
+    const many = new Array(CONTROL_LIMITS.maxHostsPerAccount + 1).fill(machine)
     expect(parseMachinesResponse({ machines: many, serverTime: machine.enrolledAt })).toEqual({
       ok: false,
       reason: 'machines',

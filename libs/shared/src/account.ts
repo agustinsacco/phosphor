@@ -14,7 +14,16 @@ export interface AccountProfileView {
 }
 
 export type AccountStatusView =
-  | { readonly status: 'signed-out'; readonly error?: string }
+  | {
+      readonly status: 'signed-out'
+      readonly error?: string
+      /**
+       * Browser only. `unreachable`: Control could not be asked, so the session is unknown
+       * and the page keeps checking. `sign-out-unconfirmed`: an explicit sign-out's cleanup
+       * is not confirmed, so the screen offers to retry it.
+       */
+      readonly notice?: 'unreachable' | 'sign-out-unconfirmed'
+    }
   | { readonly status: 'signing-in' }
   | {
       readonly status: 'signed-in'

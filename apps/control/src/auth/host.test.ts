@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import { hostSigningString } from '@phosphor/shared/control-api'
 import vector from '../../../../libs/shared/src/__fixtures__/control-signing-vector.json'
 import { authenticateHost, hostGuard } from './host'
-import { NonceCache, RateLimiter } from '../limits'
+import { RateLimiter } from '../limits'
 import { ControlFailure, type Env } from '../http'
 import { userId } from '../test-support'
 
@@ -22,12 +22,22 @@ function request(overrides: RequestInit = {}, url = vector.input.path): Request 
     },
   })
 }
+/** A claim port that remembers every pair, as control_nonce_claim does. */
+function claims() {
+  const claimed = new Set<string>()
+  return vi.fn(async (identity: string, nonce: string) => {
+    const pair = JSON.stringify([identity, nonce])
+    if (claimed.has(pair)) return false
+    claimed.add(pair)
+    return true
+  })
+}
 function deps(offset = 0) {
   const clock = () => Number(vector.input.timestamp) * 1000 + offset
   return {
     clock,
-    nonces: { key: new NonceCache(clock), host: new NonceCache(clock) },
     limits: new RateLimiter(clock),
+    claimNonce: claims(),
     hostKey: async () => vector.publicKey,
   }
 }
@@ -156,7 +166,9 @@ describe('Host signature verifier', () => {
     await expect(
       authenticateHost(request(), Buffer.from('changed'), ports, 'key', testIp),
     ).rejects.toThrow()
+    expect(ports.claimNonce).not.toHaveBeenCalled()
     expect(await authenticateHost(request(), bytes, ports, 'key', testIp)).toBe(vector.publicKey)
+    expect(ports.claimNonce).toHaveBeenCalledExactlyOnceWith(vector.publicKey, vector.input.nonce)
   })
 })
 
@@ -228,14 +240,22 @@ function enrolledRequest(): Request {
   )
   return req
 }
-it('refuses saturated key nonces with 429 without affecting enrolled host nonces', async () => {
+it('claims under the key or host id, refuses a replayed claim and fails with the claim port', async () => {
   const ports = deps()
-  ports.nonces.key = new NonceCache(ports.clock, 1)
-  ports.nonces.key.accept('other-key', 'nonce')
-  await expect(authenticateHost(request(), bytes, ports, 'key', testIp)).rejects.toMatchObject({
-    status: 429,
-  })
+  expect(await authenticateHost(request(), bytes, ports, 'key', testIp)).toBe(vector.publicKey)
+  // The same nonce under another identity is a separate claim.
   expect(await authenticateHost(enrolledRequest(), bytes, ports, 'host', testIp)).toBe(userId)
+  expect(ports.claimNonce.mock.calls).toEqual([
+    [vector.publicKey, vector.input.nonce],
+    [userId, vector.input.nonce],
+  ])
+  await expect(authenticateHost(request(), bytes, ports, 'key', testIp)).rejects.toMatchObject({
+    code: 'unauthenticated',
+  })
+  const down = async () => Promise.reject(new ControlFailure('unavailable'))
+  await expect(
+    authenticateHost(request(), bytes, { ...ports, claimNonce: down }, 'key', testIp),
+  ).rejects.toMatchObject({ code: 'unavailable' })
 })
 it('refuses a replay at the late skew edge after first accepting it at the early edge', async () => {
   const signedAtMs = Number(vector.input.timestamp) * 1000
@@ -246,20 +266,20 @@ it('refuses a replay at the late skew edge after first accepting it at the early
     const ports = deps()
     let now = signedAtMs - 60_000
     ports.clock = () => now
-    ports.nonces = { key: new NonceCache(ports.clock), host: new NonceCache(ports.clock) }
+    ports.claimNonce = claims()
     ports.limits = new RateLimiter(ports.clock)
     expect(await authenticateHost(signed(), bytes, ports, mode, testIp)).toBe(identity)
-    // Both edges are inside the inclusive skew, so only the nonce record refuses this.
+    // Both edges are inside the inclusive skew, so only the nonce claim refuses this.
     now = signedAtMs + 60_000
     await expect(authenticateHost(signed(), bytes, ports, mode, testIp)).rejects.toMatchObject({
       code: 'unauthenticated',
     })
-    // Once the record lapses the signature is already outside the skew.
+    // One second later the signature is outside the skew, before any claim.
     now = signedAtMs + 61_000
     await expect(authenticateHost(signed(), bytes, ports, mode, testIp)).rejects.toMatchObject({
       code: 'unauthenticated',
     })
-    expect(ports.nonces[mode].accept(identity, vector.input.nonce)).toBe(true)
+    expect(ports.claimNonce).toHaveBeenCalledTimes(2)
   }
 })
 it('limits enrolled host lookups to 120 per minute per IP before any RPC', async () => {

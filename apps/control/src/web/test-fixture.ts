@@ -1,4 +1,4 @@
-/** The browser-session fixture the web and admin suites share. */
+/** The browser-session fixture the web, admin and usage suites share. */
 import { ControlFailure } from '../http'
 import { randomBytes } from 'node:crypto'
 import { expect, vi } from 'vitest'
@@ -12,6 +12,7 @@ export const otherId = '00000000-0000-4000-8000-000000000012'
 export const sid = '00000000-0000-4000-8000-000000000013'
 export const cookieName = '__Host-phosphor-session'
 export const transactionName = '__Host-phosphor-transaction'
+export const HOUR = 3_600_000
 export function cookie(res: Response, name: string) {
   return res.headers
     .getSetCookie()
@@ -43,65 +44,95 @@ function signIn(app: ReturnType<typeof createApp>) {
       headers: { cookie: started.transaction },
     })
     expect(res.status).toBe(303)
-    const sealed = cookie(res, cookieName)
-    const view = await app.request(origin + '/api/auth/session', { headers: { cookie: sealed } })
+    const session = cookie(res, cookieName)
+    const view = await app.request(origin + '/api/auth/session', { headers: { cookie: session } })
     expect(view.status).toBe(200)
-    return { res, sealed, view: (await view.json()) as { csrfToken: string }, started }
+    return { res, session, view: (await view.json()) as { csrfToken: string }, started }
   }
   return { start, login }
 }
-/** A signed-in browser session against a real app. `rpc` answers names the fixture does not. */
+interface Row {
+  owner: string
+  client: string
+  sid: string
+  used: number
+}
+/** Supabase's live state as the session RPCs see it; tests flip these. */
+interface Model {
+  rows: Map<string, Row>
+  live: { account: boolean; sid: boolean; up: boolean }
+  now: () => number
+}
+/** An in-memory model of the session RPCs (the SQL itself is covered by supabase/tests). */
+function sessionRpc({ rows, live, now }: Model, name: string, args: Record<string, unknown>) {
+  const hash = String(args.p_handle_hash)
+  const row = rows.get(hash)
+  switch (name) {
+    case 'control_account':
+      return { enabled: live.account, maxHosts: 100 }
+    case 'control_web_session_create':
+      if (!live.account) return { outcome: 'account-disabled' }
+      rows.set(hash, {
+        owner: String(args.p_user),
+        client: clientId,
+        sid: String(args.p_sid),
+        used: now(),
+      })
+      return { outcome: 'created', clientId }
+    case 'control_web_session_use': {
+      if (!row) return { outcome: 'not-found' }
+      if (now() - row.used > 90 * 24 * HOUR || !live.sid) {
+        rows.delete(hash)
+        return { outcome: 'not-found' }
+      }
+      if (!live.account) return { outcome: 'account-disabled' }
+      const renewed = now() - row.used > HOUR
+      if (renewed) row.used = now()
+      const { owner: userId, client, sid } = row
+      return { outcome: 'active', userId, login: 'tester', clientId: client, sid, renewed }
+    }
+    case 'control_web_session_end':
+      return { outcome: rows.delete(hash) ? 'ended' : 'not-found' }
+    case 'control_web_clients_list':
+      return { clients: [{ id: clientId, label: 'Web browser', kind: 'web', revokedAt: null }] }
+  }
+  return undefined
+}
+/**
+ * A signed-in browser session against a real app, over the session RPC model.
+ * `rpc` answers names the model does not cover.
+ */
 export function fixture(rpc?: (name: string, args: Record<string, unknown>) => unknown) {
   const deps = dependencies()
   let now = deps.clock()
   deps.clock = () => now
   const env = webEnv()
   deps.config = parseConfig(env)
-  let revoked = false,
-    unavailable = false,
-    refreshedUser = userId,
-    refreshedSid = sid
-  let gate: Promise<void> | undefined
-  function access(id = userId, sessionId = sid) {
-    return `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(now / 1000) + 120, aud: 'authenticated', sub: id, session_id: sessionId })).toString('base64url')}.c2ln`
+  const model: Model = {
+    rows: new Map(),
+    live: { account: true, sid: true, up: true },
+    now: deps.clock,
   }
-  // Like Supabase, every refresh token is single-use and rotates on refresh.
-  let issued = 0
-  const spent = new Set<string>()
-  const provider = () => ({
-    access_token: access(refreshedUser, refreshedSid),
-    refresh_token: `refresh-secret-${++issued}`,
-    expires_in: 120,
-    user: { id: refreshedUser },
-    provider_token: 'DISCARD-GITHUB-SECRET',
-  })
-  deps.fetch = vi.fn(async (url, init?: RequestInit) => {
-    if (unavailable) throw new Error('secret upstream diagnostic')
-    if (String(url).includes('logout')) return new Response(null, { status: 204 })
-    if (String(url).includes('refresh_token')) {
-      await gate
-      const used = String(
-        (JSON.parse(String(init?.body)) as { refresh_token: string }).refresh_token,
-      )
-      if (spent.has(used))
-        return Response.json({ error_code: 'refresh_token_already_used' }, { status: 400 })
-      spent.add(used)
-    }
-    return Response.json(provider())
+  const { rows, live } = model
+  const codes = new Set<string>()
+  const access = `e30.${Buffer.from(JSON.stringify({ aud: 'authenticated', sub: userId, session_id: sid })).toString('base64url')}.c2ln`
+  deps.fetch = vi.fn(async (_url, init?: RequestInit) => {
+    if (!live.up) throw new Error('secret upstream diagnostic')
+    // Like Supabase, an authorization code exchanges once.
+    const code = String((JSON.parse(String(init?.body)) as { auth_code: string }).auth_code)
+    if (codes.has(code))
+      return Response.json({ error_code: 'flow_state_not_found' }, { status: 400 })
+    codes.add(code)
+    return Response.json({
+      access_token: access,
+      refresh_token: 'refresh-secret',
+      user: { id: userId, user_metadata: { user_name: 'tester' } },
+      provider_token: 'DISCARD-GITHUB-SECRET',
+    })
   })
   deps.supabase.rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
-    if (unavailable) throw new ControlFailure('unavailable')
-    if (name === 'control_account') return { enabled: true, maxHosts: 20 }
-    if (name === 'control_client_register')
-      return { outcome: 'registered', client: { id: clientId, label: 'Web browser' } }
-    if (name === 'control_web_client_status') return { outcome: revoked ? 'not-found' : 'active' }
-    if (name === 'control_client_revoke') {
-      revoked = true
-      return { outcome: 'revoked' }
-    }
-    if (name === 'control_web_clients_list')
-      return { clients: [{ id: clientId, label: 'Web browser', kind: 'web', revokedAt: null }] }
-    return rpc ? rpc(name, args) : { outcome: 'not-found' }
+    if (!live.up) throw new ControlFailure('unavailable')
+    return sessionRpc(model, name, args) ?? (rpc ? rpc(name, args) : { outcome: 'not-found' })
   })
   const app = createApp(deps)
   return {
@@ -109,26 +140,23 @@ export function fixture(rpc?: (name: string, args: Record<string, unknown>) => u
     env,
     app,
     ...signIn(app),
-    advance: () => {
-      now += 70_000
+    advance: (ms = 70_000) => {
+      now += ms
     },
-    revoke: () => {
-      revoked = true
+    /** Another device revoked this browser's client. */
+    revoke: () => rows.clear(),
+    disable: () => {
+      live.account = false
+    },
+    endSupabaseSession: () => {
+      live.sid = false
     },
     outage: () => {
-      unavailable = true
+      live.up = false
     },
-    changeIdentity: () => {
-      refreshedUser = otherId
-    },
-    changeSid: () => {
-      refreshedSid = otherId
-    },
-    delay: (value: Promise<void>) => {
-      gate = value
-    },
+    sessions: rows,
   }
 }
-export function mutationHeaders(sealed: string, csrf: string) {
-  return { cookie: sealed, origin, 'x-phosphor-csrf': csrf, 'content-type': 'application/json' }
+export function mutationHeaders(session: string, csrf: string) {
+  return { cookie: session, origin, 'x-phosphor-csrf': csrf, 'content-type': 'application/json' }
 }

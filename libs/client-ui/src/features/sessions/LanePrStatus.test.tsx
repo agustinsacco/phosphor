@@ -17,6 +17,7 @@ import { usePrStatusStore } from '@/stores/prStatus'
 import { usePrDetailStore } from '@/stores/prDetail'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { TONE_CHIP } from './pr-inspector/PrIcons'
 import { LanePrStatus } from './LanePrStatus'
 
 let root: Root
@@ -157,6 +158,22 @@ it.each([
     expect(rail()).toEqual(stages)
   },
 )
+
+it('draws the bar’s shared chip shape in its verdict tone, rather than a shape of its own', async () => {
+  seed({ ...pr, checks: { passed: 1, failed: 1, pending: 0, total: 2 } })
+  await act(async () => root.render(<LanePrStatus sessionId="a" />))
+  const face = pill()!.classList
+  // The same rounded label as the workspace and branch chips to its left.
+  for (const name of ['inline-flex', 'items-center', 'gap-1.5', 'rounded-md', 'px-2', 'py-0.5'])
+    expect(face).toContain(name)
+  expect(face).toContain('text-sm')
+  // Nothing left of the separate pill it used to draw.
+  for (const name of ['rounded-full', 'font-mono', 'font-semibold', 'text-xs', 'gap-1'])
+    expect(face).not.toContain(name)
+  // The tone is still the whole of its theme, edge included.
+  for (const name of TONE_CHIP.failing.split(' ')) expect(face).toContain(name)
+  expect(face).toContain('border')
+})
 
 it('opens the inspector on the lead PR, opens GitHub, refreshes by force and restores focus on Escape', async () => {
   seed(pr)

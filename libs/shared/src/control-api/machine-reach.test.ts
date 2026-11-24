@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CONTROL_LIMITS,
   CONTROL_MACHINE_ROUTES,
   CONTROL_ROUTES,
   machineReachRoute,
@@ -49,7 +50,10 @@ describe('machine reach bodies', () => {
     for (const bad of [
       { ...DIRECTORY, self: { id: SELF, machineReach: true } },
       { ...DIRECTORY, machines: [noReach] },
-      { ...DIRECTORY, machines: Array.from({ length: 21 }, () => ENTRY) },
+      {
+        ...DIRECTORY,
+        machines: Array.from({ length: CONTROL_LIMITS.maxHostsPerAccount + 1 }, () => ENTRY),
+      },
       { ...DIRECTORY, machines: [{ ...ENTRY, state: 'gone' }] },
     ])
       expect(parseMachineDirectoryResponse(bad).ok).toBe(false)

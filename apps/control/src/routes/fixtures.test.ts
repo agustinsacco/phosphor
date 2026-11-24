@@ -17,8 +17,6 @@ it('creates fresh dependencies, signing identities and mocks for each route harn
     outcome: 'active',
     publicKey: second.key.publicKey,
   })
-  expect(first.deps.nonces.key).not.toBe(second.deps.nonces.key)
-  expect(first.deps.nonces.host).not.toBe(second.deps.nonces.host)
   first.results.control_machines = { machines: [], serverTime: date }
   expect((await first.call(R.machines, 'GET')).status).toBe(200)
   expect(first.deps.log).toHaveBeenCalled()

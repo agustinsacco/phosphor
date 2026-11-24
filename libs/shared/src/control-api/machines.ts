@@ -96,7 +96,7 @@ function flag<K extends string>(key: K, value: unknown): Partial<Record<K, boole
 export function parseMachinesResponse(value: unknown): Parsed<MachinesResponse> {
   if (!isRecord(value) || !Array.isArray(value.machines)) return fail('machines')
   if (!isIso(value.serverTime)) return fail('serverTime')
-  if (value.machines.length > CONTROL_LIMITS.maxHostsPerAccount * 5) return fail('machines')
+  if (value.machines.length > CONTROL_LIMITS.maxHostsPerAccount) return fail('machines')
   const machines: MachineView[] = []
   for (const entry of value.machines) {
     const parsed = parseMachineView(entry)

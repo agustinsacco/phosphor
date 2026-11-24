@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { BoundedCache, NonceCache, RATE_PURPOSE_CAPACITIES, RateLimiter } from './limits'
+import { BoundedCache, RATE_PURPOSE_CAPACITIES, RateLimiter } from './limits'
 it('bounds cache state, evicts oldest and expires exactly at deadline', () => {
   let now = 0
   const cache = new BoundedCache<string>(() => now, 2)
@@ -13,7 +13,7 @@ it('bounds cache state, evicts oldest and expires exactly at deadline', () => {
   expect(cache.get('b')).toBeUndefined()
   expect(() => new BoundedCache(() => now, 0)).toThrow()
 })
-it('limits with a sliding window and refuses new keys without resetting live windows', () => {
+it('limits with a sliding window and admits a new key into a full map by evicting the oldest', () => {
   let now = 0
   const limit = new RateLimiter(() => now, 2)
   expect(limit.consume('a', 2, 100)).toBe(true)
@@ -24,11 +24,14 @@ it('limits with a sliding window and refuses new keys without resetting live win
   expect(limit.consume('a', 2, 100)).toBe(true)
   expect(limit.consume('a', 2, 100)).toBe(false)
   limit.consume('b', 2, 100)
-  expect(limit.consume('c', 2, 100)).toBe(false)
-  expect(limit.size).toBe(2)
-  expect(limit.consume('a', 2, 100)).toBe(false)
-  now = 200
   expect(limit.consume('c', 2, 100)).toBe(true)
+  expect(limit.size).toBe(2)
+  // 'a' was the oldest, so its window is gone; 'b' keeps its own.
+  expect(limit.available('a', 1, 100)).toBe(true)
+  expect(limit.consume('b', 2, 100)).toBe(true)
+  expect(limit.consume('b', 2, 100)).toBe(false)
+  now = 300
+  expect(limit.consume('d', 2, 100)).toBe(true)
   expect(limit.size).toBe(1)
   for (const [key, count, window] of [
     ['x'.repeat(513), 1, 100],
@@ -39,51 +42,6 @@ it('limits with a sliding window and refuses new keys without resetting live win
     expect(() => limit.consume(String(key), Number(count), Number(window))).toThrow()
   }
 })
-it('refuses saturated nonce caches with 429 and never evicts unexpired replay records', () => {
-  const cache = new NonceCache(() => 0, 2)
-  expect(cache.accept('a', 'nonce')).toBe(true)
-  expect(cache.accept('b', 'nonce')).toBe(true)
-  expect(() => cache.accept('c', 'nonce')).toThrowError(
-    expect.objectContaining({ code: 'too-many-requests', status: 429 }),
-  )
-  expect(cache.accept('a', 'nonce')).toBe(false)
-})
-it('keeps nonces spent through the 120-second skew span and reuses slots at 121 seconds', () => {
-  let now = 0
-  const cache = new NonceCache(() => now, 2)
-  expect(cache.accept('a', 'nonce')).toBe(true)
-  now = 1
-  expect(cache.accept('b', 'nonce')).toBe(true)
-  now = 120_000
-  expect(cache.accept('a', 'nonce')).toBe(false)
-  expect(() => cache.accept('c', 'nonce')).toThrowError(
-    expect.objectContaining({ code: 'too-many-requests', status: 429 }),
-  )
-  now = 120_999
-  expect(cache.accept('a', 'nonce')).toBe(false)
-  now = 121_000
-  expect(cache.accept('a', 'nonce')).toBe(true)
-  expect(cache.accept('b', 'nonce')).toBe(false)
-  now = 121_001
-  expect(cache.accept('c', 'nonce')).toBe(true)
-  expect(cache.accept('a', 'nonce')).toBe(false)
-})
-
-it('stays closed when the wall clock steps back: no replay, slots free later', () => {
-  let now = 1000
-  const cache = new NonceCache(() => now, 2)
-  expect(cache.accept('a', 'one')).toBe(true) // expires 122000
-  now = 0
-  expect(cache.accept('a', 'two')).toBe(true) // expires 121000, behind one
-  now = 121_000
-  expect(cache.accept('a', 'one')).toBe(false)
-  expect(cache.accept('a', 'two')).toBe(false)
-  expect(() => cache.accept('a', 'three')).toThrow()
-  now = 122_000
-  expect(cache.accept('a', 'three')).toBe(true)
-  expect(cache.accept('a', 'four')).toBe(true)
-})
-
 it('pins available: counts live times in the window without spending, true for unseen keys', () => {
   let now = 0
   const limit = new RateLimiter(() => now, 2)
@@ -122,7 +80,7 @@ it('pins consume: a refused attempt is not recorded and does not extend the wind
   expect(limit.consume('a', 2, 1000)).toBe(false)
 })
 
-it('pins bounded refusal: a new key at capacity sweeps only expired windows, never live ones', () => {
+it('admits a new key into a full map: expired windows go first, then the oldest live one', () => {
   let now = 0
   const limit = new RateLimiter(() => now, 3)
   expect(limit.consume('short', 5, 100)).toBe(true)
@@ -136,15 +94,13 @@ it('pins bounded refusal: a new key at capacity sweeps only expired windows, nev
   expect(limit.size).toBe(3)
   expect(limit.consume('new', 5, 100)).toBe(true)
   expect(limit.size).toBe(3)
-  expect(limit.available('short', 1, 100)).toBe(true)
-  expect(limit.consume('other', 5, 100)).toBe(false)
-  expect(limit.size).toBe(3)
-  expect(limit.available('renewed', 2, 100)).toBe(false)
   expect(limit.available('long', 1, 1000)).toBe(false)
-  now = 150
+  // Nothing has expired, so the oldest live key, 'long', makes room.
   expect(limit.consume('other', 5, 100)).toBe(true)
-  expect(limit.consume('again', 5, 100)).toBe(false)
-  expect(limit.available('long', 1, 1000)).toBe(false)
+  expect(limit.size).toBe(3)
+  expect(limit.available('long', 1, 1000)).toBe(true)
+  expect(limit.available('renewed', 2, 100)).toBe(false)
+  expect(limit.available('new', 1, 100)).toBe(false)
 })
 
 it('pins argument checks: boundaries accepted, invalid values throw even at capacity', () => {
@@ -158,7 +114,7 @@ it('pins argument checks: boundaries accepted, invalid values throw even at capa
   ] as const) {
     expect(() => limit.consume(key, count, window)).toThrow('Invalid rate limit')
   }
-  expect(limit.consume('fresh', 1, 100)).toBe(false)
+  expect(limit.consume('fresh', 1, 100)).toBe(true)
   expect(limit.size).toBe(1)
   for (const capacity of [0, -1, 1.5, Number.NaN])
     expect(() => new RateLimiter(() => 0, capacity)).toThrow('Invalid cache capacity')
@@ -169,30 +125,29 @@ it('gives each declared purpose its own capacity and expiry', () => {
   const limit = new RateLimiter(() => now, { a: 2, b: 1 })
   expect(limit.consume('a:1', 5, 100)).toBe(true)
   expect(limit.consume('a:2', 5, 1000)).toBe(true)
-  expect(limit.consume('a:3', 5, 100)).toBe(false)
-  // A full purpose neither refuses another nor evicts its own live windows.
-  expect(limit.consume('b:1', 5, 1000)).toBe(true)
-  expect(limit.consume('b:2', 5, 100)).toBe(false)
-  expect(limit.consume('a:1', 5, 100)).toBe(true)
+  // A full purpose evicts only its own oldest key, never another purpose's.
+  expect(limit.consume('b:1', 1, 1000)).toBe(true)
+  expect(limit.consume('a:3', 5, 100)).toBe(true)
+  expect(limit.available('a:1', 1, 100)).toBe(true)
+  expect(limit.available('a:2', 1, 1000)).toBe(false)
+  expect(limit.consume('b:1', 1, 1000)).toBe(false)
   expect(limit.size).toBe(3)
   now = 100
-  expect(limit.consume('a:3', 5, 100)).toBe(true)
-  expect(limit.consume('a:4', 5, 100)).toBe(false)
-  expect(limit.consume('b:2', 5, 100)).toBe(false)
-  now = 1000
-  expect(limit.consume('b:2', 5, 100)).toBe(true)
+  // 'a:3' expired, so it goes before the older live 'a:2'.
+  expect(limit.consume('a:4', 5, 100)).toBe(true)
+  expect(limit.available('a:2', 1, 1000)).toBe(false)
   expect(limit.size).toBe(3)
 })
 
 it('keys the purpose by the prefix before the first colon and refuses undeclared ones', () => {
-  const limit = new RateLimiter(() => 0, { 'user-verify': 1 })
+  const limit = new RateLimiter(() => 0, { 'user-verify': 2 })
   expect(limit.consume('user-verify:2001:db8:0:0::/64', 5, 100)).toBe(true)
-  expect(limit.consume('user-verify:192.0.2.1', 5, 100)).toBe(false)
+  expect(limit.consume('user-verify:192.0.2.1', 5, 100)).toBe(true)
   for (const key of ['enrollment-create:192.0.2.1', 'user-verify', 'User-verify:x', ':x', '']) {
     expect(limit.consume(key, 5, 100)).toBe(false)
     expect(limit.available(key, 5, 100)).toBe(false)
   }
-  expect(limit.size).toBe(1)
+  expect(limit.size).toBe(2)
   // Argument checks come first, whatever the purpose.
   expect(() => limit.consume('unknown:x', 0, 100)).toThrow('Invalid rate limit')
   expect(() => limit.consume('user-verify:' + 'x'.repeat(501), 1, 100)).toThrow()
@@ -212,7 +167,7 @@ it('reads and spends the same window through available and consume', () => {
   expect(limit.available(key, 2, 100)).toBe(true)
 })
 
-it('bounds all fourteen control purposes together at 140,000 keys', () => {
+it('bounds all eleven control purposes together at 110,000 keys and admits fresh keys when full', () => {
   expect(RATE_PURPOSE_CAPACITIES).toEqual({
     'enrollment-create': 10_000,
     'enrollment-poll-ip': 10_000,
@@ -220,11 +175,8 @@ it('bounds all fourteen control purposes together at 140,000 keys', () => {
     'enrollment-failure': 10_000,
     'user-verify': 10_000,
     'host-auth': 10_000,
-    'grant-issue': 10_000,
-    'client-register': 10_000,
     'usage-ping': 10_000,
     'usage-download': 10_000,
-    'admin-read': 10_000,
     'machine-auth': 10_000,
     'machine-directory': 10_000,
     'machine-grant-issue': 10_000,
@@ -232,12 +184,10 @@ it('bounds all fourteen control purposes together at 140,000 keys', () => {
   const limit = new RateLimiter(() => 0, RATE_PURPOSE_CAPACITIES)
   for (const purpose of Object.keys(RATE_PURPOSE_CAPACITIES)) {
     for (let i = 0; i < 10_000; i++) expect(limit.consume(`${purpose}:${i}`, 1, 100)).toBe(true)
+    expect(limit.consume(`${purpose}:new`, 1, 100)).toBe(true)
     expect(limit.consume(`${purpose}:new`, 1, 100)).toBe(false)
   }
-  expect(limit.size).toBe(140_000)
-  for (const purpose of Object.keys(RATE_PURPOSE_CAPACITIES))
-    expect(limit.consume(`${purpose}:new`, 1, 100)).toBe(false)
-  expect(limit.size).toBe(140_000)
+  expect(limit.size).toBe(110_000)
   const tables: Record<string, number>[] = [{}, { a: 0 }, { a: 1, b: 1.5 }, { a: Number.NaN }]
   for (const table of tables)
     expect(() => new RateLimiter(() => 0, table)).toThrow('Invalid cache capacity')

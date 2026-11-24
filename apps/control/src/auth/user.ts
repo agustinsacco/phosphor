@@ -1,7 +1,6 @@
-import { effectiveAuthorization } from '../web/effective-token'
 import { createHash } from 'node:crypto'
 import { isUuid, parseMeResponse, type MeResponse } from '@phosphor/shared/control-api'
-import type { MiddlewareHandler } from 'hono'
+import type { Context, MiddlewareHandler } from 'hono'
 import { ControlFailure, type Env } from '../http'
 import { BoundedCache, type RateLimiter } from '../limits'
 import type { Supabase } from '../supabase'
@@ -12,8 +11,16 @@ function record(value: unknown): value is Record<string, unknown> {
 export interface User {
   userId: string
   login: string | null
+  /** The Supabase session: grants carry it, and Hosts refuse it once it is gone. */
+  sid: string
 }
-export function createUserAuth(supabase: Supabase, clock: () => number, limits: RateLimiter) {
+/**
+ * The caller: a browser session the web adapter already admitted, or a Supabase bearer
+ * token. Supabase verifies a token once and the answer is kept for 30 seconds, so a
+ * sign-out takes effect within that. Only failed verifications spend the address's budget,
+ * so no number of legitimate users behind one address is ever refused.
+ */
+export function createBearerAuth(supabase: Supabase, clock: () => number, limits: RateLimiter) {
   const cache = new BoundedCache<User>(clock, 1000)
   return async (authorization: string | undefined, ip: string): Promise<User> => {
     if (!authorization?.startsWith('Bearer ')) throw new ControlFailure('unauthenticated')
@@ -33,27 +40,42 @@ export function createUserAuth(supabase: Supabase, clock: () => number, limits: 
       typeof payload.exp !== 'number' ||
       !Number.isSafeInteger(payload.exp) ||
       payload.exp * 1000 <= clock() ||
-      payload.aud !== 'authenticated'
+      payload.aud !== 'authenticated' ||
+      !isUuid(payload.sub) ||
+      !isUuid(payload.session_id)
     )
       throw new ControlFailure('unauthenticated')
     const hash = createHash('sha256').update(token).digest('hex')
     const cached = cache.get(hash)
     if (cached) return cached
-    if (!limits.consume('user-verify:' + ip, 30, 60_000))
-      throw new ControlFailure('too-many-requests')
-    const value = await supabase.getUser(token)
+    const budget = 'user-verify:' + ip
+    if (!limits.available(budget, 30, 60_000)) throw new ControlFailure('too-many-requests')
+    let value: unknown
+    try {
+      value = await supabase.getUser(token)
+    } catch (error) {
+      if (error instanceof ControlFailure && error.code === 'unauthenticated')
+        limits.consume(budget, 30, 60_000)
+      throw error
+    }
     if (payload.exp * 1000 <= clock()) throw new ControlFailure('unauthenticated')
     if (!record(value) || !isUuid(value.id)) throw new ControlFailure('unavailable')
+    if (value.id !== payload.sub) throw new ControlFailure('unauthenticated')
     const login =
       record(value.user_metadata) &&
       typeof value.user_metadata.user_name === 'string' &&
       /^[A-Za-z0-9-]{1,39}$/.test(value.user_metadata.user_name)
         ? value.user_metadata.user_name
         : null
-    const user = { userId: value.id, login }
+    const user = { userId: value.id, login, sid: payload.session_id }
     cache.set(hash, user, Math.min(clock() + 30_000, payload.exp * 1000))
     return user
   }
+}
+export function createUserAuth(supabase: Supabase, clock: () => number, limits: RateLimiter) {
+  const bearer = createBearerAuth(supabase, clock, limits)
+  return async (c: Context<Env>): Promise<User> =>
+    (c.get('user') as User | undefined) ?? bearer(c.req.header('authorization'), c.get('ip'))
 }
 export async function account(supabase: Supabase, user: User): Promise<MeResponse> {
   const value = await supabase.rpc('control_account', {
@@ -75,10 +97,12 @@ export function userGuard(
   supabase: Supabase,
 ): MiddlewareHandler<Env> {
   return async (c, next) => {
-    const user = await auth(effectiveAuthorization(c), c.get('ip'))
+    const user = await auth(c)
     c.set('user', user)
     c.set('actor', `user:${user.userId}`)
-    if (!(await account(supabase, user)).enabled) throw new ControlFailure('forbidden')
+    // A browser session's account was checked when the adapter admitted it.
+    if (!c.get('web') && !(await account(supabase, user)).enabled)
+      throw new ControlFailure('forbidden')
     await next()
   }
 }

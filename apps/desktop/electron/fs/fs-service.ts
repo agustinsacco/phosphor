@@ -1,6 +1,18 @@
 import { execFile } from 'node:child_process'
-import { lstat, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import type { Dirent } from 'node:fs'
+import {
+  lstat,
+  mkdir,
+  opendir,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
+import { isAbsolute, join, relative, sep } from 'node:path'
+import { mapLimit } from '@phosphor/session-runtime/map-limit'
 import {
   isTextPreview,
   looksBinary,
@@ -10,6 +22,59 @@ import {
 import type { DirEntry, FileContent } from '@shared/models'
 
 const ALWAYS_HIDDEN = new Set(['.git'])
+export const MAX_LINK_DIR_ENTRIES = 2_000
+
+/** Git doesn't traverse symlinks. Record the first link for ignore checks,
+ * and canonical ancestors to disallow walking back into the same directory. */
+async function directoryContext(workspacePath: string, dirPath: string) {
+  const rel = relative(workspacePath, dirPath)
+  const parts = rel ? rel.split(sep) : []
+  const ancestors = new Set<string>()
+  let canonical = await realpath(workspacePath)
+  ancestors.add(canonical)
+  let firstLink: string | undefined
+  let path = workspacePath
+  if (isAbsolute(rel) || parts[0] === '..') throw new Error('Folder is outside the workspace.')
+  for (const part of parts) {
+    path = join(path, part)
+    const target = await realpath(path)
+    if (ancestors.has(target)) throw new Error('Cannot expand a symlink loop.')
+    if (target !== join(canonical, part)) firstLink ??= path
+    ancestors.add(target)
+    canonical = target
+  }
+  return { ancestors, firstLink }
+}
+
+async function readLinkDirectory(path: string): Promise<Dirent[]> {
+  const entries: Dirent[] = []
+  for await (const entry of await opendir(path)) {
+    if (entries.length === MAX_LINK_DIR_ENTRIES) {
+      throw new Error('Linked folder is too large to list (more than 2,000 entries).')
+    }
+    entries.push(entry)
+  }
+  return entries
+}
+
+async function linkTarget(
+  path: string,
+  ancestors: Set<string>,
+): Promise<Pick<DirEntry, 'isDirectory' | 'symlink'>> {
+  try {
+    const target = await realpath(path)
+    if (ancestors.has(target)) return { isDirectory: false, symlink: 'loop' }
+    const info = await stat(target)
+    if (info.isDirectory() || info.isFile()) {
+      return { isDirectory: info.isDirectory(), symlink: 'resolved' }
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ELOOP') {
+      return { isDirectory: false, symlink: 'loop' }
+    }
+  }
+  return { isDirectory: false, symlink: 'unavailable' }
+}
 
 /** Read directory mtimes for the explorer's polling fallback. */
 export async function statDirectories(
@@ -29,34 +94,42 @@ export async function statDirectories(
 
 /**
  * List one directory level for the explorer tree (lazy loading).
- * Gitignore filtering uses `git check-ignore --stdin` when available.
+ * Annotate Git-ignored entries even when the explorer is showing them.
  */
 export async function listDir(
   workspacePath: string,
   dirPath: string,
   options: { showHidden?: boolean; respectGitignore?: boolean },
 ): Promise<DirEntry[]> {
-  const entries = await readdir(dirPath, { withFileTypes: true })
-  let visible = entries.filter((entry) => {
-    if (ALWAYS_HIDDEN.has(entry.name)) return false
-    if (!options.showHidden && entry.name.startsWith('.')) return false
-    return entry.isDirectory() || entry.isFile()
+  const { ancestors, firstLink } = await directoryContext(workspacePath, dirPath)
+  const entries = firstLink
+    ? await readLinkDirectory(dirPath)
+    : await readdir(dirPath, { withFileTypes: true })
+  const candidates = entries.flatMap((entry) => {
+    if (ALWAYS_HIDDEN.has(entry.name) || (!options.showHidden && entry.name.startsWith('.'))) {
+      return []
+    }
+    if (!(entry.isDirectory() || entry.isFile() || entry.isSymbolicLink())) return []
+    const path = join(dirPath, entry.name)
+    // A directory-only pattern must not match a symlink to a directory.
+    const checkPath = firstLink ?? (entry.isDirectory() ? path + sep : path)
+    return [{ entry, path, checkPath }]
   })
-
-  if (options.respectGitignore !== false && visible.length > 0) {
-    const ignored = await checkIgnored(
-      workspacePath,
-      visible.map((e) => join(dirPath, e.name)),
-    )
-    if (ignored) visible = visible.filter((e) => !ignored.has(join(dirPath, e.name)))
-  }
-
-  const result: DirEntry[] = visible.map((entry) => ({
-    name: entry.name,
-    path: join(dirPath, entry.name),
-    relativePath: relative(workspacePath, join(dirPath, entry.name)).split(sep).join('/'),
-    isDirectory: entry.isDirectory(),
-  }))
+  const toCheck = [...new Set(candidates.map(({ checkPath }) => checkPath))]
+  const ignored = toCheck.length ? await checkIgnored(workspacePath, toCheck) : null
+  const result = await mapLimit(
+    candidates.filter(({ checkPath }) => !options.respectGitignore || !ignored?.has(checkPath)),
+    16,
+    async ({ entry, path, checkPath }): Promise<DirEntry> => ({
+      name: entry.name,
+      path,
+      relativePath: relative(workspacePath, path).split(sep).join('/'),
+      ...(ignored?.has(checkPath) && { isIgnored: true }),
+      ...(entry.isSymbolicLink()
+        ? await linkTarget(path, ancestors)
+        : { isDirectory: entry.isDirectory() }),
+    }),
+  )
 
   result.sort((a, b) => {
     if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
@@ -88,10 +161,10 @@ function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<strin
   return new Promise((resolve) => {
     const child = execFile(
       'git',
-      ['check-ignore', '--stdin'],
+      ['check-ignore', '-z', '--stdin'],
       { cwd: workspacePath, timeout: 5_000, maxBuffer: 4 * 1024 * 1024 },
       (error, stdout) => {
-        if (!error) return resolve(new Set(stdout.split('\n').filter(Boolean)))
+        if (!error) return resolve(new Set(stdout.split('\0').filter(Boolean)))
         if ((error as { code?: number }).code === 1) return resolve(new Set())
         resolve(null)
       },
@@ -99,7 +172,7 @@ function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<strin
     child.stdin?.on('error', () => {
       // Pipe closed early (git already exited); the callback decides the result.
     })
-    child.stdin?.end(paths.join('\n'))
+    child.stdin?.end(paths.join('\0') + '\0')
   })
 }
 

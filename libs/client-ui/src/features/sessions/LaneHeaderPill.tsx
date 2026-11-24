@@ -4,6 +4,7 @@ import { CloseIcon } from '@/components/icons'
 import { ModalOverlay } from '@/components/Modal'
 import { PopupMenu } from '@/components/PopupMenu'
 import { TooltipButton } from '@/components/Tooltip'
+import { CHIP } from '@/components/form'
 import './laneHeaderPill.css'
 
 /** Closes the popup; focus returns to the pill unless the action moved it elsewhere. */
@@ -34,6 +35,13 @@ interface LaneHeaderPillProps {
  * A lane header quick link: a real tab stop that opens an anchored details
  * popup. The PR status and Slack threads pills are both this; their contents
  * differ, their focus and dismissal must not.
+ *
+ * It draws the bar's shared `CHIP` shape rather than its own, so a pull
+ * request reads as the same kind of label as the workspace and branch chips to
+ * its left. `className` is the whole of its theme: the PR pill passes its
+ * verdict tone, the Slack pill the neutral chip ground. The `border` stays
+ * because a tone carries part of its meaning in its edge, which the flat
+ * ground those neighbours use has no need of.
  *
  * Enter/Space opens and focus starts on the popup's `data-popup-autofocus`
  * element, else its first button; Escape, an
@@ -81,8 +89,9 @@ export function LaneHeaderPill({
         data-testid={testId}
         data-variant={variant}
         className={clsx(
-          // A drawn pill: on touch it keeps its size and gains a 44px hit area.
-          'hit-slop flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+          // On touch it keeps its drawn size and gains a 44px hit area.
+          'hit-slop border focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+          CHIP,
           className,
         )}
       >

@@ -3,7 +3,17 @@ import { expect, it, vi } from 'vitest'
 import { CONTROL_ROUTES as R } from '@phosphor/shared/control-api'
 import { createApp } from '../app'
 import { parseConfig } from '../config'
-import { dependencies, signingKey } from '../test-support'
+import { dependencies, signingKey, userId } from '../test-support'
+/** A token the verification cache has never seen, so each call verifies upstream. */
+const freshToken = (now: number) =>
+  `e30.${Buffer.from(
+    JSON.stringify({
+      exp: now / 1000 + 600,
+      aud: 'authenticated',
+      sub: userId,
+      session_id: randomUUID(),
+    }),
+  ).toString('base64url')}.c2ln`
 
 /** Keys each rate-limit purpose may hold; test-support wires the production limiter. */
 const purposeCapacity = 10_000
@@ -31,6 +41,7 @@ function setup() {
       client,
     },
     control_host_key: { outcome: 'active', publicKey: hostKey.publicKey },
+    control_nonce_claim: { outcome: 'claimed' },
     control_host_self: {
       outcome: 'active',
       hostId,
@@ -54,15 +65,6 @@ function setup() {
       headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify(value),
     })
-  /** A token the verification cache has never seen, so each call verifies upstream. */
-  const freshToken = () =>
-    `e30.${Buffer.from(
-      JSON.stringify({
-        exp: deps.clock() / 1000 + 600,
-        aud: 'authenticated',
-        session_id: randomUUID(),
-      }),
-    ).toString('base64url')}.c2ln`
   return {
     deps,
     enroll: (ip: string) => from(ip, post(R.enrollments, {})),
@@ -70,7 +72,7 @@ function setup() {
       from(
         ip,
         new Request('http://localhost' + R.me, {
-          headers: { authorization: `Bearer ${freshToken()}` },
+          headers: { authorization: `Bearer ${freshToken(deps.clock())}` },
         }),
       ),
     issueGrant: (ip: string) =>
@@ -79,11 +81,18 @@ function setup() {
         post(
           R.grants,
           { hostId, clientId: client.id },
-          { authorization: `Bearer ${freshToken()}` },
+          { authorization: `Bearer ${freshToken(deps.clock())}` },
         ),
       ),
     registerClient: (ip: string) =>
-      from(ip, post(R.clients, { label: 'Desktop' }, { authorization: `Bearer ${freshToken()}` })),
+      from(
+        ip,
+        post(
+          R.clients,
+          { label: 'Desktop' },
+          { authorization: `Bearer ${freshToken(deps.clock())}` },
+        ),
+      ),
     hostSelf: (ip: string) =>
       from(ip, hostKey.request('GET', R.hostSelf, undefined, deps.clock(), hostId)),
   }
@@ -91,15 +100,16 @@ function setup() {
 /** The i-th of `purposeCapacity` distinct /64 networks. */
 const subnet = (i: number) => `2001:db8:${(i >> 8).toString(16)}:${(i & 255).toString(16)}`
 
-it('confines an unauthenticated enrollment flood from distinct /64s to enrollment creates', async () => {
+it('never refuses a fresh address during an enrollment flood from distinct /64s', async () => {
   const s = setup()
   // Each create spends its address's key before the request body is even parsed.
   for (let i = 0; i < purposeCapacity; i++)
     expect((await s.enroll(`${subnet(i)}::1`)).status).toBe(400)
-  // Same purpose: a new /64 is refused, and the live windows are kept rather than evicted.
-  expect((await s.enroll('2001:db8:ffff:0::1')).status).toBe(429)
-  for (let i = 1; i < 10; i++) expect((await s.enroll(`${subnet(0)}::1`)).status).toBe(400)
-  expect((await s.enroll(`${subnet(0)}::1`)).status).toBe(429)
+  // Same purpose: a full table admits a new /64 by evicting the oldest window.
+  expect((await s.enroll('2001:db8:ffff:0::1')).status).toBe(400)
+  // A held address still spends its own budget.
+  for (let i = 1; i < 10; i++) expect((await s.enroll(`${subnet(1)}::1`)).status).toBe(400)
+  expect((await s.enroll(`${subnet(1)}::1`)).status).toBe(429)
   // Other purposes keep their own capacity: new, uncached callers still get through.
   expect((await s.me('2001:db8:ffff:1::1')).status).toBe(200)
   expect((await s.issueGrant('2001:db8:ffff:2::1')).status).toBe(200)

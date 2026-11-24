@@ -182,13 +182,13 @@ function preferenceHandlers(prefs: ReturnType<typeof createBrowserPreferences>) 
     'app:setWorktreePrefs': prefs.worktrees,
   } satisfies Partial<BrowserHandlers>
 }
-/** Cross-tab delivery cannot prevent local logout. */
-function signOut(control: BrowserControl, broadcast: () => void) {
-  const result = control.signOut()
+/** Other tabs hear only once this sign-out settles, so their own session check sees its result. */
+async function signOut(control: BrowserControl, broadcast: () => void) {
+  const result = await control.signOut()
   try {
     broadcast()
   } catch {
-    // Local invalidation still takes effect if the browser channel is unavailable.
+    // Cross-tab delivery cannot undo the local sign-out.
   }
   return result
 }

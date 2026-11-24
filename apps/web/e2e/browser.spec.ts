@@ -183,11 +183,13 @@ test('production bootstrap: anonymous cookie boundary and anonymous service-work
     stack.state.offline = true
     try {
       await page.reload()
-      await expect(page.getByRole('alert')).toHaveText(
-        'Phosphor could not start. Check your connection and try again.',
-      )
-      await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toHaveCount(0)
+      // An outage is not a sign-out: the screen says it is retrying, with no sign-out retry.
+      await expect(page.getByRole('status')).toHaveText('Can’t reach Phosphor. Retrying…')
+      await expect(page.getByRole('button', { name: 'Retry sign out' })).toHaveCount(0)
+      stack.state.offline = false
+      await page.evaluate(() => window.dispatchEvent(new Event('online')))
+      await expect(page.getByRole('status')).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible()
     } finally {
       await writeFile(
         info.outputPath('offline-failed-paths.json'),

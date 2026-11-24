@@ -41,14 +41,15 @@ and machine state through signed heartbeats.
 - `POST /api/v1/hosts/self/revoke`: Host-signed removal, body exactly `{}`,
   returning 204 with no body. Revoked and unknown Hosts return 410.
 - `POST /api/v1/clients`: user-authenticated `{label}` registers a Desktop install
-  and returns `{client: {id, label}}`. At most twenty active clients per owner.
-  Registration is limited to ten per hour per user.
+  and returns `{client: {id, label}}`. There is no cap. Registration first sweeps
+  the owner's browser clients that lost their session and clients revoked over a
+  day ago.
 - `DELETE /api/v1/clients/:id`: owner-only client revocation, 204 with no body.
   Unknown, already revoked and other owners' clients return 404.
 - `POST /api/v1/grants`: user-authenticated `{hostId, clientId}` returns
   `{grant, expiresAt, host: {id, endpoint, publicKey}}`. Both identities must be
-  active and owned by the caller. The verified access token must carry a UUID
-  `session_id`. Issuance is limited to 120 per minute per user.
+  active and owned by the caller. The grant tracks the caller's Supabase session
+  id: the verified access token's UUID `session_id`, or the browser session's.
 - `GET /api/v1/grant-keys`: public `{keys: [{kid, publicKey}]}`. Raw Ed25519 public
   keys are base64url. This route alone uses `public, max-age=300` caching.
 - `POST /api/v1/usage/ping` and `GET /download/:artifact`: anonymous usage and
@@ -93,25 +94,29 @@ Stable `/media/` URLs are not cached as immutable. Other pages use `nosniff` and
 
 User requests carry a Supabase access token as Bearer. Before calling Auth, the
 server checks the token's three base64url parts, 4096-character limit, future
-`exp`, and `authenticated` audience. It then calls `/auth/v1/user` with the
-publishable apikey and user bearer. Auth 401/403 means unauthenticated. Other
+`exp`, `authenticated` audience and UUID `sub` and `session_id`. It then calls
+`/auth/v1/user` with the publishable apikey and user bearer; the user it returns
+must be the token's `sub`. Auth 401/403 means unauthenticated. Other
 failures and five-second timeouts mean unavailable. Successful identities are
 cached by token SHA-256 for at most 30 seconds, never past expiry, with a
 1000-entry cap. Account suspension is checked through RPC on every request,
-not cached. Each cache-miss Auth verification consumes a per-IP limit of 30 per
-60 seconds before contacting Supabase. Cache hits and cheap pre-check failures
-are free. The exported user guard refuses suspended accounts on other routes.
+not cached. Only a token Auth refuses spends the address's budget of 30 per 60
+seconds; once it is spent, that address's cache misses get 429 until a refusal
+leaves the window. Valid tokens, cache hits and cheap pre-check failures are
+free, so a signed-in user never meets it. The exported user guard refuses
+suspended accounts on other routes.
 
 The exported Host guard supports a raw Ed25519 public key or an enrolled UUID,
 never both. It verifies the shared signing string against the exact body bytes,
 requires timestamps within 60 seconds, rejects queries or any rewritten raw
-path. It consumes a nonce only after verification. A timestamp is accepted at
+path. It claims a nonce only after verification, through `control_nonce_claim`
+in Postgres, so a replay is refused across restarts and replicas. The claim is
+keyed by identity, the public key in key mode or the host id for an enrolled
+Host, and a replayed claim answers 401. A timestamp is accepted at
 both ends of its 60-second skew, so one signed request is valid for 120 seconds;
-nonces live for 121 seconds, twice the skew plus a one-second margin, so a
+claims live for 121 seconds, twice the skew plus a one-second margin, so a
 request first accepted at the early edge is still refused at the late edge.
-They live in two separate 100,000-entry caches: one for enrollment keys and one
-for enrolled Hosts. Expired entries are swept. A full cache refuses new nonces
-with 429 without evicting live replay records. Enrollment traffic cannot fill the enrolled Hosts' cache.
+Any other answer from the claim fails closed with 503.
 Enrolled key lookup consumes a per-IP limit of 120 per 60 seconds before any RPC.
 Key-mode verification needs no upstream lookup or auth limiter.
 Enrolled key lookup is an injected port; gone
@@ -140,16 +145,20 @@ edge secrets or peer error messages. [Tracing a machine](remote-development.md#t
 lists the events and their correlation rules.
 
 Rate limits are sliding windows held per purpose, the key prefix before the
-first colon. Each of the fourteen purposes (`enrollment-create`, `enrollment-poll-ip`,
+first colon. Each of the eleven purposes (`enrollment-create`, `enrollment-poll-ip`,
 `enrollment-poll`, `enrollment-failure`, `user-verify`, `host-auth`,
-`grant-issue`, `client-register`, `usage-ping`, `usage-download`, `admin-read`, `machine-auth`, `machine-directory`, `machine-grant-issue`) has
-its own 10,000-key cap, 140,000 keys in all. The two usage purposes never answer 429:
+`usage-ping`, `usage-download`, `machine-auth`, `machine-directory`,
+`machine-grant-issue`) has its own 10,000-key cap, 110,000 keys in all.
+None caps what a signed-in user does: they pace anonymous traffic by address,
+failed enrollment-code guesses per user, and Host-signed machine requests by
+address and Host. The two usage purposes never answer 429:
 an over-limit request is answered normally and not counted.
-At capacity a purpose sweeps its expired windows and refuses new keys with 429
-rather than evicting live windows. Saturating one purpose never refuses another,
-so an unauthenticated enrollment flood cannot spend the capacity of user
-verification, Host authentication or grant issuance. A key of an undeclared
-purpose is refused. Enrollment creates are limited to ten per hour per IP before signature checking
+A full purpose never refuses a new key: it sweeps its expired windows, then
+evicts its oldest key. A flood of fresh keys only weakens the limit and never
+locks anyone out, and a key's own budget still applies. Saturating one purpose
+never evicts another's keys, so an unauthenticated enrollment flood cannot reset
+the windows of user verification or Host authentication. A key
+of an undeclared purpose is refused. Enrollment creates are limited to ten per hour per IP before signature checking
 or nonce consumption. Polls are limited to sixty per minute per IP before the
 request contract is validated, then to one per two seconds per parsed enrollment id, both
 before signature checking; Hosts sharing an address share the first limit.
@@ -165,9 +174,10 @@ an IPv6 address by its /64, so every address and spelling inside one /64 shares
 a bucket. An IPv4-mapped IPv6 address counts as its IPv4 address; a socket
 address that is not an IP shares one `unknown` bucket.
 servicelb SNAT hides peers, so all non-Cloudflare LAN and tailnet clients share
-that address bucket. Headers and comparison results are never logged. All in-memory guards are
-process-local. Run a single replica; rollout overlap is not cross-process replay
-protection.
+that address bucket. Headers and comparison results are never logged. Rate limits,
+the token cache and connection logging are process-local, and a restart resets
+them. Every security decision (browser sessions, Host nonces, revocations) is
+in Postgres, so any number of replicas and restarts are safe.
 
 ## Grants and revocation
 
@@ -203,13 +213,15 @@ control origin.
 Accepted heartbeats query the active Host's owner and epoch and return
 `revoked: {sessions, clients}`. Each list holds at most 100 ids, newest first:
 clients revoked in the last ten minutes, and tracked sessions issued in the
-last ten minutes whose Auth session no longer exists. Admission keeps every
-owner inside those lists, so a list never drops a revocation that still matters:
-registration refuses a client (429) once the owner has 100 clients that are live
-or were revoked in the last ten minutes, and issuance refuses a grant (429) for a
-new session once the owner has 100 sessions issued in the last ten minutes. A
-session already tracked always renews. Issuance takes the owner's account row
-lock first, so concurrent issues cannot both pass the cap. Cleanup of sessions
+last ten minutes whose Auth session no longer exists. Nothing is refused to
+keep the lists that short. When one more revoked client or new session would not
+fit, the server retires every grant the owner holds instead: it moves each of
+the owner's Hosts to a new epoch, forgets the tracked sessions and starts both
+lists again from that moment (`revocations_reset_at`). A Host closes every
+stream on an epoch change and refuses older grants, so no revocation that
+still matters is lost; the owner's apps reconnect with fresh grants. A session
+already tracked always renews. Issuance and revocation take the owner's account
+row lock first, so concurrent calls count each other. Cleanup of sessions
 older than ten minutes rechecks the age on each row it deletes, so a session
 refreshed by a concurrent issue is kept. The session table has RLS
 and no client policies or grants. Only the server may call the RPCs. The
@@ -366,8 +378,9 @@ physical-device acceptance.
 
 `supabase/migrations/` holds versioned PostgreSQL migrations including these tables:
 
-- `remote_access_accounts`: server-managed suspension state, GitHub login and
-  update time. New accounts are enabled by default.
+- `remote_access_accounts`: server-managed suspension state, GitHub login,
+  update time and when the owner's grants were last retired. New accounts are
+  enabled by default.
 - `remote_hosts`: owner, label, hostname, public key, fingerprint, platform,
   architecture, version, heartbeat sequence and state, readiness, lane counts,
   optional bare HTTPS endpoint, revocation epoch, `machine_reach` (default true) and reported `machine_grants`.
@@ -375,6 +388,10 @@ physical-device acceptance.
 - `remote_machine_principals`: the distinct client and session IDs for sibling grants, scoped to the owner and machine. No client policy; issuance bounds live and recently revoked principals to 40 per owner. Machine grant sessions are not user grant sessions.
 - `remote_grant_sessions`: recently issued Auth session ids and times for bounded
   heartbeat revocation checks. It has no client grants or policies.
+- `remote_web_sessions`: one row per signed-in browser: its client, owner,
+  Supabase session id, the SHA-256 of its cookie handle and when it was last used.
+- `remote_request_nonces`: signed Host request nonces, per identity, until
+  their signature could no longer verify.
 - `remote_enrollments`: hashed user codes, public keys and machine metadata.
   Pending codes expire after ten minutes. Approval links the owner and Host
   atomically and leaves at least two minutes to collect the approved result.
@@ -393,21 +410,27 @@ rows have no client grants or RLS policies. Clients cannot write any table.
 Only the server writes. The `service_role` can execute the public `control_*`
 functions for account refresh, enrollment create/poll/lookup/approve, machine
 list/rename/revoke and Host key/self/self-revoke/heartbeat, client registration and
-revocation, grant issuance and revocation lookup, plus machine directory, grant issue, beat and reach reads/writes. These functions use an empty
-search path. They are security invokers except the revocation lookup described in
-[Grants and revocation](#grants-and-revocation), account deletion, and the admin
-check described in [Usage analytics](usage-analytics.md#admin-summary). Each of
-those three runs one fixed statement over ids the server has already verified. Both client roles and `public`
+revocation, grant issuance and revocation lookup, browser sessions and Host nonce
+claims, plus machine directory, grant issue, beat and reach reads/writes. These
+functions use an empty search path. They are security invokers
+except the revocation lookup described in [Grants and revocation](#grants-and-revocation),
+account deletion, the admin check described in
+[Usage analytics](usage-analytics.md#admin-summary), and the two
+`control_private` helpers that test and end one owner's Auth session (Supabase's
+service role cannot read or delete `auth.sessions`). Each of those five runs one
+fixed statement over ids the server has already verified. Both client roles and `public`
 lose execute privileges, including on the timestamp and MachineView helpers
 in the non-exposed `control_private` schema. The server separately authenticates
 requests and checks account suspension. RLS is not its authorization boundary.
 
-Approval locks the enrollment and account, enforces twenty active Hosts per
-owner and relies on a partial unique index to prevent active public-key reuse.
+Approval locks the enrollment and account, enforces 100 active Hosts per owner
+(`CONTROL_LIMITS.maxHostsPerAccount`, the most a machine list carries) and
+relies on a partial unique index to prevent active public-key reuse.
 Keys use canonical base64url so each key has one spelling. Labels reject control
 and bidi characters. Endpoint ports, when present, are between 1 and 65535.
-Creation serializes pending admission, caps it at three per key and ten thousand
-in total, and removes at most a thousand old enrollments and old audit events
+Creation serializes pending admission. A key keeps only its newest pending code,
+so a retry is never refused; ten thousand pending codes in total is the only
+cap. Creation removes at most a thousand old enrollments and old audit events
 per call. Audit cleanup targets events older than 180 days. Heartbeats atomically
 require an increasing sequence and ten seconds between beats, except stopping beats.
 Revocation increments the epoch. Machine lists exclude revoked Hosts. Timestamp
@@ -510,22 +533,38 @@ provisioned by these routes.
 `CONTROL_WEB_SESSION_KEYS` contains one to eight comma-separated `kid=key`
 entries: unique 1–64-character letters/digits/underscore/hyphen ids and canonical
 base64url 32-byte AES keys, at most 4096 characters total. They are deployment
-secrets, never implicitly generated. First key encrypts; all keys decrypt.
-Append a new key before promoting it to first, and retain previous keys for the
-14-day maximum browser session lifetime after their last use for encryption.
-Cookies are AES-256-GCM sealed with random nonces and origin/purpose-bound
-additional authenticated data. There is no session/refresh-token database or
-process-memory dependency for a current cookie. Supabase credentials exist only server-side
-and in the sealed HttpOnly cookie, never in JS, localStorage, service workers,
-JSON responses or logs. GitHub provider tokens are discarded.
+secrets, never implicitly generated. They seal only the ten-minute sign-in
+transaction cookie, with AES-256-GCM, random nonces and origin/purpose-bound
+additional authenticated data. First key encrypts; all keys decrypt. Append a
+new key before promoting it to first, and keep a retired key for ten minutes
+after it last encrypted.
+
+A browser session is a row in `remote_web_sessions`, not a cookie's contents.
+Sign-in keeps the Supabase user id, Supabase session id and GitHub login, and
+discards every Supabase and GitHub token, so there is no refresh token to rotate,
+store or lose. The session cookie holds a random 32-byte handle (base64url). The
+database stores only its SHA-256, and the CSRF token is a different SHA-256 of
+the handle, so neither reveals it. The handle never changes: a lost response, an
+aborted fetch, a suspended PWA, a restart or another replica cannot sign anyone
+out. Any replica admits it with one `control_web_session_use` call and no process
+memory.
+
+A session lasts until it goes 90 days unused. Use slides that window: the
+database records use at most hourly, and only then does the response renew the
+cookie's 90-day Max-Age. A session ends, and its browser client is revoked, on
+sign-out, when that client is revoked from any device, after 90 idle days, or
+when its Supabase session ends (`auth.sessions` loses it). Ending a session also
+deletes its Supabase session. Account deletion removes everything. A suspended
+account is refused with 403 and keeps its session. Sign-in and client
+registration sweep the owner's clients: idle sessions end, browser clients left
+without a session are deleted, and so are clients revoked over a day ago.
 
 Production cookies are `__Host-phosphor-session` and
 `__Host-phosphor-transaction`: Secure, HttpOnly, SameSite=Lax, Path=/, no Domain.
 Explicit loopback HTTP fixtures instead use `phosphor-dev-session` and
-`phosphor-dev-transaction`, without Secure. Session cookies expire absolutely
-14 days after sign-in; transaction cookies expire in ten minutes. Invalid and
-expired cookies are cleared with a sanitized 401 response. Unavailable services
-do not clear an otherwise valid session.
+`phosphor-dev-transaction`, without Secure. A session cookie that is not a
+handle (an older cookie format, for example) or whose handle has no live row is
+cleared with 401. Unavailable services never clear a session.
 
 Only requests whose Host matches the configured app host receive browser routes
 or the app static root. Forwarded-Host is ignored; redirects always derive from
@@ -549,27 +588,29 @@ wrong Origin are refused too.
   accepts only bounded local slash-separated alphanumeric/underscore/hyphen
   paths, not queries, fragments, dot segments or API paths. Initiate from the
   app itself; a cross-site/sibling-site Fetch Metadata initiation is refused.
-  A signed-in cookie returns 409 rather than registering another client.
+  Already signed in, it redirects straight to `returnTo`. A failed start or
+  callback never answers JSON: it redirects (303) to `/?signin-error=<code>` with
+  the control error code, which the app reads, strips and explains.
 - `GET /api/auth/callback?state=…&code=…` exchanges the bounded code using the
   encrypted transaction's verifier. State is embedded in the configured
   `redirect_to` callback query, not assumed to be arbitrary OAuth state echoed
-  by Supabase. The callback must match the exact transaction and refuses unknown
-  or duplicate query parameters. Supabase must allowlist this app callback URL
+  by Supabase. The callback must match the exact transaction. Supabase must allowlist this app callback URL
   including its state query. The production Supabase redirect configuration and
   real GitHub flow require separate deployment validation.
-  A successful verified account registers exactly one `kind=web` client,
-  seals it into the session, and redirects to the stored local path with 303.
+  A successful exchange creates the session and exactly one `kind=web` client in
+  one `control_web_session_create` call, sets the cookie and redirects to the
+  stored local path with 303. Arriving again while signed in redirects without
+  another exchange.
 - `GET /api/auth/session` returns
-  `{user: {id, login}, clientId, csrfToken}` or 401 when unsigned/expired/revoked.
-  It never returns access, refresh or GitHub tokens. Clients should treat 503
-  as a retryable service failure, not signed-out state.
+  `{user: {id, login}, clientId, csrfToken}`, 401 when signed out, expired or
+  revoked, and 403 when the account is suspended. No token exists to return.
+  Clients should treat 503 as a retryable service failure, not signed-out state.
 - `POST /api/auth/signout` with JSON `{}` and the session's CSRF header clears
-  the cookie, revokes this bound web client, and calls Supabase logout with
-  `scope=local`. It returns
-  `{signedOut: true, remoteCleanup: "complete" | "pending"}`. Complete means both
-  remote operations confirmed success (an already-revoked client is success).
-  Pending means local sign-out happened but remote cleanup is not confirmed;
-  no unbounded retry job is queued. It does not sign out other devices or stop
+  the cookie after one `control_web_session_end` call ends the session, revokes
+  this browser's client and deletes its Supabase session. It returns
+  `{signedOut: true, remoteCleanup: "complete"}`. A session already gone answers
+  401 and clears the cookie. An outage answers 503 and keeps the cookie, so a
+  retry finishes the job. It does not sign out other devices or stop
   lanes. Existing Host grants may remain usable for their bounded lifetime;
   offline Hosts do not receive immediate revocation.
 - `GET /api/v1/clients` uses the ordinary owner/account guard and returns
@@ -577,39 +618,21 @@ wrong Origin are refused too.
   It also works for native bearer callers. `DELETE /api/v1/clients/:id` retains
   its owner-only behavior and can revoke another device.
 - `DELETE /api/v1/me` deletes the account like the native route, then answers with
-  a single cookie clear in place of the re-sealed session.
+  a single cookie clear in place of any renewal.
 - Browser requests cannot POST client registration or substitute a different
   `clientId` in `POST /api/v1/grants`. Use the id from `/api/auth/session` with
-  the existing `{hostId, clientId}` grant API. Grant sid is extracted from the
-  exact account token that passed the common verification boundary.
+  the existing `{hostId, clientId}` grant API. The grant's session id is the
+  browser session's Supabase session id.
 
-Every admitted cookie API request checks `control_web_client_status` against the
-bound owner and web client before and after any refresh. Revoked/disabled clients
-are refused, and missing/unavailable authoritative status fails closed. The
-additive `20261014120000_control_web_clients.sql` migration supplies this status
-RPC and the bounded owner-only listing RPC. Both are fixed-search-path security
-invokers, executable only by service_role. Neither stores credentials. The
-existing grant RPC additionally locks/checks the actual client at issuance.
-A revoked cookie never automatically re-registers; a fresh interactive sign-in
-is required to create another device identity.
-
-Refresh begins within 60 seconds of access-token expiry, coalesced by refresh
-credential hash. Each rotation is remembered for 24 hours (10,000 entries per
-process, oldest forgotten first), so a browser that missed the rotated cookie (an
-aborted fetch, a suspended PWA, or an older re-seal landing last) and replays the
-previous one follows the remembered rotations to the current session instead of
-sending Supabase a spent refresh token, which would sign it out. Both owner
-and Auth session id must remain unchanged; the refreshed access token is also
-verified via Auth. Upstream requests refuse redirects, use five-second deadlines
-and 64 KB response caps. Replay records retain consumed callback transactions
-until their expiry (10,000 cap, refuse at capacity); Supabase's one-use code
-exchange remains the cross-process replay boundary. Start is limited to ten per
-IP bucket per ten minutes. Logout tombstones (10,000 bounded entries) supplement
-but never replace durable client revocation. They and refresh/replay coordination
-are process-local: single-replica operation is required, and restart/rollout does
-not preserve them. A late refreshed cookie cannot bypass successful durable
-client revocation, including in another process. If both cleanup services fail,
-local clearing/tombstones do not promise durable remote revocation after restart.
+Every cookie API request admits its session through `control_web_session_use`,
+which checks the session, its client, the account and the Supabase session in one
+statement. Refused sessions get 401 (403 when suspended). An unavailable database
+fails closed with 503 and keeps the cookie. The grant RPC also locks and checks
+the client at issuance. A refused session never re-registers; a fresh interactive
+sign-in creates another device identity. Code exchange refuses redirects and has
+a five-second deadline and a 64 KB response cap. Supabase's one-use code and the
+PKCE verifier sealed in the transaction cookie are the replay boundary. Nothing in
+browser sign-in is process-local, and no sign-in limit applies.
 
 ### App static policy
 

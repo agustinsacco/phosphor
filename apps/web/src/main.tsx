@@ -1,11 +1,12 @@
 import { createRoot } from 'react-dom/client'
 import { createBrowserApi } from './platform'
+import { takeSignInError } from './platform/control'
 import '@phosphor/client-ui/styles/index.css'
 
 let dispose = () => {}
 let showStartup: ((error?: string) => void) | undefined
 async function boot(): Promise<void> {
-  const bridge = createBrowserApi()
+  const bridge = createBrowserApi({ signInError: takeSignInError(window) })
   dispose = () => bridge.dispose()
   window.phosphor = bridge.api
   // The adapter exists before shared UI is evaluated. Apply the stored theme

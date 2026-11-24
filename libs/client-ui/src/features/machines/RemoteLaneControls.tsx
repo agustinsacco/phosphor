@@ -2,7 +2,7 @@ import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
 import { localMachineLabel } from '@/lib/localMachine'
 import { useRemoteLanesStore, machineLabel, connectionLabel } from '@/stores/remoteLanes'
-import { Button } from '@/components/form'
+import { Button, Chip } from '@/components/form'
 import { useLaneControl } from './useLaneControl'
 
 export { STOP_NEEDS_PROMPT } from './useLaneControl'
@@ -12,11 +12,11 @@ export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Ele
   const hosts = useRemoteLanesStore((s) => s.hosts)
   useMachinesStore((s) => s.machines)
   return (
-    <span className="text-text-secondary bg-chip inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-sm">
+    <Chip className="bg-chip text-text-secondary">
       {target?.kind === 'remote'
         ? `${machineLabel(target.hostId)} · ${connectionLabel(hosts[target.hostId]?.state)}`
         : localMachineLabel()}
-    </span>
+    </Chip>
   )
 }
 

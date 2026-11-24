@@ -276,6 +276,8 @@ export function watchWorkspace(workspacePath: string): void {
     ignoreInitial: true,
     ignored: filter.ignored,
     depth: MAX_WATCH_DEPTH,
+    // The explorer polls linked folders it has loaded; don't crawl link targets.
+    followSymlinks: false,
     awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 50 },
   })
 

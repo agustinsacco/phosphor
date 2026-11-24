@@ -5,7 +5,7 @@ import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu, useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { revealLabel } from '@/lib/reveal'
-import { ChevronIcon } from '@/components/icons'
+import { ChevronIcon, LinkIcon } from '@/components/icons'
 import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
 import { downloadEntry } from './download'
 import { useExplorer } from './useExplorer'
@@ -245,7 +245,6 @@ function ExplorerRow({
 }): React.JSX.Element {
   const { workspacePath } = source
   const isExpanded = useFilesStore((s) => s.expanded[entry.path] ?? false)
-  const children = useFilesStore((s) => s.entries[entry.path])
   const gitStatus = useFilesStore((s) => workspaceFiles(s, workspacePath).gitStatus)
   const isActive = useFilesStore((s) => workspaceFiles(s, workspacePath).activePath === entry.path)
   const activeRequest = useFilesStore((s) => workspaceFiles(s, workspacePath).activeRequest)
@@ -264,13 +263,13 @@ function ExplorerRow({
   const onClick = (event: React.MouseEvent): void => {
     if (!controls.select(entry, event)) return
     const store = useFilesStore.getState()
-    if (entry.isDirectory) {
-      void store.toggleDir(workspacePath, entry.path)
-    } else {
+    if (entry.isDirectory) void store.toggleDir(workspacePath, entry.path)
+    else if (!entry.symlink || entry.symlink === 'resolved')
       runFileAction(store.openFile(workspacePath, entry.path))
-    }
   }
 
+  const linkLabel = entry.symlink && LINK_LABELS[entry.symlink]
+  const description = [entry.isIgnored && 'Git-ignored', linkLabel].filter(Boolean).join(' · ')
   const gestures = useRowGestures(source, entry, controls, rowRef)
 
   return (
@@ -278,6 +277,7 @@ function ExplorerRow({
       <FileTreeRow
         ref={rowRef}
         aria-current={isActive ? 'true' : undefined}
+        aria-description={description || undefined}
         data-path={entry.path}
         data-directory={entry.isDirectory}
         aria-pressed={controls.selected.some((e) => e.path === entry.path)}
@@ -304,7 +304,10 @@ function ExplorerRow({
         ) : (
           <span className="w-[13px]" />
         )}
-        <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+        <span className={clsx('min-w-0 flex-1 truncate', entry.isIgnored && 'text-text-tertiary')}>
+          {entry.name}
+        </span>
+        {description && <EntryMarks entry={entry} description={description} />}
         {(dot || dirDirty) && (
           <span
             data-tooltip={dot?.label ?? 'contains changes'}
@@ -314,26 +317,66 @@ function ExplorerRow({
         )}
       </FileTreeRow>
       {entry.isDirectory && isExpanded && (
-        <>
-          {children === undefined && (
-            <div
-              className="text-text-tertiary animate-pulse py-1 text-sm"
-              style={{ paddingLeft: 24 + depth * 14 }}
-            >
-              …
-            </div>
-          )}
-          {children?.map((child) => (
-            <ExplorerRow
-              key={child.path}
-              entry={child}
-              source={source}
-              depth={depth + 1}
-              controls={controls}
-            />
-          ))}
-        </>
+        <ExplorerChildren path={entry.path} source={source} depth={depth + 1} controls={controls} />
       )}
+    </>
+  )
+}
+
+const LINK_LABELS = {
+  resolved: 'Symlink',
+  loop: 'Symlink loop',
+  unavailable: 'Unavailable symlink',
+}
+
+function EntryMarks({ entry, description }: { entry: DirEntry; description: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="text-text-tertiary flex shrink-0 items-center gap-1 text-xs"
+      data-tooltip={description}
+    >
+      {entry.isIgnored && 'ignored'}
+      {entry.symlink && <LinkIcon />}
+      {entry.symlink === 'loop' && 'loop'}
+      {entry.symlink === 'unavailable' && 'broken'}
+    </span>
+  )
+}
+
+function ExplorerChildren({
+  path,
+  source,
+  depth,
+  controls,
+}: {
+  path: string
+  source: FilesSource
+  depth: number
+  controls: ReturnType<typeof useExplorer>
+}): React.JSX.Element {
+  const children = useFilesStore((s) => s.entries[path])
+  const error = useFilesStore((s) => s.listErrors[path])
+  return (
+    <>
+      {(error || children === undefined) && (
+        <div
+          role={error ? 'alert' : undefined}
+          className="text-text-tertiary py-1 text-sm"
+          style={{ paddingLeft: 10 + depth * 14 }}
+        >
+          {error ?? '…'}
+        </div>
+      )}
+      {children?.map((entry) => (
+        <ExplorerRow
+          key={entry.path}
+          entry={entry}
+          source={source}
+          depth={depth}
+          controls={controls}
+        />
+      ))}
     </>
   )
 }

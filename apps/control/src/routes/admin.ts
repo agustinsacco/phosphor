@@ -24,7 +24,6 @@ import { parsed } from './shared'
 
 /** github.com/agustinsacco. `gh api users/agustinsacco --jq .id` */
 export const ADMIN_GITHUB_ID = '5874561'
-export const ADMIN_READS_PER_MINUTE = 60
 
 export function admin(
   app: Hono<Env>,
@@ -37,14 +36,12 @@ export function admin(
     CONTROL_ROUTES.adminStats,
     async (c, next) => {
       // A browser session on the app origin, never a native bearer token.
-      if (!isWebHost(c, deps) || !c.get('webClientId')) throw new ControlFailure('not-found')
+      if (!isWebHost(c, deps) || !c.get('web')) throw new ControlFailure('not-found')
       await next()
     },
     guard,
     async (c) => {
       const { userId } = c.get('user')
-      if (!deps.limits.consume(`admin-read:${userId}`, ADMIN_READS_PER_MINUTE, 60_000))
-        throw new ControlFailure('too-many-requests')
       const admitted = await deps.supabase.rpc('control_admin_check', {
         p_user_id: userId,
         p_github_id: ADMIN_GITHUB_ID,

@@ -1,9 +1,9 @@
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { serve, type ServerType } from '@hono/node-server'
 import { connect } from 'node:net'
 import { createApp } from './app'
 import { dependencies, token } from './test-support'
-import { clientIp, refuseBody } from './http'
+import { ControlFailure, clientIp, refuseBody } from './http'
 import { randomBytes } from 'node:crypto'
 import { parseConfig } from './config'
 
@@ -83,8 +83,9 @@ it('checks Fetch framing when no Node binding exists', () => {
     ).not.toThrow()
   }
 })
-it('uses the real socket address, not untrusted proxy headers, for user limits', async () => {
+it('uses the real socket address, not untrusted proxy headers, for verification misses', async () => {
   const deps = dependencies()
+  vi.mocked(deps.supabase.getUser).mockRejectedValue(new ControlFailure('unauthenticated'))
   await start(deps)
   for (let i = 0; i <= 30; i++) {
     const response = await rawRequest(
@@ -93,10 +94,10 @@ it('uses the real socket address, not untrusted proxy headers, for user limits',
       '',
       '/api/v1/me',
     )
-    expect(response).toContain(`HTTP/1.1 ${i === 30 ? 429 : 200}`)
+    expect(response).toContain(`HTTP/1.1 ${i === 30 ? 429 : 401}`)
   }
   expect(deps.supabase.getUser).toHaveBeenCalledTimes(30)
-  expect(deps.limits.consume('user-verify:127.0.0.1', 30, 60_000)).toBe(false)
+  expect(deps.limits.available('user-verify:127.0.0.1', 30, 60_000)).toBe(false)
 })
 
 it('trusts an IP only with Cloudflare mode and the correct edge secret', () => {

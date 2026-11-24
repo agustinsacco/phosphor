@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { CONTROL_ROUTES as R } from '@phosphor/shared/control-api'
 import { token, userId } from '../test-support'
 import { cookieName, fixture, mutationHeaders, origin } from '../web/test-fixture'
-import { ADMIN_GITHUB_ID, ADMIN_READS_PER_MINUTE } from './admin'
+import { ADMIN_GITHUB_ID } from './admin'
 import { setup } from './__fixtures__/fixtures'
 
 const totals = { day: 1, week: 2, lastWeek: 3, month: 4, lastMonth: 5, new7d: 6, new30d: 7 }
@@ -33,8 +33,8 @@ const called = (f: { deps: { supabase: { rpc: unknown } } }, name: string) =>
 describe('admin summary', () => {
   it('answers the owner with aggregates, checked against the fixed GitHub id', async () => {
     const f = admin()
-    const { sealed } = await f.login()
-    const res = await f.app.request(origin + R.adminStats, { headers: { cookie: sealed } })
+    const { session } = await f.login()
+    const res = await f.app.request(origin + R.adminStats, { headers: { cookie: session } })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual(stats)
     expect(called(f, 'control_admin_check')).toEqual([
@@ -48,8 +48,8 @@ describe('admin summary', () => {
   it('shows anyone else nothing, and never reads the summary for them', async () => {
     for (const check of [false, null, 'true', 1, { admin: true }]) {
       const f = admin(check)
-      const { sealed } = await f.login()
-      const res = await f.app.request(origin + R.adminStats, { headers: { cookie: sealed } })
+      const { session } = await f.login()
+      const res = await f.app.request(origin + R.adminStats, { headers: { cookie: session } })
       expect(res.status, JSON.stringify(check)).toBe(404)
       expect(called(f, 'control_admin_stats')).toEqual([])
     }
@@ -63,34 +63,34 @@ describe('admin summary', () => {
     native.results.control_admin_stats = stats
     expect((await native.call(R.adminStats, 'GET')).status).toBe(404)
     expect(called(native, 'control_admin_check')).toEqual([])
-    const { sealed } = await f.login()
+    const { session } = await f.login()
     const bearer = `Bearer ${token(Math.floor(f.deps.clock() / 1000) + 100)}`
     const res = await f.app.request(origin + R.adminStats, {
-      headers: { cookie: sealed, authorization: bearer },
+      headers: { cookie: session, authorization: bearer },
     })
     expect(res.status).toBe(400)
   })
 
   it('drops anything unlisted and refuses a malformed summary', async () => {
     const leaky = admin(true, { ...stats, users: [{ login: 'someone' }] })
-    const { sealed } = await leaky.login()
-    const res = await leaky.app.request(origin + R.adminStats, { headers: { cookie: sealed } })
+    const { session } = await leaky.login()
+    const res = await leaky.app.request(origin + R.adminStats, { headers: { cookie: session } })
     expect(JSON.stringify(await res.json())).not.toContain('someone')
     const broken = admin(true, { ...stats, hosts: null })
     const login = await broken.login()
     expect(
-      (await broken.app.request(origin + R.adminStats, { headers: { cookie: login.sealed } }))
+      (await broken.app.request(origin + R.adminStats, { headers: { cookie: login.session } }))
         .status,
     ).toBe(503)
   })
 
-  it('limits reads per user', async () => {
+  it('never rate-limits the owner, however often the summary is refreshed', async () => {
     const f = admin()
-    const { sealed } = await f.login()
-    for (let i = 0; i < ADMIN_READS_PER_MINUTE; i++)
-      await f.app.request(origin + R.adminStats, { headers: { cookie: sealed } })
-    const res = await f.app.request(origin + R.adminStats, { headers: { cookie: sealed } })
-    expect(res.status).toBe(429)
+    const { session } = await f.login()
+    for (let i = 0; i < 100; i++)
+      expect(
+        (await f.app.request(origin + R.adminStats, { headers: { cookie: session } })).status,
+      ).toBe(200)
   })
 
   it('names the same GitHub id as the database check constraint', () => {
@@ -143,15 +143,15 @@ describe('account deletion', () => {
     const f = fixture((name) =>
       name === 'control_account_delete' ? { outcome: 'deleted' } : { outcome: 'not-found' },
     )
-    const { sealed, view } = await f.login()
+    const { session, view } = await f.login()
     const request = (headers: Record<string, string>) =>
       f.app.request(origin + R.me, { method: 'DELETE', headers })
     expect(
-      (await request({ ...mutationHeaders(sealed, view.csrfToken), 'x-phosphor-csrf': 'x' }))
+      (await request({ ...mutationHeaders(session, view.csrfToken), 'x-phosphor-csrf': 'x' }))
         .status,
     ).toBe(403)
     expect(called(f, 'control_account_delete')).toEqual([])
-    const res = await request(mutationHeaders(sealed, view.csrfToken))
+    const res = await request(mutationHeaders(session, view.csrfToken))
     expect(res.status).toBe(204)
     const cookies = res.headers.getSetCookie().filter((c) => c.startsWith(cookieName + '='))
     expect(cookies).toHaveLength(1)

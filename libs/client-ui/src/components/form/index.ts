@@ -19,5 +19,6 @@ export {
 } from './SettingsNotice'
 export { SourceBadge, type SettingSource } from './SourceBadge'
 export { Tag } from './Tag'
+export { Chip, CHIP, CHIP_MARK } from './Chip'
 export { SaveStatus, type SaveState } from './SaveStatus'
 export { NeutralSegmented } from './NeutralSegmented'

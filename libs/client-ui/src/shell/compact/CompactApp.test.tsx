@@ -368,7 +368,7 @@ it.each([
   'Signed out here. Remote cleanup is pending; existing Host grants may remain valid briefly.',
   'Disconnected here. Cookie sign-out and remote revocation were not confirmed. Retry sign out.',
 ])('retains adapter-owned warning and Retry sign out across retries: %s', async (warning) => {
-  account = { account: { status: 'signed-out', error: warning } }
+  account = { account: { status: 'signed-out', error: warning, notice: 'sign-out-unconfirmed' } }
   await act(async () => root.render(<CompactApp />))
   expect(container.textContent).toContain(warning)
   const retry = [...container.querySelectorAll('button')].find(
@@ -381,6 +381,20 @@ it.each([
   await publishAccount({ account: { status: 'signed-out' } })
   expect(container.textContent).not.toContain(warning)
   expect(container.textContent).toContain('Sign in with GitHub')
+})
+it.each([
+  ['a refused session', { status: 'signed-out', error: 'Access refused. Sign in again.' }],
+  ['an outage', { status: 'signed-out', notice: 'unreachable' }],
+] as const)('offers sign-in but never Retry sign out for %s', async (_name, state) => {
+  account = { account: state }
+  await act(async () => root.render(<CompactApp />))
+  const labels = [...container.querySelectorAll('button')].map((button) => button.textContent)
+  expect(labels).toContain('Sign in with GitHub')
+  expect(labels).not.toContain('Retry sign out')
+  if ('notice' in state)
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      'Can’t reach Phosphor. Retrying…',
+    )
 })
 it('mounts the Move to… dialog in the browser shell and drops it for the next owner', async () => {
   const { useLaneMoveStore } = await import('@/stores/laneMove')

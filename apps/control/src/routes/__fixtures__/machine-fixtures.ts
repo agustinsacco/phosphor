@@ -30,6 +30,8 @@ export function machineSetup() {
   const targetKey = signingKey()
   const results: Record<string, unknown> = {
     control_host_key: { outcome: 'active', publicKey: callerKey.publicKey },
+    // Every signed request claims its nonce first (#751); these fixtures never replay.
+    control_nonce_claim: { outcome: 'claimed' },
     control_host_heartbeat: { outcome: 'accepted' },
     control_host_revocations: {
       epoch: 2,
