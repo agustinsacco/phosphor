@@ -122,3 +122,17 @@ it('Read again keeps a memory whose link Brain Agent stated (F9)', () => {
   expect(saved.replaced).toBe(1)
   expect(store.memory(host!.id).memory.state).toBe('active')
 })
+it('answers stale, not invalid, when a target left Brain after the reader compared', () => {
+  const { store } = fixture()
+  const [target] = approve(store)
+  const jobId = running(store, { sessionId: 'ledger-lane', leafId: 'leaf-stale' })
+  const computedRevision = store.knowledgeRevision()
+  store.erase(target!, { runId: null, reason: 'A test conversation made this up.' })
+  const data = extraction(jobId, {
+    computedRevision,
+    origin: { sessionId: 'ledger-lane', title: 'Ledger' },
+  })
+  data.memories[0] = { ...data.memories[0]!, action: 'supersede', target: target! }
+  expect(() => store.saveRead(data)).toThrow(BRAIN_READ_STALE)
+  expect(store.job(jobId)?.state).toBe('running')
+})
