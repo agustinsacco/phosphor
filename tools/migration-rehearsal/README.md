@@ -19,8 +19,10 @@ node "$R0/prepare.mjs" --scratch "$SCRATCH" \
   --source-user-data "$HOME/Library/Application Support/Phosphor" \
   --source-agent-dir "$HOME/.pi/agent"
 node apps/host/scripts/build.mjs --out "$SCRATCH/host"
-node "$R0/run.mjs" --scratch "$SCRATCH"
+node "$R0/run.mjs" --scratch "$SCRATCH"          # add --full for the restore cycle
 ```
+
+`--full` goes on after the move commits, as a person would: Desktop again on the service, lanes listed with the `phosphor` CLI (the service must hold exactly the moved lanes and archives, and the sidebar must show what it showed before), the newest non-Claude lane started and every lane stopped through the CLI, then `--restore-in-app-runtime` with a launchd-style restart after exit 75, and Desktop in-app once more. It checks the restored folders, Claude accounts, routines and runs against the backup, that no second move starts, and that every transcript is still there and none shrank. A check the copy cannot exercise reports `skipped`: the copy has pi's settings but not its packages, so Claude lanes cannot start.
 
 Retain only the redacted run summary. After success **or failure**, delete this private scratch, including the transcripts, path-bearing manifests and throwaway fixture keys. With `SCRATCH` still set by the command above:
 

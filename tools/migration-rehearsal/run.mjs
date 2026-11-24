@@ -177,9 +177,14 @@ if (layout) {
   process.umask(0o077)
   try {
     process.exitCode = await run(layout, full)
-  } catch {
+  } catch (err) {
+    // The reason without paths: they would name the copied data.
+    const reason = `${err?.name ?? 'Error'}: ${String(err?.message ?? err)}`.replace(
+      /\/\S*/g,
+      '<path>',
+    )
     console.error(
-      'Refused: invalid inputs, sandbox, build, daemon or journal. No successful rehearsal.',
+      `Refused: invalid inputs, sandbox, build, daemon or journal. No successful rehearsal. ${reason.slice(0, 200)}`,
     )
     process.exitCode = 1
   }
