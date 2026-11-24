@@ -81,7 +81,7 @@ it('confirms descriptions and memory counts for both records, then offers Undo',
   const prompt = usePromptStore.getState().requests[0]!
   expect(prompt.message).toContain('Tom Lee · 6 memories: Ledger billing lead')
   expect(prompt.message).toContain('Rina Okafor · 5 memories: Ran Ledger billing, now on Kestrel')
-  expect(prompt.message).toContain('You can Undo')
+  expect(prompt.message).toContain('You can Undo this in What changed')
   expect(prompt.message).not.toContain('cannot be undone')
   await answer()
   expect(merge).toHaveBeenCalledWith('tom', 'rina', 0)

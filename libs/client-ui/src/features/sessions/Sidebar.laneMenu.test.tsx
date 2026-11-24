@@ -162,8 +162,8 @@ it('offers Read again on a lane Brain read, confirms what it replaces, then read
   )
   expect(invoke).toHaveBeenCalledWith('brain:laneRead', 's2')
   const request = usePromptStore.getState().requests.at(-1)!
-  expect(request.message).toContain('The 3 memories from the earlier read')
-  expect(request.message).toContain('2 memories that another lane also supports are kept')
+  expect(request.message).toContain('The 3 unshared current memories')
+  expect(request.message).toContain('2 shared current memories are kept')
   expect(invoke.mock.calls.some(([channel]) => channel === 'brain:reread')).toBe(false)
   await act(async () => usePromptStore.getState().dismiss(request, 'read'))
   expect(invoke).toHaveBeenCalledWith('brain:reread', 'read-2')

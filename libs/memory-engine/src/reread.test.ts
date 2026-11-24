@@ -86,7 +86,11 @@ it.each(['citation', 'relation'] as const)(
     expect(store.memory(ids[0]!).quotes).toEqual(before.quotes)
     expect(store.memory(ids[0]!).linkQuotes).toEqual(before.linkQuotes)
     expect(() => store.memory(ids[1]!)).toThrow('Brain memory not found')
-    expect(store.laneRead('harbor-lane')).toMatchObject({ job: { id: job }, memories: 1 })
+    expect(store.laneRead('harbor-lane')).toMatchObject({
+      job: { id: job },
+      memories: 2,
+      replaceable: 1,
+    })
     expect(store.snapshot().counts.memories).toBe(2)
   },
 )

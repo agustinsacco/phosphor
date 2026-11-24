@@ -14,7 +14,7 @@ it("returns the lane's newest finished read and counts its surviving memories", 
   const later = store.enqueue(lane({ leafId: 'leaf-later' }), 'queued')
   expect(store.laneRead('harbor-lane')?.job.id).toBe(old)
   store.updateJob(later.id, { state: 'empty', finishedAt: 9000 })
-  expect(store.laneRead('harbor-lane')).toMatchObject({ job: { id: later.id }, memories: 0 })
+  expect(store.laneRead('harbor-lane')).toMatchObject({ job: { id: later.id }, memories: 1 })
   expect(store.laneRead('kestrel')).toBeNull()
 })
 it('retains completed step inputs and removes proposal vectors with their proposal', () => {
@@ -42,14 +42,14 @@ it('reads the lane memories through the origin index', () => {
   )
   expect(plan).toContain('memories_origin')
 })
-it('counts current memories of the newest read while the replacement count spans the lane', () => {
+it('counts current memories and replacements across all reads of a lane', () => {
   const { store, db } = fixture()
   save(store)
   const data = extraction('')
   const second = save(store, { memories: data.memories.slice(0, 1), memoryVectors: [vector()] })
   expect(store.laneRead('harbor-lane')).toMatchObject({
     job: { id: second.jobId },
-    memories: 1,
+    memories: 3,
     replaceable: 3,
   })
   const next = running(store, { replaces: second.jobId, leafId: 'leaf-again' })
@@ -57,5 +57,5 @@ it('counts current memories of the newest read while the replacement count spans
   store.saveRead({ ...again, memories: again.memories.slice(0, 1), memoryVectors: [vector()] })
   expect(store.laneRead('harbor-lane')).toMatchObject({ job: { id: next }, memories: 1 })
   db.prepare("UPDATE memories SET state='superseded' WHERE job_id=?").run(next)
-  expect(store.laneRead('harbor-lane')?.memories).toBe(0)
+  expect(store.laneRead('harbor-lane')).toMatchObject({ memories: 0, replaceable: 0 })
 })

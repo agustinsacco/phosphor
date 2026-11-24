@@ -163,7 +163,11 @@ it.each([
 })
 it('checks questions, instructions, owners and lane ids', async () => {
   for (const channel of ['ask', 'tell', 'laneRead', 'setOwner'] as const) {
-    await call(`brain:${channel}`, 'Harbor')
+    const isMessage = channel === 'ask' || channel === 'tell'
+    const max = channel === 'ask' ? 2000 : channel === 'tell' ? 4096 : 200
+    for (const bad of [7, 'x'.repeat(max + 1), ...(isMessage ? ['   '] : [])])
+      await expect(call(`brain:${channel}`, bad)).rejects.toThrow()
+    await call(`brain:${channel}`, isMessage ? ' Harbor ' : 'Harbor')
     expect(api[channel]).toHaveBeenCalledWith('Harbor')
     await expect(call(`brain:${channel}`, '')).rejects.toThrow()
   }

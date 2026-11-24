@@ -12,6 +12,7 @@ import {
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { PromptHost } from '@/components/PromptHost'
+import { CardMemories } from './card/CardMemories'
 import { BrainPage } from './BrainPage'
 import { useBrainNavigation } from './brainNavigation'
 import { createMockBrain } from './mockBrain'
@@ -22,6 +23,7 @@ let root: Root, container: HTMLDivElement
 let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 let mock: ReturnType<typeof createMockBrain>
 /** Channels that refuse their next call, once, as a failed first load does. */
+let handlers: FakePhosphorHandlers
 let failOnce: Set<string>
 const calls: [string, unknown[]][] = []
 const CHANNELS: IpcInvokeChannel[] = [
@@ -33,6 +35,7 @@ const CHANNELS: IpcInvokeChannel[] = [
   'brain:entityMemories',
   'brain:connections',
   'brain:memory',
+  'brain:forget',
   'brain:find',
   'brain:defrag',
   'brain:defragStop',
@@ -55,7 +58,7 @@ beforeEach(async () => {
   failOnce = new Set()
   calls.length = 0
   await mock('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
-  const handlers = Object.fromEntries(
+  handlers = Object.fromEntries(
     CHANNELS.map((channel) => [
       channel,
       async (...args: unknown[]) => {
@@ -185,10 +188,10 @@ it('walks along relationships from the card, sentence by sentence, and steps bac
   )
   await click('Back', region('Walk')!)
   expect(cardTitle()).toBe('Tom Lee')
-  await press('[', map())
+  await press('[', document.body)
   await settle()
   expect(cardTitle()).toBe('Mara Voss')
-  await press(']', map())
+  await press(']', document.body)
   await settle()
   expect(cardTitle()).toBe('Tom Lee')
 })
@@ -217,6 +220,7 @@ it('asks Brain on Enter, lights the answer’s trail and lists its memories', as
     setter.call(input, 'What is Mara busy with?')
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
+  expect(input.maxLength).toBe(4096)
   await press('Enter', input)
   await settle()
   expect(called('brain:ask')).toEqual([['What is Mara busy with?']])
@@ -226,6 +230,49 @@ it('asks Brain on Enter, lights the answer’s trail and lists its memories', as
   expect(answer.textContent).toContain('Mara Voss set the invoice close date for Ledger')
   expect(map().querySelectorAll('[data-edge][data-lit="true"]').length).toBeGreaterThan(0)
   expect(shownSentences()).toContain('Mara Voss set the invoice close date for Ledger')
+})
+
+it('keeps Ask available while an instruction waits for Brain Agent', async () => {
+  handlers['brain:tell'] = () => new Promise(() => {})
+  await mock('brain:defrag', [])
+  await render()
+  const input = region('Ask Brain')!.querySelector('textarea')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      input,
+      'Ledger',
+    )
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await press('Enter', input, { metaKey: true })
+  expect(button('Ask')?.disabled).toBe(false)
+  expect(region('Ask Brain')!.textContent).toContain('Waiting for Brain Agent to finish')
+  await press('Enter', input)
+  expect(called('brain:ask')).toEqual([['Ledger']])
+})
+
+it('drops earlier memory pages after forgetting an open row', async () => {
+  await act(async () =>
+    root.render(
+      <>
+        <CardMemories
+          entityId="harbor"
+          count={30}
+          actions={{ onEntity: vi.fn(), onMap: vi.fn(), onOpenRead: vi.fn() }}
+        />
+        <PromptHost />
+      </>,
+    ),
+  )
+  await settle()
+  const row = region('Memories')!.querySelector<HTMLButtonElement>('li button')!
+  const summary = row.firstElementChild!.textContent!
+  await click('Show more memories')
+  await act(async () => row.click())
+  await click('Forget')
+  await click('Forget permanently')
+  expect(region('Memories')!.textContent).not.toContain(summary)
+  expect(button('Show more memories')).toBeDefined()
 })
 
 it('tells Brain Agent with ⌘Enter, never asking, and offers its lane', async () => {
@@ -292,9 +339,10 @@ it('opens Brain search with / but leaves ⌘K to the command palette', async () 
   await render()
   await press('k', map(), { metaKey: true })
   expect(region('Search Brain')).toBeNull()
-  await press('/', map())
+  await press('/', document.body)
   await settle()
   const search = region('Search Brain')!
+  expect(search).not.toBeNull()
   expect(search.querySelector('[role="combobox"]')).toBe(document.activeElement)
 })
 
