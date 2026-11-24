@@ -11,6 +11,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { realpathSync } from 'node:fs'
 import { prepare } from './prepare.mjs'
 import { sensitiveName, manifestChanges } from './manifest.mjs'
 import { assertRoots, layout } from './assert-scratch.mjs'
@@ -70,4 +71,32 @@ it('refuses the wrong scratch mode before listing the inputs', async () => {
   const { chmodSync } = await import('node:fs')
   chmodSync(root, 0o755)
   await expect(prepare(root, user, agent)).rejects.toThrow('unsafe rehearsal root')
+})
+
+it('points copied prefs and archive records at the scratch copy, leaving the source as it was', async () => {
+  const recorded = {
+    userData: '/Users/me/Library/Application Support/Phosphor',
+    agent: '/Users/me/.pi/agent',
+  }
+  const prefs = JSON.stringify({
+    pinnedSessions: [`${recorded.agent}/sessions/d/a.jsonl`],
+    claudeAccounts: { accounts: [{ credentialDir: `${recorded.userData}/claude-accounts/x` }] },
+  })
+  writeFileSync(join(user, 'config.json'), prefs)
+  mkdirSync(join(user, 'lane-archive'))
+  writeFileSync(
+    join(user, 'lane-archive', 'a.json'),
+    JSON.stringify({ transcript: `${recorded.agent}/sessions/d/b.jsonl` }),
+  )
+  await prepare(root, user, agent, recorded)
+  const real = realpathSync(root)
+  const roots = layout(root)
+  expect(JSON.parse(readFileSync(join(roots.userData, 'config.json'), 'utf8'))).toEqual({
+    pinnedSessions: [`${real}/agent/sessions/d/a.jsonl`],
+    claudeAccounts: { accounts: [{ credentialDir: `${real}/user-data/claude-accounts/x` }] },
+  })
+  expect(JSON.parse(readFileSync(join(roots.userData, 'lane-archive', 'a.json'), 'utf8'))).toEqual({
+    transcript: `${real}/agent/sessions/d/b.jsonl`,
+  })
+  expect(readFileSync(join(user, 'config.json'), 'utf8')).toBe(prefs)
 })
