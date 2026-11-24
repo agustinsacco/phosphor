@@ -1,6 +1,7 @@
 import { brainTitleNeverRead, type BrainStatus, type BrainJob } from '@shared/brain'
 import type { SessionMeta } from '@shared/models'
 import { useBrain } from '@/features/brain/useBrain'
+import { readLaneAgain } from '@/features/brain/readLaneAgain'
 import { usePlatform } from '@/platform/Platform'
 import type { LaneActionContext, LaneActionHandlers } from './laneActions'
 
@@ -31,7 +32,7 @@ export function useLaneBrainActions(
   title: string,
 ): {
   context: Pick<LaneActionContext, 'knowledge' | 'brainExclusion'>
-  handlers: Pick<LaneActionHandlers, 'knowledge' | 'neverRead'>
+  handlers: Pick<LaneActionHandlers, 'knowledge' | 'readAgain' | 'neverRead'>
 } {
   const status = useBrain((s) => s.status)
   const localBrain = usePlatform().localBrain
@@ -55,6 +56,9 @@ export function useLaneBrainActions(
       knowledge: () => {
         if (job) void useBrain.getState().cancel(job.id)
         else void useBrain.getState().queue({ sessionPath: meta.path, title })
+      },
+      readAgain: () => {
+        void readLaneAgain(meta.sessionId)
       },
     },
   }

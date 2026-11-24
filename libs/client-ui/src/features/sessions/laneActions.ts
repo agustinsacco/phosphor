@@ -7,6 +7,7 @@ export type LaneActionId =
   | 'rename'
   | 'tree'
   | 'knowledge'
+  | 'readAgain'
   | 'neverRead'
   | 'completion'
   | 'restoreWorktree'
@@ -167,7 +168,12 @@ function knowledgeActions(
   return [
     ...(ctx.brainExclusion === 'lane'
       ? []
-      : offer('knowledge', label, ctx.knowledge ? handlers.knowledge : undefined)),
+      : [
+          ...offer('knowledge', label, ctx.knowledge ? handlers.knowledge : undefined),
+          ...(ctx.knowledge === 'new'
+            ? offer('readAgain', 'Read again for Brain…', handlers.readAgain)
+            : []),
+        ]),
     ...offer(
       'neverRead',
       ctx.brainExclusion === 'lane' ? 'Let Brain read this lane' : 'Never let Brain read this lane',
