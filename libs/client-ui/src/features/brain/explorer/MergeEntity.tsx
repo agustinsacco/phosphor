@@ -101,7 +101,7 @@ function confirmMergeRecords(
 ): Promise<string | undefined> {
   return promptText({
     title: `Merge ${a.label} into ${b.label}?`,
-    message: `${a.label} · ${formatCount(a.memories, 'memory', 'memories')}: ${a.description || 'No description'}.\n${b.label} · ${formatCount(b.memories, 'memory', 'memories')}: ${b.description || 'No description'}.\nAll names, links and memories move to the target. The source entity is deleted. You can Undo this in Lanes › Recent changes. Type MERGE to confirm.`,
+    message: `${a.label} · ${formatCount(a.memories, 'memory', 'memories')}: ${a.description || 'No description'}.\n${b.label} · ${formatCount(b.memories, 'memory', 'memories')}: ${b.description || 'No description'}.\nAll names, links and memories move to the target. The source entity is deleted. You can Undo this in What changed. Type MERGE to confirm.`,
     submitLabel: 'Merge',
     placeholder: 'MERGE',
   })

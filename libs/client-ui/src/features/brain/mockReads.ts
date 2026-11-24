@@ -48,6 +48,7 @@ export class MockReads {
           this.explorer.details = this.explorer.details.filter(
             (d) =>
               d.memory.origin?.sessionId !== job.sessionId ||
+              d.memory.lanes > 1 ||
               d.memory.links.some((l) => l.statedBy !== 'reader'),
           )
         notes.forEach((note, index) => this.explorer.details.push(this.detail(job, note, index)))
@@ -96,11 +97,13 @@ export class MockReads {
   laneRead(sessionId: string): { job: BrainJob; memories: number; replaceable: number } | null {
     const job = this.jobs.find((j) => j.sessionId === sessionId)
     if (!job) return null
-    const own = this.memories(sessionId)
+    const own = this.memories(sessionId).filter(({ memory }) => memory.state !== 'superseded')
     return {
       job,
       memories: own.length,
-      replaceable: own.filter((d) => d.memory.links.every((l) => l.statedBy === 'reader')).length,
+      replaceable: own.filter(
+        (d) => d.memory.lanes <= 1 && d.memory.links.every((l) => l.statedBy === 'reader'),
+      ).length,
     }
   }
 }

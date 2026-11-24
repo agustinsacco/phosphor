@@ -2,7 +2,6 @@ import { expect, it } from 'vitest'
 import {
   DEFAULT_BRAIN_PREFS,
   brainLinkSentence,
-  type BrainConnectionPage,
   type BrainEntityView,
   type BrainExtractionView,
   type BrainGraph,
@@ -97,19 +96,11 @@ it('draws the owner’s neighbourhood with sentences, ended links and pairs name
   expect(view.groups.flatMap((g) => g.items.map((i) => i.link.label))).toContain('reports to')
 })
 
-it('pages connections and memories without repeats and routes in both directions', async () => {
+it('bounds connections, pages memories without repeats and routes in both directions', async () => {
   const call = createMockBrain(() => MOCK_SAID_AT)
   const entity = (await call('brain:entity', ['harbor'])) as BrainEntityView
   const group = entity.groups.find((g) => g.predicate === 'part_of')!
   expect(group.items).toHaveLength(20)
-  const more = (await call('brain:connections', [
-    'harbor',
-    'part_of',
-    'in',
-    group.next,
-  ])) as BrainConnectionPage
-  expect(more.next).toBeNull()
-  expect(new Set([...group.items, ...more.items].map((i) => i.link.id)).size).toBe(group.total)
   const first = (await call('brain:entityMemories', ['harbor', {}, null])) as BrainMemoryPage
   const second = (await call('brain:entityMemories', ['harbor', {}, first.next])) as BrainMemoryPage
   expect(new Set([...first.memories, ...second.memories].map((m) => m.id)).size).toBe(

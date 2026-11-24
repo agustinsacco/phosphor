@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { BrainStatus } from '@shared/brain'
 import { Button } from '@/components/form'
 import { useBrainTarget } from '../brainNavigation'
@@ -19,7 +19,7 @@ import { useBrainScreen, type BrainScreenState } from './useBrainScreen'
 
 /** Plain keys on the page: `/` searches, `[` and `]` walk back and forward. */
 function screenKeys(screen: BrainScreenState) {
-  return (event: React.KeyboardEvent): void => {
+  return (event: KeyboardEvent): void => {
     if (pageKeyTarget(event, '/')) screen.setSearching(true)
     else if (pageKeyTarget(event, '[')) screen.move(-1)
     else if (pageKeyTarget(event, ']')) screen.move(1)
@@ -34,6 +34,11 @@ function screenKeys(screen: BrainScreenState) {
  */
 export function BrainScreen({ status }: { status: BrainStatus }): React.JSX.Element {
   const screen = useBrainScreen(status)
+  useEffect(() => {
+    const listener = screenKeys(screen)
+    document.addEventListener('keydown', listener)
+    return () => document.removeEventListener('keydown', listener)
+  }, [screen])
   const changes = useRef<HTMLElement>(null)
   useBrainTargets(useBrainTarget(), {
     openSearch: () => screen.setSearching(true),
@@ -47,7 +52,7 @@ export function BrainScreen({ status }: { status: BrainStatus }): React.JSX.Elem
     void useBrain.getState().setOwner(id)
   }
   return (
-    <div className="brain-page" onKeyDown={screenKeys(screen)}>
+    <div className="brain-page">
       <BrainStatusBar />
       <div className="brain-screen">
         <section aria-label="Map" className="brain-map-pane">

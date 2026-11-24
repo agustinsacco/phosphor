@@ -35,7 +35,7 @@ export function FullMap({
       aria-label="Whole graph"
       className="relative flex min-h-0 flex-1 flex-col"
       onKeyDown={(event) => {
-        if (!selected || !pageKeyTarget(event, 'Escape')) return
+        if (!selected || !pageKeyTarget(event.nativeEvent, 'Escape')) return
         event.preventDefault()
         setSelected(null)
       }}

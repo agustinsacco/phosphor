@@ -109,8 +109,16 @@ export class FakeBrainStore implements BrainStore {
       (j) => j.sessionId === sessionId && ['done', 'empty', 'rejected'].includes(j.state),
     )
     if (!job) return null
-    const { ids, replaceable } = this.laneMemories(sessionId)
-    return { job, memories: ids.length, replaceable: replaceable.length }
+    const current = this.oldMemories.filter(
+      (m) => m.origin?.sessionId === sessionId && m.state !== 'superseded',
+    )
+    return {
+      job,
+      memories: current.length,
+      replaceable: current.filter(
+        (m) => m.lanes <= 1 && m.links.every((link) => link.statedBy === 'reader'),
+      ).length,
+    }
   }
   recordRecall: BrainStore['recordRecall'] = () => {}
   laneContext(sessionId: string): string[] {

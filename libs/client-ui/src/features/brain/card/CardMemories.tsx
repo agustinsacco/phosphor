@@ -4,20 +4,23 @@ import type { BrainMemory } from '@shared/brain'
 import { Button } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
+import { useBrain } from '../useBrain'
 import { useBrainResource } from '../useBrainResource'
 import { MemoryOpen, type MemoryActions } from './MemoryOpen'
 import { memoryWords } from './memoryWords'
 
 /** The card's memories, newest first, each with what kind it is and who said it, in words. */
-export function CardMemories({
-  entityId,
-  count,
-  actions,
-}: {
+interface CardMemoryProps {
   entityId: string
   count: number
   actions: MemoryActions
-}): React.JSX.Element {
+}
+export function CardMemories(props: CardMemoryProps): React.JSX.Element {
+  const revision = useBrain((s) => s.status?.revision ?? 0)
+  // Earlier pages and the expanded row both belong to this revision.
+  return <MemoryList key={revision} {...props} />
+}
+function MemoryList({ entityId, count, actions }: CardMemoryProps): React.JSX.Element {
   const { data, error, retry, memories, more } = useMemoryPages(entityId)
   const [openId, setOpenId] = useState<string | null>(null)
   const now = Date.now()

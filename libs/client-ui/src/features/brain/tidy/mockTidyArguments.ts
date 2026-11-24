@@ -1,4 +1,4 @@
-import { BRAIN_ENTITY_KINDS } from '@shared/brain'
+import { BRAIN_ASK_MAX, BRAIN_TELL_MAX, BRAIN_ENTITY_KINDS } from '@shared/brain'
 
 const invalid = (): never => {
   throw new Error('Invalid Brain request.')
@@ -40,7 +40,7 @@ export function checkMockTidyArguments(channel: string, args: unknown[]): void {
     case 'brain:ask':
     case 'brain:tell':
       if (args.length !== 1 || typeof args[0] !== 'string') invalid()
-      text((args[0] as string).trim(), channel === 'brain:ask' ? 2000 : 8000)
+      text((args[0] as string).trim(), channel === 'brain:ask' ? BRAIN_ASK_MAX : BRAIN_TELL_MAX)
       break
     case 'brain:laneRead':
       if (args.length !== 1) invalid()

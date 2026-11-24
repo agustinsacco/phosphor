@@ -11,7 +11,6 @@ const { checkLane, checkPrefs, registerBrainHandlers } = await import('./brain-h
 const { IPC_WEB } = await import('@phosphor/shared/ipc-web')
 
 const api = {
-  entities: vi.fn(async () => 'entities'),
   ask: vi.fn(),
   tell: vi.fn(),
   laneRead: vi.fn(),
@@ -24,7 +23,6 @@ const api = {
   describe: vi.fn(async () => 'described'),
   removeName: vi.fn(async () => 'unnamed'),
   split: vi.fn(async () => 'split'),
-  connections: vi.fn(async () => 'page'),
   entityMemories: vi.fn(async () => 'memories'),
   neighbourhood: vi.fn(async () => 'graph'),
   find: vi.fn(async () => 'found'),
@@ -91,11 +89,7 @@ it('queues a lane with no title, as Read new messages sends for an untitled read
   expect(() => checkLane({ sessionPath: '/s', title: 3 })).toThrow('Invalid Brain request.')
 })
 
-it('checks explorer arguments: predicates, directions, hops, filters and cursors', async () => {
-  await expect(call('brain:connections', 'harbor', 'owns', 'in', null)).resolves.toBe('page')
-  await expect(call('brain:connections', 'harbor', 'likes', 'in', null)).rejects.toThrow()
-  await expect(call('brain:connections', 'harbor', 'owns', 'up', null)).rejects.toThrow()
-  await expect(call('brain:connections', 'harbor', 'owns', 'out', 7)).rejects.toThrow()
+it('checks explorer arguments: hops, filters and cursors', async () => {
   await expect(call('brain:neighbourhood', 'harbor', 2)).resolves.toBe('graph')
   await expect(call('brain:neighbourhood', 'harbor', 3)).rejects.toThrow()
   const filter = { types: ['risk'], states: ['active', 'disputed'], sessionId: 'lane-1' }
@@ -163,7 +157,11 @@ it.each([
 })
 it('checks questions, instructions, owners and lane ids', async () => {
   for (const channel of ['ask', 'tell', 'laneRead', 'setOwner'] as const) {
-    await call(`brain:${channel}`, 'Harbor')
+    const isMessage = channel === 'ask' || channel === 'tell'
+    const max = channel === 'ask' ? 2000 : channel === 'tell' ? 4096 : 200
+    for (const bad of [7, 'x'.repeat(max + 1), ...(isMessage ? ['   '] : [])])
+      await expect(call(`brain:${channel}`, bad)).rejects.toThrow()
+    await call(`brain:${channel}`, isMessage ? ' Harbor ' : 'Harbor')
     expect(api[channel]).toHaveBeenCalledWith('Harbor')
     await expect(call(`brain:${channel}`, '')).rejects.toThrow()
   }
@@ -171,22 +169,6 @@ it('checks questions, instructions, owners and lane ids', async () => {
   expect(api.setOwner).toHaveBeenCalledWith(null)
   for (const job of ['', null, 'x'.repeat(201)])
     await expect(call('brain:reread', job)).rejects.toThrow('Invalid Brain request.')
-})
-
-it('checks browse kind, offset, limit and sort before reading', async () => {
-  for (const kind of ['invalid', undefined, 1, {}])
-    await expect(call('brain:entities', kind, 0, 20, 'connected')).rejects.toThrow('entity kind')
-  for (const offset of [-1, 0.5, NaN, Infinity, '0', null, Number.MAX_SAFE_INTEGER + 1])
-    await expect(call('brain:entities', null, offset, 20, 'name')).rejects.toThrow('entity offset')
-  for (const limit of [0, 101, 1.5, NaN, Infinity, '20', null])
-    await expect(call('brain:entities', null, 0, limit, 'recent')).rejects.toThrow('entity limit')
-  for (const sort of [undefined, null, '', 'newest', 'Name', 1, {}])
-    await expect(call('brain:entities', null, 0, 20, sort)).rejects.toThrow('entity sort')
-  for (const sort of ['connected', 'recent', 'name']) {
-    await expect(call('brain:entities', 'person', 20, 100, sort)).resolves.toBe('entities')
-    expect(api.entities).toHaveBeenLastCalledWith('person', 20, 100, sort)
-  }
-  await expect(call('brain:entities', null, 0, 1, 'connected')).resolves.toBe('entities')
 })
 
 it('checks entity edits before invoking the API', async () => {

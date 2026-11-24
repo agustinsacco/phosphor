@@ -10,13 +10,6 @@ export const BRAIN_STAGE_LABELS: Record<BrainJobStage | BrainExtractionCall['sta
   embed: 'Index',
   repair: 'Repair the response',
 }
-export const BRAIN_PROGRESS_STAGES: BrainJobStage[] = [
-  'prepare',
-  'extract',
-  'identity',
-  'reconcile',
-  'embed',
-]
 export function progressLine(progress: NonNullable<BrainJob['progress']>): string {
   const label = BRAIN_STAGE_LABELS[progress.stage]
   return progress.stage === 'extract' || progress.total > 1

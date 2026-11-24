@@ -94,7 +94,6 @@ async function directBrainFailures(page: Page): Promise<string[]> {
         () => window.phosphor.invoke('brain:overview'),
         () => window.phosphor.invoke('brain:entity', 'synthetic-entity'),
         () => window.phosphor.invoke('brain:neighbourhood', 'synthetic-entity', 2),
-        () => window.phosphor.invoke('brain:connections', 'synthetic-entity', 'owns', 'out', null),
         () => window.phosphor.invoke('brain:entityMemories', 'synthetic-entity', {}, null),
         () => window.phosphor.invoke('brain:memory', 'synthetic-memory'),
         () => window.phosphor.invoke('brain:path', 'synthetic-from', 'synthetic-to'),
@@ -115,6 +114,8 @@ async function directBrainFailures(page: Page): Promise<string[]> {
         () => window.phosphor.invoke('brain:laneRead', 'synthetic-session'),
         () => window.phosphor.invoke('brain:setOwner', 'synthetic-entity'),
         () => window.phosphor.invoke('brain:find', 'Harbor', 12),
+        () => window.phosphor.invoke('brain:reread', 'harbor-read'),
+        () => window.phosphor.invoke('brain:neverRead', 'harbor', true),
         () => window.phosphor.invoke('brain:retry', 'synthetic-job'),
         () => window.phosphor.invoke('brain:reset'),
         () => window.phosphor.invoke('brain:queue', lane),
@@ -515,6 +516,6 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
       .getByRole('button', { name: 'Brain' }),
   ).toHaveCount(0)
   const failures = await directBrainFailures(page)
-  expect(failures).toHaveLength(31)
+  expect(failures).toHaveLength(32)
   for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
 })

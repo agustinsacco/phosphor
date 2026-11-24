@@ -81,7 +81,7 @@ it('confirms descriptions and memory counts for both records, then offers Undo',
   const prompt = usePromptStore.getState().requests[0]!
   expect(prompt.message).toContain('Tom Lee · 6 memories: Ledger billing lead')
   expect(prompt.message).toContain('Rina Okafor · 5 memories: Ran Ledger billing, now on Kestrel')
-  expect(prompt.message).toContain('You can Undo')
+  expect(prompt.message).toContain('You can Undo this in What changed')
   expect(prompt.message).not.toContain('cannot be undone')
   await answer()
   expect(merge).toHaveBeenCalledWith('tom', 'rina', 0)
@@ -132,7 +132,7 @@ it('uses the current revision when Undo is opened from the confirmation toast', 
   expect(undo).toHaveBeenCalledWith('merge-1', 5)
   expect(useExtensionUiStore.getState().toasts[0]!.message).toBe('Change undone')
 })
-it('reloads Recent changes and distinguishes a raced Undo from an engine refusal', async () => {
+it('reloads What changed and distinguishes a raced Undo from an engine refusal', async () => {
   const { useBrainNavigation } = await import('../brainNavigation')
   await render()
   await answer()

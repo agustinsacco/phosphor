@@ -45,16 +45,13 @@ export function laneRead(
     sessionId,
   )
   if (!row) return null
-  const memories = one<{ n: number }>(
+  const counts = one<{ memories: number; replaceable: number }>(
     ctx,
-    "SELECT COUNT(*) AS n FROM memories WHERE job_id=? AND state IN ('active','disputed')",
-    row.id,
-  )!.n
-  return {
-    job: job(ctx, row.id)!,
-    memories,
-    replaceable: laneMemories(ctx, sessionId).replaceable.length,
-  }
+    `SELECT COUNT(*) AS memories, COUNT(*) FILTER (WHERE NOT ${shared}) AS replaceable
+     FROM memories m WHERE m.origin_session=? AND m.state IN ('active','disputed')`,
+    sessionId,
+  )!
+  return { job: job(ctx, row.id)!, ...counts }
 }
 /** Bounded context for incremental extraction; reconciliation still searches all of Brain. */
 export function laneContext(ctx: Context, sessionId: string): string[] {

@@ -18,8 +18,8 @@ export async function readLaneAgain(sessionId: string): Promise<void> {
     const choice = await promptChoice({
       title: `Read “${brainLaneTitle(read.job.title)}” again?`,
       message:
-        `Brain reads the whole lane again. The ${read.replaceable} memories from the earlier read stay until the new result is saved. Then they are replaced.` +
-        (kept > 0 ? ` ${kept} memories that another lane also supports are kept.` : ''),
+        `Brain reads the whole lane again. The ${read.replaceable} unshared current memories stay until the new result is saved. Then they are replaced.` +
+        (kept > 0 ? ` ${kept} shared current memories are kept.` : ''),
       choices: [{ value: 'read', label: 'Read again', primary: true }],
     })
     if (choice === 'read') await useBrain.getState().reread(read.job.id)

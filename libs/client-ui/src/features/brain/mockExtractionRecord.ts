@@ -9,8 +9,6 @@ export function mockExtractionRecord(
 ): BrainExtractionView {
   return {
     job,
-    replaceable: 0,
-    laneMemories: 0,
     jobId: job.id,
     sessionId: job.sessionId,
     sessionPath: job.sessionPath,

@@ -3,15 +3,12 @@ import { MOCK_BRAIN_SESSION, MockBrainAgent } from './mockBrainAgent'
 import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
 import { checkMockTidyArguments } from './tidy/mockTidyArguments'
 import { mockBrainPrefs } from './mockBrainPrefs'
-import type { BrainEntitySort } from '@shared/brain-explore'
 import { brainLaneNeverRead } from '@shared/brain'
 import type {
   BrainExtractionView,
-  BrainEntityKind,
   BrainJob,
   BrainLaneRef,
   BrainMemoryFilter,
-  BrainPredicate,
   BrainStatus,
 } from '@shared/brain'
 import { mockBrainStatus } from './mockBrainData'
@@ -202,15 +199,12 @@ export class MockBrain {
     const memories = this.explorer.details
       .filter((d) => d.memory.jobId === record.jobId)
       .map(({ memory }) => ({ id: memory.id, summary: memory.summary }))
-    const lane = this.reads.laneRead(record.sessionId)
     return {
       ...record,
       job:
         this.state.jobs.find((j) => j.id === record.jobId) ??
         this.reads.jobs.find((j) => j.id === record.jobId) ??
         null,
-      laneMemories: lane?.memories ?? 0,
-      replaceable: lane?.replaceable ?? 0,
       memories,
       outcomes: record.outcomes.map((outcome) => ({
         ...outcome,
@@ -229,26 +223,12 @@ export class MockBrain {
     switch (channel) {
       case 'brain:find':
         return this.explorer.find(args[0] as string, args[1] as number)
-      case 'brain:entities':
-        return this.explorer.browse(
-          args[0] as BrainEntityKind | null,
-          args[1] as number,
-          args[2] as number,
-          args[3] as BrainEntitySort,
-        )
       case 'brain:overview':
         return this.explorer.graph(null)
       case 'brain:neighbourhood':
         return this.explorer.graph(args[0] as string, args[1] as 1 | 2)
       case 'brain:entity':
         return this.explorer.entity(args[0] as string)
-      case 'brain:connections':
-        return this.explorer.connections(
-          args[0] as string,
-          args[1] as BrainPredicate,
-          args[2] as 'out' | 'in',
-          args[3] as string | null,
-        )
       case 'brain:entityMemories':
         return this.explorer.memories(
           args[0] as string,

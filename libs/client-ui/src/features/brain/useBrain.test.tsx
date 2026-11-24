@@ -30,7 +30,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('loads once for multiple consumers and does not poll idle or review-only status', async () => {
+it('loads once for multiple consumers and does not poll idle or finished reads', async () => {
   await act(async () =>
     root.render(
       <>

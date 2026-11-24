@@ -1,9 +1,7 @@
 import type { BrainTidyChanges, BrainTidyMutation } from '../brain-tidy'
 import type {
-  BrainConnectionPage,
   BrainEntityView,
   BrainEntityKind,
-  BrainEntityPage,
   BrainExtractionView,
   BrainFindResult,
   BrainGraph,
@@ -12,7 +10,6 @@ import type {
   BrainMemoryDetail,
   BrainMemoryFilter,
   BrainMemoryPage,
-  BrainPredicate,
   BrainPrefs,
   BrainStatus,
   BrainUndoRunResult,
@@ -29,15 +26,6 @@ export interface BrainInvokeMap {
   'brain:defragStop': { args: []; result: BrainStatus }
   /** Undoes every change of a Defrag run that can still be undone. Erasures stay. */
   'brain:undoRun': { args: [runId: string]; result: BrainUndoRunResult }
-  'brain:entities': {
-    args: [
-      kind: BrainEntityKind | null,
-      offset: number,
-      limit: number,
-      sort: 'connected' | 'recent' | 'name',
-    ]
-    result: BrainEntityPage
-  }
   /** Recall with no project: up to 8 hits with their trails, for the Brain page's Ask bar. */
   'brain:ask': { args: [question: string]; result: BrainRecall }
   /** Sends an ordinary message to Brain Agent in the Brain lane, owned by no run. */
@@ -101,15 +89,6 @@ export interface BrainInvokeMap {
   /** One entity's neighbourhood, one or two hops out. */
   'brain:neighbourhood': { args: [entityId: string, hops: 1 | 2]; result: BrainGraph }
   'brain:entity': { args: [entityId: string]; result: BrainEntityView }
-  'brain:connections': {
-    args: [
-      entityId: string,
-      predicate: BrainPredicate,
-      direction: 'out' | 'in',
-      cursor: string | null,
-    ]
-    result: BrainConnectionPage
-  }
   'brain:entityMemories': {
     args: [entityId: string, filter: BrainMemoryFilter, cursor: string | null]
     result: BrainMemoryPage

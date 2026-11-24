@@ -45,16 +45,12 @@ function explore(explorer, channel, args) {
       return explorer.graph(...args)
     case 'brain:find':
       return explorer.find(...args)
-    case 'brain:entities':
-      return explorer.browse(...args)
     case 'brain:entity':
       return explorer.entity(...args)
     case 'brain:memory':
       return explorer.memory(...args)
     case 'brain:entityMemories':
       return explorer.memories(...args)
-    case 'brain:connections':
-      return explorer.connections(...args)
     case 'brain:path':
       return mockRoutes(explorer, ...args)
     case 'brain:ask': {
@@ -71,10 +67,6 @@ function savedRecord(job, explorer) {
   const notes = explorer.details.filter(({ memory }) => memory.jobId === job.id)
   const record = mockExtractionRecord(job, 'low', job.finishedAt)
   record.memories = notes.map(({ memory: { id, summary } }) => ({ id, summary }))
-  record.laneMemories = notes.length
-  record.replaceable = notes.filter(({ memory }) =>
-    memory.links.every((l) => l.statedBy === 'reader'),
-  ).length
   record.outcomes = record.memories.map(({ id, summary }, index) => ({
     candidate: `w1:c${index + 1}`,
     memoryId: id,
