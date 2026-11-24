@@ -100,3 +100,35 @@ it('quietly consumes a read when the persisted daily cap refuses, and never retr
   tick(60000)
   expect(start).toHaveBeenCalledTimes(2)
 })
+
+it.each(['waiting', 'failed'])('a %s read does not block the automatic run', (state) => {
+  const { auto, snap, tick, start } = fixture()
+  snap.jobs.push({ state })
+  auto.readSaved()
+  tick(60_000)
+  expect(start).toHaveBeenCalledOnce()
+})
+it('compares signatures after manual Defrag even without a cooldown', () => {
+  const { auto, start, tick, change } = fixture()
+  auto.runEnded({ automatic: false, state: 'done' } as BrainAgentRun)
+  auto.readSaved()
+  tick(60000)
+  expect(start).not.toHaveBeenCalled()
+  change()
+  auto.readSaved()
+  tick(60000)
+  expect(start).toHaveBeenCalledOnce()
+})
+it('doubles consecutive failure delays across a stopped run and caps them at six hours', () => {
+  const { auto, start, tick, change } = fixture()
+  for (const [i, minutes] of [10, 20, 40, 80, 160, 320, 360, 360].entries()) {
+    auto.runEnded({ automatic: true, state: 'failed' } as BrainAgentRun)
+    change()
+    auto.readSaved()
+    tick(minutes * 60_000 - 1)
+    expect(start).toHaveBeenCalledTimes(i)
+    tick(1)
+    expect(start).toHaveBeenCalledTimes(i + 1)
+    if (i === 0) auto.runEnded({ automatic: true, state: 'stopped' } as BrainAgentRun)
+  }
+})
