@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BRAIN_ERASE_LIMIT, BRAIN_ERASE_LIMIT_REFUSAL } from '@phosphor/shared/brain-agent'
 import { createBrainCuratorClient } from '@phosphor/brain-client/curator-client'
-import {
-  BRAIN_ENDPOINT_ENV,
-  BRAIN_TOKEN_ENV,
-  createNodeBrainTransport,
-} from '@phosphor/brain-client/node-transport'
+import { createNodeBrainTransport } from '@phosphor/brain-client/node-transport'
 import type { BrainService } from '../types'
 import { savedRead, realService } from '../tidy/__fixtures__/real-service'
 
@@ -16,10 +12,7 @@ async function curatorClient(service: BrainService) {
   const launch = await service.curatorLaunch()
   expect(launch?.extensions).toEqual([CURATOR.extension])
   return createBrainCuratorClient(
-    createNodeBrainTransport(
-      { endpoint: launch!.env[BRAIN_ENDPOINT_ENV]!, token: launch!.env[BRAIN_TOKEN_ENV]! },
-      { timeoutMs: 60_000 },
-    ),
+    createNodeBrainTransport(launch!.connection, { timeoutMs: 60_000 }),
   )
 }
 

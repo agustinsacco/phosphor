@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { orderedHostIds, serviceScope, localServiceId } from '@/stores/localServiceScope'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import { PaneTitle } from '@/components/PaneShell'
@@ -18,9 +19,11 @@ export function ArchivePage(): React.JSX.Element {
   const hosts = useRemoteLanesStore((state) => state.hosts)
   const choice = useMachinePagesStore((state) => state.archiveMachine)
   const inventories = useArchivesStore((state) => state.machines)
-  const machine = pageMachine(filter, choice, true)
+  const machine = serviceScope(pageMachine(filter, choice, true), hosts)
   const machines =
-    machine === 'all' ? [...(localLanes ? ['local'] : []), ...Object.keys(hosts)] : [machine]
+    machine === 'all'
+      ? [...(localLanes && !localServiceId(hosts) ? ['local'] : []), ...orderedHostIds([], hosts)]
+      : [machine]
   const total = machines.reduce((sum, id) => sum + (inventories[id]?.data?.entries.length ?? 0), 0)
   return (
     <PageShell

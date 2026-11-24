@@ -52,9 +52,9 @@ it('releases automatically only when Nx reports the Host affected since its newe
 
 it('gives the signing key to the signing step only, and verifies before publishing', () => {
   const uses = steps.filter((s) => s.includes('HOST_RELEASE_SIGNING_KEY'))
-  expect(uses).toEqual([step('Sign the manifest')])
-  expect(step('Build the three bundles')).toContain('installer.mjs --require')
-  const verify = step('Verify the signature against the pinned keys')
+  expect(uses).toEqual([step('Sign both manifests')])
+  expect(step('Build the four bundles')).toContain('installer.mjs --require')
+  const verify = step('Verify the signatures against the pinned keys')
   expect(verify).toContain('installer.mjs --allowed-signers')
   expect(verify).toContain('ssh-keygen -Y verify')
   expect(workflow.indexOf('Verify the signature')).toBeLessThan(workflow.indexOf('Publish host-v'))
@@ -94,6 +94,7 @@ it('builds node-pty on each target runner and stages it into that target only', 
     ['linux-x64', 'ubuntu-22.04'],
     ['linux-arm64', 'ubuntu-22.04-arm'],
     ['darwin-arm64', 'macos-15'],
+    ['darwin-x64', 'macos-15-intel'],
   ])
     expect(native).toContain(`{ target: ${target}, runner: ${runner} }`)
   expect(native).not.toContain('secrets.')
@@ -101,7 +102,7 @@ it('builds node-pty on each target runner and stages it into that target only', 
   // build-native resolves node-pty from apps/desktop, which has its own lockfile.
   expect(native).toContain('npm ci --prefix apps/desktop --ignore-scripts')
   expect(workflow).toContain('    needs: [plan, native]\n')
-  expect(step('Build the three bundles')).toContain(
+  expect(step('Build the four bundles')).toContain(
     '--native "native-artifacts/host-native-$target"',
   )
 })
@@ -111,5 +112,5 @@ it('resumes a failed publication from the same commit without replacing publishe
   expect(publish).toContain('if [[ "$RESUME" != true ]]; then')
   expect(publish).toContain('cmp -s "$asset"')
   expect(publish).not.toMatch(/upload "host-v[^\n]*--clobber/)
-  expect(publish).toContain('[[ ${#assets[@]} -eq 6 ]]')
+  expect(publish).toContain('[[ ${#assets[@]} -eq 9 ]]')
 })

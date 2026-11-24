@@ -48,7 +48,9 @@ vi.mock('node:child_process', async (importOriginal) => {
   return { ...actual, execFile }
 })
 
-vi.mock('./shell-env', () => ({ getLoginShellPath: () => lookup.loginShellPath() }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  getLoginShellPath: () => lookup.loginShellPath(),
+}))
 
 import { resolveBinary } from './binary-lookup'
 

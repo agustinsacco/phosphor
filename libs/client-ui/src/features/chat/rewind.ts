@@ -1,3 +1,7 @@
+import { hostBranchMessages, sessionHostLane } from './hostRewind'
+import { copyHostLane, type HostEditLane } from './hostLaneEditing'
+import { useAwaitableNavigate } from '@/navigation/Navigation'
+import { ipcErrorText } from '@shared/errors'
 import type { ImageContent } from '@shared/rpc'
 import { sessionBranch } from '@shared/session-branch'
 import { useChatStore } from '@/stores/chat'
@@ -43,8 +47,24 @@ export function rewindToEntry(
   sessionId: string,
   entryId: string,
   images?: ImageContent[],
-): Promise<void> {
+): Promise<void | HostEditLane> {
+  const lane = sessionHostLane(sessionId)
+  if (lane) return copyHostLane(lane, 'rewind', entryId, images)
+
   return changeSessionBranch(sessionId, { type: 'fork', entryId }, images)
+}
+
+/** Desktop and browser open the same returned lane through their own navigation. */
+export function useRewindToEntry() {
+  const navigate = useAwaitableNavigate()
+  return async (id: string, entry: string, images?: ImageContent[]) => {
+    try {
+      const lane = await rewindToEntry(id, entry, images)
+      if (lane) await navigate({ to: 'lane', lane, pane: 'chat' })
+    } catch (error) {
+      useChatStore.getState().setError(id, ipcErrorText(error))
+    }
+  }
 }
 
 /** A user message on the session's current branch — something `fork` accepts. */
@@ -102,6 +122,8 @@ function isRawEntry(value: unknown): value is RawEntry {
 export async function currentBranchUserMessages(
   sessionId: string,
 ): Promise<BranchUserMessage[] | null> {
+  const lane = sessionHostLane(sessionId)
+  if (lane) return hostBranchMessages(sessionId, lane).catch(() => null)
   const data = await piCall(sessionId, { type: 'get_entries' })
   if (!data) return null
   const entries = data.entries.filter(isRawEntry)
@@ -166,6 +188,10 @@ export async function branchMessageForItem(
 ): Promise<BranchUserMessage | null> {
   const branch = await currentBranchUserMessages(sessionId)
   if (!branch) return null
+  if (sessionHostLane(sessionId))
+    return item.timestamp === undefined
+      ? null
+      : (branch.find((m) => m.timestamp === item.timestamp) ?? null)
   // Read after the await: the transcript the match counts against must be
   // the one that exists now, not the one from before the round trip.
   const rendered = useChatStore.getState().sessions[sessionId]?.items ?? []

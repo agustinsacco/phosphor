@@ -333,12 +333,7 @@ function finishAgent(turn, text, error = false) {
   turn.out({ type: 'agent_settled', aborted: false })
 }
 function handleAgentPrompt(message, out, persist) {
-  const probe = message === 'BRAIN_STUB_CURATOR_PROBE'
-  if (
-    !connected() ||
-    (!probe &&
-      !(isBrainLane() && (message.startsWith('Defrag.') || message.includes('BRAIN_STUB_HOLD'))))
-  )
+  if (!isBrainLane() || !(message.startsWith('Defrag.') || message.includes('BRAIN_STUB_HOLD')))
     return false
   const turn = { out, persist, timer: null }
   agentTurn = turn
@@ -346,21 +341,12 @@ function handleAgentPrompt(message, out, persist) {
   out({ type: 'agent_start' })
   const hold = process.env.PHOSPHOR_STUB_BRAIN_HOLD
   const marker = message + (hold && fs.existsSync(hold) ? fs.readFileSync(hold, 'utf8') : '')
-  if (!probe && marker.includes('BRAIN_STUB_HOLD')) return true
-  turn.timer = setTimeout(
-    () => {
-      const work = probe
-        ? bridge('waiting', { limit: 60 }).then((result) => {
-            if (result.ok || result.error !== 'Brain request unavailable')
-              throw new Error('Curator isolation failed')
-          })
-        : settlePairs()
-      work
-        .then((summary) => finishAgent(turn, probe ? 'Curator methods refused.' : summary))
-        .catch((error) => finishAgent(turn, error.message, true))
-    },
-    probe ? 0 : 2500,
-  )
+  if (marker.includes('BRAIN_STUB_HOLD')) return true
+  turn.timer = setTimeout(() => {
+    settlePairs()
+      .then((summary) => finishAgent(turn, summary))
+      .catch((error) => finishAgent(turn, error.message, true))
+  }, 2500)
   return true
 }
 function abortAgent() {

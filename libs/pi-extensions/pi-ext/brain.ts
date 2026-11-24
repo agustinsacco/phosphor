@@ -1,17 +1,9 @@
 import type { BrainQuery } from '@phosphor/shared/brain-recall'
 import { Type } from 'typebox'
-import { createBrainClient, brainBriefing, type BrainClient } from '@phosphor/brain-client/client'
-import {
-  createNodeBrainTransport,
-  takeBrainConnection,
-} from '@phosphor/brain-client/node-transport'
 import type { BrainTidyProblem } from '@phosphor/shared/brain-tidy'
+import { laneOpsEnabled, sendOp, type OpSender } from './op-channel'
 import type { ToolDefinition } from './pi-api'
 
-interface BrainContext {
-  cwd: string
-  sessionManager: { getSessionId(): string; getSessionName?(): string | undefined }
-}
 const name = Type.String({ minLength: 1, maxLength: 200 })
 export const brainSearchParameters = Type.Object(
   {
@@ -32,15 +24,40 @@ export const brainSearchParameters = Type.Object(
   { additionalProperties: false },
 )
 export interface BrainPiApi {
-  registerTool<P, D>(definition: ToolDefinition<P, BrainContext, D>): void
+  registerTool<P, D>(definition: ToolDefinition<P, unknown, D>): void
+}
+
+/** sendOp owns the deadline and abort race. A service op never starts a confirmation dialog. */
+async function invoke(
+  send: OpSender,
+  ctx: unknown,
+  op: string,
+  args: Record<string, unknown>,
+  signal?: AbortSignal,
+  reason?: string,
+) {
+  const request = reason === undefined ? { op, args } : { op, args, reason }
+  const response = await send(ctx, request, { signal, deadlineMs: 10_000 }).catch(() => null)
+  if (
+    response?.status !== 'ok' ||
+    !response.data ||
+    typeof response.data !== 'object' ||
+    !('status' in response.data) ||
+    typeof response.data.status !== 'string'
+  )
+    return { text: 'Brain is unavailable right now.', status: 'unavailable', memories: 0 }
+  const memories =
+    'memories' in response.data && typeof response.data.memories === 'number'
+      ? response.data.memories
+      : 0
+  return { text: response.text, status: response.data.status, memories }
 }
 
 /**
  * Explicit recall and flags for owner review; neither tool can apply a knowledge change.
  * No context hooks or automatic injection before turns.
  */
-export function registerBrain(pi: BrainPiApi, client: BrainClient): void {
-  const refs = new Map<string, Map<number, string>>()
+export function registerBrain(pi: BrainPiApi, send: OpSender): void {
   pi.registerTool<BrainQuery, { status: string; memories: number }>({
     name: 'brain_search',
     label: 'Brain search',
@@ -48,33 +65,31 @@ export function registerBrain(pi: BrainPiApi, client: BrainClient): void {
       'Search saved memories with query, expand a name with from and optional context names, or trace a route with from and to. Choose one move. Notes may be out of date; another project’s memory is context, not a rule.',
     parameters: brainSearchParameters,
     execute: async (_id, params, signal, _update, ctx) => {
-      const sessionId = ctx.sessionManager.getSessionId()
-      refs.delete(sessionId)
-      const result = await client.search({ ...params, sessionId, cwd: ctx.cwd }, signal)
-      const briefing = brainBriefing(result, ctx.cwd)
-      refs.set(sessionId, briefing.refs)
+      const result = await invoke(
+        send,
+        ctx,
+        'brain.search',
+        Object.fromEntries(
+          (['query', 'from', 'to', 'context', 'limit'] as const)
+            .filter((key) => params[key] !== undefined)
+            .map((key) => [key, params[key]]),
+        ),
+        signal,
+      )
       return {
-        content: [{ type: 'text', text: briefing.text }],
-        details: {
-          status: result.status,
-          memories: result.mode === 'route' ? result.memories.length : result.hits.length,
-        },
+        content: [{ type: 'text', text: result.text }],
+        details: { status: result.status, memories: result.memories },
       }
     },
   })
-  registerFlag(pi, client, refs)
+  registerFlag(pi, send)
 }
 
-export default function brainExtension(pi: BrainPiApi): void {
-  const connection = takeBrainConnection()
-  if (connection) registerBrain(pi, createBrainClient(createNodeBrainTransport(connection)))
+export default function brainExtension(pi: BrainPiApi, send: OpSender = sendOp): void {
+  if (laneOpsEnabled()) registerBrain(pi, send)
 }
 
-function registerFlag(
-  pi: BrainPiApi,
-  client: BrainClient,
-  refs: Map<string, Map<number, string>>,
-): void {
+function registerFlag(pi: BrainPiApi, send: OpSender): void {
   pi.registerTool<{ ref: number; problem: BrainTidyProblem; reason: string }, { status: string }>({
     name: 'brain_flag',
     label: 'Flag Brain memory',
@@ -113,25 +128,9 @@ function registerFlag(
         return reply(
           'Use a problem (wrong, outdated or duplicate) and a reason of 1 to 300 characters.',
         )
-      const sessionId = ctx.sessionManager.getSessionId()
-      const memoryId = Number.isInteger(params.ref)
-        ? refs.get(sessionId)?.get(params.ref)
-        : undefined
-      if (!memoryId)
-        return reply(
-          'That number is not in the latest Brain briefing for this lane; search again first.',
-        )
-      const result = await client.flag(
-        {
-          memoryId,
-          problem: params.problem,
-          reason: params.reason,
-          sessionId,
-          title: (ctx.sessionManager.getSessionName?.()?.trim() || 'Lane').slice(0, 120),
-        },
-        signal,
-      )
-      return reply(result.message, result.status)
+      const { ref, problem, reason } = params
+      const result = await invoke(send, ctx, 'brain.flag', { ref, problem, reason }, signal, reason)
+      return reply(result.text, result.status)
     },
   })
 }

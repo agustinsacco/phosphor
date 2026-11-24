@@ -7,13 +7,17 @@ import {
   decodeBase64url,
   encodeBase64url,
   encodeGrant,
+  grantPrincipal,
   grantUtf8,
   parseGrantKeySet,
   parseGrantPayload,
+  sameGrantIdentity,
   splitGrant,
   type GrantPayload,
   type GrantExpectations,
 } from './host-grant'
+
+import { HOST_CAPABILITIES } from './remote-host'
 
 const payload: GrantPayload = {
   v: 1,
@@ -105,6 +109,7 @@ describe('host-grant', () => {
     { client: { ...payload.client, label: 'a\nb' } },
     { client: { ...payload.client, label: 'a\u202eb' } },
     { caps: null },
+    { caps: [...HOST_CAPABILITIES, 'sessions.read'] },
     { caps: ['unknown'] },
     { caps: ['sessions.read', 'sessions.read'] },
     { iat: -1 },
@@ -213,5 +218,50 @@ describe('host-grant', () => {
       { keys: [{ kid: 'key', publicKey: 'AA' }] },
     ])
       expect(parseGrantKeySet(value).ok).toBe(false)
+  })
+})
+
+describe('machine-origin grants', () => {
+  const machine: GrantPayload = { ...payload, caps: [], origin: 'machine', machine: randomUUID() }
+
+  it('round-trips with no caps and names a machine principal', () => {
+    expect(parseGrantPayload(machine)).toStrictEqual({ ok: true, value: machine })
+    expect(grantPrincipal(machine)).toStrictEqual({
+      kind: 'machine',
+      machineId: machine.machine,
+      clientId: machine.client.id,
+      label: machine.client.label,
+    })
+    expect(grantPrincipal(payload)).toStrictEqual({
+      kind: 'user',
+      clientId: payload.client.id,
+      label: payload.client.label,
+    })
+  })
+
+  it('refuses caps, configure, a lone claim or a bad machine id', () => {
+    for (const value of [
+      { ...machine, caps: ['sessions.read'] },
+      { ...machine, configure: true },
+      { ...payload, origin: 'machine' },
+      { ...payload, machine: randomUUID() },
+      { ...machine, origin: 'user' },
+      { ...machine, machine: 'stark' },
+    ])
+      expect(parseGrantPayload(value), JSON.stringify(value)).toStrictEqual({
+        ok: false,
+        reason: 'machine',
+      })
+  })
+
+  it('needs the Host to opt in, and renewal may not change origin or machine', () => {
+    expect(checkGrantClaims(machine, expectations, 1000, 30)).toBe('machine-origin')
+    expect(checkGrantClaims(machine, { ...expectations, machineOrigin: true }, 1000, 30)).toBeNull()
+    expect(sameGrantIdentity(machine, { ...machine, jti: 'fedcba9876543210' })).toBe(true)
+    expect(sameGrantIdentity(machine, { ...machine, machine: randomUUID() })).toBe(false)
+    expect(sameGrantIdentity(machine, { ...machine, caps: [], origin: undefined })).toBe(false)
+    expect(
+      sameGrantIdentity(payload, { ...payload, client: { ...payload.client, label: 'New' } }),
+    ).toBe(true)
   })
 })

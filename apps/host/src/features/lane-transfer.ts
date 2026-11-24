@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import type { HostStore } from '../lanes/store'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import type { FeatureContext, HostFeature } from './feature'
 import { createLaneExportFeature } from './lane-transfer/export'
 import { createLaneImportFeature } from './lane-transfer/import'

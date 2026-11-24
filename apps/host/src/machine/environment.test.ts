@@ -211,3 +211,12 @@ it.each(['linux', 'darwin'] as const)(
     expect(path).toContain('/usr/bin')
   },
 )
+
+it('only the daemon contribution may choose the Headroom transport, even with an explicit env pass', () => {
+  const hostEnv = {
+    PHOSPHOR_HEADROOM_URL: 'http://desktop.invalid',
+    PHOSPHOR_HEADROOM_SOCKET: '/stale',
+  }
+  const { env } = buildPiEnvironment({ hostEnv, pass: Object.keys(hostEnv), platform: 'darwin' })
+  for (const name of Object.keys(hostEnv)) expect(env).not.toHaveProperty(name)
+})

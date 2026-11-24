@@ -47,6 +47,8 @@ export function swarmHint(state: SwarmStatus | null): string {
     case 'pending':
       return `Swarm turns ${state.requested ? 'on' : 'off'} after this turn. Existing children are not stopped.`
     case 'on':
+      if (state.source === 'agent')
+        return `The agent turned Swarm on${state.reason ? `: ${state.reason}` : ''}. Switch off to stop authorizing new delegation; running children continue.`
       return 'The agent may delegate to sub-agents on its own. Switching off stops authorizing new delegation; running children continue.'
     default:
       return 'Let the agent split work across sub-agents when it helps. Nothing launches just from switching on.'
@@ -214,6 +216,9 @@ export function SwarmControl({
         className={clsx((look === 'on' || look === 'pending') && 'text-accent')}
       />
       <span>Swarm</span>
+      {enabled && state?.source === 'agent' && (
+        <span className="text-accent text-2xs font-mono tracking-wide uppercase">agent</span>
+      )}
       {pending && (
         <span role="status" className="text-accent text-2xs font-mono tracking-wide uppercase">
           {state?.requested ? 'on' : 'off'} next turn

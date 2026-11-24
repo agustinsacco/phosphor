@@ -2341,11 +2341,14 @@ test('settings search lists matches and jumps to the chosen one', async () => {
 
     await field.fill('retry')
     const results = page.getByRole('listbox', { name: 'Settings search results' })
-    await expect(results.getByRole('option')).toHaveCount(4)
+    // Four agent and maintenance rows, plus This Mac's Phosphor service section (its Retry).
+    await expect(results.getByRole('option')).toHaveCount(5)
     await expect(results.getByRole('option').first()).toHaveAttribute('aria-selected', 'true')
 
-    await field.press('ArrowDown')
-    await field.press('ArrowDown')
+    const titles = await results.getByRole('option').allInnerTexts()
+    const target = titles.findIndex((title) => title.includes('Max retries'))
+    expect(target).toBeGreaterThan(0)
+    for (let step = 0; step < target; step++) await field.press('ArrowDown')
     await field.press('Enter')
     await expect(results).toBeHidden()
     await expect(page.getByRole('heading', { name: 'Agent defaults' })).toBeVisible()

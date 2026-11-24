@@ -93,6 +93,8 @@ async function imageActions(page: Page, browserName: string, width: number): Pro
   } else {
     await expect(image).toHaveAttribute('data-tooltip-description', 'Right-click to copy')
     if (browserName === 'chromium') {
+      // Wait out the copy-button toast so this assertion can only pass for the right click.
+      await expect(page.getByText('Image copied', { exact: true })).toBeHidden()
       await image.click({ button: 'right' })
       await expect(page.getByText('Image copied', { exact: true })).toBeVisible()
     }

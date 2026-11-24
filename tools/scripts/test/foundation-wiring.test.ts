@@ -97,7 +97,7 @@ describe('foundation CI wiring', () => {
     expect(read('apps/web/playwright.config.ts')).toContain("globalSetup: './e2e/build.ts'")
     const webSetup = read('apps/web/e2e/build.ts')
     expect(webSetup).toContain("'apps/host/scripts/build.mjs'")
-    expect(webSetup).toContain("configFile: resolve(root, 'apps/web/vite.config.ts')")
+    expect(webSetup).toContain("vite('apps/web', '--config', 'apps/web/vite.config.ts'")
     expect(job('site')).toContain('run: bash tools/scripts/site-image.sh')
     const image = read('apps/control/Dockerfile')
     expect(image).toContain('RUN node apps/control/scripts/build.mjs')

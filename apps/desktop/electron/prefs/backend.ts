@@ -1,3 +1,4 @@
+import { isUuid } from '@phosphor/shared/control-api'
 import Store from 'electron-store'
 import { DEFAULT_APP_PREFS, type AppPrefs } from '@shared/models'
 import { cleanClients, type RemoteClients } from '../hosts/client-id'
@@ -30,7 +31,11 @@ export function prefs(): Store<AppPrefs> {
 }
 
 // Separate main-only store: account ids must not enter renderer preferences.
-type RemotePrefs = { remoteClients: RemoteClients; configureHosts: ConfigureHosts }
+type RemotePrefs = {
+  localEnrolledId?: string
+  remoteClients: RemoteClients
+  configureHosts: ConfigureHosts
+}
 let remoteStore: Store<RemotePrefs> | null = null
 function remotePrefs() {
   remoteStore ??= new Store<RemotePrefs>({
@@ -47,3 +52,13 @@ export const getConfigureHosts = (): ConfigureHosts =>
   cleanConfigureHosts(remotePrefs().get('configureHosts'))
 export const setConfigureHosts = (hosts: ConfigureHosts): void =>
   remotePrefs().set('configureHosts', cleanConfigureHosts(hosts))
+
+export function getLocalEnrolledId(): string | undefined {
+  const id = remotePrefs().get('localEnrolledId')
+  return isUuid(id) ? id : undefined
+}
+export function setLocalEnrolledId(id: string | null): void {
+  if (getLocalEnrolledId() === (id ?? undefined)) return
+  if (id === null) remotePrefs().delete('localEnrolledId')
+  else if (isUuid(id)) remotePrefs().set('localEnrolledId', id)
+}

@@ -7,7 +7,7 @@ import { DRAIN, type DrainResult, type DrainTimings } from '../session/lifecycle
 import { parseSessionRequest } from '../session/request'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
 import { createHostClaudeAccounts } from '../providers/accounts'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
 import type { Drainable } from '../shutdown'
 import { inspectHost, type DoctorContext, type DoctorReport, type HostInspection } from './doctor'

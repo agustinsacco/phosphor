@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { ClaudeAuthStatus, ClaudeStatus } from '@shared/models'
 import { parseClaudeAuthStatus as parseAccountAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 import { resolveBinary } from './binary-lookup'
 
 const execFileAsync = promisify(execFile)

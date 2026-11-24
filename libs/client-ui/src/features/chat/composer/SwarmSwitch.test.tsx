@@ -33,14 +33,20 @@ afterEach(() => {
   act(() => root.unmount())
   container.remove()
 })
-function status(enabled: boolean, requested = enabled, available = true, sessionId = 'one') {
+function status(
+  enabled: boolean,
+  requested = enabled,
+  available = true,
+  sessionId = 'one',
+  attribution = {},
+) {
   act(() =>
     useExtensionUiStore.getState().handleRequest(sessionId, {
       type: 'extension_ui_request',
       id: 'status',
       method: 'setStatus',
       statusKey: SWARM_STATUS_KEY,
-      statusText: JSON.stringify({ version: 1, available, enabled, requested }),
+      statusText: JSON.stringify({ version: 1, available, enabled, requested, ...attribution }),
     }),
   )
 }
@@ -262,4 +268,28 @@ it('ignores other lanes and permits clearing saved authorization when the extens
     type: 'prompt',
     message: '/phosphor-swarm off',
   })
+})
+
+it('marks agent authorization, explains its reason and leaves the off action with the user', async () => {
+  status(true, true, true, 'one', { source: 'agent', reason: 'Review independent changes' })
+  const button = render()
+  expect([...button.querySelectorAll('span')].some((span) => span.textContent === 'agent')).toBe(
+    true,
+  )
+  expect(button.dataset.tooltipDescription).toBe(
+    'The agent turned Swarm on: Review independent changes. Switch off to stop authorizing new delegation; running children continue.',
+  )
+  expect(button.dataset.state).toBe('on')
+  expect(toasts()).toEqual([])
+  await act(async () => button.click())
+  expect(piCommand).toHaveBeenLastCalledWith('one', {
+    type: 'prompt',
+    message: '/phosphor-swarm off',
+  })
+  status(false)
+  expect(button.dataset.state).toBe('off')
+  expect([...button.querySelectorAll('span')].map((span) => span.textContent)).not.toContain(
+    'agent',
+  )
+  expect(button.dataset.tooltipDescription).not.toContain('Review independent changes')
 })

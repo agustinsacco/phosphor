@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { join } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { verifyReleaseManifest } from '../../apps/host/src/update/verify'
+import { verifyReleaseManifest } from '@phosphor/session-runtime/host-install/verify'
 import { HOST_PROTOCOL_VERSION } from '../../libs/shared/src/remote-host'
 import {
   type BundleFixture,
@@ -26,7 +26,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('emits the contract protocols and signs a complete three-target manifest', () => {
     const output = join(fixture.dir, 'manifest-output')
     mkdirSync(output)
-    for (const target of ['linux-x64', 'linux-arm64', 'darwin-arm64'])
+    for (const target of ['linux-x64', 'linux-arm64', 'darwin-arm64', 'darwin-x64'])
       writeFileSync(join(output, `phosphor-host-1.2.3-${target}.tar.gz`), 'test artifact')
     node(
       `import {makeManifest} from './tools/host-release/manifest.mjs'; makeManifest(${JSON.stringify(output)})`,

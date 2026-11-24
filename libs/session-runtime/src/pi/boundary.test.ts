@@ -69,8 +69,15 @@ describe('session runtime source package boundary', () => {
       Object.keys(result.metafile.inputs).filter((path) => /(^|\/)electron\//.test(path)),
     ).toEqual([])
     expect(result.outputFiles).toHaveLength(entryPoints.length)
+    // ws requires its optional native helpers inside try/catch and falls back
+    // to plain JS; the Host and Desktop bundles stub exactly these two.
+    const wsOptional = new Set(['bufferutil', 'utf-8-validate'])
     for (const output of Object.values(result.metafile.outputs)) {
-      expect(output.imports.filter((entry) => entry.external && !isBuiltin(entry.path))).toEqual([])
+      expect(
+        output.imports.filter(
+          (entry) => entry.external && !isBuiltin(entry.path) && !wsOptional.has(entry.path),
+        ),
+      ).toEqual([])
     }
   })
 

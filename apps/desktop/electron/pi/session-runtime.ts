@@ -1,14 +1,12 @@
-import { app } from 'electron'
 import { registry } from '../registry'
 import { access } from 'node:fs/promises'
 import { decideSession, recordWorkspaceIntent, withWorkspace } from '../maintenance/history'
-import {
-  createSessionStartup,
-  type SessionStartupRuntime,
-} from '@phosphor/session-runtime/pi/session-startup'
+import { createSessionStartup } from '@phosphor/session-runtime/pi/session-startup'
 import { createSessionService } from '@phosphor/session-runtime/pi/session-service'
 import { sessionPaths } from './session-path-lock'
-import { piStubPath } from './stub'
+import { createOpsContribution } from './contributions/ops'
+import { createBrainContribution } from './contributions/brain'
+import { piStubPath, stubBrainEnabled, stubOpsEnabled } from './stub'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { desktopSessionSink } from './session-events'
 import { prepareDesktopSessionLaunch } from './session-launch'
@@ -24,24 +22,21 @@ import {
 import { getPrefs, recordWorkspace, realPathOrNull } from '../store'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import { log } from '../debug-log'
+import { localRuntimeMode } from '../local-machine/mode'
 import { createLaneReload } from '@phosphor/session-runtime/pi/lane-reload'
-import { createLaneConfigFingerprint } from './lane-config'
+import { createLaneConfigFingerprint } from '@phosphor/session-runtime/pi/lane-config'
+import { mcpConfigPaths, mcpDirs } from '@phosphor/session-runtime/pi/mcp-config'
+import { desktopSpawnContributions } from './contributions'
 
 /** MCP and package config changes reach running lanes before their next turn. */
 const laneReload = createLaneReload({
-  fingerprint: createLaneConfigFingerprint(),
+  fingerprint: createLaneConfigFingerprint(mcpDirs, mcpConfigPaths),
   log,
   // A reload can change the lane's commands (MCP prompts are commands).
   onApplied: () => {
     void import('./catalogue').then((m) => m.invalidatePiCommands())
   },
 })
-
-let recall: SessionStartupRuntime['recall']
-/** Brain installs this lazily, so lanes never load it unless it is asked for. */
-export function setSessionRecall(value: SessionStartupRuntime['recall']): void {
-  recall = value
-}
 
 const spawn = createSessionStartup({
   registry,
@@ -55,10 +50,17 @@ const spawn = createSessionStartup({
     paused: isRoutineSession,
   },
   accounts: { remember: rememberSpawnAccount, forget: forgetSpawnAccount, hold: holdAccount },
-  recordWorkspace,
+  // In daemon mode the service owns This Mac's recents; the one in-app lane, Desktop's private
+  // Brain lane, must leave Desktop's legacy prefs untouched (the migration tripwire reads them).
+  recordWorkspace: (...args) => {
+    if (localRuntimeMode() !== 'daemon') recordWorkspace(...args)
+  },
   laneReload,
-  recall: (workspacePath) => recall?.(workspacePath) ?? Promise.resolve(undefined),
-  stubRecall: () => !app.isPackaged && Boolean(process.env.PHOSPHOR_BRAIN_TEST_EMBEDDINGS),
+  contributions: desktopSpawnContributions(),
+  stubContributions: [
+    ...(stubOpsEnabled() ? [createOpsContribution()] : []),
+    ...(stubBrainEnabled() ? [createBrainContribution()] : []),
+  ],
 })
 
 const service = createSessionService<Electron.WebContents>({
@@ -96,7 +98,8 @@ export const desktopSessions = {
   ) => {
     // Record intent before queueing behind a sweep. A resumed conversation is unfinished.
     recordWorkspaceIntent(options.workspacePath)
-    if (options.sessionPath) decideSession(options.sessionPath, false)
+    if (options.sessionPath && localRuntimeMode() !== 'daemon')
+      decideSession(options.sessionPath, false)
     return withWorkspace(options.workspacePath, async () => {
       await access(options.workspacePath)
       return service.create(options, target, execution)

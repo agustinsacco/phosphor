@@ -161,3 +161,19 @@ it('refreshes on the lane’s summary, the connection and the runtime, not on ot
   expect(new Set(keys).size).toBe(4)
   source.done()
 })
+
+it.each([
+  [DESKTOP_PLATFORM, true],
+  [WIDE_BROWSER_PLATFORM, false],
+] as const)(
+  'only a native client gets the local service lane’s same-machine file tools',
+  async (platform, local) => {
+    seed(true, ['workspaces.read', 'workspaces.write'])
+    await update(() => ({ local: true, ownerLocal: true }))
+    const source = await hostSource(platform)
+    expect(source.read().features.search).toBe(local)
+    expect(source.read().features.osActions).toBe(local)
+    expect(source.read().workspacePath).toBe(mockRemoteInfo.workspacePath)
+    source.done()
+  },
+)

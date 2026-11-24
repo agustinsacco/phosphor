@@ -15,6 +15,11 @@ import {
 import { createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
 import { createAuthority } from './authority'
 import { createConnection, hostProof, type ConnectionPorts } from './connection'
+import type { GrantAuthPorts } from './grant-auth'
+import { fixtureGrantAuth } from './__fixtures__/grant-auth'
+
+/** Connection ports and grant ports: `connect` hands every override to both. */
+type ConnectOverrides = Partial<ConnectionPorts & GrantAuthPorts>
 
 export function fixture(limits: Parameters<HostConformanceFactory>[0] = {}) {
   const control = generateKeyPairSync('ed25519')
@@ -58,7 +63,7 @@ export function fixture(limits: Parameters<HostConformanceFactory>[0] = {}) {
       sign(null, bytes, badSignature ? wrong.privateKey : control.privateKey),
     )
   }
-  function connect(overrides: Partial<ConnectionPorts> = {}) {
+  function connect(overrides: ConnectOverrides = {}) {
     const pair = createLoopbackPair()
     const frames: HostFrame[] = []
     const codes: number[] = []
@@ -70,11 +75,10 @@ export function fixture(limits: Parameters<HostConformanceFactory>[0] = {}) {
     pair.client.onClose((code) => codes.push(code))
     const connection = createConnection({
       socket: pair.server,
-      authority,
-      keyset,
-      origin: claims.iss,
-      hello,
-      key: host.privateKey,
+      authenticate: fixtureGrantAuth(authority, claims, { control, host }, hello, {
+        keyset,
+        ...overrides,
+      }),
       limits: Object.fromEntries(
         Object.entries(limits).filter(
           ([name, value]) =>
@@ -167,7 +171,7 @@ describe('connection boundary', () => {
     h.driver.stop()
     vi.useRealTimers()
   })
-  async function auth(overrides: Partial<GrantPayload> = {}, ports: Partial<ConnectionPorts> = {}) {
+  async function auth(overrides: Partial<GrantPayload> = {}, ports: ConnectOverrides = {}) {
     const c = h.connect(ports)
     c.socket.send(JSON.stringify({ type: 'auth', grant: h.mintGrant(overrides), challenge }))
     await vi.advanceTimersByTimeAsync(0)

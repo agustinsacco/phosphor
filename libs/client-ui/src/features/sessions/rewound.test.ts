@@ -5,7 +5,7 @@ import {
   withoutRewindOf,
   withoutSession,
   withRewind,
-} from './rewound'
+} from '@phosphor/shared/visible-lanes'
 
 describe('rewind record', () => {
   it('records by file name and ignores a rewind that stayed on one file', () => {

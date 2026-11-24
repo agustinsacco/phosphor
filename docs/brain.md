@@ -211,6 +211,20 @@ With only a shared mention the route can instead say “Tom Lee and Northwind ar
 loses its bracket. All three briefings fit 6,000 characters. They contain escaped background
 data, not instructions or raw transcript excerpts.
 
+**How lanes reach Brain.** With Brain and recall on, lane startup adds `-e brain-ext/brain.mjs`
+and `--skill skills/brain`, never a Brain socket or token. On an op-channel lane
+(`PHOSPHOR_OPS=v1`), `brain_search` and `brain_flag` use the `brain.search` and `brain.flag`
+service ops. The owner supplies the workspace and lane identity and keeps that live lane's
+bracket numbers. If no Brain service answers, the tool says “Brain is unavailable right now.”,
+which is not a no-match. Only the Brain lane gets `PHOSPHOR_BRAIN_ENDPOINT` and
+`PHOSPHOR_BRAIN_TOKEN`: Brain Agent's curator token for Desktop's private socket. Spawn `env`
+never carries them; only the typed `PiSpawnOptions.brainConnection` adds them, for the exact
+Brain lane folder. `brain-curator.mjs` removes them on load, so bash commands, MCP servers and
+sub-agents do not inherit them. Desktop registers Brain with the local Phosphor service on its
+owner connection, again when recall changes and on reconnect. Only the recall preference
+survives in `app-services.json`, so new lanes can load the recall skill with Desktop closed and
+answer “unavailable”. The service never opens Brain's database.
+
 ### Why a memory comes back
 
 Ask returns up to eight answer memories with no project preference. The page’s memory search
@@ -249,6 +263,13 @@ quotes and outside sources as data; to change Brain only with Brain tools; and t
 change a one-sentence reason. Its working rules live in `AGENTS.md` in that folder. Ask it to
 edit those rules in its lane. The next message uses the saved file. A missing file gets the
 default. An upgrade replaces the exact v7 default, byte for byte, but leaves custom rules alone.
+
+The Brain lane runs in Desktop on This Mac in both modes. After This Mac moves to the
+[Phosphor service](local-service.md), it is the one lane Desktop still starts itself: the
+registry admits only `<real userData>/brain/Brain` by real path (`isDesktopBrainLane` in
+`apps/desktop/electron/brain/lane-folder.ts`). There it stays Desktop-private: not in the
+sidebar or the service's lane list, and migration never plans it. Quitting Desktop asks first
+while its turn runs, and stops it.
 
 ### When it checks
 
@@ -333,7 +354,7 @@ in either version.
   intermediate steps; no route found does not prove two people have nothing in common.
 - Ordinary lanes can search and flag, not edit. Only one flag can be open per memory, five
   per lane session and fifty across Brain. The same lane cannot flag the same memory twice.
-  The bridge limits all lanes together to ten flag requests per minute.
+  Brain limits all lanes together to ten flag requests per minute.
 - The journal keeps the newest 200 changes, changes in the latest run and erasures younger than
   an hour. Brain keeps the newest 20 runs and every automatic run the daily limit still counts.
   A change outside retention or one that later changes depend on cannot be undone. Undoing a

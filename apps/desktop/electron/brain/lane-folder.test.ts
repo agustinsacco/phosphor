@@ -46,8 +46,12 @@ it('writes the default rules only while AGENTS.md is missing', async () => {
 it('hands the Brain lane Brain Agent’s tools and its rules, and every other lane recall', async () => {
   const folder = join(root, 'brain', 'Brain')
   const service = {
-    recallLaunch: vi.fn(async () => ({ env: {}, extensions: ['/brain.mjs'], skills: [] })),
-    curatorLaunch: vi.fn(async () => ({ env: {}, extensions: ['/brain-curator.mjs'], skills: [] })),
+    recallLaunch: vi.fn(async () => ({ extensions: ['/brain.mjs'], skills: [] })),
+    curatorLaunch: vi.fn(async () => ({
+      connection: { endpoint: '/rpc.sock', token: 'curator' },
+      extensions: ['/brain-curator.mjs'],
+      skills: [],
+    })),
   }
   await mkdir(join(root, 'repo'))
   expect(

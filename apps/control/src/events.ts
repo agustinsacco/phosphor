@@ -25,6 +25,9 @@ interface EventFields {
   readiness?: Readiness
   result?: string
   reason?: string
+  /** The machine a machine grant was issued for; `hostId` is the caller. */
+  targetHostId?: string
+  machineReach?: boolean
 }
 export interface EventLog extends EventFields {
   ts: string

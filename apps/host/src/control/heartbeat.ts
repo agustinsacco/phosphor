@@ -7,7 +7,7 @@ import {
   type HeartbeatResponse,
   type Readiness,
 } from '@phosphor/shared/control-api'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { runHeartbeat } from './heartbeat-loop'
 import { drainHeartbeat } from './heartbeat-publication'
 import { checkIdentityDirectory, IdentityFailure, readIdentityFile } from './identity'
@@ -91,6 +91,8 @@ export interface HeartbeatPorts {
   signal?: AbortSignal
   log(line: string): void
   endpoint?(): string | null
+  /** Whether this Host takes machine-origin grants; absent leaves the field out of the beat. */
+  machineGrants?(): boolean
   onAccepted?(reply: HeartbeatResponse): void
   onRemoved?(): void
 }

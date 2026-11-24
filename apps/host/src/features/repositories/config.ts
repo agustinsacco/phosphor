@@ -1,3 +1,8 @@
+import {
+  mergeLegacyFolderChange,
+  readOwnerFolders,
+  writeOwnerFolders,
+} from '../../config/folders-file'
 import { randomUUID } from 'node:crypto'
 import { renameSync } from 'node:fs'
 import { open, realpath, unlink } from 'node:fs/promises'
@@ -16,6 +21,7 @@ export interface RepositoryConfigSource {
   uid: number | undefined
 }
 export interface RepositoryConfigOptions extends RepositoryConfigSource {
+  local?: boolean
   store: HostStore
   changed(roots: readonly string[]): void
 }
@@ -62,8 +68,16 @@ async function publishUnlocked(
       throw new FileFailure('forbidden')
     // No asynchronous seam between identity validation, commit and publication.
     if (identity) validateRepositoryIdentity(identity)
+    const directory = dirname(loaded.path)
+    const { paths, snapshot } = mergeLegacyFolderChange(
+      readOwnerFolders(directory, options.uid),
+      loaded.config.repositories,
+      repositories,
+      !!options.local,
+    )
     renameSync(temp, target)
-    const summaries = options.store.syncRepositories(repositories, undefined, identity)
+    if (snapshot) writeOwnerFolders(directory, options.uid, snapshot)
+    const summaries = options.store.syncRepositories(paths, undefined, identity)
     options.changed(summaries.map((r) => r.path))
     return summaries
   } finally {

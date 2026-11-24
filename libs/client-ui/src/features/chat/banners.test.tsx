@@ -11,7 +11,7 @@ import { ChatView } from './ChatView'
 
 vi.mock('./MessageList', () => ({ MessageList: () => null }))
 vi.mock('./Composer', () => ({ Composer: () => null }))
-vi.mock('@/features/extension-ui/ExtensionUiHosts', () => ({ StatusStrip: () => null }))
+vi.mock('@/features/extension-ui/StatusStrip', () => ({ StatusStrip: () => null }))
 
 let root: Root | undefined
 let invoke: ReturnType<typeof vi.fn>

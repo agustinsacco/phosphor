@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { parseArtifactParams } from '@phosphor/shared/host-protocol-artifacts'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { FeatureFailure, featureError } from './machine'
 import type { HostStore } from '../lanes/store'
 import type { FeatureContext, FeatureOutcome, HostFeature } from './feature'

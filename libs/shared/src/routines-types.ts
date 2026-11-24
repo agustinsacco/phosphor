@@ -51,6 +51,8 @@ export type RoutineRunStatus =
   | 'skipped'
 
 export interface RoutineRun {
+  /** Existing lane on the Host that owns this run. Never a pi session id. */
+  outputLaneId?: string
   id: string
   routineId: string
   trigger: 'schedule' | 'manual'

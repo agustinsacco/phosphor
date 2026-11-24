@@ -52,7 +52,7 @@ vi.mock('node:child_process', async (importOriginal) => {
   return { ...actual, execFile }
 })
 
-vi.mock('./shell-env', () => ({
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
   getLoginShellPath: () => lookup.loginShellPath(),
   piProcessEnv: async () => ({ PATH: '/usr/bin:/bin' }),
 }))

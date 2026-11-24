@@ -20,6 +20,8 @@ The provider uses pi's system prompt, advertises only the request's tools throug
 MCP, and executes every tool in pi, including read/edit/bash. Native Claude tools,
 independent memory/skill/MCP discovery and CLI compaction are disabled. Explicit
 host guards and managed policy remain in force; bare mode is not used.
+This includes pi's request-local directive overrides and refreshed AGENTS.md /
+CLAUDE.md blocks; the CLI does not load a second copy.
 
 One warm CLI process serves matching follow-ups and pi tool handoffs. It is a
 disposable cache: model switches, changed prompts/tools, branch rewrites and

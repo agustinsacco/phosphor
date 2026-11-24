@@ -1,3 +1,4 @@
+import { ReviewedSettings } from './ReviewedSettings'
 import { useHostSection } from '../../machine/HostSection'
 import { useSettingsUiStore } from '../../settingsUiStore'
 import { AgentSettingsView } from './AgentSettingsView'
@@ -26,5 +27,11 @@ function LocalAgentScope(): React.JSX.Element {
 }
 
 function HostAgentScope(): React.JSX.Element {
-  return <AgentSettingsView source={useHostAgent()} />
+  const source = useHostAgent()
+  return (
+    <>
+      <AgentSettingsView source={source} />
+      <ReviewedSettings blocked={source.blocked || source.status !== 'ready'} />
+    </>
+  )
 }

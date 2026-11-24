@@ -4,6 +4,7 @@ import {
   HOST_PROTOCOL_VERSION,
   helloProofMessage,
   type HostFrame,
+  type ReadyOpFlag,
 } from '@phosphor/shared/host-protocol'
 import type { HostHello, HostCapability } from '@phosphor/shared/remote-host'
 
@@ -23,6 +24,14 @@ export function grantedCapabilities(hello: HostHello, grant: ConfigurationGrant)
   )
 }
 
+/** Each served op flag as `true`, and `ownerLocal` on the owner's own connection. */
+function readyOpFlags(flags: ReadonlySet<ReadyOpFlag>, ownerLocal: boolean) {
+  const served: Partial<Record<ReadyOpFlag, true>> = {}
+  for (const flag of flags) if (flag !== 'ownerLocal') served[flag] = true
+  if (ownerLocal) served.ownerLocal = true
+  return served
+}
+
 /** Old clients see settings support without an unknown capability until signed opt-in. */
 export function readyFrame(options: {
   hello: HostHello
@@ -33,6 +42,10 @@ export function readyFrame(options: {
   grantExpiresAt: string
   caps: readonly HostCapability[]
   webPushKey?: string
+  /** The agent-control features this Host serves; none announces nothing new. */
+  flags?: ReadonlySet<ReadyOpFlag>
+  /** The connection is the machine's owner on its local socket. */
+  ownerLocal?: boolean
 }): Extract<HostFrame, { type: 'ready' }> {
   const { hello, grant } = options
   return {
@@ -54,6 +67,7 @@ export function readyFrame(options: {
     prStatus: true,
     ...(options.webPushKey ? { webPushKey: options.webPushKey } : {}),
     prTracking: true,
+    ...readyOpFlags(options.flags ?? new Set(), options.ownerLocal === true),
     proof: hostProof(hello, options.challenge, options.key),
     connectionId: options.connectionId,
     grantExpiresAt: options.grantExpiresAt,

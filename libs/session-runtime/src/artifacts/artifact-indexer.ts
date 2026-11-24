@@ -18,6 +18,8 @@ import { extractText } from '../pi/session-content'
 
 export {
   blobFile,
+  isSessionId,
+  readAllIndexes,
   readIndex,
   type SessionArtifactIndex,
 } from '@phosphor/pi-extensions/artifact-store'

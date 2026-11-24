@@ -1,8 +1,8 @@
+import { readRunPage } from './run-page'
 import type { Routine, RoutineRun, RoutinesSnapshot } from '@phosphor/shared/routines'
 import {
   parseRoutineList,
   parseRoutineReceiptData,
-  parseRoutineHistory,
   parseRoutineOp,
   parseRoutineParams,
   routineRequiresControl,
@@ -101,9 +101,9 @@ async function activity(
 ): Promise<RoutineRun[]> {
   const connection = admitted(ports, host)
   const incarnation = connection.snapshot().connectionToken
-  let rows: ReturnType<typeof parseRoutineHistory> = null
+  let rows: Awaited<ReturnType<typeof readRunPage>> = null
   try {
-    rows = parseRoutineHistory(await query(ports, host, 'routines.activity', {}))
+    rows = await readRunPage(connection, {}, () => query(ports, host, 'routines.activity', {}))
   } catch {
     /* An older Host answers unsupported; a failed read shows no runs. */
   }
@@ -132,8 +132,8 @@ export async function history(
 ): Promise<RoutineRun[]> {
   const connection = admitted(ports, host)
   const incarnation = connection.snapshot().connectionToken
-  const rows = parseRoutineHistory(
-    await query(ports, host, 'routines.history', { routineId: id, offset }),
+  const rows = await readRunPage(connection, { id, offset }, () =>
+    query(ports, host, 'routines.history', { routineId: id, offset }),
   )
   admitted(ports, host, false, connection, incarnation)
   if (!rows || rows.some((r) => r.routineId !== id)) throw new Error(UNAVAILABLE)
@@ -145,7 +145,7 @@ export async function history(
 }
 export function runRecord(
   host: string,
-  r: NonNullable<ReturnType<typeof parseRoutineHistory>>[number],
+  r: NonNullable<Awaited<ReturnType<typeof readRunPage>>>[number],
   definition: Routine,
 ): RoutineRun {
   return {
@@ -178,10 +178,10 @@ export async function run(
   const runId = await mutate(state, ports, host, { type: 'routine.run', routineId: id })
   admitted(ports, host, true, connection, incarnation)
   if (!runId) throw new Error(UNAVAILABLE)
-  let rows: ReturnType<typeof parseRoutineHistory> = null
+  let rows: Awaited<ReturnType<typeof readRunPage>> = null
   try {
-    rows = parseRoutineHistory(
-      await query(ports, host, 'routines.history', { routineId: id, offset: 0 }),
+    rows = await readRunPage(connection, { id, offset: 0 }, () =>
+      query(ports, host, 'routines.history', { routineId: id, offset: 0 }),
     )
   } catch {
     /* The confirmed run is not retried when its history is unavailable. */

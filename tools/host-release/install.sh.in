@@ -22,6 +22,7 @@ done
 case $(uname -s):$(uname -m) in
   Linux:x86_64) target=linux-x64; mvflag=-T; base64flag=-d ;;
   Linux:aarch64|Linux:arm64) target=linux-arm64; mvflag=-T; base64flag=-d ;;
+  Darwin:x86_64) target=darwin-x64; mvflag=-h; base64flag=-D ;;
   Darwin:arm64) target=darwin-arm64; mvflag=-h; base64flag=-D ;;
   *) fail ;;
 esac
@@ -111,21 +112,36 @@ repo=https://github.com/agustinsacco/Phosphor/releases/download
 override=${PHOSPHOR_HOST_RELEASE_URL:-}
 if [ -n "$requested" ]; then
   base=${override:-$repo/host-v$requested}
-  manifest=phosphor-host-$requested.manifest.json
+  stem=phosphor-host-$requested.manifest
 else
   base=${override:-$repo/host-latest}
-  manifest=phosphor-host.manifest.json
+  stem=phosphor-host.manifest
 fi
 # file:// supports offline tests. All other downloads and redirects require HTTPS.
 download() {
   case $1 in
-    file://*) curl --fail --silent --show-error --max-time 120 --max-filesize "$3" --proto '=file' "$1" -o "$2" ;;
-    https://*) curl --fail --silent --show-error --location --max-redirs 3 --max-time 120 --max-filesize "$3" --proto '=https' --proto-redir '=https' "$1" -o "$2" ;;
+    file://*) set -- "$@" --proto '=file' ;;
+    https://*) set -- "$@" --location --max-redirs 3 --proto '=https' --proto-redir '=https' ;;
     *) return 1 ;;
   esac
-  [ "$(wc -c < "$2" | tr -d ' ')" -le "$3" ]
+  url=$1 dest=$2 limit=$3; shift 3
+  status=$(curl --fail --silent --show-error --max-time 120 --max-filesize "$limit" \
+    "$@" -w '%{http_code}' "$url" -o "$dest") || {
+    code=$?
+    if [ "$code:$status" = '22:404' ]; then return 44; fi
+    case $url in file://*) [ "$code" != 37 ] || [ -e "${url#file://}" ] || return 44 ;; esac
+    return 1
+  }
+  [ "$(wc -c < "$dest" | tr -d ' ')" -le "$limit" ]
 }
-download "$base/$manifest" "$tmp/manifest" 16384 || fail
+schema=2
+manifest=$stem.v2.json
+download "$base/$manifest" "$tmp/manifest" 16384 || {
+  [ "$?" = 44 ] || fail
+  schema=1
+  manifest=$stem.json
+  download "$base/$manifest" "$tmp/manifest" 16384 || fail
+}
 download "$base/$manifest.sig" "$tmp/signature" 8192 || fail
 ssh-keygen -Y verify -f "$tmp/allowed_signers" -I phosphor-release -n phosphor-host-release -s "$tmp/signature" < "$tmp/manifest" > /dev/null 2>&1 || fail
 # Ed25519 + this namespace gives fixed SSHSIG field offsets. Enforce the same
@@ -134,60 +150,10 @@ sed '1d;$d' "$tmp/signature" | base64 "$base64flag" > "$tmp/sshsig" 2>/dev/null 
 [ "$(wc -c < "$tmp/sshsig" | tr -d ' ')" = 191 ] || fail
 fields=$(od -An -tu1 -j90 -N14 "$tmp/sshsig" | tr '\n' ' ' | awk '{$1=$1; print}')
 [ "$fields" = '0 0 0 0 0 0 0 6 115 104 97 53 49 50' ] || fail
-# Parse the builder's JSON grammar without requiring system Node or Python.
-# Strings have no escapes because every manifest string is a bounded identifier.
-awk -v wanted="$target" '
-function bad() {exit 1}
-function token(    c, n) {
-  sub(/^[ \t\r\n]+/, "", input)
-  c=substr(input,1,1)
-  kind="punctuation"
-  if(c=="\"") {
-    kind="string"
-    if (!match(input, /^"[^"\\]*"/)) bad()
-    n=RLENGTH; t=substr(input,2,n-2)
-  } else if (match(input,/^[0-9]+/)) {kind="number"; n=RLENGTH; t=substr(input,1,n)}
-  else {n=1; t=c}
-  input=substr(input,n+1)
-}
-function take(x) {
-  token(); if(t!=x) bad()
-  if(x=="1") {if(kind!="number" || length(t)!=1) bad()}
-  else if(length(x)==1 && index("{}:[],",x)) {if(kind!="punctuation") bad()}
-  else if(kind!="string") bad()
-}
-function text() {token(); if(kind!="string") bad()}
-function field(x) {take(x); take(":")}
-function version(v,    a,i) {
-  if(split(v,a,".")!=3) bad()
-  for(i=1;i<=3;i++) if(a[i]!~/^[0-9]+$/ || length(a[i])>9 || (length(a[i])>1 && substr(a[i],1,1)=="0")) bad()
-}
-{input=input $0 "\n"}
-END {
-  take("{"); field("schema"); take("1"); take(",")
-  field("version"); text(); v=t; version(v); take(",")
-  field("protocols"); take("["); count=0
-  do {token(); if(kind!="number" || t!~/^[1-9][0-9]*$/ || t+0<1 || t+0>65535 || seen[t]++ || ++count>8) bad(); token()} while(kind=="punctuation" && t==",")
-  if(kind!="punctuation" || t!="]") bad(); take(",")
-  field("node"); text(); version(t); take(",")
-  field("sourceCommit"); text(); if(length(t)!=40 || t!~/^[0-9a-f]+$/) bad(); take(",")
-  field("artifacts"); take("["); count=0
-  do {
-    take("{"); field("target"); text(); target=t
-    if(target!~/^(linux-x64|linux-arm64|darwin-arm64)$/ || targets[target]++ || ++count>3) bad()
-    take(","); field("file"); text(); file=t
-    if(file!="phosphor-host-" v "-" target ".tar.gz") bad()
-    take(","); field("bytes"); token(); bytes=t
-    if(kind!="number" || bytes!~/^[1-9][0-9]*$/ || bytes+0>268435456) bad()
-    take(","); field("sha256"); text(); hash=t
-    if(length(hash)!=64 || hash!~/^[0-9a-f]+$/) bad()
-    take("}")
-    if(target==wanted) {found=1; f=file; b=bytes; h=hash}
-    token()
-  } while(kind=="punctuation" && t==",")
-  if(kind!="punctuation" || t!="]") bad(); take("}"); token(); if(t!="" || !found) bad()
-  print v; print f; print b; print h
-}' "$tmp/manifest" > "$tmp/metadata" || fail
+# No system Node, Python or jq required.
+LC_ALL=C awk -v wanted="$target" -v schema="$schema" '
+@MANIFEST_AWK@
+' "$tmp/manifest" > "$tmp/metadata" || fail
 version=$(sed -n '1p' "$tmp/metadata")
 file=$(sed -n '2p' "$tmp/metadata")
 bytes=$(sed -n '3p' "$tmp/metadata")

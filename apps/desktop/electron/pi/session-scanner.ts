@@ -299,4 +299,4 @@ export async function readSavedTranscript(path: string): Promise<AgentMessage[]>
   }
 }
 
-export { readSessionTree } from './session-tree'
+export { readSessionTree } from '@phosphor/session-runtime/pi/session-tree'

@@ -1,9 +1,11 @@
+import type { WorkspaceLeases } from '../../owner/lease'
 import type { LaneArchiveOp } from '@phosphor/shared/lane-archive'
 import type { DeleteLaneOp, RepositoryOp } from '@phosphor/shared/host-protocol-repositories'
 import type { FileWriteOp } from '@phosphor/shared/host-protocol-writes'
 import type {
   ClientFrame,
   LaneEvent,
+  LaneOp,
   LaneSummary,
   Receipt,
   RejectCode,
@@ -12,10 +14,13 @@ import type { RoutineOp } from '@phosphor/shared/host-protocol-routines'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { RpcCommand } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import type { LaneCommandOrigin } from '@phosphor/session-runtime/ops/types'
+import type { OwnerExemption } from '../../api/owner-exemptions'
 import type { HostAttachments } from '../../features/attachments'
 import type { WriteOutcome } from '../../features/writes'
 import type { ProviderLogins } from '../../providers/login'
 import type { MachineTasks } from '../../settings/tasks'
+import type { LanePauses } from '../pause'
 import type { HostRuntime } from '../../session/runtime'
 import type { HostTerminals } from '../../terminals/service'
 import type { LaneSessions } from '../create'
@@ -30,8 +35,15 @@ export interface LaneCommandClient {
   currentCaps?: () => readonly HostCapability[]
   connectionId?: string
   caps: readonly HostCapability[]
+  /** Who sent it; absent means a surface over a user grant. */
+  origin?: LaneCommandOrigin
+  /** Only on the attested owner's socket connection: the parity exemptions apply. */
+  ownerExemption?: OwnerExemption
+  /** Only the server-side attested connection supplies this; never a command field. */
+  owner?: true
 }
 export interface LaneCommandPorts {
+  leases?: WorkspaceLeases
   archives?: {
     execute(
       op: LaneArchiveOp,
@@ -53,6 +65,7 @@ export interface LaneCommandPorts {
   deleteLane?: (
     op: DeleteLaneOp,
     allowed: () => boolean,
+    owner?: boolean,
   ) => Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }>
   providerLogins?: Pick<ProviderLogins, 'execute'>
   attachments?: HostAttachments
@@ -81,6 +94,14 @@ export interface LaneCommandPorts {
     execute(op: RoutineOp, requestId: string, caps: readonly HostCapability[]): Promise<unknown>
   }
   refusal?: (command: RpcCommand) => string | null
+  /** A service pause: refuses new work while it lasts; a prompt or resume ends a stored pause. */
+  pauses?: Pick<LanePauses, 'admits' | 'continued'>
+  /** A surface's dialog answer: relay it to pi, or refuse a forged answer to an op confirm. */
+  dialogGuard?: (
+    laneId: string,
+    response: Extract<LaneOp, { type: 'extension_ui_response' }>['response'],
+    client: LaneCommandClient,
+  ) => 'relay' | 'forbidden'
 }
 
 export type Terminal = Exclude<Receipt, { status: 'pending' }>

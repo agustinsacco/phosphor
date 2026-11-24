@@ -1,3 +1,4 @@
+import { useAgentChangesItem } from '@/features/agent-control/LaneAgentChanges'
 import { PaletteButton } from '@/components/PaletteButton'
 import { requestChatFind } from '@/features/chat/useChatFind'
 import { useId, useState } from 'react'
@@ -263,13 +264,14 @@ function SessionOptionsGroup({
   onClose: () => void
   onFind: () => void
 }): React.JSX.Element {
+  const changes = useAgentChangesItem(sessionId)
   // Subscribed so the hints follow the session; the items read the stores themselves.
   useChatStore((s) => s.sessions[sessionId]?.meta)
   const { nativeFiles } = usePlatform()
   return (
     <div role="group" aria-label={SESSION_OPTIONS} className="action-sheet-group">
       <p className="action-sheet-label">Session</p>
-      {currentSessionMenuItems(sessionId, nativeFiles, onFind).map((item) => (
+      {[...currentSessionMenuItems(sessionId, nativeFiles, onFind), ...changes].map((item) => (
         <ActionSheetItem
           key={item.label}
           disabled={item.disabled}

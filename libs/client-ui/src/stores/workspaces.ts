@@ -61,6 +61,13 @@ const entryFor = (path: string): WorkspaceInfo => {
   return { path, name, lastOpenedAt: Date.now() }
 }
 
+/**
+ * This Mac's in-app sandbox list. In daemon mode main refuses it (the service
+ * owns sandboxes), so it reads as empty rather than failing startup.
+ */
+const inAppSandboxes = () =>
+  window.phosphor.invoke('app:listSandboxes').catch((): SandboxInfo[] => [])
+
 export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   homePath: null,
   recents: [],
@@ -238,7 +245,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     try {
       const [prefs, sandboxes] = await Promise.all([
         window.phosphor.invoke('app:getPrefs'),
-        window.phosphor.invoke('app:listSandboxes'),
+        inAppSandboxes(),
       ])
       set({ recents: prefs.recentWorkspaces, sandboxes })
     } finally {

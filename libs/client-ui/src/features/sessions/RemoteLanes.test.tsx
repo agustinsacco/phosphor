@@ -226,3 +226,31 @@ it("shows This Mac's group skeletons while a Host's first snapshot is loading", 
   expect(container.querySelector('[data-testid=workspace-groups-loading]')).toBeNull()
   expect(container.querySelector('[data-testid=remote-session-row]')).not.toBeNull()
 })
+
+it('shows the service lanes without remote access and resolves the legacy local selection', () => {
+  useMachinesStore.setState({ remoteEnabled: false })
+  const host = { ...mockRemoteHosts[MOCK_HOST_ID]!, local: true as const }
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  useRemoteLanesStore.getState().setFilter('local')
+  act(() => root.render(<RemoteLanes />))
+  expect(useRemoteLanesStore.getState().filter).toBe(MOCK_HOST_ID)
+  expect(container.textContent).toContain('Remote demo lane')
+  act(() =>
+    useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: { ...host, state: 'reconnecting' } } }),
+  )
+  expect(container.textContent).not.toContain('Remote demo lane')
+  expect(container.textContent).not.toContain('last known')
+})
+
+it.each([false, true])(
+  'offers Take only when another client controls the local service lane (self=%s)',
+  (self) => {
+    const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+    host.local = true
+    host.lanes[0]!.control.controller!.self = self
+    useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+    act(() => root.render(<RemoteLaneControls sessionId={mockRemoteInfo.sessionId} />))
+    expect(container.textContent?.includes('Take control')).toBe(!self)
+    expect(container.textContent).not.toContain('Release control')
+  },
+)

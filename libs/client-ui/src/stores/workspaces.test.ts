@@ -55,6 +55,25 @@ describe('workspace hydration', () => {
 
     expect(useWorkspacesStore.getState().hydrated).toBe(true)
   })
+
+  it('loads preferences when This Mac has no in-app sandbox list (daemon mode refuses it)', async () => {
+    const { useWorkspacesStore } = await import('./workspaces')
+    invoke.mockImplementation((channel: string) => {
+      if (channel === 'app:getPrefs')
+        return Promise.resolve({ recentWorkspaces: workspaces(['/a']) })
+      if (channel === 'app:listSandboxes')
+        return Promise.reject(new Error('This Mac runs lanes in its Phosphor service.'))
+      return Promise.resolve(undefined)
+    })
+
+    await expect(useWorkspacesStore.getState().hydrate()).resolves.toBeUndefined()
+
+    expect(useWorkspacesStore.getState()).toMatchObject({
+      recents: workspaces(['/a']),
+      sandboxes: [],
+      hydrated: true,
+    })
+  })
 })
 
 describe('workspace ordering', () => {

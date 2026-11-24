@@ -28,7 +28,8 @@ export class BoundedCache<T> {
 /**
  * The control plane's rate-limit purposes: a key's purpose is its prefix before the
  * first colon. Each purpose holds its own keys, so a flood of one never evicts
- * another's, and together they hold at most 80,000.
+ * another's, and together they hold at most 110,000. Host-signed machine routes spend
+ * `machine-auth:<ip>`, never `host-auth:<ip>`, so they cannot push heartbeats into 429.
  */
 export const RATE_PURPOSE_CAPACITIES = Object.freeze({
   'enrollment-create': 10_000,
@@ -39,6 +40,9 @@ export const RATE_PURPOSE_CAPACITIES = Object.freeze({
   'host-auth': 10_000,
   'usage-ping': 10_000,
   'usage-download': 10_000,
+  'machine-auth': 10_000,
+  'machine-directory': 10_000,
+  'machine-grant-issue': 10_000,
 })
 /**
  * Sliding windows in one map of at most `capacity` keys. A full map never refuses a

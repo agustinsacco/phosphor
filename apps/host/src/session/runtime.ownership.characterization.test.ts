@@ -79,7 +79,7 @@ beforeEach(() => {
       roots: [repo],
       resourceRoot: EXTENSIONS_ROOT,
       contextBudget: '',
-      log: { write: () => {}, hide: (text) => text, path: () => null },
+      log: { addSecrets: vi.fn(), write: () => {}, hide: (text) => text, path: () => null },
     },
     { routines, timings: { abortMs: 2000, graceMs: 1000, deadlineMs: 10000, settleMs: 1000 } },
   )

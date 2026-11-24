@@ -15,6 +15,7 @@ import { DEFAULT_MAINTENANCE_PREFS, type MaintenancePrefs } from './maintenance'
 import { DEFAULT_AGENT_DIRECTIVES, type AgentDirectivePrefs } from './directives'
 import { DEFAULT_HEADROOM_PREFS, type HeadroomPrefs } from './optimization'
 import type { ComposerDraftRecord } from './drafts'
+import type { AgentPolicy } from '../ops'
 
 export interface AppPrefs {
   theme: ThemePreference
@@ -130,6 +131,15 @@ export interface AppPrefs {
    * problem.
    */
   drafts: Record<string, ComposerDraftRecord>
+  /**
+   * What This Mac's agents may do through the `phosphor` tool before its lanes
+   * move to the Phosphor service. Written only by a surface (`policy.set`).
+   */
+  agentPolicy?: AgentPolicy
+  /** The daemon lane open when Desktop last closed, once This Mac runs on the service. */
+  lastLocal?: { repositoryId?: string; laneId?: string }
+  /** Set once This Mac's lanes moved to the Phosphor service; never cleared by a later launch. */
+  localRuntime?: { mode: 'daemon'; migrationId: string; machineId: string; at: string }
 }
 
 /** Starred and recently used models, keyed `provider/id`, plus how to group them. */

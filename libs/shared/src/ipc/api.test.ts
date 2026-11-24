@@ -7,6 +7,7 @@ import type {
   FileDownloadProgress,
   PhosphorApi,
   PhosphorPlatform,
+  LocalMachineStatus,
 } from '../ipc'
 import type { RpcCommand, RpcResponse, RpcResponseDataMap } from '../rpc'
 import type { AccountView } from '../account'
@@ -88,6 +89,15 @@ export interface BaselinePhosphorApi {
   onHostOpenLane(listener: (target: { hostId: string; laneId: string }) => void): () => void
   /** Voice prefs, download progress and readiness; returns unsubscribe. */
   onVoiceStatus(listener: (status: VoiceStatus) => void): () => void
+  onOpsChanged(
+    listener: (event: {
+      machine: string
+      kind: 'audit' | 'policy' | 'confirm' | 'lane'
+      laneRef?: string
+      fields?: string[]
+    }) => void,
+  ): () => void
+  onLocalMachineChanged(listener: (status: LocalMachineStatus) => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image

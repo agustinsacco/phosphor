@@ -4,7 +4,7 @@ import type { MachineSettingsTab } from './machine/HostSection'
 import type { SettingsTab } from './settingsUiStore'
 import type { SettingEntry } from './search/settingEntry'
 import { ACCOUNTS_ROWS } from './search/rows/accounts'
-import { ADVANCED_ROWS } from './search/rows/advanced'
+import { ADVANCED_ROWS, SERVICE_SECTION_ENTRY } from './search/rows/advanced'
 import { AGENT_ROWS } from './search/rows/agent'
 import { CONNECTORS_ROWS } from './search/rows/connectors'
 import {
@@ -207,9 +207,18 @@ export function rowOnMachine(entry: SettingEntry, machine: MachineKind | null): 
  * The index rows this platform renders on this kind of machine; sections are
  * filtered by the caller's `available`.
  */
-export function platformIndex(platform: Platform, machine: MachineKind | null): SettingEntry[] {
+export function platformIndex(
+  platform: Platform,
+  machine: MachineKind | null,
+  configFiles = false,
+  localService = false,
+): SettingEntry[] {
   return SETTINGS_INDEX.filter(
-    (entry) => (!entry.requires || platform[entry.requires]) && rowOnMachine(entry, machine),
+    (entry) =>
+      (!entry.configFiles || configFiles) &&
+      (!entry.requires || platform[entry.requires]) &&
+      (rowOnMachine(entry, machine) ||
+        (machine === 'host' && localService && entry === SERVICE_SECTION_ENTRY)),
   )
 }
 

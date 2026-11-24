@@ -22,7 +22,7 @@ vi.mock('./health', async (original) => ({
   checkPiHealth: state.health,
   cachedPiHealth: state.cachedHealth,
 }))
-vi.mock('./shell-env', () => ({ piProcessEnv: state.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: state.env }))
 vi.mock('../pty/pty-manager', () => ({ ptyManager: { create: state.create } }))
 
 import { createLoginTerminal, startLoginWithBrowser } from './auth-actions'

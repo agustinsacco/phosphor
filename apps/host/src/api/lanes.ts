@@ -1,4 +1,5 @@
 import type { HostFrame, Receipt } from '@phosphor/shared/host-protocol'
+import type { TerminalInput } from '@phosphor/shared/host-protocol-terminals'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { LaneService } from '../lanes/service'
 import { createSubscriptions } from '../lanes/subscriptions'
@@ -6,6 +7,23 @@ import type { StreamLimits } from '../lanes/stream'
 import { createLaneSender, laneLimits } from './lane-transport'
 import type { ApiLog, AuthenticatedHandler, ReadyConnection } from './connection'
 import { createConfigurationAuthority } from './configuration-authority'
+import { createOwnerExemption } from './owner-exemptions'
+
+/** A keystroke frame: control and terminal caps, then the terminal service's own checks. */
+function terminalInput(
+  service: LaneService,
+  clientId: string,
+  frame: TerminalInput,
+  caps: readonly HostCapability[],
+  ownerExempt: boolean,
+): boolean {
+  return (
+    caps.includes('terminal') &&
+    caps.includes('sessions.control') &&
+    (service.terminals?.input(clientId, frame, caps.includes('machine.configure'), ownerExempt) ??
+      false)
+  )
+}
 
 export function createLaneAdapter(
   service: LaneService,
@@ -24,6 +42,7 @@ export function createLaneAdapter(
   const clients = new Map<string, Set<string>>()
   function handler(connection: ReadyConnection): AuthenticatedHandler {
     const { socket, connectionId, client } = connection
+    const exemption = createOwnerExemption(connection.principal)
     let caps = connection.caps
     let closed = false
     const authorization = createConfigurationAuthority({
@@ -39,6 +58,7 @@ export function createLaneAdapter(
     function close() {
       if (closed) return
       closed = true
+      exemption.end()
       subscriptions?.close()
       subscriptions = undefined
       for (const unsubscribe of terminalSubscriptions.values()) unsubscribe()
@@ -148,11 +168,7 @@ export function createLaneAdapter(
             return send({ type: 'subscribe-failed', id: frame.id, code: 'too-many' })
         }
         if (frame.type === 'terminal.input') {
-          const accepted =
-            caps.includes('terminal') &&
-            caps.includes('sessions.control') &&
-            (service.terminals?.input(client.id, frame, caps.includes('machine.configure')) ??
-              false)
+          const accepted = terminalInput(service, client.id, frame, caps, exemption.exempt)
           send({ type: 'terminal.ack', terminalId: frame.terminalId, seq: frame.seq, accepted })
         } else if (frame.type === 'subscribe' && frame.topic === 'terminal') {
           if (!caps.includes('terminal'))
@@ -209,7 +225,10 @@ export function createLaneAdapter(
           options.log?.('api.command', { ...traceFields, op: frame.op.type })
           pending.add(frame.requestId)
           interest(frame.requestId, 'command')
-          const sender = authorization.sender(client, connectionId)
+          const sender = {
+            ...authorization.sender(client, connectionId, connection.principal),
+            ...exemption.sender,
+          }
           void (async () => {
             try {
               await service.commands.submit(sender, frame)
@@ -276,3 +295,6 @@ export function createLaneAdapter(
     },
   }
 }
+
+/** One lane adapter per run: both listeners hand their connections to it, so receipts and presence are shared. */
+export type LaneAdapter = ReturnType<typeof createLaneAdapter>

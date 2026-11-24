@@ -1,6 +1,6 @@
 import { lstat } from 'node:fs/promises'
 import type { SessionPush } from '@phosphor/shared/models'
-import { errnoIs } from '../../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { piState } from '../pi-results'
 import type { StoredLane } from '../store'
 import { runEnded, syncBranch } from './branch'

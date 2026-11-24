@@ -518,16 +518,17 @@ const OPS = [
   [{ type: 'attachments.begin', name: 'a.png', size: 3, mime: 'image/png' }, { size: -1 }],
   [{ type: 'attachments.chunk', uploadId: UPLOAD, index: 0, data: 'AAAA' }, { data: '' }],
   [{ type: 'attachments.commit', uploadId: UPLOAD, sha256: 'c'.repeat(64) }, { sha256: 'x' }],
+  [{ type: 'ops.run', op: 'lane.list', args: {}, reason: 'Look' }, { op: 'Lane.list' }],
 ] satisfies readonly OpCase[]
 /** Compile-time exhaustiveness: this fails to type-check when LaneOp gains an op type. */
 const everyOpType: Record<Exclude<LaneOpType, (typeof OPS)[number][0]['type']>, never> = {}
 /** Families whose parsers allow exactly their own keys, so an unknown field refuses the op. */
 const EXACT_KEY_OPS =
-  /^(archive\.|lane\.archive|lane\.delete|lane\.marks|claude\.account|machine\.|host\.repositories\.|provider\.|terminal\.|routine\.|files\.|attachments\.)/
+  /^(archive\.|lane\.archive|lane\.delete|lane\.marks|claude\.account|machine\.|host\.repositories\.|provider\.|terminal\.|routine\.|files\.|attachments\.|ops\.)/
 /** Families absent from the receipt-code allowlist: an invalid one is unsupported, not bad-request. */
 const UNLISTED_OPS = /^(files|attachments)\./
 /** Families that never carry a lane id or fence. */
-const LANELESS_OPS = /^(archive|host\.repositories|provider|routine|machine)\./
+const LANELESS_OPS = /^(archive|host\.repositories|provider|routine|machine|ops)\./
 
 const rows = (table: Readonly<Record<string, Readonly<Record<string, Variant<object>>>>>) =>
   Object.entries(table).flatMap(([type, variants]) =>

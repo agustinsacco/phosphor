@@ -21,6 +21,34 @@ export function capabilities(v: unknown): v is HostCapability[] {
 }
 
 /**
+ * Additive `ready` booleans that gate agent-control UI and catalog ops. Each is
+ * absent (unsupported), true or false; any other value refuses the frame.
+ */
+export const READY_OP_FLAGS = [
+  'ops',
+  'ownerLocal',
+  'laneEditing',
+  'laneContext',
+  'laneReload',
+  'sandboxes',
+  'folderDirectives',
+  'configFiles',
+  'pagedLanes',
+] as const satisfies readonly (keyof Extract<HostFrame, { type: 'ready' }>)[]
+export type ReadyOpFlag = (typeof READY_OP_FLAGS)[number]
+
+function readyOpFlags(v: Record<string, unknown>): Partial<Record<ReadyOpFlag, boolean>> | null {
+  const flags: Partial<Record<ReadyOpFlag, boolean>> = {}
+  for (const flag of READY_OP_FLAGS) {
+    const value = v[flag]
+    if (value === undefined) continue
+    if (typeof value !== 'boolean') return null
+    flags[flag] = value
+  }
+  return flags
+}
+
+/**
  * The proof is a 64-byte signature as 86 unpadded base64url characters; only
  * the top two bits of the last one are used, so it is A, Q, g or w. The
  * connection's capabilities are a subset of the hello's.
@@ -36,7 +64,9 @@ export function parseReadyFrame(
   )
     return null
   const h = validateHostHello(v.hello, v.hello.hostId)
+  const flags = readyOpFlags(v)
   if (
+    !flags ||
     !h.ok ||
     v.protocolVersion !== HOST_PROTOCOL_VERSION ||
     !text(v.proof, 86, 86) ||
@@ -77,5 +107,6 @@ export function parseReadyFrame(
     ...(v.prStatus !== undefined ? { prStatus: v.prStatus as boolean } : {}),
     ...(v.webPushKey !== undefined ? { webPushKey: v.webPushKey } : {}),
     ...(v.prTracking !== undefined ? { prTracking: v.prTracking as boolean } : {}),
+    ...flags,
   }
 }

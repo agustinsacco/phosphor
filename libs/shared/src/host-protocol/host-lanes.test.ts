@@ -4,6 +4,7 @@ import {
   boundedList,
   parseAttentionFrame,
   parseLaneControl,
+  parseLanePause,
   parseLaneSummary,
   parseLanesDeltaFrame,
   parseLanesFrame,
@@ -297,5 +298,22 @@ describe('PR signals on a summary', () => {
         parseLaneSummary({ ...SUMMARY, pullRequests }),
         JSON.stringify(pullRequests),
       ).toStrictEqual(SUMMARY)
+  })
+})
+
+describe('lane pause', () => {
+  const pause = { reason: 'service-update', at: TIME }
+  it('carries a service-update pause and drops an invalid one without refusing the summary', () => {
+    expect(parseLaneSummary({ ...SUMMARY, pause })).toStrictEqual({ ...SUMMARY, pause })
+    for (const bad of [
+      { reason: 'maintenance', at: TIME },
+      { reason: 'service-update', at: 'now' },
+      { reason: 'service-update', at: TIME, extra: 1 },
+      'paused',
+      null,
+    ]) {
+      expect(parseLanePause(bad)).toBeNull()
+      expect(parseLaneSummary({ ...SUMMARY, pause: bad })).toStrictEqual(SUMMARY)
+    }
   })
 })

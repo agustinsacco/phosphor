@@ -48,6 +48,8 @@ describe('USAGE', () => {
       'tailscale',
       'update',
       'update',
+      'update',
+      'update',
       'uninstall',
       'version',
     ])

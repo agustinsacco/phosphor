@@ -412,3 +412,17 @@ describe('browser configuration grant opt-in', () => {
     expect(grants(fetch)).toEqual([{ hostId: host, clientId }])
   })
 })
+
+it('keeps directory reads bounded and refuses a truncated JSON body', async () => {
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(json(session))
+    .mockResolvedValueOnce(
+      json({ machines: [], serverTime: new Date().toISOString(), padding: 'x'.repeat(128 * 1024) }),
+    )
+    .mockResolvedValueOnce(new Response('{', { headers: { 'content-type': 'application/json' } }))
+  const { control } = setup(fetch)
+  await control.refresh()
+  expect(await control.machines()).toMatchObject({ ok: false, error: { code: 'unavailable' } })
+  expect(await control.machines()).toMatchObject({ ok: false, error: { code: 'offline' } })
+})

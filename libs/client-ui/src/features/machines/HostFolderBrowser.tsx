@@ -1,3 +1,4 @@
+import { HostSandboxes } from '@/features/workspaces/HostSandboxes'
 import { useEffect, useState } from 'react'
 import type { HostConnectionView, IpcInvokeMap } from '@shared/ipc'
 import { ModalOverlay, ModalPanel, useEscapeKey } from '@/components/Modal'
@@ -129,17 +130,16 @@ export function HostFolderBrowser({
   }
   const parts = path.split('/').filter(Boolean)
   return (
-    <ModalOverlay
-      onClose={() => {
-        if (!busy) onClose()
-      }}
-    >
+    <ModalOverlay onClose={busy ? () => {} : onClose}>
       <ModalPanel
         title={`Add folder on ${machineLabel(hostId)}`}
         subtitle="Choose a folder under this machine's home directory."
         width={480}
       >
         <div className="space-y-3 p-4">
+          {canCreate && host?.ops && host.sandboxes && (
+            <HostSandboxes key={hostId} hostId={hostId} />
+          )}
           <nav
             aria-label="Folder breadcrumbs"
             className="flex flex-wrap items-center gap-1 text-sm"

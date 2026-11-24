@@ -29,7 +29,7 @@ function begin(
 ): WriteOutcome {
   if (
     [...state.uploads.values()].filter((u) => u.laneId === owner.laneId).length >= LIMIT.files ||
-    !charge(state, owner.laneId, op.size)
+    (!owner.ownerExempt && !charge(state, owner.laneId, op.size))
   )
     return refusal
   const id = randomBytes(16).toString('hex')

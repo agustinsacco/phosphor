@@ -1,3 +1,4 @@
+import { UserLaneMentions } from './UserLaneMentions'
 import { parseUserText, type UserTextItem } from './userMessageBlocks'
 
 /**
@@ -13,7 +14,7 @@ export function UserText({ text }: { text: string }): React.JSX.Element {
       {blocks.map((block, i) =>
         block.kind === 'text' ? (
           <span key={i} className="whitespace-pre-wrap">
-            {block.text}
+            <UserLaneMentions text={block.text} />
           </span>
         ) : block.listKind === 'bullet' ? (
           <ul key={i} className="my-1 list-disc space-y-0.5 pl-5" data-testid="user-list">
@@ -50,7 +51,9 @@ function Item({ item }: { item: UserTextItem }): React.JSX.Element {
           className="mr-1.5 align-middle"
         />
       )}
-      <span className="whitespace-pre-wrap">{item.content}</span>
+      <span className="whitespace-pre-wrap">
+        <UserLaneMentions text={item.content} />
+      </span>
     </li>
   )
 }

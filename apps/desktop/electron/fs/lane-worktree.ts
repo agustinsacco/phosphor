@@ -3,7 +3,8 @@ import { dirname, resolve } from 'node:path'
 import { branchNameFor } from '@shared/branchName'
 import type { LaneWorktreeRequest, LaneWorktreeResult } from '@shared/models'
 import { git, gitErrorText } from '@phosphor/session-runtime/git/git-exec'
-import { createWorktree, normalizeRealPath, startPoint, worktreeRootFor } from './git-worktrees'
+import { normalizeRealPath } from '@phosphor/session-runtime/git/worktree-metadata'
+import { createWorktree, startPoint, worktreeRootFor } from './git-worktrees'
 import { log } from '../debug-log'
 
 /**

@@ -97,3 +97,23 @@ it.each([
     }
   },
 )
+
+it('shows the unavailable service rather than Desktop rows for a saved This Mac selection', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke: vi.fn().mockResolvedValue([]) })
+  useMachinePagesStore.setState({ artifactsMachine: 'local' })
+  useRemoteLanesStore.setState({
+    hosts: { [MOCK_HOST_ID]: { ...mockRemoteHosts[MOCK_HOST_ID]!, state: 'down', local: true } },
+  })
+  useSessionsStore.setState({ live: { mac: { phosphorId: 'mac', workspacePath: '/mac' } } })
+  const c = document.createElement('div'),
+    root = createRoot(c)
+  try {
+    await act(async () => root.render(<ArtifactsPage />))
+    expect(c.textContent).toContain('Machine not connected')
+    expect(c.textContent).not.toContain('Mac document')
+  } finally {
+    act(() => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})

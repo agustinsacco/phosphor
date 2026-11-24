@@ -24,16 +24,16 @@ every library import against the package's exports.
 ### Install from a release
 
 This repository builds signed bundles, manifests and an installer for Linux x64,
-Linux arm64 and macOS arm64. The **Host Release** workflow
+Linux arm64, macOS arm64 and macOS x64. The **Host Release** workflow
 (`.github/workflows/release-host.yml`) runs after every green CI push to main and
 publishes the next patch version when Nx reports `host` affected since the newest
 `host-v*` tag, unless the merge carries a `Skip-Release: true` trailer. Run by hand
 from main, it releases that commit as the given version (higher than every
 published one) or the next patch. Either way it requires main's CI to have passed
-for that exact commit. It builds all
-three, signs the manifest with the `HOST_RELEASE_SIGNING_KEY` secret, verifies the
-signature against the pinned keys, and publishes `host-v<version>`. It then
-replaces the unversioned manifest, its signature and the installer on the rolling
+for that exact commit. It builds all four bundles, signs both manifests with the
+`HOST_RELEASE_SIGNING_KEY` secret, verifies both signatures against the pinned
+keys, and publishes `host-v<version>`. It then replaces the unversioned
+manifests and signatures before replacing the installer on the rolling
 `host-latest` release. Neither release is marked latest, so Desktop keeps
 `releases/latest`. The workflow refuses to build while `HOST_RELEASE_KEYS` is
 empty, and an installer with no keys refuses installation. Each bundle carries Node 24.14.1, so no system Node is needed.
@@ -42,6 +42,10 @@ The installer needs curl, ssh-keygen, tar, awk, base64, od and sha256sum or shas
 ```sh
 curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && phosphor setup
 ```
+
+The installer reads v2 first. Only a missing manifest (HTTP 404 or an absent
+file on an offline mirror) permits fallback to v1. A bad signature or invalid
+v2 never does. Intel Macs need v2.
 
 The generated installer verifies the manifest's OpenSSH Ed25519 signature in
 namespace `phosphor-host-release` against embedded pinned keys. It then checks
@@ -214,7 +218,9 @@ on PATH (fnm's multishell folder under `/run/user` is gone at logout), and a
 config must outlive the shell that wrote it. The same applies to a found node and
 to the Claude and git folders below. A Node script needs `--node FILE`, or node
 beside the found pi, or node on PATH, in that order.
-A direct executable needs no node. Without guided installation, missing pi
+A direct executable needs no node. A shell launcher may still run pi with
+`env node` (pi's managed install does): setup adds the folder of node on the
+caller's PATH to `environment.path`, as for Claude and git. Without guided installation, missing pi
 exits 69 with its npm install command. Claude and git are redetected on every run. Their directories absent from the
 Host's built PATH are merged into `environment.path`, without duplicates or
 dropping user-added folders, including without `--replace`. Missing Claude is fine; missing git
@@ -284,7 +290,10 @@ is not a terminal, with `--json`, under CI (`CI` or `GITHUB_ACTIONS`), with
 `TERM=dumb`, or with `PHOSPHOR_PLAIN=1`. `service logs` is always plain, so
 agents and pipes read the same lines as before.
 `version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
-for dev builds (`0.0.0-dev.source` when no commit is stamped).
+for dev builds (`0.0.0-dev.source` when no commit is stamped). `version --json`
+reports these release features: `ops`, `machine-grants`, `headroom`, `app-services`, `service-pause`, `local-mode`, `owner-socket`, `owner-lock` and `migrate-v1`. An attested owner sees the same list in `machine.local.features`. These describe the bundle; a client uses the connected Host’s `ready` frame for admission. See [This Mac’s service](local-service.md) for the installation gate.
+
+Fixed commands win over catalog names. For tool syntax, routing, approvals and catalog-specific exit codes, see [From a terminal](agent-control.md#from-a-terminal). `setup --local` takes `--owner-id`, `--owner-key` and `--owner-label`; it pairs without enrollment and can install in standby. It does not replace a valid configuration.
 
 | Exit          | Meaning                                                                                                             |
 | ------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -297,6 +306,18 @@ for dev builds (`0.0.0-dev.source` when no commit is stamped).
 | 77            | this machine is removed from the account                                                                            |
 | 78            | the config or state storage is invalid                                                                              |
 | 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                                              |
+
+### Pairing the local Phosphor service
+
+`setup --local --owner-id UUID --owner-key PUBLIC_KEY --owner-label LABEL --json`
+never prompts, enrolls, installs providers or changes Tailscale. The key is the owner's
+raw Ed25519 public key in base64url. JSON returns the service's `machineId` and `publicKey`.
+An existing valid config is not rewritten. A new config starts with no repositories,
+allows `SSH_AUTH_SOCK`, and uses the first available loopback port from 47615 through 47631.
+`--pi` and `--node` set the executables in a new config. Setup refuses an unsafe existing
+state directory rather than changing its permissions. `--standby` holds lane startup for
+migration. On Linux linger is enabled only when `--linger` is supplied to local setup.
+A running service is not restarted by local installation.
 
 ## Build
 
@@ -342,9 +363,13 @@ one platform are byte-identical. The archive includes Node and its license,
 `lib/` with the Host and its resources, `VERSION`, and a POSIX launcher that
 resolves symlinks without `readlink -f`.
 
-After all three targets are built, `tools/host-release/manifest.mjs --out DIR`
-writes a manifest with version, protocols, pinned Node version, source commit,
-and each artifact's target, file, bytes and SHA-256. It signs the exact bytes
+After all four targets are built, `tools/host-release/manifest.mjs --out DIR`
+writes two manifests with the same version, protocols, pinned Node version,
+source commit, and target, filename, size and SHA-256 for the shared bundles.
+The frozen `phosphor-host-<version>.manifest.json` keeps three targets for old
+installers and updaters. `phosphor-host-<version>.manifest.v2.json` adds
+`darwin-x64` and a `features` list. The `host-latest` names omit `-<version>`.
+The builder signs each manifest's exact bytes
 with `ssh-keygen -Y sign`, namespace `phosphor-host-release`, hash `sha512`.
 `HOST_RELEASE_SIGNING_KEY` supplies an OpenSSH Ed25519 private key, never a
 path. A 0600 temporary key file is removed on success and failure. The public
@@ -365,6 +390,8 @@ stop's 20 s pass, rather than wait on that process. `output.test.ts` covers the
 replacement itself, with renames and deletions that fail.
 
 ## Updating
+
+`update --stage` verifies, downloads and probes a release without selecting it. `update --apply X.Y.Z` selects a staged release and health-checks the restart, rolling back if unhealthy; it does not update pi packages. For local mode health requires a fresh `local.json` from the selected version, plus a new heartbeat if the previous service had a recent one. The service reports `update-result.json` for 24 hours. Plain CLI update does not wait for a coordinated pause; use the [service card](local-service.md#using-the-service) to stage and pause first.
 
 Release installs support `phosphor update`, `phosphor update --check` and
 `phosphor update --version X.Y.Z`. Add `--json` for a machine-readable result.
@@ -402,7 +429,7 @@ installed version. Service installs on Linux and macOS point node and the bundle
 before this rule with `phosphor service install`.
 
 An active Linux service or loaded macOS LaunchAgent restarts after selection.
-The updater waits up to 90 seconds for a new run's accepted heartbeat. `run`
+For a headless service the updater waits up to 90 seconds for a new run's accepted heartbeat. `run`
 writes `{ version, pid, startedAt, acceptedAt }` to `<state>/run.json` atomically
 at 0600 after its first accepted running heartbeat and at most once a minute.
 If the new version is not healthy, update selects the old version and restarts
@@ -437,8 +464,7 @@ private configuration PTY, with pi's environment plus only
 it out of the unit. The restart's drain ([Lifecycle](#lifecycle)) is the
 pause: a turn in flight is aborted and saved, and each lane resumes on its next
 message. The confirmation counts the lanes that are working. The Host refuses
-the task (`unavailable`) on a source install and on macOS. macOS has no
-handoff, so the restart would end the updater before its health check. A Host
+the task (`unavailable`) on a source install. On macOS an update inside the service hands off to a one-shot launchd job outside the restarting service. A Host
 older than this task rejects it as `bad-request`, and the client says to run
 `phosphor update` there once.
 
@@ -459,7 +485,7 @@ place, and the command prints the config and state directories. Add `--json`
 for a machine-readable result. On a screen, `phosphor uninstall` without `--yes`
 first asks; No exits 0 and Escape exits 130, both leaving everything in place.
 
-`phosphor uninstall --purge --yes` first logs out remotely and only on success
+`phosphor uninstall --purge --yes` refuses a non-private state folder, unknown top-level entries, or foreign files in its logs folder. Otherwise it first logs out remotely and only on success
 removes the default config and state directories too. Both flags are required.
 A failed logout keeps the program, service and data and exits 75. Every directory
 removed is checked for ownership, its expected location and symlinked ancestors.
@@ -620,7 +646,7 @@ unreachable server exits 75 and keeps the identity, with the `--local` hint.
 `--local` never contacts the server and works even if config is invalid. It
 forgets the files only; the machine stays listed until removed in Desktop.
 
-Login, status, logout, run and service status contact the configured control
+Login, status, logout, enrolled run and service status contact the configured control
 plane. Enrollment sends the public key, hostname, platform, architecture and
 Host version. Status, logout and run send the enrolled UUID. Heartbeats send
 readiness and the Host version, with zero lane counts and the verified Tailscale
@@ -632,6 +658,10 @@ the separate Host API. Redirects are refused. Requests time out after 10 seconds
 responses are capped at 64 KiB and validated with the shared wire contract.
 
 ## State
+
+With `local-mode.json` beside `config.json`, `phosphor run` can start unenrolled: lanes need neither a control heartbeat nor a TCP listener. A 410 from control closes remote access, not the lanes. With no heartbeat the service rechecks identity every minute; a new identity can start the remote API without restarting pi. Without the local-mode marker, an unenrolled run still exits 69.
+
+The local daemon serves its owner socket even in standby. Once out of standby it takes `.phosphor-owner.lock` in the pi agent folder; it retries while a live holder owns it. The record includes role, PID and process start time so a reused PID does not keep a stale lock alive. This is distinct from the run lock and from per-session path locks.
 
 `phosphor run` opens `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/state.sqlite`
 after taking the run lock. Relative `XDG_STATE_HOME` is ignored. The folder is
@@ -646,11 +676,16 @@ per marked lane, whose `lane_id` references `lanes` with `ON DELETE CASCADE`:
 pruning a lane row removes its marks. Every open creates that table if it is
 missing, outside the versioned schema, so an existing state file gains it without
 a `user_version` change and `phosphor update --rollback` still opens the file:
-the older Host ignores the table. On start, run
+the older Host ignores the table. The same rule creates the agent-control and
+local-mode tables (`lanes/store/additive.ts`): `lane_pauses`, `lane_prefs`,
+`agent_ops`, `agent_policy_meta`, `agent_jobs`, `owner_migrations` and
+`owner_migration_staging`. These hold pause and editing state, agent policy, audit and jobs, and recoverable migration state. A test opens such a file,
+beside every sidecar file, through a frozen copy of the 684cb3478 open path.
+On start, run
 reconciles pi's session files against the lane index and marks interrupted
 requests as unknown. Unavailable configured repositories become inactive, with
 one count-only log line; they do not stop heartbeats. Their ids stay stable when
-the folders return. Run scans active repository roots, up to 256 direct worktree
+the folders return. For an owner folder the daemon uses Desktop’s worktree discovery, including retained conversations after a checkout is removed. For ordinary headless repositories, run scans active repository roots, up to 256 direct worktree
 folders per repository, and live lanes' folders. Worktree links and folders
 outside the repository are skipped. Removed lanes are kept for 30 days, with at
 most 1000 removed rows after reconciliation. A returning session file keeps its
@@ -835,6 +870,12 @@ and terminal subscriptions and gate each call on its operation's capability.
 Command admission uses each operation's required capabilities, not a universal
 `sessions.control` check. Feature sections below specify the additional checks.
 
+A machine-origin grant, another enrolled machine's agent, is admitted only while
+the Host opts in and control's reach switch is not off; it reaches `ops.run`,
+`receipt-status` and `ping` and nothing else, never a surface-only op, and holds
+one of at most 16 machine sockets
+([Machine-origin grants](remote-protocol.md#machine-origin-grants)). The dispatcher enables admission while policy permits other machines.
+
 [Protocol bounds](remote-protocol.md#frames-and-streams) own frame, subscription,
 command, call and receipt-interest limits, deduplication and result sizing.
 The API adapter publishes controller presence on a client's first ready socket
@@ -922,7 +963,7 @@ has not stepped back past the server's last sequence.
 
 Network failures back off from 5 seconds to 5 minutes. A success resets the
 backoff. Rate limits wait 10 seconds; a stale sequence retries with a fresh one.
-A removed machine exits 77 and keeps its identity. Run `phosphor setup` to add it again.
+In headless mode a removed machine exits 77 and keeps its identity. Run `phosphor setup` to add it again.
 Removal deletes nothing. The state database, lanes and their transcripts,
 worktrees and branches, routines and their history, repositories, attachments,
 artifacts and config all stay. Host data is stored per OS user, not per host id,
@@ -1006,7 +1047,7 @@ child stdin is ignored. Test runners replace service managers and log followers.
 ## pi's environment
 
 The Host filters its environment through one policy rather than inheriting it
-wholesale. Only allowed variables present in the Host process reach pi. A terminal,
+wholesale. On headless Hosts, only allowed variables present in the Host process reach pi. A terminal,
 `env -i` and a service manager can supply different values or omit credentials;
 config pins program paths and builds PATH independently of that ambient PATH.
 
@@ -1036,6 +1077,19 @@ by a service manager.
   values included, and reports list variable names, never values. PATH is
   shown as its folders.
 
+On a machine paired with Desktop, when the local-mode marker enables shell
+capture, the Phosphor service also probes the user's login shell at startup.
+Each new lane uses that cached result; starting lanes does not re-run shell
+profiles. Up to 256 distinct absolute shell PATH folders come **before** the
+built PATH (transient `fnm_multishells` folders are skipped). Provider and
+explicitly passed names fill gaps; for passed ambient authority such as
+`SSH_AUTH_SOCK`, the shell's value wins. The shell cannot change `HOME`, pi's
+folder layout, loader hooks or Phosphor's own variables. A failed refresh
+keeps the last successful capture, or the Host policy alone if there is none.
+`phosphor doctor` checks a fresh capture (`shell-env`); it never prints the
+values. A capture has a 15-second deadline and timed-out shell process groups
+are killed. Headless Hosts never run a shell for this.
+
 ## doctor
 
 doctor starts no session and calls no provider: every program it runs is asked
@@ -1059,7 +1113,7 @@ An invalid existing config does not get that next step.
 | `providers`                    | Once pi itself passes: a provider is signed in, and pi's default provider is, when it has one ([providers](#providers)). With no pi provider signed in but a ready claude lane, this is information, not a warning.                                                                                                 | warning       |
 | `Tailscale`, `Tailscale serve` | Checks local Tailscale readiness and the configured Serve route. Missing transport warns; Funnel or a conflicting route fails.                                                                                                                                                                                      | warning or 78 |
 | `context-budget`               | The effective session context budget.                                                                                                                                                                                                                                                                               | never         |
-| `accounts`, `compression`      | Unavailable on a Host: pi uses the logins of the user running it, and there is no Headroom proxy.                                                                                                                                                                                                                   | never         |
+| `accounts`, `compression`      | Informational: pi uses the logins of the user running it. Headroom is optional in local mode (see below).                                                                                                                                                                                                           | never         |
 
 Two lanes come out of the checks:
 
@@ -1278,7 +1332,7 @@ a lane service. It logs only `lanes.unavailable` with a fixed reason token.
   start, with no per-project overrides; pi's own settings for the default provider, and pi's packages for
   the Claude gate; the config's context budget, re-read at each lane start, prompt
   and settled turn; and every CLAUDE.md / AGENTS.md pi
-  finds. There are no Desktop account overlays, Headroom or recents. `run` supplies
+  finds. There are no Desktop account overlays or recents. `run` supplies
   routine ownership guards for manual commands, resume, stop and deletion. Only
   the idle context-budget fallback pauses for routine-owned sessions; native
   in-loop compaction remains enabled.
@@ -2181,3 +2235,7 @@ of label, kind, percent used and reset time) or
 Failures are not cached. An unknown or removed lane is `unknown-lane`. Unlike the
 other machine reads it does not wait in the pi probe queue, since it runs the
 Claude CLI and concurrent callers share one run per account.
+
+### Headroom in local mode
+
+`headroom.set {enabled}` on the owner socket saves the switch in `<state>/headroom.json` (off by default). `headroom.status` reports `off`, `starting`, `ready` or `failed`. After the daemon owns the lanes it starts its own `headroom proxy` on a free loopback port. It checks the listening socket belongs to that child before giving new lanes `PHOSPHOR_HEADROOM_SOCKET`. The relay in the private run folder accepts only `GET /health` and `POST /v1/compress` (8 MiB limit); it returns 503 if the child exits. No daemon lane gets the TCP URL. If startup or ownership verification fails, lanes continue without compression; setting the switch on again retries.

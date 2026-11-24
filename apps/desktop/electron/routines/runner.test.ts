@@ -4,6 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { newRoutine, type RoutineRun } from '@shared/routines'
+import brainExtension from '@phosphor/pi-extensions/brain'
+import type { ToolDefinition } from '@phosphor/pi-extensions/pi-api'
+import { noOwnerReply } from '@phosphor/shared/ops'
 import { executeRoutine } from './runner'
 import {
   observeRoutineSession,
@@ -151,20 +154,37 @@ describe('window-independent routine execution', () => {
     expect((await result).status).toBe('cancelled')
     expect(h.dispose).toHaveBeenCalledWith('session')
   })
-  it('blocks unexpected dialogs without answering them', async () => {
-    request.mockImplementation(async (command: { type: string }) => {
-      if (command.type === 'get_state') {
-        queueMicrotask(() =>
-          events.emit('extension-ui', { method: 'input', title: 'Authenticate' }),
-        )
-        return new Promise(() => {})
+  it.each(['input', 'select', 'confirm', 'editor'])(
+    'blocks %s dialogs without answering them',
+    async (method) => {
+      request.mockImplementation(async (command: { type: string }) => {
+        if (command.type === 'get_state') {
+          queueMicrotask(() => events.emit('extension-ui', { method, title: 'Authenticate' }))
+          return new Promise(() => {})
+        }
+        return { success: true }
+      })
+      const result = await executeRoutine(run, new AbortController().signal, () => {})
+      expect(result.status).toBe('blocked')
+      expect(result.reason).toContain('No prompt was auto-answered')
+      expect(h.dispose).toHaveBeenCalledWith('session')
+    },
+  )
+  it('continues the run through notify and setStatus', async () => {
+    const original = request.getMockImplementation()!
+    request.mockImplementation(async (command) => {
+      if (command.type === 'prompt') {
+        events.emit('extension-ui', { method: 'notify', message: 'Starting' })
+        events.emit('extension-ui', {
+          method: 'setStatus',
+          statusKey: 'progress',
+          statusText: 'Working',
+        })
       }
-      return { success: true }
+      return original(command)
     })
     const result = await executeRoutine(run, new AbortController().signal, () => {})
-    expect(result.status).toBe('blocked')
-    expect(result.reason).toContain('No prompt was auto-answered')
-    expect(h.dispose).toHaveBeenCalledWith('session')
+    expect(result.status).toBe('finished')
   })
   it('preserves an explicitly opened successful lane for interactive follow-up', async () => {
     const original = request.getMockImplementation()!
@@ -204,4 +224,41 @@ describe('window-independent routine execution', () => {
     )
     expect(progress).toHaveBeenCalledWith({ workspacePath: realpathSync.native(directory) })
   })
+})
+
+it('finishes an unattended run when brain_search finds no app service', async () => {
+  vi.stubEnv('PHOSPHOR_OPS', 'v1')
+  vi.stubEnv('PHOSPHOR_BRAIN_ENDPOINT', '')
+  vi.stubEnv('PHOSPHOR_BRAIN_TOKEN', '')
+  try {
+    const tools = new Map<string, ToolDefinition<{ query: string }, unknown, unknown>>()
+    const sender = vi.fn(async () => noOwnerReply(null))
+    brainExtension(
+      {
+        registerTool(tool) {
+          tools.set(tool.name, tool as ToolDefinition<{ query: string }, unknown, unknown>)
+        },
+      },
+      sender,
+    )
+    const original = request.getMockImplementation()!
+    const ctx = { ui: { editor: () => events.emit('extension-ui', { method: 'editor' }) } }
+    let details: unknown
+    request.mockImplementation(async (command) => {
+      if (command.type === 'prompt')
+        details = (
+          await tools
+            .get('brain_search')
+            ?.execute('search', { query: 'Harbor' }, undefined, undefined, ctx)
+        )?.details
+      return original(command)
+    })
+    expect((await executeRoutine(run, new AbortController().signal, () => {})).status).toBe(
+      'finished',
+    )
+    expect(sender).toHaveBeenCalledTimes(1)
+    expect(details).toEqual({ status: 'unavailable', memories: 0 })
+  } finally {
+    vi.unstubAllEnvs()
+  }
 })

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { confirmSkillImport, previewSkillImport } from './archive-import'
 import { readSkillFileEntry } from './bundle'
-import { writeZipStore } from '../zip'
+import { writeZipStore } from '@phosphor/session-runtime/skills/zip'
 
 let root: string
 beforeEach(async () => {

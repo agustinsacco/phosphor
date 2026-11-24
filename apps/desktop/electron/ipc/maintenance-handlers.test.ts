@@ -21,7 +21,9 @@ vi.mock('electron', () => ({
 vi.mock('../store', () => ({ getPrefs: state.getPrefs, setMaintenancePrefs: state.setPrefs }))
 vi.mock('../registry', () => ({ registry: { list: state.list } }))
 vi.mock('../routines', () => ({ routineProtectedPaths: state.routinePaths }))
-vi.mock('../fs/git-worktrees', () => ({ normalizeRealPath: (path: string) => `/real${path}` }))
+vi.mock('@phosphor/session-runtime/git/worktree-metadata', () => ({
+  normalizeRealPath: (path: string) => `/real${path}`,
+}))
 vi.mock('../maintenance/sweep', () => ({ sweep: state.sweep }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 

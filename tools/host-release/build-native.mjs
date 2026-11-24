@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import process from 'node:process'
-import { isEntryPoint, root, pin } from './common.mjs'
+import { isEntryPoint, root, pin, contract } from './common.mjs'
 import { prepareNativeSource, stageNativeResources } from './native-stage.mjs'
 
 export const PTY_VERSION = '1.1.0'
@@ -41,7 +41,7 @@ export function validateNative(folder, target) {
 /** Build only on the target runner and verify using the exact bundled Node. */
 export function buildNative(out, node) {
   const target = `${process.platform}-${process.arch}`
-  if (!['linux-x64', 'linux-arm64', 'darwin-arm64'].includes(target))
+  if (!contract.HOST_RELEASE_TARGETS_V2.includes(target))
     throw new Error('Unsupported native target')
   const runtime = JSON.parse(
     execFileSync(

@@ -1,3 +1,4 @@
+import { orderedHostIds, localServiceId, serviceScope } from '@/stores/localServiceScope'
 import { usePlatform } from '@/platform/Platform'
 import { localMachineLabel } from '@/lib/localMachine'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
@@ -32,9 +33,12 @@ export function MachinePicker({
   const { localLanes } = usePlatform()
   const hosts = useRemoteLanesStore((s) => s.hosts)
   useMachinesStore((s) => s.machines)
-  const choices = Object.entries(hosts).filter(([, host]) => host.capabilities.includes(capability))
-  const unavailable =
-    value !== 'local' && !(includeAll && value === '') && !choices.some(([id]) => id === value)
+  value = serviceScope(value, hosts)
+  const local = localServiceId(hosts)
+  const choices = orderedHostIds([], hosts).filter((id) =>
+    hosts[id]!.capabilities.includes(capability),
+  )
+  const unavailable = value !== 'local' && !(includeAll && value === '') && !choices.includes(value)
   return (
     <ChoiceMenu
       label="Machine"
@@ -44,17 +48,17 @@ export function MachinePicker({
       onChange={onChange}
       choices={[
         ...(includeAll ? [{ value: '', label: 'All machines' }] : []),
-        ...(localLanes ? [{ value: 'local', label: localMachineLabel() }] : []),
+        ...(localLanes && !local ? [{ value: 'local', label: localMachineLabel() }] : []),
         ...(unavailable
           ? [{ value, label: `${machineLabel(value)} (unavailable)`, disabled: true }]
           : []),
-        ...choices.map(([id, host]) => ({
+        ...choices.map((id) => ({
           value: id,
-          label: `${machineLabel(id)}${stateSuffix(host)}`,
+          label: `${machineLabel(id)}${stateSuffix(hosts[id])}`,
         })),
       ]}
     >
-      <MachineGlyph local={value === 'local'} />
+      <MachineGlyph local={value === 'local' || value === local} />
       <span className="truncate">
         {value === 'local'
           ? localMachineLabel()

@@ -8,7 +8,8 @@ import type {
   SessionPush,
   UpdateState,
 } from '../models'
-import type { FileDownloadProgress, HostAttention } from './views'
+import type { FileDownloadProgress, HostAttention, LocalMachineStatus } from './views'
+import type { OpsChangedEvent } from './ops'
 import type { IpcInvokeMap, IpcInvokeChannel } from '../ipc'
 
 /** The API surface exposed on window.phosphor by the preload script. */
@@ -85,6 +86,10 @@ export interface PhosphorApi {
   onHostOpenLane(listener: (target: { hostId: string; laneId: string }) => void): () => void
   /** Voice prefs, download progress and readiness; returns unsubscribe. */
   onVoiceStatus(listener: (status: VoiceStatus) => void): () => void
+  /** Agent control changed something on a machine: reload through `ops:run`. */
+  onOpsChanged(listener: (event: OpsChangedEvent) => void): () => void
+  /** This Mac's runtime status changed (`app:localMachine`). */
+  onLocalMachineChanged(listener: (status: LocalMachineStatus) => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image

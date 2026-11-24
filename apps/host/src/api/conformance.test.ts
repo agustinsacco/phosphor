@@ -7,6 +7,7 @@ import { encodeGrant, type GrantPayload } from '@phosphor/shared/host-grant'
 import { helloProofMessage, HOST_LIMITS, type HostFrame } from '@phosphor/shared/host-protocol'
 import {
   createLoopbackPair,
+  defineAgentControlConformance,
   defineHostConformance,
   type HostConformanceFactory,
 } from '@phosphor/shared/host-protocol-testing'
@@ -25,7 +26,16 @@ import { openStore } from '../lanes/store'
 import { createUnattachedSnapshots } from '../lanes/transcript'
 import { createAuthority } from './authority'
 import { createConnection, hostProof } from './connection'
+import { fixtureGrantAuth } from './__fixtures__/grant-auth'
 import { createLaneAdapter } from './lanes'
+import { createAdapterChain } from './adapter'
+import { hostLinks } from './server'
+import { OWNER_METHODS } from '@phosphor/shared/host-protocol-owner'
+import type { OwnerHandlers } from '../owner/adapter'
+import type { OpsAdapterPorts } from '../ops/adapter'
+import { startRunOps } from '../ops/service'
+import { AGENT_POLICY_DEFAULT } from '@phosphor/shared/ops'
+import type { Authority } from './authority'
 
 // The kit uses virtual time. Only git's read-only branch lookup is scripted;
 // lane creation, SQLite, transcript reads and all protocol services are real.
@@ -38,7 +48,102 @@ type Session = {
   pending: Set<() => void>
 }
 
-const factory: HostConformanceFactory = async (limits) => {
+/**
+ * The chain with owner handlers that answer every owner method, as the socket would for
+ * an attested owner. A grant connection must still never reach one.
+ */
+const ownerHandlers = Object.fromEntries(
+  OWNER_METHODS.map((method) => [method, async () => ({})]),
+) as OwnerHandlers
+const links = hostLinks(undefined, ownerHandlers)
+
+type Live = ReturnType<typeof createLiveLanes>
+
+/**
+ * The real ops service over the fixture's store and live lanes. Its policy asks
+ * before another machine's `whoami`, so the kit can walk a confirmation through.
+ */
+async function conformanceOps(
+  directory: string,
+  hostId: string,
+  store: Awaited<ReturnType<typeof openStore>>,
+  live: () => Live,
+  runtime: Pick<HostRuntime, 'command'>,
+  authority: Authority,
+) {
+  const slot: OpsAdapterPorts = {}
+  const service = await startRunOps({
+    slot,
+    stateDirectory: join(directory, 'state'),
+    configDirectory: directory,
+    uid: process.getuid?.(),
+    store,
+    lanes: {} as never,
+    live: { summaryFor: (id) => live().summaryFor(id), sessionFor: (id) => live().sessionFor(id) },
+    command: (id, rpc) => runtime.command(id, rpc),
+    shellEnvironment: null,
+    editing: {} as never,
+    enrolledId: () => hostId,
+    unattended: new Set(),
+    log: () => {},
+  })
+  const owner = {
+    kind: 'surface',
+    clientId: 'owner',
+    label: 'Owner',
+    via: 'owner',
+    caps: ['sessions.control', 'machine.configure'],
+  } as const
+  const policy = { ...AGENT_POLICY_DEFAULT, ops: { whoami: 'ask' } }
+  await service.dispatcher.run(owner, { op: 'policy.set', args: { policy } })
+  authority.setMachineOps(true)
+  return { slot, service }
+}
+
+function save(s: Session) {
+  const file = s.state.sessionFile
+  if (!file) throw new Error('Missing scripted session file')
+  writeFileSync(
+    file,
+    [
+      JSON.stringify({ type: 'session', version: 3, id: s.state.sessionId }),
+      ...s.messages.map((message, index) =>
+        JSON.stringify({
+          type: 'message',
+          id: String(index),
+          parentId: index ? String(index - 1) : null,
+          message,
+        }),
+      ),
+    ].join('\n') + '\n',
+  )
+}
+function turn(s: Session) {
+  const message: AgentMessage = {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'Scripted reply' }],
+    timestamp: Date.now(),
+  }
+  s.deliver({ kind: 'event', event: { type: 'agent_start' } })
+  s.deliver({
+    kind: 'event',
+    event: {
+      type: 'message_update',
+      assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Scripted reply' },
+    },
+  })
+  s.messages.push(message)
+  s.state.messageCount = s.messages.length
+  s.deliver({ kind: 'event', event: { type: 'message_end', message } })
+  s.deliver({ kind: 'event', event: { type: 'agent_end', messages: [message] } })
+  save(s)
+  return { messages: 1, turns: 1 }
+}
+
+const factory = async (
+  limits: Parameters<HostConformanceFactory>[0],
+  options: { ops?: boolean } = {},
+): Promise<Awaited<ReturnType<HostConformanceFactory>>> => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'host-conformance-')))
   const repository = join(directory, 'repository')
   const sessionsRoot = join(directory, 'sessions')
@@ -76,45 +181,6 @@ const factory: HostConformanceFactory = async (limits) => {
     ...(limits.receiptTtlMs === undefined ? {} : { receiptTtlMs: limits.receiptTtlMs }),
   })
   store.syncRepositories([repository])
-  function save(s: Session) {
-    const file = s.state.sessionFile
-    if (!file) throw new Error('Missing scripted session file')
-    writeFileSync(
-      file,
-      [
-        JSON.stringify({ type: 'session', version: 3, id: s.state.sessionId }),
-        ...s.messages.map((message, index) =>
-          JSON.stringify({
-            type: 'message',
-            id: String(index),
-            parentId: index ? String(index - 1) : null,
-            message,
-          }),
-        ),
-      ].join('\n') + '\n',
-    )
-  }
-  function turn(s: Session) {
-    const message: AgentMessage = {
-      role: 'assistant',
-      content: [{ type: 'text', text: 'Scripted reply' }],
-      timestamp: Date.now(),
-    }
-    s.deliver({ kind: 'event', event: { type: 'agent_start' } })
-    s.deliver({
-      kind: 'event',
-      event: {
-        type: 'message_update',
-        assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Scripted reply' },
-      },
-    })
-    s.messages.push(message)
-    s.state.messageCount = s.messages.length
-    s.deliver({ kind: 'event', event: { type: 'message_end', message } })
-    s.deliver({ kind: 'event', event: { type: 'agent_end', messages: [message] } })
-    save(s)
-    return { messages: 1, turns: 1 }
-  }
   const runtime = {
     async start(request: unknown, deliver: Delivery = () => {}) {
       const sessionId = randomUUID()
@@ -281,6 +347,10 @@ const factory: HostConformanceFactory = async (limits) => {
     return { live, commands }
   }
   let active = compose()
+  const ops = options.ops
+    ? await conformanceOps(directory, claims.hostId, store, () => active.live, runtime, authority)
+    : undefined
+  const chain = ops ? hostLinks(ops.slot, ownerHandlers) : links
   function session(laneId: string) {
     const id = active.live.sessionFor(laneId)
     const s = id === null ? undefined : sessions.get(id)
@@ -309,12 +379,10 @@ const factory: HostConformanceFactory = async (limits) => {
       const pair = createLoopbackPair()
       const connection = createConnection({
         socket: pair.server,
-        authority,
-        origin: claims.iss,
-        hello: hello(),
-        key: host.privateKey,
-        keyset: { get: async (kid) => (kid === claims.kid ? control.publicKey : undefined) },
-        handler: adapter.handler,
+        authenticate: fixtureGrantAuth(authority, claims, { control, host }, hello(), {
+          readyFlags: ops?.slot.readyFlags,
+        }),
+        handler: (ready) => createAdapterChain(chain, adapter.handler)(ready),
         admit: (id) =>
           [...connections.values()].filter((c) => c.clientId() === id).length <
           (limits.connectionsPerClient ?? HOST_LIMITS.connectionsPerClient),
@@ -389,6 +457,7 @@ const factory: HostConformanceFactory = async (limits) => {
       executions: () => executions,
       async stop() {
         await close()
+        ops?.service.close()
         store.close()
         rmSync(directory, { recursive: true, force: true })
       },
@@ -397,3 +466,7 @@ const factory: HostConformanceFactory = async (limits) => {
 }
 
 defineHostConformance('real Host remote lanes', factory)
+defineAgentControlConformance('real Host agent control', factory)
+defineAgentControlConformance('real Host agent control, ops bound', (limits) =>
+  factory(limits, { ops: true }),
+)

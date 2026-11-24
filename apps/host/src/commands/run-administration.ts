@@ -1,3 +1,4 @@
+import type { WorkspaceLeases } from '../owner/lease'
 import { join } from 'node:path'
 import { HostArchives } from '../lanes/archive'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
@@ -16,6 +17,7 @@ import { createLaneUsage } from '../providers/lane-usage'
 import { createProviderLogins } from '../providers/login'
 import { createAccountMoves } from '../settings/account-moves'
 import { createMachineSettings } from '../settings/service'
+import { createHeadlessTasks } from '../settings/headless-tasks'
 import { createMachineTasks } from '../settings/tasks'
 import { createWrites } from '../features/writes'
 import { createFilesFeature } from '../features/files'
@@ -23,7 +25,7 @@ import { createGitFeature } from '../features/git'
 import { githubRunner } from '../features/git/github'
 import { createLaneDeletion } from '../lanes/delete'
 import { createArtifactsFeature } from '../features/artifacts'
-import { createSkillsFeature } from '../features/skills'
+import { createSkillsFeature, resolveSkills } from '../features/skills'
 import { createSkillInstallFeature } from '../features/skill-install'
 import { createLaneTransferFeatures } from '../features/lane-transfer'
 import { hostTransferRuntime } from '../features/lane-transfer/runtime'
@@ -32,11 +34,12 @@ import { hostUpdateProgram } from '../update/handoff'
 import { loadHostPty } from '../terminals/native'
 import { createTerminals } from '../terminals/service'
 import { terminalState } from '../terminals/state'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { identityDirectory, type HostIdentity } from '../control/identity'
 import { startHostWebPush, type WebPushOptions } from '../push/web-push'
 
 interface AdministrationOptions {
+  leases?: WorkspaceLeases
   context: RunContext
   configPath: string
   env: Record<string, string>
@@ -50,6 +53,7 @@ interface AdministrationOptions {
   live: ReturnType<typeof createLiveLanes>
   repositories: ReturnType<typeof createRepositories>
   routines: HostRoutines
+  hide: HostMachine['log']['hide']
   log: HostMachine['log']['write']
 }
 
@@ -106,6 +110,29 @@ function features(
   ]
 }
 
+/** The PTY and headless runners admit only one machine program between them. */
+function runTaskPorts(
+  options: AdministrationOptions,
+  settings: ReturnType<typeof createMachineSettings>,
+) {
+  const { context, terminals } = options
+  const programs = { settings, home: context.home, env: options.env, pi: options.pi }
+  const machineTasks = terminals
+    ? createMachineTasks({
+        ...programs,
+        terminals,
+        hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
+        headlessActive: () => task.active(),
+      })
+    : undefined
+  const task: ReturnType<typeof createHeadlessTasks> = createHeadlessTasks(
+    programs,
+    options.hide,
+    () => machineTasks?.active() ?? false,
+  )
+  return { machineTasks, task }
+}
+
 /** Bind administration to this run's existing runtime, path locks and terminal owner. */
 export function createRunAdministration(options: AdministrationOptions) {
   const { context, terminals, accounts } = options
@@ -130,6 +157,7 @@ export function createRunAdministration(options: AdministrationOptions) {
     sessionFor: options.live.sessionFor,
   })
   const archives = new HostArchives({
+    leases: options.leases,
     directory: hostStateDirectory(context.env, context.home),
     sessionsRoot: piSessionsRoot(context.env, context.home),
     store: options.store,
@@ -144,26 +172,30 @@ export function createRunAdministration(options: AdministrationOptions) {
       if (summary) options.live.lanesTopic.delta([summary])
     },
   })
+  const moveClaudeAccount = createAccountMoves({
+    accounts,
+    runtime: options.runtime,
+    store: options.store,
+    binding: options.binding,
+  })
+  const { machineTasks, task } = runTaskPorts(options, settings)
   return {
+    skills: {
+      agentDir: settings.agentDir,
+      context: featureContext,
+      resolveProject: (cwd: string) =>
+        resolveSkills(featureContext, { configPath: options.configPath }, undefined, cwd),
+    },
     archives,
     providerLogins,
-    moveClaudeAccount: createAccountMoves({
-      accounts,
-      runtime: options.runtime,
-      store: options.store,
-      binding: options.binding,
-    }),
-    machineTasks: terminals
-      ? createMachineTasks({
-          terminals,
-          settings,
-          home: context.home,
-          env: options.env,
-          pi: options.pi,
-          // Read when asked: this process's own release, never a path from the request.
-          hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
-        })
-      : undefined,
+    moveClaudeAccount,
+    machineTasks,
+    settingsOps: {
+      settings,
+      moveClaudeAccount,
+      task,
+      refreshDirectives: options.runtime.refreshDirectives,
+    },
     writes: createWrites(featureContext),
     deleteLane: createLaneDeletion({
       archiveOwnsCwd: (cwd) => archives.ownsCwd(cwd),

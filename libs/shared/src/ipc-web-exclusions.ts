@@ -45,3 +45,14 @@ export const BRAIN_WEB = {
   'brain:laneRead': localBrain,
   'brain:setOwner': localBrain,
 }
+
+const localRuntime = {
+  kind: 'unsupported',
+  reason: "This Mac's runtime and its move to the Phosphor service belong to Desktop.",
+} as const
+
+/** This Mac's runtime card belongs to Desktop. */
+export const LOCAL_MACHINE_WEB = {
+  'app:localMachine': localRuntime,
+  'app:localMachineAction': localRuntime,
+} as const

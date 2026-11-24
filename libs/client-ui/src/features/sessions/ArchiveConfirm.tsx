@@ -1,3 +1,4 @@
+import { ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
 import { useState } from 'react'
 import { ModalOverlay } from '@/components/Modal'
 import { TooltipButton } from '@/components/Tooltip'
@@ -87,11 +88,13 @@ export function ArchiveSessionModal({
       onClose()
     } catch (error) {
       setError(
-        onArchive
-          ? 'The Host could not archive this lane. Send or remove unsent file attachments, then check Archive before retrying.'
-          : error instanceof Error
-            ? error.message
-            : 'Archive failed. Check Archive for unfinished work before retrying.',
+        error instanceof ServiceLaneControlRefused
+          ? error.message
+          : onArchive
+            ? 'The Host could not archive this lane. Send or remove unsent file attachments, then check Archive before retrying.'
+            : error instanceof Error
+              ? error.message
+              : 'Archive failed. Check Archive for unfinished work before retrying.',
       )
     } finally {
       setBusy(false)

@@ -1,7 +1,8 @@
+import { normalizeRealPath } from '@phosphor/session-runtime/git/worktree-metadata'
 import { lstat, opendir, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RepositorySummary } from '@phosphor/shared/host-protocol'
-import { errnoIs, isInside } from '../../fs-safety'
+import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
 import type { ScanState } from '../reconcile'
 
 export const RECONCILE_LIMITS = {
@@ -50,11 +51,16 @@ async function discoverWorktrees(
   }
 }
 
-export async function discoverFolders(state: ScanState, signal?: AbortSignal): Promise<void> {
+export async function discoverFolders(
+  state: ScanState,
+  signal?: AbortSignal,
+  ownerRoots: readonly string[] = [],
+): Promise<void> {
+  const owners = new Set(ownerRoots.map(normalizeRealPath))
   for (const repository of state.repositories) {
     signal?.throwIfAborted()
     state.folders.set(repository.path, repository.id)
-    await discoverWorktrees(state, repository, signal)
+    if (!owners.has(repository.path)) await discoverWorktrees(state, repository, signal)
   }
   for (const lane of state.known) {
     signal?.throwIfAborted()

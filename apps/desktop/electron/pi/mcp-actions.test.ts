@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
   cancel: vi.fn(),
 }))
 vi.mock('./health', () => ({ checkPiHealth: state.health }))
-vi.mock('./shell-env', () => ({ piProcessEnv: state.env }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: state.env }))
 vi.mock('./stub', () => ({ piStubPath: state.stub }))
 vi.mock('./mcp-cli', () => ({
   listMcpServers: state.list,

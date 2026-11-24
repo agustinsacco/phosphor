@@ -1,3 +1,4 @@
+import { createWorkspaceLeases, type WorkspaceLeases } from '../owner/lease'
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -22,8 +23,9 @@ const sessions = {
 const listed = async () =>
   ((await archives.feature.call('archive.list', undefined)) as { data: { entries: unknown[] } })
     .data.entries
-function service() {
+function service(leases?: WorkspaceLeases) {
   return new HostArchives({
+    leases,
     sessions,
     directory,
     sessionsRoot,
@@ -211,4 +213,16 @@ it('archives and cleans up a worktree lane whose folder was removed outside Phos
     ),
   ).toEqual({ ok: true })
   expect(await listed()).toEqual([])
+})
+
+it('a workspace lease blocks restore before moving the transcript', async () => {
+  const leases = createWorkspaceLeases(() => [])
+  archives = service(leases)
+  expect(await archives.execute({ type: 'lane.archive', laneId }, () => true)).toEqual({ ok: true })
+  await leases.take('owner', [root], 10000)
+  expect(
+    await archives.execute({ type: 'archive.restore', archiveId: laneId }, () => true),
+  ).toEqual({ ok: false, code: 'busy' })
+  expect(store.listLanes()).toEqual([])
+  expect(await readFile(`${transcript}.archived`, 'utf8')).toBe('original conversation')
 })

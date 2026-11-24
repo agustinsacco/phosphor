@@ -6,7 +6,9 @@ const h = vi.hoisted(() => ({ spawn: vi.fn(), exec: vi.fn(), lookup: vi.fn(), ki
 vi.mock('node:child_process', () => ({ spawn: h.spawn, execFile: h.exec }))
 vi.mock('node:util', () => ({ promisify: () => h.exec }))
 vi.mock('./binary-lookup', () => ({ resolveBinary: h.lookup }))
-vi.mock('./shell-env', () => ({ piProcessEnv: async () => ({ PATH: '/shell' }) }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: async () => ({ PATH: '/shell' }),
+}))
 vi.mock('./stub', () => ({ piStubPath: () => undefined }))
 vi.mock('./print-mode', () => ({ killProcessTree: h.kill, runPrintMode: vi.fn() }))
 let child: EventEmitter & { stdout: PassThrough; stderr: PassThrough }

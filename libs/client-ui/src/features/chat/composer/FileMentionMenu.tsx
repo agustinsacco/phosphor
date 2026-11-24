@@ -1,19 +1,22 @@
+import type { LaneMention } from './laneMentions'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 
 export function FileMentionMenu({
   files,
+  lanes,
   activeIndex,
   onHover,
   onPick,
   onClose,
 }: {
+  lanes: LaneMention[]
   files: string[]
   activeIndex: number
   onHover: (index: number) => void
-  onPick: (file: string) => void
+  onPick: (item: string | LaneMention) => void
   onClose: () => void
 }): React.JSX.Element | null {
-  if (files.length === 0) return null
+  if (!files.length && !lanes.length) return null
 
   return (
     <PopupMenu
@@ -40,6 +43,18 @@ export function FileMentionMenu({
           </MenuRow>
         )
       })}
+      {lanes.length > 0 && <div className="text-text-tertiary px-3 pt-1 text-sm">Lanes</div>}
+      {lanes.map((lane, i) => (
+        <MenuRow
+          key={lane.href}
+          active={files.length + i === activeIndex}
+          onHover={() => onHover(files.length + i)}
+          onClick={() => onPick(lane)}
+        >
+          <span className="flex-1 truncate">{lane.title}</span>
+          <span className="text-text-tertiary truncate text-sm">{lane.machine}</span>
+        </MenuRow>
+      ))}
     </PopupMenu>
   )
 }

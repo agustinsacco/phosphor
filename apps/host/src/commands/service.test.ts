@@ -4,9 +4,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { controlMachine, type ControlMachine } from '../control/__fixtures__/machine'
 import { identityDirectory } from '../control/identity'
-import { HOST_UNIT, type ServiceRunner } from '../machine/systemd'
+import { HOST_AGENT, HOST_UNIT } from '@phosphor/shared/host-local'
+import type { ServiceRunner } from '../machine/systemd'
 import { runService, type ServiceContext } from './service'
-import { HOST_AGENT, launchdExit } from '../machine/launchd'
+import { launchdExit } from '../machine/launchd'
 import { hostLogDirectory } from '../machine/log'
 import { runCli } from '../cli'
 
@@ -531,4 +532,16 @@ it('follows from the read end across intervening growth and starts missing logs 
   }
   expect(await runService(f.context, 'logs', true)).toBe(0)
   expect(f.calls).toEqual([{ file: 'tail', args: ['-c', '+1', '-F', hostLog], follow: true }])
+})
+
+it('installs a service from the local marker without enrollment or implicit linger', async () => {
+  const f = fixture()
+  await writeFile(
+    join(machine.root, 'conf/local-mode.json'),
+    JSON.stringify({ version: 1, enabledAt: new Date().toISOString(), shellEnvironment: true }),
+    { mode: 0o600 },
+  )
+  expect(await runService(f.context, 'install')).toBe(0)
+  expect(await readFile(f.unit, 'utf8')).toContain('ExecStart=')
+  expect(f.calls.some(({ args }) => args.includes('enable-linger'))).toBe(false)
 })

@@ -1,3 +1,4 @@
+import { useAgentChangesItem } from '@/features/agent-control/LaneAgentChanges'
 import clsx from 'clsx'
 import { showMenuBelow } from '@/components/ContextMenu'
 import { TooltipButton } from '@/components/Tooltip'
@@ -19,12 +20,13 @@ export function SessionMenu({
   onFind?: () => void
 }): React.JSX.Element {
   const { nativeFiles } = usePlatform()
+  const changes = useAgentChangesItem(sessionId)
   return (
     <TooltipButton
       onClick={(event) =>
         showMenuBelow(
           event.currentTarget,
-          currentSessionMenuItems(sessionId, nativeFiles, onFind),
+          [...currentSessionMenuItems(sessionId, nativeFiles, onFind), ...changes],
           {
             title: SESSION_OPTIONS,
           },

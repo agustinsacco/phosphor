@@ -105,3 +105,17 @@ it('bounds aggregate metadata bytes at and above 4 MiB', () => {
   first.title += 'x'
   expect(parseArtifactList(items)).toBeNull()
 })
+
+it('lists a row keyed by any RFC UUID version, e.g. a pi uuidv7 session id, but reads only by a v4 lane id', () => {
+  const v7 = '019a8f2c-3b1d-7c4e-9f00-0123456789ab'
+  expect(parseArtifactList([{ ...item, laneId: v7 }])).toEqual([{ ...item, laneId: v7 }])
+  for (const laneId of [
+    '019a8f2c-3b1d-0c4e-9f00-0123456789ab',
+    '019a8f2c-3b1d-9c4e-9f00-0123456789ab',
+    '019a8f2c-3b1d-7c4e-7f00-0123456789ab',
+    '019a8f2c3b1d7c4e9f000123456789ab',
+  ])
+    expect(parseArtifactList([{ ...item, laneId }])).toBeNull()
+  expect(parseArtifactParams('artifacts.read', { laneId: v7, slug: 'guide' })).toBeNull()
+  expect(parseArtifactParams('artifacts.list', { laneId: v7 })).toBeNull()
+})

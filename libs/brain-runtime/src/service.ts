@@ -148,6 +148,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       defrag,
     }),
     agent: (method, request, signal) => recall.agent(method, request, signal),
+    forLane: recall.forLane,
     recallLaunch: recall.recallLaunch,
     curatorLaunch: recall.curatorLaunch,
     async dispose() {

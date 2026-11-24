@@ -137,4 +137,9 @@ export interface ControlInvokeMap {
     result: ControlResult<EnrollmentApproveResponse>
   }
   'control:removeMachine': { args: [id: string]; result: ControlResult<Record<never, never>> }
+  /** One switch per machine, both directions: its agents reach the others and are reached. */
+  'control:setMachineReach': {
+    args: [machineId: string, enabled: boolean]
+    result: ControlResult<{ machineReach: boolean }>
+  }
 }

@@ -1,3 +1,4 @@
+import { discoverOwnerFolders, ownerVisibility, type OwnerDiscovery } from './reconcile/owner'
 import type { RepositorySummary } from '@phosphor/shared/host-protocol'
 import type { HostStore, StoredLane } from './store'
 import { discoverFolders } from './reconcile/folders'
@@ -13,6 +14,7 @@ export interface ScanState {
   removed: number
   skipped: number
   liveLanes: number
+  visible?: (file: string, repo: string) => boolean
   admissionsFull: boolean
 }
 
@@ -22,6 +24,7 @@ export async function reconcile(
   sessionsRoot: string,
   log: (skipped: number) => void = () => {},
   signal?: AbortSignal,
+  owner?: OwnerDiscovery,
 ): Promise<{ repositories: number; lanes: number; added: number; removed: number }> {
   signal?.throwIfAborted()
   const state: ScanState = {
@@ -34,7 +37,14 @@ export async function reconcile(
     liveLanes: 0,
     admissionsFull: false,
   }
-  await discoverFolders(state, signal)
+  await discoverFolders(state, signal, owner?.roots)
+  if (owner) {
+    await discoverOwnerFolders(state, sessionsRoot, owner, signal)
+    state.visible = await ownerVisibility(state, {
+      ...owner,
+      rewound: owner.rewound ?? store.folders.rewoundFiles(),
+    })
+  }
   await removeMissingSessions(store, state, signal)
   state.liveLanes = store.listLanes().length
   await admitSessions(store, state, sessionsRoot, signal)

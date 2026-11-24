@@ -5,7 +5,9 @@ const exec = vi.hoisted(() => vi.fn())
 vi.mock('node:child_process', () => ({ execFile: exec }))
 vi.mock('node:util', () => ({ promisify: () => exec }))
 vi.mock('./binary-lookup', () => ({ resolveBinary: vi.fn() }))
-vi.mock('./shell-env', () => ({ piProcessEnv: async () => ({ PATH: '/shell' }) }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: async () => ({ PATH: '/shell' }),
+}))
 
 beforeEach(() => {
   vi.resetAllMocks()

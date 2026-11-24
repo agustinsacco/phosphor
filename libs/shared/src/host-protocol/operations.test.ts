@@ -8,6 +8,7 @@ import type { DeleteLaneOp, RepositoryOp } from '../host-protocol-repositories'
 import type { ROUTINE_OPS, RoutineOp } from '../host-protocol-routines'
 import type { TerminalOp } from '../host-protocol-terminals'
 import type { FileWriteOp } from '../host-protocol-writes'
+import type { OpsRunOp } from '../host-protocol-ops'
 import type { RpcCommand } from '../rpc'
 import {
   CAPABILITY_FOR,
@@ -54,6 +55,7 @@ describe('host-protocol operation declarations', () => {
       'host.repositories.createFolder',
       'host.repositories.order',
       'lane.marks',
+      'ops.run',
     ])
     expect(HOST_CALL_METHODS).toStrictEqual([
       'host.repositories',
@@ -92,6 +94,7 @@ describe('host-protocol operation declarations', () => {
       | RoutineOp
       | FileWriteOp
       | AttachmentOp
+      | OpsRunOp
       | LanePiOp
     >
     expectTypeOf<Core['type']>().toEqualTypeOf<
@@ -124,6 +127,7 @@ describe('host-protocol operation declarations', () => {
       | (typeof ROUTINE_OPS)[number]
       | FileWriteOp['type']
       | AttachmentOp['type']
+      | OpsRunOp['type']
     >()
     expectTypeOf<Extract<LaneOp, { type: 'lane.create' }>['worktree']>().toEqualTypeOf<{
       readonly branch: string

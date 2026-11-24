@@ -11,7 +11,11 @@ import type {
   TrafficPage,
   RemoteLaneCreate,
   HostAttention,
+  LocalRuntimeMode,
+  LocalMachineStatus,
+  LocalMachineAction,
 } from '../ipc'
+import type { ServicePauseState } from '../host-protocol-owner'
 import type { LaneReceipt } from '../lane-receipt'
 import type { HostCapability } from '../remote-host'
 import type { RepositorySummary, LaneSummary, StreamCursor } from '../host-protocol'
@@ -29,6 +33,7 @@ export interface BaselineSessionTreeEntry {
   parentId: string | null
   type: string
   timestamp: string
+  messageTimestamp?: number
   role?: string
   preview?: string
   toolName?: string
@@ -81,6 +86,17 @@ export interface BaselineHostConnectionView {
   webPushKey?: string
   pushRegistration?: 'registered' | 'failed'
   prTracking?: boolean
+  local?: true
+  enrolledHostId?: string
+  ops?: boolean
+  ownerLocal?: boolean
+  laneEditing?: boolean
+  laneContext?: boolean
+  laneReload?: boolean
+  sandboxes?: boolean
+  folderDirectives?: boolean
+  configFiles?: boolean
+  pagedLanes?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: BaselineHostLaneView[]
@@ -139,6 +155,43 @@ export interface BaselineHostAttention {
   title: string
   at: string
 }
+export type BaselineLocalRuntimeMode = 'in-app' | 'daemon'
+
+export interface BaselineLocalMachineStatus {
+  mode: BaselineLocalRuntimeMode
+  migration:
+    | 'not-needed'
+    | 'waiting'
+    | 'running'
+    | 'failed'
+    | 'committed'
+    | 'repairing'
+    | 'reverted'
+    | 'consent-needed'
+  step?: string
+  failure?: { step: string; code: string }
+  service?: 'ready' | 'connecting' | 'down' | 'attestation-failed'
+  serviceVersion?: string
+  pause?: ServicePauseState
+  notice?: 'no-bundle' | 'limits' | 'other-daemon' | 'state-folder' | 'dev-build'
+  install?: {
+    state: 'checking' | 'installing' | 'waiting' | 'blocked' | 'failed' | 'installed'
+    step?: 'download' | 'setup'
+    version?: string
+    detail?: string
+  }
+}
+
+export type BaselineLocalMachineAction =
+  | 'retry-migration'
+  | 'consent-migration'
+  | 'restart-to-finish'
+  | 'start-service'
+  | 'update-service'
+  | 'update-abort-now'
+  | 'update-cancel'
+  | 'export-diagnostics'
+
 it('freezes public view fields, redaction and optionality', () => {
   expectTypeOf<DesktopControlErrorCode>().toEqualTypeOf<BaselineDesktopControlErrorCode>()
   expectTypeOf<ControlResult<{ value: string }>>().toEqualTypeOf<
@@ -153,6 +206,9 @@ it('freezes public view fields, redaction and optionality', () => {
   expectTypeOf<TrafficPage>().toEqualTypeOf<BaselineTrafficPage>()
   expectTypeOf<RemoteLaneCreate>().toEqualTypeOf<BaselineRemoteLaneCreate>()
   expectTypeOf<HostAttention>().toEqualTypeOf<BaselineHostAttention>()
+  expectTypeOf<LocalRuntimeMode>().toEqualTypeOf<BaselineLocalRuntimeMode>()
+  expectTypeOf<LocalMachineStatus>().toEqualTypeOf<BaselineLocalMachineStatus>()
+  expectTypeOf<LocalMachineAction>().toEqualTypeOf<BaselineLocalMachineAction>()
 })
 
 import type * as Views from './views'

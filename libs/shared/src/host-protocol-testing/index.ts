@@ -2,3 +2,4 @@
 export * from './loopback'
 export * from './fake-host'
 export * from './conformance'
+export * from './scenarios'

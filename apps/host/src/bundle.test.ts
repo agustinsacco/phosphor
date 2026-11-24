@@ -120,6 +120,14 @@ describe('the Host bundle', () => {
     )
   })
 
+  it('ships the recall extension and skill from its own resource root', () => {
+    expect(statSync(join(out, 'brain-ext/brain.mjs')).isFile()).toBe(true)
+    const path = 'skills/brain/SKILL.md'
+    expect(readFileSync(join(out, path), 'utf8')).toBe(
+      readFileSync(resolve(import.meta.dirname, '../../../libs/pi-extensions', path), 'utf8'),
+    )
+  })
+
   it('ships the artifact skill and its references byte-for-byte beside pi-ext', () => {
     const source = resolve(
       import.meta.dirname,

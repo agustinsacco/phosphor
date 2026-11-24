@@ -417,3 +417,31 @@ it('keeps a Host home reachable while This Mac’s home shows its setup', async 
   await act(async () => useRemoteLanesStore.setState({ filter: MOCK_HOST_ID }))
   expect(el.querySelector('[data-testid=home-composer]')).not.toBeNull()
 })
+
+it('can start in the checkout through the service without an in-app probe', async () => {
+  useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.local = true
+  useWorktreesStore.setState({ preferWorktree: false })
+  await render()
+  expect(el.querySelector('input[type=checkbox]')).not.toBeNull()
+  await send()
+  const created = invoke.mock.calls.find(([ch]) => ch === 'hosts:createLane')
+  expect(created?.[1]).toBe(MOCK_HOST_ID)
+  expect(created?.[2]).not.toHaveProperty('worktree')
+  expect(invoke.mock.calls.some(([ch]) => ch === 'pi:commands')).toBe(false)
+})
+
+it('shows the same-machine branch control only in the Desktop service composer', async () => {
+  const { PlatformProvider, WIDE_BROWSER_PLATFORM, COMPACT_PLATFORM, DESKTOP_PLATFORM } =
+    await import('@/platform/Platform')
+  useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.local = true
+  for (const platform of [WIDE_BROWSER_PLATFORM, COMPACT_PLATFORM, DESKTOP_PLATFORM]) {
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <WorkspaceHome workspacePath="/ws" />
+        </PlatformProvider>,
+      ),
+    )
+    expect(el.querySelector('input[type=checkbox]') !== null).toBe(platform === DESKTOP_PLATFORM)
+  }
+})

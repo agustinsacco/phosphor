@@ -29,6 +29,7 @@ import { workspaceName } from '@/lib/path'
 export function BranchPicker({
   repoPath,
   currentCwd,
+  configured,
   mainBranch,
   onSelectMain,
   onSelectWorktree,
@@ -37,6 +38,7 @@ export function BranchPicker({
 }: {
   repoPath: string
   /** Worktree path currently selected, or null when the main tree is. */
+  configured?: (path: string) => boolean
   currentCwd: string | null
   /** Branch shown on the "Main" row; defaults to the main worktree's branch. */
   mainBranch?: string
@@ -86,15 +88,6 @@ export function BranchPicker({
   const visibleWorktrees = linked.filter((w) =>
     matches(`${workspaceName(w.path)} ${w.branch ?? ''}`),
   )
-  /**
-   * Branches not already represented by a row above. Trunk is excluded because
-   * the "Main tree" row is how you get to it, and branches that already have a
-   * worktree appear in the Worktrees section instead of twice.
-   *
-   * Unlike the old menu this is neither capped nor filtered down to branches
-   * git considers "free": with the checkbox off, a branch that is checked out
-   * in the main tree is still a legitimate thing to select.
-   */
   const visibleBranches = repo.branches.filter(
     (b) => !b.worktreePath && b.name !== repo.defaultBranch && matches(b.name),
   )
@@ -247,6 +240,12 @@ export function BranchPicker({
         <>
           <SectionHeading>Worktrees</SectionHeading>
           {visibleWorktrees.map((wt) => {
+            if (configured && !configured(wt.realPath))
+              return (
+                <p key={wt.path} className="text-text-secondary px-3 py-1">
+                  {workspaceName(wt.path)} · Add this folder on the machine first.
+                </p>
+              )
             const behindMain = wt.branch ? byName.get(wt.branch)?.behindDefault : undefined
             return (
               <div key={wt.path}>

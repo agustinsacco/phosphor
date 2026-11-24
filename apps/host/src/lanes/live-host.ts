@@ -12,7 +12,7 @@ import { createLanePrReader } from './live/lane-pr-fold'
  * `createLiveLanes` directly and so never spawn git or fold session files.
  */
 export function createHostLiveLanes(
-  options: Pick<LiveOptions, 'epoch' | 'store' | 'runtime' | 'now'> & {
+  options: Pick<LiveOptions, 'epoch' | 'store' | 'runtime' | 'now' | 'pauseFor'> & {
     log: RuntimeLog
     sessionsRoot: string
   },

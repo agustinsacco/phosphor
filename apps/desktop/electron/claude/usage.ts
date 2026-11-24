@@ -2,7 +2,7 @@ import { tmpdir } from 'node:os'
 import { createClaudeUsage } from '@phosphor/session-runtime/claude/usage'
 import { runPrintMode } from '../pi/print-mode'
 import { resolveBinary } from '../pi/packages'
-import { piProcessEnv } from '../pi/shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 
 async function defaultRunner(binaryPath: string, env: NodeJS.ProcessEnv): Promise<string | null> {
   // `--no-session-persistence`: without it every poll saved a transcript under

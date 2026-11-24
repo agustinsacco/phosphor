@@ -145,11 +145,13 @@ edge secrets or peer error messages. [Tracing a machine](remote-development.md#t
 lists the events and their correlation rules.
 
 Rate limits are sliding windows held per purpose, the key prefix before the
-first colon. Each of the eight purposes (`enrollment-create`, `enrollment-poll-ip`,
+first colon. Each of the eleven purposes (`enrollment-create`, `enrollment-poll-ip`,
 `enrollment-poll`, `enrollment-failure`, `user-verify`, `host-auth`,
-`usage-ping`, `usage-download`) has its own 10,000-key cap, 80,000 keys in all.
+`usage-ping`, `usage-download`, `machine-auth`, `machine-directory`,
+`machine-grant-issue`) has its own 10,000-key cap, 110,000 keys in all.
 None caps what a signed-in user does: they pace anonymous traffic by address,
-and failed enrollment-code guesses per user. The two usage purposes never answer 429:
+failed enrollment-code guesses per user, and Host-signed machine requests by
+address and Host. The two usage purposes never answer 429:
 an over-limit request is answered normally and not counted.
 A full purpose never refuses a new key: it sweeps its expired windows, then
 evicts its oldest key. A flood of fresh keys only weakens the limit and never
@@ -182,8 +184,9 @@ in Postgres, so any number of replicas and restarts are safe.
 Grants use `phosphor-grant.v1.<base64url(payload JSON)>.<base64url(signature)>`.
 Ed25519 signs the exact payload bytes, without a header or algorithm choice.
 Claims are `v`, `iss`, `kid`, `sub`, `sid`, `hostId`, `epoch`, `client: {id, label}`,
-`caps`, `iat`, `exp` and `jti`. Issuance includes all `HOST_CAPABILITIES` and sets
-`exp = iat + 300` seconds. Hosts still gate features by what they implement.
+`caps`, `iat`, `exp` and `jti`. Issuance sets `caps` to `LEGACY_HOST_CAPABILITIES` and
+`exp = iat + 300` seconds. Machine configuration is an opt-in `configure: true`
+claim, not an additional entry in `caps`. Hosts still gate features by what they implement.
 The broker never receives lane ids, prompts or repository names. Issuance logs
 only `userId`, `hostId`, `clientId`, `jti` and `exp`. Client registration and
 revocation events carry only user and client ids. Session ids, grants, tokens,
@@ -231,6 +234,29 @@ but omits all three new fields and logs `heartbeat.revocations_unavailable`
 with only the Host id and an error code. Hosts treat missing fields as no news,
 not as clearing earlier revocations. The grant's five-minute lifetime bounds
 access during an outage; the ten-minute window covers a later successful beat.
+
+## Machine reach
+
+`libs/shared/src/control-api/machine-reach.ts` defines how one enrolled machine
+reaches a sibling. `CONTROL_MACHINE_ROUTES` names these routes, separate from
+`CONTROL_ROUTES`:
+
+- `GET /api/v1/hosts/self/machines`, Host-signed: a `MachineDirectoryResponse`. It
+  holds `self {id, label, machineReach}` and at most 20 siblings, each with
+  version, last seen, state, readiness, `machineGrants`, `machineReach` and
+  `reachable` (the sibling has an endpoint).
+- `POST /api/v1/hosts/self/machine-grants`, Host-signed, `{targetHostId}`: a
+  `GrantIssueResponse` whose grant carries `origin: 'machine'`, the caller's id and
+  no caps ([machine-origin grants](remote-protocol.md#machine-origin-grants)).
+- `PATCH /api/v1/machines/:id/reach` (`machineReachRoute`), user-authenticated,
+  `{enabled}`: `{machineReach}`.
+
+Heartbeat requests may carry `machineGrants`, and heartbeat responses
+`machineReach`. `MachineView` may carry `machineReach` and `machineGrants`. The
+parsers keep each one only when it is a boolean. An absent `machineReach` means
+older control, so clients hide the switch instead of showing it off. Host-signed routes spend a separate pre-signature IP budget (120/min), then a per-caller directory (30/min) or issue (60/min) budget. Control issues only to a sibling on the same account with reach on at both ends; a target must be running, have an endpoint, report machine grants and have been seen within 90 seconds. A disabled account or reach-off is forbidden; an unknown target is not found, an unavailable target is a conflict, and exhaustion of the principal cap is rate-limited.
+
+Turning off reach revokes the machine principal. Heartbeats distribute revoked IDs alongside revoked client IDs; if the machine lookup fails, control accepts the ordinary heartbeat without the extra fields. A failed reach lookup on the machine list likewise omits reach metadata. Existing grants are short-lived even if a heartbeat cannot deliver a revocation.
 
 ## Configuration and local use
 
@@ -350,15 +376,16 @@ physical-device acceptance.
 
 ## Control-directory schema
 
-`supabase/migrations/` holds versioned PostgreSQL migrations for eight tables:
+`supabase/migrations/` holds versioned PostgreSQL migrations including these tables:
 
 - `remote_access_accounts`: server-managed suspension state, GitHub login,
   update time and when the owner's grants were last retired. New accounts are
   enabled by default.
 - `remote_hosts`: owner, label, hostname, public key, fingerprint, platform,
   architecture, version, heartbeat sequence and state, readiness, lane counts,
-  optional bare HTTPS endpoint and revocation epoch.
+  optional bare HTTPS endpoint, revocation epoch, `machine_reach` (default true) and reported `machine_grants`.
 - `remote_clients`: owner, client kind, display label and revocation metadata.
+- `remote_machine_principals`: the distinct client and session IDs for sibling grants, scoped to the owner and machine. No client policy; issuance bounds live and recently revoked principals to 40 per owner. Machine grant sessions are not user grant sessions.
 - `remote_grant_sessions`: recently issued Auth session ids and times for bounded
   heartbeat revocation checks. It has no client grants or policies.
 - `remote_web_sessions`: one row per signed-in browser: its client, owner,
@@ -384,7 +411,8 @@ Only the server writes. The `service_role` can execute the public `control_*`
 functions for account refresh, enrollment create/poll/lookup/approve, machine
 list/rename/revoke and Host key/self/self-revoke/heartbeat, client registration and
 revocation, grant issuance and revocation lookup, browser sessions and Host nonce
-claims. These functions use an empty search path. They are security invokers
+claims, plus machine directory, grant issue, beat and reach reads/writes. These
+functions use an empty search path. They are security invokers
 except the revocation lookup described in [Grants and revocation](#grants-and-revocation),
 account deletion, the admin check described in
 [Usage analytics](usage-analytics.md#admin-summary), and the two

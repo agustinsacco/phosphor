@@ -5,12 +5,15 @@ import type { BrainLanes, BrainService } from '@phosphor/brain-runtime/types'
 import { openBrainStore } from '@phosphor/memory-engine/store'
 import { loadSqlite } from '@phosphor/session-runtime/sqlite'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
+import { desktopBrainApp } from './app-service'
+import { localRuntimeMode } from '../local-machine/mode'
 import { registry } from '../registry'
 import { log } from '../debug-log'
 import { broadcast } from '../broadcast'
 import { prepareDesktopSessionLaunch } from '../pi/session-launch'
 import { desktopSessionPolicy } from '../pi/session-policy'
-import { desktopSessions, setSessionRecall, spawnSession } from '../pi/session-runtime'
+import { setSessionRecall } from '../pi/contributions/brain'
+import { desktopSessions, spawnSession } from '../pi/session-runtime'
 import { createBrainAgentLane } from './agent-lane'
 import { brainLaneFolder, laneBrainLaunch } from './lane-folder'
 import { createBrainEmbeddings } from './embedding-service'
@@ -26,10 +29,12 @@ const resources = (): string =>
 /** A live lane is busy while its agent works; its extraction waits until it settles. */
 const lanes: BrainLanes = {
   busy: (sessionPath) =>
-    registry.list().some((live) => {
-      const client = registry.get(live.sessionId)?.client
-      return client?.sessionFile === sessionPath && client.activity.busy
-    }),
+    localRuntimeMode() === 'daemon'
+      ? desktopBrainApp.busy(sessionPath)
+      : registry.list().some((live) => {
+          const client = registry.get(live.sessionId)?.client
+          return client?.sessionFile === sessionPath && client.activity.busy
+        }),
   async launch(sessionPath) {
     const launch = await prepareDesktopSessionLaunch()
     const account = await desktopSessionPolicy.account({ sessionPath })
@@ -60,7 +65,10 @@ const agentLane = (folder: string) =>
     create: (options, execution) => spawnSession(options, undefined, execution),
     client: (sessionId) => registry.get(sessionId)?.client,
     command: (sessionId, command) => desktopSessions.command(sessionId, command),
-    changed: (workspacePath) => broadcast('sessions:changed', { workspacePath }),
+    // In daemon mode no window lists the in-app Brain lane's folder.
+    changed: (workspacePath) => {
+      if (localRuntimeMode() !== 'daemon') broadcast('sessions:changed', { workspacePath })
+    },
   })
 
 async function construct(): Promise<BrainService> {
@@ -80,6 +88,7 @@ async function construct(): Promise<BrainService> {
         createDesktopSearch(path, join(import.meta.dirname, 'brain-search-worker.js')),
       embeddings,
       lanes,
+      onChange: () => desktopBrainApp.brainChanged(),
       guardExtension: join(root, 'brain-ext/brain-fork-guard.mjs'),
       recall: { extension: join(root, 'brain-ext/brain.mjs'), skill: join(root, 'skills/brain') },
       curator: {
@@ -100,6 +109,7 @@ async function construct(): Promise<BrainService> {
  * lane gets Brain Agent's tools instead, and its default rules if AGENTS.md is missing.
  */
 export function installBrainRecall(): void {
+  desktopBrainApp.install(brainService, () => log('brain', 'Brain app service unavailable'))
   setSessionRecall(async (workspacePath) => {
     try {
       const folder = brainLaneFolder(app.getPath('userData'))
@@ -113,5 +123,6 @@ export function installBrainRecall(): void {
 
 export async function disposeBrain(): Promise<void> {
   closing = true
+  await desktopBrainApp.dispose()
   if (pending) await (await pending.catch(() => undefined))?.dispose()
 }

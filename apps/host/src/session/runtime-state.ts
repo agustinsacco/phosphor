@@ -1,3 +1,9 @@
+import type { ContextFilePrefs } from '@phosphor/shared/context-files'
+import type { AppServices } from './app-services'
+import type { WorkspaceLeases } from '../owner/lease'
+import type { DaemonHeadroom } from './headroom'
+import type { HostShellEnvironment } from '../machine/shell-environment'
+import type { HostOpsLanePorts } from './contributions/ops'
 import { hostname, type as osType } from 'node:os'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
@@ -23,6 +29,7 @@ import {
 
 /** What a validated Host knows about its machine. 05-D assembles it from doctor's checks. */
 export interface HostMachine {
+  appServices?: AppServices
   /** pi as doctor resolved it: node and pi's cli, or pi alone. Never a stub. */
   pi: { binaryPath: string; prefixArgs: string[] }
   /** All of pi's environment, PATH included: what buildPiEnvironment built. */
@@ -34,6 +41,8 @@ export interface HostMachine {
   /** In Desktop's grammar; '' is the 200k default. */
   contextBudget: string
   machineContext?: Extract<MachineContext, { kind: 'host' }>
+  headroom?: DaemonHeadroom
+  shellEnvironment?: HostShellEnvironment
   log: HostLog
 }
 
@@ -49,16 +58,22 @@ export class RequestError extends Error {
 }
 
 export interface RuntimeOptions {
+  leases?: WorkspaceLeases
   claudeAccounts?: HostClaudeAccounts
   trashTranscript?: (path: string) => Promise<void>
+  ownerTrashTranscript?: (path: string) => Promise<void>
   life?: Lifecycle
   timings?: Partial<DrainTimings>
   dialogs?: 'cancel' | 'forward'
   routines?: SessionServiceRuntime<Delivery>['routines']
   /** The generated directive blocks for the next lane; all on when absent. */
+  agentDirectivesByProject?: () => Record<string, AgentDirectivePrefs>
   agentDirectives?: () => AgentDirectivePrefs
   /** The context budget for the next lane and each settled turn; the machine's when absent. */
   contextBudget?: () => string
+  contextFiles?: () => ContextFilePrefs | undefined
+  /** Agent control for the lanes (op channel and `phosphor` tool); absent spawns as before. */
+  ops?: HostOpsLanePorts
 }
 
 /** One process-local ownership domain, shared by every start, command and deletion. */

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { HOST_LIMITS, type LaneOp } from '@phosphor/shared/host-protocol'
-import { check } from './validation-primitives'
+import type { Controller } from './store/types'
+import { check, text, uuid } from './validation-primitives'
 
 export { check, uuid, integer, text, absolutePath } from './validation-primitives'
 export { storedReceipt } from './receipt-validation'
@@ -67,4 +68,9 @@ export function canonicalJson(
 }
 export function opHash(op: LaneOp): string {
   return createHash('sha256').update(canonicalJson(op)).digest('hex')
+}
+export function validateController(controller: Controller): void {
+  uuid(controller.clientId)
+  check(typeof controller.label === 'string')
+  text(controller.label, HOST_LIMITS.labelChars)
 }

@@ -1,7 +1,11 @@
 import { realpathSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import type { BrainRecallLaunch, BrainService } from '@phosphor/brain-runtime/types'
+import type {
+  BrainCuratorLaunch,
+  BrainRecallLaunch,
+  BrainService,
+} from '@phosphor/brain-runtime/types'
 
 /** Brain Agent's working rules until the owner changes them. Written once, never overwritten. */
 export const BRAIN_AGENT_RULES_V7 = `# Brain Agent
@@ -94,6 +98,20 @@ export function isBrainLaneFolder(cwd: string, folder: string): boolean {
   return (real(cwd) ?? resolve(cwd)) === folder
 }
 
+/**
+ * Whether `cwd` is exactly this Desktop's Brain lane folder, `<real userData>/brain/Brain`, by real
+ * path; a symlink in its place fails closed. It is Desktop-private, so it is the one in-app lane
+ * daemon mode starts (registry.ts) and the one folder migration never plans.
+ */
+export function isDesktopBrainLane(
+  cwd: string,
+  userData: string,
+  realpath: (path: string) => string | null = real,
+): boolean {
+  const root = realpath(userData)
+  return root !== null && realpath(cwd) === join(root, 'brain', 'Brain')
+}
+
 const rulesPath = (folder: string): string => join(folder, 'AGENTS.md')
 
 /** The folder, and the default rules when AGENTS.md is missing; the owner's rules stay as they are. */
@@ -121,7 +139,7 @@ export async function laneBrainLaunch(
   workspacePath: string,
   folder: string,
   service: () => Promise<Pick<BrainService, 'recallLaunch' | 'curatorLaunch'>>,
-): Promise<BrainRecallLaunch | undefined> {
+): Promise<BrainRecallLaunch | BrainCuratorLaunch | undefined> {
   if (!isBrainLaneFolder(workspacePath, folder)) return (await service()).recallLaunch()
   await ensureBrainLane(folder)
   return (await service()).curatorLaunch()

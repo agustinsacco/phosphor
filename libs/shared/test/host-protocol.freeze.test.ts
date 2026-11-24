@@ -18,6 +18,13 @@ import {
   type ClientFrame,
   type HostFrame,
 } from '@phosphor/shared/host-protocol'
+import { READY_OP_FLAGS } from '@phosphor/shared/host-protocol'
+import { OPS_LIMITS, OPS_RUN } from '@phosphor/shared/host-protocol-ops'
+import {
+  OWNER_METHODS,
+  OWNER_METHODS_ANY_LOCAL,
+  parseOwnerParams,
+} from '@phosphor/shared/host-protocol-owner'
 import { FILE_METHODS } from '@phosphor/shared/host-protocol-files'
 import { FILE_BYTES_LIMITS, FILE_BYTES_METHOD } from '@phosphor/shared/host-protocol-file-bytes'
 import { ROUTINE_OPS } from '@phosphor/shared/host-protocol-routines'
@@ -406,7 +413,78 @@ describe('Host API constants and op lists', () => {
       'host.repositories.createFolder',
       'host.repositories.order',
       'lane.marks',
+      'ops.run',
     ])
+  })
+
+  it('keeps the agent-op envelope, ready flags and owner methods exactly, in order', () => {
+    expect(OPS_RUN).toBe('ops.run')
+    expect(OPS_LIMITS).toStrictEqual({
+      argsBytes: 307200,
+      contentBytes: 262144,
+      resultBytes: 65536,
+      callDataBytes: 1048576,
+      reasonChars: 300,
+      idsPerOp: 200,
+      hostsPerBatch: 20,
+      batchConcurrency: 4,
+      confirmTtlMs: 600000,
+      pageChars: 256,
+    })
+    expect(READY_OP_FLAGS).toStrictEqual([
+      'ops',
+      'ownerLocal',
+      'laneEditing',
+      'laneContext',
+      'laneReload',
+      'sandboxes',
+      'folderDirectives',
+      'configFiles',
+      'pagedLanes',
+    ])
+    expect(OWNER_METHODS).toStrictEqual([
+      'machine.local',
+      'machine.identity.reload',
+      'machine.enroll',
+      'machine.owner',
+      'machine.pause',
+      'app.service.register',
+      'headroom.status',
+      'headroom.set',
+      'owner.index',
+      'owner.migrate.begin',
+      'owner.migrate.import',
+      'owner.migrate.status',
+      'owner.migrate.commit',
+      'owner.migrate.abort',
+      'owner.lease.take',
+      'owner.lease.renew',
+      'owner.lease.release',
+      'owner.transcript.page',
+      'owner.account.prepare',
+      'owner.account.register',
+      'owner.account.discard',
+    ])
+    expect(OWNER_METHODS_ANY_LOCAL).toStrictEqual([
+      'machine.local',
+      'machine.identity.reload',
+      'headroom.status',
+    ])
+    for (const method of [OPS_RUN, ...OWNER_METHODS])
+      expect(HOST_CALL_METHODS, method).not.toContain(method)
+  })
+
+  it('registers a private Brain socket, never a loopback server', () => {
+    const reg = {
+      service: 'brain',
+      recall: true,
+      endpoint: '/private/brain/rpc.sock',
+      token: 'test',
+    }
+    expect(parseOwnerParams('app.service.register', reg)).toStrictEqual(reg)
+    expect(
+      parseOwnerParams('app.service.register', { ...reg, endpoint: 'http://127.0.0.1:1234' }),
+    ).toBeNull()
   })
 
   it('lists only op types the command union carries', () => {

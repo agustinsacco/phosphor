@@ -13,7 +13,7 @@ import {
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { ATTACHMENT_LIMITS as LIMIT } from '@phosphor/shared/host-protocol-attachments'
-import { errnoIs } from '../../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { laneIdPattern, type AttachmentState } from './state'
 import { laneDirectory } from './storage'
 

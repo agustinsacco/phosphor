@@ -164,6 +164,14 @@
       "types": "./src/pi/lane-reload.ts",
       "default": "./src/pi/lane-reload.ts"
     },
+    "./pi/live-directives": {
+      "types": "./src/pi/live-directives.ts",
+      "default": "./src/pi/live-directives.ts"
+    },
+    "./pi/package-updates": {
+      "types": "./src/pi/package-updates.ts",
+      "default": "./src/pi/package-updates.ts"
+    },
     "./pi/package-resources": {
       "types": "./src/pi/package-resources.ts",
       "default": "./src/pi/package-resources.ts"
@@ -195,6 +203,18 @@
     "./pi/rpc-client": {
       "types": "./src/pi/rpc-client.ts",
       "default": "./src/pi/rpc-client.ts"
+    },
+    "./pi/node-identity": {
+      "types": "./src/pi/node-identity.ts",
+      "default": "./src/pi/node-identity.ts"
+    },
+    "./pi/op-channel": {
+      "types": "./src/pi/op-channel.ts",
+      "default": "./src/pi/op-channel.ts"
+    },
+    "./pi/contributions/ops": {
+      "types": "./src/pi/contributions/ops.ts",
+      "default": "./src/pi/contributions/ops.ts"
     },
     "./pi/session-activity": {
       "types": "./src/pi/session-activity.ts",
@@ -243,6 +263,18 @@
     "./pi/session-service": {
       "types": "./src/pi/session-service.ts",
       "default": "./src/pi/session-service.ts"
+    },
+    "./pi/contributions/directives": {
+      "types": "./src/pi/contributions/directives.ts",
+      "default": "./src/pi/contributions/directives.ts"
+    },
+    "./pi/contributions/brain": {
+      "types": "./src/pi/contributions/brain.ts",
+      "default": "./src/pi/contributions/brain.ts"
+    },
+    "./pi/spawn-contributions": {
+      "types": "./src/pi/spawn-contributions.ts",
+      "default": "./src/pi/spawn-contributions.ts"
     },
     "./pi/session-startup": {
       "types": "./src/pi/session-startup.ts",
@@ -403,6 +435,254 @@
     "./lane-archive/storage": {
       "types": "./src/lane-archive/storage.ts",
       "default": "./src/lane-archive/storage.ts"
+    },
+    "./pi/session-writer": {
+      "types": "./src/pi/session-writer.ts",
+      "default": "./src/pi/session-writer.ts"
+    },
+    "./pi/session-tree": {
+      "types": "./src/pi/session-tree.ts",
+      "default": "./src/pi/session-tree.ts"
+    },
+    "./claude/ledger": {
+      "types": "./src/claude/ledger.ts",
+      "default": "./src/claude/ledger.ts"
+    },
+    "./claude/session-map": {
+      "types": "./src/claude/session-map.ts",
+      "default": "./src/claude/session-map.ts"
+    },
+    "./pi/lane-config": {
+      "types": "./src/pi/lane-config.ts",
+      "default": "./src/pi/lane-config.ts"
+    },
+    "./sandboxes/folders": {
+      "types": "./src/sandboxes/folders.ts",
+      "default": "./src/sandboxes/folders.ts"
+    },
+    "./sandboxes/service": {
+      "types": "./src/sandboxes/service.ts",
+      "default": "./src/sandboxes/service.ts"
+    },
+    "./sandboxes/transcripts": {
+      "types": "./src/sandboxes/transcripts.ts",
+      "default": "./src/sandboxes/transcripts.ts"
+    },
+    "./pi/shell-env": {
+      "types": "./src/pi/shell-env.ts",
+      "default": "./src/pi/shell-env.ts"
+    },
+    "./headroom/proxy-process": {
+      "types": "./src/headroom/proxy-process.ts",
+      "default": "./src/headroom/proxy-process.ts"
+    },
+    "./headroom/proxy-detection": {
+      "types": "./src/headroom/proxy-detection.ts",
+      "default": "./src/headroom/proxy-detection.ts"
+    },
+    "./headroom/relay": {
+      "types": "./src/headroom/relay.ts",
+      "default": "./src/headroom/relay.ts"
+    },
+    "./headroom/supervisor": {
+      "types": "./src/headroom/supervisor.ts",
+      "default": "./src/headroom/supervisor.ts"
+    },
+    "./fs-safety": {
+      "types": "./src/fs-safety.ts",
+      "default": "./src/fs-safety.ts"
+    },
+    "./host-install/start-service": {
+      "types": "./src/host-install/start-service.ts",
+      "default": "./src/host-install/start-service.ts"
+    },
+    "./host-install/launcher": {
+      "types": "./src/host-install/launcher.ts",
+      "default": "./src/host-install/launcher.ts"
+    },
+    "./host-install/probe": {
+      "types": "./src/host-install/probe.ts",
+      "default": "./src/host-install/probe.ts"
+    },
+    "./host-install/release-source": {
+      "types": "./src/host-install/release-source.ts",
+      "default": "./src/host-install/release-source.ts"
+    },
+    "./host-install/verify": {
+      "types": "./src/host-install/verify.ts",
+      "default": "./src/host-install/verify.ts"
+    },
+    "./host-install/archive": {
+      "types": "./src/host-install/archive.ts",
+      "default": "./src/host-install/archive.ts"
+    },
+    "./host-install/download": {
+      "types": "./src/host-install/download.ts",
+      "default": "./src/host-install/download.ts"
+    },
+    "./host-install/fetch": {
+      "types": "./src/host-install/fetch.ts",
+      "default": "./src/host-install/fetch.ts"
+    },
+    "./host-install/files": {
+      "types": "./src/host-install/files.ts",
+      "default": "./src/host-install/files.ts"
+    },
+    "./host-install/layout": {
+      "types": "./src/host-install/layout.ts",
+      "default": "./src/host-install/layout.ts"
+    },
+    "./host-install/lock": {
+      "types": "./src/host-install/lock.ts",
+      "default": "./src/host-install/lock.ts"
+    },
+    "./host-install/lock-retirement": {
+      "types": "./src/host-install/lock-retirement.ts",
+      "default": "./src/host-install/lock-retirement.ts"
+    },
+    "./host-install/release-v2": {
+      "types": "./src/host-install/release-v2.ts",
+      "default": "./src/host-install/release-v2.ts"
+    },
+    "./ops/types": {
+      "types": "./src/ops/types.ts",
+      "default": "./src/ops/types.ts"
+    },
+    "./ops/reach": {
+      "types": "./src/ops/reach.ts",
+      "default": "./src/ops/reach.ts"
+    },
+    "./ops/builtins": {
+      "types": "./src/ops/builtins.ts",
+      "default": "./src/ops/builtins.ts"
+    },
+    "./ops/deferred": {
+      "types": "./src/ops/deferred.ts",
+      "default": "./src/ops/deferred.ts"
+    },
+    "./ops/dispatcher": {
+      "types": "./src/ops/dispatcher.ts",
+      "default": "./src/ops/dispatcher.ts"
+    },
+    "./ops/judge": {
+      "types": "./src/ops/judge.ts",
+      "default": "./src/ops/judge.ts"
+    },
+    "./ops/limits": {
+      "types": "./src/ops/limits.ts",
+      "default": "./src/ops/limits.ts"
+    },
+    "./ops/pipeline": {
+      "types": "./src/ops/pipeline.ts",
+      "default": "./src/ops/pipeline.ts"
+    },
+    "./ops/policy": {
+      "types": "./src/ops/policy.ts",
+      "default": "./src/ops/policy.ts"
+    },
+    "./ops/ports": {
+      "types": "./src/ops/ports.ts",
+      "default": "./src/ops/ports.ts"
+    },
+    "./ops/principals": {
+      "types": "./src/ops/principals.ts",
+      "default": "./src/ops/principals.ts"
+    },
+    "./ops/route": {
+      "types": "./src/ops/route.ts",
+      "default": "./src/ops/route.ts"
+    },
+    "./ops/route-batch": {
+      "types": "./src/ops/route-batch.ts",
+      "default": "./src/ops/route-batch.ts"
+    },
+    "./owner-lock/types": {
+      "types": "./src/owner-lock/types.ts",
+      "default": "./src/owner-lock/types.ts"
+    },
+    "./owner-lock/link-lock": {
+      "types": "./src/owner-lock/link-lock.ts",
+      "default": "./src/owner-lock/link-lock.ts"
+    },
+    "./owner-lock/owner-lock": {
+      "types": "./src/owner-lock/owner-lock.ts",
+      "default": "./src/owner-lock/owner-lock.ts"
+    },
+    "./owner-lock/process-start": {
+      "types": "./src/owner-lock/process-start.ts",
+      "default": "./src/owner-lock/process-start.ts"
+    },
+    "./ops/confirm": {
+      "types": "./src/ops/confirm.ts",
+      "default": "./src/ops/confirm.ts"
+    },
+    "./ops/confirm-message": {
+      "types": "./src/ops/confirm-message.ts",
+      "default": "./src/ops/confirm-message.ts"
+    },
+    "./ops/audit": {
+      "types": "./src/ops/audit.ts",
+      "default": "./src/ops/audit.ts"
+    },
+    "./ops/redact": {
+      "types": "./src/ops/redact.ts",
+      "default": "./src/ops/redact.ts"
+    },
+    "./ops/undo": {
+      "types": "./src/ops/undo.ts",
+      "default": "./src/ops/undo.ts"
+    },
+    "./ops/results": {
+      "types": "./src/ops/results.ts",
+      "default": "./src/ops/results.ts"
+    },
+    "./ops/meta-handlers": {
+      "types": "./src/ops/meta-handlers.ts",
+      "default": "./src/ops/meta-handlers.ts"
+    },
+    "./ops/deferred-rpc": {
+      "types": "./src/ops/deferred-rpc.ts",
+      "default": "./src/ops/deferred-rpc.ts"
+    },
+    "./ops/jobs": {
+      "types": "./src/ops/jobs.ts",
+      "default": "./src/ops/jobs.ts"
+    },
+    "./host-local/transport": {
+      "types": "./src/host-local/transport.ts",
+      "default": "./src/host-local/transport.ts"
+    },
+    "./host-local/repository-id": {
+      "types": "./src/host-local/repository-id.ts",
+      "default": "./src/host-local/repository-id.ts"
+    },
+    "./skills/catalog": {
+      "types": "./src/skills/catalog.ts",
+      "default": "./src/skills/catalog.ts"
+    },
+    "./skills/limits": {
+      "types": "./src/skills/limits.ts",
+      "default": "./src/skills/limits.ts"
+    },
+    "./skills/zip": {
+      "types": "./src/skills/zip.ts",
+      "default": "./src/skills/zip.ts"
+    },
+    "./git/worktree-metadata": {
+      "types": "./src/git/worktree-metadata.ts",
+      "default": "./src/git/worktree-metadata.ts"
+    },
+    "./lanes/visible-lanes": {
+      "types": "./src/lanes/visible-lanes.ts",
+      "default": "./src/lanes/visible-lanes.ts"
+    },
+    "./ops/completion": {
+      "types": "./src/ops/completion.ts",
+      "default": "./src/ops/completion.ts"
+    },
+    "./ops/lane-controls": {
+      "types": "./src/ops/lane-controls.ts",
+      "default": "./src/ops/lane-controls.ts"
     }
   },
   "nx": {
@@ -411,6 +691,8 @@
   "dependencies": {
     "@phosphor/shared": "0.0.0",
     "@phosphor/pi-extensions": "0.0.0",
-    "@phosphor/host-client": "0.0.0"
+    "@phosphor/host-client": "0.0.0",
+    "typebox": "^1.3.10",
+    "ws": "8.21.0"
   }
 }

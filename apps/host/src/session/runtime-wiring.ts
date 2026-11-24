@@ -11,9 +11,12 @@ import { createSessionDeletion } from '@phosphor/session-runtime/pi/session-dele
 import { prepareSessionLaunch } from '@phosphor/session-runtime/pi/session-launch'
 import { createSessionService } from '@phosphor/session-runtime/pi/session-service'
 import { createSessionStartup } from '@phosphor/session-runtime/pi/session-startup'
-import { isInside } from '../fs-safety'
+import type { LaneReload } from '@phosphor/session-runtime/pi/lane-reload'
+import { isInside } from '@phosphor/session-runtime/fs-safety'
 import { unlinkTranscript } from './transcript-removal'
 import type { Delivery, RuntimeState } from './runtime-state'
+import { hostSpawnContributions } from './contributions'
+import { HOST_PID_ENV } from '../update/host-pid'
 
 const ignore: Delivery = () => {}
 /** The extension UI requests that wait for an answer. */
@@ -25,7 +28,11 @@ const NO_ROUTINES = {
   cancel: async () => {},
 }
 
-export function wireRuntimeStartup(state: RuntimeState) {
+/** `laneReload` is for a caller that reloads lanes on config changes; the Host binds none yet. */
+export function wireRuntimeStartup(
+  state: RuntimeState,
+  laneReload?: Pick<LaneReload, 'capture' | 'track'>,
+) {
   const { machine, options, roots, machineContext, registry, budget, agentDir, accounts } = state
   return createSessionStartup({
     registry,
@@ -39,7 +46,12 @@ export function wireRuntimeStartup(state: RuntimeState) {
     launch: () =>
       prepareSessionLaunch({
         resolveExecutable: async () => ({ stub: false, ...machine.pi }),
-        readEnvironment: async () => ({ ...machine.env, ...claudeProviderSpawnEnv() }),
+        // The service's pid: an updater run from a lane's bash hands off before the restart.
+        readEnvironment: async () => ({
+          ...machine.env,
+          ...claudeProviderSpawnEnv(),
+          [HOST_PID_ENV]: String(process.pid),
+        }),
         resourceRoot: () => machine.resourceRoot,
       }),
     policy: {
@@ -47,8 +59,9 @@ export function wireRuntimeStartup(state: RuntimeState) {
       machineContext: () => machineContext,
       // Read per lane: Settings saves the toggles to the Host config.
       preferences: () => ({
+        contextFiles: options.contextFiles?.(),
         agentDirectives: options.agentDirectives?.() ?? DEFAULT_AGENT_DIRECTIVES,
-        agentDirectivesByProject: {},
+        agentDirectivesByProject: options.agentDirectivesByProject?.() ?? {},
       }),
       defaultProvider: async (cwd) => (await readAgentSettings(cwd, agentDir)).defaultProvider,
       packages: (cwd) => listPackages(cwd, agentDir),
@@ -67,6 +80,16 @@ export function wireRuntimeStartup(state: RuntimeState) {
     },
     accounts,
     recordWorkspace: () => {},
+    ...(laneReload ? { laneReload } : {}),
+    contributions: hostSpawnContributions(
+      machine.shellEnvironment,
+      machine.log,
+      machine.appServices
+        ? { appServices: machine.appServices, resourceRoot: machine.resourceRoot }
+        : undefined,
+      machine.headroom,
+      options.ops,
+    ),
   })
 }
 
@@ -128,7 +151,7 @@ export function wireRuntimeService(
   })
 }
 
-export function wireRuntimeDeletion(state: RuntimeState) {
+export function wireRuntimeDeletion(state: RuntimeState, trash = state.options.trashTranscript) {
   const { registry, paths, options } = state
   return createSessionDeletion({
     registry,
@@ -136,7 +159,7 @@ export function wireRuntimeDeletion(state: RuntimeState) {
     ownsRoutine: options.routines?.owns ?? NO_ROUTINES.owns,
     cancelRoutine: options.routines?.cancel ?? NO_ROUTINES.cancel,
     forgetAccount: () => {},
-    deleteTranscript: (path) => unlinkTranscript(path, options.trashTranscript),
+    deleteTranscript: (path) => unlinkTranscript(path, trash),
     deleteDraft: async () => {},
     // Cancel pending starts, but refuse an already running session instead of stopping it.
     assertDeletable: (id) => {

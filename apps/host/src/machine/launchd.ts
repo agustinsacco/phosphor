@@ -13,11 +13,12 @@ import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
-import { errnoCode, errnoIs } from '../fs-safety'
+import { errnoCode, errnoIs } from '@phosphor/session-runtime/fs-safety'
+import { HOST_AGENT } from '@phosphor/shared/host-local'
 import { hostLogDirectory } from './log'
 
-export const HOST_AGENT = 'com.saccolabs.phosphor-host'
-function xml(value: string): string {
+/** Escapes a plist string; refuses control characters. */
+export function xml(value: string): string {
   if (value.length > 65536 || /[\p{Cc}\u2028\u2029]/u.test(value))
     throw new IdentityFailure('Service paths and PATH must not contain control characters.')
   return value
@@ -33,15 +34,21 @@ export function launchAgentPlist(
   config: string,
   path: string,
   logDir: string,
+  xdg: Record<string, string> = {},
+  label = HOST_AGENT,
 ): string {
   if (![node, bundle, config, logDir].every(isAbsolute))
     throw new IdentityFailure('Service paths must be absolute.')
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>Label</key><string>${xml(HOST_AGENT)}</string>
+<key>Label</key><string>${xml(label)}</string>
 <key>ProgramArguments</key><array>${[node, bundle, 'run', '--config', config, '--supervisor', 'launchd'].map((value) => `<string>${xml(value)}</string>`).join('')}</array>
-<key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(path)}</string></dict>
+<key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(path)}</string>${Object.entries(
+    xdg,
+  )
+    .map(([key, value]) => `<key>${xml(key)}</key><string>${xml(value)}</string>`)
+    .join('')}</dict>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
 <key>ExitTimeOut</key><integer>30</integer>

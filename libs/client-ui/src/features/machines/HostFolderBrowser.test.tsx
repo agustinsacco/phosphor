@@ -143,3 +143,34 @@ it('says the folders could not be read when the Host listing fails', async () =>
   await render()
   expect(document.querySelector('[role="alert"]')?.textContent).toBe('Could not read folders.')
 })
+
+it('offers sandbox operations only on a Host that serves them and can recover a failed listing', async () => {
+  await render()
+  expect(button('New sandbox')).toBeUndefined()
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  invoke.mockImplementation(async (ch, _target, req) => {
+    if (ch !== 'ops:run') return { path: '', entries: [] }
+    if (req.op === 'sandbox.list') throw new Error('unavailable')
+  })
+  await act(async () =>
+    useRemoteLanesStore.setState({
+      hosts: { [MOCK_HOST_ID]: { ...host, ops: true, sandboxes: true } },
+    }),
+  )
+  expect(button('New sandbox')).toBeDefined()
+  expect(invoke).toHaveBeenCalledWith(
+    'ops:run',
+    { kind: 'remote', hostId: MOCK_HOST_ID },
+    { op: 'sandbox.list', args: {} },
+  )
+  invoke.mockResolvedValue({
+    status: 'ok',
+    text: 'OK',
+    applies: 'now',
+    data: [{ name: 'Scratch', path: '/sandbox/Scratch' }],
+  })
+  await act(async () => button('Refresh sandboxes').click())
+  expect(document.body.textContent).toContain('Scratch')
+  expect(button('Rename')).toBeDefined()
+  expect(button('Delete sandbox')).toBeDefined()
+})

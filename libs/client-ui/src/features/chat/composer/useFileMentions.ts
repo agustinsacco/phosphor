@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type RefObject } from 'react'
+import { useLaneMentions, type LaneMention } from './laneMentions'
+import { laneMentionText } from '@/lib/laneMention'
 import { fuzzyFilter } from '@/lib/fuzzy'
 
 /** Where `@` mentions read files from. `key` names the list, so a new target reads again. */
@@ -13,8 +15,8 @@ export function workspaceFileSource(workspacePath: string): FileMentionSource {
 }
 
 /**
- * The `@` file menu: when it is open, what it matches and what picking does.
- * The list loads on the first `@` and is kept per source key.
+ * The merged `@` menu: when it is open, what it matches and what picking does.
+ * The file list loads on the first `@` and is kept per source key.
  */
 export function useFileMentions({
   source,
@@ -47,33 +49,37 @@ export function useFileMentions({
   useEffect(() => {
     if (!value) setMention(null)
   }, [value])
-  const matches = useMemo(
+  const files = useMemo(
     () =>
       mention && index && index.key === source?.key
         ? fuzzyFilter(mention.query, index.files, (f) => f, 12)
         : [],
     [mention, index, source?.key],
   )
+  const lanes = useLaneMentions(mention?.query)
+  const matches = [...files, ...lanes]
+  const selected = Math.min(activeIndex, Math.max(0, matches.length - 1))
   const track = (next: string, caret: number): void => {
     const match = /(^|\s)@([^\s@]*)$/.exec(next.slice(0, caret))
     setMention(match ? { anchor: caret - match[2]!.length - 1, query: match[2]! } : null)
     setActiveIndex(0)
   }
-  const pick = (file: string): void => {
+  const pick = (item: string | LaneMention): void => {
     if (!mention) return
+    const text = typeof item === 'string' ? item : laneMentionText(item.title, item.href)
     const after = value.slice(mention.anchor + 1 + mention.query.length)
-    const next = value.slice(0, mention.anchor) + file + (after.startsWith(' ') ? '' : ' ') + after
-    onChange(next, mention.anchor + file.length + 1)
+    const next = value.slice(0, mention.anchor) + text + (after.startsWith(' ') ? '' : ' ') + after
+    onChange(next, mention.anchor + text.length + 1)
     setMention(null)
     textareaRef.current?.focus()
   }
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): boolean =>
-    !!mention &&
-    mentionKey(event, matches, activeIndex, setActiveIndex, pick, () => setMention(null))
+    !!mention && mentionKey(event, matches, selected, setActiveIndex, pick, () => setMention(null))
   return {
     open: mention !== null,
-    matches,
-    activeIndex,
+    files,
+    lanes,
+    activeIndex: selected,
     setActiveIndex,
     track,
     pick,
@@ -85,10 +91,10 @@ export function useFileMentions({
 /** Arrows, Enter/Tab and Escape while the menu shows matches. True when consumed. */
 function mentionKey(
   event: React.KeyboardEvent<HTMLTextAreaElement>,
-  matches: string[],
+  matches: (string | LaneMention)[],
   activeIndex: number,
   setActiveIndex: (update: (index: number) => number) => void,
-  pick: (file: string) => void,
+  pick: (item: string | LaneMention) => void,
   close: () => void,
 ): boolean {
   if (!matches.length) return false
@@ -100,8 +106,8 @@ function mentionKey(
   }
   if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
     event.preventDefault()
-    const file = matches[activeIndex]
-    if (file) pick(file)
+    const match = matches[activeIndex]
+    if (match) pick(match)
     return true
   }
   if (event.key === 'Escape') {

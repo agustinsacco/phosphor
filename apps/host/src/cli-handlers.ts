@@ -26,6 +26,7 @@ import {
 import { screenFor } from './ui/screen'
 import type { RichTerminal } from './ui/spinner'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
+import { runServiceFeatures } from './commands/run-services'
 
 /** stdout carries only the report or JSON; everything else goes to stderr. */
 export interface CliIo {
@@ -75,11 +76,14 @@ export async function handleVersion(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
+  const features = runServiceFeatures()
   const version = {
     hostVersion: HOST_VERSION,
     protocolVersion: HOST_PROTOCOL_VERSION,
     sourceSha: HOST_SOURCE_SHA,
     node: context.nodeVersion,
+    // Absent while empty: a build with no feature reads exactly as an older one.
+    ...(features.length > 0 ? { features } : {}),
   }
   io.stdout(command.options.json ? `${JSON.stringify(version)}\n` : `phosphor ${HOST_VERSION}\n`)
   return EXIT.ok

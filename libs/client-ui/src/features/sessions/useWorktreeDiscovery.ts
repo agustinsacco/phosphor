@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { WorktreeInfo } from '@shared/models'
+import { visibleWorktrees } from '@phosphor/shared/visible-lanes'
 
 /** A worktree folder found under one of the known repo workspaces. */
 export interface WorktreeDir {
@@ -49,19 +49,13 @@ export function useWorktreeDiscovery(
             window.phosphor.invoke('git:listWorktrees', root),
             window.phosphor.invoke('sessions:retainedWorkspaces', root),
           ])
-          if (retained.status === 'fulfilled')
-            for (const path of retained.value) found.set(path, root)
-          const worktrees: WorktreeInfo[] = checkout.status === 'fulfilled' ? checkout.value : []
           if (checkout.status === 'rejected' || retained.status === 'rejected')
             listedKey.current = null
-          for (const wt of worktrees) {
-            // `prunable` is git's own answer for "this folder is gone". A
-            // deleted worktree is still listed until someone prunes it, and
-            // without this it became a sidebar group for a directory that
-            // does not exist.
-            if (wt.isMain || wt.prunable) continue
-            found.set(wt.realPath || wt.path, root)
-          }
+          for (const path of visibleWorktrees(
+            retained.status === 'fulfilled' ? retained.value : [],
+            checkout.status === 'fulfilled' ? checkout.value : [],
+          ))
+            found.set(path, root)
         } catch {
           // Not a repo, or git unavailable — nothing to discover there.
         }

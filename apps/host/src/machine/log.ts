@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { hostStateDirectory } from '../lanes/state-dir'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
 import { createFileLog, type RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { redact } from './environment'
 
@@ -12,6 +12,7 @@ export function hostLogDirectory(env: NodeJS.ProcessEnv, home: string): string {
 }
 
 export interface HostLog {
+  addSecrets: (values: readonly string[]) => void
   write: RuntimeLog
   /** The same redaction, for text that leaves the Host another way. */
   hide: (text: string) => string
@@ -29,10 +30,13 @@ export interface HostLog {
 export function createHostLog(directory: string, secrets: readonly string[]): HostLog {
   const file = createFileLog({ directory: 0o700, file: 0o600 })
   file.init(directory)
-  const pieces = redactionPieces(secrets)
+  let pieces = redactionPieces(secrets)
   const hide = (text: string): string => redact(text, pieces)
   return {
     hide,
+    addSecrets: (values) => {
+      pieces = [...new Set([...pieces, ...redactionPieces(values)])]
+    },
     path: file.path,
     write: (scope, message, data) => {
       let hidden: unknown

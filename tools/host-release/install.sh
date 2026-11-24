@@ -22,6 +22,7 @@ done
 case $(uname -s):$(uname -m) in
   Linux:x86_64) target=linux-x64; mvflag=-T; base64flag=-d ;;
   Linux:aarch64|Linux:arm64) target=linux-arm64; mvflag=-T; base64flag=-d ;;
+  Darwin:x86_64) target=darwin-x64; mvflag=-h; base64flag=-D ;;
   Darwin:arm64) target=darwin-arm64; mvflag=-h; base64flag=-D ;;
   *) fail ;;
 esac
@@ -111,21 +112,36 @@ repo=https://github.com/agustinsacco/Phosphor/releases/download
 override=${PHOSPHOR_HOST_RELEASE_URL:-}
 if [ -n "$requested" ]; then
   base=${override:-$repo/host-v$requested}
-  manifest=phosphor-host-$requested.manifest.json
+  stem=phosphor-host-$requested.manifest
 else
   base=${override:-$repo/host-latest}
-  manifest=phosphor-host.manifest.json
+  stem=phosphor-host.manifest
 fi
 # file:// supports offline tests. All other downloads and redirects require HTTPS.
 download() {
   case $1 in
-    file://*) curl --fail --silent --show-error --max-time 120 --max-filesize "$3" --proto '=file' "$1" -o "$2" ;;
-    https://*) curl --fail --silent --show-error --location --max-redirs 3 --max-time 120 --max-filesize "$3" --proto '=https' --proto-redir '=https' "$1" -o "$2" ;;
+    file://*) set -- "$@" --proto '=file' ;;
+    https://*) set -- "$@" --location --max-redirs 3 --proto '=https' --proto-redir '=https' ;;
     *) return 1 ;;
   esac
-  [ "$(wc -c < "$2" | tr -d ' ')" -le "$3" ]
+  url=$1 dest=$2 limit=$3; shift 3
+  status=$(curl --fail --silent --show-error --max-time 120 --max-filesize "$limit" \
+    "$@" -w '%{http_code}' "$url" -o "$dest") || {
+    code=$?
+    if [ "$code:$status" = '22:404' ]; then return 44; fi
+    case $url in file://*) [ "$code" != 37 ] || [ -e "${url#file://}" ] || return 44 ;; esac
+    return 1
+  }
+  [ "$(wc -c < "$dest" | tr -d ' ')" -le "$limit" ]
 }
-download "$base/$manifest" "$tmp/manifest" 16384 || fail
+schema=2
+manifest=$stem.v2.json
+download "$base/$manifest" "$tmp/manifest" 16384 || {
+  [ "$?" = 44 ] || fail
+  schema=1
+  manifest=$stem.json
+  download "$base/$manifest" "$tmp/manifest" 16384 || fail
+}
 download "$base/$manifest.sig" "$tmp/signature" 8192 || fail
 ssh-keygen -Y verify -f "$tmp/allowed_signers" -I phosphor-release -n phosphor-host-release -s "$tmp/signature" < "$tmp/manifest" > /dev/null 2>&1 || fail
 # Ed25519 + this namespace gives fixed SSHSIG field offsets. Enforce the same
@@ -134,60 +150,77 @@ sed '1d;$d' "$tmp/signature" | base64 "$base64flag" > "$tmp/sshsig" 2>/dev/null 
 [ "$(wc -c < "$tmp/sshsig" | tr -d ' ')" = 191 ] || fail
 fields=$(od -An -tu1 -j90 -N14 "$tmp/sshsig" | tr '\n' ' ' | awk '{$1=$1; print}')
 [ "$fields" = '0 0 0 0 0 0 0 6 115 104 97 53 49 50' ] || fail
-# Parse the builder's JSON grammar without requiring system Node or Python.
-# Strings have no escapes because every manifest string is a bounded identifier.
-awk -v wanted="$target" '
-function bad() {exit 1}
-function token(    c, n) {
-  sub(/^[ \t\r\n]+/, "", input)
-  c=substr(input,1,1)
-  kind="punctuation"
-  if(c=="\"") {
-    kind="string"
-    if (!match(input, /^"[^"\\]*"/)) bad()
-    n=RLENGTH; t=substr(input,2,n-2)
-  } else if (match(input,/^[0-9]+/)) {kind="number"; n=RLENGTH; t=substr(input,1,n)}
-  else {n=1; t=c}
-  input=substr(input,n+1)
+# No system Node, Python or jq required.
+LC_ALL=C awk -v wanted="$target" -v schema="$schema" '
+# Signed, size-bounded JSON. Store children by parent node id and key/index;
+# extension fields cannot shadow a known field in another object. Strings stay
+# escaped: the release builder emits plain ASCII for all known identifiers.
+function bad() { exit 1 }
+function consume(n) { input=substr(input,n+1); sub(/^[ \t\r\n]+/, "", input) }
+function take(s) { if(substr(input,1,1)!=s) bad(); consume(1) }
+function string(    s) {
+  if(!match(input,/^"([^"\\[:cntrl:]]|\\(["\\\/bfnrt]|u[0-9a-fA-F]{4}))*"/)) bad()
+  s=substr(input,2,RLENGTH-2); consume(RLENGTH); return s
 }
-function take(x) {
-  token(); if(t!=x) bad()
-  if(x=="1") {if(kind!="number" || length(t)!=1) bad()}
-  else if(length(x)==1 && index("{}:[],",x)) {if(kind!="punctuation") bad()}
-  else if(kind!="string") bad()
+function parse(depth,    id,c,end,k) {
+  if(depth>64) bad()
+  id=++nodes; c=substr(input,1,1); type[id]=c
+  if(c=="{") end="}"
+  else if(c=="[") end="]"
+  if(end!="") {
+    consume(1)
+    if(substr(input,1,1)!=end) do {
+      if(c=="{") { k=string(); take(":"); if((id SUBSEP k) in child) bad() }
+      else k=count[id]+1
+      count[id]++; child[id,k]=parse(depth+1)
+      if(substr(input,1,1)!=",") break
+      consume(1)
+    } while(1)
+    take(end)
+  } else if(c=="\"") val[id]=string()
+  else {
+    if(!match(input,/^(true|false|null|-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?)/)) bad()
+    val[id]=substr(input,1,RLENGTH); consume(RLENGTH)
+  }
+  return id
 }
-function text() {token(); if(kind!="string") bad()}
-function field(x) {take(x); take(":")}
-function version(v,    a,i) {
-  if(split(v,a,".")!=3) bad()
-  for(i=1;i<=3;i++) if(a[i]!~/^[0-9]+$/ || length(a[i])>9 || (length(a[i])>1 && substr(a[i],1,1)=="0")) bad()
+function text(id) { if(type[id]!="\"") bad(); return val[id] }
+function uint(id,max) { if(type[id]=="\"" || val[id]!~/^[1-9][0-9]*$/ || val[id]+0>max) bad(); return val[id] }
+function version(s,    a,i) {
+  if(split(s,a,".")!=3) bad()
+  for(i=1;i<=3;i++) if(a[i]!~/^(0|[1-9][0-9]*)$/ || length(a[i])>9) bad()
+  return s
 }
+function array(id,min,max) { if(type[id]!="[" || count[id]<min || count[id]>max) bad(); return id }
 {input=input $0 "\n"}
 END {
-  take("{"); field("schema"); take("1"); take(",")
-  field("version"); text(); v=t; version(v); take(",")
-  field("protocols"); take("["); count=0
-  do {token(); if(kind!="number" || t!~/^[1-9][0-9]*$/ || t+0<1 || t+0>65535 || seen[t]++ || ++count>8) bad(); token()} while(kind=="punctuation" && t==",")
-  if(kind!="punctuation" || t!="]") bad(); take(",")
-  field("node"); text(); version(t); take(",")
-  field("sourceCommit"); text(); if(length(t)!=40 || t!~/^[0-9a-f]+$/) bad(); take(",")
-  field("artifacts"); take("["); count=0
-  do {
-    take("{"); field("target"); text(); target=t
-    if(target!~/^(linux-x64|linux-arm64|darwin-arm64)$/ || targets[target]++ || ++count>3) bad()
-    take(","); field("file"); text(); file=t
-    if(file!="phosphor-host-" v "-" target ".tar.gz") bad()
-    take(","); field("bytes"); token(); bytes=t
-    if(kind!="number" || bytes!~/^[1-9][0-9]*$/ || bytes+0>268435456) bad()
-    take(","); field("sha256"); text(); hash=t
-    if(length(hash)!=64 || hash!~/^[0-9a-f]+$/) bad()
-    take("}")
-    if(target==wanted) {found=1; f=file; b=bytes; h=hash}
-    token()
-  } while(kind=="punctuation" && t==",")
-  if(kind!="punctuation" || t!="]") bad(); take("}"); token(); if(t!="" || !found) bad()
-  print v; print f; print b; print h
-}' "$tmp/manifest" > "$tmp/metadata" || fail
+  consume(0); r=parse(0)
+  if(input!="" || type[r]!="{" || uint(child[r,"schema"],2)!=schema || (schema==1 && count[r]!=6)) bad()
+  v=version(text(child[r,"version"])); version(text(child[r,"node"]))
+  sha=text(child[r,"sourceCommit"]); if(length(sha)!=40 || sha!~/^[0-9a-f]+$/) bad()
+  p=array(child[r,"protocols"],1,8)
+  for(i=1;i<=count[p];i++) if(protocols[uint(child[p,i],65535)]++) bad()
+  if(schema==2) {
+    p=array(child[r,"features"],0,32)
+    for(i=1;i<=count[p];i++) {
+      f=text(child[p,i]); if(length(f)>40 || f!~/^[a-z][a-z0-9-]*$/ || features[f]++) bad()
+    }
+  }
+  p=array(child[r,"artifacts"],1,(schema==2?16:3))
+  for(i=1;i<=count[p];i++) {
+    a=child[p,i]; if(type[a]!="{" || (schema==1 && count[a]!=4)) bad()
+    t=text(child[a,"target"])
+    if(t!~/^(linux-x64|linux-arm64|darwin-arm64)$/ && !(schema==2 && t=="darwin-x64")) {
+      if(schema==1) bad(); continue
+    }
+    file=text(child[a,"file"]); if(seen[t]++ || file!="phosphor-host-" v "-" t ".tar.gz") bad()
+    bytes=uint(child[a,"bytes"],268435456); sha=text(child[a,"sha256"])
+    if(length(sha)!=64 || sha!~/^[0-9a-f]+$/) bad()
+    if(t==wanted) { found=1; metadata=v "\n" file "\n" bytes "\n" sha }
+  }
+  if(!found) bad(); print metadata
+}
+' "$tmp/manifest" > "$tmp/metadata" || fail
 version=$(sed -n '1p' "$tmp/metadata")
 file=$(sed -n '2p' "$tmp/metadata")
 bytes=$(sed -n '3p' "$tmp/metadata")

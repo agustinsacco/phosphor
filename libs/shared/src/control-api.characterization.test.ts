@@ -43,14 +43,16 @@ import type {
 
 // Every runtime export, grouped by kind.
 const RUNTIME_EXPORTS = {
-  object: `ARCHES CONTROL_ERROR_STATUS CONTROL_LIMITS CONTROL_ROUTES CONTROL_TRACE_HEADERS
-    DOWNLOAD_ARTIFACTS HOST_HEADERS PLATFORMS USAGE_PRODUCTS`,
+  object: `ARCHES CONTROL_ERROR_STATUS CONTROL_LIMITS CONTROL_MACHINE_ROUTES CONTROL_ROUTES
+    CONTROL_TRACE_HEADERS DOWNLOAD_ARTIFACTS HOST_HEADERS PLATFORMS USAGE_PRODUCTS`,
   string: `CONTROL_API_PREFIX DEFAULT_CONTROL_URL DOWNLOAD_PATH_PREFIX
     HOST_SIGNATURE_SCHEME USER_CODE_ALPHABET`,
   number: 'ADMIN_BREAKDOWN_ROWS ADMIN_SERIES_DAYS CONTROL_API_VERSION USER_CODE_LENGTH',
   function: `downloadPath formatKeyFingerprint formatUserCode hostSigningString isControlClient
     isControlErrorCode isControlTrace isEndpoint isHostname isIsoTime isKeyFingerprint isNonce isPublicKey isReleaseVersion
-    isSha256Hex isSignature isUuid isVersion machineRoute machineStatus normalizeLabel normalizeUserCode
+    isSha256Hex isSignature isUuid isVersion machineReachRoute machineRoute machineStatus
+    normalizeLabel normalizeUserCode parseMachineDirectoryResponse parseMachineGrantIssueRequest
+    parseMachineReachRequest parseMachineReachResponse
     parseAdminStats parseClientRegisterRequest parseClientRegisterResponse parseControlError
     parseEnrollmentApproveRequest parseEnrollmentApproveResponse parseEnrollmentCreateRequest
     parseEnrollmentCreateResponse parseEnrollmentLookupRequest parseEnrollmentLookupResponse
@@ -72,7 +74,7 @@ describe('public inventory', () => {
     const kinds = Object.entries(RUNTIME_EXPORTS).flatMap(([kind, names]) =>
       names.split(/\s+/).map((name) => [name, kind]),
     )
-    expect(kinds).toHaveLength(67)
+    expect(kinds).toHaveLength(73)
     expect(
       Object.fromEntries(
         Object.keys(api).map((name) => [name, typeof api[name as keyof typeof api]]),
@@ -250,6 +252,8 @@ describe('public inventory', () => {
       readonly readiness: Readiness | null
       readonly lanes: LaneCounts | null
       readonly endpoint: string | null
+      readonly machineReach?: boolean
+      readonly machineGrants?: boolean
     }>()
     expectTypeOf<MachinesResponse>().toEqualTypeOf<{
       readonly machines: readonly MachineView[]
@@ -276,6 +280,7 @@ describe('public inventory', () => {
       readonly readiness: Readiness
       readonly lanes: LaneCounts
       readonly endpoint: string | null
+      readonly machineGrants?: boolean
     }>()
     expectTypeOf<HeartbeatResponse>().toEqualTypeOf<{
       readonly accepted: true
@@ -286,6 +291,7 @@ describe('public inventory', () => {
         readonly sessions: readonly string[]
         readonly clients: readonly string[]
       }
+      readonly machineReach?: boolean
     }>()
     expectTypeOf<HealthResponse>().toEqualTypeOf<{
       readonly ok: true

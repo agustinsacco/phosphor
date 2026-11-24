@@ -14,6 +14,7 @@ import type {
   ComposerDraftRecord,
   LanePrefs,
 } from '../models'
+import type { LocalMachineAction, LocalMachineStatus } from './views'
 
 export interface AppInvokeMap {
   'app:getPrefs': { args: []; result: AppPrefs }
@@ -76,7 +77,15 @@ export interface AppInvokeMap {
     result:
       | { kind: 'session'; sessionPath: string; workspacePath: string }
       | { kind: 'workspace'; workspacePath: string }
+      | { kind: 'lane'; hostId: string; laneId: string }
       | { kind: 'none' }
+  }
+  /** This Mac's runtime: in-app or the Phosphor service, and the move between them. */
+  'app:localMachine': { args: []; result: LocalMachineStatus }
+  /** Pushed as `app:localMachineChanged` once it settles; `message` explains a refusal. */
+  'app:localMachineAction': {
+    args: [action: LocalMachineAction]
+    result: { ok: boolean; message?: string }
   }
   'app:setFontPrefs': { args: [FontPrefs]; result: void }
   'app:setWorktreePrefs': { args: [WorktreePrefs]; result: void }

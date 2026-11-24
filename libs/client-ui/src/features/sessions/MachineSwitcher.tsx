@@ -1,3 +1,4 @@
+import { orderedHostIds, localServiceId } from '@/stores/localServiceScope'
 import { machineReachability } from '@/features/machines/machineReachability'
 import type { MachineView } from '@shared/control-api'
 import { isUnseen } from './unseen'
@@ -87,7 +88,7 @@ export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
   return (
     <div className="border-border mt-4 border-t px-2 pt-3">
       <div className="text-text-secondary flex items-center gap-2 text-sm font-medium">
-        <MachineGlyph local={id === 'local'} />
+        <MachineGlyph local={id === 'local' || !!host?.local} />
         <span className="min-w-0 flex-1 truncate">{machineLabel(id)}</span>
         <MachineDot state={id === 'local' ? 'ready' : host?.state} />
       </div>
@@ -184,11 +185,14 @@ function useMachineActivity(): { ids: string[]; activity: Record<string, Machine
   const machines = useMachinesStore((s) => s.machines)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const local = useLocalMachineActivity()
-  const ids = [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
+  const ids = orderedHostIds(
+    machines.map((m) => m.id),
+    hosts,
+  )
   return {
     ids,
     activity: {
-      local,
+      ...(localServiceId(hosts) ? {} : { local }),
       ...Object.fromEntries(ids.map((id) => [id, remoteActivity(hosts[id])])),
     },
   }
@@ -276,7 +280,7 @@ function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): R
     return (
       <span className="flex items-start gap-2.5">
         <span className="text-text-tertiary pt-1">
-          <MachineGlyph local={id === 'local'} />
+          <MachineGlyph local={id === 'local' || !!hosts[id]?.local} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
@@ -303,11 +307,13 @@ function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): R
         header={
           <div className="text-text-tertiary flex justify-between px-3 py-2 text-xs">
             <span className="font-semibold uppercase tracking-wider">Machines</span>
-            <span>{ids.length + Number(localLanes)} total</span>
+            <span>{ids.length + Number(localLanes && !localServiceId(hosts))} total</span>
           </div>
         }
         choices={[
-          ...(localLanes ? [{ value: 'local', label: row('local') }] : []),
+          ...(localLanes && !localServiceId(hosts)
+            ? [{ value: 'local', label: row('local') }]
+            : []),
           ...ids.map((id) => ({ value: id, label: row(id) })),
           {
             value: 'all',

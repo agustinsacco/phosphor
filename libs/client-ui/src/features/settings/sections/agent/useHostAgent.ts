@@ -17,6 +17,7 @@ import { useMachinesStore } from '@/stores/machines'
 import { platformName } from '@shared/platform-name'
 import { useMachineCatalogue, useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { hostInstructions } from '../../instructions/instructionsSource'
+import { useFolderDirectiveEditor } from './useFolderDirectiveEditor'
 import { useHostSection } from '../../machine/HostSection'
 import type { HostSettingsState } from '../../machine/useHostSettings'
 import { useMachineAgentDraft } from '../../machine/machineSettingsDrafts'
@@ -213,6 +214,7 @@ function useHostMachineContext(
  */
 export function useHostAgent(): AgentSource {
   const { machine, settings, repositoryId, connection } = useHostSection()
+  const folderEditor = useFolderDirectiveEditor(machine.id, repositoryId, settings)
   const data = settings.data
   const state = data?.agent
   const draft = useMachineAgentDraft(
@@ -235,7 +237,10 @@ export function useHostAgent(): AgentSource {
   return {
     status: state ? machineScope.status : 'loading',
     notice: data ? hostNotice(!!repositoryId, data) : null,
-    caps: { clear: data?.agentClearSupported === true, folderDirectives: false },
+    caps: {
+      clear: data?.agentClearSupported === true,
+      folderDirectives: connection?.folderDirectives === true && connection.ops === true,
+    },
     save: draftSave(draft, machine.label),
     folder: !!repositoryId,
     blocked: busy,
@@ -254,14 +259,16 @@ export function useHostAgent(): AgentSource {
     ...catalogue,
     policy: repositoryId ? null : hostPolicy(draft, state?.namingLive),
     directives:
-      !repositoryId && state?.agentDirectives
-        ? {
-            value: fields.directives,
-            set: (next) => draft.set('directives', next),
-            disabled: busy,
-            machine: hostContext,
-          }
-        : null,
+      repositoryId && connection?.folderDirectives && connection.ops && state?.agentDirectives
+        ? folderEditor(state.agentDirectives, hostContext)
+        : !repositoryId && state?.agentDirectives
+          ? {
+              value: fields.directives,
+              set: (next) => draft.set('directives', next),
+              disabled: busy,
+              machine: hostContext,
+            }
+          : null,
     instructions: !repositoryId && state?.agentDirectives ? instructions : null,
   }
 }

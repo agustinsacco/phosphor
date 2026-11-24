@@ -72,6 +72,8 @@ export function getPrefs(): AppPrefs {
   const s = prefs()
   return {
     theme: s.get('theme'),
+    lastLocal: s.get('lastLocal'),
+    localRuntime: s.get('localRuntime'),
     // Read-only prune: worktree folders (never workspaces) and folders that
     // no longer exist. Deliberately not written back — see `visibleWorkspaces`.
     recentWorkspaces: visibleWorkspaces(

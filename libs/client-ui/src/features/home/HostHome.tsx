@@ -1,5 +1,10 @@
 import { useMachinesStore } from '@/stores/machines'
-import { useRemoteLanesStore, connectionLabel, hostPending } from '@/stores/remoteLanes'
+import {
+  useRemoteLanesStore,
+  machineLabel,
+  connectionLabel,
+  hostPending,
+} from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { RemoteHostLanes } from '@/features/sessions/RemoteHostLanes'
 import { WaitingNote } from '@/components/Waiting'
@@ -8,7 +13,8 @@ import './remoteStart.css'
 /** A Host has a lane snapshot, not This Mac's project ledger or spend statistics. */
 export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const label = useMachinesStore((s) => s.machines.find((m) => m.id === hostId)?.label ?? hostId)
+  useMachinesStore((s) => s.machines)
+  const label = machineLabel(hostId)
   const error = useRemoteLanesStore((s) => s.error)
   const pending = useRemoteLanesStore((s) => hostPending(s, hostId))
   const refusal = hostFeatureRefusal(host, 'sessions.read')

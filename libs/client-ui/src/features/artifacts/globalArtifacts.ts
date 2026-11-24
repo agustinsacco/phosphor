@@ -119,7 +119,7 @@ export function mergeGlobalArtifacts(
 function foldForks(rows: Array<{ row: GlobalArtifactRow; revision: string }>): GlobalArtifactRow[] {
   const groups = new Map<string, GlobalArtifactRow[]>()
   for (const { row, revision } of rows) {
-    const group = `${row.id}\u0000${revision}`
+    const group = `${hostIdOfPath(row.key) ? row.sessionFile : ''}\u0000${row.id}\u0000${revision}`
     groups.set(group, [...(groups.get(group) ?? []), row])
   }
   return [...groups.values()].map((group) => {

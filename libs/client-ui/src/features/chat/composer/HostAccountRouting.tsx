@@ -1,3 +1,4 @@
+import { ensureServiceLaneControl } from '@/platform/serviceLaneControl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClaudeSessionAccount } from '@shared/models'
 import { claudeSessionAccount } from '@shared/claude-session-account'
@@ -85,6 +86,7 @@ export function HostAccountRouting({
         // Usage is re-read even when the move is not confirmed: the Host may
         // have moved the lane before the link changed.
         try {
+          await ensureServiceLaneControl(hostId, laneId)
           await window.phosphor.invoke('hosts:claudeAccount', hostId, laneId, accountId)
         } finally {
           forgetHostProviders(hostId)

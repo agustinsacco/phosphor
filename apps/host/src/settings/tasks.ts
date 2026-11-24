@@ -3,13 +3,15 @@ import { TerminalForbidden } from '../terminals/service'
 import { runMachineTask, type MachineTaskOptions } from './task-program'
 
 /** Receipt-backed, fixed-purpose programs in private PTYs. No caller argv, shell or env. */
-export function createMachineTasks(options: MachineTaskOptions) {
+export function createMachineTasks(
+  options: MachineTaskOptions & { headlessActive?: () => boolean },
+) {
   let active = false
   async function execute(raw: unknown, owner: string, authorized: () => boolean) {
     const op = parseMachineTask(raw)
     if (!op) throw new Error('bad-request')
     if (!authorized()) throw new TerminalForbidden('forbidden')
-    if (active) throw new Error('busy')
+    if (active || options.headlessActive?.()) throw new Error('busy')
     active = true
     return new Promise<{ terminalId: string }>((resolve, reject) => {
       let started = false

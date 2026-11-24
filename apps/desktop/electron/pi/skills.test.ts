@@ -26,7 +26,7 @@ import {
   SKILL_SIDECAR,
   LEGACY_SKILL_SIDECAR,
 } from './skills'
-import { readZipEntries, writeZipStore } from './zip'
+import { readZipEntries, writeZipStore } from '@phosphor/session-runtime/skills/zip'
 import { SKILL_CATALOG } from '@shared/skillsCatalog'
 
 /**

@@ -1,3 +1,4 @@
+import { checkPackageUpdates } from '@phosphor/session-runtime/pi/package-updates'
 import {
   chmodSync,
   existsSync,
@@ -14,7 +15,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CLAUDE_CLI_PACKAGE,
   checkClaudeCliUpdate,
-  checkPackageUpdates,
   detectBinaries,
   resolveBinary,
   runClaudeUpdate,
@@ -27,7 +27,7 @@ import {
   claudeOneShotEnv,
   claudeProviderSpawnEnv,
 } from '@phosphor/session-runtime/pi/provider-detect'
-import { resetShellPathCache } from './shell-env'
+import { resetShellPathCache } from '@phosphor/session-runtime/pi/shell-env'
 
 // Real print mode unless a test says otherwise, so the proof's delegation is
 // observable without spending a real provider turn.

@@ -8,7 +8,7 @@ import {
   type AuthCheck,
 } from '@phosphor/session-runtime/pi/provider-auth'
 import { checkPiHealth } from './health'
-import { piProcessEnv } from './shell-env'
+import { piProcessEnv } from '@phosphor/session-runtime/pi/shell-env'
 
 const execFileAsync = promisify(execFile)
 

@@ -1,31 +1,17 @@
-import { app, BrowserWindow, shell, powerMonitor, dialog, protocol } from 'electron'
-import {
-  startRoutines,
-  stopRoutines,
-  wakeRoutines,
-  routineScheduler,
-  hasPendingRoutineWork,
-} from './routines'
+import { app, BrowserWindow, shell, dialog, protocol } from 'electron'
+import { hasPendingRoutineWork } from './routines'
 import { configureShutdownApproval, shutdownApproval } from './shutdown-approval'
-import { installRoutineBackground, routinesKeepRunning } from './routines/background'
-import { dirname, join } from 'node:path'
+import { routinesKeepRunning } from './routines/background'
+import { adoptLegacyUserData } from './adopt-user-data'
+import { join } from 'node:path'
 import { existsSync, renameSync } from 'node:fs'
 import { registerIpcHandlers } from './ipc'
-import { startArtifactSync } from './artifacts/artifact-sync'
-import { recordAppLaunch } from './feedback/feedback-service'
-import { maintenanceScheduler } from './maintenance/runtime'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { disposeMcpConnections } from './pi/mcp-inspection'
 import { disposePackageJobs } from './pi/packages'
 import { preparePiConfig } from './pi/session-launch'
-import { cancelAllLogins } from './pi/login-flow'
-import { cancelAllClaudeLogins } from './pi/claude-login'
-import { unwatchAll } from './pi/session-watcher'
-import { unwatchAllWorkspaces } from './fs/workspace-watcher'
-import { settleAccount } from './account'
 import { configureLinuxKeyring } from './account/keyring'
-import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import {
   applyThemeSource,
   applyZoom,
@@ -41,7 +27,10 @@ import { fileScheme, isFrameEscape, registerFileProtocol } from './fs/file-proto
 import { externalUrl, isAppNavigation } from './external-links'
 import { installPermissionPolicy } from './voice/permissions'
 import { devRendererUrl } from './dev-renderer-url'
-import { disposeBrain } from './brain/runtime'
+import { startServices, stopServices } from './startup'
+import { quitLaunchGate } from './local-machine/launch-gate'
+import { decideLocalRuntime } from './local-machine/launch'
+import { serviceLanesRunning, serviceQuitOptions } from './app/quit'
 
 const rendererUrl = devRendererUrl(process.env, app.isPackaged)
 const isDev = rendererUrl !== undefined
@@ -60,15 +49,13 @@ app.setName('Phosphor')
 // by rename (same volume, atomic), only when the new one does not exist yet.
 // Must run before ANYTHING resolves 'userData'; electron/store.ts constructs
 // its store lazily for exactly this kind of pre-ready adjustment.
-try {
-  const newUserData = app.getPath('userData')
-  const legacyUserData = join(dirname(newUserData), 'pidex')
-  if (!existsSync(newUserData) && existsSync(legacyUserData)) {
-    renameSync(legacyUserData, newUserData)
-  }
-} catch {
-  // A failed migration means first-run defaults, not a broken launch.
-}
+adoptLegacyUserData({
+  userData: () => app.getPath('userData'),
+  isPackaged: app.isPackaged,
+  testUserData: process.env.PHOSPHOR_TEST_USER_DATA,
+  exists: existsSync,
+  rename: renameSync,
+})
 // Inset artwork on macOS (the dock applies no margin of its own, and the
 // full-bleed icon.png rendered larger than every neighbouring icon); linux
 // window/taskbar slots want the full-bleed tile.
@@ -223,8 +210,12 @@ if (!singleInstance) {
   }
   app.quit()
 } else {
+  // A second launch focuses Phosphor only once This Mac's runtime is decided:
+  // a window opened while the gate migrates would resume an in-app session.
+  let runtimeDecided: () => void = () => {}
+  const decided = new Promise<void>((resolve) => (runtimeDecided = resolve))
   app.on('second-instance', () => {
-    void app.whenReady().then(() => {
+    void decided.then(() => {
       const existing = BrowserWindow.getAllWindows()[0] ?? createWindow()
       if (existing.isMinimized()) existing.restore()
       existing.show()
@@ -232,11 +223,10 @@ if (!singleInstance) {
     })
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     // First thing after ready: anything that throws below should land in the
     // log rather than only in a terminal nobody was attached to.
     initDebugLog()
-    preparePiConfig()
     if (devIcon && process.platform === 'darwin') {
       app.dock?.setIcon(devIcon)
     }
@@ -249,29 +239,14 @@ if (!singleInstance) {
     // Settings → Writing → Check spelling. Chromium's default is on.
     applySpellcheck(getWritingPrefs().spellcheck)
     registerIpcHandlers()
-    // Before anything can start a session (routines do, at launch): indexes
-    // each session's artifacts as its turns end, then catches up with every
-    // session file on disk once per launch.
-    startArtifactSync()
-    // One count per app start, and the only thing gating the feedback nudge —
-    // it waits for real use rather than interrupting a fresh install.
-    recordAppLaunch()
-    createWindow()
-    installRoutineBackground(
-      () => {
-        const window = BrowserWindow.getAllWindows()[0] ?? createWindow()
-        window.show()
-        window.focus()
-      },
-      () => routineScheduler().pauseAll(),
-    )
-    startRoutines()
-    powerMonitor.on('resume', wakeRoutines)
-    // No-op unless packaged: dev and E2E must never poll GitHub.
-    startUpdateChecks()
-    // Reclaims dead lanes on a timer. Unref'd, warms up before its first
-    // sweep, and deletes nothing unless the user turned that on.
-    maintenanceScheduler.start()
+    // Once per process, before pi's config, a window or any session: in-app,
+    // or This Mac's Phosphor service (migrating to it first when it is time).
+    const mode = await decideLocalRuntime()
+    // Quitting: a second launch never opens a window.
+    if (mode === 'quit') return
+    if (mode === 'in-app') preparePiConfig()
+    startServices({ createWindow, mode })
+    runtimeDecided()
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -294,6 +269,7 @@ app.on('window-all-closed', () => {
 
 configureShutdownApproval({
   needsConfirmation: () =>
+    serviceLanesRunning() ||
     ptyManager.size > 0 ||
     hasPendingRoutineWork() ||
     registry.list().some(({ sessionId }) => {
@@ -307,6 +283,8 @@ configureShutdownApproval({
       detail:
         'There is active or unconfirmed work. Continuing stops all agents, routines, and terminals. Unfinished turns and terminal commands may be lost. Keep working to finish or save your work first.',
       buttons: ['Keep working', intent === 'quit' ? 'Stop work and quit' : 'Stop work and restart'],
+      // Daemon mode: service lanes keep running; only Desktop's own work stops.
+      ...serviceQuitOptions(intent),
       defaultId: 0,
       cancelId: 0,
       noLink: true,
@@ -337,33 +315,12 @@ function beginQuit(): void {
   if (quitting) return
   shutdownApproval.beginTeardown()
   quitting = true
-  // Clean shutdown: SIGTERM to every pi child, kill all PTYs, close all
-  // filesystem watchers so no chokidar handles or debounce timers outlive us.
-  stopUpdateChecks()
-  // Before killAll: a login flow polls its own pty on a timer, and killing the
-  // pty out from under it would leave that timer running against a dead id.
-  cancelAllLogins()
-  cancelAllClaudeLogins()
-  // Stop sign-ins, but drain native probes that may be saving rotated credentials.
-  const mcpConnections = disposeMcpConnections()
-  // Package jobs own separate trees too; stop admission before teardown.
-  const packageJobs = disposePackageJobs()
-  ptyManager.killAll()
-  // Stop admission and persist interrupted routine outcomes before disposing
-  // unrelated sessions. Routine cancellation owns its nested process tree.
-  void Promise.allSettled([stopRoutines(), disposeBrain()]).finally(() => {
-    void Promise.allSettled([
-      registry.disposeAll(),
-      settleAccount(),
-      unwatchAll(),
-      unwatchAllWorkspaces(),
-      packageJobs,
-      mcpConnections,
-    ]).finally(() => {
+  void quitLaunchGate()
+    .then(stopServices)
+    .finally(() => {
       quitComplete = true
       app.quit()
     })
-  })
 }
 
 /**

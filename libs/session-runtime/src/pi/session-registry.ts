@@ -1,3 +1,4 @@
+import type { createLiveDirectives } from './live-directives'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import type { PiRpcClient, PiSpawnOptions } from './rpc-client'
@@ -9,6 +10,7 @@ export interface SessionRegistryRuntime {
 }
 
 export interface LiveSession {
+  refreshDirectives?: ReturnType<typeof createLiveDirectives>
   sessionId: string
   workspacePath: string
   client: PiRpcClient

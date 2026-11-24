@@ -1,6 +1,7 @@
+import { sessionHostLane } from './hostRewind'
 import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
-import { currentBranchUserMessages, rewindToEntry, type BranchUserMessage } from './rewind'
+import { currentBranchUserMessages, useRewindToEntry, type BranchUserMessage } from './rewind'
 import { useChatUiStore } from './uiState'
 import { ModalOverlay } from '@/components/Modal'
 
@@ -36,6 +37,7 @@ function useForkCandidates(
 export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const open = useChatUiStore((s) => s.forkPickerFor === sessionId)
   const [candidates, retry] = useForkCandidates(sessionId, open)
+  const rewindToEntry = useRewindToEntry()
   const [busy, setBusy] = useState(false)
 
   if (!open) return null
@@ -60,6 +62,8 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
             <div className="text-text-tertiary text-sm">
               The thread rewinds to just before the message you pick, and its text comes back in the
               composer to edit and resend.
+              {sessionHostLane(sessionId) &&
+                ' Images not present in this transcript cannot be restored; those messages rewind with text only.'}
             </div>
           </div>
           <TooltipButton
@@ -106,7 +110,9 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
                 <span className="text-text-tertiary text-lg italic">
                   {candidate.images?.length === 1
                     ? 'Image'
-                    : `${candidate.images?.length ?? 0} images`}
+                    : candidate.images?.length
+                      ? `${candidate.images.length} images`
+                      : 'No preview · rewind with text only'}
                 </span>
               )}
             </TooltipButton>

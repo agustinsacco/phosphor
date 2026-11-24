@@ -324,6 +324,7 @@ it('keeps writing leaf exact and confined to its prefix', () => {
 import type { BrainInvokeMap } from './brain'
 import type { HostsInvokeMap } from './hosts'
 import type { AppInvokeMap } from './app'
+import type { OpsInvokeMap } from './ops'
 import type { PiInvokeMap } from './pi'
 import type { ClaudeInvokeMap, AccountInvokeMap, ControlInvokeMap } from './auth'
 import type {
@@ -339,6 +340,7 @@ type MapKeys = [
   keyof BrainInvokeMap,
   keyof HostsInvokeMap,
   keyof AppInvokeMap,
+  keyof OpsInvokeMap,
   keyof PiInvokeMap,
   keyof ClaudeInvokeMap,
   keyof AccountInvokeMap,

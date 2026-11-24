@@ -94,6 +94,10 @@ export interface MachineView {
   readonly lanes: LaneCounts | null
   /** The Host's private HTTPS address as it reported it. Never fetched by the server. */
   readonly endpoint: string | null
+  /** The owner's reach switch for this machine. Absent: old control, so hide the switch. */
+  readonly machineReach?: boolean
+  /** The machine's last beat said it accepts machine grants. */
+  readonly machineGrants?: boolean
 }
 
 export interface EnrollmentApproveResponse {
@@ -134,6 +138,8 @@ export interface HeartbeatRequest {
   readonly readiness: Readiness
   readonly lanes: LaneCounts
   readonly endpoint: string | null
+  /** This Host accepts machine-origin grants. Absent from older Hosts. */
+  readonly machineGrants?: boolean
 }
 
 export interface ClientRegisterRequest {
@@ -169,6 +175,8 @@ export interface HeartbeatResponse {
   readonly epoch?: number
   readonly ownerId?: string
   readonly revoked?: HostRevocations['revoked']
+  /** The owner's reach switch for this Host. Absent from older control. */
+  readonly machineReach?: boolean
 }
 
 export interface HealthResponse {

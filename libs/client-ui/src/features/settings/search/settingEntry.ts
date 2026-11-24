@@ -21,6 +21,8 @@ export interface SettingEntry {
    * scope line to Machine, so the reveal lands on it.
    */
   machineScope?: true
+  /** The Host must serve its reviewed JSON editor. */
+  configFiles?: true
   /** A row the platform only renders with this capability. */
   requires?: SettingsCapability
   /** Exactly as the section renders it: the result jumps to this text. */

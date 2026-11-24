@@ -1,4 +1,6 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { FolderRows } from './store/folder-rows'
+import { randomUUID } from 'node:crypto'
+import { repositoryIdForPath } from '@phosphor/session-runtime/host-local/repository-id'
 import { realpathSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
@@ -10,11 +12,12 @@ import {
 } from '@phosphor/shared/host-protocol'
 import type { LaneMarksChange } from '@phosphor/shared/host-protocol-lane-marks'
 import { SCHEMA } from './schema'
-import { errnoIs } from '../fs-safety'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { openStoreDatabase } from './store/open'
 import { validateRepositoryIdentity } from './store/identity'
 import { LANE_SELECT, writeLaneMarks } from './store/marks'
 import { LaneArchiveRows, pruneRemoved } from './store/archives'
+import { LanePauseRows } from './store/pauses'
 import {
   laneFromRow,
   repositoryFromRow,
@@ -37,17 +40,11 @@ import {
 } from './store/types'
 import * as receipts from './store/receipts'
 export * from './store/types'
-import { absolutePath, check, integer, text, uuid } from './validation'
+import { absolutePath, check, integer, text, uuid, validateController } from './validation'
 export { opHash } from './validation'
 export { validateRepositoryIdentity } from './store/identity'
-
 export { REMOVED_LANE_TTL_MS } from './store/archives'
-
-export function openStore(
-  directory: string,
-  uid: number | undefined,
-  ports: StorePorts = {},
-): Promise<HostStore> {
+export function openStore(directory: string, uid: number | undefined, ports: StorePorts = {}) {
   return openStoreDatabase(directory, uid, ports, (db, options) => new HostStore(db, options))
 }
 
@@ -61,6 +58,8 @@ export class HostStore {
   private configOrder: Record<string, number> = {} // Config positions: the listing order.
   readonly limits: Readonly<StoreLimits>
   readonly archives: LaneArchiveRows
+  readonly folders: FolderRows
+  readonly pauses: LanePauseRows
   constructor(
     private readonly db: DatabaseSync,
     private readonly ports: StorePorts,
@@ -85,6 +84,8 @@ export class HostStore {
     }
     this.limits = Object.freeze(limits)
     this.archives = new LaneArchiveRows(db, this.now, limits.lanesPerHost)
+    this.folders = new FolderRows(db)
+    this.pauses = new LanePauseRows(db)
   }
   private transaction<T>(fn: () => T): T {
     this.db.exec('BEGIN IMMEDIATE')
@@ -133,12 +134,12 @@ export class HostStore {
       absolutePath(path)
       try {
         const real = realpathSync.native(path)
-        if (!statSync(real).isDirectory()) {
+        if (real === '/' || !statSync(real).isDirectory()) {
           unavailable++
           continue
         }
         absolutePath(real)
-        const id = createHash('sha256').update(real).digest('hex').slice(0, 16)
+        const id = repositoryIdForPath(real)
         repositories.set(id, { id, path: real, name: basename(real) })
       } catch (error) {
         if (!(error instanceof Error && errnoIs(error, 'ENOENT', 'ENOTDIR', 'EACCES'))) throw error
@@ -228,7 +229,7 @@ export class HostStore {
           .run(str(existing, 'lane_id'))
         return this.requireLane(str(existing, 'lane_id'))
       }
-      if (options.controller !== undefined) this.validateController(options.controller)
+      if (options.controller !== undefined) validateController(options.controller)
       const id = options.restoreId ?? randomUUID()
       uuid(id)
       const now = this.clock()
@@ -294,11 +295,6 @@ export class HostStore {
   pruneRemovedLanes(now: number = this.clock()): void {
     this.transaction(() => pruneRemoved(this.db, now, this.limits.lanesPerHost))
   }
-  private validateController(controller: Controller): void {
-    uuid(controller.clientId)
-    check(typeof controller.label === 'string')
-    text(controller.label, HOST_LIMITS.labelChars)
-  }
   private setControl(id: string, controller: Controller | null): LaneControl {
     this.db
       .prepare(
@@ -308,7 +304,7 @@ export class HostStore {
     return this.requireLane(id).control
   }
   takeControl(id: string, controller: Controller): LaneControl {
-    this.validateController(controller)
+    validateController(controller)
     return this.transaction(() => {
       this.requireLane(id)
       return this.setControl(id, controller)
@@ -322,12 +318,15 @@ export class HostStore {
       return { released: true, control: this.setControl(id, null) }
     })
   }
-  admit(id: string, controller: Controller, fence: number): Admission {
-    this.validateController(controller)
-    integer(fence, 1)
+  admit(id: string, controller: Controller, fence: number | 'if-unheld'): Admission {
+    validateController(controller)
+    if (fence !== 'if-unheld') integer(fence, 1)
     return this.transaction(() => {
       const control = this.requireLane(id).control
-      if (control.fence !== fence) return { admitted: false, code: 'stale-fence', control }
+      if (fence === 'if-unheld' && control.controller)
+        return { admitted: false, code: 'not-controller', control }
+      if (fence !== 'if-unheld' && control.fence !== fence)
+        return { admitted: false, code: 'stale-fence', control }
       if (control.controller === null)
         return { admitted: true, control: this.setControl(id, controller) }
       if (control.controller.clientId !== controller.clientId)

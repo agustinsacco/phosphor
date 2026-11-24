@@ -26,7 +26,7 @@ import {
   withoutSession,
   withRewind,
   type RewoundSessions,
-} from '@/features/sessions/rewound'
+} from '@phosphor/shared/visible-lanes'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { createSettleTracker } from '@/lib/runSettle'
 import { requestSwarm } from '@/lib/swarm'

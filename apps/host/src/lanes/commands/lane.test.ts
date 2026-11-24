@@ -176,7 +176,7 @@ describe('deletion', () => {
       .mockImplementationOnce(() => held.promise)
     const done = job(removal)
     await deleteLane(state, f.ports, done, queue, input)?.completion
-    expect(f.ports.deleteLane).toHaveBeenCalledWith(removal, expect.any(Function))
+    expect(f.ports.deleteLane).toHaveBeenCalledWith(removal, expect.any(Function), false)
     expect(f.last(done.frame.requestId)).toEqual({
       requestId: done.frame.requestId,
       status: 'done',

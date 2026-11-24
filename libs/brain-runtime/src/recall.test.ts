@@ -7,6 +7,8 @@ import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
 import { HARBOR_RECALL } from '../../brain-client/src/__fixtures__/recall'
 import type { BrainEntitySummary } from '@phosphor/shared/brain-explore'
 import { emptyExpansion, emptyRoutes } from './search/query'
+import { FakeBrainStore } from './__fixtures__/fake-store'
+import { recallOptions } from './__fixtures__/options'
 function fixture() {
   const prefs = { ...DEFAULT_BRAIN_PREFS, enabled: false }
   const store = {
@@ -54,7 +56,7 @@ it('enables and revokes read-only recall launch without allowing a disabled sear
     prefs.enabled = true
     const launch = await recall.recallLaunch()
     expect(launch).toMatchObject({ extensions: ['/brain.mjs'], skills: ['/brain/SKILL.md'] })
-    expect(launch!.env.PHOSPHOR_BRAIN_TOKEN).toBeTruthy()
+    expect(launch).not.toHaveProperty('env')
     prefs.recall = false
     expect(await recall.recallLaunch()).toBeUndefined()
   } finally {
@@ -152,4 +154,66 @@ it('asks the worker to rank names together, uses the top match, and counts only 
   await recall.agent('search', { from: 'Rina' }, undefined, 'curator')
   expect(store.recordRecall.mock.calls).toEqual(Array(3).fill([['ownership'], 42]))
   await recall.dispose()
+})
+it('uses only owner facts and only the references shown in that lane’s latest briefing', async () => {
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch()
+  store.prefs.enabled = true
+  const memory = HARBOR_RECALL.hits[0]!.memory
+  search.result = HARBOR_RECALL
+  store.details = [
+    {
+      memory,
+      quotes: [],
+      linkQuotes: {},
+      entities: [],
+      history: [],
+      related: [],
+      sourcePath: null,
+      use: { recalled: 0, lastRecalledAt: null, flagged: 0 },
+    },
+  ]
+  const flag = vi.spyOn(store, 'flag')
+  const recall = createRecall(store, recallOptions(store), search, undefined, store)
+  const lane = { cwd: '/projects/harbor', sessionId: 'owner-session', title: 'Owner title' }
+  const one = recall.forLane(lane),
+    other = recall.forLane({ ...lane, sessionId: 'other' })
+  const spoofed = {
+    cwd: '/untrusted',
+    sessionId: 'forged',
+    title: 'Untrusted',
+    memoryId: 'forged-id',
+  }
+  const input = { ...spoofed, ref: 1, problem: 'wrong', reason: 'Verified.' }
+  const query = { ...spoofed, query: 'Harbor' }
+  try {
+    expect(await one.search(query)).toMatchObject({
+      text: expect.stringContaining('via Harbor, owned by Rina Okafor'),
+      data: { status: 'ok', memories: 1 },
+    })
+    expect(projectContext).toHaveBeenCalledWith(lane.cwd)
+    expect(await one.flag({ ...input, ref: 99 })).toMatchObject({
+      data: { status: 'unavailable' },
+    })
+    expect(flag).not.toHaveBeenCalled()
+    expect(await other.flag(input)).toMatchObject({ text: expect.stringContaining('search again') })
+    expect(await one.flag(input)).toMatchObject({ data: { status: 'filed' } })
+    expect(flag).toHaveBeenCalledWith({
+      memoryId: memory.id,
+      sessionId: lane.sessionId,
+      title: lane.title,
+      problem: 'wrong',
+      reason: 'Verified.',
+    })
+    vi.spyOn(search, 'recall').mockRejectedValueOnce(new Error('Unavailable'))
+    await expect(one.search(query)).rejects.toThrow('Unavailable')
+    expect(await one.flag(input)).toMatchObject({ data: { status: 'unavailable' } })
+    await one.search(query)
+    search.result = { ...HARBOR_RECALL, status: 'no_match', hits: [] }
+    await one.search(query)
+    expect(await one.flag(input)).toMatchObject({ data: { status: 'unavailable' } })
+    expect(flag).toHaveBeenCalledTimes(1)
+  } finally {
+    await recall.dispose()
+  }
 })

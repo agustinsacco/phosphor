@@ -1,3 +1,4 @@
+import { useAgentHints } from '@/features/agent-control/useAgentHints'
 import { rememberRemoteThinking } from '@/stores/remoteModelPicks'
 import { useSessionHostLane } from '@/stores/remoteLanes'
 import { useState } from 'react'
@@ -33,6 +34,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 }
 
 function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+  const hints = useAgentHints(sessionId)
   const hostLane = useSessionHostLane(sessionId)
   const hostId = hostLane?.hostId ?? null
   const remote = hostId !== null
@@ -48,7 +50,9 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
     (meta?.model?.provider === summaryModel.provider && meta.model?.id === summaryModel.id)
       ? meta?.model
       : undefined
-  const { switchingTo, switchTo } = useSessionModelSwitch(sessionId, currentModel, remote)
+  const { switchingTo, switchTo } = useSessionModelSwitch(sessionId, currentModel, remote, () =>
+    hints.clear('model'),
+  )
   const { actions } = useSessionModelActions(sessionId)
   const failed = useChatStore((s) => s.sessions[sessionId]?.modelsFailed ?? false)
 
@@ -63,9 +67,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       />
     ) : null
   }
-  /**
-   * Levels to render. Prefer pi's answer; derive locally when missing.
-   */
+
   const levelsToRender: ThinkingLevel[] =
     thinkingLevels ?? (currentModel ? supportedThinkingLevels(currentModel) : [])
 
@@ -73,6 +75,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
     setOpen(null)
     const ok = await piCallOk(sessionId, { type: 'set_thinking_level', level })
     if (ok) {
+      hints.clear('thinking')
       useChatStore.getState().patchMeta(sessionId, { thinkingLevel: level })
       const target = useSessionsStore.getState().live[sessionId]?.target
       if (target?.kind === 'remote') rememberRemoteThinking(target.hostId, level)
@@ -83,10 +86,10 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
     <div className="relative flex min-w-0 max-w-full flex-1 items-center">
       <ModelChip
         testId="model-chip"
+        agentHint={hints.model}
         grouped={levelsToRender.length > 1}
         active={open === 'model'}
-        // Inert while switching: a second pick against a session that is being
-        // disposed and respawned races the restart it would be re-entering.
+        // A second pick would race the first one’s cross-provider restart.
         disabled={switchingTo !== null}
         loading={switchingTo !== null}
         onClick={() => setOpen(open === 'model' ? null : 'model')}
@@ -106,10 +109,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         }
       />
 
-      {/* Gate on what the menu will actually render (pi's answer when
-          present), not the local guess — if the two ever disagree, a chip
-          opening a one-item menu (or a hidden chip over real choices) is the
-          bug this avoids. */}
+      {/* Use the menu’s actual levels so the chip never opens an empty menu. */}
       {levelsToRender.length > 1 && (
         // Its own anchor: the picker spans the footer's free width, so a
         // menu placed against it opens under the model chip, not this one.
@@ -118,6 +118,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
             testId="thinking-chip"
             active={open === 'thinking'}
             onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
+            agentHint={hints.thinking}
             label={thinkingLabel(meta.thinkingLevel)}
           />
           {open === 'thinking' && (

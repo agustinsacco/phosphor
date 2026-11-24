@@ -1,3 +1,5 @@
+import { bindServiceLaneViews, laneControlPolicy } from '@/platform/serviceLaneControl'
+import { serviceScope } from './localServiceScope'
 import {
   bindRemoteHostView,
   refreshRemoteArtifacts,
@@ -16,9 +18,7 @@ import { migrateLegacyLaneMarks } from './remoteLaneMarks'
 import { bindHostsSnapshotRead } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
-import { useWorkspacesStore } from './workspaces'
-import { isWorktreeFolder, projectPathFor } from '@/lib/path'
-import { representativeGroupPath } from '@/features/sessions/groupSessions'
+import { localRevealGroup } from '@/features/sessions/localRevealGroup'
 import {
   localLaneGroupKey,
   remoteLaneGroupKey,
@@ -59,7 +59,8 @@ export function useNavigationHostId(): string | undefined {
 
 /** A machine's name: `'local'`, the sentinel the switcher, skill share and sign-in use, is This Mac. */
 export function machineLabel(machine: string): string {
-  if (machine === 'local') return localMachineLabel()
+  if (machine === 'local' || useRemoteLanesStore.getState().hosts[machine]?.local)
+    return localMachineLabel()
   return useMachinesStore.getState().machines.find((m) => m.id === machine)?.label ?? machine
 }
 
@@ -104,7 +105,7 @@ function heldLane(sessionId: string) {
   if (!remote) return null
   const { host, lane } = remote
   const held =
-    machineCaps(host).granted('sessions.control') && lane?.control.controller?.self === true
+    machineCaps(host).granted('sessions.control') && laneControlPolicy(host?.local, lane).actionable
   return { state: host?.state, held }
 }
 
@@ -133,10 +134,12 @@ export const useRemoteLanesStore = create<{
   snapshotStatus: 'idle',
   filter: 'local',
   error: null,
-  setFilter: (filter) => set({ filter }),
+  setFilter: (filter) => set((s) => ({ filter: serviceScope(filter, s.hosts) })),
 }))
 
-bindRemoteHostView((hostId) => useRemoteLanesStore.getState().hosts[hostId])
+const hostView = (hostId: string) => useRemoteLanesStore.getState().hosts[hostId]
+bindRemoteHostView(hostView)
+bindServiceLaneViews({ host: hostView, session: sessionHostLane })
 useRemoteLanesStore.subscribe((state) => migrateLegacyLaneMarks(state.hosts))
 
 // Window-local selection survives sidebar remounts, but not account or directory removal.
@@ -165,24 +168,6 @@ export async function adoptRemoteLane(info: LiveSessionInfo, nav: number): Promi
 export function alignLaneMachineFilter(machine: string): void {
   const store = useRemoteLanesStore.getState()
   if (store.filter !== 'all' && store.filter !== machine) store.setFilter(machine)
-}
-
-function localRevealGroup(workspacePath: string): string {
-  const { gitByCwd, live } = useSessionsStore.getState()
-  const knownPaths = new Set(
-    useWorkspacesStore
-      .getState()
-      .recents.filter((workspace) => !isWorktreeFolder(workspace.path))
-      .map((workspace) => workspace.path),
-  )
-  knownPaths.add(workspacePath)
-  for (const entry of Object.values(live))
-    if (entry.target?.kind !== 'remote') knownPaths.add(entry.workspacePath)
-  const projectKey = projectPathFor(workspacePath, gitByCwd[workspacePath])
-  const groupPaths = [...knownPaths].filter(
-    (path) => projectPathFor(path, gitByCwd[path]) === projectKey,
-  )
-  return representativeGroupPath(projectKey, groupPaths)
 }
 
 type LaneDestination = { sessionId: string } | { hostId: string; laneId: string }
@@ -277,6 +262,14 @@ export async function openRemoteLane(hostId: string, laneId: string): Promise<bo
   return navigateToLane({ hostId, laneId })
 }
 
+function acceptSnapshot(hosts: HostsSnapshot): void {
+  useRemoteLanesStore.setState((s) => ({
+    hosts,
+    filter: serviceScope(s.filter, hosts),
+    snapshotStatus: 'ready',
+  }))
+}
+
 /** Main owns the bounded cache. Refetch serially, and reject replies after detach. */
 export function attachRemoteLanesListener(): () => void {
   useRemoteLanesStore.setState({ snapshotStatus: 'loading' })
@@ -298,7 +291,7 @@ export function attachRemoteLanesListener(): () => void {
         const hosts = await window.phosphor.invoke('hosts:snapshot')
         if (active) {
           const previousHosts = useRemoteLanesStore.getState().hosts
-          useRemoteLanesStore.setState({ hosts, snapshotStatus: 'ready' })
+          acceptSnapshot(hosts)
           const currentId = useSessionsStore.getState().activeSessionId
           const current = currentId ? useSessionsStore.getState().live[currentId] : undefined
           if (currentId && current?.target?.kind === 'remote') {

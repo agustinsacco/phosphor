@@ -7,6 +7,7 @@ import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { primaryAccount } from '../claude/accounts'
 import type * as HealthModule from '../pi/health'
 import type * as FsPromises from 'node:fs/promises'
+import type * as ModeModule from '../local-machine/mode'
 
 const state = vi.hoisted(() => {
   const session = {
@@ -16,10 +17,13 @@ const state = vi.hoisted(() => {
       pid: 123,
       alive: true,
       on: vi.fn(),
+      respondToExtensionUI: vi.fn(),
       request: vi.fn().mockResolvedValue({ success: true }),
     },
   }
   return {
+    mode: 'in-app' as 'in-app' | 'daemon',
+    guard: vi.fn().mockReturnValue('relay'),
     signedIn: false,
     remote: {
       command: vi.fn(),
@@ -45,9 +49,14 @@ vi.mock('../account', () => ({
   accountSnapshot: () => ({ account: { status: state.signedIn ? 'signed-in' : 'signed-out' } }),
 }))
 vi.mock('./hosts-handlers', () => ({ remoteLanes: () => state.remote }))
+vi.mock('../local-machine/mode', async (original) => ({
+  ...(await original<typeof ModeModule>()),
+  localRuntimeMode: () => state.mode,
+}))
 vi.mock('./handle', () => ({
   handle: (name: string, cb: (...args: unknown[]) => unknown) => state.handlers.set(name, cb),
 }))
+vi.mock('../ops/lifecycle', () => ({ activeDesktopOps: () => ({ surfaceAnswered: state.guard }) }))
 vi.mock('../registry', () => ({
   registry: {
     create: state.create,
@@ -64,8 +73,14 @@ vi.mock('../pi/health', async (original) => ({
   ...(await original<typeof HealthModule>()),
   cachedPiHealth: vi.fn().mockResolvedValue({ ok: true, binaryPath: '/bin/pi' }),
 }))
-vi.mock('../pi/stub', () => ({ piStubPath: () => undefined }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }) }))
+vi.mock('../pi/stub', () => ({
+  piStubPath: () => undefined,
+  stubOpsEnabled: () => false,
+  stubBrainEnabled: () => false,
+}))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }),
+}))
 vi.mock('@phosphor/session-runtime/pi/resume-provider', () => ({
   resumeProvider: vi.fn(async () => undefined),
 }))
@@ -86,6 +101,7 @@ vi.mock('../headroom/proxy', () => ({ headroomSupervisor: () => ({ sessionEnv: (
 vi.mock('@phosphor/session-runtime/git/git-info', () => ({
   gitInfoBatch: vi.fn().mockResolvedValue({ '/repo': { isRepo: false } }),
 }))
+vi.mock('../prefs/backend', () => ({ prefs: () => ({ get: () => undefined }) }))
 vi.mock('../store', () => ({
   getPrefs: () => ({
     contextBudget: '400k',
@@ -100,12 +116,16 @@ vi.mock('../store', () => ({
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 import { registerPiSessionHandlers } from './pi-session-handlers'
 import { cancelSessionOpens } from '../pi/session-path-lock'
+import { spawnSession } from '../pi/session-runtime'
+import { recordWorkspace } from '../store'
+import { sessionDecision } from '../maintenance/history'
 
 const event = { sender: { isDestroyed: () => false, send: vi.fn() } }
 const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, installed: true }]
 
 beforeEach(() => {
   vi.clearAllMocks()
+  state.mode = 'in-app'
   state.signedIn = false
   state.handlers.clear()
   state.list.mockReturnValue([])
@@ -120,6 +140,33 @@ beforeEach(() => {
   state.listPackages.mockResolvedValue(pkg('0.10.0'))
   state.ensureCompactionReset.mockReset().mockResolvedValue(undefined)
   registerPiSessionHandlers()
+})
+
+describe("Desktop's Brain lane in daemon mode", () => {
+  const brain = { workspacePath: '/user-data/brain/Brain', sessionPath: '/sessions/brain.jsonl' }
+  const execution = { unattended: false, keepLastWorkspace: true }
+
+  it('records no recents, launch folder or session marker for Desktop', async () => {
+    state.mode = 'daemon'
+    await spawnSession(brain, undefined, execution)
+    expect(state.create).toHaveBeenCalledOnce()
+    expect(recordWorkspace).not.toHaveBeenCalled()
+    expect(sessionDecision(brain.sessionPath).activityAt).toBe(0)
+  })
+
+  it('stays out of the live lanes Desktop lists for its windows', async () => {
+    state.mode = 'daemon'
+    const remote = { sessionId: 'host:mac/lane:1', workspacePath: '/repo' }
+    state.remote.list.mockReturnValue([remote])
+    state.list.mockReturnValue([{ sessionId: 'brain-1', workspacePath: brain.workspacePath }])
+    expect(state.handlers.get('pi:listLiveSessions')!(event)).toEqual([remote])
+  })
+
+  it('in-app, still joins the recents without becoming the launch folder', async () => {
+    await spawnSession(brain, undefined, execution)
+    expect(recordWorkspace).toHaveBeenCalledWith(brain.workspacePath, 'Brain', { last: false })
+    expect(sessionDecision(brain.sessionPath).activityAt).toBeGreaterThan(0)
+  })
 })
 
 describe('session context policy integration', () => {
@@ -406,4 +453,13 @@ it('routes all remote handles away from the local pi registry, including expired
   expect(state.session.client.request).not.toHaveBeenCalled()
   expect(state.dispose).not.toHaveBeenCalled()
   expect(state.create).not.toHaveBeenCalled()
+})
+
+it('guards the local confirmation before pi receives the surface answer', async () => {
+  const answer = { type: 'extension_ui_response', id: 'dialog', confirmed: true }
+  await state.handlers.get('pi:extensionUiResponse')!(event, 'live-1', answer)
+  expect(state.guard).toHaveBeenCalledWith('live-1', answer, 'surface')
+  expect(state.guard.mock.invocationCallOrder[0]).toBeLessThan(
+    state.session.client.respondToExtensionUI.mock.invocationCallOrder[0]!,
+  )
 })

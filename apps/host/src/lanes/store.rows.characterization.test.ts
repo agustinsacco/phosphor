@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -82,3 +82,11 @@ it.each(['ENOENT', 'ENOTDIR', 'EACCES'])(
     expect(() => store.syncRepositories([join(root, 'repository')])).toThrow()
   },
 )
+
+it('names a repository by the first 16 hex digits of the SHA-256 of its realpath', () => {
+  const path = join(root, 'named')
+  mkdirSync(path)
+  const real = realpathSync.native(path)
+  const expected = createHash('sha256').update(real).digest('hex').slice(0, 16)
+  expect(store.syncRepositories([path])).toEqual([{ id: expected, path: real, name: 'named' }])
+})

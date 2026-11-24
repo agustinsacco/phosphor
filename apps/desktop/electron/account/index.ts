@@ -25,7 +25,7 @@ let avatarGeneration = 0
 let avatarCache: ReturnType<typeof createAvatarCache> | null = null
 
 /** The OS keychain, unless an e2e run keeps it out (see keychainOff). */
-function cipher(): Cipher {
+export function cipher(): Cipher {
   if (!keychainOff(app.isPackaged, process.env)) {
     return safeStorageCipher(safeStorage, process.platform)
   }

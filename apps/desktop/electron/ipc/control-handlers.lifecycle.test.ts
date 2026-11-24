@@ -94,6 +94,7 @@ it('starts one live subscription on registration, clears on sign-out and unsubsc
     'control:approveEnrollment',
     'control:renameMachine',
     'control:removeMachine',
+    'control:setMachineReach',
   ])
   for (const listener of state.accountListeners) listener({ account: { status: 'signed-out' } })
   expect(state.client.clearObservations).toHaveBeenCalledOnce()

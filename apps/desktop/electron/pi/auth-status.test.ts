@@ -19,7 +19,9 @@ vi.mock('node:child_process', () => ({
   },
 }))
 vi.mock('./health', () => ({ checkPiHealth: state.health }))
-vi.mock('./shell-env', () => ({ piProcessEnv: async () => ({ PATH: '/shell/bin' }) }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({
+  piProcessEnv: async () => ({ PATH: '/shell/bin' }),
+}))
 
 const { logoutProvider } = await import('./auth-status')
 

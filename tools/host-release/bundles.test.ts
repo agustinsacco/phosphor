@@ -15,7 +15,7 @@ import { homedir, tmpdir, userInfo } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { HOST_RELEASE_BASE_URL } from '../../apps/host/src/update/download'
+import { HOST_RELEASE_BASE_URL } from '@phosphor/session-runtime/host-install/download'
 import {
   type BundleFixture,
   disposeBundleFixture,

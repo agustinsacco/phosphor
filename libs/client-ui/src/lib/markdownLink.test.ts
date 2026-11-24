@@ -173,3 +173,17 @@ describe('fileUrlTransform', () => {
     expect(transform('#toc', 'src')).toBe('#toc')
   })
 })
+
+it('keeps only opaque lane links, and only in a link destination', () => {
+  const href = 'phosphor-lane:local/session:pi-id'
+  expect(artifactUrlTransform(href, 'href')).toBe(href)
+  expect(fileUrlTransform('phosphor-file://test/a.md')(href, 'src')).toBe('')
+  for (const invalid of [
+    'phosphor-lane:local/session:../../other',
+    'phosphor-lane://evil',
+    'phosphor-lane:host:h/lane:',
+  ]) {
+    expect(classifyLink(invalid)).toEqual({ kind: 'none' })
+    expect(artifactUrlTransform(invalid)).toBe('')
+  }
+})

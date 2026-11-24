@@ -354,8 +354,7 @@ Hosts announcing `artifacts.read`, tagged with the machine label. Remote library
 keys name opaque lane/slug resources, not Host session ids or filesystem paths.
 A failing machine is absent from the listing; local rows and other machines still load.
 Stored remote rows open read-only in the library; live rows can open their lane.
-Removed lanes are excluded because no admitted lane authorizes their read.
-Local deleted-session retention is unchanged. Host indexes and blobs stay on
+The ordinary Host wire listing excludes removed lanes because no admitted lane authorizes their read. **This Mac in service mode** uses the owner’s catalog library instead: `artifact.list` and `artifact.read` address `<laneId>/<slug>` or, for a retained artifact with no lane, `<sessionId>/<slug>` with `sessionDeleted`. The latter can open its saved versions but has no lane to open. Live-lane rows take priority, newest first within each group; the listing caps are 2,000 artifacts and 4 MiB of metadata. Rows omitted from the list are not deleted. An unavailable service never substitutes the old Desktop library. Host indexes and blobs stay on
 the Host; Desktop holds remote contents in memory only.
 
 On Desktop HTML staging remains local through `phosphor-artifact://`. Its sandbox

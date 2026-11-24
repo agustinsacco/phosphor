@@ -1,3 +1,4 @@
+import { waitingForLocal } from './dedupe'
 import { randomUUID } from 'node:crypto'
 import { machineStatus } from '@shared/control-api'
 import { log } from '../debug-log'
@@ -19,15 +20,18 @@ export function reconcileHostManager(
   resetReason = 'identity',
 ) {
   if (!state.list || !state.user || state.stopped || state.disabled) return
-  const present = new Set(state.list.machines.map((m) => m.id))
+  const { machines } = state.directory.visible(state.list)
+  const waiting = state.directory.get() === undefined
+  const present = new Set(machines.map((m) => m.id))
   for (const id of Object.keys(state.cached))
     if (!present.has(id)) {
       delete state.cached[id]
       ports.clearGrants(id)
     }
   for (const [id, c] of state.connections) {
-    const machine = state.list.machines.find((m) => m.id === id)
+    const machine = machines.find((m) => m.id === id)
     if (
+      waiting ||
       !machine ||
       machineStatus(machine, Date.now(), state.offset) !== 'up' ||
       c.endpoint !== machine.endpoint ||
@@ -54,7 +58,12 @@ export function reconcileHostManager(
         }
     }
   }
-  for (const m of state.list.machines) {
+  for (const m of machines) {
+    if (waiting) {
+      state.cached[m.id] = waitingForLocal(state.cached[m.id])
+      continue
+    }
+    if (state.cached[m.id]?.lastError === 'waiting-local-service') delete state.cached[m.id]
     if (!hostEndpoint(m.endpoint, ports.testEndpoint)) {
       state.cached[m.id] = {
         ...state.cached[m.id],

@@ -1,6 +1,13 @@
 import { errorText } from '@phosphor/shared/errors'
 import { EXIT } from './checks'
-import { readCliRequest, supervisedRun, type ValidatedCommand } from './cli-args'
+import {
+  isCommandName,
+  readCliRequest,
+  scanArgv,
+  supervisedRun,
+  type ValidatedCommand,
+} from './cli-args'
+import { catalogTopic, runCliOps } from './cli-ops'
 import { handleControl, handleRun, handleService } from './cli-control'
 import {
   handleAccept,
@@ -53,7 +60,18 @@ function dispatch<N extends CommandName>(
   return COMMANDS[name](command, io, context)
 }
 
-export async function runCli(
+/**
+ * Known commands first. Only argv whose first word the command table does not
+ * know, and is not `help`, goes to the catalog ops CLI.
+ */
+export function runCli(argv: readonly string[], io: CliIo, context: CliContext): Promise<number> {
+  const { command } = scanArgv(argv)
+  return command !== undefined && command !== 'help' && !isCommandName(command)
+    ? runCliOps(argv, io, context, runCommandTable)
+    : runCommandTable(argv, io, context)
+}
+
+async function runCommandTable(
   argv: readonly string[],
   io: CliIo,
   context: CliContext,
@@ -61,7 +79,7 @@ export async function runCli(
   const supervised = supervisedRun(argv)
   const request = readCliRequest(argv, context.terminal)
   if (request.kind === 'help') {
-    io.stdout(USAGE)
+    io.stdout((argv[0] === 'help' && argv.length === 2 && catalogTopic(argv[1])) || USAGE)
     return EXIT.ok
   }
   if (request.kind === 'usage') {

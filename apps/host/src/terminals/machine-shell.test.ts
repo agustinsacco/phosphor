@@ -55,7 +55,7 @@ describe('machine shells', () => {
       cols: 80,
       rows: 24,
       name: 'xterm-256color',
-      env: { HOST_ONLY: 'yes', TERM: 'xterm-256color' },
+      env: { HOST_ONLY: 'yes', TERM: 'xterm-256color', PHOSPHOR_HOST_PID: String(process.pid) },
     })
     expect(f.state.entries.get(terminalId)).toMatchObject({ laneId: '', machine: true })
     expect(f.save).toHaveBeenLastCalledWith([])

@@ -24,7 +24,7 @@ export interface MachineTaskOptions {
 }
 
 async function downloadClaudeInstaller(
-  options: MachineTaskOptions,
+  options: Omit<MachineTaskOptions, 'terminals'>,
   temporary: string,
   curl: string,
 ) {
@@ -57,7 +57,7 @@ async function downloadClaudeInstaller(
 }
 
 export async function runMachineTask(
-  options: MachineTaskOptions,
+  options: Omit<MachineTaskOptions, 'terminals'>,
   op: NonNullable<ReturnType<typeof parseMachineTask>>,
   run: ReturnType<HostTerminals['loginRunner']>,
   authorized: () => boolean,
@@ -86,13 +86,15 @@ export async function runMachineTask(
       args.push('install', 'npm:@saccolabs/pi-claude-cli')
     else if (op.task.startsWith('package.')) {
       if (
+        op.name &&
         op.task !== 'package.install' &&
         !(await listPackages(cwd, options.settings.agentDir)).some(
-          (pkg) => pkg.spec === op.name && pkg.scope !== 'project',
+          (pkg) => pkg.spec === op.name && pkg.scope === (op.repositoryId ? 'project' : 'global'),
         )
       )
         throw new Error('bad-request')
-      args.push(op.task.slice('package.'.length), op.name!)
+      args.push(op.task.slice('package.'.length), op.name ?? '--extensions')
+      if (op.repositoryId) args.push('-l')
     } else if (op.task.startsWith('mcp.')) {
       options.settings.invalidateConnectors()
       const configs = await readMcpConfigs(cwd, {

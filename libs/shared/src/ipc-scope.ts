@@ -127,6 +127,8 @@ export const IPC_SCOPE = {
   'app:setModelPicks': 'app',
   'app:setLastSession': 'app',
   'app:resumeTarget': 'machine',
+  'app:localMachine': 'app',
+  'app:localMachineAction': 'app',
   'app:setFontPrefs': 'app',
   'app:setWorktreePrefs': 'app',
   'app:setAgentDirectives': 'app',
@@ -208,6 +210,7 @@ export const IPC_SCOPE = {
   'control:approveEnrollment': 'app',
   'control:renameMachine': 'app',
   'control:removeMachine': 'app',
+  'control:setMachineReach': 'app',
   'account:get': 'app',
   'account:signIn': 'app',
   'account:cancelSignIn': 'app',
@@ -328,6 +331,7 @@ export const IPC_SCOPE = {
   'feedback:state': 'app',
   'feedback:submit': 'app',
   'feedback:dismiss': 'app',
+  'ops:run': 'machine',
 } as const satisfies Record<IpcInvokeChannel, 'app' | 'machine'>
 
 /** Channels whose handlers act on this machine's files, processes or accounts. */

@@ -79,6 +79,8 @@ function createEvents() {
     onHostOpenLane: createEvent<'onHostOpenLane'>(),
     onFileDownloadProgress: createEvent<'onFileDownloadProgress'>(),
     onVoiceStatus: createEvent<'onVoiceStatus'>(),
+    onOpsChanged: createEvent<'onOpsChanged'>(),
+    onLocalMachineChanged: createEvent<'onLocalMachineChanged'>(),
   }
 }
 
@@ -123,6 +125,8 @@ function createApi(
     onHostOpenLane: events.onHostOpenLane.subscribe,
     onFileDownloadProgress: events.onFileDownloadProgress.subscribe,
     onVoiceStatus: events.onVoiceStatus.subscribe,
+    onOpsChanged: events.onOpsChanged.subscribe,
+    onLocalMachineChanged: events.onLocalMachineChanged.subscribe,
     pathForFile: options.pathForFile ?? (() => ''),
     spellingSuggestions: options.spellingSuggestions ?? (() => null),
     piCommand<T extends RpcCommand['type']>(

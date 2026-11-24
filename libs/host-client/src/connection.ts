@@ -41,6 +41,8 @@ export function createHostConnection(ports: {
   onRoutinesChanged?: () => void
   onAttention?: (event: Extract<HostFrame, { type: 'attention' }>['event']) => void
   disabled?: () => void
+  lanes?: boolean // false: no automatic `lanes` subscription (a reach pool only runs ops)
+  local?: true // this machine's own socket: the only one whose `ownerLocal` is projected
   log?: TraceLog
   /** Every frame sent or received, for the metadata-only traffic log. */
   traffic?: (direction: 'in' | 'out', frame: ClientFrame | HostFrame, bytes: number) => void
@@ -256,7 +258,7 @@ export function createHostConnection(ports: {
       lastPong = now()
       runtimeEpoch = f.hello.runtimeEpoch
       requests.prepareReplay()
-      update(readyView(f))
+      update(readyView(f, ports.local === true))
       if (stopped) return
       log('hosts', 'ready', {
         hostId: ports.hostId,
@@ -264,7 +266,7 @@ export function createHostConnection(ports: {
         version: f.hello.hostVersion,
         caps: f.capabilities,
       })
-      subscribe('lanes', undefined, view.cursor)
+      if (ports.lanes !== false) subscribe('lanes', undefined, view.cursor)
       for (const [id, w] of watches) subscribe(id, w.laneId, w.cursor)
       for (const [id, w] of terminals) subscribeTerminal(id, w.terminalId)
       requests.flushReplay()
@@ -281,10 +283,8 @@ export function createHostConnection(ports: {
         socket?.close(4400, 'Unexpected renewal')
         return
       }
-      if (renewalTimeout) {
-        clearTimeout(renewalTimeout)
-        timers.delete(renewalTimeout)
-      }
+      clearTimeout(renewalTimeout)
+      timers.delete(renewalTimeout)
       renewalTimeout = undefined
       if (f.capabilities) update({ capabilities: [...f.capabilities] })
       renew(f.grantExpiresAt)

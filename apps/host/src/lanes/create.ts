@@ -1,6 +1,7 @@
+import type { WorkspaceLeases } from '../owner/lease'
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import { gitTracksFolder, prepareLaneFolder } from './worktree'
+import { gitTracksFolder, laneWorktreePath, prepareLaneFolder } from './worktree'
 import type { Controller, HostStore, StoredLane } from './store'
 
 export interface LaneSessions {
@@ -15,7 +16,13 @@ export interface LaneSessions {
   stop(sessionId: string): Promise<void>
 }
 export async function createLane(
-  ports: { store: HostStore; sessions: LaneSessions; log: RuntimeLog; closed?: () => boolean },
+  ports: {
+    leases?: WorkspaceLeases
+    store: HostStore
+    sessions: LaneSessions
+    log: RuntimeLog
+    closed?: () => boolean
+  },
   input: {
     root: string
     op: Extract<LaneOp, { type: 'lane.create' }>
@@ -23,10 +30,22 @@ export async function createLane(
     onStored?: (laneId: string) => void
   },
 ): Promise<StoredLane> {
-  const { op, controller } = input
+  const { op } = input
   // Clients offer "new branch" for every Host folder. Where git does not track the
   // folder, the lane runs in place, as This Mac does when it hides that toggle.
   const worktree = op.worktree && (await gitTracksFolder(input.root)) ? op.worktree : null
+  const create = () => startInFolder(ports, input, worktree)
+  if (!ports.leases) return create()
+  const cwd = worktree ? laneWorktreePath(input.root, worktree.branch) : input.root
+  return ports.leases.withUse(cwd, 'live-lane', create)
+}
+
+async function startInFolder(
+  ports: Parameters<typeof createLane>[0],
+  input: Parameters<typeof createLane>[1],
+  worktree: NonNullable<typeof input.op.worktree> | null,
+) {
+  const { op, controller } = input
   const folder = await prepareLaneFolder({ root: input.root, worktree, log: ports.log })
   let sessionId: string | undefined
   let laneId: string | undefined

@@ -1,16 +1,76 @@
 import { lstatSync, readlinkSync, readdirSync, rmSync, rmdirSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { defaultConfigPath } from '../config/load'
-import { hostStateDirectory } from '../lanes/state-dir'
-import { checkedFolder } from '../update/files'
-import { acquireInstallLock, hasCode } from '../update/lock'
-import { commandLayout } from '../update/layout'
+import { hostStateDirectory } from '@phosphor/shared/host-local'
+import { isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
+import { SERVICE_LOG_NAMES } from './setup-local-service'
+import { checkedFolder } from '@phosphor/session-runtime/host-install/files'
+import { acquireInstallLock, hasCode } from '@phosphor/session-runtime/host-install/lock'
+import { commandLayout } from '@phosphor/session-runtime/host-install/layout'
 import { installLifetime, signalTurn } from '../update/lifetime'
 import { removeHostPathBlocks } from '../machine/shell-path'
 import { runLogout } from './logout'
 import { runService } from './service'
 import { serviceState, type UpdateContext } from './update'
 
+// Names reserved by the Host in its state root. An unrecognized entry is never ours to purge.
+const stateEntries = new Set([
+  'logs',
+  'state.sqlite',
+  'state.sqlite-wal',
+  'state.sqlite-shm',
+  'run.json',
+  'service-exit.json',
+  'attachments',
+  'lane-transfer',
+  'lane-archive',
+  'routines',
+  'trash',
+  'artifacts',
+  'run',
+  'update',
+  'terminals.json',
+  'local.json',
+  'owner-standby.json',
+  'update-result.json',
+  'headroom.json',
+  'app-services.json',
+  'agent-policy.json',
+  'claude-accounts.json',
+  'claude-accounts',
+  'owner-migration',
+  'sandboxes',
+  'web-push.json',
+])
+function requirePrivateFolder(path: string, uid: number | undefined) {
+  const info = lstatSync(path)
+  if (!info.isDirectory() || !isOwnerPrivate(info, uid))
+    throw new Error('State is not a private folder; nothing in this folder will be purged.')
+}
+function checkedEntries(state: string, uid: number | undefined) {
+  requirePrivateFolder(state, uid)
+  const entries = readdirSync(state)
+  if (entries.some((name) => !stateEntries.has(name)))
+    throw new Error('State contains unknown entries; nothing in this folder will be purged.')
+  if (entries.includes('logs')) {
+    const logs = join(state, 'logs')
+    requirePrivateFolder(logs, uid)
+    if (readdirSync(logs).some((name) => !SERVICE_LOG_NAMES.includes(name)))
+      throw new Error('State contains unknown entries; nothing in this folder will be purged.')
+  }
+  return entries
+}
+function purgeState(state: string, uid: number | undefined) {
+  for (const name of checkedEntries(state, uid)) {
+    const path = join(state, name)
+    if (name === 'logs') {
+      for (const file of SERVICE_LOG_NAMES) rmSync(join(path, file), { force: true })
+      rmdirSync(path)
+    } else rmSync(path, { recursive: true })
+  }
+  // Never recursively remove the root: a foreign entry may have appeared since the check.
+  rmdirSync(state)
+}
 export async function runUninstall(
   context: UpdateContext,
   purge = false,
@@ -34,11 +94,12 @@ export async function runUninstall(
       if (layout) safe(layout.lib)
       if (purge) {
         safe(config)
-        safe(state)
+        const hasState = safe(state)
         if (context.configPath !== defaultConfigPath(context.env, context.home)) {
           context.print('Purge requires the default config path.')
           return 64
         }
+        if (hasState) checkedEntries(state, context.uid)
         const result = await runLogout({ ...context, signal })
         if (result.exitCode !== 0) {
           context.print('Logout failed; nothing was uninstalled.')
@@ -88,15 +149,10 @@ export async function runUninstall(
         )
       removeHostPathBlocks(context.home, context.uid)
       if (purge) {
-        for (const path of [config, state]) if (safe(path)) rmSync(path, { recursive: true })
+        if (safe(state)) purgeState(state, context.uid)
+        if (safe(config)) rmSync(config, { recursive: true })
       } else context.print(`Kept config and identity: ${config}; state: ${state}`)
-      const backup = join(context.home, '.local/bin/phosphor.before-release')
-      try {
-        lstatSync(backup)
-        context.print(`Previous launcher kept at ${backup}`)
-      } catch (error) {
-        if (!hasCode(error, 'ENOENT')) throw error
-      }
+      reportBackup(context)
       await signalTurn()
       signal.throwIfAborted()
       context.print('Host uninstalled.')
@@ -104,7 +160,10 @@ export async function runUninstall(
     } catch (error) {
       if (signal.aborted) return typeof signal.reason === 'number' ? signal.reason : 70
       context.print(
-        error instanceof Error && error.message.startsWith('Install lock:')
+        error instanceof Error &&
+          /^(Install lock:|State contains unknown entries;|State is not a private folder;)/.test(
+            error.message,
+          )
           ? error.message
           : 'Host uninstall could not finish safely.',
       )
@@ -113,4 +172,14 @@ export async function runUninstall(
       release?.()
     }
   })
+}
+
+function reportBackup(context: UpdateContext) {
+  const backup = join(context.home, '.local/bin/phosphor.before-release')
+  try {
+    lstatSync(backup)
+    context.print(`Previous launcher kept at ${backup}`)
+  } catch (error) {
+    if (!hasCode(error, 'ENOENT')) throw error
+  }
 }

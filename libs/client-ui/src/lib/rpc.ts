@@ -1,3 +1,4 @@
+import { ensureSessionControl } from '@/platform/serviceLaneControl'
 import type {
   AgentMessage,
   PiEvent,
@@ -7,6 +8,19 @@ import type {
 } from '@shared/rpc'
 import { ipcErrorText } from '@shared/errors'
 import { useChatStore } from '@/stores/chat'
+
+import { isLanePiOp } from '@shared/host-protocol'
+
+async function commandWithControl<T extends RpcCommand['type']>(
+  sessionId: string,
+  command: Extract<RpcCommand, { type: T }>,
+) {
+  if (isLanePiOp(command)) {
+    const claim = ensureSessionControl(sessionId)
+    if (claim) await claim
+  }
+  return window.phosphor.piCommand<T>(sessionId, command)
+}
 
 /**
  * Helpers over `window.phosphor.piCommand`.
@@ -27,7 +41,7 @@ export async function piCall<T extends RpcCommand['type']>(
 ): Promise<RpcResponseDataMap[T] | undefined> {
   let response: RpcResponse<RpcResponseDataMap[T]>
   try {
-    response = await window.phosphor.piCommand<T>(sessionId, command)
+    response = await commandWithControl<T>(sessionId, command)
   } catch (error) {
     useChatStore.getState().setError(sessionId, ipcErrorText(error))
     return undefined
@@ -52,7 +66,7 @@ export async function piCallOk<T extends RpcCommand['type']>(
 ): Promise<boolean> {
   let response: RpcResponse<RpcResponseDataMap[T]>
   try {
-    response = await window.phosphor.piCommand<T>(sessionId, command)
+    response = await commandWithControl<T>(sessionId, command)
   } catch (error) {
     useChatStore.getState().setError(sessionId, ipcErrorText(error))
     return false
@@ -75,7 +89,7 @@ export async function piCallAccepted<T extends RpcCommand['type']>(
 ): Promise<{ data: RpcResponseDataMap[T] | undefined } | null> {
   let response: RpcResponse<RpcResponseDataMap[T]>
   try {
-    response = await window.phosphor.piCommand<T>(sessionId, command)
+    response = await commandWithControl<T>(sessionId, command)
   } catch (error) {
     useChatStore.getState().setError(sessionId, ipcErrorText(error))
     return null
@@ -97,7 +111,7 @@ export async function piCallInline<T extends RpcCommand['type']>(
   command: Extract<RpcCommand, { type: T }>,
 ): Promise<{ ok: true; data: RpcResponseDataMap[T] | undefined } | { ok: false; error: string }> {
   try {
-    const response = await window.phosphor.piCommand<T>(sessionId, command)
+    const response = await commandWithControl<T>(sessionId, command)
     return response.success
       ? { ok: true, data: response.data }
       : { ok: false, error: response.error ?? `${command.type} failed` }

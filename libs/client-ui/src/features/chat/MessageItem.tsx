@@ -12,7 +12,8 @@ import { absoluteTime, relativeTime } from '@/lib/time'
 import { useChatStore } from '@/stores/chat'
 import { useChatUiStore } from './uiState'
 import { formatShortcut } from '@/lib/shortcuts'
-import { branchMessageForItem, rewindToEntry } from './rewind'
+import { useRewindAvailable } from './hostRewind'
+import { branchMessageForItem, useRewindToEntry } from './rewind'
 import { ActivityGroup } from './items/ActivityGroup'
 import { ChatImage } from './ChatImage'
 import { UserText } from './UserText'
@@ -186,16 +187,15 @@ function UserMessage({
   item: UserItem
   sessionId: string
 }): React.JSX.Element {
-  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+  const unavailable = !useRewindAvailable(sessionId)
+  const rewindToEntry = useRewindToEntry()
   const [busy, setBusy] = useState(false)
 
   const rewind = async (): Promise<void> => {
-    if (remote) return
+    if (unavailable) return
     setBusy(true)
     try {
-      // `item.id` is a client-side counter (see `newItemId`), not pi's entry
-      // id, so the entry is looked up on the current branch — by timestamp,
-      // never by position (see `currentBranchUserMessages`).
+      // Match pi’s entry on the current branch, never by row position.
       const target = await branchMessageForItem(sessionId, item)
       if (!target) {
         useChatStore.getState().setError(sessionId, 'Could not locate this message to rewind.')
@@ -227,30 +227,25 @@ function UserMessage({
         </div>
       )}
 
-      {/*
-       * Bottom-right meta row, revealed on hover: copy, rewind (in-place,
-       * via pi's own `fork` command), fork-from-here (the multi-message
-       * picker), then the relative timestamp — zero layout height at rest,
-       * so hover can never nudge the transcript.
-       */}
+      {/* Fixed-height hover actions never move the transcript. */}
       <div className="flex h-4 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
         {(item.text || item.images?.length) && !item.optimistic && (
           <TooltipButton
             onClick={() => void rewind()}
-            disabled={busy || remote}
-            title={remote ? REMOTE_UNAVAILABLE : 'Rewind to here'}
+            disabled={busy || unavailable}
+            title={unavailable ? REMOTE_UNAVAILABLE : 'Rewind to here'}
             className="text-text-tertiary hover:text-text flex items-center transition-colors disabled:opacity-50"
           >
             <RewindIcon size={12} />
           </TooltipButton>
         )}
         <TooltipButton
-          disabled={remote}
+          disabled={unavailable}
           onClick={() => {
-            if (!remote) useChatUiStore.getState().openForkPicker(sessionId)
+            if (!unavailable) useChatUiStore.getState().openForkPicker(sessionId)
           }}
           title={
-            remote
+            unavailable
               ? REMOTE_UNAVAILABLE
               : `Rewind to an earlier message… (${formatShortcut('Esc Esc')})`
           }

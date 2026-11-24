@@ -167,7 +167,7 @@ it('reads and spends the same window through available and consume', () => {
   expect(limit.available(key, 2, 100)).toBe(true)
 })
 
-it('bounds all eight control purposes together at 80,000 keys and admits fresh keys when full', () => {
+it('bounds all eleven control purposes together at 110,000 keys and admits fresh keys when full', () => {
   expect(RATE_PURPOSE_CAPACITIES).toEqual({
     'enrollment-create': 10_000,
     'enrollment-poll-ip': 10_000,
@@ -177,6 +177,9 @@ it('bounds all eight control purposes together at 80,000 keys and admits fresh k
     'host-auth': 10_000,
     'usage-ping': 10_000,
     'usage-download': 10_000,
+    'machine-auth': 10_000,
+    'machine-directory': 10_000,
+    'machine-grant-issue': 10_000,
   })
   const limit = new RateLimiter(() => 0, RATE_PURPOSE_CAPACITIES)
   for (const purpose of Object.keys(RATE_PURPOSE_CAPACITIES)) {
@@ -184,7 +187,7 @@ it('bounds all eight control purposes together at 80,000 keys and admits fresh k
     expect(limit.consume(`${purpose}:new`, 1, 100)).toBe(true)
     expect(limit.consume(`${purpose}:new`, 1, 100)).toBe(false)
   }
-  expect(limit.size).toBe(80_000)
+  expect(limit.size).toBe(110_000)
   const tables: Record<string, number>[] = [{}, { a: 0 }, { a: 1, b: 1.5 }, { a: Number.NaN }]
   for (const table of tables)
     expect(() => new RateLimiter(() => 0, table)).toThrow('Invalid cache capacity')

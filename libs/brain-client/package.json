@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
+    "./lane": "./src/lane.ts",
     "./curator-client": "./src/curator-client.ts",
     "./curator-format": "./src/curator-format.ts",
     "./node-transport": "./src/node-transport.ts",

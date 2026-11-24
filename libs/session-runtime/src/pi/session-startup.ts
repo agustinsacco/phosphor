@@ -14,7 +14,11 @@ import {
 } from './session-policy'
 import type { LiveSession, SessionRegistry } from './session-registry'
 import type { LaneReload } from './lane-reload'
-import type { PiSpawnOptions } from './rpc-client'
+import {
+  applySpawnContributions,
+  attachSpawnContributions,
+  type SpawnContribution,
+} from './spawn-contributions'
 
 export interface SessionStartupRuntime {
   registry: Pick<SessionRegistry, 'create' | 'dispose'>
@@ -31,35 +35,9 @@ export interface SessionStartupRuntime {
   /** `last: false` adds the folder to the recents without making it the launch folder. */
   recordWorkspace: (path: string, name: string, remember?: { last: boolean }) => void
   laneReload?: Pick<LaneReload, 'capture' | 'track'>
-  /**
-   * Brain for a lane in `workspacePath` (resolved): recall for an ordinary lane, Brain Agent's
-   * tools for the Brain lane. Extra env, extensions and skills, or undefined when off.
-   */
-  recall?: (workspacePath: string) => Promise<SessionRecall | undefined>
-  /** The unpackaged Desktop Brain e2e drives the real bridge with its pi stub. */
-  stubRecall?: () => boolean
-}
-
-export interface SessionRecall {
-  env: Record<string, string>
-  extensions: string[]
-  skills: string[]
-}
-
-/** Optional recall must never prevent an ordinary lane from starting. */
-async function withRecall(
-  runtime: SessionStartupRuntime,
-  spawnOptions: Omit<PiSpawnOptions, 'cwd'>,
-  workspacePath: string,
-): Promise<void> {
-  const recall = await runtime.recall?.(workspacePath).catch((error: unknown) => {
-    runtime.log('brain', 'recall unavailable', { error: String(error) })
-    return undefined
-  })
-  if (!recall) return
-  spawnOptions.env = { ...spawnOptions.env, ...recall.env }
-  spawnOptions.extensions = [...(spawnOptions.extensions ?? []), ...recall.extensions]
-  spawnOptions.skills = [...(spawnOptions.skills ?? []), ...recall.skills]
+  /** Spawn inputs later features add; absent or empty leaves argv and env as the policy built them. */
+  contributions?: readonly SpawnContribution[]
+  stubContributions?: readonly SpawnContribution[]
 }
 
 export type SessionSink = (sessionId: string) => (payload: SessionPush) => void
@@ -133,14 +111,20 @@ async function spawnSession(
     if (healed) runtime.log('pi', 'repointed session cwd', { path: options.sessionPath })
   }
   const launch = await runtime.launch()
-  const { spawnOptions, accountId } = await prepareSessionPolicy(
+  const { spawnOptions, accountId, refreshDirectives } = await prepareSessionPolicy(
     options,
     execution,
     launch,
     runtime.policy,
   )
-  if (!launch.stub || runtime.stubRecall?.())
-    await withRecall(runtime, spawnOptions, options.workspacePath)
+  const contributions = (launch.stub ? runtime.stubContributions : runtime.contributions) ?? []
+  await applySpawnContributions(
+    contributions,
+    spawnOptions,
+    execution,
+    { options, ...(accountId ? { accountId } : {}) },
+    runtime.log,
+  )
   execution.signal?.throwIfAborted()
   // Read before the spawn: a change landing while pi starts must still count as new.
   const laneConfig =
@@ -148,6 +132,7 @@ async function spawnSession(
       ? await runtime.laneReload.capture(options.workspacePath)
       : null
   const session = runtime.registry.create(options.workspacePath, spawnOptions)
+  session.refreshDirectives = refreshDirectives
   const spawned = performance.now()
   const stopOnAbort = (): void => {
     void runtime.registry.dispose(session.sessionId).catch((error: unknown) => {
@@ -161,6 +146,7 @@ async function spawnSession(
   if (execution.signal?.aborted) stopOnAbort()
   try {
     bindStartupEvents(runtime, session, sink, accountId)
+    attachSpawnContributions(contributions, session, { execution, options, log: runtime.log })
     if (!launch.stub) {
       await verifyStartupAccount(session.client, runtime.policy.strictAccountSelection, accountId)
       await syncContextBudget(session.client, runtime.budget.read())

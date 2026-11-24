@@ -14,6 +14,7 @@ import type { LaneService, CallOutcome } from '../lanes/service'
 import { createLaneStreams, createLanesTopic } from '../lanes/stream'
 import { createAuthority } from './authority'
 import { createConnection } from './connection'
+import { fixtureGrantAuth } from './__fixtures__/grant-auth'
 import { createLaneAdapter } from './lanes'
 
 function fixture(limits: Parameters<typeof createLaneAdapter>[1] = {}) {
@@ -90,19 +91,16 @@ function fixture(limits: Parameters<typeof createLaneAdapter>[1] = {}) {
       frames.push(parsed.value)
     })
     pair.client.onClose((code) => codes.push(code))
+    const hello = {
+      hostId: claims.hostId,
+      hostVersion: 'test',
+      protocolVersion: 1 as const,
+      runtimeEpoch: epoch,
+      capabilities: [...service.capabilities],
+    }
     const connection = createConnection({
       socket: pair.server,
-      authority,
-      origin: claims.iss,
-      hello: {
-        hostId: claims.hostId,
-        hostVersion: 'test',
-        protocolVersion: 1,
-        runtimeEpoch: epoch,
-        capabilities: [...service.capabilities],
-      },
-      key: host.privateKey,
-      keyset: { get: async () => control.publicKey },
+      authenticate: fixtureGrantAuth(authority, claims, { control, host }, hello),
       admit: () => true,
       handler: adapter.handler,
     })
@@ -587,6 +585,8 @@ describe('lane adapter', () => {
     await flush()
     expect(h.service.commands.submit).toHaveBeenCalledOnce()
     const sender = vi.mocked(h.service.commands.submit).mock.calls[0]?.[0]
+    // A TCP user grant never selects the local macOS Trash target.
+    expect(sender).not.toHaveProperty('owner')
     expect(sender?.currentCaps?.()).toContain('workspaces.write')
     a.auth([], false)
     await flush()

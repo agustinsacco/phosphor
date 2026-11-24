@@ -19,7 +19,7 @@ vi.mock('node:child_process', () => ({
   }),
 }))
 vi.mock('../pi/binary-lookup', () => ({ resolveBinary: async () => h.binary }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: h.environment }))
+vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: h.environment }))
 vi.mock('./handle', () => ({
   handle: (name: string, callback: (...args: unknown[]) => unknown) =>
     h.handlers.set(name, callback),

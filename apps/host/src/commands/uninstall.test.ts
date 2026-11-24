@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -10,7 +11,7 @@ import {
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fixture } from '../update/__fixtures__/release'
-import { acquireInstallLock } from '../update/lock'
+import { acquireInstallLock } from '@phosphor/session-runtime/host-install/lock'
 import { HOST_PATH_BLOCK } from '../machine/shell-path'
 import { runUninstall } from './uninstall'
 const logout = vi.hoisted(() => ({ run: vi.fn(async () => ({ exitCode: 0, message: 'ok' })) }))
@@ -20,7 +21,7 @@ function setup() {
   const f = fixture()
   fixtures.push(f)
   for (const path of ['.config/phosphor-host', '.local/state/phosphor-host']) {
-    mkdirSync(join(f.home, path), { recursive: true })
+    mkdirSync(join(f.home, path), { recursive: true, mode: 0o700 })
     writeFileSync(join(f.home, path, 'marker'), 'keep')
   }
   return f
@@ -79,15 +80,38 @@ it('source installs remove no program or launcher', async () => {
 })
 it('purges only after successful logout, and failed logout keeps everything', async () => {
   const f = setup()
+  rmSync(join(f.home, '.local/state/phosphor-host/marker'))
+  writeFileSync(join(f.home, '.local/state/phosphor-host/state.sqlite'), 'fixture')
   logout.run.mockResolvedValueOnce({ exitCode: 75, message: 'fail' })
   expect(await runUninstall(f.context, true, true)).toBe(75)
   expect(existsSync(f.lib)).toBe(true)
   expect(existsSync(join(f.home, '.config/phosphor-host/marker'))).toBe(true)
-  expect(existsSync(join(f.home, '.local/state/phosphor-host/marker'))).toBe(true)
+  expect(existsSync(join(f.home, '.local/state/phosphor-host/state.sqlite'))).toBe(true)
   expect(await runUninstall(f.context, true, true)).toBe(0)
   expect(existsSync(f.lib)).toBe(false)
   expect(existsSync(join(f.home, '.config/phosphor-host'))).toBe(false)
   expect(existsSync(join(f.home, '.local/state/phosphor-host'))).toBe(false)
+})
+it('purges migrated state and config but never follows the migrated Claude account root', async () => {
+  const f = setup()
+  const state = join(f.home, '.local/state/phosphor-host')
+  const config = join(f.home, '.config/phosphor-host')
+  const external = join(f.home, 'desktop-account-root')
+  mkdirSync(external)
+  writeFileSync(join(external, 'keep'), 'keep')
+  rmSync(join(state, 'marker'))
+  writeFileSync(join(config, 'folders.json'), '{}')
+  writeFileSync(join(state, 'claude-accounts.json'), JSON.stringify({ version: 1, root: external }))
+  for (const file of ['agent-policy.json', 'web-push.json', 'state.sqlite'])
+    writeFileSync(join(state, file), 'fixture')
+  for (const dir of ['claude-accounts', 'owner-migration', 'sandboxes', 'routines', 'artifacts']) {
+    mkdirSync(join(state, dir))
+    writeFileSync(join(state, dir, 'fixture'), 'fixture')
+  }
+  expect(await runUninstall(f.context, true, true)).toBe(0)
+  expect(existsSync(state)).toBe(false)
+  expect(existsSync(config)).toBe(false)
+  expect(readFileSync(join(external, 'keep'), 'utf8')).toBe('keep')
 })
 it('requires both purge flags and a default config path, and refuses a held install lock', async () => {
   const f = setup()
@@ -203,4 +227,29 @@ it('leaves the program in place if service uninstall fails', async () => {
   expect(await runUninstall(f.context)).toBe(75)
   expect(existsSync(f.lib)).toBe(true)
   expect(existsSync(unit)).toBe(true)
+})
+
+it('refuses purge before logout or service changes if state contains foreign files', async () => {
+  const f = setup()
+  expect(await runUninstall(f.context, true, true)).not.toBe(0)
+  expect(logout.run).not.toHaveBeenCalled()
+  expect(readFileSync(join(f.home, '.local/state/phosphor-host/marker'), 'utf8')).toBe('keep')
+  expect(existsSync(f.lib)).toBe(true)
+})
+
+it.each(['public state', 'shared log folder'])('refuses purge of a %s', async (kind) => {
+  const f = setup()
+  const state = join(f.home, '.local/state/phosphor-host')
+  rmSync(join(state, 'marker'))
+  if (kind === 'public state') chmodSync(state, 0o750)
+  else {
+    mkdirSync(join(state, 'logs'), { mode: 0o700 })
+    writeFileSync(join(state, 'logs/runner.log'), 'foreign')
+  }
+  expect(await runUninstall(f.context, true, true)).toBe(75)
+  expect(logout.run).not.toHaveBeenCalled()
+  expect(existsSync(f.lib)).toBe(true)
+  expect(existsSync(state)).toBe(true)
+  if (kind === 'shared log folder')
+    expect(readFileSync(join(state, 'logs/runner.log'), 'utf8')).toBe('foreign')
 })

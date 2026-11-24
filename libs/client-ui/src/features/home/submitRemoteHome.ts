@@ -1,3 +1,4 @@
+import { ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
 import { ipcErrorText } from '@shared/errors'
 import type { RemoteLaneCreate } from '@shared/ipc'
 import type { PendingAttachment } from '@/features/chat/attachments'
@@ -75,7 +76,10 @@ export async function submitRemoteHome(s: Submission): Promise<void> {
     )
   } catch (failure) {
     if (!current()) return
-    const message = createWarning(ipcErrorText(failure), machineLabel(s.hostId))
+    const message =
+      failure instanceof ServiceLaneControlRefused
+        ? failure.message
+        : createWarning(ipcErrorText(failure), machineLabel(s.hostId))
     s.onWarning(message)
     useExtensionUiStore.getState().pushToast(message, 'warning')
   } finally {

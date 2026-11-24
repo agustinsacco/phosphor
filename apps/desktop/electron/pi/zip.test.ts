@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { deflateRawSync } from 'node:zlib'
 import { crc32 } from '@phosphor/shared/zip-store'
-import { invalidZipEntryName, readZipEntries, writeZipStore } from './zip'
+import {
+  invalidZipEntryName,
+  readZipEntries,
+  writeZipStore,
+} from '@phosphor/session-runtime/skills/zip'
 
 describe('writeZipStore → readZipEntries', () => {
   it('round-trips a bundle', () => {

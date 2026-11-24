@@ -11,10 +11,11 @@ export function machineOp(
   owner: string,
   op: TerminalOp,
   configuration = false,
+  ownerExempt = false,
 ) {
   const { entries } = state
   if (state.closed) throw new TerminalForbidden('forbidden')
-  if (op.type === 'terminal.create') return createMachineShell(state, op)
+  if (op.type === 'terminal.create') return createMachineShell(state, op, ownerExempt)
   const entry = entries.get(op.terminalId)
   // Machine shells are shared by every client with control; the router checked those caps.
   if (entry?.machine) {

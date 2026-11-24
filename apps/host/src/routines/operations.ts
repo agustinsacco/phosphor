@@ -7,7 +7,7 @@ import {
 } from '@phosphor/shared/host-protocol-routines'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import { validateRoutine } from '@phosphor/shared/routines'
-import { isInside } from '../fs-safety'
+import { isInside } from '@phosphor/session-runtime/fs-safety'
 import type { HostRoutineOptions, HostRoutineState } from './service-state'
 
 export function admittedRoutineRoot(options: HostRoutineOptions, path: string): string {

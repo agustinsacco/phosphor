@@ -35,7 +35,7 @@ export function signRequest(input: {
 }): Record<string, string> {
   const { method, path, identity, body, key } = input
   if (
-    !/^\/api\/v1\/[a-z]+(?:\/[a-z]+)*$/.test(path) ||
+    !/^\/api\/v1\/[a-z]+(?:-[a-z]+)*(?:\/[a-z]+(?:-[a-z]+)*)*$/.test(path) ||
     Buffer.byteLength(body) > CONTROL_LIMITS.bodyBytes
   ) {
     throw new Error('Invalid signed request.')
