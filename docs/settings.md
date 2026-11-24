@@ -24,7 +24,7 @@ the form factor.
 | Writing          | device            | `writingAssist`          | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                         | Phosphor prefs; `<userData>/writing/prompts.jsonl`                    |
 | Lanes            | device            | none                     | yes     | yes     | Lane markers, PR status, branch prefix and slug length; the worktree switch needs `localLanes`           | Phosphor prefs (browser storage in the browser)                       |
 | Voice            | device            | `localVoice`             | yes     | no      | Dictation on/off and which local speech model                                                            | Phosphor prefs; model files in `<userData>/voice/`                    |
-| Brain            | device            | `localBrain`             | yes     | no      | Brain on/off, recall, review before saving, and the local embedding model                                | Brain store and model in `<userData>/brain/`                          |
+| Brain            | device            | `localBrain`             | yes     | no      | Brain on/off, recall, automatic checks, and the local embedding model                                    | Brain store and model in `<userData>/brain/`                          |
 | Keybindings      | device            | `appShortcuts`           | yes     | no      | Static reference sheet                                                                                   | nothing                                                               |
 | Phosphor account | device            | none                     | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                   | `account:*`                                                           |
 | Notifications    | device            | `notificationPermission` | no      | yes     | Native notification permission and a test                                                                | browser permission                                                    |
@@ -876,12 +876,19 @@ privacy rules are in [voice.md](voice.md).
 
 ## Brain
 
-A device section where the client has local Brain (`localBrain`: Desktop, not the
-browser). One switch turns Brain on and off and saves at once; turning it on
-downloads the embedding model with progress. Once on, it adds Recall in lanes,
-Review before saving and a Knowledge row that opens the Brain page. Turning it off
-keeps the model and knowledge; Remove model then deletes the model. Behaviour is
-in [brain.md](brain.md).
+Brain is off by default. Turn it on here to download the local embedding model;
+progress appears beside the switch. This device section is available on Desktop
+(`localBrain`), not on a Host or in the browser.
+
+**Recall in lanes** gives new and restarted local lanes search and flag tools.
+**Brain Agent checks new knowledge on its own** allows a check after reads settle.
+Both switches default on. Reads save when they finish even if automatic checks are
+off. You can still start a check with **Defrag** on the Brain page.
+
+Choose the reader for queued lanes, set **Never read** title rules or open Brain
+from the Knowledge row. Turning Brain off keeps the model and knowledge. While
+off, **Remove model** removes only the embedding model. **Reset Brain knowledge**
+clears the store but keeps your settings and model. See [Brain](brain.md).
 
 ## Advanced
 
