@@ -3,7 +3,7 @@ import { initialize } from '../schema'
 import { fixture } from '../test-support'
 
 describe('Brain Agent additive schema', () => {
-  it('opens an existing v7 twice without changing its version', () => {
+  it('opens an existing v8 twice without changing its version', () => {
     const { store, db } = fixture()
     db.exec('DROP TABLE IF EXISTS agent_notes; DROP TABLE IF EXISTS agent_runs')
     const ctx = { db, now: Date.now, id: () => 'generation' }
@@ -16,7 +16,7 @@ describe('Brain Agent additive schema', () => {
         )
         .all(),
     ).toEqual([{ name: 'agent_notes' }, { name: 'agent_runs' }])
-    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
+    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
     store.reset()
     expect(
       db
@@ -28,7 +28,7 @@ describe('Brain Agent additive schema', () => {
   })
   it('still refuses future databases', () => {
     const { db } = fixture()
-    db.exec('PRAGMA user_version=8')
+    db.exec('PRAGMA user_version=9')
     expect(() => initialize({ db, now: Date.now, id: () => 'generation' })).toThrow(
       'requires a newer application',
     )
