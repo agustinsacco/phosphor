@@ -14,15 +14,16 @@ insert into test_context select 'call-' || n.nspname || '.' || p.proname, to_jso
   where n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where (n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%'))
-  and not p.prosecdef and p.proconfig = array['search_path=""']), 22::bigint,
-  'all RPCs except the three definers are invokers with empty search_path');
+  and not p.prosecdef and p.proconfig = array['search_path=""']), 28::bigint,
+  'all RPCs except the five definers are invokers with empty search_path');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where (n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%'))
-  and p.prosecdef), 3::bigint, 'exactly three definers');
+  and p.prosecdef), 5::bigint, 'exactly five definers');
 select ok((select prosecdef and proconfig = array['search_path=""'] from pg_proc
   where oid = f::regprocedure), f || ' is a definer with empty search_path')
   from (values ('public.control_host_revocations(uuid)'), ('public.control_admin_check(uuid,text)'),
-    ('public.control_account_delete(uuid)')) funcs(f);
+    ('public.control_account_delete(uuid)'), ('control_private.auth_session_alive(uuid,uuid)'),
+    ('control_private.auth_session_end(uuid,uuid)')) funcs(f);
 select ok(exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime'
   and schemaname = 'public' and tablename = 'remote_hosts'), 'hosts published to Realtime');
 select is((select count(*) from pg_class where oid in ('public.remote_enrollments'::regclass,
@@ -52,7 +53,7 @@ select throws_ok(format('insert into public.%I default values', tab), '42501', n
   from (values ('remote_access_accounts'), ('remote_hosts'), ('remote_clients'), ('remote_enrollments'), ('remote_audit_events')) t(tab);
 set local role service_role;
 select is(public.control_account('00000000-0000-4000-8000-000000000001', 'alice'),
-  '{"enabled":true,"maxHosts":20}'::jsonb, 'new account enabled by default');
+  '{"enabled":true,"maxHosts":100}'::jsonb, 'new account enabled by default');
 select is(public.control_account('00000000-0000-4000-8000-000000000002', null)->>'enabled', 'true', 'null login allowed');
 select is(public.control_account('00000000-0000-4000-8000-000000000001', 'alice-updated')->>'enabled', 'true', 'account refresh');
 select is((select login from public.remote_access_accounts where user_id = '00000000-0000-4000-8000-000000000001'), 'alice-updated', 'login refreshed');
@@ -95,8 +96,9 @@ select is(public.control_enrollment_approve('00000000-0000-4000-8000-00000000000
 delete from public.remote_enrollments where code_hash = repeat('9',64);
 select is(public.control_enrollment_poll((select (value->>'enrollmentId')::uuid from test_context where name='expired'),(repeat('b',42) || 'A'))->>'outcome', 'expired', 'exact expiry poll expired');
 select is(public.control_enrollment_poll('00000000-0000-4000-8000-000000000099',(repeat('b',42) || 'A'))->>'outcome','not-found','unknown enrollment hidden');
-select is(public.control_enrollment_create((repeat('c',42) || 'A'), 'abcd-abcd-abcd-abcd', lpad(i::text,64,'0'), 'bee3','linux','x64','1.2.3')->>'outcome', 'created', 'pending at limit ' || i) from generate_series(1,3) i;
-select is(public.control_enrollment_create((repeat('c',42) || 'A'), 'abcd-abcd-abcd-abcd', lpad('4',64,'0'), 'bee3','linux','x64','1.2.3')->>'outcome', 'busy', 'fourth pending rejected');
+select is(public.control_enrollment_create((repeat('c',42) || 'A'), 'abcd-abcd-abcd-abcd', lpad(i::text,64,'0'), 'bee3','linux','x64','1.2.3')->>'outcome', 'created', 'a retry is never refused ' || i) from generate_series(1,4) i;
+select is((select array_agg(code_hash) from public.remote_enrollments where public_key = repeat('c',42) || 'A' and status = 'pending'),
+  array[lpad('4',64,'0')], 'a key keeps only its newest code');
 select is(public.control_host_key((select id from public.remote_hosts)), jsonb_build_object('outcome','active','publicKey',(repeat('a',42) || 'A')), 'active host key');
 select is(public.control_host_self((select id from public.remote_hosts)), jsonb_build_object('outcome','active','hostId',(select id from public.remote_hosts),'label','Bee','owner',jsonb_build_object('login','alice-updated'),'enrolledAt',control_private.iso(now()),'lastSeenAt',null), 'host self view');
 insert into test_context values ('host', to_jsonb((select id from public.remote_hosts)::text));
@@ -177,7 +179,7 @@ select is((select count(*) from public.remote_audit_events),0::bigint,'second us
 set local role service_role;
 update public.remote_access_accounts set enabled=false where user_id='00000000-0000-4000-8000-000000000001';
 select is(public.control_account('00000000-0000-4000-8000-000000000001','alice')->>'enabled','false','refresh does not unsuspend');
-select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000001',lpad('1',64,'0'),'Disabled')->>'outcome','account-disabled','disabled approval denied');
+select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000001',lpad('4',64,'0'),'Disabled')->>'outcome','account-disabled','disabled approval denied');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
 select is((select count(*) from public.remote_hosts),0::bigint,'suspended owner reads no hosts');
@@ -199,17 +201,19 @@ select is(public.control_enrollment_create((repeat('a',42) || 'A'),'abcd-abcd-ab
 select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000001',repeat('d',64),'Bee again')->>'outcome','approved','revoked key can approve again');
 select is(public.control_host_revoke_self((select id from public.remote_hosts where revoked_at is null))->>'outcome','revoked','self revoke');
 select is((select count(*) from public.remote_audit_events where kind='host-self-revoked'),1::bigint,'self revoke audited');
--- Distinct pending codes for one key test the unique-index approval path.
-select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000002',lpad('1',64,'0'),'Other')->>'outcome','approved','first pending key approved');
-select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000001',lpad('2',64,'0'),'Duplicate')->>'outcome','key-in-use','second pending key cannot approve');
--- Seed nineteen more active hosts, then prove the exact cap through real approval.
+-- Two pending codes for one key (left by older servers) test the unique-index approval path.
+insert into public.remote_enrollments(code_hash,public_key,key_fingerprint,hostname,platform,arch,host_version)
+  values (lpad('5',64,'0'),(repeat('c',42) || 'A'),'abcd-abcd-abcd-abcd','bee3','linux','x64','1.2.3');
+select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000002',lpad('4',64,'0'),'Other')->>'outcome','approved','first pending key approved');
+select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000001',lpad('5',64,'0'),'Duplicate')->>'outcome','key-in-use','second pending key cannot approve');
+-- Seed 99 more active hosts, then prove the exact bound (what every client can list) through real approval.
 insert into public.remote_hosts(owner_id,label,hostname,public_key,key_fingerprint,platform,arch)
-  select '00000000-0000-4000-8000-000000000002', 'Host ' || i, 'host' || i, (lpad(i::text,42,'z') || 'A'), 'abcd-abcd-abcd-abcd','linux','x64' from generate_series(1,19) i;
-select is((select count(*) from public.remote_hosts where owner_id='00000000-0000-4000-8000-000000000002' and revoked_at is null),20::bigint,'twenty active hosts allowed');
+  select '00000000-0000-4000-8000-000000000002', 'Host ' || i, 'host' || i, (lpad(i::text,42,'z') || 'A'), 'abcd-abcd-abcd-abcd','linux','x64' from generate_series(1,99) i;
+select is((select count(*) from public.remote_hosts where owner_id='00000000-0000-4000-8000-000000000002' and revoked_at is null),100::bigint,'a hundred active hosts allowed');
 select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000002',repeat('d',64),'Already approved')->>'outcome','not-found','approved code remains hidden');
 select is(public.control_enrollment_create((repeat('e',42) || 'A'),'abcd-abcd-abcd-abcd',repeat('e',64),'cap','linux','x64','1.2.3')->>'outcome','created','cap candidate created');
-select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000002',repeat('e',64),'Cap')->>'outcome','host-limit','twenty-first host rejected');
-select is(jsonb_array_length(public.control_machines('00000000-0000-4000-8000-000000000002')->'machines'),20,'machine list at cap');
+select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000002',repeat('e',64),'Cap')->>'outcome','host-limit','a hundred-and-first host rejected');
+select is(jsonb_array_length(public.control_machines('00000000-0000-4000-8000-000000000002')->'machines'),100,'machine list at the bound');
 select is(control_private.iso('2026-10-12 13:14:15.123+02'), '2026-10-12T11:14:15.123Z','timestamps format UTC milliseconds');
 select matches(value, '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$', 'exact wire timestamp ' || name)
   from (values
@@ -222,14 +226,14 @@ select matches(value, '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[
 -- Global pending cap and bounded cleanup.
 insert into public.remote_enrollments(code_hash,public_key,key_fingerprint,hostname,platform,arch,host_version)
   select '012345' || lpad(to_hex(i),58,'0'),(lpad(i::text,42,'y') || 'A'),'abcd-abcd-abcd-abcd','pending','linux','x64','1.2.3'
-  from generate_series(1,9997) i;
+  from generate_series(1,9998) i;
 select is((select count(*) from public.remote_enrollments where status='pending' and expires_at>now()),10000::bigint,'global cap boundary');
 select is(public.control_enrollment_create((repeat('g',42) || 'A'),'abcd-abcd-abcd-abcd',repeat('f',64),'busy','linux','x64','1.2.3')->>'outcome','busy','global cap refuses more');
 update public.remote_enrollments set expires_at=now()-interval '2 days' where hostname='pending';
 insert into public.remote_audit_events(owner_id,host_id,kind,created_at)
   select '00000000-0000-4000-8000-000000000001',(select (value #>> '{}')::uuid from test_context where name='host'),'host-renamed',now()-interval '181 days' from generate_series(1,1001);
 select is(public.control_enrollment_create((repeat('g',42) || 'A'),'abcd-abcd-abcd-abcd',repeat('f',64),'cleanup','linux','x64','1.2.3')->>'outcome','created','expired pending do not count');
-select is((select count(*) from public.remote_enrollments where hostname='pending'),8997::bigint,'enrollment cleanup bounded to 1000');
+select is((select count(*) from public.remote_enrollments where hostname='pending'),8998::bigint,'enrollment cleanup bounded to 1000');
 select is((select count(*) from public.remote_audit_events where created_at < now()-interval '180 days'),1::bigint,'audit cleanup bounded to 1000');
 select * from finish();
 rollback;
