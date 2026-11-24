@@ -101,7 +101,7 @@ function readSelection(ctx: Context, value: Proposal, chosen: Plan, replaced: st
     JSON.stringify(refs),
     JSON.stringify(memories),
   ).map((r) => r.n)
-  return { entities, memories: [...new Set(memories)], jobs: [value.jobId] }
+  return { entities, memories: [...new Set(memories)] }
 }
 function touchedIds(ctx: Context, entities: Set<number>, memories: Set<number>): BrainTidyTouched {
   const ids = (table: 'entities' | 'memories', numbers: Set<number>) =>
@@ -180,15 +180,14 @@ export function saveRead(ctx: Context, raw: Proposal): SavedRead {
         counts.guesses = identities.guesses()
         selection.entities.push(...newNumbers(ctx, 'entities', entityMax))
         selection.memories.push(...newNumbers(ctx, 'memories', memoryMax))
-        updateJob(
-          ctx,
-          value.jobId,
-          { state: 'done', memories: chosen.memories.length, finishedAt: ctx.now() },
-          false,
-        )
-        run(ctx, 'DELETE FROM proposals WHERE job_id=?', value.jobId)
       },
     )
+    updateJob(ctx, value.jobId, {
+      state: 'done',
+      memories: chosen.memories.length,
+      finishedAt: ctx.now(),
+    })
+    run(ctx, 'DELETE FROM proposals WHERE job_id=?', value.jobId)
     bumpKnowledgeRevision(ctx)
     return {
       ...counts,
