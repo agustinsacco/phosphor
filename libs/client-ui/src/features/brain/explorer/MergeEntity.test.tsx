@@ -132,7 +132,7 @@ it('uses the current revision when Undo is opened from the confirmation toast', 
   expect(undo).toHaveBeenCalledWith('merge-1', 5)
   expect(useExtensionUiStore.getState().toasts[0]!.message).toBe('Change undone')
 })
-it('reloads Recent changes and distinguishes a raced Undo from an engine refusal', async () => {
+it('reloads What changed and distinguishes a raced Undo from an engine refusal', async () => {
   const { useBrainNavigation } = await import('../brainNavigation')
   await render()
   await answer()

@@ -25,6 +25,8 @@ export const text = (value: unknown, max = 4096): string =>
   typeof value === 'string' && value.length > 0 && value.length <= max
     ? value
     : fail('Invalid Brain request.')
+export const messageOf = (value: unknown, max: number): string =>
+  text(typeof value === 'string' ? value.trim() : value, max)
 export const id = (value: unknown): string => text(value, 200)
 
 /** Exactly the switches and reader model; anything else is refused rather than stored. */

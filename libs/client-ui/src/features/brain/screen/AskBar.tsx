@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { BRAIN_ASK_MAX, BRAIN_TELL_MAX } from '@shared/brain'
+import { useBrain } from '../useBrain'
 import { ipcErrorText } from '@shared/errors'
 import { Button } from '@/components/form'
 import { openBrainSource } from '../openBrainSource'
@@ -13,29 +15,8 @@ export function AskBar({
 }: {
   onAnswer: (answer: AskAnswerState) => void
 }): React.JSX.Element {
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState<'ask' | 'tell' | null>(null)
-  const [error, setError] = useState('')
-  const [told, setTold] = useState<{ sessionPath: string | null } | null>(null)
-  const send = async (action: 'ask' | 'tell'): Promise<void> => {
-    const value = text.trim()
-    if (!value || busy) return
-    setBusy(action)
-    setError('')
-    setTold(null)
-    try {
-      if (action === 'ask')
-        onAnswer({ question: value, recall: await window.phosphor.invoke('brain:ask', value) })
-      else {
-        setTold(await window.phosphor.invoke('brain:tell', value))
-        setText('')
-      }
-    } catch (cause) {
-      setError(ipcErrorText(cause))
-    } finally {
-      setBusy(null)
-    }
-  }
+  const { text, setText, send, asking, telling, error, told, setError, canAsk, canTell } =
+    useAskActions(onAnswer)
   return (
     <form
       aria-label="Ask Brain"
@@ -49,6 +30,7 @@ export function AskBar({
         <textarea
           aria-label="Ask Brain, or tell Brain Agent"
           rows={1}
+          maxLength={BRAIN_TELL_MAX}
           value={text}
           placeholder="Ask Brain a question, or tell Brain Agent what changed"
           className="brain-ask-input"
@@ -63,14 +45,14 @@ export function AskBar({
           size="sm"
           type="submit"
           variant="primary"
-          disabled={!text.trim() || !!busy}
+          disabled={!canAsk}
           tooltip={{ label: 'Ask Brain', shortcut: ['Enter'] }}
         >
           Ask
         </Button>
         <Button
           size="sm"
-          disabled={!text.trim() || !!busy}
+          disabled={!canTell}
           tooltip={{
             label: 'Send this to Brain Agent as an instruction',
             shortcut: ['⌘', 'Enter'],
@@ -82,8 +64,8 @@ export function AskBar({
           Tell Brain Agent
         </Button>
       </div>
-      {(busy || error || told) && (
-        <AskStatus busy={busy} error={error} told={told} onError={setError} />
+      {(asking || telling || error || told) && (
+        <AskStatus asking={asking} telling={telling} error={error} told={told} onError={setError} />
       )}
     </form>
   )
@@ -91,20 +73,27 @@ export function AskBar({
 
 /** Asking, sending, the error, or the sent instruction with a way to its lane. */
 function AskStatus({
-  busy,
+  asking,
+  telling,
   error,
   told,
   onError,
 }: {
-  busy: 'ask' | 'tell' | null
+  asking: boolean
+  telling: boolean
   error: string
   told: { sessionPath: string | null } | null
   onError: (error: string) => void
 }): React.JSX.Element {
+  const active = useBrain((s) => ['queued', 'running'].includes(s.status?.agent.run?.state ?? ''))
   return (
     <p role="status" className="flex flex-wrap items-center gap-2 pt-1 text-sm">
-      {busy === 'ask' && <span className="text-text-tertiary">Asking Brain…</span>}
-      {busy === 'tell' && <span className="text-text-tertiary">Sending to Brain Agent…</span>}
+      {asking && <span className="text-text-tertiary">Asking Brain…</span>}
+      {telling && (
+        <span className="text-text-tertiary">
+          {active ? 'Waiting for Brain Agent to finish…' : 'Sending to Brain Agent…'}
+        </span>
+      )}
       {error && <span className="text-danger">{error}</span>}
       {told && (
         <>
@@ -125,4 +114,35 @@ function AskStatus({
       )}
     </p>
   )
+}
+
+function useAskActions(onAnswer: (answer: AskAnswerState) => void) {
+  const [text, setText] = useState('')
+  const [asking, setAsking] = useState(false)
+  const [telling, setTelling] = useState(false)
+  const [error, setError] = useState('')
+  const [told, setTold] = useState<{ sessionPath: string | null } | null>(null)
+  const canAsk = !!text.trim() && text.trim().length <= BRAIN_ASK_MAX && !asking
+  const canTell = !!text.trim() && text.trim().length <= BRAIN_TELL_MAX && !telling
+  const send = async (action: 'ask' | 'tell'): Promise<void> => {
+    const value = text.trim()
+    if (!(action === 'ask' ? canAsk : canTell)) return
+    const setPending = action === 'ask' ? setAsking : setTelling
+    setPending(true)
+    setError('')
+    setTold(null)
+    try {
+      if (action === 'ask')
+        onAnswer({ question: value, recall: await window.phosphor.invoke('brain:ask', value) })
+      else {
+        setTold(await window.phosphor.invoke('brain:tell', value))
+        setText((draft) => (draft === text ? '' : draft))
+      }
+    } catch (cause) {
+      setError(ipcErrorText(cause))
+    } finally {
+      setPending(false)
+    }
+  }
+  return { text, setText, send, asking, telling, error, told, setError, canAsk, canTell }
 }

@@ -1,5 +1,7 @@
 import {
   BRAIN_ENTITY_KINDS,
+  BRAIN_ASK_MAX,
+  BRAIN_TELL_MAX,
   setBrainLaneNeverRead,
   DEFAULT_BRAIN_PREFS,
 } from '@phosphor/shared/brain'
@@ -20,6 +22,7 @@ import {
   predicateOf,
   revisionOf,
   text,
+  messageOf,
 } from './brain-checks'
 
 export { checkLane, checkPrefs } from './brain-checks'
@@ -37,8 +40,12 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
     if (!BRAIN_ENTITY_SORTS.includes(sort)) throw new Error('Invalid Brain entity sort.')
     return (await api()).entities(kind, offset, limit, sort)
   })
-  handle('brain:ask', async (_event, question) => (await api()).ask(text(question, 2000)))
-  handle('brain:tell', async (_event, message) => (await api()).tell(text(message)))
+  handle('brain:ask', async (_event, question) =>
+    (await api()).ask(messageOf(question, BRAIN_ASK_MAX)),
+  )
+  handle('brain:tell', async (_event, message) =>
+    (await api()).tell(messageOf(message, BRAIN_TELL_MAX)),
+  )
   handle('brain:laneRead', async (_event, lane) => (await api()).laneRead(id(lane)))
   handle('brain:setOwner', async (_event, entity) =>
     (await api()).setOwner(entity === null ? null : id(entity)),

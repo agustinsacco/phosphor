@@ -37,8 +37,8 @@ Use a local lane's menu:
 - **Read new messages for Brain** starts after the last finished read's leaf. Two earlier
   segments give context but cannot support a claim by themselves. If the lane branches, the
   read starts at the last shared ancestor, or at the beginning if none remains.
-- **Read again for Brain…** reads the whole lane. The confirmation tells you how many earlier
-  memories it can replace. Those memories stay searchable until the new ones save together in
+- **Read again for Brain…** reads the whole lane. The confirmation tells you how many current
+  memories across its reads it can replace and how many are shared. Those memories stay searchable until the new ones save together in
   one transaction. An empty or failed read does not clear them. See [what carries](#what-carries-to-the-survivor).
 - **Never let Brain read this lane** excludes the lane by id. A title rule also excludes it,
   even if you remove that id. Brain checks the current title before it starts. It never reads

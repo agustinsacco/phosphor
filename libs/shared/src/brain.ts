@@ -8,6 +8,8 @@ import type { BrainLink } from './brain-links'
  * tidies it, and every lane can recall it. No credentials or database paths cross this contract.
  */
 export const BRAIN_PROTOCOL = 7
+export const BRAIN_ASK_MAX = 2000
+export const BRAIN_TELL_MAX = 4096
 /** A temporary claim with no end of its own is saved until this many days after it was said. */
 export const BRAIN_TEMPORARY_DAYS = 14
 /** Pinned local embedding model. No hosted embedding or silent model fallback. */
