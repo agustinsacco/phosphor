@@ -3,6 +3,7 @@ import { useRemoteLanesStore } from './remoteLanes'
 import {
   useMachineCataloguesStore,
   machineCatalogueKey,
+  recheckMachineCatalogue,
   EMPTY_MACHINE_CATALOGUE,
 } from './machineCatalogues'
 import { useSkillsStore } from './skills'
@@ -52,32 +53,17 @@ it('keeps the Host pi’s defaults with its catalogue and drops a malformed one'
   expect(catalogue()).toMatchObject({ status: 'ready', models })
   expect(catalogue().defaults).toBeUndefined()
 })
-it('adopts saved defaults into a ready catalogue and reads again under a load in flight', async () => {
+it('a save refreshes a ready list and preserves acknowledged defaults when the Host omits them', async () => {
   const defaults = { model: { provider: 'p', id: 'm' }, thinkingLevel: 'low' as const }
-  useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, defaults)
+  recheckMachineCatalogue(MOCK_HOST_ID, defaults)
   expect(useMachineCataloguesStore.getState().catalogues).toEqual({})
   await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
-  invoke.mockClear()
-  useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, defaults)
+  const state = useMachineCataloguesStore.getState()
+  await state.load(MOCK_HOST_ID, 'recheck', defaults)
   expect(catalogue()).toMatchObject({ status: 'ready', models, defaults })
-  useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, undefined)
-  expect(catalogue()).not.toHaveProperty('defaults')
-  expect(invoke).not.toHaveBeenCalled()
-  // A read already in flight may have been answered before the save: it is replaced.
-  let first: ((value: unknown) => void) | undefined
-  invoke.mockImplementationOnce(
-    () =>
-      new Promise((done) => {
-        first = done
-      }),
-  )
-  const stale = useMachineCataloguesStore.getState().load(MOCK_HOST_ID, 'retry')
-  await vi.waitFor(() => expect(first).toBeDefined())
-  useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, defaults)
-  first?.({ skills: [], probe: 'rpc', userRoot: 'opaque' })
-  await stale
-  await vi.waitFor(() => expect(catalogue().status).toBe('ready'))
-  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:models')).toHaveLength(2)
+  await state.load(MOCK_HOST_ID, 'recheck', null)
+  expect(catalogue().defaults).toBeUndefined()
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:models')).toHaveLength(3)
 })
 it('does not issue a read for a down or capability-less machine', async () => {
   const hosts = structuredClone(mockRemoteHosts)

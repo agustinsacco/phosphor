@@ -40,26 +40,14 @@ export function machineCatalogueKey(
 
 export const useMachineCataloguesStore = create<{
   catalogues: Record<string, MachineCatalogue>
-  load: (hostId: string | null, mode?: 'retry' | 'recheck') => Promise<void>
-  adoptDefaults: (hostId: string, defaults: MachineModelDefaults | undefined) => void
+  load: (
+    hostId: string | null,
+    mode?: 'retry' | 'recheck',
+    savedDefaults?: MachineModelDefaults | null,
+  ) => Promise<void>
 }>((set, get) => ({
   catalogues: {},
-  /**
-   * After this client saved the Host pi's machine-wide defaults: a ready
-   * catalogue takes them as the next read would answer, and one still loading
-   * reads again, as its answer may predate the save.
-   */
-  adoptDefaults(hostId, defaults) {
-    const key = machineCatalogueKey(hostId)
-    const entry = get().catalogues[key]
-    if (entry?.status === 'loading' || entry?.refreshing) return void get().load(hostId, 'retry')
-    if (entry?.status !== 'ready') return
-    const next: MachineCatalogue = { ...entry }
-    if (defaults) next.defaults = defaults
-    else delete next.defaults
-    set((s) => ({ catalogues: { ...s.catalogues, [key]: next } }))
-  },
-  async load(hostId, mode) {
+  async load(hostId, mode, savedDefaults) {
     // A consumer leaving a page does not own another consumer's catalogue.
     if (!hostId) return
     const generation = machineReadGeneration(hostId)
@@ -70,6 +58,7 @@ export const useMachineCataloguesStore = create<{
     const entry: MachineCatalogue = {
       ...(previous ?? EMPTY_MACHINE_CATALOGUE),
       status: previous ? 'ready' : 'loading',
+      ...(savedDefaults !== undefined ? { defaults: savedDefaults ?? undefined } : {}),
       refreshing: true,
       checkedAt: Date.now(),
     }
@@ -89,10 +78,7 @@ export const useMachineCataloguesStore = create<{
       return
     }
     try {
-      const list =
-        previous && !previous.source
-          ? previous
-          : parseMachineModelList(await window.phosphor.invoke('hosts:models', hostId))
+      const list = parseMachineModelList(await window.phosphor.invoke('hosts:models', hostId))
       if (!current()) return
       const providers = parseMachineProviders(
         await window.phosphor.invoke('hosts:providers', hostId),
@@ -102,11 +88,11 @@ export const useMachineCataloguesStore = create<{
       finish({
         ...list,
         source: list.source,
-        defaults: list.defaults,
+        defaults: savedDefaults === undefined ? list.defaults : (savedDefaults ?? undefined),
         error: null,
         providers,
         checkedAt: Date.now(),
-        failures: 0,
+        failures: list.source === 'config' ? (existing?.failures ?? 0) + 1 : 0,
         status: 'ready',
       })
     } catch {
@@ -120,9 +106,13 @@ export const useMachineCataloguesStore = create<{
 }))
 
 /** A completed private program can change auth even if its settings page is left next. */
-export function recheckMachineCatalogue(hostId: string): void {
+export function recheckMachineCatalogue(
+  hostId: string,
+  savedDefaults?: MachineModelDefaults | null,
+): void {
   const state = useMachineCataloguesStore.getState()
-  if (state.catalogues[machineCatalogueKey(hostId)]) void state.load(hostId, 'recheck')
+  if (state.catalogues[machineCatalogueKey(hostId)])
+    void state.load(hostId, 'recheck', savedDefaults)
 }
 
 /** A Host's catalogue for its current connection, loaded while `active`; empty for none. */

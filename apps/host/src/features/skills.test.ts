@@ -405,9 +405,9 @@ describe('createSkillsFeature', () => {
     expect(await feature.call('machine.models', {})).toEqual(error('too-large'))
     const config = { ok: true, data: { models: [], source: 'config' } }
     payload = 'private invalid output'
-    expect(await feature.call('machine.models', {})).toEqual(config)
+    expect(await feature.call('machine.models', { partial: true })).toEqual(config)
     payload = JSON.stringify({ id: 'feature', type: 'response', success: false, error: 'private' })
-    expect(await feature.call('machine.models', {})).toEqual(config)
+    expect(await feature.call('machine.models', { partial: true })).toEqual(config)
   })
   it('releases the queue when an inspection never settles', async () => {
     vi.useFakeTimers()
@@ -428,7 +428,7 @@ describe('createSkillsFeature', () => {
       },
     )
     const first = stalled.call('machine.providers', {})
-    const second = stalled.call('machine.models', {})
+    const second = stalled.call('machine.models', { partial: true })
     await vi.advanceTimersByTimeAsync(INSPECTION_DEADLINE_MS)
     expect(await first).toEqual(error('internal'))
     expect(await second).toEqual({ ok: true, data: { models: [], source: 'config' } })

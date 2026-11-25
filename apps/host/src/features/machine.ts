@@ -1,3 +1,4 @@
+import type { ProbeSlot } from './probe-queue'
 import { settingsFile, HOST_FILE_POLICY } from '@phosphor/session-runtime/pi/settings-file'
 import { join } from 'node:path'
 import { checkProviders } from '../machine/providers'
@@ -120,8 +121,10 @@ export function queryMachine(
   cwd: string,
   type: 'get_available_models' | 'get_commands',
   timeoutMs = 15_000,
+  slot?: ProbeSlot,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    const budget = slot?.budget(timeoutMs) ?? timeoutMs
     const child = spawn(
       pi.launch.binaryPath,
       [...pi.launch.prefixArgs, '--mode', 'rpc', '--no-session'],
@@ -132,6 +135,9 @@ export function queryMachine(
         detached: true,
       },
     )
+    // No pid means spawn failed: there is no live child to hold the slot for.
+    if (child.pid !== undefined)
+      slot?.holdUntil(new Promise<void>((done) => child.once('exit', () => done())))
     const decoder = new JsonlDecoder()
     let bytes = 0
     let settled = false
@@ -144,7 +150,7 @@ export function queryMachine(
       if (error) reject(error)
       else resolve(data)
     }
-    const timer = setTimeout(() => finish(new FeatureFailure('internal')), timeoutMs)
+    const timer = setTimeout(() => finish(new FeatureFailure('internal')), budget)
     child.on('error', () => finish(new FeatureFailure('internal')))
     child.on('close', () => finish(new FeatureFailure('internal')))
     child.stdin.on('error', () => finish(new FeatureFailure('internal')))

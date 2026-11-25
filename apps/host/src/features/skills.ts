@@ -1,5 +1,5 @@
 import { machineCatalogues } from './machine-catalogue'
-import { probeQueue } from './catalogue-cache'
+import { probeDeadline, probeQueue, type ProbeSlot } from './probe-queue'
 import { isUtf8 } from 'node:buffer'
 import { constants } from 'node:fs'
 import { open, realpath, stat } from 'node:fs/promises'
@@ -50,14 +50,20 @@ export async function resolveSkills(
   ports: MachinePorts,
   laneId?: string,
   admittedProject?: string,
+  slot?: ProbeSlot,
 ): Promise<LocatedSkill[]> {
   const cwd = admittedProject ?? (await laneCwd(context, laneId))
   const pi = ports.pi ?? (await featureInspection(context, ports)).pi
   if (!pi) throw new FeatureFailure('internal')
-  return locateSkills(pi, cwd, !!(laneId || admittedProject))
+  return locateSkills(pi, cwd, !!(laneId || admittedProject), slot)
 }
-async function locateSkills(pi: NonNullable<MachinePorts['pi']>, cwd: string, project: boolean) {
-  const commands = await queryMachine(pi, cwd, 'get_commands', 90_000)
+async function locateSkills(
+  pi: NonNullable<MachinePorts['pi']>,
+  cwd: string,
+  project: boolean,
+  slot?: ProbeSlot,
+) {
+  const commands = await queryMachine(pi, cwd, 'get_commands', undefined, slot)
   if (!Array.isArray(commands) || commands.length > 2000) throw new FeatureFailure('too-large')
   const skills = new Map<string, LocatedSkill>()
   let count = 0
@@ -166,21 +172,25 @@ export function createSkillsFeature(
     parsed: NonNullable<ReturnType<typeof parseMachineParams>>,
   ): Promise<Awaited<ReturnType<HostFeature['call']>>> {
     try {
-      if (method === 'machine.models') return { ok: true, data: await cache.models() }
+      if (method === 'machine.models')
+        return { ok: true, data: await cache.models(parsed.partial === true) }
       if (method === 'machine.commands')
         return { ok: true, data: await cache.commands(parsed.repositoryId) }
       if (method === 'machine.claudeUsage') return await machineCall(method, context, ports, parsed)
       if (method.startsWith('machine.'))
         return await readiness(() => machineCall(method, context, ports, parsed))
       if (method === 'skills.list') {
+        const deadline = probeDeadline()
         const cwd = await laneCwd(context, parsed.laneId)
         const project = !!parsed.laneId
-        const data = await cache.skills(cwd, project, async (pi) => ({
-          skills: (await locateSkills(pi, cwd, project)).map((s) => s.skill),
+        const data = await cache.skills(cwd, project, deadline, async (pi, slot) => ({
+          skills: (await locateSkills(pi, cwd, project, slot)).map((s) => s.skill),
         }))
         return { ok: true, data }
       }
-      const skills = await cache.resourceQueue(() => resolveSkills(context, ports, parsed.laneId))
+      const skills = await cache.resourceQueue((slot) =>
+        resolveSkills(context, ports, parsed.laneId, undefined, slot),
+      )
       const entry = skills.find((s) => s.skill.name === parsed.name)
       if (!entry) throw new FeatureFailure('bad-request')
       if (method === 'skills.export') return { ok: true, data: await exportSkill(entry) }

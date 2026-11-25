@@ -18,19 +18,6 @@ export function catalogueIdentity(dir: string, pi: HostInspection['pi']) {
   return [pi?.launch, launchFiles, dir, files]
 }
 
-/** Separate queues reserve a model slot even while a command or skill is booting pi. */
-export function probeQueue() {
-  let tail: Promise<unknown> = Promise.resolve()
-  let count = 0
-  return <T>(probe: () => Promise<T>): Promise<T> => {
-    if (count >= 8) return Promise.reject(new FeatureFailure('internal'))
-    count++
-    const run = tail.then(probe).finally(() => count--)
-    tail = run.catch(() => {})
-    return run
-  }
-}
-
 interface Entry<T> {
   value?: T
   refresh?: Promise<T>

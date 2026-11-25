@@ -1,3 +1,4 @@
+import { patchHostSettings } from '../machine/patchHostSettings'
 import type { GlobalInstructions } from '@shared/global-instructions'
 
 /**
@@ -38,7 +39,7 @@ export function hostInstructions(hostId: string, machine: string): InstructionsS
       file(await window.phosphor.invoke('hosts:settingsRead', hostId, 'instructions')),
     save: async (content, revision) =>
       file(
-        await window.phosphor.invoke('hosts:settingsPatch', hostId, {
+        await patchHostSettings(hostId, {
           section: 'instructions',
           revision,
           change: { type: 'instructions.write', content },

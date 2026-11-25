@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { CatalogueCache, probeQueue } from './catalogue-cache'
+import { probeQueue } from './probe-queue'
+import { CatalogueCache } from './catalogue-cache'
 
 afterEach(() => vi.useRealTimers())
 it('serves the last good answer during a single stale refresh and after its failure', async () => {

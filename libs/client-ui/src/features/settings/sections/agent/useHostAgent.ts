@@ -8,7 +8,6 @@ import {
 import type { ThinkingLevel } from '@shared/rpc'
 import type { MachineContext } from '@shared/machine-prompt'
 import type { RepositorySummary } from '@shared/host-protocol'
-import { machineModelDefaults } from '@shared/host-protocol-machine'
 import { ipcErrorText } from '@shared/errors'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SaveState, SettingsNoticeProps } from '@/components/form'
@@ -19,7 +18,6 @@ import { useMachineCatalogue, useMachineCataloguesStore } from '@/stores/machine
 import { hostInstructions } from '../../instructions/instructionsSource'
 import { useFolderDirectiveEditor } from './useFolderDirectiveEditor'
 import { useHostSection } from '../../machine/HostSection'
-import type { HostSettingsState } from '../../machine/useHostSettings'
 import { useMachineAgentDraft } from '../../machine/machineSettingsDrafts'
 import { needsServiceRestart, type AgentPatch } from '../../machine/machineAgentPatch'
 import { modelChoices, modelValue, type AgentSource } from './source'
@@ -49,40 +47,6 @@ function announceSave(
       : `Saved on ${label} — applies to new lanes`,
     'info',
   )
-}
-
-const MODEL_DEFAULT_KEYS = ['defaultProvider', 'defaultModel', 'defaultThinkingLevel'] as const
-
-/**
- * Saves through `change`, and a machine-wide save of pi's default model or
- * thinking level also updates the Host's catalogue, where a new Host lane
- * reads them (`useRemoteModel`): the Host's answer, projected as its
- * `machine.models` read would. A folder's own defaults are not the machine's.
- */
-function adoptingModelDefaults(
-  hostId: string,
-  repositoryId: string | undefined,
-  change: HostSettingsState['change'],
-): HostSettingsState['change'] {
-  return async (request) => {
-    const saved = await change(request)
-    const agent = saved?.agent
-    if (
-      agent &&
-      !repositoryId &&
-      request.type === 'agent.patch' &&
-      MODEL_DEFAULT_KEYS.some((key) => key in request.patch)
-    )
-      useMachineCataloguesStore.getState().adoptDefaults(
-        hostId,
-        machineModelDefaults({
-          defaultProvider: agent.defaultProvider,
-          defaultModel: agent.defaultModel,
-          defaultThinkingLevel: agent.defaultThinkingLevel,
-        }),
-      )
-    return saved
-  }
 }
 
 /** The Host's catalogue, shared with its pickers; a failed read can be retried here. */
@@ -217,11 +181,8 @@ export function useHostAgent(): AgentSource {
   const folderEditor = useFolderDirectiveEditor(machine.id, repositoryId, settings)
   const data = settings.data
   const state = data?.agent
-  const draft = useMachineAgentDraft(
-    machine.id,
-    repositoryId,
-    { ...settings, change: adoptingModelDefaults(machine.id, repositoryId, settings.change) },
-    (patch, saved) => announceSave(machine.label, patch, saved, data?.agent?.namingLive),
+  const draft = useMachineAgentDraft(machine.id, repositoryId, settings, (patch, saved) =>
+    announceSave(machine.label, patch, saved, data?.agent?.namingLive),
   )
   const { fields } = draft
   const machineScope = useMachineScopeAgent(machine.id, repositoryId, data?.revision)

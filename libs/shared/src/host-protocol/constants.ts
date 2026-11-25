@@ -13,6 +13,9 @@ export const HOST_API_ROUTES = {
   stream: '/v1/stream',
 } as const
 
+/** Read calls have no durable receipt; the client stops waiting after this budget. */
+export const HOST_CALL_TIMEOUT_MS = 30_000
+
 /** Upper bounds. A brief may lower these, never raise them. */
 export const HOST_LIMITS = {
   /** Client to Host, UTF-8 bytes. Prompts with images need the room. */

@@ -139,6 +139,16 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
     })
   })
 
+  it('admits the optional partial catalogue request as the same call frame', () => {
+    const frame = {
+      ...CLIENT_FRAMES.call.state,
+      method: 'machine.models',
+      params: { partial: true },
+    }
+    expect(parseCallFrame(frame)).toStrictEqual({ ok: true, frame })
+    expect(baseCommands.parseCallFrame(frame)).toStrictEqual({ ok: true, frame })
+  })
+
   it('admits an ops.run call to its method table, which has no ops.run (unsupported)', () => {
     const frame = {
       ...CLIENT_FRAMES.call.state,

@@ -73,6 +73,7 @@ function features(
   settings: ReturnType<typeof createMachineSettings>,
   archives: HostArchives,
   generation: () => number,
+  invalidateCatalogue: () => void,
 ) {
   return [
     settings.feature,
@@ -101,6 +102,8 @@ function features(
     createArtifactsFeature({ ...context, store: options.store }),
     // Shared skills land where this Host's pi reads global skills.
     createSkillInstallFeature(context, {
+      invalidateCatalogue,
+      pi: options.cataloguePi ?? undefined,
       configPath: options.configPath,
       skillsRoot: join(settings.agentDir, 'skills'),
     }),
@@ -222,7 +225,14 @@ export function createRunAdministration(options: AdministrationOptions) {
       github: githubRunner(context.env),
     }),
     features: () =>
-      features(options, featureContext, settings, archives, () => catalogueGeneration),
+      features(
+        options,
+        featureContext,
+        settings,
+        archives,
+        () => catalogueGeneration,
+        invalidateCatalogue,
+      ),
   }
 }
 

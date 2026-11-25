@@ -262,11 +262,18 @@ with Desktop through `libs/shared/src/external-tool-marker.ts`.
 ## Machine model defaults
 
 `machine.models` (under `skills.read`) answers `{models, source, defaults?}`.
-`source: config` means the Host is answering from the same configured-model
-projection as in-app Desktop. It uses the existing result frame; clients that do
-not track source still receive models. Desktop and browser recheck readiness
-after Host setup programs, on reconnect and on focus (throttled), without a
-skills read first. Active consumers retry a failed or config-only catalogue.
+Desktop and browser send `{partial: true}`: if a cold probe takes over 1.5 s or
+fails, `source: config` marks the configured-model projection, not a complete
+list. A client receiving this source retries with backoff. Without the opt-in,
+the Host waits for pi within the call budget and returns a pi answer or a
+failure, never a partial success an older client might cache. An old Host
+rejects the optional parameter with `bad-request`; clients then retry once with
+`{}` on the same connection. No frame, grant or capability changes.
+
+A successful pi answer with no models is complete; the picker offers sign-in.
+Both shells re-read the models and provider readiness after Host sign-in, setup
+or a settings write, on reconnect and on focus (throttled), including when
+the last list was healthy. No skills read is required.
 
 The additive `defaults {model?: {provider, id}, thinkingLevel?}` is the Host pi's
 own new-session default ([host.md](host.md#machine-features)), so a client reads

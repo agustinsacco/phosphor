@@ -1,3 +1,4 @@
+import { probeDeadline, probeQueue, type ProbeSlot } from './probe-queue'
 import { join } from 'node:path'
 import { configModels } from '@phosphor/session-runtime/pi/config-models'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
@@ -9,7 +10,7 @@ import {
   parseMachineModels,
 } from '@phosphor/shared/host-protocol-machine'
 import type { FeatureContext } from './feature'
-import { CatalogueCache, catalogueIdentity, probeQueue } from './catalogue-cache'
+import { CatalogueCache, catalogueIdentity } from './catalogue-cache'
 import {
   FeatureFailure,
   featureInspection,
@@ -37,15 +38,27 @@ function fallback(dir: string) {
   const models = configModels(config(dir, 'models.json').providers)
   return modelAnswer(dir, parseMachineModels(models) ?? [], 'config')
 }
-async function modelsFromPi(pi: CataloguePi, dir: string, home: string) {
-  const raw = await queryMachine(pi, home, 'get_available_models', 90_000)
+async function modelsFromPi(
+  pi: CataloguePi,
+  dir: string,
+  home: string,
+  slot: ProbeSlot,
+  background: boolean,
+) {
+  const raw = await queryMachine(
+    pi,
+    home,
+    'get_available_models',
+    background ? 90_000 : undefined,
+    slot,
+  )
   if (Array.isArray(raw) && raw.length > 1000) throw new FeatureFailure('too-large')
   const models = parseMachineModels(raw)
-  if (!models?.length) throw new FeatureFailure('internal')
+  if (!models) throw new FeatureFailure('internal')
   return modelAnswer(dir, models, 'pi')
 }
-async function commandsFromPi(pi: CataloguePi, cwd: string) {
-  const raw = await queryMachine(pi, cwd, 'get_commands', 90_000)
+async function commandsFromPi(pi: CataloguePi, cwd: string, slot: ProbeSlot) {
+  const raw = await queryMachine(pi, cwd, 'get_commands', undefined, slot)
   if (Array.isArray(raw) && raw.length > MACHINE_COMMANDS_LIMIT)
     throw new FeatureFailure('too-large')
   const commands = parseMachineCommands(raw)
@@ -53,18 +66,19 @@ async function commandsFromPi(pi: CataloguePi, cwd: string) {
   return { commands }
 }
 
-/** Cold models get a short foreground budget, not a short pi lifetime. */
-async function foreground<T>(probe: Promise<T>, fromConfig: () => T): Promise<T> {
+/** Legacy readers cannot recognize a partial answer. Their budget expires as a failure,
+ * even when they join a longer background probe that another reader started. */
+async function foreground<T>(probe: Promise<T>, waitMs: number, fromConfig?: () => T): Promise<T> {
   let timer: NodeJS.Timeout | undefined
   try {
     return await Promise.race([
       probe,
-      new Promise<T>((resolve) => {
-        timer = setTimeout(() => resolve(fromConfig()), 1500)
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new FeatureFailure('internal')), waitMs)
       }),
     ])
   } catch (error) {
-    if (error instanceof FeatureFailure && error.code === 'too-large') throw error
+    if (!fromConfig || (error instanceof FeatureFailure && error.code === 'too-large')) throw error
     return fromConfig()
   } finally {
     clearTimeout(timer)
@@ -82,7 +96,8 @@ export function machineCatalogues(context: FeatureContext, ports: MachinePorts) 
     JSON.stringify([ports.generation?.(), catalogueIdentity(dir, pi), scope])
   return {
     resourceQueue,
-    async models() {
+    async models(partial: boolean) {
+      const deadline = probeDeadline()
       let dir = piAgentDir(ports.pi?.environment.env ?? context.env, context.home)
       return foreground(
         (async () => {
@@ -90,13 +105,17 @@ export function machineCatalogues(context: FeatureContext, ports: MachinePorts) 
           if (!launch) throw new FeatureFailure('internal')
           dir = piAgentDir(launch.environment.env, context.home)
           return models.get(key(dir, launch), () =>
-            modelQueue(() => modelsFromPi(launch, dir, context.home)),
+            modelQueue(
+              (slot) => modelsFromPi(launch, dir, context.home, slot, partial),
+              partial ? performance.now() + 90_000 : deadline,
+            ),
           )
         })(),
-        () => fallback(dir),
+        partial ? 1500 : deadline - performance.now(),
+        partial ? () => fallback(dir) : undefined,
       )
     },
-    async commands(repositoryId?: string) {
+    async commands(repositoryId?: string, deadline = probeDeadline()) {
       const repo =
         repositoryId && context.store.listRepositories().find((r) => r.id === repositoryId)
       if (repositoryId && !repo) throw new FeatureFailure('bad-request')
@@ -105,15 +124,20 @@ export function machineCatalogues(context: FeatureContext, ports: MachinePorts) 
       if (!launch) throw new FeatureFailure('internal')
       const dir = piAgentDir(launch.environment.env, context.home)
       return commands.get(key(dir, launch, cwd), () =>
-        resourceQueue(() => commandsFromPi(launch, cwd)),
+        resourceQueue((slot) => commandsFromPi(launch, cwd, slot), deadline),
       )
     },
-    async skills(cwd: string, project: boolean, read: (pi: CataloguePi) => Promise<unknown>) {
+    async skills(
+      cwd: string,
+      project: boolean,
+      deadline: number,
+      read: (pi: CataloguePi, slot: ProbeSlot) => Promise<unknown>,
+    ) {
       const launch = await pi()
       if (!launch) throw new FeatureFailure('internal')
       const dir = piAgentDir(launch.environment.env, context.home)
       return skills.get(key(dir, launch, JSON.stringify([cwd, project])), () =>
-        resourceQueue(() => read(launch)),
+        resourceQueue((slot) => read(launch, slot), deadline),
       )
     },
   }
