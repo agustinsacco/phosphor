@@ -1,3 +1,4 @@
+import { RunOutputAction } from './RunOutputAction'
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useMemo, useState } from 'react'
 import { DateTime } from 'luxon'
@@ -248,19 +249,7 @@ function RunRow({
               Cancel run
             </Button>
           )}
-          {run.id.startsWith('host:') && !run.outputLaneId ? (
-            <span className="text-text-tertiary max-w-48 text-sm">
-              Output not available from this machine yet
-            </span>
-          ) : (
-            <Button
-              size="sm"
-              disabled={busy || (!run.outputLaneId && !run.sessionId && !run.sessionPath)}
-              onClick={onContinue}
-            >
-              {activeRun(run) ? 'Open running lane' : 'Continue lane'}
-            </Button>
-          )}
+          <RunOutputAction run={run} busy={busy} onContinue={onContinue} />
           <TooltipButton
             aria-expanded={open}
             aria-label={open ? 'Hide run details' : 'Show run details'}

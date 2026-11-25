@@ -1,5 +1,4 @@
-import { laneRefFor } from '../lane-ref'
-import { parseRoutineHistory } from '@phosphor/shared/host-protocol-routines'
+import { routineRunHandlers } from './routine-output'
 import { randomUUID } from 'node:crypto'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { dataResult, op, pageRows } from '@phosphor/session-runtime/ops/results'
@@ -87,35 +86,11 @@ export async function routineUndoCurrent(
   )
 }
 export function routineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
-  const runs = op<{ id?: string; offset?: number }>(async ({ id, offset = 0 }) => {
-    const rows = parseRoutineHistory(
-      await resourceCall(
-        deps,
-        id ? 'routines.history' : 'routines.activity',
-        id ? { routineId: id, offset } : { offset },
-      ),
-    )
-    if (!rows) throw new OpRefusal('unavailable', 'Routine activity is unavailable.')
-    const refs = new Map(
-      deps.store
-        .listLanes()
-        .filter((l) => l.sessionFile && !l.removedAt)
-        .map((l) => [l.sessionFile, laneRefFor(deps.selfIds(), l.laneId)]),
-    )
-    return dataResult(
-      rows.map((row) => {
-        const path = deps.routines?.sessionPathForRun?.(row.id)
-        const laneRef = path && refs.get(path)
-        return laneRef ? { ...row, laneRef } : row
-      }),
-    )
-  })
   return {
     'routine.list': op(async (_, ctx) =>
       pageRows(parseRoutineList(await resourceCall(deps, 'routines.list', {})) ?? [], ctx),
     ),
-    'routine.history': runs,
-    'routine.activity': runs,
+    ...routineRunHandlers(deps),
     'routine.create': op<{ definition: Definition }>(async ({ definition }) => {
       const data = await execute(deps, {
         type: 'routine.save',

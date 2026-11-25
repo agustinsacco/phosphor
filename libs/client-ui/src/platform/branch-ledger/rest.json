@@ -43,10 +43,6 @@
     "protocol": 1,
     "same-machine": 0
   },
-  "features/routines/ActivityAccordion.tsx": {
-    "protocol": 1,
-    "same-machine": 0
-  },
   "features/routines/RoutinesPage.tsx": {
     "protocol": 5,
     "same-machine": 0

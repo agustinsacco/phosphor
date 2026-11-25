@@ -53,6 +53,8 @@ export type RoutineRunStatus =
 export interface RoutineRun {
   /** Existing lane on the Host that owns this run. Never a pi session id. */
   outputLaneId?: string
+  /** The Host can read this run’s saved conversation without admitting a lane. */
+  savedOutput?: true
   id: string
   routineId: string
   trigger: 'schedule' | 'manual'

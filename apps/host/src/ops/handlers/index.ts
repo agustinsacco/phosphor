@@ -60,6 +60,7 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly db: DatabaseSync
   /** The Host state folder; its `artifacts` store has one writer, this daemon. */
   readonly stateDirectory?: string
+  readonly sessionsRoot?: string
   /** The runtime's path lock and the lanes topic, for lane editing. */
   readonly editing: LaneEditingRuntime
   /** The lane runtime beside the lane service: lane commands, connectors, summaries. */
