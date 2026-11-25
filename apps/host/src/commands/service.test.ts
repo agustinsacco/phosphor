@@ -142,17 +142,17 @@ describe('phosphor service', () => {
     expect(await runService(f.context, 'install')).toBe(0)
     expect(await readFile(f.unit, 'utf8')).toBe(text)
   })
-  it('puts the real node directory first in PATH, once, so a per-shell entry may vanish', async () => {
+  it('writes node first and only distinct, stable absolute PATH entries', async () => {
     await machine.enrollOld()
     const f = fixture()
     f.context.env = {
       ...f.context.env,
-      PATH: '/run/user/1000/fnm_multishells/1_2/bin::/opt/fnm/v22/bin:/bin',
+      PATH: '/run/user/1000/fnm_multishells/1_2/bin:/custom/bin:rel::/opt/fnm/v22/bin:/bin:/custom/bin',
     }
     f.context.service = { ...f.context.service, node: '/opt/fnm/v22/bin/node' }
     expect(await runService(f.context, 'install')).toBe(0)
     expect(await readFile(f.unit, 'utf8')).toContain(
-      'Environment="PATH=/opt/fnm/v22/bin:/run/user/1000/fnm_multishells/1_2/bin:/bin"',
+      'Environment="PATH=/opt/fnm/v22/bin:/custom/bin:/bin"',
     )
   })
   it('prints the exact sudo command on linger failure without running sudo', async () => {
@@ -347,7 +347,7 @@ describe('phosphor service on macOS', () => {
   it('installs with exact argv and pinned PATH, then restarts and uninstalls idempotently', async () => {
     await machine.enrollOld()
     const f = macFixture()
-    f.context.env.PATH = '/opt:/custom/bin::/bin:/opt'
+    f.context.env.PATH = '/custom/bin:/tmp/fnm_multishells/id/bin:rel::/bin:/opt:/bin'
     expect(await runService(f.context, 'install')).toBe(0)
     const text = await readFile(f.plist, 'utf8')
     expect(text).toContain('<string>/opt:/custom/bin:/bin</string>')

@@ -36,7 +36,7 @@ beforeEach(async () => {
     defaultResourceRoot: root,
     env: {
       HOME: root,
-      PATH: bin,
+      PATH: `/tools:/tmp/fnm_multishells/id/bin:rel::${bin}:/fnm_multishells-backup:/tools`,
       XDG_STATE_HOME: dirname(state),
       XDG_CONFIG_HOME: join(root, 'config'),
     },
@@ -89,6 +89,7 @@ it('pairs, publishes standby before starting, and preserves both foreign files a
   const bytes = (await readFile(config, 'utf8')) + '\n'
   await writeFile(config, bytes)
   const unit = await readFile(join(root, 'config/systemd/user/test-local.service'), 'utf8')
+  expect(unit).toContain(`Environment="PATH=${join(root, 'bin')}:/tools:/fnm_multishells-backup"`)
   expect(unit).toContain(`XDG_STATE_HOME=${dirname(state)}`)
   portAvailable.mockClear()
   runner.mockClear()
@@ -186,13 +187,16 @@ it('bootstraps a fresh temporary macOS job without bootout or forced kickstart',
   const result = await runLocalSetup({
     ...ctx,
     platform: 'darwin',
+    standby: true,
     service: { ...ctx.service, localLabel: label, runner: mac },
   })
   expect(result.exitCode, result.notes.join('\n')).toBe(0)
   const plist = join(root, 'Library/LaunchAgents', `${label}.plist`)
   expect(mac.mock.calls.map(([, args]) => args[0])).toEqual(['print', 'bootstrap'])
-  expect(await readFile(plist, 'utf8')).toContain(
-    `<key>XDG_STATE_HOME</key><string>${dirname(state)}</string>`,
+  const text = await readFile(plist, 'utf8')
+  expect(text).toContain(
+    `<key>PATH</key><string>${join(root, 'bin')}:/tools:/fnm_multishells-backup</string>`,
   )
+  expect(text).toContain(`<key>XDG_STATE_HOME</key><string>${dirname(state)}</string>`)
   expect((await lstat(join(state, 'logs/launchd.err.log'))).mode & 0o777).toBe(0o600)
 })
