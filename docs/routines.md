@@ -126,7 +126,7 @@ instructions and configuration, not stored account credentials or run history.
   task can surprise you with. Promotion is one-way and never deletes history.
   A lane promoted while its run is still executing stays owned by the routine
   until that run ends; it is visible so you can watch it.
-- **On the service**, routine history offers Open or Continue only when the output already belongs to a lane. Viewing history does not promote a saved transcript. Agent-created routines start paused and untrusted; enabling or running a routine does not grant trust. Asked agent ops in an unattended run are denied instead of opening a dialog.
+- **On the service**, **View output** opens the saved conversation read-only in Desktop or the PWA. It is offered only while the recorded file exists. The reader omits hidden extension messages and does not start pi or add a sidebar lane. Agents can request history metadata, but cannot request transcript contents or approval to read them. If the output already belongs to an ordinary lane, Open or Continue opens that lane instead. Agent-created routines start paused and untrusted; enabling or running a routine does not grant trust. Asked agent ops in an unattended run are denied instead of opening a dialog.
 - `Finished · unverified` means the agent returned a written outcome, **not**
   that its report, tests, or external deliveries were independently verified.
   Empty outcomes and provider errors fail. On Desktop and Host, top-level tool
@@ -225,8 +225,7 @@ elsewhere). An unavailable Host shows its refusal, never local data
 under a remote label. Changing the selection clears an action error shown for the
 previous machine.
 Remote editors and detail labels use the Host model catalogue. Changing the
-execution machine clears the old model choice. Remote history shows output as
-unavailable until the Host supplies a lane identity, not a local Continue action.
+execution machine clears the old model choice. Runs without a saved conversation or linked lane show output as unavailable.
 A machine switch closes a detail or editor belonging to the previous machine.
 
 The Host daemon owns its own scheduler and SQLite database at
@@ -254,8 +253,7 @@ Main checks capabilities again, even if a renderer tries to bypass the UI.
 The machine filter scopes **Pause all** to that machine; All machines keeps
 the local Pause all behavior.
 
-Remote history shows only status and scheduled/started/ended timestamps. Host
-transcripts, working folders and execution diagnostics do not reach Desktop.
+Remote history lists status and scheduled/started/ended timestamps, not transcript contents, working folders or execution diagnostics. A surface with `sessions.read` can request the output separately.
 An uncertain mutation displays “The outcome is unknown. Refresh before taking
 another action.” It is never resent. Refresh loads the machine's current
 state before another mutation is admitted.
@@ -295,8 +293,7 @@ filesystem lock. Use isolated worktrees when simultaneous edits are possible.
 `routines.history` returns at most 50 status/timestamp records, with a bounded
 pagination offset. `routines.activity` returns the same records for every routine,
 newest first, at most 50, with the same offset bound. None returns Host session paths, working folders, account
-ids or private execution diagnostics. Full run snapshots and output remain in
-Host SQLite. Delete refuses a running execution or more than 1,000 history rows.
+ids or private execution diagnostics. Full run snapshots remain in Host SQLite; output stays in pi’s session files. A surface can opt in to output hints with `output: true` on the `routine.history` and `routine.activity` ops. `routine.history` with `runId` alone reads a bounded page of conversation text (`data.content`, with `next` when more remains). The Host resolves the file from the run, never a caller-supplied path. Delete refuses a running execution or more than 1,000 history rows.
 It archives first so no schedule starts during transcript removal, removes owned
 transcripts through the shared runtime, then deletes the definition and history.
 A partially failed deletion is not retried automatically. Worktrees are retained.

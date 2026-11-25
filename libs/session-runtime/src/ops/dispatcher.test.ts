@@ -106,6 +106,19 @@ describe('principals', () => {
     expect(h.calls.handled).toEqual([])
   })
 
+  it('refuses a routine transcript before confirmation without restricting history metadata', async () => {
+    const op = 'routine.history'
+    const h = createHarness({ policy: { ops: { [op]: 'ask' } } })
+    const args = { runId: '11111111-1111-4111-8111-111111111111' }
+    expect(await h.run(agent(), { op, args })).toMatchObject({
+      status: 'denied',
+      code: 'forbidden',
+    })
+    expect(h.calls.created).toEqual([])
+    expect((await h.run(agent(), { op, args: {} })).status).toBe('confirm')
+    expect((await h.run(surface(), { op, args })).status).toBe('ok')
+  })
+
   it('serves surface-only ops to a surface', async () => {
     const h = createHarness()
     expect((await h.run(surface(), { op: 'confirm.list', args: {} })).status).toBe('ok')

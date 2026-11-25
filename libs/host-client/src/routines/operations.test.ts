@@ -331,3 +331,35 @@ it('reads owner activity over ops and keeps only an output lane on this connecti
   expect(result.runs.map((r) => r.outputLaneId)).toEqual([laneId, undefined])
   expect(s.call).toHaveBeenCalledWith('ops.run', { op: 'routine.activity', args: {} })
 })
+
+it.each([false, true])(
+  'reads hidden saved output over the same ops wire (owner socket: %s)',
+  async (ownerLocal) => {
+    const s = setup()
+    Object.assign(s.view, { ownerLocal, ops: true, capabilities: ['routines', 'sessions.read'] })
+    s.call.mockImplementation(async (method) => ({
+      type: 'result',
+      id: randomUUID(),
+      ok: true,
+      data:
+        method === 'routines.list'
+          ? [s.row]
+          : {
+              status: 'ok',
+              applies: 'now',
+              text: 'History',
+              data: [{ ...s.remoteRun, savedOutput: true }],
+            },
+    }))
+    const runs = await history(s.state, s.ports, s.host, s.id, 0)
+    expect(runs[0]).toMatchObject({
+      id: `host:${s.host}/${s.runId}`,
+      savedOutput: true,
+      sessionPath: null,
+    })
+    expect(s.call).toHaveBeenCalledWith('ops.run', {
+      op: 'routine.history',
+      args: { id: s.id, offset: 0, output: true },
+    })
+  },
+)

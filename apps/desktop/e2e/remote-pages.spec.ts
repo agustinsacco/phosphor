@@ -180,7 +180,7 @@ test('Remote routine creation uses Host models and reports history', async () =>
     await h.page.getByRole('button', { name: 'New routine', exact: true }).click()
     const editor = h.page.getByRole('dialog', { name: 'New routine', exact: true })
     await editor.getByLabel('Name', { exact: false }).fill('HOST_A_ONLY UI routine')
-    await editor.getByLabel('What should happen?').fill('PHX-routineui')
+    await editor.getByLabel('What should happen?').fill('Find links for PHX-routineui')
     await editor
       .getByRole('combobox', { name: 'Routine machine', exact: true })
       .selectOption({ label: 'bee1' })
@@ -214,16 +214,13 @@ test('Remote routine creation uses Host models and reports history', async () =>
     await saved.getByRole('checkbox').check()
     await saved.getByRole('button', { name: 'Enable on bee1', exact: true }).click()
     await h.page.getByRole('button', { name: 'Run now', exact: true }).click()
-    await expect(h.page.locator('main li').filter({ hasText: 'Finished' })).toHaveCount(1)
-    await expect(
-      h.page.getByText('Output not available from this machine yet', { exact: false }),
-    ).toBeVisible()
-    await expect(
-      h.page
-        .locator('main li')
-        .filter({ hasText: 'Finished' })
-        .getByRole('button', { name: 'Open', exact: true }),
-    ).toHaveCount(0)
+    const finished = h.page.locator('main li').filter({ hasText: 'Finished' })
+    await finished.getByRole('button', { name: 'View output', exact: true }).click()
+    const output = h.page.getByRole('dialog', { name: 'Routine output' })
+    await expect(output).toContainText('PHX-routineui')
+    await expect(output).toContainText('assistant: [HOST_A_ONLY guide]')
+    await output.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(finished.getByRole('button', { name: 'Open', exact: true })).toHaveCount(0)
     await h.page.getByRole('button', { name: 'Edit', exact: true }).click()
     await saved.getByLabel('What should happen?').fill(h.slowTurn.prompt)
     await saved.getByRole('checkbox').check()
