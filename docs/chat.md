@@ -174,6 +174,10 @@ The composer is one small field with several ways in.
     `built into pi` for pi's inline extensions, `project · .claude/skills` for a
     local skill — and the tooltip carries the whole description, the file
     path and any aliases.
+  - **The popup opens over the input it belongs to**, on every screen that hosts a
+    composer. `ComposerInput`'s own root is the `relative` anchor for the `/` and
+    `@` popups; a screen never lends one, because the Host home did not and its
+    command menu opened at the top of the window instead.
   - **Aliases fold.** Two commands from the same file with the same description
     are one row (an extension registering one handler under two names); the
     alias stays searchable and is named in the tooltip. Matching is on payload
