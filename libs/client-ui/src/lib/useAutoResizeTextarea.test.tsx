@@ -12,11 +12,14 @@ let observers: { callback: ResizeObserverCallback }[] = []
 /** scrollHeight jsdom reports is always 0; steer it per assertion. */
 let mockScrollHeight = 0
 let frames: FrameRequestCallback[] = []
+/** Called on every scrollHeight read: the moment the browser lays out. */
+let onMeasure: (() => void) | null = null
 
 beforeEach(() => {
   observers = []
   frames = []
   mockScrollHeight = 0
+  onMeasure = null
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => frames.push(callback))
   vi.stubGlobal('cancelAnimationFrame', (id: number) => {
     frames[id - 1] = () => undefined
@@ -79,7 +82,10 @@ function TextareaHarness({ text }: { text: string }): React.JSX.Element {
         textarea = node
         if (node) {
           Object.defineProperty(node, 'scrollHeight', {
-            value: mockScrollHeight,
+            get: () => {
+              onMeasure?.()
+              return mockScrollHeight
+            },
             configurable: true,
           })
         }
@@ -186,6 +192,29 @@ describe('useAutoResizeTextarea', () => {
     expect(textarea!.style.height).toBe('100px')
     flushFrames()
     expect(textarea!.style.height).toBe('180px')
+  })
+
+  it('keeps the composer box its size while it measures, so the transcript keeps its scroll', () => {
+    // The reset to \`auto\` collapses the field to one row while scrollHeight is
+    // read, which forces layout. If the box around it collapses too, the
+    // transcript above grows for that layout, the browser clamps its scrollTop,
+    // and the tail flickers on every keystroke of a multi-line draft.
+    setMockScrollHeight(100)
+    renderHarness('three\nline\ndraft')
+    const box = container!
+    box.appendChild(textarea!)
+    const boxHeights: string[] = []
+    // jsdom has no layout: the box is as tall as the field it wraps.
+    Object.defineProperty(box, 'offsetHeight', {
+      configurable: true,
+      get: () => parseFloat(box.style.height || textarea!.style.height),
+    })
+    onMeasure = () => boxHeights.push(box.style.height || textarea!.style.height)
+    act(() => setText('three\nline\ndraft!'))
+    expect(boxHeights.length).toBeGreaterThan(0)
+    expect(boxHeights.every((height) => height === '100px')).toBe(true)
+    expect(textarea!.style.height).toBe('100px')
+    expect(box.style.height).toBe('')
   })
 
   it('disconnects the observer on unmount', () => {

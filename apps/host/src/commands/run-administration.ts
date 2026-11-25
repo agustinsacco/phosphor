@@ -15,6 +15,7 @@ import type { createRepositories } from '../features/repositories'
 import type { FeatureContext } from '../features/feature'
 import { createHostClaudeAccounts, type HostClaudeAccounts } from '../providers/accounts'
 import { createLaneUsage } from '../providers/lane-usage'
+import { sweepUsageProbeDirectories } from '../providers/account-probes'
 import { createProviderLogins } from '../providers/login'
 import { createAccountMoves } from '../settings/account-moves'
 import { createMachineSettings } from '../settings/service'
@@ -66,6 +67,7 @@ export function createRunAccounts(
   env: Record<string, string>,
   log: HostMachine['log']['write'],
 ) {
+  sweepUsageProbeDirectories()
   return createHostClaudeAccounts({ directory, home: context.home, env, log })
 }
 

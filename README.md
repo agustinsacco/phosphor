@@ -78,7 +78,7 @@ terminal and use `/login`, or put API keys / a local endpoint in
   ([optional gate](docs/extensions.md#optional-permission-gate-and-scratch-cleanup)).
 - **Routines on the execution machine.** Save instructions, a folder/model and a
   schedule for a fresh lane per run, with durable history, catch-up and cancellation.
-  Local runs need Desktop; Host schedules can run with clients closed. The execution
+  Local runs need Desktop's in-app runtime or This Mac's service running; Host schedules can run with clients closed. The execution
   machine must be awake and its runtime running. Enable unattended full tool access
   deliberately. [Routines](docs/routines.md).
 - **Rich responses are first-class.** GFM markdown, highlighted code, Mermaid,
@@ -378,6 +378,14 @@ One `pi --mode rpc` subprocess per live session, spoken to over JSONL on stdio.
 Phosphor never imports pi's code. The protocol is hand-mirrored in
 [`libs/shared/src/rpc.ts`](libs/shared/src/rpc.ts) with compile-time drift guards, so a protocol
 change this file has not caught will not compile.
+
+On packaged macOS and Linux builds, This Mac's lanes run in the Phosphor
+service, the Host as a per-user launchd agent or systemd user unit, so they
+keep running after you quit Desktop. A new install's first launch runs in-app
+and installs the service; a later launch moves This Mac to it once, the same
+migration that moves an older in-app install's lanes. Windows and development
+builds stay in-app. [This Mac's service](docs/local-service.md) covers the
+move, recovery and the one-time reinstall for the Standard CPU priority.
 
 ```mermaid
 flowchart LR
