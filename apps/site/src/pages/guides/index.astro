@@ -42,6 +42,13 @@ const sections: [string, string][] = [
       > works and that its directory is on the PATH desktop apps see. Restart Phosphor after changing
       PATH.
     </p>
+    <p>
+      The first launch runs your lanes inside the app and installs the Phosphor service in the
+      background. From a later launch, local lanes run in that service, so they keep running after
+      you quit Phosphor. An older install moves its lanes there once, automatically. <a
+        href={doc('local-service.md')}>How the service works</a
+      >.
+    </p>
   </section>
   <section id="sign-in">
     <h2>2. Sign in to a provider</h2>
