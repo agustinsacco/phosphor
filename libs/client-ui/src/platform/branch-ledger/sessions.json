@@ -68,7 +68,7 @@
     "same-machine": 0
   },
   "stores/remoteLanes.ts": {
-    "protocol": 10,
+    "protocol": 9,
     "same-machine": 0
   },
   "stores/sessions.ts": {
