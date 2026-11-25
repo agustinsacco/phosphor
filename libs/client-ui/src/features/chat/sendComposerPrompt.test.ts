@@ -96,6 +96,38 @@ describe('the busy behaviour', () => {
     ])
   })
 
+  it.each(['steer', 'followUp'] as const)(
+    'clears and sends repeated %s drafts without waiting on pi, restoring a refusal',
+    async (behavior) => {
+      hostLane('working')
+      let finish!: (reply: PromptResponse) => void
+      const pi = vi.spyOn(window.phosphor, 'piCommand')
+      pi.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+      )
+      pi.mockResolvedValueOnce(accepted('queued'))
+      const first = send(true, behavior)
+      const cleared = useDraftsStore.getState().get(KEY).text
+      useDraftsStore.getState().setText(KEY, 'second')
+      const second = send(true, behavior)
+      const sent = pi.mock.calls.map(([, command]) => command)
+      try {
+        expect(cleared).toBe('')
+        expect(sent).toMatchObject([
+          { message: 'PHX-message', busy: true, streamingBehavior: behavior },
+          { message: 'second', busy: true, streamingBehavior: behavior },
+        ])
+        expect(useDraftsStore.getState().get(KEY).text).toBe('')
+      } finally {
+        finish(refused('rejected'))
+        await Promise.all([first, second])
+      }
+      expect(useDraftsStore.getState().get(KEY).text).toBe('PHX-message')
+    },
+  )
+
   it('a message typed while the last prompt waits for pi steers instead of vanishing', async () => {
     useChatStore.getState().addUserMessage(id, 'first')
     const prompts = answers(accepted('queued'))

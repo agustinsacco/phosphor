@@ -22,6 +22,32 @@ afterEach(() => {
 })
 
 describe('lane command guards and operations', () => {
+  it.each(['steer', 'followUp'] as const)(
+    'registers a busy %s before pi answers either prompt',
+    async (streamingBehavior) => {
+      const first = f.frame()
+      const running = f.service.submit(f.one, first)
+      const op = { type: 'prompt' as const, message: 'next', streamingBehavior, busy: true }
+      const next = f.frame(op, 2)
+      const sending = f.service.submit(f.one, next)
+      try {
+        expect(f.store.getReceipt(first.requestId, f.one.id)?.status).toBe('pending')
+        expect(f.receipts(next.requestId)).toEqual([
+          { requestId: next.requestId, status: 'pending' },
+        ])
+        expect(f.command).toHaveBeenCalledTimes(2)
+      } finally {
+        f.finish(0)
+        f.finish(1)
+        await Promise.all([running, sending])
+      }
+      expect(f.receipts(next.requestId).map((receipt) => receipt.status)).toEqual([
+        'pending',
+        'done',
+      ])
+    },
+  )
+
   it('caps pi errors, drops oversize data in delivered receipts and logs no content', async () => {
     const request = { ...f.frame(), trace: '1234567890abcdef' }
     const a = f.service.submit(f.one, request)

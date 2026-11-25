@@ -170,6 +170,43 @@ describe('portable session admission', () => {
     expect(beforePrompt).not.toHaveBeenCalled()
   })
 
+  it.each(['steer', 'followUp'] as const)(
+    'dispatches a busy %s with a fresh budget while pi still owes the first prompt response',
+    async (streamingBehavior) => {
+      const h = fixture()
+      const live = await h.service.create({ workspacePath: '/repo' })
+      const client = h.clients[0]!
+      let enter!: () => void
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve
+      })
+      let finish!: () => void
+      client.request.mockImplementation(async (request) => {
+        if (request.type === 'prompt' && request.message === 'first') {
+          enter()
+          await new Promise<void>((resolve) => {
+            finish = resolve
+          })
+        }
+        return { success: true, data: { autoCompactionEnabled: false } } as never
+      })
+      const first = h.service.command(live.sessionId, { type: 'prompt', message: 'first' })
+      await entered
+      client.request.mockClear()
+      const command = { type: 'prompt' as const, message: 'next', streamingBehavior, busy: true }
+      const next = h.service.command(live.sessionId, command)
+      try {
+        await new Promise(setImmediate)
+        expect(client.request.mock.calls).toEqual([
+          [{ type: 'prompt', message: 'next', streamingBehavior }],
+        ])
+      } finally {
+        finish()
+        await Promise.all([first, next])
+      }
+    },
+  )
+
   it('rechecks routine ownership after waiting in the command gate', async () => {
     const h = fixture()
     const live = await h.service.create({ workspacePath: '/repo' })
