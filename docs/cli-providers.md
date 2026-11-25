@@ -253,9 +253,11 @@ last assistant's model, before selecting credentials. Today's global defaults
 cannot redirect an older Claude lane to the CLI default. Inspection is read-only:
 it reads the transcript backward from its end only as far as the branch's walk
 needs (`pi/backward-lines.ts`), on files up to the stopped-lane reader's 2 GiB
-bound, 200,000 entries read and 64 MiB per entry. An unreadable, oversized,
-changing or cyclic session fails closed rather than guessing its billing
-provider. Each refusal keeps its fixed message and carries a token `code`
+bound, 200,000 entries read and 64 MiB per entry. It lets the event loop run at
+least once per 16 MiB read, however many lines it skips, and parses the session
+header only once an LF or the file's end shows the line is whole. An unreadable,
+oversized, changing or cyclic session fails closed rather than guessing its
+billing provider. Each refusal keeps its fixed message and carries a token `code`
 (`resume-provider-unverified`, `resume-provider-changed`, `transcript-too-large`,
 `transcript-line-too-large` or `transcript-index-too-large`), which a Host logs
 with a failed resume's `lane.command_error`. A Host also checks pi's

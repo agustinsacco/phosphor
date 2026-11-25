@@ -1,6 +1,7 @@
 import { constants, readSync } from 'node:fs'
 import { open } from 'node:fs/promises'
-import { BackwardLines } from './backward-lines'
+import { setImmediate } from 'node:timers/promises'
+import { BackwardLines, READ_YIELD_BYTES } from './backward-lines'
 import {
   parseSessionLine,
   SESSION_ENTRIES_MAX,
@@ -12,8 +13,8 @@ import {
 const LINE_BYTES = 64 * 1024 * 1024
 /** The ids and providers the walk keeps, in UTF-16 code units. */
 const INDEX_CHARS = 32 * 1024 * 1024
-/** A long walk lets the event loop run this often. */
-const YIELD_BYTES = 16 * 1024 * 1024
+/** The header is read forward this much at a time, pacing like BackwardLines. */
+const HEADER_CHUNK_BYTES = 1024 * 1024
 const LF = 10
 const UNVERIFIED = 'Cannot verify the resumed session provider.'
 const CHANGED = 'The session changed while verifying its provider.'
@@ -52,27 +53,42 @@ function step(entry: SessionEntryLike): Step {
   }
 }
 
-/** The file's first entry, read forward: pi's loader requires a session header there. */
-function readHeader(fd: number, size: number): SessionEntryLike | null {
-  const limit = Math.min(size, LINE_BYTES)
+/**
+ * The file's first entry, read forward: pi's loader requires a session header
+ * there. A line is parsed only once its LF or the file's end proves it whole.
+ */
+async function readHeader(fd: number, size: number): Promise<SessionEntryLike | null> {
+  const limit = Math.min(size, LINE_BYTES + 1)
   let buffer = Buffer.allocUnsafe(Math.min(limit, 64 * 1024))
   let filled = 0
+  let searched = 0
   let lineStart = 0
+  let pausedAt = 0
   for (;;) {
-    const lf = buffer.subarray(0, filled).indexOf(LF, lineStart)
-    if (lf >= 0 || filled === limit) {
-      const entry = parseSessionLine(buffer.toString('utf8', lineStart, lf >= 0 ? lf : filled))
+    const lf = buffer.subarray(0, filled).indexOf(LF, Math.max(searched, lineStart))
+    if (lf >= 0) {
+      const entry = parseSessionLine(buffer.toString('utf8', lineStart, lf))
       if (entry !== undefined) return entry
-      if (lf < 0) return null
       lineStart = lf + 1
       continue
+    }
+    searched = filled
+    if (filled === limit) {
+      if (filled < size || filled - lineStart > LINE_BYTES)
+        throw refusal('transcript-line-too-large')
+      return parseSessionLine(buffer.toString('utf8', lineStart, filled)) ?? null
     }
     if (filled === buffer.length) {
       const grown = Buffer.allocUnsafe(Math.min(buffer.length * 2, limit))
       buffer.copy(grown, 0, 0, filled)
       buffer = grown
     }
-    const count = readSync(fd, buffer, filled, buffer.length - filled, filled)
+    if (filled - pausedAt + HEADER_CHUNK_BYTES > READ_YIELD_BYTES) {
+      pausedAt = filled
+      await setImmediate()
+    }
+    const length = Math.min(buffer.length - filled, HEADER_CHUNK_BYTES)
+    const count = readSync(fd, buffer, filled, length, filled)
     if (!count) throw refusal('resume-provider-changed', CHANGED)
     filled += count
   }
@@ -87,13 +103,12 @@ class BranchIndex {
   private readonly index = new Map<unknown, Step>()
   private entries = 0
   private indexChars = 0
-  private yielded = 0
 
   constructor(private readonly lines: BackwardLines) {}
 
   /** The next older entry; null once the scan reached the file's start. */
-  older(): Step | null {
-    for (let line = this.lines.next(); line; line = this.lines.next()) {
+  async older(): Promise<Step | null> {
+    for (let line = await this.lines.nextPaced(); line; line = await this.lines.nextPaced()) {
       const entry = parseSessionLine(line.toString('utf8'))
       if (entry === undefined) continue
       if (!entry) throw refusal('resume-provider-unverified')
@@ -112,34 +127,24 @@ class BranchIndex {
   }
 
   async find(id: unknown): Promise<Step | null> {
-    while (!this.index.has(id)) {
-      if (!this.older()) return null
-      await this.pause()
-    }
+    while (!this.index.has(id)) if (!(await this.older())) return null
     return this.index.get(id) ?? null
   }
 
   async olderOutsideSession(): Promise<Step | null> {
-    let found = this.older()
-    while (found?.session) {
-      await this.pause()
-      found = this.older()
-    }
+    let found = await this.older()
+    while (found?.session) found = await this.older()
     return found
-  }
-
-  private async pause(): Promise<void> {
-    if (this.lines.bytes - this.yielded < YIELD_BYTES) return
-    this.yielded = this.lines.bytes
-    await new Promise((resolve) => setImmediate(resolve))
   }
 }
 
 /** Mirrors pi's migration (v1 files chain their entries in order) and buildSessionPath. */
 async function walkBranch(fd: number, size: number): Promise<string | undefined> {
-  const header = readHeader(fd, size)
+  const header = await readHeader(fd, size)
   if (!header || header.type !== 'session' || typeof header.id !== 'string')
     throw refusal('resume-provider-unverified')
+  // One turn between the two reads, so their unpaced bytes never run back to back.
+  await setImmediate()
   const linear = Number(header.version ?? 1) < 2
   const lines = new BackwardLines(fd, size, {
     maxBytes: size,
@@ -148,7 +153,7 @@ async function walkBranch(fd: number, size: number): Promise<string | undefined>
   })
   const branch = new BranchIndex(lines)
   const seen = new Set<Step>()
-  let leaf = branch.older()
+  let leaf = await branch.older()
   while (leaf && !leaf.session) {
     if (seen.has(leaf)) throw refusal('resume-provider-unverified')
     seen.add(leaf)
