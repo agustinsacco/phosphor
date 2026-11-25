@@ -2,7 +2,6 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import type { HostInspection } from '../commands/doctor'
 import { createSkillsFeature } from './skills'
 
 let home: string
@@ -23,7 +22,7 @@ function catalogue(slow: string) {
   }
   return createSkillsFeature(
     { home, env: {}, log: () => {}, store: { getLane: () => null, listRepositories: () => [] } },
-    { inspect: async () => ({ pi }) as HostInspection },
+    { pi },
   )
 }
 it('serves config while a cold pi exceeds the foreground deadline, then serves pi', async () => {
