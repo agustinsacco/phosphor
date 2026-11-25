@@ -23,7 +23,7 @@ export function FoldersView({ source }: { source: FolderSource }): React.JSX.Ele
       </div>
       {source.notice && <SettingsNotice {...source.notice} />}
       {folders.length === 0 && <p className="text-text-tertiary text-base">No folders yet.</p>}
-      <div className="border-border divide-border divide-y overflow-hidden rounded-xl border">
+      <div className="border-border divide-border divide-y overflow-hidden rounded-lg border">
         {folders.map((folder) => (
           <FolderRow key={folder.id} folder={folder} source={source} />
         ))}

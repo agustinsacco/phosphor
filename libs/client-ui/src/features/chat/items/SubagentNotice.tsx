@@ -68,8 +68,6 @@ export function SubagentNoticeItem({
       data-kind={notice.kind}
       data-status={notice.status}
       className={clsx(
-        // rounded-md (6px) matches the machine switcher; rounded-lg is 14px
-        // in this theme and turns a one-line row into a pill.
         'rounded-md border px-2 py-1',
         tone === 'warning'
           ? 'border-warning/30 bg-[color-mix(in_srgb,var(--px-warning)_6%,transparent)]'

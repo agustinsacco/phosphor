@@ -127,7 +127,7 @@ function LooseResources({ resources }: { resources: PiResources | null }): React
       </SectionTitle>
       <div className="grid grid-cols-3 gap-3">
         {(['extensions', 'prompts', 'themes'] as const).map((kind) => (
-          <div key={kind} className="border-border bg-surface rounded-xl border p-3">
+          <div key={kind} className="border-border bg-surface rounded-lg border p-3">
             <div className="text-text-tertiary font-mono text-xs font-semibold uppercase tracking-wider">
               {kind}
             </div>

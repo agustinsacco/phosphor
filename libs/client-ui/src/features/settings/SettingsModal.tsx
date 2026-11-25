@@ -18,7 +18,7 @@ export function SettingsModal(): React.JSX.Element | null {
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
-        className="border-border bg-bg relative flex h-[86vh] w-[880px] max-w-[94vw] overflow-hidden rounded-2xl border shadow-2xl md:h-[78vh]"
+        className="border-border bg-bg relative flex h-[86vh] w-[880px] max-w-[94vw] overflow-hidden rounded-lg border shadow-2xl md:h-[78vh]"
       >
         <SettingsSurface title="Settings" asideClassName="pr-12" />
         <TooltipButton

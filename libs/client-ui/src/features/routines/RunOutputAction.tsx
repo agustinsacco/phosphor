@@ -37,7 +37,7 @@ function SavedOutput({ host, runId, close }: { host: string; runId: string; clos
         role="dialog"
         aria-modal="true"
         aria-label="Routine output"
-        className="bg-bg border-border w-[min(800px,90vw)] rounded-xl border p-4"
+        className="bg-bg border-border w-[min(800px,90vw)] rounded-lg border p-4"
       >
         <h2 className="text-lg font-semibold">Routine output</h2>
         {error ? (

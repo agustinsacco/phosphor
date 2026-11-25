@@ -769,7 +769,7 @@ function LibrarySection({
   }
 
   return (
-    <article className="border-border bg-surface overflow-hidden rounded-xl border p-4">
+    <article className="border-border bg-surface overflow-hidden rounded-lg border p-4">
       {offering && (
         <>
           <div className="text-text-secondary flex flex-wrap justify-between gap-2 font-mono text-xs uppercase tracking-wider">
@@ -895,7 +895,7 @@ function ImportSheet({
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="border-border bg-surface w-[520px] max-w-[90vw] rounded-xl border p-5 shadow-lg">
+      <div className="border-border bg-surface w-[520px] max-w-[90vw] rounded-lg border p-5 shadow-lg">
         <div className="text-xl font-semibold">Upload skill</div>
         <div className="text-text-tertiary truncate pt-0.5 font-mono text-xs">
           {preview.sourcePath}

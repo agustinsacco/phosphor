@@ -25,7 +25,7 @@ export function ConfiguredRow(props: RowProps): React.JSX.Element {
   const inspection = source.caps.inspect ? connector.inspection : undefined
   return (
     <div
-      className="border-border bg-surface rounded-xl border"
+      className="border-border bg-surface rounded-lg border"
       data-testid={`connector-${connector.entry?.id ?? connector.name}`}
       data-connector={connector.name}
     >

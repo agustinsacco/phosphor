@@ -148,6 +148,13 @@ export default tseslint.config(
           message:
             'window.prompt throws in Electron. Use promptText()/presentText() from @/stores/prompt.',
         },
+        // Radii stay tight (docs/style-guide.md#tokens): rounded-md for rows
+        // and cards, rounded-lg for dialogs, rounded-composer for the composer.
+        ...['Literal[value=/RE/]', 'TemplateElement[value.raw=/RE/]'].map((selector) => ({
+          selector: selector.replace('RE', String.raw`\brounded(-[a-z]{1,2})?-[23]?xl\b`),
+          message:
+            'rounded-xl and larger are too round for Phosphor. Use rounded-md (rows, cards) or rounded-lg (dialogs).',
+        })),
       ],
     },
   },

@@ -16,7 +16,7 @@ export function SearchPalette({
         role="dialog"
         aria-modal="true"
         aria-label="Search Brain"
-        className="border-border bg-surface-raised mt-[12vh] w-[36rem] max-w-[92vw] rounded-xl border p-3 shadow-2xl"
+        className="border-border bg-surface-raised mt-[12vh] w-[36rem] max-w-[92vw] rounded-lg border p-3 shadow-2xl"
       >
         <BrainSearch
           autoFocus

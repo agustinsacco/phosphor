@@ -86,7 +86,7 @@ export function MigrationCard({
   const signIns = plan?.servers.filter((s) => s.config.url && !s.config.headers?.Authorization)
 
   return (
-    <div className="border-warning/30 bg-warning/10 mt-4 rounded-xl border px-4 py-3 text-base">
+    <div className="border-warning/30 bg-warning/10 mt-4 rounded-lg border px-4 py-3 text-base">
       <div className="font-semibold">Move your connectors to pi’s built-in MCP</div>
       <p className="text-text-secondary mt-1">
         pi now connects MCP servers itself, and Phosphor manages connectors through it. Your servers

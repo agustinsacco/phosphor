@@ -40,7 +40,7 @@ export function LanesSection(): React.JSX.Element {
   return (
     <div>
       <SectionTitle>Lanes</SectionTitle>
-      <div className="border-border bg-surface mb-2 rounded-xl border px-4">
+      <div className="border-border bg-surface mb-2 rounded-lg border px-4">
         <Row
           title="Lane markers"
           description="The emoji left of each lane. Click a marker or right-click a lane to pick a new one. Auto derives one from the branch name; Manual shows only your choices; Off hides markers and the picker without clearing choices."
@@ -60,7 +60,7 @@ export function LanesSection(): React.JSX.Element {
       </div>
 
       <SectionTitle small>New lanes</SectionTitle>
-      <div className="border-border bg-surface mb-2 rounded-xl border px-4">
+      <div className="border-border bg-surface mb-2 rounded-lg border px-4">
         {/* A Host lane always gets its own branch and worktree; only This Mac's can share one. */}
         {localLanes && (
           <Row
