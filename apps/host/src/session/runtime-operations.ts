@@ -87,10 +87,21 @@ async function command(
   }
 }
 
-/** Lane controls reserved for the routine runner. */
-function routineOperations(state: RuntimeState, service: RuntimeService) {
-  const { registry, options, timings } = state
+export function createRuntimeOperations(
+  state: RuntimeState,
+  service: RuntimeService,
+  deleteLane: RuntimeDeletion,
+  ownerDeleteLane = deleteLane,
+) {
+  const { roots, machineContext, life, registry, options, timings } = state
   return {
+    withAuthorization: <T>(allowed: () => boolean, run: () => Promise<T>) =>
+      state.authorization.run(allowed, run),
+    accountForSession: state.accounts.accountForSession,
+    replaceRoots(next: readonly string[]) {
+      roots.splice(0, roots.length, ...next)
+      machineContext.repositories = next.map((repository) => basename(repository))
+    },
     /** Internal runner only: still uses the shared service and path-lock domain. */
     async startRoutine(request: unknown, deliver: Delivery, execution: SessionExecution) {
       const parsed = await parse(state, request)
@@ -114,25 +125,6 @@ function routineOperations(state: RuntimeState, service: RuntimeService) {
       const session = registry.get(id)
       if (session) await stopSession(session, registry, timings)
     },
-  }
-}
-
-export function createRuntimeOperations(
-  state: RuntimeState,
-  service: RuntimeService,
-  deleteLane: RuntimeDeletion,
-  ownerDeleteLane = deleteLane,
-) {
-  const { roots, machineContext, life, registry, options, timings } = state
-  return {
-    withAuthorization: <T>(allowed: () => boolean, run: () => Promise<T>) =>
-      state.authorization.run(allowed, run),
-    accountForSession: state.accounts.accountForSession,
-    replaceRoots(next: readonly string[]) {
-      roots.splice(0, roots.length, ...next)
-      machineContext.repositories = next.map((repository) => basename(repository))
-    },
-    ...routineOperations(state, service),
     list: (): LiveSessionInfo[] => registry.list(),
     /** Start or resume; an already running session is refused. */
     start: (request: unknown, deliver: Delivery = ignore) =>
@@ -149,14 +141,7 @@ export function createRuntimeOperations(
     async reloadNow(id: string) {
       const session = registry.get(id)
       if (!session?.client.alive) return 'failed' as const
-      // A reload replaces model/extension state just like a compact command is a pi barrier.
-      try {
-        return await state.budget.withBudgetCompaction(id, 'compact', () =>
-          reloadLaneNow(id, session.client, state.machine.log.write),
-        )
-      } catch {
-        return 'failed' as const
-      }
+      return reloadLaneNow(id, session.client, state.machine.log.write)
     },
     /** Send a controller's answer without treating it as an RPC command. */
     extensionUiResponse(id: string, response: ExtensionUIResponse): void {

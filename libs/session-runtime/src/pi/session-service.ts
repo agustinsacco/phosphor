@@ -4,7 +4,6 @@ import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
 import {
   forgetStagedBudget,
   syncContextBudget,
-  stagedBudgetIsCurrent,
   type createContextBudgetRuntime,
 } from './context-budget'
 import { assertClaudeContextProvider } from './provider-detect'
@@ -41,7 +40,6 @@ export interface SessionServiceRuntime<Delivery> {
 type SessionAdmission = Pick<SessionServiceRuntime<unknown>, 'registry' | 'paths' | 'routines'> & {
   mcpBusy: Set<string>
   mutating: Map<string, number>
-  beforeDispatch: Map<string, number>
 }
 
 async function create<Delivery>(
@@ -172,41 +170,21 @@ async function dispatchCommand<Delivery>(
   live: LiveSession,
   id: string,
   command: RpcCommand,
-  dispatched: () => void,
-  skipPreflight: boolean,
 ) {
   // Ownership may change while a command waits behind compaction.
   assertManualCommand(admission, id, command)
-  if (!skipPreflight) await preflightCommand(runtime, live, id, command)
+  await preflightCommand(runtime, live, id, command)
   // A slash command can reload extensions or change their staged settings directly.
   if (
     RESTAGES_BUDGET.has(command.type) ||
     (command.type === 'prompt' && command.message.startsWith('/'))
   )
     forgetStagedBudget(live.client)
-  if (
-    (command.type === 'prompt' || command.type === 'steer' || command.type === 'follow_up') &&
-    !command.message.startsWith('/')
-  )
-    dispatched()
   const result = await live.client.request(command)
   if (!runtime.isStub() && command.type === 'set_auto_compaction' && result.success) {
     await syncContextBudget(live.client, runtime.readBudget())
   }
   return result
-}
-
-/** Release a command barrier at most once, including failed preflights. */
-function countCommand(counts: Map<string, number>, id: string): () => void {
-  counts.set(id, (counts.get(id) ?? 0) + 1)
-  let held = true
-  return () => {
-    if (!held) return
-    held = false
-    const remaining = (counts.get(id) ?? 1) - 1
-    if (remaining) counts.set(id, remaining)
-    else counts.delete(id)
-  }
 }
 
 async function command<Delivery>(
@@ -219,42 +197,17 @@ async function command<Delivery>(
   if (command.type === 'get_messages') admission.routines.observe(id)
   assertManualCommand(admission, id, command)
   const mutating = !observes(command)
-  const busy = command.type === 'prompt' && command.busy && command.streamingBehavior
-  const queuedInput = busy || command.type === 'steer' || command.type === 'follow_up'
-  // A pending prompt answer is not a state barrier once the prompt has been sent.
-  // Keep earlier preflights and settings/compaction/reload mutations in order.
-  const fast =
-    !!queuedInput &&
-    !admission.beforeDispatch.has(id) &&
-    (!busy || runtime.isStub() || stagedBudgetIsCurrent(live.client, runtime.readBudget()))
-  const dispatched = mutating ? countCommand(admission.beforeDispatch, id) : () => {}
-  const settled = mutating ? countCommand(admission.mutating, id) : () => {}
-  let request = command
-  if (command.type === 'prompt' && command.busy) {
-    const { busy: _busy, ...piPrompt } = command
-    request = piPrompt
-  }
+  if (mutating) admission.mutating.set(id, (admission.mutating.get(id) ?? 0) + 1)
   try {
-    return await runtime.withBudgetCompaction(
-      id,
-      request.type,
-      () =>
-        dispatchCommand(
-          runtime,
-          admission,
-          live,
-          id,
-          request,
-          dispatched,
-          // The gate may itself wait for compaction; recheck the memo at dispatch.
-          fast &&
-            (!busy || runtime.isStub() || stagedBudgetIsCurrent(live.client, runtime.readBudget())),
-        ),
-      fast,
+    return await runtime.withBudgetCompaction(id, command.type, () =>
+      dispatchCommand(runtime, admission, live, id, command),
     )
   } finally {
-    dispatched()
-    settled()
+    if (mutating) {
+      const remaining = (admission.mutating.get(id) ?? 1) - 1
+      if (remaining) admission.mutating.set(id, remaining)
+      else admission.mutating.delete(id)
+    }
   }
 }
 
@@ -312,7 +265,6 @@ export function createSessionService<Delivery>(runtime: SessionServiceRuntime<De
     routines,
     mcpBusy: new Set(),
     mutating: new Map(),
-    beforeDispatch: new Map(),
   }
   return {
     create: (options: CreateSessionOptions, delivery?: Delivery, execution?: SessionExecution) =>

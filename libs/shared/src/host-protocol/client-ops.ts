@@ -64,7 +64,6 @@ function messageOp(v: OpFields, type: 'prompt' | 'steer' | 'follow_up'): LaneOp 
       message: v.message,
       ...(img ? { images: img } : {}),
       ...(v.streamingBehavior !== undefined ? { streamingBehavior: v.streamingBehavior } : {}),
-      ...(v.streamingBehavior !== undefined && v.busy === true ? { busy: true as const } : {}),
     }
   }
   return { type, message: v.message, ...(img ? { images: img } : {}) }

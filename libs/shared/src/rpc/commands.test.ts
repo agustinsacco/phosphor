@@ -16,7 +16,6 @@ it('preserves prompt fields and queue modes exactly', () => {
     message: string
     images?: ImageContent[]
     streamingBehavior?: StreamingBehavior
-    busy?: true
   }>()
   expectTypeOf<StreamingBehavior>().toEqualTypeOf<'steer' | 'followUp'>()
   expectTypeOf<QueueMode>().toEqualTypeOf<'all' | 'one-at-a-time'>()

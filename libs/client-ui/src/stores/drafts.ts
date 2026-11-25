@@ -1,7 +1,9 @@
 import { create } from 'zustand'
-import type { ComposerDraftRecord, DraftAttachment } from '@shared/models'
+import { ipcErrorText } from '@shared/errors'
 import { hostResourceKey, type HostTarget } from '@shared/remote-host'
 import type { PendingAttachment } from '@/features/chat/attachments'
+import { useExtensionUiStore } from './extensionUi'
+import { loadDraft, saveDraft } from './draftPersistence'
 
 /**
  * Unsent composer state, durable across session switches AND restarts.
@@ -64,27 +66,52 @@ function documentBytes(attachments: PendingAttachment[]): number {
   return bytes
 }
 
-/** Clear an idle Host draft now, reserving its document budget until its receipt settles. */
-export function takeSubmittedDraft(key: string) {
-  const drafts = useDraftsStore.getState()
-  const draft = drafts.get(key)
+type HeldDraft = { diskKey: DraftKey; editorKey: DraftKey; draft: Draft }
+const heldDrafts = new Set<HeldDraft>()
+
+function withoutBlobIds(attachments: PendingAttachment[]): PendingAttachment[] {
+  return attachments.map((a) => (a.kind === 'image' && a.blobId ? { ...a, blobId: undefined } : a))
+}
+
+function combinedDraft(drafts: Draft[], current: Draft): Draft {
+  return {
+    ...current,
+    text: [...drafts.map((draft) => draft.text), current.text].filter(Boolean).join('\n'),
+    attachments: [...drafts.flatMap((draft) => draft.attachments), ...current.attachments],
+  }
+}
+
+/** Hide the submitted draft without dropping its durable text or image references. */
+export function takeSubmittedDraft(key: DraftKey) {
+  const store = useDraftsStore.getState()
+  const draft = store.get(key)
   const generation = memoryGeneration
+  const current = () => generation === memoryGeneration
   const bytes = documentBytes(draft.attachments)
+  const held: HeldDraft = { diskKey: key, editorKey: key, draft }
+  heldDrafts.add(held)
   submittedFileBytes += bytes
-  drafts.clear(key)
-  return (accepted: boolean) => {
-    if (generation !== memoryGeneration) return
-    submittedFileBytes -= bytes
-    if (accepted) return
-    // clear() unlinks saved image blobs: persist restored images from their in-memory bytes.
-    const restored = draft.attachments.map((a) =>
-      a.kind === 'image' && a.blobId ? { ...a, blobId: undefined } : a,
-    )
-    const next = drafts.get(key)
-    drafts.patch(key, {
-      text: [draft.text, next.text].filter(Boolean).join('\n'),
-      attachments: [...restored, ...next.attachments],
-    })
+  store.clear(key) // Clears only the editor as long as the draft is held.
+  return {
+    current,
+    finish(accepted: boolean) {
+      if (!current()) return
+      heldDrafts.delete(held)
+      submittedFileBytes -= bytes
+      const { diskKey, editorKey } = held
+      const moved = diskKey !== editorKey
+      if (!accepted) {
+        const restored = moved
+          ? { ...held.draft, attachments: withoutBlobIds(held.draft.attachments) }
+          : held.draft
+        store.patch(editorKey, combinedDraft([restored], store.get(editorKey)))
+        if (moved) {
+          void persistNow(editorKey).then(() => (current() ? persistNow(diskKey) : undefined))
+          return
+        }
+      }
+      void persistNow(diskKey)
+    },
   }
 }
 
@@ -119,13 +146,18 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
     if (generation !== memoryGeneration) return
     const entries = await Promise.all(
       Object.entries(records).map(
-        async ([key, record]) => [key, await toDraft(record, generation)] as const,
+        async ([key, record]) =>
+          [key, await loadDraft(record, () => generation === memoryGeneration)] as const,
       ),
     )
     if (generation !== memoryGeneration) return
     // Anything typed while hydrate was in flight wins — losing a keystroke to
     // a slow disk read is exactly the bug this store exists to stop.
-    set((s) => ({ hydrated: true, drafts: { ...Object.fromEntries(entries), ...s.drafts } }))
+    const hidden = new Set([...heldDrafts].map((draft) => draft.diskKey))
+    set((s) => ({
+      hydrated: true,
+      drafts: { ...Object.fromEntries(entries.filter(([key]) => !hidden.has(key))), ...s.drafts },
+    }))
   },
 
   get: (key) => get().drafts[key] ?? EMPTY,
@@ -159,31 +191,31 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       drafts: { ...s.drafts, [key]: next },
       revisions: { ...s.revisions, [key]: (s.revisions[key] ?? 0) + 1 },
     }))
-    schedulePersist(key, next)
+    schedulePersist(key)
   },
 
   clear: (key) => {
-    cancelPersist(key)
     set((s) => {
       const drafts = { ...s.drafts }
       delete drafts[key]
       return { drafts, revisions: { ...s.revisions, [key]: (s.revisions[key] ?? 0) + 1 } }
     })
-    void window.phosphor.invoke('app:clearDraft', key)
+    void persistNow(key)
   },
 
   rekey: (from, to) => {
+    if (from === to) return
     const draft = get().drafts[from]
-    if (!draft || from === to) return
-    cancelPersist(from)
+    for (const held of heldDrafts) if (held.editorKey === from) held.editorKey = to
+    if (!draft) return
     set((s) => {
       const drafts = { ...s.drafts }
       delete drafts[from]
-      drafts[to] = draft
+      drafts[to] = { ...draft, attachments: withoutBlobIds(draft.attachments) }
       return { drafts }
     })
-    void window.phosphor.invoke('app:clearDraft', from)
-    schedulePersist(to, draft)
+    void persistNow(from) // Held sends keep their old disk key until their receipt.
+    schedulePersist(to)
   },
 }))
 
@@ -208,139 +240,81 @@ function cancelPersist(key: DraftKey): void {
   timers.delete(key)
 }
 
-function schedulePersist(key: DraftKey, draft: Draft): void {
+function schedulePersist(key: DraftKey): void {
   cancelPersist(key)
   timers.set(
     key,
-    setTimeout(() => {
-      timers.delete(key)
-      void persist(key, draft)
-    }, PERSIST_DEBOUNCE_MS),
+    setTimeout(() => void persistNow(key), PERSIST_DEBOUNCE_MS),
   )
 }
 
-async function persist(key: DraftKey, draft: Draft): Promise<void> {
+const writes = new Map<DraftKey, Promise<void>>()
+
+/** Keep a slow blob write from overwriting a later receipt or a newer editor value. */
+function persistNow(key: DraftKey): Promise<void> {
+  cancelPersist(key)
   const generation = memoryGeneration
-  try {
-    if (isEmptyDraft(draft)) {
-      await window.phosphor.invoke('app:clearDraft', key)
-      return
-    }
-    const saved = await Promise.all(draft.attachments.map((a) => saveAttachment(a, generation)))
-    if (generation !== memoryGeneration) return
-    // Remember which blob each image landed in, so re-saving the same draft is
-    // one write rather than one per keystroke. Kept ON THE ATTACHMENT rather
-    // than in a module-level map keyed by object identity: the same image can
-    // sit in two drafts, and sharing one blob between them means clearing
-    // either draft unlinks the other's bytes.
-    const withIds = saved.map((entry, i) => entry.attachment ?? draft.attachments[i]!)
-    useDraftsStore.setState((s) => {
-      const current = s.drafts[key]
-      // The user edited while we were writing; their array wins.
-      if (!current || current.attachments !== draft.attachments) return s
-      return { drafts: { ...s.drafts, [key]: { ...current, attachments: withIds } } }
-    })
-    if (generation !== memoryGeneration) return
-    await window.phosphor.invoke('app:setDraft', {
-      key,
-      text: draft.text,
-      attachments: saved
-        .map((entry) => entry.record)
-        .filter((a): a is DraftAttachment => a !== null),
-      ...(draft.model ? { model: draft.model } : {}),
-      ...(draft.thinking ? { thinking: draft.thinking } : {}),
-      ...(draft.swarm !== undefined ? { swarm: draft.swarm } : {}),
-      ...(draft.workspacePath ? { workspacePath: draft.workspacePath } : {}),
-      ...(draft.preferWorktree !== undefined ? { preferWorktree: draft.preferWorktree } : {}),
-      updatedAt: Date.now(),
-    })
-  } catch (error) {
-    if (generation === memoryGeneration) throw error
-  }
-}
-
-/**
- * Write an image's bytes if they are not on disk yet.
- *
- * `attachment` comes back non-null when it gained a blobId and the caller
- * should keep the new object; `record` is what goes into prefs, and is null
- * when the write was refused for the size cap — the chip stays in memory, it
- * just will not survive a restart.
- */
-async function saveAttachment(
-  attachment: PendingAttachment,
-  generation: number,
-): Promise<{ record: DraftAttachment | null; attachment: PendingAttachment | null }> {
-  if (generation !== memoryGeneration) return { record: null, attachment: null }
-  if (attachment.kind === 'file') {
-    if (attachment.data !== undefined) return { record: null, attachment: null }
-    return {
-      record: { kind: 'file', name: attachment.name, size: attachment.size, path: attachment.path },
-      attachment: null,
+  const current = () => generation === memoryGeneration
+  const run = async () => {
+    if (!current()) return
+    const store = useDraftsStore.getState()
+    const held = [...heldDrafts].filter((draft) => draft.diskKey === key)
+    const editor = store.get(key)
+    const draft = held.length
+      ? combinedDraft(
+          held.map((entry) => entry.draft),
+          editor,
+        )
+      : editor
+    const clearing = isEmptyDraft(draft)
+    try {
+      if (clearing) {
+        await window.phosphor.invoke('app:clearDraft', key)
+      } else {
+        const saved = await saveDraft(key, draft, current)
+        if (current() && saved.size) rememberSavedImages(key, saved)
+      }
+    } catch (error) {
+      if (current()) {
+        const action = clearing ? 'clear' : 'save'
+        useExtensionUiStore
+          .getState()
+          .pushToast(`Could not ${action} draft: ${ipcErrorText(error)}`, 'error')
+      }
     }
   }
-  let blobId = attachment.blobId
-  let updated: PendingAttachment | null = null
-  if (!blobId) {
-    blobId = newBlobId()
-    const ok = await window.phosphor.invoke('app:writeDraftBlob', blobId, attachment.data)
-    if (generation !== memoryGeneration || !ok) return { record: null, attachment: null }
-    updated = { ...attachment, blobId }
-  }
-  return {
-    record: {
-      kind: 'image',
-      name: attachment.name,
-      size: attachment.data.length,
-      blobId,
-      mimeType: attachment.mimeType,
-    },
-    attachment: updated,
-  }
+  const previous = writes.get(key)
+  const write = (previous ? previous.then(run) : run()).finally(() => {
+    if (writes.get(key) === write) writes.delete(key)
+  })
+  writes.set(key, write)
+  return write
 }
 
-async function toDraft(record: ComposerDraftRecord, generation: number): Promise<Draft> {
-  const attachments = await Promise.all(
-    record.attachments.map(async (a): Promise<PendingAttachment | null> => {
-      if (generation !== memoryGeneration) return null
-      if (a.kind === 'file') {
-        return a.path ? { kind: 'file', path: a.path, name: a.name, size: a.size } : null
-      }
-      if (!a.blobId) return null
-      const data = await window.phosphor.invoke('app:readDraftBlob', a.blobId)
-      // The file is gone: drop the chip rather than showing a broken image.
-      if (generation !== memoryGeneration || data === null) return null
-      // Carrying the blobId back means re-saving this draft reuses the file
-      // already on disk instead of writing a second copy of the same bytes.
-      return {
-        kind: 'image',
-        data,
-        mimeType: a.mimeType ?? 'image/png',
-        name: a.name,
-        blobId: a.blobId,
-      }
-    }),
-  )
-  return {
-    text: record.text,
-    attachments: attachments.filter((a): a is PendingAttachment => a !== null),
-    ...(record.model ? { model: record.model } : {}),
-    ...(record.thinking ? { thinking: record.thinking } : {}),
-    ...(record.swarm !== undefined ? { swarm: record.swarm } : {}),
-    ...(record.workspacePath ? { workspacePath: record.workspacePath } : {}),
-    ...(record.preferWorktree !== undefined ? { preferWorktree: record.preferWorktree } : {}),
+function rememberSavedImages(
+  key: DraftKey,
+  saved: Map<PendingAttachment, PendingAttachment>,
+): void {
+  const remember = (draft: Draft): Draft => {
+    if (!draft.attachments.some((a) => saved.has(a))) return draft
+    return { ...draft, attachments: draft.attachments.map((a) => saved.get(a) ?? a) }
   }
-}
-
-/** crypto.randomUUID is available in the renderer under the strict CSP. */
-function newBlobId(): string {
-  return crypto.randomUUID()
+  // A send may have moved the editor's image into a held draft during the write.
+  for (const entry of heldDrafts) if (entry.diskKey === key) entry.draft = remember(entry.draft)
+  useDraftsStore.setState((s) => {
+    const editor = s.drafts[key]
+    if (!editor) return s
+    const draft = remember(editor)
+    return draft === editor ? s : { drafts: { ...s.drafts, [key]: draft } }
+  })
 }
 
 /** Browser sign-out clears memory and pending writes without touching native saved drafts. */
 export function clearDraftMemory(): void {
   memoryGeneration++
   submittedFileBytes = 0
+  heldDrafts.clear()
+  writes.clear()
   for (const timer of timers.values()) clearTimeout(timer)
   timers.clear()
   useDraftsStore.setState({ drafts: {}, revisions: {}, hydrated: false })

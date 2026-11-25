@@ -20,7 +20,7 @@ type Submission = {
 }
 export const COMPACTING_DRAFT = 'Compaction in progress. Send your draft when it finishes.'
 
-/** Preserve send order across document uploads, not across pi replies. */
+/** Keep a later send behind uploads, automatic resume, and the final prompt reply. */
 const pending = new Map<string, Promise<void>>()
 
 function promptSlot(key: string) {
@@ -62,13 +62,14 @@ export async function sendComposerPrompt(opts: Submission) {
   const bubble = !busy
     ? chat.addUserMessage(sessionId, preview, images.length ? images : undefined)
     : undefined
-  const finishDraft = takeSubmittedDraft(draftKey)
-  const hideChip = busy ? showPendingChip(sessionId, behavior, preview) : undefined
+  const draftSubmission = takeSubmittedDraft(draftKey)
+  const chip = busy ? showPendingChip(sessionId, behavior, preview) : undefined
   const slot = promptSlot(sessionId)
   let prompt = preview
   let accepted = false
   try {
     if (slot.previous) await slot.previous
+    if (!draftSubmission.current()) return
     if (!canControlSession(sessionId) || sessionTransitionPending(sessionId))
       throw new Error('Lane no longer ready to send.')
     if (remote && submitted.length) {
@@ -78,17 +79,16 @@ export async function sendComposerPrompt(opts: Submission) {
         prompt = composePrompt(message, await uploadPromptFiles(sessionId, submitted))
       if (bubble && prompt !== preview) chat.updatePendingPrompt(sessionId, bubble, prompt)
     }
+    if (!draftSubmission.current()) return
     if (useChatStore.getState().sessions[sessionId]?.isCompacting) throw new Error(COMPACTING_DRAFT)
     chat.setError(sessionId, null)
-    const receipt = piCallInline(sessionId, {
+    chip?.dispatch(prompt)
+    const response = await piCallInline(sessionId, {
       type: 'prompt',
       message: prompt,
       ...(images.length ? { images } : {}),
       streamingBehavior: behavior,
-      ...(busy ? { busy: true as const } : {}),
     })
-    slot.release()
-    const response = await receipt
     if (!response.ok) {
       chat.setError(
         sessionId,
@@ -115,8 +115,8 @@ export async function sendComposerPrompt(opts: Submission) {
     chat.setError(sessionId, ipcErrorText(error))
   } finally {
     slot.release()
-    hideChip?.()
+    chip?.remove()
     if (bubble && !accepted) chat.promptHandled(sessionId, prompt)
-    finishDraft(accepted)
+    draftSubmission.finish(accepted)
   }
 }

@@ -6,8 +6,8 @@ interface PendingChip {
   sessionId: string
   kind: 'steer' | 'follow-up'
   text: string
-  /** Occurrence in pi's queue, including older identical messages. */
-  occurrence: number
+  /** Only a dispatched prompt can be matched, and only against its actual pi text. */
+  match?: { text: string; previousCount: number }
 }
 
 export const usePendingQueue = create<{ chips: PendingChip[] }>(() => ({ chips: [] }))
@@ -16,16 +16,21 @@ export const usePendingQueue = create<{ chips: PendingChip[] }>(() => ({ chips: 
 export function showPendingChip(sessionId: string, behavior: 'steer' | 'followUp', text: string) {
   const id = crypto.randomUUID()
   const kind = behavior === 'steer' ? 'steer' : 'follow-up'
-  const key = kind === 'steer' ? 'steering' : 'followUp'
-  const confirmed = useChatStore.getState().sessions[sessionId]?.queues[key] ?? []
-  usePendingQueue.setState(({ chips }) => {
-    let previous = confirmed.filter((entry) => entry === text).length
-    for (const chip of chips) {
-      if (chip.sessionId === sessionId && chip.kind === kind && chip.text === text)
-        previous = Math.max(previous, chip.occurrence)
-    }
-    return { chips: [...chips, { id, sessionId, kind, text, occurrence: previous + 1 }] }
-  })
-  return () =>
-    usePendingQueue.setState(({ chips }) => ({ chips: chips.filter((c) => c.id !== id) }))
+  usePendingQueue.setState(({ chips }) => ({ chips: [...chips, { id, sessionId, kind, text }] }))
+  return {
+    dispatch(prompt: string) {
+      const key = kind === 'steer' ? 'steering' : 'followUp'
+      const confirmed = useChatStore.getState().sessions[sessionId]?.queues[key] ?? []
+      const match = {
+        text: prompt,
+        previousCount: confirmed.filter((entry) => entry === prompt).length,
+      }
+      usePendingQueue.setState(({ chips }) => ({
+        chips: chips.map((chip) => (chip.id === id ? { ...chip, match } : chip)),
+      }))
+    },
+    remove() {
+      usePendingQueue.setState(({ chips }) => ({ chips: chips.filter((chip) => chip.id !== id) }))
+    },
+  }
 }

@@ -20,8 +20,11 @@ export function QueueChips({ sessionId }: { sessionId: string }): React.JSX.Elem
   const chips = usePendingQueue((s) => s.chips)
   const optimistic = chips.filter((chip) => {
     if (chip.sessionId !== sessionId) return false
+    const { match } = chip
+    if (!match) return true
     const confirmed = chip.kind === 'steer' ? queues?.steering : queues?.followUp
-    return (confirmed?.filter((text) => text === chip.text).length ?? 0) < chip.occurrence
+    const matching = confirmed?.filter((text) => text === match.text).length ?? 0
+    return matching <= match.previousCount
   })
   if (!optimistic.length && !queues?.steering.length && !queues?.followUp.length) return null
 

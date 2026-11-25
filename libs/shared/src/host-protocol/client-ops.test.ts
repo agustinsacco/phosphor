@@ -44,17 +44,6 @@ describe('command ops through the public entry', () => {
       expect(command(op)).toStrictEqual(refused('bad-request'))
   })
 
-  it.each(['steer', 'followUp'])(
-    'preserves the additive busy hint for a %s prompt',
-    (streamingBehavior) => {
-      const op = { type: 'prompt', message: 'm', streamingBehavior, busy: true }
-      expect(command(op)).toStrictEqual(accepted(op))
-      expect(command({ ...op, streamingBehavior: undefined })).toStrictEqual(
-        accepted({ type: 'prompt', message: 'm' }),
-      )
-    },
-  )
-
   it('projects field ops to their own fields', () => {
     const cases = [
       [{ type: 'compact', x: 1 }, { type: 'compact' }],

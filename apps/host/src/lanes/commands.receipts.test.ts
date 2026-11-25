@@ -23,15 +23,15 @@ afterEach(() => {
 
 describe('lane command guards and operations', () => {
   it.each(['steer', 'followUp'] as const)(
-    'registers a busy %s before pi answers either prompt',
+    'acknowledges a %s prompt at registration, before dispatch',
     async (streamingBehavior) => {
+      const delivered = vi.spyOn(f.ports, 'deliver')
       const first = f.frame()
       const running = f.service.submit(f.one, first)
       const op = {
         type: 'prompt' as const,
         message: 'next',
         streamingBehavior,
-        busy: true as const,
       }
       const next = f.frame(op, 2)
       const sending = f.service.submit(f.one, next)
@@ -41,6 +41,12 @@ describe('lane command guards and operations', () => {
           { requestId: next.requestId, status: 'pending' },
         ])
         expect(f.command).toHaveBeenCalledTimes(2)
+        const ack = delivered.mock.calls.findIndex(
+          ([, receipt]) => receipt.requestId === next.requestId,
+        )
+        expect(delivered.mock.invocationCallOrder[ack]).toBeLessThan(
+          f.command.mock.invocationCallOrder[1]!,
+        )
       } finally {
         f.finish(0)
         f.finish(1)
@@ -53,12 +59,12 @@ describe('lane command guards and operations', () => {
     },
   )
 
-  it('hands pi two busy sends on one lane in order when the second precedes the first receipt', async () => {
+  it('dispatches registered prompts on one lane in order', async () => {
     // The first send takes control at fence 1, which moves the lane to fence 2.
-    const busy = (message: string, streamingBehavior: 'steer' | 'followUp', fence: number) =>
-      f.frame({ type: 'prompt', message, streamingBehavior, busy: true }, fence)
-    const first = busy('PHX-first', 'steer', 1)
-    const second = busy('PHX-second', 'followUp', 2)
+    const prompt = (message: string, streamingBehavior: 'steer' | 'followUp', fence: number) =>
+      f.frame({ type: 'prompt', message, streamingBehavior }, fence)
+    const first = prompt('PHX-first', 'steer', 1)
+    const second = prompt('PHX-second', 'followUp', 2)
     const sends = [f.service.submit(f.one, first), f.service.submit(f.one, second)]
     try {
       expect(f.last(first.requestId)?.status).toBe('pending')

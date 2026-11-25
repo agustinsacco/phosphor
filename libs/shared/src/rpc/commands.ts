@@ -22,8 +22,6 @@ export type RpcCommand =
       message: string
       images?: ImageContent[]
       streamingBehavior?: StreamingBehavior
-      /** Phosphor transport hint, stripped before writing to pi. */
-      busy?: true
     }
   | { id?: string; type: 'steer'; message: string; images?: ImageContent[] }
   | { id?: string; type: 'follow_up'; message: string; images?: ImageContent[] }

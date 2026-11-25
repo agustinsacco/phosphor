@@ -338,12 +338,16 @@ it('queues a remote follow-up typed while the steer before it awaits its receipt
   await click('Queue follow-up')
   // A second press of the same follow-up while it is in flight is not a resend.
   await click('Queue follow-up')
-  const prompts = pi.mock.calls.filter(([, op]) => op.type === 'prompt').map(([, op]) => op)
-  expect(prompts).toEqual([
-    { type: 'prompt', message: 'PHX-steered', streamingBehavior: 'steer', busy: true },
-    { type: 'prompt', message: 'PHX-followed', streamingBehavior: 'followUp', busy: true },
-  ])
-  await act(async () => receipts.forEach((done) => done()))
+  const prompts = () => pi.mock.calls.filter(([, op]) => op.type === 'prompt').map(([, op]) => op)
+  const sent = [
+    { type: 'prompt', message: 'PHX-steered', streamingBehavior: 'steer' },
+    { type: 'prompt', message: 'PHX-followed', streamingBehavior: 'followUp' },
+  ]
+  expect(prompts()).toEqual(sent.slice(0, 1))
+  expect(container.querySelector('[data-testid="queue-chips"]')?.children).toHaveLength(2)
+  await act(async () => receipts[0]!())
+  expect(prompts()).toEqual(sent)
+  await act(async () => receipts[1]!())
   expect(useDraftsStore.getState().get(key).text).toBe('')
 })
 

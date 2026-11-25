@@ -88,7 +88,7 @@ describe('the busy behaviour', () => {
     const prompts = answers(accepted('queued'))
     await send(true)
     expect(prompts()).toEqual([
-      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'steer', busy: true },
+      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'steer' },
     ])
     expect(session().items).toEqual([])
     expect(session().error).toBeNull()
@@ -99,12 +99,12 @@ describe('the busy behaviour', () => {
     const prompts = answers(accepted('queued'))
     await send(true, 'followUp')
     expect(prompts()).toEqual([
-      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'followUp', busy: true },
+      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'followUp' },
     ])
   })
 
   it.each(['steer', 'followUp'] as const)(
-    'clears and sends repeated %s drafts without waiting on pi, restoring a refusal',
+    'clears repeated %s drafts immediately, but sends in order and restores a refusal',
     async (behavior) => {
       hostLane('working')
       let finish!: (reply: PromptResponse) => void
@@ -126,15 +126,16 @@ describe('the busy behaviour', () => {
           'PHX-message',
           'second',
         ])
-        expect(sent).toMatchObject([
-          { message: 'PHX-message', busy: true, streamingBehavior: behavior },
-          { message: 'second', busy: true, streamingBehavior: behavior },
-        ])
+        expect(sent).toMatchObject([{ message: 'PHX-message', streamingBehavior: behavior }])
         expect(useDraftsStore.getState().get(KEY).text).toBe('')
       } finally {
         finish(refused('rejected'))
         await Promise.all([first, second])
       }
+      expect(pi.mock.calls.map(([, command]) => command)).toMatchObject([
+        { message: 'PHX-message', streamingBehavior: behavior },
+        { message: 'second', streamingBehavior: behavior },
+      ])
       expect(useDraftsStore.getState().get(KEY).text).toBe('PHX-message')
       expect(usePendingQueue.getState().chips).toEqual([])
     },
@@ -145,7 +146,7 @@ describe('the busy behaviour', () => {
     const prompts = answers(accepted('queued'))
     await send(false)
     expect(prompts()).toEqual([
-      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'steer', busy: true },
+      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'steer' },
     ])
   })
 })
@@ -210,16 +211,16 @@ it('holds a second prompt through the first prompt’s automatic resume and retr
     async send(op: LaneOp): Promise<CommandResult> {
       if (op.type === 'lane.resume') {
         await resume.promise
-        return { status: 'done', fence: 3 }
+        return { requestId: 'resume', status: 'done', fence: 3 }
       }
       if (op.type !== 'prompt') throw new Error('expected prompt')
       if (op.message === 'PHX-message' && !hostRetried) {
         hostRetried = true
-        return { status: 'rejected', code: 'lane-stopped' }
+        return { requestId: 'stopped', status: 'rejected', code: 'lane-stopped' }
       }
       atPi.push(op.message)
       if (op.message === 'PHX-message') await retry.promise
-      return { status: 'done', data: { disposition: 'queued' } }
+      return { requestId: op.message, status: 'done', data: { disposition: 'queued' } }
     },
   }
   let hostRetried = false

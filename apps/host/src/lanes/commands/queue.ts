@@ -237,7 +237,7 @@ export function submit(
   if (
     frame.op.type === 'steer' ||
     frame.op.type === 'follow_up' ||
-    (frame.op.type === 'prompt' && frame.op.busy && frame.op.streamingBehavior)
+    (frame.op.type === 'prompt' && frame.op.streamingBehavior)
   )
     deliver(
       ports,
