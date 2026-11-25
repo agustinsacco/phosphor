@@ -172,11 +172,15 @@ describe('terminal operations', () => {
   })
   it('reclaims failed spawn/persistence and shuts down remaining PTYs when natural exit cannot persist', async () => {
     const f = setup()
+    const log = vi.spyOn(f.state.options.context, 'log')
     f.spawn.mockImplementationOnce(() => {
-      throw new Error('spawn failed')
+      throw new Error('spawn failed\n' + 'x'.repeat(500))
     })
     await expect(f.create()).rejects.toThrow('unavailable')
     expect(f.state.entries.size).toBe(0)
+    expect(log.mock.calls).toEqual([
+      ['terminal.spawn_failed', { message: 'spawn failed ' + 'x'.repeat(147) }],
+    ])
     f.save.mockImplementationOnce(() => {
       throw new Error('disk full')
     })
