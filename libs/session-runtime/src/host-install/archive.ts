@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { HOST_RELEASE_ARTIFACT_MAX_BYTES } from '@phosphor/shared/host-release'
+import { HOST_RELEASE_ARTIFACT_MAX_BYTES, hostReleaseFileMode } from '@phosphor/shared/host-release'
 
 export function decompressRelease(
   bytes: Buffer,
@@ -69,7 +69,7 @@ export function extractRelease(
     mkdirSync(dirname(path), { recursive: true, mode: 0o755 })
     for (let parent = dirname(path); parent.length > folder.length; parent = dirname(parent))
       chmodSync(parent, 0o755)
-    const mode = name === 'bin/phosphor' || name === 'node/bin/node' ? 0o755 : 0o644
+    const mode = hostReleaseFileMode(name)
     writeFileSync(path, tar.subarray(offset, offset + size), {
       flag: 'wx',
       mode,

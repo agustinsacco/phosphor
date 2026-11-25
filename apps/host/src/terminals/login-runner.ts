@@ -1,3 +1,4 @@
+import { spawnTerminal } from './spawn'
 import { randomUUID } from 'node:crypto'
 import { TERMINAL_LIMITS as L, type TerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import type { runInTerminal, TerminalRun } from '../machine/terminal'
@@ -78,7 +79,7 @@ export function loginRunner(
       entry.login = { owner, configuration, deferExit, authorized, finish: resolve }
       entries.set(entry.terminalId, entry)
       try {
-        entry.pty = options.native.spawn(file, [...args], {
+        entry.pty = spawnTerminal(options, file, [...args], {
           cwd: settings.cwd,
           env: settings.env,
           cols: 80,

@@ -1,5 +1,5 @@
-import { chmodSync, existsSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { repairSpawnHelper, spawnHelperDirs } from '@phosphor/session-runtime/spawn-helper'
+import { dirname } from 'node:path'
 import { createRequire } from 'node:module'
 
 /**
@@ -20,26 +20,12 @@ import { createRequire } from 'node:module'
  * starts, and nothing about the error says "chmod".
  *
  * Repairing every candidate directory (not just the one that loaded) is
- * deliberate: it is a single stat per path, and it keeps working if the arch
+ * deliberate: it keeps working if the arch
  * mismatch is fixed later and the loader starts preferring `build/Release`.
  * Best-effort by design — a packaged app on read-only media cannot chmod, and
  * a failure here must surface as the spawn error, not as a boot crash.
  */
 export function ensureSpawnHelperExecutable(): void {
-  for (const helper of spawnHelperCandidates()) {
-    try {
-      if (!existsSync(helper)) continue
-      const mode = statSync(helper).mode & 0o777
-      if (mode & 0o111) continue
-      chmodSync(helper, mode | 0o755)
-    } catch {
-      // Read-only install, foreign owner, … — let the spawn error speak.
-    }
-  }
-}
-
-/** Every directory node-pty's loader may resolve its native module from. */
-function spawnHelperCandidates(): string[] {
   let packageDir: string
   try {
     // node-pty has no exports map, so resolving package.json is the stable
@@ -47,13 +33,12 @@ function spawnHelperCandidates(): string[] {
     const require = createRequire(import.meta.url)
     packageDir = dirname(require.resolve('node-pty/package.json'))
   } catch {
-    return []
+    return
   }
   // asar cannot be exec'd from; electron-builder unpacks native deps, and
   // node-pty itself applies the same rewrite when computing the helper path.
   const roots = [packageDir, packageDir.replace('app.asar', 'app.asar.unpacked')]
-  const dirs = ['build/Release', 'build/Debug', `prebuilds/${process.platform}-${process.arch}`]
-  return [...new Set(roots)].flatMap((root) =>
-    dirs.map((dir) => resolve(join(root, dir, 'spawn-helper'))),
-  )
+  for (const root of new Set(roots)) {
+    for (const dir of spawnHelperDirs) repairSpawnHelper(root, dir)
+  }
 }

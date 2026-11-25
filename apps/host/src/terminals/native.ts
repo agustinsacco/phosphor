@@ -1,4 +1,6 @@
 import { createRequire as createTerminalRequire } from 'node:module'
+import { join } from 'node:path'
+import { repairSpawnHelper } from '@phosphor/session-runtime/spawn-helper'
 
 export interface HostPty {
   write(data: string): void
@@ -31,7 +33,11 @@ function isHostPtyModule(value: unknown): value is HostPtyModule {
 /** No module-name lookup or caller-supplied path. Missing native resources disable terminals. */
 export function loadHostPty(): HostPtyModule | null {
   try {
-    const value: unknown = createTerminalRequire(import.meta.url)('./native/node-pty/lib/index.js')
+    const require = createTerminalRequire(import.meta.url)
+    const entry = require.resolve('./native/node-pty/lib/index.js')
+    const packageRoot = join(import.meta.dirname, 'native/node-pty')
+    if (entry === join(packageRoot, 'lib/index.js')) repairSpawnHelper(packageRoot, 'build/Release')
+    const value: unknown = require(entry)
     return isHostPtyModule(value) ? value : null
   } catch {
     return null
