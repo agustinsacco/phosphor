@@ -98,3 +98,30 @@ it.each([
     vi.unstubAllGlobals()
   }
 })
+
+it('uses the Host lane title until the conversation supplies a title of its own', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke: vi.fn().mockResolvedValue(undefined) })
+  const id = mockRemoteInfo.sessionId
+  useSessionsStore.setState({
+    activeSessionId: id,
+    live: { [id]: { ...mockRemoteInfo, phosphorId: id } },
+  })
+  useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts) })
+  useChatStore.setState({ sessions: {} })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<TopBar workspacePath={mockRemoteInfo.workspacePath} />))
+    expect(container.textContent).toContain('Remote demo lane')
+    act(() => {
+      useChatStore.getState().ensure(id)
+      useChatStore.getState().addUserMessage(id, 'First visible prompt')
+    })
+    expect(container.textContent).toContain('First visible prompt')
+    expect(container.textContent).not.toContain('Remote demo lane')
+  } finally {
+    act(() => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})

@@ -7,6 +7,10 @@
     "protocol": 2,
     "same-machine": 0
   },
+  "features/chat/EmptyTranscript.tsx": {
+    "protocol": 1,
+    "same-machine": 0
+  },
   "features/chat/MessageItem.tsx": {
     "protocol": 1,
     "same-machine": 0

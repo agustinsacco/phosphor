@@ -190,6 +190,10 @@ The composer is one small field with several ways in.
     `built into pi` for pi's inline extensions, `project · .claude/skills` for a
     local skill — and the tooltip carries the whole description, the file
     path and any aliases.
+  - **The popup opens over the input it belongs to**, on every screen that hosts a
+    composer. `ComposerInput`'s own root is the `relative` anchor for the `/` and
+    `@` popups; a screen never lends one, because the Host home did not and its
+    command menu opened at the top of the window instead.
   - **Aliases fold.** Two commands from the same file with the same description
     are one row (an extension registering one handler under two names); the
     alias stays searchable and is named in the tooltip. Matching is on payload
@@ -269,6 +273,18 @@ The composer is one small field with several ways in.
 
 ## Message affordances
 
+- **The transcript tells you when.** One divider per calendar day
+  (`items/dayDividers.ts`), labelled `Today` / `Yesterday` / `Tue, Mar 3` and
+  dated with the year once it differs, with the full timestamp on hover. Every
+  turn the person sent carries its clock time under the bubble, quiet and
+  always visible (on a phone's chat there is no hover to wait for); copy,
+  rewind and fork stay on hover, because they belong to the turn you chose.
+  The row's height is fixed in both states, so revealing them cannot nudge the
+  stream. Assistant turns keep their time in the copy button's tooltip: shown
+  inline it was the widest thing in that affordance, and the user message a
+  turn answers carries the hour. Dividers are view-model only — inserted when
+  rows are built, never into the chat store — so pi's context, the message
+  counts and rewind's timestamp matching see exactly the items pi emitted.
 - Copy message: the raw markdown of the WHOLE turn, even from the pill on one
   prose block. That is what "copy the answer" means when a turn interleaves
   text and tool calls.

@@ -228,6 +228,10 @@
       "types": "./src/pi/session-context.ts",
       "default": "./src/pi/session-context.ts"
     },
+    "./pi/backward-lines": {
+      "types": "./src/pi/backward-lines.ts",
+      "default": "./src/pi/backward-lines.ts"
+    },
     "./pi/session-cwd": {
       "types": "./src/pi/session-cwd.ts",
       "default": "./src/pi/session-cwd.ts"

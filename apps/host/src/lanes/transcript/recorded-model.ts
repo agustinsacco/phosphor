@@ -7,13 +7,12 @@
  * resume does (`resumeProvider`): the nearest `model_change`, or the nearest
  * assistant message's provider and model, decides.
  */
-import { closeSync, readSync } from 'node:fs'
+import { closeSync } from 'node:fs'
+import { BackwardLines } from '@phosphor/session-runtime/pi/backward-lines'
 import { text } from '../validation-primitives'
 import { openTranscriptFile, verifyTranscriptFile } from './read'
 
 export const RECORDED_MODEL_TAIL_BYTES = 4 * 1024 * 1024
-const CHUNK_BYTES = 256 * 1024
-const LF = 10
 
 export interface RecordedModel {
   readonly provider: string
@@ -87,47 +86,18 @@ class BranchWalk {
   }
 }
 
-/** Fills `tail[from, to)` from the file; false when the file ended first. */
-function fill(fd: number, tail: Buffer, from: number, to: number, offset: number): boolean {
-  let at = from
-  while (at < to) {
-    const count = readSync(fd, tail, at, to - at, offset + at)
-    if (!count) return false
-    at += count
-  }
-  return true
-}
-
-/**
- * One buffer holds the whole tail, filled backward a chunk at a time, so a
- * line that spans chunks is never copied; each chunk is searched for line
- * ends once.
- */
+/** The whole tail fits one buffer, so a line spanning chunks is never copied. */
 function scanTail(fd: number, size: number, tailBytes: number): RecordedModelRead {
   const walk = new BranchWalk()
-  const floor = Math.max(0, size - tailBytes)
-  const tail = Buffer.allocUnsafe(size - floor)
-  let filled = tail.length
-  let lineEnd = tail.length
-  while (filled > 0 && !walk.done) {
-    const from = Math.max(0, filled - CHUNK_BYTES)
-    if (!fill(fd, tail, from, filled, floor)) break
-    // `[filled, lineEnd)` was searched already and holds no line end.
-    let searchEnd = filled
-    filled = from
-    while (!walk.done) {
-      const lf = tail.subarray(from, searchEnd).lastIndexOf(LF)
-      if (lf < 0) break
-      walk.visit(tail.subarray(from + lf + 1, lineEnd))
-      lineEnd = searchEnd = from + lf
-    }
+  const lines = new BackwardLines(fd, size, { maxBytes: tailBytes })
+  while (!walk.done) {
+    const line = lines.next()
+    if (!line) break
+    walk.visit(line)
   }
-  // The file's first line is whole only when the scan reached the start.
-  if (!walk.done && floor === 0 && filled === 0 && lineEnd > 0)
-    walk.visit(tail.subarray(0, lineEnd))
-  const bytes = tail.length - filled
+  const bytes = lines.bytes
   if (walk.result) return { kind: 'model', model: walk.result, bytes }
-  return { kind: walk.done || (floor === 0 && filled === 0) ? 'none' : 'capped', bytes }
+  return { kind: walk.done || lines.end === 'start' ? 'none' : 'capped', bytes }
 }
 
 export function readRecordedModel(
