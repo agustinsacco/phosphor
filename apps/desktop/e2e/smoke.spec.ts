@@ -2870,8 +2870,7 @@ test('worktree flow: create from the branch chip, session stays under the projec
     // The top bar's branch control marks the worktree.
     await expect(page.locator('[data-tooltip*="Worktree of"]')).toBeVisible({ timeout: 10_000 })
 
-    // The bar reads machine, branch, title: no project chip, which the sidebar
-    // group already names, so the worktree folder's slug can't pose as one.
+    // Machine, branch, title; no project chip (the sidebar group names it).
     const banner = page.getByRole('banner')
     await expect(banner.getByTestId('workspace-chip')).toHaveCount(0)
     const machine = await banner.getByTestId('machine-chip').boundingBox()
