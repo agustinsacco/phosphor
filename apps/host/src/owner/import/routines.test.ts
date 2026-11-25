@@ -138,6 +138,14 @@ it.each(['fresh import', 'already committed'])(
     const file = host.session('repo')
     const message = { role: 'assistant', content: [{ type: 'text', text: 'Saved conversation.' }] }
     appendFileSync(file, `${JSON.stringify({ type: 'message', message })}\n`)
+    for (const display of [false, true]) {
+      const entry = {
+        type: 'custom_message',
+        display,
+        content: display ? 'Visible note.' : 'Hidden note.',
+      }
+      appendFileSync(file, `${JSON.stringify(entry)}\n`)
+    }
     const db = mode === 'fresh import' ? desktop : daemonDatabase()
     mkdirSync(join(host.root, 'backup'), { recursive: true })
     const source = new RoutineRepository(db)
@@ -168,6 +176,8 @@ it.each(['fresh import', 'already committed'])(
         expect(result.data).toMatchObject({
           content: expect.stringContaining('Saved conversation.'),
         })
+        expect(result.data).toMatchObject({ content: expect.stringContaining('Visible note.') })
+        expect(JSON.stringify(result)).not.toContain('Hidden note.')
         expect(JSON.stringify(result)).not.toContain(file)
       }
       expect(host.store.listLanes()).toEqual([])
