@@ -1,4 +1,4 @@
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, useSessionHostLane } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
@@ -148,7 +148,10 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
     const first = s.sessions[sessionId]?.items.find((item) => item.kind === 'user')
     return first?.kind === 'user' ? first.text : undefined
   })
-  const title = sessionTitle({ explicitName: sessionName, firstUserText })
+  const hostTitle = useSessionHostLane(sessionId)?.lane?.title
+  const title =
+    sessionTitle({ explicitName: sessionName, firstUserText }) ??
+    sessionTitle({ explicitName: hostTitle })
   const naming = useNameTransition(sessionId)
   const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
 
