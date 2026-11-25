@@ -1,3 +1,4 @@
+import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { dirname, resolve } from 'node:path'
 import { isWithinFolder } from '@phosphor/shared/paths'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
@@ -98,6 +99,7 @@ export async function bindRunOps(
     }),
     ...(started.writes ? { writes: started.writes } : {}),
     slot: ops.slot,
+    sessionsRoot: piSessionsRoot(context.env, context.home),
     stateDirectory: ports.stateDirectory,
     configDirectory: dirname(resolve(context.configPath)),
     uid: context.uid,

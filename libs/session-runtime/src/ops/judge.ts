@@ -164,12 +164,14 @@ export function judgeOp(
 }
 
 export function policyCheck(j: Judged): PolicyCheck {
+  const surfaceOnly =
+    j.spec.surfaceOnly || (j.spec.name === 'routine.history' && j.args.runId !== undefined)
   return {
     op: j.spec.name,
     tier: j.tier,
     scope: j.scope,
     ...(j.spec.class ? { class: j.spec.class } : {}),
-    ...(j.spec.surfaceOnly ? { surfaceOnly: true as const } : {}),
+    ...(surfaceOnly ? { surfaceOnly: true as const } : {}),
     governed: j.governed,
     policy: j.policy,
   }

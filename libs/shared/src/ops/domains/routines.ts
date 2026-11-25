@@ -44,14 +44,19 @@ export const routines = [
     'routine.history',
     'List recent routine runs.',
     'read',
-    object({ id: optional(id), offset: optional(count(ROUTINE_LIMITS.offset, 0)) }),
+    object({
+      id: optional(id),
+      offset: optional(count(ROUTINE_LIMITS.offset, 0)),
+      output: optional(on),
+      runId: optional(id),
+    }),
     untrusted,
   ),
   routine(
     'routine.activity',
     'List routine activity.',
     'read',
-    object({ id: optional(id) }),
+    object({ id: optional(id), output: optional(on) }),
     untrusted,
   ),
   routine('routine.check', 'Check whether a routine can run.', 'read', object({ definition }), {

@@ -1,4 +1,7 @@
-import { expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { expect, it, onTestFinished, vi } from 'vitest'
 import { routineHandlers, routineUndoCurrent } from './routines'
 import type { DaemonHandlerDeps } from './index'
 const definition = {
@@ -136,4 +139,39 @@ it('links only an existing non-removed lane without exposing transcript paths', 
     expect.not.objectContaining({ laneRef: expect.anything() }),
   ])
   expect(answer.text).not.toMatch(/\/kept|\/gone/)
+})
+
+it('offers saved output only on opted-in surface reads; transcript access checks the reader again', async () => {
+  const row = { id, routineId: id, scheduledAt: 1, startedAt: 1, endedAt: 2, status: 'finished' }
+  const root = mkdtempSync(join(tmpdir(), 'routine-history-'))
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }))
+  const path = join(root, 'run.jsonl')
+  writeFileSync(path, '')
+  const lookup = vi.fn(() => path)
+  const handlers = routineHandlers({
+    store: { listLanes: () => [] },
+    routines: { sessionPathForRun: lookup },
+    lanes: { calls: { call: async () => ({ ok: true, data: [row] }) } },
+  } as unknown as DaemonHandlerDeps)
+  const reader = (caps: string[]) =>
+    ({ principal: { kind: 'surface', caps }, signal: new AbortController().signal }) as never
+  const full = reader(['routines', 'sessions.read']),
+    limited = reader(['routines'])
+  for (const [args, ctx, expected] of [
+    [{}, full, row],
+    [{ output: true }, limited, row],
+    [{ output: true }, full, { ...row, savedOutput: true }],
+  ] as const) {
+    const page = await handlers['routine.activity']!(args, ctx)
+    expect(page.data).toEqual([expected])
+  }
+  unlinkSync(path)
+  const page = await handlers['routine.history']!({ id, output: true }, full)
+  expect(page.data).toEqual([row])
+  lookup.mockClear()
+  await expect(handlers['routine.history']!({ runId: id }, limited)).rejects.toThrow('cannot read')
+  await expect(handlers['routine.history']!({ runId: '/private/file' }, full)).rejects.toThrow(
+    'Name one',
+  )
+  expect(lookup).not.toHaveBeenCalled()
 })

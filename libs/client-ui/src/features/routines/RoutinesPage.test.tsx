@@ -719,3 +719,46 @@ it('loads the service machine for a saved This Mac routines selection', async ()
   expect(container.textContent).not.toContain('Local task')
   expect(container.textContent).not.toContain('Keep Phosphor running')
 })
+
+it.each(['activity', 'history'])(
+  'reads moved output from %s and can retry a failed read',
+  async (scope) => {
+    const runId = '33333333-3333-4333-8333-333333333333'
+    const moved = {
+      ...localRun,
+      id: `${host}/${runId}`,
+      routineId: remote.id,
+      definition: remote,
+      savedOutput: true,
+    }
+    let first = true
+    invoke.mockImplementation(async (channel, target) => {
+      if (channel === 'routines:history') return [moved]
+      if (channel === 'routines:list' && target)
+        return { ...snapshot, routines: [remote], runs: [moved] }
+      if (channel === 'ops:run') {
+        if (first) {
+          first = false
+          throw Error('Disconnected')
+        }
+        return {
+          status: 'ok',
+          text: 'Read',
+          applies: 'now',
+          data: { content: 'Saved conversation.' },
+        }
+      }
+      return defaultInvoke(channel, target)
+    })
+    await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+    if (scope === 'history') await click('Remote taskHost repobee1PausedOpen for run history')
+    await click('View output')
+    await click('Retry')
+    expect(document.body.textContent).toContain('Saved conversation.')
+    expect(invoke).toHaveBeenCalledWith(
+      'ops:run',
+      { kind: 'remote', hostId: host.slice(5) },
+      { op: 'routine.history', args: { runId } },
+    )
+  },
+)

@@ -1,3 +1,4 @@
+import { RunOutputAction } from './RunOutputAction'
 import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import { DateTime } from 'luxon'
@@ -266,7 +267,7 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
         <section>
           <h2 className="text-lg font-semibold">Runs on {routine.machine.label}</h2>
           <p className="text-text-tertiary text-sm">
-            Status and timestamps only. Transcripts remain on the Host.
+            Saved output stays on the Host until you open it.
           </p>
           <ul>
             {history.map((run) => (
@@ -277,11 +278,7 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
                   Started {time(run.startedAt, routine.timezone)} · Ended{' '}
                   {time(run.endedAt, routine.timezone)}
                 </p>
-                {!run.sessionId && (
-                  <p className="text-text-tertiary text-sm">
-                    Output not available from this machine yet
-                  </p>
-                )}
+                <RunOutputAction run={run} busy={busy} onContinue={() => props.onContinue(run)} />
                 {activeRun(run) && (
                   <Button disabled={busy} onClick={() => props.onCancel(run)}>
                     Cancel run
