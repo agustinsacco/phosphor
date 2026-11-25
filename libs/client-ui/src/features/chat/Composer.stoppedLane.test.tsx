@@ -26,6 +26,8 @@ const { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mo
 const { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider, WIDE_BROWSER_PLATFORM } =
   await import('@/platform/Platform')
 const { Composer } = await import('./Composer')
+const { recordMessageEnd, recordPolledStats } = await import('@/lib/liveStats')
+const { formatTokens } = await import('@/lib/format')
 
 /*
  * A lane that is stopped, or still starting, has no live pi to describe its
@@ -105,14 +107,18 @@ function setActivity(activity: 'stopped' | 'idle'): void {
   useRemoteLanesStore.setState({ hosts })
 }
 
+/** pi's replies, held until a test answers them: a resume re-reads the lane's state. */
+let piCommand: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   el = document.createElement('div')
   document.body.append(el)
+  piCommand = vi.spyOn(window.phosphor, 'piCommand').mockReturnValue(new Promise(() => {}))
 })
 afterEach(() => {
   if (root) act(() => root!.unmount())
   root = null
   el.remove()
+  piCommand.mockRestore()
 })
 
 describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platform) => {
@@ -207,8 +213,6 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     render(platform)
     const slot = readout()
     const reserve = slot?.querySelector('[data-readout-reserve]')
-    // The ring, `100% of 200k` and a burn rate: the widest the live meter gets.
-    expect(reserve?.textContent).toBe('100% of 200k999k/min')
     expect(reserve?.getAttribute('aria-hidden')).toBe('true')
     // Whatever shows sits over the reserve, out of flow, so it never sizes the slot.
     const layer = slot?.querySelector('[data-readout-layer]')
@@ -223,5 +227,74 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     expect(readout()).toBe(slot)
     expect(slot?.querySelector('[data-readout-reserve]')).toBe(reserve)
     expect(layer?.querySelector('[data-testid=context-meter]')).not.toBeNull()
+  })
+
+  it('counts only state read after a resume, not a copy of the old process’s read while stopped', () => {
+    stoppedLane(true, 'idle')
+    act(() => {
+      useChatStore.getState().setModels(SESSION, [OPUS])
+      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setStats(SESSION, { ...STATS })
+      recordPolledStats(SESSION, STATS)
+    })
+    render(platform)
+    act(() => setActivity('stopped'))
+    // While stopped, a read answers with the last process's state, as a new object.
+    act(() => {
+      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setStats(SESSION, { ...STATS })
+    })
+    piCommand.mockClear()
+    act(() => setActivity('idle'))
+    expect(chip()?.disabled).toBe(true)
+    expect(el.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
+    // The resume re-reads the lane, so a state that landed before it was seen still counts.
+    expect(piCommand).toHaveBeenCalledWith(SESSION, { type: 'get_state' })
+    // The first message after the resume has no measurement of the new process to add to.
+    const user = { role: 'user', content: 'hi', timestamp: 0 } as const
+    expect(recordMessageEnd(SESSION, undefined, user)).toBeNull()
+
+    act(() => useChatStore.getState().setMeta(SESSION, { ...META }))
+    expect(chip()?.disabled).toBe(false)
+  })
+
+  it('lets the usage popover wrap: only the inline readout keeps to one line', () => {
+    stoppedLane(true, 'idle')
+    act(() => {
+      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setStats(SESSION, { ...STATS })
+    })
+    render(platform)
+    const trigger = el.querySelector<HTMLButtonElement>('[data-testid=context-meter]')!
+    expect(trigger.classList.contains('whitespace-nowrap')).toBe(true)
+    act(() => trigger.click())
+    const heading = [...document.querySelectorAll('span')].find(
+      (span) => span.textContent === 'Session usage',
+    )
+    expect(heading).toBeDefined()
+    for (let node = heading?.parentElement; node && node !== el; node = node.parentElement)
+      expect(node.classList.contains('whitespace-nowrap')).toBe(false)
+  })
+
+  it('reserves room for the widest readout the largest supported budget produces', () => {
+    const budget = 999_900 // `999.9k`, which formats as `1000k`
+    stoppedLane(true, 'idle')
+    act(() => {
+      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setStats(SESSION, {
+        ...STATS,
+        contextUsage: { tokens: budget, contextWindow: budget, percent: 100 },
+      })
+    })
+    render(platform)
+    const [reading, burn] = [...el.querySelectorAll('[data-readout-reserve] > span')].map(
+      (span) => span.textContent ?? '',
+    )
+    const live = el.querySelector('[data-testid=context-meter] > span')?.textContent ?? ''
+    expect(live).toBe(`100% of ${formatTokens(budget)}`)
+    expect(reading!.length).toBeGreaterThanOrEqual(live.length)
+    // Over budget, the percentage grows a digit at most; the burn rate is a token count per minute.
+    expect(reading!.length).toBeGreaterThanOrEqual(`999% of ${formatTokens(budget)}`.length)
+    expect(burn!.length).toBeGreaterThanOrEqual(`${formatTokens(budget)}/min`.length)
   })
 })
