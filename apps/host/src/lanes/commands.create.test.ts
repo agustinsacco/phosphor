@@ -4,6 +4,7 @@ import { HOST_LIMITS, parseHostFrame, type LaneOp } from '@phosphor/shared/host-
 import * as folders from './worktree'
 import { LaneCapacityReached } from './store'
 import { type LaneCommandFrame } from './commands'
+import { LANE_CREATE_ANSWER_MS } from './commands/queue'
 import {
   createCommandsFixture,
   deferred,
@@ -153,7 +154,7 @@ describe('lane.create', () => {
     const first = create({ worktree: { branch: 'same' } })
     const a = f.service.submit(f.one, first)
     await entered.promise
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(LANE_CREATE_ANSWER_MS)
     expect(f.last(first.requestId)?.status).toBe('unknown')
     const second = create({ worktree: { branch: 'same' } })
     const b = f.service.submit(f.two, second)
@@ -183,7 +184,7 @@ describe('lane.create', () => {
     const request = create()
     const running = f.service.submit(f.one, request)
     const laneId = await entered.promise
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(LANE_CREATE_ANSWER_MS)
     expect(f.receipts(request.requestId)).toEqual([
       { requestId: request.requestId, status: 'unknown' },
     ])
@@ -383,7 +384,7 @@ describe('lane.create', () => {
     const request = create()
     const running = f.service.submit(f.one, request)
     await lateEntered.promise
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(LANE_CREATE_ANSWER_MS)
     expect(f.last(request.requestId)).toMatchObject({ status: 'unknown' })
     late.release({ sessionId: 'late', sessionFile: null })
     await running

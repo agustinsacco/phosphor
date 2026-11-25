@@ -15,6 +15,14 @@ export type CommandResult = Receipt | NotSent
 type Command = Extract<ClientFrame, { type: 'command' }>
 type Result = Extract<HostFrame, { type: 'result' }>
 
+const COMMAND_WAIT_MS = 60_000
+// Leave time for machine-queue admission and receipt delivery beyond the Host's 120 s window.
+const LANE_CREATE_WAIT_MS = 180_000
+
+function commandWait(frame: Command): number {
+  return frame.op.type === 'lane.create' ? LANE_CREATE_WAIT_MS : COMMAND_WAIT_MS
+}
+
 /** Receipts outlive a transport; read calls do not. Only replay-safe commands retry. */
 export function createRequests(ports: {
   now: () => number
@@ -42,7 +50,7 @@ export function createRequests(ports: {
       if (
         p &&
         !ports.write(
-          p.statusOnly || ports.now() - p.at >= 60000
+          p.statusOnly || ports.now() - p.at >= COMMAND_WAIT_MS
             ? { type: 'receipt-status', requestId: p.frame.requestId }
             : p.frame,
         )
@@ -98,7 +106,7 @@ export function createRequests(ports: {
           p.statusOnly = true
           ports.write({ type: 'receipt-status', requestId })
           p.resolve({ requestId, status: 'unknown' })
-        }, 60000),
+        }, commandWait(frame)),
       )
     },
     receipt(receipt: Receipt) {
