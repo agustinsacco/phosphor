@@ -26,7 +26,7 @@ const summary: LaneSummary = {
   control: { fence: 1, controller: null },
 }
 const cursor = { epoch: 'epoch', seq: 0 }
-const fileBytes = 64 * 1024 * 1024
+const fileBytes = 2048 * 1024 * 1024
 const header = JSON.stringify({ type: 'session', version: 3, id: 'fixture' })
 function transcript(messages: AgentMessage[]) {
   return [
@@ -126,14 +126,20 @@ describe('stopped transcript contract', () => {
     expect(read('lane')).toBeNull()
     logged('outside')
   })
-  it('accepts exactly 64 MiB and rejects one byte past it before reading', () => {
+  it('reads across 64 MiB and rejects more than 2 GiB before reading', async () => {
     const path = file()
-    const buffer = Buffer.alloc(fileBytes, ' ')
+    const buffer = Buffer.alloc(64 * 1024 * 1024, ' ')
+    for (let i = 1024 * 1024 - 1; i < buffer.length; i += 1024 * 1024) buffer[i] = 10
     buffer.write(header)
     fs.writeFileSync(path, buffer)
     expect(snapshot(read('lane')).messages).toEqual([])
-    const spy = vi.spyOn(fs, 'readSync').mockClear()
     fs.appendFileSync(path, ' ')
+    expect(snapshot(read('lane')).messages).toEqual([])
+    const actual = await vi.importActual<typeof fs>('node:fs')
+    vi.spyOn(fs, 'fstatSync').mockImplementation((fd) =>
+      Object.assign(actual.fstatSync(fd), { size: fileBytes + 1 }),
+    )
+    const spy = vi.spyOn(fs, 'readSync').mockClear()
     expect(read('lane')).toEqual({ ok: false, reason: 'too-large' })
     expect(spy).not.toHaveBeenCalled()
     logged('limit')
