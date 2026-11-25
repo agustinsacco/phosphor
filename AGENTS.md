@@ -144,7 +144,7 @@ Read the linked doc before touching any of these.
   [provider-symmetry.md](docs/provider-symmetry.md) before changing either side.
 - Every interactive session shares one provider-blind context budget
   (`sessionContextBudget`, default 200k); in-run cap changes wait for `turn_end`
-  ([cli-providers.md](docs/cli-providers.md#one-context-budget)).
+  or `agent_settled` ([cli-providers.md](docs/cli-providers.md#one-context-budget)).
 - Pi loads six bundled extensions plus the ops and Brain bundles when enabled. `worktree-paths.ts` refuses tool calls that
   escape a worktree; its four conditions are narrow on purpose. `tool-name-guard.ts`
   rewrites malformed tool names before pi persists them

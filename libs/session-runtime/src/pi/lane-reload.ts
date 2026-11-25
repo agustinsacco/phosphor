@@ -6,6 +6,7 @@ import {
 } from '@phosphor/pi-extensions/lane-reload'
 import type { ExtensionUIRequest } from '@shared/rpc'
 import type { RuntimeLog } from '../file-log'
+import { forgetStagedBudget } from './context-budget'
 import type { PiRpcClient } from './rpc-client'
 
 export interface LaneReloadDeps {
@@ -157,8 +158,11 @@ export async function reloadLaneNow(
   log: RuntimeLog,
 ): Promise<BeforePromptResult> {
   try {
-    return await reloadOnce(log, sessionId, client)
+    const result = await reloadOnce(log, sessionId, client)
+    if (result === 'applied' || result === 'failed') forgetStagedBudget(client)
+    return result
   } catch (error) {
+    forgetStagedBudget(client)
     log('pi', 'lane reload failed', { sessionId, error: String(error) })
     return 'failed'
   }

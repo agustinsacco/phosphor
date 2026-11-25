@@ -1,6 +1,6 @@
 import { contextBudgetTokens, sessionContextBudget } from '@shared/context-budget'
 import type { PiRpcClient } from './rpc-client'
-import type { RpcCommand } from '@shared/rpc'
+import type { RpcCommand, RpcSessionState } from '@shared/rpc'
 import type { RuntimeLog } from '../file-log'
 
 interface BudgetGate {
@@ -24,19 +24,50 @@ function enqueue<T>(gate: BudgetGate, action: () => Promise<T>): Promise<T> {
   return result
 }
 
-/** Stage a cap inside pi. Its next safe boundary applies it without aborting work. */
-export async function syncContextBudget(
-  client: Pick<PiRpcClient, 'request'>,
-  rawBudget: string,
-): Promise<void> {
+type BudgetClient = Pick<PiRpcClient, 'request'>
+// A new pi process never inherits a staged budget from a previous client.
+const staged = new WeakMap<BudgetClient, string>()
+
+export function forgetStagedBudget(client: BudgetClient): void {
+  staged.delete(client)
+}
+
+async function readBudgetState(client: BudgetClient): Promise<RpcSessionState> {
   const state = await client.request({ type: 'get_state' })
   if (!state.success || !state.data) throw new Error('Cannot read pi context budget state.')
-  const budget = state.data.autoCompactionEnabled ? contextBudgetTokens(rawBudget) : null
+  return state.data
+}
+
+/** Explicit updates always stage; prompt preflight supplies its already verified state. */
+export async function syncContextBudget(
+  client: BudgetClient,
+  rawBudget: string,
+  promptState?: RpcSessionState,
+): Promise<void> {
+  const state = promptState ?? (await readBudgetState(client))
+  const { model, autoCompactionEnabled } = state
+  const budget = autoCompactionEnabled ? contextBudgetTokens(rawBudget) : null
+  const key = (window: number | undefined) =>
+    JSON.stringify([
+      state.sessionId,
+      model?.provider,
+      model?.id,
+      window,
+      autoCompactionEnabled,
+      budget,
+    ])
+  const observed = model?.contextWindow
+  const capped = observed !== undefined && budget !== null ? Math.min(observed, budget) : observed
+  // Remember the capped window, not the over-budget one: an extension can replace
+  // a model with its uncapped catalogue entry without a model_select event.
+  if (promptState && staged.get(client) === key(observed)) return
+  forgetStagedBudget(client)
   const result = await client.request({
     type: 'prompt',
     message: `/phosphor-context-budget ${budget ?? 'off'}`,
   })
   if (!result.success) throw new Error(result.error ?? 'Cannot apply pi context budget.')
+  staged.set(client, key(capped))
 }
 
 /** A failed check leaves the session alone; a failed compaction is reported by pi. */

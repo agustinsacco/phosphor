@@ -73,5 +73,10 @@ export default function contextBudget(pi: BudgetApi, env: NodeJS.ProcessEnv = pr
   const boundary = (_event: unknown, ctx: unknown): Promise<void> => apply(ctx as Context)
   pi.on('before_agent_start', boundary)
   pi.on('turn_end', boundary)
+  // A control can arrive after the final turn_end but before the run settles.
+  pi.on('agent_settled', (_event, ctx) => {
+    const context = ctx as Context
+    if (context.isIdle()) return apply(context)
+  })
   pi.on('model_select', boundary)
 }

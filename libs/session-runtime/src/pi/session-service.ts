@@ -1,7 +1,11 @@
 import { access } from 'node:fs/promises'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
-import { syncContextBudget, type createContextBudgetRuntime } from './context-budget'
+import {
+  forgetStagedBudget,
+  syncContextBudget,
+  type createContextBudgetRuntime,
+} from './context-budget'
 import { assertClaudeContextProvider } from './provider-detect'
 import { sessionPathKey, type SessionPathRuntime } from './session-path-lock'
 import type { SessionExecution, SessionPolicyRuntime } from './session-policy'
@@ -111,6 +115,12 @@ function assertManualCommand(
   }
 }
 
+async function readPromptState(client: LiveSession['client']) {
+  const state = await client.request({ type: 'get_state' })
+  if (!state.success || !state.data) throw new Error('Cannot verify the active pi model.')
+  return state.data
+}
+
 async function preflightCommand<Delivery>(
   runtime: SessionServiceRuntime<Delivery>,
   live: LiveSession,
@@ -122,23 +132,37 @@ async function preflightCommand<Delivery>(
     assertClaudeContextProvider(await runtime.packages(live.workspacePath))
   }
   if (command.type === 'prompt') {
-    const state = await live.client.request({ type: 'get_state' })
-    if (!state.success || !state.data) throw new Error('Cannot verify the active pi model.')
-    // Only a prompt that starts a turn: one sent mid-run joins that run,
-    // and a host control (`/phosphor-…`) starts none. Before the budget
-    // sync, because a reload drops the lane's capped context window.
+    let state = await readPromptState(live.client)
+    // Reload only while idle, and before staging: it can replace both model and settings.
     if (
       runtime.laneReload &&
-      !state.data.isStreaming &&
-      !state.data.isCompacting &&
+      !state.isStreaming &&
+      !state.isCompacting &&
       !command.message.startsWith('/phosphor-')
-    )
-      await runtime.laneReload.beforePrompt(id, live.client, live.workspacePath)
-    if (state.data.model?.provider === 'pi-claude-cli')
+    ) {
+      const reload = await runtime.laneReload.beforePrompt(id, live.client, live.workspacePath)
+      if (reload === 'applied' || reload === 'failed') {
+        forgetStagedBudget(live.client)
+        state = await readPromptState(live.client)
+      }
+    }
+    if (state.model?.provider === 'pi-claude-cli')
       assertClaudeContextProvider(await runtime.packages(live.workspacePath))
-    await syncContextBudget(live.client, runtime.readBudget())
+    // Pi decides whether to queue after its input hooks; a streaming snapshot
+    // cannot tell us the prompt will join. Skip only if the budget is current.
+    await syncContextBudget(live.client, runtime.readBudget(), state)
   }
 }
+
+/** Commands after which pi can hold a different model or session, so the next idle prompt restages. */
+const RESTAGES_BUDGET = new Set<RpcCommand['type']>([
+  'set_model',
+  'cycle_model',
+  'new_session',
+  'switch_session',
+  'fork',
+  'clone',
+])
 
 async function dispatchCommand<Delivery>(
   runtime: SessionServiceRuntime<Delivery>,
@@ -150,6 +174,12 @@ async function dispatchCommand<Delivery>(
   // Ownership may change while a command waits behind compaction.
   assertManualCommand(admission, id, command)
   await preflightCommand(runtime, live, id, command)
+  // A slash command can reload extensions or change their staged settings directly.
+  if (
+    RESTAGES_BUDGET.has(command.type) ||
+    (command.type === 'prompt' && command.message.startsWith('/'))
+  )
+    forgetStagedBudget(live.client)
   const result = await live.client.request(command)
   if (!runtime.isStub() && command.type === 'set_auto_compaction' && result.success) {
     await syncContextBudget(live.client, runtime.readBudget())

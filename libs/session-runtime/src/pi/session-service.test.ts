@@ -125,7 +125,6 @@ describe('portable session admission', () => {
     await h.service.command(live.sessionId, { type: 'prompt', message: 'allowed' })
     expect(client.request.mock.calls.map(([c]) => c)).toEqual([
       { type: 'get_state' },
-      { type: 'get_state' },
       { type: 'prompt', message: '/phosphor-context-budget 400000' },
       { type: 'prompt', message: 'allowed' },
     ])

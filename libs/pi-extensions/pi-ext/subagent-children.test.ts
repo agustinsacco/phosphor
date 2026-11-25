@@ -102,6 +102,6 @@ describe('the child set', () => {
       expect.arrayContaining(['tool_call', 'message_end', 'context_with_system', 'turn_end']),
     )
     expect(commands.sort()).toEqual(['phosphor-context-budget', 'phosphor-context-files'])
-    expect(events).not.toContain('agent_settled') // no Swarm
+    expect(events).not.toContain('agent_start') // no Swarm (the budget listens to agent_settled)
   })
 })
