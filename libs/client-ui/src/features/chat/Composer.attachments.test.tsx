@@ -358,3 +358,17 @@ it('does not return an outstanding draft to a new browser owner', async () => {
   await act(async () => fail())
   expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
 })
+
+it('unlocks after a legacy Host accepts an extension command without a disposition', async () => {
+  const id = mockRemoteInfo.sessionId
+  useChatStore.getState().setCommands(id, [{ name: 'host-only', source: 'extension' }])
+  useDraftsStore.getState().patch(key, { text: '/host-only', attachments: [] })
+  vi.spyOn(window.phosphor, 'piCommand').mockResolvedValue({
+    type: 'response',
+    command: 'prompt',
+    success: true,
+  })
+  await draw()
+  await send()
+  expect(useChatStore.getState().sessions[id]).toMatchObject({ promptSentAt: null, items: [] })
+})
