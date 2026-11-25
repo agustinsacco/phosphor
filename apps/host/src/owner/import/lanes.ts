@@ -56,7 +56,7 @@ export function laneImporter(ports: ImportPorts): MigrationImporter<'lanes'> {
           ? fitsModel(item.model)
             ? item.model
             : null
-          : recorded.read(item.sessionFile)
+          : recorded.read(item.sessionFile).model
         if (item.model && !model) models++
         if (!item.model && model) recorded.counts.repaired++
         const lane = store.ensureLane(

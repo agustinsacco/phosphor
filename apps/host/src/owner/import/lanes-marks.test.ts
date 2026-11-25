@@ -115,7 +115,10 @@ describe('lanes', () => {
     const lane = item({ model: null })
     writeFileSync(
       lane.sessionFile,
-      piTranscript([modelChange('m1', 'pi-claude-cli', 'claude\nopus'), ...CLAUDE_LANE.slice(1, 3)]),
+      piTranscript([
+        modelChange('m1', 'pi-claude-cli', 'claude\nopus'),
+        ...CLAUDE_LANE.slice(1, 3),
+      ]),
     )
     await importLanes([lane])
     expect(host.store.sessionLane(lane.sessionFile)).toMatchObject({

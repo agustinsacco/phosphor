@@ -7,6 +7,7 @@
  * assistant message's provider and model, decides.
  */
 import { closeSync, readSync } from 'node:fs'
+import { text } from '../validation-primitives'
 import { openTranscriptFile, verifyTranscriptFile } from './read'
 
 export const RECORDED_MODEL_TAIL_BYTES = 4 * 1024 * 1024
@@ -27,16 +28,16 @@ type Entry = Record<string, unknown>
 const isEntry = (value: unknown): value is Entry =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** The lane store's column bounds (`lanes.provider`, `lanes.model`). */
+/** What the lane store would hold: its own validators (`lanes.provider`, `lanes.model`). */
 function storable(provider: unknown, id: unknown): RecordedModel | null {
-  return typeof provider === 'string' &&
-    typeof id === 'string' &&
-    provider.length > 0 &&
-    provider.length <= 64 &&
-    id.length > 0 &&
-    id.length <= 128
-    ? { provider, id }
-    : null
+  if (typeof provider !== 'string' || typeof id !== 'string') return null
+  try {
+    text(provider, 64)
+    text(id, 128)
+  } catch {
+    return null
+  }
+  return { provider, id }
 }
 
 /** A model entry decides even when unusable, as pi's resume stops at it. */
@@ -79,34 +80,45 @@ class BranchWalk {
   }
 }
 
+/** Fills `tail[from, to)` from the file; false when the file ended first. */
+function fill(fd: number, tail: Buffer, from: number, to: number, offset: number): boolean {
+  let at = from
+  while (at < to) {
+    const count = readSync(fd, tail, at, to - at, offset + at)
+    if (!count) return false
+    at += count
+  }
+  return true
+}
+
+/**
+ * One buffer holds the whole tail, filled backward a chunk at a time, so a
+ * line that spans chunks is never copied; each chunk is searched for line
+ * ends once.
+ */
 function scanTail(fd: number, size: number, tailBytes: number): RecordedModelRead {
   const walk = new BranchWalk()
   const floor = Math.max(0, size - tailBytes)
-  let end = size
-  let carry = Buffer.alloc(0)
-  while (end > floor && !walk.done) {
-    const start = Math.max(floor, end - CHUNK_BYTES)
-    const chunk = Buffer.alloc(end - start)
-    let read = 0
-    while (read < chunk.length) {
-      const count = readSync(fd, chunk, read, chunk.length - read, start + read)
-      if (!count) break
-      read += count
-    }
-    const buffer = Buffer.concat([chunk.subarray(0, read), carry])
-    let lineEnd = buffer.length
-    while (lineEnd > 0 && !walk.done) {
-      const lf = buffer.lastIndexOf(LF, lineEnd - 1)
+  const tail = Buffer.allocUnsafe(size - floor)
+  let filled = tail.length
+  let lineEnd = tail.length
+  while (filled > 0 && !walk.done) {
+    const from = Math.max(0, filled - CHUNK_BYTES)
+    if (!fill(fd, tail, from, filled, floor)) break
+    // `[filled, lineEnd)` was searched already and holds no line end.
+    let searchEnd = filled
+    filled = from
+    while (!walk.done) {
+      const lf = tail.subarray(from, searchEnd).lastIndexOf(LF)
       if (lf < 0) break
-      walk.visit(buffer.subarray(lf + 1, lineEnd))
-      lineEnd = lf
+      walk.visit(tail.subarray(from + lf + 1, lineEnd))
+      lineEnd = searchEnd = from + lf
     }
-    carry = buffer.subarray(0, lineEnd)
-    end = start
   }
   // The file's first line is whole only when the scan reached the start.
-  if (!walk.done && end === 0 && carry.length) walk.visit(carry)
-  const bytes = size - end
+  if (!walk.done && floor === 0 && filled === 0 && lineEnd > 0)
+    walk.visit(tail.subarray(0, lineEnd))
+  const bytes = tail.length - filled
   return walk.result ? { kind: 'model', model: walk.result, bytes } : { kind: 'none', bytes }
 }
 

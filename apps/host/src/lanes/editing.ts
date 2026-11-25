@@ -7,6 +7,7 @@ import * as writer from '@phosphor/session-runtime/pi/session-writer'
 import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
 import { laneIdInRef } from '../ops/lane-ref'
 import type { HostRuntime } from '../session/runtime'
+import { rederiveLaneModel } from './reconcile/models'
 import { LaneCapacityReached, type HostStore, type StoredLane } from './store'
 
 /**
@@ -23,8 +24,10 @@ import { LaneCapacityReached, type HostStore, type StoredLane } from './store'
 export interface LaneEditingRuntime {
   /** The runtime's path lock: refused while a pi owns the file, or shared with a live owner. */
   readonly runtime: Pick<HostRuntime, 'mutateStoppedSession' | 'withSessionFile'>
-  /** Publishes a lane editing created to the lanes topic. */
+  /** Publishes a lane editing created or changed to the lanes topic. */
   readonly announce: (laneId: string) => void
+  /** pi's sessions root, where a branch change re-reads the lane's model. */
+  readonly sessionsRoot: string
 }
 
 export interface LaneEditingPorts extends LaneEditingRuntime {
@@ -109,6 +112,7 @@ export function jumpLaneTo(
     const tree = await readSessionTree(file)
     entryIn(tree, entry)
     await writer.appendBranchJump(file, entry)
+    if (rederiveLaneModel(ports.store, ports.sessionsRoot, lane.laneId)) ports.announce(lane.laneId)
     return { previousLeaf: tree.leafId }
   })
 }
@@ -283,6 +287,9 @@ export async function forkLane(
   try {
     lane = storeForkedLane(ports.store, source, forked.file)
     writePrefs(ports.db, lane.laneId, prefsFor(request.kind, source, request.lineage))
+    // A clone continues from the source's leaf; a fork or rewind from its own.
+    if (request.kind !== 'clone' && rederiveLaneModel(ports.store, ports.sessionsRoot, lane.laneId))
+      lane = ports.store.getLane(lane.laneId) ?? lane
   } catch (error) {
     // No one knows the new file yet: an unrecorded fork leaves nothing behind.
     if (lane) ports.store.markRemoved(lane.laneId)

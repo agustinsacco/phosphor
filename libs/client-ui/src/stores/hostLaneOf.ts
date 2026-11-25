@@ -18,3 +18,11 @@ export function hostLaneOf(
   const lane = host?.lanes.find((item) => item.laneId === entry.laneId)
   return { hostId: entry.target.hostId, laneId: entry.laneId, host, lane }
 }
+
+/**
+ * The Host runs no pi for the lane: it is stopped (a lane that is starting is
+ * still stopped until its pi attaches) or its pi failed. Whatever the chat
+ * store still holds from an earlier pi is not this lane's live state.
+ */
+export const laneWithoutPi = (lane: Pick<HostLaneView, 'activity'> | undefined): boolean =>
+  lane?.activity === 'stopped' || lane?.activity === 'failed'

@@ -946,15 +946,20 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   the thinking level (with a caret) as the right. The provider is not on the
   chip: it is in the chip's tooltip and, in a session, in the strip, named only
   when pi does not ship it (`namedProvider`).
-- **A lane with no live pi** (stopped, or still starting) keeps the bar's
-  shape. `ModelPicker` shows the lane's recorded model (`LaneSummary.model`,
-  named from a model catalogue this client has already read, else its id) as an
-  inert chip with the tooltip "Starts with the lane". The live chip replaces it
-  in the same row once pi reports its state. There is no thinking segment, since
-  a lane does not record its thinking level. The strip's context ring stays in
-  place as an empty ring with `—` (`ContextReadout`) until pi reports usage.
-  The Rules · MCP readout is always there. Desktop and the browser render the
-  same thing.
+- **A lane with no live pi** keeps the bar's shape. On a Host lane this is
+  read from the lane's activity in the Host's lane view (`stopped`, which
+  includes a lane that is still starting, or `failed`; `laneWithoutPi`), not
+  from what the chat store still holds, so stopping an open lane switches to
+  this state too. `ModelPicker` shows the lane's recorded model
+  (`LaneSummary.model`, named from a model catalogue this client has already
+  read, else its id) as an inert chip with the tooltip "Starts with the lane".
+  The live chip replaces it in the same row once the lane runs and pi reports
+  its state. There is no thinking segment, since a lane does not record its
+  thinking level. The strip's context ring stays in place as an empty ring
+  with `—` (`ContextReadout`) until the lane runs and pi reports usage. Both
+  rings sit over an invisible copy of `100% of 200k`, so the strip neither
+  shifts nor wraps differently when usage arrives. The Rules · MCP readout is
+  always there. Desktop and the browser render the same thing.
 - **Context meter**: % of window from `get_session_stats` (polled after each
   `agent_end` and on demand), shown in the strip as `36% of 200k` with the
   ring, warn state near the compaction threshold, and the popover below. The denominator is pi's context window, or the

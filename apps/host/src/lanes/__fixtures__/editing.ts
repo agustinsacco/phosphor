@@ -48,6 +48,7 @@ export async function editingFixture(storePorts: StorePorts = {}): Promise<Editi
     store,
     db,
     announce: (laneId) => announced.push(laneId),
+    sessionsRoot: sessions,
     runtime: {
       mutateStoppedSession: (path, change) =>
         paths.withSessionPath(path, async () => {

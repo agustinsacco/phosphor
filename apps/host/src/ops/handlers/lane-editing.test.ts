@@ -37,7 +37,11 @@ beforeEach(async () => {
     store: fx.store,
     lanes: {} as never,
     shellEnvironment: null,
-    editing: { runtime: fx.ports.runtime, announce: fx.ports.announce },
+    editing: {
+      runtime: fx.ports.runtime,
+      announce: fx.ports.announce,
+      sessionsRoot: fx.ports.sessionsRoot,
+    },
     daemonLanes: {
       list: () => fx.store.listLanes(),
       summary: (id) => fx.store.getLane(id),

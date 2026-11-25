@@ -275,6 +275,8 @@ export const HOST_SIDECARS = {
   appServices: 'app-services.json',
   /** In the state folder: where Claude account metadata lives when it is not `<state>/claude-accounts`. */
   claudeAccounts: 'claude-accounts.json',
+  /** In the state folder: lanes whose transcript was read for a model and held none. */
+  laneModelScans: 'lane-model-scans.json',
 } as const
 
 /**

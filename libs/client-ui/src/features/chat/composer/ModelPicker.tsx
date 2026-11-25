@@ -1,6 +1,7 @@
 import { useAgentHints } from '@/features/agent-control/useAgentHints'
 import { rememberRemoteThinking } from '@/stores/remoteModelPicks'
 import { useSessionHostLane } from '@/stores/remoteLanes'
+import { laneWithoutPi } from '@/stores/hostLaneOf'
 import { useState } from 'react'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { supportedThinkingLevels } from '@shared/thinking'
@@ -37,9 +38,10 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 const PICKER_ROW = 'relative flex min-w-0 max-w-full flex-1 items-center'
 
 /**
- * A stopped or starting lane has no pi to ask: the lane's recorded model holds
- * the live chip's place, so the bar keeps its shape when pi comes up. It is
- * named from a catalogue this client already read, and never reads one.
+ * A stopped or starting lane has no pi to ask, even when the chat store still
+ * holds the last pi's state: the lane's recorded model holds the live chip's
+ * place, so the bar keeps its shape when pi comes up. It is named from a
+ * catalogue this client already read, and never reads one.
  */
 function RecordedModelChip({
   hostId,
@@ -86,7 +88,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   const { actions } = useSessionModelActions(sessionId)
   const failed = useChatStore((s) => s.sessions[sessionId]?.modelsFailed ?? false)
 
-  if (!meta)
+  if (!meta || laneWithoutPi(hostLane?.lane))
     return (
       <div className={PICKER_ROW}>
         <RecordedModelChip hostId={hostId} model={summaryModel ?? null} />

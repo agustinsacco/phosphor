@@ -9,6 +9,7 @@ import type { RunContext } from '../../commands/run'
 import { prepareStateDirectory, prepareStateFile } from '../state-dir'
 import type { HostStore } from '../store'
 import { reconcile } from '../reconcile'
+import { readModelScans, writeModelScans } from './model-scans'
 import { repairLaneModels } from './models'
 
 function routinePaths(directory: string, uid: number | undefined) {
@@ -53,7 +54,26 @@ export async function reconcileRunFolders(
   )
   signal.throwIfAborted()
   context.log?.('host', 'lanes.reconciled', counts)
-  const models = repairLaneModels(store, sessionsRoot, { signal })
-  if (models.repaired + models.skipped + models.unreadable)
-    context.log?.('host', 'lanes.models_repaired', models)
+  repairModels(context, store, sessionsRoot, signal)
+}
+
+/** The start-up model repair, remembering across starts the lanes it read without a result. */
+function repairModels(
+  context: RunContext,
+  store: HostStore,
+  sessionsRoot: string,
+  signal: AbortSignal,
+) {
+  const state = hostStateDirectory(context.env, context.home)
+  const scanned = readModelScans(state, context.uid)
+  const models = repairLaneModels(store, sessionsRoot, { signal, scanned })
+  const { counts } = models
+  if (counts.repaired + counts.skipped + counts.unreadable + counts.unchanged)
+    context.log?.('host', 'lanes.models_repaired', counts)
+  try {
+    if (models.scanned.size || scanned.size) writeModelScans(state, context.uid, models.scanned)
+  } catch {
+    // Only saves work: the next start reads those lanes again.
+    context.log?.('host', 'lanes.model_scans_unsaved')
+  }
 }

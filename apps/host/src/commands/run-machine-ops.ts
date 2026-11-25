@@ -1,5 +1,6 @@
 import { dirname, resolve } from 'node:path'
 import { isWithinFolder } from '@phosphor/shared/paths'
+import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { createHostSandboxes } from '../features/sandboxes'
 import { ownerTrash } from '../lanes/delete-target'
 import { transcriptTrash } from '../lanes/delete'
@@ -109,6 +110,7 @@ export async function bindRunOps(
     shellEnvironment: started.machine.shellEnvironment ?? null,
     editing: {
       runtime,
+      sessionsRoot: piSessionsRoot(context.env, context.home),
       announce: (laneId) => {
         const summary = live.summaryFor(laneId)
         if (summary) live.lanesTopic.delta([summary])
