@@ -12,6 +12,11 @@ Related: [worktrees.md](worktrees.md) for the branch lifecycle,
 
 Opening a lane on This Mac’s service does **not** take control. After creation or before a controller-only action, Desktop uses its owner-socket identity: if it already holds control it proceeds; if nobody holds it, it asks to claim the lane only while still unheld. If another client holds it or wins the race, Desktop offers **Take control** rather than displacing it. A refused action shows the service’s reason. Other Hosts keep explicit handoff.
 
+Opening a stopped Host lane previews the newest messages on its active branch without
+starting pi. If even a bounded preview is too large, the lane still opens: the conversation
+pane explains the limit and the usual Resume action remains available to its controller.
+This applies to This Mac in service mode, other Hosts and the browser client.
+
 When the Host announces `ops` and `laneEditing`, Session tree and Clone run on the execution machine. Labels and jumps require a stopped lane. Fork, clone and rewind read the source under the runtime path lock and write a new stopped lane; the original stays intact. Rewind opens the replacement with the selected message’s text ready to edit. The tree connects children through hidden metadata to the nearest visible ancestor.
 
 ## Remote lanes

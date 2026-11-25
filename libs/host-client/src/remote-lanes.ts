@@ -1,80 +1,52 @@
 import { browserCrypto } from './crypto'
-import {
-  HOST_LIMITS,
-  utf8Length,
-  parseClientFrame,
-  type LaneOp,
-  type LaneSummary,
-} from '@phosphor/shared/host-protocol'
-import type { LiveSessionInfo, SessionPush } from '@phosphor/shared/models'
-import type { ExtensionUIResponse, RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
+import { parseClientFrame, type LaneOp } from '@phosphor/shared/host-protocol'
+import type { LiveSessionInfo } from '@phosphor/shared/models'
+import type { ExtensionUIResponse, RpcCommand } from '@phosphor/shared/rpc'
 import type { RemoteLaneCreate } from '@phosphor/shared/ipc'
 import { createLaneProjection } from './projection'
 import type { LaneRead } from './lane-reads'
-import type { createHostConnection, LaneFrame } from './connection'
+import { laneCommand } from './lane-command'
+import {
+  reattach,
+  receive,
+  isStopped,
+  type Handle,
+  type Connection,
+  type RemoteWindow,
+} from './lane-stream'
+export type { RemoteWindow } from './lane-stream'
 import {
   createFailureText,
-  laneOperation,
   laneActionOp,
   type LaneAction,
-  receiptResponse,
   REMOTE_UNAVAILABLE,
-  sendToLane,
   settledReceipt,
 } from './lane-ops'
 import { remoteLaneKey, type HostCapability } from '@phosphor/shared/remote-host'
 import type { WriteLane } from './ports'
 import { HostReadFailure } from './read-features'
-
-type Connection = ReturnType<typeof createHostConnection>
-export interface RemoteWindow {
-  id: number
-  send: (channel: string, push: SessionPush) => void
-  destroyed: () => boolean
-}
-type Handle = {
-  info: LiveSessionInfo
-  window: RemoteWindow
-  hostId: string
-  laneId: string
-  summary: LaneSummary
-  projection: ReturnType<typeof createLaneProjection>
-  connection: Connection
-  unwatch: () => void
-  ready: Promise<void>
-  resolve: () => void
-  reject: (error: Error) => void
-  hydration?: {
-    view: ReturnType<ReturnType<typeof createLaneProjection>['view']>
-    summary: LaneSummary
-    held: SessionPush[]
-    bytes: number
-    timer: ReturnType<typeof setTimeout>
-  }
-  messageBytes: number
-  lastState?: Record<string, unknown>
-}
-
-function record(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export function isRemoteHandle(id: string): boolean {
   return /^remote-[0-9a-f]{16}$/.test(id)
 }
 
-export function createRemoteLanes(ports: {
+type LanePorts = {
   identity?: Pick<typeof browserCrypto, 'randomUUID' | 'randomHex'>
   connection: (hostId: string) => Connection | undefined
   present: (hostId: string) => boolean
   label: (hostId: string) => string
   changed: () => void
-}) {
-  const identity = ports.identity ?? browserCrypto
-  const handles = new Map<string, Handle>()
-  const focused = new Map<number, { hostId: string; laneId: string }>()
-  function connection(hostId: string, control = false) {
-    const c = ports.connection(hostId)
+}
+
+class RemoteLaneClient {
+  constructor(private readonly ports: LanePorts) {}
+  private get identity() {
+    return this.ports.identity ?? browserCrypto
+  }
+  private readonly handles = new Map<string, Handle>()
+  private readonly focusTargets = new Map<number, { hostId: string; laneId: string }>()
+
+  private connection(hostId: string, control = false) {
+    const c = this.ports.connection(hostId)
     const view = c?.snapshot()
     if (
       !c ||
@@ -85,138 +57,30 @@ export function createRemoteLanes(ports: {
       throw new Error(REMOTE_UNAVAILABLE)
     return c
   }
-  function push(h: Handle, value: SessionPush) {
-    if (!h.window.destroyed()) h.window.send(`pi:event:${h.info.sessionId}`, value)
-  }
-  function reattach(h: Handle) {
-    h.unwatch()
-    h.unwatch = h.connection.watchLane(h.laneId, (frame) => receive(h, frame))
-  }
-  function projection(h: Handle) {
-    return createLaneProjection({
-      now: Date.now,
-      overflow: () => {
-        // Reattach without a cursor instead of retaining an incomplete projection.
-        reattach(h)
-      },
-    })
-  }
-  function flush(h: Handle) {
-    const hydration = h.hydration
-    if (!hydration) return
-    clearTimeout(hydration.timer)
-    h.hydration = undefined
-    for (const event of hydration.view.pending) push(h, { kind: 'event', event })
-    for (const request of [...hydration.view.ui, ...hydration.view.dialogs])
-      push(h, { kind: 'extension-ui', request })
-    for (const value of hydration.held) push(h, value)
-  }
-  function resync(h: Handle) {
-    if (h.hydration) clearTimeout(h.hydration.timer)
-    h.hydration = {
-      view: structuredClone(h.projection.view()),
-      summary: structuredClone(h.summary),
-      held: [],
-      bytes: 0,
-      timer: setTimeout(() => flush(h), 10_000),
-    }
-    push(h, { kind: 'resync' })
-  }
-  function deliver(h: Handle, value: SessionPush) {
-    const hydration = h.hydration
-    if (!hydration) {
-      push(h, value)
-      return
-    }
-    const bytes = utf8Length(JSON.stringify(value))
-    if (
-      hydration.held.length >= HOST_LIMITS.pendingEvents ||
-      hydration.bytes + bytes > HOST_LIMITS.replayBytes
-    ) {
-      resync(h)
-      return
-    }
-    hydration.held.push(value)
-    hydration.bytes += bytes
-  }
-  function receive(h: Handle, frame: LaneFrame) {
-    try {
-      applyFrame(h, frame)
-    } catch {
-      h.reject(new Error('Lane stream unavailable.'))
-      push(h, { kind: 'exit', code: null, signal: null, expected: false })
-      if (handles.has(h.info.sessionId)) dispose(h.window.id, h.info.sessionId)
-    }
-  }
-  function applyFrame(h: Handle, frame: LaneFrame) {
-    if (frame.type === 'subscribe-failed') {
-      throw new Error('Lane stream unavailable.')
-    }
-    if (frame.type === 'snapshot') {
-      h.summary = frame.snapshot.summary
-      if (frame.snapshot.state)
-        h.lastState = frame.snapshot.state as unknown as Record<string, unknown>
-      h.projection = projection(h)
-      h.projection.settle(frame.snapshot.messages, frame.snapshot.state)
-      for (const event of frame.snapshot.pending) h.projection.apply({ kind: 'event', event })
-      for (const request of [...frame.snapshot.ui, ...frame.snapshot.dialogs])
-        h.projection.apply({ kind: 'extension-ui', request })
-      h.messageBytes = utf8Length(JSON.stringify(frame.snapshot.messages))
-      h.resolve()
-      resync(h)
-    } else {
-      const event = frame.event
-      if (event.kind === 'pi') {
-        h.projection.apply(event.push)
-        deliver(h, event.push)
-        if (event.push.kind === 'event' && event.push.event.type === 'message_end') {
-          h.messageBytes += utf8Length(JSON.stringify(event.push.event.message))
-          if (h.messageBytes > HOST_LIMITS.outboundFrameBytes) {
-            reattach(h)
-          }
-        }
-      } else if (event.kind === 'summary') h.summary = event.summary
-      else if (event.kind === 'control') h.summary = { ...h.summary, control: event.control }
-      else {
-        h.projection.resolveDialog(event.dialogId)
-        resync(h)
-      }
-    }
-    // Pi pushes already have their own delivery bus. Only lane metadata changes
-    // need a Host snapshot refresh (sidebar, control and attention).
-    if (
-      frame.type === 'snapshot' ||
-      (frame.type === 'event' && (frame.event.kind === 'summary' || frame.event.kind === 'control'))
-    )
-      ports.changed()
-  }
-  function owned(windowId: number, id: string) {
-    const h = handles.get(id)
+  private owned(windowId: number, id: string) {
+    const h = this.handles.get(id)
     if (!h || h.window.id !== windowId) throw new Error(REMOTE_UNAVAILABLE)
     return h
   }
-  function dispose(windowId: number, id: string) {
-    const h = owned(windowId, id)
+  dispose = (windowId: number, id: string) => {
+    const h = this.owned(windowId, id)
     h.unwatch()
-    handles.delete(id)
-    const target = focused.get(windowId)
-    if (target?.hostId === h.hostId && target.laneId === h.laneId) focused.delete(windowId)
+    this.handles.delete(id)
+    const target = this.focusTargets.get(windowId)
+    if (target?.hostId === h.hostId && target.laneId === h.laneId)
+      this.focusTargets.delete(windowId)
     if (h.hydration) clearTimeout(h.hydration.timer)
     h.reject(new Error('Lane closed.'))
   }
-  async function open(
-    window: RemoteWindow,
-    hostId: string,
-    laneId: string,
-  ): Promise<LiveSessionInfo> {
-    const c = connection(hostId)
+  open = async (window: RemoteWindow, hostId: string, laneId: string): Promise<LiveSessionInfo> => {
+    const c = this.connection(hostId)
     const summary = c.snapshot().lanes.find((lane) => lane.laneId === laneId)
     if (!summary) throw new Error('Lane unavailable.')
-    let h = [...handles.values()].find(
+    let h = [...this.handles.values()].find(
       (h) => h.window.id === window.id && h.hostId === hostId && h.laneId === laneId,
     )
     if (!h) {
-      if ([...handles.values()].filter((h) => h.window.id === window.id).length >= 64)
+      if ([...this.handles.values()].filter((h) => h.window.id === window.id).length >= 64)
         throw new Error('Too many open remote lanes.')
       let resolve: () => void = () => {}
       let reject: (error: Error) => void = () => {}
@@ -226,7 +90,7 @@ export function createRemoteLanes(ports: {
       })
       void ready.catch(() => {})
       const info: LiveSessionInfo = {
-        sessionId: `remote-${identity.randomHex(8)}`,
+        sessionId: `remote-${this.identity.randomHex(8)}`,
         target: { kind: 'remote', hostId },
         laneId,
         workspacePath: remoteLaneKey(hostId, laneId),
@@ -238,6 +102,10 @@ export function createRemoteLanes(ports: {
         laneId,
         summary,
         connection: c,
+        changed: this.ports.changed,
+        close: () => {
+          if (this.handles.has(info.sessionId)) this.dispose(window.id, info.sessionId)
+        },
         projection: createLaneProjection({ now: Date.now, overflow: () => reattach(handle) }),
         unwatch: () => {},
         ready,
@@ -246,11 +114,11 @@ export function createRemoteLanes(ports: {
         messageBytes: 0,
       }
       h = handle
-      handles.set(info.sessionId, handle)
+      this.handles.set(info.sessionId, handle)
       try {
         h.unwatch = c.watchLane(laneId, (frame) => receive(handle, frame))
       } catch (error) {
-        handles.delete(info.sessionId)
+        this.handles.delete(info.sessionId)
         reject(new Error('Lane unavailable.'))
         throw error
       }
@@ -260,24 +128,24 @@ export function createRemoteLanes(ports: {
     try {
       await h.ready
     } catch (error) {
-      if (handles.has(h.info.sessionId)) dispose(window.id, h.info.sessionId)
+      if (this.handles.has(h.info.sessionId)) this.dispose(window.id, h.info.sessionId)
       throw error
     } finally {
       clearTimeout(timeout)
     }
     if (c.snapshot().capabilities.includes('sessions.control'))
-      void mutate(hostId, laneId, { type: 'lane.markRead', upTo: h.summary.attention }).catch(
+      void this.mutate(hostId, laneId, { type: 'lane.markRead', upTo: h.summary.attention }).catch(
         () => {},
       )
     return structuredClone(h.info)
   }
-  async function mutate(hostId: string, laneId: string | undefined, op: LaneOp) {
-    const c = connection(hostId, true)
+  private async mutate(hostId: string, laneId: string | undefined, op: LaneOp) {
+    const c = this.connection(hostId, true)
     const summary = laneId ? c.snapshot().lanes.find((l) => l.laneId === laneId) : undefined
     if (laneId && !summary) throw new Error('Lane unavailable.')
     const frame = {
       type: 'command',
-      requestId: identity.randomUUID(),
+      requestId: this.identity.randomUUID(),
       laneId,
       fence: summary?.control.fence,
       op,
@@ -286,16 +154,16 @@ export function createRemoteLanes(ports: {
     const generation = c.incarnation().generation
     const result = await c.send(op, laneId, summary?.control.fence)
     if (
-      ports.connection(hostId) !== c ||
+      this.ports.connection(hostId) !== c ||
       c.incarnation().generation !== generation ||
       c.snapshot().state !== 'ready' ||
       !c.snapshot().capabilities.includes('sessions.control')
     )
       throw new Error(REMOTE_UNAVAILABLE)
-    return settledReceipt(op, result, ports.label(hostId))
+    return settledReceipt(op, result, this.ports.label(hostId))
   }
-  async function readCall(h: Handle, capability: HostCapability, method: string, params: unknown) {
-    const c = connection(h.hostId)
+  private async readCall(h: Handle, capability: HostCapability, method: string, params: unknown) {
+    const c = this.connection(h.hostId)
     if (!c.snapshot().capabilities.includes(capability)) throw new Error(REMOTE_UNAVAILABLE)
     const generation = c.incarnation().generation
     let result
@@ -305,10 +173,10 @@ export function createRemoteLanes(ports: {
       throw new Error(REMOTE_UNAVAILABLE)
     }
     if (
-      handles.get(h.info.sessionId) !== h ||
+      this.handles.get(h.info.sessionId) !== h ||
       c.incarnation().generation !== generation ||
       !c.snapshot().lanes.some((l) => l.laneId === h.laneId) ||
-      ports.connection(h.hostId) !== c ||
+      this.ports.connection(h.hostId) !== c ||
       c.snapshot().state !== 'ready' ||
       !c.snapshot().capabilities.includes(capability)
     )
@@ -316,253 +184,170 @@ export function createRemoteLanes(ports: {
     if (!result.ok) throw new HostReadFailure(result.error.code)
     return result.data
   }
-  return {
-    open,
-    terminalLane(windowId: number, sessionId: string, workspace: string) {
-      const h = owned(windowId, sessionId)
-      if (workspace !== h.info.workspacePath) throw new Error(REMOTE_UNAVAILABLE)
-      const c = h.connection
-      return {
-        hostId: h.hostId,
-        laneId: h.laneId,
-        connection: c,
-        current: () =>
-          handles.get(sessionId) === h &&
-          h.connection === c &&
-          c === ports.connection(h.hostId) &&
-          c.snapshot().lanes.some((l) => l.laneId === h.laneId),
-      }
-    },
-    readLane(windowId: number, key?: string): WriteLane | null {
-      const target = focused.get(windowId)
-      if (!target) {
-        if (key?.startsWith('host:')) throw new Error(REMOTE_UNAVAILABLE)
-        return null
-      }
-      const h = [...handles.values()].find(
+  terminalLane = (windowId: number, sessionId: string, workspace: string) => {
+    const h = this.owned(windowId, sessionId)
+    if (workspace !== h.info.workspacePath) throw new Error(REMOTE_UNAVAILABLE)
+    const c = h.connection
+    return {
+      hostId: h.hostId,
+      laneId: h.laneId,
+      connection: c,
+      current: () =>
+        this.handles.get(sessionId) === h &&
+        h.connection === c &&
+        c === this.ports.connection(h.hostId) &&
+        c.snapshot().lanes.some((l) => l.laneId === h.laneId),
+    }
+  }
+  readLane = (windowId: number, key?: string): WriteLane | null => {
+    const target = this.focusTargets.get(windowId)
+    if (!target) {
+      if (key?.startsWith('host:')) throw new Error(REMOTE_UNAVAILABLE)
+      return null
+    }
+    const h = [...this.handles.values()].find(
+      (h) => h.window.id === windowId && h.hostId === target.hostId && h.laneId === target.laneId,
+    )
+    if (
+      !h ||
+      (key !== undefined &&
+        key !== h.info.sessionId &&
+        key !== h.info.workspacePath &&
+        !key.startsWith(`${h.info.workspacePath}/`))
+    )
+      throw new Error(REMOTE_UNAVAILABLE)
+    return {
+      laneId: h.laneId,
+      workspacePath: h.info.workspacePath,
+      write: async (op) => {
+        const c = this.connection(h.hostId, true)
+        const current = this.focusTargets.get(windowId)
+        const summary = c.snapshot().lanes.find((l) => l.laneId === h.laneId)
+        if (
+          !summary ||
+          this.ports.connection(h.hostId) !== h.connection ||
+          this.handles.get(h.info.sessionId) !== h ||
+          current?.hostId !== h.hostId ||
+          current.laneId !== h.laneId ||
+          !c.snapshot().capabilities.includes('workspaces.write')
+        )
+          throw new Error(REMOTE_UNAVAILABLE)
+        const receipt = await c.send(op, h.laneId, summary.control.fence)
+        const after = this.focusTargets.get(windowId)
+        if (
+          this.handles.get(h.info.sessionId) !== h ||
+          this.ports.connection(h.hostId) !== c ||
+          c.snapshot().state !== 'ready' ||
+          !c.snapshot().lanes.some((lane) => lane.laneId === h.laneId) ||
+          !c.snapshot().capabilities.includes('workspaces.write') ||
+          !c.snapshot().capabilities.includes('sessions.control') ||
+          after?.hostId !== h.hostId ||
+          after.laneId !== h.laneId
+        )
+          throw new Error(REMOTE_UNAVAILABLE)
+        if (receipt.status === 'rejected' && receipt.code === 'conflict')
+          throw new Error('changed-on-disk')
+        if (receipt.status !== 'done') throw new Error('File mutation not confirmed.')
+        return receipt.data
+      },
+      call: async (capability, method, params) => {
+        const focus = this.focusTargets.get(windowId)
+        const data = await this.readCall(h, capability, method, params)
+        const current = this.focusTargets.get(windowId)
+        if (current !== focus || current?.hostId !== h.hostId || current.laneId !== h.laneId)
+          throw new Error(REMOTE_UNAVAILABLE)
+        return data
+      },
+    }
+  }
+  create = async (window: RemoteWindow, hostId: string, input: RemoteLaneCreate) => {
+    // Do not carry Host error details or causes across IPC.
+    const result = await this.mutate(hostId, undefined, {
+      ...input,
+      type: 'lane.create',
+      worktree: input.worktree ?? null,
+    }).catch(createFailureText)
+    if (typeof result === 'string') throw new Error(result)
+    if (result.status !== 'done' || !result.laneId) throw new Error('Lane creation not confirmed.')
+    return this.open(window, hostId, result.laneId)
+  }
+  action = async (hostId: string, laneId: string, action: LaneAction) => {
+    const summary = this.connection(hostId, true)
+      .snapshot()
+      .lanes.find((l) => l.laneId === laneId)
+    await this.mutate(hostId, laneId, laneActionOp(action, summary?.attention ?? 0))
+  }
+  /** A read of a lane this window opened, answered by its Host; the reads are in lane-reads. */
+  onLane = <T>(windowId: number, id: string, read: LaneRead<T>): Promise<T> => {
+    const h = this.owned(windowId, id)
+    return read(this.connection(h.hostId), h.laneId)
+  }
+  command = async (windowId: number, id: string, command: RpcCommand) =>
+    laneCommand(this.owned(windowId, id), command, {
+      identity: this.identity,
+      label: this.ports.label,
+      connection: (hostId, control) => this.connection(hostId, control),
+      current: () => this.handles.has(id),
+    })
+  respond = async (windowId: number, id: string, response: ExtensionUIResponse) => {
+    const h = this.owned(windowId, id)
+    await this.mutate(h.hostId, h.laneId, { type: 'extension_ui_response', response })
+  }
+  list = (windowId: number) =>
+    [...this.handles.values()]
+      .filter((h) => h.window.id === windowId)
+      .map((h) => structuredClone(h.info))
+  setFocused = (windowId: number, target: { hostId: string; laneId: string } | null) => {
+    if (target === null) {
+      this.focusTargets.delete(windowId)
+      return
+    }
+    if (
+      !target ||
+      typeof target.hostId !== 'string' ||
+      typeof target.laneId !== 'string' ||
+      ![...this.handles.values()].some(
         (h) => h.window.id === windowId && h.hostId === target.hostId && h.laneId === target.laneId,
       )
-      if (
-        !h ||
-        (key !== undefined &&
-          key !== h.info.sessionId &&
-          key !== h.info.workspacePath &&
-          !key.startsWith(`${h.info.workspacePath}/`))
-      )
-        throw new Error(REMOTE_UNAVAILABLE)
-      return {
-        laneId: h.laneId,
-        workspacePath: h.info.workspacePath,
-        async write(op) {
-          const c = connection(h.hostId, true)
-          const current = focused.get(windowId)
-          const summary = c.snapshot().lanes.find((l) => l.laneId === h.laneId)
-          if (
-            !summary ||
-            ports.connection(h.hostId) !== h.connection ||
-            handles.get(h.info.sessionId) !== h ||
-            current?.hostId !== h.hostId ||
-            current.laneId !== h.laneId ||
-            !c.snapshot().capabilities.includes('workspaces.write')
-          )
-            throw new Error(REMOTE_UNAVAILABLE)
-          const receipt = await c.send(op, h.laneId, summary.control.fence)
-          const after = focused.get(windowId)
-          if (
-            handles.get(h.info.sessionId) !== h ||
-            ports.connection(h.hostId) !== c ||
-            c.snapshot().state !== 'ready' ||
-            !c.snapshot().lanes.some((lane) => lane.laneId === h.laneId) ||
-            !c.snapshot().capabilities.includes('workspaces.write') ||
-            !c.snapshot().capabilities.includes('sessions.control') ||
-            after?.hostId !== h.hostId ||
-            after.laneId !== h.laneId
-          )
-            throw new Error(REMOTE_UNAVAILABLE)
-          if (receipt.status === 'rejected' && receipt.code === 'conflict')
-            throw new Error('changed-on-disk')
-          if (receipt.status !== 'done') throw new Error('File mutation not confirmed.')
-          return receipt.data
-        },
-        async call(capability, method, params) {
-          const focus = focused.get(windowId)
-          const data = await readCall(h, capability, method, params)
-          const current = focused.get(windowId)
-          if (current !== focus || current?.hostId !== h.hostId || current.laneId !== h.laneId)
-            throw new Error(REMOTE_UNAVAILABLE)
-          return data
-        },
-      }
-    },
-    async create(window: RemoteWindow, hostId: string, input: RemoteLaneCreate) {
-      // Do not carry Host error details or causes across IPC.
-      const result = await mutate(hostId, undefined, {
-        ...input,
-        type: 'lane.create',
-        worktree: input.worktree ?? null,
-      }).catch(createFailureText)
-      if (typeof result === 'string') throw new Error(result)
-      if (result.status !== 'done' || !result.laneId)
-        throw new Error('Lane creation not confirmed.')
-      return open(window, hostId, result.laneId)
-    },
-    async action(hostId: string, laneId: string, action: LaneAction) {
-      const summary = connection(hostId, true)
-        .snapshot()
-        .lanes.find((l) => l.laneId === laneId)
-      await mutate(hostId, laneId, laneActionOp(action, summary?.attention ?? 0))
-    },
-    /** A read of a lane this window opened, answered by its Host; the reads are in lane-reads. */
-    onLane<T>(windowId: number, id: string, read: LaneRead<T>): Promise<T> {
-      const h = owned(windowId, id)
-      return read(connection(h.hostId), h.laneId)
-    },
-    async command(windowId: number, id: string, command: RpcCommand): Promise<RpcResponse> {
-      const h = owned(windowId, id)
-      const base = { type: 'response' as const, command: command.type, id: command.id }
-      const op = laneOperation(command)
-      if (!op) return { ...base, success: false, error: REMOTE_UNAVAILABLE }
-      try {
-        const c = connection(h.hostId, typeof op !== 'string')
-        if (command.type === 'get_state') {
-          if (!h.hydration) {
-            try {
-              const result = await c.call('lane.state', { laneId: h.laneId })
-              if (result.ok && record(result.data)) {
-                const { sessionFile: _file, ...state } = result.data
-                h.lastState = state
-                return { ...base, success: true, data: { ...state, sessionId: id } }
-              }
-            } catch {
-              // A stopped or unavailable Host keeps the last projected state usable.
-            }
-          }
-          const state = h.hydration
-            ? (h.hydration.view.state ?? h.lastState)
-            : (h.lastState ?? h.projection.view().state)
-          const summary = h.hydration?.summary ?? h.summary
-          if (!state) return { ...base, success: false, error: 'Lane is stopped.' }
-          const { sessionFile: _file, ...safe } = state
-          return {
-            ...base,
-            success: true,
-            data: {
-              ...safe,
-              sessionId: id,
-              sessionName: summary.title ?? undefined,
-              // Never relabel stale model metadata with a different model's ids.
-              model:
-                record(safe.model) &&
-                (!summary.model ||
-                  (safe.model.provider === summary.model.provider &&
-                    safe.model.id === summary.model.id))
-                  ? safe.model
-                  : undefined,
-              isStreaming: summary.activity === 'working',
-              messageCount: (h.hydration?.view ?? h.projection.view()).messages.length,
-            },
-          }
-        }
-        if (command.type === 'get_messages') {
-          // IPC replies hydrate first, then replay the unfinished turn and UI.
-          const hydration = h.hydration
-          if (hydration) {
-            clearTimeout(hydration.timer)
-            hydration.timer = setTimeout(() => {
-              if (handles.has(id) && h.hydration === hydration) flush(h)
-            }, 0)
-          }
-          return {
-            ...base,
-            success: true,
-            data: { messages: (h.hydration?.view ?? h.projection.view()).messages },
-          }
-        }
-        if (typeof op === 'string') {
-          const result = await c.call(op, { laneId: h.laneId })
-          let data: unknown = result.ok ? result.data : undefined
-          if (op === 'lane.stats' && record(data)) {
-            const { sessionFile: _file, ...stats } = data
-            data = { ...stats, sessionId: id }
-          }
-          return result.ok
-            ? { ...base, success: true, data }
-            : { ...base, success: false, error: result.error.message }
-        }
-        if (
-          (op.type === 'prompt' || op.type === 'steer' || op.type === 'follow_up') &&
-          op.images?.length &&
-          utf8Length(
-            JSON.stringify({
-              type: 'command',
-              requestId: identity.randomUUID(),
-              laneId: h.laneId,
-              fence: h.summary.control.fence,
-              trace: identity.randomHex(8),
-              op,
-            }),
-          ) >
-            HOST_LIMITS.inboundFrameBytes - 1024
-        )
-          return { ...base, success: false, error: 'Image too large for a remote lane.' }
-        const result = await sendToLane(c, op, h.laneId, h.summary.control.fence)
-        return { ...receiptResponse(command.type, result, ports.label(h.hostId)), id: command.id }
-      } catch {
-        return { ...base, success: false, error: REMOTE_UNAVAILABLE }
-      }
-    },
-    async respond(windowId: number, id: string, response: ExtensionUIResponse) {
-      const h = owned(windowId, id)
-      await mutate(h.hostId, h.laneId, { type: 'extension_ui_response', response })
-    },
-    dispose,
-    list: (windowId: number) =>
-      [...handles.values()]
-        .filter((h) => h.window.id === windowId)
-        .map((h) => structuredClone(h.info)),
-    setFocused(windowId: number, target: { hostId: string; laneId: string } | null) {
-      if (target === null) {
-        focused.delete(windowId)
-        return
-      }
-      if (
-        !target ||
-        typeof target.hostId !== 'string' ||
-        typeof target.laneId !== 'string' ||
-        ![...handles.values()].some(
-          (h) =>
-            h.window.id === windowId && h.hostId === target.hostId && h.laneId === target.laneId,
-        )
-      )
-        throw new Error('Lane unavailable.')
-      focused.set(windowId, { hostId: target.hostId, laneId: target.laneId })
-    },
-    focused: (hostId: string, laneId: string, windowId: number) => {
-      const target = focused.get(windowId)
-      return target?.hostId === hostId && target.laneId === laneId
-    },
-    closeWindow(windowId: number) {
-      focused.delete(windowId)
-      for (const [id, h] of handles) if (h.window.id === windowId) dispose(windowId, id)
-    },
-    clear() {
-      focused.clear()
-      for (const [id, h] of handles) dispose(h.window.id, id)
-    },
-    reconcile() {
-      for (const h of handles.values()) {
-        if (!ports.present(h.hostId)) {
-          dispose(h.window.id, h.info.sessionId)
-          continue
-        }
-        const c = ports.connection(h.hostId)
-        if (c && c !== h.connection) {
-          h.unwatch()
-          h.connection = c
-          h.unwatch = c.watchLane(h.laneId, (frame) => receive(h, frame))
-        }
-      }
-    },
+    )
+      throw new Error('Lane unavailable.')
+    this.focusTargets.set(windowId, { hostId: target.hostId, laneId: target.laneId })
   }
+  focused = (hostId: string, laneId: string, windowId: number) => {
+    const target = this.focusTargets.get(windowId)
+    return target?.hostId === hostId && target.laneId === laneId
+  }
+  closeWindow = (windowId: number) => {
+    this.focusTargets.delete(windowId)
+    for (const [id, h] of this.handles) if (h.window.id === windowId) this.dispose(windowId, id)
+  }
+  clear = () => {
+    this.focusTargets.clear()
+    for (const [id, h] of this.handles) this.dispose(h.window.id, id)
+  }
+  reconcile = () => {
+    for (const h of this.handles.values()) {
+      if (!this.ports.present(h.hostId)) {
+        this.dispose(h.window.id, h.info.sessionId)
+        continue
+      }
+      const c = this.ports.connection(h.hostId)
+      // A refused subscription sends no lane events. Watch the machine listing for Resume,
+      // including when another device resumes a lane this window is only observing.
+      const lane = h.previewUnavailable && c?.snapshot().lanes.find((l) => l.laneId === h.laneId)
+      if (
+        c &&
+        (c !== h.connection || (h.previewUnavailable && lane && !isStopped(lane.activity)))
+      ) {
+        h.previewUnavailable = false
+        h.unwatch()
+        h.connection = c
+        h.unwatch = c.watchLane(h.laneId, (frame) => receive(h, frame))
+      }
+    }
+  }
+}
+export function createRemoteLanes(ports: LanePorts) {
+  return new RemoteLaneClient(ports)
 }
 export type RemoteLanes = ReturnType<typeof createRemoteLanes>
