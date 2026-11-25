@@ -63,8 +63,9 @@ export function createRunAccounts(
   context: RunContext,
   directory: string,
   env: Record<string, string>,
+  log: HostMachine['log']['write'],
 ) {
-  return createHostClaudeAccounts({ directory, home: context.home, env })
+  return createHostClaudeAccounts({ directory, home: context.home, env, log })
 }
 
 function features(

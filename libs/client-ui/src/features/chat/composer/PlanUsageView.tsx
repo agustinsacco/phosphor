@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { TooltipButton } from '@/components/Tooltip'
 import { RefreshIcon, Spinner } from '@/components/icons'
-import { useMachinesStore } from '@/stores/machines'
+import { useUsageMachineLabel } from './useUsageMachineLabel'
 import { useSessionsStore } from '@/stores/sessions'
 import {
   compactReset,
@@ -26,8 +26,7 @@ export function HostPlanUsage({ sessionId }: { sessionId: string }): React.JSX.E
   const live = useSessionsStore((s) => s.live[sessionId])
   const hostId = live?.target?.kind === 'remote' ? live.target.hostId : undefined
   const laneId = live?.laneId
-  const machine =
-    useMachinesStore((s) => s.machines.find((m) => m.id === hostId)?.label) ?? 'remote machine'
+  const machine = useUsageMachineLabel(hostId)
   const [state, setState] = useState<ClaudeUsageSnapshotResult | 'unsupported' | null>(null)
   const [reload, setReload] = useState(0)
   useEffect(() => {

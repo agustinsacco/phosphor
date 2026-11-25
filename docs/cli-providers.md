@@ -53,7 +53,10 @@ not a direct structured-history API; this is continuity, not identical wire inpu
   is fixed for the life of the process; moving a lane is a respawn.
 - **Each account's `/usage` probe runs in its own config dir**
   (`<userData>/claude-accounts/usage/<id>`, `usageProbeEnv` in
-  `libs/session-runtime/src/claude/routing.ts`). The CLI caches a usage snapshot in
+  `libs/session-runtime/src/claude/routing.ts`). The probe starts in a temporary
+  working directory, not the lane or the user’s home, so project instructions,
+  settings and MCP configuration from those directories do not load.
+  The CLI caches a usage snapshot in
   `.claude.json` under that file's shared `oauthAccount`, answers from it for
   a minute without asking, and falls back to it for an hour when the endpoint
   fails. On the shared `~/.claude.json` one account's numbers were shown for

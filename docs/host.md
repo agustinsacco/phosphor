@@ -2299,7 +2299,10 @@ of label, kind, percent used and reset time) or
 `{ok: false, error: claude-not-found|run-failed|no-usage}`. The CLI's free-text
 "contributing" block never leaves the Host. A success is reused for 60 seconds;
 `force` bypasses that unless the account was read in the last 10 seconds.
-Failures are not cached. An unknown or removed lane is `unknown-lane`. Unlike the
+Failures are not cached. If the probe fails after a successful reading, the Host
+returns that account’s last snapshot with its original `fetchedAt` and `stale: true`.
+A failed CLI run logs the account id, reason and elapsed milliseconds, never the
+environment or command output. An unknown or removed lane is `unknown-lane`. Unlike the
 other machine reads it does not wait in the pi probe queue, since it runs the
 Claude CLI and concurrent callers share one run per account.
 
