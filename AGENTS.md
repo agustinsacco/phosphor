@@ -48,7 +48,9 @@ appear on your screen.
 
 1. **One runtime owns This Mac’s lanes per launch.** Desktop main decides before
    starting sessions: in-app, or the [local service](docs/local-service.md) over
-   its owner socket. In service mode do not fall back to in-app data or start a
+   its owner socket. Packaged macOS and Linux builds default to the service (a
+   per-user launchd agent or systemd user unit): Desktop installs it in standby
+   while in-app, then moves lanes to it once, at a later launch. In service mode do not fall back to in-app data or start a
    second runtime on disconnect. The sandboxed renderer is UI over typed IPC;
    Electron bindings stay in main, reusable Node logic in `libs/*`.
 2. **IPC is a typed contract.** A new channel is an entry in its prefix's map under

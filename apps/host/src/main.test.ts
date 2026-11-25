@@ -2,6 +2,7 @@ import { homedir, hostname } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Cli from './cli'
 import type * as Probe from './machine/probe'
+import type * as AccountProbes from './providers/account-probes'
 import type * as ShutdownModule from './shutdown'
 
 // main.ts is the built entry: importing it wires the real process to the
@@ -12,9 +13,11 @@ const ports = vi.hoisted(() => ({
   createShutdown: vi.fn<typeof ShutdownModule.createShutdown>(),
   flushStreams: vi.fn<typeof ShutdownModule.flushStreams>(),
   stopProbes: vi.fn<typeof Probe.stopProbes>(),
+  stopUsageProbes: vi.fn<typeof AccountProbes.stopUsageProbes>(),
 }))
 vi.mock('./cli', () => ({ runCli: ports.runCli }))
 vi.mock('./machine/probe', () => ({ stopProbes: ports.stopProbes }))
+vi.mock('./providers/account-probes', () => ({ stopUsageProbes: ports.stopUsageProbes }))
 vi.mock('./shutdown', async (importOriginal) => ({
   ...(await importOriginal<typeof ShutdownModule>()),
   createShutdown: ports.createShutdown,
@@ -65,6 +68,7 @@ beforeEach(() => {
   })
   ports.flushStreams.mockReset().mockReturnValue(flush)
   ports.stopProbes.mockReset()
+  ports.stopUsageProbes.mockReset()
   ports.runCli.mockReset().mockImplementation(async () => {
     calls.push('runCli')
     return 0
@@ -161,7 +165,9 @@ describe('the Host entry shutdown ports', () => {
     expect(streams[0]).toBe(process.stdout)
     expect(streams[1]).toBe(process.stderr)
     expect(io.flush).toBe(flush)
-    expect(io.stopProbes).toBe(ports.stopProbes)
+    io.stopProbes()
+    expect(ports.stopProbes).toHaveBeenCalledOnce()
+    expect(ports.stopUsageProbes).toHaveBeenCalledOnce()
     io.stderr('fatal: boom\n')
     expect(stderr).toHaveBeenCalledExactlyOnceWith('fatal: boom\n')
     expect(() => io.exit(70)).toThrow('process.exit(70) reached the test runner')

@@ -168,11 +168,13 @@ export function runUsageCommand(
   binary: string,
   env: NodeJS.ProcessEnv,
   cwd: string,
+  signal?: AbortSignal,
 ) {
   return print(binary, ['-p', '/usage', '--output-format', 'json', '--no-session-persistence'], {
     cwd,
     env,
     timeoutMs: 20_000,
+    ...(signal ? { signal } : {}),
   })
 }
 
@@ -289,10 +291,5 @@ export function createClaudeUsage(ports: ClaudeUsagePorts) {
     else cached.delete(cacheKey)
   }
 
-  return {
-    cachedUsageSnapshot,
-    fetchUsageSnapshot,
-    clearUsageCache,
-    lastUsageSnapshot: (key: string) => cached.get(key)?.snapshot ?? null,
-  }
+  return { cachedUsageSnapshot, fetchUsageSnapshot, clearUsageCache }
 }

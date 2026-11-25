@@ -33,9 +33,17 @@ export function useAutoResizeTextarea(
       // (or a smaller CSS max-height, as a phone sets beside its keyboard).
       // The reset collapses the field for a moment, which moves its scroll. Put
       // it back, and while typing at the end keep the last line in view.
+      // The box around the field holds its height meanwhile: reading
+      // scrollHeight lays the page out, and a collapsed composer there grows
+      // the transcript above it, whose browser-clamped scrollTop then flickers
+      // the pinned tail on every keystroke.
       const top = el.scrollTop
+      const box = el.parentElement
+      const boxHeight = box?.style.height ?? ''
+      if (box) box.style.height = `${box.offsetHeight}px`
       el.style.height = 'auto'
       el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+      if (box) box.style.height = boxHeight
       const typingAtEnd = document.activeElement === el && el.selectionEnd === el.value.length
       el.scrollTop = typingAtEnd ? el.scrollHeight : top
     }
