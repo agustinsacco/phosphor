@@ -131,8 +131,8 @@ it('uploads before prompting and uses the Host path, never the picked local path
   expect(useDraftsStore.getState().get(key).attachments).toEqual([])
 })
 it('never prompts on upload uncertainty, restores text and document bytes', async () => {
-  vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (channel) => {
-    if (channel === 'hosts:uploadAttachments')
+  vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (...args) => {
+    if (args[0] === 'hosts:uploadAttachments')
       throw new Error('Upload not confirmed. Attach again.')
     return undefined
   })
