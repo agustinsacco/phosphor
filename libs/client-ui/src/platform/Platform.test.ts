@@ -22,6 +22,7 @@ it('the phone and the wide browser differ only in form factor', () => {
 
 /* Every Desktop/browser difference is a declared capability; a new one must be added here. */
 it('Desktop and the browser differ only in the capabilities each declares', () => {
+  const DESKTOP_PLATFORM = desktopPlatform(true, false)
   expect(differing(DESKTOP_PLATFORM, WIDE_BROWSER_PLATFORM)).toEqual([
     'appInfo',
     'appShortcuts',
@@ -42,6 +43,12 @@ it('Desktop and the browser differ only in the capabilities each declares', () =
     'splitPanes',
     'writingAssist',
   ])
+})
+
+it('does not grant Brain by default', () => {
+  expect(DESKTOP_PLATFORM.localBrain).toBe(false)
+  expect(COMPACT_PLATFORM.localBrain).toBe(false)
+  expect(WIDE_BROWSER_PLATFORM.localBrain).toBe(false)
 })
 
 it('does not grant Brain when there is no platform provider', () => {

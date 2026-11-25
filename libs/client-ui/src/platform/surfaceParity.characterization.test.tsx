@@ -190,6 +190,7 @@ it("This Mac's lanes and a controlled Host lane list the same, all enabled Sessi
 })
 
 it('Settings differs between clients only by the capabilities each declares', () => {
+  const DESKTOP_PLATFORM = desktopPlatform(true, false)
   const ids = (platform: Platform, machine: 'local' | 'host' | null): string[] =>
     visibleSections(platform, machine).map((section) => section.id)
   for (const machine of ['local', 'host', null] as const)

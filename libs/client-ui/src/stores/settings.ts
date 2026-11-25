@@ -12,6 +12,7 @@ interface SettingsState {
   resolvedTheme: 'light' | 'dark'
   /** From pi's settings.json — hide thinking blocks in chat. */
   hideThinkingBlock: boolean
+  brainPreview: boolean
   fonts: FontPrefs
   setTheme: (theme: ThemePreference) => void
   setFonts: (fonts: Partial<FontPrefs>) => void
@@ -53,6 +54,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
     resolvedTheme: resolve('dark'),
     hideThinkingBlock: false,
     fonts: DEFAULT_FONT_PREFS,
+    brainPreview: false,
 
     loadAgentSettings: async (workspacePath) => {
       const settings = await window.phosphor.invoke('pi:agentSettings', workspacePath)
@@ -78,7 +80,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       const resolved = resolve(prefs.theme)
       applyToDom(resolved)
       applyFontsToDom(prefs.fonts)
-      set({ theme: prefs.theme, resolvedTheme: resolved, fonts: prefs.fonts })
+      set({
+        theme: prefs.theme,
+        resolvedTheme: resolved,
+        fonts: prefs.fonts,
+        brainPreview: prefs.brainPreview === true,
+      })
       // Lane prefs live in their own leaf store (no DOM dependency); this is
       // the one prefs round-trip, so it fills them too.
       useLanePrefsStore.getState().applyLanePrefs(prefs.lanes)

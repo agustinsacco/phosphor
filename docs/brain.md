@@ -12,7 +12,10 @@ Host or another Desktop. The PWA has no local Brain.
 
 ## Turn it on
 
-Open **Settings › Brain**. Read the embedding model's terms and turn Brain on to download it.
+**Settings › Brain** is hidden unless Brain is already on at launch or you opt into the preview.
+To preview it, quit Desktop, set `"brainPreview": true` in Phosphor's `<userData>/config.json`,
+and relaunch. The preview only shows the section; it does not turn Brain on. Read the embedding
+model's terms in **Settings › Brain**, then turn Brain on to download it.
 The embedding model runs locally. The reader is separate: **Model that reads lanes** defaults
 to each lane's own model. You can choose one reader for all lanes. A job keeps the reader it
 starts with, including on Retry.
@@ -25,7 +28,9 @@ starts with, including on Retry.
   patterns of 80 characters each. You can also exclude individual lanes in their menus.
 
 Turning Brain off pauses reads and disables its tools. It keeps the knowledge and local model.
-**Remove model** is available while Brain is off. **Reset Brain knowledge** needs confirmation.
+The Brain navigation link goes away, but Settings keeps the section until you quit so you can
+turn it back on or choose **Remove model** or **Reset Brain knowledge**. The section is hidden
+on the next launch if Brain is off and the preview is not set. Reset needs confirmation.
 It deletes the knowledge, reads, records, suggestions, journal and runs. Settings and the model stay.
 
 ## Read a lane
