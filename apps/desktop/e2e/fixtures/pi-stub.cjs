@@ -600,6 +600,7 @@ function handle(cmd) {
         })
         break
       }
+      if (require('./pi-stub-busy.cjs').answerHeldPrompt(cmd, out)) break
       if (compacting) {
         out({
           id: cmd.id,
@@ -622,6 +623,7 @@ function handle(cmd) {
       // Scenario switches leave the default turn unchanged.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
       if (brainStub.handleAgentPrompt(message, out, persist)) break
+      if (require('./pi-stub-busy.cjs').runBusyScenario(message, out)) break
       if (message === 'LOCAL_ONLY fail-turn') {
         const failed = {
           role: 'assistant',

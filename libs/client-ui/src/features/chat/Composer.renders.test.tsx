@@ -45,7 +45,14 @@ const { Composer } = await import('./Composer')
  * the chat store themselves, and while a turn streams, rendering them again on
  * every key competed with the transcript for the same frames.
  */
-it('typing re-renders none of the strips and readouts around the field', async () => {
+it('typing re-renders none of the strips and readouts around the field', async ({
+  onTestFinished,
+}) => {
+  // Count subscription renders, not the working strip's own elapsed-time ticks.
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
   useChatStore.getState().ensure('s1')
   useChatStore.setState((s) => ({
     sessions: {
