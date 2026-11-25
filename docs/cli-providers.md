@@ -126,9 +126,17 @@ to cut it.
   cap the session window. pi retains its normal response reserve: a 400k budget
   with the default reserve compacts above 383,616 tokens. Catalogue models and
   global pi settings are unchanged. Phosphor requires pi 1.2.0 or newer.
-- Main sends `/phosphor-context-budget` at startup, before prompts, after the
-  auto-compaction toggle, and when the preference changes. This extension
-  command runs no model. Changes during a run wait for the next completed tool
+- Desktop and Host stage the cap with `/phosphor-context-budget` at startup
+  and again on the first idle prompt of each pi process, from that prompt's
+  one `get_state`. A later idle prompt stages it only when it can have
+  changed: that read shows a different session, model or auto-compaction
+  state, the budget setting differs, or the lane ran a reload, `set_model`,
+  `cycle_model`, `new_session`, `switch_session`, `fork`, `clone` or a slash
+  command since. A failed budget command is retried on the next idle prompt.
+  A prompt sent during a run joins it and skips the budget command. Desktop
+  stages a changed setting in every live lane at once; the Host reads it at
+  each lane's next idle prompt. The auto-compaction toggle stages its change
+  immediately. The budget command runs no model. Changes during a run wait for the next completed tool
   cycle so model-select hooks cannot retire an active Claude request. Idle
   changes apply immediately; model switches reapply the cap. Smaller windows
   are never enlarged, and opting out restores the catalogue capacity.

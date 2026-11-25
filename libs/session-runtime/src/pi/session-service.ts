@@ -1,7 +1,11 @@
 import { access } from 'node:fs/promises'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
-import { syncContextBudget, type createContextBudgetRuntime } from './context-budget'
+import {
+  forgetStagedBudget,
+  syncContextBudget,
+  type createContextBudgetRuntime,
+} from './context-budget'
 import { assertClaudeContextProvider } from './provider-detect'
 import { sessionPathKey, type SessionPathRuntime } from './session-path-lock'
 import type { SessionExecution, SessionPolicyRuntime } from './session-policy'
@@ -132,13 +136,26 @@ async function preflightCommand<Delivery>(
       !state.data.isStreaming &&
       !state.data.isCompacting &&
       !command.message.startsWith('/phosphor-')
-    )
-      await runtime.laneReload.beforePrompt(id, live.client, live.workspacePath)
+    ) {
+      const reload = await runtime.laneReload.beforePrompt(id, live.client, live.workspacePath)
+      if (reload === 'applied' || reload === 'failed') forgetStagedBudget(live.client)
+    }
     if (state.data.model?.provider === 'pi-claude-cli')
       assertClaudeContextProvider(await runtime.packages(live.workspacePath))
-    await syncContextBudget(live.client, runtime.readBudget())
+    if (!state.data.isStreaming)
+      await syncContextBudget(live.client, runtime.readBudget(), state.data)
   }
 }
+
+/** Commands after which pi can hold a different model or session, so the next idle prompt restages. */
+const RESTAGES_BUDGET = new Set<RpcCommand['type']>([
+  'set_model',
+  'cycle_model',
+  'new_session',
+  'switch_session',
+  'fork',
+  'clone',
+])
 
 async function dispatchCommand<Delivery>(
   runtime: SessionServiceRuntime<Delivery>,
@@ -150,6 +167,12 @@ async function dispatchCommand<Delivery>(
   // Ownership may change while a command waits behind compaction.
   assertManualCommand(admission, id, command)
   await preflightCommand(runtime, live, id, command)
+  // A slash command can reload extensions or change their staged settings directly.
+  if (
+    RESTAGES_BUDGET.has(command.type) ||
+    (command.type === 'prompt' && command.message.startsWith('/'))
+  )
+    forgetStagedBudget(live.client)
   const result = await live.client.request(command)
   if (!runtime.isStub() && command.type === 'set_auto_compaction' && result.success) {
     await syncContextBudget(live.client, runtime.readBudget())

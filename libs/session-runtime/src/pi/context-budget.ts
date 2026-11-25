@@ -1,6 +1,6 @@
 import { contextBudgetTokens, sessionContextBudget } from '@shared/context-budget'
 import type { PiRpcClient } from './rpc-client'
-import type { RpcCommand } from '@shared/rpc'
+import type { RpcCommand, RpcSessionState } from '@shared/rpc'
 import type { RuntimeLog } from '../file-log'
 
 interface BudgetGate {
@@ -24,19 +24,47 @@ function enqueue<T>(gate: BudgetGate, action: () => Promise<T>): Promise<T> {
   return result
 }
 
-/** Stage a cap inside pi. Its next safe boundary applies it without aborting work. */
-export async function syncContextBudget(
-  client: Pick<PiRpcClient, 'request'>,
-  rawBudget: string,
-): Promise<void> {
+type BudgetClient = Pick<PiRpcClient, 'request'>
+// A new pi process always gets its own first prompt check, even on transcript resume.
+const staged = new WeakMap<BudgetClient, string>()
+
+export function forgetStagedBudget(client: BudgetClient): void {
+  staged.delete(client)
+}
+
+async function readBudgetState(client: BudgetClient): Promise<RpcSessionState> {
   const state = await client.request({ type: 'get_state' })
   if (!state.success || !state.data) throw new Error('Cannot read pi context budget state.')
-  const budget = state.data.autoCompactionEnabled ? contextBudgetTokens(rawBudget) : null
+  return state.data
+}
+
+/** Explicit updates always stage; prompt preflight supplies its already verified state. */
+export async function syncContextBudget(
+  client: BudgetClient,
+  rawBudget: string,
+  promptState?: RpcSessionState,
+): Promise<void> {
+  const state = promptState ?? (await readBudgetState(client))
+  const { model, autoCompactionEnabled } = state
+  const budget = autoCompactionEnabled ? contextBudgetTokens(rawBudget) : null
+  const key = JSON.stringify([
+    state.sessionId,
+    model?.provider,
+    model?.id,
+    autoCompactionEnabled,
+    budget,
+  ])
+  if (promptState && staged.get(client) === key) return
+  // Startup stages before the first prompt verifies the active model. Later explicit
+  // updates (preferences or the compaction toggle) keep that verified cache current.
+  const remember = promptState !== undefined || staged.has(client)
+  forgetStagedBudget(client)
   const result = await client.request({
     type: 'prompt',
     message: `/phosphor-context-budget ${budget ?? 'off'}`,
   })
   if (!result.success) throw new Error(result.error ?? 'Cannot apply pi context budget.')
+  if (remember) staged.set(client, key)
 }
 
 /** A failed check leaves the session alone; a failed compaction is reported by pi. */
