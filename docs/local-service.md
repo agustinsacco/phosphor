@@ -1,6 +1,11 @@
 # This Mac’s Phosphor service
 
-Packaged Desktop automatically moves This Mac’s lanes to the service **once**, when a compatible signed release is available. It installs the service in standby while still running in-app, then migrates at the next eligible launch. Both the signed v2 manifest and the staged program must advertise `local-mode` and `owner-socket`. An older bundle does not trigger the move. **Settings → Advanced** shows its state and offers recovery actions.
+On packaged macOS and Linux builds, This Mac’s lanes run in the Phosphor service: the Host as a per-user launchd agent (macOS) or systemd user unit (Linux). Quitting Desktop does not stop them. Windows keeps the in-app runtime; development builds install no service. Desktop decides the runtime once per launch, in `local-machine/launch.ts`.
+
+- **A new install** starts in-app. Its first launch installs the service in standby, and the next launch moves This Mac to it with the same one-time migration, which has little or nothing to move.
+- **An existing in-app install** does the same when a compatible signed release is available: standby install while in-app, then the one-time migration of its lanes, routines and device state at the next eligible launch ([Handing over existing lanes](#handing-over-existing-lanes)).
+
+Both the signed v2 manifest and the staged program must advertise `local-mode` and `owner-socket`; an older bundle does not trigger the move. After the move Desktop stays in service mode and never falls back to in-app; only the [break-glass restore](#break-glass-restore) returns to it. **Settings → Advanced** shows the state and offers recovery actions. A service installed before the [Standard priority](#installation-and-launch) default needs a one-time reinstall to get it.
 
 Opening a stopped service lane starts pi in the background while you type. The service
 advertises this policy on both the owner socket and its enrolled connection. Only the opened

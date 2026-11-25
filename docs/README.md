@@ -33,7 +33,7 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 | [testing.md](testing.md)                       | Test layout, frozen interfaces, coverage evidence and CI guardrails     |
 | [pi-integration.md](pi-integration.md)         | pi's RPC protocol and session format                                    |
 | [host.md](host.md)                             | Host CLI, machine identity, environment, checks and acceptance sessions |
-| [local-service.md](local-service.md)           | This Mac’s runtime, migration, service UI and break-glass restore       |
+| [local-service.md](local-service.md)           | This Mac’s default service runtime, migration, recovery and restore     |
 | [remote-access.md](remote-access.md)           | Remote entry point, end-to-end flow and trust boundaries                |
 | [control-plane.md](control-plane.md)           | Site and account API server, authentication ports and configuration     |
 | [usage-analytics.md](usage-analytics.md)       | Anonymous download and usage counters, the owner-only admin summary     |
