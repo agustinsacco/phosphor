@@ -1,7 +1,6 @@
 import { closeSync, constants, fstatSync, openSync, realpathSync, statSync } from 'node:fs'
-import type { AgentMessage } from '@phosphor/shared/rpc'
 import { PreviewRefused } from './lines'
-import { readPreview } from './preview'
+import { readPreview, type TranscriptPreview } from './preview'
 import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
 import type { TranscriptCache } from './cache'
 
@@ -9,7 +8,7 @@ const FILE_BYTES = 2 * 1024 ** 3
 type TranscriptUnreadableReason = 'open' | 'type' | 'outside' | 'parse'
 export type TranscriptFailureReason = TranscriptUnreadableReason | PreviewRefused['reason']
 export type TranscriptReadResult =
-  | { kind: 'messages'; messages: AgentMessage[] }
+  | ({ kind: 'messages' } & TranscriptPreview)
   | { kind: 'missing' }
   | { kind: 'unreadable'; reason: TranscriptUnreadableReason }
   | { kind: 'too-large' }
@@ -48,9 +47,9 @@ export function readTranscript(options: {
     if (stat.size > FILE_BYTES) return failed('limit')
     const stamp = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`
     const cached = options.cache.get(options.laneId, stamp)
-    const messages = cached ?? readPreview(fd, stat.size)
-    options.cache.set(options.laneId, stamp, messages)
-    return { kind: 'messages', messages }
+    const preview = cached ?? readPreview(fd, stat.size)
+    options.cache.set(options.laneId, stamp, preview)
+    return { kind: 'messages', ...preview }
   } catch (error) {
     return failed(error instanceof PreviewRefused ? error.reason : 'open')
   } finally {

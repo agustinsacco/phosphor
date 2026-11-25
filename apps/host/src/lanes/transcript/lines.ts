@@ -17,6 +17,8 @@ export function scanLines(
 ) {
   const chunk = Buffer.allocUnsafe(Math.min(256 * 1024, size + 1))
   let fragments: Buffer[] = []
+  // A CR counts as payload unless it is the final byte of this LF record (or at EOF).
+  let lastByte: number | undefined
   let position = 0
   let offset = 0
   while (position <= size) {
@@ -28,12 +30,15 @@ export function scanLines(
       const lf = bytes.indexOf(10, start)
       const end = lf < 0 ? count : lf
       const length = position + end - offset
-      if (length > LINE_BYTES) throw new PreviewRefused('line-limit')
       const part = bytes.subarray(start, end)
+      if (part.length) lastByte = part[part.length - 1]
+      const payloadLength = length - (lastByte === 13 ? 1 : 0)
+      if (payloadLength > LINE_BYTES) throw new PreviewRefused('line-limit')
       if (lf < 0) fragments.push(Buffer.from(part))
       else {
         const line = fragments.length ? Buffer.concat([...fragments, part], length) : part
-        visit(line.toString('utf8'), { offset, length })
+        visit(line.toString('utf8', 0, payloadLength), { offset, length: payloadLength })
+        lastByte = undefined
         offset = position + end + 1
         fragments = []
       }
@@ -41,8 +46,10 @@ export function scanLines(
     }
     position += count
   }
-  if (fragments.length)
-    visit(Buffer.concat(fragments).toString('utf8'), { offset, length: position - offset })
+  if (fragments.length) {
+    const length = position - offset - (lastByte === 13 ? 1 : 0)
+    visit(Buffer.concat(fragments).toString('utf8', 0, length), { offset, length })
+  }
 }
 
 export function readLine(fd: number, { offset, length }: LineRange) {

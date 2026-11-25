@@ -52,7 +52,9 @@ function indexTranscript(fd: number, size: number) {
   return entries
 }
 
-export function readPreview(fd: number, size: number): AgentMessage[] {
+export type TranscriptPreview = { messages: AgentMessage[]; omitted?: true }
+
+export function readPreview(fd: number, size: number): TranscriptPreview {
   const entries = indexTranscript(fd, size)
   const legacy = Number(entries[0]?.version ?? 1) < 3
   const migrated = migrateSessionEntries(entries)
@@ -73,14 +75,15 @@ export function readPreview(fd: number, size: number): AgentMessage[] {
     if (!skeleton) throw new PreviewRefused('parse')
     if (!skeleton.length) continue
     const cost = entry.length + (edit?.length ?? 0)
-    if (newest.length && bytes + cost > PREVIEW_BYTES) break
+    if (newest.length === PI_MESSAGES_MAX || (newest.length && bytes + cost > PREVIEW_BYTES))
+      return { messages: newest.reverse(), omitted: true }
     const projected = projectSessionEntry(load(entry), edit && load(edit))
     if (!projected) throw new PreviewRefused('parse')
     bytes += cost
     for (const message of projected.reverse()) {
+      if (newest.length === PI_MESSAGES_MAX) return { messages: newest.reverse(), omitted: true }
       newest.push(message)
-      if (newest.length === PI_MESSAGES_MAX) return newest.reverse()
     }
   }
-  return newest.reverse()
+  return { messages: newest.reverse() }
 }

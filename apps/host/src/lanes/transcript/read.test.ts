@@ -211,14 +211,14 @@ describe('bounded transcript reader', () => {
 
   it('validates even a cache hit, skips its read, and refreshes recency', () => {
     expect(read()).toEqual({ kind: 'messages', messages })
-    for (let i = 0; i < 3; i++) cache.set(String(i), 'stamp', [])
+    for (let i = 0; i < 3; i++) cache.set(String(i), 'stamp', { messages: [] })
     vi.mocked(fs.readSync).mockClear()
     vi.mocked(fs.closeSync).mockClear()
     expect(read()).toEqual({ kind: 'messages', messages })
     expect(fs.readSync).not.toHaveBeenCalled()
     expect(fs.fstatSync).toHaveBeenCalledTimes(2)
     closed()
-    cache.set('fourth', 'stamp', [])
+    cache.set('fourth', 'stamp', { messages: [] })
     expect(read()).toEqual({ kind: 'messages', messages })
     expect(fs.readSync).not.toHaveBeenCalled()
   })
