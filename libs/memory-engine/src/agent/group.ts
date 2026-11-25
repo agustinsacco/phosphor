@@ -4,24 +4,23 @@
  */
 import type { BrainTidySuggestionExtra } from '@phosphor/shared/brain-tidy'
 import { all, one, run, type Context } from '../database'
-import { adjustCount, createEntity, entity, recountEntities, survivingEntityId } from '../entities'
+import {
+  adjustCount,
+  createEntity,
+  entity,
+  findSurvivingEntityId,
+  recountEntities,
+} from '../entities'
 import { nextNumber, bumpKnowledgeRevision } from '../prefs'
 import { fold } from '../text'
 import { fingerprintMemories } from '../tidy/fingerprints'
 import { journal } from '../tidy/journal'
-import type { SuggestionRow } from '../tidy/suggestions'
+import { groupMembers, type SuggestionRow } from '../tidy/suggestions'
 import type { JournalNote } from './notes'
 
 type Group = Extract<BrainTidySuggestionExtra, { kind: 'group' }>
-function surviving(ctx: Context, id: string): string | null {
-  try {
-    return survivingEntityId(ctx, id)
-  } catch {
-    return null
-  }
-}
 function parentOf(ctx: Context, parent: Group['parent']): string {
-  const known = parent.entityId && surviving(ctx, parent.entityId)
+  const known = parent.entityId && findSurvivingEntityId(ctx, parent.entityId)
   if (known) return known
   const named = all<{ id: string; kind: string }>(
     ctx,
@@ -100,7 +99,7 @@ export function groupChange(ctx: Context, row: SuggestionRow, note: JournalNote)
   const group = (row.detail ? JSON.parse(row.detail) : null) as Group | null
   if (group?.kind !== 'group')
     throw new Error('This action does not apply to this Tidy suggestion.')
-  const members = [...new Set(group.memberIds.flatMap((id) => surviving(ctx, id) ?? []))]
+  const members = groupMembers(ctx, group.memberIds)
   if (!members.length) throw new Error('A subject of this suggestion is no longer available.')
   const entityMax = one<{ n: number }>(ctx, 'SELECT COALESCE(MAX(n),0) AS n FROM entities')!.n
   const selection = { entities: [] as number[], memories: [] as number[] }

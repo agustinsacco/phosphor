@@ -39,7 +39,7 @@ const LATER_CHANGES = 'Later changes touch this Brain change; it cannot be clean
 const REJECTED_IN_V7 =
   "This read was rejected in an older version and can't be brought back. Use Read again on the lane."
 export function checkRevision(ctx: Context, expected: number): void {
-  if (expected !== revision(ctx)) throw new Error('Brain changed; refresh Tidy and try again.')
+  if (expected !== revision(ctx)) throw new Error('Brain changed; refresh and try again.')
 }
 export interface JournalInput {
   kind: BrainTidyOperation['kind']

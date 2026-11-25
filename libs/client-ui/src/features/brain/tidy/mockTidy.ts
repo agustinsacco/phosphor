@@ -96,8 +96,7 @@ export class MockTidy {
     if (this.options.flagAfterMs !== undefined) this.flagAt = this.now() + this.options.flagAfterMs
   }
   private check(revision: unknown): void {
-    if (revision !== this.state.revision)
-      throw new Error('Brain changed; refresh Tidy and try again.')
+    if (revision !== this.state.revision) throw new Error('Brain changed; refresh and try again.')
   }
   private journal(
     kind: BrainTidyOperation['kind'],
