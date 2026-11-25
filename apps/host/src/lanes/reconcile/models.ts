@@ -2,9 +2,10 @@
  * Lanes the Host never started have no model in their row: the one-time import
  * of This Mac's lanes sent none, and reconcile admits pi's sessions without
  * one. This fills each from the lane's transcript on Host start, newest lanes
- * first; a lane with a model is never touched. A lane read in full without a
- * result is remembered by its file's size and mtime, so the next start reads
- * it again only once the file changes, and spends its budget further on.
+ * first; a lane with a model is never touched. A lane whose whole tail was
+ * read without a result (none on its branch, or none within the cap) is
+ * remembered by its file's size and mtime, so the next start reads it again
+ * only once the file changes, and spends its budget further on.
  */
 import { lstatSync } from 'node:fs'
 import type { HostStore, StoredLane } from '../store'
@@ -24,8 +25,13 @@ export interface LaneModelCounts {
   unreadable: number
 }
 
-/** `settled`: the whole tail was read and holds no model, so the same file never will. */
-export type LaneModelRead = { model: RecordedModel } | { model: null; settled: boolean }
+/**
+ * `settled`: reading the same file again finds nothing either. `none`: its
+ * branch has no model. `capped`: the whole tail was read and the model, if
+ * any, is further back; this proves nothing about the model.
+ */
+export type LaneModelRead =
+  { model: RecordedModel } | { model: null; settled: 'none' | 'capped' | null }
 
 /** Reads each session file's model in turn, within one byte budget. */
 export function recordedModelReader(
@@ -40,14 +46,15 @@ export function recordedModelReader(
     read(sessionFile: string | null): LaneModelRead {
       if (sessionFile === null || left <= 0) {
         counts.skipped++
-        return { model: null, settled: false }
+        return { model: null, settled: null }
       }
       const allowance = Math.min(left, tailBytes)
       const read = readRecordedModel(sessionFile, sessionsRoot, allowance)
       left -= read.bytes
       if (read.kind === 'model') return { model: read.model }
-      counts[read.kind === 'none' ? 'skipped' : 'unreadable']++
-      return { model: null, settled: read.kind === 'none' && allowance === tailBytes }
+      counts[read.kind === 'unreadable' ? 'unreadable' : 'skipped']++
+      const whole = read.kind === 'none' || (read.kind === 'capped' && allowance === tailBytes)
+      return { model: null, settled: whole ? read.kind : null }
     },
   }
 }
@@ -69,7 +76,7 @@ const newestFirst = (a: StoredLane, b: StoredLane) =>
 export interface LaneModelRepair {
   /** `unchanged`: remembered lanes whose file has not changed, not read again. */
   counts: LaneModelCounts & { unchanged: number }
-  /** Lanes read in full without a result, by id: their file's `size:mtimeMs`. */
+  /** Lanes read in full without a result, by id: `none|capped:size:mtimeMs` of their file. */
   scanned: Map<string, string>
 }
 
@@ -94,14 +101,15 @@ export function repairLaneModels(
     if (lane.model !== null) continue
     options.signal?.throwIfAborted()
     const stamp = fileStamp(lane.sessionFile)
-    if (stamp !== null && options.scanned?.get(lane.laneId) === stamp) {
-      scanned.set(lane.laneId, stamp)
+    const remembered = options.scanned?.get(lane.laneId)
+    if (stamp !== null && remembered?.slice(remembered.indexOf(':') + 1) === stamp) {
+      scanned.set(lane.laneId, remembered)
       unchanged++
       continue
     }
     const read = reader.read(lane.sessionFile)
     if (!read.model) {
-      if (read.settled && stamp !== null) scanned.set(lane.laneId, stamp)
+      if (read.settled && stamp !== null) scanned.set(lane.laneId, `${read.settled}:${stamp}`)
       continue
     }
     try {
@@ -121,15 +129,16 @@ export function repairLaneModels(
 
 /**
  * After a branch change on a stopped lane: its row takes the model its
- * transcript now resumes with, or none when the branch's tail names none, so
- * the stopped chip shows what resume will pick. An unreadable file leaves the
- * row as it was. The lane's recency is unchanged. True when the row changed.
+ * transcript now resumes with, or none once the read proves its branch has
+ * none, so the stopped chip shows what resume will pick. A read that stops at
+ * its cap, or cannot read the file, leaves the row as it was. The lane's
+ * recency is unchanged. True when the row changed; throws as the store does.
  */
 export function rederiveLaneModel(store: HostStore, sessionsRoot: string, laneId: string): boolean {
   const lane = store.getLane(laneId)
   if (!lane || lane.removedAt !== null || lane.sessionFile === null) return false
   const read = readRecordedModel(lane.sessionFile, sessionsRoot)
-  if (read.kind === 'unreadable') return false
+  if (read.kind === 'unreadable' || read.kind === 'capped') return false
   const model = read.kind === 'model' ? read.model : null
   if (model?.provider === lane.model?.provider && model?.id === lane.model?.id) return false
   store.updateLane(laneId, {

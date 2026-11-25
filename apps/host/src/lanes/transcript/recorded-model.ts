@@ -2,7 +2,8 @@
  * The model a lane's pi resumes with, read from the end of its session file.
  * Transcripts reach hundreds of megabytes, so this reads backward from the end
  * in chunks and stops at `tailBytes`: memory and time stay bounded and a model
- * further back than that is not found. It walks the leaf's branch as pi's
+ * further back than that is not found, which reads as `capped`, never as
+ * `none`. It walks the leaf's branch as pi's
  * resume does (`resumeProvider`): the nearest `model_change`, or the nearest
  * assistant message's provider and model, decides.
  */
@@ -18,10 +19,16 @@ export interface RecordedModel {
   readonly provider: string
   readonly id: string
 }
-/** `bytes`: how much of the file was read, for a caller's overall budget. Never throws. */
+/**
+ * `bytes`: how much of the file was read, for a caller's overall budget.
+ * `none`: the walk reached the branch's root, the session header or the file's
+ * start without a model, so the branch has none. `capped`: the scan stopped at
+ * `tailBytes` (or the file shrank) first, which proves nothing. Never throws.
+ */
 export type RecordedModelRead =
   | { kind: 'model'; model: RecordedModel; bytes: number }
   | { kind: 'none'; bytes: number }
+  | { kind: 'capped'; bytes: number }
   | { kind: 'unreadable'; bytes: number }
 
 type Entry = Record<string, unknown>
@@ -119,7 +126,8 @@ function scanTail(fd: number, size: number, tailBytes: number): RecordedModelRea
   if (!walk.done && floor === 0 && filled === 0 && lineEnd > 0)
     walk.visit(tail.subarray(0, lineEnd))
   const bytes = tail.length - filled
-  return walk.result ? { kind: 'model', model: walk.result, bytes } : { kind: 'none', bytes }
+  if (walk.result) return { kind: 'model', model: walk.result, bytes }
+  return { kind: walk.done || (floor === 0 && filled === 0) ? 'none' : 'capped', bytes }
 }
 
 export function readRecordedModel(

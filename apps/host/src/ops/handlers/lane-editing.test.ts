@@ -41,6 +41,7 @@ beforeEach(async () => {
       runtime: fx.ports.runtime,
       announce: fx.ports.announce,
       sessionsRoot: fx.ports.sessionsRoot,
+      log: fx.ports.log,
     },
     daemonLanes: {
       list: () => fx.store.listLanes(),

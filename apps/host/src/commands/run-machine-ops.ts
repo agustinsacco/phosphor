@@ -111,6 +111,7 @@ export async function bindRunOps(
     editing: {
       runtime,
       sessionsRoot: piSessionsRoot(context.env, context.home),
+      log: started.log.write,
       announce: (laneId) => {
         const summary = live.summaryFor(laneId)
         if (summary) live.lanesTopic.delta([summary])

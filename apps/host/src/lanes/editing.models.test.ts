@@ -114,7 +114,7 @@ describe('a model refresh that fails never fails the edit', () => {
     vi.spyOn(fx.store, 'updateLane').mockImplementation(full)
     const forked = await forkLane(fx.ports, source, { kind: 'fork', at: 'a1', lineage: null })
     expect(fx.store.getLane(forked.lane.laneId)).toMatchObject({ model: OPUS, removedAt: null })
-    const rewound = await forkLane(fx.ports, source, { kind: 'rewind', at: 'u2', lineage: null })
+    const rewound = await forkLane(fx.ports, source, { kind: 'rewind', at: 'u1', lineage: null })
     expect(fx.store.getLane(rewound.lane.laneId)).toMatchObject({ model: OPUS, removedAt: null })
     expect(fx.prefs(rewound.lane.laneId)).toEqual({ rewound_from: source.laneId })
     expect(fx.logged.filter((m) => m === 'lane.model_refresh_failed')).toHaveLength(2)

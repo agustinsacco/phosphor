@@ -1,13 +1,8 @@
-import { useChatStore } from '@/stores/chat'
-import { laneWithoutPi } from '@/stores/hostLaneOf'
-import { useSessionHostLane } from '@/stores/remoteLanes'
+import { useLiveStats } from '@/stores/laneLiveState'
 import { ContextMeter } from './ContextMeter'
 
-/** The live readout's usual widest text: both states take at least its width. */
-const RESERVED = '100% of 200k'
 /** The ring and its readout, in the meter's own spacing. */
 const READOUT = 'flex items-center gap-1 px-1 py-0.5'
-const STACKED = 'col-start-1 row-start-1'
 
 function Ring(): React.JSX.Element {
   return (
@@ -19,23 +14,26 @@ function Ring(): React.JSX.Element {
 
 /**
  * The status strip's context readout. A lane with no live pi (stopped, or
- * still starting, on its Host; or no usage reported yet) has nothing to
- * measure, so an empty ring keeps the meter's place, without its popover, even
- * when the chat store still holds an earlier pi's usage. Both states sit over
- * an invisible copy of the widest usual readout, so usage arriving or leaving
- * moves nothing else in the strip, nor makes it wrap.
+ * still starting, on its Host, or resumed but not yet measured by its new pi:
+ * `useLiveStats`) has nothing to measure, so an empty ring keeps the meter's
+ * place, without its popover. The slot is fixed: an invisible copy of the
+ * live meter at its widest (`100% of 200k` and a burn rate) sizes it, and
+ * whichever state shows sits over it out of flow, so stopping, starting or
+ * usage arriving never moves the readouts after it, nor wraps the strip.
  */
 export function ContextReadout({ sessionId }: { sessionId: string }): React.JSX.Element {
-  const measured = useChatStore((s) => !!s.sessions[sessionId]?.stats)
-  const hostLane = useSessionHostLane(sessionId)
-  const live = measured && !laneWithoutPi(hostLane?.lane)
+  const live = useLiveStats(sessionId) !== null
   return (
-    <div data-testid="context-readout" className="grid">
-      <span data-readout-reserve aria-hidden="true" className={`invisible ${STACKED} ${READOUT}`}>
+    <div data-testid="context-readout" className="relative">
+      <span data-readout-reserve aria-hidden="true" className={`invisible ${READOUT}`}>
         <Ring />
-        <span className="tabular-nums">{RESERVED}</span>
+        <span className="tabular-nums">100% of 200k</span>
+        <span className="text-2xs font-mono uppercase tracking-wide">999k/min</span>
       </span>
-      <div className={STACKED}>
+      <div
+        data-readout-layer
+        className="absolute inset-y-0 left-0 flex items-center whitespace-nowrap"
+      >
         {live ? (
           <ContextMeter sessionId={sessionId} />
         ) : (

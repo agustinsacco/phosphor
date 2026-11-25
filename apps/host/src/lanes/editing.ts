@@ -7,6 +7,7 @@ import * as writer from '@phosphor/session-runtime/pi/session-writer'
 import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
 import { laneIdInRef } from '../ops/lane-ref'
 import type { HostRuntime } from '../session/runtime'
+import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { rederiveLaneModel } from './reconcile/models'
 import { LaneCapacityReached, type HostStore, type StoredLane } from './store'
 
@@ -28,6 +29,7 @@ export interface LaneEditingRuntime {
   readonly announce: (laneId: string) => void
   /** pi's sessions root, where a branch change re-reads the lane's model. */
   readonly sessionsRoot: string
+  readonly log: RuntimeLog
 }
 
 export interface LaneEditingPorts extends LaneEditingRuntime {
@@ -100,6 +102,33 @@ export function labelLaneEntry(
   })
 }
 
+/**
+ * After a branch change: the lane's row takes the model its transcript now
+ * resumes with (`rederiveLaneModel`); answers the changed row, published when
+ * `publish`, or null. The edit has already happened, so a failure here, a
+ * SQLite one included, is logged and the row keeps its old model; it never
+ * fails or undoes the edit.
+ */
+function refreshLaneModel(
+  ports: LaneEditingPorts,
+  laneId: string,
+  publish: boolean,
+): StoredLane | null {
+  try {
+    if (!rederiveLaneModel(ports.store, ports.sessionsRoot, laneId)) return null
+    const changed = ports.store.getLane(laneId)
+    if (publish) ports.announce(laneId)
+    return changed
+  } catch {
+    try {
+      ports.log('host', 'lane.model_refresh_failed')
+    } catch {
+      // Logging cannot fail an edit that is already on disk.
+    }
+    return null
+  }
+}
+
 /** Moves the lane's leaf to `entry`, where its next resume continues; answers the leaf it had. */
 export function jumpLaneTo(
   ports: LaneEditingPorts,
@@ -112,7 +141,7 @@ export function jumpLaneTo(
     const tree = await readSessionTree(file)
     entryIn(tree, entry)
     await writer.appendBranchJump(file, entry)
-    if (rederiveLaneModel(ports.store, ports.sessionsRoot, lane.laneId)) ports.announce(lane.laneId)
+    refreshLaneModel(ports, lane.laneId, true)
     return { previousLeaf: tree.leafId }
   })
 }
@@ -287,15 +316,15 @@ export async function forkLane(
   try {
     lane = storeForkedLane(ports.store, source, forked.file)
     writePrefs(ports.db, lane.laneId, prefsFor(request.kind, source, request.lineage))
-    // A clone continues from the source's leaf; a fork or rewind from its own.
-    if (request.kind !== 'clone' && rederiveLaneModel(ports.store, ports.sessionsRoot, lane.laneId))
-      lane = ports.store.getLane(lane.laneId) ?? lane
   } catch (error) {
     // No one knows the new file yet: an unrecorded fork leaves nothing behind.
     if (lane) ports.store.markRemoved(lane.laneId)
     await rm(forked.file, { force: true })
     throw error
   }
+  // A clone continues from the source's leaf; a fork or rewind from its own.
+  const refreshed = request.kind === 'clone' ? null : refreshLaneModel(ports, lane.laneId, false)
+  if (refreshed) lane = refreshed
   const ledgerForked =
     request.kind === 'clone'
       ? await forkClaudeLedgerForClone(forked.file).catch(() => false)

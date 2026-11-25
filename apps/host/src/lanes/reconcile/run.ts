@@ -54,26 +54,28 @@ export async function reconcileRunFolders(
   )
   signal.throwIfAborted()
   context.log?.('host', 'lanes.reconciled', counts)
-  repairModels(context, store, sessionsRoot, signal)
+  await repairModels(context, store, sessionsRoot, signal)
 }
 
+const sameScans = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>) =>
+  a.size === b.size && [...a].every(([laneId, value]) => b.get(laneId) === value)
+
 /** The start-up model repair, remembering across starts the lanes it read without a result. */
-function repairModels(
+async function repairModels(
   context: RunContext,
   store: HostStore,
   sessionsRoot: string,
   signal: AbortSignal,
 ) {
   const state = hostStateDirectory(context.env, context.home)
-  const scanned = readModelScans(state, context.uid)
+  // Only saves work: a memo that cannot be read or saved means reading those lanes again.
+  const scanned = await readModelScans(state, context.uid).catch(() => new Map<string, string>())
   const models = repairLaneModels(store, sessionsRoot, { signal, scanned })
   const { counts } = models
   if (counts.repaired + counts.skipped + counts.unreadable + counts.unchanged)
     context.log?.('host', 'lanes.models_repaired', counts)
-  try {
-    if (models.scanned.size || scanned.size) writeModelScans(state, context.uid, models.scanned)
-  } catch {
-    // Only saves work: the next start reads those lanes again.
-    context.log?.('host', 'lanes.model_scans_unsaved')
-  }
+  if (sameScans(models.scanned, scanned)) return
+  await writeModelScans(state, context.uid, models.scanned).catch(() =>
+    context.log?.('host', 'lanes.model_scans_unsaved'),
+  )
 }
