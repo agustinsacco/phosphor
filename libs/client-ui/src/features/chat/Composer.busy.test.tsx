@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { hostResourceKey } from '@shared/remote-host'
-import type { RpcCommand } from '@shared/rpc'
+import type { RpcCommand, RpcResponse } from '@shared/rpc'
 import { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { installMockPhosphor } from '@/dev/mockPhosphor'
 import { useChatStore } from '@/stores/chat'
@@ -213,4 +213,39 @@ it('Queue follow-up treats a shell-looking draft as a message, not an immediate 
   expect(prompts(pi)).toEqual([
     { type: 'prompt', message: '!pwd', streamingBehavior: 'followUp', busy: true },
   ])
+})
+
+it('replaces a provisional chip when an identical earlier send was refused', async () => {
+  hostLane('working')
+  const first = Promise.withResolvers<RpcResponse>()
+  const second = Promise.withResolvers<RpcResponse>()
+  const mockCommand = window.phosphor.piCommand
+  let sent = 0
+  const pi = vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async (id, op) => {
+    if (op.type !== 'prompt') return mockCommand(id, op)
+    return sent++ === 0 ? first.promise : second.promise
+  })
+  const chips = () => container.querySelector('[data-testid="queue-chips"]')?.children
+  await draw()
+  try {
+    await enter()
+    act(() => useDraftsStore.getState().setText(hostKey, 'PHX-busy'))
+    await enter()
+    expect(chips()).toHaveLength(2)
+    await act(async () =>
+      first.resolve({ type: 'response', command: 'prompt', success: false, error: 'refused' }),
+    )
+    expect(prompts(pi)).toHaveLength(2)
+    act(() =>
+      useChatStore.getState().applyEvent(id, {
+        type: 'queue_update',
+        steering: ['PHX-busy'],
+        followUp: [],
+      }),
+    )
+    expect(chips()).toHaveLength(1)
+    expect(button('Remove queued steering message')).toBeDefined()
+  } finally {
+    await act(async () => second.resolve({ type: 'response', command: 'prompt', success: true }))
+  }
 })

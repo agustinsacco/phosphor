@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UNKNOWN_OUTCOME } from '@shared/errors'
+import type { ComposerDraftRecord } from '@shared/models'
+import type { LaneOp } from '@shared/host-protocol'
+import type { CommandResult } from '@phosphor/host-client/connection'
+import { receiptResponse, sendToLane } from '@phosphor/host-client/lane-ops'
 import type { RpcCommand, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
 import { installMockPhosphor } from '@/dev/mockPhosphor'
 import { hostLaneSession, mockRemoteInfo } from '@/dev/mockRemoteLanes'
@@ -38,12 +42,12 @@ function answers(...responses: PromptResponse[]) {
   return () => pi.mock.calls.map(([, command]) => command as Prompt)
 }
 
-const send = (remote: boolean, busyBehavior?: 'steer' | 'followUp') =>
+const send = (remote: boolean, busyBehavior?: 'steer' | 'followUp', remoteAttachments = false) =>
   sendComposerPrompt({
     sessionId: id,
     draftKey: KEY,
     remote,
-    remoteAttachments: false,
+    remoteAttachments,
     busyBehavior,
   })
 const session = () => useChatStore.getState().sessions[id]!
@@ -196,3 +200,112 @@ it.each([UNKNOWN_OUTCOME, `Studio: controlled by ${PI_BUSY}`, 'No API key found 
     expect(useDraftsStore.getState().get(KEY).text).toBe('PHX-message')
   },
 )
+
+it('holds a second prompt through the first prompt’s automatic resume and retry receipt', async () => {
+  hostLane('working')
+  const resume = Promise.withResolvers<void>()
+  const retry = Promise.withResolvers<void>()
+  const atPi: string[] = []
+  const host = {
+    async send(op: LaneOp): Promise<CommandResult> {
+      if (op.type === 'lane.resume') {
+        await resume.promise
+        return { status: 'done', fence: 3 }
+      }
+      if (op.type !== 'prompt') throw new Error('expected prompt')
+      if (op.message === 'PHX-message' && !hostRetried) {
+        hostRetried = true
+        return { status: 'rejected', code: 'lane-stopped' }
+      }
+      atPi.push(op.message)
+      if (op.message === 'PHX-message') await retry.promise
+      return { status: 'done', data: { disposition: 'queued' } }
+    },
+  }
+  let hostRetried = false
+  const pi = vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async (_id, op) => {
+    if (op.type !== 'prompt') throw new Error('expected prompt')
+    return receiptResponse(op.type, await sendToLane(host, op, id), 'Studio')
+  })
+  const first = send(true, 'followUp')
+  await Promise.resolve()
+  useDraftsStore.getState().setText(KEY, 'second')
+  const second = send(true, 'followUp')
+  try {
+    expect(useDraftsStore.getState().get(KEY).text).toBe('')
+    expect(usePendingQueue.getState().chips.map((chip) => chip.text)).toEqual([
+      'PHX-message',
+      'second',
+    ])
+    expect(pi).toHaveBeenCalledTimes(1)
+    resume.resolve()
+    await vi.waitFor(() => expect(atPi).toEqual(['PHX-message']))
+    expect(pi).toHaveBeenCalledTimes(1)
+  } finally {
+    resume.resolve()
+    retry.resolve()
+    await Promise.all([first, second])
+  }
+  expect(atPi).toEqual(['PHX-message', 'second'])
+})
+
+it('retains both submitted texts and image blobs on Desktop until their own receipts', async () => {
+  hostLane('working')
+  const firstReceipt = Promise.withResolvers<PromptResponse>()
+  const secondReceipt = Promise.withResolvers<PromptResponse>()
+  const store = useDraftsStore.getState()
+  const disk = new Map<string, ComposerDraftRecord>()
+  const blobs = new Map<string, string>()
+  vi.useFakeTimers()
+  vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (...args) => {
+    switch (args[0]) {
+      case 'app:writeDraftBlob':
+        blobs.set(args[1], args[2])
+        return true
+      case 'app:setDraft': {
+        const record = args[1]
+        const kept = new Set(record.attachments.map((a) => a.blobId))
+        for (const a of disk.get(record.key)?.attachments ?? [])
+          if (a.blobId && !kept.has(a.blobId)) blobs.delete(a.blobId)
+        disk.set(record.key, record)
+        return
+      }
+      case 'app:clearDraft':
+        for (const a of disk.get(args[1])?.attachments ?? []) if (a.blobId) blobs.delete(a.blobId)
+        disk.delete(args[1])
+    }
+  })
+  vi.spyOn(window.phosphor, 'piCommand')
+    .mockReturnValueOnce(firstReceipt.promise)
+    .mockReturnValueOnce(secondReceipt.promise)
+  const attach = (name: string, data: string) =>
+    store.setAttachments(KEY, [{ kind: 'image', name, data, mimeType: 'image/png' }])
+  const flush = () => vi.advanceTimersByTimeAsync(500)
+  const savedImages = () => disk.get(KEY)?.attachments.map((a) => blobs.get(a.blobId!))
+  attach('first.png', 'AAAA')
+  await flush()
+  expect(savedImages()).toEqual(['AAAA'])
+  const first = send(true, undefined, true)
+  store.setText(KEY, 'second')
+  attach('second.png', 'BBBB')
+  const second = send(true, undefined, true)
+  try {
+    expect(store.get(KEY)).toEqual({ text: '', attachments: [] })
+    await flush()
+    expect(disk.get(KEY)?.text).toBe('PHX-message\nsecond')
+    expect(savedImages()).toEqual(['AAAA', 'BBBB'])
+    firstReceipt.resolve(accepted('queued'))
+    await first
+    await flush()
+    expect(disk.get(KEY)?.text).toBe('second')
+    expect(savedImages()).toEqual(['BBBB'])
+  } finally {
+    firstReceipt.resolve(accepted('queued'))
+    secondReceipt.resolve(refused('refused'))
+    await Promise.all([first, second])
+    await flush()
+    vi.useRealTimers()
+  }
+  expect(store.get(KEY).text).toBe('second')
+  expect(savedImages()).toEqual(['BBBB'])
+})

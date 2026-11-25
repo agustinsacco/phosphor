@@ -375,3 +375,42 @@ it('unlocks after a legacy Host accepts an extension command without a dispositi
   await send()
   expect(useChatStore.getState().sessions[id]).toMatchObject({ promptSentAt: null, items: [] })
 })
+
+it('replaces the document preview with its only confirmed queue chip before the receipt', async () => {
+  const id = mockRemoteInfo.sessionId
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  hosts[MOCK_HOST_ID]!.lanes[0]!.activity = 'working'
+  useRemoteLanesStore.setState({ hosts })
+  const upload = Promise.withResolvers<string[]>()
+  const receipt = Promise.withResolvers<void>()
+  vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (...args) => {
+    if (args[0] === 'hosts:uploadAttachments') return upload.promise
+  })
+  const pi = vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async (_id, op) => {
+    if (op.type === 'prompt') await receipt.promise
+    return { type: 'response', command: op.type, success: true }
+  })
+  const chips = () => container.querySelector('[data-testid="queue-chips"]')
+  await draw()
+  try {
+    await send()
+    expect(chips()?.children).toHaveLength(1)
+    expect(chips()?.textContent).toContain('a.pdf')
+    const path = '/host/uploaded/a.pdf'
+    await act(async () => upload.resolve([path]))
+    const message = `read this\n\n<attached-files>\n${path}\n</attached-files>`
+    expect(pi).toHaveBeenCalledWith(id, expect.objectContaining({ message }))
+    act(() =>
+      useChatStore.getState().applyEvent(id, {
+        type: 'queue_update',
+        steering: [message],
+        followUp: [],
+      }),
+    )
+    expect(chips()?.children).toHaveLength(1)
+    expect(chips()?.textContent).toContain(path)
+  } finally {
+    upload.resolve(['/host/uploaded/a.pdf'])
+    await act(async () => receipt.resolve())
+  }
+})
