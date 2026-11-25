@@ -1485,7 +1485,9 @@ probe lists repositories without the field.
 A failed creation logs `lane.command_error` with a token-shaped `code` when the
 error has one, such as `pi-state-unreadable` (pi answered `get_state` with a
 state the Host cannot read) or `pi-state-failed`, or with the folder error's fixed
-sentence as `reason`. Free text from pi or git is never logged.
+sentence as `reason`. Free text from pi or git is never logged. A failed resume
+logs the same event when its error has a token code, such as `lane-folder-missing`
+or the resumed provider check's codes ([CLI providers](cli-providers.md)).
 
 Worktrees use a valid git branch, never the default branch or one checked out
 elsewhere. The branch with `/` replaced by `-` names the folder: 1 to 100 ASCII
