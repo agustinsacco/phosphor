@@ -126,20 +126,20 @@ to cut it.
   cap the session window. pi retains its normal response reserve: a 400k budget
   with the default reserve compacts above 383,616 tokens. Catalogue models and
   global pi settings are unchanged. Phosphor requires pi 1.2.0 or newer.
-- Desktop and Host stage the cap with `/phosphor-context-budget` at startup
-  and again on the first idle prompt of each pi process, from that prompt's
-  one `get_state`. A later idle prompt stages it only when it can have
-  changed: that read shows a different session, model or auto-compaction
-  state, the budget setting differs, or the lane ran a reload, `set_model`,
-  `cycle_model`, `new_session`, `switch_session`, `fork`, `clone` or a slash
-  command since. A failed budget command is retried on the next idle prompt.
-  A prompt sent during a run joins it and skips the budget command. Desktop
-  stages a changed setting in every live lane at once; the Host reads it at
-  each lane's next idle prompt. The auto-compaction toggle stages its change
-  immediately. The budget command runs no model. Changes during a run wait for the next completed tool
-  cycle so model-select hooks cannot retire an active Claude request. Idle
-  changes apply immediately; model switches reapply the cap. Smaller windows
-  are never enlarged, and opting out restores the catalogue capacity.
+- Desktop and Host stage the cap with `/phosphor-context-budget` at startup.
+  Before a `prompt`, they read pi's state (again if a reload may have taken
+  effect) and the current budget setting. They restage if the budget, session,
+  model, effective window or auto-compaction state differs from the last stage,
+  or if a reload, model/session command or slash command invalidated it. A
+  failed stage is retried on the next prompt. A streaming snapshot doesn't
+  guarantee the prompt will join the run: a `prompt` with a stale budget still
+  stages, but unchanged prompts and queue-only `steer` and `follow_up` do not.
+  Desktop also stages changed preferences in live lanes; the auto-compaction
+  toggle stages immediately. The budget command runs no model. Idle changes
+  apply immediately; during a run the cap changes at the next completed tool
+  cycle or settlement, never during an active request. Model switches reapply
+  the cap. Smaller windows are never enlarged, and opting out restores the
+  catalogue capacity.
 - **Sub-agents get the same cap.** The command also sets `PHOSPHOR_CONTEXT_BUDGET`
   in pi's environment, and children load `context-budget.ts` through
   `subagent-children.ts` and start from it ([chat.md](chat.md#sub-agents)).

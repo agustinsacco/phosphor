@@ -176,20 +176,29 @@ async function promptFixture() {
     await h.service.command(sessionId, prompt)
     return client.request.mock.calls.map(([command]) => command)
   }
-  return { ...h, client, sessionId, send }
+  const rpc = h.registry.get(sessionId)!.client
+  return { ...h, client, rpc, sessionId, send }
 }
 
-it('sends a busy prompt without a budget control, even before the first idle turn', async () => {
+it('sends a busy prompt without a budget control when the startup stage is current', async () => {
   const h = await promptFixture()
   const state = { isStreaming: true, model: { provider: 'native' }, autoCompactionEnabled: true }
   h.client.request.mockResolvedValueOnce({ success: true, data: state })
   expect(await h.send()).toEqual([stateRead, prompt])
-  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+  expect(await h.send()).toEqual([stateRead, prompt])
 })
 
-it('stages once per live process and restages a changed preference or observed model', async () => {
+it.each(['steer', 'follow_up'] as const)('never stages for queue-only %s RPCs', async (type) => {
   const h = await promptFixture()
-  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+  vi.mocked(h.runtime.readBudget).mockReturnValue('100k')
+  h.client.request.mockClear()
+  const input = { type, message: 'go' }
+  await h.service.command(h.sessionId, input)
+  expect(h.client.request).toHaveBeenCalledExactlyOnceWith(input)
+})
+
+it('reuses the startup stage and restages a changed preference or observed model', async () => {
+  const h = await promptFixture()
   expect(await h.send()).toEqual([stateRead, prompt])
   vi.mocked(h.runtime.readBudget).mockReturnValue('400k')
   expect(await h.send()).toEqual([stateRead, cap('400000'), prompt])
@@ -200,7 +209,7 @@ it('stages once per live process and restages a changed preference or observed m
   const next = await h.service.create({ workspacePath: '/repo' })
   const request = h.clients[1]!.request.mockClear()
   await h.service.command(next.sessionId, prompt)
-  expect(request.mock.calls.flat()).toEqual([stateRead, cap('400000'), prompt])
+  expect(request.mock.calls.flat()).toEqual([stateRead, prompt])
 })
 
 it('restages a cached cap only when beforePrompt can have reloaded extensions', async () => {
@@ -209,7 +218,7 @@ it('restages a cached cap only when beforePrompt can have reloaded extensions', 
   h.runtime.laneReload = { beforePrompt: vi.fn(async () => 'unchanged' as const) }
   expect(await h.send()).toEqual([stateRead, prompt])
   h.runtime.laneReload.beforePrompt = async () => 'applied'
-  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+  expect(await h.send()).toEqual([stateRead, stateRead, cap(), prompt])
 })
 
 it.each([
@@ -249,6 +258,7 @@ it('restages after a slash command, which can change extension state itself', as
 
 it('leaves nothing remembered when the budget command fails, so the next prompt retries', async () => {
   const h = await promptFixture()
+  vi.mocked(h.runtime.readBudget).mockReturnValue('400k')
   h.client.request
     .mockResolvedValueOnce({
       success: true,
@@ -256,25 +266,32 @@ it('leaves nothing remembered when the budget command fails, so the next prompt 
     })
     .mockResolvedValueOnce({ success: false, error: 'busy' } as never)
   await expect(h.service.command(h.sessionId, prompt)).rejects.toThrow('busy')
-  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+  expect(await h.send()).toEqual([stateRead, cap('400000'), prompt])
   expect(await h.send()).toEqual([stateRead, prompt])
 })
 
 it('stages once for concurrent prompts, which the command gate runs in order', async () => {
   const h = await promptFixture()
+  vi.mocked(h.runtime.readBudget).mockReturnValue('400k')
   h.client.request.mockClear()
   await Promise.all([
     h.service.command(h.sessionId, prompt),
     h.service.command(h.sessionId, prompt),
   ])
-  expect(h.client.request.mock.calls.flat()).toEqual([stateRead, cap(), prompt, stateRead, prompt])
+  expect(h.client.request.mock.calls.flat()).toEqual([
+    stateRead,
+    cap('400000'),
+    prompt,
+    stateRead,
+    prompt,
+  ])
 })
 
 it('keeps an explicit restage remembered and forgets one that fails', async () => {
   const h = await promptFixture()
   await h.send()
   vi.mocked(h.runtime.readBudget).mockReturnValue('400k')
-  await syncContextBudget(h.client, '400k')
+  await syncContextBudget(h.rpc, '400k')
   expect(await h.send()).toEqual([stateRead, prompt])
   h.client.request
     .mockResolvedValueOnce({
@@ -282,7 +299,7 @@ it('keeps an explicit restage remembered and forgets one that fails', async () =
       data: { model: { provider: 'native' }, autoCompactionEnabled: true },
     })
     .mockResolvedValueOnce({ success: false, error: 'busy' } as never)
-  await expect(syncContextBudget(h.client, '400k')).rejects.toThrow('busy')
+  await expect(syncContextBudget(h.rpc, '400k')).rejects.toThrow('busy')
   expect(await h.send()).toEqual([stateRead, cap('400000'), prompt])
 })
 
@@ -290,11 +307,11 @@ it('restages after an agent-requested reload that reached pi, not one pi cannot 
   const h = await promptFixture()
   await h.send()
   h.client.request.mockResolvedValueOnce({ success: true, data: { commands: [] } } as never)
-  expect(await reloadLaneNow(h.sessionId, h.client, vi.fn())).toBe('unsupported')
+  expect(await reloadLaneNow(h.sessionId, h.rpc, vi.fn())).toBe('unsupported')
   expect(await h.send()).toEqual([stateRead, prompt])
   const commands = { commands: [{ name: LANE_RELOAD_COMMAND }] }
   h.client.request.mockResolvedValueOnce({ success: true, data: commands } as never)
-  expect(await reloadLaneNow(h.sessionId, h.client, vi.fn())).toBe('failed')
+  expect(await reloadLaneNow(h.sessionId, h.rpc, vi.fn())).toBe('failed')
   expect(await h.send()).toEqual([stateRead, cap(), prompt])
 })
 
@@ -325,10 +342,8 @@ it('stages a lowered budget before a prompt can start after a streaming snapshot
   const h = await promptFixture()
   await h.send()
   vi.mocked(h.runtime.readBudget).mockReturnValue('100k')
-  h.client.request.mockResolvedValueOnce({
-    success: true,
-    data: { isStreaming: true, model: { provider: 'native' }, autoCompactionEnabled: true },
-  })
+  const state = { isStreaming: true, model: { provider: 'native' }, autoCompactionEnabled: true }
+  h.client.request.mockResolvedValueOnce({ success: true, data: state })
   expect(await h.send()).toEqual([stateRead, cap('100000'), prompt])
 })
 

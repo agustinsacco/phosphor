@@ -777,8 +777,10 @@ fixed-purpose setup programs and explicit Claude account moves. pi remains the
 owner of provider credentials, MCP, packages and model/thinking defaults. Host
 config owns context budget, automatic naming and the directive switches. Each
 lane start reads the context budget and the directive switches, each lane's first
-prompt reads automatic naming, and each prompt and settled turn rereads the budget,
-so all of them apply without a restart (`config/live-policy.ts`). The agent read
+prompt reads automatic naming, and each `prompt` RPC and settled-turn budget check
+rereads the budget. Queue-only inputs skip budget preflight; a `prompt` during
+streaming still stages a stale budget in case it starts a run. All these
+settings apply without a restart (`config/live-policy.ts`). The agent read
 says so with `namingLive: true`; a client shows the restart notice for automatic
 naming only for an older Host whose read lacks it. A config that cannot be read
 keeps the last valid values. No setting silently restarts lanes or the service. Global
@@ -1357,8 +1359,8 @@ a lane service. It logs only `lanes.unavailable` with a fixed reason token.
   `<resourceRoot>/pi-ext/` and leads its own process group.
 - **Fixed policy.** The config's `agentDirectives` switches, re-read at each lane
   start, with no per-project overrides; pi's own settings for the default provider, and pi's packages for
-  the Claude gate; the config's context budget, re-read at each lane start, prompt
-  and settled turn; and every CLAUDE.md / AGENTS.md pi
+  the Claude gate; the config's context budget, re-read at lane start, on `prompt`
+  RPCs and during settled-turn checks (not on queue-only inputs); and every CLAUDE.md / AGENTS.md pi
   finds. There are no Desktop account overlays or recents. `run` supplies
   routine ownership guards for manual commands, resume, stop and deletion. Only
   the idle context-budget fallback pauses for routine-owned sessions; native

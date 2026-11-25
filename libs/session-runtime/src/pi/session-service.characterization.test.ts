@@ -116,6 +116,7 @@ describe('session service characterization', () => {
     expect(client.request.mock.calls.map(([command]) => command)).toEqual([
       { type: 'get_state' },
       { type: 'prompt', message: '/phosphor-reload token' },
+      { type: 'get_state' },
       { type: 'prompt', message: '/phosphor-context-budget 400000' },
       { type: 'prompt', message: 'go' },
     ])

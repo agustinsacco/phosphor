@@ -146,6 +146,7 @@ describe('portable session admission', () => {
     expect(client.request.mock.calls.map(([c]) => c)).toEqual([
       { type: 'get_state' },
       { type: 'prompt', message: '/phosphor-reload t' },
+      { type: 'get_state' },
       { type: 'prompt', message: '/phosphor-context-budget 400000' },
       { type: 'prompt', message: 'go' },
     ])

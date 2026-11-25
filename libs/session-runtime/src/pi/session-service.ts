@@ -115,6 +115,12 @@ function assertManualCommand(
   }
 }
 
+async function readPromptState(client: LiveSession['client']) {
+  const state = await client.request({ type: 'get_state' })
+  if (!state.success || !state.data) throw new Error('Cannot verify the active pi model.')
+  return state.data
+}
+
 async function preflightCommand<Delivery>(
   runtime: SessionServiceRuntime<Delivery>,
   live: LiveSession,
@@ -126,24 +132,25 @@ async function preflightCommand<Delivery>(
     assertClaudeContextProvider(await runtime.packages(live.workspacePath))
   }
   if (command.type === 'prompt') {
-    const state = await live.client.request({ type: 'get_state' })
-    if (!state.success || !state.data) throw new Error('Cannot verify the active pi model.')
-    // Only a prompt that starts a turn: one sent mid-run joins that run,
-    // and a host control (`/phosphor-…`) starts none. Before the budget
-    // sync, because a reload drops the lane's capped context window.
+    let state = await readPromptState(live.client)
+    // Reload only while idle, and before staging: it can replace both model and settings.
     if (
       runtime.laneReload &&
-      !state.data.isStreaming &&
-      !state.data.isCompacting &&
+      !state.isStreaming &&
+      !state.isCompacting &&
       !command.message.startsWith('/phosphor-')
     ) {
       const reload = await runtime.laneReload.beforePrompt(id, live.client, live.workspacePath)
-      if (reload === 'applied' || reload === 'failed') forgetStagedBudget(live.client)
+      if (reload === 'applied' || reload === 'failed') {
+        forgetStagedBudget(live.client)
+        state = await readPromptState(live.client)
+      }
     }
-    if (state.data.model?.provider === 'pi-claude-cli')
+    if (state.model?.provider === 'pi-claude-cli')
       assertClaudeContextProvider(await runtime.packages(live.workspacePath))
-    if (!state.data.isStreaming)
-      await syncContextBudget(live.client, runtime.readBudget(), state.data)
+    // Pi decides whether to queue after its input hooks; a streaming snapshot
+    // cannot tell us the prompt will join. Skip only if the budget is current.
+    await syncContextBudget(live.client, runtime.readBudget(), state)
   }
 }
 
